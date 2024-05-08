@@ -1,0 +1,6 @@
+name = "ucc_test_reduce_scatter"
+description = "reduce_scatter"
+test_template_name = "UCCTest"
+
+[cmd_args]
+"collective" = "reduce_scatter"

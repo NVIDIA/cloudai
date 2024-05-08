@@ -1,0 +1,6 @@
+name = "ucc_test_allgather"
+description = "allgather"
+test_template_name = "UCCTest"
+
+[cmd_args]
+"collective" = "allgather"

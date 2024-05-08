@@ -1,0 +1,24 @@
+name = "ucc_test"
+
+[Tests.1]
+  name = "ucc_test_alltoall"
+
+[Tests.2]
+  name = "ucc_test_alltoall"
+  [Tests.2.dependencies]
+    start_post_comp = { name = "Tests.1", time = 0 }
+
+[Tests.3]
+  name = "ucc_test_alltoall"
+  [Tests.3.dependencies]
+    start_post_comp = { name = "Tests.2", time = 0 }
+
+[Tests.4]
+  name = "ucc_test_alltoall"
+  [Tests.4.dependencies]
+    start_post_comp = { name = "Tests.3", time = 0 }
+
+[Tests.5]
+  name = "ucc_test_alltoall"
+  [Tests.5.dependencies]
+    start_post_comp = { name = "Tests.4", time = 0 }

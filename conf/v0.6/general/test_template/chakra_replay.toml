@@ -1,0 +1,34 @@
+name = "ChakraReplay"
+
+[cmd_args]
+  [cmd_args.docker_image_url]
+  type = "str"
+  default = "DOCKER_IMAGE_URL"
+
+  [cmd_args.mpi]
+  type = "preset"
+  values = ["pmix"]
+  default = "pmix"
+
+  [cmd_args.num_nodes]
+  type = "int"
+  default = "2"
+
+  [cmd_args.trace_type]
+  type = "preset"
+  values = ["et"]
+  default = "et"
+
+  [cmd_args.trace_path]
+  type = "str"
+  default = ""
+
+  [cmd_args.backend]
+  type = "preset"
+  values = ["nccl"]
+  default = "nccl"
+
+  [cmd_args.device]
+  type = "preset"
+  values = ["cuda"]
+  default = "cuda"

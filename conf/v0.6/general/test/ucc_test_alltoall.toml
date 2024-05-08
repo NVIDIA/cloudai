@@ -1,0 +1,6 @@
+name = "ucc_test_alltoall"
+description = "alltoall"
+test_template_name = "UCCTest"
+
+[cmd_args]
+"collective" = "alltoall"

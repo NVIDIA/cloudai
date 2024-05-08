@@ -1,0 +1,7 @@
+name = "chakra_replay"
+description = "chakra_replay"
+test_template_name = "ChakraReplay"
+extra_cmd_args = "--reuse-tensors"
+
+[cmd_args]
+"trace_path" = "TRACE_PATH"

@@ -1,0 +1,104 @@
+name = "NeMoLauncher"
+
+[cmd_args]
+  [cmd_args.repository_url]
+  type = "str"
+  default = "NEMO_REPOSITORY_URL"
+
+  [cmd_args.repository_commit_hash]
+  type = "str"
+  default = "6528780fba8185bf61e7c2396fdd2331ee5933a1"
+
+  [cmd_args.docker_image_url]
+  type = "str"
+  default = "DOCKER_IMAGE_URL"
+
+  [cmd_args.stages]
+  type = "str"
+  default = '["training"]'
+
+  [cmd_args.data_dir]
+  type = "str"
+  default = "DATA_DIR"
+
+  [cmd_args.numa_mapping]
+    [cmd_args.numa_mapping.enable]
+    type = "bool"
+    default = "True"
+
+  [cmd_args.cluster]
+    [cmd_args.cluster.gpus_per_node]
+    type = "preset"
+    values = ["4", "8", "16"]
+    default = "8"
+
+  [cmd_args.training]
+  values = ["gpt3/43b"]
+  default = "gpt3/43b"
+    [cmd_args.training.exp_manager]
+      [cmd_args.training.exp_manager.create_checkpoint_callback]
+      type = "bool"
+      default = "False"
+
+    [cmd_args.training.trainer]
+      [cmd_args.training.trainer.num_nodes]
+      type = "preset"
+      values = ["4", "8", "16"]
+      default = "8"
+
+      [cmd_args.training.trainer.max_steps]
+      type = "preset"
+      values = ["100", "500", "1000", "2000"]
+      default = "100"
+
+      [cmd_args.training.trainer.val_check_interval]
+      type = "preset"
+      values = ["100", "500", "1000", "2000"]
+      default = "100"
+
+      [cmd_args.training.trainer.log_every_n_steps]
+      type = "preset"
+      values = ["1", "2"]
+      default = "1"
+
+      [cmd_args.training.trainer.enable_checkpointing]
+      type = "bool"
+      default = "False"
+
+    [cmd_args.training.model]
+      [cmd_args.training.model.global_batch_size]
+      type = "preset"
+      values = ["8", "16", "32", "128"]
+      default = "128"
+
+      [cmd_args.training.model.micro_batch_size]
+      type = "preset"
+      values = ["1", "2", "4"]
+      default = "2"
+
+      [cmd_args.training.model.tensor_model_parallel_size]
+      type = "preset"
+      values = ["4", "8", "16"]
+      default = "4"
+
+      [cmd_args.training.model.pipeline_model_parallel_size]
+      type = "preset"
+      values = ["2", "4", "8"]
+      default = "4"
+
+      [cmd_args.training.model.data]
+        [cmd_args.training.model.data.data_prefix]
+        type = "preset"
+        values = ['["1.0",\'${data_dir}/my-gpt3_00_text_document\']']
+        default = '["1.0",\'${data_dir}/my-gpt3_00_text_document\']'
+
+    [cmd_args.training.run]
+      [cmd_args.training.run.time_limit]
+      type = "preset"
+      values = ['"3:00:00"']
+      default = '"3:00:00"'
+
+      [cmd_args.training.run.name]
+      type = "preset"
+      values = ["run"]
+      default = "run"

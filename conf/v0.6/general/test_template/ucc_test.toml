@@ -1,0 +1,39 @@
+name = "UCCTest"
+
+[cmd_args]
+  [cmd_args.docker_image_url]
+  type = "str"
+  default = "DOCKER_IMAGE_URL"
+
+  [cmd_args.collective]
+  type = "preset"
+  values = ["allgather",
+            "allgatherv",
+            "allreduce",
+            "alltoall",
+            "alltoallv",
+            "barrier",
+            "bcast",
+            "gather",
+            "gatherv",
+            "reduce",
+            "reduce_scatter",
+            "reduce_scatterv",
+            "scatter",
+            "scatterv",
+            "memcpy",
+            "reducedt",
+            "reducedt_strided"]
+  default = "alltoall"
+
+  [cmd_args.num_nodes]
+  type = "int"
+  default = "2"
+
+  [cmd_args.b]
+  type = "str"
+  default = "1"
+
+  [cmd_args.e]
+  type = "str"
+  default = "8M"

@@ -1,0 +1,15 @@
+name = "nccl_test_reduce_scatter"
+description = "reduce_scatter"
+test_template_name = "NcclTest"
+extra_cmd_args = "--stepfactor 2"
+
+[cmd_args]
+"subtest_name" = "reduce_scatter_perf_mpi"
+"ngpus" = "1"
+"minbytes" = "128"
+"maxbytes" = "4G"
+"iters" = "100"
+"warmup_iters" = "50"
+
+[extra_env_vars]
+"NCCL_TEST_SPLIT_MASK" = "0x7"

@@ -1,0 +1,90 @@
+name = "NcclTest"
+
+[cmd_args]
+  [cmd_args.docker_image_url]
+  type = "str"
+  default = "DOCKER_IMAGE_URL"
+
+  [cmd_args.subtest_name]
+  type = "preset"
+  values = ["all_reduce_perf_mpi",
+            "all_gather_perf_mpi",
+            "alltoall_perf_mpi",
+            "broadcast_perf_mpi",
+            "gather_perf_mpi",
+            "hypercube_perf_mpi",
+            "reduce_perf_mpi",
+            "reduce_scatter_perf_mpi",
+            "scatter_perf_mpi",
+            "sendrecv_perf_mpi",
+            "bisection_perf_mpi"]
+  default = "all_reduce_perf_mpi"
+
+  [cmd_args.num_nodes]
+  type = "int"
+  default = "2"
+
+  [cmd_args.nthreads]
+  type = "int"
+  default = "1"
+
+  [cmd_args.ngpus]
+  type = "int"
+  default = "1"
+
+  [cmd_args.minbytes]
+  type = "str"
+  default = "32M"
+
+  [cmd_args.maxbytes]
+  type = "str"
+  default = "32M"
+
+  [cmd_args.stepbytes]
+  type = "str"
+  default = "1M"
+
+  [cmd_args.op]
+  type = "preset"
+  values = ["sum", "prod", "min", "max", "avg", "all"]
+  default = "sum"
+
+  [cmd_args.datatype]
+  type = "str"
+  default = "float"
+
+  [cmd_args.root]
+  type = "int"
+  default = "0"
+
+  [cmd_args.iters]
+  type = "int"
+  default = "20"
+
+  [cmd_args.warmup_iters]
+  type = "int"
+  default = "5"
+
+  [cmd_args.agg_iters]
+  type = "int"
+  default = "1"
+
+  [cmd_args.average]
+  type = "int"
+  default = "1"
+
+  [cmd_args.parallel_init]
+  type = "int"
+  default = "0"
+
+  [cmd_args.check]
+  type = "int"
+  default = "1"
+
+  [cmd_args.blocking]
+  type = "int"
+  default = "0"
+
+  [cmd_args.cudagraph]
+  type = "int"
+  default = "0"

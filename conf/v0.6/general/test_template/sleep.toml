@@ -1,0 +1,6 @@
+name = "Sleep"
+
+[cmd_args]
+  [cmd_args.seconds]
+  type = "int"
+  default = "5"

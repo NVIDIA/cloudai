@@ -1,0 +1,7 @@
+name = "ucc_test_allreduce"
+description = "allreduce"
+test_template_name = "UCCTest"
+
+[cmd_args]
+"collective" = "allreduce"
+"e" = "4G"

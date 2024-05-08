@@ -1,0 +1,10 @@
+name = "nemo_launcher_with_noise"
+
+[Tests.1]
+  name = "nemo_launcher"
+  weight = 100
+
+[Tests.2]
+  name = "nccl_test_bisection"
+  [Tests.2.dependencies]
+    start_post_init = { name = "Tests.1", time = 450 }

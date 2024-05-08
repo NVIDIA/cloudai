@@ -1,0 +1,5 @@
+name = "chakra_replay"
+
+[Tests]
+  [Tests.1]
+    name = "chakra_replay"

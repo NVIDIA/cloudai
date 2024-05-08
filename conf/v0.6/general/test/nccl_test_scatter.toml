@@ -1,0 +1,6 @@
+name = "nccl_test_scatter"
+description = "scatter"
+test_template_name = "NcclTest"
+
+[cmd_args]
+"subtest_name" = "scatter_perf_mpi"

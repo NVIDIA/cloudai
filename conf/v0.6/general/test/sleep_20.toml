@@ -1,0 +1,6 @@
+name = "sleep_20"
+description = "sleep_20"
+test_template_name = "Sleep"
+
+[cmd_args]
+"seconds" = '20'
