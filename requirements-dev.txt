@@ -3,3 +3,4 @@ pytest==8.1.1
 ruff==0.3.7
 pandas-stubs==2.2.*
 pyright==1.1.359
+build==1.2.*
