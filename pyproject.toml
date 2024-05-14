@@ -21,3 +21,6 @@ select = ["I", "B", "E", "F", "SIM", "W", "C90", "EXE"]
 
 [tool.ruff.format]
 indent-style = "space"
+
+[tool.pytest.ini_options]
+test_dir = "tests"
