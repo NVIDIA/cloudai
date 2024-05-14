@@ -32,7 +32,7 @@ jobs:
         run: pyright .
 
       - name: Run vulture check
-        run: vulture cloudai/ tests/ ci_tools/ --min-confidence 100
+        run: vulture src/ tests/ ci_tools/ --min-confidence 100
 
   test:
     name: Run pytest
