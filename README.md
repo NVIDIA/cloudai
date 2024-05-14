@@ -33,33 +33,33 @@ Cloud AI supports five modes: install, dry-run, run, generate-report, and uninst
 * Use the generate-report mode to generate reports under the test directories alongside the raw data.
 * Use the uninstall mode to remove installed test templates.
 
-To install test templates, run main.py in install mode.
+To install test templates, run Cloud AI CLI in install mode.
 Please make sure to use the correct system configuration file that corresponds to your current setup for installation and experiments.
 ```bash
-python main.py\
+cloudai\
     --mode install\
     --system_config_path conf/v0.6/general/system/example_slurm_cluster.toml
 ```
 
 To simulate running experiments without execution, use the dry-run mode:
 ```bash
-python main.py\
+cloudai\
     --mode dry-run\
     --system_config_path conf/v0.6/general/system/example_slurm_cluster.toml\
     --test_scenario_path conf/v0.6/general/test_scenario/sleep/test_scenario.toml
 ```
 
-To run experiments, execute main.py in run mode:
+To run experiments, execute Cloud AI CLI in run mode:
 ```bash
-python main.py\
+cloudai\
     --mode run\
     --system_config_path conf/v0.6/general/system/example_slurm_cluster.toml\
     --test_scenario_path conf/v0.6/general/test_scenario/sleep/test_scenario.toml
 ```
 
-To generate reports, execute main.py in generate-report mode:
+To generate reports, execute Cloud AI CLI in generate-report mode:
 ```bash
-python main.py\
+cloudai\
     --mode generate-report\
     --system_config_path conf/v0.6/general/system/example_slurm_cluster.toml\
     --output_path /path/to/output_directory
@@ -67,9 +67,9 @@ python main.py\
 In the generate-report mode, use the --output_path argument to specify a subdirectory under the result directory.
 This subdirectory is usually named with a timestamp for unique identification.
 
-To uninstall test templates, run main.py in uninstall mode:
+To uninstall test templates, run Cloud AI CLI in uninstall mode:
 ```bash
-python main.py\
+cloudai\
     --mode uninstall\
     --system_config_path conf/v0.6/general/system/example_slurm_cluster.toml
 ```
