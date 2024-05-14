@@ -49,6 +49,7 @@ class JaxToolboxReportGenerationStrategy(ReportGenerationStrategy):
                 "max": max(times),
                 "average": sum(times) / len(times),
                 "median": statistics.median(times),
+                "stdev": statistics.stdev(times) if len(times) > 1 else 0,
             }
             self._write_report(directory_path, stats)
 
