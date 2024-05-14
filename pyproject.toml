@@ -9,6 +9,9 @@ dependencies = [
     "toml==0.10.2",
 ]
 
+[project.scripts]
+cloudai = "cloudai.__main__:main"
+
 [tool.ruff]
 target-version = "py39"
 line-length = 120
