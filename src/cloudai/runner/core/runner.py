@@ -61,8 +61,6 @@ class Runner:
         """
 
         def decorator(runner_class: Type[BaseRunner]) -> Type[BaseRunner]:
-            if system_type in cls._runners:
-                raise KeyError(f"Runner for {system_type} already registered.")
             cls._runners[system_type] = runner_class
             return runner_class
 
