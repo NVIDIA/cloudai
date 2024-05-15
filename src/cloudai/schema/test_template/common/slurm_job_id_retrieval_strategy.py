@@ -20,14 +20,11 @@ from cloudai.schema.system import SlurmSystem
 
 from ..chakra_replay.template import ChakraReplay
 from ..jax_toolbox.template import JaxToolbox
-from ..nccl_miner.template import NcclMiner
 from ..nccl_test.template import NcclTest
 from ..ucc_test.template import UCCTest
 
 
-@StrategyRegistry.strategy(
-    JobIdRetrievalStrategy, [SlurmSystem], [ChakraReplay, JaxToolbox, NcclMiner, NcclTest, UCCTest]
-)
+@StrategyRegistry.strategy(JobIdRetrievalStrategy, [SlurmSystem], [ChakraReplay, JaxToolbox, NcclTest, UCCTest])
 class SlurmJobIdRetrievalStrategy(JobIdRetrievalStrategy):
     """
     Strategy for retrieving job IDs from Slurm job submission outputs.
