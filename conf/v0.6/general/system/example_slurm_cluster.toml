@@ -3,7 +3,7 @@ scheduler = "slurm"
 
 install_path = "./install"
 output_path = "./results"
-default_partition = "DEFAULT_PARTITION"
+default_partition = "partition_1"
 
 gpus_per_node = 8
 ntasks_per_node = 8
