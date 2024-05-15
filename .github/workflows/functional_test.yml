@@ -1,0 +1,41 @@
+name: Functional Tests
+
+on: [push, pull_request]
+
+jobs:
+    test:
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                include:
+                    - scenario_path: "conf/v0.6/general/test_scenario/nccl_test/test_scenario.toml"
+                      expected_output_path: "ci_tools/functional_tests/scenarios_expected_outputs/nccl_test"
+                    # Add your new test here
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                python-version: 3.9
+                cache: 'pip'
+                cache-dependency-path: |
+                  **/requirements*.txt
+
+
+            - name: Install dependencies
+              run: |
+                  pip install -r requirements-dev.txt
+                  pip install -r requirements.txt
+                  pip install .
+
+
+            - name: Run tests
+              run: |
+                  bash ci_tools/functional_tests/run_functional_test.sh  ${{ matrix.scenario_path }} ${{ matrix.expected_output_path }}
+                  if [ $? -ne 0 ]; then
+                  echo "Test ${{ matrix.scenario_path }} failed"
+                  exit 1
+                  fi
