@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+
+  lint:
+    name: Linting
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.9
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run ruff linter
+        run: ruff check .
+
+      - name: Run ruff formatter
+        run: ruff format --check --diff .
+
+      - name: Run pyright
+        run: pyright .
+
+      - name: Run vulture check
+        run: vulture src/ tests/ ci_tools/ --min-confidence 100
+
+  test:
+    name: Run pytest
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.9
+
+      - name: Install dependencies
+        run: pip install pytest -r requirements-dev.txt
+
+      - name: Run pytest
+        run: pytest -vv

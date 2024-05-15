@@ -1,6 +1,7 @@
 #!/bin/bash
 
 VERBOSE=true
+CLOUDAI_PATH="./src/"
 
 if [ $# -ne 2 ]; then
     echo "Usage: $0 <test_scenario_path> <expected_output_path>"
@@ -51,9 +52,12 @@ dirs_diff() {
     fi
 }
 
+export PYTHONPATH=$PYTHONPATH:$CLOUDAI_PATH
+scenario_path=$1
+expected_output_path=$2
 
-scenario_path="$1"
-expected_output_path="$2"
+$VERBOSE && echo "Scenario dir: $scenario_path"
+$VERBOSE && echo "Expected output dir: $expected_output_path"
 
 if [ ! -f "$scenario_path" ]; then
     >&2 echo "Error: Scenario $scenario is not valid, can't find path $scenario_path."
@@ -64,10 +68,15 @@ fi
 
 last_result_before=$(ls results/ -la -X | tail -n 3 | head -n 1 | awk '{print $NF}')
 
-python main.py \
+python -m cloudai \
     --mode dry-run\
     --system_config_path "ci_tools/functional_tests/system_config.toml" \
     --test_scenario_path $scenario_path
+
+if [ $? -ne 0 ]; then
+    echo "Tests failed"
+    exit 1
+fi
 
 last_result=$(ls results/ -la -X | tail -n 3 | head -n 1 | awk '{print $NF}')
 
@@ -76,7 +85,7 @@ if [ "$last_result_before" == "$last_result" ]; then
     exit 1
 fi
 
-last_result_path="results/$last_result"
+last_result_path="results/$last_result/"
 
 dirs_diff "$expected_output_path" "$last_result_path"
 is_diff=$?
