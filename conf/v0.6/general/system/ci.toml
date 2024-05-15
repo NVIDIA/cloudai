@@ -1,0 +1,45 @@
+name = "example-cluster"
+scheduler = "slurm"
+
+install_path = "/path/to/install"
+output_path = "/path/to/results"
+default_partition = "partition_1"
+
+gpus_per_node = 8
+ntasks_per_node = 8
+
+[partitions]
+  [partitions.partition_1]
+  name = "partition_1"
+  nodes = ["node-[001-100]"]
+
+  [partitions.partition_2]
+  name = "partition_2"
+  nodes = ["node-[101-200]"]
+
+  [partitions.partition_1.groups]
+    [partitions.partition_1.groups.group_1]
+    name = "group_1"
+    nodes = ["node-[001-025]"]
+
+    [partitions.partition_1.groups.group_2]
+    name = "group_2"
+    nodes = ["node-[026-050]"]
+
+    [partitions.partition_1.groups.group_3]
+    name = "group_3"
+    nodes = ["node-[051-075]"]
+
+    [partitions.partition_1.groups.group_4]
+    name = "group_4"
+    nodes = ["node-[076-100]"]
+
+[global_env_vars]
+  # NCCL Specific Configurations
+  NCCL_IB_GID_INDEX = "3"
+  NCCL_IB_TIMEOUT = "20"
+  NCCL_IB_QPS_PER_CONNECTION = "4"
+
+  # Device Visibility Configuration
+  MELLANOX_VISIBLE_DEVICES = "0,3,4,5,6,9,10,11"
+  CUDA_VISIBLE_DEVICES = "0,1,2,3,4,5,6,7"

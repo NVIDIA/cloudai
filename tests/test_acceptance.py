@@ -1,23 +1,93 @@
+"""
+Execute a scenario in dry-run mode and compare the results folder with an
+expected output folder, if any difference is found in one of the files,
+the test fails. Note that the empty lines and commented lines
+(the ones that start with #) are not taken into account when computing the
+difference.
+Expected output can be None, in this case the output won't be compared and basic tests will be performed instead
+
+# How to add a new test:
+
+- Create the desired scenario
+- Create a new folder under tests/expected_outputs/test_acceptance/ named after the name
+of this test and fill it with the expected output of the scenario
+(you can copy the output of a valid dry run)
+- Add the path to the scenario and to this expected output folder to SLURM_TEST_SCENARIOS below
+"""
+
 import argparse
 from pathlib import Path
+from typing import Optional
 
 import pytest
 from cloudai.__main__ import handle_dry_run_and_run
 
 SLURM_TEST_SCENARIOS = [
-    Path("conf/v0.6/general/test_scenario/sleep/test_scenario.toml"),
-    Path("conf/v0.6/general/test_scenario/ucc_test/test_scenario.toml"),
+    {
+        "scenario": Path("conf/v0.6/general/test_scenario/nccl_test/test_scenario.toml"),
+        "expected_output": Path("tests/expected_outputs/test_acceptance/nccl_test"),
+    },
+    {
+        "scenario": Path("conf/v0.6/general/test_scenario/sleep/test_scenario.toml"),
+        "expected_output": None,
+    },
+    {
+        "scenario": Path("conf/v0.6/general/test_scenario/ucc_test/test_scenario.toml"),
+        "expected_output": Path("tests/expected_outputs/test_acceptance/ucc_test"),
+    },
 ]
 
 
-@pytest.mark.parametrize("test_scenario_path", SLURM_TEST_SCENARIOS, ids=lambda x: str(x))
-def test_slurm(tmp_path: Path, test_scenario_path: Path):
+def read_wout_comments(f):
+    with open(f) as fp:
+        return "\n".join(line.strip() for line in fp.readlines() if line.strip() and not line.strip().startswith("#"))
+
+
+def diff_dirs(dir1: Path, dir2: Path) -> bool:
+    """Recursively compare the two directories and check if the files are all the same
+    This function ignore empty lines and commented lines
+    """
+    ok = True
+    if not (dir1.is_dir() and dir2.is_dir()):
+        print(f"One of the directory is invalid ({dir1=}, {dir2=})")
+        return False
+
+    if len(list(dir1.iterdir())) != len(list(dir2.iterdir())):
+        print(f"Dirs {dir1} and {dir2} have different number of files")
+        ok = False
+
+    for p in dir1.iterdir():
+        sib_p = dir2.joinpath(p.name)
+        if p.is_dir() and not diff_dirs(p, sib_p):
+            ok = False
+        elif p.is_file():
+            if not sib_p.is_file():
+                print(f"File {sib_p} doesn't exist but its sibling {p} does")
+                ok = False
+            if read_wout_comments(p) != read_wout_comments(sib_p):
+                print(f"Different content in files {p} and {sib_p}")
+                print("*" * 50)
+                print(read_wout_comments(p))
+                print("<" * 50)
+                print(read_wout_comments(sib_p))
+                print("*" * 50)
+                ok = False
+
+    return ok
+
+
+@pytest.mark.parametrize(
+    "test_scenario_path, expected_output",
+    [(e["scenario"], e["expected_output"]) for e in SLURM_TEST_SCENARIOS],
+    ids=lambda x: str(x),
+)
+def test_slurm(tmp_path: Path, test_scenario_path: Path, expected_output: Optional[Path]):
     args = argparse.Namespace(
         log_file=None,
         log_level=None,
         mode="dry-run",
         output_path=str(tmp_path),
-        system_config_path="conf/v0.6/general/system/example_slurm_cluster.toml",
+        system_config_path="conf/v0.6/general/system/ci.toml",
         test_scenario_path=str(test_scenario_path),
         test_path="conf/v0.6/general/test",
         test_template_path="conf/v0.6/general/test_template",
@@ -25,6 +95,10 @@ def test_slurm(tmp_path: Path, test_scenario_path: Path):
     handle_dry_run_and_run(args)
 
     test_dir = list(tmp_path.glob("*"))[0]
-    for td in test_dir.iterdir():
-        assert td.is_dir(), "Invalid test directory"
-        assert "Tests." in td.name, "Invalid test directory name"
+
+    if expected_output is not None:
+        assert diff_dirs(test_dir, expected_output), "Output is not as expected"
+    else:
+        for td in test_dir.iterdir():
+            assert td.is_dir(), "Invalid test directory"
+            assert "Tests." in td.name, "Invalid test directory name"
