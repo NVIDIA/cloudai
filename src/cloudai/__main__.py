@@ -18,7 +18,7 @@ import logging
 import os
 import sys
 
-from cloudai import Grader, Installer, Parser, ReportGenerator, Runner, SystemObjectUpdater
+from cloudai import Installer, Parser, ReportGenerator, Runner, SystemObjectUpdater
 
 
 def setup_logging(log_file: str, log_level: str) -> None:
@@ -191,9 +191,6 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> None:
         generator = ReportGenerator(runner.runner.output_path)
         generator.generate_report(test_scenario)
 
-        grader = Grader(runner.runner.output_path)
-        grader.grade(test_scenario)
-
 
 def handle_generate_report(args: argparse.Namespace) -> None:
     """
@@ -214,10 +211,6 @@ def handle_generate_report(args: argparse.Namespace) -> None:
 
     generator = ReportGenerator(args.output_path)
     generator.generate_report(test_scenario)
-
-    grader = Grader(args.output_path)
-    report = grader.grade(test_scenario)
-    print(report)
 
     print("Report generation completed.")
 
