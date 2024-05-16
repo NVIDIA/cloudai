@@ -6,9 +6,9 @@ from cloudai.parser.core.base_system_parser import BaseSystemParser
 class Singleton(type):
     _instance = None
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, name, bases, dct):
         if not isinstance(cls._instance, cls):
-            cls._instance = type.__new__(cls, *args, **kwargs)
+            cls._instance = super().__new__(cls, name, bases, dct)
         return cls._instance
 
 
