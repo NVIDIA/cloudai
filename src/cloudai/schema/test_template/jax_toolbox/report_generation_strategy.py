@@ -49,38 +49,41 @@ class JaxToolboxReportGenerationStrategy(ReportGenerationStrategy):
                 "max": max(times),
                 "average": sum(times) / len(times),
                 "median": statistics.median(times),
+                "stdev": statistics.stdev(times) if len(times) > 1 else 0,
             }
             self._write_report(directory_path, stats)
 
     def _extract_times(self, directory_path: str) -> List[float]:
         """
         Extracts elapsed times from all error files matching the pattern in the directory,
-        excluding the first time value recorded in each file.
+        starting after the 10th occurrence of a line matching the "[PAX STATUS]: train_step() took" pattern.
 
         Args:
             directory_path (str): Directory containing error files.
 
         Returns:
-            List[float]: List of extracted times as floats, after excluding the first time from each file.
+            List[float]: List of extracted times as floats, starting from the epoch after the 10th occurrence.
         """
         times = []
         error_files = glob.glob(os.path.join(directory_path, "error-*.txt"))
         for stderr_path in error_files:
             file_times = []
+            epoch_count = 0
             with open(stderr_path, "r") as file:
                 for line in file:
-                    if "Elapsed time for" in line and "run" in line and ":434" in line:
-                        parts = line.split()
-                        time_str = parts[parts.index("<run>:") + 1]
-                        try:
-                            time_value = float(time_str.split("seconds")[0])
-                            file_times.append(time_value)
-                        except ValueError:
-                            continue  # Skip any lines where conversion fails
+                    if "[PAX STATUS]: train_step() took" in line:
+                        epoch_count += 1
+                        if epoch_count > 10:  # Start recording times after 10 epochs
+                            # Extract the time value right after the keyword
+                            parts = line.split("took")
+                            time_str = parts[1].strip().split("seconds")[0].strip()
+                            try:
+                                time_value = float(time_str)
+                                file_times.append(time_value)
+                            except ValueError:
+                                continue  # Skip any lines where conversion fails
 
-            # Exclude the first time record from each file if it exists
-            if file_times:
-                times.extend(file_times[1:])
+            times.extend(file_times)
 
         return times
 
