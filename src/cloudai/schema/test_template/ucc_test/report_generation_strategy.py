@@ -126,4 +126,4 @@ class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
             sol=sol,
         )
 
-        report_tool.finalize_report("ucc_test_bokeh_report.html")
+        report_tool.finalize_report("cloudai_ucc_test_bokeh_report.html")

@@ -135,4 +135,4 @@ class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
             sol=sol,
         )
 
-        report_tool.finalize_report("nccl_test_bokeh_report.html")
+        report_tool.finalize_report("cloudai_nccl_test_bokeh_report.html")
