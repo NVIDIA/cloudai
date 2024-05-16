@@ -62,4 +62,4 @@ class NeMoLauncherReportGenerationStrategy(ReportGenerationStrategy):
                     color="black",
                 )
 
-        report_tool.finalize_report("nemo_launcher_bokeh_report.html")
+        report_tool.finalize_report("cloudai_nemo_launcher_bokeh_report.html")
