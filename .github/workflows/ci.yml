@@ -52,4 +52,4 @@ jobs:
         run: pip install pytest -r requirements-dev.txt
 
       - name: Run pytest
-        run: pytest -vv
+        run: pytest -vv --cov

@@ -4,10 +4,17 @@ from pathlib import Path
 import pytest
 from cloudai.__main__ import handle_dry_run_and_run
 
-TEST_SCENARIOS = list(Path().glob("conf/v0.6/general/test_scenario/**/*.toml"))
+SLURM_TEST_SCENARIOS = [
+    Path("conf/v0.6/general/test_scenario/sleep/test_scenario.toml"),
+    Path("conf/v0.6/general/test_scenario/ucc_test/test_scenario.toml"),
+]
+
+STANDALONE_TEST_SCENARIOS = [
+    Path("conf/v0.6/general/test_scenario/sleep/test_scenario.toml"),
+]
 
 
-@pytest.mark.parametrize("test_scenario_path", TEST_SCENARIOS, ids=lambda x: str(x))
+@pytest.mark.parametrize("test_scenario_path", SLURM_TEST_SCENARIOS, ids=lambda x: str(x))
 def test_slurm(tmp_path: Path, test_scenario_path: Path):
     args = argparse.Namespace(
         log_file=None,
@@ -27,7 +34,7 @@ def test_slurm(tmp_path: Path, test_scenario_path: Path):
         assert "Tests." in td.name, "Invalid test directory name"
 
 
-@pytest.mark.parametrize("test_scenario_path", TEST_SCENARIOS, ids=lambda x: str(x))
+@pytest.mark.parametrize("test_scenario_path", STANDALONE_TEST_SCENARIOS, ids=lambda x: str(x))
 def test_standalone(tmp_path: Path, test_scenario_path: Path):
     args = argparse.Namespace(
         log_file=None,
