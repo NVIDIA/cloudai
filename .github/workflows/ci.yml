@@ -53,3 +53,25 @@ jobs:
 
       - name: Run pytest
         run: pytest -vv --cov
+
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.9
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Upload Coverage to Codecov
+        uses: orgoro/coverage@v3.1
+        with:
+          coverageFile: coverage-report/coverage.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
