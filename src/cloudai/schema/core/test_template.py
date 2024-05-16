@@ -49,6 +49,8 @@ class TestTemplate:
             based on test outcomes.
     """
 
+    __test__ = False
+
     def __init__(
         self,
         system: System,
