@@ -15,7 +15,7 @@
 import getpass
 import logging
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from cloudai.schema.core import System
 from cloudai.util import CommandShell
@@ -493,61 +493,113 @@ class SlurmSystem(System):
         """
         self.cmd_shell.execute(f"scancel {job_id}")
 
-    def update_node_states(self) -> None:  # noqa: C901
+    def update_node_states(self) -> None:
         """
-        Updates the states of nodes in the Slurm system by querying the current
-        state of each node using the 'sinfo' command, and correlates this with
-        'squeue' to determine which user is running jobs on each node. The method
-        parses the output of these commands, identifies the state of nodes and the
+        Updates the states of nodes in the Slurm system by querying the current state of each node using
+        the 'sinfo' command, and correlates this with 'squeue' to determine which user is running jobs on
+        each node. This method parses the output of these commands, identifies the state of nodes and the
         users, and updates the corresponding SlurmNode instances in the system.
-
-        This method does not return any value. It updates the internal state of
-        SlurmNode instances based on the current state and user information
-        reported by 'sinfo' and 'squeue'.
         """
-        node_user_map = {}
-        squeue_command = "squeue -o '%N|%u' --noheader"
-        self.logger.debug(f"Updating node user information with command: {squeue_command}")
-        squeue_stdout, squeue_stderr = self.cmd_shell.execute(squeue_command).communicate()
-        if squeue_stderr:
-            self.logger.error(f"Error querying node user information: {squeue_stderr}")
-            return
+        squeue_output = self.get_squeue()
+        sinfo_output = self.get_sinfo()
+        node_user_map = self.parse_squeue_output(squeue_output)
+        self.parse_sinfo_output(sinfo_output, node_user_map)
 
-        for line in squeue_stdout.split("\n"):
-            if line.strip():
-                node_list, user = line.split("|")
-                for node in self.parse_node_list([node_list]):
-                    node_user_map[node] = user
+    def get_squeue(self) -> str:
+        """
+        Fetches the output from the 'squeue' command.
 
-        command = "sinfo"
-        self.logger.debug(f"Updating node states with command: {command}")
+        Returns:
+            str: The stdout from the 'squeue' command execution.
+        """
+        squeue_output, _ = self.fetch_command_output("squeue -o '%N|%u' --noheader")
+        return squeue_output
+
+    def get_sinfo(self) -> str:
+        """
+        Fetches the output from the 'sinfo' command.
+
+        Returns:
+            str: The stdout from the 'sinfo' command execution.
+        """
+        sinfo_output, _ = self.fetch_command_output("sinfo")
+        return sinfo_output
+
+    def fetch_command_output(self, command: str) -> Tuple[str, str]:
+        """
+        Execute a system command and return its output.
+
+        Args:
+            command (str): The command to execute.
+
+        Returns:
+            Tuple[str, str]: The stdout and stderr from the command execution.
+        """
+        self.logger.debug(f"Executing command: {command}")
         stdout, stderr = self.cmd_shell.execute(command).communicate()
         if stderr:
-            self.logger.error(f"Error querying node states: {stderr}")
-            return
+            self.logger.error(f"Error executing command '{command}': {stderr}")
+        return stdout, stderr
 
-        # Parsing the output of 'sinfo' to update node states
-        for line in stdout.split("\n")[1:]:  # Skip the header line
+    def parse_squeue_output(self, squeue_output: str) -> Dict[str, str]:
+        """
+        Parse the output from the 'squeue' command to map nodes to users.
+
+        The expected format of squeue_output is lines of 'node_spec|user', where
+        node_spec can include comma-separated node names or ranges.
+
+        Args:
+            squeue_output (str): The raw output from the squeue command.
+
+        Returns:
+            Dict[str, str]: A dictionary mapping node names to usernames.
+        """
+        node_user_map = {}
+        for line in squeue_output.split("\n"):
+            if line.strip():
+                # Split the line into node list and user, handling only the first '|'
+                parts = line.split("|")
+                if len(parts) < 2:
+                    continue  # Skip malformed lines
+
+                node_list_part, user = parts[0], "|".join(parts[1:])
+                # Handle cases where multiple node groups or ranges are specified
+                node_groups = node_list_part.split(",")
+                for node_group in node_groups:
+                    # Process each node or range using parse_node_list
+                    for node in self.parse_node_list([node_group.strip()]):
+                        node_user_map[node] = user.strip()
+
+        return node_user_map
+
+    def parse_sinfo_output(self, sinfo_output: str, node_user_map: Dict[str, str]) -> None:
+        """
+        Parse the output from the 'sinfo' command to update node states.
+
+        Args:
+            sinfo_output (str): The output from the sinfo command.
+            node_user_map (dict): A dictionary mapping node names to users.
+        """
+        for line in sinfo_output.split("\n")[1:]:  # Skip the header line
             if not line.strip():
-                continue  # Skip empty lines
+                continue
             parts = line.split()
             partition, _, _, _, state, nodelist = parts[:6]
             partition = partition.rstrip("*")
-            node_names = self.parse_node_list([nodelist])
 
-            # Convert state to enum, handling states with suffixes
-            state_enum = self.convert_state_to_enum(state)
+            node_groups = nodelist.split(",")
+            for node_group in node_groups:
+                node_names = self.parse_node_list([node_group.strip()])
+                state_enum = self.convert_state_to_enum(state)
 
-            for node_name in node_names:
-                # Find the partition and node to update the state
-                for part_name, nodes in self.partitions.items():
-                    if part_name != partition:
-                        continue
-                    for node in nodes:
-                        if node.name == node_name:
-                            node.state = state_enum
-                            node.user = node_user_map.get(node_name, "N/A")
-                            break
+                for node_name in node_names:
+                    for part_name, nodes in self.partitions.items():
+                        if part_name != partition:
+                            continue
+                        for node in nodes:
+                            if node.name == node_name:
+                                node.state = state_enum
+                                node.user = node_user_map.get(node_name, "N/A")
 
     def convert_state_to_enum(self, state_str: str) -> SlurmNodeState:
         """
