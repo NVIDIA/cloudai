@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 from cloudai.schema.system import SlurmSystem
 from cloudai.schema.system.slurm import SlurmNode, SlurmNodeState
@@ -48,9 +50,13 @@ def test_parse_sinfo_output(slurm_system):
     assert slurm_system.partitions["main"][1].state == SlurmNodeState.IDLE
 
 
-def test_update_node_states_with_mocked_outputs(slurm_system):
-    squeue_output = "nodeA001|root"
-    sinfo_output = "PARTITION AVAIL TIMELIMIT NODES STATE NODELIST\nmain up infinite 1 idle nodeA001"
-    slurm_system.update_node_states(squeue_output=squeue_output, sinfo_output=sinfo_output)
+@patch("cloudai.schema.system.SlurmSystem.get_squeue")
+@patch("cloudai.schema.system.SlurmSystem.get_sinfo")
+def test_update_node_states_with_mocked_outputs(mock_get_sinfo, mock_get_squeue, slurm_system):
+    mock_get_squeue.return_value = "nodeA001|root"
+    mock_get_sinfo.return_value = "PARTITION AVAIL TIMELIMIT NODES STATE NODELIST\n" "main up infinite 1 idle nodeA001"
+
+    slurm_system.update_node_states()
+
     assert slurm_system.partitions["main"][0].state == SlurmNodeState.IDLE
     assert slurm_system.partitions["main"][0].user == "root"

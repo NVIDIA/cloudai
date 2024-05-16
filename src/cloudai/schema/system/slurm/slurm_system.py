@@ -493,22 +493,15 @@ class SlurmSystem(System):
         """
         self.cmd_shell.execute(f"scancel {job_id}")
 
-    def update_node_states(self, squeue_output: Optional[str] = None, sinfo_output: Optional[str] = None) -> None:
+    def update_node_states(self) -> None:
         """
         Updates the states of nodes in the Slurm system by querying the current state of each node using
         the 'sinfo' command, and correlates this with 'squeue' to determine which user is running jobs on
         each node. This method parses the output of these commands, identifies the state of nodes and the
         users, and updates the corresponding SlurmNode instances in the system.
-
-        Args:
-            squeue_output (str): The output from the squeue command, if already fetched.
-            sinfo_output (str): The output from the sinfo command, if already fetched.
         """
-        if squeue_output is None:
-            squeue_output = self.get_squeue()
-        if sinfo_output is None:
-            sinfo_output = self.get_sinfo()
-
+        squeue_output = self.get_squeue()
+        sinfo_output = self.get_sinfo()
         node_user_map = self.parse_squeue_output(squeue_output)
         self.parse_sinfo_output(sinfo_output, node_user_map)
 
