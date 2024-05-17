@@ -16,8 +16,6 @@ from cloudai.runner.core import BaseJob
 
 
 class SlurmJob(BaseJob):
-    """
-    Represents a job in a Slurm environment.
-    """
+    """Represents a job in a Slurm environment."""
 
     pass

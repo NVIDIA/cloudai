@@ -21,9 +21,7 @@ from .template import ChakraReplay
 
 @StrategyRegistry.strategy(InstallStrategy, [SlurmSystem], [ChakraReplay])
 class ChakraReplaySlurmInstallStrategy(SlurmInstallStrategy):
-    """
-    Installation strategy for CommsTraceReplay on Slurm systems.
-    """
+    """Installation strategy for CommsTraceReplay on Slurm systems."""
 
     def is_installed(self) -> bool:
         return True

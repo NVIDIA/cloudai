@@ -16,8 +16,6 @@ from cloudai.runner.core import BaseJob
 
 
 class StandaloneJob(BaseJob):
-    """
-    Represents a job in a Standalone environment.
-    """
+    """Represents a job in a Standalone environment."""
 
     pass

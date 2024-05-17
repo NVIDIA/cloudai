@@ -22,7 +22,7 @@ class TensorBoardDataReader:
     """
     Reads scalar data from TensorBoard log files for specified tags.
 
-    Attributes:
+    Attributes
         directory_path (str): Path to the directory containing TensorBoard logs.
     """
 
@@ -31,8 +31,7 @@ class TensorBoardDataReader:
 
     def extract_data(self, tag: str) -> List[Tuple[int, float]]:
         """
-        Extracts scalar data for a given tag from all TensorBoard log files
-        found in the directory.
+        Extract scalar data for a given tag from all TensorBoard log files found in the directory.
 
         Args:
             tag (str): The tag of the data to extract.

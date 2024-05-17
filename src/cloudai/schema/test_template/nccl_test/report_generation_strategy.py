@@ -29,8 +29,9 @@ from .template import NcclTest
 @StrategyRegistry.strategy(ReportGenerationStrategy, [SlurmSystem], [NcclTest])
 class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
     """
-    Strategy for generating reports from NCCL test outputs, visualizing bus
-    bandwidth changes over epochs using interactive Bokeh plots.
+    Strategy for generating reports from NCCL test outputs.
+
+    Visualizing bus bandwidth changes over epochs using interactive Bokeh plots.
     """
 
     def can_handle_directory(self, directory_path: str) -> bool:
@@ -79,7 +80,7 @@ class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
 
     def _parse_output(self, directory_path: str) -> Tuple[List[List[str]], Optional[float]]:
         """
-        Extracts data from 'stdout.txt' for report generation.
+        Extract data from 'stdout.txt' for report generation.
 
         Args:
             directory_path (str): Directory containing 'stdout.txt'.
@@ -100,7 +101,7 @@ class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
 
     def _generate_plots(self, df: pd.DataFrame, directory_path: str, sol: Optional[float]) -> None:
         """
-        Creates and saves plots to visualize NCCL test metrics.
+        Create and saves plots to visualize NCCL test metrics.
 
         Args:
             df (pd.DataFrame): DataFrame containing the NCCL test data.

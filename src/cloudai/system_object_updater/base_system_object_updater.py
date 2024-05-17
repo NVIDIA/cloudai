@@ -18,9 +18,7 @@ from cloudai.schema.core import System
 
 
 class BaseSystemObjectUpdater(ABC):
-    """
-    Abstract base class for system object updaters.
-    """
+    """Abstract base class for system object updaters."""
 
     @abstractmethod
     def update(self, system: System) -> None:

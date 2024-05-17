@@ -22,10 +22,9 @@ from cloudai.schema.core import Test, TestScenario
 
 class Grader:
     """
-    Class responsible for grading the performance of tests within a test
-    scenario and generating a report.
+    Class responsible for grading the performance of tests within a test scenario and generating a report.
 
-    Attributes:
+    Attributes
         output_path (str): The path where the performance results are stored.
         logger (logging.Logger): Logger for the class, used to log messages
                                  related to the grading process.
@@ -37,8 +36,9 @@ class Grader:
 
     def grade(self, test_scenario: TestScenario) -> str:
         """
-        Performs grading based on performance metrics for each test in the
-        given test scenario, considering the weight of each test, and
+        Perform grading based on performance metrics.
+
+        Done for each test in the given test scenario, considering the weight of each test, and
         generates a comprehensive weighted report.
 
         Args:
@@ -71,8 +71,7 @@ class Grader:
 
     def _get_perfs_from_subdirs(self, directory_path: str, test: Test) -> List[float]:
         """
-        Averages performance values from subdirectories within a given path,
-        according to the test's grading template.
+        Average performance values from subdirectories within a given path, according to the test's grading template.
 
         Args:
             directory_path (str): Directory path.
@@ -92,7 +91,7 @@ class Grader:
 
     def _generate_report(self, test_perfs: Dict[str, List[float]], overall_avg: float) -> str:
         """
-        Generates a human-readable report from test performance metrics.
+        Generate a human-readable report from test performance metrics.
 
         Args:
             test_perfs (Dict[str, List[float]]): The performance metrics for
@@ -110,7 +109,7 @@ class Grader:
 
     def _save_report(self, report: str) -> None:
         """
-        Saves the generated report to a CSV file at the output path.
+        Save the generated report to a CSV file at the output path.
 
         Args:
             report (str): The report to save.

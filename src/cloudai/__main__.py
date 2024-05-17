@@ -23,7 +23,7 @@ from cloudai import Installer, Parser, ReportGenerator, Runner, SystemObjectUpda
 
 def setup_logging(log_file: str, log_level: str) -> None:
     """
-    Configures logging for the application.
+    Configure logging for the application.
 
     Args:
         log_level (str): The logging level (e.g., DEBUG, INFO).
@@ -43,10 +43,9 @@ def setup_logging(log_file: str, log_level: str) -> None:
 
 def parse_arguments() -> argparse.Namespace:
     """
-    Parses command-line arguments, offering options for various operating
-    modes, paths for installation, configuration, and logging settings.
+    Parse command-line arguments, offering options for various operating modes, paths for installation, etc.
 
-    Returns:
+    Returns
         argparse.Namespace: An object containing all the parsed command-line
         arguments.
     """
@@ -103,8 +102,9 @@ def parse_arguments() -> argparse.Namespace:
 
 def handle_install_and_uninstall(args: argparse.Namespace) -> None:
     """
-    Manages the installation or uninstallation process for Cloud AI based on
-    user-specified mode, utilizing the Installer and Parser classes.
+    Manage the installation or uninstallation process for Cloud AI.
+
+    Based on user-specified mode, utilizing the Installer and Parser classes.
 
     Args:
         args (argparse.Namespace): Parsed command-line arguments containing
@@ -141,8 +141,9 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> None:
 
 def handle_dry_run_and_run(args: argparse.Namespace) -> None:
     """
-    Executes the dry-run or run modes for Cloud AI, including parsing
-    configurations, verifying installations, and executing test scenarios.
+    Execute the dry-run or run modes for Cloud AI.
+
+    Includes parsing configurations, verifying installations, and executing test scenarios.
 
     Args:
         args (argparse.Namespace): Parsed command-line arguments containing
@@ -194,7 +195,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> None:
 
 def handle_generate_report(args: argparse.Namespace) -> None:
     """
-    Generates a report based on the existing configuration and test results.
+    Generate a report based on the existing configuration and test results.
 
     Args:
         args (argparse.Namespace): Parsed command-line arguments containing

@@ -34,7 +34,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
     """
     Install strategy for NeMo-Megatron-Launcher on Slurm systems.
 
-    Attributes:
+    Attributes
         SUBDIR_PATH (str): Subdirectory within the system's install path where
             the NeMo-Megatron-Launcher and its Docker image will be stored.
         REPOSITORY_NAME (str): Name of the NeMo-Megatron-Launcher repository.
@@ -64,7 +64,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
 
     def _validate_cmd_arg(self, cmd_args: Dict[str, Any], arg_name: str) -> str:
         """
-        Validates and returns specified command-line argument.
+        Validate and returns specified command-line argument.
 
         Args:
             cmd_args (Dict[str, Any]): Command-line arguments.
@@ -84,7 +84,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
 
     def _configure_logging(self):
         """
-        Configures logging to output error messages to stdout.
+        Configure logging to output error messages to stdout.
 
         This method sets the logger's level to INFO, capturing messages at this
         level and above. It also configures a StreamHandler for error messages
@@ -151,10 +151,9 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
 
     def _check_install_path_access(self):
         """
-        Checks if the install path exists and if there is permission to create
-        a directory or file in the path.
+        Check if the install path exists and if there is permission to create a directory or file in the path.
 
-        Raises:
+        Raises
             PermissionError: If the install path does not exist or if there is
                              no permission to create directories/files.
         """
@@ -165,8 +164,9 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
 
     def _check_datasets_on_nodes(self, data_dir_path: str) -> bool:
         """
-        Verifies the presence of specified dataset files and directories on all
-        idle compute nodes within the default partition.
+        Verify the presence of specified dataset files and directories on all idle compute nodes.
+
+        Default partition is used.
 
         This method uses parallel execution to check datasets on multiple nodes
         simultaneously, improving efficiency for systems with multiple nodes.
@@ -229,7 +229,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
 
     def _check_dataset_on_node(self, node: str, data_dir_path: str, dataset_items: List[str]) -> bool:
         """
-        Checks if dataset files and directories exist on a single compute node.
+        Check if dataset files and directories exist on a single compute node.
 
         Args:
             node (str): The name of the compute node.
@@ -287,7 +287,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
 
     def _setup_docker_image(self, system: SlurmSystem, subdir_path: str) -> None:
         """
-        Downloads and sets up Docker image if not already present.
+        Download and sets up Docker image if not already present.
 
         Args:
             system (SlurmSystem): The system schema object.

@@ -22,11 +22,12 @@ from .base_system_object_updater import BaseSystemObjectUpdater
 
 class SystemObjectUpdater:
     """
-    Facade class for updating system configurations based on the scheduler
-    type. This class dynamically selects the appropriate updater subclass
+    Facade class for updating system configurations based on the scheduler type.
+
+    This class dynamically selects the appropriate updater subclass
     based on the provided system's scheduler type.
 
-    Attributes:
+    Attributes
         _updaters (Dict[str, Type[BaseSystemObjectUpdater]]): A mapping from
             scheduler types to their corresponding updater subclasses. This
             allows the class to dynamically select the appropriate updater
@@ -36,16 +37,15 @@ class SystemObjectUpdater:
     _updaters = {}
 
     def __init__(self) -> None:
-        """
-        Initializes the SystemObjectUpdater instance, setting up the logger.
-        """
+        """Initialize the SystemObjectUpdater instance, setting up the logger."""
         self.logger = logging.getLogger(__name__)
 
     @classmethod
     def register(cls, scheduler_type: str) -> Callable:
         """
-        Decorator for registering updater subclasses to handle specific
-        scheduler types.
+        Register updater subclasses to handle specific scheduler types.
+
+        To be used as a decorator.
 
         Args:
             scheduler_type (str): The scheduler type the updater can handle.
@@ -68,10 +68,9 @@ class SystemObjectUpdater:
     @classmethod
     def get_supported_systems(cls) -> Dict[str, Type[BaseSystemObjectUpdater]]:
         """
-        Retrieves the currently supported systems and their corresponding
-        updater classes.
+        Retrieve the currently supported systems and their corresponding updater classes.
 
-        Returns:
+        Returns
             Dict[str, Type[BaseSystemObjectUpdater]]: A dictionary mapping
             scheduler types to their updater classes.
         """
@@ -79,8 +78,9 @@ class SystemObjectUpdater:
 
     def update(self, system: System) -> None:
         """
-        Updates the given system configuration using the appropriate updater
-        based on the system's scheduler type.
+        Update the given system configuration using the appropriate updater.
+
+        Based on the system's scheduler type.
 
         Args:
             system (System): The system configuration object to update.

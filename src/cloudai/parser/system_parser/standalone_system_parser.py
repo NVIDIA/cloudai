@@ -20,13 +20,11 @@ from cloudai.schema.system import StandaloneSystem
 
 
 class StandaloneSystemParser(BaseSystemParser):
-    """
-    Parser for parsing Standalone system configurations.
-    """
+    """Parser for parsing Standalone system configurations."""
 
     def parse(self, data: Dict[str, Any]) -> StandaloneSystem:
         """
-        Parses the Standalone system configuration.
+        Parse the Standalone system configuration.
 
         Args:
             data (Dict[str, Any]): The loaded configuration data.

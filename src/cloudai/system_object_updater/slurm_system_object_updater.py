@@ -25,12 +25,13 @@ from .system_object_updater import SystemObjectUpdater
 class SlurmSystemObjectUpdater(BaseSystemObjectUpdater):
     """
     Updater for SLURM scheduler system objects.
+
     Implements the update method specific to SLURM scheduler systems.
     """
 
     def update(self, system: System) -> None:
         """
-        Updates the system object for a SLURM system.
+        Update the system object for a SLURM system.
 
         Args:
             system (System): The system schema object.

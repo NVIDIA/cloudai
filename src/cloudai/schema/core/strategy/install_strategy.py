@@ -19,18 +19,18 @@ from .test_template_strategy import TestTemplateStrategy
 
 class InstallStrategy(TestTemplateStrategy):
     """
-    Abstract base class defining the interface for installation strategies
-    across different system environments. This class provides methods to check
-    if necessary components are installed, to install those components, and
+    Abstract base class defining the interface for installation strategies across different system environments.
+
+    This class provides methods to check if necessary components are installed, to install those components, and
     to uninstall them if needed.
     """
 
     @abstractmethod
     def is_installed(self) -> bool:
         """
-        Checks if the necessary components are already installed on the system.
+        Check if the necessary components are already installed on the system.
 
-        Returns:
+        Returns
             bool: True if the necessary components are installed, False otherwise.
         """
         pass
@@ -38,9 +38,9 @@ class InstallStrategy(TestTemplateStrategy):
     @abstractmethod
     def install(self) -> None:
         """
-        Performs installation operations for a specific system.
+        Perform installation operations for a specific system.
 
-        Returns:
+        Returns
             None
         """
         pass
@@ -48,9 +48,9 @@ class InstallStrategy(TestTemplateStrategy):
     @abstractmethod
     def uninstall(self) -> None:
         """
-        Performs uninstallation operations for a specific system.
+        Perform uninstallation operations for a specific system.
 
-        Returns:
+        Returns
             None
         """
         pass

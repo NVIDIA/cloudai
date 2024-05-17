@@ -19,7 +19,7 @@ class UCCTest(TestTemplate):
     """
     Test template for UCC tests.
 
-    Attributes:
+    Attributes
         SUPPORTED_COLLECTIVES (List[str]): List of supported collectives for UCC
             test, including alltoall, allreduce, and others.
     """

@@ -22,9 +22,7 @@ from .template import JaxToolbox
 
 @StrategyRegistry.strategy(InstallStrategy, [SlurmSystem], [JaxToolbox])
 class JaxToolboxSlurmInstallStrategy(SlurmInstallStrategy):
-    """
-    Install strategy for JaxToolbox on Slurm systems.
-    """
+    """Install strategy for JaxToolbox on Slurm systems."""
 
     def is_installed(self) -> bool:
         return True

@@ -27,7 +27,7 @@ class Parser:
     """
     Main parser for parsing all types of configurations.
 
-    Attributes:
+    Attributes
         system_config_path (str): The file path for system configurations.
         test_template_path (str): The file path for test template configurations.
         test_path (str): The file path for test configurations.
@@ -43,7 +43,7 @@ class Parser:
         test_scenario_path: Optional[str] = None,
     ) -> None:
         """
-        Initializes a Parser instance.
+        Initialize a Parser instance.
 
         Args:
             system_config_path (str): The file path for system configurations.
@@ -60,9 +60,9 @@ class Parser:
 
     def parse_system_and_templates(self) -> Tuple[System, List[TestTemplate]]:
         """
-        Parses system and test template configurations for installation purposes.
+        Parse system and test template configurations for installation purposes.
 
-        Returns:
+        Returns
             Tuple[System, List[TestTemplate]]: A tuple containing the system object
             and a list of test template objects.
         """
@@ -78,9 +78,9 @@ class Parser:
 
     def parse(self) -> Tuple[System, List[TestTemplate], TestScenario]:
         """
-        Parses configurations for system, test templates, and test scenarios.
+        Parse configurations for system, test templates, and test scenarios.
 
-        Returns:
+        Returns
             Tuple[System, List[TestTemplate], TestScenario]: A tuple containing
             the system object, a list of test template objects, and the test scenario
             object.

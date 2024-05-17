@@ -24,7 +24,7 @@ class SystemParser:
     """
     Parser for parsing system configurations.
 
-    Attributes:
+    Attributes
         _parsers (Dict[str, Type[BaseSystemParser]]): A mapping from system
             types to their corresponding parser classes.
         file_path (str): The file path to the system configuration file.
@@ -34,7 +34,7 @@ class SystemParser:
 
     def __init__(self, file_path: str):
         """
-        Initializes a SystemParser instance.
+        Initialize a SystemParser instance.
 
         Args:
             file_path (str): The file path to the system configuration file.
@@ -43,15 +43,14 @@ class SystemParser:
 
     def parse(self) -> System:
         """
-        Parses the system configuration file, identifying the scheduler type
-        and invoking the appropriate parser for further processing.
+        Parse the system configuration file, identifying the scheduler type and invoking the appropriate parser.
 
-        Raises:
+        Raises
             FileNotFoundError: If the file path does not exist or is not a file.
             KeyError: If the 'scheduler' key is missing from the configuration.
             ValueError: If the 'scheduler' value is unsupported.
 
-        Returns:
+        Returns
             System: The parsed system object.
         """
         if not os.path.isfile(self.file_path):

@@ -22,9 +22,7 @@ from .template import Sleep
 
 @StrategyRegistry.strategy(ReportGenerationStrategy, [StandaloneSystem, SlurmSystem], [Sleep])
 class SleepReportGenerationStrategy(ReportGenerationStrategy):
-    """
-    Strategy for generating reports from sleep directories.
-    """
+    """Strategy for generating reports from sleep directories."""
 
     def can_handle_directory(self, directory_path: str) -> bool:
         return False

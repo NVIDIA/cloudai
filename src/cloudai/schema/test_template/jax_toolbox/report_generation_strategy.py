@@ -28,9 +28,7 @@ from .template import JaxToolbox
 
 @StrategyRegistry.strategy(ReportGenerationStrategy, [SlurmSystem], [JaxToolbox])
 class JaxToolboxReportGenerationStrategy(ReportGenerationStrategy):
-    """
-    Strategy for generating reports from JaxToolbox.
-    """
+    """Strategy for generating reports from JaxToolbox."""
 
     def can_handle_directory(self, directory_path: str) -> bool:
         error_files = glob.glob(os.path.join(directory_path, "error-*.txt"))
@@ -55,8 +53,9 @@ class JaxToolboxReportGenerationStrategy(ReportGenerationStrategy):
 
     def _extract_times(self, directory_path: str) -> List[float]:
         """
-        Extracts elapsed times from all error files matching the pattern in the directory,
-        starting after the 10th occurrence of a line matching the "[PAX STATUS]: train_step() took" pattern.
+        Extract elapsed times from all error files matching the pattern in the directory.
+
+        Starting after the 10th occurrence of a line matching the "[PAX STATUS]: train_step() took" pattern.
 
         Args:
             directory_path (str): Directory containing error files.
@@ -89,8 +88,7 @@ class JaxToolboxReportGenerationStrategy(ReportGenerationStrategy):
 
     def _write_report(self, directory_path: str, stats: dict) -> None:
         """
-        Writes the computed statistics to a file named 'report.txt' in the
-        same directory.
+        Write the computed statistics to a file named 'report.txt' in the same directory.
 
         Args:
             directory_path (str): Path to the directory.
