@@ -4,6 +4,7 @@ import pytest
 from cloudai.schema.system import SlurmSystem
 from cloudai.schema.system.slurm import SlurmNode, SlurmNodeState
 from cloudai.schema.system.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 
 
 @pytest.fixture
@@ -42,3 +43,33 @@ def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, tmp_path
 
     # Check the correctness of the sbatch command format
     assert sbatch_command == f"sbatch {filepath_from_command}"
+
+
+class TestNcclTestSlurmCommandGenStrategy__GetDockerImagePath:
+    @pytest.fixture
+    def nccl_slurm_cmd_gen_strategy_fixture(self, tmp_path: Path) -> NcclTestSlurmCommandGenStrategy:
+        slurm_system = SlurmSystem(
+            name="TestSystem",
+            install_path=str(tmp_path / "install"),
+            output_path=str(tmp_path / "output"),
+            default_partition="main",
+            partitions={"main": [SlurmNode(name="node1", partition="main", state=SlurmNodeState.IDLE)]},
+        )
+        Path(slurm_system.install_path).mkdir()
+        Path(slurm_system.output_path).mkdir()
+
+        env_vars = {"TEST_VAR": "VALUE"}
+        cmd_args = {"test_arg": "test_value"}
+        strategy = NcclTestSlurmCommandGenStrategy(slurm_system, env_vars, cmd_args)
+        return strategy
+
+    def test_cmd_arg_file_doesnt_exist(self, nccl_slurm_cmd_gen_strategy_fixture: NcclTestSlurmCommandGenStrategy):
+        cmd_args = {"docker_image_url": f"{nccl_slurm_cmd_gen_strategy_fixture.install_path}/docker_image"}
+        image_path = nccl_slurm_cmd_gen_strategy_fixture.get_docker_image_path(cmd_args)
+        assert image_path == f"{nccl_slurm_cmd_gen_strategy_fixture.install_path}/nccl-test/nccl_test.sqsh"
+
+    def test_cmd_arg_file_exists(self, nccl_slurm_cmd_gen_strategy_fixture: NcclTestSlurmCommandGenStrategy):
+        cmd_args = {"docker_image_url": f"{nccl_slurm_cmd_gen_strategy_fixture.install_path}/docker_image"}
+        Path(cmd_args["docker_image_url"]).touch()
+        image_path = nccl_slurm_cmd_gen_strategy_fixture.get_docker_image_path(cmd_args)
+        assert image_path == cmd_args["docker_image_url"]
