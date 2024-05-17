@@ -28,6 +28,8 @@ class TestParser(BaseMultiFileParser):
             names to TestTemplate objects.
     """
 
+    __test__ = False
+
     def __init__(
         self,
         directory_path: str,

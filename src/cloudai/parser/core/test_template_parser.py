@@ -27,6 +27,8 @@ class TestTemplateParser(BaseMultiFileParser):
         system (System): The system schema object.
     """
 
+    __test__ = False
+
     VALID_DATA_TYPES = ["preset", "bool", "int", "str"]
 
     def __init__(self, system: System, directory_path: str) -> None:

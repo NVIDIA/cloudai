@@ -26,6 +26,8 @@ class TestScenario:
         tests (List[Test]): Tests in the scenario.
     """
 
+    __test__ = False
+
     def __init__(self, name: str, tests: List[Test]) -> None:
         """
         Initializes a TestScenario instance.
