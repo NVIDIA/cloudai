@@ -5,7 +5,10 @@ from cloudai.schema.system import SlurmSystem
 from cloudai.schema.system.slurm import SlurmNode, SlurmNodeState
 from cloudai.schema.system.slurm.strategy import SlurmCommandGenStrategy
 from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
-from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import NeMoLauncherSlurmCommandGenStrategy
+from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import (
+    REQUIRE_ENV_VARS,
+    NeMoLauncherSlurmCommandGenStrategy,
+)
 
 
 @pytest.fixture
@@ -94,3 +97,51 @@ class TestNeMoLauncherSlurmCommandGenStrategy__SetContainerArg:
         Path(nemo_cmd_gen.final_cmd_args["docker_image_url"]).touch()
         nemo_cmd_gen.set_container_arg()
         assert nemo_cmd_gen.final_cmd_args["container"] == nemo_cmd_gen.final_cmd_args["docker_image_url"]
+
+
+class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
+    @pytest.fixture
+    def nemo_cmd_gen(self, slurm_system: SlurmSystem) -> NeMoLauncherSlurmCommandGenStrategy:
+        env_vars = {"TEST_VAR": "VALUE"}
+        cmd_args = {"test_arg": "test_value"}
+        strategy = NeMoLauncherSlurmCommandGenStrategy(slurm_system, env_vars, cmd_args)
+        return strategy
+
+    def test_raises_if_required_env_var_missed(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
+        with pytest.raises(KeyError) as exc_info:
+            nemo_cmd_gen.gen_exec_command(
+                env_vars={}, cmd_args={}, extra_env_vars={}, extra_cmd_args="", output_path="", nodes=[]
+            )
+        assert REQUIRE_ENV_VARS[0] in str(exc_info.value)
+
+    def test_genv_vars_added(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
+        extra_env_vars = {v: "fake" for v in REQUIRE_ENV_VARS}
+        cmd_args = {
+            "docker_image_url": "fake",
+            "repository_url": "fake",
+            "repository_commit_hash": "fake",
+        }
+        cmd = nemo_cmd_gen.gen_exec_command(
+            env_vars={}, cmd_args=cmd_args, extra_env_vars=extra_env_vars, extra_cmd_args="", output_path="", nodes=[]
+        )
+
+        for k, v in extra_env_vars.items():
+            assert f"{k}={v}" in cmd
+
+    def test_tokenizer_handled(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
+        extra_env_vars = {v: "fake" for v in REQUIRE_ENV_VARS}
+        cmd_args = {
+            "docker_image_url": "fake",
+            "repository_url": "fake",
+            "repository_commit_hash": "fake",
+        }
+        cmd = nemo_cmd_gen.gen_exec_command(
+            env_vars={},
+            cmd_args=cmd_args,
+            extra_env_vars=extra_env_vars,
+            extra_cmd_args="training.model.tokenizer.model=value",
+            output_path="",
+            nodes=[],
+        )
+
+        assert "container_mounts=[value:value]" in cmd

@@ -23,6 +23,17 @@ from cloudai.schema.system.slurm.strategy import SlurmCommandGenStrategy
 from .slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
 from .template import NeMoLauncher
 
+REQUIRE_ENV_VARS = [
+    "NCCL_SOCKET_IFNAME",
+    "NCCL_IB_GID_INDEX",
+    "NCCL_IB_TC",
+    "NCCL_IB_QPS_PER_CONNECTION",
+    "UCX_IB_GID_INDEX",
+    "NCCL_IB_ADAPTIVE_ROUTING",
+    "NCCL_IB_SPLIT_DATA_ON_QPS",
+    "NCCL_IBEXT_DISABLE",
+]
+
 
 @StrategyRegistry.strategy(CommandGenStrategy, [SlurmSystem], [NeMoLauncher])
 class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -52,18 +63,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         nodes: List[str],
     ) -> str:
         # Ensure required environment variables are included
-        required_env_vars = [
-            "NCCL_SOCKET_IFNAME",
-            "NCCL_IB_GID_INDEX",
-            "NCCL_IB_TC",
-            "NCCL_IB_QPS_PER_CONNECTION",
-            "UCX_IB_GID_INDEX",
-            "NCCL_IB_ADAPTIVE_ROUTING",
-            "NCCL_IB_SPLIT_DATA_ON_QPS",
-            "NCCL_IBEXT_DISABLE",
-        ]
-
-        for key in required_env_vars:
+        for key in REQUIRE_ENV_VARS:
             if key not in extra_env_vars:
                 extra_env_vars[key] = self.slurm_system.global_env_vars[key]
 
@@ -98,6 +98,9 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         if extra_cmd_args:
             full_cmd += " " + extra_cmd_args
+            if "training.model.tokenizer.model" in extra_cmd_args:
+                tokenizer_path = extra_cmd_args.split("training.model.tokenizer.model=")[1].split(" ")[0]
+                full_cmd += " " + f"container_mounts=[{tokenizer_path}:{tokenizer_path}]"
 
         env_vars_str = " ".join(f"{key}={value}" for key, value in extra_env_vars.items())
         full_cmd = f"{env_vars_str} {full_cmd}" if env_vars_str else full_cmd
