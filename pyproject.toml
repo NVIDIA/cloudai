@@ -23,4 +23,5 @@ select = ["I", "B", "E", "F", "SIM", "W", "C90", "EXE"]
 indent-style = "space"
 
 [tool.pytest.ini_options]
-test_dir = "tests"
+testpaths = ["tests"]
+pythonpath = ["src"]

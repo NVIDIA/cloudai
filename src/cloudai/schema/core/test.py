@@ -45,6 +45,8 @@ class Test:
             in "hh:mm:ss" format, or None if no limit.
     """
 
+    __test__ = False
+
     def __init__(
         self,
         name: str,
@@ -174,6 +176,8 @@ class TestDependency:
         test (Test): The test object it depends on.
         time (int): Time in seconds after which this dependency is met.
     """
+
+    __test__ = False
 
     def __init__(self, test: Test, time: int) -> None:
         """

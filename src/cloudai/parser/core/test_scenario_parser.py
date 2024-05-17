@@ -31,6 +31,8 @@ class TestScenarioParser:
         test_mapping: Mapping of test names to Test objects.
     """
 
+    __test__ = False
+
     def __init__(
         self,
         file_path: str,

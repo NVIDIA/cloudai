@@ -36,6 +36,8 @@ class TestTemplateStrategy:
         final_cmd_args (Dict[str, Any]): Final command-line arguments after overrides.
     """
 
+    __test__ = False
+
     def __init__(
         self,
         system: System,
