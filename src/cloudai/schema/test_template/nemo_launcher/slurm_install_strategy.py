@@ -108,7 +108,11 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         docker_image_path = os.path.join(subdir_path, self.DOCKER_IMAGE_FILENAME)
         repo_path = os.path.join(subdir_path, self.REPOSITORY_NAME)
         repo_installed = os.path.isdir(repo_path)
-        docker_image_installed = os.path.isfile(docker_image_path)
+
+        if not os.path.isfile(self.docker_image_url):
+            docker_image_installed = os.path.isfile(docker_image_path)
+        else:
+            docker_image_installed = True
 
         data_dir_path = self.default_cmd_args["data_dir"]
         datasets_ready = self._check_datasets_on_nodes(data_dir_path)
@@ -142,7 +146,8 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
             )
 
         self._clone_repository(subdir_path)
-        self._setup_docker_image(self.slurm_system, subdir_path)
+        if not os.path.isfile(self.docker_image_url):
+            self._setup_docker_image(self.slurm_system, subdir_path)
 
     def _check_install_path_access(self):
         """
