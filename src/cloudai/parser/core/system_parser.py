@@ -13,13 +13,11 @@
 # limitations under the License.
 
 import os
-from typing import Callable, Dict, Type
 
 import toml
 
+from cloudai._core.registry import Registry
 from cloudai.schema.core import System
-
-from .base_system_parser import BaseSystemParser
 
 
 class SystemParser:
@@ -43,37 +41,6 @@ class SystemParser:
         """
         self.file_path: str = file_path
 
-    @classmethod
-    def register(cls, system_type: str) -> Callable:
-        """
-        A decorator to register parser subclasses for specific system types.
-
-        Args:
-            system_type (str): The system type the parser can handle.
-
-        Returns:
-            Callable: A decorator function that registers the parser class.
-        """
-
-        def decorator(
-            parser_class: Type[BaseSystemParser],
-        ) -> Type[BaseSystemParser]:
-            cls._parsers[system_type] = parser_class
-            return parser_class
-
-        return decorator
-
-    @classmethod
-    def get_supported_systems(cls) -> Dict[str, Type[BaseSystemParser]]:
-        """
-        Returns the supported system types and their corresponding parser classes.
-
-        Returns:
-            Dict[str, Type[BaseSystemParser]]: A dictionary of system types and
-                                               their parser classes.
-        """
-        return cls._parsers
-
     def parse(self) -> System:
         """
         Parses the system configuration file, identifying the scheduler type
@@ -93,12 +60,13 @@ class SystemParser:
         with open(self.file_path, "r") as file:
             data = toml.load(file)
             scheduler = data.get("scheduler", "").lower()
-            if scheduler not in self.get_supported_systems():
+            registry = Registry()
+            if scheduler not in registry.system_parsers_map:
                 raise ValueError(
                     f"Unsupported system type '{scheduler}'. "
-                    f"Supported types: {', '.join(self.get_supported_systems())}"
+                    f"Supported types: {', '.join(registry.system_parsers_map.keys())}"
                 )
-            parser_class = self._parsers.get(scheduler)
+            parser_class = registry.system_parsers_map[scheduler]
             if parser_class is None:
                 raise NotImplementedError(f"No parser registered for system type: {scheduler}")
             parser = parser_class()

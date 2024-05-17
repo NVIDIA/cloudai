@@ -15,11 +15,10 @@
 import os
 from typing import Any, Dict
 
-from cloudai.parser.core import BaseSystemParser, SystemParser
+from cloudai.parser.core import BaseSystemParser
 from cloudai.schema.system import StandaloneSystem
 
 
-@SystemParser.register("standalone")
 class StandaloneSystemParser(BaseSystemParser):
     """
     Parser for parsing Standalone system configurations.

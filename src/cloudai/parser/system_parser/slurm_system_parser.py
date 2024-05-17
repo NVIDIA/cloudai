@@ -15,11 +15,10 @@
 import os
 from typing import Any, Dict, List
 
-from cloudai.parser.core import BaseSystemParser, SystemParser
+from cloudai.parser.core import BaseSystemParser
 from cloudai.schema.system.slurm import SlurmNode, SlurmNodeState, SlurmSystem
 
 
-@SystemParser.register("slurm")
 class SlurmSystemParser(BaseSystemParser):
     """
     Parser for parsing Slurm system configurations.
