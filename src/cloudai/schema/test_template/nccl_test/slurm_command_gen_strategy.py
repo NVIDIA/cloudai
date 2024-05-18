@@ -60,17 +60,6 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         srun_command = self._generate_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
         return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, output_path)
 
-    def get_docker_image_path(self, cmd_args: Dict[str, str]) -> str:
-        if os.path.isfile(cmd_args["docker_image_url"]):
-            image_path = cmd_args["docker_image_url"]
-        else:
-            image_path = os.path.join(
-                self.install_path,
-                NcclTestSlurmInstallStrategy.SUBDIR_PATH,
-                NcclTestSlurmInstallStrategy.DOCKER_IMAGE_FILENAME,
-            )
-        return image_path
-
     def _parse_slurm_args(
         self,
         job_name_prefix: str,
@@ -80,7 +69,11 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     ) -> Dict[str, Any]:
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, nodes)
 
-        image_path = self.get_docker_image_path(cmd_args)
+        image_path = os.path.join(
+            self.install_path,
+            NcclTestSlurmInstallStrategy.SUBDIR_PATH,
+            NcclTestSlurmInstallStrategy.DOCKER_IMAGE_FILENAME,
+        )
 
         container_mounts = ""
         if "NCCL_TOPO_FILE" in env_vars and "DOCKER_NCCL_TOPO_FILE" in env_vars:

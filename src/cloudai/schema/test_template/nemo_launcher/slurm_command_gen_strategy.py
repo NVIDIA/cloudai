@@ -85,9 +85,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         nodes = self.slurm_system.parse_nodes(nodes)
         if nodes:
             self.final_cmd_args["training.trainer.num_nodes"] = str(len(nodes))
-
-        self.set_container_arg()
-
+        self.final_cmd_args["container"] = self.final_cmd_args["docker_image_url"]
         del self.final_cmd_args["repository_url"]
         del self.final_cmd_args["repository_commit_hash"]
         del self.final_cmd_args["docker_image_url"]
@@ -103,16 +101,6 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         full_cmd = f"{env_vars_str} {full_cmd}" if env_vars_str else full_cmd
 
         return full_cmd.strip()
-
-    def set_container_arg(self) -> None:
-        if os.path.isfile(self.final_cmd_args["docker_image_url"]):
-            self.final_cmd_args["container"] = self.final_cmd_args["docker_image_url"]
-        else:
-            self.final_cmd_args["container"] = os.path.join(
-                self.install_path,
-                NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH,
-                NeMoLauncherSlurmInstallStrategy.DOCKER_IMAGE_FILENAME,
-            )
 
     def _handle_special_keys(self, key: str, value: Any, launcher_path: str, output_path: str) -> Any:
         """
