@@ -3,15 +3,15 @@ name = "NeMoLauncher"
 [cmd_args]
   [cmd_args.repository_url]
   type = "str"
-  default = "NEMO_REPOSITORY_URL"
+  default = "https://github.com/NVIDIA/NeMo-Framework-Launcher.git"
 
   [cmd_args.repository_commit_hash]
   type = "str"
-  default = "6528780fba8185bf61e7c2396fdd2331ee5933a1"
+  default = "cf411a9ede3b466677df8ee672bcc6c396e71e1a"
 
   [cmd_args.docker_image_url]
   type = "str"
-  default = "DOCKER_IMAGE_URL"
+  default = "nvcr.io/nvidian/nemofw-training:24.01.01"
 
   [cmd_args.stages]
   type = "str"
@@ -33,8 +33,8 @@ name = "NeMoLauncher"
     default = "8"
 
   [cmd_args.training]
-  values = ["gpt3/43b"]
-  default = "gpt3/43b"
+  values = ["gpt3/40b_improved"]
+  default = "gpt3/40b_improved"
     [cmd_args.training.exp_manager]
       [cmd_args.training.exp_manager.create_checkpoint_callback]
       type = "bool"
