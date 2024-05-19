@@ -104,7 +104,9 @@ class StandaloneRunner(BaseRunner):
         s_job = cast(StandaloneJob, job)
         command = f"ps -p {s_job.id}"
         self.logger.debug(f"Checking job status with command: {command}")
-        stdout = self.cmd_shell.execute(command).communicate()[0]
+        stdout, stderr = self.cmd_shell.execute(command).communicate()
+        self.logger.info(f"\tstdout: {stdout}")
+        self.logger.info(f"\tstderr: {stderr}")
         return str(s_job.id) not in stdout
 
     def kill_job(self, job: BaseJob):

@@ -17,6 +17,7 @@ import asyncio
 import logging
 import os
 import sys
+import traceback
 
 from cloudai import Installer, Parser, ReportGenerator, Runner, SystemObjectUpdater
 
@@ -178,7 +179,11 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> None:
     test_scenario.pretty_print()
 
     runner = Runner(args.mode, system, test_scenario)
-    asyncio.run(runner.run())
+    try:
+        asyncio.run(runner.run())
+    except RuntimeError as e:
+        logging.error(traceback.format_exc())
+        logging.error(f"Error running asyncio loop: {e}")
 
     print(f"All test scenario results stored at: {runner.runner.output_path}")
 

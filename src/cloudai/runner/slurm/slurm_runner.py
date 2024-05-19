@@ -72,6 +72,8 @@ class SlurmRunner(BaseRunner):
         job_id = None
         if self.mode == "run":
             stdout, stderr = self.cmd_shell.execute(exec_cmd).communicate()
+            self.logger.info(f"\tstdout: {stdout}")
+            self.logger.info(f"\tstderr: {stderr}")
             job_id = test.get_job_id(stdout, stderr)
         else:
             job_id = 0
