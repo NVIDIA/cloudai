@@ -33,7 +33,7 @@ name = "NeMoLauncher"
     default = "8"
 
   [cmd_args.training]
-  values = ["gpt3/40b_improved"]
+  values = ["gpt3/40b_improved", "llama/llama2_70b"]
   default = "gpt3/40b_improved"
     [cmd_args.training.exp_manager]
       [cmd_args.training.exp_manager.create_checkpoint_callback]
@@ -42,9 +42,8 @@ name = "NeMoLauncher"
 
     [cmd_args.training.trainer]
       [cmd_args.training.trainer.max_steps]
-      type = "preset"
-      values = ["100", "500", "1000", "2000"]
-      default = "100"
+      type = "int"
+      default = "400"
 
       [cmd_args.training.trainer.val_check_interval]
       type = "preset"
@@ -62,8 +61,7 @@ name = "NeMoLauncher"
 
     [cmd_args.training.model]
       [cmd_args.training.model.global_batch_size]
-      type = "preset"
-      values = ["8", "16", "32", "128"]
+      type = "int"
       default = "128"
 
       [cmd_args.training.model.micro_batch_size]
