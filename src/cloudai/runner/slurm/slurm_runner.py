@@ -14,7 +14,7 @@
 
 from typing import Optional, cast
 
-from cloudai.runner.core import BaseJob, BaseRunner, Runner
+from cloudai.runner.core import BaseJob, BaseRunner
 from cloudai.schema.core import System, Test, TestScenario
 from cloudai.schema.system import SlurmSystem
 from cloudai.util import CommandShell
@@ -22,7 +22,6 @@ from cloudai.util import CommandShell
 from .slurm_job import SlurmJob
 
 
-@Runner.register("slurm")
 class SlurmRunner(BaseRunner):
     """
     Implementation of the Runner for a system using Slurm.

@@ -14,14 +14,13 @@
 
 from typing import Optional, cast
 
-from cloudai.runner.core import BaseJob, BaseRunner, Runner
+from cloudai.runner.core import BaseJob, BaseRunner
 from cloudai.schema.core import System, Test, TestScenario
 from cloudai.util import CommandShell
 
 from .standalone_job import StandaloneJob
 
 
-@Runner.register("standalone")
 class StandaloneRunner(BaseRunner):
     """
     Implementation of the Runner for a system using Standalone.
