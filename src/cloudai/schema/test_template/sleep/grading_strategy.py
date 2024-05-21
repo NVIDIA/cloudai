@@ -20,10 +20,7 @@ from .template import Sleep
 
 @StrategyRegistry.strategy(GradingStrategy, [SlurmSystem], [Sleep])
 class SleepGradingStrategy(GradingStrategy):
-    """
-    Performance grading strategy for Sleep test templates
-    on Slurm systems.
-    """
+    """Performance grading strategy for Sleep test templates on Slurm systems."""
 
     def grade(self, directory_path: str, ideal_perf: float) -> float:
         """

@@ -28,11 +28,12 @@ from .system import System
 
 class TestTemplate:
     """
-    Base class representing a test template, providing a framework for test
-    execution, including installation, uninstallation, and execution command
-    generation based on system configurations and test parameters.
+    Base class representing a test template.
 
-    Attributes:
+    Providing a framework for test execution, including installation, uninstallation, and execution command generation
+    based on system configurations and test parameters.
+
+    Attributes
         name (str): Unique name of the test template.
         env_vars (Dict[str, Any]): Default environment variables.
         cmd_args (Dict[str, Any]): Default command-line arguments.
@@ -59,9 +60,10 @@ class TestTemplate:
         cmd_args: Dict[str, Any],
     ) -> None:
         """
-        Initializes a TestTemplate instance.
+        Initialize a TestTemplate instance.
 
         Args:
+            system (System): System configuration for the test template.
             name (str): Name of the test template.
             env_vars (Dict[str, Any]): Environment variables.
             cmd_args (Dict[str, Any]): Command-line arguments.
@@ -79,16 +81,16 @@ class TestTemplate:
 
     def __repr__(self) -> str:
         """
-        Returns a string representation of the TestTemplate instance.
+        Return a string representation of the TestTemplate instance.
 
-        Returns:
+        Returns
             str: String representation of the test template.
         """
         return f"TestTemplate(name={self.name})"
 
     def _fetch_strategy(self, strategy_interface: Type) -> Optional[Any]:
         """
-        Fetches a strategy from the registry based on system and template.
+        Fetch a strategy from the registry based on system and template.
 
         Args:
             strategy_interface: Type of strategy to fetch.
@@ -120,9 +122,9 @@ class TestTemplate:
 
     def is_installed(self) -> bool:
         """
-        Checks if the test template is already installed on the specified system.
+        Check if the test template is already installed on the specified system.
 
-        Returns:
+        Returns
             bool: True if installed, False otherwise.
         """
         if self.install_strategy is not None:
@@ -131,18 +133,12 @@ class TestTemplate:
             return True
 
     def install(self) -> None:
-        """
-        Installs the test template at the specified location using the system's
-        installation strategy.
-        """
+        """Install the test template at the specified location using the system's installation strategy."""
         if self.install_strategy is not None:
             self.install_strategy.install()
 
     def uninstall(self) -> None:
-        """
-        Uninstalls the test template from the specified location using the system's
-        uninstallation strategy.
-        """
+        """Uninstall the test template from the specified location using the system's uninstallation strategy."""
         if self.install_strategy is not None:
             self.install_strategy.uninstall()
 
@@ -156,7 +152,7 @@ class TestTemplate:
         nodes: List[str],
     ) -> str:
         """
-        Generates an execution command for a test using this template.
+        Generate an execution command for a test using this template.
 
         This method must be implemented by subclasses.
 
@@ -185,8 +181,7 @@ class TestTemplate:
 
     def get_job_id(self, stdout: str, stderr: str) -> Optional[int]:
         """
-        Retrieves the job ID from the execution output using the job ID retrieval
-        strategy.
+        Retrieve the job ID from the execution output using the job ID retrieval strategy.
 
         Args:
             stdout (str): Standard output from the test execution.

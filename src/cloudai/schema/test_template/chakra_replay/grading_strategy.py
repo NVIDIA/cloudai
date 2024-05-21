@@ -20,10 +20,7 @@ from .template import ChakraReplay
 
 @StrategyRegistry.strategy(GradingStrategy, [SlurmSystem], [ChakraReplay])
 class ChakraReplayGradingStrategy(GradingStrategy):
-    """
-    Performance grading strategy for ChakraReplay test templates
-    on Slurm systems.
-    """
+    """Performance grading strategy for ChakraReplay test templates on Slurm systems."""
 
     def grade(self, directory_path: str, ideal_perf: float) -> float:
         """

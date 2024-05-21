@@ -20,10 +20,7 @@ from .template import JaxToolbox
 
 @StrategyRegistry.strategy(GradingStrategy, [SlurmSystem], [JaxToolbox])
 class JaxToolboxGradingStrategy(GradingStrategy):
-    """
-    Performance grading strategy for JaxToolbox test templates
-    on Slurm systems.
-    """
+    """Performance grading strategy for JaxToolbox test templates on Slurm systems."""
 
     def grade(self, directory_path: str, ideal_perf: float) -> float:
         return 0.0

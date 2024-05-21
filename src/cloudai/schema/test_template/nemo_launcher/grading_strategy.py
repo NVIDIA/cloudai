@@ -23,10 +23,7 @@ from .template import NeMoLauncher
 
 @StrategyRegistry.strategy(GradingStrategy, [SlurmSystem], [NeMoLauncher])
 class NeMoLauncherGradingStrategy(GradingStrategy):
-    """
-    Performance grading strategy for NeMoLauncher test templates
-    on Slurm systems.
-    """
+    """Performance grading strategy for NeMoLauncher test templates on Slurm systems."""
 
     def grade(self, directory_path: str, ideal_perf: float) -> float:
         """

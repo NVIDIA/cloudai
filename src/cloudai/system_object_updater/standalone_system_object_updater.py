@@ -22,12 +22,13 @@ from .system_object_updater import SystemObjectUpdater
 class StandaloneSystemObjectUpdater(BaseSystemObjectUpdater):
     """
     Updater for standalone scheduler system objects.
+
     Implements the update method specific to standalone scheduler systems.
     """
 
     def update(self, system: System) -> None:
         """
-        Updates the system object for a standalone system.
+        Update the system object for a standalone system.
 
         Args:
             system (System): The system schema object.

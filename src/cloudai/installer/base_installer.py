@@ -22,12 +22,12 @@ from cloudai.schema.core import System, TestTemplate
 
 class BaseInstaller:
     """
-    Base class for an Installer that manages the installation and
-    uninstallation of benchmarks or test templates. This class provides
-    a framework for checking if the necessary components are installed,
+    Base class for an Installer that manages the installation and uninstallation of benchmarks or test templates.
+
+    This class provides a framework for checking if the necessary components are installed,
     installs them if necessary, and supports uninstallation.
 
-    Attributes:
+    Attributes
         system (System): The system schema object.
         logger (logging.Logger): Logger for capturing installation activities.
     """
@@ -58,19 +58,20 @@ class BaseInstaller:
 
     def _check_prerequisites(self) -> None:
         """
-        Check if common prerequisites are installed. This method should be
-        overridden in derived classes for specific prerequisite checks.
+        Check if common prerequisites are installed.
 
-        Raises:
+        This method should be overridden in derived classes for specific prerequisite checks.
+
+        Raises
             EnvironmentError: If a required binary is not installed.
         """
         self.logger.info("Checking for common prerequisites.")
 
     def is_installed(self, test_templates: Iterable[TestTemplate]) -> bool:
         """
-        Check if the necessary components for the provided test templates
-        are already installed by verifying the installation status of each
-        test template.
+        Check if the necessary components for the provided test templates are already installed.
+
+        Verify the installation status of each test template.
 
         Args:
             test_templates (Iterable[TestTemplate]): The list of test templates to
@@ -84,7 +85,8 @@ class BaseInstaller:
 
     def install(self, test_templates: Iterable[TestTemplate]) -> None:
         """
-        Installs the necessary components if they are not already installed.
+        Install the necessary components if they are not already installed.
+
         Raises an exception if installation fails for any component.
 
         Args:
@@ -100,6 +102,7 @@ class BaseInstaller:
     def uninstall(self, test_templates: Iterable[TestTemplate]) -> None:
         """
         Uninstalls the benchmarks or test templates.
+
         Raises an exception if uninstallation fails for any component.
 
         Args:

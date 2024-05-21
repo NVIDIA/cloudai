@@ -20,10 +20,11 @@ from cloudai.schema.core import System
 
 class BaseSystemParser(ABC):
     """
-    Abstract base class for system parsers. Parses system configuration data
-    and creates system objects.
+    Abstract base class for system parsers.
 
-    Methods:
+    Parses system configuration data and creates system objects.
+
+    Methods
         parse: Abstract method to parse configuration data and return a
                System object.
     """
@@ -31,7 +32,7 @@ class BaseSystemParser(ABC):
     @abstractmethod
     def parse(self, data: Dict[str, Any]) -> System:
         """
-        Parses configuration data and returns a System object.
+        Parse configuration data and returns a System object.
 
         Args:
             data (Dict[str, Any]): The configuration data.

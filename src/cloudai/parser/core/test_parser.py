@@ -23,7 +23,7 @@ class TestParser(BaseMultiFileParser):
     """
     Parser for Test objects.
 
-    Attributes:
+    Attributes
         test_template_mapping (Dict[str, TestTemplate]): Mapping of test template
             names to TestTemplate objects.
     """
@@ -36,7 +36,7 @@ class TestParser(BaseMultiFileParser):
         test_template_mapping: Dict[str, TestTemplate],
     ) -> None:
         """
-        Initializes the TestParser instance.
+        Initialize the TestParser instance.
 
         Args:
             directory_path (str): Path to the directory containing test data.
@@ -48,7 +48,7 @@ class TestParser(BaseMultiFileParser):
 
     def _parse_data(self, data: Dict[str, Any]) -> Test:
         """
-        Parses data for a Test object.
+        Parse data for a Test object.
 
         Args:
             data (Dict[str, Any]): Data from a source (e.g., a TOML file).
@@ -85,7 +85,7 @@ class TestParser(BaseMultiFileParser):
 
     def _parse_cmd_args(self, cmd_args_str: str) -> List[str]:
         """
-        Parses a string of command-line arguments into a list.
+        Parse a string of command-line arguments into a list.
 
         Args:
             cmd_args_str (str): Command-line arguments as a single string.
@@ -128,7 +128,7 @@ class TestParser(BaseMultiFileParser):
 
     def _validate_args(self, args: Dict[str, Any], valid_keys: Set[str]) -> None:
         """
-        Validates the provided arguments against a set of valid keys.
+        Validate the provided arguments against a set of valid keys.
 
         Args:
             args (Dict[str, Any]): Arguments provided in the TOML configuration.

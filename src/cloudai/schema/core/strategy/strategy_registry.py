@@ -17,10 +17,10 @@ from typing import Callable, List, Optional, Type
 
 class StrategyRegistry:
     """
-    A registry for dynamically mapping and retrieving strategies based on system
-    and template types. Allows strategies to be associated with specific
-    combinations of system types and template types, facilitating the dynamic
-    selection of strategies at runtime.
+    A registry for dynamically mapping and retrieving strategies based on system and template types.
+
+    Allows strategies to be associated with specific combinations of system types and template types, facilitating the
+    dynamic selection of strategies at runtime.
     """
 
     _registry = dict()
@@ -34,7 +34,7 @@ class StrategyRegistry:
         strategy: Type,
     ) -> None:
         """
-        Registers a strategy for multiple system and template types.
+        Register a strategy for multiple system and template types.
 
         Args:
             strategy_interface (Type): Interface type of the strategy.
@@ -51,7 +51,7 @@ class StrategyRegistry:
     @classmethod
     def get_strategy(cls, strategy_interface: Type, system_type: Type, template_type: Type) -> Optional[Type]:
         """
-        Retrieves a strategy from the registry based on system and template.
+        Retrieve a strategy from the registry based on system and template.
 
         Args:
             strategy_interface (Type): Interface type of strategy to retrieve.
@@ -72,8 +72,7 @@ class StrategyRegistry:
         template_types: List[Type],
     ) -> Callable[[Type], Type]:
         """
-        Decorator for registering a strategy across multiple systems and
-        templates.
+        Register a strategy across multiple systems and templates.
 
         Args:
             strategy_interface (Type): Interface type of the strategy.

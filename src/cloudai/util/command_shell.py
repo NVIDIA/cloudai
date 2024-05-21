@@ -18,21 +18,21 @@ import subprocess
 
 class CommandShell:
     """
-    A class responsible for executing shell commands using a specified shell
-    executable.
+    A class responsible for executing shell commands using a specified shell executable.
 
-    Attributes:
+    Attributes
         executable (str): The path to the shell executable used for running
                           commands.
     """
 
     def __init__(self, executable: str = "/bin/bash"):
         """
-        Initializes the CommandShell with a shell executable.
+        Initialize the CommandShell with a shell executable.
 
         Args:
             executable (str): The shell executable path.
                               Defaults to "/bin/bash".
+
         Raises:
             FileNotFoundError: If the specified executable does not exist.
         """

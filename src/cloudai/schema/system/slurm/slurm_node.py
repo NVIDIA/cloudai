@@ -17,10 +17,10 @@ from enum import Enum
 
 class SlurmNodeState(Enum):
     """
-    Enumeration of possible states for a Slurm compute node, as defined by the
-    Slurm workload manager. Each state represents the current status or condition
-    of a node within a Slurm cluster, impacting its availability for job allocation
-    and execution.
+    Enumeration of possible states for a Slurm compute node, as defined by the Slurm workload manager.
+
+    Each state represents the current status or condition of a node within a Slurm cluster, impacting its availability
+    for job allocation and execution.
 
     - NOT_RESPONDING: Node is not responding.
     - POWERED_OFF: Node is powered off.
@@ -96,7 +96,7 @@ class SlurmNode:
     """
     Represents a Slurm compute node with detailed state and partition info.
 
-    Attributes:
+    Attributes
         name (str): The name of the node.
         partition (str): The partition to which the node belongs.
         state (SlurmNodeState): The current state of the node.
@@ -118,7 +118,7 @@ class SlurmNode:
 
     def allocatable(self, free_only: bool = True) -> bool:
         """
-        Determines if the node is allocatable based on its state.
+        Determine if the node is allocatable based on its state.
 
         Args:
             free_only (bool): If True, considers only the IDLE state as
@@ -147,10 +147,9 @@ class SlurmNode:
 
     def __repr__(self) -> str:
         """
-        Provides a structured string representation of the Slurm node,
-        including its name, state, and partition.
+        Provide a structured string representation of the Slurm node, including its name, state, and partition.
 
-        Returns:
+        Returns
             str: A string representation of the Slurm node.
         """
         return (
