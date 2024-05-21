@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import logging
-from typing import Callable, Type
 
 from cloudai._core.registry import Registry
 from cloudai.schema.core import System, TestScenario
