@@ -14,7 +14,8 @@
 
 from typing import Optional, cast
 
-from cloudai.runner.core import BaseJob, BaseRunner
+from cloudai.runner.core.base_job import BaseJob
+from cloudai.runner.core.base_runner import BaseRunner
 from cloudai.schema.core import System, Test, TestScenario
 from cloudai.util import CommandShell
 
