@@ -31,9 +31,9 @@ from .template import NeMoLauncher
 @StrategyRegistry.strategy(ReportGenerationStrategy, [SlurmSystem], [NeMoLauncher])
 class NeMoLauncherReportGenerationStrategy(ReportGenerationStrategy):
     """
-    Strategy for generating reports from NeMo launcher directories, now
-    updated to handle TensorBoard log files and visualize data using Bokeh
-    plots.
+    Strategy for generating reports from NeMo launcher directories.
+
+    Now updated to handle TensorBoard log files and visualize data using Bokeh plots.
     """
 
     def can_handle_directory(self, directory_path: str) -> bool:

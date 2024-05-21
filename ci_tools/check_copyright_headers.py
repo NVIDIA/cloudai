@@ -36,8 +36,9 @@ def find_python_files(directory: str) -> List[str]:
 
 def check_copyright_header(file_path: str, header: str) -> Tuple[bool, str, str]:
     """
-    Validates the presence of a copyright header in a Python file, ensuring
-    correct formatting and adherence to PEP 8 regarding import statements.
+    Validate the presence of a copyright header in a Python file.
+
+    Ensure correct formatting and adherence to PEP 8 regarding import statements.
 
     Args:
         file_path (str): Path to the file.
@@ -61,8 +62,7 @@ def check_copyright_header(file_path: str, header: str) -> Tuple[bool, str, str]
 
 def main(directories: List[str], header: str):
     """
-    Checks Python files in specified directories for a correctly formatted
-    copyright header.
+    Check Python files in specified directories for a correctly formatted copyright header.
 
     Args:
         directories (List[str]): Directories to check.

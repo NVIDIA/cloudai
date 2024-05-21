@@ -21,7 +21,7 @@ class TestScenario:
     """
     Represents a test scenario, comprising a set of tests.
 
-    Attributes:
+    Attributes
         name (str): Unique name of the test scenario.
         tests (List[Test]): Tests in the scenario.
     """
@@ -30,7 +30,7 @@ class TestScenario:
 
     def __init__(self, name: str, tests: List[Test]) -> None:
         """
-        Initializes a TestScenario instance.
+        Initialize a TestScenario instance.
 
         Args:
             name (str): Name of the test scenario.
@@ -41,19 +41,16 @@ class TestScenario:
 
     def __repr__(self) -> str:
         """
-        Returns a string representation of the TestScenario instance.
+        Return a string representation of the TestScenario instance.
 
-        Returns:
+        Returns
             str: String representation of the test scenario.
         """
         test_names = ", ".join([test.name for test in self.tests])
         return f"TestScenario(name={self.name}, tests=[{test_names}])"
 
     def pretty_print(self) -> None:
-        """
-        Prints each test in the scenario along with its section name,
-        description, and visualized dependencies.
-        """
+        """Print each test in the scenario along with its section name, description, and visualized dependencies."""
         print(f"Test Scenario: {self.name}")
         for test in self.tests:
             print(f"\nSection Name: {test.section_name}")

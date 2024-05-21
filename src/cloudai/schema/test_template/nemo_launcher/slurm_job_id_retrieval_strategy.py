@@ -24,8 +24,7 @@ from .template import NeMoLauncher
 @StrategyRegistry.strategy(JobIdRetrievalStrategy, [SlurmSystem], [NeMoLauncher])
 class NeMoLauncherSlurmJobIdRetrievalStrategy(JobIdRetrievalStrategy):
     """
-    Strategy for retrieving job IDs from NeMo Megatron launcher submissions to
-    a Slurm scheduler.
+    Strategy for retrieving job IDs from NeMo Megatron launcher submissions to a Slurm scheduler.
 
     This class implements the JobIdRetrievalStrategy interface to extract job IDs
     from the standard output provided by the Slurm scheduler when the NeMo Megatron

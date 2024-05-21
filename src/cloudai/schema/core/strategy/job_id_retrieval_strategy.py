@@ -18,13 +18,12 @@ from typing import Optional
 
 class JobIdRetrievalStrategy:
     """
-    Abstract class to define a strategy for retrieving job IDs from given stdout
-    and stderr streams.
+    Abstract class to define a strategy for retrieving job IDs from given stdout and stderr streams.
 
-    Attributes:
+    Attributes
         None
 
-    Methods:
+    Methods
         get_job_id(stdout: str, stderr: str) -> Optional[int]:
             Abstract method to be implemented by subclasses for extracting a job ID.
     """

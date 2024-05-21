@@ -26,9 +26,7 @@ from .template import UCCTest
 
 @StrategyRegistry.strategy(CommandGenStrategy, [SlurmSystem], [UCCTest])
 class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
-    """
-    Command generation strategy for UCC tests on Slurm systems.
-    """
+    """Command generation strategy for UCC tests on Slurm systems."""
 
     def __init__(
         self,

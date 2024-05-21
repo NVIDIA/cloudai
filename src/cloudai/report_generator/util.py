@@ -50,7 +50,7 @@ def calculate_power_of_two_ticks(min_val: float, max_val: float) -> List[float]:
 
 def bytes_to_human_readable(num_bytes: float) -> str:
     """
-    Converts a number of bytes into a human-readable string with units.
+    Convert a number of bytes into a human-readable string with units.
 
     Args:
         num_bytes (float): The number of bytes.
@@ -71,8 +71,7 @@ def add_human_readable_sizes(
     output_column: str,
 ) -> pd.DataFrame:
     """
-    Adds a human-readable size column to a DataFrame based on specified input
-    column containing numerical data.
+    Add a human-readable size column to a DataFrame based on specified input column containing numerical data.
 
     Args:
         df (pd.DataFrame): DataFrame containing the data.
@@ -105,9 +104,9 @@ def generate_power_of_two_ticks(min_val: float, max_val: float) -> List[int]:
 
 def adjust_scale(df: pd.DataFrame, input_column: str, output_column: str) -> Tuple[pd.DataFrame, str]:
     """
-    Adjusts the numerical scale of values in a DataFrame column from bytes to
-    the most appropriate unit, based on the maximum value in the dataset, and
-    stores the adjusted values in a new column.
+    Adjust the numerical scale of values in a DataFrame column from bytes to the most appropriate unit.
+
+    Based on the maximum value in the dataset, and stores the adjusted values in a new column.
 
     Args:
         df (pd.DataFrame): DataFrame containing the data.

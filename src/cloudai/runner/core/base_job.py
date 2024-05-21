@@ -19,7 +19,7 @@ class BaseJob:
     """
     Base class for representing a job created by executing a test.
 
-    Attributes:
+    Attributes
         id (int): The unique identifier of the job.
         test (Test): The test instance associated with this job.
         terminated_by_dependency (bool): Flag to indicate if the job was
@@ -28,7 +28,7 @@ class BaseJob:
 
     def __init__(self, job_id: int, test: Test):
         """
-        Initializes a BaseJob instance.
+        Initialize a BaseJob instance.
 
         Args:
             job_id (int): The unique identifier of the job.
@@ -51,7 +51,7 @@ class BaseJob:
         """
         Return a string representation of the BaseJob instance.
 
-        Returns:
+        Returns
             str: String representation of the job.
         """
         return (

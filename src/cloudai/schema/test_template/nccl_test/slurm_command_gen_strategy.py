@@ -26,9 +26,7 @@ from .template import NcclTest
 
 @StrategyRegistry.strategy(CommandGenStrategy, [SlurmSystem], [NcclTest])
 class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
-    """
-    Command generation strategy for NCCL tests on Slurm systems.
-    """
+    """Command generation strategy for NCCL tests on Slurm systems."""
 
     def __init__(
         self,

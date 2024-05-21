@@ -22,8 +22,7 @@ from .base_runner import BaseRunner
 
 class Runner:
     """
-    A wrapper class that creates and manages a specific runner instance
-    based on the system's scheduler type.
+    A wrapper class that creates and manages a specific runner instance based on the system's scheduler type.
 
     This class facilitates the initialization of the appropriate runner
     (StandaloneRunner or SlurmRunner) based on the scheduler specified in the
@@ -51,7 +50,7 @@ class Runner:
     @classmethod
     def register(cls, system_type: str) -> Callable:
         """
-        A decorator to register runner subclasses for specific system types.
+        Register runner subclasses for specific system types.
 
         Args:
             system_type (str): The system type the runner can handle.
@@ -91,7 +90,5 @@ class Runner:
         return runner_class(mode, system, test_scenario)
 
     async def run(self):
-        """
-        Run the test scenario using the instantiated runner.
-        """
+        """Run the test scenario using the instantiated runner."""
         await self.runner.run()

@@ -20,7 +20,8 @@ class Registry(metaclass=Singleton):
     system_parsers_map: Dict[str, Type[BaseSystemParser]] = {}
 
     def add_system_parser(self, name: str, value: Type[BaseSystemParser]) -> None:
-        """Add a new system parser implementation mapping.
+        """
+        Add a new system parser implementation mapping.
 
         Args:
             name (str): The name of the system parser.
@@ -34,7 +35,8 @@ class Registry(metaclass=Singleton):
         self.update_system_parser(name, value)
 
     def update_system_parser(self, name: str, value: Type[BaseSystemParser]) -> None:
-        """Create or replace system parser implementation mapping.
+        """
+        Create or replace system parser implementation mapping.
 
         Args:
             name (str): The name of the system parser.

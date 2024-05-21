@@ -20,16 +20,14 @@ from .installer import Installer
 class StandaloneInstaller(BaseInstaller):
     """
     Installer for systems that do not use a scheduler (standalone systems).
+
     Handles the installation of benchmarks or test templates for standalone systems.
     """
 
     PREREQUISITES = ["ps", "kill"]
 
     def _check_prerequisites(self) -> None:
-        """
-        Check for the presence of required binaries, raising an error if any
-        are missing.
-        """
+        """Check for the presence of required binaries, raising an error if any are missing."""
         super()._check_prerequisites()
         for binary in self.PREREQUISITES:
             if not self._is_binary_installed(binary):

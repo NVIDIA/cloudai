@@ -30,7 +30,7 @@ class StandaloneRunner(BaseRunner):
     environment. It extends the BaseRunner class, implementing the abstract
     methods to work with standalone jobs.
 
-    Attributes:
+    Attributes
         cmd_shell (CommandShell): An instance of CommandShell for executing
                                   system commands.
         Inherits all other attributes from the BaseRunner class.
@@ -43,8 +43,7 @@ class StandaloneRunner(BaseRunner):
         test_scenario: TestScenario,
     ):
         """
-        Initialize the StandaloneRunner with a system object, test scenario, and
-        monitor interval.
+        Initialize the StandaloneRunner with a system object, test scenario, and monitor interval.
 
         Args:
             mode (str): The operation mode ('run', 'dry-run').
@@ -79,7 +78,7 @@ class StandaloneRunner(BaseRunner):
 
     def is_job_running(self, job: BaseJob) -> bool:
         """
-        Checks if the specified job is currently running.
+        Check if the specified job is currently running.
 
         Args:
             job (BaseJob): The job to check.

@@ -31,7 +31,7 @@ class SlurmRunner(BaseRunner):
     environment. It extends the BaseRunner class, implementing the abstract
     methods to work with Slurm jobs.
 
-    Attributes:
+    Attributes
         slurm_system (SlurmSystem): This attribute is a casted version of the `system`
                                     attribute to `SlurmSystem` type, ensuring that
                                     Slurm-specific properties and methods are
@@ -79,7 +79,7 @@ class SlurmRunner(BaseRunner):
 
     def is_job_running(self, job: BaseJob) -> bool:
         """
-        Checks if the specified job is currently running.
+        Check if the specified job is currently running.
 
         Args:
             job (BaseJob): The job to check.

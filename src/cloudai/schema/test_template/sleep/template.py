@@ -16,6 +16,4 @@ from cloudai.schema.core import TestTemplate
 
 
 class Sleep(TestTemplate):
-    """
-    Test template for sleep.
-    """
+    """Test template for sleep."""
