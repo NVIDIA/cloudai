@@ -1,5 +1,48 @@
 import cloudai  # noqa: F401
+import pytest
 from cloudai._core.registry import Registry
+from cloudai.schema.core.strategy.command_gen_strategy import CommandGenStrategy
+from cloudai.schema.core.strategy.grading_strategy import GradingStrategy
+from cloudai.schema.core.strategy.install_strategy import InstallStrategy
+from cloudai.schema.core.strategy.job_id_retrieval_strategy import JobIdRetrievalStrategy
+from cloudai.schema.core.strategy.report_generation_strategy import ReportGenerationStrategy
+from cloudai.schema.system.slurm.slurm_system import SlurmSystem
+from cloudai.schema.system.standalone_system import StandaloneSystem
+from cloudai.schema.test_template.chakra_replay.grading_strategy import ChakraReplayGradingStrategy
+from cloudai.schema.test_template.chakra_replay.report_generation_strategy import ChakraReplayReportGenerationStrategy
+from cloudai.schema.test_template.chakra_replay.slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
+from cloudai.schema.test_template.chakra_replay.slurm_install_strategy import ChakraReplaySlurmInstallStrategy
+from cloudai.schema.test_template.chakra_replay.template import ChakraReplay
+from cloudai.schema.test_template.common.slurm_job_id_retrieval_strategy import SlurmJobIdRetrievalStrategy
+from cloudai.schema.test_template.common.standalone_job_id_retrieval_strategy import StandaloneJobIdRetrievalStrategy
+from cloudai.schema.test_template.jax_toolbox.grading_strategy import JaxToolboxGradingStrategy
+from cloudai.schema.test_template.jax_toolbox.report_generation_strategy import JaxToolboxReportGenerationStrategy
+from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
+from cloudai.schema.test_template.jax_toolbox.slurm_install_strategy import JaxToolboxSlurmInstallStrategy
+from cloudai.schema.test_template.jax_toolbox.template import JaxToolbox
+from cloudai.schema.test_template.nccl_test.grading_strategy import NcclTestGradingStrategy
+from cloudai.schema.test_template.nccl_test.report_generation_strategy import NcclTestReportGenerationStrategy
+from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
+from cloudai.schema.test_template.nccl_test.slurm_install_strategy import NcclTestSlurmInstallStrategy
+from cloudai.schema.test_template.nccl_test.template import NcclTest
+from cloudai.schema.test_template.nemo_launcher.grading_strategy import NeMoLauncherGradingStrategy
+from cloudai.schema.test_template.nemo_launcher.report_generation_strategy import NeMoLauncherReportGenerationStrategy
+from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import NeMoLauncherSlurmCommandGenStrategy
+from cloudai.schema.test_template.nemo_launcher.slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
+from cloudai.schema.test_template.nemo_launcher.slurm_job_id_retrieval_strategy import (
+    NeMoLauncherSlurmJobIdRetrievalStrategy,
+)
+from cloudai.schema.test_template.nemo_launcher.template import NeMoLauncher
+from cloudai.schema.test_template.sleep.grading_strategy import SleepGradingStrategy
+from cloudai.schema.test_template.sleep.report_generation_strategy import SleepReportGenerationStrategy
+from cloudai.schema.test_template.sleep.standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
+from cloudai.schema.test_template.sleep.standalone_install_strategy import SleepStandaloneInstallStrategy
+from cloudai.schema.test_template.sleep.template import Sleep
+from cloudai.schema.test_template.ucc_test.grading_strategy import UCCTestGradingStrategy
+from cloudai.schema.test_template.ucc_test.report_generation_strategy import UCCTestReportGenerationStrategy
+from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
+from cloudai.schema.test_template.ucc_test.slurm_install_strategy import UCCTestSlurmInstallStrategy
+from cloudai.schema.test_template.ucc_test.template import UCCTest
 
 
 def test_system_parsers():
@@ -14,3 +57,46 @@ def test_runners():
     assert "standalone" in runners
     assert "slurm" in runners
     assert len(runners) == 2
+
+
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ((CommandGenStrategy, SlurmSystem, ChakraReplay), ChakraReplaySlurmCommandGenStrategy),
+        ((CommandGenStrategy, SlurmSystem, JaxToolbox), JaxToolboxSlurmCommandGenStrategy),
+        ((CommandGenStrategy, SlurmSystem, NcclTest), NcclTestSlurmCommandGenStrategy),
+        ((CommandGenStrategy, SlurmSystem, NeMoLauncher), NeMoLauncherSlurmCommandGenStrategy),
+        ((CommandGenStrategy, SlurmSystem, Sleep), SleepStandaloneCommandGenStrategy),
+        ((CommandGenStrategy, SlurmSystem, UCCTest), UCCTestSlurmCommandGenStrategy),
+        ((CommandGenStrategy, StandaloneSystem, Sleep), SleepStandaloneCommandGenStrategy),
+        ((GradingStrategy, SlurmSystem, ChakraReplay), ChakraReplayGradingStrategy),
+        ((GradingStrategy, SlurmSystem, JaxToolbox), JaxToolboxGradingStrategy),
+        ((GradingStrategy, SlurmSystem, NcclTest), NcclTestGradingStrategy),
+        ((GradingStrategy, SlurmSystem, NeMoLauncher), NeMoLauncherGradingStrategy),
+        ((GradingStrategy, SlurmSystem, Sleep), SleepGradingStrategy),
+        ((GradingStrategy, SlurmSystem, UCCTest), UCCTestGradingStrategy),
+        ((InstallStrategy, SlurmSystem, ChakraReplay), ChakraReplaySlurmInstallStrategy),
+        ((InstallStrategy, SlurmSystem, JaxToolbox), JaxToolboxSlurmInstallStrategy),
+        ((InstallStrategy, SlurmSystem, NcclTest), NcclTestSlurmInstallStrategy),
+        ((InstallStrategy, SlurmSystem, NeMoLauncher), NeMoLauncherSlurmInstallStrategy),
+        ((InstallStrategy, SlurmSystem, Sleep), SleepStandaloneInstallStrategy),
+        ((InstallStrategy, SlurmSystem, UCCTest), UCCTestSlurmInstallStrategy),
+        ((InstallStrategy, StandaloneSystem, Sleep), SleepStandaloneInstallStrategy),
+        ((JobIdRetrievalStrategy, SlurmSystem, ChakraReplay), SlurmJobIdRetrievalStrategy),
+        ((JobIdRetrievalStrategy, SlurmSystem, JaxToolbox), SlurmJobIdRetrievalStrategy),
+        ((JobIdRetrievalStrategy, SlurmSystem, NcclTest), SlurmJobIdRetrievalStrategy),
+        ((JobIdRetrievalStrategy, SlurmSystem, NeMoLauncher), NeMoLauncherSlurmJobIdRetrievalStrategy),
+        ((JobIdRetrievalStrategy, SlurmSystem, UCCTest), SlurmJobIdRetrievalStrategy),
+        ((JobIdRetrievalStrategy, StandaloneSystem, Sleep), StandaloneJobIdRetrievalStrategy),
+        ((ReportGenerationStrategy, SlurmSystem, ChakraReplay), ChakraReplayReportGenerationStrategy),
+        ((ReportGenerationStrategy, SlurmSystem, JaxToolbox), JaxToolboxReportGenerationStrategy),
+        ((ReportGenerationStrategy, SlurmSystem, NcclTest), NcclTestReportGenerationStrategy),
+        ((ReportGenerationStrategy, SlurmSystem, NeMoLauncher), NeMoLauncherReportGenerationStrategy),
+        ((ReportGenerationStrategy, SlurmSystem, Sleep), SleepReportGenerationStrategy),
+        ((ReportGenerationStrategy, SlurmSystem, UCCTest), UCCTestReportGenerationStrategy),
+        ((ReportGenerationStrategy, StandaloneSystem, Sleep), SleepReportGenerationStrategy),
+    ],
+)
+def test_strategies(key: tuple, value: type):
+    strategies = Registry().strategies_map
+    assert strategies[key] == value
