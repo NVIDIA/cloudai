@@ -16,6 +16,4 @@ from cloudai.schema.core import TestTemplate
 
 
 class ChakraReplay(TestTemplate):
-    """
-    Test template for Chakra Replay.
-    """
+    """Test template for Chakra Replay."""

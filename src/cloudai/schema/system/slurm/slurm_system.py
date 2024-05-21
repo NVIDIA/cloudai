@@ -27,7 +27,7 @@ class SlurmSystem(System):
     """
     Represents a Slurm system, encapsulating the system's configuration.
 
-    Attributes:
+    Attributes
         name (str): The name of the Slurm system.
         install_path (str): Installation path of Cloud AI software.
         output_path (str): Directory path for output files.
@@ -51,8 +51,7 @@ class SlurmSystem(System):
     @classmethod
     def parse_node_list(cls, node_list: List[str]) -> List[str]:
         """
-        Expands a list of node names, including ranges, into a flat list of
-        individual node names, while preserving leading zeroes.
+        Expand a list of node names (with ranges) into a flat list of individual node names, keeping leading zeroes.
 
         Args:
             node_list (List[str]): A list of node names, possibly including ranges.
@@ -89,9 +88,9 @@ class SlurmSystem(System):
     @classmethod
     def format_node_list(cls, node_names: List[str]) -> str:
         """
-        Formats a list of node names into a condensed string representing groups
-        of nodes as ranges, mimicking the compact display found in systems like
-        Slurm's sinfo command output.
+        Format a list of node names into a condensed string representing groups of nodes as ranges.
+
+        Mimicking the compact display found in systems like Slurm's sinfo command output.
 
         Args:
             node_names: A list of node names, potentially including numerically
@@ -104,8 +103,9 @@ class SlurmSystem(System):
 
         def extract_parts(name: str) -> tuple:
             """
-            Extracts the prefix and numeric part of a node name, along with the
-            length of the numeric part for zero-padding.
+            Extract the prefix and numeric part of a node name, along with the length of the numeric part.
+
+            Zero-padding is used.
 
             Args:
                 name: The node name to be parsed.
@@ -122,7 +122,7 @@ class SlurmSystem(System):
 
         def format_range(lst: List[int], padding: int) -> List[str]:
             """
-            Formats a list of integers into string ranges, considering zero-padding.
+            Format a list of integers into string ranges, considering zero-padding.
 
             Args:
                 lst: A sorted list of node numbers.
@@ -178,7 +178,7 @@ class SlurmSystem(System):
         global_env_vars: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
-        Initializes a SlurmSystem instance.
+        Initialize a SlurmSystem instance.
 
         Args:
             name (str): Name of the Slurm system.
@@ -213,8 +213,9 @@ class SlurmSystem(System):
 
     def __repr__(self) -> str:
         """
-        Provides a structured string representation of the system, including the
-        system name, scheduler type, and a simplified view similar to the `sinfo`
+        Provide a structured string representation of the system.
+
+        Including the system name, scheduler type, and a simplified view similar to the `sinfo`
         command output, focusing on the partition, state, and nodelist.
         """
         header = f"System Name: {self.name}\nScheduler Type: {self.scheduler}"
@@ -229,12 +230,12 @@ class SlurmSystem(System):
         return "\n".join(parts)
 
     def get_partition_names(self) -> List[str]:
-        """Returns a list of all partition names."""
+        """Return a list of all partition names."""
         return list(self.partitions.keys())
 
     def get_partition_nodes(self, partition_name: str) -> List[SlurmNode]:
         """
-        Returns a list of SlurmNode objects in the specified partition.
+        Return a list of SlurmNode objects in the specified partition.
 
         Args:
             partition_name (str): The name of the partition.
@@ -251,7 +252,7 @@ class SlurmSystem(System):
 
     def get_partition_node_names(self, partition_name: str) -> List[str]:
         """
-        Returns the names of all nodes within a specified partition.
+        Return the names of all nodes within a specified partition.
 
         Args:
             partition_name (str): The name of the partition.
@@ -263,7 +264,7 @@ class SlurmSystem(System):
 
     def get_group_names(self, partition_name: str) -> List[str]:
         """
-        Retrieves names of all groups within a specified partition.
+        Retrieve names of all groups within a specified partition.
 
         Args:
             partition_name (str): The partition to query.
@@ -280,7 +281,7 @@ class SlurmSystem(System):
 
     def get_group_nodes(self, partition_name: str, group_name: str) -> List[SlurmNode]:
         """
-        Returns a list of SlurmNode objects in the specified group within a partition.
+        Return a list of SlurmNode objects in the specified group within a partition.
 
         Args:
             partition_name (str): The name of the partition.
@@ -300,7 +301,7 @@ class SlurmSystem(System):
 
     def get_group_node_names(self, partition_name: str, group_name: str) -> List[str]:
         """
-        Returns the names of all nodes within a specified group and partition.
+        Return the names of all nodes within a specified group and partition.
 
         Args:
             partition_name (str): The name of the partition.
@@ -318,8 +319,9 @@ class SlurmSystem(System):
         self, partition_name: str, group_name: str, number_of_nodes: int
     ) -> List[SlurmNode]:
         """
-        Retrieves a specific number of potentially available nodes from a group
-        within a partition. Prioritizes nodes by their current state, preferring
+        Retrieve a specific number of potentially available nodes from a group within a partition.
+
+        Prioritizes nodes by their current state, preferring
         idle nodes first, then completing nodes, and finally allocated nodes,
         while excluding nodes that are down and allocated nodes to the current user.
 
@@ -388,7 +390,7 @@ class SlurmSystem(System):
 
     def is_node_in_system(self, node_name: str) -> bool:
         """
-        Checks if a given node is part of the Slurm system.
+        Check if a given node is part of the Slurm system.
 
         Args:
             node_name (str): The name of the node to check.
@@ -400,8 +402,7 @@ class SlurmSystem(System):
 
     def is_job_running(self, job_id: int, retry_threshold: int = 3) -> bool:
         """
-        Determines if a specified Slurm job is currently running by checking its
-        presence and state in the job queue.
+        Determine if a specified Slurm job is currently running by checking its presence and state in the job queue.
 
         This method queries the Slurm job queue using 'squeue' to identify if the
         job with the specified ID is running. It handles transient network or
@@ -452,8 +453,9 @@ class SlurmSystem(System):
 
     def is_job_completed(self, job_id: int, retry_threshold: int = 3) -> bool:
         """
-        Check if a Slurm job is completed by querying its status. Retries the
-        query a specified number of times if certain errors are encountered.
+        Check if a Slurm job is completed by querying its status.
+
+        Retries the query a specified number of times if certain errors are encountered.
 
         Args:
             job_id (int): The ID of the job to check.
@@ -495,10 +497,11 @@ class SlurmSystem(System):
 
     def update_node_states(self) -> None:
         """
-        Updates the states of nodes in the Slurm system by querying the current state of each node using
-        the 'sinfo' command, and correlates this with 'squeue' to determine which user is running jobs on
-        each node. This method parses the output of these commands, identifies the state of nodes and the
-        users, and updates the corresponding SlurmNode instances in the system.
+        Update the states of nodes in the Slurm system.
+
+        By querying the current state of each node using the 'sinfo' command, and correlates this with 'squeue' to
+        determine which user is running jobs on each node. This method parses the output of these commands, identifies
+        the state of nodes and the users, and updates the corresponding SlurmNode instances in the system.
         """
         squeue_output = self.get_squeue()
         sinfo_output = self.get_sinfo()
@@ -507,9 +510,9 @@ class SlurmSystem(System):
 
     def get_squeue(self) -> str:
         """
-        Fetches the output from the 'squeue' command.
+        Fetch the output from the 'squeue' command.
 
-        Returns:
+        Returns
             str: The stdout from the 'squeue' command execution.
         """
         squeue_output, _ = self.fetch_command_output("squeue -o '%N|%u' --noheader")
@@ -517,9 +520,9 @@ class SlurmSystem(System):
 
     def get_sinfo(self) -> str:
         """
-        Fetches the output from the 'sinfo' command.
+        Fetch the output from the 'sinfo' command.
 
-        Returns:
+        Returns
             str: The stdout from the 'sinfo' command execution.
         """
         sinfo_output, _ = self.fetch_command_output("sinfo")
@@ -603,13 +606,13 @@ class SlurmSystem(System):
 
     def convert_state_to_enum(self, state_str: str) -> SlurmNodeState:
         """
-        Converts a Slurm node state string to its corresponding enum member.
+        Convert a Slurm node state string to its corresponding enum member.
 
         Handles both full state names and abbreviated forms. Special handling
         for states ending with "*", indicating a non-responding node. If the
         state cannot be matched, UNKNOWN_STATE is returned.
 
-        Parameters:
+        Args:
             state_str (str): State string from Slurm, could be full name,
                              abbreviated code, or with a "*" suffix.
 
@@ -661,8 +664,9 @@ class SlurmSystem(System):
 
     def parse_nodes(self, nodes: List[str]) -> List[str]:
         """
-        Parses a list of node specifications into individual node names. Supports
-        explicit node names and specifications in "partition:group:num_nodes" format,
+        Parse a list of node specifications into individual node names.
+
+        Supports explicit node names and specifications in "partition:group:num_nodes" format,
         and also handles ranges in node names. This allows for dynamic node allocation
         based on system state and compact node list specifications.
 

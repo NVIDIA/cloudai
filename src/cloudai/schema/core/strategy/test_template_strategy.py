@@ -21,11 +21,12 @@ from ..system import System
 
 class TestTemplateStrategy:
     """
-    Abstract base class representing a test template, providing a framework for
-    test execution, including installation, uninstallation, and execution command
+    Abstract base class representing a test template.
+
+    Provides a framework for test execution, including installation, uninstallation, and execution command
     generation based on system configurations and test parameters.
 
-    Attributes:
+    Attributes
         system (System): The system schema object.
         install_path (str): Path where the benchmarks are to be installed.
         env_vars (Dict[str, Any]): Default environment variables.
@@ -45,8 +46,7 @@ class TestTemplateStrategy:
         cmd_args: Dict[str, Any],
     ) -> None:
         """
-        Initializes a TestTemplateStrategy instance with system configuration,
-        environment variables, and command-line arguments.
+        Initialize a TestTemplateStrategy instance with system configuration, env variables, and command-line arguments.
 
         Args:
             system (System): The system configuration for the test.
@@ -66,9 +66,9 @@ class TestTemplateStrategy:
 
     def _construct_default_env_vars(self) -> Dict[str, str]:
         """
-        Constructs the default environment variables for the test template.
+        Construct the default environment variables for the test template.
 
-        Returns:
+        Returns
             Dict[str, str]: A dictionary containing the default environment variables.
         """
         return {
@@ -79,9 +79,9 @@ class TestTemplateStrategy:
 
     def _construct_default_cmd_args(self) -> Dict[str, str]:
         """
-        Constructs the default arguments for the test template recursively.
+        Construct the default arguments for the test template recursively.
 
-        Returns:
+        Returns
             Dict[str, Any]: A dictionary containing the combined default arguments.
         """
 
@@ -109,8 +109,7 @@ class TestTemplateStrategy:
 
     def _flatten_dict(self, d: Dict[str, Any], parent_key: str = "", sep: str = ".") -> Dict[str, Any]:
         """
-        Flattens a nested dictionary into a single level dictionary
-        with dot-separated keys.
+        Flatten a nested dictionary into a single level dictionary with dot-separated keys.
 
         Args:
             d (Dict[str, Any]): The dictionary to flatten.
@@ -135,7 +134,7 @@ class TestTemplateStrategy:
         provided_env_vars: Dict[str, str],
     ) -> Dict[str, str]:
         """
-        Overrides the default environment variables with provided values.
+        Override the default environment variables with provided values.
 
         Args:
             default_env_vars (Dict[str, str]): The default environment variables.
@@ -155,7 +154,7 @@ class TestTemplateStrategy:
         provided_cmd_args: Dict[str, str],
     ) -> Dict[str, str]:
         """
-        Overrides the default command-line arguments with provided values.
+        Override the default command-line arguments with provided values.
 
         Args:
             default_cmd_args (Dict[str, str]): The default command-line arguments.

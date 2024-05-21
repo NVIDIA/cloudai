@@ -31,7 +31,7 @@ class NcclTestSlurmInstallStrategy(SlurmInstallStrategy):
     """
     Install strategy for NCCL tests on Slurm systems.
 
-    Attributes:
+    Attributes
         SUBDIR_PATH (str): Subdirectory path where Docker images are stored.
         DOCKER_IMAGE_FILENAME (str): Name of the Docker image file.
     """

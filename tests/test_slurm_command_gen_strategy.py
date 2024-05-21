@@ -4,17 +4,26 @@ import pytest
 from cloudai.schema.system import SlurmSystem
 from cloudai.schema.system.slurm import SlurmNode, SlurmNodeState
 from cloudai.schema.system.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
+from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import NeMoLauncherSlurmCommandGenStrategy
 
 
 @pytest.fixture
-def strategy_fixture() -> SlurmCommandGenStrategy:
+def slurm_system(tmp_path: Path) -> SlurmSystem:
     slurm_system = SlurmSystem(
         name="TestSystem",
-        install_path="/path/to/install",
-        output_path="/path/to/output",
+        install_path=str(tmp_path / "install"),
+        output_path=str(tmp_path / "output"),
         default_partition="main",
         partitions={"main": [SlurmNode(name="node1", partition="main", state=SlurmNodeState.IDLE)]},
     )
+    Path(slurm_system.install_path).mkdir()
+    Path(slurm_system.output_path).mkdir()
+    return slurm_system
+
+
+@pytest.fixture
+def strategy_fixture(slurm_system: SlurmSystem) -> SlurmCommandGenStrategy:
     env_vars = {"TEST_VAR": "VALUE"}
     cmd_args = {"test_arg": "test_value"}
     strategy = SlurmCommandGenStrategy(slurm_system, env_vars, cmd_args)
@@ -42,3 +51,46 @@ def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, tmp_path
 
     # Check the correctness of the sbatch command format
     assert sbatch_command == f"sbatch {filepath_from_command}"
+
+
+class TestNcclTestSlurmCommandGenStrategy__GetDockerImagePath:
+    @pytest.fixture
+    def nccl_slurm_cmd_gen_strategy_fixture(self, slurm_system: SlurmSystem) -> NcclTestSlurmCommandGenStrategy:
+        env_vars = {"TEST_VAR": "VALUE"}
+        cmd_args = {"test_arg": "test_value"}
+        strategy = NcclTestSlurmCommandGenStrategy(slurm_system, env_vars, cmd_args)
+        return strategy
+
+    def test_cmd_arg_file_doesnt_exist(self, nccl_slurm_cmd_gen_strategy_fixture: NcclTestSlurmCommandGenStrategy):
+        cmd_args = {"docker_image_url": f"{nccl_slurm_cmd_gen_strategy_fixture.install_path}/docker_image"}
+        image_path = nccl_slurm_cmd_gen_strategy_fixture.get_docker_image_path(cmd_args)
+        assert image_path == f"{nccl_slurm_cmd_gen_strategy_fixture.install_path}/nccl-test/nccl_test.sqsh"
+
+    def test_cmd_arg_file_exists(self, nccl_slurm_cmd_gen_strategy_fixture: NcclTestSlurmCommandGenStrategy):
+        cmd_args = {"docker_image_url": f"{nccl_slurm_cmd_gen_strategy_fixture.install_path}/docker_image"}
+        Path(cmd_args["docker_image_url"]).touch()
+        image_path = nccl_slurm_cmd_gen_strategy_fixture.get_docker_image_path(cmd_args)
+        assert image_path == cmd_args["docker_image_url"]
+
+
+class TestNeMoLauncherSlurmCommandGenStrategy__SetContainerArg:
+    @pytest.fixture
+    def nemo_cmd_gen(self, slurm_system: SlurmSystem) -> NeMoLauncherSlurmCommandGenStrategy:
+        env_vars = {"TEST_VAR": "VALUE"}
+        cmd_args = {"test_arg": "test_value"}
+        strategy = NeMoLauncherSlurmCommandGenStrategy(slurm_system, env_vars, cmd_args)
+        return strategy
+
+    def test_docker_image_url_is_not_file(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
+        nemo_cmd_gen.final_cmd_args["docker_image_url"] = f"{nemo_cmd_gen.install_path}/docker_image"
+        nemo_cmd_gen.set_container_arg()
+        assert (
+            nemo_cmd_gen.final_cmd_args["container"]
+            == f"{nemo_cmd_gen.install_path}/NeMo-Megatron-Launcher/nemo_megatron_launcher.sqsh"
+        )
+
+    def test_docker_image_url_is_file(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
+        nemo_cmd_gen.final_cmd_args["docker_image_url"] = f"{nemo_cmd_gen.install_path}/docker_image"
+        Path(nemo_cmd_gen.final_cmd_args["docker_image_url"]).touch()
+        nemo_cmd_gen.set_container_arg()
+        assert nemo_cmd_gen.final_cmd_args["container"] == nemo_cmd_gen.final_cmd_args["docker_image_url"]

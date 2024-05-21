@@ -24,9 +24,7 @@ from .template import ChakraReplay
 
 @StrategyRegistry.strategy(CommandGenStrategy, [SlurmSystem], [ChakraReplay])
 class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
-    """
-    Command generation strategy for ChakraReplay on Slurm systems.
-    """
+    """Command generation strategy for ChakraReplay on Slurm systems."""
 
     def __init__(
         self,

@@ -29,7 +29,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """
     Command generation strategy for NeMo Megatron Launcher on Slurm systems.
 
-    Attributes:
+    Attributes
         install_path (str): The installation path of Cloud AI.
     """
 
@@ -85,7 +85,9 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         nodes = self.slurm_system.parse_nodes(nodes)
         if nodes:
             self.final_cmd_args["training.trainer.num_nodes"] = str(len(nodes))
-        self.final_cmd_args["container"] = self.final_cmd_args["docker_image_url"]
+
+        self.set_container_arg()
+
         del self.final_cmd_args["repository_url"]
         del self.final_cmd_args["repository_commit_hash"]
         del self.final_cmd_args["docker_image_url"]
@@ -102,9 +104,19 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return full_cmd.strip()
 
+    def set_container_arg(self) -> None:
+        if os.path.isfile(self.final_cmd_args["docker_image_url"]):
+            self.final_cmd_args["container"] = self.final_cmd_args["docker_image_url"]
+        else:
+            self.final_cmd_args["container"] = os.path.join(
+                self.install_path,
+                NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH,
+                NeMoLauncherSlurmInstallStrategy.DOCKER_IMAGE_FILENAME,
+            )
+
     def _handle_special_keys(self, key: str, value: Any, launcher_path: str, output_path: str) -> Any:
         """
-        Handles special formatting for specific keys.
+        Handle special formatting for specific keys.
 
         Args:
             key (str): The argument key.
@@ -115,7 +127,6 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         Returns:
             Any: The specially formatted value, if applicable.
         """
-
         if key == "training.model.data.data_prefix":
             return value.replace("\\", "")
 
@@ -123,7 +134,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _generate_cmd_args_str(self, args: Dict[str, str], nodes: List[str]) -> str:
         """
-        Generates a string of command-line arguments.
+        Generate a string of command-line arguments.
 
         Args:
             args (Dict[str, str]): The command-line arguments.

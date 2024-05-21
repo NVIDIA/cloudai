@@ -17,7 +17,7 @@ class System:
     """
     Base class representing a generic system.
 
-    Attributes:
+    Attributes
         name (str): Unique name of the system.
         scheduler (str): Type of scheduler used by the system, determining
                          the specific subclass of System to be used.
@@ -33,7 +33,7 @@ class System:
         monitor_interval: int = 1,
     ) -> None:
         """
-        Initializes a System instance.
+        Initialize a System instance.
 
         Args:
             name (str): Name of the system.
@@ -48,10 +48,9 @@ class System:
 
     def __repr__(self) -> str:
         """
-        Provides a detailed string representation of the System instance,
-        including all its attributes.
+        Provide a detailed string representation of the System instance, including all its attributes.
 
-        Returns:
+        Returns
             str: String representation of the system including name, scheduler,
             output_path, and monitor_interval.
         """

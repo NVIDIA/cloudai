@@ -19,7 +19,7 @@ class NcclTest(TestTemplate):
     """
     Test template for NCCL tests.
 
-    Attributes:
+    Attributes
         SUPPORTED_SUBTESTS (List[str]): List of supported subtests for NCCL,
             including all_reduce_perf_mpi, all_gather_perf_mpi, and others.
     """

@@ -16,9 +16,7 @@ from abc import ABC, abstractmethod
 
 
 class ReportToolInterface(ABC):
-    """
-    Interface for report tools, defining methods to add and finalize reports.
-    """
+    """Interface for report tools, defining methods to add and finalize reports."""
 
     @abstractmethod
     def finalize_report(self, output_filename: str) -> None:

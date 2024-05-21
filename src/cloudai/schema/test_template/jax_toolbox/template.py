@@ -16,6 +16,4 @@ from cloudai.schema.core import TestTemplate
 
 
 class JaxToolbox(TestTemplate):
-    """
-    Test template for the JAX Toolbox.
-    """
+    """Test template for the JAX Toolbox."""
