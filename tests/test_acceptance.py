@@ -48,30 +48,17 @@ def diff_dirs(dir1: Path, dir2: Path) -> bool:
     This function ignore empty lines and commented lines
     """
     ok = True
-    if not (dir1.is_dir() and dir2.is_dir()):
-        print(f"One of the directory is invalid ({dir1=}, {dir2=})")
-        return False
+    assert dir1.is_dir() and dir2.is_dir(), f"One of the directory is invalid ({dir1=}, {dir2=}"
 
-    if len(list(dir1.iterdir())) != len(list(dir2.iterdir())):
-        print(f"Dirs {dir1} and {dir2} have different number of files")
-        ok = False
+    assert len(list(dir1.iterdir())) == len(list(dir2.iterdir())), f"Dirs {dir1} and {dir2} have different files count"
 
     for p in dir1.iterdir():
         sib_p = dir2.joinpath(p.name)
         if p.is_dir() and not diff_dirs(p, sib_p):
             ok = False
         elif p.is_file():
-            if not sib_p.is_file():
-                print(f"File {sib_p} doesn't exist but its sibling {p} does")
-                ok = False
-            if read_wout_comments(p) != read_wout_comments(sib_p):
-                print(f"Different content in files {p} and {sib_p}")
-                print("*" * 50)
-                print(read_wout_comments(p))
-                print("<" * 50)
-                print(read_wout_comments(sib_p))
-                print("*" * 50)
-                ok = False
+            assert sib_p.is_file(), f"File {sib_p} doesn't exist but its sibling {p} does"
+            assert read_wout_comments(p) == read_wout_comments(sib_p), f"Different content in files {p} and {sib_p}"
 
     return ok
 
@@ -97,7 +84,7 @@ def test_slurm(tmp_path: Path, test_scenario_path: Path, expected_output: Option
     test_dir = list(tmp_path.glob("*"))[0]
 
     if expected_output is not None:
-        assert diff_dirs(test_dir, expected_output), "Output is not as expected"
+        diff_dirs(test_dir, expected_output), "Output is not as expected"
     else:
         for td in test_dir.iterdir():
             assert td.is_dir(), "Invalid test directory"
