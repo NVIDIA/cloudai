@@ -1,12 +1,3 @@
-#!/bin/bash
-#SBATCH --job-name=reduce_scatter_perf_mpi_20240520_171309
-#SBATCH -N 2
-#SBATCH --output=/labhome/eshukrun/tmp/pytest-of-eshukrun/pytest-26/test_slurm_conf_v0_6_general_t0/2024-05-20_17-12-47/Tests.23/0/stdout.txt
-#SBATCH --error=/labhome/eshukrun/tmp/pytest-of-eshukrun/pytest-26/test_slurm_conf_v0_6_general_t0/2024-05-20_17-12-47/Tests.23/0/stderr.txt
-#SBATCH --partition=partition_1
-#SBATCH --gpus-per-node=8
-#SBATCH --ntasks-per-node=8
-#SBATCH --time=00:20:00
 
 export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 

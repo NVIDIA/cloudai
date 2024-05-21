@@ -1,11 +1,3 @@
-#!/bin/bash
-#SBATCH --job-name=alltoall_20240520_171143
-#SBATCH -N 2
-#SBATCH --output=/labhome/eshukrun/tmp/pytest-of-eshukrun/pytest-25/test_slurm_conf_v0_6_general_t2/2024-05-20_17-11-39/Tests.5/0/stdout.txt
-#SBATCH --error=/labhome/eshukrun/tmp/pytest-of-eshukrun/pytest-25/test_slurm_conf_v0_6_general_t2/2024-05-20_17-11-39/Tests.5/0/stderr.txt
-#SBATCH --partition=partition_1
-#SBATCH --gpus-per-node=8
-#SBATCH --ntasks-per-node=8
 
 export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 
