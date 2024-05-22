@@ -1,6 +1,7 @@
 from typing import Dict, Type
 
 from cloudai.parser.core.base_system_parser import BaseSystemParser
+from cloudai.runner.core.base_runner import BaseRunner
 
 
 class Singleton(type):
@@ -18,6 +19,7 @@ class Registry(metaclass=Singleton):
     """Registry for implementations mappings."""
 
     system_parsers_map: Dict[str, Type[BaseSystemParser]] = {}
+    runners_map: Dict[str, Type[BaseRunner]] = {}
 
     def add_system_parser(self, name: str, value: Type[BaseSystemParser]) -> None:
         """
@@ -48,3 +50,33 @@ class Registry(metaclass=Singleton):
         if not issubclass(value, BaseSystemParser):
             raise ValueError(f"Invalid system implementation for '{name}', should be subclass of 'System'.")
         self.system_parsers_map[name] = value
+
+    def add_runner(self, name: str, value: Type[BaseRunner]) -> None:
+        """
+        Add a new runner implementation mapping.
+
+        Args:
+            name (str): The name of the runner.
+            value (Type[BaseRunner]): The runner implementation.
+
+        Raises:
+            ValueError: If the runner implementation already exists.
+        """
+        if name in self.runners_map:
+            raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
+        self.update_runner(name, value)
+
+    def update_runner(self, name: str, value: Type[BaseRunner]) -> None:
+        """
+        Create or replace runner implementation mapping.
+
+        Args:
+            name (str): The name of the runner.
+            value (Type[BaseRunner]): The runner implementation.
+
+        Raises:
+            ValueError: If the runner implementation does not exist.
+        """
+        if not issubclass(value, BaseRunner):
+            raise ValueError(f"Invalid runner implementation for '{name}', should be subclass of 'BaseRunner'.")
+        self.runners_map[name] = value

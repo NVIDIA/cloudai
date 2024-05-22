@@ -15,17 +15,22 @@
 import cloudai.schema.test_template  # noqa
 from cloudai.parser.system_parser.slurm_system_parser import SlurmSystemParser
 from cloudai.parser.system_parser.standalone_system_parser import StandaloneSystemParser
+from cloudai.runner.slurm.slurm_runner import SlurmRunner
+from cloudai.runner.standalone.standalone_runner import StandaloneRunner
 
 from ._core.registry import Registry
 from .grader import Grader
 from .installer import Installer
 from .parser import Parser
 from .report_generator import ReportGenerator
-from .runner import Runner
+from .runner.core.runner import Runner
 from .system_object_updater import SystemObjectUpdater
 
 Registry().add_system_parser("standalone", StandaloneSystemParser)
 Registry().add_system_parser("slurm", SlurmSystemParser)
+
+Registry().add_runner("slurm", SlurmRunner)
+Registry().add_runner("standalone", StandaloneRunner)
 
 
 __all__ = [
