@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import logging
-from typing import Callable, Type
 
+from cloudai._core.registry import Registry
 from cloudai.schema.core import System, TestScenario
 
 from .base_runner import BaseRunner
@@ -47,24 +47,6 @@ class Runner:
         self.logger.info("Initializing Runner")
         self.runner = self.create_runner(mode, system, test_scenario)
 
-    @classmethod
-    def register(cls, system_type: str) -> Callable:
-        """
-        Register runner subclasses for specific system types.
-
-        Args:
-            system_type (str): The system type the runner can handle.
-
-        Returns:
-            Callable: A decorator function that registers the runner class.
-        """
-
-        def decorator(runner_class: Type[BaseRunner]) -> Type[BaseRunner]:
-            cls._runners[system_type] = runner_class
-            return runner_class
-
-        return decorator
-
     def create_runner(self, mode: str, system: System, test_scenario: TestScenario) -> BaseRunner:
         """
         Dynamically create a runner instance based on the system's scheduler type.
@@ -80,12 +62,13 @@ class Runner:
         Raises:
             NotImplementedError: If the scheduler type is not supported.
         """
+        registry = Registry()
         scheduler_type = system.scheduler.lower()
-        runner_class = self._runners.get(scheduler_type)
-        if runner_class is None:
+        if scheduler_type not in registry.runners_map:
             msg = f"No runner registered for scheduler: {scheduler_type}"
             self.logger.error(msg)
             raise NotImplementedError(msg)
+        runner_class = registry.runners_map[scheduler_type]
         self.logger.info(f"Creating {runner_class.__name__}")
         return runner_class(mode, system, test_scenario)
 
