@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, Optional, Type, Union
 
 from cloudai._core.registry import Registry
 from cloudai.schema.core.strategy.command_gen_strategy import CommandGenStrategy
@@ -21,7 +21,6 @@ from cloudai.schema.core.strategy.grading_strategy import GradingStrategy
 from cloudai.schema.core.strategy.install_strategy import InstallStrategy
 from cloudai.schema.core.strategy.job_id_retrieval_strategy import JobIdRetrievalStrategy
 from cloudai.schema.core.strategy.report_generation_strategy import ReportGenerationStrategy
-from cloudai.schema.core.strategy.strategy_registry import StrategyRegistry
 from cloudai.schema.core.strategy.test_template_strategy import TestTemplateStrategy
 from cloudai.schema.core.system import System
 from cloudai.schema.core.test_template import TestTemplate
@@ -55,35 +54,36 @@ class TestTemplateParser(BaseMultiFileParser):
         self.system = system
         self.directory_path: str = directory_path
 
-    def _fetch_strategy(self, strategy_interface: TestTemplateStrategy, env_vars, cmd_args, a, b) -> Optional[Any]:
+    def _fetch_strategy(
+        self,
+        strategy_interface: Type[Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy]],
+        system_type: Type[System],
+        test_template_type: Type[TestTemplate],
+        env_vars: Dict[str, Any],
+        cmd_args: Dict[str, Any],
+    ) -> Optional[Any]:
         """
         Fetch a strategy from the registry based on system and template.
 
         Args:
-            strategy_interface (Type): The strategy interface to fetch.
-            env_vars: Environment variables.
-            cmd_args: Command-line arguments.
+            strategy_interface (Type[Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy]):
+                The strategy interface to fetch.
+            system_type (Type[System]): The system type.
+            test_template_type (Type[TestTemplate]): The test template type.
+            env_vars (Dict[str, Any]): Environment variables.
+            cmd_args (Dict[str, Any]): Command-line arguments.
 
         Returns:
             An instance of the requested strategy, or None.
         """
-        key = (strategy_interface, a, b)
+        key = (strategy_interface, system_type, test_template_type)
         registry = Registry()
-        strategy_class = registry.strategies_map.get(key)
-        # strategy_class = StrategyRegistry.get_strategy(
-        #     strategy_interface=strategy_interface,
-        #     system_type=type(self.system),
-        #     template_type=type(self),
-        # )
-        if strategy_class:
-            if strategy_interface in [
-                InstallStrategy,
-                CommandGenStrategy,
-                GradingStrategy,
-            ]:
-                return strategy_class(self.system, env_vars, cmd_args)
+        strategy_type = registry.strategies_map.get(key)
+        if strategy_type:
+            if issubclass(strategy_type, TestTemplateStrategy):
+                return strategy_type(self.system, env_vars, cmd_args)
             else:
-                return strategy_class()
+                return strategy_type()
 
         logger.warning(
             f"No {strategy_interface.__name__} found for " f"{type(self).__name__} and " f"{type(self.system).__name__}"
@@ -114,17 +114,17 @@ class TestTemplateParser(BaseMultiFileParser):
         self._validate_args(cmd_args, "Command-line")
 
         obj = test_template_class(system=self.system, name=name, env_vars=env_vars, cmd_args=cmd_args)
-        obj.install_strategy = self._fetch_strategy(InstallStrategy, env_vars, cmd_args, type(obj.system), type(obj))
+        obj.install_strategy = self._fetch_strategy(InstallStrategy, type(obj.system), type(obj), env_vars, cmd_args)
         obj.command_gen_strategy = self._fetch_strategy(
-            CommandGenStrategy, env_vars, cmd_args, type(obj.system), type(obj)
+            CommandGenStrategy, type(obj.system), type(obj), env_vars, cmd_args
         )
         obj.job_id_retrieval_strategy = self._fetch_strategy(
-            JobIdRetrievalStrategy, env_vars, cmd_args, type(obj.system), type(obj)
+            JobIdRetrievalStrategy, type(obj.system), type(obj), env_vars, cmd_args
         )
         obj.report_generation_strategy = self._fetch_strategy(
-            ReportGenerationStrategy, env_vars, cmd_args, type(obj.system), type(obj)
+            ReportGenerationStrategy, type(obj.system), type(obj), env_vars, cmd_args
         )
-        obj.grading_strategy = self._fetch_strategy(GradingStrategy, env_vars, cmd_args, type(obj.system), type(obj))
+        obj.grading_strategy = self._fetch_strategy(GradingStrategy, type(obj.system), type(obj), env_vars, cmd_args)
         return obj
 
     def _get_test_template_class(self, name: str) -> Type[TestTemplate]:
