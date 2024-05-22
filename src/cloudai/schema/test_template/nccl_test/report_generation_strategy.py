@@ -17,16 +17,11 @@ import re
 from typing import List, Optional, Tuple
 
 import pandas as pd
-
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.report_generator.util import add_human_readable_sizes
-from cloudai.schema.core.strategy import ReportGenerationStrategy, StrategyRegistry
-from cloudai.schema.system import SlurmSystem
-
-from .template import NcclTest
+from cloudai.schema.core.strategy.report_generation_strategy import ReportGenerationStrategy
 
 
-@StrategyRegistry.strategy(ReportGenerationStrategy, [SlurmSystem], [NcclTest])
 class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
     """
     Strategy for generating reports from NCCL test outputs.

@@ -15,7 +15,7 @@
 import logging
 from typing import Callable, Dict, Type
 
-from cloudai.schema.core import System
+from cloudai.schema.core.system import System
 
 from .base_system_object_updater import BaseSystemObjectUpdater
 

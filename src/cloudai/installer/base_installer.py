@@ -17,7 +17,8 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Iterable
 
-from cloudai.schema.core import System, TestTemplate
+from cloudai.schema.core.system import System
+from cloudai.schema.core.test_template import TestTemplate
 
 
 class BaseInstaller:

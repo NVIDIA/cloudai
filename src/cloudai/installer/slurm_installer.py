@@ -19,7 +19,8 @@ from typing import Iterable, cast
 
 import toml
 
-from cloudai.schema.core import System, TestTemplate
+from cloudai.schema.core.system import System
+from cloudai.schema.core.test_template import TestTemplate
 from cloudai.schema.system import SlurmSystem
 
 from .base_installer import BaseInstaller

@@ -14,13 +14,9 @@
 
 import os
 
-from cloudai.schema.core.strategy import GradingStrategy, StrategyRegistry
-from cloudai.schema.system import SlurmSystem
-
-from .template import NcclTest
+from cloudai.schema.core.strategy.grading_strategy import GradingStrategy
 
 
-@StrategyRegistry.strategy(GradingStrategy, [SlurmSystem], [NcclTest])
 class NcclTestGradingStrategy(GradingStrategy):
     """
     Performance grading strategy for NcclTest test templates on Slurm systems.

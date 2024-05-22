@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai.schema.core import System
+from cloudai.schema.core.system import System
 
 from .base_system_object_updater import BaseSystemObjectUpdater
 from .system_object_updater import SystemObjectUpdater

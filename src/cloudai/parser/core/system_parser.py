@@ -15,9 +15,8 @@
 import os
 
 import toml
-
 from cloudai._core.registry import Registry
-from cloudai.schema.core import System
+from cloudai.schema.core.system import System
 
 
 class SystemParser:

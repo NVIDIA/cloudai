@@ -15,7 +15,8 @@
 import logging
 
 from cloudai._core.registry import Registry
-from cloudai.schema.core import System, TestScenario
+from cloudai.schema.core.system import System
+from cloudai.schema.core.test_scenario import TestScenario
 
 from .base_runner import BaseRunner
 

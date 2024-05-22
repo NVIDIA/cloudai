@@ -14,7 +14,7 @@
 
 from typing import cast
 
-from cloudai.schema.core import System
+from cloudai.schema.core.system import System
 from cloudai.schema.system import SlurmSystem
 
 from .base_system_object_updater import BaseSystemObjectUpdater

@@ -12,13 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai.schema.core.strategy import GradingStrategy, StrategyRegistry
-from cloudai.schema.system import SlurmSystem
-
-from .template import ChakraReplay
+from cloudai.schema.core.strategy.grading_strategy import GradingStrategy
 
 
-@StrategyRegistry.strategy(GradingStrategy, [SlurmSystem], [ChakraReplay])
 class ChakraReplayGradingStrategy(GradingStrategy):
     """Performance grading strategy for ChakraReplay test templates on Slurm systems."""
 

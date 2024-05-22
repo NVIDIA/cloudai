@@ -23,7 +23,9 @@ from datetime import datetime
 from types import FrameType
 from typing import Dict, List, Optional
 
-from cloudai.schema.core import System, Test, TestScenario
+from cloudai.schema.core.system import System
+from cloudai.schema.core.test import Test
+from cloudai.schema.core.test_scenario import TestScenario
 
 from .base_job import BaseJob
 

@@ -15,15 +15,10 @@
 import os
 from typing import Any, Dict, List
 
-from cloudai.schema.core import System
-from cloudai.schema.core.strategy import CommandGenStrategy, StrategyRegistry
-from cloudai.schema.system import SlurmSystem
+from cloudai.schema.core.system import System
 from cloudai.schema.system.slurm.strategy import SlurmCommandGenStrategy
 
-from .template import JaxToolbox
 
-
-@StrategyRegistry.strategy(CommandGenStrategy, [SlurmSystem], [JaxToolbox])
 class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for JaxToolbox tests on Slurm systems."""
 

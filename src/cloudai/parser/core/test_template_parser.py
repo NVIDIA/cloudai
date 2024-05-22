@@ -12,11 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, Type
+import logging
+from typing import Any, Dict, Optional, Type
 
-from cloudai.schema.core import System, TestTemplate
+from cloudai.schema.core.strategy.command_gen_strategy import CommandGenStrategy
+from cloudai.schema.core.strategy.grading_strategy import GradingStrategy
+from cloudai.schema.core.strategy.install_strategy import InstallStrategy
+from cloudai.schema.core.strategy.job_id_retrieval_strategy import JobIdRetrievalStrategy
+from cloudai.schema.core.strategy.report_generation_strategy import ReportGenerationStrategy
+from cloudai.schema.core.strategy.strategy_registry import StrategyRegistry
+from cloudai.schema.core.system import System
+from cloudai.schema.core.test_template import TestTemplate
 
 from .base_multi_file_parser import BaseMultiFileParser
+
+logger = logging.getLogger(__name__)
 
 
 class TestTemplateParser(BaseMultiFileParser):
@@ -43,6 +53,38 @@ class TestTemplateParser(BaseMultiFileParser):
         self.system = system
         self.directory_path: str = directory_path
 
+    def _fetch_strategy(self, strategy_interface: Type, env_vars, cmd_args) -> Optional[Any]:
+        """
+        Fetch a strategy from the registry based on system and template.
+
+        Args:
+            strategy_interface (Type): The strategy interface to fetch.
+            env_vars: Environment variables.
+            cmd_args: Command-line arguments.
+
+        Returns:
+            An instance of the requested strategy, or None.
+        """
+        strategy_class = StrategyRegistry.get_strategy(
+            strategy_interface=strategy_interface,
+            system_type=type(self.system),
+            template_type=type(self),
+        )
+        if strategy_class:
+            if strategy_interface in [
+                InstallStrategy,
+                CommandGenStrategy,
+                GradingStrategy,
+            ]:
+                return strategy_class(self.system, env_vars, cmd_args)
+            else:
+                return strategy_class()
+
+        logger.warning(
+            f"No {strategy_interface.__name__} found for " f"{type(self).__name__} and " f"{type(self.system).__name__}"
+        )
+        return None
+
     def _parse_data(self, data: Dict[str, Any]) -> TestTemplate:
         """
         Parse data for a TestTemplate object.
@@ -66,7 +108,13 @@ class TestTemplateParser(BaseMultiFileParser):
         self._validate_args(env_vars, "Environment")
         self._validate_args(cmd_args, "Command-line")
 
-        return test_template_class(system=self.system, name=name, env_vars=env_vars, cmd_args=cmd_args)
+        obj = test_template_class(system=self.system, name=name, env_vars=env_vars, cmd_args=cmd_args)
+        obj.install_strategy = self._fetch_strategy(InstallStrategy, env_vars, cmd_args)
+        obj.command_gen_strategy = self._fetch_strategy(CommandGenStrategy, env_vars, cmd_args)
+        obj.job_id_retrieval_strategy = self._fetch_strategy(JobIdRetrievalStrategy, env_vars, cmd_args)
+        obj.report_generation_strategy = self._fetch_strategy(ReportGenerationStrategy, env_vars, cmd_args)
+        obj.grading_strategy = self._fetch_strategy(GradingStrategy, env_vars, cmd_args)
+        return obj
 
     def _get_test_template_class(self, name: str) -> Type[TestTemplate]:
         """

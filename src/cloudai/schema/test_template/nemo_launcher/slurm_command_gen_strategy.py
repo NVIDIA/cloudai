@@ -15,16 +15,12 @@
 import os
 from typing import Any, Dict, List
 
-from cloudai.schema.core import System
-from cloudai.schema.core.strategy import CommandGenStrategy, StrategyRegistry
-from cloudai.schema.system import SlurmSystem
+from cloudai.schema.core.system import System
 from cloudai.schema.system.slurm.strategy import SlurmCommandGenStrategy
 
 from .slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
-from .template import NeMoLauncher
 
 
-@StrategyRegistry.strategy(CommandGenStrategy, [SlurmSystem], [NeMoLauncher])
 class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """
     Command generation strategy for NeMo Megatron Launcher on Slurm systems.

@@ -13,9 +13,10 @@
 # limitations under the License.
 
 import sys
-from typing import Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
-from .test_template import TestTemplate
+if TYPE_CHECKING:
+    from .test_template import TestTemplate
 
 
 class Test:
@@ -50,7 +51,7 @@ class Test:
         self,
         name: str,
         description: str,
-        test_template: TestTemplate,
+        test_template: "TestTemplate",
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],

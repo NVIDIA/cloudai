@@ -17,19 +17,11 @@ import re
 from typing import List, Optional
 
 import pandas as pd
-
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.report_generator.util import add_human_readable_sizes
-from cloudai.schema.core.strategy import (
-    ReportGenerationStrategy,
-    StrategyRegistry,
-)
-from cloudai.schema.system import SlurmSystem
-
-from .template import UCCTest
+from cloudai.schema.core.strategy.report_generation_strategy import ReportGenerationStrategy
 
 
-@StrategyRegistry.strategy(ReportGenerationStrategy, [SlurmSystem], [UCCTest])
 class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
     """
     Strategy for generating reports from UCC test outputs.
