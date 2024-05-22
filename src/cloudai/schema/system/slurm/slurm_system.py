@@ -49,41 +49,37 @@ class SlurmSystem(System):
     """
 
     @classmethod
-    def parse_node_list(cls, node_list: List[str]) -> List[str]:
+    def parse_node_list(cls, node_list: str) -> List[str]:
         """
         Expand a list of node names (with ranges) into a flat list of individual node names, keeping leading zeroes.
 
         Args:
-            node_list (List[str]): A list of node names, possibly including ranges.
+            node_list (str): A list of node names, possibly including ranges.
 
         Returns:
             List[str]: A flat list of expanded node names with preserved
             zeroes.
         """
-        expanded_nodes = []
-        for node in node_list:
-            if "[" in node and "]" in node:
-                prefix, ranges = node.split("[")
-                ranges = ranges.strip("]")
-                range_elements = ranges.split(",")
-                for r in range_elements:
-                    if "-" in r:
-                        start_str, end_str = r.split("-")
-                    else:
-                        # For single nodes, treat the node itself as both start and end.
-                        start_str = end_str = r
-
-                    start, end = int(start_str), int(end_str)
-                    max_length = max(len(start_str), len(end_str))
-
-                    if "-" in r:
-                        expanded_nodes.extend([f"{prefix}{str(i).zfill(max_length)}" for i in range(start, end + 1)])
-                    else:
-                        # For single nodes, append directly with appropriate padding.
-                        expanded_nodes.append(f"{prefix}{start_str.zfill(max_length)}")
+        node_list = node_list.strip()
+        nodes = []
+        if not node_list:
+            return []
+        if "[" not in node_list:
+            return [node_list]
+        header, node_number = node_list.split("[")
+        node_number = node_number.replace("]", "")
+        ranges = node_number.split(",")
+        for r in ranges:
+            if "-" in r:
+                start_node, end_node = r.split("-")
+                number_of_digits = len(end_node)
+                nodes.extend(
+                    [f"{header}{str(i).zfill(number_of_digits)}" for i in range(int(start_node), int(end_node) + 1)]
+                )
             else:
-                expanded_nodes.append(node)
-        return expanded_nodes
+                nodes.append(f"{header}{r}")
+
+        return nodes
 
     @classmethod
     def format_node_list(cls, node_names: List[str]) -> str:
@@ -567,11 +563,8 @@ class SlurmSystem(System):
 
                 node_list_part, user = parts[0], "|".join(parts[1:])
                 # Handle cases where multiple node groups or ranges are specified
-                node_groups = node_list_part.split(",")
-                for node_group in node_groups:
-                    # Process each node or range using parse_node_list
-                    for node in self.parse_node_list([node_group.strip()]):
-                        node_user_map[node] = user.strip()
+                for node in self.parse_node_list(node_list_part):
+                    node_user_map[node] = user.strip()
 
         return node_user_map
 
@@ -589,20 +582,21 @@ class SlurmSystem(System):
             parts = line.split()
             partition, _, _, _, state, nodelist = parts[:6]
             partition = partition.rstrip("*")
+            node_names = self.parse_node_list(nodelist)
 
-            node_groups = nodelist.split(",")
-            for node_group in node_groups:
-                node_names = self.parse_node_list([node_group.strip()])
-                state_enum = self.convert_state_to_enum(state)
+            # Convert state to enum, handling states with suffixes
+            state_enum = self.convert_state_to_enum(state)
 
-                for node_name in node_names:
-                    for part_name, nodes in self.partitions.items():
-                        if part_name != partition:
-                            continue
-                        for node in nodes:
-                            if node.name == node_name:
-                                node.state = state_enum
-                                node.user = node_user_map.get(node_name, "N/A")
+            for node_name in node_names:
+                # Find the partition and node to update the state
+                for part_name, nodes in self.partitions.items():
+                    if part_name != partition:
+                        continue
+                    for node in nodes:
+                        if node.name == node_name:
+                            node.state = state_enum
+                            node.user = node_user_map.get(node_name, "N/A")
+                            break
 
     def convert_state_to_enum(self, state_str: str) -> SlurmNodeState:
         """
@@ -701,7 +695,7 @@ class SlurmSystem(System):
             else:
                 # Handle both individual node names and ranges
                 if self.is_node_in_system(node_spec) or "[" in node_spec:
-                    expanded_nodes = self.parse_node_list([node_spec])
+                    expanded_nodes = self.parse_node_list(node_spec)
                     parsed_nodes += expanded_nodes
                 else:
                     raise ValueError(f"Node '{node_spec}' not found.")
