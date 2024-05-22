@@ -29,7 +29,7 @@ SLURM_TEST_SCENARIOS = [
     },
     {
         "scenario": Path("conf/v0.6/general/test_scenario/sleep/test_scenario.toml"),
-        "expected_output": None,
+        "expected_dirs_number": 4,
     },
     {
         "scenario": Path("conf/v0.6/general/test_scenario/ucc_test/test_scenario.toml"),
@@ -43,32 +43,12 @@ def read_wout_comments(f):
         return "\n".join(line.strip() for line in fp.readlines() if line.strip() and not line.strip().startswith("#"))
 
 
-def diff_dirs(dir1: Path, dir2: Path) -> bool:
-    """Recursively compare the two directories and check if the files are all the same
-    This function ignore empty lines and commented lines
-    """
-    ok = True
-    assert dir1.is_dir() and dir2.is_dir(), f"One of the directory is invalid ({dir1=}, {dir2=}"
-
-    assert len(list(dir1.iterdir())) == len(list(dir2.iterdir())), f"Dirs {dir1} and {dir2} have different files count"
-
-    for p in dir1.iterdir():
-        sib_p = dir2.joinpath(p.name)
-        if p.is_dir() and not diff_dirs(p, sib_p):
-            ok = False
-        elif p.is_file():
-            assert sib_p.is_file(), f"File {sib_p} doesn't exist but its sibling {p} does"
-            assert read_wout_comments(p) == read_wout_comments(sib_p), f"Different content in files {p} and {sib_p}"
-
-    return ok
-
-
 @pytest.mark.parametrize(
     "test_scenario_path, expected_output",
-    [(e["scenario"], e["expected_output"]) for e in SLURM_TEST_SCENARIOS],
+    [(e["scenario"], e["expected_output"]) for e in SLURM_TEST_SCENARIOS if e.get("expected_output")],
     ids=lambda x: str(x),
 )
-def test_slurm(tmp_path: Path, test_scenario_path: Path, expected_output: Optional[Path]):
+def test_dry_run_compare_output(tmp_path: Path, test_scenario_path: Path, expected_output: Optional[Path]):
     args = argparse.Namespace(
         log_file=None,
         log_level=None,
@@ -81,11 +61,53 @@ def test_slurm(tmp_path: Path, test_scenario_path: Path, expected_output: Option
     )
     handle_dry_run_and_run(args)
 
-    test_dir = list(tmp_path.glob("*"))[0]
+    results_output = list(tmp_path.glob("*"))[0]
 
-    if expected_output is not None:
-        diff_dirs(test_dir, expected_output), "Output is not as expected"
-    else:
-        for td in test_dir.iterdir():
-            assert td.is_dir(), "Invalid test directory"
-            assert "Tests." in td.name, "Invalid test directory name"
+    assert results_output.is_dir(), "Output is not a directory"
+    assert expected_output.is_dir(), "Expected output is not a directory"
+
+    results_files = list(results_output.glob("**/*"))
+    expected_files = list(expected_output.glob("**/*"))
+
+    assert len(results_files) == len(expected_files), "Results don't have the expected number of files"
+
+    for p in expected_files:
+        relpath = p.relative_to(expected_output)
+        sibling_p = results_output.joinpath(relpath)
+        if p.is_dir():
+            assert sibling_p.is_dir(), f"Dir {sibling_p} is expected as a sibling of {p} but doesn't exist"
+        elif p.is_file():
+            assert sibling_p.is_file(), f"File {sibling_p} is expected as a sibling of {p} d but doesn't exist"
+            assert read_wout_comments(p) == read_wout_comments(
+                sibling_p
+            ), f"Different content in files {p} and {sibling_p}"
+
+
+@pytest.mark.parametrize(
+    "test_scenario_path, expected_dirs_number",
+    [(e["scenario"], e.get("expected_dirs_number")) for e in SLURM_TEST_SCENARIOS if not e.get("expected_output")],
+    ids=lambda x: str(x),
+)
+def test_dry_run_structure(tmp_path: Path, test_scenario_path: Path, expected_dirs_number: Optional[int]):
+    args = argparse.Namespace(
+        log_file=None,
+        log_level=None,
+        mode="dry-run",
+        output_path=str(tmp_path),
+        system_config_path="conf/v0.6/general/system/ci.toml",
+        test_scenario_path=str(test_scenario_path),
+        test_path="conf/v0.6/general/test",
+        test_template_path="conf/v0.6/general/test_template",
+    )
+    handle_dry_run_and_run(args)
+
+    results_output = list(tmp_path.glob("*"))[0]
+
+    test_dirs = list(results_output.iterdir())
+
+    if expected_dirs_number is not None:
+        assert len(test_dirs) == expected_dirs_number, "Dirs number in output is not as expected"
+
+    for td in test_dirs:
+        assert td.is_dir(), "Invalid test directory"
+        assert "Tests." in td.name, "Invalid test directory name"
