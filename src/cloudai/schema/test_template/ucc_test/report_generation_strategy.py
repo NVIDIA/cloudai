@@ -46,7 +46,7 @@ class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
                     return True
         return False
 
-    def generate_report(self, directory_path: str, sol: Optional[float] = None) -> None:
+    def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
         report_data = []
         stdout_path = os.path.join(directory_path, "stdout.txt")
         if os.path.isfile(stdout_path):
