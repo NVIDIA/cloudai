@@ -589,20 +589,18 @@ class SlurmSystem(System):
             parts = line.split()
             partition, _, _, _, state, nodelist = parts[:6]
             partition = partition.rstrip("*")
+            node_names = self.parse_node_list([nodelist])
 
-            node_groups = nodelist.split(",")
-            for node_group in node_groups:
-                node_names = self.parse_node_list([node_group.strip()])
-                state_enum = self.convert_state_to_enum(state)
-
-                for node_name in node_names:
-                    for part_name, nodes in self.partitions.items():
-                        if part_name != partition:
-                            continue
-                        for node in nodes:
-                            if node.name == node_name:
-                                node.state = state_enum
-                                node.user = node_user_map.get(node_name, "N/A")
+            # Convert state to enum, handling states with suffixes
+            state_enum = self.convert_state_to_enum(state)
+            for node_name in node_names:
+                for part_name, nodes in self.partitions.items():
+                    if part_name != partition:
+                        continue
+                    for node in nodes:
+                        if node.name == node_name:
+                            node.state = state_enum
+                            node.user = node_user_map.get(node_name, "N/A")
 
     def convert_state_to_enum(self, state_str: str) -> SlurmNodeState:
         """
