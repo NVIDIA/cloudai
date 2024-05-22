@@ -89,7 +89,9 @@ class SlurmSystemParser(BaseSystemParser):
                 raise ValueError("Partition data does not include a 'name' field.")
 
             raw_nodes = partition_data.get("nodes", [])
-            node_names = set(SlurmSystem.parse_node_list(raw_nodes))
+            node_names = set()
+            for group in raw_nodes:
+                node_names.update(set(SlurmSystem.parse_node_list(group)))
 
             if not node_names:
                 raise ValueError(f"No valid nodes found in partition '{partition_name}'")
@@ -117,7 +119,9 @@ class SlurmSystemParser(BaseSystemParser):
                     raise ValueError("Group data does not include a 'name' field.")
 
                 raw_nodes = group_data.get("nodes", [])
-                group_node_names = set(SlurmSystem.parse_node_list(raw_nodes))
+                group_node_names = set()
+                for group in raw_nodes:
+                    group_node_names.update(set(SlurmSystem.parse_node_list(group)))
 
                 group_nodes = []
                 for group_node_name in group_node_names:
