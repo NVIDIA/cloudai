@@ -1,11 +1,7 @@
 from typing import Dict, List, Tuple, Type, Union
 
-from cloudai.installer.base_installer import BaseInstaller
 from cloudai.parser.core.base_system_parser import BaseSystemParser
 from cloudai.runner.core.base_runner import BaseRunner
-from cloudai.schema.core.strategy.command_gen_strategy import CommandGenStrategy
-from cloudai.schema.core.strategy.grading_strategy import GradingStrategy
-from cloudai.schema.core.strategy.install_strategy import InstallStrategy
 from cloudai.schema.core.strategy.job_id_retrieval_strategy import JobIdRetrievalStrategy
 from cloudai.schema.core.strategy.report_generation_strategy import ReportGenerationStrategy
 from cloudai.schema.core.strategy.test_template_strategy import TestTemplateStrategy

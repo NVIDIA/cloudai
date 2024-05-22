@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import cloudai.schema.test_template  # noqa
-from cloudai.installer.slurm_installer import SlurmInstaller
-from cloudai.installer.standalone_installer import StandaloneInstaller
 from cloudai.parser.system_parser.slurm_system_parser import SlurmSystemParser
 from cloudai.parser.system_parser.standalone_system_parser import StandaloneSystemParser
 from cloudai.runner.slurm.slurm_runner import SlurmRunner
