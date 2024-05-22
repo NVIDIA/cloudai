@@ -22,18 +22,21 @@ from typing import Optional
 import pytest
 from cloudai.__main__ import handle_dry_run_and_run
 
-SLURM_TEST_SCENARIOS = [
+SCENARIOS_W_EXPECTED_OUTPUT = [
     {
         "scenario": Path("conf/v0.6/general/test_scenario/nccl_test/test_scenario.toml"),
         "expected_output": Path("tests/expected_outputs/test_acceptance/nccl_test"),
     },
     {
-        "scenario": Path("conf/v0.6/general/test_scenario/sleep/test_scenario.toml"),
-        "expected_dirs_number": 4,
-    },
-    {
         "scenario": Path("conf/v0.6/general/test_scenario/ucc_test/test_scenario.toml"),
         "expected_output": Path("tests/expected_outputs/test_acceptance/ucc_test"),
+    },
+]
+
+SCENARIOS_WOUT_EXPECTED_OUTPUT = [
+    {
+        "scenario": Path("conf/v0.6/general/test_scenario/sleep/test_scenario.toml"),
+        "expected_dirs_number": 4,
     },
 ]
 
@@ -45,7 +48,7 @@ def read_wout_comments(f):
 
 @pytest.mark.parametrize(
     "test_scenario_path, expected_output",
-    [(e["scenario"], e["expected_output"]) for e in SLURM_TEST_SCENARIOS if e.get("expected_output")],
+    [(e["scenario"], e["expected_output"]) for e in SCENARIOS_W_EXPECTED_OUTPUT],
     ids=lambda x: str(x),
 )
 def test_dry_run_compare_output(tmp_path: Path, test_scenario_path: Path, expected_output: Path):
@@ -85,7 +88,7 @@ def test_dry_run_compare_output(tmp_path: Path, test_scenario_path: Path, expect
 
 @pytest.mark.parametrize(
     "test_scenario_path, expected_dirs_number",
-    [(e["scenario"], e.get("expected_dirs_number")) for e in SLURM_TEST_SCENARIOS if not e.get("expected_output")],
+    [(e["scenario"], e.get("expected_dirs_number")) for e in SCENARIOS_WOUT_EXPECTED_OUTPUT],
     ids=lambda x: str(x),
 )
 def test_dry_run_structure(tmp_path: Path, test_scenario_path: Path, expected_dirs_number: Optional[int]):
