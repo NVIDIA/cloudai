@@ -14,7 +14,7 @@
 
 from abc import ABC, abstractmethod
 
-from cloudai.schema.core import System
+from cloudai.schema.core.system import System
 
 
 class BaseSystemObjectUpdater(ABC):

@@ -14,7 +14,8 @@
 
 from typing import Any, Dict, List, Set
 
-from cloudai.schema.core import Test, TestTemplate
+from cloudai.schema.core.test import Test
+from cloudai.schema.core.test_template import TestTemplate
 
 from .base_multi_file_parser import BaseMultiFileParser
 

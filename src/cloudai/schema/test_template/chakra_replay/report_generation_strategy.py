@@ -23,14 +23,9 @@ from bokeh.models import ColumnDataSource, DataTable, Div, TableColumn, Title
 from bokeh.palettes import Turbo256
 from bokeh.plotting import figure, output_file, save
 from bokeh.transform import cumsum
-
-from cloudai.schema.core.strategy import ReportGenerationStrategy, StrategyRegistry
-from cloudai.schema.system import SlurmSystem
-
-from .template import ChakraReplay
+from cloudai.schema.core.strategy.report_generation_strategy import ReportGenerationStrategy
 
 
-@StrategyRegistry.strategy(ReportGenerationStrategy, [SlurmSystem], [ChakraReplay])
 class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
     """
     Strategy for generating reports from Chakra replay directories using Bokeh for graphical summaries of the data.

@@ -17,16 +17,11 @@ import shutil
 import subprocess
 from typing import Any, Dict
 
-from cloudai.schema.core import System
-from cloudai.schema.core.strategy import InstallStrategy, StrategyRegistry
-from cloudai.schema.system import SlurmSystem
+from cloudai.schema.core.system import System
 from cloudai.schema.system.slurm.strategy import SlurmInstallStrategy
 from cloudai.util import CommandShell
 
-from .template import NcclTest
 
-
-@StrategyRegistry.strategy(InstallStrategy, [SlurmSystem], [NcclTest])
 class NcclTestSlurmInstallStrategy(SlurmInstallStrategy):
     """
     Install strategy for NCCL tests on Slurm systems.

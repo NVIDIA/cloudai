@@ -13,16 +13,14 @@
 # limitations under the License.
 
 import logging
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional
 
-from .strategy import (
-    CommandGenStrategy,
-    GradingStrategy,
-    InstallStrategy,
-    JobIdRetrievalStrategy,
-    ReportGenerationStrategy,
-    StrategyRegistry,
-)
+from cloudai.schema.core.strategy.command_gen_strategy import CommandGenStrategy
+from cloudai.schema.core.strategy.grading_strategy import GradingStrategy
+from cloudai.schema.core.strategy.install_strategy import InstallStrategy
+from cloudai.schema.core.strategy.job_id_retrieval_strategy import JobIdRetrievalStrategy
+from cloudai.schema.core.strategy.report_generation_strategy import ReportGenerationStrategy
+
 from .system import System
 
 
@@ -73,11 +71,11 @@ class TestTemplate:
         self.env_vars = env_vars
         self.cmd_args = cmd_args
         self.logger = logging.getLogger(__name__ + ".TestTemplate")
-        self.install_strategy = self._fetch_strategy(InstallStrategy)
-        self.command_gen_strategy = self._fetch_strategy(CommandGenStrategy)
-        self.job_id_retrieval_strategy = self._fetch_strategy(JobIdRetrievalStrategy)
-        self.report_generation_strategy = self._fetch_strategy(ReportGenerationStrategy)
-        self.grading_strategy = self._fetch_strategy(GradingStrategy)
+        self.install_strategy: Optional[InstallStrategy] = None
+        self.command_gen_strategy: Optional[CommandGenStrategy] = None
+        self.job_id_retrieval_strategy: Optional[JobIdRetrievalStrategy] = None
+        self.report_generation_strategy: Optional[ReportGenerationStrategy] = None
+        self.grading_strategy: Optional[GradingStrategy] = None
 
     def __repr__(self) -> str:
         """
@@ -87,38 +85,6 @@ class TestTemplate:
             str: String representation of the test template.
         """
         return f"TestTemplate(name={self.name})"
-
-    def _fetch_strategy(self, strategy_interface: Type) -> Optional[Any]:
-        """
-        Fetch a strategy from the registry based on system and template.
-
-        Args:
-            strategy_interface: Type of strategy to fetch.
-
-        Returns:
-            An instance of the requested strategy, or None.
-        """
-        strategy_class = StrategyRegistry.get_strategy(
-            strategy_interface=strategy_interface,
-            system_type=type(self.system),
-            template_type=type(self),
-        )
-        if strategy_class:
-            if strategy_interface in [
-                InstallStrategy,
-                CommandGenStrategy,
-                GradingStrategy,
-            ]:
-                return strategy_class(self.system, self.env_vars, self.cmd_args)
-            else:
-                return strategy_class()
-        else:
-            self.logger.warning(
-                f"No {strategy_interface.__name__} found for "
-                f"{type(self).__name__} and "
-                f"{type(self.system).__name__}"
-            )
-            return None
 
     def is_installed(self) -> bool:
         """

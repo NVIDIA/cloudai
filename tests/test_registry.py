@@ -7,9 +7,6 @@ from cloudai.schema.core.strategy.report_generation_strategy import ReportGenera
 from cloudai.schema.core.strategy.test_template_strategy import TestTemplateStrategy
 from cloudai.schema.core.system import System
 from cloudai.schema.core.test_template import TestTemplate
-from cloudai.schema.system.slurm.slurm_system import SlurmSystem
-from cloudai.schema.test_template.nccl_test.report_generation_strategy import NcclTestReportGenerationStrategy
-from cloudai.schema.test_template.nccl_test.template import NcclTest
 
 
 class MySystemParser(BaseSystemParser):
@@ -148,10 +145,11 @@ class TestRegistry__StrategiesMap:
     def test_invalid_type__strategy_interface(self, registry: Registry):
         with pytest.raises(ValueError) as exc_info:
             registry.update_strategy((str, MySystem, MyTestTemplate), MyStrategy)  # pyright: ignore
-        assert (
-            "Invalid strategy interface type, should be subclass of 'TestTemplateStrategy' or 'ReportGenerationStrategy' or 'JobIdRetrievalStrategy'."
-            in str(exc_info.value)
+        err = (
+            "Invalid strategy interface type, should be subclass of 'TestTemplateStrategy' or "
+            "'ReportGenerationStrategy' or 'JobIdRetrievalStrategy'."
         )
+        assert err in str(exc_info.value)
 
     def test_invalid_type__system(self, registry: Registry):
         with pytest.raises(ValueError) as exc_info:

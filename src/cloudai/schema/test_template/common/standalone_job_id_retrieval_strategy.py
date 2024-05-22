@@ -14,13 +14,9 @@
 
 from typing import Optional
 
-from cloudai.schema.core.strategy import JobIdRetrievalStrategy, StrategyRegistry
-from cloudai.schema.system import StandaloneSystem
-
-from ..sleep.template import Sleep
+from cloudai.schema.core.strategy.job_id_retrieval_strategy import JobIdRetrievalStrategy
 
 
-@StrategyRegistry.strategy(JobIdRetrievalStrategy, [StandaloneSystem], [Sleep])
 class StandaloneJobIdRetrievalStrategy(JobIdRetrievalStrategy):
     """
     Strategy for retrieving job IDs from standalone application outputs.

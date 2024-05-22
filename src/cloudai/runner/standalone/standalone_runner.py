@@ -16,7 +16,9 @@ from typing import Optional, cast
 
 from cloudai.runner.core.base_job import BaseJob
 from cloudai.runner.core.base_runner import BaseRunner
-from cloudai.schema.core import System, Test, TestScenario
+from cloudai.schema.core.system import System
+from cloudai.schema.core.test import Test
+from cloudai.schema.core.test_scenario import TestScenario
 from cloudai.util import CommandShell
 
 from .standalone_job import StandaloneJob

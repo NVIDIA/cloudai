@@ -17,16 +17,9 @@ import os
 import statistics
 from typing import List, Optional
 
-from cloudai.schema.core.strategy import (
-    ReportGenerationStrategy,
-    StrategyRegistry,
-)
-from cloudai.schema.system import SlurmSystem
-
-from .template import JaxToolbox
+from cloudai.schema.core.strategy.report_generation_strategy import ReportGenerationStrategy
 
 
-@StrategyRegistry.strategy(ReportGenerationStrategy, [SlurmSystem], [JaxToolbox])
 class JaxToolboxReportGenerationStrategy(ReportGenerationStrategy):
     """Strategy for generating reports from JaxToolbox."""
 

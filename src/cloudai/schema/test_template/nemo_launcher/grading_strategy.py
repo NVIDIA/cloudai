@@ -13,15 +13,10 @@
 # limitations under the License.
 
 import numpy as np
-
 from cloudai.report_generator.tool import TensorBoardDataReader
-from cloudai.schema.core.strategy import GradingStrategy, StrategyRegistry
-from cloudai.schema.system import SlurmSystem
-
-from .template import NeMoLauncher
+from cloudai.schema.core.strategy.grading_strategy import GradingStrategy
 
 
-@StrategyRegistry.strategy(GradingStrategy, [SlurmSystem], [NeMoLauncher])
 class NeMoLauncherGradingStrategy(GradingStrategy):
     """Performance grading strategy for NeMoLauncher test templates on Slurm systems."""
 

@@ -14,13 +14,9 @@
 
 import shutil
 
-from cloudai.schema.core.strategy import InstallStrategy, StrategyRegistry
-from cloudai.schema.system import SlurmSystem, StandaloneSystem
-
-from .template import Sleep
+from cloudai.schema.core.strategy.install_strategy import InstallStrategy
 
 
-@StrategyRegistry.strategy(InstallStrategy, [StandaloneSystem, SlurmSystem], [Sleep])
 class SleepStandaloneInstallStrategy(InstallStrategy):
     """
     Installation strategy for the Sleep test on standalone systems.

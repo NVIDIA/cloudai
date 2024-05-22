@@ -13,14 +13,9 @@
 # limitations under the License.
 
 
-from cloudai.schema.core.strategy import InstallStrategy, StrategyRegistry
-from cloudai.schema.system.slurm import SlurmSystem
 from cloudai.schema.system.slurm.strategy import SlurmInstallStrategy
 
-from .template import JaxToolbox
 
-
-@StrategyRegistry.strategy(InstallStrategy, [SlurmSystem], [JaxToolbox])
 class JaxToolboxSlurmInstallStrategy(SlurmInstallStrategy):
     """Install strategy for JaxToolbox on Slurm systems."""
 

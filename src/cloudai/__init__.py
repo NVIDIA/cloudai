@@ -63,7 +63,7 @@ from cloudai.schema.test_template.ucc_test.template import UCCTest
 from ._core.registry import Registry
 from .grader import Grader
 from .installer import Installer
-from .parser import Parser
+from .parser.core.parser import Parser
 from .report_generator import ReportGenerator
 from .runner.core.runner import Runner
 from .system_object_updater import SystemObjectUpdater

@@ -17,16 +17,11 @@ import shutil
 import subprocess
 from typing import Any, Dict
 
-from cloudai.schema.core import System
-from cloudai.schema.core.strategy import InstallStrategy, StrategyRegistry
-from cloudai.schema.system import SlurmSystem
+from cloudai.schema.core.system import System
 from cloudai.schema.system.slurm.strategy import SlurmInstallStrategy
 from cloudai.util import CommandShell
 
-from .template import UCCTest
 
-
-@StrategyRegistry.strategy(InstallStrategy, [SlurmSystem], [UCCTest])
 class UCCTestSlurmInstallStrategy(SlurmInstallStrategy):
     """
     Install strategy for UCC tests on Slurm systems.

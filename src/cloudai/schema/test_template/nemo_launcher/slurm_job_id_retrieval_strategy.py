@@ -15,13 +15,9 @@
 import re
 from typing import Optional
 
-from cloudai.schema.core.strategy import JobIdRetrievalStrategy, StrategyRegistry
-from cloudai.schema.system import SlurmSystem
-
-from .template import NeMoLauncher
+from cloudai.schema.core.strategy.job_id_retrieval_strategy import JobIdRetrievalStrategy
 
 
-@StrategyRegistry.strategy(JobIdRetrievalStrategy, [SlurmSystem], [NeMoLauncher])
 class NeMoLauncherSlurmJobIdRetrievalStrategy(JobIdRetrievalStrategy):
     """
     Strategy for retrieving job IDs from NeMo Megatron launcher submissions to a Slurm scheduler.

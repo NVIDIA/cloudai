@@ -15,7 +15,9 @@
 import logging
 from typing import List, Optional, Tuple
 
-from cloudai.schema.core import System, TestScenario, TestTemplate
+from cloudai.schema.core.system import System
+from cloudai.schema.core.test_scenario import TestScenario
+from cloudai.schema.core.test_template import TestTemplate
 
 from .system_parser import SystemParser
 from .test_parser import TestParser

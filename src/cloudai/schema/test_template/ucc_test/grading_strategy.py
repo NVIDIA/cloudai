@@ -14,13 +14,9 @@
 
 import os
 
-from cloudai.schema.core.strategy import GradingStrategy, StrategyRegistry
-from cloudai.schema.system import SlurmSystem
-
-from .template import UCCTest
+from cloudai.schema.core.strategy.grading_strategy import GradingStrategy
 
 
-@StrategyRegistry.strategy(GradingStrategy, [SlurmSystem], [UCCTest])
 class UCCTestGradingStrategy(GradingStrategy):
     """
     Performance grading strategy for UCCTest test templates on Slurm systems.
