@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-from typing import Any, Dict, Optional, Type, Union
+from typing import Any, Dict, Optional, Type, Union, cast
 
 from cloudai._core.registry import Registry
 from cloudai.schema.core.strategy.command_gen_strategy import CommandGenStrategy
@@ -61,7 +61,7 @@ class TestTemplateParser(BaseMultiFileParser):
         test_template_type: Type[TestTemplate],
         env_vars: Dict[str, Any],
         cmd_args: Dict[str, Any],
-    ) -> Optional[Any]:
+    ) -> Optional[Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy]]:
         """
         Fetch a strategy from the registry based on system and template.
 
@@ -114,17 +114,24 @@ class TestTemplateParser(BaseMultiFileParser):
         self._validate_args(cmd_args, "Command-line")
 
         obj = test_template_class(system=self.system, name=name, env_vars=env_vars, cmd_args=cmd_args)
-        obj.install_strategy = self._fetch_strategy(InstallStrategy, type(obj.system), type(obj), env_vars, cmd_args)
-        obj.command_gen_strategy = self._fetch_strategy(
-            CommandGenStrategy, type(obj.system), type(obj), env_vars, cmd_args
+        obj.install_strategy = cast(
+            InstallStrategy, self._fetch_strategy(InstallStrategy, type(obj.system), type(obj), env_vars, cmd_args)
         )
-        obj.job_id_retrieval_strategy = self._fetch_strategy(
-            JobIdRetrievalStrategy, type(obj.system), type(obj), env_vars, cmd_args
+        obj.command_gen_strategy = cast(
+            CommandGenStrategy,
+            self._fetch_strategy(CommandGenStrategy, type(obj.system), type(obj), env_vars, cmd_args),
         )
-        obj.report_generation_strategy = self._fetch_strategy(
-            ReportGenerationStrategy, type(obj.system), type(obj), env_vars, cmd_args
+        obj.job_id_retrieval_strategy = cast(
+            JobIdRetrievalStrategy,
+            self._fetch_strategy(JobIdRetrievalStrategy, type(obj.system), type(obj), env_vars, cmd_args),
         )
-        obj.grading_strategy = self._fetch_strategy(GradingStrategy, type(obj.system), type(obj), env_vars, cmd_args)
+        obj.report_generation_strategy = cast(
+            ReportGenerationStrategy,
+            self._fetch_strategy(ReportGenerationStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+        )
+        obj.grading_strategy = cast(
+            GradingStrategy, self._fetch_strategy(GradingStrategy, type(obj.system), type(obj), env_vars, cmd_args)
+        )
         return obj
 
     def _get_test_template_class(self, name: str) -> Type[TestTemplate]:
