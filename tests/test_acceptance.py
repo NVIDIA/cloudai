@@ -48,7 +48,7 @@ def read_wout_comments(f):
     [(e["scenario"], e["expected_output"]) for e in SLURM_TEST_SCENARIOS if e.get("expected_output")],
     ids=lambda x: str(x),
 )
-def test_dry_run_compare_output(tmp_path: Path, test_scenario_path: Path, expected_output: Optional[Path]):
+def test_dry_run_compare_output(tmp_path: Path, test_scenario_path: Path, expected_output: Path):
     args = argparse.Namespace(
         log_file=None,
         log_level=None,
