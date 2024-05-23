@@ -114,7 +114,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             )
         assert REQUIRE_ENV_VARS[0] in str(exc_info.value)
 
-    def test_genv_vars_added(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
+    def test_extra_env_vars_added(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
         extra_env_vars = {v: "fake" for v in REQUIRE_ENV_VARS}
         cmd_args = {
             "docker_image_url": "fake",
