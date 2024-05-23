@@ -8,8 +8,14 @@ from cloudai.schema.system.slurm import SlurmNode, SlurmNodeState
 @pytest.fixture
 def slurm_system():
     nodes = [
-        SlurmNode(name="nodeA001", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="nodeB001", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
+        SlurmNode(name="node-115", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
+        SlurmNode(name="node-116", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
+        SlurmNode(name="node-117", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
+        SlurmNode(name="node-118", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
+        SlurmNode(name="node-119", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
+        SlurmNode(name="node-120", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
+        SlurmNode(name="node-121", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
+        SlurmNode(name="node-122", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
     ]
     system = SlurmSystem(
         name="test_system",
@@ -48,6 +54,20 @@ def test_parse_sinfo_output(slurm_system):
     slurm_system.parse_sinfo_output(sinfo_output, node_user_map)
     assert slurm_system.partitions["main"][0].state == SlurmNodeState.IDLE
     assert slurm_system.partitions["main"][1].state == SlurmNodeState.IDLE
+    
+def test_parse_sinfo_output2(slurm_system):
+    sinfo_output = """
+    PARTITION AVAIL  TIMELIMIT  NODES  STATE NODELIST
+    main    up    3:00:00      1  inval node-081
+    main    up    3:00:00      5  drain node-[065-066,114,124-125]
+    main    up    3:00:00      2   resv node-[034-035]
+    main    up    3:00:00     88  alloc node-[033,036-064,067-080,082-113,115-123,126-128]
+    backup    up   12:00:00     16  alloc node-[01-16]
+    """
+    node_user_map = {'': 'user1', 'node-033': 'user2', 'node-[036-064': 'user3', '067-080': 'user3', '082-113': 'user3', '115-118]': 'user3', 'node-[119-123': 'user4', '126-128]': 'user4', 'node-01': 'user5', 'node-02': 'user5', 'node-03': 'user5', 'node-04': 'user5', 'node-05': 'user5', 'node-06': 'user5', 'node-07': 'user5', 'node-08': 'user5', 'node-09': 'user5', 'node-10': 'user5', 'node-11': 'user5', 'node-12': 'user5', 'node-13': 'user5', 'node-14': 'user5', 'node-15': 'user5', 'node-16': 'user5'}
+    slurm_system.parse_sinfo_output(sinfo_output, node_user_map)
+    assert slurm_system.partitions["main"][0].state == SlurmNodeState.ALLOCATED
+    assert slurm_system.partitions["main"][1].state == SlurmNodeState.ALLOCATED
 
 
 @patch("cloudai.schema.system.SlurmSystem.get_squeue")
