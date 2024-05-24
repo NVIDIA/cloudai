@@ -16,8 +16,7 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List, cast
 
-from cloudai.schema.core.strategy.command_gen_strategy import CommandGenStrategy
-from cloudai.schema.core.system import System
+from cloudai import CommandGenStrategy, System
 from cloudai.schema.system import SlurmSystem
 
 

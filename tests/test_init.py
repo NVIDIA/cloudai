@@ -1,11 +1,12 @@
-import cloudai  # noqa: F401
 import pytest
-from cloudai._core.registry import Registry
-from cloudai.schema.core.strategy.command_gen_strategy import CommandGenStrategy
-from cloudai.schema.core.strategy.grading_strategy import GradingStrategy
-from cloudai.schema.core.strategy.install_strategy import InstallStrategy
-from cloudai.schema.core.strategy.job_id_retrieval_strategy import JobIdRetrievalStrategy
-from cloudai.schema.core.strategy.report_generation_strategy import ReportGenerationStrategy
+from cloudai import (
+    CommandGenStrategy,
+    GradingStrategy,
+    InstallStrategy,
+    JobIdRetrievalStrategy,
+    Registry,
+    ReportGenerationStrategy,
+)
 from cloudai.schema.system.slurm.slurm_system import SlurmSystem
 from cloudai.schema.system.standalone_system import StandaloneSystem
 from cloudai.schema.test_template.chakra_replay.grading_strategy import ChakraReplayGradingStrategy

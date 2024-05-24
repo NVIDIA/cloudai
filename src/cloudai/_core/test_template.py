@@ -15,12 +15,11 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from cloudai.schema.core.strategy.command_gen_strategy import CommandGenStrategy
-from cloudai.schema.core.strategy.grading_strategy import GradingStrategy
-from cloudai.schema.core.strategy.install_strategy import InstallStrategy
-from cloudai.schema.core.strategy.job_id_retrieval_strategy import JobIdRetrievalStrategy
-from cloudai.schema.core.strategy.report_generation_strategy import ReportGenerationStrategy
-
+from .command_gen_strategy import CommandGenStrategy
+from .grading_strategy import GradingStrategy
+from .install_strategy import InstallStrategy
+from .job_id_retrieval_strategy import JobIdRetrievalStrategy
+from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
 
 

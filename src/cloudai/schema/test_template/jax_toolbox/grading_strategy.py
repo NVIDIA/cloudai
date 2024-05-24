@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai.schema.core.strategy.grading_strategy import GradingStrategy
+from cloudai import GradingStrategy
 
 
 class JaxToolboxGradingStrategy(GradingStrategy):

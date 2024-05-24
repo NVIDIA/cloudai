@@ -14,10 +14,10 @@
 
 from typing import cast
 
-from cloudai.schema.core.system import System
+from cloudai._core.base_system_object_updater import BaseSystemObjectUpdater
+from cloudai._core.system import System
 from cloudai.schema.system import SlurmSystem
 
-from .base_system_object_updater import BaseSystemObjectUpdater
 from .system_object_updater import SystemObjectUpdater
 
 

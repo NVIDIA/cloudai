@@ -14,7 +14,7 @@
 
 from typing import Any, Dict, List
 
-from cloudai.schema.core.system import System
+from cloudai._core.system import System
 from cloudai.schema.system.slurm.strategy import SlurmCommandGenStrategy
 
 

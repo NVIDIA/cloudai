@@ -14,11 +14,10 @@
 
 import logging
 
-from cloudai._core.registry import Registry
-from cloudai.schema.core.system import System
-from cloudai.schema.core.test_scenario import TestScenario
-
 from .base_runner import BaseRunner
+from .registry import Registry
+from .system import System
+from .test_scenario import TestScenario
 
 
 class Runner:

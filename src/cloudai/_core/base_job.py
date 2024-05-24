@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai.schema.core.test import Test
+from .test import Test
 
 
 class BaseJob:

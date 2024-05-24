@@ -20,7 +20,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List
 
-from cloudai.schema.core.system import System
+from cloudai._core.system import System
 from cloudai.schema.system.slurm import SlurmNodeState, SlurmSystem
 from cloudai.schema.system.slurm.strategy import SlurmInstallStrategy
 from cloudai.util import CommandShell

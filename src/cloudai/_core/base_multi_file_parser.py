@@ -17,8 +17,9 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Union
 
 import toml
-from cloudai.schema.core.test import Test
-from cloudai.schema.core.test_template import TestTemplate
+
+from .test import Test
+from .test_template import TestTemplate
 
 
 class BaseMultiFileParser(ABC):

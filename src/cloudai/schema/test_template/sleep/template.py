@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai.schema.core.test_template import TestTemplate
+from cloudai._core.test_template import TestTemplate
 
 
 class Sleep(TestTemplate):

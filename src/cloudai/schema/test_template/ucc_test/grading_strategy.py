@@ -14,7 +14,7 @@
 
 import os
 
-from cloudai.schema.core.strategy.grading_strategy import GradingStrategy
+from cloudai import GradingStrategy
 
 
 class UCCTestGradingStrategy(GradingStrategy):

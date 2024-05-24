@@ -14,7 +14,7 @@
 
 from typing import Dict, List
 
-from cloudai.schema.core.strategy.command_gen_strategy import CommandGenStrategy
+from cloudai import CommandGenStrategy
 
 
 class SleepStandaloneCommandGenStrategy(CommandGenStrategy):

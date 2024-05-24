@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .grader import Grader
+from .._core.grader import Grader
 
 __all__ = [
     "Grader",

@@ -15,7 +15,7 @@
 import re
 from typing import Optional
 
-from cloudai.schema.core.strategy.job_id_retrieval_strategy import JobIdRetrievalStrategy
+from cloudai._core.job_id_retrieval_strategy import JobIdRetrievalStrategy
 
 
 class SlurmJobIdRetrievalStrategy(JobIdRetrievalStrategy):

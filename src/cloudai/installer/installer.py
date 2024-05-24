@@ -15,8 +15,8 @@
 import logging
 from typing import Callable, Iterable
 
-from cloudai.schema.core.system import System
-from cloudai.schema.core.test_template import TestTemplate
+from cloudai._core.system import System
+from cloudai._core.test_template import TestTemplate
 
 from .base_installer import BaseInstaller
 

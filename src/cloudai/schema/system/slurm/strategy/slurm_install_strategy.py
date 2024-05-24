@@ -14,8 +14,7 @@
 
 from typing import Any, Dict, cast
 
-from cloudai.schema.core.strategy.install_strategy import InstallStrategy
-from cloudai.schema.core.system import System
+from cloudai import InstallStrategy, System
 from cloudai.schema.system import SlurmSystem
 
 

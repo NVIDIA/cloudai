@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base_system_object_updater import BaseSystemObjectUpdater
+from cloudai._core.base_system_object_updater import BaseSystemObjectUpdater
+
 from .slurm_system_object_updater import SlurmSystemObjectUpdater
 from .standalone_system_object_updater import StandaloneSystemObjectUpdater
 from .system_object_updater import SystemObjectUpdater

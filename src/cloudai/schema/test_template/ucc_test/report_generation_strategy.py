@@ -17,9 +17,9 @@ import re
 from typing import List, Optional
 
 import pandas as pd
+from cloudai._core.report_generation_strategy import ReportGenerationStrategy
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.report_generator.util import add_human_readable_sizes
-from cloudai.schema.core.strategy.report_generation_strategy import ReportGenerationStrategy
 
 
 class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
