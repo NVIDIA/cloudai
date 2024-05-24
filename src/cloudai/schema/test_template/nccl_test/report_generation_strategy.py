@@ -18,6 +18,7 @@ from typing import List, Optional, Tuple
 
 import pandas as pd
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
+from cloudai.report_generator.tool.csv_report_tool import CSVReportTool
 from cloudai.report_generator.util import add_human_readable_sizes
 from cloudai.schema.core.strategy.report_generation_strategy import ReportGenerationStrategy
 
@@ -71,7 +72,8 @@ class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
             df["Algbw (GB/s) In-place"] = df["Algbw (GB/s) In-place"].astype(float)
             df["Busbw (GB/s) In-place"] = df["Busbw (GB/s) In-place"].astype(float)
             df = add_human_readable_sizes(df, "Size (B)", "Size Human-readable")
-            self._generate_plots(test_name, df, directory_path, sol)
+            self._generate_bokeh_report(test_name, df, directory_path, sol)
+            self._generate_csv_report(df, directory_path)
 
     def _parse_output(self, directory_path: str) -> Tuple[List[List[str]], Optional[float]]:
         """
@@ -94,7 +96,9 @@ class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
                 return data, avg_bus_bw
         return [], None
 
-    def _generate_plots(self, test_name: str, df: pd.DataFrame, directory_path: str, sol: Optional[float]) -> None:
+    def _generate_bokeh_report(
+        self, test_name: str, df: pd.DataFrame, directory_path: str, sol: Optional[float]
+    ) -> None:
         """
         Create and saves plots to visualize NCCL test metrics.
 
@@ -133,3 +137,15 @@ class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
         )
 
         report_tool.finalize_report("cloudai_nccl_test_bokeh_report.html")
+
+    def _generate_csv_report(self, df: pd.DataFrame, directory_path: str) -> None:
+        """
+        Generate a CSV report from the DataFrame.
+
+        Args:
+            df (pd.DataFrame): DataFrame containing the NCCL test data.
+            directory_path (str): Output directory path for saving the CSV report.
+        """
+        csv_report_tool = CSVReportTool(directory_path)
+        csv_report_tool.set_dataframe(df)
+        csv_report_tool.finalize_report("cloudai_nccl_test_csv_report.csv")
