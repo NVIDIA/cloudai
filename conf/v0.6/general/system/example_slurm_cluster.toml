@@ -1,8 +1,8 @@
 name = "example-cluster"
 scheduler = "slurm"
 
-install_path = "./install"
-output_path = "./results"
+install_path = "/path/to/install"
+output_path = "/path/to/results"
 default_partition = "partition_1"
 
 gpus_per_node = 8
