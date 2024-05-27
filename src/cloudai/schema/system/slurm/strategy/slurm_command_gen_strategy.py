@@ -16,17 +16,16 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List, cast
 
-from cloudai.schema.core import System
-from cloudai.schema.core.strategy import CommandGenStrategy
+from cloudai.schema.core.strategy.command_gen_strategy import CommandGenStrategy
+from cloudai.schema.core.system import System
 from cloudai.schema.system import SlurmSystem
 
 
 class SlurmCommandGenStrategy(CommandGenStrategy):
     """
-    Abstract base class for defining command generation strategies
-    specific to Slurm environments.
+    Abstract base class for defining command generation strategies specific to Slurm environments.
 
-    Attributes:
+    Attributes
         slurm_system (SlurmSystem): A casted version of the `system` attribute,
                                     which provides Slurm-specific properties
                                     and methods.
@@ -52,7 +51,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
     def _format_env_vars(self, env_vars: Dict[str, Any]) -> str:
         """
-        Formats environment variables for inclusion in a batch script.
+        Format environment variables for inclusion in a batch script.
 
         Args:
             env_vars (Dict[str, Any]): Environment variables to format.
@@ -75,7 +74,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         nodes: List[str],
     ) -> Dict[str, Any]:
         """
-        Parses command arguments to configure Slurm job settings.
+        Parse command arguments to configure Slurm job settings.
 
         Args:
             job_name_prefix (str): Prefix for the job name.
@@ -146,8 +145,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
     def _write_sbatch_script(self, args: Dict[str, Any], env_vars_str: str, srun_command: str, output_path: str) -> str:
         """
-        Writes the batch script for Slurm submission and returns the sbatch
-        command.
+        Write the batch script for Slurm submission and returns the sbatch command.
 
         Args:
             args (Dict[str, Any]): Arguments including job settings.

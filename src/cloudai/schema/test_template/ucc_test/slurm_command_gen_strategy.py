@@ -15,20 +15,15 @@
 import os
 from typing import Any, Dict, List
 
-from cloudai.schema.core import System
-from cloudai.schema.core.strategy import CommandGenStrategy, StrategyRegistry
-from cloudai.schema.system import SlurmSystem
+from cloudai.schema.core.system import System
 from cloudai.schema.system.slurm.strategy import SlurmCommandGenStrategy
 
 from .slurm_install_strategy import UCCTestSlurmInstallStrategy
 from .template import UCCTest
 
 
-@StrategyRegistry.strategy(CommandGenStrategy, [SlurmSystem], [UCCTest])
 class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
-    """
-    Command generation strategy for UCC tests on Slurm systems.
-    """
+    """Command generation strategy for UCC tests on Slurm systems."""
 
     def __init__(
         self,

@@ -17,15 +17,16 @@ import sys
 from typing import Any, Dict
 
 import toml
-
-from cloudai.schema.core import System, Test, TestDependency, TestScenario
+from cloudai.schema.core.system import System
+from cloudai.schema.core.test import Test, TestDependency
+from cloudai.schema.core.test_scenario import TestScenario
 
 
 class TestScenarioParser:
     """
     Parser for TestScenario objects.
 
-    Attributes:
+    Attributes
         file_path (str): Path to the TOML configuration file.
         system: The system object to which the test scenarios apply.
         test_mapping: Mapping of test names to Test objects.
@@ -45,9 +46,9 @@ class TestScenarioParser:
 
     def parse(self) -> TestScenario:
         """
-        Parses the TOML file and returns a TestScenario object.
+        Parse the TOML file and returns a TestScenario object.
 
-        Returns:
+        Returns
             TestScenario: The parsed TestScenario object.
         """
         with open(self.file_path, "r") as file:
@@ -56,7 +57,7 @@ class TestScenarioParser:
 
     def _parse_data(self, data: Dict[str, Any]) -> TestScenario:
         """
-        Parses data for a TestScenario object.
+        Parse data for a TestScenario object.
 
         Args:
             data (Dict[str, Any]): Data from a TOML file.
@@ -101,7 +102,7 @@ class TestScenarioParser:
 
     def _create_section_test(self, section: str, test_info: Dict[str, Any]) -> Test:
         """
-        Creates a section-specific Test object by copying from the test mapping.
+        Create a section-specific Test object by copying from the test mapping.
 
         Args:
             section (str): Section name of the test.
@@ -130,8 +131,7 @@ class TestScenarioParser:
         section_tests: Dict[str, Test],
     ) -> Dict[str, TestDependency]:
         """
-        Parses and creates TestDependency objects for various types of
-        dependencies, ignoring empty dependencies.
+        Parse and creates TestDependency objects for various types of dependencies, ignoring empty dependencies.
 
         Args:
             section (str): Section name of the test.

@@ -20,9 +20,9 @@ from .test_template_strategy import TestTemplateStrategy
 
 class CommandGenStrategy(TestTemplateStrategy):
     """
-    Abstract base class defining the interface for command generation strategies
-    across different system environments. It specifies how to generate execution
-    commands based on system and test parameters.
+    Abstract base class defining the interface for command generation strategies across different system environments.
+
+    It specifies how to generate execution commands based on system and test parameters.
     """
 
     @abstractmethod
@@ -36,7 +36,7 @@ class CommandGenStrategy(TestTemplateStrategy):
         nodes: List[str],
     ) -> str:
         """
-        Generates the execution command for a test based on the given parameters.
+        Generate the execution command for a test based on the given parameters.
 
         Args:
             env_vars (Dict[str, str]): Environment variables for the test.

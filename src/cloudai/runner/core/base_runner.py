@@ -23,7 +23,9 @@ from datetime import datetime
 from types import FrameType
 from typing import Dict, List, Optional
 
-from cloudai.schema.core import System, Test, TestScenario
+from cloudai.schema.core.system import System
+from cloudai.schema.core.test import Test
+from cloudai.schema.core.test_scenario import TestScenario
 
 from .base_job import BaseJob
 
@@ -35,7 +37,7 @@ class BaseRunner(ABC):
     This class provides a framework for executing tests within a given test
     scenario, handling dependencies and execution order.
 
-    Attributes:
+    Attributes
         mode (str): The operation mode ('dry-run', 'run').
         system (System): The system schema object.
         test_scenario (TestScenario): The test scenario to run.
@@ -56,8 +58,7 @@ class BaseRunner(ABC):
         test_scenario: TestScenario,
     ):
         """
-        Initialize the BaseRunner with a system object, test scenario, and
-        monitor interval.
+        Initialize the BaseRunner with a system object, test scenario, and monitor interval.
 
         Args:
             mode (str): The operation mode ('dry-run', 'run').
@@ -95,9 +96,7 @@ class BaseRunner(ABC):
         return output_subpath
 
     def register_signal_handlers(self):
-        """
-        Registers signal handlers for handling termination-related signals.
-        """
+        """Register signal handlers for handling termination-related signals."""
         signals = [
             signal.SIGINT,
             signal.SIGTERM,
@@ -113,8 +112,7 @@ class BaseRunner(ABC):
         frame: Optional[FrameType],  # noqa: Vulture
     ) -> None:
         """
-        Responds to termination-related signals (e.g., SIGINT, SIGTERM, SIGHUP,
-        SIGQUIT) by initiating a graceful shutdown of the application.
+        Respond to termination-related signals (e.g., SIGINT) by initiating a graceful shutdown of the application.
 
         This method logs the received signal and then triggers the asynchronous
         shutdown process, which involves terminating all outstanding jobs in a
@@ -134,9 +132,7 @@ class BaseRunner(ABC):
         asyncio.create_task(self.shutdown())
 
     async def shutdown(self):
-        """
-        Gracefully shut down the runner, terminating all outstanding jobs.
-        """
+        """Gracefully shut down the runner, terminating all outstanding jobs."""
         if not self.jobs:
             return
         self.logger.info("Terminating all jobs...")
@@ -147,9 +143,7 @@ class BaseRunner(ABC):
         sys.exit(0)
 
     async def run(self):
-        """
-        Asynchronously run the test scenario.
-        """
+        """Asynchronously run the test scenario."""
         if self.shutting_down:
             return
 
@@ -168,7 +162,7 @@ class BaseRunner(ABC):
 
     async def submit_test(self, test: Test):
         """
-        Starts a dependency-free test.
+        Start a dependency-free test.
 
         Args:
             test (Test): The test to be started.
@@ -198,7 +192,7 @@ class BaseRunner(ABC):
     @abstractmethod
     def _submit_test(self, test: Test) -> Optional[BaseJob]:
         """
-        Executes a given test and returns a job if successful.
+        Execute a given test and returns a job if successful.
 
         Args:
             test (Test): The test to be executed.
@@ -210,8 +204,9 @@ class BaseRunner(ABC):
 
     async def check_start_post_init_dependencies(self):
         """
-        Check and handle start_post_init dependencies. This method should be
-        called periodically to ensure timely execution of tests with
+        Check and handle start_post_init dependencies.
+
+        This method should be called periodically to ensure timely execution of tests with
         start_post_init dependencies.
         """
         items = list(self.test_to_job_map.items())
@@ -222,8 +217,7 @@ class BaseRunner(ABC):
 
     async def check_and_schedule_start_post_init_dependent_tests(self, started_test: Test):
         """
-        Schedule tests with a start_post_init dependency on the provided
-        started_test.
+        Schedule tests with a start_post_init dependency on the provided started_test.
 
         Args:
             started_test (Test): The test that has just been started.
@@ -237,10 +231,11 @@ class BaseRunner(ABC):
     def find_dependency_free_tests(self) -> List[Test]:
         """
         Find tests that have no 'start_post_comp' or 'start_post_init' dependencies.
+
         Tests with only 'end_post_comp' dependencies or no dependencies at all
         are considered dependency-free.
 
-        Returns:
+        Returns
             List[Test]: A list of tests that are ready to run without waiting for
                         other tests to start or complete.
         """
@@ -253,9 +248,10 @@ class BaseRunner(ABC):
 
     def get_job_output_path(self, test: Test) -> str:
         """
-        Generates and ensures the existence of the output directory for a given
-        test. It constructs the path based on the test's section name and
-        current iteration, creating the directories if they do not exist.
+        Generate and ensures the existence of the output directory for a given test.
+
+        It constructs the path based on the test's section name and current iteration, creating the directories if they
+        do not exist.
 
         Args:
             test (Test): The test instance for which to generate the output
@@ -286,10 +282,9 @@ class BaseRunner(ABC):
 
     async def monitor_jobs(self) -> int:
         """
-        Monitor the status of jobs, handle end_post_comp dependencies, and
-        schedule start_post_comp dependent jobs.
+        Monitor the status of jobs, handle end_post_comp dependencies, and schedule start_post_comp dependent jobs.
 
-        Returns:
+        Returns
             int: The number of completed jobs.
         """
         completed_jobs_count = 0
@@ -304,8 +299,7 @@ class BaseRunner(ABC):
 
     async def handle_job_completion(self, completed_job: BaseJob):
         """
-        Handles the completion of a job, including dependency management and
-        iteration control.
+        Handle the completion of a job, including dependency management and iteration control.
 
         Args:
             completed_job (BaseJob): The job that has just been completed.
@@ -324,7 +318,7 @@ class BaseRunner(ABC):
     @abstractmethod
     def is_job_running(self, job: BaseJob) -> bool:
         """
-        Checks if a job is currently running.
+        Check if a job is currently running.
 
         Args:
             job (BaseJob): The job to check.
@@ -349,8 +343,7 @@ class BaseRunner(ABC):
 
     async def handle_dependencies(self, completed_job: BaseJob) -> List[Task]:
         """
-        Handle the start_post_comp and end_post_comp dependencies for a
-        completed job.
+        Handle the start_post_comp and end_post_comp dependencies for a completed job.
 
         Args:
             completed_job (BaseJob): The job that has just been completed.

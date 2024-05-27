@@ -14,17 +14,16 @@
 
 from typing import Any, Dict, cast
 
-from cloudai.schema.core import System
-from cloudai.schema.core.strategy import InstallStrategy
+from cloudai.schema.core.strategy.install_strategy import InstallStrategy
+from cloudai.schema.core.system import System
 from cloudai.schema.system import SlurmSystem
 
 
 class SlurmInstallStrategy(InstallStrategy):
     """
-    Abstract base class for defining installation strategies specific to
-    Slurm environments.
+    Abstract base class for defining installation strategies specific to Slurm environments.
 
-    Attributes:
+    Attributes
         slurm_system (SlurmSystem): A casted version of the `system` attribute,
                                     which provides Slurm-specific properties
                                     and methods.

@@ -14,16 +14,13 @@
 
 from typing import Dict, List
 
-from cloudai.schema.core.strategy import CommandGenStrategy, StrategyRegistry
-from cloudai.schema.system import SlurmSystem, StandaloneSystem
-
-from .template import Sleep
+from cloudai.schema.core.strategy.command_gen_strategy import CommandGenStrategy
 
 
-@StrategyRegistry.strategy(CommandGenStrategy, [StandaloneSystem, SlurmSystem], [Sleep])
 class SleepStandaloneCommandGenStrategy(CommandGenStrategy):
     """
     Command generation strategy for the Sleep test on standalone systems.
+
     This strategy generates a command to execute a sleep operation with
     specified duration on standalone systems.
     """
@@ -38,7 +35,7 @@ class SleepStandaloneCommandGenStrategy(CommandGenStrategy):
         nodes: List[str],
     ) -> str:
         """
-        Generates the execution command for a sleep test.
+        Generate the execution command for a sleep test.
 
         Args:
             env_vars (Dict[str, str]): Environment variables for the test.

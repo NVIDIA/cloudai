@@ -14,19 +14,12 @@
 
 from typing import Any, Dict, List
 
-from cloudai.schema.core import System
-from cloudai.schema.core.strategy import CommandGenStrategy, StrategyRegistry
-from cloudai.schema.system import SlurmSystem
+from cloudai.schema.core.system import System
 from cloudai.schema.system.slurm.strategy import SlurmCommandGenStrategy
 
-from .template import ChakraReplay
 
-
-@StrategyRegistry.strategy(CommandGenStrategy, [SlurmSystem], [ChakraReplay])
 class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
-    """
-    Command generation strategy for ChakraReplay on Slurm systems.
-    """
+    """Command generation strategy for ChakraReplay on Slurm systems."""
 
     def __init__(
         self,

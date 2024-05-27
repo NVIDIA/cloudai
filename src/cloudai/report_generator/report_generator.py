@@ -15,19 +15,21 @@
 import logging
 import os
 
-from cloudai.schema.core import Test, TestScenario
+from cloudai.schema.core.test import Test
+from cloudai.schema.core.test_scenario import TestScenario
 
 
 class ReportGenerator:
     """
-    Generates reports for each test in a TestScenario by identifying the
-    appropriate directories for each test and using test templates to
+    Generates reports for each test in a TestScenario.
+
+    By identifying the appropriate directories for each test and using test templates to
     generate detailed reports based on subdirectories.
     """
 
     def __init__(self, output_path: str) -> None:
         """
-        Initializes the ReportGenerator with the path for output.
+        Initialize the ReportGenerator with the path for output.
 
         Args:
             output_path (str): Output directory path.
@@ -37,8 +39,9 @@ class ReportGenerator:
 
     def generate_report(self, test_scenario: TestScenario) -> None:
         """
-        Iterates over tests in the given test scenario, identifies the
-        relevant directories based on the test's section name, and generates
+        Iterate over tests in the given test scenario.
+
+        Identifies the relevant directories based on the test's section name, and generates
         a report for each test using its associated test template.
 
         Args:
@@ -58,9 +61,9 @@ class ReportGenerator:
 
     def _generate_test_report(self, directory_path: str, test: Test) -> None:
         """
-        Generates reports for a test by iterating through subdirectories
-        within the directory path, checking if the test's template can
-        handle each, and generating reports accordingly.
+        Generate reports for a test by iterating through subdirectories within the directory path.
+
+        Checks if the test's template can handle each, and generating reports accordingly.
 
         Args:
             directory_path (str): Directory for the test's section.
@@ -69,4 +72,4 @@ class ReportGenerator:
         for subdir in os.listdir(directory_path):
             subdir_path = os.path.join(directory_path, subdir)
             if os.path.isdir(subdir_path) and test.test_template.can_handle_directory(subdir_path):
-                test.test_template.generate_report(subdir_path, test.sol)
+                test.test_template.generate_report(test.name, subdir_path, test.sol)

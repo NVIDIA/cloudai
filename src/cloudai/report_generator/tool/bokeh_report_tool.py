@@ -28,7 +28,7 @@ class BokehReportTool:
     """
     Tool for creating interactive Bokeh plots.
 
-    Attributes:
+    Attributes
         output_directory (str): Directory to save the generated reports.
     """
 
@@ -48,7 +48,7 @@ class BokehReportTool:
         tools: str = "pan,wheel_zoom,box_zoom,reset,save",
     ) -> figure:
         """
-        Creates a configured Bokeh figure with common settings.
+        Create a configured Bokeh figure with common settings.
 
         Args:
             title (str): Title of the plot.
@@ -85,8 +85,7 @@ class BokehReportTool:
         sol: Optional[float],
     ):
         """
-        Adds a Speed-of-Light (SOL) reference line to the given plot if an SOL
-        value is provided.
+        Add a Speed-of-Light (SOL) reference line to the given plot if an SOL value is provided.
 
         Args:
             plot (figure): The plot to which the SOL line will be added.
@@ -110,11 +109,12 @@ class BokehReportTool:
 
     def find_min_max(self, df: pd.DataFrame, column_name: str, sol: Optional[float] = None) -> Tuple[float, float]:
         """
-        Finds the minimum and maximum values of a specified column in a DataFrame.
+        Find the minimum and maximum values of a specified column in a DataFrame.
 
         Args:
             df (pd.DataFrame): DataFrame containing the data.
             column_name (str): Name of the column to find the min and max values for.
+            sol (Optional[float]): Optional value to compare against the maximum value.
 
         Returns:
             Tuple[float, float]: A tuple containing the minimum and maximum values.
@@ -136,8 +136,9 @@ class BokehReportTool:
         color: str = "black",
     ):
         """
-        Adds a line plot with linear axes to the report tool. Includes an
-        optional reference line representing the speed of light (SOL) performance.
+        Add a line plot with linear axes to the report tool.
+
+        Includes an optional reference line representing the speed of light (SOL) performance.
 
         Args:
             title (str): Title of the plot.
@@ -149,7 +150,7 @@ class BokehReportTool:
             color (str, optional): Color of the line in the plot. Default is 'black'.
         """
         p = self.create_figure(
-            title=title,
+            title="CloudAI " + title,
             x_axis_label=x_axis_label,
             y_axis_label=y_column,
             y_range=Range1d(start=0, end=(max(df[y_column]) * 1.1)),
@@ -173,7 +174,7 @@ class BokehReportTool:
         color: str = "black",
     ):
         """
-        Creates a single line plot with a logarithmic x-axis and linear y-axis.
+        Create a single line plot with a logarithmic x-axis and linear y-axis.
 
         Args:
             title (str): Title of the plot.
@@ -194,7 +195,7 @@ class BokehReportTool:
 
         # Create a Bokeh figure with logarithmic x-axis
         p = self.create_figure(
-            title=title,
+            title="CloudAI " + title,
             x_axis_label=x_axis_label,
             y_axis_label=y_axis_label,
             x_axis_type="log",
@@ -226,7 +227,7 @@ class BokehReportTool:
         sol: Optional[float] = None,
     ):
         """
-        Adds a line plot with a logarithmic x-axis and linear y-axis for multiple datasets.
+        Add a line plot with a logarithmic x-axis and linear y-axis for multiple datasets.
 
         Args:
             title (str): Title of the plot.
@@ -244,7 +245,7 @@ class BokehReportTool:
             y_max = max(y_max, col_max)
 
         p = self.create_figure(
-            title=title,
+            title="CloudAI " + title,
             x_axis_label=x_axis_label,
             y_axis_label=y_axis_label,
             x_axis_type="log",
@@ -271,7 +272,7 @@ class BokehReportTool:
 
     def finalize_report(self, output_filename: str):
         """
-        Saves all accumulated plots to a single HTML file.
+        Save all accumulated plots to a single HTML file.
 
         Args:
             output_filename (str): output_filename to save the final report.

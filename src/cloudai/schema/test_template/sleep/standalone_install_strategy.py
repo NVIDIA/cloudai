@@ -14,25 +14,22 @@
 
 import shutil
 
-from cloudai.schema.core.strategy import InstallStrategy, StrategyRegistry
-from cloudai.schema.system import SlurmSystem, StandaloneSystem
-
-from .template import Sleep
+from cloudai.schema.core.strategy.install_strategy import InstallStrategy
 
 
-@StrategyRegistry.strategy(InstallStrategy, [StandaloneSystem, SlurmSystem], [Sleep])
 class SleepStandaloneInstallStrategy(InstallStrategy):
     """
     Installation strategy for the Sleep test on standalone systems.
+
     This strategy checks for the availability of the sleep command,
     which is typically pre-installed on UNIX-like systems.
     """
 
     def is_installed(self) -> bool:
         """
-        Checks if the sleep command is available on the system.
+        Check if the sleep command is available on the system.
 
-        Returns:
+        Returns
             bool: True if the sleep command is found in the system's PATH,
                   False otherwise.
         """
@@ -40,11 +37,12 @@ class SleepStandaloneInstallStrategy(InstallStrategy):
 
     def install(self) -> None:
         """
-        Verifies if the sleep command is available in the system. Since
-        sleep is a common command, this method mainly serves as a check
+        Verify if the sleep command is available in the system.
+
+        Since sleep is a common command, this method mainly serves as a check
         rather than performing an actual installation.
 
-        Raises:
+        Raises
             RuntimeError: If the sleep command is not found in the system.
         """
         if shutil.which("sleep") is None:
@@ -52,7 +50,8 @@ class SleepStandaloneInstallStrategy(InstallStrategy):
 
     def uninstall(self) -> None:
         """
-        Uninstallation for the Sleep test. As the sleep command is a common
-        system utility, this method does not perform any operations.
+        Uninstall Sleep test.
+
+        As the sleep command is a common system utility, this method does not perform any operations.
         """
         pass

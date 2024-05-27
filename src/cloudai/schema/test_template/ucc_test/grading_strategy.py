@@ -14,16 +14,13 @@
 
 import os
 
-from cloudai.schema.core.strategy import GradingStrategy, StrategyRegistry
-from cloudai.schema.system import SlurmSystem
-
-from .template import UCCTest
+from cloudai.schema.core.strategy.grading_strategy import GradingStrategy
 
 
-@StrategyRegistry.strategy(GradingStrategy, [SlurmSystem], [UCCTest])
 class UCCTestGradingStrategy(GradingStrategy):
     """
-    ormance grading strategy for UCCTest test templates on Slurm systems.
+    Performance grading strategy for UCCTest test templates on Slurm systems.
+
     Evaluates the test's performance by comparing the maximum bus bandwidth
     achieved during the test against the test's ideal performance metric.
     The grade is normalized and scaled between 0 and 100.
@@ -31,9 +28,9 @@ class UCCTestGradingStrategy(GradingStrategy):
 
     def grade(self, directory_path: str, ideal_perf: float) -> float:
         """
-        Grades the performance of an UCCTest based on the maximum bus
-        bandwidth reported in the test's stdout.txt file, considering both
-        in-place and out-of-place updates.
+        Grade the performance of an UCCTest based on the maximum bus bandwidth.
+
+        Reported in the test's stdout.txt file, considering both in-place and out-of-place updates.
 
         Args:
             directory_path (str): Path to the directory containing the
@@ -58,7 +55,7 @@ class UCCTestGradingStrategy(GradingStrategy):
 
     def _extract_max_bus_bandwidth(self, stdout_path: str) -> float:
         """
-        Extracts the maximum bus bandwidth from the UCCTest output file.
+        Extract the maximum bus bandwidth from the UCCTest output file.
 
         Args:
             stdout_path (str): Path to the stdout.txt file containing the

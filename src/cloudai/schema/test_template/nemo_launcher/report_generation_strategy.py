@@ -16,24 +16,16 @@ import os
 from typing import Optional
 
 import pandas as pd
-
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.report_generator.tool.tensorboard_data_reader import TensorBoardDataReader
-from cloudai.schema.core.strategy import (
-    ReportGenerationStrategy,
-    StrategyRegistry,
-)
-from cloudai.schema.system import SlurmSystem
-
-from .template import NeMoLauncher
+from cloudai.schema.core.strategy.report_generation_strategy import ReportGenerationStrategy
 
 
-@StrategyRegistry.strategy(ReportGenerationStrategy, [SlurmSystem], [NeMoLauncher])
 class NeMoLauncherReportGenerationStrategy(ReportGenerationStrategy):
     """
-    Strategy for generating reports from NeMo launcher directories, now
-    updated to handle TensorBoard log files and visualize data using Bokeh
-    plots.
+    Strategy for generating reports from NeMo launcher directories.
+
+    Now updated to handle TensorBoard log files and visualize data using Bokeh plots.
     """
 
     def can_handle_directory(self, directory_path: str) -> bool:
@@ -43,7 +35,7 @@ class NeMoLauncherReportGenerationStrategy(ReportGenerationStrategy):
                     return True
         return False
 
-    def generate_report(self, directory_path: str, sol: Optional[float] = None) -> None:
+    def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
         tags = ["train_step_timing"]
         data_reader = TensorBoardDataReader(directory_path)
         report_tool = BokehReportTool(directory_path)

@@ -14,20 +14,14 @@
 
 from typing import Optional
 
-from cloudai.schema.core.strategy import ReportGenerationStrategy, StrategyRegistry
-from cloudai.schema.system import SlurmSystem, StandaloneSystem
-
-from .template import Sleep
+from cloudai.schema.core.strategy.report_generation_strategy import ReportGenerationStrategy
 
 
-@StrategyRegistry.strategy(ReportGenerationStrategy, [StandaloneSystem, SlurmSystem], [Sleep])
 class SleepReportGenerationStrategy(ReportGenerationStrategy):
-    """
-    Strategy for generating reports from sleep directories.
-    """
+    """Strategy for generating reports from sleep directories."""
 
     def can_handle_directory(self, directory_path: str) -> bool:
         return False
 
-    def generate_report(self, directory_path: str, sol: Optional[float] = None) -> None:
+    def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
         pass

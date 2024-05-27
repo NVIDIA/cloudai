@@ -23,20 +23,15 @@ from bokeh.models import ColumnDataSource, DataTable, Div, TableColumn, Title
 from bokeh.palettes import Turbo256
 from bokeh.plotting import figure, output_file, save
 from bokeh.transform import cumsum
-
-from cloudai.schema.core.strategy import ReportGenerationStrategy, StrategyRegistry
-from cloudai.schema.system import SlurmSystem
-
-from .template import ChakraReplay
+from cloudai.schema.core.strategy.report_generation_strategy import ReportGenerationStrategy
 
 
-@StrategyRegistry.strategy(ReportGenerationStrategy, [SlurmSystem], [ChakraReplay])
 class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
     """
-    Strategy for generating reports from Chakra replay directories using Bokeh
-    for graphical summaries of the data. This class provides methods to check
-    if a directory can be handled, extract communication data, latency tables,
-    and tensor sizes from stdout files, and generate a report using Bokeh.
+    Strategy for generating reports from Chakra replay directories using Bokeh for graphical summaries of the data.
+
+    This class provides methods to check if a directory can be handled, extract communication data, latency tables, and
+    tensor sizes from stdout files, and generate a report using Bokeh.
     """
 
     def can_handle_directory(self, directory_path: str) -> bool:
@@ -47,7 +42,7 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
                     return True
         return False
 
-    def generate_report(self, directory_path: str, sol: Optional[float] = None) -> None:
+    def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
         stdout_path = os.path.join(directory_path, "stdout.txt")
         if not os.path.isfile(stdout_path):
             return
@@ -60,8 +55,7 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
 
     def _extract_comms_data(self, file_path: str) -> Dict[str, int]:
         """
-        Extracts the number of times each communication operation is called
-        from the specified file.
+        Extract the number of times each communication operation is called from the specified file.
 
         Args:
             file_path: Path to the file containing stdout data.
@@ -84,8 +78,7 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
 
     def _extract_latency_tables(self, file_path: str) -> Dict[str, pd.DataFrame]:
         """
-        Extracts latency distribution tables for communication operations from
-        the specified file.
+        Extract latency distribution tables for communication operations from the specified file.
 
         Args:
             file_path: Path to the file containing stdout data.
@@ -130,8 +123,7 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
 
     def _extract_tensor_sizes(self, file_path: str) -> Dict[str, Dict[str, pd.DataFrame]]:  # noqa: C901
         """
-        Extracts input and output tensor size distribution tables from the
-        specified file.
+        Extract input and output tensor size distribution tables from the specified file.
 
         Args:
             file_path: Path to the file containing stdout data.
@@ -205,9 +197,10 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
         directory_path: str,
     ) -> None:
         """
-        Generates Bokeh visualizations for the report, including pie charts for
-        communication operations distribution and DataTables for latency metrics
-        and tensor sizes.
+        Generate Bokeh visualizations for the report.
+
+        Including pie charts for communication operations distribution and DataTables for latency metrics and tensor
+        sizes.
 
         Args:
             comms_data: A dictionary with operation names as keys and their call
@@ -301,8 +294,7 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
 
     def _transform_and_merge_tensor_sizes(self, tensor_sizes):
         """
-        Transforms and merges tensor size data from input and output into a
-        single DataFrame.
+        Transform and merges tensor size data from input and output into a single DataFrame.
 
         Args:
             tensor_sizes: A dictionary with operation names as keys and dictionaries

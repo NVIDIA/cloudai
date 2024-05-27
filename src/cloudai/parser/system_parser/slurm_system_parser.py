@@ -15,18 +15,16 @@
 import os
 from typing import Any, Dict, List
 
-from cloudai.parser.core import BaseSystemParser
+from cloudai.parser.core.base_system_parser import BaseSystemParser
 from cloudai.schema.system.slurm import SlurmNode, SlurmNodeState, SlurmSystem
 
 
 class SlurmSystemParser(BaseSystemParser):
-    """
-    Parser for parsing Slurm system configurations.
-    """
+    """Parser for parsing Slurm system configurations."""
 
     def parse(self, data: Dict[str, Any]) -> SlurmSystem:  # noqa: C901
         """
-        Parses the Slurm system configuration.
+        Parse the Slurm system configuration.
 
         Args:
             data (Dict[str, Any]): The loaded configuration data.

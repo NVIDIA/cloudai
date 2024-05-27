@@ -12,18 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai.schema.core.strategy import GradingStrategy, StrategyRegistry
-from cloudai.schema.system import SlurmSystem
-
-from .template import JaxToolbox
+from cloudai.schema.core.strategy.grading_strategy import GradingStrategy
 
 
-@StrategyRegistry.strategy(GradingStrategy, [SlurmSystem], [JaxToolbox])
 class JaxToolboxGradingStrategy(GradingStrategy):
-    """
-    Performance grading strategy for JaxToolbox test templates
-    on Slurm systems.
-    """
+    """Performance grading strategy for JaxToolbox test templates on Slurm systems."""
 
     def grade(self, directory_path: str, ideal_perf: float) -> float:
         return 0.0

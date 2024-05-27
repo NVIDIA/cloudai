@@ -14,17 +14,20 @@
 
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 
 import toml
+from cloudai.schema.core.test import Test
+from cloudai.schema.core.test_template import TestTemplate
 
 
 class BaseMultiFileParser(ABC):
     """
-    Abstract base class for test configuration parsers. Parses files in a given
-    directory and creates objects based on the file contents.
+    Abstract base class for test configuration parsers.
 
-    Attributes:
+    Parses files in a given directory and creates objects based on the file contents.
+
+    Attributes
         directory_path (str): Path to the directory with configuration files.
     """
 
@@ -32,10 +35,11 @@ class BaseMultiFileParser(ABC):
         self.directory_path: str = directory_path
 
     @abstractmethod
-    def _parse_data(self, data: Dict[str, Any]) -> Any:
+    def _parse_data(self, data: Dict[str, Any]) -> Union[Test, TestTemplate]:
         """
-        Abstract method to parse data from a TOML file. Must be implemented
-        by subclasses to create specific types of objects.
+        Abstract method to parse data from a TOML file.
+
+        Must be implemented by subclasses to create specific types of objects.
 
         Args:
             data (Dict[str, Any]): Data parsed from a TOML file.
@@ -47,9 +51,9 @@ class BaseMultiFileParser(ABC):
 
     def parse_all(self) -> List[Any]:
         """
-        Parses all TOML files in the directory and returns a list of objects.
+        Parse all TOML files in the directory and returns a list of objects.
 
-        Returns:
+        Returns
             List[Any]: List of objects from the configuration files.
         """
         objects: List[Any] = []
@@ -58,7 +62,7 @@ class BaseMultiFileParser(ABC):
                 file_path: str = os.path.join(self.directory_path, filename)
                 with open(file_path, "r") as file:
                     data: Dict[str, Any] = toml.load(file)
-                    parsed_object: Any = self._parse_data(data)
+                    parsed_object = self._parse_data(data)
                     obj_name: str = parsed_object.name
                     if obj_name in objects:
                         raise ValueError(f"Duplicate name found: {obj_name}")

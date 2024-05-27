@@ -14,14 +14,16 @@
 
 from typing import Optional, cast
 
-from cloudai.runner.core import BaseJob, BaseRunner, Runner
-from cloudai.schema.core import System, Test, TestScenario
+from cloudai.runner.core.base_job import BaseJob
+from cloudai.runner.core.base_runner import BaseRunner
+from cloudai.schema.core.system import System
+from cloudai.schema.core.test import Test
+from cloudai.schema.core.test_scenario import TestScenario
 from cloudai.util import CommandShell
 
 from .standalone_job import StandaloneJob
 
 
-@Runner.register("standalone")
 class StandaloneRunner(BaseRunner):
     """
     Implementation of the Runner for a system using Standalone.
@@ -30,7 +32,7 @@ class StandaloneRunner(BaseRunner):
     environment. It extends the BaseRunner class, implementing the abstract
     methods to work with standalone jobs.
 
-    Attributes:
+    Attributes
         cmd_shell (CommandShell): An instance of CommandShell for executing
                                   system commands.
         Inherits all other attributes from the BaseRunner class.
@@ -43,8 +45,7 @@ class StandaloneRunner(BaseRunner):
         test_scenario: TestScenario,
     ):
         """
-        Initialize the StandaloneRunner with a system object, test scenario, and
-        monitor interval.
+        Initialize the StandaloneRunner with a system object, test scenario, and monitor interval.
 
         Args:
             mode (str): The operation mode ('run', 'dry-run').
@@ -79,7 +80,7 @@ class StandaloneRunner(BaseRunner):
 
     def is_job_running(self, job: BaseJob) -> bool:
         """
-        Checks if the specified job is currently running.
+        Check if the specified job is currently running.
 
         Args:
             job (BaseJob): The job to check.

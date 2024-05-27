@@ -14,13 +14,11 @@
 
 from abc import ABC, abstractmethod
 
-from cloudai.schema.core import System
+from cloudai.schema.core.system import System
 
 
 class BaseSystemObjectUpdater(ABC):
-    """
-    Abstract base class for system object updaters.
-    """
+    """Abstract base class for system object updaters."""
 
     @abstractmethod
     def update(self, system: System) -> None:

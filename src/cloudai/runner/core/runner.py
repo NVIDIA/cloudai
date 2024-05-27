@@ -13,17 +13,17 @@
 # limitations under the License.
 
 import logging
-from typing import Callable, Type
 
-from cloudai.schema.core import System, TestScenario
+from cloudai._core.registry import Registry
+from cloudai.schema.core.system import System
+from cloudai.schema.core.test_scenario import TestScenario
 
 from .base_runner import BaseRunner
 
 
 class Runner:
     """
-    A wrapper class that creates and manages a specific runner instance
-    based on the system's scheduler type.
+    A wrapper class that creates and manages a specific runner instance based on the system's scheduler type.
 
     This class facilitates the initialization of the appropriate runner
     (StandaloneRunner or SlurmRunner) based on the scheduler specified in the
@@ -48,24 +48,6 @@ class Runner:
         self.logger.info("Initializing Runner")
         self.runner = self.create_runner(mode, system, test_scenario)
 
-    @classmethod
-    def register(cls, system_type: str) -> Callable:
-        """
-        A decorator to register runner subclasses for specific system types.
-
-        Args:
-            system_type (str): The system type the runner can handle.
-
-        Returns:
-            Callable: A decorator function that registers the runner class.
-        """
-
-        def decorator(runner_class: Type[BaseRunner]) -> Type[BaseRunner]:
-            cls._runners[system_type] = runner_class
-            return runner_class
-
-        return decorator
-
     def create_runner(self, mode: str, system: System, test_scenario: TestScenario) -> BaseRunner:
         """
         Dynamically create a runner instance based on the system's scheduler type.
@@ -81,17 +63,16 @@ class Runner:
         Raises:
             NotImplementedError: If the scheduler type is not supported.
         """
+        registry = Registry()
         scheduler_type = system.scheduler.lower()
-        runner_class = self._runners.get(scheduler_type)
-        if runner_class is None:
+        if scheduler_type not in registry.runners_map:
             msg = f"No runner registered for scheduler: {scheduler_type}"
             self.logger.error(msg)
             raise NotImplementedError(msg)
+        runner_class = registry.runners_map[scheduler_type]
         self.logger.info(f"Creating {runner_class.__name__}")
         return runner_class(mode, system, test_scenario)
 
     async def run(self):
-        """
-        Run the test scenario using the instantiated runner.
-        """
+        """Run the test scenario using the instantiated runner."""
         await self.runner.run()

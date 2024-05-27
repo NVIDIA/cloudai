@@ -19,7 +19,8 @@ from typing import Iterable, cast
 
 import toml
 
-from cloudai.schema.core import System, TestTemplate
+from cloudai.schema.core.system import System
+from cloudai.schema.core.test_template import TestTemplate
 from cloudai.schema.system import SlurmSystem
 
 from .base_installer import BaseInstaller
@@ -29,10 +30,11 @@ from .installer import Installer
 @Installer.register("slurm")
 class SlurmInstaller(BaseInstaller):
     """
-    Installer for systems that use the Slurm scheduler. Handles the
-    installation of benchmarks or test templates for Slurm-managed systems.
+    Installer for systems that use the Slurm scheduler.
 
-    Attributes:
+    Handles the installation of benchmarks or test templates for Slurm-managed systems.
+
+    Attributes
         CONFIG_FILE_NAME (str): The name of the configuration file.
         PREREQUISITES (List[str]): A list of required binaries for the installer.
         REQUIRED_SRUN_OPTIONS (List[str]): A list of required srun options to check.
@@ -54,8 +56,7 @@ class SlurmInstaller(BaseInstaller):
 
     def __init__(self, system: System):
         """
-        Initialize the BaseInstaller with a system object and an optional
-        installation path.
+        Initialize the BaseInstaller with a system object and an optional installation path.
 
         Args:
             system (System): The system schema object.
@@ -67,29 +68,26 @@ class SlurmInstaller(BaseInstaller):
 
     def _check_prerequisites(self) -> None:
         """
-        Checks for the presence of required binaries and specific srun options,
-        raising an error if any are missing. This ensures the system environment
-        is properly set up before proceeding with the installation or
-        uninstallation processes.
+        Check for the presence of required binaries and specific srun options, raising an error if any are missing.
+
+        This ensures the system environment is properly set up before proceeding with the installation or uninstallation
+        processes.
         """
         super()._check_prerequisites()
         self._check_required_binaries()
         self._check_srun_options()
 
     def _check_required_binaries(self) -> None:
-        """
-        Check for the presence of required binaries, raising an error if any
-        are missing.
-        """
+        """Check for the presence of required binaries, raising an error if anyare missing."""
         for binary in self.PREREQUISITES:
             if not self._is_binary_installed(binary):
                 raise EnvironmentError(f"Required binary {binary} is not installed.")
 
     def _check_srun_options(self) -> None:
         """
-        Checks for the presence of specific srun options by calling
-        `srun --help` and verifying the options. Raises an exception if any
-        required options are missing.
+        Check for the presence of specific srun options.
+
+        Calls `srun --help` and verifying the options. Raises an exception if any required options are missing.
         """
         try:
             result = subprocess.run(["srun", "--help"], text=True, capture_output=True, check=True)
@@ -103,9 +101,7 @@ class SlurmInstaller(BaseInstaller):
             raise EnvironmentError("Required srun options missing: " f"{missing_options_str}")
 
     def _write_config(self) -> None:
-        """
-        Writes the installation configuration to a TOML file atomically.
-        """
+        """Write the installation configuration to a TOML file atomically."""
         absolute_install_path = os.path.abspath(self.install_path)
         config_data = {"install_path": absolute_install_path}
 
@@ -119,9 +115,9 @@ class SlurmInstaller(BaseInstaller):
 
     def _read_config(self) -> dict:
         """
-        Reads the installation configuration from a TOML file.
+        Read the installation configuration from a TOML file.
 
-        Returns:
+        Returns
             dict: Configuration, including installation path.
         """
         try:
@@ -131,17 +127,15 @@ class SlurmInstaller(BaseInstaller):
             raise FileNotFoundError("Configuration file not found.") from e
 
     def _remove_config(self) -> None:
-        """
-        Remove the installation configuration file.
-        """
+        """Remove the installation configuration file."""
         if os.path.exists(self.config_path):
             os.remove(self.config_path)
 
     def is_installed(self, test_templates: Iterable[TestTemplate]) -> bool:
         """
-        Check if the necessary components for the provided test templates
-        are already installed by verifying the existence of the configuration
-        file and the installation status of each test template.
+        Check if the necessary components for the provided test templates are already installed.
+
+        Verify the existence of the configuration file and the installation status of each test template.
 
         Args:
             test_templates (Iterable[TestTemplate]): The list of test templates to
@@ -164,6 +158,7 @@ class SlurmInstaller(BaseInstaller):
     def install(self, test_templates: Iterable[TestTemplate]) -> None:
         """
         Check if the necessary components are installed and install them if not.
+
         Requires the installation path to be set.
 
         Args:
@@ -186,9 +181,9 @@ class SlurmInstaller(BaseInstaller):
 
     def uninstall(self, test_templates: Iterable[TestTemplate]) -> None:
         """
-        Uninstall the benchmarks or test templates from the installation path
-        and remove the configuration file. This method does not require the
-        installation path to be set in advance.
+        Uninstall the benchmarks or test templates from the installation path and remove the configuration file.
+
+        This method does not require the installation path to be set in advance.
 
         Args:
             test_templates (Iterable[TestTemplate]): The list of test templates to

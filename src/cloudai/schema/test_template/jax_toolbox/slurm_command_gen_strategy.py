@@ -15,19 +15,12 @@
 import os
 from typing import Any, Dict, List
 
-from cloudai.schema.core import System
-from cloudai.schema.core.strategy import CommandGenStrategy, StrategyRegistry
-from cloudai.schema.system import SlurmSystem
+from cloudai.schema.core.system import System
 from cloudai.schema.system.slurm.strategy import SlurmCommandGenStrategy
 
-from .template import JaxToolbox
 
-
-@StrategyRegistry.strategy(CommandGenStrategy, [SlurmSystem], [JaxToolbox])
 class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
-    """
-    Command generation strategy for JaxToolbox tests on Slurm systems.
-    """
+    """Command generation strategy for JaxToolbox tests on Slurm systems."""
 
     def __init__(
         self,
@@ -70,8 +63,9 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _format_xla_flags(self, cmd_args: Dict[str, str]) -> str:
         """
-        Formats the XLA_FLAGS environment variable by extracting all command-line
-        arguments prefixed with 'XLA_FLAG' and concatenating them into a single
+        Format the XLA_FLAGS environment variable.
+
+        Done by extracting all command-line arguments prefixed with 'XLA_FLAG' and concatenating them into a single
         string with the appropriate formatting for execution.
 
         Args:
@@ -165,7 +159,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
     ) -> str:
         """
-        Generates and writes the run.sh script to the specified output directory.
+        Generate and writes the run.sh script to the specified output directory.
+
         The script configures environment variables, applies necessary command
         options, and executes the Python command within the SLURM environment.
 
@@ -182,9 +177,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
 
         def set_xla_flags(profile_enabled: bool):
-            """
-            Sets the XLA_FLAGS for profiling or performance based on the stage.
-            """
+            """Set the XLA_FLAGS for profiling or performance based on the stage."""
             flags = [
                 "xla_gpu_enable_latency_hiding_scheduler",
                 "xla_gpu_enable_async_all_gather",
@@ -226,7 +219,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         extra_cmd_args: str,
     ) -> list:
         """
-        Generates the content of the run script for a given stage.
+        Generate the content of the run script for a given stage.
 
         Args:
             stage (str): The stage of the process ('profile' or 'perf').
@@ -257,8 +250,9 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         extra_cmd_args: str,
     ) -> str:
         """
-        Constructs the complete Python command for execution in the SLURM
-        environment. The command is structured with specific ordering of arguments
+        Construct the complete Python command for execution in the SLURM environment.
+
+        The command is structured with specific ordering of arguments
         to match the operational requirements of the JaxToolbox on Slurm systems.
 
         Args:
@@ -316,8 +310,9 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _create_pgo_nsys_converter_command(self, stage: str, cmd_args: Dict[str, str]) -> str:
         """
-        Constructs the command to generate the pbtxt file in a multi-line format for readability,
-        extracting required paths from command-line arguments.
+        Construct the command to generate the pbtxt file in a multi-line format.
+
+        For readability, extracting required paths from command-line arguments.
 
         Args:
             stage (str): The stage of processing (e.g., 'profile', 'perf').
@@ -341,7 +336,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _create_nsys_to_sqlite_command(self, stage: str, cmd_args: Dict[str, str]) -> str:
         """
-        Constructs the command to convert the nsys profile file to an sqlite file.
+        Construct the command to convert the nsys profile file to an sqlite file.
+
         This command is to be executed conditionally on the master node only.
 
         Args:

@@ -15,20 +15,20 @@
 import logging
 from typing import Callable, Iterable
 
-from cloudai.schema.core import System, TestTemplate
+from cloudai.schema.core.system import System
+from cloudai.schema.core.test_template import TestTemplate
 
 from .base_installer import BaseInstaller
 
 
 class Installer:
     """
-    A wrapper class that creates and manages a specific installer instance
-    based on the system's configuration.
+    A wrapper class that creates and manages a specific installer instance based on the system's configuration.
 
     This class facilitates the initialization of the appropriate installer
     based on the system.
 
-    Attributes:
+    Attributes
         _installers (dict): A class-level dictionary mapping scheduler
             types to their corresponding installer subclasses. Used for
             dynamic installer creation based on system configuration.
@@ -52,8 +52,7 @@ class Installer:
     @classmethod
     def register(cls, scheduler_type: str) -> Callable:
         """
-        Decorator to register installer subclasses under specific scheduler
-        types.
+        Register installer subclasses under specific scheduler types.
 
         Args:
             scheduler_type (str): The scheduler type string that the installer
@@ -72,7 +71,7 @@ class Installer:
     @classmethod
     def create_installer(cls, system: System) -> BaseInstaller:
         """
-        Creates an installer instance based on the system's scheduler type.
+        Create an installer instance based on the system's scheduler type.
 
         Args:
             system (System): The system schema object.
@@ -93,8 +92,7 @@ class Installer:
 
     def is_installed(self, test_templates: Iterable[TestTemplate]) -> bool:
         """
-        Check if the necessary components for the provided test templates
-        are already installed.
+        Check if the necessary components for the provided test templates are already installed.
 
         Args:
             test_templates (Iterable[TestTemplate]): The list of test templates to
@@ -108,8 +106,7 @@ class Installer:
 
     def install(self, test_templates: Iterable[TestTemplate]):
         """
-        Check if the necessary components are installed and install them if not
-        using the instantiated installer.
+        Check if the necessary components are installed and install them if not using the instantiated installer.
 
         Args:
             test_templates (Iterable[TestTemplate]): The list of test templates to
@@ -120,8 +117,7 @@ class Installer:
 
     def uninstall(self, test_templates: Iterable[TestTemplate]):
         """
-        Uninstall the benchmarks or test templates using the instantiated
-        installer.
+        Uninstall the benchmarks or test templates using the instantiated installer.
 
         Args:
             test_templates (Iterable[TestTemplate]): The list of test templates to

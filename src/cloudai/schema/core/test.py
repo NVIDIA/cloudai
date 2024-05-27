@@ -20,10 +20,9 @@ from .test_template import TestTemplate
 
 class Test:
     """
-    Represents a test, an instance of a test template with custom arguments,
-    node configuration, and other test-related details.
+    Represent a test, an instance of a test template with custom arguments, node configuration, and other details.
 
-    Attributes:
+    Attributes
         name (str): Unique name of the test.
         description (str): Description of the test.
         test_template (TestTemplate): The test template object.
@@ -51,7 +50,7 @@ class Test:
         self,
         name: str,
         description: str,
-        test_template: TestTemplate,
+        test_template: "TestTemplate",
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
@@ -66,7 +65,7 @@ class Test:
         time_limit: Optional[str] = None,
     ) -> None:
         """
-        Initializes a Test instance.
+        Initialize a Test instance.
 
         Args:
             name (str): Name of the test.
@@ -83,9 +82,11 @@ class Test:
             iterations (Union[int, str]): Total number of iterations to run
                 the test. Can be an integer or 'infinite' for endless iterations.
             nodes (List[str]): List of nodes to be used in the test.
+            sol (Optional[float]): Speed-of-light performance for reference.
             weight (float): The weight of this test in a test scenario,
                             indicating its relative importance or priority.
             ideal_perf (float): The ideal performance value for comparison.
+            time_limit (Optional[str]): Time limit for the test specified as a string
         """
         self.name = name
         self.description = description
@@ -106,9 +107,9 @@ class Test:
 
     def __repr__(self) -> str:
         """
-        Returns a string representation of the Test instance.
+        Return a string representation of the Test instance.
 
-        Returns:
+        Returns
             str: String representation of the test.
         """
         return (
@@ -125,7 +126,7 @@ class Test:
 
     def gen_exec_command(self, output_path: str) -> str:
         """
-        Generates the command to run this specific test.
+        Generate the command to run this specific test.
 
         Args:
             output_path (str): Path to the output directory.
@@ -147,7 +148,7 @@ class Test:
 
     def get_job_id(self, stdout: str, stderr: str) -> Optional[int]:
         """
-        Retrieves the job ID using the test template's method.
+        Retrieve the job ID using the test template's method.
 
         Args:
             stdout (str): Standard output from the command execution.
@@ -162,7 +163,7 @@ class Test:
         """
         Check if the test has more iterations to run.
 
-        Returns:
+        Returns
             bool: True if more iterations are pending, False otherwise.
         """
         return self.current_iteration < self.iterations
@@ -172,7 +173,7 @@ class TestDependency:
     """
     Represents a dependency for a test.
 
-    Attributes:
+    Attributes
         test (Test): The test object it depends on.
         time (int): Time in seconds after which this dependency is met.
     """
@@ -181,7 +182,7 @@ class TestDependency:
 
     def __init__(self, test: Test, time: int) -> None:
         """
-        Initializes a TestDependency instance.
+        Initialize a TestDependency instance.
 
         Args:
             test (Test): The test object it depends on.

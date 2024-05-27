@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai.schema.core import TestTemplate
+from cloudai.schema.core.test_template import TestTemplate
 
 
 class ChakraReplay(TestTemplate):
-    """
-    Test template for Chakra Replay.
-    """
+    """Test template for Chakra Replay."""

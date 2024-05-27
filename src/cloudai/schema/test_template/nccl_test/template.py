@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai.schema.core import TestTemplate
+from cloudai.schema.core.test_template import TestTemplate
 
 
 class NcclTest(TestTemplate):
     """
     Test template for NCCL tests.
 
-    Attributes:
+    Attributes
         SUPPORTED_SUBTESTS (List[str]): List of supported subtests for NCCL,
             including all_reduce_perf_mpi, all_gather_perf_mpi, and others.
     """

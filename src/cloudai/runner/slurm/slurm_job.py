@@ -12,12 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai.runner.core import BaseJob
+from cloudai.runner.core.base_job import BaseJob
 
 
 class SlurmJob(BaseJob):
-    """
-    Represents a job in a Slurm environment.
-    """
+    """Represents a job in a Slurm environment."""
 
     pass

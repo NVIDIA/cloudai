@@ -14,15 +14,17 @@
 
 from typing import Optional, cast
 
-from cloudai.runner.core import BaseJob, BaseRunner, Runner
-from cloudai.schema.core import System, Test, TestScenario
+from cloudai.runner.core.base_job import BaseJob
+from cloudai.runner.core.base_runner import BaseRunner
+from cloudai.schema.core.system import System
+from cloudai.schema.core.test import Test
+from cloudai.schema.core.test_scenario import TestScenario
 from cloudai.schema.system import SlurmSystem
 from cloudai.util import CommandShell
 
 from .slurm_job import SlurmJob
 
 
-@Runner.register("slurm")
 class SlurmRunner(BaseRunner):
     """
     Implementation of the Runner for a system using Slurm.
@@ -31,7 +33,7 @@ class SlurmRunner(BaseRunner):
     environment. It extends the BaseRunner class, implementing the abstract
     methods to work with Slurm jobs.
 
-    Attributes:
+    Attributes
         slurm_system (SlurmSystem): This attribute is a casted version of the `system`
                                     attribute to `SlurmSystem` type, ensuring that
                                     Slurm-specific properties and methods are
@@ -79,7 +81,7 @@ class SlurmRunner(BaseRunner):
 
     def is_job_running(self, job: BaseJob) -> bool:
         """
-        Checks if the specified job is currently running.
+        Check if the specified job is currently running.
 
         Args:
             job (BaseJob): The job to check.

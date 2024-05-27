@@ -12,18 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai.schema.core.strategy import InstallStrategy, StrategyRegistry
-from cloudai.schema.system import SlurmSystem
 from cloudai.schema.system.slurm.strategy import SlurmInstallStrategy
 
-from .template import ChakraReplay
 
-
-@StrategyRegistry.strategy(InstallStrategy, [SlurmSystem], [ChakraReplay])
 class ChakraReplaySlurmInstallStrategy(SlurmInstallStrategy):
-    """
-    Installation strategy for CommsTraceReplay on Slurm systems.
-    """
+    """Installation strategy for CommsTraceReplay on Slurm systems."""
 
     def is_installed(self) -> bool:
         return True

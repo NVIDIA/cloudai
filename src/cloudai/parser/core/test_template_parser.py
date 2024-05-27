@@ -12,18 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, Type
+import logging
+from typing import Any, Dict, Optional, Type, Union, cast
 
-from cloudai.schema.core import System, TestTemplate
+from cloudai._core.registry import Registry
+from cloudai.schema.core.strategy.command_gen_strategy import CommandGenStrategy
+from cloudai.schema.core.strategy.grading_strategy import GradingStrategy
+from cloudai.schema.core.strategy.install_strategy import InstallStrategy
+from cloudai.schema.core.strategy.job_id_retrieval_strategy import JobIdRetrievalStrategy
+from cloudai.schema.core.strategy.report_generation_strategy import ReportGenerationStrategy
+from cloudai.schema.core.strategy.test_template_strategy import TestTemplateStrategy
+from cloudai.schema.core.system import System
+from cloudai.schema.core.test_template import TestTemplate
 
 from .base_multi_file_parser import BaseMultiFileParser
+
+logger = logging.getLogger(__name__)
 
 
 class TestTemplateParser(BaseMultiFileParser):
     """
     Parser for creating TestTemplate objects from provided data.
 
-    Attributes:
+    Attributes
         system (System): The system schema object.
     """
 
@@ -33,7 +44,7 @@ class TestTemplateParser(BaseMultiFileParser):
 
     def __init__(self, system: System, directory_path: str) -> None:
         """
-        Initializes a TestTemplateParser with a specific system and directory path.
+        Initialize a TestTemplateParser with a specific system and directory path.
 
         Args:
             system (System): The system schema object.
@@ -43,9 +54,45 @@ class TestTemplateParser(BaseMultiFileParser):
         self.system = system
         self.directory_path: str = directory_path
 
+    def _fetch_strategy(
+        self,
+        strategy_interface: Type[Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy]],
+        system_type: Type[System],
+        test_template_type: Type[TestTemplate],
+        env_vars: Dict[str, Any],
+        cmd_args: Dict[str, Any],
+    ) -> Optional[Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy]]:
+        """
+        Fetch a strategy from the registry based on system and template.
+
+        Args:
+            strategy_interface (Type[Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy]):
+                The strategy interface to fetch.
+            system_type (Type[System]): The system type.
+            test_template_type (Type[TestTemplate]): The test template type.
+            env_vars (Dict[str, Any]): Environment variables.
+            cmd_args (Dict[str, Any]): Command-line arguments.
+
+        Returns:
+            An instance of the requested strategy, or None.
+        """
+        key = (strategy_interface, system_type, test_template_type)
+        registry = Registry()
+        strategy_type = registry.strategies_map.get(key)
+        if strategy_type:
+            if issubclass(strategy_type, TestTemplateStrategy):
+                return strategy_type(self.system, env_vars, cmd_args)
+            else:
+                return strategy_type()
+
+        logger.warning(
+            f"No {strategy_interface.__name__} found for " f"{type(self).__name__} and " f"{type(self.system).__name__}"
+        )
+        return None
+
     def _parse_data(self, data: Dict[str, Any]) -> TestTemplate:
         """
-        Parses data for a TestTemplate object.
+        Parse data for a TestTemplate object.
 
         Args:
             data (Dict[str, Any]): Data from a source (e.g., a TOML file).
@@ -66,7 +113,26 @@ class TestTemplateParser(BaseMultiFileParser):
         self._validate_args(env_vars, "Environment")
         self._validate_args(cmd_args, "Command-line")
 
-        return test_template_class(system=self.system, name=name, env_vars=env_vars, cmd_args=cmd_args)
+        obj = test_template_class(system=self.system, name=name, env_vars=env_vars, cmd_args=cmd_args)
+        obj.install_strategy = cast(
+            InstallStrategy, self._fetch_strategy(InstallStrategy, type(obj.system), type(obj), env_vars, cmd_args)
+        )
+        obj.command_gen_strategy = cast(
+            CommandGenStrategy,
+            self._fetch_strategy(CommandGenStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+        )
+        obj.job_id_retrieval_strategy = cast(
+            JobIdRetrievalStrategy,
+            self._fetch_strategy(JobIdRetrievalStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+        )
+        obj.report_generation_strategy = cast(
+            ReportGenerationStrategy,
+            self._fetch_strategy(ReportGenerationStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+        )
+        obj.grading_strategy = cast(
+            GradingStrategy, self._fetch_strategy(GradingStrategy, type(obj.system), type(obj), env_vars, cmd_args)
+        )
+        return obj
 
     def _get_test_template_class(self, name: str) -> Type[TestTemplate]:
         """
@@ -88,10 +154,11 @@ class TestTemplateParser(BaseMultiFileParser):
     @staticmethod
     def _enumerate_test_template_classes() -> Dict[str, Type[TestTemplate]]:
         """
-        Dynamically enumerates all subclasses of TestTemplate available in the
-        current namespace and maps their class names to the class objects.
+        Dynamically enumerate all subclasses of TestTemplate available in the current namespace.
 
-        Returns:
+        Maps their class names to the class objects.
+
+        Returns
             Dict[str, Type[TestTemplate]]: A dictionary mapping class names to
             TestTemplate subclasses.
         """
@@ -99,8 +166,7 @@ class TestTemplateParser(BaseMultiFileParser):
 
     def _extract_args(self, args: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Extracts arguments, maintaining their structure, and includes 'values'
-        and 'default' fields where they exist.
+        Extract arguments, maintaining their structure, and includes 'values' and 'default' fields where they exist.
 
         Args:
             args (Dict[str, Any]): The original arguments dictionary.
@@ -119,8 +185,9 @@ class TestTemplateParser(BaseMultiFileParser):
 
     def _validate_args(self, args: Dict[str, Any], arg_type: str) -> None:
         """
-        Validates the extracted arguments against their specified types and
-        constraints, converting and checking default values as necessary.
+        Validate the extracted arguments against their specified types and constraints.
+
+        Converting and checking default values as necessary.
 
         Args:
             args (Dict[str, Any]): The arguments to validate.
@@ -135,7 +202,7 @@ class TestTemplateParser(BaseMultiFileParser):
 
     def _check_and_set_defaults(self, details: Dict[str, Any], arg: str, arg_type: str):
         """
-        Helper method to check and set default values for arguments based on their type.
+        Check and set default values for arguments based on their type.
 
         Args:
             details (Dict[str, Any]): Details of the argument including type and default value.

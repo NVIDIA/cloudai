@@ -17,23 +17,16 @@ import re
 from typing import List, Optional
 
 import pandas as pd
-
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.report_generator.util import add_human_readable_sizes
-from cloudai.schema.core.strategy import (
-    ReportGenerationStrategy,
-    StrategyRegistry,
-)
-from cloudai.schema.system import SlurmSystem
-
-from .template import UCCTest
+from cloudai.schema.core.strategy.report_generation_strategy import ReportGenerationStrategy
 
 
-@StrategyRegistry.strategy(ReportGenerationStrategy, [SlurmSystem], [UCCTest])
 class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
     """
-    Strategy for generating reports from UCC test outputs, visualizing bus
-    bandwidth changes over epochs using interactive Bokeh plots.
+    Strategy for generating reports from UCC test outputs.
+
+    Visualizing bus bandwidth changes over epochs using interactive Bokeh plots.
     """
 
     def can_handle_directory(self, directory_path: str) -> bool:
@@ -45,7 +38,7 @@ class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
                     return True
         return False
 
-    def generate_report(self, directory_path: str, sol: Optional[float] = None) -> None:
+    def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
         report_data = []
         stdout_path = os.path.join(directory_path, "stdout.txt")
         if os.path.isfile(stdout_path):
@@ -76,10 +69,10 @@ class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
 
     def _parse_output(self, content: str) -> List[List[str]]:
         """
-        Extracts data from 'stdout.txt' for report generation.
+        Extract data from 'stdout.txt' for report generation.
 
         Args:
-            directory_path (str): Directory containing 'stdout.txt'.
+            content (str): Content of the 'stdout.txt' file.
         """
         data = []
         for line in content.splitlines()[14:]:  # UCC data starts at line 15
@@ -90,7 +83,7 @@ class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
 
     def _generate_plots(self, df: pd.DataFrame, directory_path: str, sol: Optional[float]) -> None:
         """
-        Creates and saves plots to visualize UCC test metrics.
+        Create and saves plots to visualize UCC test metrics.
 
         Args:
             df (pd.DataFrame): DataFrame containing the NCCL test data.

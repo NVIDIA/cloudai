@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai.schema.core import System
+from cloudai.schema.core.system import System
 
 
 class StandaloneSystem(System):
@@ -22,14 +22,14 @@ class StandaloneSystem(System):
     This class is used for systems that execute commands directly without
     a job scheduler.
 
-    Attributes:
+    Attributes
         name (str): Name of the standalone system.
         output_path (str): Path to the output directory.
     """
 
     def __init__(self, name: str, output_path: str) -> None:
         """
-        Initializes a StandaloneSystem instance.
+        Initialize a StandaloneSystem instance.
 
         Args:
             name (str): Name of the standalone system.
@@ -39,9 +39,9 @@ class StandaloneSystem(System):
 
     def __repr__(self) -> str:
         """
-        Provides a string representation of the StandaloneSystem instance.
+        Provide a string representation of the StandaloneSystem instance.
 
-        Returns:
+        Returns
             str: String representation of the standalone system.
         """
         return f"StandaloneSystem(name={self.name}, " f"scheduler={self.scheduler})"

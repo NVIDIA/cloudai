@@ -13,26 +13,25 @@
 # limitations under the License.
 
 import logging
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional
 
-from .strategy import (
-    CommandGenStrategy,
-    GradingStrategy,
-    InstallStrategy,
-    JobIdRetrievalStrategy,
-    ReportGenerationStrategy,
-    StrategyRegistry,
-)
+from cloudai.schema.core.strategy.command_gen_strategy import CommandGenStrategy
+from cloudai.schema.core.strategy.grading_strategy import GradingStrategy
+from cloudai.schema.core.strategy.install_strategy import InstallStrategy
+from cloudai.schema.core.strategy.job_id_retrieval_strategy import JobIdRetrievalStrategy
+from cloudai.schema.core.strategy.report_generation_strategy import ReportGenerationStrategy
+
 from .system import System
 
 
 class TestTemplate:
     """
-    Base class representing a test template, providing a framework for test
-    execution, including installation, uninstallation, and execution command
-    generation based on system configurations and test parameters.
+    Base class representing a test template.
 
-    Attributes:
+    Providing a framework for test execution, including installation, uninstallation, and execution command generation
+    based on system configurations and test parameters.
+
+    Attributes
         name (str): Unique name of the test template.
         env_vars (Dict[str, Any]): Default environment variables.
         cmd_args (Dict[str, Any]): Default command-line arguments.
@@ -59,9 +58,10 @@ class TestTemplate:
         cmd_args: Dict[str, Any],
     ) -> None:
         """
-        Initializes a TestTemplate instance.
+        Initialize a TestTemplate instance.
 
         Args:
+            system (System): System configuration for the test template.
             name (str): Name of the test template.
             env_vars (Dict[str, Any]): Environment variables.
             cmd_args (Dict[str, Any]): Command-line arguments.
@@ -71,58 +71,26 @@ class TestTemplate:
         self.env_vars = env_vars
         self.cmd_args = cmd_args
         self.logger = logging.getLogger(__name__ + ".TestTemplate")
-        self.install_strategy = self._fetch_strategy(InstallStrategy)
-        self.command_gen_strategy = self._fetch_strategy(CommandGenStrategy)
-        self.job_id_retrieval_strategy = self._fetch_strategy(JobIdRetrievalStrategy)
-        self.report_generation_strategy = self._fetch_strategy(ReportGenerationStrategy)
-        self.grading_strategy = self._fetch_strategy(GradingStrategy)
+        self.install_strategy: Optional[InstallStrategy] = None
+        self.command_gen_strategy: Optional[CommandGenStrategy] = None
+        self.job_id_retrieval_strategy: Optional[JobIdRetrievalStrategy] = None
+        self.report_generation_strategy: Optional[ReportGenerationStrategy] = None
+        self.grading_strategy: Optional[GradingStrategy] = None
 
     def __repr__(self) -> str:
         """
-        Returns a string representation of the TestTemplate instance.
+        Return a string representation of the TestTemplate instance.
 
-        Returns:
+        Returns
             str: String representation of the test template.
         """
         return f"TestTemplate(name={self.name})"
 
-    def _fetch_strategy(self, strategy_interface: Type) -> Optional[Any]:
-        """
-        Fetches a strategy from the registry based on system and template.
-
-        Args:
-            strategy_interface: Type of strategy to fetch.
-
-        Returns:
-            An instance of the requested strategy, or None.
-        """
-        strategy_class = StrategyRegistry.get_strategy(
-            strategy_interface=strategy_interface,
-            system_type=type(self.system),
-            template_type=type(self),
-        )
-        if strategy_class:
-            if strategy_interface in [
-                InstallStrategy,
-                CommandGenStrategy,
-                GradingStrategy,
-            ]:
-                return strategy_class(self.system, self.env_vars, self.cmd_args)
-            else:
-                return strategy_class()
-        else:
-            self.logger.warning(
-                f"No {strategy_interface.__name__} found for "
-                f"{type(self).__name__} and "
-                f"{type(self.system).__name__}"
-            )
-            return None
-
     def is_installed(self) -> bool:
         """
-        Checks if the test template is already installed on the specified system.
+        Check if the test template is already installed on the specified system.
 
-        Returns:
+        Returns
             bool: True if installed, False otherwise.
         """
         if self.install_strategy is not None:
@@ -131,18 +99,12 @@ class TestTemplate:
             return True
 
     def install(self) -> None:
-        """
-        Installs the test template at the specified location using the system's
-        installation strategy.
-        """
+        """Install the test template at the specified location using the system's installation strategy."""
         if self.install_strategy is not None:
             self.install_strategy.install()
 
     def uninstall(self) -> None:
-        """
-        Uninstalls the test template from the specified location using the system's
-        uninstallation strategy.
-        """
+        """Uninstall the test template from the specified location using the system's uninstallation strategy."""
         if self.install_strategy is not None:
             self.install_strategy.uninstall()
 
@@ -156,7 +118,7 @@ class TestTemplate:
         nodes: List[str],
     ) -> str:
         """
-        Generates an execution command for a test using this template.
+        Generate an execution command for a test using this template.
 
         This method must be implemented by subclasses.
 
@@ -185,8 +147,7 @@ class TestTemplate:
 
     def get_job_id(self, stdout: str, stderr: str) -> Optional[int]:
         """
-        Retrieves the job ID from the execution output using the job ID retrieval
-        strategy.
+        Retrieve the job ID from the execution output using the job ID retrieval strategy.
 
         Args:
             stdout (str): Standard output from the test execution.
@@ -213,16 +174,17 @@ class TestTemplate:
         else:
             return False
 
-    def generate_report(self, directory_path: str, sol: Optional[float] = None) -> None:
+    def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
         """
         Generate a report from the directory.
 
         Args:
+            test_name (str): The name of the test.
             directory_path (str): Path to the directory.
             sol (Optional[float]): Speed-of-light performance for reference.
         """
         if self.report_generation_strategy is not None:
-            return self.report_generation_strategy.generate_report(directory_path, sol)
+            return self.report_generation_strategy.generate_report(test_name, directory_path, sol)
 
     def grade(self, directory_path: str, ideal_perf: float) -> Optional[float]:
         """

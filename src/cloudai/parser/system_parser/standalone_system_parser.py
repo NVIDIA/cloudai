@@ -15,18 +15,16 @@
 import os
 from typing import Any, Dict
 
-from cloudai.parser.core import BaseSystemParser
+from cloudai.parser.core.base_system_parser import BaseSystemParser
 from cloudai.schema.system import StandaloneSystem
 
 
 class StandaloneSystemParser(BaseSystemParser):
-    """
-    Parser for parsing Standalone system configurations.
-    """
+    """Parser for parsing Standalone system configurations."""
 
     def parse(self, data: Dict[str, Any]) -> StandaloneSystem:
         """
-        Parses the Standalone system configuration.
+        Parse the Standalone system configuration.
 
         Args:
             data (Dict[str, Any]): The loaded configuration data.

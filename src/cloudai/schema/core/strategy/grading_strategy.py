@@ -18,9 +18,7 @@ from .test_template_strategy import TestTemplateStrategy
 
 
 class GradingStrategy(TestTemplateStrategy):
-    """
-    Abstract class for grading test performance.
-    """
+    """Abstract class for grading test performance."""
 
     @abstractmethod
     def grade(self, directory_path: str, ideal_perf: float) -> float:

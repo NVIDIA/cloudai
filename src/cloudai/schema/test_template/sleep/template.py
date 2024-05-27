@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai.schema.core import TestTemplate
+from cloudai.schema.core.test_template import TestTemplate
 
 
 class Sleep(TestTemplate):
-    """
-    Test template for sleep.
-    """
+    """Test template for sleep."""
