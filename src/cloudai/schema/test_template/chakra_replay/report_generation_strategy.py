@@ -42,7 +42,7 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
                     return True
         return False
 
-    def generate_report(self, directory_path: str, sol: Optional[float] = None) -> None:
+    def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
         stdout_path = os.path.join(directory_path, "stdout.txt")
         if not os.path.isfile(stdout_path):
             return

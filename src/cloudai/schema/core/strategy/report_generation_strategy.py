@@ -38,11 +38,12 @@ class ReportGenerationStrategy:
         pass
 
     @abstractmethod
-    def generate_report(self, directory_path: str, sol: Optional[float] = None) -> None:
+    def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
         """
         Generate a report from the directory.
 
         Args:
+            test_name (str): The name of the test.
             directory_path (str): Path to the directory.
             sol (Optional[float]): Speed-of-light performance for reference.
         """

@@ -174,16 +174,17 @@ class TestTemplate:
         else:
             return False
 
-    def generate_report(self, directory_path: str, sol: Optional[float] = None) -> None:
+    def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
         """
         Generate a report from the directory.
 
         Args:
+            test_name (str): The name of the test.
             directory_path (str): Path to the directory.
             sol (Optional[float]): Speed-of-light performance for reference.
         """
         if self.report_generation_strategy is not None:
-            return self.report_generation_strategy.generate_report(directory_path, sol)
+            return self.report_generation_strategy.generate_report(test_name, directory_path, sol)
 
     def grade(self, directory_path: str, ideal_perf: float) -> Optional[float]:
         """
