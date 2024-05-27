@@ -13,10 +13,9 @@
 # limitations under the License.
 
 import sys
-from typing import TYPE_CHECKING, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
-if TYPE_CHECKING:
-    from .test_template import TestTemplate
+from .test_template import TestTemplate
 
 
 class Test:
