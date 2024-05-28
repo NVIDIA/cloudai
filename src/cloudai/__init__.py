@@ -69,7 +69,6 @@ from .schema.test_template.ucc_test.report_generation_strategy import UCCTestRep
 from .schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 from .schema.test_template.ucc_test.slurm_install_strategy import UCCTestSlurmInstallStrategy
 from .schema.test_template.ucc_test.template import UCCTest
-from .system_object_updater import SystemObjectUpdater
 
 Registry().add_system_parser("standalone", StandaloneSystemParser)
 Registry().add_system_parser("slurm", SlurmSystemParser)
@@ -125,7 +124,6 @@ __all__ = [
     "Parser",
     "ReportGenerator",
     "Runner",
-    "SystemObjectUpdater",
     "System",
     "TestTemplate",
     "TestTemplateStrategy",
