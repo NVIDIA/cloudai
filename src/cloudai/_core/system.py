@@ -13,7 +13,10 @@
 # limitations under the License.
 
 
-class System:
+from abc import ABC, abstractmethod
+
+
+class System(ABC):
     """
     Base class representing a generic system.
 
@@ -59,3 +62,7 @@ class System:
             f"output_path='{self.output_path}', "
             f"monitor_interval={self.monitor_interval})"
         )
+
+    @abstractmethod
+    def update(self) -> None:
+        raise NotImplementedError("Subclasses must implement this method.")

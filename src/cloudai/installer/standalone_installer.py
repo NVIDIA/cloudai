@@ -13,10 +13,8 @@
 # limitations under the License.
 
 from .base_installer import BaseInstaller
-from .installer import Installer
 
 
-@Installer.register("standalone")
 class StandaloneInstaller(BaseInstaller):
     """
     Installer for systems that do not use a scheduler (standalone systems).

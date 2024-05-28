@@ -24,7 +24,9 @@ from ._core.system import System
 from ._core.test_template import TestTemplate
 from ._core.test_template_strategy import TestTemplateStrategy
 from .grader import Grader
-from .installer import Installer
+from .installer.installer import Installer
+from .installer.slurm_installer import SlurmInstaller
+from .installer.standalone_installer import StandaloneInstaller
 from .parser.system_parser.slurm_system_parser import SlurmSystemParser
 from .parser.system_parser.standalone_system_parser import StandaloneSystemParser
 from .report_generator import ReportGenerator
@@ -113,6 +115,9 @@ Registry().add_test_template("NcclTest", NcclTest)
 Registry().add_test_template("NeMoLauncher", NeMoLauncher)
 Registry().add_test_template("Sleep", Sleep)
 Registry().add_test_template("UCCTest", UCCTest)
+
+Registry().add_installer("slurm", SlurmInstaller)
+Registry().add_installer("standalone", StandaloneInstaller)
 
 __all__ = [
     "Grader",

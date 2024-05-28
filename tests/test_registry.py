@@ -7,6 +7,7 @@ from cloudai._core.report_generation_strategy import ReportGenerationStrategy
 from cloudai._core.system import System
 from cloudai._core.test_template import TestTemplate
 from cloudai._core.test_template_strategy import TestTemplateStrategy
+from cloudai.installer.base_installer import BaseInstaller
 
 
 class MySystemParser(BaseSystemParser):
@@ -202,3 +203,37 @@ class TestRegistry__TestTemplatesMap:
         with pytest.raises(ValueError) as exc_info:
             registry.update_test_template("TestTemplate", str)  # pyright: ignore
         assert "Invalid test template implementation for 'TestTemplate'" in str(exc_info.value)
+
+
+class MyInstaller(BaseInstaller):
+    pass
+
+
+class AnotherInstaller(BaseInstaller):
+    pass
+
+
+class TestRegistry__Installers:
+    """This test verifies Registry class functionality.
+
+    Since Registry is a Singleton, the order of cases is important.
+    Only covers the installers_map attribute.
+    """
+
+    def test_add_installer(self, registry: Registry):
+        registry.add_installer("installer", MyInstaller)
+        assert registry.installers_map["installer"] == MyInstaller
+
+    def test_add_installer_duplicate(self, registry: Registry):
+        with pytest.raises(ValueError) as exc_info:
+            registry.add_installer("installer", MyInstaller)
+        assert "Duplicating implementation for 'installer'" in str(exc_info.value)
+
+    def test_update_installer(self, registry: Registry):
+        registry.update_installer("installer", AnotherInstaller)
+        assert registry.installers_map["installer"] == AnotherInstaller
+
+    def test_invalid_type(self, registry: Registry):
+        with pytest.raises(ValueError) as exc_info:
+            registry.update_installer("TestInstaller", str)  # pyright: ignore
+        assert "Invalid installer implementation for 'TestInstaller'" in str(exc_info.value)

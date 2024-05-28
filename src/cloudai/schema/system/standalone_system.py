@@ -45,3 +45,6 @@ class StandaloneSystem(System):
             str: String representation of the standalone system.
         """
         return f"StandaloneSystem(name={self.name}, " f"scheduler={self.scheduler})"
+
+    def update(self) -> None:
+        pass

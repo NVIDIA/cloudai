@@ -1,5 +1,7 @@
 from typing import Dict, List, Tuple, Type, Union
 
+from cloudai.installer.base_installer import BaseInstaller
+
 from .base_runner import BaseRunner
 from .base_system_parser import BaseSystemParser
 from .job_id_retrieval_strategy import JobIdRetrievalStrategy
@@ -34,6 +36,7 @@ class Registry(metaclass=Singleton):
         Type[Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy]],
     ] = {}
     test_templates_map: Dict[str, Type[TestTemplate]] = {}
+    installers_map: Dict[str, Type[BaseInstaller]] = {}
 
     def add_system_parser(self, name: str, value: Type[BaseSystemParser]) -> None:
         """
@@ -171,3 +174,33 @@ class Registry(metaclass=Singleton):
                 f"Invalid test template implementation for '{name}', should be subclass of 'TestTemplate'."
             )
         self.test_templates_map[name] = value
+
+    def add_installer(self, name: str, value: Type[BaseInstaller]) -> None:
+        """
+        Add a new installer implementation mapping.
+
+        Args:
+            name (str): The name of the installer.
+            value (Type[BaseInstaller]): The installer implementation.
+
+        Raises:
+            ValueError: If the installer implementation already exists.
+        """
+        if name in self.installers_map:
+            raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
+        self.update_installer(name, value)
+
+    def update_installer(self, name: str, value: Type[BaseInstaller]) -> None:
+        """
+        Create or replace installer implementation mapping.
+
+        Args:
+            name (str): The name of the installer.
+            value (Type[BaseInstaller]): The installer implementation.
+
+        Raises:
+            ValueError: If value is not a subclass of BaseInstaller.
+        """
+        if not issubclass(value, BaseInstaller):
+            raise ValueError(f"Invalid installer implementation for '{name}', should be subclass of 'BaseInstaller'.")
+        self.installers_map[name] = value
