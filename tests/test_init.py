@@ -1,6 +1,8 @@
 import cloudai  # noqa: F401
 import pytest
 from cloudai._core.registry import Registry
+from cloudai.installer.slurm_installer import SlurmInstaller
+from cloudai.installer.standalone_installer import StandaloneInstaller
 from cloudai.schema.core.strategy.command_gen_strategy import CommandGenStrategy
 from cloudai.schema.core.strategy.grading_strategy import GradingStrategy
 from cloudai.schema.core.strategy.install_strategy import InstallStrategy
@@ -111,3 +113,10 @@ def test_test_templates():
     assert test_templates["NeMoLauncher"] == NeMoLauncher
     assert test_templates["Sleep"] == Sleep
     assert test_templates["UCCTest"] == UCCTest
+
+
+def test_installers():
+    installers = Registry().installers_map
+    assert len(installers) == 2
+    assert installers["standalone"] == StandaloneInstaller
+    assert installers["slurm"] == SlurmInstaller
