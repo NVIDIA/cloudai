@@ -48,6 +48,16 @@ class SlurmSystem(System):
                                   system commands.
     """
 
+    def update(self) -> None:
+        """
+        Update the system object for a SLURM system.
+
+        This method updates the system object by querying the current state of each node
+        using the 'sinfo' and 'squeue' commands, and correlating this information to
+        determine the state of each node and the user running jobs on each node.
+        """
+        self.update_node_states()
+
     @classmethod
     def parse_node_list(cls, node_list: List[str]) -> List[str]:
         """

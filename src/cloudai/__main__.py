@@ -18,7 +18,7 @@ import logging
 import os
 import sys
 
-from cloudai import Installer, Parser, ReportGenerator, Runner, SystemObjectUpdater
+from cloudai import Installer, Parser, ReportGenerator, Runner
 
 
 def setup_logging(log_file: str, log_level: str) -> None:
@@ -117,8 +117,7 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> None:
     if args.output_path:
         system.output_path = os.path.abspath(args.output_path)
 
-    system_object_updater = SystemObjectUpdater()
-    system_object_updater.update(system)
+    system.update()
 
     logging.info(f"System Name: {system.name}")
     logging.info(f"Scheduler: {system.scheduler}")
@@ -161,8 +160,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> None:
     if args.output_path:
         system.output_path = os.path.abspath(args.output_path)
 
-    system_object_updater = SystemObjectUpdater()
-    system_object_updater.update(system)
+    system.update()
 
     logging.info(f"System Name: {system.name}")
     logging.info(f"Scheduler: {system.scheduler}")
