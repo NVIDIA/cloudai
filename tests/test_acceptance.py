@@ -5,8 +5,8 @@ import pytest
 from cloudai.__main__ import handle_dry_run_and_run
 
 SLURM_TEST_SCENARIOS = [
-    Path("conf/v0.6/general/test_scenario/sleep/test_scenario.toml"),
-    Path("conf/v0.6/general/test_scenario/ucc_test/test_scenario.toml"),
+    Path("conf/v0.6/general/test_scenario/sleep.toml"),
+    Path("conf/v0.6/general/test_scenario/ucc_test.toml"),
 ]
 
 
