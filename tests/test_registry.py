@@ -176,3 +176,29 @@ class TestRegistry__StrategiesMap:
         assert registry.strategies_map[(MyStrategy, MySystem, AnotherTestTemplate)] == MyStrategy
         assert registry.strategies_map[(MyStrategy, AnotherSystem, MyTestTemplate)] == MyStrategy
         assert registry.strategies_map[(MyStrategy, AnotherSystem, AnotherTestTemplate)] == MyStrategy
+
+
+class TestRegistry__TestTemplatesMap:
+    """This test verifies Registry class functionality.
+
+    Since Registry is a Singleton, the order of cases is important.
+    Only covers the test_templates_map attribute.
+    """
+
+    def test_add_test_template(self, registry: Registry):
+        registry.add_test_template("test_template", MyTestTemplate)
+        assert registry.test_templates_map["test_template"] == MyTestTemplate
+
+    def test_add_test_template_duplicate(self, registry: Registry):
+        with pytest.raises(ValueError) as exc_info:
+            registry.add_test_template("test_template", MyTestTemplate)
+        assert "Duplicating implementation for 'test_template'" in str(exc_info.value)
+
+    def test_update_test_template(self, registry: Registry):
+        registry.update_test_template("test_template", AnotherTestTemplate)
+        assert registry.test_templates_map["test_template"] == AnotherTestTemplate
+
+    def test_invalid_type(self, registry: Registry):
+        with pytest.raises(ValueError) as exc_info:
+            registry.update_test_template("TestTemplate", str)  # pyright: ignore
+        assert "Invalid test template implementation for 'TestTemplate'" in str(exc_info.value)

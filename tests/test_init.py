@@ -100,3 +100,14 @@ def test_runners():
 def test_strategies(key: tuple, value: type):
     strategies = Registry().strategies_map
     assert strategies[key] == value
+
+
+def test_test_templates():
+    test_templates = Registry().test_templates_map
+    assert len(test_templates) == 6
+    assert test_templates["ChakraReplay"] == ChakraReplay
+    assert test_templates["JaxToolbox"] == JaxToolbox
+    assert test_templates["NcclTest"] == NcclTest
+    assert test_templates["NeMoLauncher"] == NeMoLauncher
+    assert test_templates["Sleep"] == Sleep
+    assert test_templates["UCCTest"] == UCCTest

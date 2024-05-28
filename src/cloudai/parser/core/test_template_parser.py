@@ -144,25 +144,12 @@ class TestTemplateParser(BaseMultiFileParser):
         Returns:
             Type[TestTemplate]: A subclass of TestTemplate corresponding to the given name.
         """
-        template_classes = self._enumerate_test_template_classes()
+        template_classes = Registry().test_templates_map
 
         if name in template_classes:
             return template_classes[name]
         else:
             raise ValueError(f"Unsupported test_template name: {name}")
-
-    @staticmethod
-    def _enumerate_test_template_classes() -> Dict[str, Type[TestTemplate]]:
-        """
-        Dynamically enumerate all subclasses of TestTemplate available in the current namespace.
-
-        Maps their class names to the class objects.
-
-        Returns
-            Dict[str, Type[TestTemplate]]: A dictionary mapping class names to
-            TestTemplate subclasses.
-        """
-        return {cls.__name__: cls for cls in TestTemplate.__subclasses__()}
 
     def _extract_args(self, args: Dict[str, Any]) -> Dict[str, Any]:
         """

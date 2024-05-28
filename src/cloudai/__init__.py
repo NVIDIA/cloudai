@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import cloudai.schema.test_template  # noqa
 from cloudai.parser.system_parser.slurm_system_parser import SlurmSystemParser
 from cloudai.parser.system_parser.standalone_system_parser import StandaloneSystemParser
 from cloudai.runner.slurm.slurm_runner import SlurmRunner
@@ -106,6 +105,12 @@ Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [ChakraReplay],
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [ChakraReplay], ChakraReplayGradingStrategy)
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [ChakraReplay], ChakraReplaySlurmCommandGenStrategy)
 
+Registry().add_test_template("ChakraReplay", ChakraReplay)
+Registry().add_test_template("JaxToolbox", JaxToolbox)
+Registry().add_test_template("NcclTest", NcclTest)
+Registry().add_test_template("NeMoLauncher", NeMoLauncher)
+Registry().add_test_template("Sleep", Sleep)
+Registry().add_test_template("UCCTest", UCCTest)
 
 __all__ = [
     "Grader",
