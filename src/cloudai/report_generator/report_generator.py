@@ -72,4 +72,4 @@ class ReportGenerator:
         for subdir in os.listdir(directory_path):
             subdir_path = os.path.join(directory_path, subdir)
             if os.path.isdir(subdir_path) and test.test_template.can_handle_directory(subdir_path):
-                test.test_template.generate_report(subdir_path, test.sol)
+                test.test_template.generate_report(test.name, subdir_path, test.sol)

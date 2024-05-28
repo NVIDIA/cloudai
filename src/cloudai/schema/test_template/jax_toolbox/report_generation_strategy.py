@@ -32,7 +32,7 @@ class JaxToolboxReportGenerationStrategy(ReportGenerationStrategy):
                     return True
         return False
 
-    def generate_report(self, directory_path: str, sol: Optional[float] = None) -> None:
+    def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
         times = self._extract_times(directory_path)
         if times:
             stats = {

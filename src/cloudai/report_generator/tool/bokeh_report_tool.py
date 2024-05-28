@@ -150,7 +150,7 @@ class BokehReportTool:
             color (str, optional): Color of the line in the plot. Default is 'black'.
         """
         p = self.create_figure(
-            title=title,
+            title="CloudAI " + title,
             x_axis_label=x_axis_label,
             y_axis_label=y_column,
             y_range=Range1d(start=0, end=(max(df[y_column]) * 1.1)),
@@ -195,7 +195,7 @@ class BokehReportTool:
 
         # Create a Bokeh figure with logarithmic x-axis
         p = self.create_figure(
-            title=title,
+            title="CloudAI " + title,
             x_axis_label=x_axis_label,
             y_axis_label=y_axis_label,
             x_axis_type="log",
@@ -245,7 +245,7 @@ class BokehReportTool:
             y_max = max(y_max, col_max)
 
         p = self.create_figure(
-            title=title,
+            title="CloudAI " + title,
             x_axis_label=x_axis_label,
             y_axis_label=y_axis_label,
             x_axis_type="log",
