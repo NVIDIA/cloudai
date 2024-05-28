@@ -22,8 +22,7 @@ class BaseJob:
     Attributes
         id (int): The unique identifier of the job.
         test (Test): The test instance associated with this job.
-        terminated_by_dependency (bool): Flag to indicate if the job was
-            terminated due to a dependency.
+        terminated_by_dependency (bool): Flag to indicate if the job was terminated due to a dependency.
     """
 
     def __init__(self, job_id: int, test: Test):
@@ -42,8 +41,7 @@ class BaseJob:
         """
         Increment the iteration count of the associated test.
 
-        This method should be called when the job completes an iteration and is
-        ready to proceed to the next one.
+        This method should be called when the job completes an iteration and is ready to proceed to the next one.
         """
         self.test.current_iteration += 1
 
@@ -54,7 +52,4 @@ class BaseJob:
         Returns
             str: String representation of the job.
         """
-        return (
-            f"BaseJob(id={self.id}, test={self.test.name}, "
-            f"terminated_by_dependency={self.terminated_by_dependency})"
-        )
+        return f"BaseJob(id={self.id}, test={self.test.name}, terminated_by_dependency={self.terminated_by_dependency})"
