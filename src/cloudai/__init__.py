@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from cloudai.installer.slurm_installer import SlurmInstaller
+from cloudai.installer.standalone_installer import StandaloneInstaller
 from cloudai.parser.system_parser.slurm_system_parser import SlurmSystemParser
 from cloudai.parser.system_parser.standalone_system_parser import StandaloneSystemParser
 from cloudai.runner.slurm.slurm_runner import SlurmRunner
@@ -61,7 +63,7 @@ from cloudai.schema.test_template.ucc_test.template import UCCTest
 
 from ._core.registry import Registry
 from .grader import Grader
-from .installer import Installer
+from .installer.installer import Installer
 from .parser.core.parser import Parser
 from .report_generator import ReportGenerator
 from .runner.core.runner import Runner
@@ -111,6 +113,9 @@ Registry().add_test_template("NcclTest", NcclTest)
 Registry().add_test_template("NeMoLauncher", NeMoLauncher)
 Registry().add_test_template("Sleep", Sleep)
 Registry().add_test_template("UCCTest", UCCTest)
+
+Registry().add_installer("slurm", SlurmInstaller)
+Registry().add_installer("standalone", StandaloneInstaller)
 
 __all__ = [
     "Grader",

@@ -13,8 +13,9 @@
 # limitations under the License.
 
 import logging
-from typing import Callable, Iterable
+from typing import Iterable
 
+from cloudai._core.registry import Registry
 from cloudai.schema.core.system import System
 from cloudai.schema.core.test_template import TestTemplate
 
@@ -36,8 +37,6 @@ class Installer:
         logger (logging.Logger): Logger for capturing installation activities.
     """
 
-    _installers = {}
-
     def __init__(self, system: System):
         """
         Initialize the Installer with a system object and installation path.
@@ -48,25 +47,6 @@ class Installer:
         self.logger = logging.getLogger(__name__ + ".Installer")
         self.logger.info("Initializing Installer with system configuration.")
         self.installer = self.create_installer(system)
-
-    @classmethod
-    def register(cls, scheduler_type: str) -> Callable:
-        """
-        Register installer subclasses under specific scheduler types.
-
-        Args:
-            scheduler_type (str): The scheduler type string that the installer
-                                  subclass can handle.
-
-        Returns:
-            Callable: A decorator function that registers the installer class.
-        """
-
-        def decorator(installer_class):
-            cls._installers[scheduler_type] = installer_class
-            return installer_class
-
-        return decorator
 
     @classmethod
     def create_installer(cls, system: System) -> BaseInstaller:
@@ -85,7 +65,8 @@ class Installer:
                                  system's scheduler.
         """
         scheduler_type = system.scheduler
-        installer_class = cls._installers.get(scheduler_type)
+        registry = Registry()
+        installer_class = registry.installers_map.get(scheduler_type)
         if installer_class is None:
             raise NotImplementedError(f"No installer available for scheduler: {scheduler_type}")
         return installer_class(system)
