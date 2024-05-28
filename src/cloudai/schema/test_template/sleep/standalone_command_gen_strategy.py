@@ -34,21 +34,6 @@ class SleepStandaloneCommandGenStrategy(CommandGenStrategy):
         output_path: str,
         nodes: List[str],
     ) -> str:
-        """
-        Generate the execution command for a sleep test.
-
-        Args:
-            env_vars (Dict[str, str]): Environment variables for the test.
-            cmd_args (Dict[str, str]): Command-line arguments for the test.
-            extra_env_vars (Dict[str, str]): Extra environment variables.
-            extra_cmd_args (str): Extra command-line arguments.
-            output_path (str): Path to the output directory.
-            nodes (List[str]): A list of nodes where the test will be executed.
-                This can be an empty list if node information is not applicable.
-
-        Returns:
-            str: The generated execution command.
-        """
         if not nodes:
             nodes = []
         self.final_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
