@@ -74,20 +74,27 @@ class SlurmSystem(System):
         nodes = []
         if not node_list:
             return []
-        if "[" not in node_list:
-            return [node_list]
-        header, node_number = node_list.split("[")
-        node_number = node_number.replace("]", "")
-        ranges = node_number.split(",")
-        for r in ranges:
-            if "-" in r:
-                start_node, end_node = r.split("-")
-                number_of_digits = len(end_node)
-                nodes.extend(
-                    [f"{header}{str(i).zfill(number_of_digits)}" for i in range(int(start_node), int(end_node) + 1)]
-                )
+
+        components = re.split(r",\s*(?![^[]*\])", node_list)
+        for component in components:
+            if "[" not in component:
+                nodes.append(component)
             else:
-                nodes.append(f"{header}{r}")
+                header, node_number = component.split("[")
+                node_number = node_number.replace("]", "")
+                ranges = node_number.split(",")
+                for r in ranges:
+                    if "-" in r:
+                        start_node, end_node = r.split("-")
+                        number_of_digits = len(end_node)
+                        nodes.extend(
+                            [
+                                f"{header}{str(i).zfill(number_of_digits)}"
+                                for i in range(int(start_node), int(end_node) + 1)
+                            ]
+                        )
+                    else:
+                        nodes.append(f"{header}{r}")
 
         return nodes
 
