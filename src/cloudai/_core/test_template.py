@@ -35,16 +35,11 @@ class TestTemplate:
         env_vars (Dict[str, Any]): Default environment variables.
         cmd_args (Dict[str, Any]): Default command-line arguments.
         logger (logging.Logger): Logger for the test template.
-        install_strategy (InstallStrategy): Strategy for installing test
-            prerequisites.
-        command_gen_strategy (CommandGenStrategy): Strategy for generating
-            execution commands.
-        job_id_retrieval_strategy (JobIdRetrievalStrategy): Strategy for
-            retrieving job IDs.
-        report_generation_strategy (ReportGenerationStrategy): Strategy for
-            generating reports.
-        grading_strategy (GradingStrategy): Strategy for grading performance
-            based on test outcomes.
+        install_strategy (InstallStrategy): Strategy for installing test prerequisites.
+        command_gen_strategy (CommandGenStrategy): Strategy for generating execution commands.
+        job_id_retrieval_strategy (JobIdRetrievalStrategy): Strategy for retrieving job IDs.
+        report_generation_strategy (ReportGenerationStrategy): Strategy for generating reports.
+        grading_strategy (GradingStrategy): Strategy for grading performance based on test outcomes.
     """
 
     __test__ = False

@@ -24,13 +24,11 @@ class Runner:
     """
     A wrapper class that creates and manages a specific runner instance based on the system's scheduler type.
 
-    This class facilitates the initialization of the appropriate runner
-    (StandaloneRunner or SlurmRunner) based on the scheduler specified in the
-    system configuration.
+    This class facilitates the initialization of the appropriate runner (StandaloneRunner or SlurmRunner) based on the
+    scheduler specified in the system configuration.
 
     Attributes:
-        _runners (Dict[str, Type[BaseRunner]]): A mapping from system
-            types to their corresponding runner classes.
+        _runners (Dict[str, Type[BaseRunner]]): A mapping from system types to their corresponding runner classes.
         runner (BaseRunner): The specific runner instance for the system.
         logger (logging.Logger): Logger for the runner activities.
 

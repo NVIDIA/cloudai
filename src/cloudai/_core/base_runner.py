@@ -46,9 +46,8 @@ class BaseRunner(ABC):
         jobs (List[BaseJob]): List to track jobs created by the runner.
         test_to_job_map (Dict[Test, BaseJob]): Mapping from tests to their jobs.
         logger (logging.Logger): Logger for the runner.
-        shutting_down (bool): A flag indicating whether a shutdown process has been
-                              initiated, preventing the start of new tests and ensuring
-                              a graceful termination of all running tests.
+        shutting_down (bool): A flag indicating whether a shutdown process has been initiated, preventing the start of
+            new tests and ensuring a graceful termination of all running tests.
     """
 
     def __init__(
@@ -114,15 +113,14 @@ class BaseRunner(ABC):
         """
         Respond to termination-related signals (e.g., SIGINT) by initiating a graceful shutdown of the application.
 
-        This method logs the received signal and then triggers the asynchronous
-        shutdown process, which involves terminating all outstanding jobs in a
-        controlled manner.
+        This method logs the received signal and then triggers the asynchronous shutdown process, which involves
+        terminating all outstanding jobs in a controlled manner.
 
         Args:
             signum (int): The signal number indicating the type of signal received.
-            frame (Optional[FrameType]): The current stack frame when the signal
-                was received, or None if not applicable. This parameter is typically
-                not used directly but is necessary for signal handler functions.
+            frame (Optional[FrameType]): The current stack frame when the signal was received, or None if not
+                applicable. This parameter is typically not used directly but is necessary for signal handler
+                functions.
 
         Returns:
             None
@@ -232,12 +230,10 @@ class BaseRunner(ABC):
         """
         Find tests that have no 'start_post_comp' or 'start_post_init' dependencies.
 
-        Tests with only 'end_post_comp' dependencies or no dependencies at all
-        are considered dependency-free.
+        Tests with only 'end_post_comp' dependencies or no dependencies at all are considered dependency-free.
 
         Returns
-            List[Test]: A list of tests that are ready to run without waiting for
-                        other tests to start or complete.
+            List[Test]: A list of tests that are ready to run without waiting for other tests to start or complete.
         """
         dependency_free_tests = []
         for test in self.test_scenario.tests:
@@ -254,8 +250,7 @@ class BaseRunner(ABC):
         do not exist.
 
         Args:
-            test (Test): The test instance for which to generate the output
-                         directory path.
+            test (Test): The test instance for which to generate the output directory path.
 
         Returns:
             str: The path to the job's output directory.
@@ -349,8 +344,7 @@ class BaseRunner(ABC):
             completed_job (BaseJob): The job that has just been completed.
 
         Returns:
-            List[asyncio.Task]: A list of asyncio.Task objects created for handling
-                                the dependencies.
+            List[asyncio.Task]: A list of asyncio.Task objects created for handling the dependencies.
         """
         tasks = []
 
