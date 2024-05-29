@@ -8,50 +8,11 @@ from cloudai.schema.system.slurm import SlurmNode, SlurmNodeState
 
 @pytest.fixture
 def slurm_system():
-    nodes = [
-        SlurmNode(name="node-033", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-034", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-035", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-036", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-037", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-038", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-039", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-040", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-041", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-042", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-043", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-044", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-045", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-046", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-047", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-048", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-049", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-050", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-051", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-052", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-053", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-054", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-055", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-056", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-057", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-058", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-059", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-060", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-061", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-062", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-063", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node-064", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-    ]
+    nodes = [SlurmNode(name=f"node-0{i}", partition="main", state=SlurmNodeState.UNKNOWN_STATE) for i in range(33, 65)]
     backup_nodes = [
-        SlurmNode(name="node01", partition="backup", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node02", partition="backup", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node03", partition="backup", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node04", partition="backup", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node05", partition="backup", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node06", partition="backup", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node07", partition="backup", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="node08", partition="backup", state=SlurmNodeState.UNKNOWN_STATE),
+        SlurmNode(name=f"node0{i}", partition="backup", state=SlurmNodeState.UNKNOWN_STATE) for i in range(1, 9)
     ]
+
     system = SlurmSystem(
         name="test_system",
         install_path="/fake/path",
@@ -108,9 +69,9 @@ def test_parse_sinfo_output(slurm_system):
         "node08": "user5",
     }
     slurm_system.parse_sinfo_output(sinfo_output, node_user_map)
-    inval_nodes = ["node-036"]
-    drain_nodes = ["node-045","node-046","node-059","node-061","node-062"]
-    resv_nodes = ["node-034","node-035"]
+    inval_nodes = set(["node-036"])
+    drain_nodes = set(["node-045", "node-046", "node-059", "node-061", "node-062"])
+    resv_nodes = set(["node-034", "node-035"])
     for node in slurm_system.partitions["main"]:
         if node.name in inval_nodes:
             assert node.state == SlurmNodeState.INVALID_REGISTRATION
@@ -119,7 +80,7 @@ def test_parse_sinfo_output(slurm_system):
         elif node.name in resv_nodes:
             assert node.state == SlurmNodeState.RESERVED
         else:
-            print("node :",node)
+            print("node :", node)
             assert node.state == SlurmNodeState.ALLOCATED
     for node in slurm_system.partitions["backup"]:
         assert node.state == SlurmNodeState.IDLE
