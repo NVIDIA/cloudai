@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, cast
+from typing import cast
 
 from cloudai._core.base_job import BaseJob
 from cloudai._core.base_runner import BaseRunner
+from cloudai._core.exceptions import JobIdRetrievalError
 from cloudai._core.system import System
 from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestScenario
@@ -56,7 +57,7 @@ class SlurmRunner(BaseRunner):
         self.slurm_system: SlurmSystem = cast(SlurmSystem, system)
         self.cmd_shell = CommandShell()
 
-    def _submit_test(self, test: Test) -> Optional[SlurmJob]:
+    def _submit_test(self, test: Test) -> SlurmJob:
         """
         Submit a test for execution on Slurm and returns a SlurmJob.
 
@@ -64,20 +65,25 @@ class SlurmRunner(BaseRunner):
             test (Test): The test to be executed.
 
         Returns:
-            Optional[SlurmJob]: A SlurmJob object if the test execution is
-                                successful, None otherwise.
+            SlurmJob: A SlurmJob object
         """
         self.logger.info(f"Running test: {test.section_name}")
         job_output_path = self.get_job_output_path(test)
         exec_cmd = test.gen_exec_command(job_output_path)
         self.logger.info(f"Executing command for test {test.section_name}: {exec_cmd}")
-        job_id = None
+        job_id = 0
         if self.mode == "run":
             stdout, stderr = self.cmd_shell.execute(exec_cmd).communicate()
             job_id = test.get_job_id(stdout, stderr)
-        else:
-            job_id = 0
-        return SlurmJob(job_id, test) if job_id is not None else None
+            if job_id is None:
+                raise JobIdRetrievalError(
+                    test_name=str(test.section_name),
+                    command=exec_cmd,
+                    stdout=stdout,
+                    stderr=stderr,
+                    message="Failed to retrieve job ID from command output.",
+                )
+        return SlurmJob(job_id, test)
 
     def is_job_running(self, job: BaseJob) -> bool:
         """

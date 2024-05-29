@@ -24,6 +24,7 @@ from types import FrameType
 from typing import Dict, List, Optional
 
 from .base_job import BaseJob
+from .exceptions import JobSubmissionError
 from .system import System
 from .test import Test
 from .test_scenario import TestScenario
@@ -167,14 +168,14 @@ class BaseRunner(ABC):
             test (Test): The test to be started.
         """
         self.logger.info(f"Starting test: {test.section_name}")
-        job = self._submit_test(test)
-        if job:
+        try:
+            job = self._submit_test(test)
             self.jobs.append(job)
             self.test_to_job_map[test] = job
-        else:
-            msg = f"Failed to run test {test.section_name}"
-            self.logger.error(msg)
-            raise RuntimeError(msg)
+        except JobSubmissionError as e:
+            self.logger.error(e)
+            print(e, file=sys.stdout)
+            sys.exit(1)
 
     async def delayed_submit_test(self, test: Test, delay: int):
         """
@@ -189,7 +190,7 @@ class BaseRunner(ABC):
         await self.submit_test(test)
 
     @abstractmethod
-    def _submit_test(self, test: Test) -> Optional[BaseJob]:
+    def _submit_test(self, test: Test) -> BaseJob:
         """
         Execute a given test and returns a job if successful.
 
@@ -197,9 +198,9 @@ class BaseRunner(ABC):
             test (Test): The test to be executed.
 
         Returns:
-            Optional[BaseJob]: A BaseJob object if the test execution is
-                              successful, None otherwise.
+            BaseJob: A BaseJob object
         """
+        return BaseJob
 
     async def check_start_post_init_dependencies(self):
         """
