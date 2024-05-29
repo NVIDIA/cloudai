@@ -1,13 +1,14 @@
 from typing import Dict, List, Tuple, Type, Union
 
 from cloudai.installer.base_installer import BaseInstaller
-from cloudai.parser.core.base_system_parser import BaseSystemParser
-from cloudai.runner.core.base_runner import BaseRunner
-from cloudai.schema.core.strategy.job_id_retrieval_strategy import JobIdRetrievalStrategy
-from cloudai.schema.core.strategy.report_generation_strategy import ReportGenerationStrategy
-from cloudai.schema.core.strategy.test_template_strategy import TestTemplateStrategy
-from cloudai.schema.core.system import System
-from cloudai.schema.core.test_template import TestTemplate
+
+from .base_runner import BaseRunner
+from .base_system_parser import BaseSystemParser
+from .job_id_retrieval_strategy import JobIdRetrievalStrategy
+from .report_generation_strategy import ReportGenerationStrategy
+from .system import System
+from .test_template import TestTemplate
+from .test_template_strategy import TestTemplateStrategy
 
 
 class Singleton(type):

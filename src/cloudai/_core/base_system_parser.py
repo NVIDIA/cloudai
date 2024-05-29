@@ -15,7 +15,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict
 
-from cloudai.schema.core.system import System
+from .system import System
 
 
 class BaseSystemParser(ABC):

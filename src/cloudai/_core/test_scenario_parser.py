@@ -17,9 +17,10 @@ import sys
 from typing import Any, Dict
 
 import toml
-from cloudai.schema.core.system import System
-from cloudai.schema.core.test import Test, TestDependency
-from cloudai.schema.core.test_scenario import TestScenario
+
+from .system import System
+from .test import Test, TestDependency
+from .test_scenario import TestScenario
 
 
 class TestScenarioParser:

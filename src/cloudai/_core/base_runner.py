@@ -23,11 +23,10 @@ from datetime import datetime
 from types import FrameType
 from typing import Dict, List, Optional
 
-from cloudai.schema.core.system import System
-from cloudai.schema.core.test import Test
-from cloudai.schema.core.test_scenario import TestScenario
-
 from .base_job import BaseJob
+from .system import System
+from .test import Test
+from .test_scenario import TestScenario
 
 
 class BaseRunner(ABC):

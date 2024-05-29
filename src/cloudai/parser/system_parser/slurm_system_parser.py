@@ -15,7 +15,7 @@
 import os
 from typing import Any, Dict, List
 
-from cloudai.parser.core.base_system_parser import BaseSystemParser
+from cloudai._core.base_system_parser import BaseSystemParser
 from cloudai.schema.system.slurm import SlurmNode, SlurmNodeState, SlurmSystem
 
 

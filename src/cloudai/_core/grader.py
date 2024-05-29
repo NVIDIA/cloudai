@@ -17,8 +17,8 @@ import logging
 import os
 from typing import Dict, List
 
-from cloudai.schema.core.test import Test
-from cloudai.schema.core.test_scenario import TestScenario
+from .test import Test
+from .test_scenario import TestScenario
 
 
 class Grader:

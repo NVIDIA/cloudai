@@ -14,7 +14,7 @@
 
 import shutil
 
-from cloudai.schema.core.strategy.install_strategy import InstallStrategy
+from cloudai import InstallStrategy
 
 
 class SleepStandaloneInstallStrategy(InstallStrategy):

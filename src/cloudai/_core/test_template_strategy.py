@@ -16,7 +16,7 @@ from typing import Any, Dict
 
 from cloudai.schema.system import SlurmSystem
 
-from ..system import System
+from .system import System
 
 
 class TestTemplateStrategy:
@@ -39,12 +39,7 @@ class TestTemplateStrategy:
 
     __test__ = False
 
-    def __init__(
-        self,
-        system: System,
-        env_vars: Dict[str, Any],
-        cmd_args: Dict[str, Any],
-    ) -> None:
+    def __init__(self, system: System, env_vars: Dict[str, Any], cmd_args: Dict[str, Any]) -> None:
         """
         Initialize a TestTemplateStrategy instance with system configuration, env variables, and command-line arguments.
 

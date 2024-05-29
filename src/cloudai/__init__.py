@@ -12,61 +12,63 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai.installer.slurm_installer import SlurmInstaller
-from cloudai.installer.standalone_installer import StandaloneInstaller
-from cloudai.parser.system_parser.slurm_system_parser import SlurmSystemParser
-from cloudai.parser.system_parser.standalone_system_parser import StandaloneSystemParser
-from cloudai.runner.slurm.slurm_runner import SlurmRunner
-from cloudai.runner.standalone.standalone_runner import StandaloneRunner
-from cloudai.schema.core.strategy.command_gen_strategy import CommandGenStrategy
-from cloudai.schema.core.strategy.grading_strategy import GradingStrategy
-from cloudai.schema.core.strategy.install_strategy import InstallStrategy
-from cloudai.schema.core.strategy.job_id_retrieval_strategy import JobIdRetrievalStrategy
-from cloudai.schema.core.strategy.report_generation_strategy import ReportGenerationStrategy
-from cloudai.schema.system.slurm.slurm_system import SlurmSystem
-from cloudai.schema.system.standalone_system import StandaloneSystem
-from cloudai.schema.test_template.chakra_replay.grading_strategy import ChakraReplayGradingStrategy
-from cloudai.schema.test_template.chakra_replay.report_generation_strategy import ChakraReplayReportGenerationStrategy
-from cloudai.schema.test_template.chakra_replay.slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
-from cloudai.schema.test_template.chakra_replay.slurm_install_strategy import ChakraReplaySlurmInstallStrategy
-from cloudai.schema.test_template.chakra_replay.template import ChakraReplay
-from cloudai.schema.test_template.common.slurm_job_id_retrieval_strategy import SlurmJobIdRetrievalStrategy
-from cloudai.schema.test_template.common.standalone_job_id_retrieval_strategy import StandaloneJobIdRetrievalStrategy
-from cloudai.schema.test_template.jax_toolbox.grading_strategy import JaxToolboxGradingStrategy
-from cloudai.schema.test_template.jax_toolbox.report_generation_strategy import JaxToolboxReportGenerationStrategy
-from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
-from cloudai.schema.test_template.jax_toolbox.slurm_install_strategy import JaxToolboxSlurmInstallStrategy
-from cloudai.schema.test_template.jax_toolbox.template import JaxToolbox
-from cloudai.schema.test_template.nccl_test.grading_strategy import NcclTestGradingStrategy
-from cloudai.schema.test_template.nccl_test.report_generation_strategy import NcclTestReportGenerationStrategy
-from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
-from cloudai.schema.test_template.nccl_test.slurm_install_strategy import NcclTestSlurmInstallStrategy
-from cloudai.schema.test_template.nccl_test.template import NcclTest
-from cloudai.schema.test_template.nemo_launcher.grading_strategy import NeMoLauncherGradingStrategy
-from cloudai.schema.test_template.nemo_launcher.report_generation_strategy import NeMoLauncherReportGenerationStrategy
-from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import NeMoLauncherSlurmCommandGenStrategy
-from cloudai.schema.test_template.nemo_launcher.slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
-from cloudai.schema.test_template.nemo_launcher.slurm_job_id_retrieval_strategy import (
-    NeMoLauncherSlurmJobIdRetrievalStrategy,
-)
-from cloudai.schema.test_template.nemo_launcher.template import NeMoLauncher
-from cloudai.schema.test_template.sleep.grading_strategy import SleepGradingStrategy
-from cloudai.schema.test_template.sleep.report_generation_strategy import SleepReportGenerationStrategy
-from cloudai.schema.test_template.sleep.standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
-from cloudai.schema.test_template.sleep.standalone_install_strategy import SleepStandaloneInstallStrategy
-from cloudai.schema.test_template.sleep.template import Sleep
-from cloudai.schema.test_template.ucc_test.grading_strategy import UCCTestGradingStrategy
-from cloudai.schema.test_template.ucc_test.report_generation_strategy import UCCTestReportGenerationStrategy
-from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
-from cloudai.schema.test_template.ucc_test.slurm_install_strategy import UCCTestSlurmInstallStrategy
-from cloudai.schema.test_template.ucc_test.template import UCCTest
-
+from ._core.command_gen_strategy import CommandGenStrategy
+from ._core.grading_strategy import GradingStrategy
+from ._core.install_strategy import InstallStrategy
+from ._core.job_id_retrieval_strategy import JobIdRetrievalStrategy
+from ._core.parser import Parser
 from ._core.registry import Registry
+from ._core.report_generation_strategy import ReportGenerationStrategy
+from ._core.runner import Runner
+from ._core.system import System
+from ._core.test_template import TestTemplate
+from ._core.test_template_strategy import TestTemplateStrategy
 from .grader import Grader
 from .installer.installer import Installer
-from .parser.core.parser import Parser
+from .installer.slurm_installer import SlurmInstaller
+from .installer.standalone_installer import StandaloneInstaller
+from .parser.system_parser.slurm_system_parser import SlurmSystemParser
+from .parser.system_parser.standalone_system_parser import StandaloneSystemParser
 from .report_generator import ReportGenerator
-from .runner.core.runner import Runner
+from .runner.slurm.slurm_runner import SlurmRunner
+from .runner.standalone.standalone_runner import StandaloneRunner
+from .schema.system.slurm.slurm_system import SlurmSystem
+from .schema.system.standalone_system import StandaloneSystem
+from .schema.test_template.chakra_replay.grading_strategy import ChakraReplayGradingStrategy
+from .schema.test_template.chakra_replay.report_generation_strategy import ChakraReplayReportGenerationStrategy
+from .schema.test_template.chakra_replay.slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
+from .schema.test_template.chakra_replay.slurm_install_strategy import ChakraReplaySlurmInstallStrategy
+from .schema.test_template.chakra_replay.template import ChakraReplay
+from .schema.test_template.common.slurm_job_id_retrieval_strategy import SlurmJobIdRetrievalStrategy
+from .schema.test_template.common.standalone_job_id_retrieval_strategy import StandaloneJobIdRetrievalStrategy
+from .schema.test_template.jax_toolbox.grading_strategy import JaxToolboxGradingStrategy
+from .schema.test_template.jax_toolbox.report_generation_strategy import JaxToolboxReportGenerationStrategy
+from .schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
+from .schema.test_template.jax_toolbox.slurm_install_strategy import JaxToolboxSlurmInstallStrategy
+from .schema.test_template.jax_toolbox.template import JaxToolbox
+from .schema.test_template.nccl_test.grading_strategy import NcclTestGradingStrategy
+from .schema.test_template.nccl_test.report_generation_strategy import NcclTestReportGenerationStrategy
+from .schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
+from .schema.test_template.nccl_test.slurm_install_strategy import NcclTestSlurmInstallStrategy
+from .schema.test_template.nccl_test.template import NcclTest
+from .schema.test_template.nemo_launcher.grading_strategy import NeMoLauncherGradingStrategy
+from .schema.test_template.nemo_launcher.report_generation_strategy import NeMoLauncherReportGenerationStrategy
+from .schema.test_template.nemo_launcher.slurm_command_gen_strategy import NeMoLauncherSlurmCommandGenStrategy
+from .schema.test_template.nemo_launcher.slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
+from .schema.test_template.nemo_launcher.slurm_job_id_retrieval_strategy import (
+    NeMoLauncherSlurmJobIdRetrievalStrategy,
+)
+from .schema.test_template.nemo_launcher.template import NeMoLauncher
+from .schema.test_template.sleep.grading_strategy import SleepGradingStrategy
+from .schema.test_template.sleep.report_generation_strategy import SleepReportGenerationStrategy
+from .schema.test_template.sleep.standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
+from .schema.test_template.sleep.standalone_install_strategy import SleepStandaloneInstallStrategy
+from .schema.test_template.sleep.template import Sleep
+from .schema.test_template.ucc_test.grading_strategy import UCCTestGradingStrategy
+from .schema.test_template.ucc_test.report_generation_strategy import UCCTestReportGenerationStrategy
+from .schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
+from .schema.test_template.ucc_test.slurm_install_strategy import UCCTestSlurmInstallStrategy
+from .schema.test_template.ucc_test.template import UCCTest
 
 Registry().add_system_parser("standalone", StandaloneSystemParser)
 Registry().add_system_parser("slurm", SlurmSystemParser)
@@ -122,4 +124,7 @@ __all__ = [
     "Parser",
     "ReportGenerator",
     "Runner",
+    "System",
+    "TestTemplate",
+    "TestTemplateStrategy",
 ]

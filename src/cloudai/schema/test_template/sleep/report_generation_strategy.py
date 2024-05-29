@@ -14,7 +14,7 @@
 
 from typing import Optional
 
-from cloudai.schema.core.strategy.report_generation_strategy import ReportGenerationStrategy
+from cloudai._core.report_generation_strategy import ReportGenerationStrategy
 
 
 class SleepReportGenerationStrategy(ReportGenerationStrategy):
