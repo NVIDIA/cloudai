@@ -115,6 +115,7 @@ def test_update_node_states_with_mocked_outputs(mock_get_sinfo, mock_get_squeue,
     [
         ("node-[048-051]", ["node-048", "node-049", "node-050", "node-051"]),
         ("node-[055,114]", ["node-055", "node-114"]),
+        ("node-[055,114],node-[056,115]", ["node-055", "node-114", "node-056", "node-115"]),
         ("", []),
         ("node-001", ["node-001"]),
         ("node[1-4]", ["node1", "node2", "node3", "node4"]),
