@@ -46,7 +46,7 @@ To simulate running experiments without execution, use the dry-run mode:
 cloudai\
     --mode dry-run\
     --system_config_path conf/v0.6/general/system/example_slurm_cluster.toml\
-    --test_scenario_path conf/v0.6/general/test_scenario/sleep/test_scenario.toml
+    --test_scenario_path conf/v0.6/general/test_scenario/sleep.toml
 ```
 
 To run experiments, execute Cloud AI CLI in run mode:
@@ -54,7 +54,7 @@ To run experiments, execute Cloud AI CLI in run mode:
 cloudai\
     --mode run\
     --system_config_path conf/v0.6/general/system/example_slurm_cluster.toml\
-    --test_scenario_path conf/v0.6/general/test_scenario/sleep/test_scenario.toml
+    --test_scenario_path conf/v0.6/general/test_scenario/sleep.toml
 ```
 
 To generate reports, execute Cloud AI CLI in generate-report mode:
