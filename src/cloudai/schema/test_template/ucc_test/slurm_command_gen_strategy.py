@@ -31,6 +31,7 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
         output_path: str,
+        num_nodes: int,
         nodes: List[str],
     ) -> str:
         final_env_vars = self._override_env_vars(self.default_env_vars, env_vars)
@@ -42,7 +43,7 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if not collective or collective not in UCCTest.SUPPORTED_COLLECTIVES:
             raise KeyError("Collective name not specified or unsupported.")
 
-        slurm_args = self._parse_slurm_args(collective, final_env_vars, final_cmd_args, nodes)
+        slurm_args = self._parse_slurm_args(collective, final_env_vars, final_cmd_args, num_nodes, nodes)
         srun_command = self._generate_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
         return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, output_path)
 
@@ -51,9 +52,10 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         job_name_prefix: str,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
+        num_nodes: int,
         nodes: List[str],
     ) -> Dict[str, Any]:
-        base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, nodes)
+        base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
 
         image_path = os.path.join(
             self.install_path,

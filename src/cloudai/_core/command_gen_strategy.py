@@ -33,6 +33,7 @@ class CommandGenStrategy(TestTemplateStrategy):
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
         output_path: str,
+        num_nodes: int,
         nodes: List[str],
     ) -> str:
         """
@@ -44,6 +45,7 @@ class CommandGenStrategy(TestTemplateStrategy):
             extra_env_vars (Dict[str, str]): Additional environment variables.
             extra_cmd_args (str): Additional command-line arguments.
             output_path (str): Path to the output directory.
+            num_nodes (int): The number of nodes to be used for the test execution.
             nodes (List[str]): List of nodes for test execution, optional.
 
         Returns:

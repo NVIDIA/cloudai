@@ -1,6 +1,3 @@
 name = "nemo_launcher"
 description = "NeMo-Launcher"
 test_template_name = "NeMoLauncher"
-
-[cmd_args]
-"training.trainer.num_nodes" = "4"

@@ -10,10 +10,6 @@ name = "ChakraReplay"
   values = ["pmix"]
   default = "pmix"
 
-  [cmd_args.num_nodes]
-  type = "int"
-  default = "2"
-
   [cmd_args.trace_type]
   type = "preset"
   values = ["et"]

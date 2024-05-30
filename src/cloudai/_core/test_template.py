@@ -109,6 +109,7 @@ class TestTemplate:
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
         output_path: str,
+        num_nodes: int,
         nodes: List[str],
     ) -> str:
         """
@@ -122,6 +123,7 @@ class TestTemplate:
             extra_env_vars (Dict[str, str]): Extra environment variables.
             extra_cmd_args (str): Extra command-line arguments.
             output_path (str): Path to the output directory.
+            num_nodes (int): The number of nodes to be used for the test execution.
             nodes (List[str]): A list of nodes where the test will be executed.
 
         Returns:
@@ -136,6 +138,7 @@ class TestTemplate:
             extra_env_vars,
             extra_cmd_args,
             output_path,
+            num_nodes,
             nodes,
         )
 

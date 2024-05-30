@@ -18,7 +18,14 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
         install_path=str(tmp_path / "install"),
         output_path=str(tmp_path / "output"),
         default_partition="main",
-        partitions={"main": [SlurmNode(name="node1", partition="main", state=SlurmNodeState.IDLE)]},
+        partitions={
+            "main": [
+                SlurmNode(name="node1", partition="main", state=SlurmNodeState.IDLE),
+                SlurmNode(name="node2", partition="main", state=SlurmNodeState.IDLE),
+                SlurmNode(name="node3", partition="main", state=SlurmNodeState.IDLE),
+                SlurmNode(name="node4", partition="main", state=SlurmNodeState.IDLE),
+            ]
+        },
     )
     Path(slurm_system.install_path).mkdir()
     Path(slurm_system.output_path).mkdir()
@@ -54,6 +61,42 @@ def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, tmp_path
 
     # Check the correctness of the sbatch command format
     assert sbatch_command == f"sbatch {filepath_from_command}"
+
+
+def test_num_nodes_and_nodes(strategy_fixture: SlurmCommandGenStrategy):
+    job_name_prefix = "test_job"
+    env_vars = {"TEST_VAR": "VALUE"}
+    cmd_args = {"test_arg": "test_value"}
+    nodes = ["node1", "node2"]
+    num_nodes = 3
+
+    slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
+
+    assert slurm_args["num_nodes"] == len(nodes)
+
+
+def test_only_num_nodes(strategy_fixture: SlurmCommandGenStrategy):
+    job_name_prefix = "test_job"
+    env_vars = {"TEST_VAR": "VALUE"}
+    cmd_args = {"test_arg": "test_value"}
+    nodes = []
+    num_nodes = 3
+
+    slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
+
+    assert slurm_args["num_nodes"] == num_nodes
+
+
+def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
+    job_name_prefix = "test_job"
+    env_vars = {"TEST_VAR": "VALUE"}
+    cmd_args = {"test_arg": "test_value"}
+    nodes = ["node1", "node2"]
+    num_nodes = 0
+
+    slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
+
+    assert slurm_args["num_nodes"] == len(nodes)
 
 
 class TestNcclTestSlurmCommandGenStrategy__GetDockerImagePath:
@@ -110,7 +153,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
     def test_raises_if_required_env_var_missed(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
         with pytest.raises(KeyError) as exc_info:
             nemo_cmd_gen.gen_exec_command(
-                env_vars={}, cmd_args={}, extra_env_vars={}, extra_cmd_args="", output_path="", nodes=[]
+                env_vars={}, cmd_args={}, extra_env_vars={}, extra_cmd_args="", output_path="", num_nodes=1, nodes=[]
             )
         assert REQUIRE_ENV_VARS[0] in str(exc_info.value)
 
@@ -122,7 +165,13 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             "repository_commit_hash": "fake",
         }
         cmd = nemo_cmd_gen.gen_exec_command(
-            env_vars={}, cmd_args=cmd_args, extra_env_vars=extra_env_vars, extra_cmd_args="", output_path="", nodes=[]
+            env_vars={},
+            cmd_args=cmd_args,
+            extra_env_vars=extra_env_vars,
+            extra_cmd_args="",
+            output_path="",
+            num_nodes=1,
+            nodes=[],
         )
 
         for k, v in extra_env_vars.items():
@@ -141,6 +190,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             extra_env_vars=extra_env_vars,
             extra_cmd_args="training.model.tokenizer.model=value",
             output_path="",
+            num_nodes=1,
             nodes=[],
         )
 

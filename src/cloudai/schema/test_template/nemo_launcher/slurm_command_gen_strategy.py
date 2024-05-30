@@ -46,6 +46,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
         output_path: str,
+        num_nodes: int,
         nodes: List[str],
     ) -> str:
         # Ensure required environment variables are included
@@ -71,6 +72,8 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         nodes = self.slurm_system.parse_nodes(nodes)
         if nodes:
             self.final_cmd_args["training.trainer.num_nodes"] = str(len(nodes))
+        else:
+            self.final_cmd_args["training.trainer.num_nodes"] = num_nodes
 
         self.set_container_arg()
 

@@ -28,6 +28,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
         output_path: str,
+        num_nodes: int,
         nodes: List[str],
     ) -> str:
         final_env_vars = self._override_env_vars(self.default_env_vars, env_vars)
@@ -38,9 +39,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         combine_threshold_bytes = int(final_cmd_args["XLA_FLAGS.combine_threshold_bytes"])
         del final_cmd_args["XLA_FLAGS.combine_threshold_bytes"]
         final_env_vars["COMBINE_THRESHOLD"] = f"{combine_threshold_bytes}"
-        per_gpu_combine_threshold = int(
-            combine_threshold_bytes / (int(final_cmd_args["gpus_per_node"]) * int(final_cmd_args["num_nodes"]))
-        )
+        num_nodes = len(nodes) if nodes else num_nodes
+        per_gpu_combine_threshold = int(combine_threshold_bytes / (int(final_cmd_args["gpus_per_node"]) * num_nodes))
         final_env_vars["PER_GPU_COMBINE_THRESHOLD"] = str(per_gpu_combine_threshold)
 
         xla_flags = self._format_xla_flags(final_cmd_args)
@@ -48,7 +48,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         env_vars_str = self._format_env_vars(final_env_vars)
 
-        slurm_args = self._parse_slurm_args("JaxToolbox", final_env_vars, final_cmd_args, nodes)
+        slurm_args = self._parse_slurm_args("JaxToolbox", final_env_vars, final_cmd_args, num_nodes, nodes)
         srun_command = self._generate_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
         return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, output_path)
 
@@ -99,12 +99,13 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         job_name_prefix: str,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
+        num_nodes: int,
         nodes: List[str],
     ) -> Dict[str, Any]:
         if not all(k in cmd_args for k in ["docker_workspace_dir"]):
             raise ValueError("Required cmd_args keys are missing: docker_workspace_dir")
 
-        base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, nodes)
+        base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
 
         image_path = cmd_args["docker_image_url"]
 
