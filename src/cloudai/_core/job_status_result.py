@@ -13,7 +13,6 @@
 # limitations under the License.
 
 
-
 class JobStatusResult:
     """
     Encapsulates the result of a job status retrieval.

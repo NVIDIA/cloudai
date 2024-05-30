@@ -24,7 +24,8 @@ from types import FrameType
 from typing import Dict, List, Optional
 
 from .base_job import BaseJob
-from .exceptions import JobSubmissionError
+from .exceptions import JobFailureError, JobSubmissionError
+from .job_status_result import JobStatusResult
 from .system import System
 from .test import Test
 from .test_scenario import TestScenario
@@ -287,10 +288,35 @@ class BaseRunner(ABC):
         self.logger.debug("Monitoring jobs.")
         for job in list(self.jobs):
             if self.is_job_completed(job):
-                completed_jobs_count += 1
-                await self.handle_job_completion(job)
+                if self.mode == "dry-run":
+                    completed_jobs_count += 1
+                else:
+                    job_status_result = self.get_job_status(job)
+                    if job_status_result.is_successful:
+                        completed_jobs_count += 1
+                        await self.handle_job_completion(job)
+                    else:
+                        error_message = (
+                            f"Job {job.id} for test {job.test.section_name} failed: {job_status_result.error_message}"
+                        )
+                        self.logger.error(error_message)
+                        print(error_message, file=sys.stdout)
+                        await self.shutdown()
+                        raise JobFailureError(job.test.section_name, error_message, job_status_result.error_message)
 
         return completed_jobs_count
+
+    def get_job_status(self, job: BaseJob) -> JobStatusResult:
+        """
+        Retrieve the job status from a specified output directory.
+
+        Args:
+            job (BaseJob): The job to be checked.
+
+        Returns:
+            JobStatusResult: The result containing the job status and an optional error message.
+        """
+        return job.test.get_job_status(job.output_path)
 
     async def handle_job_completion(self, completed_job: BaseJob):
         """

@@ -69,3 +69,42 @@ class JobIdRetrievalError(JobSubmissionError):
     """
 
     pass
+
+
+class JobFailureError(Exception):
+    """
+    Exception raised for errors that occur during job execution.
+
+    Attributes
+        test_name (str): The name of the test that failed.
+        message (str): A custom message describing the error.
+        details (str): Additional details about the job failure.
+    """
+
+    def __init__(self, test_name: str, message: str, details: str = ""):
+        """
+        Initialize a JobFailureError instance.
+
+        Args:
+            test_name (str): The name of the test associated with the job.
+            message (str): A custom message describing the error.
+            details (str): Additional details about the job failure.
+        """
+        super().__init__(message)
+        self.test_name = test_name
+        self.message = message
+        self.details = details.strip()
+
+    def __str__(self):
+        """
+        Return a formatted string representation of the JobFailureError instance.
+
+        Returns
+            str: A formatted string with detailed error information.
+        """
+        return (
+            f"\nERROR: Job Execution Failed\n"
+            f"\tTest Name: {self.test_name}\n"
+            f"\tMessage: {self.message}\n"
+            f"\tDetails: '{self.details}'\n"
+        )
