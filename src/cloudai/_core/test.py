@@ -31,17 +31,15 @@ class Test:
         extra_env_vars (Dict[str, str]): Extra environment variables.
         extra_cmd_args (str): Extra command-line arguments.
         section_name (str): The section name of the test in the configuration.
-        dependencies (Optional[Dict[str, Optional['TestDependency']]]):
-            Dependencies of the test.
+        dependencies (Optional[Dict[str, Optional['TestDependency']]]): Dependencies of the test.
         iterations (Union[int, str]): Number of iterations to run the test.
         current_iteration (int): The current iteration count.
         nodes (List[str]): List of nodes involved in the test.
         sol (Optional[float]): Speed-of-light performance for reference.
-        weight (float): The weight of this test in a test scenario,
-                        indicating its relative importance or priority.
+        weight (float): The weight of this test in a test scenario, indicating its relative importance or priority.
         ideal_perf (float): The ideal performance value for comparison.
-        time_limit (Optional[str]): Time limit for the test specified as a string
-            in "hh:mm:ss" format, or None if no limit.
+        time_limit (Optional[str]): Time limit for the test specified as a string in "hh:mm:ss" format, or None if no
+            limit.
     """
 
     __test__ = False
@@ -75,16 +73,13 @@ class Test:
             cmd_args (Dict[str, str]): Command-line arguments for the test.
             extra_env_vars (Dict[str, str]): Extra environment variables.
             extra_cmd_args (str): Extra command-line arguments.
-            section_name (Optional[str]): The section name of the test in the
-                                          configuration.
-            dependencies (Optional[Dict[str, TestDependency]]):
-                Test dependencies.
-            iterations (Union[int, str]): Total number of iterations to run
-                the test. Can be an integer or 'infinite' for endless iterations.
+            section_name (Optional[str]): The section name of the test in the configuration.
+            dependencies (Optional[Dict[str, TestDependency]]): Test dependencies.
+            iterations (Union[int, str]): Total number of iterations to run the test. Can be an integer or 'infinite'
+                for endless iterations.
             nodes (List[str]): List of nodes to be used in the test.
             sol (Optional[float]): Speed-of-light performance for reference.
-            weight (float): The weight of this test in a test scenario,
-                            indicating its relative importance or priority.
+            weight (float): The weight of this test in a test scenario, indicating its relative importance or priority.
             ideal_perf (float): The ideal performance value for comparison.
             time_limit (Optional[str]): Time limit for the test specified as a string
         """
