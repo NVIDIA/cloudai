@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .._core.grader import Grader
+from .system_parser.slurm_system_parser import SlurmSystemParser
+from .system_parser.standalone_system_parser import StandaloneSystemParser
 
 __all__ = [
-    "Grader",
+    "StandaloneSystemParser",
+    "SlurmSystemParser",
 ]

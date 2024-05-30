@@ -15,7 +15,6 @@
 import os
 from typing import Any, Dict, List
 
-from cloudai._core.system import System
 from cloudai.schema.system.slurm.strategy import SlurmCommandGenStrategy
 
 from .slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
@@ -39,15 +38,6 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     Attributes
         install_path (str): The installation path of Cloud AI.
     """
-
-    def __init__(
-        self,
-        system: System,
-        env_vars: Dict[str, Any],
-        cmd_args: Dict[str, Any],
-    ) -> None:
-        super().__init__(system, env_vars, cmd_args)
-        self.install_path = self.slurm_system.install_path
 
     def gen_exec_command(
         self,

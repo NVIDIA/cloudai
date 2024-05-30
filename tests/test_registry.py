@@ -1,4 +1,5 @@
 import pytest
+from cloudai._core.base_installer import BaseInstaller
 from cloudai._core.base_runner import BaseRunner
 from cloudai._core.base_system_parser import BaseSystemParser
 from cloudai._core.job_id_retrieval_strategy import JobIdRetrievalStrategy
@@ -7,7 +8,6 @@ from cloudai._core.report_generation_strategy import ReportGenerationStrategy
 from cloudai._core.system import System
 from cloudai._core.test_template import TestTemplate
 from cloudai._core.test_template_strategy import TestTemplateStrategy
-from cloudai.installer.base_installer import BaseInstaller
 
 
 class MySystemParser(BaseSystemParser):

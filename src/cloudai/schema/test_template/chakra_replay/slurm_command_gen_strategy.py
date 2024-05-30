@@ -14,20 +14,11 @@
 
 from typing import Any, Dict, List
 
-from cloudai._core.system import System
 from cloudai.schema.system.slurm.strategy import SlurmCommandGenStrategy
 
 
 class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for ChakraReplay on Slurm systems."""
-
-    def __init__(
-        self,
-        system: System,
-        env_vars: Dict[str, Any],
-        cmd_args: Dict[str, Any],
-    ) -> None:
-        super().__init__(system, env_vars, cmd_args)
 
     def gen_exec_command(
         self,

@@ -15,20 +15,11 @@
 import os
 from typing import Any, Dict, List
 
-from cloudai._core.system import System
 from cloudai.schema.system.slurm.strategy import SlurmCommandGenStrategy
 
 
 class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for JaxToolbox tests on Slurm systems."""
-
-    def __init__(
-        self,
-        system: System,
-        env_vars: Dict[str, Any],
-        cmd_args: Dict[str, Any],
-    ) -> None:
-        super().__init__(system, env_vars, cmd_args)
 
     def gen_exec_command(
         self,

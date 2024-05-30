@@ -40,3 +40,36 @@ indent-style = "space"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.importlinter]
+root_package = "cloudai"
+
+[[tool.importlinter.contracts]]
+name = "_core does not import schema"
+type = "layers"
+layers = ["cloudai.schema", "cloudai._core"]
+
+[[tool.importlinter.contracts]]
+name = "_core does not import installer"
+type = "layers"
+layers = ["cloudai.installer", "cloudai._core"]
+
+[[tool.importlinter.contracts]]
+name = "_core does not import parser"
+type = "layers"
+layers = ["cloudai.parser", "cloudai._core"]
+
+[[tool.importlinter.contracts]]
+name = "_core does not import report_generator"
+type = "layers"
+layers = ["cloudai.report_generator", "cloudai._core"]
+
+[[tool.importlinter.contracts]]
+name = "_core does not import runner"
+type = "layers"
+layers = ["cloudai.runner", "cloudai._core"]
+
+[[tool.importlinter.contracts]]
+name = "_core does not import util"
+type = "layers"
+layers = ["cloudai.util", "cloudai._core"]

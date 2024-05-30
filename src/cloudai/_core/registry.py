@@ -1,7 +1,6 @@
 from typing import Dict, List, Tuple, Type, Union
 
-from cloudai.installer.base_installer import BaseInstaller
-
+from .base_installer import BaseInstaller
 from .base_runner import BaseRunner
 from .base_system_parser import BaseSystemParser
 from .job_id_retrieval_strategy import JobIdRetrievalStrategy

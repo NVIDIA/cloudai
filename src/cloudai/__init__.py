@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from ._core.command_gen_strategy import CommandGenStrategy
+from ._core.grader import Grader
 from ._core.grading_strategy import GradingStrategy
 from ._core.install_strategy import InstallStrategy
 from ._core.job_id_retrieval_strategy import JobIdRetrievalStrategy
@@ -23,7 +24,6 @@ from ._core.runner import Runner
 from ._core.system import System
 from ._core.test_template import TestTemplate
 from ._core.test_template_strategy import TestTemplateStrategy
-from .grader import Grader
 from .installer.installer import Installer
 from .installer.slurm_installer import SlurmInstaller
 from .installer.standalone_installer import StandaloneInstaller
