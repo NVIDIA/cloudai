@@ -15,11 +15,10 @@
 import logging
 from typing import Iterable
 
+from cloudai._core.base_installer import BaseInstaller
 from cloudai._core.registry import Registry
 from cloudai._core.system import System
 from cloudai._core.test_template import TestTemplate
-
-from .base_installer import BaseInstaller
 
 
 class Installer:

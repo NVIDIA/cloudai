@@ -14,8 +14,6 @@
 
 from typing import Any, Dict
 
-from cloudai.schema.system import SlurmSystem
-
 from .system import System
 
 
@@ -50,8 +48,6 @@ class TestTemplateStrategy:
         """
         self.system = system
         self.install_path = ""
-        if isinstance(self.system, SlurmSystem):
-            self.install_path = self.system.install_path
         self.env_vars = env_vars
         self.cmd_args = cmd_args
         self.default_env_vars = self._construct_default_env_vars()

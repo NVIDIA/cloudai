@@ -14,9 +14,9 @@
 
 import os
 from datetime import datetime
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List
 
-from cloudai import CommandGenStrategy, System
+from cloudai import CommandGenStrategy
 from cloudai.schema.system import SlurmSystem
 
 
@@ -32,7 +32,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
     def __init__(
         self,
-        system: System,
+        system: SlurmSystem,
         env_vars: Dict[str, Any],
         cmd_args: Dict[str, Any],
     ) -> None:
@@ -45,7 +45,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             cmd_args (Dict[str, Any]): Command-line arguments.
         """
         super().__init__(system, env_vars, cmd_args)
-        self.slurm_system = cast(SlurmSystem, self.system)
+        self.slurm_system = system
+        self.install_path = self.slurm_system.install_path
         self.default_env_vars.update(self.slurm_system.global_env_vars)
 
     def _format_env_vars(self, env_vars: Dict[str, Any]) -> str:

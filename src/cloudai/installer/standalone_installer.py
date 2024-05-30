@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base_installer import BaseInstaller
+from cloudai._core.base_installer import BaseInstaller
 
 
 class StandaloneInstaller(BaseInstaller):
