@@ -53,7 +53,7 @@ class Test:
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
-        section_name: Optional[str] = "",
+        section_name: str = "",
         dependencies: Optional[Dict[str, "TestDependency"]] = None,
         iterations: Union[int, str] = 1,
         nodes: Optional[List[str]] = None,
@@ -73,7 +73,7 @@ class Test:
             cmd_args (Dict[str, str]): Command-line arguments for the test.
             extra_env_vars (Dict[str, str]): Extra environment variables.
             extra_cmd_args (str): Extra command-line arguments.
-            section_name (Optional[str]): The section name of the test in the configuration.
+            section_name (str): The section name of the test in the configuration.
             dependencies (Optional[Dict[str, TestDependency]]): Test dependencies.
             iterations (Union[int, str]): Total number of iterations to run the test. Can be an integer or 'infinite'
                 for endless iterations.
