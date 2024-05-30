@@ -34,6 +34,7 @@ class Test:
         dependencies (Optional[Dict[str, Optional['TestDependency']]]): Dependencies of the test.
         iterations (Union[int, str]): Number of iterations to run the test.
         current_iteration (int): The current iteration count.
+        num_nodes (int): The number of nodes to be used for the test execution.
         nodes (List[str]): List of nodes involved in the test.
         sol (Optional[float]): Speed-of-light performance for reference.
         weight (float): The weight of this test in a test scenario, indicating its relative importance or priority.
@@ -56,6 +57,7 @@ class Test:
         section_name: Optional[str] = "",
         dependencies: Optional[Dict[str, "TestDependency"]] = None,
         iterations: Union[int, str] = 1,
+        num_nodes: int = 1,
         nodes: Optional[List[str]] = None,
         sol: Optional[float] = None,
         weight: float = 0.0,
@@ -77,6 +79,7 @@ class Test:
             dependencies (Optional[Dict[str, TestDependency]]): Test dependencies.
             iterations (Union[int, str]): Total number of iterations to run the test. Can be an integer or 'infinite'
                 for endless iterations.
+            num_nodes (int): The number of nodes to be used for the test execution.
             nodes (List[str]): List of nodes to be used in the test.
             sol (Optional[float]): Speed-of-light performance for reference.
             weight (float): The weight of this test in a test scenario, indicating its relative importance or priority.
@@ -94,6 +97,7 @@ class Test:
         self.dependencies = dependencies or {}
         self.iterations = iterations if isinstance(iterations, int) else sys.maxsize
         self.current_iteration = 0
+        self.num_nodes = num_nodes
         self.nodes = nodes if nodes else []
         self.sol = sol
         self.weight = weight
@@ -138,6 +142,7 @@ class Test:
             self.extra_env_vars,
             self.extra_cmd_args,
             output_path,
+            self.num_nodes,
             self.nodes,
         )
 

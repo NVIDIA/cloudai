@@ -32,6 +32,7 @@ class SleepStandaloneCommandGenStrategy(CommandGenStrategy):
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
         output_path: str,
+        num_nodes: int,
         nodes: List[str],
     ) -> str:
         if not nodes:

@@ -20,10 +20,6 @@ name = "NcclTest"
             "bisection_perf_mpi"]
   default = "all_reduce_perf_mpi"
 
-  [cmd_args.num_nodes]
-  type = "int"
-  default = "2"
-
   [cmd_args.nthreads]
   type = "int"
   default = "1"

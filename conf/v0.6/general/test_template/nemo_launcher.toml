@@ -41,11 +41,6 @@ name = "NeMoLauncher"
       default = "False"
 
     [cmd_args.training.trainer]
-      [cmd_args.training.trainer.num_nodes]
-      type = "preset"
-      values = ["4", "8", "16"]
-      default = "8"
-
       [cmd_args.training.trainer.max_steps]
       type = "preset"
       values = ["100", "500", "1000", "2000"]

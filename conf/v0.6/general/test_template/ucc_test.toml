@@ -26,10 +26,6 @@ name = "UCCTest"
             "reducedt_strided"]
   default = "alltoall"
 
-  [cmd_args.num_nodes]
-  type = "int"
-  default = "2"
-
   [cmd_args.b]
   type = "str"
   default = "1"

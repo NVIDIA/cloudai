@@ -70,6 +70,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         job_name_prefix: str,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
+        num_nodes: int,
         nodes: List[str],
     ) -> Dict[str, Any]:
         """
@@ -79,6 +80,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             job_name_prefix (str): Prefix for the job name.
             env_vars (Dict[str, str]): Environment variables.
             cmd_args (Dict[str, str]): Command-line arguments.
+            num_nodes (int): The number of nodes to be used for the test execution.
             nodes (List[str]): List of nodes for the job.
 
         Returns:
@@ -97,7 +99,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             raise KeyError("Partition not specified in the system configuration.")
 
         parsed_nodes = self.slurm_system.parse_nodes(nodes)
-        num_nodes = len(parsed_nodes) if parsed_nodes else int(cmd_args.get("num_nodes", 1))
+        num_nodes = len(parsed_nodes) if parsed_nodes else num_nodes
         node_list_str = ",".join(parsed_nodes) if parsed_nodes else ""
 
         slurm_args = {

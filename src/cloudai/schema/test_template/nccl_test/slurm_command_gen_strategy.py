@@ -40,6 +40,7 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
         output_path: str,
+        num_nodes: int,
         nodes: List[str],
     ) -> str:
         final_env_vars = self._override_env_vars(self.default_env_vars, env_vars)
@@ -51,7 +52,7 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if subtest_name not in NcclTest.SUPPORTED_SUBTESTS:
             raise KeyError("Subtest name not specified or unsupported.")
 
-        slurm_args = self._parse_slurm_args(subtest_name, final_env_vars, final_cmd_args, nodes)
+        slurm_args = self._parse_slurm_args(subtest_name, final_env_vars, final_cmd_args, num_nodes, nodes)
         srun_command = self._generate_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
         return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, output_path)
 
@@ -71,9 +72,10 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         job_name_prefix: str,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
+        num_nodes: int,
         nodes: List[str],
     ) -> Dict[str, Any]:
-        base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, nodes)
+        base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
 
         image_path = self.get_docker_image_path(cmd_args)
 

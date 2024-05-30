@@ -2,9 +2,11 @@ name = "nemo_launcher_with_noise"
 
 [Tests.1]
   name = "nemo_launcher"
+  num_nodes = "4"
   weight = 100
 
 [Tests.2]
   name = "nccl_test_bisection"
+  num_nodes = "16"
   [Tests.2.dependencies]
     start_post_init = { name = "Tests.1", time = 450 }
