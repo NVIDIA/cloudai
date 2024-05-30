@@ -12,12 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .default_job_status_retrieval_strategy import DefaultJobStatusRetrievalStrategy
-from .slurm_job_id_retrieval_strategy import SlurmJobIdRetrievalStrategy
-from .standalone_job_id_retrieval_strategy import StandaloneJobIdRetrievalStrategy
+from abc import abstractmethod
 
-__all__ = [
-    "DefaultJobStatusRetrievalStrategy",
-    "SlurmJobIdRetrievalStrategy",
-    "StandaloneJobIdRetrievalStrategy",
-]
+from .job_status_result import JobStatusResult
+
+
+class JobStatusRetrievalStrategy:
+    """Abstract class to define a strategy for retrieving job statuses from a given output directory."""
+
+    @abstractmethod
+    def get_job_status(self, output_path: str) -> JobStatusResult:
+        """
+        Retrieve the job status from a specified output directory.
+
+        Args:
+            output_path (str): Path to the output directory.
+
+        Returns:
+            JobStatusResult: The result containing the job status and an optional error message.
+        """
+        pass

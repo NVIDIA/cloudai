@@ -3,6 +3,7 @@ from cloudai._core.base_installer import BaseInstaller
 from cloudai._core.base_runner import BaseRunner
 from cloudai._core.base_system_parser import BaseSystemParser
 from cloudai._core.job_id_retrieval_strategy import JobIdRetrievalStrategy
+from cloudai._core.job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from cloudai._core.registry import Registry
 from cloudai._core.report_generation_strategy import ReportGenerationStrategy
 from cloudai._core.system import System
@@ -115,6 +116,10 @@ class MyJobIdRetrievalStrategy(JobIdRetrievalStrategy):
     pass
 
 
+class MyJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
+    pass
+
+
 class TestRegistry__StrategiesMap:
     """This test verifies Registry class functionality.
 
@@ -126,6 +131,7 @@ class TestRegistry__StrategiesMap:
         registry.add_strategy(MyStrategy, [MySystem], [MyTestTemplate], MyStrategy)
         registry.add_strategy(MyReportGenerationStrategy, [MySystem], [MyTestTemplate], MyReportGenerationStrategy)
         registry.add_strategy(MyJobIdRetrievalStrategy, [MySystem], [MyTestTemplate], MyJobIdRetrievalStrategy)
+        registry.add_strategy(MyJobStatusRetrievalStrategy, [MySystem], [MyTestTemplate], MyJobStatusRetrievalStrategy)
 
         assert registry.strategies_map[(MyStrategy, MySystem, MyTestTemplate)] == MyStrategy
         assert (
@@ -133,6 +139,10 @@ class TestRegistry__StrategiesMap:
             == MyReportGenerationStrategy
         )
         assert registry.strategies_map[(MyJobIdRetrievalStrategy, MySystem, MyTestTemplate)] == MyJobIdRetrievalStrategy
+        assert (
+            registry.strategies_map[(MyJobStatusRetrievalStrategy, MySystem, MyTestTemplate)]
+            == MyJobStatusRetrievalStrategy
+        )
 
     def test_add_strategy_duplicate(self, registry: Registry):
         with pytest.raises(ValueError) as exc_info:
@@ -148,7 +158,7 @@ class TestRegistry__StrategiesMap:
             registry.update_strategy((str, MySystem, MyTestTemplate), MyStrategy)  # pyright: ignore
         err = (
             "Invalid strategy interface type, should be subclass of 'TestTemplateStrategy' or "
-            "'ReportGenerationStrategy' or 'JobIdRetrievalStrategy'."
+            "'ReportGenerationStrategy' or 'JobIdRetrievalStrategy' or 'JobStatusRetrievalStrategy'."
         )
         assert err in str(exc_info.value)
 

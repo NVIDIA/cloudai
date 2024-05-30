@@ -18,6 +18,7 @@ from .base_installer import BaseInstaller
 from .base_runner import BaseRunner
 from .base_system_parser import BaseSystemParser
 from .job_id_retrieval_strategy import JobIdRetrievalStrategy
+from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
 from .test_template import TestTemplate
@@ -42,11 +43,15 @@ class Registry(metaclass=Singleton):
     runners_map: Dict[str, Type[BaseRunner]] = {}
     strategies_map: Dict[
         Tuple[
-            Type[Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy]],
+            Type[
+                Union[
+                    TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy, JobStatusRetrievalStrategy
+                ]
+            ],
             Type[System],
             Type[TestTemplate],
         ],
-        Type[Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy]],
+        Type[Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy, JobStatusRetrievalStrategy]],
     ] = {}
     test_templates_map: Dict[str, Type[TestTemplate]] = {}
     installers_map: Dict[str, Type[BaseInstaller]] = {}
@@ -113,10 +118,14 @@ class Registry(metaclass=Singleton):
 
     def add_strategy(
         self,
-        strategy_interface: Type[Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy]],
+        strategy_interface: Type[
+            Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy, JobStatusRetrievalStrategy]
+        ],
         system_types: List[Type[System]],
         template_types: List[Type[TestTemplate]],
-        strategy: Type[Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy]],
+        strategy: Type[
+            Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy, JobStatusRetrievalStrategy]
+        ],
     ) -> None:
         for system_type in system_types:
             for template_type in template_types:
@@ -128,20 +137,27 @@ class Registry(metaclass=Singleton):
     def update_strategy(
         self,
         key: Tuple[
-            Type[Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy]],
+            Type[
+                Union[
+                    TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy, JobStatusRetrievalStrategy
+                ]
+            ],
             Type[System],
             Type[TestTemplate],
         ],
-        value: Type[Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy]],
+        value: Type[
+            Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy, JobStatusRetrievalStrategy]
+        ],
     ) -> None:
         if not (
             issubclass(key[0], TestTemplateStrategy)
             or issubclass(key[0], ReportGenerationStrategy)
             or issubclass(key[0], JobIdRetrievalStrategy)
+            or issubclass(key[0], JobStatusRetrievalStrategy)
         ):
             raise ValueError(
                 "Invalid strategy interface type, should be subclass of 'TestTemplateStrategy' or "
-                "'ReportGenerationStrategy' or 'JobIdRetrievalStrategy'."
+                "'ReportGenerationStrategy' or 'JobIdRetrievalStrategy' or 'JobStatusRetrievalStrategy'."
             )
         if not issubclass(key[1], System):
             raise ValueError("Invalid system type, should be subclass of 'System'.")
@@ -152,6 +168,7 @@ class Registry(metaclass=Singleton):
             issubclass(value, TestTemplateStrategy)
             or issubclass(value, ReportGenerationStrategy)
             or issubclass(value, JobIdRetrievalStrategy)
+            or issubclass(value, JobStatusRetrievalStrategy)
         ):
             raise ValueError(f"Invalid strategy implementation {value}, should be subclass of 'TestTemplateStrategy'.")
         self.strategies_map[key] = value

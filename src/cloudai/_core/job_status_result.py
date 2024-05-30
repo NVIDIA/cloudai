@@ -12,12 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .default_job_status_retrieval_strategy import DefaultJobStatusRetrievalStrategy
-from .slurm_job_id_retrieval_strategy import SlurmJobIdRetrievalStrategy
-from .standalone_job_id_retrieval_strategy import StandaloneJobIdRetrievalStrategy
 
-__all__ = [
-    "DefaultJobStatusRetrievalStrategy",
-    "SlurmJobIdRetrievalStrategy",
-    "StandaloneJobIdRetrievalStrategy",
-]
+
+class JobStatusResult:
+    """
+    Encapsulates the result of a job status retrieval.
+
+    Attributes
+        is_successful (bool): Indicates if the job was successful.
+        error_message (str): Error message if the job was not successful.
+    """
+
+    def __init__(self, is_successful: bool, error_message: str = ""):
+        self.is_successful = is_successful
+        self.error_message = error_message
+
+    def __str__(self):
+        return f"JobStatusResult(is_successful={self.is_successful}, error_message={self.error_message})"

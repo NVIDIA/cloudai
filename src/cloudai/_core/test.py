@@ -15,6 +15,7 @@
 import sys
 from typing import Dict, List, Optional, Union
 
+from .job_status_result import JobStatusResult
 from .test_template import TestTemplate
 
 
@@ -158,6 +159,18 @@ class Test:
             Optional[int]: The retrieved job ID, or None if not found.
         """
         return self.test_template.get_job_id(stdout, stderr)
+
+    def get_job_status(self, output_path: str) -> JobStatusResult:
+        """
+        Determine the status of a job based on the outputs located in the given output directory.
+
+        Args:
+            output_path (str): Path to the output directory.
+
+        Returns:
+            JobStatusResult: The result containing the job status and an optional error message.
+        """
+        return self.test_template.get_job_status(output_path)
 
     def has_more_iterations(self) -> bool:
         """

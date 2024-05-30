@@ -12,12 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .default_job_status_retrieval_strategy import DefaultJobStatusRetrievalStrategy
-from .slurm_job_id_retrieval_strategy import SlurmJobIdRetrievalStrategy
-from .standalone_job_id_retrieval_strategy import StandaloneJobIdRetrievalStrategy
 
-__all__ = [
-    "DefaultJobStatusRetrievalStrategy",
-    "SlurmJobIdRetrievalStrategy",
-    "StandaloneJobIdRetrievalStrategy",
-]
+from cloudai._core.job_status_result import JobStatusResult
+from cloudai._core.job_status_retrieval_strategy import JobStatusRetrievalStrategy
+
+
+class DefaultJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
+    """
+    Dummy strategy for retrieving job statuses.
+
+    This strategy is used in scenarios where job status retrieval logic is not required or is yet to be implemented.
+    It always returns a success result, indicating that the job has successfully completed.
+    """
+
+    def get_job_status(self, output_path: str) -> JobStatusResult:
+        return JobStatusResult(is_successful=True)

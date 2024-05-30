@@ -20,6 +20,7 @@ from .command_gen_strategy import CommandGenStrategy
 from .grading_strategy import GradingStrategy
 from .install_strategy import InstallStrategy
 from .job_id_retrieval_strategy import JobIdRetrievalStrategy
+from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from .registry import Registry
 from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
@@ -53,19 +54,24 @@ class TestTemplateParser(BaseMultiFileParser):
         self.system = system
         self.directory_path: str = directory_path
 
-    def _fetch_strategy(
+    def _fetch_strategy(  # noqa: D417
         self,
-        strategy_interface: Type[Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy]],
+        strategy_interface: Type[
+            Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy, JobStatusRetrievalStrategy]
+        ],
         system_type: Type[System],
         test_template_type: Type[TestTemplate],
         env_vars: Dict[str, Any],
         cmd_args: Dict[str, Any],
-    ) -> Optional[Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy]]:
+    ) -> Optional[
+        Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy, JobStatusRetrievalStrategy]
+    ]:
         """
         Fetch a strategy from the registry based on system and template.
 
         Args:
-            strategy_interface (Type[Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy]):
+            strategy_interface (Type[Union[TestTemplateStrategy, ReportGenerationStrategy,
+                JobIdRetrievalStrategy, JobStatusRetrievalStrategy]]):
                 The strategy interface to fetch.
             system_type (Type[System]): The system type.
             test_template_type (Type[TestTemplate]): The test template type.
@@ -123,6 +129,10 @@ class TestTemplateParser(BaseMultiFileParser):
         obj.job_id_retrieval_strategy = cast(
             JobIdRetrievalStrategy,
             self._fetch_strategy(JobIdRetrievalStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+        )
+        obj.job_status_retrieval_strategy = cast(
+            JobStatusRetrievalStrategy,
+            self._fetch_strategy(JobStatusRetrievalStrategy, type(obj.system), type(obj), env_vars, cmd_args),
         )
         obj.report_generation_strategy = cast(
             ReportGenerationStrategy,
