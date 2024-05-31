@@ -43,18 +43,18 @@ class NcclTestJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
                 if "# Avg bus bandwidth" not in content:
                     missing_indicators.append("'# Avg bus bandwidth'")
                 error_message = (
-                    f"Missing success indicators in stdout.txt: {', '.join(missing_indicators)}. "
+                    f"Missing success indicators in {stdout_path}: {', '.join(missing_indicators)}. "
                     "These keywords are expected to be present in stdout.txt, usually towards the end of the file. "
-                    "Please ensure the NCCL test ran to completion. You can run the generated sbatch script manually "
-                    "and check if stdout.txt is created and contains the expected keywords."
+                    f"Please ensure the NCCL test ran to completion. You can run the generated sbatch script manually "
+                    f"and check if {stdout_path} is created and contains the expected keywords."
                 )
                 return JobStatusResult(is_successful=False, error_message=error_message)
         return JobStatusResult(
             is_successful=False,
             error_message=(
-                "stdout.txt file not found in the specified output directory. "
+                f"stdout.txt file not found in the specified output directory {output_path}. "
                 "This file is expected to be created as a result of the NCCL test run. "
                 "Please ensure the NCCL test was executed properly and that stdout.txt is generated. "
-                "You can run the generated NCCL test command manually and verify the creation of stdout.txt."
+                f"You can run the generated NCCL test command manually and verify the creation of {stdout_path}."
             ),
         )

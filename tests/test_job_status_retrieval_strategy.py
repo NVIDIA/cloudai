@@ -15,10 +15,11 @@ class TestNcclTestJobStatusRetrievalStrategy:
         result = self.js.get_job_status(str(tmp_path))
         assert not result.is_successful
         assert result.error_message == (
-            "stdout.txt file not found in the specified output directory. "
+            f"stdout.txt file not found in the specified output directory {tmp_path}. "
             "This file is expected to be created as a result of the NCCL test run. "
             "Please ensure the NCCL test was executed properly and that stdout.txt is generated. "
-            "You can run the generated NCCL test command manually and verify the creation of stdout.txt."
+            f"You can run the generated NCCL test command manually and verify the creation of "
+            f"{tmp_path / 'stdout.txt'}."
         )
 
     def test_successful_job(self, tmp_path: Path) -> None:
@@ -48,8 +49,8 @@ class TestNcclTestJobStatusRetrievalStrategy:
         result = self.js.get_job_status(str(tmp_path))
         assert not result.is_successful
         assert result.error_message == (
-            "Missing success indicators in stdout.txt: '# Out of bounds values', '# Avg bus bandwidth'. "
+            f"Missing success indicators in {stdout_file}: '# Out of bounds values', '# Avg bus bandwidth'. "
             "These keywords are expected to be present in stdout.txt, usually towards the end of the file. "
-            "Please ensure the NCCL test ran to completion. You can run the generated sbatch script manually "
-            "and check if stdout.txt is created and contains the expected keywords."
+            f"Please ensure the NCCL test ran to completion. You can run the generated sbatch script manually "
+            f"and check if {stdout_file} is created and contains the expected keywords."
         )
