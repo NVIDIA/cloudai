@@ -122,7 +122,7 @@ class TestScenarioParser:
         test = copy.deepcopy(self.test_mapping[test_name])
         test.test_template = self.test_mapping[test_name].test_template
         test.section_name = section
-        test.num_nodes = test_info.get("num_nodes", 1)
+        test.num_nodes = int(test_info.get("num_nodes", 1))
         test.nodes = test_info.get("nodes", [])
         return test
 
