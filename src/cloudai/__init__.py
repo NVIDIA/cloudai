@@ -49,6 +49,7 @@ from .schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxTool
 from .schema.test_template.jax_toolbox.slurm_install_strategy import JaxToolboxSlurmInstallStrategy
 from .schema.test_template.jax_toolbox.template import JaxToolbox
 from .schema.test_template.nccl_test.grading_strategy import NcclTestGradingStrategy
+from .schema.test_template.nccl_test.job_status_retrieval_strategy import NcclTestJobStatusRetrievalStrategy
 from .schema.test_template.nccl_test.report_generation_strategy import NcclTestReportGenerationStrategy
 from .schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from .schema.test_template.nccl_test.slurm_install_strategy import NcclTestSlurmInstallStrategy
@@ -105,10 +106,11 @@ Registry().add_strategy(
 )
 Registry().add_strategy(JobIdRetrievalStrategy, [StandaloneSystem], [Sleep], StandaloneJobIdRetrievalStrategy)
 Registry().add_strategy(JobStatusRetrievalStrategy, [StandaloneSystem], [Sleep], DefaultJobStatusRetrievalStrategy)
+Registry().add_strategy(JobStatusRetrievalStrategy, [SlurmSystem], [NcclTest], NcclTestJobStatusRetrievalStrategy)
 Registry().add_strategy(
     JobStatusRetrievalStrategy,
     [SlurmSystem],
-    [ChakraReplay, JaxToolbox, NcclTest, UCCTest, NeMoLauncher],
+    [ChakraReplay, JaxToolbox, UCCTest, NeMoLauncher],
     DefaultJobStatusRetrievalStrategy,
 )
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [UCCTest], UCCTestSlurmCommandGenStrategy)
