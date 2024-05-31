@@ -1,0 +1,6 @@
+install_path = "/absolute/path/to/install"
+remove_existing = true
+templates = ["NcclTest", "NeMoLauncher"]
+docker_cache = true
+has_registry_access = false
+tgz_path = "/path/to/docker/images.tgz"
