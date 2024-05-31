@@ -283,17 +283,17 @@ class BaseRunner(ABC):
         Returns
             int: The number of completed jobs.
         """
-        completed_jobs_count = 0
+        successful_jobs_count = 0
 
         self.logger.debug("Monitoring jobs.")
         for job in list(self.jobs):
             if self.is_job_completed(job):
                 if self.mode == "dry-run":
-                    completed_jobs_count += 1
+                    successful_jobs_count += 1
                 else:
                     job_status_result = self.get_job_status(job)
                     if job_status_result.is_successful:
-                        completed_jobs_count += 1
+                        successful_jobs_count += 1
                         await self.handle_job_completion(job)
                     else:
                         error_message = (
@@ -304,7 +304,7 @@ class BaseRunner(ABC):
                         await self.shutdown()
                         raise JobFailureError(job.test.section_name, error_message, job_status_result.error_message)
 
-        return completed_jobs_count
+        return successful_jobs_count
 
     def get_job_status(self, job: BaseJob) -> JobStatusResult:
         """
