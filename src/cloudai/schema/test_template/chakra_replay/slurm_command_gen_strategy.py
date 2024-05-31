@@ -14,7 +14,7 @@
 
 from typing import Any, Dict, List
 
-from cloudai.schema.system.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
 
 class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):

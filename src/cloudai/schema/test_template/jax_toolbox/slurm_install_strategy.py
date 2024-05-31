@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from cloudai.schema.system.slurm.strategy import SlurmInstallStrategy
+from cloudai.systems.slurm.strategy import SlurmInstallStrategy
 
 
 class JaxToolboxSlurmInstallStrategy(SlurmInstallStrategy):

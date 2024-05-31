@@ -1,14 +1,14 @@
 from pathlib import Path
 
 import pytest
-from cloudai.schema.system import SlurmSystem
-from cloudai.schema.system.slurm import SlurmNode, SlurmNodeState
-from cloudai.schema.system.slurm.strategy import SlurmCommandGenStrategy
 from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import (
     REQUIRE_ENV_VARS,
     NeMoLauncherSlurmCommandGenStrategy,
 )
+from cloudai.systems import SlurmSystem
+from cloudai.systems.slurm import SlurmNode, SlurmNodeState
+from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
 
 @pytest.fixture

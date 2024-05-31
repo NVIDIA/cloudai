@@ -33,8 +33,6 @@ from .parser.system_parser.standalone_system_parser import StandaloneSystemParse
 from .report_generator import ReportGenerator
 from .runner.slurm.slurm_runner import SlurmRunner
 from .runner.standalone.standalone_runner import StandaloneRunner
-from .schema.system.slurm.slurm_system import SlurmSystem
-from .schema.system.standalone_system import StandaloneSystem
 from .schema.test_template.chakra_replay.grading_strategy import ChakraReplayGradingStrategy
 from .schema.test_template.chakra_replay.report_generation_strategy import ChakraReplayReportGenerationStrategy
 from .schema.test_template.chakra_replay.slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
@@ -73,6 +71,8 @@ from .schema.test_template.ucc_test.report_generation_strategy import UCCTestRep
 from .schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 from .schema.test_template.ucc_test.slurm_install_strategy import UCCTestSlurmInstallStrategy
 from .schema.test_template.ucc_test.template import UCCTest
+from .systems.slurm.slurm_system import SlurmSystem
+from .systems.standalone_system import StandaloneSystem
 
 Registry().add_system_parser("standalone", StandaloneSystemParser)
 Registry().add_system_parser("slurm", SlurmSystemParser)
@@ -132,9 +132,13 @@ Registry().add_installer("slurm", SlurmInstaller)
 Registry().add_installer("standalone", StandaloneInstaller)
 
 __all__ = [
+    "CommandGenStrategy",
     "Grader",
+    "GradingStrategy",
     "Installer",
+    "InstallStrategy",
     "Parser",
+    "ReportGenerationStrategy",
     "ReportGenerator",
     "Runner",
     "System",

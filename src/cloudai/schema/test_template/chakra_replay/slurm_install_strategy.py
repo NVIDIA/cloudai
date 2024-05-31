@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai.schema.system.slurm.strategy import SlurmInstallStrategy
+from cloudai.systems.slurm.strategy import SlurmInstallStrategy
 
 
 class ChakraReplaySlurmInstallStrategy(SlurmInstallStrategy):

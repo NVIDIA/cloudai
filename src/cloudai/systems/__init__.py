@@ -16,6 +16,6 @@ from .slurm.slurm_system import SlurmSystem
 from .standalone_system import StandaloneSystem
 
 __all__ = [
-    "StandaloneSystem",
     "SlurmSystem",
+    "StandaloneSystem",
 ]
