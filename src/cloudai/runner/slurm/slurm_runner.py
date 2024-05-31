@@ -83,7 +83,7 @@ class SlurmRunner(BaseRunner):
                     stderr=stderr,
                     message="Failed to retrieve job ID from command output.",
                 )
-        return SlurmJob(job_id, test)
+        return SlurmJob(job_id, test, job_output_path)
 
     def is_job_running(self, job: BaseJob) -> bool:
         """

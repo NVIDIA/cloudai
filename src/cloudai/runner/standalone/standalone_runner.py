@@ -82,7 +82,7 @@ class StandaloneRunner(BaseRunner):
                     stderr="",
                     message="Failed to retrieve job ID from command output.",
                 )
-        return StandaloneJob(job_id, test)
+        return StandaloneJob(job_id, test, job_output_path)
 
     def is_job_running(self, job: BaseJob) -> bool:
         """

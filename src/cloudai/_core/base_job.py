@@ -22,19 +22,22 @@ class BaseJob:
     Attributes
         id (int): The unique identifier of the job.
         test (Test): The test instance associated with this job.
+        output_path (str): The path where the job's output is stored.
         terminated_by_dependency (bool): Flag to indicate if the job was terminated due to a dependency.
     """
 
-    def __init__(self, job_id: int, test: Test):
+    def __init__(self, job_id: int, test: Test, output_path: str):
         """
         Initialize a BaseJob instance.
 
         Args:
             job_id (int): The unique identifier of the job.
+            output_path (str): The path where the job's output is stored.
             test (Test): The test instance associated with the job.
         """
         self.id = job_id
         self.test = test
+        self.output_path = output_path
         self.terminated_by_dependency = False
 
     def increment_iteration(self):

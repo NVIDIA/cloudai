@@ -19,6 +19,8 @@ from .command_gen_strategy import CommandGenStrategy
 from .grading_strategy import GradingStrategy
 from .install_strategy import InstallStrategy
 from .job_id_retrieval_strategy import JobIdRetrievalStrategy
+from .job_status_result import JobStatusResult
+from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
 
@@ -40,6 +42,7 @@ class TestTemplate:
         job_id_retrieval_strategy (JobIdRetrievalStrategy): Strategy for retrieving job IDs.
         report_generation_strategy (ReportGenerationStrategy): Strategy for generating reports.
         grading_strategy (GradingStrategy): Strategy for grading performance based on test outcomes.
+        job_status_retrieval_strategy (JobStatusRetrievalStrategy): Strategy for determining job statuses.
     """
 
     __test__ = False
@@ -68,6 +71,7 @@ class TestTemplate:
         self.install_strategy: Optional[InstallStrategy] = None
         self.command_gen_strategy: Optional[CommandGenStrategy] = None
         self.job_id_retrieval_strategy: Optional[JobIdRetrievalStrategy] = None
+        self.job_status_retrieval_strategy: Optional[JobStatusRetrievalStrategy] = None
         self.report_generation_strategy: Optional[ReportGenerationStrategy] = None
         self.grading_strategy: Optional[GradingStrategy] = None
 
@@ -155,6 +159,19 @@ class TestTemplate:
         """
         assert self.job_id_retrieval_strategy is not None
         return self.job_id_retrieval_strategy.get_job_id(stdout, stderr)
+
+    def get_job_status(self, output_path: str) -> JobStatusResult:
+        """
+        Determine the job status by evaluating the contents or results in a specified output directory.
+
+        Args:
+            output_path (str): Path to the output directory.
+
+        Returns:
+            JobStatusResult: The result containing the job status and an optional error message.
+        """
+        assert self.job_status_retrieval_strategy is not None
+        return self.job_status_retrieval_strategy.get_job_status(output_path)
 
     def can_handle_directory(self, directory_path: str) -> bool:
         """
