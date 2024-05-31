@@ -2,8 +2,8 @@ from typing import List
 from unittest.mock import patch
 
 import pytest
-from cloudai.schema.system import SlurmSystem
-from cloudai.schema.system.slurm import SlurmNode, SlurmNodeState
+from cloudai.systems import SlurmSystem
+from cloudai.systems.slurm import SlurmNode, SlurmNodeState
 
 
 @pytest.fixture

@@ -9,8 +9,6 @@ from cloudai import (
 )
 from cloudai.installer.slurm_installer import SlurmInstaller
 from cloudai.installer.standalone_installer import StandaloneInstaller
-from cloudai.schema.system.slurm.slurm_system import SlurmSystem
-from cloudai.schema.system.standalone_system import StandaloneSystem
 from cloudai.schema.test_template.chakra_replay.grading_strategy import ChakraReplayGradingStrategy
 from cloudai.schema.test_template.chakra_replay.report_generation_strategy import ChakraReplayReportGenerationStrategy
 from cloudai.schema.test_template.chakra_replay.slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
@@ -46,6 +44,8 @@ from cloudai.schema.test_template.ucc_test.report_generation_strategy import UCC
 from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 from cloudai.schema.test_template.ucc_test.slurm_install_strategy import UCCTestSlurmInstallStrategy
 from cloudai.schema.test_template.ucc_test.template import UCCTest
+from cloudai.systems.slurm.slurm_system import SlurmSystem
+from cloudai.systems.standalone_system import StandaloneSystem
 
 
 def test_system_parsers():

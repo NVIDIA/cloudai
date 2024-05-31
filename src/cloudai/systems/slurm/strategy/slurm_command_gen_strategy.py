@@ -17,7 +17,7 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 from cloudai import CommandGenStrategy
-from cloudai.schema.system import SlurmSystem
+from cloudai.systems import SlurmSystem
 
 
 class SlurmCommandGenStrategy(CommandGenStrategy):

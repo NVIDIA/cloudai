@@ -18,7 +18,7 @@ import subprocess
 from typing import Any, Dict
 
 from cloudai._core.system import System
-from cloudai.schema.system.slurm.strategy import SlurmInstallStrategy
+from cloudai.systems.slurm.strategy import SlurmInstallStrategy
 from cloudai.util import CommandShell
 
 

@@ -7,8 +7,8 @@ from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestScenario
 from cloudai._core.test_template import TestTemplate
 from cloudai.runner.slurm.slurm_runner import SlurmRunner
-from cloudai.schema.system import SlurmSystem
-from cloudai.schema.system.slurm import SlurmNode, SlurmNodeState
+from cloudai.systems import SlurmSystem
+from cloudai.systems.slurm import SlurmNode, SlurmNodeState
 from cloudai.util import CommandShell
 
 
