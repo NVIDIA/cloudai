@@ -1,17 +1,28 @@
 import argparse
 from pathlib import Path
+from typing import List, Dict
 
 import pytest
 from cloudai.__main__ import handle_dry_run_and_run
 
 SLURM_TEST_SCENARIOS = [
-    Path("conf/v0.6/general/test_scenario/sleep.toml"),
-    Path("conf/v0.6/general/test_scenario/ucc_test.toml"),
+    {
+        "path": Path("conf/v0.6/general/test_scenario/sleep.toml"),
+        "expected_dirs_number": 3,
+
+    },
+    {
+        "path": Path("conf/v0.6/general/test_scenario/ucc_test.toml"),
+        "expected_dirs_number": 1,
+    }
 ]
 
 
-@pytest.mark.parametrize("test_scenario_path", SLURM_TEST_SCENARIOS, ids=lambda x: str(x))
-def test_slurm(tmp_path: Path, test_scenario_path: Path):
+@pytest.mark.parametrize("scenario", SLURM_TEST_SCENARIOS, ids=lambda x: str(x))
+def test_slurm(tmp_path: Path, scenario: Dict):
+    test_scenario_path = scenario["path"]
+    expected_dirs_number = scenario.get("expected_dirs_number")
+
     args = argparse.Namespace(
         log_file=None,
         log_level=None,
@@ -24,7 +35,12 @@ def test_slurm(tmp_path: Path, test_scenario_path: Path):
     )
     handle_dry_run_and_run(args)
 
-    test_dir = list(tmp_path.glob("*"))[0]
-    for td in test_dir.iterdir():
+    results_output = list(tmp_path.glob("*"))[0]
+    test_dirs = list(results_output.iterdir())
+
+    if expected_dirs_number is not None:
+        assert len(test_dirs) == expected_dirs_number, "Dirs number in output is not as expected"
+
+    for td in test_dirs:
         assert td.is_dir(), "Invalid test directory"
         assert "Tests." in td.name, "Invalid test directory name"
