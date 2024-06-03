@@ -28,22 +28,21 @@ from cloudai.util import CommandShell
 
 class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
     """
-    Install strategy for NeMo-Megatron-Launcher on Slurm systems.
+    Install strategy for NeMo-Launcher on Slurm systems.
 
     Attributes
-        SUBDIR_PATH (str): Subdirectory within the system's install path where
-            the NeMo-Megatron-Launcher and its Docker image will be stored.
-        REPOSITORY_NAME (str): Name of the NeMo-Megatron-Launcher repository.
+        SUBDIR_PATH (str): Subdirectory within the system's install path where the NeMo-Launcher and its Docker image
+            will be stored.
+        REPOSITORY_NAME (str): Name of the NeMo-Launcher repository.
         DOCKER_IMAGE_FILENAME (str): Filename of the Docker image to be downloaded.
-        repository_url (str): URL to the NeMo-Megatron-Launcher Git repository.
-        repository_commit_hash (str): Specific commit hash to checkout after cloning
-            the repository.
+        repository_url (str): URL to the NeMo-Launcher Git repository.
+        repository_commit_hash (str): Specific commit hash to checkout after cloning the repository.
         docker_image_url (str): URL to the Docker image in a remote container registry.
     """
 
-    SUBDIR_PATH = "NeMo-Megatron-Launcher"
-    REPOSITORY_NAME = "NeMo-Megatron-Launcher"
-    DOCKER_IMAGE_FILENAME = "nemo_megatron_launcher.sqsh"
+    SUBDIR_PATH = "NeMo-Launcher"
+    REPOSITORY_NAME = "NeMo-Launcher"
+    DOCKER_IMAGE_FILENAME = "nemo_launcher.sqsh"
 
     def __init__(
         self,
@@ -82,12 +81,10 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         """
         Configure logging to output error messages to stdout.
 
-        This method sets the logger's level to INFO, capturing messages at this
-        level and above. It also configures a StreamHandler for error messages
-        (ERROR level and above), directing them to stdout for immediate visibility.
+        This method sets the logger's level to INFO, capturing messages at this level and above. It also configures a
+        StreamHandler for error messages (ERROR level and above), directing them to stdout for immediate visibility.
 
-        StreamHandler formatting includes the logger's name, the log level, and
-        the message.
+        StreamHandler formatting includes the logger's name, the log level, and the message.
         """
         self.logger.setLevel(logging.INFO)
 
@@ -114,11 +111,9 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         datasets_ready = self._check_datasets_on_nodes(data_dir_path)
         if not datasets_ready:
             self.logger.error(
-                "NeMo datasets are not installed on some nodes. Please ensure "
-                "that the NeMo datasets are manually installed on each node "
-                f"in the specified data directory: {data_dir_path}. This "
-                "directory should contain all necessary datasets for NeMo "
-                "Megatron Launcher to function properly."
+                "NeMo datasets are not installed on some nodes. Please ensure that the NeMo datasets are manually "
+                "installed on each node in the specified data directory: {data_dir_path}. This directory should "
+                "contain all necessary datasets for NeMo Launcher to function properly."
             )
 
         return repo_installed and docker_image_installed and datasets_ready
@@ -135,10 +130,8 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         data_dir_path = self.default_cmd_args["data_dir"]
         if not self._check_datasets_on_nodes(data_dir_path):
             self.logger.error(
-                "Some nodes do not have the NeMoLauncher datasets installed. "
-                "Please note that CloudAI does not cover dataset installation. "
-                "Users are responsible for ensuring that datasets are installed "
-                "on all nodes."
+                "Some nodes do not have the NeMoLauncher datasets installed. Please note that CloudAI does not cover "
+                "dataset installation. Users are responsible for ensuring that datasets are installed on all nodes."
             )
 
         self._clone_repository(subdir_path)
@@ -150,8 +143,8 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         Check if the install path exists and if there is permission to create a directory or file in the path.
 
         Raises
-            PermissionError: If the install path does not exist or if there is
-                             no permission to create directories/files.
+            PermissionError: If the install path does not exist or if there is no permission to create
+                directories/files.
         """
         if not os.path.exists(self.install_path):
             raise PermissionError(f"Install path {self.install_path} does not exist.")
@@ -164,12 +157,11 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
 
         Default partition is used.
 
-        This method uses parallel execution to check datasets on multiple nodes
-        simultaneously, improving efficiency for systems with multiple nodes.
+        This method uses parallel execution to check datasets on multiple nodes simultaneously, improving efficiency
+        for systems with multiple nodes.
 
         Args:
-            data_dir_path (str): Path where dataset files and directories are
-                                 stored.
+            data_dir_path (str): Path where dataset files and directories are stored.
 
         Returns:
             bool: True if all specified dataset files and directories are present
@@ -212,11 +204,8 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
                 ", ".join(nodes_without_datasets),
             )
             self.logger.error(
-                "Please ensure that the NeMo datasets are "
-                "installed on each node in the specified data "
-                "directory: %s. This directory should contain all "
-                "necessary datasets for NeMo Megatron Launcher to "
-                "function properly.",
+                "Please ensure that the NeMo datasets are installed on each node in the specified data directory: %s. "
+                "This directory should contain all necessary datasets for NeMo Launcher to function properly.",
                 data_dir_path,
             )
             return False
@@ -230,12 +219,10 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         Args:
             node (str): The name of the compute node.
             data_dir_path (str): Path to the data directory.
-            dataset_items (List[str]): List of dataset file and directory names
-                                       to check.
+            dataset_items (List[str]): List of dataset file and directory names to check.
 
         Returns:
-            bool: True if all dataset files and directories exist on the node,
-                  False otherwise.
+            bool: True if all dataset files and directories exist on the node, False otherwise.
         """
         python_check_script = (
             f"import os;print(all(os.path.isfile(os.path.join('{data_dir_path}', "
@@ -252,7 +239,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
 
     def _clone_repository(self, subdir_path: str) -> None:
         """
-        Clones NeMo-Megatron-Launcher repository into specified path.
+        Clones NeMo-Launcher repository into specified path.
 
         Args:
             subdir_path (str): Subdirectory path for installation.

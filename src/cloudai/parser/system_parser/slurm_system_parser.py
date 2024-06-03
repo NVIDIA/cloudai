@@ -33,9 +33,8 @@ class SlurmSystemParser(BaseSystemParser):
             SlurmSystem: The parsed Slurm system object.
 
         Raises:
-            ValueError: If 'name' or 'partitions' are missing from
-            the data or if there are node list parsing issues or group
-            membership conflicts.
+            ValueError: If 'name' or 'partitions' are missing from the data or if there are node list parsing issues
+            or group membership conflicts.
         """
 
         def safe_int(value):
@@ -69,7 +68,7 @@ class SlurmSystemParser(BaseSystemParser):
         # Check if default_partition exists in partitions
         partition_names = [partition_data.get("name") for partition_data in partitions.values()]
         if default_partition not in partition_names:
-            raise ValueError(f"Default partition '{default_partition}' is not listed " f"in partitions.")
+            raise ValueError(f"Default partition '{default_partition}' is not listed in partitions.")
 
         global_env_vars = data.get("global_env_vars", {})
 
@@ -129,8 +128,8 @@ class SlurmSystemParser(BaseSystemParser):
                         group_nodes.append(nodes_dict[group_node_name])
                     else:
                         raise ValueError(
-                            f"Node '{group_node_name}' in group '{group_name}' "
-                            f"not found in partition '{partition_name}' nodes."
+                            f"Node '{group_node_name}' in group '{group_name}' not found in partition "
+                            "'{partition_name}' nodes."
                         )
 
                 updated_groups[partition_name][group_name] = group_nodes
