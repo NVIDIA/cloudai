@@ -1,6 +1,6 @@
 import argparse
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict
 
 import pytest
 from cloudai.__main__ import handle_dry_run_and_run
@@ -9,12 +9,11 @@ SLURM_TEST_SCENARIOS = [
     {
         "path": Path("conf/v0.6/general/test_scenario/sleep.toml"),
         "expected_dirs_number": 3,
-
     },
     {
         "path": Path("conf/v0.6/general/test_scenario/ucc_test.toml"),
         "expected_dirs_number": 1,
-    }
+    },
 ]
 
 
