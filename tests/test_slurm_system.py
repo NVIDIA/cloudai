@@ -86,8 +86,8 @@ def test_parse_sinfo_output(slurm_system):
         assert node.state == SlurmNodeState.IDLE
 
 
-@patch("cloudai.schema.system.SlurmSystem.get_squeue")
-@patch("cloudai.schema.system.SlurmSystem.get_sinfo")
+@patch("cloudai.systems.SlurmSystem.get_squeue")
+@patch("cloudai.systems.SlurmSystem.get_sinfo")
 def test_update_node_states_with_mocked_outputs(mock_get_sinfo, mock_get_squeue, slurm_system):
     mock_get_squeue.return_value = "node-115|user1"
     mock_get_sinfo.return_value = "PARTITION AVAIL TIMELIMIT NODES STATE NODELIST\n" "main up infinite 1 idle node-115"
