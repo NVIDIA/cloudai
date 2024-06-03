@@ -78,6 +78,8 @@ class SlurmSystemParser(BaseSystemParser):
         gpus_per_node = safe_int(data.get("gpus_per_node"))
         ntasks_per_node = safe_int(data.get("ntasks_per_node"))
 
+        cache_docker_images_locally = data.get("cache_docker_images_locally", False)
+
         nodes_dict: Dict[str, SlurmNode] = {}
         updated_partitions: Dict[str, List[SlurmNode]] = {}
         updated_groups: Dict[str, Dict[str, List[SlurmNode]]] = {}
@@ -144,6 +146,7 @@ class SlurmSystemParser(BaseSystemParser):
             distribution=distribution,
             gpus_per_node=gpus_per_node,
             ntasks_per_node=ntasks_per_node,
+            cache_docker_images_locally=cache_docker_images_locally,
             groups=updated_groups,
             global_env_vars=global_env_vars,
         )

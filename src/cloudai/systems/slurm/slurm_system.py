@@ -37,6 +37,7 @@ class SlurmSystem(System):
         distribution (Optional[str]): Specifies alternate distribution methods for remote processes.
         gpus_per_node (Optional[int]): Specifies the number of GPUs available per node.
         ntasks_per_node (Optional[int]): Specifies the number of tasks that can run concurrently on a single node.
+        cache_docker_images_locally (bool): Whether to cache Docker images locally for the Slurm system.
         groups (Dict[str, Dict[str, List[SlurmNode]]]): Nested mapping where the key is the partition name and the
             value is another dictionary with group names as keys and lists of SlurmNodes as values, representing the
             group composition within each partition.
@@ -182,6 +183,7 @@ class SlurmSystem(System):
         distribution: Optional[str] = None,
         gpus_per_node: Optional[int] = None,
         ntasks_per_node: Optional[int] = None,
+        cache_docker_images_locally: bool = False,
         groups: Optional[Dict[str, Dict[str, List[SlurmNode]]]] = None,
         global_env_vars: Optional[Dict[str, Any]] = None,
     ) -> None:
@@ -198,6 +200,7 @@ class SlurmSystem(System):
             distribution (Optional[str]): Specifies alternate distribution methods for remote processes.
             gpus_per_node (Optional[int]): Specifies the number of GPUs available per node.
             ntasks_per_node (Optional[int]): Specifies the number of tasks that can run concurrently on a single node.
+            cache_docker_images_locally (bool): Whether to cache Docker images locally for the Slurm system.
             groups (Optional[Dict[str, Dict[str, List[SlurmNode]]]]): Nested mapping of group names to lists of
                 SlurmNodes within partitions, defining the group composition within each partition. Defaults to an
                 empty dictionary if not provided.
@@ -212,6 +215,7 @@ class SlurmSystem(System):
         self.distribution = distribution
         self.gpus_per_node = gpus_per_node
         self.ntasks_per_node = ntasks_per_node
+        self.cache_docker_images_locally = cache_docker_images_locally
         self.groups = groups if groups is not None else {}
         self.global_env_vars = global_env_vars if global_env_vars is not None else {}
         self.cmd_shell = CommandShell()
