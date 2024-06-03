@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+from cloudai._core.install_status_result import InstallStatusResult
 from cloudai.systems.slurm.strategy import SlurmInstallStrategy
 
 
 class JaxToolboxSlurmInstallStrategy(SlurmInstallStrategy):
     """Install strategy for JaxToolbox on Slurm systems."""
 
-    def is_installed(self) -> bool:
-        return True
+    def is_installed(self) -> InstallStatusResult:
+        return InstallStatusResult(success=True)

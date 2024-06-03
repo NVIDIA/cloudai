@@ -20,10 +20,10 @@ import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List
 
+from cloudai._core.install_status_result import InstallStatusResult
 from cloudai._core.system import System
 from cloudai.systems.slurm import SlurmNodeState, SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmInstallStrategy
-from cloudai.util import CommandShell
 
 
 class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
@@ -96,7 +96,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
 
         self.logger.addHandler(c_handler)
 
-    def is_installed(self) -> bool:
+    def is_installed(self) -> InstallStatusResult:
         subdir_path = os.path.join(self.install_path, self.SUBDIR_PATH)
         docker_image_path = os.path.join(subdir_path, self.DOCKER_IMAGE_FILENAME)
         repo_path = os.path.join(subdir_path, self.REPOSITORY_NAME)
@@ -110,41 +110,89 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         data_dir_path = self.default_cmd_args["data_dir"]
         datasets_ready = self._check_datasets_on_nodes(data_dir_path)
         if not datasets_ready:
-            self.logger.error(
-                "NeMo datasets are not installed on some nodes. Please ensure that the NeMo datasets are manually "
-                "installed on each node in the specified data directory: {data_dir_path}. This directory should "
-                "contain all necessary datasets for NeMo Launcher to function properly."
+            return InstallStatusResult(
+                success=False,
+                message=(
+                    "NeMo datasets are not installed on some nodes. Please ensure that the NeMo datasets are manually "
+                    "installed on each node in the specified data directory: {data_dir_path}. This directory should "
+                    "contain all necessary datasets for NeMo Launcher to function properly."
+                ),
             )
 
-        return repo_installed and docker_image_installed and datasets_ready
+        if repo_installed and docker_image_installed and datasets_ready:
+            return InstallStatusResult(success=True)
+        else:
+            missing_components = []
+            if not repo_installed:
+                missing_components.append("Repository")
+            if not docker_image_installed:
+                missing_components.append("Docker image")
+            if not datasets_ready:
+                missing_components.append("Datasets on some nodes")
+            return InstallStatusResult(
+                success=False,
+                message=f"The following components are missing: {', '.join(missing_components)}.",
+            )
 
-    def install(self) -> None:
-        if self.is_installed():
-            return
+    def install(self) -> InstallStatusResult:
+        install_status = self.is_installed()
+        if install_status.success:
+            return InstallStatusResult(success=True, message="NeMo-Launcher is already installed.")
 
-        self._check_install_path_access()
+        try:
+            self._check_install_path_access()
+        except PermissionError as e:
+            return InstallStatusResult(success=False, message=str(e))
 
         subdir_path = os.path.join(self.install_path, self.SUBDIR_PATH)
         os.makedirs(subdir_path, exist_ok=True)
 
         data_dir_path = self.default_cmd_args["data_dir"]
         if not self._check_datasets_on_nodes(data_dir_path):
-            self.logger.error(
-                "Some nodes do not have the NeMoLauncher datasets installed. Please note that CloudAI does not cover "
-                "dataset installation. Users are responsible for ensuring that datasets are installed on all nodes."
+            return InstallStatusResult(
+                success=False,
+                message=(
+                    "Some nodes do not have the NeMo-Launcher datasets installed. "
+                    "Please ensure that datasets are installed on all nodes."
+                ),
             )
 
-        self._clone_repository(subdir_path)
-        if not os.path.isfile(self.docker_image_url):
-            self._setup_docker_image(self.slurm_system, subdir_path)
+        try:
+            self._clone_repository(subdir_path)
+            if not os.path.isfile(self.docker_image_url):
+                self._setup_docker_image(self.slurm_system, subdir_path)
+        except RuntimeError as e:
+            return InstallStatusResult(success=False, message=str(e))
+
+        return InstallStatusResult(success=True)
+
+    def uninstall(self) -> InstallStatusResult:
+        subdir_path = os.path.join(self.install_path, self.SUBDIR_PATH)
+        docker_image_path = os.path.join(subdir_path, self.DOCKER_IMAGE_FILENAME)
+        try:
+            if os.path.isfile(docker_image_path):
+                os.remove(docker_image_path)
+            if os.path.exists(subdir_path):
+                shutil.rmtree(subdir_path)
+        except Exception as e:
+            return InstallStatusResult(
+                success=False,
+                message=(
+                    f"Failed to remove Docker image or directory at {subdir_path}. "
+                    f"Error: {e}. "
+                    "Please check the file permissions and ensure the file is not in use."
+                ),
+            )
+
+        return InstallStatusResult(success=True)
 
     def _check_install_path_access(self):
         """
         Check if the install path exists and if there is permission to create a directory or file in the path.
 
         Raises
-            PermissionError: If the install path does not exist or if there is no permission to create
-                directories/files.
+            PermissionError: If the install path does not exist or if there is no permission to create directories and
+                files.
         """
         if not os.path.exists(self.install_path):
             raise PermissionError(f"Install path {self.install_path} does not exist.")
@@ -174,7 +222,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         if not idle_nodes:
             self.logger.info(
                 "There are no idle nodes in the default partition to check. "
-                "Skipping NeMoLauncher dataset verification."
+                "Skipping NeMo-Launcher dataset verification."
             )
             return True
 
@@ -205,11 +253,10 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
             )
             self.logger.error(
                 "Please ensure that the NeMo datasets are installed on each node in the specified data directory: %s. "
-                "This directory should contain all necessary datasets for NeMo Launcher to function properly.",
+                "This directory should contain all necessary datasets for NeMo-Launcher to function properly.",
                 data_dir_path,
             )
             return False
-
         return True
 
     def _check_dataset_on_node(self, node: str, data_dir_path: str, dataset_items: List[str]) -> bool:
@@ -245,65 +292,83 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
             subdir_path (str): Subdirectory path for installation.
         """
         repo_path = os.path.join(subdir_path, self.REPOSITORY_NAME)
-        try:
-            if not os.path.exists(repo_path):
-                subprocess.run(
-                    ["git", "clone", self.repository_url, repo_path],
-                    check=True,
-                )
-                subprocess.run(
-                    ["git", "checkout", self.repository_commit_hash],
-                    cwd=repo_path,
-                    check=True,
-                )
-                subprocess.run(
-                    [
-                        "./venv/bin/pip",
-                        "install",
-                        "-r",
-                        os.path.join(repo_path, "requirements.txt"),
-                    ],
-                    check=True,
-                )
-        except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Failed to clone repository. Error: {e}") from e
+        self.logger.info("Cloning NeMo-Launcher repository into %s", repo_path)
+        clone_cmd = ["git", "clone", self.repository_url, repo_path]
+        result = subprocess.run(clone_cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"Failed to clone repository: {result.stderr}")
 
-    def _setup_docker_image(self, system: SlurmSystem, subdir_path: str) -> None:
+        self.logger.info("Checking out specific commit %s in repository", self.repository_commit_hash)
+        checkout_cmd = ["git", "checkout", self.repository_commit_hash]
+        result = subprocess.run(checkout_cmd, cwd=repo_path, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"Failed to checkout commit: {result.stderr}")
+
+    def _setup_docker_image(self, slurm_system: SlurmSystem, subdir_path: str) -> None:
         """
-        Download and sets up Docker image if not already present.
+        Download and install Docker image on Slurm nodes.
 
         Args:
-            system (SlurmSystem): The system schema object.
-            subdir_path (str): Subdirectory path for installation.
+            slurm_system (SlurmSystem): Slurm system instance.
+            subdir_path (str): Subdirectory where Docker image will be installed.
+
+        Raises:
+            RuntimeError: If Docker image download or installation fails.
         """
         docker_image_path = os.path.join(subdir_path, self.DOCKER_IMAGE_FILENAME)
+        self.logger.info("Downloading Docker image from %s to %s", self.docker_image_url, docker_image_path)
+        result = subprocess.run(
+            ["curl", "-o", docker_image_path, self.docker_image_url], capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"Failed to download Docker image: {result.stderr}")
 
-        # Remove existing Docker image if it exists
-        shell = CommandShell()
-        remove_cmd = f"rm -f {docker_image_path}"
-        process = shell.execute(remove_cmd)
-        stdout, stderr = process.communicate()
-        if process.returncode != 0:
-            raise RuntimeError(f"Failed to remove existing Docker image: {stderr}")
-
-        # Import new Docker image using enroot
-        if not os.path.isfile(docker_image_path):
-            enroot_import_cmd = (
-                f"srun"
-                f" --export=ALL"
-                f" --partition={system.default_partition}"
-                f" enroot import -o {docker_image_path} docker://{self.docker_image_url}"
+        partition_nodes = slurm_system.get_partition_nodes(slurm_system.default_partition)
+        idle_nodes = [node.name for node in partition_nodes if node.state == SlurmNodeState.IDLE]
+        if not idle_nodes:
+            self.logger.info(
+                "There are no idle nodes in the default partition to install the Docker image. "
+                "Skipping Docker image installation."
             )
+            return
 
-            try:
-                subprocess.run(enroot_import_cmd, shell=True, check=True)
-            except subprocess.CalledProcessError as e:
-                raise RuntimeError(f"Failed to import Docker image: {e}") from e
+        with ThreadPoolExecutor(max_workers=len(idle_nodes)) as executor:
+            futures = {
+                executor.submit(
+                    self._install_docker_image_on_node,
+                    node,
+                    docker_image_path,
+                    docker_image_path,
+                ): node
+                for node in idle_nodes
+            }
+            for future in as_completed(futures):
+                node = futures[future]
+                if future.result() is not True:
+                    self.logger.error("Failed to install Docker image on node: %s", node)
+                    raise RuntimeError(f"Failed to install Docker image on node: {node}")
 
-    def uninstall(self) -> None:
-        subdir_path = os.path.join(self.install_path, self.SUBDIR_PATH)
-        docker_image_path = os.path.join(subdir_path, self.DOCKER_IMAGE_FILENAME)
-        if os.path.isfile(docker_image_path):
-            os.remove(docker_image_path)
-        if os.path.exists(subdir_path):
-            shutil.rmtree(subdir_path)
+    def _install_docker_image_on_node(self, node: str, image_source_path: str, image_dest_path: str) -> bool:
+        """
+        Install Docker image on a specific node.
+
+        Args:
+            node (str): Node name.
+            image_source_path (str): Source path of the Docker image.
+            image_dest_path (str): Destination path for the Docker image on the node.
+
+        Returns:
+            bool: True if installation is successful, False otherwise.
+        """
+        self.logger.info("Installing Docker image on node %s", node)
+        install_cmd = [
+            "srun",
+            "--nodes=1",
+            "--ntasks=1",
+            "--nodelist=" + node,
+            "cp",
+            image_source_path,
+            image_dest_path,
+        ]
+        result = subprocess.run(install_cmd, capture_output=True, text=True)
+        return result.returncode == 0

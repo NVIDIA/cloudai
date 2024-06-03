@@ -12,18 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from cloudai._core.install_status_result import InstallStatusResult
 from cloudai.systems.slurm.strategy import SlurmInstallStrategy
 
 
 class ChakraReplaySlurmInstallStrategy(SlurmInstallStrategy):
     """Installation strategy for CommsTraceReplay on Slurm systems."""
 
-    def is_installed(self) -> bool:
-        return True
+    def is_installed(self) -> InstallStatusResult:
+        return InstallStatusResult(success=True)
 
-    def install(self) -> None:
-        if not self.is_installed():
-            return
+    def install(self) -> InstallStatusResult:
+        return self.is_installed()
 
-    def uninstall(self) -> None:
-        return
+    def uninstall(self) -> InstallStatusResult:
+        return InstallStatusResult(success=True)

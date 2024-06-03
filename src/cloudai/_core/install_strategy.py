@@ -14,43 +14,39 @@
 
 from abc import abstractmethod
 
+from .install_status_result import InstallStatusResult
 from .test_template_strategy import TestTemplateStrategy
 
 
 class InstallStrategy(TestTemplateStrategy):
-    """
-    Abstract base class defining the interface for installation strategies across different system environments.
-
-    This class provides methods to check if necessary components are installed, to install those components, and
-    to uninstall them if needed.
-    """
+    """Abstract base class defining the interface for installation strategies across different system environments."""
 
     @abstractmethod
-    def is_installed(self) -> bool:
+    def is_installed(self) -> InstallStatusResult:
         """
         Check if the necessary components are already installed on the system.
 
         Returns
-            bool: True if the necessary components are installed, False otherwise.
+            InstallStatusResult: Result containing the installation status and error message if not installed.
         """
-        pass
+        return InstallStatusResult(success=True)
 
     @abstractmethod
-    def install(self) -> None:
+    def install(self) -> InstallStatusResult:
         """
         Perform installation operations for a specific system.
 
         Returns
-            None
+            InstallStatusResult: Result containing the installation status and error message if installation failed.
         """
-        pass
+        return InstallStatusResult(success=True)
 
     @abstractmethod
-    def uninstall(self) -> None:
+    def uninstall(self) -> InstallStatusResult:
         """
         Perform uninstallation operations for a specific system.
 
         Returns
-            None
+            InstallStatusResult: Result containing the uninstallation status and error message if uninstallation failed.
         """
-        pass
+        return InstallStatusResult(success=True)
