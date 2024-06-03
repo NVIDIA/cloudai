@@ -12,15 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import shutil
-import subprocess
-from typing import Any, Dict
-
 from cloudai._core.install_status_result import InstallStatusResult
-from cloudai._core.system import System
 from cloudai.systems.slurm.strategy import SlurmInstallStrategy
-from cloudai.util import CommandShell
 
 
 class NcclTestSlurmInstallStrategy(SlurmInstallStrategy):
@@ -35,25 +28,23 @@ class NcclTestSlurmInstallStrategy(SlurmInstallStrategy):
     SUBDIR_PATH = "nccl-test"
     DOCKER_IMAGE_FILENAME = "nccl_test.sqsh"
 
-    def __init__(
-        self,
-        system: System,
-        env_vars: Dict[str, Any],
-        cmd_args: Dict[str, Any],
-    ) -> None:
-        super().__init__(system, env_vars, cmd_args)
-
     def is_installed(self) -> InstallStatusResult:
-        docker_image_path = os.path.join(self.install_path, self.SUBDIR_PATH, self.DOCKER_IMAGE_FILENAME)
-        if os.path.isfile(docker_image_path):
+        docker_image_result = self.docker_image_cache_manager.check_docker_image_exists(
+            self.docker_image_url, self.SUBDIR_PATH, self.DOCKER_IMAGE_FILENAME
+        )
+        if docker_image_result.success:
             return InstallStatusResult(success=True)
         else:
             return InstallStatusResult(
                 success=False,
                 message=(
                     "Docker image for NCCL test is not installed. "
-                    f"Tried to find Docker image at: {docker_image_path}. "
-                    "Please ensure the Docker image is present at the specified location."
+                    f"Install path: {self.install_path}, "
+                    f"Cache Docker images locally: {self.docker_image_cache_manager.cache_docker_images_locally}, "
+                    f"Docker image URL: {self.docker_image_url}, "
+                    f"Subdirectory path: {self.SUBDIR_PATH}, "
+                    f"Docker image filename: {self.DOCKER_IMAGE_FILENAME}. "
+                    f"Error: {docker_image_result.message}"
                 ),
             )
 
@@ -62,91 +53,28 @@ class NcclTestSlurmInstallStrategy(SlurmInstallStrategy):
         if install_status.success:
             return InstallStatusResult(success=True)
 
-        docker_image_dir_path = os.path.join(self.install_path, self.SUBDIR_PATH)
-        os.makedirs(docker_image_dir_path, exist_ok=True)
-        docker_image_path = os.path.join(docker_image_dir_path, self.DOCKER_IMAGE_FILENAME)
-
-        # Remove existing Docker image if it exists
-        shell = CommandShell()
-        remove_cmd = f"rm -f {docker_image_path}"
-        process = shell.execute(remove_cmd)
-        stdout, stderr = process.communicate()
-        if process.returncode != 0:
-            return InstallStatusResult(
-                success=False,
-                message=(
-                    f"Failed to remove existing Docker image at {docker_image_path}. "
-                    "NCCL tests tried to download a new Docker image, but an existing Docker image was found. "
-                    "CloudAI tried to remove it but failed. "
-                    f"Command run: {remove_cmd}. "
-                    f"Error: {stderr}"
-                ),
-            )
-
-        # Import new Docker image using enroot
-        docker_image_url_info = self.cmd_args.get("docker_image_url")
-        docker_image_url = docker_image_url_info.get("default") if docker_image_url_info else None
-        if docker_image_url is None:
-            return InstallStatusResult(
-                success=False,
-                message=(
-                    "docker_image_url not found in the test schema or its value is not valid. "
-                    "You should have a valid Docker image URL to the NCCL test Docker image."
-                ),
-            )
-
-        enroot_import_cmd = (
-            f"srun"
-            f" --export=ALL"
-            f" --partition={self.slurm_system.default_partition}"
-            f" enroot import -o {docker_image_path} docker://{docker_image_url}"
+        docker_image_result = self.docker_image_cache_manager.ensure_docker_image(
+            self.docker_image_url, self.SUBDIR_PATH, self.DOCKER_IMAGE_FILENAME
         )
-
-        try:
-            subprocess.run(enroot_import_cmd, shell=True, check=True)
-        except subprocess.CalledProcessError as e:
+        if not docker_image_result.success:
             return InstallStatusResult(
                 success=False,
                 message=(
-                    f"Failed to import Docker image from {docker_image_url}. "
-                    "CloudAI failed to import the Docker image. "
-                    f"Command run: {enroot_import_cmd}. "
-                    f"Error: {e}. "
-                    "Please check the Docker image URL and ensure that it is accessible and set up "
-                    "with valid credentials."
+                    "Failed to download and import the Docker image for NCCL test. "
+                    f"Error: {docker_image_result.message}"
                 ),
             )
 
         return InstallStatusResult(success=True)
 
     def uninstall(self) -> InstallStatusResult:
-        docker_image_path = os.path.join(self.install_path, self.SUBDIR_PATH, self.DOCKER_IMAGE_FILENAME)
-
-        if os.path.isfile(docker_image_path):
-            try:
-                os.remove(docker_image_path)
-            except OSError as e:
-                return InstallStatusResult(
-                    success=False,
-                    message=(
-                        f"Failed to remove Docker image at {docker_image_path}. "
-                        f"Error: {e}. "
-                        "Please check the file permissions and ensure the file is not in use."
-                    ),
-                )
-
-        nccl_test_dir = os.path.join(self.install_path, self.SUBDIR_PATH)
-        if os.path.isdir(nccl_test_dir) and not os.listdir(nccl_test_dir):
-            try:
-                shutil.rmtree(nccl_test_dir)
-            except OSError as e:
-                return InstallStatusResult(
-                    success=False,
-                    message=(
-                        f"Failed to remove nccl-test directory at {nccl_test_dir}. "
-                        f"Error: {e}. "
-                        "Please check the directory permissions and ensure it is not in use."
-                    ),
-                )
+        docker_image_result = self.docker_image_cache_manager.uninstall_cached_image(
+            self.SUBDIR_PATH, self.DOCKER_IMAGE_FILENAME
+        )
+        if not docker_image_result.success:
+            return InstallStatusResult(
+                success=False,
+                message=("Failed to remove the Docker image for NCCL test. Error: {docker_image_result.message}"),
+            )
 
         return InstallStatusResult(success=True)
