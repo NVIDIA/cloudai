@@ -32,29 +32,26 @@ class SlurmSystem(System):
         install_path (str): Installation path of Cloud AI software.
         output_path (str): Directory path for output files.
         default_partition (str): The default partition for job submission.
-        partitions (Dict[str, List[SlurmNode]]): Mapping of partition names
-            to lists of SlurmNodes.
+        partitions (Dict[str, List[SlurmNode]]): Mapping of partition names to lists of SlurmNodes.
         account (Optional[str]): Account name for charging resources used by this job.
         distribution (Optional[str]): Specifies alternate distribution methods for remote processes.
         gpus_per_node (Optional[int]): Specifies the number of GPUs available per node.
         ntasks_per_node (Optional[int]): Specifies the number of tasks that can run concurrently on a single node.
-        groups (Dict[str, Dict[str, List[SlurmNode]]]): Nested mapping where the key is
-            the partition name and the value is another dictionary with group names as keys
-            and lists of SlurmNodes as values, representing the group composition within
-            each partition.
-        global_env_vars (Optional[Dict[str, Any]]): Dictionary containing
-            additional configuration settings for the system.
-        cmd_shell (CommandShell): An instance of CommandShell for executing
-                                  system commands.
+        groups (Dict[str, Dict[str, List[SlurmNode]]]): Nested mapping where the key is the partition name and the
+            value is another dictionary with group names as keys and lists of SlurmNodes as values, representing the
+            group composition within each partition.
+        global_env_vars (Optional[Dict[str, Any]]): Dictionary containing additional configuration settings for the
+            system.
+        cmd_shell (CommandShell): An instance of CommandShell for executing system commands.
     """
 
     def update(self) -> None:
         """
         Update the system object for a SLURM system.
 
-        This method updates the system object by querying the current state of each node
-        using the 'sinfo' and 'squeue' commands, and correlating this information to
-        determine the state of each node and the user running jobs on each node.
+        This method updates the system object by querying the current state of each node using the 'sinfo' and 'squeue'
+        commands, and correlating this information to determine the state of each node and the user running jobs on
+        each node.
         """
         self.update_node_states()
 
@@ -67,8 +64,7 @@ class SlurmSystem(System):
             node_list (str): A list of node names, possibly including ranges.
 
         Returns:
-            List[str]: A flat list of expanded node names with preserved
-            zeroes.
+            List[str]: A flat list of expanded node names with preserved zeroes.
         """
         node_list = node_list.strip()
         nodes = []
@@ -106,12 +102,11 @@ class SlurmSystem(System):
         Mimicking the compact display found in systems like Slurm's sinfo command output.
 
         Args:
-            node_names: A list of node names, potentially including numerically
-                        sequential nodes that can be condensed into a range format.
+            node_names: A list of node names, potentially including numerically sequential nodes that can be condensed
+                into a range format.
 
         Returns:
-            A string representing the condensed node list, with numerically
-            adjacent nodes shown as ranges.
+            A string representing the condensed node list, with numerically adjacent nodes shown as ranges.
         """
 
         def extract_parts(name: str) -> tuple:
@@ -203,12 +198,11 @@ class SlurmSystem(System):
             distribution (Optional[str]): Specifies alternate distribution methods for remote processes.
             gpus_per_node (Optional[int]): Specifies the number of GPUs available per node.
             ntasks_per_node (Optional[int]): Specifies the number of tasks that can run concurrently on a single node.
-            groups (Optional[Dict[str, Dict[str, List[SlurmNode]]]]): Nested mapping of
-                group names to lists of SlurmNodes within partitions, defining the
-                group composition within each partition. Defaults to an empty
-                dictionary if not provided.
-            global_env_vars (Optional[Dict[str, Any]]): Dictionary containing
-                additional configuration settings for the system.
+            groups (Optional[Dict[str, Dict[str, List[SlurmNode]]]]): Nested mapping of group names to lists of
+                SlurmNodes within partitions, defining the group composition within each partition. Defaults to an
+                empty dictionary if not provided.
+            global_env_vars (Optional[Dict[str, Any]]): Dictionary containing additional configuration settings for
+                the system.
         """
         super().__init__(name, "slurm", output_path)
         self.install_path = install_path
@@ -561,8 +555,8 @@ class SlurmSystem(System):
         """
         Parse the output from the 'squeue' command to map nodes to users.
 
-        The expected format of squeue_output is lines of 'node_spec|user', where
-        node_spec can include comma-separated node names or ranges.
+        The expected format of squeue_output is lines of 'node_spec|user', where node_spec can include comma-separated
+        node names or ranges.
 
         Args:
             squeue_output (str): The raw output from the squeue command.
@@ -619,17 +613,15 @@ class SlurmSystem(System):
         """
         Convert a Slurm node state string to its corresponding enum member.
 
-        Handles both full state names and abbreviated forms. Special handling
-        for states ending with "*", indicating a non-responding node. If the
-        state cannot be matched, UNKNOWN_STATE is returned.
+        Handles both full state names and abbreviated forms. Special handling for states ending with "*", indicating a
+        non-responding node. If the state cannot be matched, UNKNOWN_STATE is returned.
 
         Args:
-            state_str (str): State string from Slurm, could be full name,
-                             abbreviated code, or with a "*" suffix.
+            state_str (str): State string from Slurm, could be full name, abbreviated code, or with a "*" suffix.
 
         Returns:
-            SlurmNodeState: Corresponding enum member, or UNKNOWN_STATE for
-                            unmatched states, NOT_RESPONDING for "*" suffix.
+            SlurmNodeState: Corresponding enum member, or UNKNOWN_STATE for unmatched states, NOT_RESPONDING for "*"
+                suffix.
 
         Raises:
             ValueError: If state_str is not a non-empty string.
@@ -677,27 +669,23 @@ class SlurmSystem(System):
         """
         Parse a list of node specifications into individual node names.
 
-        Supports explicit node names and specifications in "partition:group:num_nodes" format,
-        and also handles ranges in node names. This allows for dynamic node allocation
-        based on system state and compact node list specifications.
+        Supports explicit node names and specifications in "partition:group:num_nodes" format, and also handles ranges
+        in node names. This allows for dynamic node allocation based on system state and compact node list
+        specifications.
 
         Args:
-            nodes (List[str]): A list containing node names or specifications.
-                Specifications should follow "partition:group:num_nodes", where
-                "partition" is the partition name, "group" is a group within that
-                partition, and "num_nodes" is the number of nodes requested. Node
-                ranges should be specified with square brackets and dashes, e.g.,
-                "node[01-03]" for "node01", "node02", "node03".
+            nodes (List[str]): A list containing node names or specifications. Specifications should follow
+                "partition:group:num_nodes", where "partition" is the partition name, "group" is a group within that
+                partition, and "num_nodes" is the number of nodes requested. Node ranges should be specified with
+                square brackets and dashes, e.g., "node[01-03]" for "node01", "node02", "node03".
 
         Returns:
-            List[str]: A list of node names. For specifications, it includes names
-                of allocated nodes based on the specification, without duplicates.
-                Node ranges are expanded into individual node names.
+            List[str]: A list of node names. For specifications, it includes names of allocated nodes based on the
+                specification, without duplicates. Node ranges are expanded into individual node names.
 
         Raises:
-            ValueError: If a specification is malformed, a specified node is not
-                found, or a node range cannot be parsed. This ensures users are aware
-                of incorrect inputs.
+            ValueError: If a specification is malformed, a specified node is not found, or a node range cannot be
+                parsed. This ensures users are aware of incorrect inputs.
         """
         parsed_nodes = []
         for node_spec in nodes:
