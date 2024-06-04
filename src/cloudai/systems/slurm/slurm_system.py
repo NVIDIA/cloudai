@@ -591,6 +591,8 @@ class SlurmSystem(System):
             if not line.strip():
                 continue
             parts = line.split()
+            if len(parts) < 6:
+                continue
             partition, _, _, _, state, nodelist = parts[:6]
             partition = partition.rstrip("*")
             node_names = self.parse_node_list(nodelist)
