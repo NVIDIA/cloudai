@@ -30,9 +30,10 @@ class SlurmInstallStrategy(InstallStrategy):
 
     def __init__(
         self,
-        system: System,
+        system: SlurmSystem,
         env_vars: Dict[str, Any],
         cmd_args: Dict[str, Any],
     ) -> None:
         super().__init__(system, env_vars, cmd_args)
-        self.slurm_system = cast(SlurmSystem, self.system)
+        self.slurm_system = system
+        self.install_path = self.slurm_system.install_path
