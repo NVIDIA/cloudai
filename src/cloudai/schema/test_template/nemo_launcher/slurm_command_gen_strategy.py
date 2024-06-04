@@ -36,7 +36,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     Command generation strategy for NeMo Megatron Launcher on Slurm systems.
 
     Attributes
-        install_path (str): The installation path of Cloud AI.
+        install_path (str): The installation path of CloudAI.
     """
 
     def gen_exec_command(

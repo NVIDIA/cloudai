@@ -29,7 +29,7 @@ class SlurmSystem(System):
 
     Attributes
         name (str): The name of the Slurm system.
-        install_path (str): Installation path of Cloud AI software.
+        install_path (str): Installation path of CloudAI software.
         output_path (str): Directory path for output files.
         default_partition (str): The default partition for job submission.
         partitions (Dict[str, List[SlurmNode]]): Mapping of partition names to lists of SlurmNodes.
@@ -192,7 +192,7 @@ class SlurmSystem(System):
 
         Args:
             name (str): Name of the Slurm system.
-            install_path (str): The installation path of Cloud AI.
+            install_path (str): The installation path of CloudAI.
             output_path (str): Path to the output directory.
             default_partition (str): Default partition.
             partitions (Dict[str, List[SlurmNode]]): Partitions in the system.
