@@ -107,11 +107,13 @@ class DockerImageCacheManager:
     Attributes
         install_path (str): The base installation path.
         cache_docker_images_locally (bool): Whether to cache Docker image files locally.
+        partition_name (str): The partition name to use in the srun command.
     """
 
-    def __init__(self, install_path: str, cache_docker_images_locally: bool) -> None:
+    def __init__(self, install_path: str, cache_docker_images_locally: bool, partition_name: str) -> None:
         self.install_path = install_path
         self.cache_docker_images_locally = cache_docker_images_locally
+        self.partition_name = partition_name
 
     def ensure_docker_image(
         self, docker_image_url: str, subdir_name: str, docker_image_filename: str
@@ -219,7 +221,7 @@ class DockerImageCacheManager:
                 return DockerImageCacheResult(False, "", f"Failed to create subdirectory {subdir_path}. Error: {e}")
 
         enroot_import_cmd = (
-            f"srun --export=ALL --partition=default "
+            f"srun --export=ALL --partition={self.partition_name} "
             f"enroot import -o {docker_image_path} docker://{docker_image_url}"
         )
 
