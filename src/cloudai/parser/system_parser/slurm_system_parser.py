@@ -43,6 +43,9 @@ class SlurmSystemParser(BaseSystemParser):
             except ValueError:
                 return None
 
+        def str_to_bool(value: str) -> bool:
+            return value.lower() in ("true", "1", "yes")
+
         name = data.get("name")
         if not name:
             raise ValueError("Missing mandatory field: 'name'")
@@ -78,7 +81,7 @@ class SlurmSystemParser(BaseSystemParser):
         gpus_per_node = safe_int(data.get("gpus_per_node"))
         ntasks_per_node = safe_int(data.get("ntasks_per_node"))
 
-        cache_docker_images_locally = data.get("cache_docker_images_locally", False)
+        cache_docker_images_locally = str_to_bool(data.get("cache_docker_images_locally", "False"))
 
         nodes_dict: Dict[str, SlurmNode] = {}
         updated_partitions: Dict[str, List[SlurmNode]] = {}
