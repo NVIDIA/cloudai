@@ -38,6 +38,7 @@ class SlurmInstallStrategy(InstallStrategy):
     ) -> None:
         super().__init__(system, env_vars, cmd_args)
         self.slurm_system = cast(SlurmSystem, self.system)
+        self.install_path = self.slurm_system.install_path
         self.docker_image_cache_manager = DockerImageCacheManager(
             self.slurm_system.install_path, self.slurm_system.cache_docker_images_locally
         )
