@@ -131,8 +131,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__SetContainerArg:
         nemo_cmd_gen.final_cmd_args["docker_image_url"] = f"{nemo_cmd_gen.install_path}/docker_image"
         nemo_cmd_gen.set_container_arg()
         assert (
-            nemo_cmd_gen.final_cmd_args["container"]
-            == f"{nemo_cmd_gen.install_path}/NeMo-Megatron-Launcher/nemo_megatron_launcher.sqsh"
+            nemo_cmd_gen.final_cmd_args["container"] == f"{nemo_cmd_gen.install_path}/NeMo-Launcher/nemo_launcher.sqsh"
         )
 
     def test_docker_image_url_is_file(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):

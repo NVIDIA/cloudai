@@ -23,9 +23,8 @@ class SlurmInstallStrategy(InstallStrategy):
     Abstract base class for defining installation strategies specific to Slurm environments.
 
     Attributes
-        slurm_system (SlurmSystem): A casted version of the `system` attribute,
-                                    which provides Slurm-specific properties
-                                    and methods.
+        slurm_system (SlurmSystem): A casted version of the `system` attribute, which provides Slurm-specific
+            properties and methods.
     """
 
     def __init__(
