@@ -116,8 +116,11 @@ class BaseInstaller:
             for future in as_completed(futures):
                 test_template = futures[future]
                 try:
-                    future.result()
-                    install_results[test_template.name] = "Success"
+                    result = future.result()
+                    if result.success:
+                        install_results[test_template.name] = "Success"
+                    else:
+                        install_results[test_template.name] = result.message
                 except Exception as e:
                     self.logger.error(f"Installation failed for {test_template.name}: {e}")
                     install_results[test_template.name] = str(e)
@@ -145,8 +148,11 @@ class BaseInstaller:
             for future in as_completed(futures):
                 test_template = futures[future]
                 try:
-                    future.result()
-                    uninstall_results[test_template.name] = "Success"
+                    result = future.result()
+                    if result.success:
+                        uninstall_results[test_template.name] = "Success"
+                    else:
+                        uninstall_results[test_template.name] = result.message
                 except Exception as e:
                     self.logger.error(f"Uninstallation failed for {test_template.name}: {e}")
                     uninstall_results[test_template.name] = str(e)
