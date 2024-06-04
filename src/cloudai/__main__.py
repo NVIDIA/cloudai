@@ -49,7 +49,7 @@ def parse_arguments() -> argparse.Namespace:
         argparse.Namespace: An object containing all the parsed command-line
         arguments.
     """
-    parser = argparse.ArgumentParser(description="Cloud AI")
+    parser = argparse.ArgumentParser(description="CloudAI")
     parser.add_argument(
         "--mode",
         default="run",
@@ -102,7 +102,7 @@ def parse_arguments() -> argparse.Namespace:
 
 def handle_install_and_uninstall(args: argparse.Namespace) -> None:
     """
-    Manage the installation or uninstallation process for Cloud AI.
+    Manage the installation or uninstallation process for CloudAI.
 
     Based on user-specified mode, utilizing the Installer and Parser classes.
 
@@ -127,7 +127,7 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> None:
     if args.mode == "install":
         logging.info("Installing test templates.")
         if installer.is_installed(test_templates):
-            print("Cloud AI is already installed.")
+            print("CloudAI is already installed.")
         else:
             result = installer.install(test_templates)
             if not result:
@@ -144,7 +144,7 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> None:
 
 def handle_dry_run_and_run(args: argparse.Namespace) -> None:
     """
-    Execute the dry-run or run modes for Cloud AI.
+    Execute the dry-run or run modes for CloudAI.
 
     Includes parsing configurations, verifying installations, and executing test scenarios.
 
@@ -175,7 +175,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> None:
         installer = Installer(system)
         result = installer.is_installed(test_templates)
         if not result:
-            print("Cloud AI has not been installed. Please run install mode first.")
+            print("CloudAI has not been installed. Please run install mode first.")
             print(result)
             sys.exit(1)
 
