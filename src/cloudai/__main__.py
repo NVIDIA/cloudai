@@ -129,13 +129,17 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> None:
         if installer.is_installed(test_templates):
             print("Cloud AI is already installed.")
         else:
-            installer.install(test_templates)
-            print("Installation completed.")
+            result = installer.install(test_templates)
+            if not result:
+                print(result)
+                sys.exit(1)
 
     elif args.mode == "uninstall":
         logging.info("Uninstalling test templates.")
-        installer.uninstall(test_templates)
-        print("Uninstallation completed.")
+        result = installer.uninstall(test_templates)
+        if not result:
+            print(result)
+            sys.exit(1)
 
 
 def handle_dry_run_and_run(args: argparse.Namespace) -> None:
@@ -169,8 +173,10 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> None:
     if args.mode == "run":
         logging.info("Checking if test templates are installed.")
         installer = Installer(system)
-        if not installer.is_installed(test_templates):
+        result = installer.is_installed(test_templates)
+        if not result:
             print("Cloud AI has not been installed. Please run install mode first.")
+            print(result)
             sys.exit(1)
 
     test_scenario.pretty_print()

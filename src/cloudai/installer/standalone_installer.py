@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai._core.base_installer import BaseInstaller
+from cloudai._core.base_installer import BaseInstaller, InstallStatusResult
 
 
 class StandaloneInstaller(BaseInstaller):
@@ -24,10 +24,16 @@ class StandaloneInstaller(BaseInstaller):
 
     PREREQUISITES = ["ps", "kill"]
 
-    def _check_prerequisites(self) -> None:
-        """Check for the presence of required binaries, raising an error if any are missing."""
-        super()._check_prerequisites()
+    def _check_prerequisites(self) -> InstallStatusResult:
+        """Check for the presence of required binaries, returning an error status if any are missing."""
+        super()._check_prerequisites()  # TODO: if fails, print out missing prerequisites
+        missing_binaries = []
         for binary in self.PREREQUISITES:
             if not self._is_binary_installed(binary):
-                msg = f"Required binary {binary} is not installed."
-                raise EnvironmentError(msg)
+                missing_binaries.append(binary)
+
+        if missing_binaries:
+            missing_str = ", ".join(missing_binaries)
+            return InstallStatusResult(False, f"Required binaries not installed: {missing_str}.")
+
+        return InstallStatusResult(True)

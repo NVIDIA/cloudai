@@ -16,6 +16,7 @@ import logging
 from typing import Iterable
 
 from cloudai._core.base_installer import BaseInstaller
+from cloudai._core.install_status_result import InstallStatusResult
 from cloudai._core.registry import Registry
 from cloudai._core.system import System
 from cloudai._core.test_template import TestTemplate
@@ -25,15 +26,11 @@ class Installer:
     """
     A wrapper class that creates and manages a specific installer instance based on the system's configuration.
 
-    This class facilitates the initialization of the appropriate installer
-    based on the system.
+    This class facilitates the initialization of the appropriate installer based on the system.
 
     Attributes
-        _installers (dict): A class-level dictionary mapping scheduler
-            types to their corresponding installer subclasses. Used for
-            dynamic installer creation based on system configuration.
-        installer (BaseInstaller): The specific installer instance for the system.
         logger (logging.Logger): Logger for capturing installation activities.
+        installer (BaseInstaller): The specific installer instance for the system.
     """
 
     def __init__(self, system: System):
@@ -56,12 +53,10 @@ class Installer:
             system (System): The system schema object.
 
         Returns:
-            BaseInstaller: An instance of a subclass of BaseInstaller
-                           suitable for the given system's scheduler.
+            BaseInstaller: An instance of a subclass of BaseInstaller suitable for the given system's scheduler.
 
         Raises:
-            NotImplementedError: If no installer is available for the
-                                 system's scheduler.
+            NotImplementedError: If no installer is available for the system's scheduler.
         """
         scheduler_type = system.scheduler
         registry = Registry()
@@ -70,38 +65,41 @@ class Installer:
             raise NotImplementedError(f"No installer available for scheduler: {scheduler_type}")
         return installer_class(system)
 
-    def is_installed(self, test_templates: Iterable[TestTemplate]) -> bool:
+    def is_installed(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
         """
         Check if the necessary components for the provided test templates are already installed.
 
         Args:
-            test_templates (Iterable[TestTemplate]): The list of test templates to
-                check for installation.
+            test_templates (Iterable[TestTemplate]): The list of test templates to check for installation.
 
         Returns:
-            bool: True if all necessary components are installed, False otherwise.
+            InstallStatusResult: Result containing the installation status and error message if not installed.
         """
         self.logger.info("Checking installation status of components.")
         return self.installer.is_installed(test_templates)
 
-    def install(self, test_templates: Iterable[TestTemplate]):
+    def install(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
         """
         Check if the necessary components are installed and install them if not using the instantiated installer.
 
         Args:
-            test_templates (Iterable[TestTemplate]): The list of test templates to
-                install.
+            test_templates (Iterable[TestTemplate]): The list of test templates to install.
+
+        Returns:
+            InstallStatusResult: Result containing the installation status and error message if not installed.
         """
         self.logger.info("Installing test templates.")
-        self.installer.install(test_templates)
+        return self.installer.install(test_templates)
 
-    def uninstall(self, test_templates: Iterable[TestTemplate]):
+    def uninstall(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
         """
         Uninstall the benchmarks or test templates using the instantiated installer.
 
         Args:
-            test_templates (Iterable[TestTemplate]): The list of test templates to
-                uninstall.
+            test_templates (Iterable[TestTemplate]): The list of test templates to uninstall.
+
+        Returns:
+            InstallStatusResult: Result containing the installation status and error message if not installed.
         """
         self.logger.info("Uninstalling test templates.")
-        self.installer.uninstall(test_templates)
+        return self.installer.uninstall(test_templates)
