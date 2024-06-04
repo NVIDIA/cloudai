@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 from cloudai._core.install_status_result import InstallStatusResult
 from cloudai.systems.slurm.strategy import SlurmInstallStrategy
 
@@ -35,18 +37,25 @@ class NcclTestSlurmInstallStrategy(SlurmInstallStrategy):
         if docker_image_result.success:
             return InstallStatusResult(success=True)
         else:
-            return InstallStatusResult(
-                success=False,
-                message=(
-                    "Docker image for NCCL test is not installed. "
-                    f"Install path: {self.install_path}, "
-                    f"Cache Docker images locally: {self.docker_image_cache_manager.cache_docker_images_locally}, "
-                    f"Docker image URL: {self.docker_image_url}, "
-                    f"Subdirectory path: {self.SUBDIR_PATH}, "
-                    f"Docker image filename: {self.DOCKER_IMAGE_FILENAME}. "
-                    f"Error: {docker_image_result.message}"
-                ),
-            )
+            if self.docker_image_cache_manager.cache_docker_images_locally:
+                expected_docker_image_path = os.path.join(
+                    self.docker_image_cache_manager.install_path, self.SUBDIR_PATH, self.DOCKER_IMAGE_FILENAME
+                )
+                return InstallStatusResult(
+                    success=False,
+                    message=(
+                        f"Docker image for NCCL test is not installed.\n"
+                        f"    - Expected path: {expected_docker_image_path}.\n"
+                        f"    - Error: {docker_image_result.message}"
+                    ),
+                )
+            else:
+                return InstallStatusResult(
+                    success=False,
+                    message=(
+                        f"Docker image for NCCL test is not accessible.\n" f"    - Error: {docker_image_result.message}"
+                    ),
+                )
 
     def install(self) -> InstallStatusResult:
         install_status = self.is_installed()

@@ -42,5 +42,5 @@ class InstallStatusResult:
         return self.success
 
     def __str__(self):
-        details_str = "\n".join(f"{key}: {value}" for key, value in self.details.items())
+        details_str = "\n".join(f"  - {key}: {value}" for key, value in self.details.items())
         return f"{self.message}\n{details_str}" if self.details else self.message

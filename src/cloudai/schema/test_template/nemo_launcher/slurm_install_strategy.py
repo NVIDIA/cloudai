@@ -142,15 +142,14 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
                     f"with commit hash {self.repository_commit_hash}"
                 )
             if not docker_image_installed:
-                missing_components.append(
-                    f"Docker image at {subdir_path} with filename {self.DOCKER_IMAGE_FILENAME} "
-                    f"from URL {self.docker_image_url}"
-                )
+                docker_image_path = os.path.join(subdir_path, self.DOCKER_IMAGE_FILENAME)
+                missing_components.append(f"Docker image at {docker_image_path} " f"from URL {self.docker_image_url}")
             if not datasets_check_result.success:
                 missing_components.append(f"Datasets in {data_dir_path} on some nodes")
             return InstallStatusResult(
                 success=False,
-                message=f"The following components are missing: {', '.join(missing_components)}.",
+                message="The following components are missing:\n"
+                + "\n".join(f"    - {item}" for item in missing_components),
             )
 
     def install(self) -> InstallStatusResult:
