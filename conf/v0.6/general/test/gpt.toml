@@ -1,5 +1,3 @@
 name = "gpt"
 description = "gpt"
 test_template_name = "NeMoLauncher"
-
-[cmd_args]
