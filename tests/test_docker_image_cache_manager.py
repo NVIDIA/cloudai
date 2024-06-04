@@ -193,7 +193,7 @@ class TestDockerImageCacheManager(unittest.TestCase):
         manager = DockerImageCacheManager("/fake/install/path", True)
         mock_head.return_value.status_code = 200
         result = manager._check_docker_image_accessibility(
-            "https://registry-1.docker.io/v2/library/hello-world/manifests/latest"
+            "registry-1.docker.io/v2/library/hello-world/manifests:latest"
         )
         self.assertTrue(result.success)
         self.assertEqual(result.message, "Docker image URL is accessible.")
@@ -203,7 +203,7 @@ class TestDockerImageCacheManager(unittest.TestCase):
         manager = DockerImageCacheManager("/fake/install/path", True)
         mock_head.return_value.status_code = 404
         result = manager._check_docker_image_accessibility(
-            "https://registry-1.docker.io/v2/library/hello-world/manifests/latest"
+            "registry-1.docker.io/v2/library/hello-world/manifests:latest"
         )
         self.assertFalse(result.success)
         self.assertIn("not found", result.message)
@@ -213,7 +213,7 @@ class TestDockerImageCacheManager(unittest.TestCase):
         manager = DockerImageCacheManager("/fake/install/path", True)
         mock_head.return_value.status_code = 401
         result = manager._check_docker_image_accessibility(
-            "https://registry-1.docker.io/v2/library/hello-world/manifests/latest"
+            "registry-1.docker.io/v2/library/hello-world/manifests:latest"
         )
         self.assertTrue(result.success)
         self.assertIn("Unauthorized access", result.message)
@@ -223,7 +223,7 @@ class TestDockerImageCacheManager(unittest.TestCase):
         manager = DockerImageCacheManager("/fake/install/path", True)
         mock_head.return_value.status_code = 500
         result = manager._check_docker_image_accessibility(
-            "https://registry-1.docker.io/v2/library/hello-world/manifests/latest"
+            "registry-1.docker.io/v2/library/hello-world/manifests:latest"
         )
         self.assertFalse(result.success)
         self.assertIn("Failed to access", result.message)
@@ -232,7 +232,7 @@ class TestDockerImageCacheManager(unittest.TestCase):
     def test_check_docker_image_accessibility_exception(self, mock_head):
         manager = DockerImageCacheManager("/fake/install/path", True)
         result = manager._check_docker_image_accessibility(
-            "https://registry-1.docker.io/v2/library/hello-world/manifests/latest"
+            "registry-1.docker.io/v2/library/hello-world/manifests:latest"
         )
         self.assertFalse(result.success)
         self.assertIn("Failed to check", result.message)

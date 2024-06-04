@@ -272,6 +272,9 @@ class DockerImageCacheManager:
         Returns:
             PrerequisiteCheckResult: Result of the Docker image accessibility check.
         """
+        if not docker_image_url.startswith("http://") and not docker_image_url.startswith("https://"):
+            docker_image_url = "https://" + docker_image_url
+
         try:
             response = requests.head(docker_image_url, allow_redirects=True)
 
