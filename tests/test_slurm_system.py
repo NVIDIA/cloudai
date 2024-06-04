@@ -47,6 +47,7 @@ def test_parse_sinfo_output(slurm_system):
     main    up    3:00:00      2   resv node-[034-035]
     main    up    3:00:00     24  alloc node-[033,037-044,047-058,060,063-064]
     backup    up   12:00:00     8  idle node[01-08]
+    empty_queue up infinite     0    n/a
     """
     node_user_map = {
         "": "user1",
