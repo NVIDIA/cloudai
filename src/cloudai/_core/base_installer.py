@@ -17,6 +17,8 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Iterable
 
+from cloudai._core.install_status_result import InstallStatusResult
+
 from .system import System
 from .test_template import TestTemplate
 
@@ -57,60 +59,102 @@ class BaseInstaller:
         self.logger.debug(f"Checking if binary '{binary_name}' is installed.")
         return shutil.which(binary_name) is not None
 
-    def _check_prerequisites(self) -> None:
+    def _check_prerequisites(self) -> InstallStatusResult:
         """
         Check if common prerequisites are installed.
 
         This method should be overridden in derived classes for specific prerequisite checks.
 
-        Raises
-            EnvironmentError: If a required binary is not installed.
+        Returns
+            InstallStatusResult: Result containing the status and any error message.
         """
         self.logger.info("Checking for common prerequisites.")
+        return InstallStatusResult(True)
 
-    def is_installed(self, test_templates: Iterable[TestTemplate]) -> bool:
+    def is_installed(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
         """
         Check if the necessary components for the provided test templates are already installed.
 
         Verify the installation status of each test template.
 
         Args:
-            test_templates (Iterable[TestTemplate]): The list of test templates to
-                check for installation.
+            test_templates (Iterable[TestTemplate]): The list of test templates to check for installation.
 
         Returns:
-            bool: True if all test templates are installed, False otherwise.
+            InstallStatusResult: Result containing the installation status and error message if not installed.
         """
         self.logger.info("Verifying installation status of test templates.")
-        return all(test_template.is_installed() for test_template in test_templates)
+        not_installed = {}
+        for test_template in test_templates:
+            try:
+                if not test_template.is_installed():
+                    not_installed[test_template.name] = "Not installed"
+            except Exception as e:
+                not_installed[test_template.name] = str(e)
 
-    def install(self, test_templates: Iterable[TestTemplate]) -> None:
+        if not_installed:
+            return InstallStatusResult(False, "Some test templates are not installed.", not_installed)
+        else:
+            return InstallStatusResult(True, "All test templates are installed.")
+
+    def install(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
         """
         Install the necessary components if they are not already installed.
 
-        Raises an exception if installation fails for any component.
-
         Args:
             test_templates (Iterable[TestTemplate]): The test templates.
+
+        Returns:
+            InstallStatusResult: Result containing the installation status and error message if any.
         """
         self.logger.info("Starting installation of test templates.")
-        self._check_prerequisites()
+        prerequisites_result = self._check_prerequisites()
+        if not prerequisites_result:
+            return prerequisites_result
+
+        install_results = {}
         with ThreadPoolExecutor() as executor:
-            futures = [executor.submit(test_template.install) for test_template in test_templates]
+            futures = {executor.submit(test_template.install): test_template for test_template in test_templates}
             for future in as_completed(futures):
-                future.result()
+                test_template = futures[future]
+                try:
+                    future.result()
+                    install_results[test_template.name] = "Success"
+                except Exception as e:
+                    self.logger.error(f"Installation failed for {test_template.name}: {e}")
+                    install_results[test_template.name] = str(e)
 
-    def uninstall(self, test_templates: Iterable[TestTemplate]) -> None:
+        all_success = all(result == "Success" for result in install_results.values())
+        if all_success:
+            return InstallStatusResult(True, "All test templates installed successfully.")
+        else:
+            return InstallStatusResult(False, "Some test templates failed to install.", install_results)
+
+    def uninstall(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
         """
-        Uninstalls the benchmarks or test templates.
-
-        Raises an exception if uninstallation fails for any component.
+        Uninstall the benchmarks or test templates.
 
         Args:
             test_templates (Iterable[TestTemplate]): The test templates.
+
+        Returns:
+            InstallStatusResult: Result containing the uninstallation status and error message if any.
         """
         self.logger.info("Uninstalling test templates.")
+        uninstall_results = {}
         with ThreadPoolExecutor() as executor:
-            futures = [executor.submit(test_template.uninstall) for test_template in test_templates]
+            futures = {executor.submit(test_template.uninstall): test_template for test_template in test_templates}
             for future in as_completed(futures):
-                future.result()
+                test_template = futures[future]
+                try:
+                    future.result()
+                    uninstall_results[test_template.name] = "Success"
+                except Exception as e:
+                    self.logger.error(f"Uninstallation failed for {test_template.name}: {e}")
+                    uninstall_results[test_template.name] = str(e)
+
+        all_success = all(result == "Success" for result in uninstall_results.values())
+        if all_success:
+            return InstallStatusResult(True, "All test templates uninstalled successfully.")
+        else:
+            return InstallStatusResult(False, "Some test templates failed to uninstall.", uninstall_results)

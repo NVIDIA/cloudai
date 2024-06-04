@@ -16,6 +16,7 @@ from typing import Any, Dict, cast
 
 from cloudai import InstallStrategy, System
 from cloudai.systems import SlurmSystem
+from cloudai.util.docker_image_cache_manager import DockerImageCacheManager
 
 
 class SlurmInstallStrategy(InstallStrategy):
@@ -25,6 +26,8 @@ class SlurmInstallStrategy(InstallStrategy):
     Attributes
         slurm_system (SlurmSystem): A casted version of the `system` attribute, which provides Slurm-specific
             properties and methods.
+        docker_image_cache_manager (DockerImageCacheManager): Manages the caching of Docker images.
+        docker_image_url (str): URL to the Docker image in a remote container registry.
     """
 
     def __init__(
@@ -35,3 +38,11 @@ class SlurmInstallStrategy(InstallStrategy):
     ) -> None:
         super().__init__(system, env_vars, cmd_args)
         self.slurm_system = cast(SlurmSystem, self.system)
+        self.docker_image_cache_manager = DockerImageCacheManager(
+            self.slurm_system.install_path, self.slurm_system.cache_docker_images_locally
+        )
+        docker_image_url_info = self.cmd_args.get("docker_image_url")
+        if docker_image_url_info is not None:
+            self.docker_image_url = docker_image_url_info.get("default")
+        else:
+            self.docker_image_url = ""

@@ -12,14 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import shutil
-import subprocess
-from typing import Any, Dict
-
-from cloudai._core.system import System
+from cloudai._core.install_status_result import InstallStatusResult
 from cloudai.systems.slurm.strategy import SlurmInstallStrategy
-from cloudai.util import CommandShell
 
 
 class NcclTestSlurmInstallStrategy(SlurmInstallStrategy):
@@ -34,64 +28,53 @@ class NcclTestSlurmInstallStrategy(SlurmInstallStrategy):
     SUBDIR_PATH = "nccl-test"
     DOCKER_IMAGE_FILENAME = "nccl_test.sqsh"
 
-    def __init__(
-        self,
-        system: System,
-        env_vars: Dict[str, Any],
-        cmd_args: Dict[str, Any],
-    ) -> None:
-        super().__init__(system, env_vars, cmd_args)
-
-    def is_installed(self) -> bool:
-        docker_image_path = os.path.join(self.install_path, self.SUBDIR_PATH, self.DOCKER_IMAGE_FILENAME)
-        return os.path.isfile(docker_image_path)
-
-    def install(self) -> None:
-        if self.is_installed():
-            return
-
-        docker_image_dir_path = os.path.join(self.install_path, self.SUBDIR_PATH)
-        os.makedirs(docker_image_dir_path, exist_ok=True)
-        docker_image_path = os.path.join(docker_image_dir_path, self.DOCKER_IMAGE_FILENAME)
-
-        # Remove existing Docker image if it exists
-        shell = CommandShell()
-        remove_cmd = f"rm -f {docker_image_path}"
-        process = shell.execute(remove_cmd)
-        stdout, stderr = process.communicate()
-        if process.returncode != 0:
-            raise RuntimeError(f"Failed to remove existing Docker image: {stderr}")
-
-        # Import new Docker image using enroot
-        docker_image_url_info = self.cmd_args.get("docker_image_url")
-        docker_image_url = docker_image_url_info.get("default") if docker_image_url_info else None
-        if docker_image_url is None:
-            raise ValueError("docker_image_url not specified or default value " "is None in command-line arguments.")
-
-        enroot_import_cmd = (
-            f"srun"
-            f" --export=ALL"
-            f" --partition={self.slurm_system.default_partition}"
-            f" enroot import -o {docker_image_path} docker://{docker_image_url}"
+    def is_installed(self) -> InstallStatusResult:
+        docker_image_result = self.docker_image_cache_manager.check_docker_image_exists(
+            self.docker_image_url, self.SUBDIR_PATH, self.DOCKER_IMAGE_FILENAME
         )
+        if docker_image_result.success:
+            return InstallStatusResult(success=True)
+        else:
+            return InstallStatusResult(
+                success=False,
+                message=(
+                    "Docker image for NCCL test is not installed. "
+                    f"Install path: {self.install_path}, "
+                    f"Cache Docker images locally: {self.docker_image_cache_manager.cache_docker_images_locally}, "
+                    f"Docker image URL: {self.docker_image_url}, "
+                    f"Subdirectory path: {self.SUBDIR_PATH}, "
+                    f"Docker image filename: {self.DOCKER_IMAGE_FILENAME}. "
+                    f"Error: {docker_image_result.message}"
+                ),
+            )
 
-        try:
-            subprocess.run(enroot_import_cmd, shell=True, check=True)
-        except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Failed to import Docker image: {e}") from e
+    def install(self) -> InstallStatusResult:
+        install_status = self.is_installed()
+        if install_status.success:
+            return InstallStatusResult(success=True)
 
-    def uninstall(self) -> None:
-        docker_image_path = os.path.join(self.install_path, self.SUBDIR_PATH, self.DOCKER_IMAGE_FILENAME)
+        docker_image_result = self.docker_image_cache_manager.ensure_docker_image(
+            self.docker_image_url, self.SUBDIR_PATH, self.DOCKER_IMAGE_FILENAME
+        )
+        if not docker_image_result.success:
+            return InstallStatusResult(
+                success=False,
+                message=(
+                    "Failed to download and import the Docker image for NCCL test. "
+                    f"Error: {docker_image_result.message}"
+                ),
+            )
 
-        if os.path.isfile(docker_image_path):
-            try:
-                os.remove(docker_image_path)
-            except OSError as e:
-                raise OSError(f"Failed to remove Docker image: {e}") from e
+        return InstallStatusResult(success=True)
 
-        nccl_test_dir = os.path.join(self.install_path, self.SUBDIR_PATH)
-        if os.path.isdir(nccl_test_dir) and not os.listdir(nccl_test_dir):
-            try:
-                shutil.rmtree(nccl_test_dir)
-            except OSError as e:
-                raise OSError(f"Failed to remove nccl-test directory: {e}") from e
+    def uninstall(self) -> InstallStatusResult:
+        docker_image_result = self.docker_image_cache_manager.uninstall_cached_image(
+            self.SUBDIR_PATH, self.DOCKER_IMAGE_FILENAME
+        )
+        if not docker_image_result.success:
+            return InstallStatusResult(
+                success=False,
+                message=("Failed to remove the Docker image for NCCL test. Error: {docker_image_result.message}"),
+            )
+
+        return InstallStatusResult(success=True)

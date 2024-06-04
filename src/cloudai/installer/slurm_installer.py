@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import contextlib
 import os
 import shutil
@@ -20,6 +21,7 @@ from typing import Iterable, cast
 import toml
 
 from cloudai._core.base_installer import BaseInstaller
+from cloudai._core.install_status_result import InstallStatusResult
 from cloudai._core.system import System
 from cloudai._core.test_template import TestTemplate
 from cloudai.systems import SlurmSystem
@@ -35,9 +37,8 @@ class SlurmInstaller(BaseInstaller):
         CONFIG_FILE_NAME (str): The name of the configuration file.
         PREREQUISITES (List[str]): A list of required binaries for the installer.
         REQUIRED_SRUN_OPTIONS (List[str]): A list of required srun options to check.
-        install_path (str): Path where the benchmarks are to be
-            installed. This is optional since uninstallation does not
-            require it.
+        install_path (str): Path where the benchmarks are to be installed. This is optional since uninstallation does
+            not require it.
         config_path (str): Path to the installation configuration file.
     """
 
@@ -63,19 +64,26 @@ class SlurmInstaller(BaseInstaller):
         self.install_path = slurm_system.install_path
         self.config_path = os.path.join(os.path.expanduser("~"), self.CONFIG_FILE_NAME)
 
-    def _check_prerequisites(self) -> None:
+    def _check_prerequisites(self) -> InstallStatusResult:
         """
         Check for the presence of required binaries and specific srun options, raising an error if any are missing.
 
         This ensures the system environment is properly set up before proceeding with the installation or uninstallation
         processes.
+
+        Returns
+            InstallStatusResult: Result containing the status and any error message.
         """
-        super()._check_prerequisites()
-        self._check_required_binaries()
-        self._check_srun_options()
+        try:
+            super()._check_prerequisites()  # TODO: if fails, print out missing prerequisites
+            self._check_required_binaries()
+            self._check_srun_options()
+            return InstallStatusResult(True)
+        except EnvironmentError as e:
+            return InstallStatusResult(False, str(e))
 
     def _check_required_binaries(self) -> None:
-        """Check for the presence of required binaries, raising an error if anyare missing."""
+        """Check for the presence of required binaries, raising an error if any are missing."""
         for binary in self.PREREQUISITES:
             if not self._is_binary_installed(binary):
                 raise EnvironmentError(f"Required binary {binary} is not installed.")
@@ -95,9 +103,9 @@ class SlurmInstaller(BaseInstaller):
         missing_options = [option for option in self.REQUIRED_SRUN_OPTIONS if option not in help_output]
         if missing_options:
             missing_options_str = ", ".join(missing_options)
-            raise EnvironmentError("Required srun options missing: " f"{missing_options_str}")
+            raise EnvironmentError(f"Required srun options missing: {missing_options_str}")
 
-    def _write_config(self) -> None:
+    def _write_config(self) -> InstallStatusResult:
         """Write the installation configuration to a TOML file atomically."""
         absolute_install_path = os.path.abspath(self.install_path)
         config_data = {"install_path": absolute_install_path}
@@ -105,10 +113,11 @@ class SlurmInstaller(BaseInstaller):
         try:
             with open(self.config_path, "w") as file:
                 toml.dump(config_data, file)
+            return InstallStatusResult(True)
         except Exception as e:
             with contextlib.suppress(OSError):
                 os.remove(self.config_path)
-            raise e
+            return InstallStatusResult(False, str(e))
 
     def _read_config(self) -> dict:
         """
@@ -121,75 +130,100 @@ class SlurmInstaller(BaseInstaller):
             with open(self.config_path, "r") as file:
                 return toml.load(file)
         except FileNotFoundError as e:
-            raise FileNotFoundError("Configuration file not found.") from e
+            raise FileNotFoundError(
+                f"Configuration file not found at {self.config_path}. "
+                "The configuration file is automatically created during installation to store any settings."
+            ) from e
 
     def _remove_config(self) -> None:
         """Remove the installation configuration file."""
         if os.path.exists(self.config_path):
             os.remove(self.config_path)
 
-    def is_installed(self, test_templates: Iterable[TestTemplate]) -> bool:
+    def is_installed(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
         """
         Check if the necessary components for the provided test templates are already installed.
 
         Verify the existence of the configuration file and the installation status of each test template.
 
         Args:
-            test_templates (Iterable[TestTemplate]): The list of test templates to
-                check for installation.
+            test_templates (Iterable[TestTemplate]): The list of test templates to check for installation.
 
         Returns:
-            bool: True if the configuration file exists and all test templates
-            are installed, False otherwise.
+            InstallStatusResult: Result containing the installation status and error message if not installed.
         """
         if not os.path.exists(self.config_path):
-            return False
+            return InstallStatusResult(
+                False,
+                f"Configuration file does not exist at {self.config_path}. "
+                "The configuration file is automatically created during installation to store any settings.",
+            )
 
         try:
             self._read_config()
-        except FileNotFoundError:
-            return False
+        except FileNotFoundError as e:
+            return InstallStatusResult(False, str(e))
 
         return super().is_installed(test_templates)
 
-    def install(self, test_templates: Iterable[TestTemplate]) -> None:
+    def install(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
         """
         Check if the necessary components are installed and install them if not.
 
         Requires the installation path to be set.
 
         Args:
-            test_templates (Iterable[TestTemplate]): The list of test templates to
-                be installed.
+            test_templates (Iterable[TestTemplate]): The list of test templates to be installed.
+
+        Returns:
+            InstallStatusResult: Result containing the installation status and error message if any.
         """
         if self.install_path is None:
-            raise ValueError("install_path must be set for installation.")
+            return InstallStatusResult(
+                False, "Installation path is not set. Please set the install path in the system schema."
+            )
+
+        prerequisites_result = self._check_prerequisites()
+        if not prerequisites_result:
+            return prerequisites_result
 
         try:
             os.makedirs(self.install_path, exist_ok=True)
         except OSError as e:
-            raise OSError(f"Failed to create installation directory at {self.install_path}: {e}") from e
+            return InstallStatusResult(False, f"Failed to create installation directory at {self.install_path}: {e}")
 
         if not os.access(self.install_path, os.W_OK):
-            raise PermissionError(f"The installation path {self.install_path} " "is not writable.")
+            return InstallStatusResult(False, f"The installation path {self.install_path} is not writable.")
 
-        super().install(test_templates)
-        self._write_config()
+        super_result = super().install(test_templates)
+        if not super_result:
+            return super_result
 
-    def uninstall(self, test_templates: Iterable[TestTemplate]) -> None:
+        config_result = self._write_config()
+        return config_result
+
+    def uninstall(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
         """
         Uninstall the benchmarks or test templates from the installation path and remove the configuration file.
 
         This method does not require the installation path to be set in advance.
 
         Args:
-            test_templates (Iterable[TestTemplate]): The list of test templates to
-                be uninstalled.
+            test_templates (Iterable[TestTemplate]): The list of test templates to be uninstalled.
+
+        Returns:
+            InstallStatusResult: Result containing the uninstallation status and error message if any.
         """
-        super().uninstall(test_templates)
+        super_result = super().uninstall(test_templates)
+        if not super_result:
+            return super_result
 
         config = self._read_config()
         install_path = config.get("install_path")
         if install_path:
-            shutil.rmtree(install_path)
+            try:
+                shutil.rmtree(install_path)
+            except OSError as e:
+                return InstallStatusResult(False, f"Failed to remove installation directory at {install_path}: {e}")
         self._remove_config()
+        return InstallStatusResult(True, "All test templates uninstalled successfully.")
