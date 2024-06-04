@@ -213,10 +213,10 @@ class DockerImageCacheManager:
             return DockerImageCacheResult(False, "", f"No permission to write in install path {self.install_path}.")
 
         if not os.path.exists(subdir_path):
-            return DockerImageCacheResult(False, "", f"Subdirectory path {subdir_path} does not exist.")
-
-        if not os.access(subdir_path, os.W_OK):
-            return DockerImageCacheResult(False, "", f"No permission to write in subdirectory path {subdir_path}.")
+            try:
+                os.makedirs(subdir_path)
+            except OSError as e:
+                return DockerImageCacheResult(False, "", f"Failed to create subdirectory {subdir_path}. Error: {e}")
 
         enroot_import_cmd = (
             f"srun --export=ALL --partition=default "

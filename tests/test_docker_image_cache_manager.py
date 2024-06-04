@@ -43,10 +43,14 @@ class TestDockerImageCacheManager(unittest.TestCase):
             assert result.message == "Docker image cached successfully."
 
     @patch("os.path.isfile")
-    @patch("shutil.which")
+    @patch("os.path.exists")
+    @patch("os.access")
+    @patch("os.makedirs")
     @patch("subprocess.run")
     @patch("cloudai.util.docker_image_cache_manager.DockerImageCacheManager._check_prerequisites")
-    def test_cache_docker_image(self, mock_check_prerequisites, mock_run, mock_which, mock_isfile):
+    def test_cache_docker_image(
+        self, mock_check_prerequisites, mock_run, mock_makedirs, mock_access, mock_exists, mock_isfile
+    ):
         manager = DockerImageCacheManager("/fake/install/path", True)
 
         # Test when cached file already exists
@@ -54,6 +58,13 @@ class TestDockerImageCacheManager(unittest.TestCase):
         result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
         assert result.success, f"Expected success, but got failure: {result.message}"
         assert result.message == "Cached Docker image already exists."
+
+        # Test creating subdirectory when it doesn't exist
+        mock_isfile.return_value = False
+        mock_exists.side_effect = [True, False, False]  # install_path exists, subdir_path does not
+        with patch("os.makedirs") as mock_makedirs:
+            result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
+            mock_makedirs.assert_called_once_with("/fake/install/path/subdir")
 
         # Ensure prerequisites are always met for the following tests
         mock_check_prerequisites.return_value = DockerImageCacheResult(True, "", "All prerequisites are met.")
