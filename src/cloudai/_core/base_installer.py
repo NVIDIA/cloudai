@@ -86,11 +86,9 @@ class BaseInstaller:
         self.logger.info("Verifying installation status of test templates.")
         not_installed = {}
         for test_template in test_templates:
-            try:
-                if not test_template.is_installed():
-                    not_installed[test_template.name] = "Not installed"
-            except Exception as e:
-                not_installed[test_template.name] = str(e)
+            result = test_template.is_installed()
+            if not result.success:
+                not_installed[test_template.name] = result.message
 
         if not_installed:
             return InstallStatusResult(False, "Some test templates are not installed.", not_installed)
