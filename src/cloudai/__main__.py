@@ -96,29 +96,29 @@ def parse_arguments() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--system_config_path",
+        "--system-config",
         required=True,
         help="Path to the system configuration file.",
     )
     parser.add_argument(
-        "--test_template_path",
+        "--test-templates-dir",
         default="conf/v0.6/general/test_template",
         help="Path to the test template configuration directory.",
     )
     parser.add_argument(
-        "--test_path",
+        "--tests-dir",
         default="conf/v0.6/general/test",
         help="Path to the test configuration directory.",
     )
     parser.add_argument(
-        "--test_scenario_path",
+        "--test-scenario",
         required=False,
         help="Path to the test scenario file.",
     )
-    parser.add_argument("--output_path", help="Path to the output directory.")
-    parser.add_argument("--log_file", default="debug.log", help="The name of the log file.")
+    parser.add_argument("--output-dir", help="Path to the output directory.")
+    parser.add_argument("--log-file", default="debug.log", help="The name of the log file.")
     parser.add_argument(
-        "--log_level",
+        "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         help="Set the logging level (e.g., DEBUG, INFO, WARNING, ERROR, CRITICAL)",
