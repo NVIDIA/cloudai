@@ -56,4 +56,4 @@ def test_slurm(tmp_path: Path, scenario: Dict):
 
     for td in test_dirs:
         assert td.is_dir(), "Invalid test directory"
-        assert "Tests." in td.name, "Invalid test directory name"
+        assert "Tests_" in td.name, "Invalid test directory name"

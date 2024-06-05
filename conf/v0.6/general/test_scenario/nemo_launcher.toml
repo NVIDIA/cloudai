@@ -1,17 +1,17 @@
 name = "nemo_launcher"
 
-[Tests.1]
+[Tests_1]
   name = "nemo_launcher"
   num_nodes = "4"
 
-[Tests.2]
+[Tests_2]
   name = "nemo_launcher"
   num_nodes = "4"
-  [Tests.2.dependencies]
-    start_post_comp = { name = "Tests.1", time = 0 }
+  [Tests_2.dependencies]
+    start_post_comp = { name = "Tests_1", time = 0 }
 
-[Tests.3]
+[Tests_3]
   name = "nemo_launcher"
   num_nodes = "4"
-  [Tests.3.dependencies]
-     start_post_comp = { name = "Tests.2", time = 0 }
+  [Tests_3.dependencies]
+     start_post_comp = { name = "Tests_2", time = 0 }
