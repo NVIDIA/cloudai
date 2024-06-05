@@ -132,6 +132,44 @@ class TestNeMoLauncherSlurmInstallStrategy:
                 and "Docker image" in result.message
             )
 
+    def test_clone_repository_when_path_does_not_exist(self, strategy: NeMoLauncherSlurmInstallStrategy):
+        subdir_path = Path(strategy.slurm_system.install_path) / strategy.SUBDIR_PATH
+        repo_path = subdir_path / strategy.REPOSITORY_NAME
+        assert not repo_path.exists()
+
+        with patch("subprocess.run") as mock_run, patch("os.path.exists") as mock_exists:
+            mock_run.return_value.returncode = 0
+            mock_exists.side_effect = lambda path: path == str(subdir_path)
+            strategy._clone_repository(str(subdir_path))
+
+            mock_run.assert_any_call(
+                ["git", "clone", strategy.repository_url, str(repo_path)], capture_output=True, text=True
+            )
+            mock_run.assert_any_call(
+                ["git", "checkout", strategy.repository_commit_hash],
+                cwd=str(repo_path),
+                capture_output=True,
+                text=True,
+            )
+
+    def test_clone_repository_when_path_exists(self, strategy: NeMoLauncherSlurmInstallStrategy):
+        subdir_path = Path(strategy.slurm_system.install_path) / strategy.SUBDIR_PATH
+        repo_path = subdir_path / strategy.REPOSITORY_NAME
+        repo_path.mkdir(parents=True)
+
+        with patch("subprocess.run") as mock_run, patch("os.path.exists") as mock_exists:
+            mock_run.return_value.returncode = 0
+            mock_exists.side_effect = lambda path: path in [str(subdir_path), str(repo_path)]
+            strategy._clone_repository(str(subdir_path))
+
+            # Ensure that the checkout command was run
+            mock_run.assert_any_call(
+                ["git", "checkout", strategy.repository_commit_hash],
+                cwd=str(repo_path),
+                capture_output=True,
+                text=True,
+            )
+
 
 class TestUCCTestSlurmInstallStrategy:
     @pytest.fixture
