@@ -15,8 +15,7 @@
 import os
 import shutil
 import subprocess
-
-import requests
+import tempfile
 
 
 class PrerequisiteCheckResult:
@@ -274,31 +273,32 @@ class DockerImageCacheManager:
         Returns:
             PrerequisiteCheckResult: Result of the Docker image accessibility check.
         """
-        if not docker_image_url.startswith("http://") and not docker_image_url.startswith("https://"):
-            docker_image_url = "https://" + docker_image_url
+        with tempfile.TemporaryDirectory() as temp_dir:
+            docker_image_path = temp_dir
+            enroot_import_cmd = (
+                f"srun --export=ALL --partition={self.partition_name} "
+                f"enroot import -o {docker_image_path} docker://{docker_image_url}"
+            )
 
-        try:
-            response = requests.head(docker_image_url, allow_redirects=True)
+            process = subprocess.Popen(enroot_import_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            while True:
+                error_output = process.stderr.readline() if process.stderr else None
+                error_output = error_output.decode() if error_output else ""
 
-            if response.status_code == 200:
-                return PrerequisiteCheckResult(True, "Docker image URL is accessible.")
-            elif response.status_code == 404:
-                return PrerequisiteCheckResult(
-                    False, f"Docker image URL {docker_image_url} not found. HTTP status code: {response.status_code}"
-                )
-            elif response.status_code == 401:
-                return PrerequisiteCheckResult(
-                    True,
-                    f"Unauthorized access to Docker image URL {docker_image_url}. "
-                    f"HTTP status code: {response.status_code}. Enroot will handle credentials.",
-                )
-            else:
-                return PrerequisiteCheckResult(
-                    False,
-                    f"Failed to access Docker image URL {docker_image_url}. HTTP status code: {response.status_code}",
-                )
-        except requests.RequestException as e:
-            return PrerequisiteCheckResult(False, f"Failed to check Docker image URL {docker_image_url}. Error: {e}")
+                if error_output:
+                    if "Downloading" in error_output or "Found all layers in cache" in error_output:
+                        process.terminate()
+                        return PrerequisiteCheckResult(True, "Docker image URL is accessible.")
+                    if "[ERROR]" in error_output:
+                        process.terminate()
+                        return PrerequisiteCheckResult(
+                            False, f"Failed to access Docker image URL. Error: {error_output}"
+                        )
+                if process.poll() is not None:
+                    break
+
+            process.terminate()
+            return PrerequisiteCheckResult(False, "Failed to access Docker image URL. Unknown error.")
 
     def uninstall_cached_image(self, subdir_name: str, docker_image_filename: str) -> DockerImageCacheResult:
         """
