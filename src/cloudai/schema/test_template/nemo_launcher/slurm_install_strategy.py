@@ -295,7 +295,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
 
     def _clone_repository(self, subdir_path: str) -> None:
         """
-        Clones NeMo-Launcher repository into specified path if it does not already exist, otherwise pulls the latest.
+        Clones NeMo-Launcher repository into specified path if it does not already exist.
 
         Args:
             subdir_path (str): Subdirectory path for installation.
@@ -303,16 +303,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         repo_path = os.path.join(subdir_path, self.REPOSITORY_NAME)
 
         if os.path.exists(repo_path):
-            self.logger.info("Repository already exists at %s. Pulling latest changes.", repo_path)
-            pull_cmd = ["git", "pull", "origin", "main"]
-            result = subprocess.run(pull_cmd, cwd=repo_path, capture_output=True, text=True)
-            if result.returncode != 0:
-                if "Please specify which branch you want to merge with" in result.stderr:
-                    self.logger.info("Repository not on a branch, pulling from origin main.")
-                    pull_cmd = ["git", "pull", "origin", "main"]
-                    result = subprocess.run(pull_cmd, cwd=repo_path, capture_output=True, text=True)
-                if result.returncode != 0:
-                    raise RuntimeError(f"Failed to pull latest changes: {result.stderr}")
+            self.logger.info("Repository already exists at %s. Checking out specific commit.", repo_path)
         else:
             self.logger.info("Cloning NeMo-Launcher repository into %s", repo_path)
             clone_cmd = ["git", "clone", self.repository_url, repo_path]

@@ -158,31 +158,11 @@ class TestNeMoLauncherSlurmInstallStrategy:
         repo_path.mkdir(parents=True)
 
         with patch("subprocess.run") as mock_run, patch("os.path.exists") as mock_exists:
-
-            def run_side_effect(cmd, **kwargs):  # noqa
-                if cmd == ["git", "pull"]:
-                    result = MagicMock()
-                    result.returncode = 1
-                    result.stderr = "You are not currently on a branch."
-                    return result
-                elif cmd == ["git", "pull", "origin", "main"]:
-                    result = MagicMock()
-                    result.returncode = 0
-                    return result
-                else:
-                    result = MagicMock()
-                    result.returncode = 0
-                    return result
-
-            mock_run.side_effect = run_side_effect
+            mock_run.return_value.returncode = 0
             mock_exists.side_effect = lambda path: path in [str(subdir_path), str(repo_path)]
             strategy._clone_repository(str(subdir_path))
 
-            # Ensure that the fallback pull command was run
-            mock_run.assert_any_call(
-                ["git", "pull", "origin", "main"], cwd=str(repo_path), capture_output=True, text=True
-            )
-            # Ensure that checkout command was run
+            # Ensure that the checkout command was run
             mock_run.assert_any_call(
                 ["git", "checkout", strategy.repository_commit_hash],
                 cwd=str(repo_path),
