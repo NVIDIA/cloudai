@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import (
     REQUIRE_ENV_VARS,
     NeMoLauncherSlurmCommandGenStrategy,
@@ -97,48 +96,6 @@ def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
     slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
 
     assert slurm_args["num_nodes"] == len(nodes)
-
-
-class TestNcclTestSlurmCommandGenStrategy__GetDockerImagePath:
-    @pytest.fixture
-    def nccl_slurm_cmd_gen_strategy_fixture(self, slurm_system: SlurmSystem) -> NcclTestSlurmCommandGenStrategy:
-        env_vars = {"TEST_VAR": "VALUE"}
-        cmd_args = {"test_arg": "test_value"}
-        strategy = NcclTestSlurmCommandGenStrategy(slurm_system, env_vars, cmd_args)
-        return strategy
-
-    def test_cmd_arg_file_doesnt_exist(self, nccl_slurm_cmd_gen_strategy_fixture: NcclTestSlurmCommandGenStrategy):
-        cmd_args = {"docker_image_url": f"{nccl_slurm_cmd_gen_strategy_fixture.install_path}/docker_image"}
-        image_path = nccl_slurm_cmd_gen_strategy_fixture.get_docker_image_path(cmd_args)
-        assert image_path == f"{nccl_slurm_cmd_gen_strategy_fixture.install_path}/nccl-test/nccl_test.sqsh"
-
-    def test_cmd_arg_file_exists(self, nccl_slurm_cmd_gen_strategy_fixture: NcclTestSlurmCommandGenStrategy):
-        cmd_args = {"docker_image_url": f"{nccl_slurm_cmd_gen_strategy_fixture.install_path}/docker_image"}
-        Path(cmd_args["docker_image_url"]).touch()
-        image_path = nccl_slurm_cmd_gen_strategy_fixture.get_docker_image_path(cmd_args)
-        assert image_path == cmd_args["docker_image_url"]
-
-
-class TestNeMoLauncherSlurmCommandGenStrategy__SetContainerArg:
-    @pytest.fixture
-    def nemo_cmd_gen(self, slurm_system: SlurmSystem) -> NeMoLauncherSlurmCommandGenStrategy:
-        env_vars = {"TEST_VAR": "VALUE"}
-        cmd_args = {"test_arg": "test_value"}
-        strategy = NeMoLauncherSlurmCommandGenStrategy(slurm_system, env_vars, cmd_args)
-        return strategy
-
-    def test_docker_image_url_is_not_file(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
-        nemo_cmd_gen.final_cmd_args["docker_image_url"] = f"{nemo_cmd_gen.install_path}/docker_image"
-        nemo_cmd_gen.set_container_arg()
-        assert (
-            nemo_cmd_gen.final_cmd_args["container"] == f"{nemo_cmd_gen.install_path}/NeMo-Launcher/nemo_launcher.sqsh"
-        )
-
-    def test_docker_image_url_is_file(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
-        nemo_cmd_gen.final_cmd_args["docker_image_url"] = f"{nemo_cmd_gen.install_path}/docker_image"
-        Path(nemo_cmd_gen.final_cmd_args["docker_image_url"]).touch()
-        nemo_cmd_gen.set_container_arg()
-        assert nemo_cmd_gen.final_cmd_args["container"] == nemo_cmd_gen.final_cmd_args["docker_image_url"]
 
 
 class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from typing import Any, Dict, List
 
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
@@ -57,15 +56,13 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     ) -> Dict[str, Any]:
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
 
-        image_path = os.path.join(
-            self.install_path,
-            UCCTestSlurmInstallStrategy.SUBDIR_PATH,
-            UCCTestSlurmInstallStrategy.DOCKER_IMAGE_FILENAME,
-        )
-
         base_args.update(
             {
-                "image_path": image_path,
+                "image_path": self.docker_image_cache_manager.ensure_docker_image(
+                    self.docker_image_url,
+                    UCCTestSlurmInstallStrategy.SUBDIR_PATH,
+                    UCCTestSlurmInstallStrategy.DOCKER_IMAGE_FILENAME,
+                ).docker_image_path,
             }
         )
 
