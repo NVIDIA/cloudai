@@ -14,7 +14,7 @@ class TestDockerImageCacheManager(unittest.TestCase):
     @patch("os.path.exists")
     @patch("os.access")
     def test_ensure_docker_image_file_exists(self, mock_access, mock_exists, mock_isfile):
-        manager = DockerImageCacheManager("/fake/install/path", True)
+        manager = DockerImageCacheManager("/fake/install/path", True, "default")
         mock_isfile.return_value = True
         mock_exists.return_value = True
         result = manager.ensure_docker_image("/tmp/existing_file.sqsh", "subdir", "docker_image.sqsh")
@@ -26,7 +26,7 @@ class TestDockerImageCacheManager(unittest.TestCase):
     @patch("os.path.exists")
     @patch("os.access")
     def test_ensure_docker_image_url_cache_enabled(self, mock_access, mock_exists, mock_isfile):
-        manager = DockerImageCacheManager("/fake/install/path", True)
+        manager = DockerImageCacheManager("/fake/install/path", True, "default")
         mock_isfile.return_value = False
         mock_exists.return_value = True
         mock_access.return_value = True
@@ -43,11 +43,15 @@ class TestDockerImageCacheManager(unittest.TestCase):
             assert result.message == "Docker image cached successfully."
 
     @patch("os.path.isfile")
-    @patch("shutil.which")
+    @patch("os.path.exists")
+    @patch("os.access")
+    @patch("os.makedirs")
     @patch("subprocess.run")
     @patch("cloudai.util.docker_image_cache_manager.DockerImageCacheManager._check_prerequisites")
-    def test_cache_docker_image(self, mock_check_prerequisites, mock_run, mock_which, mock_isfile):
-        manager = DockerImageCacheManager("/fake/install/path", True)
+    def test_cache_docker_image(
+        self, mock_check_prerequisites, mock_run, mock_makedirs, mock_access, mock_exists, mock_isfile
+    ):
+        manager = DockerImageCacheManager("/fake/install/path", True, "default")
 
         # Test when cached file already exists
         mock_isfile.return_value = True
@@ -55,22 +59,45 @@ class TestDockerImageCacheManager(unittest.TestCase):
         assert result.success, f"Expected success, but got failure: {result.message}"
         assert result.message == "Cached Docker image already exists."
 
+        # Test creating subdirectory when it doesn't exist
+        mock_isfile.return_value = False
+        mock_exists.side_effect = [True, False, False]  # install_path exists, subdir_path does not
+        with patch("os.makedirs") as mock_makedirs:
+            result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
+            mock_makedirs.assert_called_once_with("/fake/install/path/subdir")
+
         # Ensure prerequisites are always met for the following tests
         mock_check_prerequisites.return_value = DockerImageCacheResult(True, "", "All prerequisites are met.")
+
+        # Reset the mock calls
+        mock_run.reset_mock()
+        mock_exists.side_effect = None
+
+        # Test caching success with subprocess command (removal of default partition keyword)
+        mock_isfile.return_value = False
+        mock_exists.side_effect = [True, True, True, True, True]  # Ensure all path checks return True
+        mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=0)
+        result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
+        mock_run.assert_called_once_with(
+            "srun --export=ALL --partition=default enroot import -o /fake/install/path/subdir/image.tar.gz docker://docker.io/hello-world",
+            shell=True,
+            check=True,
+        )
+        assert result.success, f"Expected success, but got failure: {result.message}"
+        assert result.message == "Docker image cached successfully."
 
         # Test caching failure due to subprocess error
         mock_isfile.return_value = False
         mock_run.side_effect = subprocess.CalledProcessError(1, "cmd")
         result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
         assert not result.success, f"Expected failure, but got success: {result.message}"
-        assert "Install path" in result.message and "does not exist" in result.message
 
     @patch("os.path.isfile")
     @patch("os.path.exists")
     @patch("os.access")
     @patch("os.remove")
     def test_remove_cached_image(self, mock_remove, mock_access, mock_exists, mock_isfile):
-        manager = DockerImageCacheManager("/fake/install/path", True)
+        manager = DockerImageCacheManager("/fake/install/path", True, "default")
 
         # Test successful removal
         mock_isfile.return_value = True
@@ -99,7 +126,7 @@ class TestDockerImageCacheManager(unittest.TestCase):
     @patch("os.access")
     @patch("os.remove")
     def test_uninstall_cached_image(self, mock_remove, mock_access, mock_exists, mock_isfile):
-        manager = DockerImageCacheManager("/fake/install/path", True)
+        manager = DockerImageCacheManager("/fake/install/path", True, "default")
 
         # Test successful uninstallation and subdirectory removal
         mock_isfile.return_value = True
@@ -143,7 +170,7 @@ class TestDockerImageCacheManager(unittest.TestCase):
     @patch("shutil.which")
     @patch("requests.head")
     def test_check_prerequisites(self, mock_head, mock_which):
-        manager = DockerImageCacheManager("/fake/install/path", True)
+        manager = DockerImageCacheManager("/fake/install/path", True, "default")
 
         # Ensure enroot and srun are installed
         mock_which.side_effect = lambda x: x in ["enroot", "srun"]
@@ -190,7 +217,7 @@ class TestDockerImageCacheManager(unittest.TestCase):
 
     @patch("requests.head")
     def test_check_docker_image_accessibility_success(self, mock_head):
-        manager = DockerImageCacheManager("/fake/install/path", True)
+        manager = DockerImageCacheManager("/fake/install/path", True, "default")
         mock_head.return_value.status_code = 200
         result = manager._check_docker_image_accessibility(
             "registry-1.docker.io/v2/library/hello-world/manifests:latest"
@@ -203,7 +230,7 @@ class TestDockerImageCacheManager(unittest.TestCase):
 
     @patch("requests.head")
     def test_check_docker_image_accessibility_not_found(self, mock_head):
-        manager = DockerImageCacheManager("/fake/install/path", True)
+        manager = DockerImageCacheManager("/fake/install/path", True, "default")
         mock_head.return_value.status_code = 404
         result = manager._check_docker_image_accessibility(
             "registry-1.docker.io/v2/library/hello-world/manifests:latest"
@@ -213,7 +240,7 @@ class TestDockerImageCacheManager(unittest.TestCase):
 
     @patch("requests.head")
     def test_check_docker_image_accessibility_unauthorized(self, mock_head):
-        manager = DockerImageCacheManager("/fake/install/path", True)
+        manager = DockerImageCacheManager("/fake/install/path", True, "default")
         mock_head.return_value.status_code = 401
         result = manager._check_docker_image_accessibility(
             "registry-1.docker.io/v2/library/hello-world/manifests:latest"
@@ -223,7 +250,7 @@ class TestDockerImageCacheManager(unittest.TestCase):
 
     @patch("requests.head")
     def test_check_docker_image_accessibility_failure(self, mock_head):
-        manager = DockerImageCacheManager("/fake/install/path", True)
+        manager = DockerImageCacheManager("/fake/install/path", True, "default")
         mock_head.return_value.status_code = 500
         result = manager._check_docker_image_accessibility(
             "registry-1.docker.io/v2/library/hello-world/manifests:latest"
@@ -233,7 +260,7 @@ class TestDockerImageCacheManager(unittest.TestCase):
 
     @patch("requests.head", side_effect=requests.RequestException("Test Exception"))
     def test_check_docker_image_accessibility_exception(self, mock_head):
-        manager = DockerImageCacheManager("/fake/install/path", True)
+        manager = DockerImageCacheManager("/fake/install/path", True, "default")
         result = manager._check_docker_image_accessibility(
             "registry-1.docker.io/v2/library/hello-world/manifests:latest"
         )
