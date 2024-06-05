@@ -23,6 +23,7 @@ import toml
 from cloudai._core.base_installer import BaseInstaller
 from cloudai._core.install_status_result import InstallStatusResult
 from cloudai._core.system import System
+from cloudai._core.test import Test
 from cloudai._core.test_template import TestTemplate
 from cloudai.systems import SlurmSystem
 
@@ -140,14 +141,14 @@ class SlurmInstaller(BaseInstaller):
         if os.path.exists(self.config_path):
             os.remove(self.config_path)
 
-    def is_installed(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
+    def is_installed(self, tests: Iterable[Test]) -> InstallStatusResult:
         """
-        Check if the necessary components for the provided test templates are already installed.
+        Check if the necessary components for the provided test are already installed.
 
         Verify the existence of the configuration file and the installation status of each test template.
 
         Args:
-            test_templates (Iterable[TestTemplate]): The list of test templates to check for installation.
+            tests (Iterable[Test]): The tests to check for installation.
 
         Returns:
             InstallStatusResult: Result containing the installation status and error message if not installed.
@@ -164,16 +165,16 @@ class SlurmInstaller(BaseInstaller):
         except FileNotFoundError as e:
             return InstallStatusResult(False, str(e))
 
-        return super().is_installed(test_templates)
+        return super().is_installed(tests)
 
-    def install(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
+    def install(self, tests: Iterable[Test]) -> InstallStatusResult:
         """
         Check if the necessary components are installed and install them if not.
 
         Requires the installation path to be set.
 
         Args:
-            test_templates (Iterable[TestTemplate]): The list of test templates to be installed.
+            tests (Iterable[Test]): The tests to install.
 
         Returns:
             InstallStatusResult: Result containing the installation status and error message if any.
@@ -195,26 +196,26 @@ class SlurmInstaller(BaseInstaller):
         if not os.access(self.install_path, os.W_OK):
             return InstallStatusResult(False, f"The installation path {self.install_path} is not writable.")
 
-        super_result = super().install(test_templates)
+        super_result = super().install(tests)
         if not super_result:
             return super_result
 
         config_result = self._write_config()
         return config_result
 
-    def uninstall(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
+    def uninstall(self, tests: Iterable[Test]) -> InstallStatusResult:
         """
-        Uninstall the benchmarks or test templates from the installation path and remove the configuration file.
+        Uninstall the benchmarks or test from the installation path and remove the configuration file.
 
         This method does not require the installation path to be set in advance.
 
         Args:
-            test_templates (Iterable[TestTemplate]): The list of test templates to be uninstalled.
+            tests (Iterable[Test]): The tests to uninstall.
 
         Returns:
             InstallStatusResult: Result containing the uninstallation status and error message if any.
         """
-        super_result = super().uninstall(test_templates)
+        super_result = super().uninstall(tests)
         if not super_result:
             return super_result
 

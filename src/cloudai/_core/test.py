@@ -50,7 +50,7 @@ class Test:
         self,
         name: str,
         description: str,
-        test_template: "TestTemplate",
+        test_template: TestTemplate,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],

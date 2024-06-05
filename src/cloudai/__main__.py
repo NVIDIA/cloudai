@@ -112,7 +112,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--test-scenario",
-        required=False,
+        required=True,
         help="Path to the test scenario file.",
     )
     parser.add_argument("--output-dir", help="Path to the output directory.")
@@ -128,7 +128,12 @@ def parse_arguments() -> argparse.Namespace:
 
 
 def handle_install_and_uninstall(
-    mode: str, system_config_path: Path, test_template_path: Path, output_path: Optional[Path] = None
+    mode: str,
+    system_config_path: Path,
+    test_templates_dir: Path,
+    tests_dir: Path,
+    test_scenario_path: Path,
+    output_dir: Optional[Path] = None,
 ) -> None:
     """
     Manage the installation or uninstallation process for CloudAI.
@@ -136,17 +141,19 @@ def handle_install_and_uninstall(
     Based on user-specified mode, utilizing the Installer and Parser classes.
 
     Args:
-        mode (str): The mode of operation (e.g., install, uninstall).
+        mode (str): The operating mode.
         system_config_path (Path): The path to the system configuration file.
-        test_template_path (Path): The path to the test template configuration directory.
-        output_path (Optional[Path]): The path to the output directory.
+        test_templates_dir (Path): The path to the test template configuration directory.
+        tests_dir (Path): The path to the test configuration directory.
+        test_scenario_path (Path): The path to the test scenario file.
+        output_dir (Optional[Path]): The path to the output directory.
     """
     logging.info("Starting configuration parsing")
-    parser = Parser(str(system_config_path), str(test_template_path))
-    system, test_templates = parser.parse_system_and_templates()
+    parser = Parser(system_config_path, test_templates_dir)
+    system, tests, _ = parser.parse(tests_dir, test_scenario_path)
 
-    if output_path:
-        system.output_path = str(output_path.absolute())
+    if output_dir:
+        system.output_path = str(output_dir.absolute())
 
     system.update()
 
@@ -157,17 +164,17 @@ def handle_install_and_uninstall(
 
     if mode == "install":
         logging.info("Installing test templates.")
-        if installer.is_installed(test_templates):
+        if installer.is_installed(tests):
             logging.info("CloudAI is already installed.")
         else:
-            result = installer.install(test_templates)
+            result = installer.install(tests)
             if not result:
                 logging.error(result)
                 exit(1)
 
     elif mode == "uninstall":
         logging.info("Uninstalling test templates.")
-        result = installer.uninstall(test_templates)
+        result = installer.uninstall(tests)
         if not result:
             logging.error(result)
             sys.exit(1)
@@ -176,10 +183,10 @@ def handle_install_and_uninstall(
 def handle_dry_run_and_run(
     mode: str,
     system_config_path: Path,
-    test_template_path: Path,
-    test_path: Path,
+    test_templates_dir: Path,
+    tests_dir: Path,
     test_scenario_path: Path,
-    output_path: Optional[Path] = None,
+    output_dir: Optional[Path] = None,
 ) -> None:
     """
     Execute the dry-run or run modes for CloudAI.
@@ -189,17 +196,17 @@ def handle_dry_run_and_run(
     Args:
         mode (str): The mode of operation (e.g., dry-run, run).
         system_config_path (Path): The path to the system configuration file.
-        test_template_path (Path): The path to the test template configuration directory.
-        test_path (Path): The path to the test configuration directory.
-        test_scenario_path (Optional[Path]): The path to the test scenario file.
-        output_path (Optional[Path]): The path to the output directory.
+        test_templates_dir (Path): The path to the test template configuration directory.
+        tests_dir (Path): The path to the test configuration directory.
+        test_scenario_path (Path): The path to the test scenario file.
+        output_dir (Optional[Path]): The path to the output directory.
     """
     logging.info("Starting configuration parsing")
-    parser = Parser(str(system_config_path), str(test_template_path))
-    system, test_templates, test_scenario = parser.parse(str(test_path), str(test_scenario_path))
+    parser = Parser(system_config_path, test_templates_dir)
+    system, tests, test_scenario = parser.parse(tests_dir, test_scenario_path)
 
-    if output_path:
-        system.output_path = str(output_path.absolute())
+    if output_dir:
+        system.output_path = str(output_dir.absolute())
 
     system.update()
 
@@ -210,7 +217,7 @@ def handle_dry_run_and_run(
     if mode == "run":
         logging.info("Checking if test templates are installed.")
         installer = Installer(system)
-        result = installer.is_installed(test_templates)
+        result = installer.is_installed(tests)
         if not result:
             logging.error("CloudAI has not been installed. Please run install mode first.")
             logging.error(result)
@@ -252,8 +259,8 @@ def handle_generate_report(
         test_scenario_path (Optional[Path]): The path to the test scenario file.
     """
     logging.info("Generating report based on system and test templates")
-    parser = Parser(str(system_config_path), str(test_template_path))
-    system, test_templates, test_scenario = parser.parse(str(test_path), str(test_scenario_path))
+    parser = Parser(system_config_path, test_template_path)
+    system, test_templates, test_scenario = parser.parse(test_path, test_scenario_path)
 
     generator = ReportGenerator(str(output_path))
     generator.generate_report(test_scenario)
@@ -267,13 +274,15 @@ def main() -> None:
     setup_logging(args.log_file, args.log_level)
 
     system_config_path = Path(args.system_config_path)
-    test_template_path = Path(args.test_template_path)
-    test_path = Path(args.test_path)
-    test_scenario_path = Path(args.test_scenario_path) if args.test_scenario_path else None
-    output_path = Path(args.output_path) if args.output_path else None
+    test_templates_dir = Path(args.test_templates_dir)
+    tests_dir = Path(args.tests_dir)
+    test_scenario_path = Path(args.test_scenario_path)
+    output_dir = Path(args.output_dir) if args.output_dir else None
 
     if args.mode in ["install", "uninstall"]:
-        handle_install_and_uninstall(args.mode, system_config_path, test_template_path, output_path=output_path)
+        handle_install_and_uninstall(
+            args.mode, system_config_path, test_templates_dir, tests_dir, test_scenario_path, output_dir
+        )
     else:
         if not test_scenario_path:
             logging.error(f"Error: --test_scenario_path is required for mode={args.mode}")
@@ -281,13 +290,13 @@ def main() -> None:
 
         elif args.mode in ["dry-run", "run"]:
             handle_dry_run_and_run(
-                args.mode, system_config_path, test_template_path, test_path, test_scenario_path, output_path
+                args.mode, system_config_path, test_templates_dir, tests_dir, test_scenario_path, output_dir
             )
         elif args.mode == "generate-report":
-            if not output_path:
+            if not output_dir:
                 logging.error("Error: --output_path is required when mode is generate-report.")
                 exit(1)
-            handle_generate_report(system_config_path, test_template_path, test_path, test_scenario_path, output_path)
+            handle_generate_report(system_config_path, test_templates_dir, tests_dir, test_scenario_path, output_dir)
 
 
 if __name__ == "__main__":

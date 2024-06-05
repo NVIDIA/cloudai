@@ -14,6 +14,7 @@
 
 import os
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any, Dict, List, Union
 
 import toml
@@ -32,8 +33,8 @@ class BaseMultiFileParser(ABC):
         directory_path (str): Path to the directory with configuration files.
     """
 
-    def __init__(self, directory_path: str):
-        self.directory_path: str = directory_path
+    def __init__(self, directory_path: Path):
+        self.directory_path = directory_path
 
     @abstractmethod
     def _parse_data(self, data: Dict[str, Any]) -> Union[Test, TestTemplate]:
@@ -58,14 +59,12 @@ class BaseMultiFileParser(ABC):
             List[Any]: List of objects from the configuration files.
         """
         objects: List[Any] = []
-        for filename in os.listdir(self.directory_path):
-            if filename.endswith(".toml"):
-                file_path: str = os.path.join(self.directory_path, filename)
-                with open(file_path, "r") as file:
-                    data: Dict[str, Any] = toml.load(file)
-                    parsed_object = self._parse_data(data)
-                    obj_name: str = parsed_object.name
-                    if obj_name in objects:
-                        raise ValueError(f"Duplicate name found: {obj_name}")
-                    objects.append(parsed_object)
+        for f in self.directory_path.glob("*.toml"):
+            with f.open() as fh:
+                data: Dict[str, Any] = toml.load(fh)
+                parsed_object = self._parse_data(data)
+                obj_name: str = parsed_object.name
+                if obj_name in objects:
+                    raise ValueError(f"Duplicate name found: {obj_name}")
+                objects.append(parsed_object)
         return objects
