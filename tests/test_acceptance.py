@@ -26,7 +26,9 @@ def test_slurm(tmp_path: Path, scenario: Dict):
         Path("conf/v0.6/general/system/example_slurm_cluster.toml"), Path("conf/v0.6/general/test_template")
     )
     system, tests, test_scenario = parser.parse(Path("conf/v0.6/general/test"), test_scenario_path)
-    handle_dry_run_and_run("dry-run", system, tests, test_scenario, tmp_path)
+    system.output_path = str(tmp_path)
+    assert test_scenario is not None, "Test scenario is None"
+    handle_dry_run_and_run("dry-run", system, tests, test_scenario)
 
     results_output = list(tmp_path.glob("*"))[0]
     test_dirs = list(results_output.iterdir())

@@ -18,7 +18,7 @@ import logging
 import logging.config
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 from cloudai import Installer, Parser, ReportGenerator, Runner, System, Test, TestScenario
 
@@ -112,7 +112,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--test-scenario",
-        required=True,
+        required=False,
         help="Path to the test scenario file.",
     )
     parser.add_argument("--output-dir", help="Path to the output directory.")
@@ -229,7 +229,7 @@ def main() -> None:
     system_config_path = Path(args.system_config)
     test_templates_dir = Path(args.test_templates_dir)
     tests_dir = Path(args.tests_dir)
-    test_scenario_path = Path(args.test_scenario)
+    test_scenario_path = Path(args.test_scenario) if args.test_scenario else None
     output_dir = Path(args.output_dir) if args.output_dir else None
 
     logging.info(f"System configuration file: {system_config_path}")
@@ -248,15 +248,15 @@ def main() -> None:
     if args.mode in ["install", "uninstall"]:
         handle_install_and_uninstall(args.mode, system, tests)
     else:
-        if not test_scenario_path:
-            logging.error(f"Error: --test_scenario_path is required for mode={args.mode}")
+        if not test_scenario:
+            logging.error(f"Error: --test-scenario is required for mode={args.mode}")
             exit(1)
 
         elif args.mode in ["dry-run", "run"]:
             handle_dry_run_and_run(args.mode, system, tests, test_scenario)
         elif args.mode == "generate-report":
             if not output_dir:
-                logging.error("Error: --output_path is required when mode is generate-report.")
+                logging.error("Error: --output-dir is required when mode is generate-report.")
                 exit(1)
             handle_generate_report(test_scenario, output_dir)
 

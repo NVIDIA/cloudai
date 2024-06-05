@@ -15,8 +15,6 @@
 from pathlib import Path
 from typing import Any, Dict, List, Set
 
-import toml
-
 from .base_multi_file_parser import BaseMultiFileParser
 from .test import Test
 from .test_template import TestTemplate
@@ -48,20 +46,6 @@ class TestParser(BaseMultiFileParser):
         """
         super().__init__(directory_path)
         self.test_template_mapping: Dict[str, TestTemplate] = test_template_mapping
-
-    def load_test_names(self) -> Set[str]:
-        if not self.directory_path.exists():
-            raise FileNotFoundError(f"Test path '{self.directory_path}' does not exist.")
-        if not self.directory_path.is_dir():
-            raise NotADirectoryError(f"Test path '{self.directory_path}' is not a directory.")
-
-        tests: Set[str] = set()
-        for file in self.directory_path.glob("*.toml"):
-            with open(file, "r") as f:
-                data: Dict[str, Any] = toml.load(f)
-                tests.add(data["name"])
-
-        return tests
 
     def _parse_data(self, data: Dict[str, Any]) -> Test:
         """

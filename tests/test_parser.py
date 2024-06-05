@@ -1,8 +1,8 @@
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 import pytest
 from cloudai import Parser
-from cloudai._core.test_parser import TestParser
 
 
 class Test_Parser:
@@ -12,45 +12,42 @@ class Test_Parser:
         templates_dir = tmp_path / "templates"
         return Parser(system, templates_dir)
 
-    def test_no_scenario_file(self, parser: Parser):
-        scenario = parser.system_config_path.parent / "scenario.toml"
-        tests_dir = parser.system_config_path.parent / "tests"
-        with pytest.raises(FileNotFoundError) as exc_info:
-            parser.parse(tests_dir, scenario)
-        assert "Test scenario path" in str(exc_info.value)
-
     def test_no_tests_dir(self, parser: Parser):
-        scenario = parser.system_config_path.parent / "scenario.toml"
-        scenario.touch()
         tests_dir = parser.system_config_path.parent / "tests"
         with pytest.raises(FileNotFoundError) as exc_info:
-            parser.parse(tests_dir, scenario)
+            parser.parse(tests_dir, None)
         assert "Test path" in str(exc_info.value)
 
+    @patch("cloudai._core.system_parser.SystemParser.parse")
+    @patch("cloudai._core.test_parser.TestParser.parse_all")
+    def test_no_scenario(self, m_tp, m_sp, parser: Parser):
+        tests_dir = parser.system_config_path.parent / "tests"
+        tests_dir.mkdir()
+        fake_tests = []
+        for i in range(3):
+            fake_tests.append(Mock())
+            fake_tests[-1].name = f"test-{i}"
+        m_tp.return_value = fake_tests
+        fake_scenario = Mock()
+        fake_scenario.tests = [Mock()]
+        fake_scenario.tests[0].name = "test-1"
+        _, tests, _ = parser.parse(tests_dir, None)
+        assert len(tests) == 3
 
-class TestTestParser:
-    @pytest.fixture()
-    def test_parser(self, tmp_path: Path) -> TestParser:
-        return TestParser(tmp_path / "tests", {})
-
-    def test_no_dir(self, test_parser: TestParser):
-        with pytest.raises(FileNotFoundError) as exc_info:
-            test_parser.load_test_names()
-        assert "Test path" in str(exc_info.value)
-
-    def test_not_a_dir(self, test_parser: TestParser):
-        test_parser.directory_path.touch()
-        with pytest.raises(NotADirectoryError) as exc_info:
-            test_parser.load_test_names()
-        assert "Test path" in str(exc_info.value)
-
-    def test_one_config(self, test_parser: TestParser):
-        test_parser.directory_path.mkdir()
-        (test_parser.directory_path / "test1.toml").write_text("name = 'test1'")
-        assert test_parser.load_test_names() == {"test1"}
-
-    def test_many_configs(self, test_parser: TestParser):
-        test_parser.directory_path.mkdir()
-        (test_parser.directory_path / "test1.toml").write_text("name = 'test1'")
-        (test_parser.directory_path / "test2.toml").write_text("name = 'test2'")
-        assert test_parser.load_test_names() == {"test1", "test2"}
+    @patch("cloudai._core.system_parser.SystemParser.parse")
+    @patch("cloudai._core.test_parser.TestParser.parse_all")
+    @patch("cloudai._core.test_scenario_parser.TestScenarioParser.parse")
+    def test_scenario_filters_tests(self, m_tsp, m_tp, m_sp, parser: Parser):
+        tests_dir = parser.system_config_path.parent / "tests"
+        tests_dir.mkdir()
+        fake_tests = []
+        for i in range(3):
+            fake_tests.append(Mock())
+            fake_tests[-1].name = f"test-{i}"
+        m_tp.return_value = fake_tests
+        fake_scenario = Mock()
+        fake_scenario.tests = [Mock()]
+        fake_scenario.tests[0].name = "test-1"
+        m_tsp.return_value = fake_scenario
+        _, tests, _ = parser.parse(tests_dir, Path())
+        assert len(tests) == 1

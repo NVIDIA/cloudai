@@ -14,7 +14,7 @@
 
 import logging
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from .system import System
 from .system_parser import SystemParser
@@ -50,7 +50,9 @@ class Parser:
         self.system_config_path = system_config_path
         self.test_template_path = test_templates_dir
 
-    def parse(self, test_path: Path, test_scenario_path: Path) -> Tuple[System, List[Test], TestScenario]:
+    def parse(
+        self, test_path: Path, test_scenario_path: Optional[Path] = None
+    ) -> Tuple[System, List[Test], Optional[TestScenario]]:
         """
         Parse configurations for system, test templates, and test scenarios.
 
@@ -59,8 +61,6 @@ class Parser:
             the system object, a list of test template objects, and the test scenario
             object.
         """
-        if not test_scenario_path.exists():
-            raise FileNotFoundError(f"Test scenario path '{test_scenario_path}' not found.")
         if not test_path.exists():
             raise FileNotFoundError(f"Test path '{test_path}' not found.")
 
@@ -78,11 +78,14 @@ class Parser:
         test_mapping = {t.name: t for t in tests}
         logging.debug(f"Parsed {len(tests)} tests: {[t.name for t in tests]}")
 
-        test_scenario_parser = TestScenarioParser(str(test_scenario_path), system, test_mapping)
-        test_scenario = test_scenario_parser.parse()
-        logging.debug("Parsed test scenario")
+        filtered_tests = tests
+        test_scenario: Optional[TestScenario] = None
+        if test_scenario_path:
+            test_scenario_parser = TestScenarioParser(str(test_scenario_path), system, test_mapping)
+            test_scenario = test_scenario_parser.parse()
+            logging.debug("Parsed test scenario")
 
-        scenario_tests = set(t.name for t in test_scenario.tests)
-        filtered_tests = [t for t in tests if t.name in scenario_tests]
+            scenario_tests = set(t.name for t in test_scenario.tests)
+            filtered_tests = [t for t in tests if t.name in scenario_tests]
 
         return system, filtered_tests, test_scenario
