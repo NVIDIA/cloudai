@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 from typing import Any, Dict, List, Optional
 
 from .command_gen_strategy import CommandGenStrategy
@@ -24,8 +23,6 @@ from .job_status_result import JobStatusResult
 from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
-
-logger = logging.getLogger(__name__)
 
 
 class TestTemplate:

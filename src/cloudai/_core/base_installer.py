@@ -22,8 +22,6 @@ from cloudai._core.install_status_result import InstallStatusResult
 from .system import System
 from .test_template import TestTemplate
 
-logger = logging.getLogger(__name__)
-
 
 class BaseInstaller:
     """
@@ -45,7 +43,7 @@ class BaseInstaller:
             system (System): The system schema object.
         """
         self.system = system
-        logger.info(f"BaseInstaller initialized for {self.system.scheduler}.")
+        logging.info(f"BaseInstaller initialized for {self.system.scheduler}.")
 
     def _is_binary_installed(self, binary_name: str) -> bool:
         """
@@ -57,7 +55,7 @@ class BaseInstaller:
         Returns:
             bool: True if the binary is installed, False otherwise.
         """
-        logger.debug(f"Checking if binary '{binary_name}' is installed.")
+        logging.debug(f"Checking if binary '{binary_name}' is installed.")
         return shutil.which(binary_name) is not None
 
     def _check_prerequisites(self) -> InstallStatusResult:
@@ -69,7 +67,7 @@ class BaseInstaller:
         Returns
             InstallStatusResult: Result containing the status and any error message.
         """
-        logger.info("Checking for common prerequisites.")
+        logging.info("Checking for common prerequisites.")
         return InstallStatusResult(True)
 
     def is_installed(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
@@ -84,7 +82,7 @@ class BaseInstaller:
         Returns:
             InstallStatusResult: Result containing the installation status and error message if not installed.
         """
-        logger.info("Verifying installation status of test templates.")
+        logging.info("Verifying installation status of test templates.")
         not_installed = {}
         for test_template in test_templates:
             result = test_template.is_installed()
@@ -106,7 +104,7 @@ class BaseInstaller:
         Returns:
             InstallStatusResult: Result containing the installation status and error message if any.
         """
-        logger.info("Starting installation of test templates.")
+        logging.info("Starting installation of test templates.")
         prerequisites_result = self._check_prerequisites()
         if not prerequisites_result:
             return prerequisites_result
@@ -123,7 +121,7 @@ class BaseInstaller:
                     else:
                         install_results[test_template.name] = result.message
                 except Exception as e:
-                    logger.error(f"Installation failed for {test_template.name}: {e}")
+                    logging.error(f"Installation failed for {test_template.name}: {e}")
                     install_results[test_template.name] = str(e)
 
         all_success = all(result == "Success" for result in install_results.values())
@@ -142,7 +140,7 @@ class BaseInstaller:
         Returns:
             InstallStatusResult: Result containing the uninstallation status and error message if any.
         """
-        logger.info("Uninstalling test templates.")
+        logging.info("Uninstalling test templates.")
         uninstall_results = {}
         with ThreadPoolExecutor() as executor:
             futures = {executor.submit(test_template.uninstall): test_template for test_template in test_templates}
@@ -155,7 +153,7 @@ class BaseInstaller:
                     else:
                         uninstall_results[test_template.name] = result.message
                 except Exception as e:
-                    logger.error(f"Uninstallation failed for {test_template.name}: {e}")
+                    logging.error(f"Uninstallation failed for {test_template.name}: {e}")
                     uninstall_results[test_template.name] = str(e)
 
         all_success = all(result == "Success" for result in uninstall_results.values())

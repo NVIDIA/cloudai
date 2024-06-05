@@ -20,8 +20,6 @@ from typing import Dict, List
 from .test import Test
 from .test_scenario import TestScenario
 
-logger = logging.getLogger(__name__)
-
 
 class Grader:
     """
@@ -57,7 +55,7 @@ class Grader:
         for test in test_scenario.tests:
             section_name = str(test.section_name) if test.section_name else ""
             if not section_name:
-                logger.warning(f"Missing section name for test {test.name}")
+                logging.warning(f"Missing section name for test {test.name}")
                 continue
             test_output_dir = os.path.join(self.output_path, section_name)
             perfs = self._get_perfs_from_subdirs(test_output_dir, test)

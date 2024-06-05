@@ -22,8 +22,6 @@ from cloudai.util import CommandShell
 
 from .slurm_node import SlurmNode, SlurmNodeState
 
-logger = logging.getLogger(__name__)
-
 
 class SlurmSystem(System):
     """
@@ -221,7 +219,7 @@ class SlurmSystem(System):
         self.groups = groups if groups is not None else {}
         self.global_env_vars = global_env_vars if global_env_vars is not None else {}
         self.cmd_shell = CommandShell()
-        logger.info(f"{self.__class__.__name__} initialized")
+        logging.info(f"{self.__class__.__name__} initialized")
 
     def __repr__(self) -> str:
         """
@@ -390,7 +388,7 @@ class SlurmSystem(System):
             )
 
         # Log allocation details
-        logger.info(
+        logging.info(
             "Allocated nodes from group '{}' in partition '{}': {}".format(
                 group_name,
                 partition_name,
@@ -438,12 +436,12 @@ class SlurmSystem(System):
         command = f"squeue -j {job_id} --noheader --format=%T"
 
         while retry_count < retry_threshold:
-            logger.debug(f"Executing command to check job status: {command}")
+            logging.debug(f"Executing command to check job status: {command}")
             stdout, stderr = self.cmd_shell.execute(command).communicate()
 
             if "Socket timed out" in stderr or "slurm_load_jobs error" in stderr:
                 retry_count += 1
-                logger.warning(f"Transient error encountered. Retrying... " f"({retry_count}/{retry_threshold})")
+                logging.warning(f"Transient error encountered. Retrying... " f"({retry_count}/{retry_threshold})")
                 continue
 
             if stderr:
@@ -484,11 +482,11 @@ class SlurmSystem(System):
         retry_count = 0
         while retry_count < retry_threshold:
             command = f"squeue -j {job_id}"
-            logger.debug(f"Checking job status with command: {command}")
+            logging.debug(f"Checking job status with command: {command}")
             stdout, stderr = self.cmd_shell.execute(command).communicate()
             if "Socket timed out" in stderr:
                 retry_count += 1
-                logger.warning(f"Retrying job status check (attempt {retry_count}/" f"{retry_threshold})")
+                logging.warning(f"Retrying job status check (attempt {retry_count}/" f"{retry_threshold})")
                 continue
 
             if stderr:
@@ -550,10 +548,10 @@ class SlurmSystem(System):
         Returns:
             Tuple[str, str]: The stdout and stderr from the command execution.
         """
-        logger.debug(f"Executing command: {command}")
+        logging.debug(f"Executing command: {command}")
         stdout, stderr = self.cmd_shell.execute(command).communicate()
         if stderr:
-            logger.error(f"Error executing command '{command}': {stderr}")
+            logging.error(f"Error executing command '{command}': {stderr}")
         return stdout, stderr
 
     def parse_squeue_output(self, squeue_output: str) -> Dict[str, str]:
@@ -669,7 +667,7 @@ class SlurmSystem(System):
             if abbrev in state_abbreviations:
                 return state_abbreviations[abbrev]
             else:
-                logger.warning(f"Unknown state: {core_state}")
+                logging.warning(f"Unknown state: {core_state}")
                 return SlurmNodeState.UNKNOWN_STATE
 
     def parse_nodes(self, nodes: List[str]) -> List[str]:

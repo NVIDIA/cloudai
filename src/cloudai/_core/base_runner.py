@@ -30,8 +30,6 @@ from .system import System
 from .test import Test
 from .test_scenario import TestScenario
 
-logger = logging.getLogger(__name__)
-
 
 class BaseRunner(ABC):
     """
@@ -74,7 +72,7 @@ class BaseRunner(ABC):
         self.monitor_interval = system.monitor_interval
         self.jobs: List[BaseJob] = []
         self.test_to_job_map: Dict[Test, BaseJob] = {}
-        logger.info(f"{self.__class__.__name__} initialized")
+        logging.info(f"{self.__class__.__name__} initialized")
         self.shutting_down = False
         self.register_signal_handlers()
 
@@ -128,17 +126,17 @@ class BaseRunner(ABC):
             None
         """
         self.shutting_down = True
-        logger.info(f"Signal {signum} received, shutting down...")
+        logging.info(f"Signal {signum} received, shutting down...")
         asyncio.create_task(self.shutdown())
 
     async def shutdown(self):
         """Gracefully shut down the runner, terminating all outstanding jobs."""
         if not self.jobs:
             return
-        logger.info("Terminating all jobs...")
+        logging.info("Terminating all jobs...")
         for job in self.jobs:
             self.kill_job(job)
-        logger.info("All jobs have been killed.")
+        logging.info("All jobs have been killed.")
 
         sys.exit(0)
 
@@ -147,7 +145,7 @@ class BaseRunner(ABC):
         if self.shutting_down:
             return
 
-        logger.info("Starting test scenario execution.")
+        logging.info("Starting test scenario execution.")
         total_tests = len(self.test_scenario.tests)
         completed_jobs_count = 0
 
@@ -167,13 +165,13 @@ class BaseRunner(ABC):
         Args:
             test (Test): The test to be started.
         """
-        logger.info(f"Starting test: {test.section_name}")
+        logging.info(f"Starting test: {test.section_name}")
         try:
             job = self._submit_test(test)
             self.jobs.append(job)
             self.test_to_job_map[test] = job
         except JobSubmissionError as e:
-            logger.error(e)
+            logging.error(e)
             exit(1)
 
     async def delayed_submit_test(self, test: Test, delay: int):
@@ -184,7 +182,7 @@ class BaseRunner(ABC):
             test (Test): The test to start after a delay.
             delay (int): Delay in seconds before starting the test.
         """
-        logger.info(f"Delayed start for test {test.section_name} by {delay} seconds.")
+        logging.info(f"Delayed start for test {test.section_name} by {delay} seconds.")
         await asyncio.sleep(delay)
         await self.submit_test(test)
 
@@ -285,7 +283,7 @@ class BaseRunner(ABC):
         """
         successful_jobs_count = 0
 
-        logger.debug("Monitoring jobs.")
+        logging.debug("Monitoring jobs.")
         for job in list(self.jobs):
             if self.is_job_completed(job):
                 if self.mode == "dry-run":
@@ -299,7 +297,7 @@ class BaseRunner(ABC):
                         error_message = (
                             f"Job {job.id} for test {job.test.section_name} failed: {job_status_result.error_message}"
                         )
-                        logger.error(error_message)
+                        logging.error(error_message)
                         print(error_message, file=sys.stdout)
                         await self.shutdown()
                         raise JobFailureError(job.test.section_name, error_message, job_status_result.error_message)
@@ -325,13 +323,13 @@ class BaseRunner(ABC):
         Args:
             completed_job (BaseJob): The job that has just been completed.
         """
-        logger.info(f"Job completed: {completed_job.test.section_name}")
+        logging.info(f"Job completed: {completed_job.test.section_name}")
         self.jobs.remove(completed_job)
         del self.test_to_job_map[completed_job.test]
         completed_job.increment_iteration()
         if not completed_job.terminated_by_dependency and completed_job.test.has_more_iterations():
             msg = f"Re-running job for iteration {completed_job.test.current_iteration}"
-            logger.info(msg)
+            logging.info(msg)
             await self.submit_test(completed_job.test)
         else:
             await self.handle_dependencies(completed_job)
@@ -410,7 +408,7 @@ class BaseRunner(ABC):
             job (BaseJob): The job to be terminated.
             delay (int): Delay in seconds after which the job should be terminated.
         """
-        logger.info(f"Scheduling termination of job {job.id} after {delay} seconds.")
+        logging.info(f"Scheduling termination of job {job.id} after {delay} seconds.")
         await asyncio.sleep(delay)
         job.terminated_by_dependency = True
         self.kill_job(job)

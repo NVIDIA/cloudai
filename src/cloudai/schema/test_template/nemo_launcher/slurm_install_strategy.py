@@ -23,8 +23,6 @@ from cloudai._core.system import System
 from cloudai.systems.slurm import SlurmNodeState
 from cloudai.systems.slurm.strategy import SlurmInstallStrategy
 
-logger = logging.getLogger(__name__)
-
 
 class DatasetCheckResult:
     """
@@ -220,7 +218,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         idle_nodes = [node.name for node in partition_nodes if node.state == SlurmNodeState.IDLE]
 
         if not idle_nodes:
-            logger.info(
+            logging.info(
                 "There are no idle nodes in the default partition to check. "
                 "Skipping NeMo-Launcher dataset verification."
             )
@@ -281,13 +279,13 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
             subdir_path (str): Subdirectory path for installation.
         """
         repo_path = os.path.join(subdir_path, self.REPOSITORY_NAME)
-        logger.info("Cloning NeMo-Launcher repository into %s", repo_path)
+        logging.info("Cloning NeMo-Launcher repository into %s", repo_path)
         clone_cmd = ["git", "clone", self.repository_url, repo_path]
         result = subprocess.run(clone_cmd, capture_output=True, text=True)
         if result.returncode != 0:
             raise RuntimeError(f"Failed to clone repository '{self.repository_url}': {result.stderr}")
 
-        logger.info("Checking out specific commit %s in repository", self.repository_commit_hash)
+        logging.info("Checking out specific commit %s in repository", self.repository_commit_hash)
         checkout_cmd = ["git", "checkout", self.repository_commit_hash]
         result = subprocess.run(checkout_cmd, cwd=repo_path, capture_output=True, text=True)
         if result.returncode != 0:

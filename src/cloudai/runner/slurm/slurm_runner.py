@@ -26,8 +26,6 @@ from cloudai.util import CommandShell
 
 from .slurm_job import SlurmJob
 
-logger = logging.getLogger(__name__)
-
 
 class SlurmRunner(BaseRunner):
     """
@@ -70,10 +68,10 @@ class SlurmRunner(BaseRunner):
         Returns:
             SlurmJob: A SlurmJob object
         """
-        logger.info(f"Running test: {test.section_name}")
+        logging.info(f"Running test: {test.section_name}")
         job_output_path = self.get_job_output_path(test)
         exec_cmd = test.gen_exec_command(job_output_path)
-        logger.info(f"Executing command for test {test.section_name}: {exec_cmd}")
+        logging.info(f"Executing command for test {test.section_name}: {exec_cmd}")
         job_id = 0
         if self.mode == "run":
             stdout, stderr = self.cmd_shell.execute(exec_cmd).communicate()
