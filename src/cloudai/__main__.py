@@ -178,7 +178,7 @@ def handle_dry_run_and_run(
     system_config_path: Path,
     test_template_path: Path,
     test_path: Path,
-    test_scenario_path: Optional[Path] = None,
+    test_scenario_path: Path,
     output_path: Optional[Path] = None,
 ) -> None:
     """
@@ -195,13 +195,8 @@ def handle_dry_run_and_run(
         output_path (Optional[Path]): The path to the output directory.
     """
     logging.info("Starting configuration parsing")
-    parser = Parser(
-        str(system_config_path),
-        str(test_template_path),
-        str(test_path),
-        str(test_scenario_path) if test_scenario_path else None,
-    )
-    system, test_templates, test_scenario = parser.parse()
+    parser = Parser(str(system_config_path), str(test_template_path))
+    system, test_templates, test_scenario = parser.parse(str(test_path), str(test_scenario_path))
 
     if output_path:
         system.output_path = str(output_path.absolute())
@@ -243,8 +238,8 @@ def handle_generate_report(
     system_config_path: Path,
     test_template_path: Path,
     test_path: Path,
+    test_scenario_path: Path,
     output_path: Path,
-    test_scenario_path: Optional[Path] = None,
 ) -> None:
     """
     Generate a report based on the existing configuration and test results.
@@ -257,13 +252,8 @@ def handle_generate_report(
         test_scenario_path (Optional[Path]): The path to the test scenario file.
     """
     logging.info("Generating report based on system and test templates")
-    parser = Parser(
-        str(system_config_path),
-        str(test_template_path),
-        str(test_path),
-        str(test_scenario_path),
-    )
-    system, test_templates, test_scenario = parser.parse()
+    parser = Parser(str(system_config_path), str(test_template_path))
+    system, test_templates, test_scenario = parser.parse(str(test_path), str(test_scenario_path))
 
     generator = ReportGenerator(str(output_path))
     generator.generate_report(test_scenario)
@@ -284,15 +274,20 @@ def main() -> None:
 
     if args.mode in ["install", "uninstall"]:
         handle_install_and_uninstall(args.mode, system_config_path, test_template_path, output_path=output_path)
-    elif args.mode in ["dry-run", "run"]:
-        handle_dry_run_and_run(
-            args.mode, system_config_path, test_template_path, test_path, test_scenario_path, output_path
-        )
-    elif args.mode == "generate-report":
-        if not output_path:
-            logging.error("Error: --output_path is required when mode is generate-report.")
+    else:
+        if not test_scenario_path:
+            logging.error(f"Error: --test_scenario_path is required for mode={args.mode}")
             exit(1)
-        handle_generate_report(system_config_path, test_template_path, test_path, output_path, test_scenario_path)
+
+        elif args.mode in ["dry-run", "run"]:
+            handle_dry_run_and_run(
+                args.mode, system_config_path, test_template_path, test_path, test_scenario_path, output_path
+            )
+        elif args.mode == "generate-report":
+            if not output_path:
+                logging.error("Error: --output_path is required when mode is generate-report.")
+                exit(1)
+            handle_generate_report(system_config_path, test_template_path, test_path, test_scenario_path, output_path)
 
 
 if __name__ == "__main__":

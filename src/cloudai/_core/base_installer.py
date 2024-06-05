@@ -110,19 +110,26 @@ class BaseInstaller:
             return prerequisites_result
 
         install_results = {}
-        with ThreadPoolExecutor() as executor:
-            futures = {executor.submit(test_template.install): test_template for test_template in test_templates}
-            for future in as_completed(futures):
-                test_template = futures[future]
-                try:
-                    result = future.result()
-                    if result.success:
-                        install_results[test_template.name] = "Success"
-                    else:
-                        install_results[test_template.name] = result.message
-                except Exception as e:
-                    logging.error(f"Installation failed for {test_template.name}: {e}")
-                    install_results[test_template.name] = str(e)
+        # with ThreadPoolExecutor() as executor:
+        #     futures = {executor.submit(test_template.install): test_template for test_template in test_templates}
+        #     for future in as_completed(futures):
+        #         test_template = futures[future]
+        #         try:
+        #             result = future.result()
+        #             if result.success:
+        #                 install_results[test_template.name] = "Success"
+        #             else:
+        #                 install_results[test_template.name] = result.message
+        #         except Exception as e:
+        #             logging.error(f"Installation failed for {test_template.name}: {e}")
+        #             install_results[test_template.name] = str(e)
+        for template in test_templates:
+            logging.info(f"Installing {template.name}")
+            result = template.install()
+            if result.success:
+                install_results[template.name] = "Success"
+            else:
+                install_results[template.name] = result.message
 
         all_success = all(result == "Success" for result in install_results.values())
         if all_success:

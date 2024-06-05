@@ -40,8 +40,8 @@ class Parser:
         self,
         system_config_path: str,
         test_template_path: str,
-        test_path: Optional[str] = None,
-        test_scenario_path: Optional[str] = None,
+        # test_path: str,
+        # test_scenario_path: str,
     ) -> None:
         """
         Initialize a Parser instance.
@@ -52,11 +52,11 @@ class Parser:
             test_path (str): The file path for test configurations.
             test_scenario_path (str): The file path for test scenario configurations.
         """
-        self.system_config_path: str = system_config_path
-        self.test_template_path: str = test_template_path
-        self.test_path: Optional[str] = test_path
-        self.test_scenario_path: Optional[str] = test_scenario_path
-        logging.debug("Initialized with system and template paths")
+        logging.debug(f"Initializing parser with: {system_config_path=} {test_template_path=}")
+        self.system_config_path = system_config_path
+        self.test_template_path = test_template_path
+        # self.test_path = test_path
+        # self.test_scenario_path = test_scenario_path
 
     def parse_system_and_templates(self) -> Tuple[System, List[TestTemplate]]:
         """
@@ -76,7 +76,7 @@ class Parser:
 
         return system, test_templates
 
-    def parse(self) -> Tuple[System, List[TestTemplate], TestScenario]:
+    def parse(self, test_path: str, test_scenario_path: str) -> Tuple[System, List[TestTemplate], TestScenario]:
         """
         Parse configurations for system, test templates, and test scenarios.
 
@@ -94,14 +94,12 @@ class Parser:
         test_template_mapping = {t.name: t for t in test_templates}
         logging.debug(f"Parsed {len(test_templates)} test templates")
 
-        assert self.test_path is not None, "Tests path must be provided for experiments."
-        test_parser = TestParser(self.test_path, test_template_mapping)
+        test_parser = TestParser(test_path, test_template_mapping)
         tests = test_parser.parse_all()
         test_mapping = {t.name: t for t in tests}
         logging.debug(f"Parsed {len(tests)} tests")
 
-        assert self.test_scenario_path is not None, "Test scenarios path must be provided for experiments."
-        test_scenario_parser = TestScenarioParser(self.test_scenario_path, system, test_mapping)
+        test_scenario_parser = TestScenarioParser(test_scenario_path, system, test_mapping)
         test_scenario = test_scenario_parser.parse()
         logging.debug("Parsed test scenario")
 
