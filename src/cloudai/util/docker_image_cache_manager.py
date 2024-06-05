@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import shutil
 import subprocess
@@ -133,8 +134,8 @@ class DockerImageCacheManager:
 
         if self.cache_docker_images_locally:
             return self.cache_docker_image(docker_image_url, subdir_name, docker_image_filename)
-        else:
-            return image_check_result
+
+        return image_check_result
 
     def check_docker_image_exists(
         self, docker_image_url: str, subdir_name: str, docker_image_filename: str
@@ -150,6 +151,10 @@ class DockerImageCacheManager:
         Returns:
             DockerImageCacheResult: Result of the Docker image existence check.
         """
+        logging.debug(
+            f"Checking if Docker image exists: {docker_image_url=}, {subdir_name=}, {docker_image_filename=} "
+            f"{self.cache_docker_images_locally=}"
+        )
         if self.cache_docker_images_locally:
             if os.path.isfile(docker_image_url):
                 if os.path.exists(docker_image_url):
@@ -175,12 +180,11 @@ class DockerImageCacheManager:
                 False, "", f"Docker image does not exist at the specified path: {docker_image_path}."
             )
 
-        else:
-            accessibility_check = self._check_docker_image_accessibility(docker_image_url)
-            if accessibility_check.success:
-                return DockerImageCacheResult(True, docker_image_url, accessibility_check.message)
-            else:
-                return DockerImageCacheResult(False, "", accessibility_check.message)
+        accessibility_check = self._check_docker_image_accessibility(docker_image_url)
+        if accessibility_check.success:
+            return DockerImageCacheResult(True, docker_image_url, accessibility_check.message)
+
+        return DockerImageCacheResult(False, "", accessibility_check.message)
 
     def cache_docker_image(
         self, docker_image_url: str, subdir_name: str, docker_image_filename: str
@@ -275,28 +279,33 @@ class DockerImageCacheManager:
         if not docker_image_url.startswith("http://") and not docker_image_url.startswith("https://"):
             docker_image_url = "https://" + docker_image_url
 
+        logging.debug(f"Checking accessibility of Docker image URL: {docker_image_url}")
         try:
             response = requests.head(docker_image_url, allow_redirects=True)
+            logging.debug(f"HTTP status code: {response.status_code}, {response.content}")
 
             if response.status_code == 200:
-                return PrerequisiteCheckResult(True, "Docker image URL is accessible.")
+                msg = f"Docker image URL {docker_image_url} is accessible."
+                logging.debug(msg)
+                return PrerequisiteCheckResult(True, msg)
             elif response.status_code == 404:
-                return PrerequisiteCheckResult(
-                    False, f"Docker image URL {docker_image_url} not found. HTTP status code: {response.status_code}"
-                )
+                msg = f"Docker image URL {docker_image_url} not found. HTTP status code: {response.status_code}"
+                logging.debug(msg)
+                return PrerequisiteCheckResult(False, msg)
             elif response.status_code == 401:
-                return PrerequisiteCheckResult(
-                    True,
+                msg = (
                     f"Unauthorized access to Docker image URL {docker_image_url}. "
-                    f"HTTP status code: {response.status_code}. Enroot will handle credentials.",
+                    f"HTTP status code: {response.status_code}"
                 )
+                logging.debug(msg)
+                return PrerequisiteCheckResult(True, msg)
             else:
-                return PrerequisiteCheckResult(
-                    False,
-                    f"Failed to access Docker image URL {docker_image_url}. HTTP status code: {response.status_code}",
-                )
+                msg = f"Failed to access Docker image URL {docker_image_url}. HTTP status code: {response.status_code}"
+                logging.debug(msg)
+                return PrerequisiteCheckResult(False, msg)
         except requests.RequestException as e:
-            return PrerequisiteCheckResult(False, f"Failed to check Docker image URL {docker_image_url}. Error: {e}")
+            logging.debug(f"Failed to access Docker image URL {docker_image_url}. Error: {e}")
+            return PrerequisiteCheckResult(False, f"Docker image is not accessible URL={docker_image_url}. Error: {e}")
 
     def uninstall_cached_image(self, subdir_name: str, docker_image_filename: str) -> DockerImageCacheResult:
         """
