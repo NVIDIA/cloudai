@@ -102,12 +102,12 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--test-templates-dir",
-        default="conf/v0.6/general/test_template",
+        required=True,
         help="Path to the test template configuration directory.",
     )
     parser.add_argument(
         "--tests-dir",
-        default="conf/v0.6/general/test",
+        required=True,
         help="Path to the test configuration directory.",
     )
     parser.add_argument(
