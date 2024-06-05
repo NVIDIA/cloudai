@@ -21,6 +21,8 @@ from cloudai._core.registry import Registry
 from cloudai._core.system import System
 from cloudai._core.test_template import TestTemplate
 
+logger = logging.getLogger(__name__)
+
 
 class Installer:
     """
@@ -40,8 +42,7 @@ class Installer:
         Args:
             system (System): The system schema object.
         """
-        self.logger = logging.getLogger(__name__ + ".Installer")
-        self.logger.info("Initializing Installer with system configuration.")
+        logger.info("Initializing Installer with system configuration.")
         self.installer = self.create_installer(system)
 
     @classmethod
@@ -75,7 +76,7 @@ class Installer:
         Returns:
             InstallStatusResult: Result containing the installation status and error message if not installed.
         """
-        self.logger.info("Checking installation status of components.")
+        logger.info("Checking installation status of components.")
         return self.installer.is_installed(test_templates)
 
     def install(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
@@ -88,7 +89,7 @@ class Installer:
         Returns:
             InstallStatusResult: Result containing the installation status and error message if not installed.
         """
-        self.logger.info("Installing test templates.")
+        logger.info("Installing test templates.")
         return self.installer.install(test_templates)
 
     def uninstall(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
@@ -101,5 +102,5 @@ class Installer:
         Returns:
             InstallStatusResult: Result containing the installation status and error message if not installed.
         """
-        self.logger.info("Uninstalling test templates.")
+        logger.info("Uninstalling test templates.")
         return self.installer.uninstall(test_templates)

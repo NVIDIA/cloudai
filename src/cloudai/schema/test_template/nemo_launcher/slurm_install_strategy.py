@@ -15,7 +15,6 @@
 import logging
 import os
 import subprocess
-import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List
 
@@ -23,6 +22,8 @@ from cloudai._core.install_status_result import InstallStatusResult
 from cloudai._core.system import System
 from cloudai.systems.slurm import SlurmNodeState
 from cloudai.systems.slurm.strategy import SlurmInstallStrategy
+
+logger = logging.getLogger(__name__)
 
 
 class DatasetCheckResult:
@@ -67,8 +68,6 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         self.repository_url = self._validate_cmd_arg(cmd_args, "repository_url")
         self.repository_commit_hash = self._validate_cmd_arg(cmd_args, "repository_commit_hash")
         self.docker_image_url = self._validate_cmd_arg(cmd_args, "docker_image_url")
-        self.logger = logging.getLogger(__name__)
-        self._configure_logging()
 
     def _validate_cmd_arg(self, cmd_args: Dict[str, Any], arg_name: str) -> str:
         """
@@ -89,25 +88,6 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         if arg_value is None:
             raise ValueError(f"{arg_name} not specified or default value is None in command-line arguments.")
         return arg_value
-
-    def _configure_logging(self):
-        """
-        Configure logging to output error messages to stdout.
-
-        This method sets the logger's level to INFO, capturing messages at this level and above. It also configures a
-        StreamHandler for error messages (ERROR level and above), directing them to stdout for immediate visibility.
-
-        StreamHandler formatting includes the logger's name, the log level, and the message.
-        """
-        self.logger.setLevel(logging.INFO)
-
-        c_handler = logging.StreamHandler(sys.stdout)
-        c_handler.setLevel(logging.ERROR)
-
-        c_format = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
-        c_handler.setFormatter(c_format)
-
-        self.logger.addHandler(c_handler)
 
     def is_installed(self) -> InstallStatusResult:
         subdir_path = os.path.join(self.install_path, self.SUBDIR_PATH)
@@ -240,7 +220,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         idle_nodes = [node.name for node in partition_nodes if node.state == SlurmNodeState.IDLE]
 
         if not idle_nodes:
-            self.logger.info(
+            logger.info(
                 "There are no idle nodes in the default partition to check. "
                 "Skipping NeMo-Launcher dataset verification."
             )
@@ -301,13 +281,13 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
             subdir_path (str): Subdirectory path for installation.
         """
         repo_path = os.path.join(subdir_path, self.REPOSITORY_NAME)
-        self.logger.info("Cloning NeMo-Launcher repository into %s", repo_path)
+        logger.info("Cloning NeMo-Launcher repository into %s", repo_path)
         clone_cmd = ["git", "clone", self.repository_url, repo_path]
         result = subprocess.run(clone_cmd, capture_output=True, text=True)
         if result.returncode != 0:
             raise RuntimeError(f"Failed to clone repository '{self.repository_url}': {result.stderr}")
 
-        self.logger.info("Checking out specific commit %s in repository", self.repository_commit_hash)
+        logger.info("Checking out specific commit %s in repository", self.repository_commit_hash)
         checkout_cmd = ["git", "checkout", self.repository_commit_hash]
         result = subprocess.run(checkout_cmd, cwd=repo_path, capture_output=True, text=True)
         if result.returncode != 0:

@@ -19,6 +19,8 @@ from .registry import Registry
 from .system import System
 from .test_scenario import TestScenario
 
+logger = logging.getLogger(__name__)
+
 
 class Runner:
     """
@@ -41,8 +43,7 @@ class Runner:
     _runners = {}
 
     def __init__(self, mode: str, system: System, test_scenario: TestScenario):
-        self.logger = logging.getLogger(__name__ + ".Runner")
-        self.logger.info("Initializing Runner")
+        logger.info("Initializing Runner")
         self.runner = self.create_runner(mode, system, test_scenario)
 
     def create_runner(self, mode: str, system: System, test_scenario: TestScenario) -> BaseRunner:
@@ -64,10 +65,10 @@ class Runner:
         scheduler_type = system.scheduler.lower()
         if scheduler_type not in registry.runners_map:
             msg = f"No runner registered for scheduler: {scheduler_type}"
-            self.logger.error(msg)
+            logger.error(msg)
             raise NotImplementedError(msg)
         runner_class = registry.runners_map[scheduler_type]
-        self.logger.info(f"Creating {runner_class.__name__}")
+        logger.info(f"Creating {runner_class.__name__}")
         return runner_class(mode, system, test_scenario)
 
     async def run(self):

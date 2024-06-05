@@ -25,6 +25,8 @@ from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
 
+logger = logging.getLogger(__name__)
+
 
 class TestTemplate:
     """
@@ -68,7 +70,6 @@ class TestTemplate:
         self.name = name
         self.env_vars = env_vars
         self.cmd_args = cmd_args
-        self.logger = logging.getLogger(__name__ + ".TestTemplate")
         self.install_strategy: Optional[InstallStrategy] = None
         self.command_gen_strategy: Optional[CommandGenStrategy] = None
         self.job_id_retrieval_strategy: Optional[JobIdRetrievalStrategy] = None

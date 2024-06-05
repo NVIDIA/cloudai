@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from typing import cast
 
 from cloudai._core.base_job import BaseJob
@@ -23,6 +24,8 @@ from cloudai._core.test_scenario import TestScenario
 from cloudai.util import CommandShell
 
 from .standalone_job import StandaloneJob
+
+logger = logging.getLogger(__name__)
 
 
 class StandaloneRunner(BaseRunner):
@@ -66,10 +69,10 @@ class StandaloneRunner(BaseRunner):
         Returns:
             StandaloneJob: A StandaloneJob object
         """
-        self.logger.info(f"Running test: {test.section_name}")
+        logger.info(f"Running test: {test.section_name}")
         job_output_path = self.get_job_output_path(test)
         exec_cmd = test.gen_exec_command(job_output_path)
-        self.logger.info(f"Executing command for test {test.section_name}: {exec_cmd}")
+        logger.info(f"Executing command for test {test.section_name}: {exec_cmd}")
         job_id = 0
         if self.mode == "run":
             pid = self.cmd_shell.execute(exec_cmd).pid
@@ -111,7 +114,7 @@ class StandaloneRunner(BaseRunner):
 
         s_job = cast(StandaloneJob, job)
         command = f"ps -p {s_job.id}"
-        self.logger.debug(f"Checking job status with command: {command}")
+        logger.debug(f"Checking job status with command: {command}")
         stdout = self.cmd_shell.execute(command).communicate()[0]
         return str(s_job.id) not in stdout
 
@@ -124,5 +127,5 @@ class StandaloneRunner(BaseRunner):
         """
         s_job = cast(StandaloneJob, job)
         cmd = f"kill -9 {s_job.id}"
-        self.logger.info(f"Executing termination command for job {s_job.id}: {cmd}")
+        logger.info(f"Executing termination command for job {s_job.id}: {cmd}")
         self.cmd_shell.execute(cmd)

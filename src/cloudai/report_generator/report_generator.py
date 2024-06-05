@@ -18,6 +18,8 @@ import os
 from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestScenario
 
+logger = logging.getLogger(__name__)
+
 
 class ReportGenerator:
     """
@@ -35,7 +37,6 @@ class ReportGenerator:
             output_path (str): Output directory path.
         """
         self.output_path = output_path
-        self.logger = logging.getLogger(__name__)
 
     def generate_report(self, test_scenario: TestScenario) -> None:
         """
@@ -50,11 +51,11 @@ class ReportGenerator:
         for test in test_scenario.tests:
             section_name = str(test.section_name) if test.section_name else ""
             if not section_name:
-                self.logger.warning(f"Missing section name for test {test.name}")
+                logger.warning(f"Missing section name for test {test.name}")
                 continue
             test_output_dir = os.path.join(self.output_path, section_name)
             if not os.path.exists(test_output_dir):
-                self.logger.warning(f"Directory '{section_name}' not found.")
+                logger.warning(f"Directory '{section_name}' not found.")
                 continue
 
             self._generate_test_report(test_output_dir, test)
