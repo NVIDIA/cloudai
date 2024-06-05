@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
+import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Union
@@ -60,6 +60,7 @@ class BaseMultiFileParser(ABC):
         """
         objects: List[Any] = []
         for f in self.directory_path.glob("*.toml"):
+            logging.debug(f"Parsing file: {f}")
             with f.open() as fh:
                 data: Dict[str, Any] = toml.load(fh)
                 parsed_object = self._parse_data(data)

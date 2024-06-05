@@ -71,12 +71,12 @@ class Parser:
         test_template_parser = TestTemplateParser(system, self.test_template_path)
         test_templates: List[TestTemplate] = test_template_parser.parse_all()
         test_template_mapping = {t.name: t for t in test_templates}
-        logging.debug(f"Parsed {len(test_templates)} test templates")
+        logging.debug(f"Parsed {len(test_templates)} test templates: {[t.name for t in test_templates]}")
 
         test_parser = TestParser(test_path, test_template_mapping)
         tests: List[Test] = test_parser.parse_all()
         test_mapping = {t.name: t for t in tests}
-        logging.debug(f"Parsed {len(tests)} tests")
+        logging.debug(f"Parsed {len(tests)} tests: {[t.name for t in tests]}")
 
         test_scenario_parser = TestScenarioParser(str(test_scenario_path), system, test_mapping)
         test_scenario = test_scenario_parser.parse()

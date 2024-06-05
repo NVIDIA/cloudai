@@ -20,7 +20,6 @@ from typing import Iterable
 from .install_status_result import InstallStatusResult
 from .system import System
 from .test import Test
-from .test_template import TestTemplate
 
 
 class BaseInstaller:
