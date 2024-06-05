@@ -174,8 +174,7 @@ class BaseRunner(ABC):
             self.test_to_job_map[test] = job
         except JobSubmissionError as e:
             logger.error(e)
-            print(e, file=sys.stdout)
-            sys.exit(1)
+            exit(1)
 
     async def delayed_submit_test(self, test: Test, delay: int):
         """

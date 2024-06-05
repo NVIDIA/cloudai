@@ -49,20 +49,21 @@ class TestScenario:
         test_names = ", ".join([test.name for test in self.tests])
         return f"TestScenario(name={self.name}, tests=[{test_names}])"
 
-    def pretty_print(self) -> None:
+    def pretty_print(self) -> str:
         """Print each test in the scenario along with its section name, description, and visualized dependencies."""
-        print(f"Test Scenario: {self.name}")
+        s = f"Test Scenario: {self.name}\n"
         for test in self.tests:
-            print(f"\nSection Name: {test.section_name}")
-            print(f"  Test Name: {test.name}")
-            print(f"  Description: {test.description}")
+            s += f"\nSection Name: {test.section_name}\n"
+            s += f"  Test Name: {test.name}\n"
+            s += f"  Description: {test.description}\n"
             if test.dependencies:
                 for dep_type, dependency in test.dependencies.items():
                     if dependency:
-                        print(
+                        s += (
                             f"  {dep_type.replace('_', ' ').title()}: "
                             f"{dependency.test.section_name}, "
                             f"Time: {dependency.time} seconds"
                         )
             else:
-                print("  No dependencies")
+                s += "  No dependencies"
+        return s

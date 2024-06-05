@@ -221,7 +221,7 @@ def handle_dry_run_and_run(
             logging.error(result)
             exit(1)
 
-    test_scenario.pretty_print()
+    logging.info(test_scenario.pretty_print())
 
     runner = Runner(mode, system, test_scenario)
     asyncio.run(runner.run())
