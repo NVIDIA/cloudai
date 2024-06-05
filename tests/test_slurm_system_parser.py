@@ -55,6 +55,8 @@ def test_parse_slurm_system_parser(example_data):
         ("0", False),
         ("yes", True),
         ("no", False),
+        (True, True),
+        (False, False),
     ],
 )
 def test_str_to_bool_conversion(input_value, expected_result):
