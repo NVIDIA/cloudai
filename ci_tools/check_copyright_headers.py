@@ -87,7 +87,7 @@ def main(directories: List[str], header: str):
 
 
 if __name__ == "__main__":
-    dirs_to_check = ["src", "ci_tools"]
+    dirs_to_check = ["src", "ci_tools", "tests"]
     copyright_header = """\
 # Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
