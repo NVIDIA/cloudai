@@ -94,8 +94,8 @@ class TestTemplate:
         """
         if self.install_strategy is not None:
             return self.install_strategy.is_installed()
-        else:
-            return InstallStatusResult(success=True)
+
+        return InstallStatusResult(success=True)
 
     def install(self) -> InstallStatusResult:
         """
@@ -106,8 +106,8 @@ class TestTemplate:
         """
         if self.install_strategy is not None:
             return self.install_strategy.install()
-        else:
-            return InstallStatusResult(success=True)
+
+        return InstallStatusResult(success=True)
 
     def uninstall(self) -> InstallStatusResult:
         """
@@ -118,8 +118,8 @@ class TestTemplate:
         """
         if self.install_strategy is not None:
             return self.install_strategy.uninstall()
-        else:
-            return InstallStatusResult(success=True)
+
+        return InstallStatusResult(success=True)
 
     def gen_exec_command(
         self,

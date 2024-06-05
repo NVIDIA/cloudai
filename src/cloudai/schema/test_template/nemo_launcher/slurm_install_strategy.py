@@ -305,7 +305,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         clone_cmd = ["git", "clone", self.repository_url, repo_path]
         result = subprocess.run(clone_cmd, capture_output=True, text=True)
         if result.returncode != 0:
-            raise RuntimeError(f"Failed to clone repository: {result.stderr}")
+            raise RuntimeError(f"Failed to clone repository '{self.repository_url}': {result.stderr}")
 
         self.logger.info("Checking out specific commit %s in repository", self.repository_commit_hash)
         checkout_cmd = ["git", "checkout", self.repository_commit_hash]

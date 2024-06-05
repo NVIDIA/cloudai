@@ -86,7 +86,7 @@ class SlurmInstaller(BaseInstaller):
         """Check for the presence of required binaries, raising an error if any are missing."""
         for binary in self.PREREQUISITES:
             if not self._is_binary_installed(binary):
-                raise EnvironmentError(f"Required binary {binary} is not installed.")
+                raise EnvironmentError(f"Required binary '{binary}' is not installed.")
 
     def _check_srun_options(self) -> None:
         """

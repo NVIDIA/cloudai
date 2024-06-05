@@ -128,8 +128,8 @@ class BaseInstaller:
         all_success = all(result == "Success" for result in install_results.values())
         if all_success:
             return InstallStatusResult(True, "All test templates installed successfully.")
-        else:
-            return InstallStatusResult(False, "Some test templates failed to install.", install_results)
+
+        return InstallStatusResult(False, "Some test templates failed to install.", install_results)
 
     def uninstall(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
         """
