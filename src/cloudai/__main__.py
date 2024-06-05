@@ -170,15 +170,6 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> None:
     logging.info(f"Scheduler: {system.scheduler}")
     logging.info(f"Test Scenario Name: {test_scenario.name}")
 
-    if args.mode == "run":
-        logging.info("Checking if test templates are installed.")
-        installer = Installer(system)
-        result = installer.is_installed(test_templates)
-        if not result:
-            print("CloudAI has not been installed. Please run install mode first.")
-            print(result)
-            sys.exit(1)
-
     test_scenario.pretty_print()
 
     runner = Runner(args.mode, system, test_scenario)
