@@ -196,7 +196,10 @@ class TestDockerImageCacheManager(unittest.TestCase):
             "registry-1.docker.io/v2/library/hello-world/manifests:latest"
         )
         self.assertTrue(result.success)
-        self.assertEqual(result.message, "Docker image URL is accessible.")
+        self.assertEqual(
+            result.message,
+            "Docker image URL https://registry-1.docker.io/v2/library/hello-world/manifests:latest is accessible.",
+        )
 
     @patch("requests.head")
     def test_check_docker_image_accessibility_not_found(self, mock_head):

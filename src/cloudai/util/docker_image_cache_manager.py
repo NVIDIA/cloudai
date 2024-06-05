@@ -304,8 +304,9 @@ class DockerImageCacheManager:
                 logging.debug(msg)
                 return PrerequisiteCheckResult(False, msg)
         except requests.RequestException as e:
-            logging.debug(f"Failed to access Docker image URL {docker_image_url}. Error: {e}")
-            return PrerequisiteCheckResult(False, f"Docker image is not accessible URL={docker_image_url}. Error: {e}")
+            msg = f"Failed to check access Docker image URL {docker_image_url}. Error: {e}"
+            logging.debug(msg)
+            return PrerequisiteCheckResult(False, msg)
 
     def uninstall_cached_image(self, subdir_name: str, docker_image_filename: str) -> DockerImageCacheResult:
         """
