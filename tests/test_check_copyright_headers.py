@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 HEADER = """# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
@@ -30,6 +31,7 @@ HEADER = """# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 # limitations under the License."""
 
 PY_FILES = [p for p in Path().rglob("**/*.py") if "venv" not in str(p)]
+
 
 @pytest.mark.parametrize("py_file", PY_FILES, ids=[str(f) for f in PY_FILES])
 def test_check_copyright_header(py_file):
