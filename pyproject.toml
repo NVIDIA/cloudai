@@ -1,6 +1,6 @@
 [project]
 name = "cloudai"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
     "bokeh==3.4.1",
     "pandas==2.2.1",
