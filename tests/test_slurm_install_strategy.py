@@ -1,3 +1,17 @@
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -130,6 +144,44 @@ class TestNeMoLauncherSlurmInstallStrategy:
                 "The following components are missing:" in result.message
                 and "Repository" in result.message
                 and "Docker image" in result.message
+            )
+
+    def test_clone_repository_when_path_does_not_exist(self, strategy: NeMoLauncherSlurmInstallStrategy):
+        subdir_path = Path(strategy.slurm_system.install_path) / strategy.SUBDIR_PATH
+        repo_path = subdir_path / strategy.REPOSITORY_NAME
+        assert not repo_path.exists()
+
+        with patch("subprocess.run") as mock_run, patch("os.path.exists") as mock_exists:
+            mock_run.return_value.returncode = 0
+            mock_exists.side_effect = lambda path: path == str(subdir_path)
+            strategy._clone_repository(str(subdir_path))
+
+            mock_run.assert_any_call(
+                ["git", "clone", strategy.repository_url, str(repo_path)], capture_output=True, text=True
+            )
+            mock_run.assert_any_call(
+                ["git", "checkout", strategy.repository_commit_hash],
+                cwd=str(repo_path),
+                capture_output=True,
+                text=True,
+            )
+
+    def test_clone_repository_when_path_exists(self, strategy: NeMoLauncherSlurmInstallStrategy):
+        subdir_path = Path(strategy.slurm_system.install_path) / strategy.SUBDIR_PATH
+        repo_path = subdir_path / strategy.REPOSITORY_NAME
+        repo_path.mkdir(parents=True)
+
+        with patch("subprocess.run") as mock_run, patch("os.path.exists") as mock_exists:
+            mock_run.return_value.returncode = 0
+            mock_exists.side_effect = lambda path: path in [str(subdir_path), str(repo_path)]
+            strategy._clone_repository(str(subdir_path))
+
+            # Ensure that the checkout command was run
+            mock_run.assert_any_call(
+                ["git", "checkout", strategy.repository_commit_hash],
+                cwd=str(repo_path),
+                capture_output=True,
+                text=True,
             )
 
 
