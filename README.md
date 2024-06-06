@@ -4,7 +4,15 @@
 CloudAI benchmark suite aims to develop an industry standard benchmark focused on grading Data Center (DC) scale AI systems in the Cloud.
 
 ## Quick Start
-First, clone the CloudAI repository to your local machine:
+First, ensure you have access to the docker repository. This is a manual step:
+- In https://ngc.nvidia.com/signin go to setup -> generate api key
+- Set up enroot credentials properly. Ensure you have the correct credentials under `~/.config/enroot/.credentials`:
+```
+machine nvcr.io login $oauthtoken password <api-key>
+```
+- Replace `<api-key>` with your respective credentials. Keep `$oauthtoken` as is.
+
+Next, clone the CloudAI repository to your local machine:
 ```bash
 git clone git@github.com:NVIDIA/cloudai.git
 cd cloudai

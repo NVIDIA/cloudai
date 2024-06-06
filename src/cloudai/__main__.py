@@ -212,16 +212,7 @@ def handle_dry_run_and_run(
     logging.info(f"Scheduler: {system.scheduler}")
     logging.info(f"Test Scenario Name: {test_scenario.name}")
 
-    if mode == "run":
-        logging.info("Checking if test templates are installed.")
-        installer = Installer(system)
-        result = installer.is_installed(test_templates)
-        if not result:
-            logging.error("CloudAI has not been installed. Please run install mode first.")
-            logging.error(result)
-            exit(1)
-
-    logging.info(test_scenario.pretty_print())
+    test_scenario.pretty_print()
 
     runner = Runner(mode, system, test_scenario)
     asyncio.run(runner.run())

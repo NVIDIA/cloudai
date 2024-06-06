@@ -3,7 +3,7 @@ name = "UCCTest"
 [cmd_args]
   [cmd_args.docker_image_url]
   type = "str"
-  default = "DOCKER_IMAGE_URL"
+  default = "nvcr.io/nvidia/pytorch:24.02-py3"
 
   [cmd_args.collective]
   type = "preset"

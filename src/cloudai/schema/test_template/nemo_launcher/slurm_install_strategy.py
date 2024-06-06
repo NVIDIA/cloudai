@@ -273,17 +273,21 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
 
     def _clone_repository(self, subdir_path: str) -> None:
         """
-        Clones NeMo-Launcher repository into specified path.
+        Clones NeMo-Launcher repository into specified path if it does not already exist.
 
         Args:
             subdir_path (str): Subdirectory path for installation.
         """
         repo_path = os.path.join(subdir_path, self.REPOSITORY_NAME)
-        logging.info("Cloning NeMo-Launcher repository into %s", repo_path)
-        clone_cmd = ["git", "clone", self.repository_url, repo_path]
-        result = subprocess.run(clone_cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            raise RuntimeError(f"Failed to clone repository '{self.repository_url}': {result.stderr}")
+
+        if os.path.exists(repo_path):
+            logging.info("Repository already exists at %s. Checking out specific commit.", repo_path)
+        else:
+            logging.info("Cloning NeMo-Launcher repository into %s", repo_path)
+            clone_cmd = ["git", "clone", self.repository_url, repo_path]
+            result = subprocess.run(clone_cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                raise RuntimeError(f"Failed to clone repository: {result.stderr}")
 
         logging.info("Checking out specific commit %s in repository", self.repository_commit_hash)
         checkout_cmd = ["git", "checkout", self.repository_commit_hash]
