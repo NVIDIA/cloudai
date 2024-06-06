@@ -156,36 +156,33 @@ class DockerImageCacheManager:
             f"Checking if Docker image exists: {docker_image_url=}, {subdir_name=}, {docker_image_filename=} "
             f"{self.cache_docker_images_locally=}"
         )
-        if self.cache_docker_images_locally:
-            if os.path.isfile(docker_image_url):
-                if os.path.exists(docker_image_url):
-                    return DockerImageCacheResult(True, docker_image_url, "Docker image file path is valid.")
-                else:
-                    return DockerImageCacheResult(
-                        False, "", f"File not found at the specified path: {docker_image_url}."
-                    )
 
-            subdir_path = os.path.join(self.install_path, subdir_name)
-            docker_image_path = os.path.join(subdir_path, docker_image_filename)
+        # If not caching locally, check URL accessibility
+        if not self.cache_docker_images_locally:
+            accessibility_check = self._check_docker_image_accessibility(docker_image_url)
+            if accessibility_check.success:
+                return DockerImageCacheResult(True, docker_image_url, accessibility_check.message)
+            return DockerImageCacheResult(False, "", accessibility_check.message)
 
-            if not os.path.exists(self.install_path):
-                return DockerImageCacheResult(False, "", f"Install path {self.install_path} does not exist.")
+        # Check if docker_image_url is a file path and exists
+        if os.path.isfile(docker_image_url) and os.path.exists(docker_image_url):
+            return DockerImageCacheResult(True, docker_image_url, "Docker image file path is valid.")
 
-            if not os.path.exists(subdir_path):
-                return DockerImageCacheResult(False, "", f"Subdirectory path {subdir_path} does not exist.")
+        # Check if the cache file exists
+        if not os.path.exists(self.install_path):
+            return DockerImageCacheResult(False, "", f"Install path {self.install_path} does not exist.")
 
-            if os.path.isfile(docker_image_path):
-                return DockerImageCacheResult(True, docker_image_path, "Cached Docker image already exists.")
+        subdir_path = os.path.join(self.install_path, subdir_name)
+        if not os.path.exists(subdir_path):
+            return DockerImageCacheResult(False, "", f"Subdirectory path {subdir_path} does not exist.")
 
-            return DockerImageCacheResult(
-                False, "", f"Docker image does not exist at the specified path: {docker_image_path}."
-            )
+        docker_image_path = os.path.join(subdir_path, docker_image_filename)
+        if os.path.isfile(docker_image_path) and os.path.exists(docker_image_path):
+            return DockerImageCacheResult(True, docker_image_path, "Cached Docker image already exists.")
 
-        accessibility_check = self._check_docker_image_accessibility(docker_image_url)
-        if accessibility_check.success:
-            return DockerImageCacheResult(True, docker_image_url, accessibility_check.message)
-
-        return DockerImageCacheResult(False, "", accessibility_check.message)
+        return DockerImageCacheResult(
+            False, "", f"Docker image does not exist at the specified path: {docker_image_path}."
+        )
 
     def cache_docker_image(
         self, docker_image_url: str, subdir_name: str, docker_image_filename: str

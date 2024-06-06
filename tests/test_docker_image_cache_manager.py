@@ -244,3 +244,43 @@ def test_check_docker_image_accessibility_with_enroot(mock_which, mock_popen):
     result = manager._check_docker_image_accessibility("docker.io/hello-world")
     assert not result.success
     assert "Failed to access Docker image URL" in result.message
+
+
+@patch("os.path.isfile")
+@patch("os.path.exists")
+def test_check_docker_image_exists_with_only_cached_file(mock_exists, mock_isfile):
+    manager = DockerImageCacheManager("/fake/install/path", True, "default")
+
+    # Simulate only the cached file being a valid file path
+    mock_isfile.side_effect = lambda path: path == "/fake/install/path/subdir/docker_image.sqsh"
+    mock_exists.side_effect = lambda path: path in [
+        "/fake/install/path",
+        "/fake/install/path/subdir",
+        "/fake/install/path/subdir/docker_image.sqsh",
+    ]
+
+    result = manager.check_docker_image_exists("/tmp/non_existing_file.sqsh", "subdir", "docker_image.sqsh")
+    assert result.success
+    assert result.docker_image_path == "/fake/install/path/subdir/docker_image.sqsh"
+    assert result.message == "Cached Docker image already exists."
+
+
+@patch("os.path.isfile")
+@patch("os.path.exists")
+def test_check_docker_image_exists_with_both_valid_files(mock_exists, mock_isfile):
+    manager = DockerImageCacheManager("/fake/install/path", True, "default")
+
+    # Simulate both cached file and docker image URL being valid file paths
+    mock_isfile.side_effect = lambda path: path in [
+        "/tmp/existing_file.sqsh",
+        "/fake/install/path/subdir/docker_image.sqsh",
+    ]
+    mock_exists.side_effect = lambda path: path in [
+        "/tmp/existing_file.sqsh",
+        "/fake/install/path/subdir/docker_image.sqsh",
+    ]
+
+    result = manager.check_docker_image_exists("/tmp/existing_file.sqsh", "subdir", "docker_image.sqsh")
+    assert result.success
+    assert result.docker_image_path == "/tmp/existing_file.sqsh"
+    assert result.message == "Docker image file path is valid."
