@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import shutil
 import subprocess
@@ -134,8 +135,8 @@ class DockerImageCacheManager:
 
         if self.cache_docker_images_locally:
             return self.cache_docker_image(docker_image_url, subdir_name, docker_image_filename)
-        else:
-            return image_check_result
+
+        return image_check_result
 
     def check_docker_image_exists(
         self, docker_image_url: str, subdir_name: str, docker_image_filename: str
@@ -151,6 +152,10 @@ class DockerImageCacheManager:
         Returns:
             DockerImageCacheResult: Result of the Docker image existence check.
         """
+        logging.debug(
+            f"Checking if Docker image exists: {docker_image_url=}, {subdir_name=}, {docker_image_filename=} "
+            f"{self.cache_docker_images_locally=}"
+        )
         if self.cache_docker_images_locally:
             if os.path.isfile(docker_image_url):
                 if os.path.exists(docker_image_url):
@@ -176,12 +181,11 @@ class DockerImageCacheManager:
                 False, "", f"Docker image does not exist at the specified path: {docker_image_path}."
             )
 
-        else:
-            accessibility_check = self._check_docker_image_accessibility(docker_image_url)
-            if accessibility_check.success:
-                return DockerImageCacheResult(True, docker_image_url, accessibility_check.message)
-            else:
-                return DockerImageCacheResult(False, "", accessibility_check.message)
+        accessibility_check = self._check_docker_image_accessibility(docker_image_url)
+        if accessibility_check.success:
+            return DockerImageCacheResult(True, docker_image_url, accessibility_check.message)
+
+        return DockerImageCacheResult(False, "", accessibility_check.message)
 
     def cache_docker_image(
         self, docker_image_url: str, subdir_name: str, docker_image_filename: str

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from typing import cast
 
 from cloudai._core.base_job import BaseJob
@@ -67,10 +68,10 @@ class SlurmRunner(BaseRunner):
         Returns:
             SlurmJob: A SlurmJob object
         """
-        self.logger.info(f"Running test: {test.section_name}")
+        logging.info(f"Running test: {test.section_name}")
         job_output_path = self.get_job_output_path(test)
         exec_cmd = test.gen_exec_command(job_output_path)
-        self.logger.info(f"Executing command for test {test.section_name}: {exec_cmd}")
+        logging.info(f"Executing command for test {test.section_name}: {exec_cmd}")
         job_id = 0
         if self.mode == "run":
             stdout, stderr = self.cmd_shell.execute(exec_cmd).communicate()

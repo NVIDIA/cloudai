@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 from pathlib import Path
 from typing import Dict
 
@@ -36,17 +35,14 @@ def test_slurm(tmp_path: Path, scenario: Dict):
     test_scenario_path = scenario["path"]
     expected_dirs_number = scenario.get("expected_dirs_number")
 
-    args = argparse.Namespace(
-        log_file=None,
-        log_level=None,
-        mode="dry-run",
-        output_path=str(tmp_path),
-        system_config_path="conf/v0.6/general/system/example_slurm_cluster.toml",
-        test_scenario_path=str(test_scenario_path),
-        test_path="conf/v0.6/general/test",
-        test_template_path="conf/v0.6/general/test_template",
+    handle_dry_run_and_run(
+        "dry-run",
+        Path("conf/v0.6/general/system/example_slurm_cluster.toml"),
+        Path("conf/v0.6/general/test_template"),
+        Path("conf/v0.6/general/test"),
+        test_scenario_path,
+        tmp_path,
     )
-    handle_dry_run_and_run(args)
 
     results_output = list(tmp_path.glob("*"))[0]
     test_dirs = list(results_output.iterdir())

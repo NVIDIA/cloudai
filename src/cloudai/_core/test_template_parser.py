@@ -27,8 +27,6 @@ from .system import System
 from .test_template import TestTemplate
 from .test_template_strategy import TestTemplateStrategy
 
-logger = logging.getLogger(__name__)
-
 
 class TestTemplateParser(BaseMultiFileParser):
     """
@@ -90,7 +88,7 @@ class TestTemplateParser(BaseMultiFileParser):
             else:
                 return strategy_type()
 
-        logger.warning(
+        logging.warning(
             f"No {strategy_interface.__name__} found for " f"{type(self).__name__} and " f"{type(self.system).__name__}"
         )
         return None

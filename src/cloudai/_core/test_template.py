@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 from typing import Any, Dict, List, Optional
 
 from .command_gen_strategy import CommandGenStrategy
@@ -68,7 +67,6 @@ class TestTemplate:
         self.name = name
         self.env_vars = env_vars
         self.cmd_args = cmd_args
-        self.logger = logging.getLogger(__name__ + ".TestTemplate")
         self.install_strategy: Optional[InstallStrategy] = None
         self.command_gen_strategy: Optional[CommandGenStrategy] = None
         self.job_id_retrieval_strategy: Optional[JobIdRetrievalStrategy] = None
@@ -94,8 +92,8 @@ class TestTemplate:
         """
         if self.install_strategy is not None:
             return self.install_strategy.is_installed()
-        else:
-            return InstallStatusResult(success=True)
+
+        return InstallStatusResult(success=True)
 
     def install(self) -> InstallStatusResult:
         """
@@ -106,8 +104,8 @@ class TestTemplate:
         """
         if self.install_strategy is not None:
             return self.install_strategy.install()
-        else:
-            return InstallStatusResult(success=True)
+
+        return InstallStatusResult(success=True)
 
     def uninstall(self) -> InstallStatusResult:
         """
@@ -118,8 +116,8 @@ class TestTemplate:
         """
         if self.install_strategy is not None:
             return self.install_strategy.uninstall()
-        else:
-            return InstallStatusResult(success=True)
+
+        return InstallStatusResult(success=True)
 
     def gen_exec_command(
         self,

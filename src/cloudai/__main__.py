@@ -15,8 +15,10 @@
 import argparse
 import asyncio
 import logging
-import os
+import logging.config
 import sys
+from pathlib import Path
+from typing import Optional
 
 from cloudai import Installer, Parser, ReportGenerator, Runner
 
@@ -33,12 +35,37 @@ def setup_logging(log_file: str, log_level: str) -> None:
     if not isinstance(numeric_level, int):
         raise ValueError(f"Invalid log level: {log_level}")
 
-    logging.basicConfig(
-        filename=log_file,
-        level=numeric_level,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-        filemode="w",
-    )
+    LOGGING_CONFIG = {
+        "version": 1,
+        "disable_existing_loggers": True,
+        "formatters": {
+            "standard": {"format": "%(asctime)s - %(levelname)s - %(message)s"},
+            "short": {"format": "[%(levelname)s] %(message)s"},
+        },
+        "handlers": {
+            "default": {
+                "level": log_level.upper(),
+                "formatter": "short",
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stdout",
+            },
+            "debug_file": {
+                "level": "DEBUG",
+                "formatter": "standard",
+                "class": "logging.FileHandler",
+                "filename": log_file,
+                "mode": "w",
+            },
+        },
+        "loggers": {
+            "": {
+                "handlers": ["default", "debug_file"],
+                "level": "DEBUG",
+                "propagate": False,
+            },
+        },
+    }
+    logging.config.dictConfig(LOGGING_CONFIG)
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -100,22 +127,26 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def handle_install_and_uninstall(args: argparse.Namespace) -> None:
+def handle_install_and_uninstall(
+    mode: str, system_config_path: Path, test_template_path: Path, output_path: Optional[Path] = None
+) -> None:
     """
     Manage the installation or uninstallation process for CloudAI.
 
     Based on user-specified mode, utilizing the Installer and Parser classes.
 
     Args:
-        args (argparse.Namespace): Parsed command-line arguments containing
-        user preferences.
+        mode (str): The mode of operation (e.g., install, uninstall).
+        system_config_path (Path): The path to the system configuration file.
+        test_template_path (Path): The path to the test template configuration directory.
+        output_path (Optional[Path]): The path to the output directory.
     """
     logging.info("Starting configuration parsing")
-    parser = Parser(args.system_config_path, args.test_template_path)
+    parser = Parser(str(system_config_path), str(test_template_path))
     system, test_templates = parser.parse_system_and_templates()
 
-    if args.output_path:
-        system.output_path = os.path.abspath(args.output_path)
+    if output_path:
+        system.output_path = str(output_path.absolute())
 
     system.update()
 
@@ -124,45 +155,56 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> None:
 
     installer = Installer(system)
 
-    if args.mode == "install":
+    if mode == "install":
         logging.info("Installing test templates.")
         if installer.is_installed(test_templates):
-            print("CloudAI is already installed.")
+            logging.info("CloudAI is already installed.")
         else:
             result = installer.install(test_templates)
             if not result:
-                print(result)
-                sys.exit(1)
+                logging.error(result)
+                exit(1)
 
-    elif args.mode == "uninstall":
+    elif mode == "uninstall":
         logging.info("Uninstalling test templates.")
         result = installer.uninstall(test_templates)
         if not result:
-            print(result)
+            logging.error(result)
             sys.exit(1)
 
 
-def handle_dry_run_and_run(args: argparse.Namespace) -> None:
+def handle_dry_run_and_run(
+    mode: str,
+    system_config_path: Path,
+    test_template_path: Path,
+    test_path: Path,
+    test_scenario_path: Optional[Path] = None,
+    output_path: Optional[Path] = None,
+) -> None:
     """
     Execute the dry-run or run modes for CloudAI.
 
     Includes parsing configurations, verifying installations, and executing test scenarios.
 
     Args:
-        args (argparse.Namespace): Parsed command-line arguments containing
-        user preferences.
+        mode (str): The mode of operation (e.g., dry-run, run).
+        system_config_path (Path): The path to the system configuration file.
+        test_template_path (Path): The path to the test template configuration directory.
+        test_path (Path): The path to the test configuration directory.
+        test_scenario_path (Optional[Path]): The path to the test scenario file.
+        output_path (Optional[Path]): The path to the output directory.
     """
     logging.info("Starting configuration parsing")
     parser = Parser(
-        args.system_config_path,
-        args.test_template_path,
-        args.test_path,
-        args.test_scenario_path,
+        str(system_config_path),
+        str(test_template_path),
+        str(test_path),
+        str(test_scenario_path) if test_scenario_path else None,
     )
     system, test_templates, test_scenario = parser.parse()
 
-    if args.output_path:
-        system.output_path = os.path.abspath(args.output_path)
+    if output_path:
+        system.output_path = str(output_path.absolute())
 
     system.update()
 
@@ -172,13 +214,13 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> None:
 
     test_scenario.pretty_print()
 
-    runner = Runner(args.mode, system, test_scenario)
+    runner = Runner(mode, system, test_scenario)
     asyncio.run(runner.run())
 
-    print(f"All test scenario results stored at: {runner.runner.output_path}")
+    logging.info(f"All test scenario results stored at: {runner.runner.output_path}")
 
-    if args.mode == "run":
-        print(
+    if mode == "run":
+        logging.info(
             "All test scenario execution attempts are complete. Please review"
             " the 'debug.log' file to confirm successful completion or to"
             " identify any issues."
@@ -188,27 +230,36 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> None:
         generator.generate_report(test_scenario)
 
 
-def handle_generate_report(args: argparse.Namespace) -> None:
+def handle_generate_report(
+    system_config_path: Path,
+    test_template_path: Path,
+    test_path: Path,
+    output_path: Path,
+    test_scenario_path: Optional[Path] = None,
+) -> None:
     """
     Generate a report based on the existing configuration and test results.
 
     Args:
-        args (argparse.Namespace): Parsed command-line arguments containing
-        user preferences.
+        system_config_path (Path): The path to the system configuration file.
+        test_template_path (Path): The path to the test template configuration directory.
+        test_path (Path): The path to the test configuration directory.
+        output_path (Path): The path to the output directory.
+        test_scenario_path (Optional[Path]): The path to the test scenario file.
     """
     logging.info("Generating report based on system and test templates")
     parser = Parser(
-        args.system_config_path,
-        args.test_template_path,
-        args.test_path,
-        args.test_scenario_path,
+        str(system_config_path),
+        str(test_template_path),
+        str(test_path),
+        str(test_scenario_path),
     )
     system, test_templates, test_scenario = parser.parse()
 
-    generator = ReportGenerator(args.output_path)
+    generator = ReportGenerator(str(output_path))
     generator.generate_report(test_scenario)
 
-    print("Report generation completed.")
+    logging.info("Report generation completed.")
 
 
 def main() -> None:
@@ -216,16 +267,23 @@ def main() -> None:
 
     setup_logging(args.log_file, args.log_level)
 
-    if args.mode == "generate-report" and not args.output_path:
-        print("Error: --output_path is required when mode is generate-report.")
-        sys.exit(1)
+    system_config_path = Path(args.system_config_path)
+    test_template_path = Path(args.test_template_path)
+    test_path = Path(args.test_path)
+    test_scenario_path = Path(args.test_scenario_path) if args.test_scenario_path else None
+    output_path = Path(args.output_path) if args.output_path else None
 
     if args.mode in ["install", "uninstall"]:
-        handle_install_and_uninstall(args)
+        handle_install_and_uninstall(args.mode, system_config_path, test_template_path, output_path=output_path)
     elif args.mode in ["dry-run", "run"]:
-        handle_dry_run_and_run(args)
+        handle_dry_run_and_run(
+            args.mode, system_config_path, test_template_path, test_path, test_scenario_path, output_path
+        )
     elif args.mode == "generate-report":
-        handle_generate_report(args)
+        if not output_path:
+            logging.error("Error: --output_path is required when mode is generate-report.")
+            exit(1)
+        handle_generate_report(system_config_path, test_template_path, test_path, output_path, test_scenario_path)
 
 
 if __name__ == "__main__":
