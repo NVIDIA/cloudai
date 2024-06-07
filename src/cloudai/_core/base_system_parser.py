@@ -25,8 +25,7 @@ class BaseSystemParser(ABC):
     Parses system configuration data and creates system objects.
 
     Methods
-        parse: Abstract method to parse configuration data and return a
-               System object.
+        parse: Abstract method to parse configuration data and return a System object.
     """
 
     @abstractmethod

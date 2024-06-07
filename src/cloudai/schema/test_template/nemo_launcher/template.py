@@ -17,9 +17,8 @@ from cloudai._core.test_template import TestTemplate
 
 class NeMoLauncher(TestTemplate):
     """
-    Test template for the NeMo-Megatron-Launcher.
+    Test template for the NeMo-Launcher.
 
-    This class represents a test template for NeMo-Megatron-Launcher, an
-    implementation by NVIDIA. More information can be found at:
-    https://github.com/NVIDIA/NeMo-Megatron-Launcher
+    This class represents a test template for NeMo-Megatron-Launcher, an implementation by NVIDIA. More information can
+    be found at: https://github.com/NVIDIA/NeMo-Megatron-Launcher
     """

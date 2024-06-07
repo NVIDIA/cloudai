@@ -100,8 +100,7 @@ class SlurmNode:
         name (str): The name of the node.
         partition (str): The partition to which the node belongs.
         state (SlurmNodeState): The current state of the node.
-        user (str): The name of the user currently using the node.
-            Defaults to N/A if the node is not being used.
+        user (str): The name of the user currently using the node. Defaults to N/A if the node is not being used.
     """
 
     def __init__(
@@ -121,11 +120,9 @@ class SlurmNode:
         Determine if the node is allocatable based on its state.
 
         Args:
-            free_only (bool): If True, considers only the IDLE state as
-                allocatable. Otherwise, considers various states based on
-                Slurm's allocation logic, including states where a node may be
-                partially used or in a transitional state that does not
-                preclude future allocations.
+            free_only (bool): If True, considers only the IDLE state as allocatable. Otherwise, considers various
+                states based on Slurm's allocation logic, including states where a node may be partially used or in a
+                transitional state that does not preclude future allocations.
 
         Returns:
             bool: True if the node is allocatable, False otherwise.

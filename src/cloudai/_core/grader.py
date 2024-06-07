@@ -27,8 +27,7 @@ class Grader:
 
     Attributes
         output_path (str): The path where the performance results are stored.
-        logger (logging.Logger): Logger for the class, used to log messages
-                                 related to the grading process.
+        logger (logging.Logger): Logger for the class, used to log messages related to the grading process.
     """
 
     def __init__(self, output_path: str) -> None:
@@ -42,8 +41,7 @@ class Grader:
         generates a comprehensive weighted report.
 
         Args:
-            test_scenario (TestScenario): The test scenario containing multiple
-                                          tests to grade.
+            test_scenario (TestScenario): The test scenario containing multiple tests to grade.
 
         Returns:
             str: A report summarizing the weighted performance grades.
@@ -94,8 +92,7 @@ class Grader:
         Generate a human-readable report from test performance metrics.
 
         Args:
-            test_perfs (Dict[str, List[float]]): The performance metrics for
-                                                 each test.
+            test_perfs (Dict[str, List[float]]): The performance metrics for each test.
             overall_avg (float): The overall average performance.
 
         Returns:

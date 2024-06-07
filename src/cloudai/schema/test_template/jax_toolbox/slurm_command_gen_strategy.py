@@ -63,8 +63,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             cmd_args (Dict[str, str]): Command-line arguments.
 
         Returns:
-            str: A single string containing all XLA-related flags formatted for
-                 inclusion in the environment variables.
+            str: A single string containing all XLA-related flags formatted for inclusion in the environment variables.
         """
         xla_flags = []
 
@@ -153,12 +152,11 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         Generate and writes the run.sh script to the specified output directory.
 
-        The script configures environment variables, applies necessary command
-        options, and executes the Python command within the SLURM environment.
+        The script configures environment variables, applies necessary command options, and executes the Python command
+        within the SLURM environment.
 
         Args:
-            slurm_args (Dict[str, Any]): SLURM arguments including the output path
-                                         and other job-related settings.
+            slurm_args (Dict[str, Any]): SLURM arguments including the output path and other job-related settings.
             env_vars (Dict[str, str]): Environment variables.
             cmd_args (Dict[str, str]): Command-line arguments.
             extra_cmd_args (str): Additional command-line arguments to be included
@@ -249,12 +247,10 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         Args:
             stage (str): The stage of processing (e.g., 'profile', 'perf').
-            slurm_args (Dict[str, Any]): Dictionary containing the SLURM job settings
-                                         such as number of nodes.
+            slurm_args (Dict[str, Any]): Dictionary containing the SLURM job settings such as number of nodes.
             env_vars (Dict[str, str]): Environment variables.
             cmd_args (Dict[str, str]): Command-line arguments.
-            extra_cmd_args (str): Additional command-line arguments to be included
-                                  in the Python command.
+            extra_cmd_args (str): Additional command-line arguments to be included in the Python command.
 
         Returns:
             str: The formatted Python command string to be executed within a

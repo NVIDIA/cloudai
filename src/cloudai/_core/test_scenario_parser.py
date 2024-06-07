@@ -138,8 +138,7 @@ class TestScenarioParser:
         Args:
             section (str): Section name of the test.
             test_info (Dict[str, Any]): Information of the test.
-            section_tests (Dict[str, Test]): Mapping of section names to Test
-                                             objects.
+            section_tests (Dict[str, Test]): Mapping of section names to Test objects.
 
         Returns:
             Dict[str, Optional[TestDependency]]: Parsed dependencies for the test.

@@ -31,17 +31,13 @@ class SlurmRunner(BaseRunner):
     """
     Implementation of the Runner for a system using Slurm.
 
-    This class is responsible for executing and managing tests in a Slurm
-    environment. It extends the BaseRunner class, implementing the abstract
-    methods to work with Slurm jobs.
+    This class is responsible for executing and managing tests in a Slurm environment. It extends the BaseRunner class,
+    implementing the abstract methods to work with Slurm jobs.
 
     Attributes
-        slurm_system (SlurmSystem): This attribute is a casted version of the `system`
-                                    attribute to `SlurmSystem` type, ensuring that
-                                    Slurm-specific properties and methods are
-                                    accessible.
-        cmd_shell (CommandShell): An instance of CommandShell for executing
-                                  system commands.
+        slurm_system (SlurmSystem): This attribute is a casted version of the `system` attribute to `SlurmSystem` type,
+            ensuring that Slurm-specific properties and methods are accessible.
+        cmd_shell (CommandShell): An instance of CommandShell for executing system commands.
         Inherits all other attributes from the BaseRunner class.
     """
 

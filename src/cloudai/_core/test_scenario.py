@@ -60,8 +60,7 @@ class TestScenario:
                 for dep_type, dependency in test.dependencies.items():
                     if dependency:
                         s += (
-                            f"  {dep_type.replace('_', ' ').title()}: "
-                            f"{dependency.test.section_name}, "
+                            f"  {dep_type.replace('_', ' ').title()}: {dependency.test.section_name}, "
                             f"Time: {dependency.time} seconds"
                         )
             else:

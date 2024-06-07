@@ -26,9 +26,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     Abstract base class for defining command generation strategies specific to Slurm environments.
 
     Attributes
-        slurm_system (SlurmSystem): A casted version of the `system` attribute,
-                                    which provides Slurm-specific properties
-                                    and methods.
+        slurm_system (SlurmSystem): A casted version of the `system` attribute, which provides Slurm-specific
+            properties and methods.
     """
 
     def __init__(
@@ -145,12 +144,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         Generate the srun command string for executing the test.
 
         Args:
-            slurm_args (Dict[str, Any]): Arguments containing Slurm job settings
-                including image path and container mounts.
+            slurm_args (Dict[str, Any]): Arguments containing Slurm job settings including image path and container
+                mounts.
             env_vars (Dict[str, str]): Environment variables.
             cmd_args (Dict[str, str]): Command-line arguments.
-            extra_cmd_args (str): Additional command-line arguments to be included
-                in the srun command.
+            extra_cmd_args (str): Additional command-line arguments to be included in the srun command.
 
         Returns:
             str: The complete srun command to execute the test.

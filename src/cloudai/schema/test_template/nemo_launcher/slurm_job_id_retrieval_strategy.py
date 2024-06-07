@@ -20,20 +20,18 @@ from cloudai._core.job_id_retrieval_strategy import JobIdRetrievalStrategy
 
 class NeMoLauncherSlurmJobIdRetrievalStrategy(JobIdRetrievalStrategy):
     """
-    Strategy for retrieving job IDs from NeMo Megatron launcher submissions to a Slurm scheduler.
+    Strategy for retrieving job IDs from NeMo launcher submissions to a Slurm scheduler.
 
-    This class implements the JobIdRetrievalStrategy interface to extract job IDs
-    from the standard output provided by the Slurm scheduler when the NeMo Megatron
-    launcher template is used for job submission.
+    This class implements the JobIdRetrievalStrategy interface to extract job IDs from the standard output provided by
+    the Slurm scheduler when the NeMo launcher template is used for job submission.
     """
 
     def get_job_id(self, stdout: str, stderr: str) -> Optional[int]:
         """
         Extract the job ID from the Slurm command output.
 
-        This method searches the standard output for a specific pattern that
-        matches the submission confirmation message of a Slurm job and extracts
-        the job ID.
+        This method searches the standard output for a specific pattern that matches the submission confirmation
+        message of a Slurm job and extracts the job ID.
 
         Args:
             stdout (str): The standard output from the Slurm command.

@@ -23,8 +23,8 @@ class ReportGenerator:
     """
     Generates reports for each test in a TestScenario.
 
-    By identifying the appropriate directories for each test and using test templates to
-    generate detailed reports based on subdirectories.
+    By identifying the appropriate directories for each test and using test templates to generate detailed reports
+    based on subdirectories.
     """
 
     def __init__(self, output_path: str) -> None:
@@ -40,8 +40,8 @@ class ReportGenerator:
         """
         Iterate over tests in the given test scenario.
 
-        Identifies the relevant directories based on the test's section name, and generates
-        a report for each test using its associated test template.
+        Identifies the relevant directories based on the test's section name, and generates a report for each test
+        using its associated test template.
 
         Args:
             test_scenario (TestScenario): The scenario containing tests.

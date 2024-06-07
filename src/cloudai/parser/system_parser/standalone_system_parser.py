@@ -33,9 +33,8 @@ class StandaloneSystemParser(BaseSystemParser):
             StandaloneSystem: The parsed Standalone system object.
 
         Raises:
-            ValueError: If 'name' or 'output_path' are missing from
-            the data or if there are node list parsing issues or group
-            membership conflicts.
+            ValueError: If 'name' or 'output_path' are missing from the data or if there are node list parsing issues
+            or group membership conflicts.
         """
         name = data.get("name")
         if not name:

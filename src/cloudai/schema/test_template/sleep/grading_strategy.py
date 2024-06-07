@@ -23,8 +23,7 @@ class SleepGradingStrategy(GradingStrategy):
         Grades the performance of a test.
 
         Args:
-            directory_path (str): Path to the directory containing the
-                                  test's output.
+            directory_path (str): Path to the directory containing the test's output.
             ideal_perf (float): The ideal performance value for comparison.
 
         Returns:
