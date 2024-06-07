@@ -10,19 +10,26 @@
   "properties": {
     "name": {
       "type": "string",
-      "title": "Name of the test",
-      "description": "A test with this name should exist in test definitions folder"
+      "title": "Name of the scenario",
+      "description": "Name of the scenario"
     },
     "Tests": {
       "type": "array",
       "items": {
         "type": "object",
         "required": [
-          "name"
+          "name",
+          "test"
         ],
         "properties": {
+          "test": {
+            "type": "string",
+            "title": "Name of the test",
+            "description": "A test with this name should exist in test definitions folder"
+          },
           "name": {
-            "type": "string"
+            "type": "string",
+            "description": "A uniq name used for referencing the test as a dependency in other tests"
           },
           "num_nodes": {
             "type": "integer"

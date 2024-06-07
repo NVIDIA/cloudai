@@ -69,8 +69,8 @@ class TestScenarioParser:
         if "name" not in data:
             raise KeyError("The 'name' field is missing from the data.")
         test_scenario_name = data["name"]
-        raw_tests_data = data.get("Tests", {})
-        tests_data = {f"Tests.{k}": v for k, v in raw_tests_data.items()}
+        raw_tests_data: list = data.get("Tests", [])
+        tests_data = {v["name"]: v for v in raw_tests_data}
 
         # Create section-specific test instances
         section_tests = {section: self._create_section_test(section, info) for section, info in tests_data.items()}
@@ -115,13 +115,13 @@ class TestScenarioParser:
         Raises:
             ValueError: If the test or nodes are not found within the system.
         """
-        test_name = test_info.get("name", "")
+        test_name = test_info.get("test", "")
         if test_name not in self.test_mapping:
             raise ValueError(f"Test '{test_name}' not found in test mapping.")
 
         test = copy.deepcopy(self.test_mapping[test_name])
         test.test_template = self.test_mapping[test_name].test_template
-        test.section_name = section
+        test.section_name = test_info["name"]
         test.num_nodes = int(test_info.get("num_nodes", 1))
         test.nodes = test_info.get("nodes", [])
         return test

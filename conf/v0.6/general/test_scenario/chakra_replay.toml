@@ -1,5 +1,6 @@
 name = "chakra_replay"
 
 [[Tests]]
-name = "chakra_replay"
+test = "chakra_replay"
+name = "Test.1"
 num_nodes = 2

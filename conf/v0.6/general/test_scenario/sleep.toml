@@ -1,25 +1,29 @@
 name = "test_scenario_example"
 
 [[Tests]]
-name = "sleep_10"
+test = "sleep_10"
+name = "Tests.1"
 [Tests.1.dependencies]
 start_post_comp = {}
 end_post_comp = {}
 
 [[Tests]]
-name = "sleep_5"
+test = "sleep_5"
+name = "Tests.2"
 [Tests.dependencies]
 start_post_init = { name = "Tests.1", time = 5 }
 end_post_comp = {}
 
 [[Tests]]
-name = "sleep_5"
+test = "sleep_5"
+name = "Tests.3"
 [Tests.dependencies]
 start_post_comp = { name = "Tests.1", time = 0 }
 end_post_comp = {}
 
 [[Tests]]
-name = "sleep_20"
+test = "sleep_20"
+name = "Tests.4"
 [Tests.dependencies]
 start_post_comp = {}
 end_post_comp = { name = "Tests.1", time = 5 }

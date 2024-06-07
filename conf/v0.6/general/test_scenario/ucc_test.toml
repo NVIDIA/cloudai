@@ -1,29 +1,34 @@
 name = "ucc_test"
 
 [[Tests]]
-name = "ucc_test_alltoall"
+test = "ucc_test_alltoall"
+name = "Tests.1"
 num_nodes = 2
 
 [[Tests]]
-name = "ucc_test_alltoall"
+test = "ucc_test_alltoall"
+name = "Tests.2"
 num_nodes = 2
 [Tests.dependencies]
 start_post_comp = { name = "Tests.1", time = 0 }
 
 [[Tests]]
-name = "ucc_test_alltoall"
+test = "ucc_test_alltoall"
+name = "Tests.3"
 num_nodes = 2
 [Tests.dependencies]
 start_post_comp = { name = "Tests.2", time = 0 }
 
 [[Tests]]
-name = "ucc_test_alltoall"
+test = "ucc_test_alltoall"
+name = "Tests.4"
 num_nodes = 2
 [Tests.dependencies]
 start_post_comp = { name = "Tests.3", time = 0 }
 
 [[Tests]]
-name = "ucc_test_alltoall"
+test = "ucc_test_alltoall"
+name = "Tests.5"
 num_nodes = 2
 [Tests.dependencies]
 start_post_comp = { name = "Tests.4", time = 0 }

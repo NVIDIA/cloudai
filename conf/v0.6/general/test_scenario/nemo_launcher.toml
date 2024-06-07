@@ -1,17 +1,20 @@
 name = "nemo_launcher"
 
 [[Tests]]
-name = "nemo_launcher"
+test = "nemo_launcher"
+name = "Tests.1"
 num_nodes = 4
 
 [[Tests]]
-name = "nemo_launcher"
+test = "nemo_launcher"
+name = "Tests.2"
 num_nodes = 4
 [Tests.dependencies]
 start_post_comp = { name = "Tests.1", time = 0 }
 
 [[Tests]]
-name = "nemo_launcher"
+test = "nemo_launcher"
+name = "Tests.3"
 num_nodes = 4
 [Tests.dependencies]
 start_post_comp = { name = "Tests.2", time = 0 }
