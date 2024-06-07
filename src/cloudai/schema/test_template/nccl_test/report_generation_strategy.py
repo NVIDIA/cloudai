@@ -87,14 +87,17 @@ class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
         """
         stdout_path = os.path.join(directory_path, "stdout.txt")
         avg_bus_bw = None
+        data = []
         if os.path.isfile(stdout_path):
             with open(stdout_path, "r") as file:
+                for line in file:
+                    line = line.strip()
+                    if re.match(r"^\d", line):
+                        data.append(re.split(r"\s+", line))
                 content = file.read()
-                data = [re.split(r"\s+", line.strip()) for line in content.splitlines() if line.startswith("  ")]
                 avg_bus_bw_match = re.search(r"Avg bus bandwidth\s+:\s+(\d+\.\d+)", content)
                 avg_bus_bw = float(avg_bus_bw_match.group(1)) if avg_bus_bw_match else None
-                return data, avg_bus_bw
-        return [], None
+        return data, avg_bus_bw
 
     def _generate_bokeh_report(
         self, test_name: str, df: pd.DataFrame, directory_path: str, sol: Optional[float]
