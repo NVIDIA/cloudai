@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft-04/schema#",
+  "type": "object",
+  "title": "TestScenario",
+  "description": "Test Scenario",
+  "required": [
+    "name",
+    "Tests"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Name of the test",
+      "description": "A test with this name should exist in test definitions folder"
+    },
+    "Tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "num_nodes": {
+            "type": "integer"
+          },
+          "time_limit": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "integer"
+          },
+          "dependencies": {
+            "type": "object",
+            "properties": {
+              "start_post_comp": {
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "time": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "start_post_init": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "time"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "time": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "end_post_comp": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "time": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
