@@ -31,7 +31,7 @@ HEADER = """# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 # limitations under the License."""
 
 PY_FILES = [p for p in Path().rglob("**/*.py") if "venv" not in str(p)]
-
+HEADER_LINES = HEADER.count("\n") + 1
 
 @pytest.mark.parametrize("py_file", PY_FILES, ids=[str(f) for f in PY_FILES])
 def test_check_copyright_header(py_file):
