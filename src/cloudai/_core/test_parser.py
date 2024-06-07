@@ -24,8 +24,7 @@ class TestParser(BaseMultiFileParser):
     Parser for Test objects.
 
     Attributes
-        test_template_mapping (Dict[str, TestTemplate]): Mapping of test template
-            names to TestTemplate objects.
+        test_template_mapping (Dict[str, TestTemplate]): Mapping of test template names to TestTemplate objects.
     """
 
     __test__ = False
@@ -40,8 +39,7 @@ class TestParser(BaseMultiFileParser):
 
         Args:
             directory_path (str): Path to the directory containing test data.
-            test_template_mapping (Dict[str, TestTemplate]): Mapping of test
-                template names to TestTemplate objects.
+            test_template_mapping (Dict[str, TestTemplate]): Mapping of test template names to TestTemplate objects.
         """
         super().__init__(directory_path)
         self.test_template_mapping: Dict[str, TestTemplate] = test_template_mapping
@@ -99,12 +97,11 @@ class TestParser(BaseMultiFileParser):
         """
         Recursively flattens the nested dictionary structure from the test template.
 
-        Includes keys with 'default' and 'values' as valid keys, while ignoring
-        keys that specifically end with 'default' or 'values'.
+        Includes keys with 'default' and 'values' as valid keys, while ignoring keys that specifically end with
+        'default' or 'values'.
 
         Args:
-            nested_args (Dict[str, Any]): Nested argument structure from the test
-                                          template.
+            nested_args (Dict[str, Any]): Nested argument structure from the test template.
             parent_key (str): Parent key for nested arguments.
 
         Returns:
@@ -132,8 +129,7 @@ class TestParser(BaseMultiFileParser):
 
         Args:
             args (Dict[str, Any]): Arguments provided in the TOML configuration.
-            valid_keys (Set[str]): Set of valid keys from the flattened template
-                                   arguments.
+            valid_keys (Set[str]): Set of valid keys from the flattened template arguments.
 
         Raises:
             ValueError: If an argument is not defined in the TestTemplate's arguments.

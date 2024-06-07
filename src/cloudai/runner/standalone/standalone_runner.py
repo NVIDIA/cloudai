@@ -30,13 +30,11 @@ class StandaloneRunner(BaseRunner):
     """
     Implementation of the Runner for a system using Standalone.
 
-    This class is responsible for executing and managing tests in a standalone
-    environment. It extends the BaseRunner class, implementing the abstract
-    methods to work with standalone jobs.
+    This class is responsible for executing and managing tests in a standalone environment. It extends the BaseRunner
+    class, implementing the abstract methods to work with standalone jobs.
 
     Attributes
-        cmd_shell (CommandShell): An instance of CommandShell for executing
-                                  system commands.
+        cmd_shell (CommandShell): An instance of CommandShell for executing system commands.
         Inherits all other attributes from the BaseRunner class.
     """
 

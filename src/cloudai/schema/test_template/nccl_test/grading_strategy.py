@@ -21,9 +21,8 @@ class NcclTestGradingStrategy(GradingStrategy):
     """
     Performance grading strategy for NcclTest test templates on Slurm systems.
 
-    Evaluates the test's performance by comparing the maximum bus bandwidth
-    achieved during the test against the test's ideal performance metric.
-    The grade is normalized and scaled between 0 and 100.
+    Evaluates the test's performance by comparing the maximum bus bandwidth achieved during the test against the test's
+    ideal performance metric. The grade is normalized and scaled between 0 and 100.
     """
 
     def grade(self, directory_path: str, ideal_perf: float) -> float:
@@ -58,8 +57,7 @@ class NcclTestGradingStrategy(GradingStrategy):
         Extract the maximum bus bandwidth from the NcclTest output file.
 
         Args:
-            stdout_path (str): Path to the stdout.txt file containing the
-                               NcclTest output.
+            stdout_path (str): Path to the stdout.txt file containing the NcclTest output.
 
         Returns:
             float: The maximum bus bandwidth value.

@@ -22,16 +22,14 @@ class SlurmJobIdRetrievalStrategy(JobIdRetrievalStrategy):
     """
     Strategy for retrieving job IDs from Slurm job submission outputs.
 
-    Implements JobIdRetrievalStrategy to extract job IDs from the standard
-    output of Slurm scheduler submissions.
+    Implements JobIdRetrievalStrategy to extract job IDs from the standard output of Slurm scheduler submissions.
     """
 
     def get_job_id(self, stdout: str, stderr: str) -> Optional[int]:
         """
         Extract the job ID from Slurm command output.
 
-        Parses stdout for a pattern matching Slurm submission confirmation
-        and extracts the job ID.
+        Parses stdout for a pattern matching Slurm submission confirmation and extracts the job ID.
 
         Args:
             stdout (str): Standard output from the Slurm command.

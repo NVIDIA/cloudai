@@ -22,8 +22,7 @@ class System(ABC):
 
     Attributes
         name (str): Unique name of the system.
-        scheduler (str): Type of scheduler used by the system, determining
-                         the specific subclass of System to be used.
+        scheduler (str): Type of scheduler used by the system, determining the specific subclass of System to be used.
         output_path (str): Path to the output directory.
         monitor_interval (int): Interval in seconds for monitoring jobs.
     """
@@ -54,12 +53,10 @@ class System(ABC):
         Provide a detailed string representation of the System instance, including all its attributes.
 
         Returns
-            str: String representation of the system including name, scheduler,
-            output_path, and monitor_interval.
+            str: String representation of the system including name, scheduler, output_path, and monitor_interval.
         """
         return (
-            f"System(name='{self.name}', scheduler='{self.scheduler}', "
-            f"output_path='{self.output_path}', "
+            f"System(name='{self.name}', scheduler='{self.scheduler}', output_path='{self.output_path}', "
             f"monitor_interval={self.monitor_interval})"
         )
 

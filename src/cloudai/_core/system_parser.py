@@ -25,8 +25,8 @@ class SystemParser:
     Parser for parsing system configurations.
 
     Attributes
-        _parsers (Dict[str, Type[BaseSystemParser]]): A mapping from system
-            types to their corresponding parser classes.
+        _parsers (Dict[str, Type[BaseSystemParser]]): A mapping from system types to their corresponding parser
+            classes.
         file_path (str): The file path to the system configuration file.
     """
 

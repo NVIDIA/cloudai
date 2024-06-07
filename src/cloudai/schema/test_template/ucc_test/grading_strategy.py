@@ -21,9 +21,8 @@ class UCCTestGradingStrategy(GradingStrategy):
     """
     Performance grading strategy for UCCTest test templates on Slurm systems.
 
-    Evaluates the test's performance by comparing the maximum bus bandwidth
-    achieved during the test against the test's ideal performance metric.
-    The grade is normalized and scaled between 0 and 100.
+    Evaluates the test's performance by comparing the maximum bus bandwidth achieved during the test against the test's
+    ideal performance metric. The grade is normalized and scaled between 0 and 100.
     """
 
     def grade(self, directory_path: str, ideal_perf: float) -> float:
@@ -33,8 +32,7 @@ class UCCTestGradingStrategy(GradingStrategy):
         Reported in the test's stdout.txt file, considering both in-place and out-of-place updates.
 
         Args:
-            directory_path (str): Path to the directory containing the
-                                  test's output.
+            directory_path (str): Path to the directory containing the test's output.
             ideal_perf (float): The ideal performance value for comparison.
 
         Returns:
@@ -58,8 +56,7 @@ class UCCTestGradingStrategy(GradingStrategy):
         Extract the maximum bus bandwidth from the UCCTest output file.
 
         Args:
-            stdout_path (str): Path to the stdout.txt file containing the
-                               UCCTest output.
+            stdout_path (str): Path to the stdout.txt file containing the UCCTest output.
 
         Returns:
             float: The maximum bus bandwidth value.

@@ -129,8 +129,7 @@ class TestTemplateStrategy:
 
         Args:
             default_env_vars (Dict[str, str]): The default environment variables.
-            provided_env_vars (Dict[str, str]): The provided environment variables
-                                                to override defaults.
+            provided_env_vars (Dict[str, str]): The provided environment variables to override defaults.
 
         Returns:
             Dict[str, str]: A dictionary of environment variables with overrides applied.
@@ -149,8 +148,7 @@ class TestTemplateStrategy:
 
         Args:
             default_cmd_args (Dict[str, str]): The default command-line arguments.
-            provided_cmd_args (Dict[str, str]): The provided command-line arguments
-                                                to override defaults.
+            provided_cmd_args (Dict[str, str]): The provided command-line arguments to override defaults.
 
         Returns:
             Dict[str, str]: A dictionary of command-line arguments with overrides applied.

@@ -41,8 +41,8 @@ class SleepStandaloneInstallStrategy(InstallStrategy):
         """
         Verify if the sleep command is available in the system.
 
-        Since sleep is a common command, this method mainly serves as a check
-        rather than performing an actual installation.
+        Since sleep is a common command, this method mainly serves as a check rather than performing an actual
+        installation.
 
         Returns
             InstallStatusResult: Status result indicating success or failure of the check.

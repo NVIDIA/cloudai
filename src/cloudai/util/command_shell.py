@@ -21,8 +21,7 @@ class CommandShell:
     A class responsible for executing shell commands using a specified shell executable.
 
     Attributes
-        executable (str): The path to the shell executable used for running
-                          commands.
+        executable (str): The path to the shell executable used for running commands.
     """
 
     def __init__(self, executable: str = "/bin/bash"):
@@ -30,8 +29,7 @@ class CommandShell:
         Initialize the CommandShell with a shell executable.
 
         Args:
-            executable (str): The shell executable path.
-                              Defaults to "/bin/bash".
+            executable (str): The shell executable path. Defaults to "/bin/bash".
 
         Raises:
             FileNotFoundError: If the specified executable does not exist.

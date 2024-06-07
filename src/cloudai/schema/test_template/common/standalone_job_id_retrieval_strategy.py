@@ -21,9 +21,8 @@ class StandaloneJobIdRetrievalStrategy(JobIdRetrievalStrategy):
     """
     Strategy for retrieving job IDs from standalone application outputs.
 
-    This class provides a specific implementation of JobIdRetrievalStrategy
-    for extracting job IDs from the output of standalone applications, assuming
-    the job ID is directly available in the standard output.
+    This class provides a specific implementation of JobIdRetrievalStrategy for extracting job IDs from the output of
+    standalone applications, assuming the job ID is directly available in the standard output.
     """
 
     def get_job_id(self, stdout: str, stderr: str) -> Optional[int]:
@@ -37,8 +36,7 @@ class StandaloneJobIdRetrievalStrategy(JobIdRetrievalStrategy):
             stderr (str): The standard error from the application (unused).
 
         Returns:
-            Optional[int]: The extracted job ID as an integer, or None if
-            the conversion fails due to invalid output.
+            Optional[int]: The extracted job ID as an integer, or None if the conversion fails due to invalid output.
         """
         try:
             return int(stdout)

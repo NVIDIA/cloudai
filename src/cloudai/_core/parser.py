@@ -81,9 +81,8 @@ class Parser:
         Parse configurations for system, test templates, and test scenarios.
 
         Returns
-            Tuple[System, List[TestTemplate], TestScenario]: A tuple containing
-            the system object, a list of test template objects, and the test scenario
-            object.
+            Tuple[System, List[TestTemplate], TestScenario]: A tuple containing the system object, a list of test
+                template objects, and the test scenario object.
         """
         system_parser = SystemParser(self.system_config_path)
         system = system_parser.parse()

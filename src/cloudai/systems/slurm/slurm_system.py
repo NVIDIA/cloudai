@@ -225,8 +225,8 @@ class SlurmSystem(System):
         """
         Provide a structured string representation of the system.
 
-        Including the system name, scheduler type, and a simplified view similar to the `sinfo`
-        command output, focusing on the partition, state, and nodelist.
+        Including the system name, scheduler type, and a simplified view similar to the `sinfo` command output,
+        focusing on the partition, state, and nodelist.
         """
         header = f"System Name: {self.name}\nScheduler Type: {self.scheduler}"
         parts = [header, "\tPARTITION  STATE    NODELIST"]
@@ -331,9 +331,8 @@ class SlurmSystem(System):
         """
         Retrieve a specific number of potentially available nodes from a group within a partition.
 
-        Prioritizes nodes by their current state, preferring
-        idle nodes first, then completing nodes, and finally allocated nodes,
-        while excluding nodes that are down and allocated nodes to the current user.
+        Prioritizes nodes by their current state, preferring idle nodes first, then completing nodes, and finally
+        allocated nodes, while excluding nodes that are down and allocated nodes to the current user.
 
         Args:
             partition_name (str): The name of the partition.
@@ -344,8 +343,8 @@ class SlurmSystem(System):
             List[SlurmNode]: Objects that are potentially available for use.
 
         Raises:
-            ValueError: If the partition or group is not found, or if the
-                        requested number of nodes exceeds the available nodes.
+            ValueError: If the partition or group is not found, or if the requested number of nodes exceeds the
+                available nodes.
         """
         if partition_name not in self.groups:
             raise ValueError(f"Partition '{partition_name}' not found.")
@@ -469,15 +468,13 @@ class SlurmSystem(System):
 
         Args:
             job_id (int): The ID of the job to check.
-            retry_threshold (int): Maximum number of retries for transient
-                                   errors.
+            retry_threshold (int): Maximum number of retries for transient errors.
 
         Returns:
             bool: True if the job is completed, False otherwise.
 
         Raises:
-            RuntimeError: If unable to determine job status after retries,
-                          or if a non-retryable error is encountered.
+            RuntimeError: If unable to determine job status after retries, or if a non-retryable error is encountered.
         """
         retry_count = 0
         while retry_count < retry_threshold:
