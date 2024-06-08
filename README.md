@@ -46,31 +46,31 @@ Please make sure to use the correct system configuration file that corresponds t
 ```bash
 cloudai\
     --mode install\
-    --system_config_path conf/v0.6/general/system/example_slurm_cluster.toml
+    --system-config conf/v0.6/general/system/example_slurm_cluster.toml
 ```
 
 To simulate running experiments without execution, use the dry-run mode:
 ```bash
 cloudai\
     --mode dry-run\
-    --system_config_path conf/v0.6/general/system/example_slurm_cluster.toml\
-    --test_scenario_path conf/v0.6/general/test_scenario/sleep.toml
+    --system-config conf/v0.6/general/system/example_slurm_cluster.toml\
+    --test-scenario conf/v0.6/general/test_scenario/sleep.toml
 ```
 
 To run experiments, execute CloudAI CLI in run mode:
 ```bash
 cloudai\
     --mode run\
-    --system_config_path conf/v0.6/general/system/example_slurm_cluster.toml\
-    --test_scenario_path conf/v0.6/general/test_scenario/sleep.toml
+    --system-config conf/v0.6/general/system/example_slurm_cluster.toml\
+    --test-scenario conf/v0.6/general/test_scenario/sleep.toml
 ```
 
 To generate reports, execute CloudAI CLI in generate-report mode:
 ```bash
 cloudai\
     --mode generate-report\
-    --system_config_path conf/v0.6/general/system/example_slurm_cluster.toml\
-    --output_path /path/to/output_directory
+    --system-config conf/v0.6/general/system/example_slurm_cluster.toml\
+    --output-dir /path/to/output_directory
 ```
 In the generate-report mode, use the --output_path argument to specify a subdirectory under the result directory.
 This subdirectory is usually named with a timestamp for unique identification.
@@ -79,7 +79,7 @@ To uninstall test templates, run CloudAI CLI in uninstall mode:
 ```bash
 cloudai\
     --mode uninstall\
-    --system_config_path conf/v0.6/general/system/example_slurm_cluster.toml
+    --system-config conf/v0.6/general/system/example_slurm_cluster.toml
 ```
 
 # Contributing

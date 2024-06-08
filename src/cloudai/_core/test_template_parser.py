@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import logging
+from pathlib import Path
 from typing import Any, Dict, Optional, Type, Union, cast
 
 from .base_multi_file_parser import BaseMultiFileParser
@@ -40,7 +41,7 @@ class TestTemplateParser(BaseMultiFileParser):
 
     VALID_DATA_TYPES = ["preset", "bool", "int", "str"]
 
-    def __init__(self, system: System, directory_path: str) -> None:
+    def __init__(self, system: System, directory_path: Path) -> None:
         """
         Initialize a TestTemplateParser with a specific system and directory path.
 
@@ -50,7 +51,7 @@ class TestTemplateParser(BaseMultiFileParser):
         """
         super().__init__(directory_path)
         self.system = system
-        self.directory_path: str = directory_path
+        self.directory_path = directory_path
 
     def _fetch_strategy(  # noqa: D417
         self,

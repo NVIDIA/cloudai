@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from typing import Any, Dict, List, Set
 
 from .base_multi_file_parser import BaseMultiFileParser
@@ -31,7 +32,7 @@ class TestParser(BaseMultiFileParser):
 
     def __init__(
         self,
-        directory_path: str,
+        directory_path: Path,
         test_template_mapping: Dict[str, TestTemplate],
     ) -> None:
         """

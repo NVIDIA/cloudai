@@ -13,10 +13,12 @@
 # limitations under the License.
 
 import logging
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 from .system import System
 from .system_parser import SystemParser
+from .test import Test
 from .test_parser import TestParser
 from .test_scenario import TestScenario
 from .test_scenario_parser import TestScenarioParser
@@ -36,47 +38,21 @@ class Parser:
         logger (logging.Logger): Logger for the parser.
     """
 
-    def __init__(
-        self,
-        system_config_path: str,
-        test_template_path: str,
-        test_path: Optional[str] = None,
-        test_scenario_path: Optional[str] = None,
-    ) -> None:
+    def __init__(self, system_config_path: Path, test_templates_dir: Path) -> None:
         """
         Initialize a Parser instance.
 
         Args:
             system_config_path (str): The file path for system configurations.
-            test_template_path (str): The file path for test_template configurations.
-            test_path (str): The file path for test configurations.
-            test_scenario_path (str): The file path for test scenario configurations.
+            test_templates_dir (str): The file path for test_template configurations.
         """
-        self.system_config_path: str = system_config_path
-        self.test_template_path: str = test_template_path
-        self.test_path: Optional[str] = test_path
-        self.test_scenario_path: Optional[str] = test_scenario_path
-        logging.debug("Initialized with system and template paths")
+        logging.debug(f"Initializing parser with: {system_config_path=} {test_templates_dir=}")
+        self.system_config_path = system_config_path
+        self.test_template_path = test_templates_dir
 
-    def parse_system_and_templates(self) -> Tuple[System, List[TestTemplate]]:
-        """
-        Parse system and test template configurations for installation purposes.
-
-        Returns
-            Tuple[System, List[TestTemplate]]: A tuple containing the system object
-            and a list of test template objects.
-        """
-        system_parser = SystemParser(self.system_config_path)
-        system = system_parser.parse()
-        logging.debug("Parsed system config")
-
-        test_template_parser = TestTemplateParser(system, self.test_template_path)
-        test_templates = test_template_parser.parse_all()
-        logging.debug(f"Parsed {len(test_templates)} test templates")
-
-        return system, test_templates
-
-    def parse(self) -> Tuple[System, List[TestTemplate], TestScenario]:
+    def parse(
+        self, test_path: Path, test_scenario_path: Optional[Path] = None
+    ) -> Tuple[System, List[Test], Optional[TestScenario]]:
         """
         Parse configurations for system, test templates, and test scenarios.
 
@@ -84,24 +60,31 @@ class Parser:
             Tuple[System, List[TestTemplate], TestScenario]: A tuple containing the system object, a list of test
                 template objects, and the test scenario object.
         """
-        system_parser = SystemParser(self.system_config_path)
+        if not test_path.exists():
+            raise FileNotFoundError(f"Test path '{test_path}' not found.")
+
+        system_parser = SystemParser(str(self.system_config_path))
         system = system_parser.parse()
         logging.debug("Parsed system config")
 
         test_template_parser = TestTemplateParser(system, self.test_template_path)
-        test_templates = test_template_parser.parse_all()
+        test_templates: List[TestTemplate] = test_template_parser.parse_all()
         test_template_mapping = {t.name: t for t in test_templates}
-        logging.debug(f"Parsed {len(test_templates)} test templates")
+        logging.debug(f"Parsed {len(test_templates)} test templates: {[t.name for t in test_templates]}")
 
-        assert self.test_path is not None, "Tests path must be provided for experiments."
-        test_parser = TestParser(self.test_path, test_template_mapping)
-        tests = test_parser.parse_all()
+        test_parser = TestParser(test_path, test_template_mapping)
+        tests: List[Test] = test_parser.parse_all()
         test_mapping = {t.name: t for t in tests}
-        logging.debug(f"Parsed {len(tests)} tests")
+        logging.debug(f"Parsed {len(tests)} tests: {[t.name for t in tests]}")
 
-        assert self.test_scenario_path is not None, "Test scenarios path must be provided for experiments."
-        test_scenario_parser = TestScenarioParser(self.test_scenario_path, system, test_mapping)
-        test_scenario = test_scenario_parser.parse()
-        logging.debug("Parsed test scenario")
+        filtered_tests = tests
+        test_scenario: Optional[TestScenario] = None
+        if test_scenario_path:
+            test_scenario_parser = TestScenarioParser(str(test_scenario_path), system, test_mapping)
+            test_scenario = test_scenario_parser.parse()
+            logging.debug("Parsed test scenario")
 
-        return system, test_templates, test_scenario
+            scenario_tests = set(t.name for t in test_scenario.tests)
+            filtered_tests = [t for t in tests if t.name in scenario_tests]
+
+        return system, filtered_tests, test_scenario
