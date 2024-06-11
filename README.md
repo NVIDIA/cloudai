@@ -1,7 +1,24 @@
 # CloudAI Benchmark Suite
 
 ## Project Description
-CloudAI benchmark suite aims to develop an industry standard benchmark focused on grading Data Center (DC) scale AI systems in the Cloud.
+CloudAI benchmark suite aims to develop an industry standard benchmark focused on grading Data Center (DC) scale AI systems in the Cloud. The primary motivation is to provide automated benchmarking on various systems, including Slurm, Kubernetes (K8S), and proprietary systems. Currently, CloudAI supports Slurm with enroot.
+
+## Key Concepts
+### Schemas
+CloudAI operates on four main schemas:
+
+1. **System Schema**: Describes the system, including the scheduler type, node list, and global environment variables.
+2. **Test Template Schema**: A template for tests that includes all required command-line arguments and environment variables. This schema allows users to separate test template implementations from systems.
+3. **Test Schema**: An instance of a test template with custom arguments and environment variables.
+4. **Test Scenario Schema**: A set of tests with dependencies and additional descriptions about the test scenario.
+
+These schemas enable CloudAI to be flexible and compatible with different systems and configurations.
+
+## Supported Systems
+- **Slurm with Enroot**
+- Future support planned for:
+  - Kubernetes (K8S)
+  - Proprietary systems
 
 ## Quick Start
 First, ensure you have access to the docker repository. This is a manual step:
