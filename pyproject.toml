@@ -16,7 +16,7 @@ target-version = "py39"
 line-length = 120
 
 [tool.ruff.lint]
-select = ["I", "B", "E", "D", "F", "SIM", "W", "C90", "EXE"]
+select = ["I", "B", "E", "D", "F", "SIM", "W", "C90", "EXE", "ERA"]
 ignore = [
     "D407", # Missing dashed underline after section
     "D203", # conflicts with D211
