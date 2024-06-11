@@ -15,8 +15,6 @@
 import os
 from typing import List, Tuple
 
-from tbparse import SummaryReader
-
 
 class TensorBoardDataReader:
     """
@@ -39,6 +37,8 @@ class TensorBoardDataReader:
         Returns:
             List[Tuple[int, float]]: A list of (step, value) tuples.
         """
+        from tbparse import SummaryReader  # lazy import to improve overall performance
+
         data = []
         for root, _, files in os.walk(self.directory_path):
             for file in files:
