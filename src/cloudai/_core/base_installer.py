@@ -42,7 +42,7 @@ class BaseInstaller:
             system (System): The system schema object.
         """
         self.system = system
-        logging.info(f"BaseInstaller initialized for {self.system.scheduler}.")
+        logging.debug(f"BaseInstaller initialized for {self.system.scheduler}.")
 
     def _is_binary_installed(self, binary_name: str) -> bool:
         """

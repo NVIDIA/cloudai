@@ -219,7 +219,7 @@ class SlurmSystem(System):
         self.groups = groups if groups is not None else {}
         self.global_env_vars = global_env_vars if global_env_vars is not None else {}
         self.cmd_shell = CommandShell()
-        logging.info(f"{self.__class__.__name__} initialized")
+        logging.debug(f"{self.__class__.__name__} initialized")
 
     def __repr__(self) -> str:
         """

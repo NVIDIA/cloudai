@@ -72,7 +72,7 @@ class BaseRunner(ABC):
         self.monitor_interval = system.monitor_interval
         self.jobs: List[BaseJob] = []
         self.test_to_job_map: Dict[Test, BaseJob] = {}
-        logging.info(f"{self.__class__.__name__} initialized")
+        logging.debug(f"{self.__class__.__name__} initialized")
         self.shutting_down = False
         self.register_signal_handlers()
 
@@ -283,7 +283,6 @@ class BaseRunner(ABC):
         """
         successful_jobs_count = 0
 
-        logging.debug("Monitoring jobs.")
         for job in list(self.jobs):
             if self.is_job_completed(job):
                 if self.mode == "dry-run":
@@ -298,7 +297,6 @@ class BaseRunner(ABC):
                             f"Job {job.id} for test {job.test.section_name} failed: {job_status_result.error_message}"
                         )
                         logging.error(error_message)
-                        print(error_message, file=sys.stdout)
                         await self.shutdown()
                         raise JobFailureError(job.test.section_name, error_message, job_status_result.error_message)
 
