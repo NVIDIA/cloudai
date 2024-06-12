@@ -281,7 +281,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         repo_path = os.path.join(subdir_path, self.REPOSITORY_NAME)
 
         if os.path.exists(repo_path):
-            logging.info("Repository already exists at %s. Checking out specific commit.", repo_path)
+            logging.info("Repository already exists at %s, clone skipped", repo_path)
         else:
             logging.info("Cloning NeMo-Launcher repository into %s", repo_path)
             clone_cmd = ["git", "clone", self.repository_url, repo_path]

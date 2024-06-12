@@ -145,10 +145,10 @@ def handle_install_and_uninstall(mode: str, system: System, tests: List[Test]) -
     installer = Installer(system)
 
     if mode == "install":
-        logging.info("Installing test templates.")
         if installer.is_installed(tests):
             logging.info("CloudAI is already installed.")
         else:
+            logging.info("Not all components are ready, preparing")
             result = installer.install(tests)
             if not result:
                 logging.error(result)

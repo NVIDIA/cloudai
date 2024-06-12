@@ -224,6 +224,7 @@ class DockerImageCacheManager:
             f"srun --export=ALL --partition={self.partition_name} "
             f"enroot import -o {docker_image_path} docker://{docker_image_url}"
         )
+        logging.debug(f"Importing Docker image: {enroot_import_cmd}")
 
         try:
             subprocess.run(enroot_import_cmd, shell=True, check=True)
@@ -280,6 +281,8 @@ class DockerImageCacheManager:
                 f"srun --export=ALL --partition={self.partition_name} "
                 f"enroot import -o {docker_image_path} docker://{docker_image_url}"
             )
+
+            logging.debug(f"Checking Docker image accessibility: {enroot_import_cmd}")
 
             process = subprocess.Popen(enroot_import_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             while True:
