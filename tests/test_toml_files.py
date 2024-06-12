@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from pathlib import Path
 
+import jsonschema
+import jsonschema.validators
 import pytest
 import toml
 
@@ -30,3 +33,21 @@ def test_toml_files(toml_file: Path):
     """
     with toml_file.open("r") as f:
         assert toml.load(f) is not None
+
+
+TEST_SCENARIO_FILES = list(Path("conf/v0.6/general/test_scenario").rglob("*.toml"))
+TEST_SCENARIO_SCHEMA = json.loads(Path("schemas/test_scenario.schema.json").read_text())
+
+
+@pytest.mark.parametrize("toml_file", TEST_SCENARIO_FILES, ids=lambda x: str(x))
+def test_scenarios(toml_file: Path):
+    """
+    Validate test scenarios against the schema.
+
+    Args:
+        toml_file (Path): The path to the .toml file to validate.
+    """
+    with toml_file.open("r") as f:
+        data = toml.load(f)
+
+    jsonschema.validate(data, TEST_SCENARIO_SCHEMA)
