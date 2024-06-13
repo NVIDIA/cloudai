@@ -36,9 +36,7 @@ def test_slurm(tmp_path: Path, scenario: Dict):
     test_scenario_path = scenario["path"]
     expected_dirs_number = scenario.get("expected_dirs_number")
 
-    parser = Parser(
-        Path("conf/system/example_slurm_cluster.toml"), Path("conf/test_template")
-    )
+    parser = Parser(Path("conf/system/example_slurm_cluster.toml"), Path("conf/test_template"))
     system, tests, test_scenario = parser.parse(Path("conf/test"), test_scenario_path)
     system.output_path = str(tmp_path)
     assert test_scenario is not None, "Test scenario is None"
