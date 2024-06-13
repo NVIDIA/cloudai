@@ -69,8 +69,8 @@ class TestScenarioParser:
         if "name" not in data:
             raise KeyError("The 'name' field is missing from the data.")
         test_scenario_name = data["name"]
-        raw_tests_data = data.get("Tests", {})
-        tests_data = {f"Tests.{k}": v for k, v in raw_tests_data.items()}
+        # Consider any upper-most level sections as tests
+        tests_data = {k: v for k, v in data.items() if k != "name"}
 
         # Create section-specific test instances
         section_tests = {section: self._create_section_test(section, info) for section, info in tests_data.items()}

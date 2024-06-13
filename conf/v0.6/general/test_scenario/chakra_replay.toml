@@ -1,6 +1,5 @@
 name = "chakra_replay"
 
-[Tests]
-  [Tests.1]
-    name = "chakra_replay"
-    num_nodes = "2"
+[Tests_1]
+  name = "chakra_replay"
+  num_nodes = "2"
