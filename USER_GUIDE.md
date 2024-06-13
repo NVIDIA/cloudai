@@ -45,7 +45,7 @@ Test the docker image by running it with `srun` to verify that the docker image 
    ```
 
 ### Step 3: Update Test Template File
-You can find an NCCL test template file under `conf/v0.6/general/test_template/nccl_test.toml`, where you will find all arguments for the NCCL test as shown below.
+You can find an NCCL test template file under `conf/test_template/nccl_test.toml`, where you will find all arguments for the NCCL test as shown below.
 ```
 name = "NcclTest"
 
@@ -76,11 +76,11 @@ You can repeat the same for other docker images as well. Afterwards, please inst
 ```
 python main.py\
     --mode install\
-    --system_config_path conf/v0.6/general/system/example_slurm_cluster.toml
+    --system_config_path conf/system/example_slurm_cluster.toml
 ```
 
 ### Step 5: Run Experiments and Generate Reports
-You can find predefined NCCL test schemas under `conf/v0.6/general/test` and a test scenario at `conf/v0.6/general/nccl_test.toml`. In a test schema file, you can adjust arguments as shown below. In the cmd_args section, you can provide different values other than the default values for each argument. In extra_cmd_args, you can provide additional arguments that will be appended after the NCCL test command. You can specify additional environment variables in the extra_env_vars section.
+You can find predefined NCCL test schemas under `conf/test` and a test scenario at `conf/nccl_test.toml`. In a test schema file, you can adjust arguments as shown below. In the cmd_args section, you can provide different values other than the default values for each argument. In extra_cmd_args, you can provide additional arguments that will be appended after the NCCL test command. You can specify additional environment variables in the extra_env_vars section.
 ```
 name = "nccl_test_bisection"
 description = "Bisection"
@@ -117,14 +117,14 @@ To generate NCCL test commands without actual execution, use the dry-run mode. Y
 ```bash
 python main.py\
     --mode dry-run\
-    --system_config_path conf/v0.6/general/system/example_slurm_cluster.toml\
-    --test_scenario_path conf/v0.6/general/test_scenario/nccl_test.toml
+    --system_config_path conf/system/example_slurm_cluster.toml\
+    --test_scenario_path conf/test_scenario/nccl_test.toml
 ```
 
 You can run NCCL test experiments with the following command. Whenever you run CloudAI in the run mode, a new directory will be created under the results directory with the timestamp. In the directory, you can find the results from the test scenario including stdout and stderr. Once completed successfully, you can find generated reports under the directories as well.
 ```bash
 python main.py\
     --mode run\
-    --system_config_path conf/v0.6/general/system/example_slurm_cluster.toml\
-    --test_scenario_path conf/v0.6/general/test_scenario/nccl_test.toml
+    --system_config_path conf/system/example_slurm_cluster.toml\
+    --test_scenario_path conf/test_scenario/nccl_test.toml
 ```
