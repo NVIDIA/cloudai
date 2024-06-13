@@ -21,11 +21,11 @@ from cloudai.__main__ import handle_dry_run_and_run
 
 SLURM_TEST_SCENARIOS = [
     {
-        "path": Path("conf/v0.6/general/test_scenario/sleep.toml"),
+        "path": Path("conf/test_scenario/sleep.toml"),
         "expected_dirs_number": 3,
     },
     {
-        "path": Path("conf/v0.6/general/test_scenario/ucc_test.toml"),
+        "path": Path("conf/test_scenario/ucc_test.toml"),
         "expected_dirs_number": 1,
     },
 ]
@@ -36,10 +36,8 @@ def test_slurm(tmp_path: Path, scenario: Dict):
     test_scenario_path = scenario["path"]
     expected_dirs_number = scenario.get("expected_dirs_number")
 
-    parser = Parser(
-        Path("conf/v0.6/general/system/example_slurm_cluster.toml"), Path("conf/v0.6/general/test_template")
-    )
-    system, tests, test_scenario = parser.parse(Path("conf/v0.6/general/test"), test_scenario_path)
+    parser = Parser(Path("conf/system/example_slurm_cluster.toml"), Path("conf/test_template"))
+    system, tests, test_scenario = parser.parse(Path("conf/test"), test_scenario_path)
     system.output_path = str(tmp_path)
     assert test_scenario is not None, "Test scenario is None"
     handle_dry_run_and_run("dry-run", system, tests, test_scenario)

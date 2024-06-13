@@ -1,7 +1,7 @@
-# CloudAI Benchmark Suite
+# CloudAI Benchmark Framework
 
 ## Project Description
-CloudAI benchmark suite aims to develop an industry standard benchmark focused on grading Data Center (DC) scale AI systems in the Cloud. The primary motivation is to provide automated benchmarking on various systems.
+CloudAI benchmark framework aims to develop an industry standard benchmark focused on grading Data Center (DC) scale AI systems in the Cloud. The primary motivation is to provide automated benchmarking on various systems.
 
 ## Key Concepts
 ### Schemas
@@ -57,30 +57,30 @@ Please make sure to use the correct system configuration file that corresponds t
 ```bash
 cloudai\
     --mode install\
-    --system-config conf/v0.6/general/system/example_slurm_cluster.toml
+    --system-config conf/system/example_slurm_cluster.toml
 ```
 
 To simulate running experiments without execution, use the dry-run mode:
 ```bash
 cloudai\
     --mode dry-run\
-    --system-config conf/v0.6/general/system/example_slurm_cluster.toml\
-    --test-scenario conf/v0.6/general/test_scenario/sleep.toml
+    --system-config conf/system/example_slurm_cluster.toml\
+    --test-scenario conf/test_scenario/sleep.toml
 ```
 
 To run experiments, execute CloudAI CLI in run mode:
 ```bash
 cloudai\
     --mode run\
-    --system-config conf/v0.6/general/system/example_slurm_cluster.toml\
-    --test-scenario conf/v0.6/general/test_scenario/sleep.toml
+    --system-config conf/system/example_slurm_cluster.toml\
+    --test-scenario conf/test_scenario/sleep.toml
 ```
 
 To generate reports, execute CloudAI CLI in generate-report mode:
 ```bash
 cloudai\
     --mode generate-report\
-    --system-config conf/v0.6/general/system/example_slurm_cluster.toml\
+    --system-config conf/system/example_slurm_cluster.toml\
     --output-dir /path/to/output_directory
 ```
 In the generate-report mode, use the --output_path argument to specify a subdirectory under the result directory.
@@ -90,7 +90,7 @@ To uninstall test templates, run CloudAI CLI in uninstall mode:
 ```bash
 cloudai\
     --mode uninstall\
-    --system-config conf/v0.6/general/system/example_slurm_cluster.toml
+    --system-config conf/system/example_slurm_cluster.toml
 ```
 
 # Contributing
