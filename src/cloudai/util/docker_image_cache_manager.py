@@ -276,33 +276,47 @@ class DockerImageCacheManager:
             PrerequisiteCheckResult: Result of the Docker image accessibility check.
         """
         with tempfile.TemporaryDirectory() as temp_dir:
-            docker_image_path = temp_dir
-            enroot_import_cmd = (
-                f"srun --export=ALL --partition={self.partition_name} "
-                f"enroot import -o {docker_image_path} docker://{docker_image_url}"
-            )
+            docker_image_path = os.path.join(temp_dir, "docker_image.sqsh")
+            enroot_import_cmd = f"enroot import -o {docker_image_path} docker://{docker_image_url}"
 
             logging.debug(f"Checking Docker image accessibility: {enroot_import_cmd}")
 
             process = subprocess.Popen(enroot_import_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            while True:
-                error_output = process.stderr.readline() if process.stderr else None
-                error_output = error_output.decode() if error_output else ""
+            try:
+                while True:
+                    error_output = process.stderr.readline() if process.stderr else None
+                    error_output = error_output.decode() if error_output else ""
 
-                if error_output:
-                    if "Downloading" in error_output or "Found all layers in cache" in error_output:
-                        process.terminate()
-                        return PrerequisiteCheckResult(True, "Docker image URL is accessible.")
-                    if "[ERROR]" in error_output:
-                        process.terminate()
-                        return PrerequisiteCheckResult(
-                            False, f"Failed to access Docker image URL. Error: {error_output}"
-                        )
-                if process.poll() is not None:
-                    break
+                    if error_output:
+                        if "Downloading" in error_output or "Found all layers in cache" in error_output:
+                            logging.debug(f"Docker image URL, {docker_image_url}, is accessible.")
+                            process.terminate()
+                            return PrerequisiteCheckResult(
+                                True, f"Docker image URL, {docker_image_url}, is accessible."
+                            )
+                        if "[ERROR]" in error_output:
+                            logging.debug(
+                                f"Failed to access Docker image URL, {docker_image_url}. Error: {error_output}"
+                            )
+                            process.terminate()
+                            return PrerequisiteCheckResult(
+                                False, f"Failed to access Docker image URL, {docker_image_url}. Error: {error_output}"
+                            )
+                    if process.poll() is not None:
+                        break
 
-            process.terminate()
-            return PrerequisiteCheckResult(False, "Failed to access Docker image URL. Unknown error.")
+                logging.debug(f"Failed to access Docker image URL, {docker_image_url}. Unknown error.")
+                return PrerequisiteCheckResult(
+                    False, f"Failed to access Docker image URL, {docker_image_url}. Unknown error."
+                )
+            finally:
+                # Ensure the temporary docker image file is removed
+                if os.path.exists(docker_image_path):
+                    try:
+                        os.remove(docker_image_path)
+                        logging.debug(f"Temporary Docker image file removed: {docker_image_path}")
+                    except OSError as e:
+                        logging.error(f"Failed to remove temporary Docker image file {docker_image_path}. Error: {e}")
 
     def uninstall_cached_image(self, subdir_name: str, docker_image_filename: str) -> DockerImageCacheResult:
         """

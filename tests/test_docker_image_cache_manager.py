@@ -215,35 +215,61 @@ def test_check_prerequisites(mock_check_docker_image_accessibility, mock_which):
 
 @patch("subprocess.Popen")
 @patch("shutil.which")
-def test_check_docker_image_accessibility_with_enroot(mock_which, mock_popen):
+@patch("tempfile.TemporaryDirectory")
+def test_check_docker_image_accessibility_with_enroot(mock_tempdir, mock_which, mock_popen):
     manager = DockerImageCacheManager("/fake/install/path", True, "default")
 
     # Ensure docker binary is not available
     mock_which.return_value = None
 
+    # Mocking the TemporaryDirectory context manager
+    mock_temp_dir = MagicMock()
+    mock_tempdir.return_value.__enter__.return_value = mock_temp_dir
+    temp_dir_path = "/fake/temp/dir"
+    mock_temp_dir.__enter__.return_value = temp_dir_path
+
     # Mock Popen for enroot command with success scenario
     process_mock = MagicMock()
-    process_mock.stdout.readline.side_effect = [b"", b"", b""]
-    process_mock.stderr.readline.side_effect = [b"Found all layers in cache\n", b"", b""]
-    process_mock.poll.side_effect = [None, None, 0]  # simulate process running then finishing
+    process_mock.stderr.readline.side_effect = [
+        b"Found all layers in cache\n",  # Simulate successful output
+        b"",
+        b"",
+    ]
+    process_mock.poll.side_effect = [None, None, 0]  # Simulate process running then finishing
 
     mock_popen.return_value = process_mock
 
     result = manager._check_docker_image_accessibility("docker.io/hello-world")
     assert result.success
-    assert result.message == "Docker image URL is accessible."
+    assert result.message == "Docker image URL, docker.io/hello-world, is accessible."
+
+    # Verify the command contains the required keywords
+    command = mock_popen.call_args[0][0]
+    assert "enroot import -o" in command
+    assert "docker://docker.io/hello-world" in command
 
     # Mock Popen for enroot command with failure scenario
-    process_mock = MagicMock()
-    process_mock.stdout.readline.side_effect = [b"[ERROR] Something went wrong\n", b"", b""]
-    process_mock.stderr.readline.side_effect = [b"", b"", b""]
-    process_mock.poll.side_effect = [None, None, 0]  # simulate process running then finishing
+    process_mock.reset_mock()
+    process_mock.stderr.readline.side_effect = [
+        b"[ERROR] Something went wrong\n",  # Simulate error output
+        b"",
+        b"",
+    ]
+    process_mock.poll.side_effect = [None, None, 0]  # Simulate process running then finishing
 
     mock_popen.return_value = process_mock
 
     result = manager._check_docker_image_accessibility("docker.io/hello-world")
     assert not result.success
-    assert "Failed to access Docker image URL" in result.message
+    assert (
+        "Failed to access Docker image URL, docker.io/hello-world. Error: [ERROR] Something went wrong"
+        in result.message
+    )
+
+    # Verify the command contains the required keywords
+    command = mock_popen.call_args[0][0]
+    assert "enroot import -o" in command
+    assert "docker://docker.io/hello-world" in command
 
 
 @patch("os.path.isfile")
