@@ -23,7 +23,7 @@ from bokeh.models import ColumnDataSource, DataTable, Div, TableColumn, Title
 from bokeh.palettes import Turbo256
 from bokeh.plotting import figure, output_file, save
 from bokeh.transform import cumsum
-from cloudai._core.report_generation_strategy import ReportGenerationStrategy
+from cloudai import ReportGenerationStrategy
 
 
 class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):

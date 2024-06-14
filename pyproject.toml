@@ -45,10 +45,24 @@ pythonpath = ["src"]
 root_package = "cloudai"
 
 [[tool.importlinter.contracts]]
-name = "_core does not higher level layers"
+name = "_core does not depends on higher level layers"
 type = "layers"
 layers = [
     "installer : parser : report_generator : runner : schema : util",
     "_core",
 ]
 containers = ["cloudai"]
+
+[[tool.importlinter.contracts]]
+name = "_core is not accessed directly"
+type = "forbidden"
+forbidden_modules = ["cloudai._core"]
+allow_indirect_imports = true # this is to allow "from cloudai import ..."
+source_modules = [
+    "cloudai.installer",
+    "cloudai.parser",
+    "cloudai.report_generator",
+    "cloudai.runner",
+    "cloudai.schema",
+    "cloudai.util",
+]

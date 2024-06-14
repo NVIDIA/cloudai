@@ -17,7 +17,7 @@ import os
 import statistics
 from typing import List, Optional
 
-from cloudai._core.report_generation_strategy import ReportGenerationStrategy
+from cloudai import ReportGenerationStrategy
 
 
 class JaxToolboxReportGenerationStrategy(ReportGenerationStrategy):

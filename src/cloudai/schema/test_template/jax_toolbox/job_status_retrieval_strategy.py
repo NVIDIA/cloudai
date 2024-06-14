@@ -15,8 +15,7 @@
 import os
 from pathlib import Path
 
-from cloudai._core.job_status_result import JobStatusResult
-from cloudai._core.job_status_retrieval_strategy import JobStatusRetrievalStrategy
+from cloudai import JobStatusResult, JobStatusRetrievalStrategy
 
 
 class JaxToolboxJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):

@@ -20,10 +20,7 @@ from typing import Iterable, cast
 
 import toml
 
-from cloudai._core.base_installer import BaseInstaller
-from cloudai._core.install_status_result import InstallStatusResult
-from cloudai._core.system import System
-from cloudai._core.test import Test
+from cloudai import BaseInstaller, InstallStatusResult, System, Test
 from cloudai.systems import SlurmSystem
 
 
