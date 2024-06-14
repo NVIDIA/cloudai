@@ -15,8 +15,7 @@
 import logging
 import os
 
-from cloudai._core.test import Test
-from cloudai._core.test_scenario import TestScenario
+from cloudai import Test, TestScenario
 
 
 class ReportGenerator:

@@ -14,7 +14,7 @@
 
 import os
 
-from cloudai._core.install_status_result import InstallStatusResult
+from cloudai import InstallStatusResult
 from cloudai.systems.slurm.strategy import SlurmInstallStrategy
 
 

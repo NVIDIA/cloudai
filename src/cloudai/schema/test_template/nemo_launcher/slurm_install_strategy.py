@@ -18,8 +18,7 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List
 
-from cloudai._core.install_status_result import InstallStatusResult
-from cloudai._core.system import System
+from cloudai import InstallStatusResult, System
 from cloudai.systems.slurm import SlurmNodeState
 from cloudai.systems.slurm.strategy import SlurmInstallStrategy
 

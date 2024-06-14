@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import numpy as np
+
 from cloudai import GradingStrategy
 from cloudai.report_generator.tool import TensorBoardDataReader
 

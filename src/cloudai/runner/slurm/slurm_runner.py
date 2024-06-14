@@ -15,12 +15,7 @@
 import logging
 from typing import cast
 
-from cloudai._core.base_job import BaseJob
-from cloudai._core.base_runner import BaseRunner
-from cloudai._core.exceptions import JobIdRetrievalError
-from cloudai._core.system import System
-from cloudai._core.test import Test
-from cloudai._core.test_scenario import TestScenario
+from cloudai import BaseJob, BaseRunner, JobIdRetrievalError, System, Test, TestScenario
 from cloudai.systems import SlurmSystem
 from cloudai.util import CommandShell
 

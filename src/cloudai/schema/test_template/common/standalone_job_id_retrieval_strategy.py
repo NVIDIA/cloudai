@@ -14,7 +14,7 @@
 
 from typing import Optional
 
-from cloudai._core.job_id_retrieval_strategy import JobIdRetrievalStrategy
+from cloudai import JobIdRetrievalStrategy
 
 
 class StandaloneJobIdRetrievalStrategy(JobIdRetrievalStrategy):

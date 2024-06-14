@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai._core.system import System
+from cloudai import System
 
 
 class StandaloneSystem(System):

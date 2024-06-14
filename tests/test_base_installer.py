@@ -16,10 +16,9 @@ from concurrent.futures import Future
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+from cloudai import InstallStatusResult, TestTemplate
 from cloudai._core.base_installer import BaseInstaller
-from cloudai._core.install_status_result import InstallStatusResult
 from cloudai._core.test import Test
-from cloudai._core.test_template import TestTemplate
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm import SlurmNode, SlurmNodeState
 

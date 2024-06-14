@@ -12,11 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from ._core.base_installer import BaseInstaller, InstallStatusResult
+from ._core.base_job import BaseJob
+from ._core.base_runner import BaseRunner
+from ._core.base_system_parser import BaseSystemParser
 from ._core.command_gen_strategy import CommandGenStrategy
+from ._core.exceptions import JobIdRetrievalError
 from ._core.grader import Grader
 from ._core.grading_strategy import GradingStrategy
 from ._core.install_strategy import InstallStrategy
 from ._core.job_id_retrieval_strategy import JobIdRetrievalStrategy
+from ._core.job_status_result import JobStatusResult
 from ._core.job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from ._core.parser import Parser
 from ._core.registry import Registry
@@ -134,11 +140,18 @@ Registry().add_installer("slurm", SlurmInstaller)
 Registry().add_installer("standalone", StandaloneInstaller)
 
 __all__ = [
+    "BaseInstaller",
+    "BaseJob",
+    "BaseRunner",
+    "BaseSystemParser",
     "CommandGenStrategy",
     "Grader",
     "GradingStrategy",
     "Installer",
+    "InstallStatusResult",
     "InstallStrategy",
+    "JobIdRetrievalError",
+    "JobStatusResult",
     "Parser",
     "ReportGenerationStrategy",
     "ReportGenerator",

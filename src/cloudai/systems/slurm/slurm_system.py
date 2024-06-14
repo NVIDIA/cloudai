@@ -17,7 +17,7 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from cloudai._core.system import System
+from cloudai import System
 from cloudai.util import CommandShell
 
 from .slurm_node import SlurmNode, SlurmNodeState

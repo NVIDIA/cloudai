@@ -14,8 +14,7 @@
 
 import shutil
 
-from cloudai import InstallStrategy
-from cloudai._core.install_status_result import InstallStatusResult
+from cloudai import InstallStatusResult, InstallStrategy
 
 
 class SleepStandaloneInstallStrategy(InstallStrategy):

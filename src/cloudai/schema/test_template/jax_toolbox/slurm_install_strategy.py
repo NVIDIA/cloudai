@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai._core.install_status_result import InstallStatusResult
+from cloudai import InstallStatusResult
 from cloudai.systems.slurm.strategy import SlurmInstallStrategy
 
 

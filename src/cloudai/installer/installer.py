@@ -15,10 +15,7 @@
 import logging
 from typing import Iterable
 
-from cloudai._core.install_status_result import InstallStatusResult
-from cloudai._core.registry import Registry
-from cloudai._core.system import System
-from cloudai._core.test import Test
+from cloudai import InstallStatusResult, Registry, System, Test
 
 
 class Installer:

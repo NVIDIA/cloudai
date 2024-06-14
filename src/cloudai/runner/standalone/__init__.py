@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .standalone_job import StandaloneJob
-from .standalone_runner import StandaloneRunner
+from ..standalone.standalone_job import StandaloneJob
+from ..standalone.standalone_runner import StandaloneRunner
 
 __all__ = [
     "StandaloneRunner",

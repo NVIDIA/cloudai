@@ -16,7 +16,8 @@ import os
 from typing import Optional
 
 import pandas as pd
-from cloudai._core.report_generation_strategy import ReportGenerationStrategy
+
+from cloudai import ReportGenerationStrategy
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.report_generator.tool.tensorboard_data_reader import TensorBoardDataReader
 
