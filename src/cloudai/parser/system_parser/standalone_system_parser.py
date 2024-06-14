@@ -15,7 +15,7 @@
 import os
 from typing import Any, Dict
 
-from cloudai._core.base_system_parser import BaseSystemParser
+from cloudai import BaseSystemParser
 from cloudai.systems import StandaloneSystem
 
 

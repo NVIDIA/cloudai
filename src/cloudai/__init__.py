@@ -15,6 +15,7 @@
 from ._core.base_installer import BaseInstaller, InstallStatusResult
 from ._core.base_job import BaseJob
 from ._core.base_runner import BaseRunner
+from ._core.base_system_parser import BaseSystemParser
 from ._core.command_gen_strategy import CommandGenStrategy
 from ._core.exceptions import JobIdRetrievalError
 from ._core.grader import Grader
