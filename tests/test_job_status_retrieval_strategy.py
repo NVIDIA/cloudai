@@ -33,8 +33,8 @@ class TestNcclTestJobStatusRetrievalStrategy:
             f"stdout.txt file not found in the specified output directory {tmp_path}. "
             "This file is expected to be created as a result of the NCCL test run. "
             "Please ensure the NCCL test was executed properly and that stdout.txt is generated. "
-            f"You can run the generated NCCL test command manually and verify the creation of "
-            f"{tmp_path / 'stdout.txt'}."
+            "You can run the generated NCCL test command manually and verify the creation of "
+            f"{tmp_path / 'stdout.txt'}. If the issue persists, contact the system administrator."
         )
 
     def test_successful_job(self, tmp_path: Path) -> None:
@@ -66,8 +66,50 @@ class TestNcclTestJobStatusRetrievalStrategy:
         assert result.error_message == (
             f"Missing success indicators in {stdout_file}: '# Out of bounds values', '# Avg bus bandwidth'. "
             "These keywords are expected to be present in stdout.txt, usually towards the end of the file. "
-            f"Please ensure the NCCL test ran to completion. You can run the generated sbatch script manually "
-            f"and check if {stdout_file} is created and contains the expected keywords."
+            f"Please review the NCCL test output and errors in the file. "
+            "Ensure the NCCL test ran to completion. You can run the generated sbatch script manually "
+            f"and check if {stdout_file} is created and contains the expected keywords. "
+            "If the issue persists, contact the system administrator."
+        )
+
+    def test_nccl_failure_job(self, tmp_path: Path) -> None:
+        """Test that job status is False when stdout.txt contains NCCL failure indicators."""
+        stdout_file = tmp_path / "stdout.txt"
+        stdout_content = """
+        # Some initialization output
+        node: Test NCCL failure common.cu:303 'remote process exited or there was a network error / '
+        .. node pid: Test failure common.cu:401
+        .. node pid: Test failure common.cu:588
+        .. node pid: Test failure alltoall.cu:97
+        .. node pid: Test failure common.cu:615
+        .. node pid: Test failure common.cu:1019
+        .. node pid: Test failure common.cu:844
+        """
+        stdout_file.write_text(stdout_content)
+        result = self.js.get_job_status(str(tmp_path))
+        assert not result.is_successful
+        assert result.error_message == (
+            f"NCCL test failure detected in {stdout_file}. "
+            "Possible reasons include network errors or remote process exits. "
+            "Please review the NCCL test output and errors in the file first. "
+            "If the issue persists, contact the system administrator."
+        )
+
+    def test_generic_test_failure_job(self, tmp_path: Path) -> None:
+        """Test that job status is False when stdout.txt contains generic test failure indicators."""
+        stdout_file = tmp_path / "stdout.txt"
+        stdout_content = """
+        # Some initialization output
+        .. node pid: Test failure common.cu:401
+        """
+        stdout_file.write_text(stdout_content)
+        result = self.js.get_job_status(str(tmp_path))
+        assert not result.is_successful
+        assert result.error_message == (
+            f"Test failure detected in {stdout_file}. "
+            "Please review the specific test failure messages in the file. "
+            "Ensure that the NCCL test environment is correctly set up and configured. "
+            "If the issue persists, contact the system administrator."
         )
 
 
