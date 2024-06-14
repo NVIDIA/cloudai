@@ -140,11 +140,18 @@ Registry().add_installer("slurm", SlurmInstaller)
 Registry().add_installer("standalone", StandaloneInstaller)
 
 __all__ = [
+    "BaseInstaller",
+    "BaseJob",
+    "BaseRunner",
+    "BaseSystemParser",
     "CommandGenStrategy",
     "Grader",
     "GradingStrategy",
     "Installer",
+    "InstallStatusResult",
     "InstallStrategy",
+    "JobIdRetrievalError",
+    "JobStatusResult",
     "Parser",
     "ReportGenerationStrategy",
     "ReportGenerator",
