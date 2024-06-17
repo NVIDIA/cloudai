@@ -299,15 +299,23 @@ class DockerImageCacheManager:
                                 f"Failed to access Docker image URL, {docker_image_url}. Error: {error_output}"
                             )
                             process.terminate()
+                            if "401 Unauthorized" in error_output:
+                                detailed_message = (
+                                    f"Failed to access Docker image URL: {docker_image_url}. Error: {error_output}\n"
+                                    "This error indicates that access to the Docker image URL is unauthorized. "
+                                    "Please ensure you have the necessary permissions and have followed the "
+                                    "instructions in the README for setting up your credentials correctly."
+                                )
+                                return PrerequisiteCheckResult(False, detailed_message)
                             return PrerequisiteCheckResult(
-                                False, f"Failed to access Docker image URL, {docker_image_url}. Error: {error_output}"
+                                False, f"Failed to access Docker image URL: {docker_image_url}. Error: {error_output}"
                             )
                     if process.poll() is not None:
                         break
 
-                logging.debug(f"Failed to access Docker image URL, {docker_image_url}. Unknown error.")
+                logging.debug(f"Failed to access Docker image URL: {docker_image_url}. Unknown error.")
                 return PrerequisiteCheckResult(
-                    False, f"Failed to access Docker image URL, {docker_image_url}. Unknown error."
+                    False, f"Failed to access Docker image URL: {docker_image_url}. Unknown error."
                 )
             finally:
                 # Ensure the temporary docker image file is removed
