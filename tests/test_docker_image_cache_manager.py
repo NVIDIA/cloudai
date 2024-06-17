@@ -251,7 +251,7 @@ def test_check_docker_image_accessibility_with_enroot(mock_tempdir, mock_which, 
     # Mock Popen for enroot command with failure scenario
     process_mock.reset_mock()
     process_mock.stderr.readline.side_effect = [
-        b"[ERROR] Something went wrong\n",  # Simulate error output
+        b"[ERROR] URL https://nvcr.io/proxy_auth returned error code: 401 Unauthorized\n",  # Simulate 401 error output
         b"",
         b"",
     ]
@@ -262,8 +262,11 @@ def test_check_docker_image_accessibility_with_enroot(mock_tempdir, mock_which, 
     result = manager._check_docker_image_accessibility("docker.io/hello-world")
     assert not result.success
     assert (
-        "Failed to access Docker image URL, docker.io/hello-world. Error: [ERROR] Something went wrong"
-        in result.message
+        "Failed to access Docker image URL: docker.io/hello-world. "
+        "Error: [ERROR] URL https://nvcr.io/proxy_auth returned error code: 401 Unauthorized\n"
+        "This error indicates that access to the Docker image URL is unauthorized. "
+        "Please ensure you have the necessary permissions and have followed the instructions in the README "
+        "for setting up your credentials correctly." in result.message.replace("\n\n", "\n")
     )
 
     # Verify the command contains the required keywords
