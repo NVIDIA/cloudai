@@ -18,9 +18,9 @@ import logging
 import logging.config
 import sys
 from pathlib import Path
-from typing import List
+from typing import List, Set
 
-from cloudai import Installer, Parser, ReportGenerator, Runner, System, Test, TestScenario
+from cloudai import Installer, Parser, ReportGenerator, Runner, System, Test, TestScenario, TestTemplate
 
 
 def setup_logging(log_file: str, log_level: str) -> None:
@@ -127,38 +127,71 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def identify_unique_test_templates(tests: List[Test]) -> List[TestTemplate]:
+    """
+    Identify unique test templates from a list of tests.
+
+    Args:
+        tests (List[Test]): The list of test objects.
+
+    Returns:
+        List[TestTemplate]: The list of unique test templates.
+    """
+    unique_templates: List[TestTemplate] = []
+    seen_names: Set[str] = set()
+
+    for test in tests:
+        template_name = test.test_template.name
+        if template_name not in seen_names:
+            seen_names.add(template_name)
+            unique_templates.append(test.test_template)
+
+    return unique_templates
+
+
 def handle_install_and_uninstall(mode: str, system: System, tests: List[Test]) -> None:
     """
     Manage the installation or uninstallation process for CloudAI.
 
-    Based on user-specified mode, utilizing the Installer and Parser classes.
+    Based on user-specified mode, utilizing the Installer class.
 
     Args:
         mode (str): The operating mode.
         system (System): The system object.
         tests (List[Test]): The list of test objects.
-        output_dir (Optional[Path]): The path to the output directory.
     """
     logging.info(f"System Name: {system.name}")
     logging.info(f"Scheduler: {system.scheduler}")
 
+    unique_test_templates = identify_unique_test_templates(tests)
     installer = Installer(system)
 
     if mode == "install":
-        if installer.is_installed(tests):
+        all_installed = True
+        for template in unique_test_templates:
+            if not installer.is_installed([template]):
+                all_installed = False
+                logging.info(f"Test template {template.name} is not installed.")
+                break
+
+        if all_installed:
             logging.info("CloudAI is already installed.")
         else:
             logging.info("Not all components are ready, preparing")
-            result = installer.install(tests)
-            if not result:
-                logging.error(result)
+            result = installer.install(list(unique_test_templates))
+            if result.success:
+                logging.info("Installation successful.")
+            else:
+                logging.error(result.message)
                 exit(1)
 
     elif mode == "uninstall":
         logging.info("Uninstalling test templates.")
-        result = installer.uninstall(tests)
-        if not result:
-            logging.error(result)
+        result = installer.uninstall(list(unique_test_templates))
+        if result.success:
+            logging.info("Uninstallation successful.")
+        else:
+            logging.error(result.message)
             sys.exit(1)
 
 
@@ -181,11 +214,15 @@ def handle_dry_run_and_run(mode: str, system: System, tests: List[Test], test_sc
 
     if mode == "run":
         logging.info("Checking if test templates are installed.")
+
+        unique_templates = identify_unique_test_templates(tests)
+
         installer = Installer(system)
-        result = installer.is_installed(tests)
-        if not result:
+        result = installer.is_installed(unique_templates)
+
+        if not result.success:
             logging.error("CloudAI has not been installed. Please run install mode first.")
-            logging.error(result)
+            logging.error(result.message)
             exit(1)
 
     logging.info(test_scenario.pretty_print())
