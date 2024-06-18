@@ -15,7 +15,7 @@
 import logging
 from typing import Iterable
 
-from cloudai import InstallStatusResult, Registry, System, Test
+from cloudai import InstallStatusResult, Registry, System, TestTemplate
 
 
 class Installer:
@@ -42,41 +42,41 @@ class Installer:
             raise NotImplementedError(f"No installer available for scheduler: {scheduler_type}")
         self.installer = installer_class(system)
 
-    def is_installed(self, tests: Iterable[Test]) -> InstallStatusResult:
+    def is_installed(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
         """
         Check if the necessary components for the provided test templates are already installed.
 
         Args:
-            tests (Iterable[Test]): The list of test templates to check.
+            test_templates (Iterable[TestTemplate]): The list of test templates to check.
 
         Returns:
             InstallStatusResult: Result containing the installation status and error message if not installed.
         """
-        logging.info("Checking installation status of components.")
-        return self.installer.is_installed(tests)
+        logging.info("Checking installation status of test templates.")
+        return self.installer.is_installed(test_templates)
 
-    def install(self, tests: Iterable[Test]) -> InstallStatusResult:
+    def install(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
         """
-        Check if the necessary components are installed and install them if not using the instantiated installer.
+        Install the necessary components using the instantiated installer.
 
         Args:
-            tests (Iterable[Test]): The list of test templates to install.
+            test_templates (Iterable[TestTemplate]): The list of test templates to install.
 
         Returns:
             InstallStatusResult: Result containing the installation status and error message if not installed.
         """
         logging.info("Installing test templates.")
-        return self.installer.install(tests)
+        return self.installer.install(test_templates)
 
-    def uninstall(self, tests: Iterable[Test]) -> InstallStatusResult:
+    def uninstall(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
         """
         Uninstall the benchmarks or test templates using the instantiated installer.
 
         Args:
-            tests (Iterable[Test]): The list of test templates to uninstall.
+            test_templates (Iterable[TestTemplate]): The list of test templates to uninstall.
 
         Returns:
             InstallStatusResult: Result containing the installation status and error message if not installed.
         """
         logging.info("Uninstalling test templates.")
-        return self.installer.uninstall(tests)
+        return self.installer.uninstall(test_templates)
