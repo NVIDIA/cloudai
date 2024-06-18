@@ -52,7 +52,7 @@ class ReportGenerator:
                 continue
             test_output_dir = os.path.join(self.output_path, section_name)
             if not os.path.exists(test_output_dir):
-                logging.warning(f"Directory '{section_name}' not found.")
+                logging.warning(f"Directory '{test_output_dir}' not found.")
                 continue
 
             self._generate_test_report(test_output_dir, test)
@@ -71,3 +71,5 @@ class ReportGenerator:
             subdir_path = os.path.join(directory_path, subdir)
             if os.path.isdir(subdir_path) and test.test_template.can_handle_directory(subdir_path):
                 test.test_template.generate_report(test.name, subdir_path, test.sol)
+            else:
+                logging.warning(f"Skipping directory '{subdir_path}' for test '{test.name}'")
