@@ -32,7 +32,7 @@ def test_ensure_docker_image_file_exists(mock_access, mock_exists, mock_isfile):
     result = manager.ensure_docker_image("/tmp/existing_file.sqsh", "subdir", "docker_image.sqsh")
     assert result.success
     assert result.docker_image_path == "/tmp/existing_file.sqsh"
-    assert result.message == "Docker image file path is valid."
+    assert result.message == "Docker image file path is valid: /tmp/existing_file.sqsh."
 
 
 @patch("os.path.isfile")
@@ -69,7 +69,7 @@ def test_cache_docker_image(mock_check_prerequisites, mock_run, mock_makedirs, m
     mock_isfile.return_value = True
     result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
     assert result.success
-    assert result.message == "Cached Docker image already exists."
+    assert result.message == "Cached Docker image already exists at /fake/install/path/subdir/image.tar.gz."
 
     # Test creating subdirectory when it doesn't exist
     mock_isfile.return_value = False
@@ -96,7 +96,7 @@ def test_cache_docker_image(mock_check_prerequisites, mock_run, mock_makedirs, m
         check=True,
     )
     assert result.success
-    assert result.message == "Docker image cached successfully."
+    assert result.message == "Docker image cached successfully at /fake/install/path/subdir/image.tar.gz."
 
     # Test caching failure due to subprocess error
     mock_isfile.return_value = False
@@ -116,7 +116,7 @@ def test_remove_cached_image(mock_remove, mock_access, mock_exists, mock_isfile)
     mock_isfile.return_value = True
     result = manager.remove_cached_image("subdir", "image.tar.gz")
     assert result.success
-    assert result.message == "Cached Docker image removed successfully."
+    assert result.message == "Cached Docker image removed successfully from /fake/install/path/subdir/image.tar.gz."
     mock_remove.assert_called_once_with("/fake/install/path/subdir/image.tar.gz")
 
     # Test failed removal due to OSError
@@ -129,7 +129,7 @@ def test_remove_cached_image(mock_remove, mock_access, mock_exists, mock_isfile)
     mock_isfile.return_value = False
     result = manager.remove_cached_image("subdir", "image.tar.gz")
     assert result.success
-    assert result.message == "No cached Docker image found to remove."
+    assert result.message == "No cached Docker image found to remove at /fake/install/path/subdir/image.tar.gz."
 
 
 @patch("os.path.isfile")
@@ -146,14 +146,17 @@ def test_uninstall_cached_image(mock_remove, mock_access, mock_exists, mock_isfi
     mock_listdir = patch("os.listdir", return_value=[]).start()
     result = manager.uninstall_cached_image("subdir", "image.tar.gz")
     assert result.success
-    assert result.message in ["Cached Docker image uninstalled successfully.", "Subdirectory removed successfully."]
+    assert result.message in [
+        "Cached Docker image uninstalled successfully from /fake/install/path/subdir.",
+        "Subdirectory removed successfully: /fake/install/path/subdir.",
+    ]
     mock_remove.assert_called_once_with("/fake/install/path/subdir/image.tar.gz")
 
     # Test successful uninstallation but subdirectory not empty
     mock_listdir.return_value = ["otherfile"]
     result = manager.uninstall_cached_image("subdir", "image.tar.gz")
     assert result.success
-    assert result.message == "Cached Docker image uninstalled successfully."
+    assert result.message == "Cached Docker image uninstalled successfully from /fake/install/path/subdir."
     mock_remove.assert_called_with("/fake/install/path/subdir/image.tar.gz")
 
     # Test failed removal due to OSError
@@ -167,7 +170,7 @@ def test_uninstall_cached_image(mock_remove, mock_access, mock_exists, mock_isfi
     mock_exists.return_value = False
     result = manager.uninstall_cached_image("subdir", "image.tar.gz")
     assert result.success
-    assert result.message == "Cached Docker image uninstalled successfully."
+    assert result.message == "Cached Docker image uninstalled successfully from /fake/install/path/subdir."
 
     # Cleanup
     patch.stopall()
@@ -291,7 +294,7 @@ def test_check_docker_image_exists_with_only_cached_file(mock_exists, mock_isfil
     result = manager.check_docker_image_exists("/tmp/non_existing_file.sqsh", "subdir", "docker_image.sqsh")
     assert result.success
     assert result.docker_image_path == "/fake/install/path/subdir/docker_image.sqsh"
-    assert result.message == "Cached Docker image already exists."
+    assert result.message == "Cached Docker image already exists at /fake/install/path/subdir/docker_image.sqsh."
 
 
 @patch("os.path.isfile")
@@ -312,4 +315,4 @@ def test_check_docker_image_exists_with_both_valid_files(mock_exists, mock_isfil
     result = manager.check_docker_image_exists("/tmp/existing_file.sqsh", "subdir", "docker_image.sqsh")
     assert result.success
     assert result.docker_image_path == "/tmp/existing_file.sqsh"
-    assert result.message == "Docker image file path is valid."
+    assert result.message == "Docker image file path is valid: /tmp/existing_file.sqsh."
