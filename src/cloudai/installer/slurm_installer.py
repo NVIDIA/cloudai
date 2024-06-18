@@ -14,13 +14,12 @@
 
 import contextlib
 import os
-import shutil
 import subprocess
-from typing import Iterable, cast
+from typing import Dict, Iterable, cast
 
 import toml
 
-from cloudai import BaseInstaller, InstallStatusResult, System, Test
+from cloudai import BaseInstaller, InstallStatusResult, System, TestTemplate
 from cloudai.systems import SlurmSystem
 
 
@@ -51,7 +50,7 @@ class SlurmInstaller(BaseInstaller):
 
     def __init__(self, system: System):
         """
-        Initialize the BaseInstaller with a system object and an optional installation path.
+        Initialize the SlurmInstaller with a system object and an optional installation path.
 
         Args:
             system (System): The system schema object.
@@ -71,8 +70,11 @@ class SlurmInstaller(BaseInstaller):
         Returns
             InstallStatusResult: Result containing the status and any error message.
         """
+        base_prerequisites_result = super()._check_prerequisites()
+        if not base_prerequisites_result.success:
+            return InstallStatusResult(False, base_prerequisites_result.message)
+
         try:
-            super()._check_prerequisites()  # TODO: if fails, print out missing prerequisites
             self._check_required_binaries()
             self._check_srun_options()
             return InstallStatusResult(True)
@@ -105,7 +107,7 @@ class SlurmInstaller(BaseInstaller):
     def _write_config(self) -> InstallStatusResult:
         """Write the installation configuration to a TOML file atomically."""
         absolute_install_path = os.path.abspath(self.install_path)
-        config_data = {"install_path": absolute_install_path}
+        config_data: Dict[str, str] = {"install_path": absolute_install_path}
 
         try:
             with open(self.config_path, "w") as file:
@@ -116,12 +118,12 @@ class SlurmInstaller(BaseInstaller):
                 os.remove(self.config_path)
             return InstallStatusResult(False, str(e))
 
-    def _read_config(self) -> dict:
+    def _read_config(self) -> Dict[str, str]:
         """
         Read the installation configuration from a TOML file.
 
         Returns
-            dict: Configuration, including installation path.
+            Dict[str, str]: Configuration, including installation path.
         """
         try:
             with open(self.config_path, "r") as file:
@@ -137,14 +139,14 @@ class SlurmInstaller(BaseInstaller):
         if os.path.exists(self.config_path):
             os.remove(self.config_path)
 
-    def is_installed(self, tests: Iterable[Test]) -> InstallStatusResult:
+    def is_installed(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
         """
-        Check if the necessary components for the provided test are already installed.
+        Check if the necessary components for the provided test templates are already installed.
 
         Verify the existence of the configuration file and the installation status of each test template.
 
         Args:
-            tests (Iterable[Test]): The tests to check for installation.
+            test_templates (Iterable[TestTemplate]): The test templates to check for installation.
 
         Returns:
             InstallStatusResult: Result containing the installation status and error message if not installed.
@@ -161,16 +163,16 @@ class SlurmInstaller(BaseInstaller):
         except FileNotFoundError as e:
             return InstallStatusResult(False, str(e))
 
-        return super().is_installed(tests)
+        return super().is_installed(test_templates)
 
-    def install(self, tests: Iterable[Test]) -> InstallStatusResult:
+    def install(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
         """
         Check if the necessary components are installed and install them if not.
 
         Requires the installation path to be set.
 
         Args:
-            tests (Iterable[Test]): The tests to install.
+            test_templates (Iterable[TestTemplate]): The test templates to install.
 
         Returns:
             InstallStatusResult: Result containing the installation status and error message if any.
@@ -181,7 +183,7 @@ class SlurmInstaller(BaseInstaller):
             )
 
         prerequisites_result = self._check_prerequisites()
-        if not prerequisites_result:
+        if not prerequisites_result.success:
             return prerequisites_result
 
         try:
@@ -192,35 +194,29 @@ class SlurmInstaller(BaseInstaller):
         if not os.access(self.install_path, os.W_OK):
             return InstallStatusResult(False, f"The installation path {self.install_path} is not writable.")
 
-        super_result = super().install(tests)
-        if not super_result:
-            return super_result
+        install_result = super().install(test_templates)
 
-        config_result = self._write_config()
-        return config_result
+        if install_result.success:
+            config_result = self._write_config()
+            if not config_result.success:
+                return config_result
+        return install_result
 
-    def uninstall(self, tests: Iterable[Test]) -> InstallStatusResult:
+    def uninstall(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
         """
         Uninstall the benchmarks or test from the installation path and remove the configuration file.
 
         This method does not require the installation path to be set in advance.
 
         Args:
-            tests (Iterable[Test]): The tests to uninstall.
+            test_templates (Iterable[TestTemplate]): The test templates to uninstall.
 
         Returns:
             InstallStatusResult: Result containing the uninstallation status and error message if any.
         """
-        super_result = super().uninstall(tests)
-        if not super_result:
-            return super_result
+        uninstall_result = super().uninstall(test_templates)
 
-        config = self._read_config()
-        install_path = config.get("install_path")
-        if install_path:
-            try:
-                shutil.rmtree(install_path)
-            except OSError as e:
-                return InstallStatusResult(False, f"Failed to remove installation directory at {install_path}: {e}")
-        self._remove_config()
-        return InstallStatusResult(True, "All test templates uninstalled successfully.")
+        if uninstall_result.success:
+            self._remove_config()
+
+        return uninstall_result
