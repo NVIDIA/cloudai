@@ -116,7 +116,7 @@ def parse_arguments() -> argparse.Namespace:
         help="Path to the test scenario file.",
     )
     parser.add_argument("--output-dir", help="Path to the output directory.")
-    parser.add_argument("--log-file", default="debug.log", help="The name of the log file.")
+    parser.add_argument("--log-file", default="debug.log", help="The name of the log file (default: %(default)s).")
     parser.add_argument(
         "--log-level",
         default="INFO",
