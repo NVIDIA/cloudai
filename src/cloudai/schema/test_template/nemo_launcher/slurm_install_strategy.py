@@ -217,7 +217,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         idle_nodes = [node.name for node in partition_nodes if node.state == SlurmNodeState.IDLE]
 
         if not idle_nodes:
-            logging.info(
+            logging.warning(
                 "There are no idle nodes in the default partition to check. "
                 "Skipping NeMo-Launcher dataset verification."
             )
@@ -280,15 +280,15 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         repo_path = os.path.join(subdir_path, self.REPOSITORY_NAME)
 
         if os.path.exists(repo_path):
-            logging.info("Repository already exists at %s, clone skipped", repo_path)
+            logging.warning("Repository already exists at %s, clone skipped", repo_path)
         else:
-            logging.info("Cloning NeMo-Launcher repository into %s", repo_path)
+            logging.debug("Cloning NeMo-Launcher repository into %s", repo_path)
             clone_cmd = ["git", "clone", self.repository_url, repo_path]
             result = subprocess.run(clone_cmd, capture_output=True, text=True)
             if result.returncode != 0:
                 raise RuntimeError(f"Failed to clone repository: {result.stderr}")
 
-        logging.info("Checking out specific commit %s in repository", self.repository_commit_hash)
+        logging.debug("Checking out specific commit %s in repository", self.repository_commit_hash)
         checkout_cmd = ["git", "checkout", self.repository_commit_hash]
         result = subprocess.run(checkout_cmd, cwd=repo_path, capture_output=True, text=True)
         if result.returncode != 0:

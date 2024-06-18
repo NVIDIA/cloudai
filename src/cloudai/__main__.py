@@ -171,13 +171,13 @@ def handle_install_and_uninstall(mode: str, system: System, tests: List[Test]) -
         for template in unique_test_templates:
             if not installer.is_installed([template]):
                 all_installed = False
-                logging.info(f"Test template {template.name} is not installed.")
+                logging.debug(f"Test template {template.name} is not installed.")
                 break
 
         if all_installed:
             logging.info("CloudAI is already installed.")
         else:
-            logging.info("Not all components are ready, preparing")
+            logging.info("Not all components are ready")
             result = installer.install(list(unique_test_templates))
             if result.success:
                 logging.info("Installation successful.")

@@ -65,7 +65,7 @@ class BaseInstaller:
         Returns
             InstallStatusResult: Result containing the status and any error message.
         """
-        logging.info("Checking for common prerequisites.")
+        logging.debug("Checking for common prerequisites.")
         return InstallStatusResult(True)
 
     def is_installed(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
@@ -80,9 +80,9 @@ class BaseInstaller:
         Returns:
             InstallStatusResult: Result containing the installation status and error message if not installed.
         """
-        logging.info("Verifying installation status of test templates.")
         not_installed = {}
         for test_template in test_templates:
+            logging.debug(f"Verifying installation status of test template: {test_template.name}.")
             result = test_template.is_installed()
             if not result.success:
                 not_installed[test_template.name] = result.message
@@ -102,7 +102,7 @@ class BaseInstaller:
         Returns:
             InstallStatusResult: Result containing the installation status and error message if any.
         """
-        logging.info("Starting installation of test templates.")
+        logging.debug("Starting installation of test templates.")
         prerequisites_result = self._check_prerequisites()
         if not prerequisites_result.success:
             return InstallStatusResult(False, "Prerequisites check failed.", {"error": prerequisites_result.message})
@@ -110,6 +110,7 @@ class BaseInstaller:
         install_results = {}
         with ThreadPoolExecutor() as executor:
             futures = {executor.submit(template.install): template for template in test_templates}
+            total, done = len(futures), 0
             for future in as_completed(futures):
                 test_template = futures[future]
                 try:
@@ -118,8 +119,14 @@ class BaseInstaller:
                         install_results[test_template.name] = "Success"
                     else:
                         install_results[test_template.name] = result.message
+                    done += 1
+                    logging.info(
+                        f"{done}/{total} Installation for {test_template.name} finished with status: "
+                        f"{result.message if result.message else 'OK'}"
+                    )
                 except Exception as e:
-                    logging.error(f"Installation failed for {test_template.name}: {e}")
+                    done += 1
+                    logging.error(f"{done}/{total} Installation failed for {test_template.name}: {e}")
                     install_results[test_template.name] = str(e)
 
         all_success = all(result == "Success" for result in install_results.values())
