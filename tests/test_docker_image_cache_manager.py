@@ -94,6 +94,7 @@ def test_cache_docker_image(mock_check_prerequisites, mock_run, mock_makedirs, m
         "srun --export=ALL --partition=default enroot import -o /fake/install/path/subdir/image.tar.gz docker://docker.io/hello-world",
         shell=True,
         check=True,
+        capture_output=True,
     )
     assert result.success
     assert result.message == "Docker image cached successfully at /fake/install/path/subdir/image.tar.gz."
