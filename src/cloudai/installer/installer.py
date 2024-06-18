@@ -52,7 +52,7 @@ class Installer:
         Returns:
             InstallStatusResult: Result containing the installation status and error message if not installed.
         """
-        logging.info("Checking installation status of test templates.")
+        logging.debug("Checking installation status of test templates.")
         return self.installer.is_installed(test_templates)
 
     def install(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:

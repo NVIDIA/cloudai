@@ -177,25 +177,25 @@ class DockerImageCacheManager:
 
         # Check if the cache file exists
         if not os.path.exists(self.install_path):
-            error_message = f"Install path {self.install_path} does not exist."
-            logging.error(error_message)
-            return DockerImageCacheResult(False, "", error_message)
+            message = f"Install path {self.install_path} does not exist."
+            logging.debug(message)
+            return DockerImageCacheResult(False, "", message)
 
         subdir_path = os.path.join(self.install_path, subdir_name)
         if not os.path.exists(subdir_path):
-            error_message = f"Subdirectory path {subdir_path} does not exist."
-            logging.error(error_message)
-            return DockerImageCacheResult(False, "", error_message)
+            message = f"Subdirectory path {subdir_path} does not exist."
+            logging.debug(message)
+            return DockerImageCacheResult(False, "", message)
 
         docker_image_path = os.path.join(subdir_path, docker_image_filename)
         if os.path.isfile(docker_image_path) and os.path.exists(docker_image_path):
-            success_message = f"Cached Docker image already exists at {docker_image_path}."
-            logging.info(success_message)
-            return DockerImageCacheResult(True, docker_image_path, success_message)
+            message = f"Cached Docker image already exists at {docker_image_path}."
+            logging.debug(message)
+            return DockerImageCacheResult(True, docker_image_path, message)
 
-        error_message = f"Docker image does not exist at the specified path: {docker_image_path}."
-        logging.info(error_message)
-        return DockerImageCacheResult(False, "", error_message)
+        message = f"Docker image does not exist at the specified path: {docker_image_path}."
+        logging.debug(message)
+        return DockerImageCacheResult(False, "", message)
 
     def cache_docker_image(
         self, docker_image_url: str, subdir_name: str, docker_image_filename: str
@@ -249,9 +249,10 @@ class DockerImageCacheManager:
         logging.debug(f"Importing Docker image: {enroot_import_cmd}")
 
         try:
-            subprocess.run(enroot_import_cmd, shell=True, check=True)
+            p = subprocess.run(enroot_import_cmd, shell=True, check=True, capture_output=True)
             success_message = f"Docker image cached successfully at {docker_image_path}."
-            logging.info(success_message)
+            logging.debug(success_message)
+            logging.debug(f"Command used: {enroot_import_cmd}, stdout: {p.stdout}, stderr: {p.stderr}")
             return DockerImageCacheResult(True, docker_image_path, success_message)
         except subprocess.CalledProcessError as e:
             error_message = (
