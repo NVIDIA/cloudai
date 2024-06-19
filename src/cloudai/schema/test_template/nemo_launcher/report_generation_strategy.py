@@ -37,7 +37,7 @@ class NeMoLauncherReportGenerationStrategy(ReportGenerationStrategy):
         return False
 
     def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
-        tags = ["train_step_timing"]
+        tags = ["train_step_timing in s"]
         data_reader = TensorBoardDataReader(directory_path)
         report_tool = BokehReportTool(directory_path)
 
