@@ -157,6 +157,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
 
         try:
             self._clone_repository(subdir_path)
+            self._install_requirements(subdir_path)
             docker_image_result = self.docker_image_cache_manager.ensure_docker_image(
                 self.docker_image_url, self.SUBDIR_PATH, self.DOCKER_IMAGE_FILENAME
             )
@@ -293,3 +294,22 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         result = subprocess.run(checkout_cmd, cwd=repo_path, capture_output=True, text=True)
         if result.returncode != 0:
             raise RuntimeError(f"Failed to checkout commit: {result.stderr}")
+
+    def _install_requirements(self, subdir_path: str) -> None:
+        """
+        Installs the required Python packages from the requirements.txt file in the cloned repository.
+
+        Args:
+            subdir_path (str): Subdirectory path for installation.
+        """
+        repo_path = os.path.join(subdir_path, self.REPOSITORY_NAME)
+        requirements_file = os.path.join(repo_path, "requirements.txt")
+
+        if os.path.isfile(requirements_file):
+            logging.debug("Installing requirements from %s", requirements_file)
+            install_cmd = ["pip", "install", "-r", requirements_file]
+            result = subprocess.run(install_cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                raise RuntimeError(f"Failed to install requirements: {result.stderr}")
+        else:
+            logging.warning("requirements.txt not found in %s", repo_path)
