@@ -83,7 +83,7 @@ cloudai\
     --system-config conf/system/example_slurm_cluster.toml\
     --output-dir /path/to/output_directory
 ```
-In the generate-report mode, use the --output_path argument to specify a subdirectory under the result directory.
+In the generate-report mode, use the --output-dir argument to specify a subdirectory under the result directory.
 This subdirectory is usually named with a timestamp for unique identification.
 
 To uninstall test templates, run CloudAI CLI in uninstall mode:
