@@ -155,6 +155,7 @@ class TestNeMoLauncherSlurmInstallStrategy:
             mock_run.return_value.returncode = 0
             mock_exists.side_effect = lambda path: path == str(subdir_path)
             strategy._clone_repository(str(subdir_path))
+            strategy._install_requirements(str(subdir_path))
 
             mock_run.assert_any_call(
                 ["git", "clone", strategy.repository_url, str(repo_path)], capture_output=True, text=True
@@ -164,6 +165,20 @@ class TestNeMoLauncherSlurmInstallStrategy:
                 cwd=str(repo_path),
                 capture_output=True,
                 text=True,
+            )
+
+    def test_install_requirements(self, strategy: NeMoLauncherSlurmInstallStrategy):
+        subdir_path = Path(strategy.slurm_system.install_path) / strategy.SUBDIR_PATH
+        repo_path = subdir_path / strategy.REPOSITORY_NAME
+        requirements_file = repo_path / "requirements.txt"
+        repo_path.mkdir(parents=True, exist_ok=True)
+        requirements_file.touch()
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            strategy._install_requirements(str(subdir_path))
+            mock_run.assert_called_with(
+                ["pip", "install", "-r", str(requirements_file)], capture_output=True, text=True
             )
 
     def test_clone_repository_when_path_exists(self, strategy: NeMoLauncherSlurmInstallStrategy):
