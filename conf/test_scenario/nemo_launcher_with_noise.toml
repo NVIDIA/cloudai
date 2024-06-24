@@ -6,7 +6,7 @@ name = "nemo_launcher_with_noise"
   weight = 100
 
 [Tests.2]
-  name = "nccl_test_bisection"
+  name = "nccl_test_all_reduce"
   num_nodes = "16"
   [Tests.2.dependencies]
     start_post_init = { name = "Tests.1", time = 450 }
