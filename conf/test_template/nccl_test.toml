@@ -16,8 +16,7 @@ name = "NcclTest"
             "reduce_perf_mpi",
             "reduce_scatter_perf_mpi",
             "scatter_perf_mpi",
-            "sendrecv_perf_mpi",
-            "bisection_perf_mpi"]
+            "sendrecv_perf_mpi"]
   default = "all_reduce_perf_mpi"
 
   [cmd_args.nthreads]

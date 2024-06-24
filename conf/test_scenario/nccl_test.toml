@@ -27,112 +27,112 @@ name = "nccl-test"
     start_post_comp = { name = "Tests.3", time = 0 }
 
 [Tests.5]
-  name = "nccl_test_bisection"
+  name = "nccl_test_all_reduce"
   num_nodes = "2"
   time_limit = "00:20:00"
   [Tests.5.dependencies]
     start_post_comp = { name = "Tests.4", time = 0 }
 
 [Tests.6]
-  name = "nccl_test_all_reduce"
+  name = "nccl_test_all_gather"
   num_nodes = "2"
   time_limit = "00:20:00"
   [Tests.6.dependencies]
     start_post_comp = { name = "Tests.5", time = 0 }
 
 [Tests.7]
-  name = "nccl_test_all_gather"
+  name = "nccl_test_reduce_scatter"
   num_nodes = "2"
   time_limit = "00:20:00"
   [Tests.7.dependencies]
     start_post_comp = { name = "Tests.6", time = 0 }
 
 [Tests.8]
-  name = "nccl_test_reduce_scatter"
+  name = "nccl_test_alltoall"
   num_nodes = "2"
   time_limit = "00:20:00"
   [Tests.8.dependencies]
     start_post_comp = { name = "Tests.7", time = 0 }
 
 [Tests.9]
-  name = "nccl_test_alltoall"
+  name = "nccl_test_all_reduce"
   num_nodes = "2"
   time_limit = "00:20:00"
   [Tests.9.dependencies]
     start_post_comp = { name = "Tests.8", time = 0 }
 
 [Tests.10]
-  name = "nccl_test_bisection"
+  name = "nccl_test_all_gather"
   num_nodes = "2"
   time_limit = "00:20:00"
   [Tests.10.dependencies]
     start_post_comp = { name = "Tests.9", time = 0 }
 
 [Tests.11]
-  name = "nccl_test_all_reduce"
+  name = "nccl_test_reduce_scatter"
   num_nodes = "2"
   time_limit = "00:20:00"
   [Tests.11.dependencies]
     start_post_comp = { name = "Tests.10", time = 0 }
 
 [Tests.12]
-  name = "nccl_test_all_gather"
+  name = "nccl_test_alltoall"
   num_nodes = "2"
   time_limit = "00:20:00"
   [Tests.12.dependencies]
     start_post_comp = { name = "Tests.11", time = 0 }
 
 [Tests.13]
-  name = "nccl_test_reduce_scatter"
+  name = "nccl_test_all_reduce"
   num_nodes = "2"
   time_limit = "00:20:00"
   [Tests.13.dependencies]
     start_post_comp = { name = "Tests.12", time = 0 }
 
 [Tests.14]
-  name = "nccl_test_alltoall"
+  name = "nccl_test_all_gather"
   num_nodes = "2"
   time_limit = "00:20:00"
   [Tests.14.dependencies]
     start_post_comp = { name = "Tests.13", time = 0 }
 
 [Tests.15]
-  name = "nccl_test_bisection"
+  name = "nccl_test_reduce_scatter"
   num_nodes = "2"
   time_limit = "00:20:00"
   [Tests.15.dependencies]
     start_post_comp = { name = "Tests.14", time = 0 }
 
 [Tests.16]
-  name = "nccl_test_all_reduce"
+  name = "nccl_test_alltoall"
   num_nodes = "2"
   time_limit = "00:20:00"
   [Tests.16.dependencies]
     start_post_comp = { name = "Tests.15", time = 0 }
 
 [Tests.17]
-  name = "nccl_test_all_gather"
+  name = "nccl_test_all_reduce"
   num_nodes = "2"
   time_limit = "00:20:00"
   [Tests.17.dependencies]
     start_post_comp = { name = "Tests.16", time = 0 }
 
 [Tests.18]
-  name = "nccl_test_reduce_scatter"
+  name = "nccl_test_all_gather"
   num_nodes = "2"
   time_limit = "00:20:00"
   [Tests.18.dependencies]
     start_post_comp = { name = "Tests.17", time = 0 }
 
 [Tests.19]
-  name = "nccl_test_alltoall"
+  name = "nccl_test_reduce_scatter"
   num_nodes = "2"
   time_limit = "00:20:00"
   [Tests.19.dependencies]
     start_post_comp = { name = "Tests.18", time = 0 }
 
 [Tests.20]
-  name = "nccl_test_bisection"
+  name = "nccl_test_alltoall"
   num_nodes = "2"
   time_limit = "00:20:00"
   [Tests.20.dependencies]
@@ -165,10 +165,3 @@ name = "nccl-test"
   time_limit = "00:20:00"
   [Tests.24.dependencies]
     start_post_comp = { name = "Tests.23", time = 0 }
-
-[Tests.25]
-  name = "nccl_test_bisection"
-  num_nodes = "2"
-  time_limit = "00:20:00"
-  [Tests.25.dependencies]
-    start_post_comp = { name = "Tests.24", time = 0 }
