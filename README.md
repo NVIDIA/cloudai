@@ -18,8 +18,7 @@ These schemas enable CloudAI to be flexible and compatible with different system
 First, ensure you have access to the Docker repository. Follow these steps:
 
 1. **Sign In**: Go to [NVIDIA NGC](https://ngc.nvidia.com/signin) and sign in with your credentials.
-2. **Join the Correct Group**: Ensure you are part of the `CloudAI/cloudai` group. This will give you access to the necessary Docker images.
-3. **Generate API Key**:
+2. **Generate API Key**:
     - On the top right corner, click on the dropdown menu next to your profile.
     - Select "Setup".
     - In the "Setup" section, find "Keys/Secrets".
