@@ -14,7 +14,8 @@ CloudAI operates on four main schemas:
 
 These schemas enable CloudAI to be flexible and compatible with different systems and configurations.
 
-## Quick Start
+
+## Set Up Access to the Private NGC Registry
 First, ensure you have access to the Docker repository. Follow these steps:
 
 1. **Sign In**: Go to [NVIDIA NGC](https://ngc.nvidia.com/signin) and sign in with your credentials.
@@ -31,7 +32,9 @@ machine nvcr.io login $oauthtoken password <api-key>
 ```
 - Replace `<api-key>` with your respective credentials. Keep `$oauthtoken` as is.
 
-Next, clone the CloudAI repository to your local machine:
+
+## Quick Start
+Clone the CloudAI repository to your local machine:
 ```bash
 git clone git@github.com:NVIDIA/cloudai.git
 cd cloudai
