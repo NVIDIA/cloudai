@@ -45,12 +45,6 @@ After setting up the environment and installing dependencies, install the clouda
 pip install .
 ```
 
-If you intend to run the llama model, it is important to execute the following steps :
-
-1. go to https://huggingface.co/docs/transformers/en/model_doc/llama#usage-tips
-2. follow the instructions under Usage Tip on how to download the tokenizer
-3. replace "training.model.tokenizer.model=TOKENIZER_MODEL" with "training.model.tokenizer.model=YOUR_TOKENIZER_PATH" (the tokenizer should be a .model file) in conf/v0.6/general/test/llama.toml
-
 CloudAI supports five modes: install, dry-run, run, generate-report, and uninstall.
 * Use the install mode to install all test templates in the specified installation path.
 * Use the dry-run mode to simulate running experiments without actually executing them. This is useful for verifying configurations and testing experiment setups.
