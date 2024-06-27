@@ -137,12 +137,6 @@ extra_cmd_args = "--stepfactor 2"
 ```
 You can find more examples under `conf/test`. In a test schema file, you can adjust arguments as shown above. In the `cmd_args` section, you can provide different values other than the default values for each argument. In `extra_cmd_args`, you can provide additional arguments that will be appended after the NCCL test command. You can specify additional environment variables in the `extra_env_vars` section.
 
-#### Note : If you intend to run the llama model, it is important to execute the following steps :
-
-1. go to https://huggingface.co/docs/transformers/en/model_doc/llama#usage-tips
-2. follow the instructions under Usage Tip on how to download the tokenizer
-3. replace "training.model.tokenizer.model=TOKENIZER_MODEL" with "training.model.tokenizer.model=YOUR_TOKENIZER_PATH" (the tokenizer should be a .model file) in conf/v0.6/general/test/llama.toml
-
 ### Step 6: Run Experiments
 Test Scenario uses Test description from the previous step. Below is the `myconfig/scenario.toml` file:
 ```toml
@@ -201,3 +195,10 @@ cloudai --mode generate-report \
 ```
 
 `--output-dir` accepts one scenario run results directory.
+
+
+### Note : If you intend to run the llama model, it is important to execute the following steps :
+
+1. go to https://huggingface.co/docs/transformers/en/model_doc/llama#usage-tips
+2. follow the instructions under Usage Tip on how to download the tokenizer
+3. replace "training.model.tokenizer.model=TOKENIZER_MODEL" with "training.model.tokenizer.model=YOUR_TOKENIZER_PATH" (the tokenizer should be a .model file) in conf/v0.6/general/test/llama.toml
