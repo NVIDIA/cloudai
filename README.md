@@ -14,16 +14,27 @@ CloudAI operates on four main schemas:
 
 These schemas enable CloudAI to be flexible and compatible with different systems and configurations.
 
-## Quick Start
-First, ensure you have access to the docker repository. This is a manual step:
-- In https://ngc.nvidia.com/signin go to setup -> generate api key
-- Set up enroot credentials properly. Ensure you have the correct credentials under `~/.config/enroot/.credentials`:
+
+## Set Up Access to the Private NGC Registry
+First, ensure you have access to the Docker repository. Follow these steps:
+
+1. **Sign In**: Go to [NVIDIA NGC](https://ngc.nvidia.com/signin) and sign in with your credentials.
+2. **Generate API Key**:
+    - On the top right corner, click on the dropdown menu next to your profile.
+    - Select "Setup".
+    - In the "Setup" section, find "Keys/Secrets".
+    - Click "Generate API Key" and confirm when prompted. A new API key will be presented.
+    - **Important**: Save this API key locally as you will not be able to view it again on NGC.
+
+Next, set up your enroot credentials. Ensure you have the correct credentials under `~/.config/enroot/.credentials`:
 ```
 machine nvcr.io login $oauthtoken password <api-key>
 ```
 - Replace `<api-key>` with your respective credentials. Keep `$oauthtoken` as is.
 
-Next, clone the CloudAI repository to your local machine:
+
+## Quick Start
+Clone the CloudAI repository to your local machine:
 ```bash
 git clone git@github.com:NVIDIA/cloudai.git
 cd cloudai
