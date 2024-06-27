@@ -196,9 +196,7 @@ cloudai --mode generate-report \
 
 `--output-dir` accepts one scenario run results directory.
 
-
-### Note : If you intend to run the llama model, it is important to execute the following steps :
-
-1. go to https://huggingface.co/docs/transformers/en/model_doc/llama#usage-tips
-2. follow the instructions under Usage Tip on how to download the tokenizer
-3. replace "training.model.tokenizer.model=TOKENIZER_MODEL" with "training.model.tokenizer.model=YOUR_TOKENIZER_PATH" (the tokenizer should be a .model file) in conf/v0.6/general/test/llama.toml
+### Note: If you intend to run the LLaMA model, it is important to execute the following steps:
+1. Go to https://huggingface.co/docs/transformers/en/model_doc/llama#usage-tips.
+2. Follow the instructions under 'Usage Tips' on how to download the tokenizer.
+3. Replace "training.model.tokenizer.model=TOKENIZER_MODEL" with "training.model.tokenizer.model=YOUR_TOKENIZER_PATH" (the tokenizer should be a .model file) in conf/v0.6/general/test/llama.toml.
