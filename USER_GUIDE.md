@@ -196,7 +196,7 @@ cloudai --mode generate-report \
 
 `--output-dir` accepts one scenario run results directory.
 
-### Note: If you intend to run the LLaMA model, it is important to execute the following steps:
+### Note: For running Nemo Llama model, it is important to follow these additional steps:
 1. Go to https://huggingface.co/docs/transformers/en/model_doc/llama#usage-tips.
 2. Follow the instructions under 'Usage Tips' on how to download the tokenizer.
-3. Replace "training.model.tokenizer.model=TOKENIZER_MODEL" with "training.model.tokenizer.model=YOUR_TOKENIZER_PATH" (the tokenizer should be a .model file) in conf/v0.6/general/test/llama.toml.
+3. Replace "training.model.tokenizer.model=TOKENIZER_MODEL" with "training.model.tokenizer.model=YOUR_TOKENIZER_PATH" (the tokenizer should be a .model file) in conf/general/test/llama.toml.
