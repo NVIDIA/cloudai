@@ -39,5 +39,5 @@ HEADER_LINES = HEADER.count("\n") + 1
 @pytest.mark.parametrize("py_file", PY_FILES, ids=[str(f) for f in PY_FILES])
 def test_check_copyright_header(py_file):
     with open(py_file, "r") as file:
-        first_lines = [next(file).strip() for _ in range(13)]
+        first_lines = [next(file).strip() for _ in range(HEADER_LINES)]
     assert "\n".join(first_lines) == HEADER
