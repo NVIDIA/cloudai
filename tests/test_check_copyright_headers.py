@@ -32,12 +32,21 @@ HEADER = """#
 # See the License for the specific language governing permissions and
 # limitations under the License."""
 
-PY_FILES = [p for p in Path().rglob("**/*.py") if "venv" not in str(p)]
 HEADER_LINES = HEADER.count("\n") + 1
+
+PY_FILES = [p for p in Path().rglob("**/*.py") if "venv" not in str(p)]
+TOML_FILES = [p for p in Path().rglob("**/*.toml") if "venv" not in str(p)]
 
 
 @pytest.mark.parametrize("py_file", PY_FILES, ids=[str(f) for f in PY_FILES])
-def test_check_copyright_header(py_file):
+def test_src_copyright_header(py_file):
     with open(py_file, "r") as file:
         first_lines = [next(file).strip() for _ in range(HEADER_LINES)]
-    assert "\n".join(first_lines) == HEADER
+    assert "\n".join(first_lines) == HEADER, f"Header mismatch in {py_file}"
+
+
+@pytest.mark.parametrize("toml_file", TOML_FILES, ids=[str(f) for f in TOML_FILES])
+def test_toml_copyright_header(toml_file):
+    with open(toml_file, "r") as file:
+        first_lines = [next(file).strip() for _ in range(HEADER_LINES)]
+    assert "\n".join(first_lines) == HEADER, f"Header mismatch in {toml_file}"
