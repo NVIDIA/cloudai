@@ -1,7 +1,10 @@
-## Introduction
+# CloudAI User Guide
+This is a CloudAI user guide to help users use CloudAI, covering topics such as adding a new test template and downloading datasets for running NeMo-launcher.
+
+## Adding a New Test Template
 CloudAI allows users to package workloads as test templates to facilitate the automation of running experiments. This method involves packaging workloads as docker images, which is one of several approaches you can take with CloudAI. Users can run workloads using test templates. However, since docker images are not part of the CloudAI distribution, users must build their own docker image. This guide describes how to build a docker image and then run experiments.
 
-### Step 1: Create a Docker Image
+#### Step 1: Create a Docker Image
 1. **Set Up the GitLab Repository**
    Start by setting up a repository on GitLab to host your docker image. For this example, use `gitlab-url.com/cloudai/nccl-test`.
 
@@ -44,7 +47,7 @@ CloudAI allows users to package workloads as test templates to facilitate the au
       --stepfactor 2
    ```
 
-### Step 2: Prepare configuration files
+#### Step 2: Prepare configuration files
 CloudAI is fully configurable via set of TOML configuration files. You can find examples of these files under `conf/`. In this guide, we will use the following configuration files:
 1. `myconfig/test_templates/nccl_template.toml` - Describes the test template configuration.
 1. `myconfig/system.toml` - Describes the system configuration.
@@ -52,7 +55,7 @@ CloudAI is fully configurable via set of TOML configuration files. You can find 
 1. `myconfig/scenario.toml` - Describes the test scenario configuration.
 
 
-### Step 3: Test Template
+#### Step 3: Test Template
 Test template config describes all arguments of a test. Let's create a test template file for the NCCL test. You can find more examples of test templates under `conf/test_template/`. Our example will be small for demonstration purposes. Below is the `myconfig/test_templates/nccl_template.toml` file:
 ```toml
 name = "NcclTest"
@@ -89,7 +92,7 @@ name = "NcclTest"
 ```
 Notice that `cmd_args.docker_image_url` uses `nvcr.io/nvidia/pytorch:24.02-py3`, but you can use Docker image from Step 1.
 
-### Step 3: System Config
+#### Step 3: System Config
 System config describes the system configuration. You can find more examples of system configs under `conf/system/`. Our example will be small for demonstration purposes. Below is the `myconfig/system.toml` file:
 ```toml
 name = "my-cluster"
@@ -110,7 +113,7 @@ ntasks_per_node = 8
 ```
 Please replace `<YOUR PARTITION NAME>` with the name of the partition you want to use. You can find the partition name by running `sinfo` on the cluster. Replace `<nodes-[01-10]>` with the node names you want to use.
 
-### Step 4: Install test requirements
+#### Step 4: Install test requirements
 Once all configs are ready, it is time to install test requirements. It is done once so that you can run multiple experiments without reinstalling the requirements. This step requires the system config file from the previous step.
 ```bash
 cloudai --mode install \
@@ -119,7 +122,7 @@ cloudai --mode install \
    --tests-dir myconfig/tests/
 ```
 
-### Step 5: Test Configuration
+#### Step 5: Test Configuration
 Test Config describes a particular test configuration to be run. It is based on Test Template and will be used in Test Sceanrio. Below is the `myconfig/tests/nccl_test.toml` file:
 ```toml
 name = "nccl_test_all_reduce_single_node"
@@ -137,7 +140,7 @@ extra_cmd_args = "--stepfactor 2"
 ```
 You can find more examples under `conf/test`. In a test schema file, you can adjust arguments as shown above. In the `cmd_args` section, you can provide different values other than the default values for each argument. In `extra_cmd_args`, you can provide additional arguments that will be appended after the NCCL test command. You can specify additional environment variables in the `extra_env_vars` section.
 
-### Step 6: Run Experiments
+#### Step 6: Run Experiments
 Test Scenario uses Test description from the previous step. Below is the `myconfig/scenario.toml` file:
 ```toml
 name = "nccl-test"
@@ -156,7 +159,7 @@ name = "nccl-test"
 Notes on the test scenario:
 1. `name` is a mandatory filed. Other fields describe arbitrary number of tests and their dependencies.
 1. The `name` of the tests should be found in the test schema files. Node lists and time limits are optional.
-1. If needed, `nodes` should be described as a list of node names as shown in a Slurm system. Alternatively, if groups are defined in the system schema, you can ask CloudAI to allocate a specific number of nodes from a specified partition and group. For example `nodes = ['PARTITION:GROUP:16']`: 16 nodes are allocated from a group `GROUP`, from a partition `PARTITION`. 
+1. If needed, `nodes` should be described as a list of node names as shown in a Slurm system. Alternatively, if groups are defined in the system schema, you can ask CloudAI to allocate a specific number of nodes from a specified partition and group. For example `nodes = ['PARTITION:GROUP:16']`: 16 nodes are allocated from a group `GROUP`, from a partition `PARTITION`.
 1. There are three types of dependencies: `start_post_comp`, `start_post_init` and `end_post_comp`.
     1. `start_post_comp` means that the current test should be started after a specific delay of the completion of the depending test.
     1. `start_post_init` means that the current test should start after the start of the depending test.
@@ -183,7 +186,7 @@ cloudai --mode run \
     --tests-dir myconfig/tests/
 ```
 
-### Step 7: Generate Reports
+#### Step 7: Generate Reports
 Once the test scenario is completed, you can generate reports using the following command:
 ```bash
 cloudai --mode generate-report \
@@ -195,3 +198,56 @@ cloudai --mode generate-report \
 ```
 
 `--output-dir` accepts one scenario run results directory.
+
+## Downloading and Installing the NeMo Dataset (The Pile Dataset)
+This section describes how you can download the NeMo datasets on your server. The install mode of CloudAI handles the installation of all test templates, but downloading and installing datasets is not the responsibility of the install mode. This is because any large datasets should be installed globally by the administrator and shared with multiple users, even if a user does not use CloudAI. For CloudAI users, we provide a detailed guide about downloading and installing the NeMo datasets in this section. To understand the datasets available in the NeMo framework, you can refer to the Data Preparation section of [the document](https://docs.nvidia.com/nemo-framework/user-guide/latest/llms/baichuan2/dataprep.html). According to the document, you can download and use the Pile dataset. The document also provides detailed instructions on how to download these datasets for various platforms. Let’s assume that we have a Slurm cluster.
+
+You can download the datasets with the following command:
+```bash
+$ git clone https://github.com/NVIDIA/NeMo-Framework-Launcher.git
+$ cd NeMo-Framework-Launcher
+$ python3 launcher_scripts/main.py \
+    container=nvcr.io/ea-bignlp/ga-participants/nemofw-training:23.11\
+    stages=["data_preparation"]\
+    launcher_scripts_path=$PWD/launcher_scripts\
+    base_results_dir=$PWD/result\
+    env_vars.TRANSFORMERS_OFFLINE=0\
+    data_dir=directory_path_to_download_dataset\
+    data_preparation.run.time_limit="96:00:00"
+```
+
+Once you submit a NeMo job with the data preparation stage, you should be able to find data downloading jobs with the squeue command. If this command does not work, please review the log files under $PWD/result. If you want to download the full Pile dataset, you should have at least 1TB of space in the directory to download the dataset because the Pile dataset size is 800GB.
+By default, NeMo will look at the configuration file under conf/config.yaml:
+```
+defaults:
+  - data_preparation: baichuan2/download_baichuan2_pile
+
+stages:
+  - data_preparation
+```
+
+As the data preparation field points to baichuan2/download_baichuan2_pile, it will read the YAML file:
+```
+run:
+  name: download_baichuan2_pile
+  results_dir: ${base_results_dir}/${.name}
+  time_limit: "4:00:00"
+  dependency: "singleton"
+  node_array_size: 30
+  array: ${..file_numbers}
+  bcp_preproc_npernode: 2 # 2 should be safe to use and x2 times faster.
+
+dataset: pile
+download_the_pile: True  # Whether to download the pile dataset from the internet.
+the_pile_url: "https://huggingface.co/datasets/monology/pile-uncopyrighted/resolve/main/train/"  # Source URL to download The Pile dataset from.
+file_numbers: "0-29"  # The pile dataset consists of 30 files (0-29), choose which ones to download.
+preprocess_data: True  # True to preprocess the data from a jsonl file, False otherwise.
+download_tokenizer_url: "https://huggingface.co/baichuan-inc/Baichuan2-7B-Base/blob/main/tokenizer.model"
+tokenizer_typzer_library: "sentencepiece"
+tokenizer_save_dir: ${data_dir}/baichuan2
+tokenizer_model:  ${.tokenizer_save_dir}/baichuan2_tokenizer.model
+rm_downloaded: False # Extract script will remove downloaded zst after extraction
+rm_extracted: False # Preprocess script will remove extracted files after preproc.
+```
+
+You can update the fields to adjust the behavior. For example, you can update the file_numbers field to adjust the number of dataset files to download. This will allow you to save disk space.
