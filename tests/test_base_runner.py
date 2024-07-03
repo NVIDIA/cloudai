@@ -39,8 +39,8 @@ def test_setup_output_directory(mock_datetime_now, tmp_path):  # noqa
 
     print(f"Expected path: {expected_path}, Output path: {output_path}")
 
-    assert os.path.exists(base_output_path)
-    assert os.path.exists(expected_path)
+    assert base_output_path.exists()
+    assert expected_path.exists()
     assert output_path == str(expected_path)
 
 
