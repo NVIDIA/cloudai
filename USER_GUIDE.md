@@ -262,10 +262,42 @@ ntasks_per_node = 8
 - **global_env_vars**: Lists all global environment variables that will be applied globally whenever tests are run.
 
 ## Describing a Test Scenario in the Test Scenario Schema
-* Example of a test scenario
-* Test scenario is a set of Tests.
-* All tests should exist
-* Meaning of dependencies
+A test scenario is a set of tests with specific dependencies between them. A test scenario is described in a TOML schema file. This is an example of a test scenario file:
+```
+name = "nccl-test"
+
+[Tests.1]
+  name = "nccl_test_all_reduce"
+  num_nodes = "2"
+  time_limit = "00:20:00"
+
+[Tests.2]
+  name = "nccl_test_all_gather"
+  num_nodes = "2"
+  time_limit = "00:20:00"
+  [Tests.2.dependencies]
+    start_post_comp = { name = "Tests.1", time = 0 }
+
+[Tests.3]
+  name = "nccl_test_reduce_scatter"
+  num_nodes = "2"
+  time_limit = "00:20:00"
+  [Tests.3.dependencies]
+    start_post_comp = { name = "Tests.2", time = 0 }
+```
+
+The `name` field is the test scenario name, which can be any unique identifier for the scenario. Each test has a section name, following the convention `Tests.1`, `Tests.2`, etc., with an increasing index. The `name` of a test should be specified in this section and must correspond to an entry in the test schema. If a test in a test scenario is not present in the test schema, CloudAI will not be able to identify it.
+
+There are two ways to specify nodes. The first is using the `num_nodes` field as shown in the example. The second is specifying nodes explicitly like `nodes = ["node-001", "node-002"]`. Alternatively, you can utilize the groups feature in the system schema to specify nodes like `nodes = ['PARTITION_NAME:GROUP_NAME:NUM_NODES']`, which allocates `num_nodes` from the group name in the specified partition.
+
+You can optionally specify a time limit in the Slurm format. Tests can have dependencies. If no dependencies are specified, all tests will run in parallel. CloudAI supports three types of dependencies: `start_post_init`, `start_post_comp`, and `end_post_comp`.
+
+Dependencies of a test can be described as a subsection of the test. The dependency name should appear first, followed by a dictionary as its value. The dictionary has two fields: `name` and `time`. The `name` field specifies the test that the current test depends on, and the `time` field specifies the delay in seconds.
+
+- `start_post_init` means the test starts after the prior test begins, with a specified delay.
+- `start_post_comp` means the test starts after the prior test completes.
+- `end_post_comp` means the test ends when the prior test completes.
+
 
 ## Downloading and Installing the NeMo Dataset (The Pile Dataset)
 This section describes how you can download the NeMo datasets on your server. The install mode of CloudAI handles the installation of all test templates, but downloading and installing datasets is not the responsibility of the install mode. This is because any large datasets should be installed globally by the administrator and shared with multiple users, even if a user does not use CloudAI. For CloudAI users, we provide a detailed guide about downloading and installing the NeMo datasets in this section. To understand the datasets available in the NeMo framework, you can refer to the Data Preparation section of [the document](https://docs.nvidia.com/nemo-framework/user-guide/latest/llms/baichuan2/dataprep.html). According to the document, you can download and use the Pile dataset. The document also provides detailed instructions on how to download these datasets for various platforms. Let’s assume that we have a Slurm cluster.
