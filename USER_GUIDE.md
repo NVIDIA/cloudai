@@ -199,6 +199,74 @@ cloudai --mode generate-report \
 
 `--output-dir` accepts one scenario run results directory.
 
+## Describing a System in the System Schema
+In this section, we introduce the concept of the system schema, explain the meaning of each field, and describe how the fields should be used. The system schema is a TOML file that allows users to define a system's configuration.
+
+```
+name = "example-cluster"
+scheduler = "slurm"
+
+install_path = "./install"
+output_path = "./results"
+default_partition = "partition_1"
+
+gpus_per_node = 8
+ntasks_per_node = 8
+
+[partitions]
+  [partitions.partition_1]
+  name = "partition_1"
+  nodes = ["node-[001-100]"]
+
+  [partitions.partition_2]
+  name = "partition_2"
+  nodes = ["node-[101-200]"]
+
+  [partitions.partition_1.groups]
+    [partitions.partition_1.groups.group_1]
+    name = "group_1"
+    nodes = ["node-[001-025]"]
+
+    [partitions.partition_1.groups.group_2]
+    name = "group_2"
+    nodes = ["node-[026-050]"]
+
+    [partitions.partition_1.groups.group_3]
+    name = "group_3"
+    nodes = ["node-[051-075]"]
+
+    [partitions.partition_1.groups.group_4]
+    name = "group_4"
+    nodes = ["node-[076-100]"]
+
+[global_env_vars]
+  # NCCL Specific Configurations
+  NCCL_IB_GID_INDEX = "3"
+  NCCL_IB_TIMEOUT = "20"
+  NCCL_IB_QPS_PER_CONNECTION = "4"
+
+  # Device Visibility Configuration
+  MELLANOX_VISIBLE_DEVICES = "0,3,4,5,6,9,10,11"
+  CUDA_VISIBLE_DEVICES = "0,1,2,3,4,5,6,7"
+```
+
+### Field Descriptions
+- **name**: Specifies the name of the system. Users can choose any name that is convenient for them.
+- **scheduler**: Indicates the type of system. It should be one of the supported types, currently `slurm` or `standalone`. `slurm` refers to a system with the Slurm scheduler, while `standalone` refers to a single-node system without any slave nodes.
+- **install_path**: Specifies the path where test templates are installed. Docker images are downloaded to this path if the user chooses to cache Docker images.
+- **output_path**: Defines the default path where outputs are stored. Whenever a user runs a test scenario, a new subdirectory will be created under this path.
+- **default_partition**: Specifies the default partition where jobs are scheduled.
+- **partitions**: Describes the available partitions and nodes within those partitions.
+  - **groups**: Within the same partition, users can define groups of nodes. This is a logical grouping that does not overlap between groups. The group concept can be used to allocate nodes from specific groups in a test scenario schema.
+- **gpus_per_node** and **ntasks_per_node**: These are Slurm arguments passed to the `sbatch` script and `srun`.
+- **global_env_vars**: Lists all global environment variables that will be applied globally whenever tests are run.
+
+## Describing a Test Scenario in the Test Scenario Schema
+* Example of a test scenario
+* Test scenario is a set of Tests.
+* All tests should exist
+* Meaning of dependencies
+
 ## Downloading and Installing the NeMo Dataset (The Pile Dataset)
 This section describes how you can download the NeMo datasets on your server. The install mode of CloudAI handles the installation of all test templates, but downloading and installing datasets is not the responsibility of the install mode. This is because any large datasets should be installed globally by the administrator and shared with multiple users, even if a user does not use CloudAI. For CloudAI users, we provide a detailed guide about downloading and installing the NeMo datasets in this section. To understand the datasets available in the NeMo framework, you can refer to the Data Preparation section of [the document](https://docs.nvidia.com/nemo-framework/user-guide/latest/llms/baichuan2/dataprep.html). According to the document, you can download and use the Pile dataset. The document also provides detailed instructions on how to download these datasets for various platforms. Let’s assume that we have a Slurm cluster.
 
