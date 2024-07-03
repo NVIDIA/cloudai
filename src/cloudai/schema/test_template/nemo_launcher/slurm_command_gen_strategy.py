@@ -88,7 +88,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         cmd_args_str = self._generate_cmd_args_str(self.final_cmd_args, nodes)
 
-        full_cmd = f"./venv/bin/python {launcher_path}/launcher_scripts/main.py {cmd_args_str}"
+        full_cmd = f"python {launcher_path}/launcher_scripts/main.py {cmd_args_str}"
 
         if extra_cmd_args:
             full_cmd += " " + extra_cmd_args
