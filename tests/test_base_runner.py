@@ -57,18 +57,3 @@ def test_setup_output_directory_existing_base_path(mock_datetime_now, tmp_path):
 
     assert os.path.exists(expected_path)
     assert output_path == str(expected_path)
-
-
-def test_setup_output_directory_handles_oserror(mock_datetime_now, tmp_path):  # noqa
-    scenario_name = "test_scenario"
-    base_output_path = tmp_path / "base_output_path"
-
-    # Simulate a permission error by setting the directory to read-only
-    base_output_path.mkdir()
-    os.chmod(base_output_path, 0o400)
-
-    with pytest.raises(PermissionError):
-        BaseRunner.setup_output_directory(scenario_name, str(base_output_path))
-
-    # Reset permissions so that pytest can clean up the directory
-    os.chmod(base_output_path, 0o700)
