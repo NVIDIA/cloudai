@@ -213,6 +213,8 @@ default_partition = "partition_1"
 gpus_per_node = 8
 ntasks_per_node = 8
 
+cache_docker_images_locally = true
+
 [partitions]
   [partitions.partition_1]
   name = "partition_1"
@@ -259,6 +261,7 @@ ntasks_per_node = 8
 - **partitions**: Describes the available partitions and nodes within those partitions.
   - **groups**: Within the same partition, users can define groups of nodes. This is a logical grouping that does not overlap between groups. The group concept can be used to allocate nodes from specific groups in a test scenario schema.
 - **gpus_per_node** and **ntasks_per_node**: These are Slurm arguments passed to the `sbatch` script and `srun`.
+- **cache_docker_images_locally**: Specifies whether CloudAI should cache remote Docker images locally during installation. If set to `true`, CloudAI will cache the Docker images, enabling local access without needing to download them each time a test template is run. This approach saves network bandwidth but requires more disk capacity. If set to `false`, CloudAI will allow Slurm to download the Docker images as needed when they are not cached locally by Slurm.
 - **global_env_vars**: Lists all global environment variables that will be applied globally whenever tests are run.
 
 ## Describing a Test Scenario in the Test Scenario Schema
