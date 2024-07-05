@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
@@ -82,5 +81,5 @@ def test_setup_output_directory_existing_base_path(mock_datetime_now, tmp_path):
 
     runner = MockRunner("run", mock_system, mock_test_scenario)
 
-    assert os.path.exists(expected_path)
+    assert expected_path.exists()
     assert runner.output_path == str(expected_path)
