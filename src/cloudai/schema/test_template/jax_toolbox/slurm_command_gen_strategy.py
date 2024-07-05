@@ -18,6 +18,8 @@ from typing import Any, Dict, List
 
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
+from .slurm_install_strategy import JaxToolboxSlurmInstallStrategy
+
 
 class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for JaxToolbox tests on Slurm systems."""
@@ -107,7 +109,11 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
 
-        image_path = cmd_args["docker_image_url"]
+        image_path = self.docker_image_cache_manager.ensure_docker_image(
+            self.docker_image_url,
+            JaxToolboxSlurmInstallStrategy.SUBDIR_PATH,
+            JaxToolboxSlurmInstallStrategy.DOCKER_IMAGE_FILENAME,
+        ).docker_image_path
 
         local_workspace_dir = os.path.abspath(cmd_args["output_path"])
         docker_workspace_dir = cmd_args["docker_workspace_dir"]
