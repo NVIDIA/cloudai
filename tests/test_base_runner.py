@@ -23,7 +23,9 @@ from cloudai import BaseJob, BaseRunner, System, TestScenario
 
 class MockRunner(BaseRunner):
     def _submit_test(self, test):
-        return BaseJob()
+        job_id = 1
+        output_path = self.get_job_output_path(test)
+        return BaseJob(job_id, test, output_path)
 
     def is_job_running(self, job):
         return False
