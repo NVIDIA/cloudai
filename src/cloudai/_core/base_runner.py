@@ -77,8 +77,7 @@ class BaseRunner(ABC):
         self.shutting_down = False
         self.register_signal_handlers()
 
-    @staticmethod
-    def setup_output_directory(base_output_path: str) -> str:
+    def setup_output_directory(self, base_output_path: str) -> str:
         """
         Set up and return the output directory path for the runner instance.
 
@@ -91,7 +90,7 @@ class BaseRunner(ABC):
         if not os.path.exists(base_output_path):
             os.makedirs(base_output_path)
         current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        output_subpath = os.path.join(base_output_path, current_time)
+        output_subpath = os.path.join(base_output_path, f"{self.test_scenario.name}_{current_time}")
         os.makedirs(output_subpath)
         return output_subpath
 

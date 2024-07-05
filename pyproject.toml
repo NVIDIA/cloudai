@@ -81,3 +81,7 @@ source_modules = [
     "cloudai.schema",
     "cloudai.util",
 ]
+
+[tool.vulture]
+ignore_names = ["mock_datetime_now"]
+min_confidence = 100

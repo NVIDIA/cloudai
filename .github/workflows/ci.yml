@@ -32,7 +32,7 @@ jobs:
         run: pyright .
 
       - name: Run vulture check
-        run: vulture src/ tests/ --min-confidence 100
+        run: vulture src/ tests/
 
       - name: Import linter
         run: PYTHONPATH=src lint-imports
