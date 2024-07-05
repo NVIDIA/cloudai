@@ -29,7 +29,7 @@ def mock_datetime_now():
         yield mock_datetime
 
 
-def test_setup_output_directory(mock_datetime_now, tmp_path):  # noqa
+def test_setup_output_directory(mock_datetime_now, tmp_path):
     scenario_name = "test_scenario"
     base_output_path = tmp_path / "base_output_path"
     expected_time_str = "2024-01-01_12-00-00"
@@ -44,7 +44,7 @@ def test_setup_output_directory(mock_datetime_now, tmp_path):  # noqa
     assert output_path == str(expected_path)
 
 
-def test_setup_output_directory_existing_base_path(mock_datetime_now, tmp_path):  # noqa
+def test_setup_output_directory_existing_base_path(mock_datetime_now, tmp_path):
     scenario_name = "test_scenario"
     base_output_path = tmp_path / "base_output_path"
     expected_time_str = "2024-01-01_12-00-00"
