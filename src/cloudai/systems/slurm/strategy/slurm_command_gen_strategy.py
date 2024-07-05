@@ -125,6 +125,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             slurm_args["account"] = self.slurm_system.account
         if self.slurm_system.distribution:
             slurm_args["distribution"] = self.slurm_system.distribution
+        if self.slurm_system.mpi:
+            slurm_args["mpi"] = self.slurm_system.mpi
         if self.slurm_system.gpus_per_node:
             slurm_args["gpus_per_node"] = self.slurm_system.gpus_per_node
         if self.slurm_system.ntasks_per_node:

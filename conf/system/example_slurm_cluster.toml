@@ -20,6 +20,7 @@ install_path = "./install"
 output_path = "./results"
 default_partition = "partition_1"
 
+mpi = "pmix"
 gpus_per_node = 8
 ntasks_per_node = 8
 
