@@ -15,10 +15,24 @@
 
 import os
 from datetime import datetime
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-from cloudai import BaseRunner
+from cloudai import BaseJob, BaseRunner, System, TestScenario
+
+
+class MockRunner(BaseRunner):
+    def _submit_test(self, test):
+        return BaseJob()
+
+    def is_job_running(self, job):
+        return False
+
+    def is_job_completed(self, job):
+        return True
+
+    def kill_job(self, job):
+        pass
 
 
 @pytest.fixture
@@ -35,13 +49,18 @@ def test_setup_output_directory(mock_datetime_now, tmp_path):
     expected_time_str = "2024-01-01_12-00-00"
     expected_path = base_output_path / f"{scenario_name}_{expected_time_str}"
 
-    output_path = BaseRunner.setup_output_directory(scenario_name, str(base_output_path))
+    # Mock TestScenario and System
+    mock_test_scenario = MagicMock(spec=TestScenario)
+    mock_test_scenario.name = scenario_name
+    mock_system = MagicMock(spec=System)
+    mock_system.output_path = str(base_output_path)
+    mock_system.monitor_interval = 5
 
-    print(f"Expected path: {expected_path}, Output path: {output_path}")
+    runner = MockRunner("run", mock_system, mock_test_scenario)
 
     assert base_output_path.exists()
     assert expected_path.exists()
-    assert output_path == str(expected_path)
+    assert runner.output_path == str(expected_path)
 
 
 def test_setup_output_directory_existing_base_path(mock_datetime_now, tmp_path):
@@ -51,9 +70,15 @@ def test_setup_output_directory_existing_base_path(mock_datetime_now, tmp_path):
     expected_path = base_output_path / f"{scenario_name}_{expected_time_str}"
 
     base_output_path.mkdir()
-    output_path = BaseRunner.setup_output_directory(scenario_name, str(base_output_path))
 
-    print(f"Expected path: {expected_path}, Output path: {output_path}")
+    # Mock TestScenario and System
+    mock_test_scenario = MagicMock(spec=TestScenario)
+    mock_test_scenario.name = scenario_name
+    mock_system = MagicMock(spec=System)
+    mock_system.output_path = str(base_output_path)
+    mock_system.monitor_interval = 5
+
+    runner = MockRunner("run", mock_system, mock_test_scenario)
 
     assert os.path.exists(expected_path)
-    assert output_path == str(expected_path)
+    assert runner.output_path == str(expected_path)

@@ -69,7 +69,7 @@ class BaseRunner(ABC):
         self.mode = mode
         self.system = system
         self.test_scenario = test_scenario
-        self.output_path = self.setup_output_directory(test_scenario.name, system.output_path)
+        self.output_path = self.setup_output_directory(system.output_path)
         self.monitor_interval = system.monitor_interval
         self.jobs: List[BaseJob] = []
         self.test_to_job_map: Dict[Test, BaseJob] = {}
@@ -77,13 +77,11 @@ class BaseRunner(ABC):
         self.shutting_down = False
         self.register_signal_handlers()
 
-    @staticmethod
-    def setup_output_directory(scenario_name: str, base_output_path: str) -> str:
+    def setup_output_directory(self, base_output_path: str) -> str:
         """
         Set up and return the output directory path for the runner instance.
 
         Args:
-            scenario_name (str): The name of the test scenario.
             base_output_path (str): The base output directory.
 
         Returns:
@@ -92,7 +90,7 @@ class BaseRunner(ABC):
         if not os.path.exists(base_output_path):
             os.makedirs(base_output_path)
         current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        output_subpath = os.path.join(base_output_path, f"{scenario_name}_{current_time}")
+        output_subpath = os.path.join(base_output_path, f"{self.test_scenario.name}_{current_time}")
         os.makedirs(output_subpath)
         return output_subpath
 
