@@ -103,6 +103,7 @@ output_path = "./results"
 cache_docker_images_locally = "True"
 default_partition = "<YOUR PARTITION NAME>"
 
+mpi = "pmix"
 gpus_per_node = 8
 ntasks_per_node = 8
 
@@ -210,6 +211,7 @@ install_path = "./install"
 output_path = "./results"
 default_partition = "partition_1"
 
+mpi = "pmix"
 gpus_per_node = 8
 ntasks_per_node = 8
 
@@ -260,6 +262,7 @@ cache_docker_images_locally = true
 - **default_partition**: Specifies the default partition where jobs are scheduled.
 - **partitions**: Describes the available partitions and nodes within those partitions.
   - **groups**: Within the same partition, users can define groups of nodes. This is a logical grouping that does not overlap between groups. The group concept can be used to allocate nodes from specific groups in a test scenario schema.
+- **mpi**: Indicates the Process Management Interface (PMI) implementation to be used for inter-process communication.
 - **gpus_per_node** and **ntasks_per_node**: These are Slurm arguments passed to the `sbatch` script and `srun`.
 - **cache_docker_images_locally**: Specifies whether CloudAI should cache remote Docker images locally during installation. If set to `true`, CloudAI will cache the Docker images, enabling local access without needing to download them each time a test template is run. This approach saves network bandwidth but requires more disk capacity. If set to `false`, CloudAI will allow Slurm to download the Docker images as needed when they are not cached locally by Slurm.
 - **global_env_vars**: Lists all global environment variables that will be applied globally whenever tests are run.

@@ -36,6 +36,8 @@ class SlurmSystem(System):
         partitions (Dict[str, List[SlurmNode]]): Mapping of partition names to lists of SlurmNodes.
         account (Optional[str]): Account name for charging resources used by this job.
         distribution (Optional[str]): Specifies alternate distribution methods for remote processes.
+        mpi (Optional[str]): Indicates the Process Management Interface (PMI) implementation to be used for
+            inter-process communication.
         gpus_per_node (Optional[int]): Specifies the number of GPUs available per node.
         ntasks_per_node (Optional[int]): Specifies the number of tasks that can run concurrently on a single node.
         cache_docker_images_locally (bool): Whether to cache Docker images locally for the Slurm system.
@@ -182,6 +184,7 @@ class SlurmSystem(System):
         partitions: Dict[str, List[SlurmNode]],
         account: Optional[str] = None,
         distribution: Optional[str] = None,
+        mpi: Optional[str] = None,
         gpus_per_node: Optional[int] = None,
         ntasks_per_node: Optional[int] = None,
         cache_docker_images_locally: bool = False,
@@ -199,6 +202,8 @@ class SlurmSystem(System):
             partitions (Dict[str, List[SlurmNode]]): Partitions in the system.
             account (Optional[str]): Account name for charging resources used by this job.
             distribution (Optional[str]): Specifies alternate distribution methods for remote processes.
+            mpi (Optional[str]): Indicates the Process Management Interface (PMI) implementation to be used for
+                inter-process communication.
             gpus_per_node (Optional[int]): Specifies the number of GPUs available per node.
             ntasks_per_node (Optional[int]): Specifies the number of tasks that can run concurrently on a single node.
             cache_docker_images_locally (bool): Whether to cache Docker images locally for the Slurm system.
@@ -214,6 +219,7 @@ class SlurmSystem(System):
         self.partitions = partitions
         self.account = account
         self.distribution = distribution
+        self.mpi = mpi
         self.gpus_per_node = gpus_per_node
         self.ntasks_per_node = ntasks_per_node
         self.cache_docker_images_locally = cache_docker_images_locally

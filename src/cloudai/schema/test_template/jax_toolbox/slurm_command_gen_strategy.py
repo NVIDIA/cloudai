@@ -136,7 +136,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         srun_command_parts = [
             "srun",
-            "--mpi=pmix",
+            f"--mpi={slurm_args['mpi']}",
             "--export=ALL",
             f"-o {slurm_args['output']}",
             f"-e {slurm_args['error']}",

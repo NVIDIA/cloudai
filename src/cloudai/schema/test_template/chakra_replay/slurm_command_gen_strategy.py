@@ -78,7 +78,7 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
     ) -> str:
         srun_command_parts = [
             "srun",
-            "--mpi=pmix",
+            f"--mpi={slurm_args['mpi']}",
             f'--container-image={slurm_args["image_path"]}',
             f'--container-mounts={slurm_args["container_mounts"]}',
             "python /workspace/param/train/comms/pt/commsTraceReplay.py",

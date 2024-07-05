@@ -78,7 +78,7 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     ) -> str:
         srun_command_parts = [
             "srun",
-            "--mpi=pmix",
+            f"--mpi={slurm_args['mpi']}",
             f"--container-image={slurm_args['image_path']}",
             "/opt/hpcx/ucc/bin/ucc_perftest",
         ]
