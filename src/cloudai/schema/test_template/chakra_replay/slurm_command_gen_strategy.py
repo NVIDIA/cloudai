@@ -1,4 +1,5 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -77,7 +78,7 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
     ) -> str:
         srun_command_parts = [
             "srun",
-            "--mpi=pmix",
+            f"--mpi={slurm_args['mpi']}",
             f'--container-image={slurm_args["image_path"]}',
             f'--container-mounts={slurm_args["container_mounts"]}',
             "python /workspace/param/train/comms/pt/commsTraceReplay.py",

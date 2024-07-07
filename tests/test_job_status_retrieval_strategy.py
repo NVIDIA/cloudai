@@ -1,4 +1,5 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -296,4 +297,47 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
             f"indicates that another task died. Please review the file at {str(error_file)} and any relevant logs in"
             f" {str(tmp_path)}. Ensure the servers allocated for this task can reach each other with their "
             "hostnames, and they can open any ports and reach others' ports."
+        )
+
+    def test_pyxis_mktemp_error_in_profile_stderr(self, tmp_path: Path) -> None:
+        """Test that job status is False when profile_stderr.txt contains pyxis and mktemp error."""
+        profile_stderr_file = tmp_path / "profile_stderr.txt"
+        profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling\n"
+        profile_stderr_content += (
+            "pyxis:     mktemp: failed to create directory via template '/tmp/enroot.XXXXXXXXXX': "
+            "No space left on device"
+        )
+        profile_stderr_file.write_text(profile_stderr_content)
+
+        result = self.js.get_job_status(str(tmp_path))
+        assert not result.is_successful
+        assert result.error_message == (
+            "pyxis: mktemp: failed to create directory via template. This is due to insufficient disk cache "
+            "capacity. This is not a CloudAI issue. When you run JaxToolbox, CloudAI executes srun, which "
+            "includes the container image option. When the container image argument is a remote URL, "
+            "Slurm downloads and caches the Docker image locally. It fails with this error when the system "
+            "does not have enough disk capacity to cache the Docker image."
+        )
+
+    def test_pyxis_mktemp_error_in_error_file(self, tmp_path: Path) -> None:
+        """Test that job status is False when error-*.txt contains pyxis and mktemp error."""
+        profile_stderr_file = tmp_path / "profile_stderr.txt"
+        profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling"
+        profile_stderr_file.write_text(profile_stderr_content)
+
+        error_file = tmp_path / "error-1.txt"
+        error_content = (
+            "pyxis:     mktemp: failed to create directory via template '/tmp/enroot.XXXXXXXXXX': "
+            "No space left on device"
+        )
+        error_file.write_text(error_content)
+
+        result = self.js.get_job_status(str(tmp_path))
+        assert not result.is_successful
+        assert result.error_message == (
+            "pyxis: mktemp: failed to create directory via template. This is due to insufficient disk cache "
+            "capacity. This is not a CloudAI issue. When you run JaxToolbox, CloudAI executes srun, which "
+            "includes the container image option. When the container image argument is a remote URL, "
+            "Slurm downloads and caches the Docker image locally. It fails with this error when the system "
+            "does not have enough disk capacity to cache the Docker image."
         )

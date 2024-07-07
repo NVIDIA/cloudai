@@ -1,4 +1,5 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+#
+# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +14,7 @@
 # limitations under the License.
 
 import os
+import re
 from pathlib import Path
 
 from cloudai import JobStatusResult, JobStatusRetrievalStrategy
@@ -134,6 +136,17 @@ class JaxToolboxJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
                 error_message=(
                     "NCCL operation ncclGroupEnd() failed: unhandled system error. Please check if the NCCL-test "
                     "passes. Run with NCCL_DEBUG=INFO for more details."
+                ),
+            )
+        if re.search(r"pyxis:\s+mktemp: failed to create directory via template", content):
+            return JobStatusResult(
+                is_successful=False,
+                error_message=(
+                    "pyxis: mktemp: failed to create directory via template. This is due to insufficient disk cache "
+                    "capacity. This is not a CloudAI issue. When you run JaxToolbox, CloudAI executes srun, which "
+                    "includes the container image option. When the container image argument is a remote URL, "
+                    "Slurm downloads and caches the Docker image locally. It fails with this error when the system "
+                    "does not have enough disk capacity to cache the Docker image."
                 ),
             )
 
