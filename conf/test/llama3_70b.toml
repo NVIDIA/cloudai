@@ -1,0 +1,12 @@
+name = "llama3_70B"
+description = "llama"
+test_template_name = "NeMoLauncher"
+extra_cmd_args = "training.exp_manager.resume_if_exists=false +training.model.nsys_profile.enabled=True +training.model.nsys_profile.start_step=45 training.model.gradient_accumulation_fusion=false +training.model.nsys_profile.end_step=50 +training.model.nsys_profile.gen_shape=False +training.model.nsys_profile.ranks=[0] +training.model.nsys_profile.trace=[nvtx,cuda] training.model.micro_batch_size=1 training.model.virtual_pipeline_model_parallel_size=null training.model.megatron_amp_O2=false training.model.activations_checkpoint_num_layers=null training.model.optim.name=fused_adam training.exp_manager.create_wandb_logger=false training.model.use_cpu_initialization=True +training.model.tokenizer.model=/auto/e2e/israel1/workload_results/llama/tokenizer.model +training.model.fsdp=true ~training.model.optim.bucket_cap_mb ~training.model.optim.overlap_grad_sync ~training.model.optim.overlap_param_sync ~training.model.optim.contiguous_grad_buffer ~training.model.optim.contiguous_param_buffer ~training.model.position_embedding_type"
+
+[cmd_args]
+"training" = "llama/llama3_70b"
+"training.model.global_batch_size" = "128"
+"training.trainer.max_steps" = "100"
+"training.model.micro_batch_size" = "1"
+"training.model.pipeline_model_parallel_size" = "1"
+"training.model.tensor_model_parallel_size" = "4"
