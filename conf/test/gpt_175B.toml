@@ -1,0 +1,12 @@
+name = "gpt_175B"
+description = "gpt"
+test_template_name = "NeMoLauncher"
+extra_cmd_args = "training.exp_manager.resume_if_exists=false training.model.nsys_profile.enabled=True training.model.nsys_profile.start_step=45 training.model.nsys_profile.end_step=50 training.model.nsys_profile.gen_shape=False training.model.nsys_profile.ranks=[0] training.model.nsys_profile.trace=[nvtx,cuda]"
+
+[cmd_args]
+"training" = "gpt3/175b_fp8"
+"training.model.global_batch_size" = "192"
+"training.trainer.max_steps" = "100"
+"training.model.micro_batch_size" = "1"
+"training.model.pipeline_model_parallel_size" = "8"
+"training.model.tensor_model_parallel_size" = "4"
