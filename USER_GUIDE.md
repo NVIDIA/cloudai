@@ -358,6 +358,11 @@ rm_extracted: False # Preprocess script will remove extracted files after prepro
 
 You can update the fields to adjust the behavior. For example, you can update the file_numbers field to adjust the number of dataset files to download. This will allow you to save disk space.
 
+### Note: For running Nemo Llama model, it is important to follow these additional steps:
+1. Go to https://huggingface.co/docs/transformers/en/model_doc/llama#usage-tips.
+2. Follow the instructions under 'Usage Tips' on how to download the tokenizer.
+3. Replace "training.model.tokenizer.model=TOKENIZER_MODEL" with "training.model.tokenizer.model=YOUR_TOKENIZER_PATH" (the tokenizer should be a .model file) in conf/general/test/llama.toml.
+
 ## Troubleshooting
 In this section, we will guide you through identifying the root cause of issues, determining whether they stem from system infrastructure or a bug in CloudAI. Users should closely follow the USER_GUIDE.md and README.md for installation, adding test templates, tests, and test scenarios.
 
