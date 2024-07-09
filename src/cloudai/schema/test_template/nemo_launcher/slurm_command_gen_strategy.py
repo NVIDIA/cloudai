@@ -20,17 +20,6 @@ from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
 from .slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
 
-REQUIRE_ENV_VARS = [
-    "NCCL_SOCKET_IFNAME",
-    "NCCL_IB_GID_INDEX",
-    "NCCL_IB_TC",
-    "NCCL_IB_QPS_PER_CONNECTION",
-    "UCX_IB_GID_INDEX",
-    "NCCL_IB_ADAPTIVE_ROUTING",
-    "NCCL_IB_SPLIT_DATA_ON_QPS",
-    "NCCL_IBEXT_DISABLE",
-]
-
 
 class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """
@@ -50,10 +39,8 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         num_nodes: int,
         nodes: List[str],
     ) -> str:
-        # Ensure required environment variables are included
-        for key in REQUIRE_ENV_VARS:
-            if key not in extra_env_vars:
-                extra_env_vars[key] = self.slurm_system.global_env_vars[key]
+        final_env_vars = self._override_env_vars(self.default_env_vars, env_vars)
+        final_env_vars = self._override_env_vars(final_env_vars, extra_env_vars)
 
         launcher_path = os.path.join(
             self.install_path,
@@ -67,7 +54,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self.final_cmd_args["base_results_dir"] = output_path
         self.final_cmd_args["training.model.data.index_mapping_dir"] = output_path
         self.final_cmd_args["launcher_scripts_path"] = os.path.join(launcher_path, "launcher_scripts")
-        for key, value in extra_env_vars.items():
+        for key, value in final_env_vars.items():
             self.final_cmd_args[f"env_vars.{key}"] = value
         self.final_cmd_args["cluster.partition"] = self.slurm_system.default_partition
         nodes = self.slurm_system.parse_nodes(nodes)
@@ -96,7 +83,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 tokenizer_path = extra_cmd_args.split("training.model.tokenizer.model=")[1].split(" ")[0]
                 full_cmd += " " + f"container_mounts=[{tokenizer_path}:{tokenizer_path}]"
 
-        env_vars_str = " ".join(f"{key}={value}" for key, value in extra_env_vars.items())
+        env_vars_str = " ".join(f"{key}={value}" for key, value in final_env_vars.items())
         full_cmd = f"{env_vars_str} {full_cmd}" if env_vars_str else full_cmd
 
         return full_cmd.strip()
@@ -133,6 +120,8 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         arg_str_parts = []
         for key, value in args.items():
             formatted_key = f"+{key}" if key.startswith("env_vars.") else key
+            if key.startswith("env_vars.") and isinstance(value, str) and "," in value:
+                value = f"\\'{value}\\'"
             arg_str_parts.append(f"{formatted_key}={value}")
 
         if nodes:
