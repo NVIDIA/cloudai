@@ -391,3 +391,10 @@ To determine whether an issue is due to system infrastructure or a CloudAI bug, 
    - Execute the command manually to debug further.
 
 If the problem persists, please report the issue at [https://github.com/NVIDIA/cloudai/issues/new/choose](https://github.com/NVIDIA/cloudai/issues/new/choose). When you report an issue, ensure it is reproducible. Follow the issue template and provide any necessary details, such as the hash commit used, system settings, any changes in the schema files, and the command.
+
+### Test Template-Specific Troubleshooting Guides
+In addition to the general troubleshooting steps, this section provides specific troubleshooting guides for each test template used in CloudAI. These guides help you identify and resolve issues unique to each template.
+
+#### NeMo Launcher
+* If your run is not successful, please review the stderr and stdout files generated under the results directory. Within the output directory, locate the run directory, and under the run directory, you will find stderr files like log-nemo-megatron-run_[job_id].err. Please review these files for any meaningful error messages.
+* Trying the CloudAI-generated NeMo launcher command can be helpful as well. You can find the executed command in your stdout and in your log file (debug.log) in your current working directory. Review and run the command, and you can modify the arguments to troubleshoot the issue.
