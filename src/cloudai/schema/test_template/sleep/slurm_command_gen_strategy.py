@@ -43,7 +43,7 @@ class SleepSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def generate_full_srun_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
     ) -> str:
-        srun_command_parts = ["srun", f"--mpi={slurm_args['mpi']}"]
+        srun_command_parts = ["srun", f"--mpi={self.slurm_system.mpi}"]
 
         sec = cmd_args["seconds"]
         srun_command_parts.append(f"sleep {sec}")
