@@ -15,6 +15,7 @@
 
 from .grading_strategy import SleepGradingStrategy
 from .report_generation_strategy import SleepReportGenerationStrategy
+from .slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from .standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
 from .standalone_install_strategy import SleepStandaloneInstallStrategy
 from .template import Sleep
@@ -23,6 +24,7 @@ __all__ = [
     "Sleep",
     "SleepStandaloneInstallStrategy",
     "SleepStandaloneCommandGenStrategy",
+    "SleepSlurmCommandGenStrategy",
     "SleepReportGenerationStrategy",
     "SleepGradingStrategy",
 ]
