@@ -1,0 +1,13 @@
+name = "nccl_test_sendrecv_worst"
+description = "sendrecv"
+test_template_name = "NcclTest"
+extra_cmd_args = "--stepfactor 2"
+
+[cmd_args]
+subtest_name = "sendrecv_perf_mpi"
+minbytes = "1K"
+maxbytes = "16G"
+stepbytes = "0"
+iters = "60"
+check = "0"
+warmup_iters ="40"

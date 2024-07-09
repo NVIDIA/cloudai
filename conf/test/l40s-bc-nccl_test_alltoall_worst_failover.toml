@@ -1,0 +1,13 @@
+name = "nccl_test_alltoall_worst_failover"
+description = "alltoall_tested_job"
+test_template_name = "NcclTest"
+extra_cmd_args = "--stepfactor 1"
+
+[cmd_args]
+subtest_name = "alltoall_perf_mpi"
+minbytes = "128M"
+maxbytes = "128M"
+stepbytes = "0"
+iters = "20"
+check = "0"
+warmup_iters ="40"

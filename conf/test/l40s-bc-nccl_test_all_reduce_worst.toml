@@ -1,0 +1,13 @@
+name = "nccl_test_all_reduce_worst"
+description = "all_reduce_worst_alloc_test"
+test_template_name = "NcclTest"
+extra_cmd_args = "--stepfactor 2"
+
+[cmd_args]
+"subtest_name" = "all_reduce_perf_mpi"
+minbytes = "1K"
+maxbytes = "16G"
+stepbytes = "0"
+iters = "60"
+check = "0"
+warmup_iters ="40"

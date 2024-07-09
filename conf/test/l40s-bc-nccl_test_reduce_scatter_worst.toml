@@ -1,0 +1,17 @@
+name = "nccl_test_reduce_scatter_worst"
+description = "reduce_scatter"
+test_template_name = "NcclTest"
+extra_cmd_args = "--stepfactor 2"
+
+[cmd_args]
+subtest_name = "reduce_scatter_perf_mpi"
+minbytes = "1K"
+maxbytes = "16G"
+stepbytes = "0"
+iters = "60"
+check = "0"
+warmup_iters ="40"
+
+[extra_env_vars]
+"NCCL_TESTS_SPLIT_MASK" = "0x7"
+"NCCL_MIN_NCHANNELS" = "12" # only for low number of servers
