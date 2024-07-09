@@ -159,24 +159,54 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
 
         assert "TEST_VAR=\\'value,with,commas\\'" in cmd
 
-    def test_tokenizer_handled(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
+    def test_tokenizer_handled(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, tmp_path: Path):
         extra_env_vars = {"TEST_VAR_1": "value1"}
         cmd_args = {
             "docker_image_url": "fake",
             "repository_url": "fake",
             "repository_commit_hash": "fake",
         }
+        tokenizer_path = tmp_path / "tokenizer"
+        tokenizer_path.touch()
+
         cmd = nemo_cmd_gen.gen_exec_command(
             env_vars={},
             cmd_args=cmd_args,
             extra_env_vars=extra_env_vars,
-            extra_cmd_args="training.model.tokenizer.model=value",
+            extra_cmd_args=f"training.model.tokenizer.model={tokenizer_path}",
             output_path="",
             num_nodes=1,
             nodes=[],
         )
 
-        assert "container_mounts=[value:value]" in cmd
+        assert f"container_mounts=[{tokenizer_path}:{tokenizer_path}]" in cmd
+
+    def test_invalid_tokenizer_path(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
+        extra_env_vars = {"TEST_VAR_1": "value1"}
+        cmd_args = {
+            "docker_image_url": "fake",
+            "repository_url": "fake",
+            "repository_commit_hash": "fake",
+        }
+        invalid_tokenizer_path = "/invalid/path/to/tokenizer"
+
+        with pytest.raises(
+            ValueError,
+            match=(
+                r"The provided tokenizer path '/invalid/path/to/tokenizer' is not valid. Please review the test "
+                r"schema file to ensure the tokenizer path is correct. If it contains a placeholder value, refer to "
+                r"USER_GUIDE.md to download the tokenizer and update the schema file accordingly."
+            ),
+        ):
+            nemo_cmd_gen.gen_exec_command(
+                env_vars={},
+                cmd_args=cmd_args,
+                extra_env_vars=extra_env_vars,
+                extra_cmd_args=f"training.model.tokenizer.model={invalid_tokenizer_path}",
+                output_path="",
+                num_nodes=1,
+                nodes=[],
+            )
 
 
 class TestWriteSbatchScript:
