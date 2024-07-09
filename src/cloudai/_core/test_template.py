@@ -122,6 +122,7 @@ class TestTemplate:
 
     def gen_exec_command(
         self,
+        test_name: str,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
@@ -136,6 +137,7 @@ class TestTemplate:
         This method must be implemented by subclasses.
 
         Args:
+            test_name (str): The name of the test.
             env_vars (Dict[str, str]): Environment variables for the test.
             cmd_args (Dict[str, str]): Command-line arguments for the test.
             extra_env_vars (Dict[str, str]): Extra environment variables.
@@ -151,6 +153,7 @@ class TestTemplate:
             nodes = []
         assert self.command_gen_strategy is not None
         return self.command_gen_strategy.gen_exec_command(
+            test_name,
             env_vars,
             cmd_args,
             extra_env_vars,

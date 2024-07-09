@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
@@ -26,6 +26,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def gen_exec_command(
         self,
+        test_name: str,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
@@ -38,6 +39,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         final_env_vars = self._override_env_vars(final_env_vars, extra_env_vars)
         final_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
         final_cmd_args["output_path"] = output_path
+        test_name = self._extract_test_name_key(test_name)
 
         combine_threshold_bytes = int(final_cmd_args["XLA_FLAGS.combine_threshold_bytes"])
         del final_cmd_args["XLA_FLAGS.combine_threshold_bytes"]
@@ -54,6 +56,16 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         slurm_args = self._parse_slurm_args("JaxToolbox", final_env_vars, final_cmd_args, num_nodes, nodes)
         srun_command = self._generate_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
         return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, output_path)
+
+    def _extract_test_name_key(self, name: Optional[str]) -> Optional[str]:
+        if name is None:
+            return None
+        lower_name = name.lower()
+        if "grok" in lower_name:
+            return "Grok"
+        elif "gpt" in lower_name:
+            return "GPT"
+        return None
 
     def _format_xla_flags(self, cmd_args: Dict[str, str]) -> str:
         """
