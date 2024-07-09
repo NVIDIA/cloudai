@@ -117,15 +117,19 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         Returns:
             str: A string of command-line arguments.
         """
-        arg_str_parts = []
+        cmd_arg_str_parts = []
+        env_var_str_parts = []
+
         for key, value in args.items():
-            formatted_key = f"+{key}" if key.startswith("env_vars.") else key
-            if key.startswith("env_vars.") and isinstance(value, str) and "," in value:
-                value = f"\\'{value}\\'"
-            arg_str_parts.append(f"{formatted_key}={value}")
+            if key.startswith("env_vars."):
+                if isinstance(value, str) and "," in value:
+                    value = f"\\'{value}\\'"
+                env_var_str_parts.append(f"+{key}={value}")
+            else:
+                cmd_arg_str_parts.append(f"{key}={value}")
 
         if nodes:
             nodes_str = ",".join(nodes)
-            arg_str_parts.append(f"+cluster.nodelist=\\'{nodes_str}\\'")
+            cmd_arg_str_parts.append(f"+cluster.nodelist=\\'{nodes_str}\\'")
 
-        return " ".join(arg_str_parts)
+        return " ".join(cmd_arg_str_parts + env_var_str_parts)
