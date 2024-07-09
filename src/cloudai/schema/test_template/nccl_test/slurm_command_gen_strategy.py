@@ -45,7 +45,7 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             raise KeyError("Subtest name not specified or unsupported.")
 
         slurm_args = self._parse_slurm_args(subtest_name, final_env_vars, final_cmd_args, num_nodes, nodes)
-        srun_command = self._generate_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
+        srun_command = self.generate_full_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
         return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, output_path)
 
     def _parse_slurm_args(
@@ -76,24 +76,10 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return base_args
 
-    def _generate_srun_command(
-        self,
-        slurm_args: Dict[str, Any],
-        env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
-        extra_cmd_args: str,
-    ) -> str:
-        srun_command_parts = [
-            "srun",
-            f"--mpi={slurm_args['mpi']}",
-            f"--container-image={slurm_args['image_path']}",
-        ]
-
-        if slurm_args.get("container_mounts"):
-            srun_command_parts.append(f"--container-mounts={slurm_args['container_mounts']}")
-
-        srun_command_parts.append(f"/usr/local/bin/{cmd_args['subtest_name']}")
-
+    def generate_test_command(
+        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
+    ) -> List[str]:
+        srun_command_parts = []
         nccl_test_args = [
             "nthreads",
             "ngpus",
@@ -119,4 +105,4 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if extra_cmd_args:
             srun_command_parts.append(extra_cmd_args)
 
-        return " \\\n".join(srun_command_parts)
+        return srun_command_parts

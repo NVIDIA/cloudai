@@ -40,6 +40,7 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
                 SlurmNode(name="node4", partition="main", state=SlurmNodeState.IDLE),
             ]
         },
+        mpi="fake-mpi",
     )
     Path(slurm_system.install_path).mkdir()
     Path(slurm_system.output_path).mkdir()
@@ -111,6 +112,42 @@ def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
     slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
 
     assert slurm_args["num_nodes"] == len(nodes)
+
+
+class TestGenerateSrunCommand__CmdGeneration:
+    def test_generate_test_command(self, strategy_fixture: SlurmCommandGenStrategy):
+        test_command = strategy_fixture.generate_test_command({}, {}, {}, "")
+        assert test_command == []
+
+    def test_generate_srun_command(self, strategy_fixture: SlurmCommandGenStrategy):
+        srun_command = strategy_fixture.generate_srun_command({}, {}, {}, "")
+        assert srun_command == ["srun", f"--mpi={strategy_fixture.slurm_system.mpi}"]
+
+    def test_generate_srun_command_with_container_image(self, strategy_fixture: SlurmCommandGenStrategy):
+        slurm_args = {"image_path": "fake_image_path"}
+        srun_command = strategy_fixture.generate_srun_command(slurm_args, {}, {}, "")
+        assert srun_command == [
+            "srun",
+            f"--mpi={strategy_fixture.slurm_system.mpi}",
+            "--container-image=fake_image_path",
+        ]
+
+    def test_generate_srun_command_with_container_image_and_mounts(self, strategy_fixture: SlurmCommandGenStrategy):
+        slurm_args = {"image_path": "fake_image_path", "container_mounts": "fake_mounts"}
+        srun_command = strategy_fixture.generate_srun_command(slurm_args, {}, {}, "")
+        assert srun_command == [
+            "srun",
+            f"--mpi={strategy_fixture.slurm_system.mpi}",
+            "--container-image=fake_image_path",
+            "--container-mounts=fake_mounts",
+        ]
+
+    def test_generate_full_srun_command(self, strategy_fixture: SlurmCommandGenStrategy):
+        strategy_fixture.generate_srun_command = lambda *args, **kwargs: ["srun", "--test", "test_arg"]
+        strategy_fixture.generate_test_command = lambda *args, **kwargs: ["test_command"]
+
+        full_srun_command = strategy_fixture.generate_full_srun_command({}, {}, {}, "")
+        assert full_srun_command == " \\\n".join(["srun", "--test", "test_arg", "test_command"])
 
 
 class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
