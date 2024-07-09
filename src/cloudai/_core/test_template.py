@@ -149,7 +149,11 @@ class TestTemplate:
         """
         if not nodes:
             nodes = []
-        assert self.command_gen_strategy is not None
+        if self.command_gen_strategy is None:
+            raise ValueError(
+                "command_gen_strategy is missing. Ensure the strategy is registered in the Registry "
+                "by calling the appropriate registration function for the system type."
+            )
         return self.command_gen_strategy.gen_exec_command(
             env_vars,
             cmd_args,
@@ -171,7 +175,11 @@ class TestTemplate:
         Returns:
             Optional[int]: The retrieved job ID, or None if not found.
         """
-        assert self.job_id_retrieval_strategy is not None
+        if self.job_id_retrieval_strategy is None:
+            raise ValueError(
+                "job_id_retrieval_strategy is missing. Ensure the strategy is registered in the Registry "
+                "by calling the appropriate registration function for the system type."
+            )
         return self.job_id_retrieval_strategy.get_job_id(stdout, stderr)
 
     def get_job_status(self, output_path: str) -> JobStatusResult:
@@ -184,7 +192,11 @@ class TestTemplate:
         Returns:
             JobStatusResult: The result containing the job status and an optional error message.
         """
-        assert self.job_status_retrieval_strategy is not None
+        if self.job_status_retrieval_strategy is None:
+            raise ValueError(
+                "job_status_retrieval_strategy is missing. Ensure the strategy is registered in "
+                "the Registry by calling the appropriate registration function for the system type."
+            )
         return self.job_status_retrieval_strategy.get_job_status(output_path)
 
     def can_handle_directory(self, directory_path: str) -> bool:
