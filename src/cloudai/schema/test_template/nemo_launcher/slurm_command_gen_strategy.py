@@ -52,6 +52,10 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     ) -> str:
         # Ensure required environment variables are included
         for key in REQUIRE_ENV_VARS:
+            if key not in self.slurm_system.global_env_vars:
+                raise KeyError(f"key : {key} wasn't specified in the system file while it's required for NeMo_Launcher")
+
+        for key in self.slurm_system.global_env_vars:
             if key not in extra_env_vars:
                 extra_env_vars[key] = self.slurm_system.global_env_vars[key]
 
