@@ -151,7 +151,7 @@ class TestTemplate:
             nodes = []
         if self.command_gen_strategy is None:
             raise ValueError(
-                "command_gen_strategy is missing. Ensure the strategy is registered in src/cloudai/__init__.py "
+                "command_gen_strategy is missing. Ensure the strategy is registered in the Registry "
                 "by calling the appropriate registration function for the system type."
             )
         return self.command_gen_strategy.gen_exec_command(
@@ -177,7 +177,7 @@ class TestTemplate:
         """
         if self.job_id_retrieval_strategy is None:
             raise ValueError(
-                "job_id_retrieval_strategy is missing. Ensure the strategy is registered in src/cloudai/__init__.py "
+                "job_id_retrieval_strategy is missing. Ensure the strategy is registered in the Registry "
                 "by calling the appropriate registration function for the system type."
             )
         return self.job_id_retrieval_strategy.get_job_id(stdout, stderr)
@@ -195,7 +195,7 @@ class TestTemplate:
         if self.job_status_retrieval_strategy is None:
             raise ValueError(
                 "job_status_retrieval_strategy is missing. Ensure the strategy is registered in "
-                "src/cloudai/__init__.py by calling the appropriate registration function for the system type."
+                "the Registry by calling the appropriate registration function for the system type."
             )
         return self.job_status_retrieval_strategy.get_job_status(output_path)
 
