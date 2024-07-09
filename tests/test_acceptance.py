@@ -43,7 +43,7 @@ def test_slurm(tmp_path: Path, scenario: Dict):
     system.output_path = str(tmp_path)
     assert test_scenario is not None, "Test scenario is None"
     setup_logging(str(log_file_path), "DEBUG")
-    handle_dry_run_and_run("dry-run", str(log_file_path), system, tests, test_scenario)
+    handle_dry_run_and_run("dry-run", system, tests, test_scenario)
 
     # Find the directory that was created for the test results
     results_output_dirs = [d for d in tmp_path.iterdir() if d.is_dir()]
@@ -61,7 +61,7 @@ def test_slurm(tmp_path: Path, scenario: Dict):
         assert td.is_dir(), "Invalid test directory"
         assert "Tests." in td.name, "Invalid test directory name"
 
-    assert log_file_path.exists(), f"Log file {log_file_path} does not exist"
+    assert log_file_path.exists(), f"Log file {log_file_path} was not created"
 
 
 @pytest.fixture

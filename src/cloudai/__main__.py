@@ -196,9 +196,7 @@ def handle_install_and_uninstall(mode: str, system: System, tests: List[Test]) -
             sys.exit(1)
 
 
-def handle_dry_run_and_run(
-    mode: str, log_file: str, system: System, tests: List[Test], test_scenario: TestScenario
-) -> None:
+def handle_dry_run_and_run(mode: str, system: System, tests: List[Test], test_scenario: TestScenario) -> None:
     """
     Execute the dry-run or run modes for CloudAI.
 
@@ -206,7 +204,6 @@ def handle_dry_run_and_run(
 
     Args:
         mode (str): The operating mode.
-        log_file (str): The name of the log file.
         system (System): The system object.
         tests (List[Test]): The list of test objects.
         test_scenario (TestScenario): The test scenario object.
@@ -236,12 +233,6 @@ def handle_dry_run_and_run(
     logging.info(f"All test scenario results stored at: {runner.runner.output_path}")
 
     if mode == "run":
-        logging.info(
-            "All test scenario execution attempts are complete. Please review"
-            f" the '{log_file}' file to confirm successful completion or to"
-            " identify any issues."
-        )
-
         generator = ReportGenerator(runner.runner.output_path)
         generator.generate_report(test_scenario)
 
@@ -293,7 +284,13 @@ def main() -> None:
             exit(1)
 
         elif args.mode in ["dry-run", "run"]:
-            handle_dry_run_and_run(args.mode, args.log_file, system, tests, test_scenario)
+            handle_dry_run_and_run(args.mode, system, tests, test_scenario)
+            if args.mode == "run":
+                logging.info(
+                    "All test scenario execution attempts are complete. Please review"
+                    f" the '{args.log_file}' file to confirm successful completion or to"
+                    " identify any issues."
+                )
         elif args.mode == "generate-report":
             if not output_dir:
                 logging.error("Error: --output-dir is required when mode is generate-report.")
