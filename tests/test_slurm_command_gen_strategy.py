@@ -143,8 +143,8 @@ class TestGenerateSrunCommand__CmdGeneration:
         ]
 
     def test_generate_full_srun_command(self, strategy_fixture: SlurmCommandGenStrategy):
-        strategy_fixture.generate_srun_command = lambda *args, **kwargs: ["srun", "--test", "test_arg"]
-        strategy_fixture.generate_test_command = lambda *args, **kwargs: ["test_command"]
+        strategy_fixture.generate_srun_command = lambda *_, **__: ["srun", "--test", "test_arg"]
+        strategy_fixture.generate_test_command = lambda *_, **__: ["test_command"]
 
         full_srun_command = strategy_fixture.generate_full_srun_command({}, {}, {}, "")
         assert full_srun_command == " \\\n".join(["srun", "--test", "test_arg", "test_command"])
