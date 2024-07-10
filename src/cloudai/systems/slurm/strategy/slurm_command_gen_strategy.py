@@ -140,9 +140,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
     ) -> List[str]:
         srun_command_parts = ["srun", f"--mpi={self.slurm_system.mpi}"]
-        if "image_path" in slurm_args:
+        if slurm_args.get("image_path"):
             srun_command_parts.append(f'--container-image={slurm_args["image_path"]}')
-            if "container_mounts" in slurm_args:
+            if slurm_args.get("container_mounts"):
                 srun_command_parts.append(f'--container-mounts={slurm_args["container_mounts"]}')
 
         return srun_command_parts
