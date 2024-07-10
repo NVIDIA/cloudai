@@ -20,17 +20,6 @@ from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
 from .slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
 
-REQUIRE_ENV_VARS = [
-    "NCCL_SOCKET_IFNAME",
-    "NCCL_IB_GID_INDEX",
-    "NCCL_IB_TC",
-    "NCCL_IB_QPS_PER_CONNECTION",
-    "UCX_IB_GID_INDEX",
-    "NCCL_IB_ADAPTIVE_ROUTING",
-    "NCCL_IB_SPLIT_DATA_ON_QPS",
-    "NCCL_IBEXT_DISABLE",
-]
-
 
 class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """
@@ -50,10 +39,8 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         num_nodes: int,
         nodes: List[str],
     ) -> str:
-        # Ensure required environment variables are included
-        for key in REQUIRE_ENV_VARS:
-            if key not in extra_env_vars:
-                extra_env_vars[key] = self.slurm_system.global_env_vars[key]
+        final_env_vars = self._override_env_vars(self.default_env_vars, env_vars)
+        final_env_vars = self._override_env_vars(final_env_vars, extra_env_vars)
 
         launcher_path = os.path.join(
             self.install_path,
@@ -67,7 +54,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self.final_cmd_args["base_results_dir"] = output_path
         self.final_cmd_args["training.model.data.index_mapping_dir"] = output_path
         self.final_cmd_args["launcher_scripts_path"] = os.path.join(launcher_path, "launcher_scripts")
-        for key, value in extra_env_vars.items():
+        for key, value in final_env_vars.items():
             self.final_cmd_args[f"env_vars.{key}"] = value
         self.final_cmd_args["cluster.partition"] = self.slurm_system.default_partition
         nodes = self.slurm_system.parse_nodes(nodes)
@@ -91,12 +78,20 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         full_cmd = f"python {launcher_path}/launcher_scripts/main.py {cmd_args_str}"
 
         if extra_cmd_args:
-            full_cmd += " " + extra_cmd_args
-            if "training.model.tokenizer.model" in extra_cmd_args:
-                tokenizer_path = extra_cmd_args.split("training.model.tokenizer.model=")[1].split(" ")[0]
-                full_cmd += " " + f"container_mounts=[{tokenizer_path}:{tokenizer_path}]"
+            full_cmd += f" {extra_cmd_args}"
+            tokenizer_key = "training.model.tokenizer.model="
+            if tokenizer_key in extra_cmd_args:
+                tokenizer_path = extra_cmd_args.split(tokenizer_key, 1)[1].split(" ", 1)[0]
+                if not os.path.isfile(tokenizer_path):
+                    raise ValueError(
+                        f"The provided tokenizer path '{tokenizer_path}' is not valid. "
+                        "Please review the test schema file to ensure the tokenizer path is correct. "
+                        "If it contains a placeholder value, refer to USER_GUIDE.md to download the tokenizer "
+                        "and update the schema file accordingly."
+                    )
+                full_cmd += f" container_mounts=[{tokenizer_path}:{tokenizer_path}]"
 
-        env_vars_str = " ".join(f"{key}={value}" for key, value in extra_env_vars.items())
+        env_vars_str = " ".join(f"{key}={value}" for key, value in final_env_vars.items())
         full_cmd = f"{env_vars_str} {full_cmd}" if env_vars_str else full_cmd
 
         return full_cmd.strip()
@@ -130,13 +125,19 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         Returns:
             str: A string of command-line arguments.
         """
-        arg_str_parts = []
+        cmd_arg_str_parts = []
+        env_var_str_parts = []
+
         for key, value in args.items():
-            formatted_key = f"+{key}" if key.startswith("env_vars.") else key
-            arg_str_parts.append(f"{formatted_key}={value}")
+            if key.startswith("env_vars."):
+                if isinstance(value, str) and "," in value:
+                    value = f"\\'{value}\\'"
+                env_var_str_parts.append(f"+{key}={value}")
+            else:
+                cmd_arg_str_parts.append(f"{key}={value}")
 
         if nodes:
             nodes_str = ",".join(nodes)
-            arg_str_parts.append(f"+cluster.nodelist=\\'{nodes_str}\\'")
+            cmd_arg_str_parts.append(f"+cluster.nodelist=\\'{nodes_str}\\'")
 
-        return " ".join(arg_str_parts)
+        return " ".join(cmd_arg_str_parts + env_var_str_parts)
