@@ -57,7 +57,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         )
         final_env_vars["PER_GPU_COMBINE_THRESHOLD"] = str(per_gpu_combine_threshold)
 
-        xla_flags = self._format_xla_flags(final_cmd_args)
+        xla_flags = self._format_xla_flags(test_name, final_cmd_args)
         final_env_vars["XLA_FLAGS"] = f'"{xla_flags}"'
 
         env_vars_str = self._format_env_vars(final_env_vars)
@@ -78,14 +78,15 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             return "GPT"
         return None
 
-    def _format_xla_flags(self, cmd_args: Dict[str, str]) -> str:
+    def _format_xla_flags(self, test_name: str, cmd_args: Dict[str, str]) -> str:
         """
         Format the XLA_FLAGS environment variable.
 
-        Done by extracting all command-line arguments prefixed with 'XLA_FLAG' and concatenating them into a single
-        string with the appropriate formatting for execution.
+        Done by extracting all command-line arguments prefixed with 'common.XLA_FLAGS' or '{test_name}.XLA_FLAGS'
+        and concatenating them into a single string with the appropriate formatting for execution.
 
         Args:
+            test_name (str): The name of the test (e.g., "GPT" or "Grok").
             cmd_args (Dict[str, str]): Command-line arguments.
 
         Returns:
@@ -94,6 +95,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         xla_flags = []
 
         # Standard flags that are always included
+        '''
         xla_flags.extend(
             [
                 "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
@@ -101,20 +103,31 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD",
             ]
         )
+        '''
+        xla_flags.extend(
+            [
+                "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
+                "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
+            ]
+        )
+        
+        # Prefixes for common and test-specific XLA flags
+        common_prefix = "common.XLA_FLAGS."
+        test_prefix = f"{test_name}.XLA_FLAGS."
 
-        # Iterate through keys that start with the prefix and format them properly
-        xla_prefix = "XLA_FLAGS."
         for key, value in cmd_args.items():
-            if key.startswith(xla_prefix):
-                # Handle special cases differently, if needed
-                if key == "XLA_FLAGS.xla_dump":
+            # Check if the key starts with either common or test-specific prefix
+            if key.startswith(common_prefix) or key.startswith(test_prefix):
+                # Extract the flag name from the key
+                flag_name = key.split('.')[-1]
+                # Check if the flag is 'xla_gpu_simplify_all_fp_conversions'
+                if flag_name.lower() == "xla_gpu_simplify_all_fp_conversions":
+                    # For this specific flag, append only the flag name if the value is True
                     if value:
-                        xla_flags.append("--xla_dump_to=/opt/paxml/workspace/xla_dump")
-                elif key == "XLA_FLAGS.xla_gpu_simplify_all_fp_conversions" and value:
-                    xla_flags.append("--xla_gpu_simplify_all_fp_conversions")
+                        xla_flags.append(f"--{flag_name.lower()}")
                 else:
-                    # Convert the key to the correct flag format and append it
-                    flag = f"--{key[len(xla_prefix):].lower()}={value}"
+                    # For all other flags, format the flag with its value, appending boolean values as is
+                    flag = f"--{flag_name.lower()}={value}"
                     xla_flags.append(flag)
 
         return " ".join(xla_flags)
@@ -204,19 +217,25 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         def set_xla_flags(profile_enabled: bool):
             """Set the XLA_FLAGS for profiling or performance based on the stage."""
+            
+            flags = []
+            
+            '''
             flags = [
                 "xla_gpu_enable_latency_hiding_scheduler",
                 "xla_gpu_enable_async_all_gather",
                 "xla_gpu_enable_async_reduce_scatter",
                 "xla_gpu_enable_async_all_reduce",
             ]
+            '''
             state = "True" if profile_enabled else "False"
             for flag in flags:
                 cmd_args[f"XLA_FLAGS.{flag}"] = state
 
         # Prepare environment and script content for the 'profile' stage
         set_xla_flags(False)
-        env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args)}"'
+        env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(test_name, cmd_args)}"'
+        
         profile_content = self._script_content("profile", test_name, slurm_args, env_vars, cmd_args, extra_cmd_args)
 
         # Prepare environment and script content for the 'perf' stage
@@ -224,7 +243,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd_args["XLA_FLAGS.xla_gpu_pgle_profile_file_or_directory_path"] = (
             "/opt/paxml/workspace/pgle_output_profile.pbtxt"
         )
-        env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args)}"'
+        env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(test_name, cmd_args)}"'
+
         perf_content = self._script_content("perf", test_name, slurm_args, env_vars, cmd_args, extra_cmd_args)
 
         # Combine both parts into the run script content
@@ -288,6 +308,13 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         # Now combined_fdl_args contains all fdl flags, with test_name.fdl overriding common.fdl where applicable
         return combined_fdl_args
+    
+    def _get_fdl_config_value(self, cmd_args, test_name):
+        # Format the key based on the test_name
+        key = f"{test_name}.fdl_config"
+        
+        # Access and return the value from cmd_args
+        return cmd_args.get(key)
 
     def _generate_python_command(
         self,
@@ -317,6 +344,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                  SLURM job.
         """
         combined_fdl_flags_str = self._combine_fdl_flags(cmd_args, test_name)
+        fdl_config = self._get_fdl_config_value(cmd_args, test_name)
         parts = [
             "python3 -u -m paxml.main",
             "--num_hosts=$SLURM_NTASKS",
@@ -327,7 +355,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f"--enable_checkpoint_saving={cmd_args['common.setup_flags.enable_checkpoint_saving']}",
             "--multiprocess_gpu",
             "--alsologtostderr",
-            f'--fdl_config="{combined_fdl_flags_str}"',
+            f'--fdl_config="{fdl_config}"',
         ]
 
         # Dynamically adding fdl. prefixed arguments
