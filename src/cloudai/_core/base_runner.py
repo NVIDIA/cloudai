@@ -52,12 +52,7 @@ class BaseRunner(ABC):
             new tests and ensuring a graceful termination of all running tests.
     """
 
-    def __init__(
-        self,
-        mode: str,
-        system: System,
-        test_scenario: TestScenario,
-    ):
+    def __init__(self, mode: str, system: System, test_scenario: TestScenario):
         """
         Initialize the BaseRunner with a system object, test scenario, and monitor interval.
 

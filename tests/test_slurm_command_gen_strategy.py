@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from pathlib import Path
+from typing import Optional
 
 import pytest
 from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import (
@@ -114,6 +115,13 @@ def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
     assert slurm_args["num_nodes"] == len(nodes)
 
 
+def test_raises_if_no_default_partition(slurm_system: SlurmSystem):
+    slurm_system.default_partition = ""
+    with pytest.raises(ValueError) as exc_info:
+        SlurmCommandGenStrategy(slurm_system, {}, {})
+    assert "Partition not specified in the system configuration." in str(exc_info)
+
+
 class TestGenerateSrunCommand__CmdGeneration:
     def test_generate_test_command(self, strategy_fixture: SlurmCommandGenStrategy):
         test_command = strategy_fixture.generate_test_command({}, {}, {}, "")
@@ -209,7 +217,6 @@ class TestWriteSbatchScript:
     MANDATORY_ARGS = {
         "job_name": "test_job",
         "num_nodes": 2,
-        "partition": "test_partition",
         "node_list_str": "node1,node2",
     }
 
@@ -226,7 +233,7 @@ class TestWriteSbatchScript:
         assert lines[-2] == ""
         assert lines[-1] == self.srun_command
 
-    @pytest.mark.parametrize("missing_arg", ["job_name", "num_nodes", "partition", "node_list_str"])
+    @pytest.mark.parametrize("missing_arg", ["job_name", "num_nodes", "node_list_str"])
     def test_raises_on_missing_args(self, missing_arg: str, strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path):
         args = self.MANDATORY_ARGS.copy()
         del args[missing_arg]
@@ -254,7 +261,7 @@ class TestWriteSbatchScript:
 
         assert f"#SBATCH --job-name={self.MANDATORY_ARGS['job_name']}" in file_contents
         assert f"#SBATCH -N {self.MANDATORY_ARGS['num_nodes']}" in file_contents
-        assert f"#SBATCH --partition={self.MANDATORY_ARGS['partition']}" in file_contents
+        assert f"#SBATCH --partition={strategy_fixture.slurm_system.default_partition}" in file_contents
         assert f"#SBATCH --nodelist={self.MANDATORY_ARGS['node_list_str']}" in file_contents
         assert f"#SBATCH --output={tmp_path / 'stdout.txt'}" in file_contents
         assert f"#SBATCH --error={tmp_path / 'stderr.txt'}" in file_contents
@@ -262,18 +269,31 @@ class TestWriteSbatchScript:
     @pytest.mark.parametrize(
         "arg, arg_value, expected_str",
         [
-            ("account", "test_account", "#SBATCH --account=test_account"),
-            ("distribution", "block", "#SBATCH --distribution=block"),
-            ("gpus_per_node", 2, "#SBATCH --gpus-per-node=2"),
-            ("ntasks_per_node", 2, "#SBATCH --ntasks-per-node=2"),
+            ("account", "test_account", None),
+            ("distribution", "block", None),
+            ("gpus_per_node", 2, None),
+            ("ntasks_per_node", 2, None),
             ("time_limit", "00:30:00", "#SBATCH --time=00:30:00"),
         ],
     )
     def test_extra_args(
-        self, arg: str, arg_value: str, expected_str: str, strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path
+        self,
+        arg: str,
+        arg_value: str,
+        expected_str: Optional[str],
+        strategy_fixture: SlurmCommandGenStrategy,
+        tmp_path: Path,
     ):
         args = self.MANDATORY_ARGS.copy()
-        args[arg] = arg_value
+        if expected_str:  # use slurm_args
+            args[arg] = arg_value
+        else:  # use strategy.slurm_system.<arg>
+            v = getattr(strategy_fixture.slurm_system, arg)
+            if not v:
+                setattr(strategy_fixture.slurm_system, arg, arg_value)
+                v = arg_value
+            str_arg = arg.replace("_", "-")
+            expected_str = f"#SBATCH --{str_arg}={v}"
 
         sbatch_command = strategy_fixture._write_sbatch_script(
             args, self.env_vars_str, self.srun_command, str(tmp_path)
