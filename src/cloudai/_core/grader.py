@@ -49,18 +49,18 @@ class Grader:
         """
         weighted_perfs: List[float] = []
         test_perfs: Dict[str, List[float]] = {}
-        total_weight = sum(test.weight for test in test_scenario.tests)
+        total_weight = sum(tr.test.weight for tr in test_scenario.test_runs)
 
-        for test in test_scenario.tests:
-            section_name = str(test.section_name) if test.section_name else ""
+        for tr in test_scenario.test_runs:
+            section_name = str(tr.test.section_name) if tr.test.section_name else ""
             if not section_name:
-                logging.warning(f"Missing section name for test {test.name}")
+                logging.warning(f"Missing section name for test {tr.test.name}")
                 continue
             test_output_dir = os.path.join(self.output_path, section_name)
-            perfs = self._get_perfs_from_subdirs(test_output_dir, test)
+            perfs = self._get_perfs_from_subdirs(test_output_dir, tr.test)
             avg_perf = sum(perfs) / len(perfs) if perfs else 0
-            test_perfs[test.name] = perfs + [avg_perf]
-            weighted_avg = (avg_perf * test.weight / total_weight) if total_weight else 0
+            test_perfs[tr.test.name] = perfs + [avg_perf]
+            weighted_avg = (avg_perf * tr.test.weight / total_weight) if total_weight else 0
             weighted_perfs.append(weighted_avg)
 
         overall_weighted_avg = sum(weighted_perfs)

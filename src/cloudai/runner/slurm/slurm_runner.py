@@ -16,7 +16,7 @@
 import logging
 from typing import cast
 
-from cloudai import BaseJob, BaseRunner, JobIdRetrievalError, System, Test, TestScenario
+from cloudai import BaseJob, BaseRunner, JobIdRetrievalError, System, TestRun, TestScenario
 from cloudai.systems import SlurmSystem
 from cloudai.util import CommandShell
 
@@ -50,33 +50,45 @@ class SlurmRunner(BaseRunner):
         self.slurm_system: SlurmSystem = cast(SlurmSystem, system)
         self.cmd_shell = CommandShell()
 
-    def _submit_test(self, test: Test) -> SlurmJob:
+    def _submit_test(self, tr: TestRun) -> SlurmJob:
         """
         Submit a test for execution on Slurm and returns a SlurmJob.
 
         Args:
-            test (Test): The test to be executed.
+            tr (TestRun): The test run to be executed.
 
         Returns:
             SlurmJob: A SlurmJob object
         """
-        logging.info(f"Running test: {test.section_name}")
-        job_output_path = self.get_job_output_path(test)
-        exec_cmd = test.gen_exec_command(job_output_path)
-        logging.info(f"Executing command for test {test.section_name}: {exec_cmd}")
+        logging.info(f"Running test: {tr.test.section_name}")
+        job_output_path = self.get_job_output_path(tr.test)
+
+        if tr.time_limit:
+            tr.test.cmd_args["time_limit"] = tr.time_limit
+
+        exec_cmd = tr.test.test_template.gen_exec_command(
+            tr.test.env_vars,
+            tr.test.cmd_args,
+            tr.test.extra_env_vars,
+            tr.test.extra_cmd_args,
+            job_output_path,
+            tr.num_nodes,
+            tr.nodes,
+        )
+        logging.info(f"Executing command for test {tr.test.section_name}: {exec_cmd}")
         job_id = 0
         if self.mode == "run":
             stdout, stderr = self.cmd_shell.execute(exec_cmd).communicate()
-            job_id = test.get_job_id(stdout, stderr)
+            job_id = tr.test.get_job_id(stdout, stderr)
             if job_id is None:
                 raise JobIdRetrievalError(
-                    test_name=str(test.section_name),
+                    test_name=str(tr.test.section_name),
                     command=exec_cmd,
                     stdout=stdout,
                     stderr=stderr,
                     message="Failed to retrieve job ID from command output.",
                 )
-        return SlurmJob(job_id, test, job_output_path)
+        return SlurmJob(job_id, tr, job_output_path)
 
     def is_job_running(self, job: BaseJob) -> bool:
         """

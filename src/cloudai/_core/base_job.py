@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .test import Test
+from .test_scenario import TestRun
 
 
 class BaseJob:
@@ -27,17 +27,17 @@ class BaseJob:
         terminated_by_dependency (bool): Flag to indicate if the job was terminated due to a dependency.
     """
 
-    def __init__(self, job_id: int, test: Test, output_path: str):
+    def __init__(self, job_id: int, tr: TestRun, output_path: str):
         """
         Initialize a BaseJob instance.
 
         Args:
             job_id (int): The unique identifier of the job.
             output_path (str): The path where the job's output is stored.
-            test (Test): The test instance associated with the job.
+            tr (TestRun): The test run instance associated with this job.
         """
         self.id = job_id
-        self.test = test
+        self.test_run = tr
         self.output_path = output_path
         self.terminated_by_dependency = False
 
@@ -47,7 +47,7 @@ class BaseJob:
 
         This method should be called when the job completes an iteration and is ready to proceed to the next one.
         """
-        self.test.current_iteration += 1
+        self.test_run.test.current_iteration += 1
 
     def __repr__(self) -> str:
         """
@@ -56,4 +56,7 @@ class BaseJob:
         Returns
             str: String representation of the job.
         """
-        return f"BaseJob(id={self.id}, test={self.test.name}, terminated_by_dependency={self.terminated_by_dependency})"
+        return (
+            f"BaseJob(id={self.id}, test={self.test_run.test.name}, "
+            f"terminated_by_dependency={self.terminated_by_dependency})"
+        )

@@ -61,8 +61,8 @@ class Test_Parser:
             fake_tests[-1].name = f"test-{i}"
         test_parser.return_value = fake_tests
         fake_scenario = Mock()
-        fake_scenario.tests = [Mock()]
-        fake_scenario.tests[0].name = "test-1"
+        fake_scenario.test_runs = [Mock()]
+        fake_scenario.test_runs[0].test.name = "test-1"
         test_scenario_parser.return_value = fake_scenario
         _, tests, _ = parser.parse(tests_dir, Path())
         assert len(tests) == 1

@@ -46,17 +46,17 @@ class ReportGenerator:
         Args:
             test_scenario (TestScenario): The scenario containing tests.
         """
-        for test in test_scenario.tests:
-            section_name = str(test.section_name) if test.section_name else ""
+        for tr in test_scenario.test_runs:
+            section_name = str(tr.test.section_name) if tr.test.section_name else ""
             if not section_name:
-                logging.warning(f"Missing section name for test {test.name}")
+                logging.warning(f"Missing section name for test {tr.test.name}")
                 continue
             test_output_dir = os.path.join(self.output_path, section_name)
             if not os.path.exists(test_output_dir):
                 logging.warning(f"Directory '{test_output_dir}' not found.")
                 continue
 
-            self._generate_test_report(test_output_dir, test)
+            self._generate_test_report(test_output_dir, tr.test)
 
     def _generate_test_report(self, directory_path: str, test: Test) -> None:
         """

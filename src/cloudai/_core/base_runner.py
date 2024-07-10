@@ -29,7 +29,7 @@ from .exceptions import JobFailureError, JobSubmissionError
 from .job_status_result import JobStatusResult
 from .system import System
 from .test import Test
-from .test_scenario import TestScenario
+from .test_scenario import TestRun, TestScenario
 
 
 class BaseRunner(ABC):
@@ -141,53 +141,53 @@ class BaseRunner(ABC):
             return
 
         logging.info("Starting test scenario execution.")
-        total_tests = len(self.test_scenario.tests)
+        total_tests = len(self.test_scenario.test_runs)
         completed_jobs_count = 0
 
         dependency_free_tests = self.find_dependency_free_tests()
-        for test in dependency_free_tests:
-            await self.submit_test(test)
+        for tr in dependency_free_tests:
+            await self.submit_test(tr)
 
         while completed_jobs_count < total_tests:
             await self.check_start_post_init_dependencies()
             completed_jobs_count += await self.monitor_jobs()
             await asyncio.sleep(self.monitor_interval)
 
-    async def submit_test(self, test: Test):
+    async def submit_test(self, tr: TestRun):
         """
         Start a dependency-free test.
 
         Args:
-            test (Test): The test to be started.
+            tr (TestRun): The test to be started.
         """
-        logging.info(f"Starting test: {test.section_name}")
+        logging.info(f"Starting test: {tr.test.section_name}")
         try:
-            job = self._submit_test(test)
+            job = self._submit_test(tr)
             self.jobs.append(job)
-            self.test_to_job_map[test] = job
+            self.test_to_job_map[tr.test] = job
         except JobSubmissionError as e:
             logging.error(e)
             exit(1)
 
-    async def delayed_submit_test(self, test: Test, delay: int):
+    async def delayed_submit_test(self, tr: TestRun, delay: int):
         """
         Delay the start of a test based on start_post_comp dependency.
 
         Args:
-            test (Test): The test to start after a delay.
+            tr (TestRun): The test to start after a delay.
             delay (int): Delay in seconds before starting the test.
         """
-        logging.info(f"Delayed start for test {test.section_name} by {delay} seconds.")
+        logging.info(f"Delayed start for test {tr.test.section_name} by {delay} seconds.")
         await asyncio.sleep(delay)
-        await self.submit_test(test)
+        await self.submit_test(tr)
 
     @abstractmethod
-    def _submit_test(self, test: Test) -> BaseJob:
+    def _submit_test(self, tr: TestRun) -> BaseJob:
         """
         Execute a given test and returns a job if successful.
 
         Args:
-            test (Test): The test to be executed.
+            tr (TestRun): The test to be executed.
 
         Returns:
             BaseJob: A BaseJob object
@@ -214,13 +214,13 @@ class BaseRunner(ABC):
         Args:
             started_test (Test): The test that has just been started.
         """
-        for test in self.test_scenario.tests:
-            if test not in self.test_to_job_map:
-                for dep_type, dep in test.dependencies.items():
+        for tr in self.test_scenario.test_runs:
+            if tr.test not in self.test_to_job_map:
+                for dep_type, dep in tr.test.dependencies.items():
                     if (dep_type == "start_post_init") and (dep.test == started_test):
-                        await self.delayed_submit_test(test, dep.time)
+                        await self.delayed_submit_test(tr, dep.time)
 
-    def find_dependency_free_tests(self) -> List[Test]:
+    def find_dependency_free_tests(self) -> List[TestRun]:
         """
         Find tests that have no 'start_post_comp' or 'start_post_init' dependencies.
 
@@ -230,9 +230,9 @@ class BaseRunner(ABC):
             List[Test]: A list of tests that are ready to run without waiting for other tests to start or complete.
         """
         dependency_free_tests = []
-        for test in self.test_scenario.tests:
-            if "start_post_comp" not in test.dependencies and "start_post_init" not in test.dependencies:
-                dependency_free_tests.append(test)
+        for tr in self.test_scenario.test_runs:
+            if "start_post_comp" not in tr.test.dependencies and "start_post_init" not in tr.test.dependencies:
+                dependency_free_tests.append(tr)
 
         return dependency_free_tests
 
@@ -289,11 +289,14 @@ class BaseRunner(ABC):
                         await self.handle_job_completion(job)
                     else:
                         error_message = (
-                            f"Job {job.id} for test {job.test.section_name} failed: {job_status_result.error_message}"
+                            f"Job {job.id} for test {job.test_run.test.section_name} "
+                            f"failed: {job_status_result.error_message}"
                         )
                         logging.error(error_message)
                         await self.shutdown()
-                        raise JobFailureError(job.test.section_name, error_message, job_status_result.error_message)
+                        raise JobFailureError(
+                            job.test_run.test.section_name, error_message, job_status_result.error_message
+                        )
 
         return successful_jobs_count
 
@@ -307,7 +310,7 @@ class BaseRunner(ABC):
         Returns:
             JobStatusResult: The result containing the job status and an optional error message.
         """
-        return job.test.get_job_status(job.output_path)
+        return job.test_run.test.get_job_status(job.output_path)
 
     async def handle_job_completion(self, completed_job: BaseJob):
         """
@@ -316,14 +319,14 @@ class BaseRunner(ABC):
         Args:
             completed_job (BaseJob): The job that has just been completed.
         """
-        logging.info(f"Job completed: {completed_job.test.section_name}")
+        logging.info(f"Job completed: {completed_job.test_run.test.section_name}")
         self.jobs.remove(completed_job)
-        del self.test_to_job_map[completed_job.test]
+        del self.test_to_job_map[completed_job.test_run.test]
         completed_job.increment_iteration()
-        if not completed_job.terminated_by_dependency and completed_job.test.has_more_iterations():
-            msg = f"Re-running job for iteration {completed_job.test.current_iteration}"
+        if not completed_job.terminated_by_dependency and completed_job.test_run.test.has_more_iterations():
+            msg = f"Re-running job for iteration {completed_job.test_run.test.current_iteration}"
             logging.info(msg)
-            await self.submit_test(completed_job.test)
+            await self.submit_test(completed_job.test_run)
         else:
             await self.handle_dependencies(completed_job)
 
@@ -366,18 +369,18 @@ class BaseRunner(ABC):
         tasks = []
 
         # Handling start_post_comp dependencies
-        for test in self.test_scenario.tests:
-            if test not in self.test_to_job_map:
-                for dep_type, dep in test.dependencies.items():
-                    if dep_type == "start_post_comp" and dep.test == completed_job.test:
-                        task = await self.delayed_submit_test(test, dep.time)
+        for tr in self.test_scenario.test_runs:
+            if tr.test not in self.test_to_job_map:
+                for dep_type, dep in tr.test.dependencies.items():
+                    if dep_type == "start_post_comp" and dep.test == completed_job.test_run:
+                        task = await self.delayed_submit_test(tr, dep.time)
                         if task:
                             tasks.append(task)
 
         # Handling end_post_comp dependencies
         for test, dependent_job in self.test_to_job_map.items():
             for dep_type, dep in test.dependencies.items():
-                if dep_type == "end_post_comp" and dep.test == completed_job.test:
+                if dep_type == "end_post_comp" and dep.test == completed_job.test_run:
                     task = await self.delayed_kill_job(dependent_job, dep.time)
                     tasks.append(task)
 

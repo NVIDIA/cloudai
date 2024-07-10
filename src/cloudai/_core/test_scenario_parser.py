@@ -21,7 +21,7 @@ import toml
 
 from .system import System
 from .test import Test, TestDependency
-from .test_scenario import TestScenario
+from .test_scenario import TestRun, TestScenario
 
 
 class TestScenarioParser:
@@ -74,35 +74,37 @@ class TestScenarioParser:
         tests_data = {f"Tests.{k}": v for k, v in raw_tests_data.items()}
 
         # Create section-specific test instances
-        section_tests = {section: self._create_section_test(section, info) for section, info in tests_data.items()}
+        section_test_runs = {
+            section: self._create_section_test_run(section, info) for section, info in tests_data.items()
+        }
 
         total_weight = sum(test_info.get("weight", 0) for test_info in tests_data.values())
         normalized_weight = 0 if total_weight == 0 else 100 / total_weight
 
         # Update tests with dependencies
-        for section, test in section_tests.items():
+        for section, tr in section_test_runs.items():
             test_info = tests_data[section]
-            deps = self._parse_dependencies_for_test(section, test_info, section_tests)
-            test.dependencies = deps
+            deps = self._parse_dependencies_for_test(section, test_info, section_test_runs)
+            tr.test.dependencies = deps
 
             # Parse and set iterations
             iterations = test_info.get("iterations", 1)
-            test.iterations = iterations if isinstance(iterations, int) else sys.maxsize
+            tr.test.iterations = iterations if isinstance(iterations, int) else sys.maxsize
 
-            test.weight = test_info.get("weight", 0) * normalized_weight
+            tr.test.weight = test_info.get("weight", 0) * normalized_weight
 
             if "sol" in test_info:
-                test.sol = test_info["sol"]
+                tr.test.sol = test_info["sol"]
 
             if "ideal_perf" in test_info:
-                test.ideal_perf = test_info["ideal_perf"]
+                tr.test.ideal_perf = test_info["ideal_perf"]
 
             if "time_limit" in test_info:
-                test.time_limit = test_info["time_limit"]
+                tr.time_limit = test_info["time_limit"]
 
-        return TestScenario(name=test_scenario_name, tests=list(section_tests.values()))
+        return TestScenario(name=test_scenario_name, test_runs=list(section_test_runs.values()))
 
-    def _create_section_test(self, section: str, test_info: Dict[str, Any]) -> Test:
+    def _create_section_test_run(self, section: str, test_info: Dict[str, Any]) -> TestRun:
         """
         Create a section-specific Test object by copying from the test mapping.
 
@@ -123,15 +125,18 @@ class TestScenarioParser:
         test = copy.deepcopy(self.test_mapping[test_name])
         test.test_template = self.test_mapping[test_name].test_template
         test.section_name = section
-        test.num_nodes = int(test_info.get("num_nodes", 1))
-        test.nodes = test_info.get("nodes", [])
-        return test
+        tr = TestRun(
+            test,
+            num_nodes=int(test_info.get("num_nodes", 1)),
+            nodes=test_info.get("nodes", []),
+        )
+        return tr
 
     def _parse_dependencies_for_test(
         self,
         section: str,
         test_info: Dict[str, Any],
-        section_tests: Dict[str, Test],
+        section_test_runs: Dict[str, TestRun],
     ) -> Dict[str, TestDependency]:
         """
         Parse and creates TestDependency objects for various types of dependencies, ignoring empty dependencies.
@@ -139,7 +144,7 @@ class TestScenarioParser:
         Args:
             section (str): Section name of the test.
             test_info (Dict[str, Any]): Information of the test.
-            section_tests (Dict[str, Test]): Mapping of section names to Test objects.
+            section_test_runs (Dict[str, TestRun]): Mapping of section names to TestRun objects.
 
         Returns:
             Dict[str, Optional[TestDependency]]: Parsed dependencies for the test.
@@ -150,11 +155,11 @@ class TestScenarioParser:
             if dep_details:  # Check if dep_details is not empty
                 if isinstance(dep_details, dict):
                     dep_section = dep_details.get("name", "")
-                    dep_test = section_tests.get(dep_section)
+                    dep_test = section_test_runs.get(dep_section)
                     if not dep_test:
                         raise ValueError(f"Dependency section '{dep_section}' not found for " f"test '{section}'.")
                     dep_time = dep_details.get("time", 0)
-                    dependencies[dep_type] = TestDependency(test=dep_test, time=dep_time)
+                    dependencies[dep_type] = TestDependency(test=dep_test.test, time=dep_time)
                 else:
                     raise ValueError(f"Invalid format for dependency '{dep_type}' in " f"test '{section}'.")
             # Else, skip if dep_details is empty

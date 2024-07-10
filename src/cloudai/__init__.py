@@ -31,7 +31,7 @@ from ._core.report_generation_strategy import ReportGenerationStrategy
 from ._core.runner import Runner
 from ._core.system import System
 from ._core.test import Test
-from ._core.test_scenario import TestScenario
+from ._core.test_scenario import TestRun, TestScenario
 from ._core.test_template import TestTemplate
 from ._core.test_template_strategy import TestTemplateStrategy
 from .installer.installer import Installer
@@ -164,6 +164,7 @@ __all__ = [
     "Runner",
     "System",
     "Test",
+    "TestRun",
     "TestScenario",
     "TestTemplate",
     "TestTemplateStrategy",
