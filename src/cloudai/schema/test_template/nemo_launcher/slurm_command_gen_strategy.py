@@ -78,10 +78,18 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         full_cmd = f"python {launcher_path}/launcher_scripts/main.py {cmd_args_str}"
 
         if extra_cmd_args:
-            full_cmd += " " + extra_cmd_args
-            if "training.model.tokenizer.model" in extra_cmd_args:
-                tokenizer_path = extra_cmd_args.split("training.model.tokenizer.model=")[1].split(" ")[0]
-                full_cmd += " " + f"container_mounts=[{tokenizer_path}:{tokenizer_path}]"
+            full_cmd += f" {extra_cmd_args}"
+            tokenizer_key = "training.model.tokenizer.model="
+            if tokenizer_key in extra_cmd_args:
+                tokenizer_path = extra_cmd_args.split(tokenizer_key, 1)[1].split(" ", 1)[0]
+                if not os.path.isfile(tokenizer_path):
+                    raise ValueError(
+                        f"The provided tokenizer path '{tokenizer_path}' is not valid. "
+                        "Please review the test schema file to ensure the tokenizer path is correct. "
+                        "If it contains a placeholder value, refer to USER_GUIDE.md to download the tokenizer "
+                        "and update the schema file accordingly."
+                    )
+                full_cmd += f" container_mounts=[{tokenizer_path}:{tokenizer_path}]"
 
         env_vars_str = " ".join(f"{key}={value}" for key, value in final_env_vars.items())
         full_cmd = f"{env_vars_str} {full_cmd}" if env_vars_str else full_cmd
