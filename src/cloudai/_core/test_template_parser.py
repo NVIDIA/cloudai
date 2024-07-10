@@ -172,11 +172,7 @@ class TestTemplateParser(BaseMultiFileParser):
         """
         extracted_args = {}
         for key, value in args.items():
-            # Assume nested dictionaries represent complex arguments
-            if isinstance(value, dict):
-                extracted_args[key] = value
-            else:
-                extracted_args[key] = value
+            extracted_args[key] = value
         return extracted_args
 
     def _validate_args(self, args: Dict[str, Any], arg_type: str) -> None:

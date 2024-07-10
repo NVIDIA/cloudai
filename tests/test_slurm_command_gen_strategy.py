@@ -17,8 +17,8 @@ from pathlib import Path
 from typing import Optional
 
 import pytest
+from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import (
-    REQUIRE_ENV_VARS,
     NeMoLauncherSlurmCommandGenStrategy,
 )
 from cloudai.systems import SlurmSystem
@@ -150,6 +150,15 @@ class TestGenerateSrunCommand__CmdGeneration:
             "--container-mounts=fake_mounts",
         ]
 
+    def test_generate_srun_empty_str(self, strategy_fixture: SlurmCommandGenStrategy):
+        slurm_args = {"image_path": "", "container_mounts": ""}
+        srun_command = strategy_fixture.generate_srun_command(slurm_args, {}, {}, "")
+        assert srun_command == ["srun", f"--mpi={strategy_fixture.slurm_system.mpi}"]
+
+        slurm_args = {"image_path": "fake", "container_mounts": ""}
+        srun_command = strategy_fixture.generate_srun_command(slurm_args, {}, {}, "")
+        assert srun_command == ["srun", f"--mpi={strategy_fixture.slurm_system.mpi}", "--container-image=fake"]
+
     def test_generate_full_srun_command(self, strategy_fixture: SlurmCommandGenStrategy):
         strategy_fixture.generate_srun_command = lambda *_, **__: ["srun", "--test", "test_arg"]
         strategy_fixture.generate_test_command = lambda *_, **__: ["test_command"]
@@ -166,15 +175,8 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
         strategy = NeMoLauncherSlurmCommandGenStrategy(slurm_system, env_vars, cmd_args)
         return strategy
 
-    def test_raises_if_required_env_var_missed(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
-        with pytest.raises(KeyError) as exc_info:
-            nemo_cmd_gen.gen_exec_command(
-                env_vars={}, cmd_args={}, extra_env_vars={}, extra_cmd_args="", output_path="", num_nodes=1, nodes=[]
-            )
-        assert REQUIRE_ENV_VARS[0] in str(exc_info.value)
-
     def test_extra_env_vars_added(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
-        extra_env_vars = {v: "fake" for v in REQUIRE_ENV_VARS}
+        extra_env_vars = {"TEST_VAR_1": "value1", "TEST_VAR_2": "value2"}
         cmd_args = {
             "docker_image_url": "fake",
             "repository_url": "fake",
@@ -193,8 +195,8 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
         for k, v in extra_env_vars.items():
             assert f"{k}={v}" in cmd
 
-    def test_tokenizer_handled(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
-        extra_env_vars = {v: "fake" for v in REQUIRE_ENV_VARS}
+    def test_env_var_escaping(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
+        extra_env_vars = {"TEST_VAR": "value,with,commas"}
         cmd_args = {
             "docker_image_url": "fake",
             "repository_url": "fake",
@@ -204,13 +206,62 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             env_vars={},
             cmd_args=cmd_args,
             extra_env_vars=extra_env_vars,
-            extra_cmd_args="training.model.tokenizer.model=value",
+            extra_cmd_args="",
             output_path="",
             num_nodes=1,
             nodes=[],
         )
 
-        assert "container_mounts=[value:value]" in cmd
+        assert "TEST_VAR=\\'value,with,commas\\'" in cmd
+
+    def test_tokenizer_handled(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, tmp_path: Path):
+        extra_env_vars = {"TEST_VAR_1": "value1"}
+        cmd_args = {
+            "docker_image_url": "fake",
+            "repository_url": "fake",
+            "repository_commit_hash": "fake",
+        }
+        tokenizer_path = tmp_path / "tokenizer"
+        tokenizer_path.touch()
+
+        cmd = nemo_cmd_gen.gen_exec_command(
+            env_vars={},
+            cmd_args=cmd_args,
+            extra_env_vars=extra_env_vars,
+            extra_cmd_args=f"training.model.tokenizer.model={tokenizer_path}",
+            output_path="",
+            num_nodes=1,
+            nodes=[],
+        )
+
+        assert f"container_mounts=[{tokenizer_path}:{tokenizer_path}]" in cmd
+
+    def test_invalid_tokenizer_path(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
+        extra_env_vars = {"TEST_VAR_1": "value1"}
+        cmd_args = {
+            "docker_image_url": "fake",
+            "repository_url": "fake",
+            "repository_commit_hash": "fake",
+        }
+        invalid_tokenizer_path = "/invalid/path/to/tokenizer"
+
+        with pytest.raises(
+            ValueError,
+            match=(
+                r"The provided tokenizer path '/invalid/path/to/tokenizer' is not valid. Please review the test "
+                r"schema file to ensure the tokenizer path is correct. If it contains a placeholder value, refer to "
+                r"USER_GUIDE.md to download the tokenizer and update the schema file accordingly."
+            ),
+        ):
+            nemo_cmd_gen.gen_exec_command(
+                env_vars={},
+                cmd_args=cmd_args,
+                extra_env_vars=extra_env_vars,
+                extra_cmd_args=f"training.model.tokenizer.model={invalid_tokenizer_path}",
+                output_path="",
+                num_nodes=1,
+                nodes=[],
+            )
 
 
 class TestWriteSbatchScript:
@@ -321,3 +372,37 @@ class TestWriteSbatchScript:
 
         self.assert_positional_lines(file_contents.splitlines())
         assert f"--{add_arg}=" not in file_contents
+
+
+class TestNCCLSlurmCommandGen:
+    def get_cmd(self, slurm_system: SlurmSystem, slurm_args: dict, cmd_args: dict) -> str:
+        return NcclTestSlurmCommandGenStrategy(slurm_system, {}, {}).generate_full_srun_command(
+            slurm_args, {}, cmd_args, ""
+        )
+
+    def test_only_mandatory(self, slurm_system: SlurmSystem) -> None:
+        slurm_args = {"image_path": "fake_image_path"}
+        cmd_args = {"subtest_name": "fake_subtest_name"}
+        cmd = self.get_cmd(slurm_system, slurm_args, cmd_args)
+        assert cmd == " \\\n".join(
+            [
+                "srun",
+                f"--mpi={slurm_system.mpi}",
+                f"--container-image={slurm_args['image_path']}",
+                f"/usr/local/bin/{cmd_args['subtest_name']}",
+            ]
+        )
+
+    def test_with_container_mounts(self, slurm_system: SlurmSystem) -> None:
+        slurm_args = {"image_path": "fake_image_path", "container_mounts": "fake_mounts"}
+        cmd_args = {"subtest_name": "fake_subtest_name"}
+        cmd = self.get_cmd(slurm_system, slurm_args, cmd_args)
+        assert cmd == " \\\n".join(
+            [
+                "srun",
+                f"--mpi={slurm_system.mpi}",
+                f"--container-image={slurm_args['image_path']}",
+                f"--container-mounts={slurm_args['container_mounts']}",
+                f"/usr/local/bin/{cmd_args['subtest_name']}",
+            ]
+        )

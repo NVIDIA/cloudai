@@ -79,7 +79,7 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def generate_test_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
     ) -> List[str]:
-        srun_command_parts = []
+        srun_command_parts = [f"/usr/local/bin/{cmd_args['subtest_name']}"]
         nccl_test_args = [
             "nthreads",
             "ngpus",
