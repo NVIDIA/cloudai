@@ -49,7 +49,7 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         job_name_prefix = "chakra_replay"
         slurm_args = self._parse_slurm_args(job_name_prefix, final_env_vars, final_cmd_args, num_nodes, nodes)
-        srun_command = self._generate_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
+        srun_command = self.generate_full_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
         return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, output_path)
 
     def _parse_slurm_args(
@@ -69,18 +69,10 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return base_args
 
-    def _generate_srun_command(
-        self,
-        slurm_args: Dict[str, Any],
-        env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
-        extra_cmd_args: str,
-    ) -> str:
+    def generate_test_command(
+        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
+    ) -> List[str]:
         srun_command_parts = [
-            "srun",
-            f"--mpi={slurm_args['mpi']}",
-            f'--container-image={slurm_args["image_path"]}',
-            f'--container-mounts={slurm_args["container_mounts"]}',
             "python /workspace/param/train/comms/pt/commsTraceReplay.py",
             f'--trace-type {cmd_args["trace_type"]}',
             f'--trace-path {cmd_args["trace_path"]}',
@@ -88,4 +80,4 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f'--device {cmd_args["device"]}',
             extra_cmd_args,
         ]
-        return " \\\n".join(srun_command_parts)
+        return srun_command_parts
