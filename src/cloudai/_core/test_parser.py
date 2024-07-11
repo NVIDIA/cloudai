@@ -16,7 +16,7 @@
 import logging
 import pprint
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List
 
 from pydantic import ValidationError
 
@@ -89,7 +89,7 @@ class TestParser(BaseMultiFileParser):
         except ValidationError as e:
             for err in e.errors():
                 logging.error(pprint.saferepr(err))
-            raise ValueError(f"Failed to parse test definition") from e
+            raise ValueError("Failed to parse test definition") from e
 
         env_vars = {}  # data.get("env_vars", {})     # this field doesn't exist in Test or TestTemplate TOMLs
         """
@@ -100,12 +100,6 @@ class TestParser(BaseMultiFileParser):
         cmd_args = test_def.cmd_args.dict()
         extra_env_vars = test_def.extra_env_vars
         extra_cmd_args = test_def.extra_cmd_args
-
-        # flattened_template_cmd_args = self._flatten_template_dict_keys(test_template.cmd_args)
-        # self._validate_args(cmd_args, flattened_template_cmd_args)
-
-        # flattened_template_env_vars = self._flatten_template_dict_keys(test_template.env_vars)
-        # self._validate_args(env_vars, flattened_template_env_vars)
 
         return Test(
             name=test_def.name,
@@ -128,48 +122,3 @@ class TestParser(BaseMultiFileParser):
             List[str]: List of command-line arguments.
         """
         return cmd_args_str.split() if cmd_args_str else []
-
-    def _flatten_template_dict_keys(self, nested_args: Dict[str, Any], parent_key: str = "") -> Set[str]:
-        """
-        Recursively flattens the nested dictionary structure from the test template.
-
-        Includes keys with 'default' and 'values' as valid keys, while ignoring keys that specifically end with
-        'default' or 'values'.
-
-        Args:
-            nested_args (Dict[str, Any]): Nested argument structure from the test template.
-            parent_key (str): Parent key for nested arguments.
-
-        Returns:
-            Set[str]: Set of all valid argument keys.
-        """
-        keys = set()
-        for k, v in nested_args.items():
-            new_key = f"{parent_key}.{k}" if parent_key else k
-
-            if k in ["type", "values", "default"]:
-                continue
-
-            if isinstance(v, dict):
-                if "default" in v:
-                    keys.add(new_key)
-                keys.update(self._flatten_template_dict_keys(v, new_key))
-            else:
-                keys.add(new_key)
-
-        return keys
-
-    def _validate_args(self, args: Dict[str, Any], valid_keys: Set[str]) -> None:
-        """
-        Validate the provided arguments against a set of valid keys.
-
-        Args:
-            args (Dict[str, Any]): Arguments provided in the TOML configuration.
-            valid_keys (Set[str]): Set of valid keys from the flattened template arguments.
-
-        Raises:
-            ValueError: If an argument is not defined in the TestTemplate's arguments.
-        """
-        for arg_key in args:
-            if arg_key not in valid_keys:
-                raise ValueError(f"Argument '{arg_key}' is not defined in the TestTemplate's arguments.")
