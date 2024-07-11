@@ -13,12 +13,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
+import pprint
 from pathlib import Path
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Optional, Set
+
+from pydantic import ValidationError
 
 from .base_multi_file_parser import BaseMultiFileParser
 from .test import Test
+from .test_definitions import (
+    ChakraReplayTestDefinition,
+    NCCLTestDefinition,
+    NeMoLauncherTestDefinition,
+    SleepTestDefinition,
+    UCCTestDefinition,
+)
 from .test_template import TestTemplate
+
+TEST_DEFINITIONS = {
+    "UCCTest": UCCTestDefinition,
+    "NcclTest": NCCLTestDefinition,
+    "ChakraReplay": ChakraReplayTestDefinition,
+    "Sleep": SleepTestDefinition,
+    "NeMoLauncher": NeMoLauncherTestDefinition,
+}
 
 
 class TestParser(BaseMultiFileParser):
@@ -58,23 +77,38 @@ class TestParser(BaseMultiFileParser):
         """
         test_template_name = data.get("test_template_name", "")
         test_template = self.test_template_mapping.get(test_template_name)
+        logging.debug(f"Content: {data}")
 
         if not test_template:
             raise ValueError(f"TestTemplate with name '{test_template_name}' not found.")
 
-        env_vars = data.get("env_vars", {})
-        cmd_args = data.get("cmd_args", {})
-        extra_env_vars = data.get("extra_env_vars", {})
-        extra_cmd_args = data.get("extra_cmd_args", "")
+        if test_template_name not in TEST_DEFINITIONS:
+            raise NotImplementedError(f"TestTemplate with name '{test_template_name}' not supported.")
+        try:
+            test_def = TEST_DEFINITIONS[test_template_name](**data)
+        except ValidationError as e:
+            for err in e.errors():
+                logging.error(pprint.saferepr(err))
+            raise ValueError(f"Failed to parse test definition") from e
 
-        flattened_template_cmd_args = self._flatten_template_dict_keys(test_template.cmd_args)
-        self._validate_args(cmd_args, flattened_template_cmd_args)
+        env_vars = {}  # data.get("env_vars", {})     # this field doesn't exist in Test or TestTemplate TOMLs
+        """
+        There are:
+        1. global_env_vars, used in System
+        2. extra_env_vars, used in Test
+        """
+        cmd_args = test_def.cmd_args.dict()
+        extra_env_vars = test_def.extra_env_vars
+        extra_cmd_args = test_def.extra_cmd_args
 
-        flattened_template_env_vars = self._flatten_template_dict_keys(test_template.env_vars)
-        self._validate_args(env_vars, flattened_template_env_vars)
+        # flattened_template_cmd_args = self._flatten_template_dict_keys(test_template.cmd_args)
+        # self._validate_args(cmd_args, flattened_template_cmd_args)
+
+        # flattened_template_env_vars = self._flatten_template_dict_keys(test_template.env_vars)
+        # self._validate_args(env_vars, flattened_template_env_vars)
 
         return Test(
-            name=data.get("name", ""),
+            name=test_def.name,
             description=data.get("description", ""),
             test_template=test_template,
             env_vars=env_vars,

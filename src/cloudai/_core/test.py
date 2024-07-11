@@ -21,29 +21,7 @@ from .test_template import TestTemplate
 
 
 class Test:
-    """
-    Represent a test, an instance of a test template with custom arguments, node configuration, and other details.
-
-    Attributes
-        name (str): Unique name of the test.
-        description (str): Description of the test.
-        test_template (TestTemplate): The test template object.
-        env_vars (Dict[str, str]): Environment variables for the test.
-        cmd_args (Dict[str, str]): Arguments for the test.
-        extra_env_vars (Dict[str, str]): Extra environment variables.
-        extra_cmd_args (str): Extra command-line arguments.
-        section_name (str): The section name of the test in the configuration.
-        dependencies (Optional[Dict[str, Optional['TestDependency']]]): Dependencies of the test.
-        iterations (Union[int, str]): Number of iterations to run the test.
-        current_iteration (int): The current iteration count.
-        num_nodes (int): The number of nodes to be used for the test execution.
-        nodes (List[str]): List of nodes involved in the test.
-        sol (Optional[float]): Speed-of-light performance for reference.
-        weight (float): The weight of this test in a test scenario, indicating its relative importance or priority.
-        ideal_perf (float): The ideal performance value for comparison.
-        time_limit (Optional[str]): Time limit for the test specified as a string in "hh:mm:ss" format, or None if no
-            limit.
-    """
+    """Represent a test, an instance of a test template with custom arguments, node configuration, and other details."""
 
     __test__ = False
 
