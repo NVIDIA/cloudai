@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -21,8 +21,6 @@ class CmdArgs(BaseModel):
     """Test command arguments."""
 
     model_config = ConfigDict(extra="forbid")
-
-    pass
 
 
 class TestDefinition(BaseModel):
@@ -33,7 +31,7 @@ class TestDefinition(BaseModel):
     name: str
     description: str
     test_template_name: str
-    cmd_args: CmdArgs
+    cmd_args: Any
     extra_env_vars: dict[str, str] = {}
     extra_cmd_args: str = ""
 
