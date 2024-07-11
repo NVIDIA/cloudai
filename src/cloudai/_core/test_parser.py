@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import logging
-import pprint
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -81,14 +80,14 @@ class TestParser(BaseMultiFileParser):
 
         if not test_template:
             raise ValueError(f"TestTemplate with name '{test_template_name}' not found.")
-
         if test_template_name not in TEST_DEFINITIONS:
             raise NotImplementedError(f"TestTemplate with name '{test_template_name}' not supported.")
+
         try:
             test_def = TEST_DEFINITIONS[test_template_name](**data)
         except ValidationError as e:
             for err in e.errors():
-                logging.error(pprint.saferepr(err))
+                logging.error(err)
             raise ValueError("Failed to parse test definition") from e
 
         env_vars = {}  # data.get("env_vars", {})     # this field doesn't exist in Test or TestTemplate TOMLs
