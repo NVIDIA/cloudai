@@ -19,7 +19,6 @@ from typing import Any, Dict, List
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
 from .slurm_install_strategy import NcclTestSlurmInstallStrategy
-from .template import NcclTest
 
 
 class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -41,8 +40,14 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         env_vars_str = self._format_env_vars(final_env_vars)
 
         subtest_name = final_cmd_args.get("subtest_name")
-        if subtest_name not in NcclTest.SUPPORTED_SUBTESTS:
-            raise KeyError("Subtest name not specified or unsupported.")
+        if subtest_name is None:
+            raise ValueError(
+                "The NCCL test's 'subtest_name' is not provided. Please ensure 'subtest_name' "
+                "is included in the test template schema or the test schema. Valid subtest names "
+                "include: all_reduce_perf_mpi, all_gather_perf_mpi, alltoall_perf_mpi, "
+                "broadcast_perf_mpi, gather_perf_mpi, hypercube_perf_mpi, reduce_perf_mpi, "
+                "reduce_scatter_perf_mpi, scatter_perf_mpi, and sendrecv_perf_mpi."
+            )
 
         slurm_args = self._parse_slurm_args(subtest_name, final_env_vars, final_cmd_args, num_nodes, nodes)
         srun_command = self.generate_full_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)

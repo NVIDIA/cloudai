@@ -17,23 +17,4 @@ from cloudai import TestTemplate
 
 
 class NcclTest(TestTemplate):
-    """
-    Test template for NCCL tests.
-
-    Attributes
-        SUPPORTED_SUBTESTS (List[str]): List of supported subtests for NCCL,
-            including all_reduce_perf_mpi, all_gather_perf_mpi, and others.
-    """
-
-    SUPPORTED_SUBTESTS = [
-        "all_reduce_perf_mpi",
-        "all_gather_perf_mpi",
-        "alltoall_perf_mpi",
-        "broadcast_perf_mpi",
-        "gather_perf_mpi",
-        "hypercube_perf_mpi",
-        "reduce_perf_mpi",
-        "reduce_scatter_perf_mpi",
-        "scatter_perf_mpi",
-        "sendrecv_perf_mpi",
-    ]
+    """Test template for NCCL tests."""
