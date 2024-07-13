@@ -122,7 +122,6 @@ class TestTemplate:
 
     def gen_exec_command(
         self,
-        test_name: str,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
@@ -153,7 +152,6 @@ class TestTemplate:
             nodes = []
         assert self.command_gen_strategy is not None
         return self.command_gen_strategy.gen_exec_command(
-            test_name,
             env_vars,
             cmd_args,
             extra_env_vars,

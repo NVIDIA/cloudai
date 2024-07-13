@@ -79,10 +79,13 @@ class TestParser(BaseMultiFileParser):
         extra_cmd_args = data.get("extra_cmd_args", "")
 
         flattened_template_cmd_args = self._flatten_template_dict_keys(test_template.cmd_args)
-        self._validate_args(cmd_args, flattened_template_cmd_args, test_name)
+
+        # Ensure test_name is not None by providing a default value if necessary
+        test_name_str = test_name if test_name is not None else ""
+        self._validate_args(cmd_args, flattened_template_cmd_args, test_name_str)
 
         flattened_template_env_vars = self._flatten_template_dict_keys(test_template.env_vars)
-        self._validate_args(env_vars, flattened_template_env_vars, test_name)
+        self._validate_args(env_vars, flattened_template_env_vars, test_name_str)
 
         return Test(
             name=data.get("name", ""),

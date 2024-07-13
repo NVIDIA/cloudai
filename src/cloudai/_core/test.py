@@ -139,7 +139,6 @@ class Test:
             self.cmd_args["time_limit"] = self.time_limit
 
         return self.test_template.gen_exec_command(
-            self.name,
             self.env_vars,
             self.cmd_args,
             self.extra_env_vars,

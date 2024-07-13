@@ -16,6 +16,7 @@
 import os
 from typing import Any, Dict, List, Optional
 
+from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
 from .slurm_install_strategy import JaxToolboxSlurmInstallStrategy
@@ -23,10 +24,12 @@ from .slurm_install_strategy import JaxToolboxSlurmInstallStrategy
 
 class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for JaxToolbox tests on Slurm systems."""
+    def __init__(self, system: SlurmSystem, env_vars: Dict[str, Any], cmd_args: Dict[str, Any]) -> None:
+        super().__init__(system, env_vars, cmd_args)
+        self.test_name = ""  
 
     def gen_exec_command(
         self,
-        test_name: str,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
@@ -39,46 +42,51 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         final_env_vars = self._override_env_vars(final_env_vars, extra_env_vars)
         final_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
         final_cmd_args["output_path"] = output_path
-        test_name = self._extract_test_name_key(test_name)
+
+        self.test_name = self._extract_test_name(cmd_args)
 
         key = (
-            f"{test_name}.XLA_FLAGS.combine_threshold_bytes"
-            if test_name in ["Grok", "GPT"]
+            f"{self.test_name}.XLA_FLAGS.combine_threshold_bytes"
+            if self.test_name in ["Grok", "GPT"]
             else "XLA_FLAGS.combine_threshold_bytes"
         )
+        
         combine_threshold_bytes = int(final_cmd_args[key])
         del final_cmd_args[key]
 
         final_env_vars["COMBINE_THRESHOLD"] = f"{combine_threshold_bytes}"
         num_nodes = len(nodes) if nodes else num_nodes
 
-        per_gpu_combine_threshold = int(
-            combine_threshold_bytes / (int(final_cmd_args["common.setup_flags.gpus_per_node"]) * num_nodes)
+        # Replace 'common' with the value of test_name if it is "Grok" or "GPT"
+        setup_flags_key = (
+            f"{self.test_name}.setup_flags.gpus_per_node"
+            if self.test_name in ["Grok", "GPT"]
+            else "common.setup_flags.gpus_per_node"
         )
+        per_gpu_combine_threshold = int(combine_threshold_bytes / (int(final_cmd_args[setup_flags_key]) * num_nodes))
         final_env_vars["PER_GPU_COMBINE_THRESHOLD"] = str(per_gpu_combine_threshold)
 
-        xla_flags = self._format_xla_flags(test_name, final_cmd_args)
+        xla_flags = self._format_xla_flags(final_cmd_args)
         final_env_vars["XLA_FLAGS"] = f'"{xla_flags}"'
 
         env_vars_str = self._format_env_vars(final_env_vars)
 
         slurm_args = self._parse_slurm_args("JaxToolbox", final_env_vars, final_cmd_args, num_nodes, nodes)
-        srun_command = self._generate_srun_command(
-            test_name, slurm_args, final_env_vars, final_cmd_args, extra_cmd_args
-        )
+        srun_command = self._generate_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
         return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, output_path)
 
-    def _extract_test_name_key(self, name: Optional[str]) -> Optional[str]:
-        if name is None:
-            return None
-        lower_name = name.lower()
-        if "grok" in lower_name:
-            return "Grok"
-        elif "gpt" in lower_name:
-            return "GPT"
-        return None
+    def _extract_test_name(self, cmd_args: Dict[str, Any]) -> str:
+        test_name = ""
+        for key in cmd_args:
+            if "." in key:
+                name = key.split(".")[0]
+                if name.lower() == "grok":
+                    test_name = "Grok"
+                elif name.lower() == "gpt":
+                    test_name = "GPT"
+        return test_name
 
-    def _format_xla_flags(self, test_name: str, cmd_args: Dict[str, str]) -> str:
+    def _format_xla_flags(self, cmd_args: Dict[str, str]) -> str:
         """
         Format the XLA_FLAGS environment variable.
 
@@ -95,7 +103,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         xla_flags = []
 
         # Standard flags that are always included
-        '''
+        """
         xla_flags.extend(
             [
                 "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
@@ -103,23 +111,23 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD",
             ]
         )
-        '''
+        """
         xla_flags.extend(
             [
                 "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
                 "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
             ]
         )
-        
+
         # Prefixes for common and test-specific XLA flags
         common_prefix = "common.XLA_FLAGS."
-        test_prefix = f"{test_name}.XLA_FLAGS."
+        test_prefix = f"{self.test_name}.XLA_FLAGS."
 
         for key, value in cmd_args.items():
             # Check if the key starts with either common or test-specific prefix
             if key.startswith(common_prefix) or key.startswith(test_prefix):
                 # Extract the flag name from the key
-                flag_name = key.split('.')[-1]
+                flag_name = key.split(".")[-1]
                 # Check if the flag is 'xla_gpu_simplify_all_fp_conversions'
                 if flag_name.lower() == "xla_gpu_simplify_all_fp_conversions":
                     # For this specific flag, append only the flag name if the value is True
@@ -140,7 +148,12 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         num_nodes: int,
         nodes: List[str],
     ) -> Dict[str, Any]:
-        if not all(k in cmd_args for k in ["common.setup_flags.docker_workspace_dir"]):
+
+        # Determine the key prefix based on test_name
+        key_prefix = f"{self.test_name}" if self.test_name in ["GPT", "Grok"] else "common"
+
+        # Adjusted the key to use the dynamic key_prefix
+        if not all(k in cmd_args for k in [f"{key_prefix}.setup_flags.docker_workspace_dir"]):
             raise ValueError("Required cmd_args keys are missing: docker_workspace_dir")
 
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
@@ -151,7 +164,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ).docker_image_path
 
         local_workspace_dir = os.path.abspath(cmd_args["output_path"])
-        docker_workspace_dir = cmd_args["common.setup_flags.docker_workspace_dir"]
+        # Use the dynamic key_prefix for accessing docker_workspace_dir
+        docker_workspace_dir = cmd_args[f"{key_prefix}.setup_flags.docker_workspace_dir"]
         container_mounts = f"{local_workspace_dir}:{docker_workspace_dir}"
 
         if "pgo_nsys_converter.profile_path" in cmd_args:
@@ -168,13 +182,12 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _generate_srun_command(
         self,
-        test_name: str,
         slurm_args: Dict[str, Any],
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_cmd_args: str,
     ) -> str:
-        self._create_run_script(test_name, slurm_args, env_vars, cmd_args, extra_cmd_args)
+        self._create_run_script(slurm_args, env_vars, cmd_args, extra_cmd_args)
 
         srun_command_parts = [
             "srun",
@@ -191,7 +204,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _create_run_script(
         self,
-        test_name: str,
         slurm_args: Dict[str, Any],
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
@@ -217,35 +229,34 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         def set_xla_flags(profile_enabled: bool):
             """Set the XLA_FLAGS for profiling or performance based on the stage."""
-            
             flags = []
-            
-            '''
+
+            """
             flags = [
                 "xla_gpu_enable_latency_hiding_scheduler",
                 "xla_gpu_enable_async_all_gather",
                 "xla_gpu_enable_async_reduce_scatter",
                 "xla_gpu_enable_async_all_reduce",
             ]
-            '''
+            """
             state = "True" if profile_enabled else "False"
             for flag in flags:
                 cmd_args[f"XLA_FLAGS.{flag}"] = state
 
         # Prepare environment and script content for the 'profile' stage
         set_xla_flags(False)
-        env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(test_name, cmd_args)}"'
-        
-        profile_content = self._script_content("profile", test_name, slurm_args, env_vars, cmd_args, extra_cmd_args)
+        env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args)}"'
+
+        profile_content = self._script_content("profile", slurm_args, env_vars, cmd_args, extra_cmd_args)
 
         # Prepare environment and script content for the 'perf' stage
         set_xla_flags(True)
         cmd_args["XLA_FLAGS.xla_gpu_pgle_profile_file_or_directory_path"] = (
             "/opt/paxml/workspace/pgle_output_profile.pbtxt"
         )
-        env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(test_name, cmd_args)}"'
+        env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args)}"'
 
-        perf_content = self._script_content("perf", test_name, slurm_args, env_vars, cmd_args, extra_cmd_args)
+        perf_content = self._script_content("perf", slurm_args, env_vars, cmd_args, extra_cmd_args)
 
         # Combine both parts into the run script content
         run_script_content = profile_content + perf_content
@@ -260,7 +271,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _script_content(
         self,
         stage: str,
-        test_name: str,
         slurm_args: Dict[str, Any],
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
@@ -285,7 +295,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "",
             self._format_env_vars(env_vars),
             "",
-            self._generate_python_command(stage, test_name, slurm_args, env_vars, cmd_args, extra_cmd_args),
+            self._generate_python_command(stage,slurm_args, env_vars, cmd_args, extra_cmd_args),
             self._create_pgo_nsys_converter_command(stage, cmd_args),
             self._create_nsys_to_sqlite_command(stage, cmd_args),
         ]
@@ -308,18 +318,17 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         # Now combined_fdl_args contains all fdl flags, with test_name.fdl overriding common.fdl where applicable
         return combined_fdl_args
-    
-    def _get_fdl_config_value(self, cmd_args, test_name):
+
+    def _get_fdl_config_value(self, cmd_args):
         # Format the key based on the test_name
-        key = f"{test_name}.fdl_config"
-        
+        key = f"{self.test_name}.fdl_config"
+
         # Access and return the value from cmd_args
         return cmd_args.get(key)
 
     def _generate_python_command(
         self,
         stage: str,
-        test_name: str,
         slurm_args: Dict[str, Any],
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
@@ -343,30 +352,27 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             str: The formatted Python command string to be executed within a
                  SLURM job.
         """
-        combined_fdl_flags_str = self._combine_fdl_flags(cmd_args, test_name)
-        fdl_config = self._get_fdl_config_value(cmd_args, test_name)
+        fdl_config = self._get_fdl_config_value(cmd_args)
         parts = [
             "python3 -u -m paxml.main",
             "--num_hosts=$SLURM_NTASKS",
             "--server_addr=$SLURM_JOB_MASTER_NODE:12345",
             "--host_idx=$SLURM_PROCID",
-            f"--job_log_dir={cmd_args['common.setup_flags.docker_workspace_dir']}",
-            f"--tfds_data_dir={cmd_args['common.setup_flags.tfds_data_dir']}",
-            f"--enable_checkpoint_saving={cmd_args['common.setup_flags.enable_checkpoint_saving']}",
+            f"--job_log_dir={cmd_args[f'{self.test_name}.setup_flags.docker_workspace_dir']}",
+            f"--tfds_data_dir={cmd_args[f'{self.test_name}.setup_flags.tfds_data_dir']}",
+            f"--enable_checkpoint_saving={cmd_args[f'{self.test_name}.setup_flags.enable_checkpoint_saving']}",
             "--multiprocess_gpu",
             "--alsologtostderr",
             f'--fdl_config="{fdl_config}"',
         ]
 
         # Dynamically adding fdl. prefixed arguments
-        fdl_prefix = "fdl."
+        fdl_prefix = f"{self.test_name}.fdl."
         fdl_args = {k[len(fdl_prefix) :]: v for k, v in cmd_args.items() if k.startswith(fdl_prefix)}
         for key, value in fdl_args.items():
             parts.append(f"--fdl.{key.upper()}={value}")
-
         if extra_cmd_args:
             parts.append(extra_cmd_args)
-
         python_command = " \\\n".join(parts)
 
         if stage == "profile":
