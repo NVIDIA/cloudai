@@ -51,6 +51,7 @@ from cloudai.schema.test_template.nemo_launcher.slurm_job_id_retrieval_strategy 
 from cloudai.schema.test_template.nemo_launcher.template import NeMoLauncher
 from cloudai.schema.test_template.sleep.grading_strategy import SleepGradingStrategy
 from cloudai.schema.test_template.sleep.report_generation_strategy import SleepReportGenerationStrategy
+from cloudai.schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from cloudai.schema.test_template.sleep.standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
 from cloudai.schema.test_template.sleep.standalone_install_strategy import SleepStandaloneInstallStrategy
 from cloudai.schema.test_template.sleep.template import Sleep
@@ -84,7 +85,7 @@ def test_runners():
         ((CommandGenStrategy, SlurmSystem, JaxToolbox), JaxToolboxSlurmCommandGenStrategy),
         ((CommandGenStrategy, SlurmSystem, NcclTest), NcclTestSlurmCommandGenStrategy),
         ((CommandGenStrategy, SlurmSystem, NeMoLauncher), NeMoLauncherSlurmCommandGenStrategy),
-        ((CommandGenStrategy, SlurmSystem, Sleep), SleepStandaloneCommandGenStrategy),
+        ((CommandGenStrategy, SlurmSystem, Sleep), SleepSlurmCommandGenStrategy),
         ((CommandGenStrategy, SlurmSystem, UCCTest), UCCTestSlurmCommandGenStrategy),
         ((CommandGenStrategy, StandaloneSystem, Sleep), SleepStandaloneCommandGenStrategy),
         ((GradingStrategy, SlurmSystem, ChakraReplay), ChakraReplayGradingStrategy),
