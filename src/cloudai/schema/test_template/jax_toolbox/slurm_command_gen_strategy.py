@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
@@ -24,9 +24,10 @@ from .slurm_install_strategy import JaxToolboxSlurmInstallStrategy
 
 class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for JaxToolbox tests on Slurm systems."""
+
     def __init__(self, system: SlurmSystem, env_vars: Dict[str, Any], cmd_args: Dict[str, Any]) -> None:
         super().__init__(system, env_vars, cmd_args)
-        self.test_name = ""  
+        self.test_name = ""
 
     def gen_exec_command(
         self,
@@ -50,7 +51,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             if self.test_name in ["Grok", "GPT"]
             else "XLA_FLAGS.combine_threshold_bytes"
         )
-        
+
         combine_threshold_bytes = int(final_cmd_args[key])
         del final_cmd_args[key]
 
@@ -148,7 +149,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         num_nodes: int,
         nodes: List[str],
     ) -> Dict[str, Any]:
-
         # Determine the key prefix based on test_name
         key_prefix = f"{self.test_name}" if self.test_name in ["GPT", "Grok"] else "common"
 
@@ -295,7 +295,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "",
             self._format_env_vars(env_vars),
             "",
-            self._generate_python_command(stage,slurm_args, env_vars, cmd_args, extra_cmd_args),
+            self._generate_python_command(stage, slurm_args, env_vars, cmd_args, extra_cmd_args),
             self._create_pgo_nsys_converter_command(stage, cmd_args),
             self._create_nsys_to_sqlite_command(stage, cmd_args),
         ]
