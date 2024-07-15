@@ -106,6 +106,20 @@ def test_cache_docker_image(mock_check_prerequisites, mock_run, mock_makedirs, m
     result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
     assert not result.success
 
+    # Test caching failure due to disk-related errors
+    mock_isfile.return_value = False
+    mock_run.side_effect = None
+    mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=1, stderr=b"Disk quota exceeded\n")
+    mock_exists.side_effect = [True, True, True, True, True]
+    result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
+    assert not result.success
+    assert "Disk quota exceeded" in result.message
+
+    mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=1, stderr=b"Write error\n")
+    result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
+    assert not result.success
+    assert "Write error" in result.message
+
 
 @patch("os.path.isfile")
 @patch("os.path.exists")
