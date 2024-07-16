@@ -60,7 +60,14 @@ class TestParser(BaseMultiFileParser):
         test_template = self.test_template_mapping.get(test_template_name)
 
         if not test_template:
-            raise ValueError(f"TestTemplate with name '{test_template_name}' not found.")
+            test_name = data.get("name", "Unnamed Test")
+            raise ValueError(
+                f"Test template with name '{test_template_name}' not found for test '{test_name}'. Please ensure the "
+                f"test_template_name field in your test schema file matches one of the available test templates in "
+                f"the provided test template directory. To resolve this issue, you can either add a corresponding "
+                f"test template TOML file for '{test_template_name}' in the directory or remove the test schema file "
+                f"that references this non-existing test template."
+            )
 
         env_vars = data.get("env_vars", {})
         cmd_args = data.get("cmd_args", {})
