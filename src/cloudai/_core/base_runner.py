@@ -287,6 +287,7 @@ class BaseRunner(ABC):
             if self.is_job_completed(job):
                 if self.mode == "dry-run":
                     successful_jobs_count += 1
+                    await self.handle_job_completion(job)
                 else:
                     job_status_result = self.get_job_status(job)
                     if job_status_result.is_successful:

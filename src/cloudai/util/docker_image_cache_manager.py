@@ -250,7 +250,18 @@ class DockerImageCacheManager:
         logging.debug(f"Importing Docker image: {enroot_import_cmd}")
 
         try:
-            p = subprocess.run(enroot_import_cmd, shell=True, check=True, capture_output=True)
+            p = subprocess.run(enroot_import_cmd, shell=True, check=True, capture_output=True, text=True)
+
+            if "Disk quota exceeded" in p.stderr or "Write error" in p.stderr:
+                error_message = (
+                    f"Failed to cache Docker image {docker_image_url}. Command: {enroot_import_cmd}. "
+                    f"Error: '{p.stderr}'\n\n"
+                    "This error indicates a disk-related issue. Please check if the disk is full or not usable. "
+                    "If the disk is full, consider using a different disk or removing unnecessary files."
+                )
+                logging.error(error_message)
+                return DockerImageCacheResult(False, "", error_message)
+
             success_message = f"Docker image cached successfully at {docker_image_path}."
             logging.debug(success_message)
             logging.debug(f"Command used: {enroot_import_cmd}, stdout: {p.stdout}, stderr: {p.stderr}")
