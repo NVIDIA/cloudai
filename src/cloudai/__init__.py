@@ -31,6 +31,13 @@ from ._core.report_generation_strategy import ReportGenerationStrategy
 from ._core.runner import Runner
 from ._core.system import System
 from ._core.test import Test
+from ._core.test_definitions import (
+    ChakraReplayTestDefinition,
+    NCCLTestDefinition,
+    NeMoLauncherTestDefinition,
+    SleepTestDefinition,
+    UCCTestDefinition,
+)
 from ._core.test_scenario import TestScenario
 from ._core.test_template import TestTemplate
 from ._core.test_template_strategy import TestTemplateStrategy
@@ -144,6 +151,12 @@ Registry().add_test_template("UCCTest", UCCTest)
 
 Registry().add_installer("slurm", SlurmInstaller)
 Registry().add_installer("standalone", StandaloneInstaller)
+
+Registry().add_test_definition("UCCTest", UCCTestDefinition)
+Registry().add_test_definition("NcclTest", NCCLTestDefinition)
+Registry().add_test_definition("ChakraReplay", ChakraReplayTestDefinition)
+Registry().add_test_definition("Sleep", SleepTestDefinition)
+Registry().add_test_definition("NeMoLauncher", NeMoLauncherTestDefinition)
 
 __all__ = [
     "BaseInstaller",

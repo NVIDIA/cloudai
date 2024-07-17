@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 import toml
+from cloudai import Registry
 from cloudai._core.test_definitions import (
     ChakraReplayTestDefinition,
     NCCLTestDefinition,
@@ -24,7 +25,6 @@ from cloudai._core.test_definitions import (
     SleepTestDefinition,
     UCCTestDefinition,
 )
-from cloudai._core.test_parser import TEST_DEFINITIONS
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
 ALL_TESTS = list(Path("conf/test").glob("*.toml"))
@@ -51,8 +51,10 @@ def test_toml_files(toml_file: Path):
 def test_all_tests(toml_file: Path):
     with toml_file.open("r") as f:
         toml_dict = toml.load(f)
+
+    registry = Registry()
     template_name = toml_dict["test_template_name"]
-    assert template_name in TEST_DEFINITIONS, f"Unknown test template: {template_name}"
+    assert template_name in registry.test_definitions_map, f"Unknown test template: {template_name}"
 
 
 @pytest.mark.parametrize("toml_file", UCC_TESTS, ids=lambda x: str(x))

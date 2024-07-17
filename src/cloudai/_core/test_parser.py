@@ -20,23 +20,9 @@ from typing import Any, Dict, List
 from pydantic import ValidationError
 
 from .base_multi_file_parser import BaseMultiFileParser
+from .registry import Registry
 from .test import Test
-from .test_definitions import (
-    ChakraReplayTestDefinition,
-    NCCLTestDefinition,
-    NeMoLauncherTestDefinition,
-    SleepTestDefinition,
-    UCCTestDefinition,
-)
 from .test_template import TestTemplate
-
-TEST_DEFINITIONS = {
-    "UCCTest": UCCTestDefinition,
-    "NcclTest": NCCLTestDefinition,
-    "ChakraReplay": ChakraReplayTestDefinition,
-    "Sleep": SleepTestDefinition,
-    "NeMoLauncher": NeMoLauncherTestDefinition,
-}
 
 
 class TestParser(BaseMultiFileParser):
@@ -76,27 +62,28 @@ class TestParser(BaseMultiFileParser):
         """
         test_template_name = data.get("test_template_name", "")
         test_template = self.test_template_mapping.get(test_template_name)
-        logging.debug(f"Content: {data}")
+
+        registry = Registry()
 
         if not test_template:
             raise ValueError(f"TestTemplate with name '{test_template_name}' not found.")
-        if test_template_name not in TEST_DEFINITIONS:
+        if test_template_name not in registry.test_definitions_map:
             raise NotImplementedError(f"TestTemplate with name '{test_template_name}' not supported.")
 
         try:
-            test_def = TEST_DEFINITIONS[test_template_name](**data)
+            test_def = registry.test_definitions_map[test_template_name](**data)
         except ValidationError as e:
             for err in e.errors():
                 logging.error(err)
             raise ValueError("Failed to parse test definition") from e
 
-        env_vars = {}  # data.get("env_vars", {})     # this field doesn't exist in Test or TestTemplate TOMLs
+        env_vars = {}  # this field doesn't exist in Test or TestTemplate TOMLs
         """
         There are:
         1. global_env_vars, used in System
         2. extra_env_vars, used in Test
         """
-        cmd_args = test_def.cmd_args.dict()
+        cmd_args = test_def.cmd_args.model_dump()
         extra_env_vars = test_def.extra_env_vars
         extra_cmd_args = test_def.extra_cmd_args
 

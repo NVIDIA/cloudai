@@ -26,6 +26,8 @@ class CmdArgs(BaseModel):
 class TestDefinition(BaseModel):
     """Base Test object."""
 
+    __test__ = False
+
     model_config = ConfigDict(extra="forbid")
 
     name: str

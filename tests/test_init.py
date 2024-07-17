@@ -22,6 +22,13 @@ from cloudai import (
     Registry,
     ReportGenerationStrategy,
 )
+from cloudai._core.test_definitions import (
+    ChakraReplayTestDefinition,
+    NCCLTestDefinition,
+    NeMoLauncherTestDefinition,
+    SleepTestDefinition,
+    UCCTestDefinition,
+)
 from cloudai.installer.slurm_installer import SlurmInstaller
 from cloudai.installer.standalone_installer import StandaloneInstaller
 from cloudai.schema.test_template.chakra_replay.grading_strategy import ChakraReplayGradingStrategy
@@ -137,3 +144,13 @@ def test_installers():
     assert len(installers) == 2
     assert installers["standalone"] == StandaloneInstaller
     assert installers["slurm"] == SlurmInstaller
+
+
+def test_definitions():
+    test_definitions = Registry().test_definitions_map
+    assert len(test_definitions) == 5
+    assert test_definitions["UCCTest"] == UCCTestDefinition
+    assert test_definitions["NcclTest"] == NCCLTestDefinition
+    assert test_definitions["ChakraReplay"] == ChakraReplayTestDefinition
+    assert test_definitions["Sleep"] == SleepTestDefinition
+    assert test_definitions["NeMoLauncher"] == NeMoLauncherTestDefinition
