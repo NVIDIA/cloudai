@@ -147,6 +147,12 @@ class BaseRunner(ABC):
             return
 
         logging.info("Starting test scenario execution.")
+
+        if self.test_scenario.pre_plugins:
+            logging.info("Running pre-execution plugins.")
+            for plugin in self.test_scenario.pre_plugins:
+                plugin.run()
+
         total_tests = len(self.test_scenario.tests)
         completed_jobs_count = 0
 
@@ -158,6 +164,11 @@ class BaseRunner(ABC):
             await self.check_start_post_init_dependencies()
             completed_jobs_count += await self.monitor_jobs()
             await asyncio.sleep(self.monitor_interval)
+
+        if self.test_scenario.post_plugins:
+            logging.info("Running post-execution plugins.")
+            for plugin in self.test_scenario.post_plugins:
+                plugin.run()
 
     async def submit_test(self, test: Test):
         """

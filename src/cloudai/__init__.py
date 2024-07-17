@@ -27,6 +27,7 @@ from ._core.job_id_retrieval_strategy import JobIdRetrievalStrategy
 from ._core.job_status_result import JobStatusResult
 from ._core.job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from ._core.parser import Parser
+from ._core.plugin import Plugin
 from ._core.registry import Registry
 from ._core.report_generation_strategy import ReportGenerationStrategy
 from ._core.runner import Runner
@@ -160,6 +161,7 @@ __all__ = [
     "JobIdRetrievalError",
     "JobStatusResult",
     "Parser",
+    "Plugin",
     "ReportGenerationStrategy",
     "ReportGenerator",
     "Runner",
