@@ -22,11 +22,11 @@ name = "NeMoLauncher"
 
   [cmd_args.repository_commit_hash]
   type = "str"
-  default = "cf411a9ede3b466677df8ee672bcc6c396e71e1a"
+  default = "599ecfcbbd64fd2de02f2cc093b1610d73854022"
 
   [cmd_args.docker_image_url]
   type = "str"
-  default = "nvcr.io/nvidian/nemofw-training:24.01.01"
+  default = "nvcr.io/nvidia/nemo:24.05.01"
 
   [cmd_args.stages]
   type = "str"
