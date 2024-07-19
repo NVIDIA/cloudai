@@ -36,8 +36,6 @@ class Test:
         dependencies (Optional[Dict[str, Optional['TestDependency']]]): Dependencies of the test.
         iterations (Union[int, str]): Number of iterations to run the test.
         current_iteration (int): The current iteration count.
-        num_nodes (int): The number of nodes to be used for the test execution.
-        nodes (List[str]): List of nodes involved in the test.
         sol (Optional[float]): Speed-of-light performance for reference.
         weight (float): The weight of this test in a test scenario, indicating its relative importance or priority.
         ideal_perf (float): The ideal performance value for comparison.
