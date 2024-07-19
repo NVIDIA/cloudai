@@ -453,8 +453,7 @@ class SlurmSystem(System):
                     "CloudAI uses Slurm commands by default to check the job status. The Slurm daemon can become "
                     "overloaded and unresponsive, causing this error message. CloudAI retries the command multiple "
                     f"times, with a maximum of {retry_threshold} attempts. There is no action required from the user "
-                    "for this warning. Please ensure that the Slurm daemon is running and responsive. If the problem "
-                    "persists, consider increasing the retry threshold."
+                    "for this warning. Please ensure that the Slurm daemon is running and responsive."
                 )
                 continue
 
