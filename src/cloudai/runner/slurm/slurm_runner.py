@@ -63,18 +63,7 @@ class SlurmRunner(BaseRunner):
         logging.info(f"Running test: {tr.test.section_name}")
         job_output_path = self.get_job_output_path(tr.test)
 
-        if tr.time_limit:
-            tr.test.cmd_args["time_limit"] = tr.time_limit
-
-        exec_cmd = tr.test.test_template.gen_exec_command(
-            tr.test.env_vars,
-            tr.test.cmd_args,
-            tr.test.extra_env_vars,
-            tr.test.extra_cmd_args,
-            job_output_path,
-            tr.num_nodes,
-            tr.nodes,
-        )
+        exec_cmd = tr.test.gen_exec_command(job_output_path, tr.time_limit, tr.num_nodes, tr.nodes)
         logging.info(f"Executing command for test {tr.test.section_name}: {exec_cmd}")
         job_id = 0
         if self.mode == "run":

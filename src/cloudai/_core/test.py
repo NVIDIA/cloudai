@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import sys
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from .job_status_result import JobStatusResult
 from .test_template import TestTemplate
@@ -111,6 +111,36 @@ class Test:
             f"extra_cmd_args={self.extra_cmd_args}, "
             f"section_name={self.section_name}, "
             f"dependencies={self.dependencies}, iterations={self.iterations}, "
+        )
+
+    def gen_exec_command(
+        self, output_path: str, time_limit: Optional[str] = None, num_nodes: int = 1, nodes: Optional[List[str]] = None
+    ) -> str:
+        """
+        Generate the command to run this specific test.
+
+        Args:
+            output_path (str): Path to the output directory.
+            time_limit (Optional[str]): Time limit for the test execution.
+            num_nodes (Optional[int]): Number of nodes to be used for the test execution.
+            nodes (Optional[List[str]]): List of nodes involved in the test.
+
+        Returns:
+            str: The command string.
+        """
+        if time_limit is not None:
+            self.cmd_args["time_limit"] = time_limit
+        if not nodes:
+            nodes = []
+
+        return self.test_template.gen_exec_command(
+            self.env_vars,
+            self.cmd_args,
+            self.extra_env_vars,
+            self.extra_cmd_args,
+            output_path,
+            num_nodes,
+            nodes,
         )
 
     def get_job_id(self, stdout: str, stderr: str) -> Optional[int]:

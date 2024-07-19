@@ -49,7 +49,7 @@ class MockTest(Test):
         self.section_name = "Tests.1"
         self.current_iteration = 0
 
-    def gen_exec_command(self, output_path):
+    def gen_exec_command(self, *args, **kwargs):
         return "sbatch mock_script.sh"
 
     def get_job_id(self, stdout, stderr):
