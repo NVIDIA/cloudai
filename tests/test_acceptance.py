@@ -1,5 +1,6 @@
-#
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,8 +27,8 @@ from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm import SlurmNode, SlurmNodeState
 
 SLURM_TEST_SCENARIOS = [
-    {"path": Path("conf/test_scenario/sleep.toml"), "expected_dirs_number": 3, "log_file": "sleep_debug.log"},
-    {"path": Path("conf/test_scenario/ucc_test.toml"), "expected_dirs_number": 1, "log_file": "ucc_test_debug.log"},
+    {"path": Path("conf/test_scenario/sleep.toml"), "expected_dirs_number": 4, "log_file": "sleep_debug.log"},
+    {"path": Path("conf/test_scenario/ucc_test.toml"), "expected_dirs_number": 5, "log_file": "ucc_test_debug.log"},
 ]
 
 

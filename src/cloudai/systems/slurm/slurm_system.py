@@ -1,5 +1,6 @@
-#
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -447,7 +448,13 @@ class SlurmSystem(System):
 
             if "Socket timed out" in stderr or "slurm_load_jobs error" in stderr:
                 retry_count += 1
-                logging.warning(f"Transient error encountered. Retrying... " f"({retry_count}/{retry_threshold})")
+                logging.warning(
+                    f"An error occurred while querying the job status. Retrying... ({retry_count}/{retry_threshold}). "
+                    "CloudAI uses Slurm commands by default to check the job status. The Slurm daemon can become "
+                    "overloaded and unresponsive, causing this error message. CloudAI retries the command multiple "
+                    f"times, with a maximum of {retry_threshold} attempts. There is no action required from the user "
+                    "for this warning. Please ensure that the Slurm daemon is running and responsive."
+                )
                 continue
 
             if stderr:
