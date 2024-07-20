@@ -46,13 +46,13 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         final_cmd_args["output_path"] = output_path
 
         self.test_name = self._extract_test_name(cmd_args)
-     
+
         if self.test_name == "GPT":
             # Define the keys to check for the GPT test
             gpt_keys = [
                 "GPT.XLA_FLAGS.xla_gpu_all_reduce_combine_threshold_bytes",
                 "GPT.XLA_FLAGS.xla_gpu_all_gather_combine_threshold_bytes",
-                "GPT.XLA_FLAGS.xla_gpu_reduce_scatter_combine_threshold_bytes"
+                "GPT.XLA_FLAGS.xla_gpu_reduce_scatter_combine_threshold_bytes",
             ]
             # Find the first key that exists in final_cmd_args
             key = next((k for k in gpt_keys if k in final_cmd_args), None)
@@ -114,14 +114,14 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         xla_flags = []
 
         # Standard flags that are always included
-        if self.test_name=="Grok":
+        if self.test_name == "Grok":
             xla_flags.extend(
                 [
                     "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
                     "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
                 ]
             )
-        elif self.test_name=="GPT":
+        elif self.test_name == "GPT":
             xla_flags.extend(
                 [
                     "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
@@ -295,10 +295,12 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ]
 
         if self.test_name == "Grok":
-            script_lines.extend([
-                self._create_pgo_nsys_converter_command(stage, cmd_args),
-                self._create_nsys_to_sqlite_command(stage, cmd_args),
-            ])
+            script_lines.extend(
+                [
+                    self._create_pgo_nsys_converter_command(stage, cmd_args),
+                    self._create_nsys_to_sqlite_command(stage, cmd_args),
+                ]
+            )
 
         return script_lines
 
