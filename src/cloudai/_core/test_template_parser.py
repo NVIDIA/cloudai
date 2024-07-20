@@ -1,5 +1,6 @@
-#
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -172,11 +173,7 @@ class TestTemplateParser(BaseMultiFileParser):
         """
         extracted_args = {}
         for key, value in args.items():
-            # Assume nested dictionaries represent complex arguments
-            if isinstance(value, dict):
-                extracted_args[key] = value
-            else:
-                extracted_args[key] = value
+            extracted_args[key] = value
         return extracted_args
 
     def _validate_args(self, args: Dict[str, Any], arg_type: str) -> None:

@@ -1,5 +1,6 @@
-#
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,12 +32,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             properties and methods.
     """
 
-    def __init__(
-        self,
-        system: SlurmSystem,
-        env_vars: Dict[str, Any],
-        cmd_args: Dict[str, Any],
-    ) -> None:
+    def __init__(self, system: SlurmSystem, env_vars: Dict[str, Any], cmd_args: Dict[str, Any]) -> None:
         """
         Initialize a new SlurmCommandGenStrategy instance.
 
@@ -125,8 +121,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             slurm_args["account"] = self.slurm_system.account
         if self.slurm_system.distribution:
             slurm_args["distribution"] = self.slurm_system.distribution
-        if self.slurm_system.mpi:
-            slurm_args["mpi"] = self.slurm_system.mpi
         if self.slurm_system.gpus_per_node:
             slurm_args["gpus_per_node"] = self.slurm_system.gpus_per_node
         if self.slurm_system.ntasks_per_node:
@@ -136,27 +130,28 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         return slurm_args
 
-    def _generate_srun_command(
-        self,
-        slurm_args: Dict[str, Any],
-        env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
-        extra_cmd_args: str,
+    def generate_full_srun_command(
+        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
     ) -> str:
-        """
-        Generate the srun command string for executing the test.
+        srun_command_parts = self.generate_srun_command(slurm_args, env_vars, cmd_args, extra_cmd_args)
+        test_command_parts = self.generate_test_command(slurm_args, env_vars, cmd_args, extra_cmd_args)
+        return " \\\n".join(srun_command_parts + test_command_parts)
 
-        Args:
-            slurm_args (Dict[str, Any]): Arguments containing Slurm job settings including image path and container
-                mounts.
-            env_vars (Dict[str, str]): Environment variables.
-            cmd_args (Dict[str, str]): Command-line arguments.
-            extra_cmd_args (str): Additional command-line arguments to be included in the srun command.
+    def generate_srun_command(
+        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
+    ) -> List[str]:
+        srun_command_parts = ["srun", f"--mpi={self.slurm_system.mpi}"]
+        if slurm_args.get("image_path"):
+            srun_command_parts.append(f'--container-image={slurm_args["image_path"]}')
+            if slurm_args.get("container_mounts"):
+                srun_command_parts.append(f'--container-mounts={slurm_args["container_mounts"]}')
 
-        Returns:
-            str: The complete srun command to execute the test.
-        """
-        return ""
+        return srun_command_parts
+
+    def generate_test_command(
+        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
+    ) -> List[str]:
+        return []
 
     def _write_sbatch_script(self, args: Dict[str, Any], env_vars_str: str, srun_command: str, output_path: str) -> str:
         """

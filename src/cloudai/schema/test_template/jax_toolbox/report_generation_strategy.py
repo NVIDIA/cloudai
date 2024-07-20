@@ -1,5 +1,6 @@
-#
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +15,7 @@
 # limitations under the License.
 
 import glob
+import logging
 import os
 import statistics
 from typing import List, Optional
@@ -77,6 +79,13 @@ class JaxToolboxReportGenerationStrategy(ReportGenerationStrategy):
                                 continue  # Skip any lines where conversion fails
 
             times.extend(file_times)
+
+        if len(times) == 0:
+            logging.warning(
+                "JaxToolbox: The number of epochs is not sufficient to generate a report. "
+                "At least 11 epochs are required to ensure accurate performance metrics, "
+                "as the first 10 epochs are ignored due to overhead. Please run the tests for more than 10 epochs."
+            )
 
         return times
 

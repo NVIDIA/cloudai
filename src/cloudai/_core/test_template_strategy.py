@@ -1,5 +1,6 @@
-#
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,8 +33,6 @@ class TestTemplateStrategy:
         cmd_args (Dict[str, Any]): Default command-line arguments.
         default_env_vars (Dict[str, str]): Constructed default environment variables.
         default_cmd_args (Dict[str, str]): Constructed default command-line arguments.
-        final_env_vars (Dict[str, str]): Final environment variables after overrides.
-        final_cmd_args (Dict[str, Any]): Final command-line arguments after overrides.
     """
 
     __test__ = False
@@ -53,8 +52,6 @@ class TestTemplateStrategy:
         self.cmd_args = cmd_args
         self.default_env_vars = self._construct_default_env_vars()
         self.default_cmd_args = self._construct_default_cmd_args()
-        self.final_env_vars = {}
-        self.final_cmd_args = {}
 
     def _construct_default_env_vars(self) -> Dict[str, str]:
         """

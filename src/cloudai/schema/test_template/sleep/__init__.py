@@ -1,5 +1,6 @@
-#
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +16,7 @@
 
 from .grading_strategy import SleepGradingStrategy
 from .report_generation_strategy import SleepReportGenerationStrategy
+from .slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from .standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
 from .standalone_install_strategy import SleepStandaloneInstallStrategy
 from .template import Sleep
@@ -23,6 +25,7 @@ __all__ = [
     "Sleep",
     "SleepStandaloneInstallStrategy",
     "SleepStandaloneCommandGenStrategy",
+    "SleepSlurmCommandGenStrategy",
     "SleepReportGenerationStrategy",
     "SleepGradingStrategy",
 ]

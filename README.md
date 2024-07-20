@@ -68,7 +68,9 @@ Please make sure to use the correct system configuration file that corresponds t
 ```bash
 cloudai\
     --mode install\
-    --system-config conf/system/example_slurm_cluster.toml
+    --system-config conf/system/example_slurm_cluster.toml\
+    --test-templates-dir conf/test_template\
+    --tests-dir conf/tests
 ```
 
 To simulate running experiments without execution, use the dry-run mode:
@@ -76,6 +78,8 @@ To simulate running experiments without execution, use the dry-run mode:
 cloudai\
     --mode dry-run\
     --system-config conf/system/example_slurm_cluster.toml\
+    --test-templates-dir conf/test_template\
+    --tests-dir conf/tests\
     --test-scenario conf/test_scenario/sleep.toml
 ```
 
@@ -84,6 +88,8 @@ To run experiments, execute CloudAI CLI in run mode:
 cloudai\
     --mode run\
     --system-config conf/system/example_slurm_cluster.toml\
+    --test-templates-dir conf/test_template\
+    --tests-dir conf/tests\
     --test-scenario conf/test_scenario/sleep.toml
 ```
 
@@ -92,6 +98,8 @@ To generate reports, execute CloudAI CLI in generate-report mode:
 cloudai\
     --mode generate-report\
     --system-config conf/system/example_slurm_cluster.toml\
+    --test-templates-dir conf/test_template\
+    --tests-dir conf/tests\
     --output-dir /path/to/output_directory
 ```
 In the generate-report mode, use the --output-dir argument to specify a subdirectory under the result directory.
@@ -101,7 +109,9 @@ To uninstall test templates, run CloudAI CLI in uninstall mode:
 ```bash
 cloudai\
     --mode uninstall\
-    --system-config conf/system/example_slurm_cluster.toml
+    --system-config conf/system/example_slurm_cluster.toml\
+    --test-templates-dir conf/test_template\
+    --tests-dir conf/tests
 ```
 
 # Contributing

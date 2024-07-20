@@ -1,5 +1,6 @@
-#
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -207,7 +208,6 @@ def handle_dry_run_and_run(mode: str, system: System, tests: List[Test], test_sc
         system (System): The system object.
         tests (List[Test]): The list of test objects.
         test_scenario (TestScenario): The test scenario object.
-        output_dir (Optional[Path]): The path to the output directory.
     """
     logging.info(f"System Name: {system.name}")
     logging.info(f"Scheduler: {system.scheduler}")
@@ -234,12 +234,6 @@ def handle_dry_run_and_run(mode: str, system: System, tests: List[Test], test_sc
     logging.info(f"All test scenario results stored at: {runner.runner.output_path}")
 
     if mode == "run":
-        logging.info(
-            "All test scenario execution attempts are complete. Please review"
-            " the 'debug.log' file to confirm successful completion or to"
-            " identify any issues."
-        )
-
         generator = ReportGenerator(runner.runner.output_path)
         generator.generate_report(test_scenario)
 
@@ -292,6 +286,12 @@ def main() -> None:
 
         elif args.mode in ["dry-run", "run"]:
             handle_dry_run_and_run(args.mode, system, tests, test_scenario)
+            if args.mode == "run":
+                logging.info(
+                    "All test scenario execution attempts are complete. Please review"
+                    f" the '{args.log_file}' file to confirm successful completion or to"
+                    " identify any issues."
+                )
         elif args.mode == "generate-report":
             if not output_dir:
                 logging.error("Error: --output-dir is required when mode is generate-report.")

@@ -1,5 +1,6 @@
-#
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -72,6 +73,7 @@ from .schema.test_template.nemo_launcher.slurm_job_id_retrieval_strategy import 
 from .schema.test_template.nemo_launcher.template import NeMoLauncher
 from .schema.test_template.sleep.grading_strategy import SleepGradingStrategy
 from .schema.test_template.sleep.report_generation_strategy import SleepReportGenerationStrategy
+from .schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from .schema.test_template.sleep.standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
 from .schema.test_template.sleep.standalone_install_strategy import SleepStandaloneInstallStrategy
 from .schema.test_template.sleep.template import Sleep
@@ -92,7 +94,8 @@ Registry().add_runner("standalone", StandaloneRunner)
 Registry().add_strategy(InstallStrategy, [SlurmSystem], [NcclTest], NcclTestSlurmInstallStrategy)
 Registry().add_strategy(InstallStrategy, [SlurmSystem], [NeMoLauncher], NeMoLauncherSlurmInstallStrategy)
 Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [NcclTest], NcclTestReportGenerationStrategy)
-Registry().add_strategy(CommandGenStrategy, [StandaloneSystem, SlurmSystem], [Sleep], SleepStandaloneCommandGenStrategy)
+Registry().add_strategy(CommandGenStrategy, [StandaloneSystem], [Sleep], SleepStandaloneCommandGenStrategy)
+Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [Sleep], SleepSlurmCommandGenStrategy)
 Registry().add_strategy(InstallStrategy, [SlurmSystem], [JaxToolbox], JaxToolboxSlurmInstallStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [NcclTest], NcclTestGradingStrategy)
 Registry().add_strategy(InstallStrategy, [SlurmSystem], [UCCTest], UCCTestSlurmInstallStrategy)
@@ -112,7 +115,10 @@ Registry().add_strategy(GradingStrategy, [SlurmSystem], [JaxToolbox], JaxToolbox
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [UCCTest], UCCTestGradingStrategy)
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [JaxToolbox], JaxToolboxSlurmCommandGenStrategy)
 Registry().add_strategy(
-    JobIdRetrievalStrategy, [SlurmSystem], [ChakraReplay, JaxToolbox, NcclTest, UCCTest], SlurmJobIdRetrievalStrategy
+    JobIdRetrievalStrategy,
+    [SlurmSystem],
+    [ChakraReplay, JaxToolbox, NcclTest, UCCTest, Sleep],
+    SlurmJobIdRetrievalStrategy,
 )
 Registry().add_strategy(JobIdRetrievalStrategy, [StandaloneSystem], [Sleep], StandaloneJobIdRetrievalStrategy)
 Registry().add_strategy(JobStatusRetrievalStrategy, [StandaloneSystem], [Sleep], DefaultJobStatusRetrievalStrategy)
@@ -121,7 +127,7 @@ Registry().add_strategy(JobStatusRetrievalStrategy, [SlurmSystem], [JaxToolbox],
 Registry().add_strategy(
     JobStatusRetrievalStrategy,
     [SlurmSystem],
-    [ChakraReplay, UCCTest, NeMoLauncher],
+    [ChakraReplay, UCCTest, NeMoLauncher, Sleep],
     DefaultJobStatusRetrievalStrategy,
 )
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [UCCTest], UCCTestSlurmCommandGenStrategy)

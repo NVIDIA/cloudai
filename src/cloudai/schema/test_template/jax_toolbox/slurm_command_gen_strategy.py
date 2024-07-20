@@ -1,5 +1,6 @@
-#
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -82,7 +83,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         env_vars_str = self._format_env_vars(final_env_vars)
 
         slurm_args = self._parse_slurm_args("JaxToolbox", final_env_vars, final_cmd_args, num_nodes, nodes)
-        srun_command = self._generate_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
+        srun_command = self.generate_full_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
         return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, output_path)
 
     def _extract_test_name(self, cmd_args: Dict[str, Any]) -> str:
@@ -189,18 +190,14 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return base_args
 
-    def _generate_srun_command(
-        self,
-        slurm_args: Dict[str, Any],
-        env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
-        extra_cmd_args: str,
+    def generate_full_srun_command(
+        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
     ) -> str:
         self._create_run_script(slurm_args, env_vars, cmd_args, extra_cmd_args)
 
         srun_command_parts = [
             "srun",
-            f"--mpi={slurm_args['mpi']}",
+            f"--mpi={self.slurm_system.mpi}",
             "--export=ALL",
             f"-o {slurm_args['output']}",
             f"-e {slurm_args['error']}",
