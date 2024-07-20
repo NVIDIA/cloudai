@@ -45,12 +45,22 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         final_cmd_args["output_path"] = output_path
 
         self.test_name = self._extract_test_name(cmd_args)
-
-        key = (
-            f"{self.test_name}.XLA_FLAGS.combine_threshold_bytes"
-            if self.test_name in ["Grok", "GPT"]
-            else "XLA_FLAGS.combine_threshold_bytes"
-        )
+     
+        if self.test_name == "GPT":
+            # Define the keys to check for the GPT test
+            gpt_keys = [
+                "GPT.XLA_FLAGS.xla_gpu_all_reduce_combine_threshold_bytes",
+                "GPT.XLA_FLAGS.xla_gpu_all_gather_combine_threshold_bytes",
+                "GPT.XLA_FLAGS.xla_gpu_reduce_scatter_combine_threshold_bytes"
+            ]
+            # Find the first key that exists in final_cmd_args
+            key = next((k for k in gpt_keys if k in final_cmd_args), None)
+            if key is None:
+                raise ValueError("None of the GPT specific keys are found in cmd_args.")
+        elif self.test_name == "Grok":
+            key = f"{self.test_name}.XLA_FLAGS.combine_threshold_bytes"
+        else:
+            key = "XLA_FLAGS.combine_threshold_bytes"
 
         combine_threshold_bytes = int(final_cmd_args[key])
         del final_cmd_args[key]
@@ -58,7 +68,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         final_env_vars["COMBINE_THRESHOLD"] = f"{combine_threshold_bytes}"
         num_nodes = len(nodes) if nodes else num_nodes
 
-        # Replace 'common' with the value of test_name if it is "Grok" or "GPT"
         setup_flags_key = (
             f"{self.test_name}.setup_flags.gpus_per_node"
             if self.test_name in ["Grok", "GPT"]
@@ -104,21 +113,21 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         xla_flags = []
 
         # Standard flags that are always included
-        """
-        xla_flags.extend(
-            [
-                "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
-                "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
-                "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD",
-            ]
-        )
-        """
-        xla_flags.extend(
-            [
-                "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
-                "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
-            ]
-        )
+        if self.test_name=="Grok":
+            xla_flags.extend(
+                [
+                    "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
+                    "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
+                ]
+            )
+        elif self.test_name=="GPT":
+            xla_flags.extend(
+                [
+                    "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
+                    "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
+                    "--xla_gpu_reduce_scatter_combine_threshold_bytes=$COMBINE_THRESHOLD",
+                ]
+            )
 
         # Prefixes for common and test-specific XLA flags
         common_prefix = "common.XLA_FLAGS."
@@ -231,14 +240,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             """Set the XLA_FLAGS for profiling or performance based on the stage."""
             flags = []
 
-            """
-            flags = [
-                "xla_gpu_enable_latency_hiding_scheduler",
-                "xla_gpu_enable_async_all_gather",
-                "xla_gpu_enable_async_reduce_scatter",
-                "xla_gpu_enable_async_all_reduce",
-            ]
-            """
             state = "True" if profile_enabled else "False"
             for flag in flags:
                 cmd_args[f"XLA_FLAGS.{flag}"] = state
@@ -265,7 +266,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         with open(run_script_path, "w") as run_file:
             run_file.write("\n".join(run_script_content))
         os.chmod(run_script_path, 0o755)
-
         return run_script_path
 
     def _script_content(
@@ -281,7 +281,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         Args:
             stage (str): The stage of the process ('profile' or 'perf').
-            test_name (str): The name of the test being run.
             slurm_args (Dict[str, Any]): SLURM job settings.
             env_vars (Dict[str, str]): Environment variables for the job.
             cmd_args (Dict[str, str]): Command-line arguments.
@@ -290,15 +289,21 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         Returns:
             list: Lines of the script for the given stage.
         """
-        return [
+        script_lines = [
             "#!/bin/bash" if stage == "profile" else "",
             "",
             self._format_env_vars(env_vars),
             "",
             self._generate_python_command(stage, slurm_args, env_vars, cmd_args, extra_cmd_args),
-            self._create_pgo_nsys_converter_command(stage, cmd_args),
-            self._create_nsys_to_sqlite_command(stage, cmd_args),
         ]
+
+        if self.test_name == "Grok":
+            script_lines.extend([
+                self._create_pgo_nsys_converter_command(stage, cmd_args),
+                self._create_nsys_to_sqlite_command(stage, cmd_args),
+            ])
+
+        return script_lines
 
     def _combine_fdl_flags(self, cmd_args: Dict[str, str], test_name: str) -> Dict[str, str]:
         combined_fdl_args = {}
