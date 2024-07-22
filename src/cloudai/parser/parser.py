@@ -18,14 +18,16 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from .system import System
-from .system_parser import SystemParser
-from .test import Test
-from .test_parser import TestParser
-from .test_scenario import TestScenario
-from .test_scenario_parser import TestScenarioParser
-from .test_template import TestTemplate
-from .test_template_parser import TestTemplateParser
+from cloudai import (
+    System,
+    SystemParser,
+    Test,
+    TestParser,
+    TestScenario,
+    TestScenarioParser,
+    TestTemplate,
+    TestTemplateParser,
+)
 
 
 class Parser:
