@@ -35,9 +35,9 @@ class Test_Parser:
             parser.parse(tests_dir, None)
         assert "Test path" in str(exc_info.value)
 
-    @patch("cloudai._core.system_parser.SystemParser.parse")
+    # @patch("cloudai._core.system_parser.SystemParser.parse")
     @patch("cloudai._core.test_parser.TestParser.parse_all")
-    def test_no_scenario(self, test_parser: Mock, _, parser: Parser):
+    def test_no_scenario(self, test_parser: Mock, parser: Parser):
         tests_dir = parser.system_config_path.parent / "tests"
         # tests_dir.mkdir()
         fake_tests = []
@@ -51,10 +51,10 @@ class Test_Parser:
         _, tests, _ = parser.parse(tests_dir, None)
         assert len(tests) == 3
 
-    @patch("cloudai._core.system_parser.SystemParser.parse")
+    # @patch("cloudai._core.system_parser.SystemParser.parse")
     @patch("cloudai._core.test_parser.TestParser.parse_all")
     @patch("cloudai._core.test_scenario_parser.TestScenarioParser.parse")
-    def test_scenario_filters_tests(self, test_scenario_parser: Mock, test_parser: Mock, _, parser: Parser):
+    def test_scenario_filters_tests(self, test_scenario_parser: Mock, test_parser: Mock, parser: Parser):
         tests_dir = parser.system_config_path.parent / "tests"
         # tests_dir.mkdir()
         fake_tests = []

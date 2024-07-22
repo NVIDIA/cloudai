@@ -19,11 +19,9 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 import toml
-from pydantic import ValidationError
-
 from cloudai import (
+    Registry,
     System,
-    SystemParser,
     Test,
     TestParser,
     TestScenario,
@@ -31,8 +29,7 @@ from cloudai import (
     TestTemplate,
     TestTemplateParser,
 )
-from cloudai._core.registry import Registry
-from cloudai.systems import StandaloneSystem
+from pydantic import ValidationError
 
 
 class Parser:

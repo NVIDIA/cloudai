@@ -19,7 +19,7 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from cloudai import System
 from cloudai.util import CommandShell
@@ -187,7 +187,7 @@ class SlurmSystem(BaseModel, System):
     partitions: Dict[str, List[SlurmNode]]
     account: Optional[str] = None
     distribution: Optional[str] = None
-    mpi: Optional[str] = None
+    mpi: str = "pmix"
     gpus_per_node: Optional[int] = None
     ntasks_per_node: Optional[int] = None
     cache_docker_images_locally: bool = False
@@ -214,6 +214,7 @@ class SlurmSystem(BaseModel, System):
 
         nodes_dict: Dict[str, SlurmNode] = {}
         updated_partitions: Dict[str, List[SlurmNode]] = {}
+        updated_groups: Dict[str, Dict[str, List[SlurmNode]]] = {}
 
         for pname, pdata in value.items():
             # partition_name = partition_data.get("name")
@@ -242,6 +243,30 @@ class SlurmSystem(BaseModel, System):
                     node.partition = pname
                 partition_nodes.append(node)
             updated_partitions[pname] = partition_nodes
+
+            # groups = pdata.get("groups", {})
+            # updated_groups[pname] = {}
+            # for group_data in groups.values():
+            #     group_name = group_data.get("name")
+            #     if not group_name:
+            #         raise ValueError("Group data does not include a 'name' field.")
+
+            #     raw_nodes = group_data.get("nodes", [])
+            #     group_node_names = set()
+            #     for group in raw_nodes:
+            #         group_node_names.update(set(SlurmSystem.parse_node_list(group)))
+
+            #     group_nodes = []
+            #     for group_node_name in group_node_names:
+            #         if group_node_name in nodes_dict:
+            #             group_nodes.append(nodes_dict[group_node_name])
+            #         else:
+            #             raise ValueError(
+            #                 f"Node '{group_node_name}' in group '{group_name}' not found in partition "
+            #                 "'{pname}' nodes."
+            #             )
+
+            #     updated_groups[pname][group_name] = group_nodes
 
         return updated_partitions
 

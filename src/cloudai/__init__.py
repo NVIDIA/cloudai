@@ -30,7 +30,6 @@ from ._core.registry import Registry
 from ._core.report_generation_strategy import ReportGenerationStrategy
 from ._core.runner import Runner
 from ._core.system import System
-from ._core.system_parser import SystemParser
 from ._core.test import Test
 from ._core.test_parser import TestParser
 from ._core.test_scenario import TestScenario
@@ -42,8 +41,6 @@ from .installer.installer import Installer
 from .installer.slurm_installer import SlurmInstaller
 from .installer.standalone_installer import StandaloneInstaller
 from .parser.parser import Parser
-from .parser.system_parser.slurm_system_parser import SlurmSystemParser
-from .parser.system_parser.standalone_system_parser import StandaloneSystemParser
 from .report_generator import ReportGenerator
 from .runner.slurm.slurm_runner import SlurmRunner
 from .runner.standalone.standalone_runner import StandaloneRunner
@@ -88,9 +85,6 @@ from .schema.test_template.ucc_test.slurm_install_strategy import UCCTestSlurmIn
 from .schema.test_template.ucc_test.template import UCCTest
 from .systems.slurm.slurm_system import SlurmSystem
 from .systems.standalone_system import StandaloneSystem
-
-Registry().add_system_parser("standalone", StandaloneSystemParser)
-Registry().add_system_parser("slurm", SlurmSystemParser)
 
 Registry().add_runner("slurm", SlurmRunner)
 Registry().add_runner("standalone", StandaloneRunner)
@@ -175,7 +169,6 @@ __all__ = [
     "TestScenario",
     "TestTemplate",
     "TestTemplateStrategy",
-    "SystemParser",
     "TestParser",
     "TestScenarioParser",
     "TestTemplateParser",
