@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pytest
 import toml
+from cloudai._core.registry import Registry
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
 
@@ -32,3 +33,27 @@ def test_toml_files(toml_file: Path):
     """
     with toml_file.open("r") as f:
         assert toml.load(f) is not None
+
+
+ALL_SYSTEMS = list(Path("conf/system").glob("*.toml"))
+
+
+@pytest.mark.parametrize("system_file", ALL_SYSTEMS, ids=lambda x: str(x))
+def test_systems(system_file: Path):
+    """
+    Validate the syntax of a system configuration file.
+
+    Args:
+        system_file (Path): The path to the system configuration file to validate.
+    """
+    registry = Registry()
+
+    with system_file.open("r") as f:
+        data = toml.load(f)
+
+    scheduler = data.get("scheduler", "").lower()
+    if scheduler not in registry.systems_map:
+        raise ValueError(f"Unknown scheduler: {scheduler}")
+
+    system = registry.systems_map[scheduler](**data)
+    assert system is not None

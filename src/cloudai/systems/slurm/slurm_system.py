@@ -19,13 +19,15 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 from cloudai import System
 from cloudai.util import CommandShell
 
 from .slurm_node import SlurmNode, SlurmNodeState
 
 
-class SlurmSystem(System):
+class SlurmSystem(BaseModel, System):
     """
     Represents a Slurm system, encapsulating the system's configuration.
 
@@ -49,6 +51,8 @@ class SlurmSystem(System):
             system.
         cmd_shell (CommandShell): An instance of CommandShell for executing system commands.
     """
+
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     def update(self) -> None:
         """
@@ -176,58 +180,123 @@ class SlurmSystem(System):
 
         return ", ".join(formatted_ranges)
 
-    def __init__(
-        self,
-        name: str,
-        install_path: str,
-        output_path: str,
-        default_partition: str,
-        partitions: Dict[str, List[SlurmNode]],
-        account: Optional[str] = None,
-        distribution: Optional[str] = None,
-        mpi: Optional[str] = None,
-        gpus_per_node: Optional[int] = None,
-        ntasks_per_node: Optional[int] = None,
-        cache_docker_images_locally: bool = False,
-        groups: Optional[Dict[str, Dict[str, List[SlurmNode]]]] = None,
-        global_env_vars: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """
-        Initialize a SlurmSystem instance.
+    name: str
+    install_path: str
+    output_path: str
+    default_partition: str
+    partitions: Dict[str, List[SlurmNode]]
+    account: Optional[str] = None
+    distribution: Optional[str] = None
+    mpi: Optional[str] = None
+    gpus_per_node: Optional[int] = None
+    ntasks_per_node: Optional[int] = None
+    cache_docker_images_locally: bool = False
+    groups: Dict[str, Dict[str, List[SlurmNode]]] = {}
+    global_env_vars: Dict[str, Any] = {}
+    scheduler: str = "standalone"
+    monitor_interval: int = 1
+    cmd_shell: CommandShell = CommandShell()
 
-        Args:
-            name (str): Name of the Slurm system.
-            install_path (str): The installation path of CloudAI.
-            output_path (str): Path to the output directory.
-            default_partition (str): Default partition.
-            partitions (Dict[str, List[SlurmNode]]): Partitions in the system.
-            account (Optional[str]): Account name for charging resources used by this job.
-            distribution (Optional[str]): Specifies alternate distribution methods for remote processes.
-            mpi (Optional[str]): Indicates the Process Management Interface (PMI) implementation to be used for
-                inter-process communication.
-            gpus_per_node (Optional[int]): Specifies the number of GPUs available per node.
-            ntasks_per_node (Optional[int]): Specifies the number of tasks that can run concurrently on a single node.
-            cache_docker_images_locally (bool): Whether to cache Docker images locally for the Slurm system.
-            groups (Optional[Dict[str, Dict[str, List[SlurmNode]]]]): Nested mapping of group names to lists of
-                SlurmNodes within partitions, defining the group composition within each partition. Defaults to an
-                empty dictionary if not provided.
-            global_env_vars (Optional[Dict[str, Any]]): Dictionary containing additional configuration settings for
-                the system.
-        """
-        super().__init__(name, "slurm", output_path)
-        self.install_path = install_path
-        self.default_partition = default_partition
-        self.partitions = partitions
-        self.account = account
-        self.distribution = distribution
-        self.mpi = mpi
-        self.gpus_per_node = gpus_per_node
-        self.ntasks_per_node = ntasks_per_node
-        self.cache_docker_images_locally = cache_docker_images_locally
-        self.groups = groups if groups is not None else {}
-        self.global_env_vars = global_env_vars if global_env_vars is not None else {}
-        self.cmd_shell = CommandShell()
-        logging.debug(f"{self.__class__.__name__} initialized")
+    @field_validator("partitions", mode="before")
+    def validate_partitions(cls, value: Any) -> Dict[str, List[SlurmNode]]:
+        if type(value) is dict:
+            is_valid = True
+            for key, val in value.items():
+                if type(key) is not str or type(val) is not list:
+                    is_valid = False
+                    break
+                for item in val:
+                    if not isinstance(item, SlurmNode):
+                        is_valid = False
+                        break
+            if is_valid:
+                return value
+
+        nodes_dict: Dict[str, SlurmNode] = {}
+        updated_partitions: Dict[str, List[SlurmNode]] = {}
+
+        for pname, pdata in value.items():
+            # partition_name = partition_data.get("name")
+            # if not partition_name:
+            #     raise ValueError("Partition data does not include a 'name' field.")
+
+            raw_nodes = pdata.get("nodes", [])
+            node_names = set()
+            for group in raw_nodes:
+                node_names.update(set(SlurmSystem.parse_node_list(group)))
+
+            if not node_names:
+                raise ValueError(f"No valid nodes found in partition '{pname}'")
+
+            partition_nodes = []
+            for node_name in node_names:
+                if node_name not in nodes_dict:
+                    node = SlurmNode(
+                        name=node_name,
+                        partition=pname,
+                        state=SlurmNodeState.UNKNOWN_STATE,
+                    )
+                    nodes_dict[node_name] = node
+                else:
+                    node = nodes_dict[node_name]
+                    node.partition = pname
+                partition_nodes.append(node)
+            updated_partitions[pname] = partition_nodes
+
+        return updated_partitions
+
+    # def __init__(
+    #     self,
+    #     name: str,
+    #     install_path: str,
+    #     output_path: str,
+    #     default_partition: str,
+    #     partitions: Dict[str, List[SlurmNode]],
+    #     account: Optional[str] = None,
+    #     distribution: Optional[str] = None,
+    #     mpi: Optional[str] = None,
+    #     gpus_per_node: Optional[int] = None,
+    #     ntasks_per_node: Optional[int] = None,
+    #     cache_docker_images_locally: bool = False,
+    #     groups: Optional[Dict[str, Dict[str, List[SlurmNode]]]] = None,
+    #     global_env_vars: Optional[Dict[str, Any]] = None,
+    # ) -> None:
+    #     """
+    #     Initialize a SlurmSystem instance.
+
+    #     Args:
+    #         name (str): Name of the Slurm system.
+    #         install_path (str): The installation path of CloudAI.
+    #         output_path (str): Path to the output directory.
+    #         default_partition (str): Default partition.
+    #         partitions (Dict[str, List[SlurmNode]]): Partitions in the system.
+    #         account (Optional[str]): Account name for charging resources used by this job.
+    #         distribution (Optional[str]): Specifies alternate distribution methods for remote processes.
+    #         mpi (Optional[str]): Indicates the Process Management Interface (PMI) implementation to be used for
+    #             inter-process communication.
+    #         gpus_per_node (Optional[int]): Specifies the number of GPUs available per node.
+    #         ntasks_per_node (Optional[int]): Specifies the number of tasks that can run concurrently on a single node.
+    #         cache_docker_images_locally (bool): Whether to cache Docker images locally for the Slurm system.
+    #         groups (Optional[Dict[str, Dict[str, List[SlurmNode]]]]): Nested mapping of group names to lists of
+    #             SlurmNodes within partitions, defining the group composition within each partition. Defaults to an
+    #             empty dictionary if not provided.
+    #         global_env_vars (Optional[Dict[str, Any]]): Dictionary containing additional configuration settings for
+    #             the system.
+    #     """
+    #     super().__init__(name, "slurm", output_path)
+    #     self.install_path = install_path
+    #     self.default_partition = default_partition
+    #     self.partitions = partitions
+    #     self.account = account
+    #     self.distribution = distribution
+    #     self.mpi = mpi
+    #     self.gpus_per_node = gpus_per_node
+    #     self.ntasks_per_node = ntasks_per_node
+    #     self.cache_docker_images_locally = cache_docker_images_locally
+    #     self.groups = groups if groups is not None else {}
+    #     self.global_env_vars = global_env_vars if global_env_vars is not None else {}
+    #     self.cmd_shell = CommandShell()
+    #     logging.debug(f"{self.__class__.__name__} initialized")
 
     def __repr__(self) -> str:
         """

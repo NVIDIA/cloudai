@@ -18,6 +18,9 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+import toml
+from pydantic import ValidationError
+
 from cloudai import (
     System,
     SystemParser,
@@ -28,6 +31,8 @@ from cloudai import (
     TestTemplate,
     TestTemplateParser,
 )
+from cloudai._core.registry import Registry
+from cloudai.systems import StandaloneSystem
 
 
 class Parser:
@@ -67,9 +72,23 @@ class Parser:
         if not test_path.exists():
             raise FileNotFoundError(f"Test path '{test_path}' not found.")
 
-        system_parser = SystemParser(str(self.system_config_path))
-        system = system_parser.parse()
-        logging.debug("Parsed system config")
+        with Path(self.system_config_path).open() as f:
+            logging.debug(f"Opened system config file: {self.system_config_path}")
+            data = toml.load(f)
+            scheduler = data.get("scheduler", "").lower()
+            registry = Registry()
+            if scheduler not in registry.systems_map:
+                raise ValueError(
+                    f"Unsupported system type '{scheduler}'. "
+                    f"Supported types: {', '.join(registry.systems_map.keys())}"
+                )
+
+        try:
+            system = registry.systems_map[scheduler](**data)
+        except ValidationError as e:
+            for err in e.errors():
+                logging.error(err)
+            raise ValueError("Failed to system definition") from e
 
         test_template_parser = TestTemplateParser(system, self.test_template_path)
         test_templates: List[TestTemplate] = test_template_parser.parse_all()

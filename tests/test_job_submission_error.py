@@ -65,8 +65,8 @@ def slurm_system(tmpdir):
     ]
     system = SlurmSystem(
         name="test_system",
-        install_path=tmpdir,
-        output_path=tmpdir,
+        install_path=str(tmpdir),
+        output_path=str(tmpdir),
         default_partition="main",
         partitions={"main": nodes},
     )

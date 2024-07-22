@@ -57,6 +57,7 @@ class Registry(metaclass=Singleton):
     ] = {}
     test_templates_map: Dict[str, Type[TestTemplate]] = {}
     installers_map: Dict[str, Type[BaseInstaller]] = {}
+    systems_map: Dict[str, Type[System]] = {}
 
     def add_system_parser(self, name: str, value: Type[BaseSystemParser]) -> None:
         """
@@ -236,3 +237,33 @@ class Registry(metaclass=Singleton):
         if not issubclass(value, BaseInstaller):
             raise ValueError(f"Invalid installer implementation for '{name}', should be subclass of 'BaseInstaller'.")
         self.installers_map[name] = value
+
+    def add_system(self, name: str, value: Type[System]) -> None:
+        """
+        Add a new system implementation mapping.
+
+        Args:
+            name (str): The name of the system.
+            value (Type[System]): The system implementation.
+
+        Raises:
+            ValueError: If the system implementation already exists.
+        """
+        if name in self.systems_map:
+            raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
+        self.update_system(name, value)
+
+    def update_system(self, name: str, value: Type[System]) -> None:
+        """
+        Create or replace system implementation mapping.
+
+        Args:
+            name (str): The name of the system.
+            value (Type[System]): The system implementation.
+
+        Raises:
+            ValueError: If value is not a subclass of System.
+        """
+        if not issubclass(value, System):
+            raise ValueError(f"Invalid system implementation for '{name}', should be subclass of 'System'.")
+        self.systems_map[name] = value

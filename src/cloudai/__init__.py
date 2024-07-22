@@ -150,6 +150,9 @@ Registry().add_test_template("UCCTest", UCCTest)
 Registry().add_installer("slurm", SlurmInstaller)
 Registry().add_installer("standalone", StandaloneInstaller)
 
+Registry().add_system("slurm", SlurmSystem)
+Registry().add_system("standalone", StandaloneSystem)
+
 __all__ = [
     "BaseInstaller",
     "BaseJob",
