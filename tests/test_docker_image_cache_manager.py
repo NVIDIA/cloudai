@@ -1,5 +1,6 @@
-#
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -89,13 +90,14 @@ def test_cache_docker_image(mock_check_prerequisites, mock_run, mock_makedirs, m
     # Test caching success with subprocess command (removal of default partition keyword)
     mock_isfile.return_value = False
     mock_exists.side_effect = [True, True, True, True, True]  # Ensure all path checks return True
-    mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=0)
+    mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=0, stderr="")
     result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
     mock_run.assert_called_once_with(
         "srun --export=ALL --partition=default enroot import -o /fake/install/path/subdir/image.tar.gz docker://docker.io/hello-world",
         shell=True,
         check=True,
         capture_output=True,
+        text=True,
     )
     assert result.success
     assert result.message == "Docker image cached successfully at /fake/install/path/subdir/image.tar.gz."
@@ -105,6 +107,20 @@ def test_cache_docker_image(mock_check_prerequisites, mock_run, mock_makedirs, m
     mock_run.side_effect = subprocess.CalledProcessError(1, "cmd")
     result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
     assert not result.success
+
+    # Test caching failure due to disk-related errors
+    mock_isfile.return_value = False
+    mock_run.side_effect = None
+    mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=1, stderr="Disk quota exceeded\n")
+    mock_exists.side_effect = [True, True, True, True, True]
+    result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
+    assert not result.success
+    assert "Disk quota exceeded" in result.message
+
+    mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=1, stderr="Write error\n")
+    result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
+    assert not result.success
+    assert "Write error" in result.message
 
 
 @patch("os.path.isfile")

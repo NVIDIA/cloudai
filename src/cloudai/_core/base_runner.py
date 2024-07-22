@@ -1,5 +1,6 @@
-#
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -282,6 +283,7 @@ class BaseRunner(ABC):
             if self.is_job_completed(job):
                 if self.mode == "dry-run":
                     successful_jobs_count += 1
+                    await self.handle_job_completion(job)
                 else:
                     job_status_result = self.get_job_status(job)
                     if job_status_result.is_successful:
