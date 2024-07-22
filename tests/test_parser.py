@@ -36,7 +36,7 @@ class Test_Parser:
 
     @patch("cloudai._core.test_parser.TestParser.parse_all")
     def test_no_scenario(self, test_parser: Mock, parser: Parser):
-        tests_dir = parser.system_config_path.parent / "tests"
+        tests_dir = parser.system_config_path.parent.parent / "test"
         fake_tests = []
         for i in range(3):
             fake_tests.append(Mock())
@@ -51,7 +51,7 @@ class Test_Parser:
     @patch("cloudai._core.test_parser.TestParser.parse_all")
     @patch("cloudai._core.test_scenario_parser.TestScenarioParser.parse")
     def test_scenario_filters_tests(self, test_scenario_parser: Mock, test_parser: Mock, parser: Parser):
-        tests_dir = parser.system_config_path.parent / "tests"
+        tests_dir = parser.system_config_path.parent.parent / "test"
         fake_tests = []
         for i in range(3):
             fake_tests.append(Mock())
