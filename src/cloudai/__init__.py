@@ -40,7 +40,7 @@ from ._core.test_template_strategy import TestTemplateStrategy
 from .installer.installer import Installer
 from .installer.slurm_installer import SlurmInstaller
 from .installer.standalone_installer import StandaloneInstaller
-from .parser.parser import Parser
+from .parser import Parser
 from .report_generator import ReportGenerator
 from .runner.slurm.slurm_runner import SlurmRunner
 from .runner.standalone.standalone_runner import StandaloneRunner
