@@ -244,84 +244,32 @@ class SlurmSystem(BaseModel, System):
                 partition_nodes.append(node)
             updated_partitions[pname] = partition_nodes
 
-            # groups = pdata.get("groups", {})
-            # updated_groups[pname] = {}
-            # for group_data in groups.values():
-            #     group_name = group_data.get("name")
-            #     if not group_name:
-            #         raise ValueError("Group data does not include a 'name' field.")
+            groups = pdata.get("groups", {})
+            updated_groups[pname] = {}
+            for group_data in groups.values():
+                group_name = group_data.get("name")
+                if not group_name:
+                    raise ValueError("Group data does not include a 'name' field.")
 
-            #     raw_nodes = group_data.get("nodes", [])
-            #     group_node_names = set()
-            #     for group in raw_nodes:
-            #         group_node_names.update(set(SlurmSystem.parse_node_list(group)))
+                raw_nodes = group_data.get("nodes", [])
+                group_node_names = set()
+                for group in raw_nodes:
+                    group_node_names.update(set(SlurmSystem.parse_node_list(group)))
 
-            #     group_nodes = []
-            #     for group_node_name in group_node_names:
-            #         if group_node_name in nodes_dict:
-            #             group_nodes.append(nodes_dict[group_node_name])
-            #         else:
-            #             raise ValueError(
-            #                 f"Node '{group_node_name}' in group '{group_name}' not found in partition "
-            #                 "'{pname}' nodes."
-            #             )
+                group_nodes = []
+                for group_node_name in group_node_names:
+                    if group_node_name in nodes_dict:
+                        group_nodes.append(nodes_dict[group_node_name])
+                    else:
+                        raise ValueError(
+                            f"Node '{group_node_name}' in group '{group_name}' not found in partition "
+                            "'{pname}' nodes."
+                        )
 
-            #     updated_groups[pname][group_name] = group_nodes
+                updated_groups[pname][group_name] = group_nodes
+                cls.groups = updated_groups
 
         return updated_partitions
-
-    # def __init__(
-    #     self,
-    #     name: str,
-    #     install_path: str,
-    #     output_path: str,
-    #     default_partition: str,
-    #     partitions: Dict[str, List[SlurmNode]],
-    #     account: Optional[str] = None,
-    #     distribution: Optional[str] = None,
-    #     mpi: Optional[str] = None,
-    #     gpus_per_node: Optional[int] = None,
-    #     ntasks_per_node: Optional[int] = None,
-    #     cache_docker_images_locally: bool = False,
-    #     groups: Optional[Dict[str, Dict[str, List[SlurmNode]]]] = None,
-    #     global_env_vars: Optional[Dict[str, Any]] = None,
-    # ) -> None:
-    #     """
-    #     Initialize a SlurmSystem instance.
-
-    #     Args:
-    #         name (str): Name of the Slurm system.
-    #         install_path (str): The installation path of CloudAI.
-    #         output_path (str): Path to the output directory.
-    #         default_partition (str): Default partition.
-    #         partitions (Dict[str, List[SlurmNode]]): Partitions in the system.
-    #         account (Optional[str]): Account name for charging resources used by this job.
-    #         distribution (Optional[str]): Specifies alternate distribution methods for remote processes.
-    #         mpi (Optional[str]): Indicates the Process Management Interface (PMI) implementation to be used for
-    #             inter-process communication.
-    #         gpus_per_node (Optional[int]): Specifies the number of GPUs available per node.
-    #         ntasks_per_node (Optional[int]): Specifies the number of tasks that can run concurrently on a single node.
-    #         cache_docker_images_locally (bool): Whether to cache Docker images locally for the Slurm system.
-    #         groups (Optional[Dict[str, Dict[str, List[SlurmNode]]]]): Nested mapping of group names to lists of
-    #             SlurmNodes within partitions, defining the group composition within each partition. Defaults to an
-    #             empty dictionary if not provided.
-    #         global_env_vars (Optional[Dict[str, Any]]): Dictionary containing additional configuration settings for
-    #             the system.
-    #     """
-    #     super().__init__(name, "slurm", output_path)
-    #     self.install_path = install_path
-    #     self.default_partition = default_partition
-    #     self.partitions = partitions
-    #     self.account = account
-    #     self.distribution = distribution
-    #     self.mpi = mpi
-    #     self.gpus_per_node = gpus_per_node
-    #     self.ntasks_per_node = ntasks_per_node
-    #     self.cache_docker_images_locally = cache_docker_images_locally
-    #     self.groups = groups if groups is not None else {}
-    #     self.global_env_vars = global_env_vars if global_env_vars is not None else {}
-    #     self.cmd_shell = CommandShell()
-    #     logging.debug(f"{self.__class__.__name__} initialized")
 
     def __repr__(self) -> str:
         """
