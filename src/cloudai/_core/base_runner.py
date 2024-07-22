@@ -198,7 +198,7 @@ class BaseRunner(ABC):
         Returns:
             BaseJob: A BaseJob object
         """
-        return BaseJob
+        pass
 
     async def check_start_post_init_dependencies(self):
         """
