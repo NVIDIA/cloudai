@@ -374,7 +374,7 @@ class BaseRunner(ABC):
         for tr in self.test_scenario.test_runs:
             if tr.test not in self.test_to_job_map:
                 for dep_type, dep in tr.test.dependencies.items():
-                    if dep_type == "start_post_comp" and dep.test == completed_job.test_run:
+                    if dep_type == "start_post_comp" and dep.test == completed_job.test_run.test:
                         task = await self.delayed_submit_test(tr, dep.time)
                         if task:
                             tasks.append(task)
@@ -382,7 +382,7 @@ class BaseRunner(ABC):
         # Handling end_post_comp dependencies
         for test, dependent_job in self.test_to_job_map.items():
             for dep_type, dep in test.dependencies.items():
-                if dep_type == "end_post_comp" and dep.test == completed_job.test_run:
+                if dep_type == "end_post_comp" and dep.test == completed_job.test_run.test:
                     task = await self.delayed_kill_job(dependent_job, dep.time)
                     tasks.append(task)
 

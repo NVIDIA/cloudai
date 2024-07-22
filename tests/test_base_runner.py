@@ -15,10 +15,14 @@
 # limitations under the License.
 
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from cloudai import BaseJob, BaseRunner, System, TestScenario
+from cloudai._core.test import Test, TestDependency
+from cloudai._core.test_scenario import TestRun
+from cloudai.runner.slurm.slurm_runner import SlurmRunner
 
 
 class MockRunner(BaseRunner):
@@ -84,3 +88,41 @@ def test_setup_output_directory_existing_base_path(mock_datetime_now, tmp_path):
 
     assert expected_path.exists()
     assert runner.output_path == str(expected_path)
+
+
+class TestBaseRunner__handle_dependencies:
+    @pytest.fixture
+    def scenario(self) -> TestScenario:
+        t = Mock(spec=Test, section_name="test_section", current_iteration=0)
+        td = Mock(spec=TestDependency, test=t, time=0)
+        t.dependencies = {"start_post_comp": td, "end_post_comp": td}
+        scenario = Mock(
+            spec=TestScenario,
+            test_runs=[Mock(spec=TestRun, test=t, num_nodes=1, nodes=["node1"])],
+        )
+        scenario.name = "test_scenario"
+        return scenario
+
+    @pytest.fixture
+    def runner(self, tmp_path: Path, scenario: TestScenario) -> SlurmRunner:
+        system = Mock(spec=System, output_path=str(tmp_path), monitor_interval=0)
+        runner = SlurmRunner("dry-run", system, scenario)
+        runner.kill_job = Mock()
+        return runner
+
+    @pytest.mark.asyncio
+    async def test_start_post_comp(self, scenario: TestScenario, runner: SlurmRunner) -> None:
+        job = Mock(spec=BaseJob, test_run=scenario.test_runs[0])
+        assert len(runner.jobs) == 0
+        _ = await runner.handle_dependencies(job)
+        assert len(runner.jobs) == 1
+
+    @pytest.mark.asyncio
+    async def test_end_post_comp(self, scenario: TestScenario, runner: SlurmRunner) -> None:
+        job = Mock(spec=BaseJob, test_run=scenario.test_runs[0], id=1)
+        assert len(runner.jobs) == 0
+        runner.test_to_job_map = {scenario.test_runs[0].test: job}
+
+        _ = await runner.handle_dependencies(job)
+
+        runner.kill_job.assert_called_once_with(job)  # type: ignore
