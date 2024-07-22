@@ -113,18 +113,6 @@ class SlurmNode(BaseModel):
     state: SlurmNodeState
     user: str = "N/A"
 
-    # def __init__(
-    #     self,
-    #     name: str,
-    #     partition: str,
-    #     state: SlurmNodeState,
-    #     user: str = "N/A",
-    # ) -> None:
-    #     self.name = name
-    #     self.partition = partition
-    #     self.state = state
-    #     self.user = user
-
     def allocatable(self, free_only: bool = True) -> bool:
         """
         Determine if the node is allocatable based on its state.

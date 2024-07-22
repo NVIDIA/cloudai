@@ -212,6 +212,12 @@ class SlurmSystem(BaseModel, System):
             if is_valid:
                 return value
 
+        updated_partitions = cls.parse_partitions(value)
+
+        return updated_partitions
+
+    @classmethod
+    def parse_partitions(cls, value):
         nodes_dict: Dict[str, SlurmNode] = {}
         updated_partitions: Dict[str, List[SlurmNode]] = {}
         updated_groups: Dict[str, Dict[str, List[SlurmNode]]] = {}
@@ -259,7 +265,6 @@ class SlurmSystem(BaseModel, System):
 
                 updated_groups[pname][gname] = group_nodes
                 cls.groups = updated_groups
-
         return updated_partitions
 
     def __repr__(self) -> str:
