@@ -15,10 +15,12 @@
 # limitations under the License.
 
 from pathlib import Path
+from typing import cast
 from unittest.mock import Mock, patch
 
 import pytest
 from cloudai import Parser
+from cloudai.systems.slurm.slurm_system import SlurmSystem
 
 
 class Test_Parser:
@@ -63,3 +65,13 @@ class Test_Parser:
         test_scenario_parser.return_value = fake_scenario
         _, tests, _ = parser.parse(tests_dir, Path())
         assert len(tests) == 1
+
+    def test_parse_system(self, parser: Parser):
+        parser.system_config_path = Path("conf/system/example_slurm_cluster.toml")
+        system = cast(SlurmSystem, parser.parse_system())
+
+        assert len(system.partitions) == 2
+        assert "partition_1" in system.partitions
+        assert "partition_2" in system.partitions
+
+        assert len(system.groups) == 2

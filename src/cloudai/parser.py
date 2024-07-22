@@ -95,14 +95,14 @@ class Parser:
         return system, filtered_tests, test_scenario
 
     def parse_system(self) -> System:
+        registry = Registry()
         with Path(self.system_config_path).open() as f:
             logging.debug(f"Opened system config file: {self.system_config_path}")
             data = toml.load(f)
             scheduler = data.get("scheduler", "").lower()
-            registry = Registry()
             if scheduler not in registry.systems_map:
                 raise ValueError(
-                    f"Unsupported system type '{scheduler}'. "
+                    f"Unsupported system type '{scheduler}' in {self.system_config_path}. "
                     f"Supported types: {', '.join(registry.systems_map.keys())}"
                 )
 
@@ -112,4 +112,5 @@ class Parser:
             for err in e.errors():
                 logging.error(err)
             raise ValueError("Failed to parse system definition") from e
+
         return system
