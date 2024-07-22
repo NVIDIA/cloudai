@@ -199,10 +199,10 @@ class SlurmSystem(BaseModel, System):
 
     @field_validator("partitions", mode="before")
     def validate_partitions(cls, value: Any) -> Dict[str, List[SlurmNode]]:
-        if type(value) is dict:
+        if isinstance(value, dict):
             is_valid = True
             for key, val in value.items():
-                if type(key) is not str or type(val) is not list:
+                if not isinstance(key, str) or not isinstance(val, list):
                     is_valid = False
                     break
                 for item in val:
