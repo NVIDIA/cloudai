@@ -217,10 +217,6 @@ class SlurmSystem(BaseModel, System):
         updated_groups: Dict[str, Dict[str, List[SlurmNode]]] = {}
 
         for pname, pdata in value.items():
-            # partition_name = partition_data.get("name")
-            # if not partition_name:
-            #     raise ValueError("Partition data does not include a 'name' field.")
-
             raw_nodes = pdata.get("nodes", [])
             node_names = set()
             for group in raw_nodes:
@@ -246,12 +242,8 @@ class SlurmSystem(BaseModel, System):
 
             groups = pdata.get("groups", {})
             updated_groups[pname] = {}
-            for group_data in groups.values():
-                group_name = group_data.get("name")
-                if not group_name:
-                    raise ValueError("Group data does not include a 'name' field.")
-
-                raw_nodes = group_data.get("nodes", [])
+            for gname, gdata in groups.items():
+                raw_nodes = gdata.get("nodes", [])
                 group_node_names = set()
                 for group in raw_nodes:
                     group_node_names.update(set(SlurmSystem.parse_node_list(group)))
@@ -262,11 +254,10 @@ class SlurmSystem(BaseModel, System):
                         group_nodes.append(nodes_dict[group_node_name])
                     else:
                         raise ValueError(
-                            f"Node '{group_node_name}' in group '{group_name}' not found in partition "
-                            "'{pname}' nodes."
+                            f"Node '{group_node_name}' in group '{gname}' not found in partition " "'{pname}' nodes."
                         )
 
-                updated_groups[pname][group_name] = group_nodes
+                updated_groups[pname][gname] = group_nodes
                 cls.groups = updated_groups
 
         return updated_partitions
