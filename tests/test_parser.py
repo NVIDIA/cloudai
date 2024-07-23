@@ -75,3 +75,23 @@ class Test_Parser:
         assert "partition_2" in system.partitions
 
         assert len(system.groups) == 2
+        assert "partition_1" in system.groups
+        assert "partition_2" in system.groups
+
+        # checking number of nodes in each partition
+        assert len(system.partitions["partition_1"]) == 100
+        assert len(system.partitions["partition_2"]) == 100
+
+        # checking groups
+        assert len(system.groups["partition_2"]) == 0
+        assert len(system.groups["partition_1"]) == 4
+        assert "group_1" in system.groups["partition_1"]
+        assert "group_2" in system.groups["partition_1"]
+        assert "group_3" in system.groups["partition_1"]
+        assert "group_4" in system.groups["partition_1"]
+
+        # checking number of nodes in each group
+        assert len(system.groups["partition_1"]["group_1"]) == 25
+        assert len(system.groups["partition_1"]["group_2"]) == 25
+        assert len(system.groups["partition_1"]["group_3"]) == 25
+        assert len(system.groups["partition_1"]["group_4"]) == 25

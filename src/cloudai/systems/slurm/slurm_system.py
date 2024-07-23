@@ -54,6 +54,23 @@ class SlurmSystem(BaseModel, System):
 
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
+    name: str
+    install_path: str
+    output_path: str
+    default_partition: str
+    partitions: Dict[str, List[SlurmNode]]
+    account: Optional[str] = None
+    distribution: Optional[str] = None
+    mpi: str = "pmix"
+    gpus_per_node: Optional[int] = None
+    ntasks_per_node: Optional[int] = None
+    cache_docker_images_locally: bool = False
+    groups: Dict[str, Dict[str, List[SlurmNode]]] = {}
+    global_env_vars: Dict[str, Any] = {}
+    scheduler: str = "standalone"
+    monitor_interval: int = 1
+    cmd_shell: CommandShell = CommandShell()
+
     def update(self) -> None:
         """
         Update the system object for a SLURM system.
@@ -179,23 +196,6 @@ class SlurmSystem(BaseModel, System):
             formatted_ranges.append(f"{prefix}{range_str}")
 
         return ", ".join(formatted_ranges)
-
-    name: str
-    install_path: str
-    output_path: str
-    default_partition: str
-    partitions: Dict[str, List[SlurmNode]]
-    account: Optional[str] = None
-    distribution: Optional[str] = None
-    mpi: str = "pmix"
-    gpus_per_node: Optional[int] = None
-    ntasks_per_node: Optional[int] = None
-    cache_docker_images_locally: bool = False
-    groups: Dict[str, Dict[str, List[SlurmNode]]] = {}
-    global_env_vars: Dict[str, Any] = {}
-    scheduler: str = "standalone"
-    monitor_interval: int = 1
-    cmd_shell: CommandShell = CommandShell()
 
     @field_validator("partitions", mode="before")
     def validate_partitions(cls, value: Any) -> Dict[str, List[SlurmNode]]:
