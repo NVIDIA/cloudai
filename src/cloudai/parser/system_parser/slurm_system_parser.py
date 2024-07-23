@@ -158,4 +158,5 @@ class SlurmSystemParser(BaseSystemParser):
             cache_docker_images_locally=cache_docker_images_locally,
             groups=updated_groups,
             global_env_vars=global_env_vars,
+            extra_srun_args=data.get("extra_srun_args"),
         )
