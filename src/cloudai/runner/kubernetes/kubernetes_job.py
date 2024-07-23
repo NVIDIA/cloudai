@@ -14,12 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .kubernetes.kubernetes_system import KubernetesSystem
-from .slurm.slurm_system import SlurmSystem
-from .standalone_system import StandaloneSystem
+from cloudai import BaseJob
 
-__all__ = [
-    "KubernetesSystem",
-    "SlurmSystem",
-    "StandaloneSystem",
-]
+
+class KubernetesJob(BaseJob):
+    """Represents a job in a Kubernetes environment."""
+
+    pass
