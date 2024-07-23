@@ -14,39 +14,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pydantic import BaseModel, ConfigDict
+
 from cloudai import System
 
 
-class StandaloneSystem(System):
+class StandaloneSystem(BaseModel, System):
     """
     Class representing a Standalone system.
 
-    This class is used for systems that execute commands directly without
-    a job scheduler.
-
-    Attributes
-        name (str): Name of the standalone system.
-        output_path (str): Path to the output directory.
+    This class is used for systems that execute commands directly without a job scheduler.
     """
 
-    def __init__(self, name: str, output_path: str) -> None:
-        """
-        Initialize a StandaloneSystem instance.
+    model_config = ConfigDict(extra="forbid")
 
-        Args:
-            name (str): Name of the standalone system.
-            output_path (str): Path to the output directory.
-        """
-        super().__init__(name, "standalone", output_path)
-
-    def __repr__(self) -> str:
-        """
-        Provide a string representation of the StandaloneSystem instance.
-
-        Returns
-            str: String representation of the standalone system.
-        """
-        return f"StandaloneSystem(name={self.name}, " f"scheduler={self.scheduler})"
+    name: str
+    install_path: str
+    output_path: str
+    scheduler: str = "standalone"
+    monitor_interval: int = 1
 
     def update(self) -> None:
         pass

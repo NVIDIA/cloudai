@@ -15,10 +15,12 @@
 # limitations under the License.
 
 from .slurm_node import SlurmNode, SlurmNodeState
-from .slurm_system import SlurmSystem
+from .slurm_system import SlurmGroup, SlurmPartition, SlurmSystem
 
 __all__ = [
+    "SlurmGroup",
     "SlurmNode",
     "SlurmNodeState",
+    "SlurmPartition",
     "SlurmSystem",
 ]

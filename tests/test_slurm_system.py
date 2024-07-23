@@ -19,24 +19,8 @@ from unittest.mock import patch
 
 import pytest
 from cloudai.systems import SlurmSystem
-from cloudai.systems.slurm import SlurmNode, SlurmNodeState
-
-
-@pytest.fixture
-def slurm_system():
-    nodes = [SlurmNode(name=f"node-0{i}", partition="main", state=SlurmNodeState.UNKNOWN_STATE) for i in range(33, 65)]
-    backup_nodes = [
-        SlurmNode(name=f"node0{i}", partition="backup", state=SlurmNodeState.UNKNOWN_STATE) for i in range(1, 9)
-    ]
-
-    system = SlurmSystem(
-        name="test_system",
-        install_path="/fake/path",
-        output_path="/fake/output",
-        default_partition="main",
-        partitions={"main": nodes, "backup": backup_nodes},
-    )
-    return system
+from cloudai.systems.slurm import SlurmNodeState
+from cloudai.systems.slurm.slurm_system import parse_node_list
 
 
 def test_parse_squeue_output(slurm_system):
@@ -56,7 +40,7 @@ def test_parse_squeue_output_with_node_ranges_and_root_user(slurm_system):
     assert user_map == expected_map, "All nodes should be mapped to 'root'"
 
 
-def test_parse_sinfo_output(slurm_system):
+def test_parse_sinfo_output(slurm_system: SlurmSystem) -> None:
     sinfo_output = """PARTITION AVAIL  TIMELIMIT  NODES  STATE NODELIST
     main    up    3:00:00      1  inval node-036
     main    up    3:00:00      5  drain node-[045-046,059,061-062]
@@ -89,7 +73,10 @@ def test_parse_sinfo_output(slurm_system):
     inval_nodes = set(["node-036"])
     drain_nodes = set(["node-045", "node-046", "node-059", "node-061", "node-062"])
     resv_nodes = set(["node-034", "node-035"])
-    for node in slurm_system.partitions["main"]:
+
+    parts_by_name = {part.name: part for part in slurm_system.partitions}
+
+    for node in parts_by_name["main"].slurm_nodes:
         if node.name in inval_nodes:
             assert node.state == SlurmNodeState.INVALID_REGISTRATION
         elif node.name in drain_nodes:
@@ -97,9 +84,8 @@ def test_parse_sinfo_output(slurm_system):
         elif node.name in resv_nodes:
             assert node.state == SlurmNodeState.RESERVED
         else:
-            print("node :", node)
             assert node.state == SlurmNodeState.ALLOCATED
-    for node in slurm_system.partitions["backup"]:
+    for node in parts_by_name["backup"].slurm_nodes:
         assert node.state == SlurmNodeState.IDLE
 
 
@@ -109,8 +95,10 @@ def test_update_node_states_with_mocked_outputs(mock_get_sinfo, mock_get_squeue,
     mock_get_squeue.return_value = "node-115|user1"
     mock_get_sinfo.return_value = "PARTITION AVAIL TIMELIMIT NODES STATE NODELIST\n" "main up infinite 1 idle node-115"
 
+    parts_by_name = {part.name: part for part in slurm_system.partitions}
+
     slurm_system.update_node_states()
-    for node in slurm_system.partitions["main"]:
+    for node in parts_by_name["main"].slurm_nodes:
         if node.name == "node-115":
             assert node.state == SlurmNodeState.IDLE
             assert node.user == "user1"
@@ -121,7 +109,7 @@ def test_update_node_states_with_mocked_outputs(mock_get_sinfo, mock_get_squeue,
     )
 
     slurm_system.update_node_states()
-    for node in slurm_system.partitions["backup"]:
+    for node in parts_by_name["backup"].slurm_nodes:
         if node.name == "node01":
             assert node.state == SlurmNodeState.ALLOCATED
             assert node.user == "root"
@@ -151,6 +139,6 @@ def test_update_node_states_with_mocked_outputs(mock_get_sinfo, mock_get_squeue,
         ),
     ],
 )
-def test_parse_node_list(node_list: str, expected_parsed_node_list: List[str], slurm_system):
-    parsed_node_list = slurm_system.parse_node_list(node_list)
+def test_parse_node_list(node_list: str, expected_parsed_node_list: List[str]):
+    parsed_node_list = parse_node_list(node_list)
     assert parsed_node_list == expected_parsed_node_list

@@ -16,6 +16,8 @@
 
 from enum import Enum
 
+from pydantic import BaseModel, ConfigDict
+
 
 class SlurmNodeState(Enum):
     """
@@ -94,7 +96,7 @@ class SlurmNodeState(Enum):
     UNKNOWN_STATE = "UNKNOWN"
 
 
-class SlurmNode:
+class SlurmNode(BaseModel):
     """
     Represents a Slurm compute node with detailed state and partition info.
 
@@ -105,17 +107,11 @@ class SlurmNode:
         user (str): The name of the user currently using the node. Defaults to N/A if the node is not being used.
     """
 
-    def __init__(
-        self,
-        name: str,
-        partition: str,
-        state: SlurmNodeState,
-        user: str = "N/A",
-    ) -> None:
-        self.name = name
-        self.partition = partition
-        self.state = state
-        self.user = user
+    model_config = ConfigDict(extra="forbid")
+    name: str
+    partition: str
+    state: SlurmNodeState
+    user: str = "N/A"
 
     def allocatable(self, free_only: bool = True) -> bool:
         """
