@@ -71,16 +71,17 @@ class Test_Parser:
         system = cast(SlurmSystem, parser.parse_system())
 
         assert len(system.partitions) == 2
-        assert "partition_1" in system.partitions
-        assert "partition_2" in system.partitions
+        names = [partition.name for partition in system.partitions]
+        assert "partition_1" in names
+        assert "partition_2" in names
 
         assert len(system.groups) == 2
         assert "partition_1" in system.groups
         assert "partition_2" in system.groups
 
         # checking number of nodes in each partition
-        assert len(system.partitions["partition_1"]) == 100
-        assert len(system.partitions["partition_2"]) == 100
+        assert len(system.partitions[0].slurm_nodes) == 100
+        assert len(system.partitions[1].slurm_nodes) == 100
 
         # checking groups
         assert len(system.groups["partition_2"]) == 0

@@ -19,12 +19,82 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict
 
 from cloudai import System
 from cloudai.util import CommandShell
 
 from .slurm_node import SlurmNode, SlurmNodeState
+
+
+def parse_node_list(node_list: str) -> List[str]:
+    """
+    Expand a list of node names (with ranges) into a flat list of individual node names, keeping leading zeroes.
+
+    Args:
+        node_list (str): A list of node names, possibly including ranges.
+
+    Returns:
+        List[str]: A flat list of expanded node names with preserved zeroes.
+    """
+    node_list = node_list.strip()
+    nodes = []
+    if not node_list:
+        return []
+
+    components = re.split(r",\s*(?![^[]*\])", node_list)
+    for component in components:
+        if "[" not in component:
+            nodes.append(component)
+        else:
+            header, node_number = component.split("[")
+            node_number = node_number.replace("]", "")
+            ranges = node_number.split(",")
+            for r in ranges:
+                if "-" in r:
+                    start_node, end_node = r.split("-")
+                    number_of_digits = len(end_node)
+                    nodes.extend(
+                        [f"{header}{str(i).zfill(number_of_digits)}" for i in range(int(start_node), int(end_node) + 1)]
+                    )
+                else:
+                    nodes.append(f"{header}{r}")
+
+    return nodes
+
+
+class SlurmGroup(BaseModel):
+    """Represents a group of nodes within a partition."""
+
+    model_config = ConfigDict(extra="forbid")
+    name: str
+    nodes: List[str]
+
+
+class SlurmPartition(BaseModel):
+    """Represents a partition within a Slurm system."""
+
+    model_config = ConfigDict(extra="forbid")
+    name: str
+    nodes: List[str]
+    groups: List[SlurmGroup] = []
+
+    _slurm_nodes: List[SlurmNode] = []
+
+    @property
+    def slurm_nodes(self) -> List[SlurmNode]:
+        if self._slurm_nodes:
+            return self._slurm_nodes
+
+        node_names = set()
+        for nodes_list in self.nodes:
+            node_names.update(set(parse_node_list(nodes_list)))
+
+        self._slurm_nodes = [
+            SlurmNode(name=node_name, partition=self.name, state=SlurmNodeState.UNKNOWN_STATE)
+            for node_name in node_names
+        ]
+        return self._slurm_nodes
 
 
 class SlurmSystem(BaseModel, System):
@@ -58,18 +128,30 @@ class SlurmSystem(BaseModel, System):
     install_path: str
     output_path: str
     default_partition: str
-    partitions: Dict[str, List[SlurmNode]]
+    partitions: List[SlurmPartition]
     account: Optional[str] = None
     distribution: Optional[str] = None
     mpi: str = "pmix"
     gpus_per_node: Optional[int] = None
     ntasks_per_node: Optional[int] = None
     cache_docker_images_locally: bool = False
-    groups: Dict[str, Dict[str, List[SlurmNode]]] = {}
     global_env_vars: Dict[str, Any] = {}
     scheduler: str = "standalone"
     monitor_interval: int = 1
     cmd_shell: CommandShell = CommandShell()
+
+    @property
+    def groups(self) -> Dict[str, Dict[str, List[SlurmNode]]]:
+        groups: Dict[str, Dict[str, List[SlurmNode]]] = {}
+        for part in self.partitions:
+            groups[part.name] = {}
+            for group in part.groups:
+                node_names = set()
+                for group_nodes in group.nodes:
+                    node_names.update(set(parse_node_list(group_nodes)))
+                groups[part.name][group.name] = [node for node in part.slurm_nodes if node.name in node_names]
+
+        return groups
 
     def update(self) -> None:
         """
@@ -80,45 +162,6 @@ class SlurmSystem(BaseModel, System):
         each node.
         """
         self.update_node_states()
-
-    @classmethod
-    def parse_node_list(cls, node_list: str) -> List[str]:
-        """
-        Expand a list of node names (with ranges) into a flat list of individual node names, keeping leading zeroes.
-
-        Args:
-            node_list (str): A list of node names, possibly including ranges.
-
-        Returns:
-            List[str]: A flat list of expanded node names with preserved zeroes.
-        """
-        node_list = node_list.strip()
-        nodes = []
-        if not node_list:
-            return []
-
-        components = re.split(r",\s*(?![^[]*\])", node_list)
-        for component in components:
-            if "[" not in component:
-                nodes.append(component)
-            else:
-                header, node_number = component.split("[")
-                node_number = node_number.replace("]", "")
-                ranges = node_number.split(",")
-                for r in ranges:
-                    if "-" in r:
-                        start_node, end_node = r.split("-")
-                        number_of_digits = len(end_node)
-                        nodes.extend(
-                            [
-                                f"{header}{str(i).zfill(number_of_digits)}"
-                                for i in range(int(start_node), int(end_node) + 1)
-                            ]
-                        )
-                    else:
-                        nodes.append(f"{header}{r}")
-
-        return nodes
 
     @classmethod
     def format_node_list(cls, node_names: List[str]) -> str:
@@ -197,76 +240,6 @@ class SlurmSystem(BaseModel, System):
 
         return ", ".join(formatted_ranges)
 
-    @field_validator("partitions", mode="before")
-    def validate_partitions(cls, value: Any) -> Dict[str, List[SlurmNode]]:
-        if isinstance(value, dict):
-            is_valid = True
-            for key, val in value.items():
-                if not isinstance(key, str) or not isinstance(val, list):
-                    is_valid = False
-                    break
-                for item in val:
-                    if not isinstance(item, SlurmNode):
-                        is_valid = False
-                        break
-            if is_valid:
-                return value
-
-        updated_partitions = cls.parse_partitions(value)
-
-        return updated_partitions
-
-    @classmethod
-    def parse_partitions(cls, value):
-        nodes_dict: Dict[str, SlurmNode] = {}
-        updated_partitions: Dict[str, List[SlurmNode]] = {}
-        updated_groups: Dict[str, Dict[str, List[SlurmNode]]] = {}
-
-        for pname, pdata in value.items():
-            raw_nodes = pdata.get("nodes", [])
-            node_names = set()
-            for group in raw_nodes:
-                node_names.update(set(SlurmSystem.parse_node_list(group)))
-
-            if not node_names:
-                raise ValueError(f"No valid nodes found in partition '{pname}'")
-
-            partition_nodes = []
-            for node_name in node_names:
-                if node_name not in nodes_dict:
-                    node = SlurmNode(
-                        name=node_name,
-                        partition=pname,
-                        state=SlurmNodeState.UNKNOWN_STATE,
-                    )
-                    nodes_dict[node_name] = node
-                else:
-                    node = nodes_dict[node_name]
-                    node.partition = pname
-                partition_nodes.append(node)
-            updated_partitions[pname] = partition_nodes
-
-            groups = pdata.get("groups", {})
-            updated_groups[pname] = {}
-            for gname, gdata in groups.items():
-                raw_nodes = gdata.get("nodes", [])
-                group_node_names = set()
-                for group in raw_nodes:
-                    group_node_names.update(set(SlurmSystem.parse_node_list(group)))
-
-                group_nodes = []
-                for group_node_name in group_node_names:
-                    if group_node_name in nodes_dict:
-                        group_nodes.append(nodes_dict[group_node_name])
-                    else:
-                        raise ValueError(
-                            f"Node '{group_node_name}' in group '{gname}' not found in partition " "'{pname}' nodes."
-                        )
-
-                updated_groups[pname][gname] = group_nodes
-                cls.groups = updated_groups
-        return updated_partitions
-
     def __repr__(self) -> str:
         """
         Provide a structured string representation of the system.
@@ -276,18 +249,18 @@ class SlurmSystem(BaseModel, System):
         """
         header = f"System Name: {self.name}\nScheduler Type: {self.scheduler}"
         parts = [header, "\tPARTITION  STATE    NODELIST"]
-        for partition_name, nodes in self.partitions.items():
+        for partition in self.partitions:
             state_count = {}
-            for node in nodes:
+            for node in partition.slurm_nodes:
                 state_count.setdefault(node.state, []).append(node.name)
             for state, names in state_count.items():
                 node_list_str = self.format_node_list(names)
-                parts.append(f"\t{partition_name:<10} {state.name:<7} {node_list_str}")
+                parts.append(f"\t{partition.name:<10} {state.name:<7} {node_list_str}")
         return "\n".join(parts)
 
     def get_partition_names(self) -> List[str]:
         """Return a list of all partition names."""
-        return list(self.partitions.keys())
+        return [partition.name for partition in self.partitions]
 
     def get_partition_nodes(self, partition_name: str) -> List[SlurmNode]:
         """
@@ -302,9 +275,10 @@ class SlurmSystem(BaseModel, System):
         Raises:
             ValueError: If the partition does not exist.
         """
-        if partition_name not in self.partitions:
-            raise ValueError(f"Partition '{partition_name}' not found.")
-        return self.partitions[partition_name]
+        for partition in self.partitions:
+            if partition.name == partition_name:
+                return partition.slurm_nodes
+        raise ValueError(f"Partition '{partition_name}' not found.")
 
     def get_partition_node_names(self, partition_name: str) -> List[str]:
         """
@@ -453,7 +427,7 @@ class SlurmSystem(BaseModel, System):
         Returns:
             True if the node is part of the system, otherwise False.
         """
-        return any(any(node.name == node_name for node in nodes) for nodes in self.partitions.values())
+        return any(any(node.name == node_name for node in part.slurm_nodes) for part in self.partitions)
 
     def is_job_running(self, job_id: int, retry_threshold: int = 3) -> bool:
         """
@@ -626,7 +600,7 @@ class SlurmSystem(BaseModel, System):
 
                 node_list_part, user = parts[0], "|".join(parts[1:])
                 # Handle cases where multiple node groups or ranges are specified
-                for node in self.parse_node_list(node_list_part):
+                for node in parse_node_list(node_list_part):
                     node_user_map[node] = user.strip()
 
         return node_user_map
@@ -647,17 +621,17 @@ class SlurmSystem(BaseModel, System):
                 continue
             partition, _, _, _, state, nodelist = parts[:6]
             partition = partition.rstrip("*")
-            node_names = self.parse_node_list(nodelist)
+            node_names = parse_node_list(nodelist)
 
             # Convert state to enum, handling states with suffixes
             state_enum = self.convert_state_to_enum(state)
 
             for node_name in node_names:
                 # Find the partition and node to update the state
-                for part_name, nodes in self.partitions.items():
-                    if part_name != partition:
+                for part in self.partitions:
+                    if part.name != partition:
                         continue
-                    for node in nodes:
+                    for node in part.slurm_nodes:
                         if node.name == node_name:
                             node.state = state_enum
                             node.user = node_user_map.get(node_name, "N/A")
@@ -754,7 +728,7 @@ class SlurmSystem(BaseModel, System):
             else:
                 # Handle both individual node names and ranges
                 if self.is_node_in_system(node_spec) or "[" in node_spec:
-                    expanded_nodes = self.parse_node_list(node_spec)
+                    expanded_nodes = parse_node_list(node_spec)
                     parsed_nodes += expanded_nodes
                 else:
                     raise ValueError(f"Node '{node_spec}' not found.")

@@ -22,7 +22,8 @@ from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy impor
     NeMoLauncherSlurmCommandGenStrategy,
 )
 from cloudai.systems import SlurmSystem
-from cloudai.systems.slurm import SlurmNode, SlurmNodeState
+from cloudai.systems.slurm import SlurmNodeState
+from cloudai.systems.slurm.slurm_system import SlurmPartition
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
 
@@ -33,16 +34,13 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
         install_path=str(tmp_path / "install"),
         output_path=str(tmp_path / "output"),
         default_partition="main",
-        partitions={
-            "main": [
-                SlurmNode(name="node1", partition="main", state=SlurmNodeState.IDLE),
-                SlurmNode(name="node2", partition="main", state=SlurmNodeState.IDLE),
-                SlurmNode(name="node3", partition="main", state=SlurmNodeState.IDLE),
-                SlurmNode(name="node4", partition="main", state=SlurmNodeState.IDLE),
-            ]
-        },
+        partitions=[
+            SlurmPartition(name="main", nodes=["node[1-4]"]),
+        ],
         mpi="fake-mpi",
     )
+    for node in slurm_system.partitions[0].slurm_nodes:
+        node.state = SlurmNodeState.IDLE
     Path(slurm_system.install_path).mkdir()
     Path(slurm_system.output_path).mkdir()
     return slurm_system
