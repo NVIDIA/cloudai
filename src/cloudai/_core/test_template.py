@@ -137,7 +137,6 @@ class TestTemplate:
         This method must be implemented by subclasses.
 
         Args:
-            test_name (str): The name of the test.
             env_vars (Dict[str, str]): Environment variables for the test.
             cmd_args (Dict[str, str]): Command-line arguments for the test.
             extra_env_vars (Dict[str, str]): Extra environment variables.
