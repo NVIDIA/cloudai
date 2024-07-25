@@ -15,8 +15,10 @@
 # limitations under the License.
 
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 import pytest
+from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
 from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import (
     NeMoLauncherSlurmCommandGenStrategy,
@@ -54,6 +56,24 @@ def strategy_fixture(slurm_system: SlurmSystem) -> SlurmCommandGenStrategy:
     cmd_args = {"test_arg": "test_value"}
     strategy = SlurmCommandGenStrategy(slurm_system, env_vars, cmd_args)
     return strategy
+
+
+@pytest.fixture
+def jax_strategy_fixture() -> JaxToolboxSlurmCommandGenStrategy:
+    # Mock the SlurmSystem and other dependencies
+    mock_slurm_system = Mock()
+    env_vars = {"TEST_VAR": "VALUE"}
+    cmd_args = {"test_arg": "test_value"}
+
+    # Use patch to mock the __init__ method of JaxToolboxSlurmCommandGenStrategy
+    with patch.object(JaxToolboxSlurmCommandGenStrategy, "__init__", lambda x, y, z, w: None):
+        strategy = JaxToolboxSlurmCommandGenStrategy(mock_slurm_system, env_vars, cmd_args)
+        # Manually set attributes needed for the tests
+        strategy.env_vars = env_vars
+        strategy.cmd_args = cmd_args
+        strategy.default_env_vars = env_vars
+        strategy.default_cmd_args = cmd_args
+        return strategy
 
 
 def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path):
@@ -158,6 +178,23 @@ class TestGenerateSrunCommand__CmdGeneration:
 
         full_srun_command = strategy_fixture.generate_full_srun_command({}, {}, {}, "")
         assert full_srun_command == " \\\n".join(["srun", "--test", "test_arg", "test_command"])
+
+
+class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
+    def test_extract_test_name_grok(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
+        cmd_args = {"Grok.setup_flags.docker_workspace_dir": "/some/dir", "Grok.some_other_flag": "value"}
+        test_name = jax_strategy_fixture._extract_test_name(cmd_args)
+        assert test_name == "Grok"
+
+    def test_extract_test_name_gpt(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
+        cmd_args = {"GPT.setup_flags.docker_workspace_dir": "/some/dir", "GPT.some_other_flag": "value"}
+        test_name = jax_strategy_fixture._extract_test_name(cmd_args)
+        assert test_name == "GPT"
+
+    def test_extract_test_name_none(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
+        cmd_args = {"some_other_flag": "value", "another_flag": "value"}
+        test_name = jax_strategy_fixture._extract_test_name(cmd_args)
+        assert test_name == ""
 
 
 class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
