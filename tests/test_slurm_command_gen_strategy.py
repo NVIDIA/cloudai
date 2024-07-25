@@ -144,6 +144,11 @@ class TestGenerateSrunCommand__CmdGeneration:
         srun_command = strategy_fixture.generate_srun_command({}, {}, {}, "")
         assert srun_command == ["srun", f"--mpi={strategy_fixture.slurm_system.mpi}"]
 
+    def test_generate_srun_command_with_extra_args(self, strategy_fixture: SlurmCommandGenStrategy):
+        strategy_fixture.slurm_system.extra_srun_args = "--extra-args value"
+        srun_command = strategy_fixture.generate_srun_command({}, {}, {}, "")
+        assert srun_command == ["srun", f"--mpi={strategy_fixture.slurm_system.mpi}", "--extra-args value"]
+
     def test_generate_srun_command_with_container_image(self, strategy_fixture: SlurmCommandGenStrategy):
         slurm_args = {"image_path": "fake_image_path"}
         srun_command = strategy_fixture.generate_srun_command(slurm_args, {}, {}, "")
