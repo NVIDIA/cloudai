@@ -66,7 +66,7 @@ def jax_strategy_fixture() -> JaxToolboxSlurmCommandGenStrategy:
     cmd_args = {"test_arg": "test_value"}
 
     # Use patch to mock the __init__ method of JaxToolboxSlurmCommandGenStrategy
-    with patch.object(JaxToolboxSlurmCommandGenStrategy, "__init__", lambda x, y, z, w: None):
+    with patch.object(JaxToolboxSlurmCommandGenStrategy, "__init__", lambda self, _, __, ___: None):
         strategy = JaxToolboxSlurmCommandGenStrategy(mock_slurm_system, env_vars, cmd_args)
         # Manually set attributes needed for the tests
         strategy.env_vars = env_vars
