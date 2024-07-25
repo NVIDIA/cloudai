@@ -60,7 +60,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self.final_cmd_args["cluster.partition"] = self.slurm_system.default_partition
         reservation_key = "--reservation "
         if self.slurm_system.extra_srun_args and reservation_key in self.slurm_system.extra_srun_args:
-            reservation = extra_cmd_args.split(reservation_key, 1)[1].split(" ", 1)[0]
+            reservation = self.slurm_system.extra_srun_args.split(reservation_key, 1)[1].split(" ", 1)[0]
             self.final_cmd_args["+cluster.reservation"] = reservation
         nodes = self.slurm_system.parse_nodes(nodes)
         if nodes:
