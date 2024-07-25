@@ -191,6 +191,7 @@ class SlurmSystem(System):
         cache_docker_images_locally: bool = False,
         groups: Optional[Dict[str, Dict[str, List[SlurmNode]]]] = None,
         global_env_vars: Optional[Dict[str, Any]] = None,
+        extra_srun_args: Optional[str] = None,
     ) -> None:
         """
         Initialize a SlurmSystem instance.
@@ -213,6 +214,7 @@ class SlurmSystem(System):
                 empty dictionary if not provided.
             global_env_vars (Optional[Dict[str, Any]]): Dictionary containing additional configuration settings for
                 the system.
+            extra_srun_args (Optional[str]): Additional arguments to be passed to the srun command.
         """
         super().__init__(name, "slurm", output_path)
         self.install_path = install_path
@@ -226,6 +228,7 @@ class SlurmSystem(System):
         self.cache_docker_images_locally = cache_docker_images_locally
         self.groups = groups if groups is not None else {}
         self.global_env_vars = global_env_vars if global_env_vars is not None else {}
+        self.extra_srun_args = extra_srun_args
         self.cmd_shell = CommandShell()
         logging.debug(f"{self.__class__.__name__} initialized")
 

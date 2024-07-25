@@ -146,6 +146,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             if slurm_args.get("container_mounts"):
                 srun_command_parts.append(f'--container-mounts={slurm_args["container_mounts"]}')
 
+        if self.slurm_system.extra_srun_args:
+            srun_command_parts.append(self.slurm_system.extra_srun_args)
+
         return srun_command_parts
 
     def generate_test_command(
