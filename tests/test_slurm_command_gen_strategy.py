@@ -254,6 +254,45 @@ class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
         )
         assert xla_flags == expected_flags
 
+    def test_combine_fdl_flags(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
+        cmd_args = {
+            "common.fdl.some_flag": "value",
+            "common.fdl.another_flag": "another_value",
+            "Grok.fdl.test_flag": "test_value",
+        }
+        combined_flags = jax_strategy_fixture._combine_fdl_flags(cmd_args, "Grok")
+        expected_flags = {
+            "some_flag": "value",
+            "another_flag": "another_value",
+            "test_flag": "test_value",
+        }
+        assert combined_flags == expected_flags
+
+    def test_combine_fdl_flags_override(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
+        cmd_args = {
+            "common.fdl.some_flag": "value",
+            "Grok.fdl.some_flag": "overridden_value",
+        }
+        combined_flags = jax_strategy_fixture._combine_fdl_flags(cmd_args, "Grok")
+        expected_flags = {
+            "some_flag": "overridden_value",
+        }
+        assert combined_flags == expected_flags
+
+    def test_get_fdl_config_value(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
+        cmd_args = {
+            "Grok.fdl_config": "config_value",
+        }
+        jax_strategy_fixture.test_name = "Grok"
+        config_value = jax_strategy_fixture._get_fdl_config_value(cmd_args)
+        assert config_value == "config_value"
+
+    def test_get_fdl_config_value_missing(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
+        cmd_args = {}
+        jax_strategy_fixture.test_name = "Grok"
+        config_value = jax_strategy_fixture._get_fdl_config_value(cmd_args)
+        assert config_value is None
+
 
 class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
     @pytest.fixture
