@@ -234,6 +234,27 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
 
         assert f"container_mounts=[{tokenizer_path}:{tokenizer_path}]" in cmd
 
+    def test_reservation_handled(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
+        extra_env_vars = {"TEST_VAR_1": "value1"}
+        cmd_args = {
+            "docker_image_url": "fake",
+            "repository_url": "fake",
+            "repository_commit_hash": "fake",
+        }
+        nemo_cmd_gen.system.extra_srun_args = "--reservation my-reservation"
+
+        cmd = nemo_cmd_gen.gen_exec_command(
+            env_vars={},
+            cmd_args=cmd_args,
+            extra_cmd_args="",
+            extra_env_vars=extra_env_vars,
+            output_path="",
+            num_nodes=1,
+            nodes=[],
+        )
+
+        assert f"+cluster.reservation=my-reservation" in cmd
+
     def test_invalid_tokenizer_path(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
         extra_env_vars = {"TEST_VAR_1": "value1"}
         cmd_args = {
