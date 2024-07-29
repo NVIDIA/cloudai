@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from typing import List, Optional, Dict
 
 from .test import Test
 
@@ -37,9 +37,13 @@ class TestScenario:
         Args:
             name (str): Name of the test scenario.
             tests (List[Test]): List of tests in the scenario.
+            pre_plugins (Optional[List[str]]): Optional list of pre-execution plugin names.
+            post_plugins (Optional[List[str]]): Optional list of post-execution plugin names.
         """
         self.name = name
         self.tests = tests
+        pre_plugins (Optional[List[Plugin]]): Optional list of plugins to run before the scenario.
+        post_plugins (Optional[List[Plugin]]): Optional list of plugins to run after the scenario.
 
     def __repr__(self) -> str:
         """
@@ -49,11 +53,17 @@ class TestScenario:
             str: String representation of the test scenario.
         """
         test_names = ", ".join([test.name for test in self.tests])
-        return f"TestScenario(name={self.name}, tests=[{test_names}])"
+        pre_plugins_names = ", ".join([plugin.name for plugin in self.pre_plugins])
+        post_plugins_names = ", ".join([plugin.name for plugin in self.post_plugins])
+        return f"TestScenario(name={self.name}, tests=[{test_names}], pre_plugins=[{pre_plugins_names}], post_plugins=[{post_plugins_names}])"
 
     def pretty_print(self) -> str:
         """Print each test in the scenario along with its section name, description, and visualized dependencies."""
         s = f"Test Scenario: {self.name}\n"
+        if self.pre_plugins:
+            s += "Pre-Plugins:\n"
+            for plugin in self.pre_plugins:
+                s += f"  - Name: {plugin.name}\n"
         for test in self.tests:
             s += f"\nSection Name: {test.section_name}\n"
             s += f"  Test Name: {test.name}\n"
@@ -67,4 +77,8 @@ class TestScenario:
                         )
             else:
                 s += "  No dependencies"
+        if self.post_plugins:
+            s += "\nPost-Plugins:\n"
+            for plugin in self.post_plugins:
+                s += f"  - Name: {plugin.name}\n"
         return s
