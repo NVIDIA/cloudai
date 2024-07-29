@@ -16,13 +16,20 @@
 
 [project]
 name = "cloudai"
-version = "0.7.14"
+dynamic = ["version"]
 dependencies = [
     "bokeh==3.4.1",
     "pandas==2.2.1",
     "tbparse==0.0.8",
     "toml==0.10.2",
 ]
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.pdm.version]
+source = "scm"
 
 [project.scripts]
 cloudai = "cloudai.__main__:main"
