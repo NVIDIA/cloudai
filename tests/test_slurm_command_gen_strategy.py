@@ -33,6 +33,7 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
         install_path=str(tmp_path / "install"),
         output_path=str(tmp_path / "output"),
         default_partition="main",
+        extra_srun_args="",
         partitions={
             "main": [
                 SlurmNode(name="node1", partition="main", state=SlurmNodeState.IDLE),
