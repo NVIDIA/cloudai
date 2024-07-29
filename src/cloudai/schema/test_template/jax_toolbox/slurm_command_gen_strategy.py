@@ -63,7 +63,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         else:
             key = "XLA_FLAGS.combine_threshold_bytes"
 
-        combine_threshold_bytes = int(final_cmd_args[key])
+        combine_threshold_bytes = int(final_env_vars["COMBINE_THRESHOLD"])
         del final_cmd_args[key]
 
         final_env_vars["COMBINE_THRESHOLD"] = f"{combine_threshold_bytes}"
@@ -126,7 +126,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 [
                     "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
                     "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
-                    "--xla_gpu_reduce_scatter_combine_threshold_bytes=$COMBINE_THRESHOLD",
+                    "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD",
                 ]
             )
 
@@ -146,9 +146,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                         xla_flags.append(f"--{flag_name.lower()}")
                 else:
                     # For all other flags, format the flag with its value, appending boolean values as is
-                    flag = f"--{flag_name.lower()}={value}"
+                    flag = f"--{flag_name.lower()}={'true' if value is True else 'false' if value is False else value}"
                     xla_flags.append(flag)
-
         return " ".join(xla_flags)
 
     def _parse_slurm_args(
@@ -185,8 +184,9 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         base_args.update({"image_path": image_path, "container_mounts": container_mounts})
 
         output_path = os.path.abspath(cmd_args["output_path"])
-        base_args["output"] = os.path.join(output_path, "output-%j-%n-%t.txt")
-        base_args["error"] = os.path.join(output_path, "error-%j-%n-%t.txt")
+        output_suffix = "-%j.txt" if env_vars.get("UNIFIED_STDOUT_STDERR") == "1" else "-%j-%n-%t.txt"
+        base_args["output"] = os.path.join(output_path, f"output{output_suffix}")
+        base_args["error"] = os.path.join(output_path, f"error{output_suffix}")
 
         return base_args
 
@@ -198,8 +198,9 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         srun_command_parts = [
             "srun",
             f"--mpi={self.slurm_system.mpi}",
-            f"{self.slurm_system.extra_srun_args if self.slurm_system.extra_srun_args else ''}",
+            self.slurm_system.extra_srun_args or "",
             "--export=ALL",
+            "--unbuffered",
             f"-o {slurm_args['output']}",
             f"-e {slurm_args['error']}",
             f"--container-image={slurm_args['image_path']}",
@@ -233,24 +234,27 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         Returns:
             str: The path to the run.sh script that was created.
         """
+        test_name = self.test_name
 
-        def set_xla_flags(profile_enabled: bool):
+        def set_xla_flags(test_name: str, profile_enabled: bool):
             """Set the XLA_FLAGS for profiling or performance based on the stage."""
-            flags = []
+            flags = [
+                "xla_gpu_enable_latency_hiding_scheduler",
+            ]
 
-            state = "True" if profile_enabled else "False"
+            state = "true" if profile_enabled else "false"
             for flag in flags:
-                cmd_args[f"XLA_FLAGS.{flag}"] = state
+                cmd_args[f"{test_name}.XLA_FLAGS.{flag}"] = state
 
         # Prepare environment and script content for the 'profile' stage
-        set_xla_flags(False)
+        set_xla_flags(test_name, False)
         env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args)}"'
 
         profile_content = self._script_content("profile", slurm_args, env_vars, cmd_args, extra_cmd_args)
 
         # Prepare environment and script content for the 'perf' stage
-        set_xla_flags(True)
-        cmd_args["XLA_FLAGS.xla_gpu_pgle_profile_file_or_directory_path"] = (
+        set_xla_flags(test_name, True)
+        cmd_args[f"{self.test_name}.XLA_FLAGS.xla_gpu_pgle_profile_file_or_directory_path"] = (
             "/opt/paxml/workspace/pgle_output_profile.pbtxt"
         )
         env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args)}"'
@@ -259,7 +263,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         # Combine both parts into the run script content
         run_script_content = profile_content + perf_content
-
         run_script_path = os.path.join(cmd_args["output_path"], "run.sh")
         with open(run_script_path, "w") as run_file:
             run_file.write("\n".join(run_script_content))
@@ -295,7 +298,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             self._generate_python_command(stage, slurm_args, env_vars, cmd_args, extra_cmd_args),
         ]
 
-        if self.test_name == "Grok":
+        if self.test_name == "Grok" or self.test_name == "GPT":
             script_lines.extend(
                 [
                     self._create_pgo_nsys_converter_command(stage, cmd_args),
@@ -374,6 +377,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         # Dynamically adding fdl. prefixed arguments
         fdl_prefix = f"{self.test_name}.fdl."
         fdl_args = {k[len(fdl_prefix) :]: v for k, v in cmd_args.items() if k.startswith(fdl_prefix)}
+
         for key, value in fdl_args.items():
             parts.append(f"--fdl.{key.upper()}={value}")
         if extra_cmd_args:

@@ -225,7 +225,7 @@ class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
         expected_flags = (
             "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD "
             "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD "
-            "--xla_gpu_reduce_scatter_combine_threshold_bytes=$COMBINE_THRESHOLD "
+            "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD "
             "--some_flag=value --another_flag=another_value"
         )
         assert xla_flags == expected_flags
