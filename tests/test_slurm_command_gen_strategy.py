@@ -253,7 +253,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             nodes=[],
         )
 
-        assert f"+cluster.reservation=my-reservation" in cmd
+        assert "+cluster.reservation=my-reservation" in cmd
 
     def test_invalid_tokenizer_path(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
         extra_env_vars = {"TEST_VAR_1": "value1"}
