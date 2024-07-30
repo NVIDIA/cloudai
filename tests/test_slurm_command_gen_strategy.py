@@ -242,8 +242,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             "repository_url": "fake",
             "repository_commit_hash": "fake",
         }
-        nemo_cmd_gen.system.extra_srun_args = "--reservation my-reservation"
-
+        nemo_cmd_gen.slurm_system.extra_srun_args = "--reservation my-reservation"
         cmd = nemo_cmd_gen.gen_exec_command(
             env_vars={},
             cmd_args=cmd_args,
