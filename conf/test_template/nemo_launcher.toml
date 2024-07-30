@@ -98,8 +98,8 @@ name = "NeMoLauncher"
       [cmd_args.training.model.data]
         [cmd_args.training.model.data.data_prefix]
         type = "preset"
-        values = ['["1.0",\'${data_dir}/my-gpt3_00_text_document\']']
-        default = '["1.0",\'${data_dir}/my-gpt3_00_text_document\']'
+        values = ['''["1.0",'${data_dir}/my-gpt3_00_text_document']''']
+        default = '''["1.0",'${data_dir}/my-gpt3_00_text_document']'''
 
     [cmd_args.training.run]
       [cmd_args.training.run.time_limit]

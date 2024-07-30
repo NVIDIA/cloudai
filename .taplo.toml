@@ -15,9 +15,6 @@
 # limitations under the License.
 
 include = ["pyproject.toml", ".taplo.toml", "conf/**/*.toml"]
-exclude = [
-  "conf/test_template/nemo_launcher.toml", # can't handle this file
-]
 
 [formatting]
 indent_entries = false
