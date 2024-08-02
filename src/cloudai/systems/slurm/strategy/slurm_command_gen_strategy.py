@@ -1,5 +1,6 @@
-#
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -145,6 +146,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             if slurm_args.get("container_mounts"):
                 srun_command_parts.append(f'--container-mounts={slurm_args["container_mounts"]}')
 
+        if self.slurm_system.extra_srun_args:
+            srun_command_parts.append(self.slurm_system.extra_srun_args)
+        
         return srun_command_parts
 
     def generate_test_command(
@@ -169,7 +173,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             "#!/bin/bash",
             f"#SBATCH --job-name={args['job_name']}",
             f"#SBATCH -N {args['num_nodes']}",
-            f"#SBATCH --gres=gpu:8"
         ]
         
         if "output" not in args:

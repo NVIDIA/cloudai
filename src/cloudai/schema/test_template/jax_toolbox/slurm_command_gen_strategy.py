@@ -198,9 +198,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         srun_command_parts = [
             "srun",
             f"--mpi={self.slurm_system.mpi}",
-            self.slurm_system.extra_srun_args or "",
+            f"{self.slurm_system.extra_srun_args if self.slurm_system.extra_srun_args else ''}",
             "--export=ALL",
-            "--unbuffered",
             f"-o {slurm_args['output']}",
             f"-e {slurm_args['error']}",
             f"--container-image={slurm_args['image_path']}",
