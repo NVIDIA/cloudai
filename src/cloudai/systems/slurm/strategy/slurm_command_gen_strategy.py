@@ -148,7 +148,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         if self.slurm_system.extra_srun_args:
             srun_command_parts.append(self.slurm_system.extra_srun_args)
-        
+
         return srun_command_parts
 
     def generate_test_command(
@@ -174,7 +174,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             f"#SBATCH --job-name={args['job_name']}",
             f"#SBATCH -N {args['num_nodes']}",
         ]
-        
+
         if "output" not in args:
             batch_script_content.append(f"#SBATCH --output={os.path.join(output_path, 'stdout.txt')}")
         if "error" not in args:
