@@ -23,23 +23,25 @@ name = "UCCTest"
 
   [cmd_args.collective]
   type = "preset"
-  values = ["allgather",
-            "allgatherv",
-            "allreduce",
-            "alltoall",
-            "alltoallv",
-            "barrier",
-            "bcast",
-            "gather",
-            "gatherv",
-            "reduce",
-            "reduce_scatter",
-            "reduce_scatterv",
-            "scatter",
-            "scatterv",
-            "memcpy",
-            "reducedt",
-            "reducedt_strided"]
+  values = [
+    "allgather",
+    "allgatherv",
+    "allreduce",
+    "alltoall",
+    "alltoallv",
+    "barrier",
+    "bcast",
+    "gather",
+    "gatherv",
+    "reduce",
+    "reduce_scatter",
+    "reduce_scatterv",
+    "scatter",
+    "scatterv",
+    "memcpy",
+    "reducedt",
+    "reducedt_strided",
+  ]
   default = "alltoall"
 
   [cmd_args.b]

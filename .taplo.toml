@@ -14,16 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "nccl_test_alltoall_worst_failover"
-description = "alltoall_tested_job"
-test_template_name = "NcclTest"
-extra_cmd_args = "--stepfactor 1"
+include = ["pyproject.toml", ".taplo.toml", "conf/**/*.toml"]
 
-[cmd_args]
-subtest_name = "alltoall_perf_mpi"
-minbytes = "128M"
-maxbytes = "128M"
-stepbytes = "0"
-iters = "20"
-check = "0"
-warmup_iters = "40"
+[formatting]
+indent_entries = false
+indent_tables = true

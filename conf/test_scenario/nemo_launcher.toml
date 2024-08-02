@@ -17,17 +17,17 @@
 name = "nemo_launcher"
 
 [Tests.1]
-  name = "nemo_launcher"
-  num_nodes = "4"
+name = "gpt"
+num_nodes = "4"
 
 [Tests.2]
-  name = "nemo_launcher"
-  num_nodes = "4"
+name = "gpt"
+num_nodes = "4"
   [Tests.2.dependencies]
-    start_post_comp = { name = "Tests.1", time = 0 }
+  start_post_comp = { name = "Tests.1", time = 0 }
 
 [Tests.3]
-  name = "nemo_launcher"
-  num_nodes = "4"
+name = "gpt"
+num_nodes = "4"
   [Tests.3.dependencies]
-     start_post_comp = { name = "Tests.2", time = 0 }
+  start_post_comp = { name = "Tests.2", time = 0 }

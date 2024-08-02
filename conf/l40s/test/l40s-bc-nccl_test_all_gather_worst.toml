@@ -26,8 +26,8 @@ maxbytes = "16G"
 stepbytes = "0"
 iters = "60"
 check = "0"
-warmup_iters ="40"
+warmup_iters = "40"
 
 [extra_env_vars]
 "NCCL_TESTS_SPLIT_MASK" = "0x7"
-"NCCL_MIN_NCHANNELS" = "12" # only for low number of servers
+"NCCL_MIN_NCHANNELS" = "12"     # only for low number of servers
