@@ -160,16 +160,9 @@ class DockerImageCacheManager:
             f"cache_docker_images_locally={self.cache_docker_images_locally}"
         )
 
-        # If not caching locally, check URL accessibility
+        # If not caching locally, return True. Defer checking URL accessibility to srun.
         if not self.cache_docker_images_locally:
-            accessibility_check = self._check_docker_image_accessibility(docker_image_url)
-            if accessibility_check.success:
-                return DockerImageCacheResult(True, docker_image_url, accessibility_check.message)
-            logging.error(
-                f"Accessibility check failed for Docker image URL: {docker_image_url}. "
-                f"Error: {accessibility_check.message}"
-            )
-            return DockerImageCacheResult(False, "", accessibility_check.message)
+            return DockerImageCacheResult(True, docker_image_url, "")
 
         # Check if docker_image_url is a file path and exists
         if os.path.isfile(docker_image_url) and os.path.exists(docker_image_url):
