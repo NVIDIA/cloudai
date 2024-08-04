@@ -368,6 +368,10 @@ class SlurmSystem(System):
             SlurmNodeState.IDLE: [],
             SlurmNodeState.COMPLETING: [],
         }
+        if "reservation" in self.extra_srun_args:
+            grouped_nodes = {
+                SlurmNodeState.RESERVED: [],
+                }
 
         for node in self.groups[partition_name][group_name]:
             if node.state in grouped_nodes:
