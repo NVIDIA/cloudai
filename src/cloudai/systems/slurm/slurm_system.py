@@ -362,31 +362,21 @@ class SlurmSystem(System):
         if group_name not in self.groups[partition_name]:
             raise ValueError(f"Group '{group_name}' not found in partition '{partition_name}'.")
 
-        current_user = getpass.getuser()
         self.update_node_states()
 
         # Group nodes by their states
         grouped_nodes = {
             SlurmNodeState.IDLE: [],
             SlurmNodeState.COMPLETING: [],
-            SlurmNodeState.ALLOCATED: [],
         }
 
         for node in self.groups[partition_name][group_name]:
             if node.state in grouped_nodes:
-                # Exclude nodes allocated to the current user
-                if node.state == SlurmNodeState.ALLOCATED and node.user == current_user:
-                    continue
-                if node.state in grouped_nodes:
-                    grouped_nodes[node.state].append(node)
+                grouped_nodes[node.state].append(node)
 
         # Allocate nodes based on priority: idle, then completing, then allocated
         allocated_nodes = []
-        for state in [
-            SlurmNodeState.IDLE,
-            SlurmNodeState.COMPLETING,
-            SlurmNodeState.ALLOCATED,
-        ]:
+        for state in grouped_nodes:
             while grouped_nodes[state] and len(allocated_nodes) < number_of_nodes:
                 allocated_nodes.append(grouped_nodes[state].pop(0))
 
