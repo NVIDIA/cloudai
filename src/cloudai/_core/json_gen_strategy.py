@@ -20,15 +20,14 @@ from typing import Dict, List
 from .test_template_strategy import TestTemplateStrategy
 
 
-class CommandGenStrategy(TestTemplateStrategy):
+class JsonGenStrategy(TestTemplateStrategy):
     """
     Abstract base class defining the interface for command generation strategies across different system environments.
-
-    It specifies how to generate execution commands or json string based on system and test parameters.
+    It specifies how to generate execution commands based on system and test parameters.
     """
 
     @abstractmethod
-    def gen_exec_command(
+    def generate_job_json(
         self,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
@@ -40,7 +39,6 @@ class CommandGenStrategy(TestTemplateStrategy):
     ) -> str:
         """
         Generate the execution command for a test based on the given parameters.
-
         Args:
             env_vars (Dict[str, str]): Environment variables for the test.
             cmd_args (Dict[str, str]): Command-line arguments for the test.
@@ -49,7 +47,6 @@ class CommandGenStrategy(TestTemplateStrategy):
             output_path (str): Path to the output directory.
             num_nodes (int): The number of nodes to be used for the test execution.
             nodes (List[str]): List of nodes for test execution, optional.
-
         Returns:
             str: The generated execution command.
         """

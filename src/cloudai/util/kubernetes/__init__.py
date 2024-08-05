@@ -14,20 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .grading_strategy import SleepGradingStrategy
-from .report_generation_strategy import SleepReportGenerationStrategy
-from .slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
-from .standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
-from .kubernetes_json_gen_strategy import SleepKubernetesJobJsonGenStrategy
-from .standalone_install_strategy import SleepStandaloneInstallStrategy
-from .template import Sleep
+from .kubernetes_job import KubernetesJobClient
 
 __all__ = [
-    "Sleep",
-    "SleepStandaloneInstallStrategy",
-    "SleepStandaloneCommandGenStrategy",
-    "SleepKubernetesJobJsonGenStrategy",
-    "SleepSlurmCommandGenStrategy",
-    "SleepReportGenerationStrategy",
-    "SleepGradingStrategy",
+    "KubernetesJobClient",
 ]

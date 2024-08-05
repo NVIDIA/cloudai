@@ -16,8 +16,10 @@
 
 from .slurm.slurm_system import SlurmSystem
 from .standalone_system import StandaloneSystem
+from .kubernetes.kubernetes_system import KubernetesSystem
 
 __all__ = [
     "SlurmSystem",
     "StandaloneSystem",
+    "KubernetesSystem",
 ]

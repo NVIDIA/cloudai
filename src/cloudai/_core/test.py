@@ -149,6 +149,30 @@ class Test:
             self.nodes,
         )
 
+    def gen_json_string(self, output_path: str, job_name: str) -> str:
+        """
+        Generate the command to run this specific test.
+
+        Args:
+            output_path (str): Path to the output directory.
+
+        Returns:
+            str: The command string.
+        """
+        if self.time_limit is not None:
+            self.cmd_args["time_limit"] = self.time_limit
+
+        return self.test_template.gen_json_string(
+            self.env_vars,
+            self.cmd_args,
+            self.extra_env_vars,
+            self.extra_cmd_args,
+            output_path,
+            job_name,
+            self.num_nodes,
+            self.nodes,
+        )
+
     def get_job_id(self, stdout: str, stderr: str) -> Optional[int]:
         """
         Retrieve the job ID using the test template's method.

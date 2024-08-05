@@ -17,6 +17,7 @@
 import pytest
 from cloudai import (
     CommandGenStrategy,
+    JsonGenStrategy,
     GradingStrategy,
     InstallStrategy,
     JobIdRetrievalStrategy,
@@ -25,6 +26,7 @@ from cloudai import (
 )
 from cloudai.installer.slurm_installer import SlurmInstaller
 from cloudai.installer.standalone_installer import StandaloneInstaller
+from cloudai.installer.kubernetes_installer import KubernetesInstaller
 from cloudai.schema.test_template.chakra_replay.grading_strategy import ChakraReplayGradingStrategy
 from cloudai.schema.test_template.chakra_replay.report_generation_strategy import ChakraReplayReportGenerationStrategy
 from cloudai.schema.test_template.chakra_replay.slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
@@ -54,6 +56,7 @@ from cloudai.schema.test_template.sleep.grading_strategy import SleepGradingStra
 from cloudai.schema.test_template.sleep.report_generation_strategy import SleepReportGenerationStrategy
 from cloudai.schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from cloudai.schema.test_template.sleep.standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
+from cloudai.schema.test_template.sleep.kubernetes_json_gen_strategy import SleepKubernetesJobJsonGenStrategy
 from cloudai.schema.test_template.sleep.standalone_install_strategy import SleepStandaloneInstallStrategy
 from cloudai.schema.test_template.sleep.template import Sleep
 from cloudai.schema.test_template.ucc_test.grading_strategy import UCCTestGradingStrategy
@@ -63,6 +66,7 @@ from cloudai.schema.test_template.ucc_test.slurm_install_strategy import UCCTest
 from cloudai.schema.test_template.ucc_test.template import UCCTest
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.standalone_system import StandaloneSystem
+from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
 
 
 def test_system_parsers():
@@ -89,6 +93,7 @@ def test_runners():
         ((CommandGenStrategy, SlurmSystem, Sleep), SleepSlurmCommandGenStrategy),
         ((CommandGenStrategy, SlurmSystem, UCCTest), UCCTestSlurmCommandGenStrategy),
         ((CommandGenStrategy, StandaloneSystem, Sleep), SleepStandaloneCommandGenStrategy),
+        ((JsonGenStrategy, KubernetesSystem, Sleep), SleepKubernetesJobJsonGenStrategy),
         ((GradingStrategy, SlurmSystem, ChakraReplay), ChakraReplayGradingStrategy),
         ((GradingStrategy, SlurmSystem, JaxToolbox), JaxToolboxGradingStrategy),
         ((GradingStrategy, SlurmSystem, NcclTest), NcclTestGradingStrategy),
@@ -135,6 +140,7 @@ def test_test_templates():
 
 def test_installers():
     installers = Registry().installers_map
-    assert len(installers) == 2
+    assert len(installers) == 3
     assert installers["standalone"] == StandaloneInstaller
     assert installers["slurm"] == SlurmInstaller
+    assert installers["kubernetes"] == KubernetesInstaller
