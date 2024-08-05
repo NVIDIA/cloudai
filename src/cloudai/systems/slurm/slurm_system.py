@@ -335,74 +335,72 @@ class SlurmSystem(System):
         """
         return [node.name for node in self.get_group_nodes(partition_name, group_name)]
 
-    def get_available_nodes_from_partition(
-            self, partition_name: str, number_of_nodes: int
-        ) -> List[SlurmNode]:
-            """
-            Retrieve a specific number of potentially available nodes from a partition.
+    def get_available_nodes_from_partition(self, partition_name: str, number_of_nodes: int) -> List[SlurmNode]:
+        """
+        Retrieve a specific number of potentially available nodes from a partition.
 
-            Prioritizes nodes by their current state, preferring idle nodes first, then completing nodes, and finally
-            allocated nodes, while excluding nodes that are down and allocated nodes to the current user.
+        Prioritizes nodes by their current state, preferring idle nodes first, then completing nodes, and finally
+        allocated nodes, while excluding nodes that are down and allocated nodes to the current user.
 
-            Args:
-                partition_name (str): The name of the partition.
-                number_of_nodes (int): The number of nodes to retrieve.
+        Args:
+            partition_name (str): The name of the partition.
+            number_of_nodes (int): The number of nodes to retrieve.
 
-            Returns:
-                List[SlurmNode]: Objects that are potentially available for use.
+        Returns:
+            List[SlurmNode]: Objects that are potentially available for use.
 
-            Raises:
-                ValueError: If the partition is not found, or if the requested number of nodes exceeds the
-                    available nodes.
-            """
-            if partition_name not in self.groups:
-                raise ValueError(f"Partition '{partition_name}' not found.")
+        Raises:
+            ValueError: If the partition is not found, or if the requested number of nodes exceeds the
+                available nodes.
+        """
+        if partition_name not in self.groups:
+            raise ValueError(f"Partition '{partition_name}' not found.")
 
-            current_user = getpass.getuser()
-            self.update_node_states()
+        current_user = getpass.getuser()
+        self.update_node_states()
 
-            # Group nodes by their states
-            grouped_nodes = {
-                SlurmNodeState.IDLE: [],
-                SlurmNodeState.COMPLETING: [],
-                SlurmNodeState.ALLOCATED: [],
-            }
+        # Group nodes by their states
+        grouped_nodes = {
+            SlurmNodeState.IDLE: [],
+            SlurmNodeState.COMPLETING: [],
+            SlurmNodeState.ALLOCATED: [],
+        }
 
-            for node in self.partitions[partition_name]:
+        for node in self.partitions[partition_name]:
+            if node.state in grouped_nodes:
+                # Exclude nodes allocated to the current user
+                if node.state == SlurmNodeState.ALLOCATED and node.user == current_user:
+                    continue
                 if node.state in grouped_nodes:
-                    # Exclude nodes allocated to the current user
-                    if node.state == SlurmNodeState.ALLOCATED and node.user == current_user:
-                        continue
-                    if node.state in grouped_nodes:
-                        grouped_nodes[node.state].append(node)
+                    grouped_nodes[node.state].append(node)
 
-            # Allocate nodes based on priority: idle, then completing, then allocated
-            allocated_nodes = []
-            for state in [
-                SlurmNodeState.IDLE,
-                SlurmNodeState.COMPLETING,
-                SlurmNodeState.ALLOCATED,
-            ]:
-                while grouped_nodes[state] and len(allocated_nodes) < number_of_nodes:
-                    allocated_nodes.append(grouped_nodes[state].pop(0))
+        # Allocate nodes based on priority: idle, then completing, then allocated
+        allocated_nodes = []
+        for state in [
+            SlurmNodeState.IDLE,
+            SlurmNodeState.COMPLETING,
+            SlurmNodeState.ALLOCATED,
+        ]:
+            while grouped_nodes[state] and len(allocated_nodes) < number_of_nodes:
+                allocated_nodes.append(grouped_nodes[state].pop(0))
 
-            if len(allocated_nodes) < number_of_nodes:
-                raise ValueError(
-                    "Requested number of nodes ({}) exceeds the number of " "available nodes in partition '{}'.".format(
-                        number_of_nodes, partition_name
-                    )
-                )
-
-            # Log allocation details
-            logging.info(
-                "Allocated nodes from partition '{}': {}".format(
-                    partition_name,
-                    [node.name for node in allocated_nodes],
+        if len(allocated_nodes) < number_of_nodes:
+            raise ValueError(
+                "Requested number of nodes ({}) exceeds the number of " "available nodes in partition '{}'.".format(
+                    number_of_nodes, partition_name
                 )
             )
 
-            return allocated_nodes
-    
+        # Log allocation details
+        logging.info(
+            "Allocated nodes from partition '{}': {}".format(
+                partition_name,
+                [node.name for node in allocated_nodes],
+            )
+        )
+
+        return allocated_nodes
+
     def get_available_nodes_from_group(
         self, partition_name: str, group_name: str, number_of_nodes: int
     ) -> List[SlurmNode]:
