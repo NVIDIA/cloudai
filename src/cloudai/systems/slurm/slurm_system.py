@@ -512,15 +512,27 @@ class SlurmSystem(BaseModel, System):
         Returns:
             Dict[SlurmNodeState, List[SlurmNode]]: A dictionary grouping nodes by their state.
         """
-        grouped_nodes = {
-            SlurmNodeState.IDLE: [],
-            SlurmNodeState.COMPLETING: [],
-            SlurmNodeState.ALLOCATED: [],
-        }
+        
+        if "reservation" in self.extra_srun_args:
+            reservation_key = "--reservation "
+            reservation_name = self.extra_srun_args.split(reservation_key, 1)[1].split(" ", 1)[0]
+            reserved_nodes = self.get_reservation(reservation_name)
+            grouped_nodes = {
+                SlurmNodeState.RESERVED: [],
+                }
+            for node in self.groups[partition_name][group_name]:
+                if node.state in grouped_nodes and node.name in reserved_nodes:
+                    grouped_nodes[node.state].append(node)
+        else:
+            grouped_nodes = {
+                SlurmNodeState.IDLE: [],
+                SlurmNodeState.COMPLETING: [],
+                SlurmNodeState.ALLOCATED: [],
+            }
 
-        for node in self.groups[partition_name][group_name]:
-            if node.state in grouped_nodes:
-                grouped_nodes[node.state].append(node)
+            for node in self.groups[partition_name][group_name]:
+                if node.state in grouped_nodes:
+                    grouped_nodes[node.state].append(node)
 
         return grouped_nodes
 
@@ -621,6 +633,17 @@ class SlurmSystem(BaseModel, System):
         """
         sinfo_output, _ = self.fetch_command_output("sinfo")
         return sinfo_output
+    
+    def get_reservation(self, reservation_name) -> str:
+        """
+        Fetch the output from the 'scontrol show reservation' command.
+
+        Returns
+            str: The stdout from the 'scontrol show reservation' command execution.
+        """
+        reservation_output, _ = self.fetch_command_output("scontrol show reservation")
+        reserved_nodes = self.parse_reservation_output(reservation_output, reservation_name)
+        return reserved_nodes
 
     def fetch_command_output(self, command: str) -> Tuple[str, str]:
         """
@@ -697,6 +720,30 @@ class SlurmSystem(BaseModel, System):
                             node.state = state_enum
                             node.user = node_user_map.get(node_name, "N/A")
                             break
+                        
+    def parse_reservation_output(self, reservation_output: str, reservation_name) -> Dict[str, str]:
+        """
+        Parse the output from the 'squeue' command to map nodes to users.
+
+        The expected format of scontrol show reservation is lines of 'node_spec|user', where node_spec can include comma-separated
+        node names or ranges.
+
+        Args:
+            scontrol show reservation (str): The raw output from the squeue command.
+
+        Returns:
+            Dict[str, str]: A dictionary mapping node names to usernames.
+        """
+        print("reservation output : ", reservation_output)
+        print("res : ", reservation_output.split("ReservationName"))
+        for reservation in reservation_output.split("ReservationName"):
+            if reservation_name in reservation:
+                nodes = reservation.split("Nodes=")[1].split(" ")[0]
+                node_list = self.parse_node_list(nodes)
+                print("nodes :", nodes)
+                print("node_list : ", node_list)
+
+        return node_list
 
     def convert_state_to_enum(self, state_str: str) -> SlurmNodeState:
         """
