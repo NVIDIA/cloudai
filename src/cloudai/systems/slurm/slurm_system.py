@@ -452,6 +452,7 @@ class SlurmSystem(BaseModel, System):
 
         Prioritizes nodes by their current state, preferring idle nodes first, then completing nodes, and finally
         allocated nodes, while excluding nodes that are down and allocated nodes to the current user.
+        If a reservation was queried, then cloudAI will take from the reserved nodes according to the reservation name.
 
         Args:
             partition_name (str): The name of the partition.
@@ -633,8 +634,8 @@ class SlurmSystem(BaseModel, System):
         """
         sinfo_output, _ = self.fetch_command_output("sinfo")
         return sinfo_output
-    
-    def get_reservation(self, reservation_name) -> str:
+
+    def get_reservation(self, reservation_name: str) -> str:
         """
         Fetch the output from the 'scontrol show reservation' command.
 
@@ -642,8 +643,7 @@ class SlurmSystem(BaseModel, System):
             str: The stdout from the 'scontrol show reservation' command execution.
         """
         reservation_output, _ = self.fetch_command_output("scontrol show reservation")
-        reserved_nodes = self.parse_reservation_output(reservation_output, reservation_name)
-        return reserved_nodes
+        return reservation_output
 
     def fetch_command_output(self, command: str) -> Tuple[str, str]:
         """
@@ -720,28 +720,24 @@ class SlurmSystem(BaseModel, System):
                             node.state = state_enum
                             node.user = node_user_map.get(node_name, "N/A")
                             break
-                        
-    def parse_reservation_output(self, reservation_output: str, reservation_name) -> Dict[str, str]:
-        """
-        Parse the output from the 'squeue' command to map nodes to users.
 
-        The expected format of scontrol show reservation is lines of 'node_spec|user', where node_spec can include comma-separated
-        node names or ranges.
+    def parse_reservation_output(self, reservation_output: str, reservation_name: str) -> List[str]:
+        """
+        Parse the output from the 'scontrol show reservation' command to get the nodes of a specific reservation.
+
+        The expected format of scontrol show reservation is lines of 'ReservationName=... /n Nodes=...'.
 
         Args:
-            scontrol show reservation (str): The raw output from the squeue command.
+            reservation_output (str): The raw output from the scontrol show reservation command.
+            reservation_name (str) : The name of the reservation the user wants to use.
 
         Returns:
-            Dict[str, str]: A dictionary mapping node names to usernames.
+            List[str]: A list of the nodes related to the reservation.
         """
-        print("reservation output : ", reservation_output)
-        print("res : ", reservation_output.split("ReservationName"))
         for reservation in reservation_output.split("ReservationName"):
             if reservation_name in reservation:
                 nodes = reservation.split("Nodes=")[1].split(" ")[0]
                 node_list = self.parse_node_list(nodes)
-                print("nodes :", nodes)
-                print("node_list : ", node_list)
 
         return node_list
 
