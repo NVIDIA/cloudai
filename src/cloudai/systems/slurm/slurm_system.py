@@ -335,7 +335,7 @@ class SlurmSystem(System):
         """
         return [node.name for node in self.get_group_nodes(partition_name, group_name)]
 
-    def get_available_nodes_from_group(
+    def get_available_nodes_from_group_with_reservation(
         self, partition_name: str, group_name: str, number_of_nodes: int
     ) -> List[SlurmNode]:
         """
@@ -343,6 +343,7 @@ class SlurmSystem(System):
 
         Prioritizes nodes by their current state, preferring idle nodes first, then completing nodes, and finally
         allocated nodes, while excluding nodes that are down and allocated nodes to the current user.
+        If a reservation was queried, then cloudAI will take from the reserved nodes according to the reservation name.
 
         Args:
             partition_name (str): The name of the partition.
@@ -364,24 +365,81 @@ class SlurmSystem(System):
         self.update_node_states()
 
         # Group nodes by their states
-        if "reservation" in self.extra_srun_args:
-            reservation_key = "--reservation "
-            reservation_name = self.extra_srun_args.split(reservation_key, 1)[1].split(" ", 1)[0]
-            reserved_nodes = self.get_reservation(reservation_name)
-            grouped_nodes = {
-                SlurmNodeState.RESERVED: [],
-                }
-            for node in self.groups[partition_name][group_name]:
-                if node.state in grouped_nodes and node.name in reserved_nodes:
-                    print("node : ", node)
-                    grouped_nodes[node.state].append(node)
-        else:
-            grouped_nodes = {
-                SlurmNodeState.IDLE: [],
-                SlurmNodeState.COMPLETING: [],
-            }
+        reservation_key = "--reservation "
+        reservation_name = self.extra_srun_args.split(reservation_key, 1)[1].split(" ", 1)[0]
+        reservation_output = self.get_reservation(reservation_name)
+        reserved_nodes = self.parse_reservation_output(reservation_output, reservation_name)
+        grouped_nodes = {
+            SlurmNodeState.RESERVED: [],
+        }
+        for node in self.groups[partition_name][group_name]:
+            if node.state in grouped_nodes and node.name in reserved_nodes:
+                grouped_nodes[node.state].append(node)
+        
+        # Allocate nodes based on priority: idle, then completing, then allocated
+        allocated_nodes = []
+        for state in grouped_nodes:
+            while grouped_nodes[state] and len(allocated_nodes) < number_of_nodes:
+                allocated_nodes.append(grouped_nodes[state].pop(0))
 
-            for node in self.groups[partition_name][group_name]:
+        if len(allocated_nodes) < number_of_nodes:
+            raise ValueError(
+                "Requested number of nodes ({}) exceeds the number of " "available nodes in group '{}'.".format(
+                    number_of_nodes, group_name
+                )
+            )
+
+        # Log allocation details
+        logging.info(
+            "Allocated nodes from group '{}' in partition '{}': {}".format(
+                group_name,
+                partition_name,
+                [node.name for node in allocated_nodes],
+            )
+        )
+
+        return allocated_nodes
+
+    def get_available_nodes_from_group(
+        self, partition_name: str, group_name: str, number_of_nodes: int
+    ) -> List[SlurmNode]:
+        """
+        Retrieve a specific number of potentially available nodes from a group within a partition.
+
+        Prioritizes nodes by their current state, preferring idle nodes first, then completing nodes, and finally
+        allocated nodes, while excluding nodes that are down and allocated nodes to the current user.
+        If a reservation was queried, then cloudAI will take from the reserved nodes according to the reservation name.
+
+        Args:
+            partition_name (str): The name of the partition.
+            group_name (str): The name of the group.
+            number_of_nodes (int): The number of nodes to retrieve.
+
+        Returns:
+            List[SlurmNode]: Objects that are potentially available for use.
+
+        Raises:
+            ValueError: If the partition or group is not found, or if the requested number of nodes exceeds the
+                available nodes.
+        """
+        if partition_name not in self.groups:
+            raise ValueError(f"Partition '{partition_name}' not found.")
+        if group_name not in self.groups[partition_name]:
+            raise ValueError(f"Group '{group_name}' not found in partition '{partition_name}'.")
+
+        self.update_node_states()
+
+        grouped_nodes = {
+            SlurmNodeState.IDLE: [],
+            SlurmNodeState.COMPLETING: [],
+            SlurmNodeState.ALLOCATED: [],
+        }
+
+        for node in self.groups[partition_name][group_name]:
+            if node.state in grouped_nodes:
+                # Exclude nodes allocated to the current user
+                if node.state == SlurmNodeState.ALLOCATED and node.user == current_user:
+                    continue
                 if node.state in grouped_nodes:
                     grouped_nodes[node.state].append(node)
 
@@ -552,8 +610,8 @@ class SlurmSystem(System):
         """
         sinfo_output, _ = self.fetch_command_output("sinfo")
         return sinfo_output
-    
-    def get_reservation(self, reservation_name) -> str:
+
+    def get_reservation(self, reservation_name: str) -> str:
         """
         Fetch the output from the 'scontrol show reservation' command.
 
@@ -561,8 +619,7 @@ class SlurmSystem(System):
             str: The stdout from the 'scontrol show reservation' command execution.
         """
         reservation_output, _ = self.fetch_command_output("scontrol show reservation")
-        reserved_nodes = self.parse_reservation_output(reservation_output, reservation_name)
-        return reserved_nodes
+        return reservation_output
 
     def fetch_command_output(self, command: str) -> Tuple[str, str]:
         """
@@ -639,28 +696,24 @@ class SlurmSystem(System):
                             node.state = state_enum
                             node.user = node_user_map.get(node_name, "N/A")
                             break
-                        
-    def parse_reservation_output(self, reservation_output: str, reservation_name) -> Dict[str, str]:
-        """
-        Parse the output from the 'squeue' command to map nodes to users.
 
-        The expected format of scontrol show reservation is lines of 'node_spec|user', where node_spec can include comma-separated
-        node names or ranges.
+    def parse_reservation_output(self, reservation_output: str, reservation_name: str) -> List[str]:
+        """
+        Parse the output from the 'scontrol show reservation' command to get the nodes of a specific reservation.
+
+        The expected format of scontrol show reservation is lines of 'ReservationName=... /n Nodes=...'.
 
         Args:
-            scontrol show reservation (str): The raw output from the squeue command.
+            reservation_output (str): The raw output from the scontrol show reservation command.
+            reservation_name (str) : The name of the reservation the user wants to use.
 
         Returns:
-            Dict[str, str]: A dictionary mapping node names to usernames.
+            List[str]: A list of the nodes related to the reservation.
         """
-        print("reservation output : ", reservation_output)
-        print("res : ", reservation_output.split("ReservationName"))
         for reservation in reservation_output.split("ReservationName"):
             if reservation_name in reservation:
                 nodes = reservation.split("Nodes=")[1].split(" ")[0]
                 node_list = self.parse_node_list(nodes)
-                print("nodes :", nodes)
-                print("node_list : ", node_list)
 
         return node_list
 
@@ -750,7 +803,12 @@ class SlurmSystem(System):
                     raise ValueError("Format should be partition:group:num_nodes")
                 partition_name, group_name, num_nodes_str = parts
                 num_nodes = int(num_nodes_str)
-                group_nodes = self.get_available_nodes_from_group(partition_name, group_name, num_nodes)
+                if self.extra_srun_args and "reservation" in self.extra_srun_args:
+                    group_nodes = self.get_available_nodes_from_group_with_reservation(
+                        partition_name, group_name, num_nodes
+                    )
+                else:
+                    group_nodes = self.get_available_nodes_from_group(partition_name, group_name, num_nodes)
                 parsed_nodes += [node.name for node in group_nodes]
             else:
                 # Handle both individual node names and ranges
