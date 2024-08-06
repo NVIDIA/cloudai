@@ -448,11 +448,7 @@ class SlurmSystem(BaseModel, System):
         self, partition_name: str, group_name: str, number_of_nodes: Union[int, str]
     ) -> List[SlurmNode]:
         """
-        Retrieve a specific number of potentially available nodes from a group within a partition.
-
-        Prioritizes nodes by their current state, preferring idle nodes first, then completing nodes, and finally
-        allocated nodes, while excluding nodes that are down and allocated nodes to the current user.
-        If a reservation was queried, then cloudAI will take from the reserved nodes according to the reservation name.
+        Return the reserved nodes corresponding to the given reservation name.
 
         Args:
             partition_name (str): The name of the partition.
@@ -461,11 +457,7 @@ class SlurmSystem(BaseModel, System):
                 Could also be 'all' to retrieve all the nodes from the group.
 
         Returns:
-            List[SlurmNode]: Objects that are potentially available for use.
-
-        Raises:
-            ValueError: If the partition or group is not found, or if the requested number of nodes exceeds the
-                available nodes.
+            Dict[str, str]: Names of nodes within the specified group and partition and reservation.
         """
         self.validate_partition_and_group(partition_name, group_name)
         self.update_node_states()
@@ -473,16 +465,27 @@ class SlurmSystem(BaseModel, System):
         grouped_nodes = self.group_nodes_by_state(partition_name, group_name)
         allocated_nodes = self.allocate_nodes(grouped_nodes, number_of_nodes, group_name)
 
-        # Log allocation details
-        logging.info(
-            "Allocated nodes from group '{}' in partition '{}': {}".format(
-                group_name,
-                partition_name,
-                [node.name for node in allocated_nodes],
-            )
-        )
+    def _get_available_nodes(self, partition_name: str, group_name: str):
+        """
+        Return the available nodes sorted into idle and completing.
 
-        return allocated_nodes
+        Args:
+            partition_name (str): The name of the partition.
+            group_name (str): The name of the group.
+
+        Returns:
+            Dict[str, str]: Names of nodes within the specified group and partition and reservation.
+        """
+        grouped_nodes = {
+            SlurmNodeState.IDLE: [],
+            SlurmNodeState.COMPLETING: [],
+        }
+
+        for node in self.groups[partition_name][group_name]:
+            if node.state in grouped_nodes:
+                grouped_nodes[node.state].append(node)
+
+        return grouped_nodes
 
     def validate_partition_and_group(self, partition_name: str, group_name: str) -> None:
         """
@@ -738,8 +741,10 @@ class SlurmSystem(BaseModel, System):
             if reservation_name in reservation:
                 nodes = reservation.split("Nodes=")[1].split(" ")[0]
                 node_list = self.parse_node_list(nodes)
-
-        return node_list
+                return node_list
+        raise ValueError(
+            'wrong reservation specified \n. Reservation should be in the form "--reservation reservation_name"'
+        )
 
     def convert_state_to_enum(self, state_str: str) -> SlurmNodeState:
         """
