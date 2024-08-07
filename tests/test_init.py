@@ -78,7 +78,8 @@ def test_runners():
     runners = Registry().runners_map.keys()
     assert "standalone" in runners
     assert "slurm" in runners
-    assert len(runners) == 2
+    assert "kubernetes" in runners
+    assert len(runners) == 3
 
 
 @pytest.mark.parametrize(
