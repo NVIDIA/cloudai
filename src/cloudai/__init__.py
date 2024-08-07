@@ -38,6 +38,7 @@ from ._core.test_template_strategy import TestTemplateStrategy
 from .installer.installer import Installer
 from .installer.slurm_installer import SlurmInstaller
 from .installer.standalone_installer import StandaloneInstaller
+from .parser.system_parser.kubernetes_system_parser import KubernetesSystemParser
 from .parser.system_parser.slurm_system_parser import SlurmSystemParser
 from .parser.system_parser.standalone_system_parser import StandaloneSystemParser
 from .report_generator import ReportGenerator
@@ -87,6 +88,7 @@ from .systems.standalone_system import StandaloneSystem
 
 Registry().add_system_parser("standalone", StandaloneSystemParser)
 Registry().add_system_parser("slurm", SlurmSystemParser)
+Registry().add_system_parser("kubernetes", KubernetesSystemParser)
 
 Registry().add_runner("slurm", SlurmRunner)
 Registry().add_runner("standalone", StandaloneRunner)
