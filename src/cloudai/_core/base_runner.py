@@ -337,6 +337,9 @@ class BaseRunner(ABC):
             completed_job (BaseJob): The job that has just been completed.
         """
         logging.info(f"Job completed: {completed_job.test.section_name}")
+
+        await self.store_job_logs(completed_job)
+
         self.jobs.remove(completed_job)
         del self.test_to_job_map[completed_job.test]
         completed_job.increment_iteration()
@@ -346,6 +349,15 @@ class BaseRunner(ABC):
             await self.submit_test(completed_job.test)
         else:
             await self.handle_dependencies(completed_job)
+
+    async def store_job_logs(self, job: BaseJob) -> None:
+        """
+        Store logs for a job. This method can be overridden by subclasses that need to store logs.
+
+        Args:
+            job (BaseJob): The job for which logs need to be stored.
+        """
+        pass
 
     async def handle_dependencies(self, completed_job: BaseJob) -> List[Task]:
         """

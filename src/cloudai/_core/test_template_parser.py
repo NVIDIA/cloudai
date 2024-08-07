@@ -24,6 +24,7 @@ from .grading_strategy import GradingStrategy
 from .install_strategy import InstallStrategy
 from .job_id_retrieval_strategy import JobIdRetrievalStrategy
 from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
+from .json_gen_strategy import JsonGenStrategy
 from .registry import Registry
 from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
@@ -126,6 +127,10 @@ class TestTemplateParser(BaseMultiFileParser):
         obj.command_gen_strategy = cast(
             CommandGenStrategy,
             self._fetch_strategy(CommandGenStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+        )
+        obj.json_gen_strategy = cast(
+            JsonGenStrategy,
+            self._fetch_strategy(JsonGenStrategy, type(obj.system), type(obj), env_vars, cmd_args),
         )
         obj.job_id_retrieval_strategy = cast(
             JobIdRetrievalStrategy,
