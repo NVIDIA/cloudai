@@ -26,6 +26,7 @@ from ._core.install_strategy import InstallStrategy
 from ._core.job_id_retrieval_strategy import JobIdRetrievalStrategy
 from ._core.job_status_result import JobStatusResult
 from ._core.job_status_retrieval_strategy import JobStatusRetrievalStrategy
+from ._core.json_gen_strategy import JsonGenStrategy
 from ._core.parser import Parser
 from ._core.registry import Registry
 from ._core.report_generation_strategy import ReportGenerationStrategy
@@ -43,6 +44,7 @@ from .parser.system_parser.kubernetes_system_parser import KubernetesSystemParse
 from .parser.system_parser.slurm_system_parser import SlurmSystemParser
 from .parser.system_parser.standalone_system_parser import StandaloneSystemParser
 from .report_generator import ReportGenerator
+from .runner.kubernetes.kubernetes_runner import KubernetesRunner
 from .runner.slurm.slurm_runner import SlurmRunner
 from .runner.standalone.standalone_runner import StandaloneRunner
 from .schema.test_template.chakra_replay.grading_strategy import ChakraReplayGradingStrategy
@@ -92,6 +94,7 @@ Registry().add_system_parser("slurm", SlurmSystemParser)
 Registry().add_system_parser("kubernetes", KubernetesSystemParser)
 
 Registry().add_runner("slurm", SlurmRunner)
+Registry().add_runner("kubernetes", KubernetesRunner)
 Registry().add_runner("standalone", StandaloneRunner)
 
 Registry().add_strategy(InstallStrategy, [SlurmSystem], [NcclTest], NcclTestSlurmInstallStrategy)
@@ -156,6 +159,7 @@ __all__ = [
     "BaseRunner",
     "BaseSystemParser",
     "CommandGenStrategy",
+    "JsonGenStrategy",
     "Grader",
     "GradingStrategy",
     "Installer",
