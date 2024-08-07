@@ -15,6 +15,8 @@
 # limitations under the License.
 
 from .grading_strategy import SleepGradingStrategy
+from .kubernetes_install_strategy import SleepKubernetesInstallStrategy
+from .kubernetes_json_gen_strategy import SleepKubernetesJsonGenStrategy
 from .report_generation_strategy import SleepReportGenerationStrategy
 from .slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from .standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
@@ -25,6 +27,8 @@ __all__ = [
     "Sleep",
     "SleepStandaloneInstallStrategy",
     "SleepStandaloneCommandGenStrategy",
+    "SleepKubernetesJsonGenStrategy",
+    "SleepKubernetesInstallStrategy",
     "SleepSlurmCommandGenStrategy",
     "SleepReportGenerationStrategy",
     "SleepGradingStrategy",
