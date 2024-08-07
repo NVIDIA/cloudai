@@ -20,7 +20,7 @@ test_template_name = "NcclTest"
 extra_cmd_args = "--stepfactor 2"
 
 [cmd_args]
-"subtest_name" = "alltoall_perf_mpi"
+"subtest_name" = "alltoall_perf"
 "ngpus" = "1"
 "minbytes" = "128"
 "maxbytes" = "4G"
