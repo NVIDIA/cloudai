@@ -27,6 +27,11 @@ class JsonGenStrategy(TestTemplateStrategy):
     It specifies how to generate JSON job specifications based on system and test parameters.
     """
 
+    def __init__(self, system: "KubernetesSystem", env_vars: Dict[str, Any], cmd_args: Dict[str, Any]) -> None:
+        super().__init__(system, env_vars, cmd_args)
+        self.k8s_system = system
+        self.default_env_vars.update(self.k8s_system.global_env_vars)
+
     @abstractmethod
     def gen_json(
         self,
