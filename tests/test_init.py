@@ -69,7 +69,8 @@ def test_system_parsers():
     parsers = Registry().system_parsers_map.keys()
     assert "standalone" in parsers
     assert "slurm" in parsers
-    assert len(parsers) == 2
+    assert "kubernetes" in parsers
+    assert len(parsers) == 3
 
 
 def test_runners():
