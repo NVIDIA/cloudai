@@ -20,6 +20,7 @@ from cloudai import (
     GradingStrategy,
     InstallStrategy,
     JobIdRetrievalStrategy,
+    JsonGenStrategy,
     Registry,
     ReportGenerationStrategy,
 )
@@ -52,6 +53,7 @@ from cloudai.schema.test_template.nemo_launcher.slurm_job_id_retrieval_strategy 
 )
 from cloudai.schema.test_template.nemo_launcher.template import NeMoLauncher
 from cloudai.schema.test_template.sleep.grading_strategy import SleepGradingStrategy
+from cloudai.schema.test_template.sleep.kubernetes_json_gen_strategy import SleepKubernetesJsonGenStrategy
 from cloudai.schema.test_template.sleep.report_generation_strategy import SleepReportGenerationStrategy
 from cloudai.schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from cloudai.schema.test_template.sleep.standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
@@ -62,6 +64,7 @@ from cloudai.schema.test_template.ucc_test.report_generation_strategy import UCC
 from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 from cloudai.schema.test_template.ucc_test.slurm_install_strategy import UCCTestSlurmInstallStrategy
 from cloudai.schema.test_template.ucc_test.template import UCCTest
+from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.standalone_system import StandaloneSystem
 
@@ -111,6 +114,7 @@ def test_runners():
         ((JobIdRetrievalStrategy, SlurmSystem, NeMoLauncher), NeMoLauncherSlurmJobIdRetrievalStrategy),
         ((JobIdRetrievalStrategy, SlurmSystem, UCCTest), SlurmJobIdRetrievalStrategy),
         ((JobIdRetrievalStrategy, StandaloneSystem, Sleep), StandaloneJobIdRetrievalStrategy),
+        ((JsonGenStrategy, KubernetesSystem, Sleep), SleepKubernetesJsonGenStrategy),
         ((ReportGenerationStrategy, SlurmSystem, ChakraReplay), ChakraReplayReportGenerationStrategy),
         ((ReportGenerationStrategy, SlurmSystem, JaxToolbox), JaxToolboxReportGenerationStrategy),
         ((ReportGenerationStrategy, SlurmSystem, NcclTest), NcclTestReportGenerationStrategy),
