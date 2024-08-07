@@ -36,6 +36,7 @@ from ._core.test_scenario import TestScenario
 from ._core.test_template import TestTemplate
 from ._core.test_template_strategy import TestTemplateStrategy
 from .installer.installer import Installer
+from .installer.kubernetes_installer import KubernetesInstaller
 from .installer.slurm_installer import SlurmInstaller
 from .installer.standalone_installer import StandaloneInstaller
 from .parser.system_parser.kubernetes_system_parser import KubernetesSystemParser
@@ -147,6 +148,7 @@ Registry().add_test_template("UCCTest", UCCTest)
 
 Registry().add_installer("slurm", SlurmInstaller)
 Registry().add_installer("standalone", StandaloneInstaller)
+Registry().add_installer("kubernetes", KubernetesInstaller)
 
 __all__ = [
     "BaseInstaller",
