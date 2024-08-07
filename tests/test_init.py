@@ -23,6 +23,7 @@ from cloudai import (
     Registry,
     ReportGenerationStrategy,
 )
+from cloudai.installer.kubernetes_installer import KubernetesInstaller
 from cloudai.installer.slurm_installer import SlurmInstaller
 from cloudai.installer.standalone_installer import StandaloneInstaller
 from cloudai.schema.test_template.chakra_replay.grading_strategy import ChakraReplayGradingStrategy
@@ -136,6 +137,7 @@ def test_test_templates():
 
 def test_installers():
     installers = Registry().installers_map
-    assert len(installers) == 2
+    assert len(installers) == 3
     assert installers["standalone"] == StandaloneInstaller
     assert installers["slurm"] == SlurmInstaller
+    assert installers["kubernetes"] == KubernetesInstaller
