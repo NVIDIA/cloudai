@@ -76,6 +76,8 @@ from .schema.test_template.nemo_launcher.slurm_job_id_retrieval_strategy import 
 )
 from .schema.test_template.nemo_launcher.template import NeMoLauncher
 from .schema.test_template.sleep.grading_strategy import SleepGradingStrategy
+from .schema.test_template.sleep.kubernetes_install_strategy import SleepKubernetesInstallStrategy
+from .schema.test_template.sleep.kubernetes_json_gen_strategy import SleepKubernetesJsonGenStrategy
 from .schema.test_template.sleep.report_generation_strategy import SleepReportGenerationStrategy
 from .schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from .schema.test_template.sleep.standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
@@ -86,6 +88,7 @@ from .schema.test_template.ucc_test.report_generation_strategy import UCCTestRep
 from .schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 from .schema.test_template.ucc_test.slurm_install_strategy import UCCTestSlurmInstallStrategy
 from .schema.test_template.ucc_test.template import UCCTest
+from .systems.kubernetes.kubernetes_system import KubernetesSystem
 from .systems.slurm.slurm_system import SlurmSystem
 from .systems.standalone_system import StandaloneSystem
 
@@ -102,10 +105,12 @@ Registry().add_strategy(InstallStrategy, [SlurmSystem], [NeMoLauncher], NeMoLaun
 Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [NcclTest], NcclTestReportGenerationStrategy)
 Registry().add_strategy(CommandGenStrategy, [StandaloneSystem], [Sleep], SleepStandaloneCommandGenStrategy)
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [Sleep], SleepSlurmCommandGenStrategy)
+Registry().add_strategy(JsonGenStrategy, [KubernetesSystem], [Sleep], SleepKubernetesJsonGenStrategy)
 Registry().add_strategy(InstallStrategy, [SlurmSystem], [JaxToolbox], JaxToolboxSlurmInstallStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [NcclTest], NcclTestGradingStrategy)
 Registry().add_strategy(InstallStrategy, [SlurmSystem], [UCCTest], UCCTestSlurmInstallStrategy)
 Registry().add_strategy(InstallStrategy, [StandaloneSystem, SlurmSystem], [Sleep], SleepStandaloneInstallStrategy)
+Registry().add_strategy(InstallStrategy, [KubernetesSystem], [Sleep], SleepKubernetesInstallStrategy)
 Registry().add_strategy(
     ReportGenerationStrategy, [StandaloneSystem, SlurmSystem], [Sleep], SleepReportGenerationStrategy
 )
@@ -128,6 +133,7 @@ Registry().add_strategy(
 )
 Registry().add_strategy(JobIdRetrievalStrategy, [StandaloneSystem], [Sleep], StandaloneJobIdRetrievalStrategy)
 Registry().add_strategy(JobStatusRetrievalStrategy, [StandaloneSystem], [Sleep], DefaultJobStatusRetrievalStrategy)
+Registry().add_strategy(JobStatusRetrievalStrategy, [KubernetesSystem], [Sleep], DefaultJobStatusRetrievalStrategy)
 Registry().add_strategy(JobStatusRetrievalStrategy, [SlurmSystem], [NcclTest], NcclTestJobStatusRetrievalStrategy)
 Registry().add_strategy(JobStatusRetrievalStrategy, [SlurmSystem], [JaxToolbox], JaxToolboxJobStatusRetrievalStrategy)
 Registry().add_strategy(
