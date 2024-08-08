@@ -117,6 +117,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             "num_nodes": num_nodes,
             "node_list_str": node_list_str,
         }
+        print
         if self.slurm_system.account:
             slurm_args["account"] = self.slurm_system.account
         if self.slurm_system.distribution:
@@ -189,6 +190,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             batch_script_content.append(f"#SBATCH --distribution={args['distribution']}")
         if "gpus_per_node" in args:
             batch_script_content.append(f"#SBATCH --gpus-per-node={args['gpus_per_node']}")
+        if "gpus_per_node" in args:
+            batch_script_content.append(f"#SBATCH --gres=gpu:{args['gpus_per_node']}")
         if "ntasks_per_node" in args:
             batch_script_content.append(f"#SBATCH --ntasks-per-node={args['ntasks_per_node']}")
         if "time_limit" in args:
