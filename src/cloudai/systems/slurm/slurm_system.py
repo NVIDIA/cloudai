@@ -356,7 +356,6 @@ class SlurmSystem(System):
         if partition_name not in self.groups:
             raise ValueError(f"Partition '{partition_name}' not found.")
 
-        current_user = getpass.getuser()
         self.update_node_states()
 
         # Group nodes by their states
