@@ -15,7 +15,12 @@
 # limitations under the License.
 
 
+import logging
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .base_job import BaseJob
 
 
 class System(ABC):
@@ -29,13 +34,7 @@ class System(ABC):
         monitor_interval (int): Interval in seconds for monitoring jobs.
     """
 
-    def __init__(
-        self,
-        name: str,
-        scheduler: str,
-        output_path: str,
-        monitor_interval: int = 1,
-    ) -> None:
+    def __init__(self, name: str, scheduler: str, output_path: str, monitor_interval: int = 1) -> None:
         """
         Initialize a System instance.
 
@@ -64,4 +63,75 @@ class System(ABC):
 
     @abstractmethod
     def update(self) -> None:
-        raise NotImplementedError("Subclasses must implement this method.")
+        """
+        Update the system's state.
+
+        Raises
+            NotImplementedError: Raised if the method is not implemented in a subclass.
+        """
+        error_message = (
+            "System update method is not implemented. All subclasses of the System class must implement the "
+            "'update' method to ensure the system's state can be refreshed as needed."
+        )
+        logging.error(error_message)
+        raise NotImplementedError(error_message)
+
+    @abstractmethod
+    def is_job_running(self, job: "BaseJob") -> bool:
+        """
+        Check if a given job is currently running.
+
+        Args:
+            job (BaseJob): The job to check.
+
+        Returns:
+            bool: True if the job is running, False otherwise.
+
+        Raises:
+            NotImplementedError: Raised if the method is not implemented in a subclass.
+        """
+        error_message = (
+            "Job running status check method is not implemented. All subclasses of the System class must implement the"
+            " 'is_job_running' method to determine whether a job is currently active."
+        )
+        logging.error(error_message)
+        raise NotImplementedError(error_message)
+
+    @abstractmethod
+    def is_job_completed(self, job: "BaseJob") -> bool:
+        """
+        Check if a given job is completed.
+
+        Args:
+            job (BaseJob): The job to check.
+
+        Returns:
+            bool: True if the job is completed, False otherwise.
+
+        Raises:
+            NotImplementedError: Raised if the method is not implemented in a subclass.
+        """
+        error_message = (
+            "Job completion status check method is not implemented. All subclasses of the System class must implement "
+            "the 'is_job_completed' method to determine whether a job has finished execution."
+        )
+        logging.error(error_message)
+        raise NotImplementedError(error_message)
+
+    @abstractmethod
+    def kill(self, job: "BaseJob") -> None:
+        """
+        Terminate a given job.
+
+        Args:
+            job (BaseJob): The job to be terminated.
+
+        Raises:
+            NotImplementedError: Raised if the method is not implemented in a subclass.
+        """
+        error_message = (
+            "Job termination method is not implemented. All subclasses of the System class must implement the 'kill' "
+            "method to terminate a job that is currently running."
+        )
+        logging.error(error_message)
+        raise NotImplementedError(error_message)
