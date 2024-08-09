@@ -14,40 +14,121 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Union
+
+from .system import System
 from .test import Test
 
 
-class BaseJob:
+class BaseJob(ABC):
     """
     Base class for representing a job created by executing a test.
 
     Attributes
-        id (int): The unique identifier of the job.
+        mode (str): The mode of the job (e.g., 'run', 'dry-run').
+        system (System): The system in which the job is running.
         test (Test): The test instance associated with this job.
-        output_path (str): The path where the job's output is stored.
+        output_path (Path): The path where the job's output is stored.
         terminated_by_dependency (bool): Flag to indicate if the job was terminated due to a dependency.
     """
 
-    def __init__(self, job_id: int, test: Test, output_path: str):
+    def __init__(self, mode: str, system: System, test: Test, output_path: Path):
         """
         Initialize a BaseJob instance.
 
         Args:
-            job_id (int): The unique identifier of the job.
-            output_path (str): The path where the job's output is stored.
+            mode (str): The mode of the job (e.g., 'run', 'dry-run').
+            system (System): The system in which the job is running.
             test (Test): The test instance associated with the job.
+            output_path (Path): The path where the job's output is stored.
         """
-        self.id = job_id
+        self.mode = mode
+        self.system = system
         self.test = test
         self.output_path = output_path
         self.terminated_by_dependency = False
 
-    def increment_iteration(self):
+    def get_mode(self) -> str:
         """
-        Increment the iteration count of the associated test.
+        Retrieve the mode of the job.
 
-        This method should be called when the job completes an iteration and is ready to proceed to the next one.
+        Returns
+            str: The mode of the job.
         """
+        return self.mode
+
+    def get_system(self) -> System:
+        """
+        Get the system in which the job is running.
+
+        Returns
+            System: The system associated with the job.
+        """
+        return self.system
+
+    def get_test(self) -> Test:
+        """
+        Get the test instance associated with this job.
+
+        Returns
+            Test: The test instance associated with the job.
+        """
+        return self.test
+
+    def get_output_path(self) -> Path:
+        """
+        Retrieve the path where the job's output is stored.
+
+        Returns
+            Path: The path to the job's output directory.
+        """
+        return self.output_path
+
+    def is_terminated_by_dependency(self) -> bool:
+        """
+        Check if the job was terminated due to a dependency.
+
+        Returns
+            bool: True if the job was terminated by a dependency, False otherwise.
+        """
+        return self.terminated_by_dependency
+
+    @abstractmethod
+    def get_id(self) -> Union[str, int]:
+        """
+        Abstract method to retrieve the unique identifier of the job.
+
+        Returns
+            Union[str, int]: The unique identifier of the job.
+        """
+        pass
+
+    def is_running(self) -> bool:
+        """
+        Check if the specified job is currently running.
+
+        Returns
+            bool: True if the job is running, False otherwise.
+        """
+        if self.mode == "dry-run":
+            return True
+        return self.system.is_job_running(self)
+
+    def is_completed(self) -> bool:
+        """
+        Check if a job is completed.
+
+        Returns
+            bool: True if the job is completed, False otherwise.
+        """
+        if self.mode == "dry-run":
+            return True
+        return self.system.is_job_completed(self)
+
+    def increment_iteration(self):
+        """Increment the iteration count of the associated test."""
         self.test.current_iteration += 1
 
     def __repr__(self) -> str:
@@ -57,4 +138,4 @@ class BaseJob:
         Returns
             str: String representation of the job.
         """
-        return f"BaseJob(id={self.id}, test={self.test.name}, terminated_by_dependency={self.terminated_by_dependency})"
+        return f"BaseJob(mode={self.mode}, system={self.system.name}, test={self.test.name})"
