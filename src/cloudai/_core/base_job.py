@@ -17,6 +17,7 @@
 from abc import ABC, abstractmethod
 from typing import Union
 
+from .job_status_result import JobStatusResult
 from .system import System
 from .test import Test
 
@@ -77,6 +78,15 @@ class BaseJob(ABC):
         if self.mode == "dry-run":
             return True
         return self.system.is_job_completed(self)
+
+    def get_status(self) -> JobStatusResult:
+        """
+        Retrieve the job status from a specified output directory.
+
+        Returns
+            JobStatusResult: The result containing the job status and an optional error message.
+        """
+        return self.test.test_template.get_job_status(self.system, self)
 
     def increment_iteration(self):
         """Increment the iteration count of the associated test."""

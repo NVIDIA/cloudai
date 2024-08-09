@@ -23,12 +23,10 @@ from abc import ABC, abstractmethod
 from asyncio import Task
 from datetime import datetime
 from types import FrameType
-from typing import Dict, List, Optional, cast
+from typing import Dict, List, Optional
 
 from .base_job import BaseJob
-from .base_job_with_output import BaseJobWithOutput
 from .exceptions import JobFailureError, JobSubmissionError
-from .job_status_result import JobStatusResult
 from .system import System
 from .test import Test
 from .test_scenario import TestScenario
@@ -292,7 +290,7 @@ class BaseRunner(ABC):
                     await self.handle_job_completion(job)
                 else:
                     if self.test_scenario.job_status_check:
-                        job_status_result = self.get_job_status(job)
+                        job_status_result = job.get_status()
                         if job_status_result.is_successful:
                             successful_jobs_count += 1
                             await self.handle_job_completion(job)
@@ -305,7 +303,7 @@ class BaseRunner(ABC):
                             await self.shutdown()
                             raise JobFailureError(job.test.section_name, error_message, job_status_result.error_message)
                     else:
-                        job_status_result = self.get_job_status(job)
+                        job_status_result = job.get_status()
                         if not job_status_result.is_successful:
                             error_message = (
                                 f"Job {job.get_id()} for test {job.test.section_name} failed: "
@@ -316,19 +314,6 @@ class BaseRunner(ABC):
                         await self.handle_job_completion(job)
 
         return successful_jobs_count
-
-    def get_job_status(self, job: BaseJob) -> JobStatusResult:
-        """
-        Retrieve the job status from a specified output directory.
-
-        Args:
-            job (BaseJob): The job to be checked.
-
-        Returns:
-            JobStatusResult: The result containing the job status and an optional error message.
-        """
-        c_job = cast(BaseJobWithOutput, job)
-        return c_job.test.get_job_status(c_job.output_path)
 
     async def handle_job_completion(self, completed_job: BaseJob):
         """

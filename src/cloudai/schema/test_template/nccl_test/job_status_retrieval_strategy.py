@@ -14,79 +14,74 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 
-from cloudai import JobStatusResult, JobStatusRetrievalStrategy
+from cloudai import BaseJob, JobStatusResult, JobStatusRetrievalStrategy, OutputType, System
 
 
 class NcclTestJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
-    """Strategy to retrieve job status for NCCL tests by checking the contents of 'stdout.txt'."""
+    """Strategy to retrieve job status for NCCL tests by checking the contents of stdout."""
 
-    def get_job_status(self, output_path: str) -> JobStatusResult:
+    def get_job_status(self, system: System, job: BaseJob) -> JobStatusResult:
         """
-        Determine the job status by examining 'stdout.txt' in the output directory.
+        Determine the job status by examining the stdout retrieved from the system.
 
         Args:
-            output_path (str): Path to the directory containing 'stdout.txt'.
+            system (System): The system object used to retrieve stdout.
+            job (BaseJob): The job object associated with the test.
 
         Returns:
             JobStatusResult: The result containing the job status and an optional error message.
         """
-        stdout_path = os.path.join(output_path, "stdout.txt")
-        if os.path.isfile(stdout_path):
-            with open(stdout_path, "r") as file:
-                content = file.read()
-
-                # Check for specific error patterns
-                if "Test NCCL failure" in content:
-                    return JobStatusResult(
-                        is_successful=False,
-                        error_message=(
-                            f"NCCL test failure detected in {stdout_path}. "
-                            "Possible reasons include network errors or remote process exits. "
-                            "Please review the NCCL test output and errors in the file first. "
-                            "If the issue persists, contact the system administrator."
-                        ),
-                    )
-                if "Test failure" in content:
-                    return JobStatusResult(
-                        is_successful=False,
-                        error_message=(
-                            f"Test failure detected in {stdout_path}. "
-                            "Please review the specific test failure messages in the file. "
-                            "Ensure that the NCCL test environment is correctly set up and configured. "
-                            "If the issue persists, contact the system administrator."
-                        ),
-                    )
-
-                # Check for success indicators
-                if "# Out of bounds values" in content and "# Avg bus bandwidth" in content:
-                    return JobStatusResult(is_successful=True)
-
-                # Identify missing success indicators
-                missing_indicators = []
-                if "# Out of bounds values" not in content:
-                    missing_indicators.append("'# Out of bounds values'")
-                if "# Avg bus bandwidth" not in content:
-                    missing_indicators.append("'# Avg bus bandwidth'")
-
-                error_message = (
-                    f"Missing success indicators in {stdout_path}: {', '.join(missing_indicators)}. "
-                    "These keywords are expected to be present in stdout.txt, usually towards the end of the file. "
-                    "Please review the NCCL test output and errors in the file. "
-                    "Ensure the NCCL test ran to completion. You can run the generated sbatch script manually "
-                    f"and check if {stdout_path} is created and contains the expected keywords. "
-                    "If the issue persists, contact the system administrator."
-                )
-                return JobStatusResult(is_successful=False, error_message=error_message)
-
-        return JobStatusResult(
-            is_successful=False,
-            error_message=(
-                f"stdout.txt file not found in the specified output directory {output_path}. "
-                "This file is expected to be created as a result of the NCCL test run. "
-                "Please ensure the NCCL test was executed properly and that stdout.txt is generated. "
-                f"You can run the generated NCCL test command manually and verify the creation of {stdout_path}. "
-                "If the issue persists, contact the system administrator."
-            ),
+        # Retrieve stdout content through the system's API
+        stdout_content = system.retrieve_output_streams(
+            job, OutputType.STDOUT, multiple_files=False, line_by_line=False
         )
+
+        if stdout_content is None:
+            return JobStatusResult(
+                is_successful=False,
+                error_message=(
+                    "stdout not found. This output is expected as a result of the NCCL test run. "
+                    "Please ensure the NCCL test was executed properly and that stdout was generated. "
+                    "If the issue persists, contact the system administrator."
+                ),
+            )
+
+        # Check for specific error patterns
+        if "Test NCCL failure" in stdout_content:
+            return JobStatusResult(
+                is_successful=False,
+                error_message=(
+                    "NCCL test failure detected in stdout. Possible reasons include network errors or "
+                    "remote process exits. Please review the NCCL test output and errors first. "
+                    "If the issue persists, contact the system administrator."
+                ),
+            )
+        if "Test failure" in stdout_content:
+            return JobStatusResult(
+                is_successful=False,
+                error_message=(
+                    "Test failure detected in stdout. Please review the specific test failure messages. "
+                    "Ensure that the NCCL test environment is correctly set up and configured. "
+                    "If the issue persists, contact the system administrator."
+                ),
+            )
+
+        # Check for success indicators
+        if "# Out of bounds values" in stdout_content and "# Avg bus bandwidth" in stdout_content:
+            return JobStatusResult(is_successful=True)
+
+        # Identify missing success indicators
+        missing_indicators = []
+        if "# Out of bounds values" not in stdout_content:
+            missing_indicators.append("'# Out of bounds values'")
+        if "# Avg bus bandwidth" not in stdout_content:
+            missing_indicators.append("'# Avg bus bandwidth'")
+
+        error_message = (
+            f"Missing success indicators in stdout: {', '.join(missing_indicators)}. "
+            "These keywords are expected to be present in the output, usually towards the end. "
+            "Please review the NCCL test output. Ensure the NCCL test ran to completion. "
+            "If the issue persists, contact the system administrator."
+        )
+        return JobStatusResult(is_successful=False, error_message=error_message)

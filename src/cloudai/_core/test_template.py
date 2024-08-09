@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from .command_gen_strategy import CommandGenStrategy
 from .grading_strategy import GradingStrategy
@@ -25,6 +25,9 @@ from .job_status_result import JobStatusResult
 from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
+
+if TYPE_CHECKING:
+    from .base_job import BaseJob
 
 
 class TestTemplate:
@@ -183,22 +186,26 @@ class TestTemplate:
             )
         return self.job_id_retrieval_strategy.get_job_id(stdout, stderr)
 
-    def get_job_status(self, output_path: str) -> JobStatusResult:
+    def get_job_status(self, system: System, job: "BaseJob") -> JobStatusResult:
         """
-        Determine the job status by evaluating the contents or results in a specified output directory.
+        Retrieve the job status for a specific job on a given system.
 
         Args:
-            output_path (str): Path to the output directory.
+            system (System): The system where the job is executed.
+            job (BaseJob): The job for which the status is being retrieved.
 
         Returns:
-            JobStatusResult: The result containing the job status and an optional error message.
+            JobStatusResult: The job status and an optional error message.
+
+        Raises:
+            ValueError: If the job status retrieval strategy is not set.
         """
         if self.job_status_retrieval_strategy is None:
             raise ValueError(
                 "job_status_retrieval_strategy is missing. Ensure the strategy is registered in "
                 "the Registry by calling the appropriate registration function for the system type."
             )
-        return self.job_status_retrieval_strategy.get_job_status(output_path)
+        return self.job_status_retrieval_strategy.get_job_status(system, job)
 
     def can_handle_directory(self, directory_path: str) -> bool:
         """
