@@ -14,10 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai import BaseJob
+from cloudai import BaseJobWithOutput
 
 
-class SlurmJob(BaseJob):
+class SlurmJob(BaseJobWithOutput):
     """Represents a job in a Slurm environment."""
 
-    pass
+    def __repr__(self) -> str:
+        """
+        Return a string representation of the SlurmJob instance.
+
+        Returns
+            str: String representation of the Slurm job.
+        """
+        return f"SlurmJob(id={self.id}, test={self.test.name})"

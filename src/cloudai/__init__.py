@@ -16,6 +16,8 @@
 
 from ._core.base_installer import BaseInstaller, InstallStatusResult
 from ._core.base_job import BaseJob
+from ._core.base_job_with_id import BaseJobWithID
+from ._core.base_job_with_output import BaseJobWithOutput
 from ._core.base_runner import BaseRunner
 from ._core.base_system_parser import BaseSystemParser
 from ._core.command_gen_strategy import CommandGenStrategy
@@ -149,6 +151,8 @@ Registry().add_installer("standalone", StandaloneInstaller)
 __all__ = [
     "BaseInstaller",
     "BaseJob",
+    "BaseJobWithID",
+    "BaseJobWithOutput",
     "BaseRunner",
     "BaseSystemParser",
     "CommandGenStrategy",
