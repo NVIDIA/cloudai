@@ -15,10 +15,9 @@
 # limitations under the License.
 
 import logging
-from typing import cast
+from pathlib import Path
 
-from cloudai import BaseJob, BaseRunner, JobIdRetrievalError, System, Test, TestScenario
-from cloudai.systems import SlurmSystem
+from cloudai import BaseRunner, JobIdRetrievalError, System, Test, TestScenario
 from cloudai.util import CommandShell
 
 from .slurm_job import SlurmJob
@@ -28,14 +27,8 @@ class SlurmRunner(BaseRunner):
     """
     Implementation of the Runner for a system using Slurm.
 
-    This class is responsible for executing and managing tests in a Slurm environment. It extends the BaseRunner class,
-    implementing the abstract methods to work with Slurm jobs.
-
     Attributes
-        slurm_system (SlurmSystem): This attribute is a casted version of the `system` attribute to `SlurmSystem` type,
-            ensuring that Slurm-specific properties and methods are accessible.
         cmd_shell (CommandShell): An instance of CommandShell for executing system commands.
-        Inherits all other attributes from the BaseRunner class.
     """
 
     def __init__(self, mode: str, system: System, test_scenario: TestScenario) -> None:
@@ -44,11 +37,10 @@ class SlurmRunner(BaseRunner):
 
         Args:
             mode (str): The operation mode ('dry-run', 'run').
-            system (System): The system configuration.
+            system (System): The system object.
             test_scenario (TestScenario): The test scenario to run.
         """
         super().__init__(mode, system, test_scenario)
-        self.slurm_system: SlurmSystem = cast(SlurmSystem, system)
         self.cmd_shell = CommandShell()
 
     def _submit_test(self, test: Test) -> SlurmJob:
@@ -77,43 +69,4 @@ class SlurmRunner(BaseRunner):
                     stderr=stderr,
                     message="Failed to retrieve job ID from command output.",
                 )
-        return SlurmJob(job_id, test, job_output_path)
-
-    def is_job_running(self, job: BaseJob) -> bool:
-        """
-        Check if the specified job is currently running.
-
-        Args:
-            job (BaseJob): The job to check.
-
-        Returns:
-            bool: True if the job is running, False otherwise.
-        """
-        if self.mode == "dry-run":
-            return True
-        return self.slurm_system.is_job_running(job.id)
-
-    def is_job_completed(self, job: BaseJob) -> bool:
-        """
-        Check if a Slurm job is completed.
-
-        Args:
-            job (BaseJob): The job to check.
-
-        Returns:
-            bool: True if the job is completed, False otherwise.
-        """
-        if self.mode == "dry-run":
-            return True
-        s_job = cast(SlurmJob, job)
-        return self.slurm_system.is_job_completed(s_job.id)
-
-    def kill_job(self, job: BaseJob) -> None:
-        """
-        Terminate a Slurm job.
-
-        Args:
-            job (BaseJob): The job to be terminated.
-        """
-        s_job = cast(SlurmJob, job)
-        self.slurm_system.scancel(s_job.id)
+        return SlurmJob(self.mode, self.system, test, job_id, Path(job_output_path))

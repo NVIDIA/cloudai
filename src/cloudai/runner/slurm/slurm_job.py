@@ -14,10 +14,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai import BaseJob
+from pathlib import Path
+from typing import Union
+
+from cloudai import BaseJob, System, Test
 
 
 class SlurmJob(BaseJob):
-    """Represents a job in a Slurm environment."""
+    """
+    A job class for execution on a Slurm system.
 
-    pass
+    Attributes
+        id (Union[str, int]): The unique identifier of the job.
+    """
+
+    def __init__(self, mode: str, system: System, test: Test, id: Union[str, int], output_path: Path):
+        BaseJob.__init__(self, mode, system, test, output_path)
+        self.id = id
+
+    def get_id(self) -> Union[str, int]:
+        """
+        Retrieve the unique identifier of the job.
+
+        Returns
+            Union[str, int]: The unique identifier of the job.
+        """
+        return self.id
+
+    def __repr__(self) -> str:
+        """
+        Return a string representation of the SlurmJob instance.
+
+        Returns
+            str: String representation of the job.
+        """
+        return f"SlurmJob(id={self.get_id()}, test={self.test.name})"
