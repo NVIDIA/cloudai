@@ -207,21 +207,6 @@ class TestTemplate:
             )
         return self.job_status_retrieval_strategy.get_job_status(system, job)
 
-    def can_handle_directory(self, directory_path: str) -> bool:
-        """
-        Determine if the strategy can handle the directory.
-
-        Args:
-            directory_path (str): Path to the directory.
-
-        Returns:
-            bool: True if can handle, False otherwise.
-        """
-        if self.report_generation_strategy is not None:
-            return self.report_generation_strategy.can_handle_directory(directory_path)
-        else:
-            return False
-
     def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
         """
         Generate a report from the directory.

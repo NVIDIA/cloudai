@@ -22,8 +22,5 @@ from cloudai import ReportGenerationStrategy
 class SleepReportGenerationStrategy(ReportGenerationStrategy):
     """Strategy for generating reports from sleep directories."""
 
-    def can_handle_directory(self, directory_path: str) -> bool:
-        return False
-
     def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
         pass

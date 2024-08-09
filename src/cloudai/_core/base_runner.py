@@ -331,6 +331,8 @@ class BaseRunner(ABC):
             logging.info(msg)
             await self.submit_test(completed_job.test)
         else:
+            test = completed_job.test
+            test.test_template.generate_report(test.name, "", test.sol)
             await self.handle_dependencies(completed_job)
 
     async def handle_dependencies(self, completed_job: BaseJob) -> List[Task]:

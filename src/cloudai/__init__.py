@@ -43,7 +43,6 @@ from .installer.slurm_installer import SlurmInstaller
 from .installer.standalone_installer import StandaloneInstaller
 from .parser.system_parser.slurm_system_parser import SlurmSystemParser
 from .parser.system_parser.standalone_system_parser import StandaloneSystemParser
-from .report_generator import ReportGenerator
 from .runner.slurm.slurm_runner import SlurmRunner
 from .runner.standalone.standalone_runner import StandaloneRunner
 from .schema.test_template.chakra_replay.grading_strategy import ChakraReplayGradingStrategy
@@ -164,7 +163,6 @@ __all__ = [
     "JobStatusResult",
     "Parser",
     "ReportGenerationStrategy",
-    "ReportGenerator",
     "Runner",
     "System",
     "OutputType",

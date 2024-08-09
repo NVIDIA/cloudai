@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 from typing import List, Set
 
-from cloudai import Installer, Parser, ReportGenerator, Runner, System, Test, TestScenario, TestTemplate
+from cloudai import Installer, Parser, Runner, System, Test, TestScenario, TestTemplate
 
 
 def setup_logging(log_file: str, log_level: str) -> None:
@@ -86,15 +86,12 @@ def parse_arguments() -> argparse.Namespace:
             "install",
             "dry-run",
             "run",
-            "generate-report",
             "uninstall",
         ],
         help=(
             "Operating mode: 'install' to install test templates, 'dry-run' "
             "to simulate running experiments without checking for "
-            "installation, 'run' to run experiments, 'generate-report' to "
-            "generate a report from existing data, 'uninstall' to remove "
-            "installed templates."
+            "installation, 'run' to run experiments."
         ),
     )
     parser.add_argument(
@@ -233,25 +230,6 @@ def handle_dry_run_and_run(mode: str, system: System, tests: List[Test], test_sc
 
     logging.info(f"All test scenario results stored at: {runner.runner.output_path}")
 
-    if mode == "run":
-        generator = ReportGenerator(runner.runner.output_path)
-        generator.generate_report(test_scenario)
-
-
-def handle_generate_report(test_scenario: TestScenario, output_dir: Path) -> None:
-    """
-    Generate a report based on the existing configuration and test results.
-
-    Args:
-        test_scenario (TestScenario): The test scenario object.
-        output_dir (Path): The path to the output directory.
-    """
-    logging.info("Generating report based on system and test scenario")
-    generator = ReportGenerator(str(output_dir))
-    generator.generate_report(test_scenario)
-
-    logging.info("Report generation completed.")
-
 
 def main() -> None:
     args = parse_arguments()
@@ -292,11 +270,6 @@ def main() -> None:
                     f" the '{args.log_file}' file to confirm successful completion or to"
                     " identify any issues."
                 )
-        elif args.mode == "generate-report":
-            if not output_dir:
-                logging.error("Error: --output-dir is required when mode is generate-report.")
-                exit(1)
-            handle_generate_report(test_scenario, output_dir)
 
 
 if __name__ == "__main__":

@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from typing import Optional
 
 import pandas as pd
@@ -30,13 +29,6 @@ class NeMoLauncherReportGenerationStrategy(ReportGenerationStrategy):
 
     Now updated to handle TensorBoard log files and visualize data using Bokeh plots.
     """
-
-    def can_handle_directory(self, directory_path: str) -> bool:
-        for _, __, files in os.walk(directory_path):
-            for file in files:
-                if file.startswith("events.out.tfevents"):
-                    return True
-        return False
 
     def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
         tags = ["train_step_timing in s"]

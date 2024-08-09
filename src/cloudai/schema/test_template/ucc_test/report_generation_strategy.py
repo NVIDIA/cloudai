@@ -32,15 +32,6 @@ class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
     Visualizing bus bandwidth changes over epochs using interactive Bokeh plots.
     """
 
-    def can_handle_directory(self, directory_path: str) -> bool:
-        stdout_path = os.path.join(directory_path, "stdout.txt")
-        if os.path.exists(stdout_path):
-            with open(stdout_path, "r") as file:
-                content = file.read()
-                if re.search(r"\b(avg\s+min\s+max\s+avg\s+max\s+min)\b", content):
-                    return True
-        return False
-
     def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
         report_data = []
         stdout_path = os.path.join(directory_path, "stdout.txt")
