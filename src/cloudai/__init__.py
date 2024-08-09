@@ -22,6 +22,7 @@ from ._core.base_runner import BaseRunner
 from ._core.base_system_parser import BaseSystemParser
 from ._core.command_gen_strategy import CommandGenStrategy
 from ._core.exceptions import JobIdRetrievalError
+from ._core.file_output_system import FileOutputSystem
 from ._core.grader import Grader
 from ._core.grading_strategy import GradingStrategy
 from ._core.install_strategy import InstallStrategy
@@ -32,7 +33,7 @@ from ._core.parser import Parser
 from ._core.registry import Registry
 from ._core.report_generation_strategy import ReportGenerationStrategy
 from ._core.runner import Runner
-from ._core.system import System
+from ._core.system import OutputType, System
 from ._core.test import Test
 from ._core.test_scenario import TestScenario
 from ._core.test_template import TestTemplate
@@ -168,6 +169,8 @@ __all__ = [
     "ReportGenerator",
     "Runner",
     "System",
+    "OutputType",
+    "FileOutputSystem",
     "Test",
     "TestScenario",
     "TestTemplate",

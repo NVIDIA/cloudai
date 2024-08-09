@@ -16,11 +16,11 @@
 
 import logging
 
-from cloudai import BaseJob, System
+from cloudai import BaseJob, FileOutputSystem
 from cloudai.util import CommandShell
 
 
-class StandaloneSystem(System):
+class StandaloneSystem(FileOutputSystem):
     """
     Represents a standalone system without a job scheduler.
 

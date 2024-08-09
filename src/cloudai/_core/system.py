@@ -17,10 +17,18 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterator, List, Optional, Union
 
 if TYPE_CHECKING:
     from .base_job import BaseJob
+
+
+from enum import Enum
+
+
+class OutputType(Enum):
+    STDOUT = "stdout"
+    STDERR = "stderr"
 
 
 class System(ABC):
@@ -132,6 +140,30 @@ class System(ABC):
         error_message = (
             "Job termination method is not implemented. All subclasses of the System class must implement the 'kill' "
             "method to terminate a job that is currently running."
+        )
+        logging.error(error_message)
+        raise NotImplementedError(error_message)
+
+    @abstractmethod
+    def retrieve_output_streams(
+        self, job: "BaseJob", output_type: OutputType, multiple_files: bool = False, line_by_line: bool = False
+    ) -> Union[Optional[str], Optional[Iterator[str]], Optional[List[Union[str, Iterator[str]]]]]:
+        """
+        Retrieve output streams (stdout or stderr) for a given job.
+
+        Args:
+            job (BaseJob): The job for which to retrieve output.
+            output_type (OutputType): The type of output to retrieve.
+            multiple_files (bool): Whether to return output from multiple files separately.
+            line_by_line (bool): Whether to return the output line by line as an iterator.
+
+        Returns:
+            Union[Optional[str], Optional[Iterator[str]], Optional[List[Union[str, Iterator[str]]]]]:
+            The output as a string, an iterator for line-by-line reading, or a list of such outputs.
+        """
+        error_message = (
+            "The method 'retrieve_output_streams' is not implemented. All subclasses of the System class must "
+            "implement the 'retrieve_output_streams' method to provide a mechanism for retrieving job outputs."
         )
         logging.error(error_message)
         raise NotImplementedError(error_message)
