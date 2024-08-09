@@ -14,10 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai import BaseJob
+from cloudai import BaseJobWithOutput
 
 
-class StandaloneJob(BaseJob):
-    """Represents a job in a Standalone environment."""
+class StandaloneJob(BaseJobWithOutput):
+    """Represents a job in a standalone environment."""
 
-    pass
+    def __repr__(self) -> str:
+        """
+        Return a string representation of the StandaloneJob instance.
+
+        Returns
+            str: String representation of the standalone job.
+        """
+        return f"StandaloneJob(id={self.id}, test={self.test.name})"

@@ -19,4 +19,4 @@ description = "sendrecv"
 test_template_name = "NcclTest"
 
 [cmd_args]
-"subtest_name" = "sendrecv_perf_mpi"
+"subtest_name" = "sendrecv_perf"

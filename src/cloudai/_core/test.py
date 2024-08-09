@@ -15,9 +15,8 @@
 # limitations under the License.
 
 import sys
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
-from .job_status_result import JobStatusResult
 from .test_template import TestTemplate
 
 
@@ -149,6 +148,31 @@ class Test:
             self.nodes,
         )
 
+    def gen_json(self, output_path: str, job_name: str) -> Dict[Any, Any]:
+        """
+        Generate the JSON string for the Kubernetes job specification for this specific test.
+
+        Args:
+            output_path (str): Path to the output directory.
+            job_name (str): The name of the job.
+
+        Returns:
+            Dict[Any, Any]: A dictionary representing the Kubernetes job specification.
+        """
+        if self.time_limit is not None:
+            self.cmd_args["time_limit"] = self.time_limit
+
+        return self.test_template.gen_json(
+            self.env_vars,
+            self.cmd_args,
+            self.extra_env_vars,
+            self.extra_cmd_args,
+            output_path,
+            job_name,
+            self.num_nodes,
+            self.nodes,
+        )
+
     def get_job_id(self, stdout: str, stderr: str) -> Optional[int]:
         """
         Retrieve the job ID using the test template's method.
@@ -161,18 +185,6 @@ class Test:
             Optional[int]: The retrieved job ID, or None if not found.
         """
         return self.test_template.get_job_id(stdout, stderr)
-
-    def get_job_status(self, output_path: str) -> JobStatusResult:
-        """
-        Determine the status of a job based on the outputs located in the given output directory.
-
-        Args:
-            output_path (str): Path to the output directory.
-
-        Returns:
-            JobStatusResult: The result containing the job status and an optional error message.
-        """
-        return self.test_template.get_job_status(output_path)
 
     def has_more_iterations(self) -> bool:
         """

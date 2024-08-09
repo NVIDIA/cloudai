@@ -15,7 +15,20 @@
 # limitations under the License.
 
 
+import logging
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Iterator, List, Optional, Union
+
+if TYPE_CHECKING:
+    from .base_job import BaseJob
+
+
+from enum import Enum
+
+
+class OutputType(Enum):
+    STDOUT = "stdout"
+    STDERR = "stderr"
 
 
 class System(ABC):
@@ -29,13 +42,7 @@ class System(ABC):
         monitor_interval (int): Interval in seconds for monitoring jobs.
     """
 
-    def __init__(
-        self,
-        name: str,
-        scheduler: str,
-        output_path: str,
-        monitor_interval: int = 1,
-    ) -> None:
+    def __init__(self, name: str, scheduler: str, output_path: str, monitor_interval: int = 1) -> None:
         """
         Initialize a System instance.
 
@@ -64,4 +71,99 @@ class System(ABC):
 
     @abstractmethod
     def update(self) -> None:
-        raise NotImplementedError("Subclasses must implement this method.")
+        """
+        Update the system's state.
+
+        Raises
+            NotImplementedError: Raised if the method is not implemented in a subclass.
+        """
+        error_message = (
+            "System update method is not implemented. All subclasses of the System class must implement the "
+            "'update' method to ensure the system's state can be refreshed as needed."
+        )
+        logging.error(error_message)
+        raise NotImplementedError(error_message)
+
+    @abstractmethod
+    def is_job_running(self, job: "BaseJob") -> bool:
+        """
+        Check if a given job is currently running.
+
+        Args:
+            job (BaseJob): The job to check.
+
+        Returns:
+            bool: True if the job is running, False otherwise.
+
+        Raises:
+            NotImplementedError: Raised if the method is not implemented in a subclass.
+        """
+        error_message = (
+            "Job running status check method is not implemented. All subclasses of the System class must implement the"
+            " 'is_job_running' method to determine whether a job is currently active."
+        )
+        logging.error(error_message)
+        raise NotImplementedError(error_message)
+
+    @abstractmethod
+    def is_job_completed(self, job: "BaseJob") -> bool:
+        """
+        Check if a given job is completed.
+
+        Args:
+            job (BaseJob): The job to check.
+
+        Returns:
+            bool: True if the job is completed, False otherwise.
+
+        Raises:
+            NotImplementedError: Raised if the method is not implemented in a subclass.
+        """
+        error_message = (
+            "Job completion status check method is not implemented. All subclasses of the System class must implement "
+            "the 'is_job_completed' method to determine whether a job has finished execution."
+        )
+        logging.error(error_message)
+        raise NotImplementedError(error_message)
+
+    @abstractmethod
+    def kill(self, job: "BaseJob") -> None:
+        """
+        Terminate a given job.
+
+        Args:
+            job (BaseJob): The job to be terminated.
+
+        Raises:
+            NotImplementedError: Raised if the method is not implemented in a subclass.
+        """
+        error_message = (
+            "Job termination method is not implemented. All subclasses of the System class must implement the 'kill' "
+            "method to terminate a job that is currently running."
+        )
+        logging.error(error_message)
+        raise NotImplementedError(error_message)
+
+    @abstractmethod
+    def retrieve_output_streams(
+        self, job: "BaseJob", output_type: OutputType, multiple_files: bool = False, line_by_line: bool = False
+    ) -> Union[Optional[str], Optional[Iterator[str]], Optional[List[Union[str, Iterator[str]]]]]:
+        """
+        Retrieve output streams (stdout or stderr) for a given job.
+
+        Args:
+            job (BaseJob): The job for which to retrieve output.
+            output_type (OutputType): The type of output to retrieve.
+            multiple_files (bool): Whether to return output from multiple files separately.
+            line_by_line (bool): Whether to return the output line by line as an iterator.
+
+        Returns:
+            Union[Optional[str], Optional[Iterator[str]], Optional[List[Union[str, Iterator[str]]]]]:
+            The output as a string, an iterator for line-by-line reading, or a list of such outputs.
+        """
+        error_message = (
+            "The method 'retrieve_output_streams' is not implemented. All subclasses of the System class must "
+            "implement the 'retrieve_output_streams' method to provide a mechanism for retrieving job outputs."
+        )
+        logging.error(error_message)
+        raise NotImplementedError(error_message)

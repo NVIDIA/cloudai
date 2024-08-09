@@ -14,18 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .grading_strategy import NcclTestGradingStrategy
-from .kubernetes_json_gen_strategy import NcclTestKubernetesJsonGenStrategy
-from .report_generation_strategy import NcclTestReportGenerationStrategy
-from .slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
-from .slurm_install_strategy import NcclTestSlurmInstallStrategy
-from .template import NcclTest
+from .kubernetes_system import KubernetesSystem
 
 __all__ = [
-    "NcclTest",
-    "NcclTestSlurmInstallStrategy",
-    "NcclTestSlurmCommandGenStrategy",
-    "NcclTestKubernetesJsonGenStrategy",
-    "NcclTestReportGenerationStrategy",
-    "NcclTestGradingStrategy",
+    "KubernetesSystem",
 ]

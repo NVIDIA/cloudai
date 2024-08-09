@@ -19,26 +19,10 @@ from typing import Optional
 
 
 class ReportGenerationStrategy:
-    """
-    Abstract class for generating reports from directories.
+    """Abstract class for generating reports."""
 
-    This class defines a strategy for checking if a strategy can handle a
-    specific directory and for generating a report from that directory.
-    """
-
-    @abstractmethod
-    def can_handle_directory(self, directory_path: str) -> bool:
-        """
-        Determine if the strategy can handle the directory.
-
-        Args:
-            directory_path (str): Path to the directory.
-
-        Returns:
-            bool: True if can handle, False otherwise.
-        """
-        pass
-
+    # TODO: Pass the system and job. The test_name and directory_path can be retrieved from the job,
+    # and sol can be accessed from a member of the job's test.
     @abstractmethod
     def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
         """

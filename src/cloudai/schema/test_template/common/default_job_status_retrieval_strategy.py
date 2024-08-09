@@ -15,7 +15,7 @@
 # limitations under the License.
 
 
-from cloudai import JobStatusResult, JobStatusRetrievalStrategy
+from cloudai import BaseJob, JobStatusResult, JobStatusRetrievalStrategy, System
 
 
 class DefaultJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
@@ -26,5 +26,5 @@ class DefaultJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
     It always returns a success result, indicating that the job has successfully completed.
     """
 
-    def get_job_status(self, output_path: str) -> JobStatusResult:
+    def get_job_status(self, system: System, job: BaseJob) -> JobStatusResult:
         return JobStatusResult(is_successful=True)

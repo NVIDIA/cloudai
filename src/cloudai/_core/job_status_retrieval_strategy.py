@@ -15,22 +15,28 @@
 # limitations under the License.
 
 from abc import abstractmethod
+from typing import TYPE_CHECKING
 
 from .job_status_result import JobStatusResult
 
+if TYPE_CHECKING:
+    from .base_job import BaseJob
+    from .system import System
+
 
 class JobStatusRetrievalStrategy:
-    """Abstract class to define a strategy for retrieving job statuses from a given output directory."""
+    """Abstract base class for retrieving job statuses from a system."""
 
     @abstractmethod
-    def get_job_status(self, output_path: str) -> JobStatusResult:
+    def get_job_status(self, system: "System", job: "BaseJob") -> JobStatusResult:
         """
-        Retrieve the job status from a specified output directory.
+        Retrieve the status of the specified job from the system.
 
         Args:
-            output_path (str): Path to the output directory.
+            system (System): The system where the job is running.
+            job (BaseJob): The job to check.
 
         Returns:
-            JobStatusResult: The result containing the job status and an optional error message.
+            JobStatusResult: The status of the job, including any error messages.
         """
         pass

@@ -37,14 +37,6 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
     tensor sizes from stdout files, and generate a report using Bokeh.
     """
 
-    def can_handle_directory(self, directory_path: str) -> bool:
-        stdout_path = os.path.join(directory_path, "stdout.txt")
-        if os.path.exists(stdout_path):
-            with open(stdout_path, "r") as file:
-                if re.search(r"Hello from Rank \d+: \[Rank\s+\d+\]", file.read()):
-                    return True
-        return False
-
     def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
         stdout_path = os.path.join(directory_path, "stdout.txt")
         if not os.path.isfile(stdout_path):

@@ -71,9 +71,6 @@ def test_nccl_report_generation(setup_test_environment):
     # Instantiate the strategy
     strategy = NcclTestReportGenerationStrategy()
 
-    # Validate the directory can be handled
-    assert strategy.can_handle_directory(test_dir) is True
-
     # Generate the report
     strategy.generate_report("nccl_test", test_dir)
 

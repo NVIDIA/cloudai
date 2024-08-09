@@ -33,21 +33,6 @@ class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
     Visualizing bus bandwidth changes over epochs using interactive Bokeh plots.
     """
 
-    def can_handle_directory(self, directory_path: str) -> bool:
-        stdout_path = os.path.join(directory_path, "stdout.txt")
-        if os.path.exists(stdout_path):
-            with open(stdout_path, "r") as file:
-                content = file.read()
-                if re.search(r"out-of-place|in-place", content) and re.search(
-                    r"\b(size\s+count\s+type\s+redop\s+root\s+"
-                    r"time\s+algbw\s+busbw\s+#wrong\s+time\s+"
-                    r"algbw\s+busbw\s+#wrong)\b",
-                    content,
-                    re.IGNORECASE,
-                ):
-                    return True
-        return False
-
     def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
         report_data, _ = self._parse_output(directory_path)
         if report_data:

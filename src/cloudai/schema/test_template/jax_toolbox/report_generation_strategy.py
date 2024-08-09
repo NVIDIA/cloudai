@@ -26,15 +26,6 @@ from cloudai import ReportGenerationStrategy
 class JaxToolboxReportGenerationStrategy(ReportGenerationStrategy):
     """Strategy for generating reports from JaxToolbox."""
 
-    def can_handle_directory(self, directory_path: str) -> bool:
-        error_files = glob.glob(os.path.join(directory_path, "error-*.txt"))
-        for error_file in error_files:
-            with open(error_file, "r") as file:
-                content = file.read()
-                if "[PAX STATUS]: E2E time: Elapsed time for <_main>: " in content:
-                    return True
-        return False
-
     def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
         times = self._extract_times(directory_path)
         if times:
