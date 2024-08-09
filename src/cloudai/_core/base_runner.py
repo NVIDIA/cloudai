@@ -37,8 +37,8 @@ class BaseRunner(ABC):
     """
     Abstract base class for a Runner that manages test execution.
 
-    This class provides a framework for executing tests within a given test
-    scenario, handling dependencies and execution order.
+    This class provides a framework for executing tests within a given test scenario, handling dependencies and
+    execution order.
 
     Attributes
         mode (str): The operation mode ('dry-run', 'run').
@@ -136,7 +136,7 @@ class BaseRunner(ABC):
             return
         logging.info("Terminating all jobs...")
         for job in self.jobs:
-            self.kill_job(job)
+            self.system.kill(job)
         logging.info("All jobs have been killed.")
 
         sys.exit(0)
@@ -210,7 +210,7 @@ class BaseRunner(ABC):
         items = list(self.test_to_job_map.items())
 
         for test, job in items:
-            if self.is_job_running(job):
+            if job.is_running():
                 await self.check_and_schedule_start_post_init_dependent_tests(test)
 
     async def check_and_schedule_start_post_init_dependent_tests(self, started_test: Test):
@@ -286,7 +286,7 @@ class BaseRunner(ABC):
         successful_jobs_count = 0
 
         for job in list(self.jobs):
-            if self.is_job_completed(job):
+            if job.is_completed():
                 if self.mode == "dry-run":
                     successful_jobs_count += 1
                     await self.handle_job_completion(job)
@@ -298,7 +298,7 @@ class BaseRunner(ABC):
                             await self.handle_job_completion(job)
                         else:
                             error_message = (
-                                f"Job {job.id} for test {job.test.section_name} failed: "
+                                f"Job {job.get_id()} for test {job.test.section_name} failed: "
                                 f"{job_status_result.error_message}"
                             )
                             logging.error(error_message)
@@ -308,7 +308,7 @@ class BaseRunner(ABC):
                         job_status_result = self.get_job_status(job)
                         if not job_status_result.is_successful:
                             error_message = (
-                                f"Job {job.id} for test {job.test.section_name} failed: "
+                                f"Job {job.get_id()} for test {job.test.section_name} failed: "
                                 f"{job_status_result.error_message}"
                             )
                             logging.error(error_message)
@@ -347,32 +347,6 @@ class BaseRunner(ABC):
         else:
             await self.handle_dependencies(completed_job)
 
-    @abstractmethod
-    def is_job_running(self, job: BaseJob) -> bool:
-        """
-        Check if a job is currently running.
-
-        Args:
-            job (BaseJob): The job to check.
-
-        Returns:
-            bool: True if the job is running, False otherwise.
-        """
-        pass
-
-    @abstractmethod
-    def is_job_completed(self, job: BaseJob) -> bool:
-        """
-        Determine if a job is completed.
-
-        Args:
-            job (BaseJob): The job to be checked.
-
-        Returns:
-            bool: True if the job is completed, False otherwise.
-        """
-        pass
-
     async def handle_dependencies(self, completed_job: BaseJob) -> List[Task]:
         """
         Handle the start_post_comp and end_post_comp dependencies for a completed job.
@@ -403,16 +377,6 @@ class BaseRunner(ABC):
 
         return tasks
 
-    @abstractmethod
-    def kill_job(self, job: BaseJob):
-        """
-        Kill a specific job.
-
-        Args:
-            job (BaseJob): The job to be killed.
-        """
-        pass
-
     async def delayed_kill_job(self, job: BaseJob, delay: int = 0):
         """
         Schedule termination of a Standalone job after a specified delay.
@@ -421,7 +385,7 @@ class BaseRunner(ABC):
             job (BaseJob): The job to be terminated.
             delay (int): Delay in seconds after which the job should be terminated.
         """
-        logging.info(f"Scheduling termination of job {job.id} after {delay} seconds.")
+        logging.info(f"Scheduling termination of job {job.get_id()} after {delay} seconds.")
         await asyncio.sleep(delay)
         job.terminated_by_dependency = True
-        self.kill_job(job)
+        self.system.kill(job)
