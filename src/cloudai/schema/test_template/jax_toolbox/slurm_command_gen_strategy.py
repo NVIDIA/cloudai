@@ -194,25 +194,45 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def generate_full_srun_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
     ) -> str:
+        """
+        Generate the full srun command for running a job on SLURM.
+
+        Args:
+            slurm_args (Dict[str, Any]): A dictionary containing SLURM arguments.
+            env_vars (Dict[str, str]): A dictionary containing environment variables.
+            cmd_args (Dict[str, str]): A dictionary containing command arguments.
+            extra_cmd_args (str): Additional command arguments.
+
+        Returns:
+            str: The full srun command as a string.
+        """
         self._create_run_script(slurm_args, env_vars, cmd_args, extra_cmd_args)
+
+        output_path = os.path.join(os.path.abspath(cmd_args["output_path"]), "output_pretest-%j-%n-%t.txt")
+        error_path = os.path.join(os.path.abspath(cmd_args["output_path"]), "error_pretest-%j-%n-%t.txt")
 
         commands = []
 
         pre_test_value = cmd_args.get("pre_test")
         if pre_test_value:
-            pre_test_command = self._generate_pre_test_command(cmd_args)
+            pre_test_command = self._generate_pre_test_command(cmd_args, output_path, error_path)
             commands.append(pre_test_command)
 
+        # check if the keyword is found in the pre-test output
+        pre_test_check_command = self._generate_pre_test_check_command(cmd_args, output_path)
+        commands.append(pre_test_check_command)
+
         main_srun_command_parts = [
-            "srun",
-            f"--mpi={self.slurm_system.mpi}",
-            f"{self.slurm_system.extra_srun_args if self.slurm_system.extra_srun_args else ''}",
-            "--export=ALL",
-            f"-o {slurm_args['output']}",
-            f"-e {slurm_args['error']}",
-            f"--container-image={slurm_args['image_path']}",
-            f"--container-mounts={slurm_args['container_mounts']}",
-            "/opt/paxml/workspace/run.sh",
+            'if [ "$keyword_found" = true ]; then\n    srun',
+            f"    --mpi={self.slurm_system.mpi}",
+            f"    {self.slurm_system.extra_srun_args if self.slurm_system.extra_srun_args else ''}",
+            "    --export=ALL",
+            f"    -o {slurm_args['output']}",
+            f"    -e {slurm_args['error']}",
+            f"    --container-image={slurm_args['image_path']}",
+            f"    --container-mounts={slurm_args['container_mounts']}",
+            "    /opt/paxml/workspace/run.sh",
+            "fi",
         ]
 
         main_srun_command = " \\\n".join(main_srun_command_parts)
@@ -221,9 +241,18 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         full_command = "\n\n".join(commands)
         return full_command
 
-    def _generate_pre_test_command(self, cmd_args: Dict[str, str]) -> str:
-        output_path = os.path.join(os.path.abspath(cmd_args["output_path"]), "output_pretest-%j-%n-%t.txt")
-        error_path = os.path.join(os.path.abspath(cmd_args["output_path"]), "error_pretest-%j-%n-%t.txt")
+    def _generate_pre_test_command(self, cmd_args: Dict[str, Any], output_path: str, error_path: str) -> str:
+        """
+        Generate the pre-test command for running a test.
+
+        Args:
+            cmd_args (Dict[str, Any]): A dictionary containing command arguments.
+            output_path (str): The path to the output file.
+            error_path (str): The path to the error file.
+
+        Returns:
+            str: The generated pre-test command.
+        """
         nccl_test = {k.split(".")[-1]: v for k, v in cmd_args.items() if k.startswith("pre_test.nccl_test")}
         pre_test_command_parts = [
             "srun",
@@ -251,6 +280,35 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f"--stepfactor {nccl_test.get('stepfactor', 2)}",
         ]
         return " \\\n".join(pre_test_command_parts)
+
+    def _generate_pre_test_check_command(self, cmd_args: Dict[str, str], output_path: str) -> str:
+        """
+        Generate the command for pre-test check.
+
+        Args:
+            cmd_args (Dict[str, str]): A dictionary containing command arguments.
+            output_path (str): The path to the output file.
+
+        Returns:
+            str: The generated command for pre-test check.
+        """
+        directory_path = os.path.dirname(output_path)
+        # Create the file pattern with wildcard
+        file_pattern = os.path.join(directory_path, "output_pretest-*.txt")
+        keyword = cmd_args.get("keyword", "Avg bus bandwidth")
+
+        script_lines = [
+            f'file_pattern="{file_pattern}"',
+            f'keyword="{keyword}"',
+            "",
+            "# Use grep to search for the keyword in the files",
+            'if grep -q "$keyword" $file_pattern; then',
+            "    keyword_found=true",
+            "fi",
+        ]
+
+        script = "\n".join(script_lines)
+        return script
 
     def _create_run_script(
         self,
