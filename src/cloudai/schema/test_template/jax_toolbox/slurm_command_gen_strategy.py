@@ -308,40 +308,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         os.chmod(run_script_path, 0o755)
         return run_script_path
 
-    def _generate_pretest_nccl_command(self, cmd_args: Dict[str, str]) -> str:
-        """
-        Generate the command to run the NCCL pre-test.
-
-        Args:
-            cmd_args (Dict[str, str]): Command-line arguments.
-
-        Returns:
-            str: The command to run the NCCL pre-test.
-        """
-        pre_test_value = cmd_args.get("pre_test")
-        if pre_test_value:
-            return (
-                "/usr/local/bin/alltoall_perf_mpi "
-                "--nthreads 1 "
-                "--ngpus 1 "
-                "--minbytes 8M "
-                "--maxbytes 16G "
-                "--stepbytes 1M "
-                "--op sum "
-                "--datatype float "
-                "--root 0 "
-                "--iters 5 "
-                "--warmup_iters 3 "
-                "--agg_iters 1 "
-                "--average 1 "
-                "--parallel_init 0 "
-                "--check 1 "
-                "--blocking 0 "
-                "--cudagraph 0 "
-                "--stepfactor 2"
-            )
-        return ""
-
     def _script_content(
         self,
         stage: str,
@@ -363,23 +329,12 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         Returns:
             list: Lines of the script for the given stage.
         """
-        pre_test_value = cmd_args.get("pre_test")
-
         script_lines = [
             "#!/bin/bash" if stage == "profile" else "",
             "",
             self._format_env_vars(env_vars),
             "",
         ]
-
-        if pre_test_value:
-            script_lines.extend(
-                [
-                    "# Pre-test section",
-                    "echo 'Running pre-test...'",
-                    "",
-                ]
-            )
 
         script_lines.append(self._generate_python_command(stage, slurm_args, env_vars, cmd_args, extra_cmd_args))
         if self.test_name == "Grok" or self.test_name == "GPT":
