@@ -231,8 +231,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f"    -e {slurm_args['error']}",
             f"    --container-image={slurm_args['image_path']}",
             f"    --container-mounts={slurm_args['container_mounts']}",
-            "    /opt/paxml/workspace/run.sh",
-            "fi",
+            "    /opt/paxml/workspace/run.sh\nfi",
         ]
 
         main_srun_command = " \\\n".join(main_srun_command_parts)
