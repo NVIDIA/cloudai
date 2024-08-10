@@ -46,6 +46,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         final_cmd_args["output_path"] = output_path
 
         self.test_name = self._extract_test_name(cmd_args)
+        self.pre_test_value = None
 
         if self.test_name == "GPT":
             # Define the keys to check for the GPT test
@@ -195,7 +196,37 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     ) -> str:
         self._create_run_script(slurm_args, env_vars, cmd_args, extra_cmd_args)
 
-        srun_command_parts = [
+        commands = []
+
+        pre_test_value = cmd_args.get("pre_test")
+        if pre_test_value:
+            nccl_test = {k.split(".")[-1]: v for k, v in cmd_args.items() if k.startswith("pre_test.nccl_test")}
+            pre_test_command_parts = [
+                "srun",
+                "--mpi=pmix",
+                f"--container-image={nccl_test.get('docker_image_url', 'nvcr.io/nvidia/pytorch:24.02-py3')}",
+                f"/usr/local/bin/{nccl_test.get('preset', 'all_gather_perf_mpi')}",
+                f"--nthreads {nccl_test.get('nthreads', 1)}",
+                f"--ngpus {nccl_test.get('ngpus', 1)}",
+                f"--minbytes {nccl_test.get('minbytes', '32M')}",
+                f"--maxbytes {nccl_test.get('maxbytes', '32M')}",
+                f"--stepbytes {nccl_test.get('stepbytes', '1M')}",
+                f"--op {nccl_test.get('op', 'sum')}",
+                f"--datatype {nccl_test.get('datatype', 'float')}",
+                f"--root {nccl_test.get('root', 0)}",
+                f"--iters {nccl_test.get('iters', 20)}",
+                f"--warmup_iters {nccl_test.get('warmup_iters', 5)}",
+                f"--agg_iters {nccl_test.get('agg_iters', 1)}",
+                f"--average {nccl_test.get('average', 1)}",
+                f"--parallel_init {nccl_test.get('parallel_init', 0)}",
+                f"--check {nccl_test.get('check', 1)}",
+                f"--blocking {nccl_test.get('blocking', 0)}",
+                f"--cudagraph {nccl_test.get('cudagraph', 0)}",
+            ]
+            pre_test_command = " \\\n".join(pre_test_command_parts)
+            commands.append(pre_test_command)
+
+        main_srun_command_parts = [
             "srun",
             f"--mpi={self.slurm_system.mpi}",
             f"{self.slurm_system.extra_srun_args if self.slurm_system.extra_srun_args else ''}",
@@ -207,7 +238,11 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "/opt/paxml/workspace/run.sh",
         ]
 
-        return " \\\n".join(srun_command_parts)
+        main_srun_command = " \\\n".join(main_srun_command_parts)
+        commands.append(main_srun_command)
+
+        full_command = "\n\n".join(commands)
+        return full_command
 
     def _create_run_script(
         self,
@@ -337,7 +372,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 [
                     "# Pre-test section",
                     "echo 'Running pre-test...'",
-                    self._generate_pretest_nccl_command(cmd_args),
                     "",
                 ]
             )

@@ -181,7 +181,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         batch_script_content.append(env_vars_str)
         batch_script_content.append(srun_command)
 
-        script_path = os.path.join(output_path, "batch_script.sh")
+        script_path = os.path.join(output_path, "cloudai_sbatch_script.sh")
         with open(script_path, "w") as script_file:
             script_file.write("\n".join(batch_script_content))
 
@@ -217,3 +217,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             batch_script_content.append(f"#SBATCH --ntasks-per-node={args['ntasks_per_node']}")
         if "time_limit" in args:
             batch_script_content.append(f"#SBATCH --time={args['time_limit']}")
+
+        batch_script_content.append(
+            "\nexport SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)"
+        )
