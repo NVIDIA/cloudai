@@ -199,6 +199,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         commands = []
 
         pre_test_value = cmd_args.get("pre_test")
+        preset_name = cmd_args.get("pre_test.nccl_test.preset_name")
         if pre_test_value:
             nccl_test = {k.split(".")[-1]: v for k, v in cmd_args.items() if k.startswith("pre_test.nccl_test")}
             pre_test_command_parts = [
@@ -206,6 +207,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 "--mpi=pmix",
                 f"--container-image={nccl_test.get('docker_image_url', 'nvcr.io/nvidia/pytorch:24.02-py3')}",
                 f"/usr/local/bin/{nccl_test.get('preset', 'all_gather_perf_mpi')}",
+                f"-o output_{preset_name}_pretest-%j-%n-%t.txt",
+                f"-e error_{preset_name}_pretest-%j-%n-%t.txt",
                 f"--nthreads {nccl_test.get('nthreads', 1)}",
                 f"--ngpus {nccl_test.get('ngpus', 1)}",
                 f"--minbytes {nccl_test.get('minbytes', '32M')}",
