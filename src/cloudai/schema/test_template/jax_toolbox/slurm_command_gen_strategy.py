@@ -199,20 +199,21 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         commands = []
 
         pre_test_value = cmd_args.get("pre_test")
-        preset_name = cmd_args.get("pre_test.nccl_test.preset_name")
+        output_path = os.path.join(os.path.abspath(cmd_args["output_path"]), "output_pretest-%j-%n-%t.txt")
+        error_path = os.path.join(os.path.abspath(cmd_args["output_path"]), "error_pretest-%j-%n-%t.txt")
         if pre_test_value:
             nccl_test = {k.split(".")[-1]: v for k, v in cmd_args.items() if k.startswith("pre_test.nccl_test")}
             pre_test_command_parts = [
                 "srun",
                 "--mpi=pmix",
+                f"-o {output_path}",
+                f"-e {error_path}",
                 f"--container-image={nccl_test.get('docker_image_url', 'nvcr.io/nvidia/pytorch:24.02-py3')}",
                 f"/usr/local/bin/{nccl_test.get('preset', 'all_gather_perf_mpi')}",
-                f"-o output_{preset_name}_pretest-%j-%n-%t.txt",
-                f"-e error_{preset_name}_pretest-%j-%n-%t.txt",
                 f"--nthreads {nccl_test.get('nthreads', 1)}",
                 f"--ngpus {nccl_test.get('ngpus', 1)}",
                 f"--minbytes {nccl_test.get('minbytes', '32M')}",
-                f"--maxbytes {nccl_test.get('maxbytes', '32M')}",
+                f"--maxbytes {nccl_test.get('maxbytes', '16G')}",
                 f"--stepbytes {nccl_test.get('stepbytes', '1M')}",
                 f"--op {nccl_test.get('op', 'sum')}",
                 f"--datatype {nccl_test.get('datatype', 'float')}",
@@ -225,6 +226,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 f"--check {nccl_test.get('check', 1)}",
                 f"--blocking {nccl_test.get('blocking', 0)}",
                 f"--cudagraph {nccl_test.get('cudagraph', 0)}",
+                f"--stepfactor {nccl_test.get('stepfactor', 2)}",
             ]
             pre_test_command = " \\\n".join(pre_test_command_parts)
             commands.append(pre_test_command)
