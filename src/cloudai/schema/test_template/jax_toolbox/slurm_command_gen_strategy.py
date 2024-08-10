@@ -199,36 +199,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         commands = []
 
         pre_test_value = cmd_args.get("pre_test")
-        output_path = os.path.join(os.path.abspath(cmd_args["output_path"]), "output_pretest-%j-%n-%t.txt")
-        error_path = os.path.join(os.path.abspath(cmd_args["output_path"]), "error_pretest-%j-%n-%t.txt")
         if pre_test_value:
-            nccl_test = {k.split(".")[-1]: v for k, v in cmd_args.items() if k.startswith("pre_test.nccl_test")}
-            pre_test_command_parts = [
-                "srun",
-                "--mpi=pmix",
-                f"-o {output_path}",
-                f"-e {error_path}",
-                f"--container-image={nccl_test.get('docker_image_url', 'nvcr.io/nvidia/pytorch:24.02-py3')}",
-                f"/usr/local/bin/{nccl_test.get('preset', 'all_gather_perf_mpi')}",
-                f"--nthreads {nccl_test.get('nthreads', 1)}",
-                f"--ngpus {nccl_test.get('ngpus', 1)}",
-                f"--minbytes {nccl_test.get('minbytes', '32M')}",
-                f"--maxbytes {nccl_test.get('maxbytes', '16G')}",
-                f"--stepbytes {nccl_test.get('stepbytes', '1M')}",
-                f"--op {nccl_test.get('op', 'sum')}",
-                f"--datatype {nccl_test.get('datatype', 'float')}",
-                f"--root {nccl_test.get('root', 0)}",
-                f"--iters {nccl_test.get('iters', 20)}",
-                f"--warmup_iters {nccl_test.get('warmup_iters', 5)}",
-                f"--agg_iters {nccl_test.get('agg_iters', 1)}",
-                f"--average {nccl_test.get('average', 1)}",
-                f"--parallel_init {nccl_test.get('parallel_init', 0)}",
-                f"--check {nccl_test.get('check', 1)}",
-                f"--blocking {nccl_test.get('blocking', 0)}",
-                f"--cudagraph {nccl_test.get('cudagraph', 0)}",
-                f"--stepfactor {nccl_test.get('stepfactor', 2)}",
-            ]
-            pre_test_command = " \\\n".join(pre_test_command_parts)
+            pre_test_command = self._generate_pre_test_command(cmd_args)
             commands.append(pre_test_command)
 
         main_srun_command_parts = [
@@ -248,6 +220,37 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         full_command = "\n\n".join(commands)
         return full_command
+
+    def _generate_pre_test_command(self, cmd_args: Dict[str, str]) -> str:
+        output_path = os.path.join(os.path.abspath(cmd_args["output_path"]), "output_pretest-%j-%n-%t.txt")
+        error_path = os.path.join(os.path.abspath(cmd_args["output_path"]), "error_pretest-%j-%n-%t.txt")
+        nccl_test = {k.split(".")[-1]: v for k, v in cmd_args.items() if k.startswith("pre_test.nccl_test")}
+        pre_test_command_parts = [
+            "srun",
+            "--mpi=pmix",
+            f"-o {output_path}",
+            f"-e {error_path}",
+            f"--container-image={nccl_test.get('docker_image_url', 'nvcr.io/nvidia/pytorch:24.02-py3')}",
+            f"/usr/local/bin/{nccl_test.get('preset', 'all_gather_perf_mpi')}",
+            f"--nthreads {nccl_test.get('nthreads', 1)}",
+            f"--ngpus {nccl_test.get('ngpus', 1)}",
+            f"--minbytes {nccl_test.get('minbytes', '32M')}",
+            f"--maxbytes {nccl_test.get('maxbytes', '16G')}",
+            f"--stepbytes {nccl_test.get('stepbytes', '1M')}",
+            f"--op {nccl_test.get('op', 'sum')}",
+            f"--datatype {nccl_test.get('datatype', 'float')}",
+            f"--root {nccl_test.get('root', 0)}",
+            f"--iters {nccl_test.get('iters', 20)}",
+            f"--warmup_iters {nccl_test.get('warmup_iters', 5)}",
+            f"--agg_iters {nccl_test.get('agg_iters', 1)}",
+            f"--average {nccl_test.get('average', 1)}",
+            f"--parallel_init {nccl_test.get('parallel_init', 0)}",
+            f"--check {nccl_test.get('check', 1)}",
+            f"--blocking {nccl_test.get('blocking', 0)}",
+            f"--cudagraph {nccl_test.get('cudagraph', 0)}",
+            f"--stepfactor {nccl_test.get('stepfactor', 2)}",
+        ]
+        return " \\\n".join(pre_test_command_parts)
 
     def _create_run_script(
         self,
