@@ -202,7 +202,10 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             batch_script_content.append(f"#SBATCH --output={os.path.join(output_path, 'stdout.txt')}")
         if "error" not in args:
             batch_script_content.append(f"#SBATCH --error={os.path.join(output_path, 'stderr.txt')}")
-        if args.get("partition"):
+
+        # safely access parition
+        partition = args.get("partition")
+        if partition:
             batch_script_content.append(f"#SBATCH --partition={args['partition']}")
         if args.get("node_list_str"):
             batch_script_content.append(f"#SBATCH --nodelist={args['node_list_str']}")
@@ -210,7 +213,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             batch_script_content.append(f"#SBATCH --account={args['account']}")
         if "distribution" in args:
             batch_script_content.append(f"#SBATCH --distribution={args['distribution']}")
-        if "gpus_per_node" in args:
+
+        gpus_per_node = args.get("gpus_per_node")
+        if gpus_per_node:
             batch_script_content.append(f"#SBATCH --gpus-per-node={args['gpus_per_node']}")
             batch_script_content.append(f"#SBATCH --gres=gpu:{args['gpus_per_node']}")
         if "ntasks_per_node" in args:
