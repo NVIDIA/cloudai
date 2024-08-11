@@ -214,30 +214,39 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         commands = []
 
         pre_test_value = cmd_args.get("pre_test")
-        if pre_test_value:
+
+        if pre_test_value == "True":
             pre_test_command = self._generate_pre_test_command(cmd_args, output_path, error_path)
             commands.append(pre_test_command)
+            # Check if the keyword is found in the pre-test output
+            pre_test_check_command = self._generate_pre_test_check_command(cmd_args, output_path)
+            commands.append(pre_test_check_command)
 
-        # check if the keyword is found in the pre-test output
-        pre_test_check_command = self._generate_pre_test_check_command(cmd_args, output_path)
-        commands.append(pre_test_check_command)
-
-        main_srun_command_parts = [
-            'if [ "$keyword_found" = true ]; then\n    srun',
-            f"    --mpi={self.slurm_system.mpi}",
-            f"    {self.slurm_system.extra_srun_args if self.slurm_system.extra_srun_args else ''}",
-            "    --export=ALL",
-            f"    -o {slurm_args['output']}",
-            f"    -e {slurm_args['error']}",
-            f"    --container-image={slurm_args['image_path']}",
-            f"    --container-mounts={slurm_args['container_mounts']}",
-            "    /opt/paxml/workspace/run.sh\nfi",
+        # Construct the srun command with the specific formatting
+        srun_command_parts = [
+            "srun",
+            f"--mpi={self.slurm_system.mpi} \\",
+            f"{self.slurm_system.extra_srun_args if self.slurm_system.extra_srun_args else ''} \\",
+            "--export=ALL \\",
+            f"-o {slurm_args['output']} \\",
+            f"-e {slurm_args['error']} \\",
+            f"--container-image={slurm_args['image_path']} \\",
+            f"--container-mounts={slurm_args['container_mounts']} \\",
+            "/opt/paxml/workspace/run.sh",
         ]
 
-        main_srun_command = " \\\n".join(main_srun_command_parts)
-        commands.append(main_srun_command)
+        # Join the srun command parts with newlines
+        srun_command = "\n".join(srun_command_parts).strip()
 
+        # Add conditional check if pre_test_value is True
+        if pre_test_value == "True":
+            srun_command = f'if [ "$keyword_found" = true ]; then\n{srun_command}\nfi'
+
+        commands.append(srun_command)
+
+        # Join all commands into the final full command string
         full_command = "\n\n".join(commands)
+
         return full_command
 
     def _generate_pre_test_command(self, cmd_args: Dict[str, Any], output_path: str, error_path: str) -> str:
