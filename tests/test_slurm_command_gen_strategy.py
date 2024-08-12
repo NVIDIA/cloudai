@@ -469,8 +469,6 @@ class TestWriteSbatchScript:
             "node_list_str": "node1,node2",
         }
 
-        print(f"Args passed to the method: {args}")  # Debugging line
-
         sbatch_command = strategy_fixture._write_sbatch_script(
             args, self.env_vars_str, self.srun_command, str(tmp_path)
         )
