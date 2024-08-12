@@ -46,7 +46,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         final_cmd_args["output_path"] = output_path
 
         self.test_name = self._extract_test_name(cmd_args)
-        self.pre_test_value = None
 
         if self.test_name == "GPT":
             # Define the keys to check for the GPT test
@@ -213,9 +212,9 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         commands = []
 
-        pre_test_value = cmd_args.get("pre_test")
+        run_pre_test = cmd_args.get("pre_test")
 
-        if pre_test_value == "True":
+        if run_pre_test == "True":
             pre_test_command = self._generate_pre_test_command(cmd_args, output_path, error_path)
             commands.append(pre_test_command)
             # Check if the keyword is found in the pre-test output
@@ -239,7 +238,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         srun_command = "\n".join(srun_command_parts).strip()
 
         # Add conditional check if pre_test_value is True
-        if pre_test_value == "True":
+        if run_pre_test == "True":
             srun_command = f'if [ "$keyword_found" = true ]; then\n{srun_command}\nfi'
 
         commands.append(srun_command)
