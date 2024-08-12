@@ -212,9 +212,9 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         commands = []
 
-        run_pre_test = cmd_args.get("pre_test")
+        run_pre_test = cmd_args.get("pre_test", "False").lower() in ("true", "1", "yes")
 
-        if run_pre_test == "True":
+        if run_pre_test:
             pre_test_command = self._generate_pre_test_command(cmd_args, output_path, error_path)
             commands.append(pre_test_command)
             # Check if the keyword is found in the pre-test output
@@ -224,7 +224,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         # Construct the srun command with the specific formatting
         srun_command_parts = [
             "srun",
-            f"--mpi={self.slurm_system.mpi} ",
+            f"--mpi={self.slurm_system.mpi}",
             f"{self.slurm_system.extra_srun_args if self.slurm_system.extra_srun_args else ''}",
             "--export=ALL",
             f"-o {slurm_args['output']}",
@@ -234,8 +234,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "/opt/paxml/workspace/run.sh",
         ]
 
-        # Join the srun command parts with newlines
-        srun_command = "\\\n".join(srun_command_parts).strip()
+        # Join the srun command parts with newlines and backslashes for readability
+        srun_command = " \\\n".join(srun_command_parts).strip()
 
         # Add conditional check if pre_test_value is True
         if run_pre_test == "True":
