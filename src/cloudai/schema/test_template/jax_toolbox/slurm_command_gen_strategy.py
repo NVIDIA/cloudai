@@ -224,18 +224,18 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         # Construct the srun command with the specific formatting
         srun_command_parts = [
             "srun",
-            f"--mpi={self.slurm_system.mpi} \\",
-            f"{self.slurm_system.extra_srun_args if self.slurm_system.extra_srun_args else ''} \\",
-            "--export=ALL \\",
-            f"-o {slurm_args['output']} \\",
-            f"-e {slurm_args['error']} \\",
-            f"--container-image={slurm_args['image_path']} \\",
-            f"--container-mounts={slurm_args['container_mounts']} \\",
+            f"--mpi={self.slurm_system.mpi} ",
+            f"{self.slurm_system.extra_srun_args if self.slurm_system.extra_srun_args else ''}",
+            "--export=ALL",
+            f"-o {slurm_args['output']}",
+            f"-e {slurm_args['error']}",
+            f"--container-image={slurm_args['image_path']}",
+            f"--container-mounts={slurm_args['container_mounts']}",
             "/opt/paxml/workspace/run.sh",
         ]
 
         # Join the srun command parts with newlines
-        srun_command = "\n".join(srun_command_parts).strip()
+        srun_command = "\\\n".join(srun_command_parts).strip()
 
         # Add conditional check if pre_test_value is True
         if run_pre_test == "True":
