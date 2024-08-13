@@ -86,17 +86,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         srun_command = self.generate_full_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
         return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, output_path)
 
-    def _extract_test_name(self, cmd_args: Dict[str, Any]) -> str:
-        test_name = ""
-        for key in cmd_args:
-            if "." in key:
-                name = key.split(".")[0]
-                if name.lower() == "grok":
-                    test_name = "Grok"
-                elif name.lower() == "gpt":
-                    test_name = "GPT"
-        return test_name
-
     def _format_xla_flags(self, cmd_args: Dict[str, str]) -> str:
         """
         Format the XLA_FLAGS environment variable.

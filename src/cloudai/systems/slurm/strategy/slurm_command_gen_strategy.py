@@ -19,6 +19,8 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 from cloudai import CommandGenStrategy
+from cloudai.schema.test_template.jax_toolbox.gpt_slurm_command_gen_strategy import JaxToolboxGptCommandGenStrategy
+from cloudai.schema.test_template.jax_toolbox.grok_slurm_command_gen_strategy import JaxToolboxGrokCommandGenStrategy
 from cloudai.systems import SlurmSystem
 from cloudai.util.docker_image_cache_manager import DockerImageCacheManager
 
@@ -56,6 +58,49 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             self.docker_image_url = docker_image_url_info.get("default")
         else:
             self.docker_image_url = ""
+
+    def create_strategy(
+        self, system: SlurmSystem, env_vars: Dict[str, Any], cmd_args: Dict[str, Any]
+    ) -> "SlurmCommandGenStrategy":
+        """
+        Create the appropriate command generation strategy based on the test_name.
+
+        Args:
+            system (SlurmSystem): The Slurm system configuration.
+            env_vars (Dict[str, Any]): Environment variables.
+            cmd_args (Dict[str, Any]): Command-line arguments.
+
+        Returns:
+            SlurmCommandGenStrategy: An instance of the appropriate command generation strategy.
+        """
+        test_name = SlurmCommandGenStrategy._extract_test_name(cmd_args)
+
+        if test_name == "GPT":
+            return JaxToolboxGptCommandGenStrategy(system, env_vars, cmd_args)
+        elif test_name == "Grok":
+            return JaxToolboxGrokCommandGenStrategy(system, env_vars, cmd_args)
+        else:
+            raise ValueError(f"Unsupported test name: {test_name}")
+
+    @staticmethod
+    def _extract_test_name(cmd_args: Dict[str, Any]) -> str:
+        """
+        Extract the test name from the command arguments.
+
+        Args:
+            cmd_args (Dict[str, Any]): Command-line arguments.
+
+        Returns:
+            str: The name of the test (e.g., "GPT" or "Grok").
+        """
+        for key in cmd_args:
+            if "." in key:
+                name = key.split(".")[0]
+                if name.lower() == "grok":
+                    return "Grok"
+                elif name.lower() == "gpt":
+                    return "GPT"
+        return ""
 
     def _format_env_vars(self, env_vars: Dict[str, Any]) -> str:
         """
