@@ -19,8 +19,6 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 from cloudai import CommandGenStrategy
-from cloudai.schema.test_template.jax_toolbox.gpt_slurm_command_gen_strategy import JaxToolboxGptCommandGenStrategy
-from cloudai.schema.test_template.jax_toolbox.grok_slurm_command_gen_strategy import JaxToolboxGrokCommandGenStrategy
 from cloudai.systems import SlurmSystem
 from cloudai.util.docker_image_cache_manager import DockerImageCacheManager
 
@@ -76,8 +74,16 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         test_name = SlurmCommandGenStrategy._extract_test_name(cmd_args)
 
         if test_name == "GPT":
+            from cloudai.schema.test_template.jax_toolbox.gpt_slurm_command_gen_strategy import (
+                JaxToolboxGptCommandGenStrategy,
+            )
+
             return JaxToolboxGptCommandGenStrategy(system, env_vars, cmd_args)
         elif test_name == "Grok":
+            from cloudai.schema.test_template.jax_toolbox.grok_slurm_command_gen_strategy import (
+                JaxToolboxGrokCommandGenStrategy,
+            )
+
             return JaxToolboxGrokCommandGenStrategy(system, env_vars, cmd_args)
         else:
             raise ValueError(f"Unsupported test name: {test_name}")
