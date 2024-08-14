@@ -17,7 +17,7 @@
 import getpass
 import logging
 import re
-from typing import Any, Dict, List, Union, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from cloudai import System
 from cloudai.util import CommandShell
@@ -348,7 +348,8 @@ class SlurmSystem(System):
         Args:
             partition_name (str): The name of the partition.
             group_name (str): The name of the group.
-            number_of_nodes (int/str): The number of nodes to retrieve. Could also be 'all' to retrieve all the nodes from the group.
+            number_of_nodes (int/str): The number of nodes to retrieve.
+                Could also be 'all' to retrieve all the nodes from the group.
 
         Returns:
             List[SlurmNode]: Objects that are potentially available for use.
@@ -387,17 +388,17 @@ class SlurmSystem(System):
             SlurmNodeState.COMPLETING,
             SlurmNodeState.ALLOCATED,
         ]
-        
-        if number_of_nodes == 'all':
-            for state in available_states: 
-               allocated_nodes.extend(grouped_nodes[state])
+
+        if isinstance(number_of_nodes, str) and number_of_nodes == "all":
+            for state in available_states:
+                allocated_nodes.extend(grouped_nodes[state])
 
             if len(allocated_nodes) == 0:
                 raise ValueError(
                     "Requested all the nodes exceeds the number of " "available nodes in group '{}'.".format(group_name)
                 )
 
-        else:
+        elif isinstance(number_of_nodes, int):
             for state in available_states:
                 while grouped_nodes[state] and len(allocated_nodes) < number_of_nodes:
                     allocated_nodes.append(grouped_nodes[state].pop(0))
@@ -725,12 +726,8 @@ class SlurmSystem(System):
                 if len(parts) != 3:
                     raise ValueError("Format should be partition:group:num_nodes")
                 partition_name, group_name, num_nodes_str = parts
-                
-                if num_nodes_str != 'all':
-                    num_nodes = int(num_nodes_str)
-                else:
-                    num_nodes = num_nodes_str
 
+                num_nodes = int(num_nodes_str) if num_nodes_str != "all" else num_nodes_str
                 group_nodes = self.get_available_nodes_from_group(partition_name, group_name, num_nodes)
                 parsed_nodes += [node.name for node in group_nodes]
             else:
