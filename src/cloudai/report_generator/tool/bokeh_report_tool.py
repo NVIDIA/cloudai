@@ -62,7 +62,7 @@ class BokehReportTool:
             height (int): Height of the plot.
             x_axis_type (str): Type of the x-axis ('linear' or 'log').
             tools (str): Tools to include in the plot.
-            x_range (Range1d): Range for the y-axis, optional.
+            x_range (Range1d): Range for the x-axis, optional.
 
         Returns:
             figure: A Bokeh figure configured with the specified parameters.
