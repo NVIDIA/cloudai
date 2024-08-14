@@ -48,7 +48,7 @@ class BokehReportTool:
         height: int = 308,
         x_axis_type: str = "linear",
         tools: str = "pan,wheel_zoom,box_zoom,reset,save",
-        x_range: Optional[Range1d] = None
+        x_range: Optional[Range1d] = None,
     ) -> figure:
         """
         Create a configured Bokeh figure with common settings.
@@ -62,6 +62,7 @@ class BokehReportTool:
             height (int): Height of the plot.
             x_axis_type (str): Type of the x-axis ('linear' or 'log').
             tools (str): Tools to include in the plot.
+            x_range (Range1d): Rnage for the y-axis, optional.
 
         Returns:
             figure: A Bokeh figure configured with the specified parameters.
@@ -77,10 +78,10 @@ class BokehReportTool:
             y_range=y_range,
             align="center",
         )
-        
+
         if x_range is not None:
             plot.x_range = x_range
-            
+
         return plot
 
     def add_sol_line(
@@ -199,12 +200,12 @@ class BokehReportTool:
         """
         x_min, x_max = self.find_min_max(df, x_column)
         y_min, y_max = self.find_min_max(df, y_column, sol)
-        
+
         # Check if x_min equals x_max - constant message size
         if x_min == x_max:
             # Use iteration number as x-axis
-            df['iteration'] = range(1, len(df) + 1)
-            x_column = 'iteration'
+            df["iteration"] = range(1, len(df) + 1)
+            x_column = "iteration"
             x_axis_label = "Iteration"
             x_axis_type = "linear"
             x_range = Range1d(start=1, end=len(df))
@@ -219,7 +220,7 @@ class BokehReportTool:
             y_axis_label=y_axis_label,
             x_axis_type=x_axis_type,
             y_range=Range1d(start=0, end=y_max * 1.1),
-            x_range=x_range
+            x_range=x_range,
         )
 
         # Add main line plot
@@ -264,12 +265,12 @@ class BokehReportTool:
         for y_column, _ in y_columns:
             _, col_max = self.find_min_max(df, y_column, sol)
             y_max = max(y_max, col_max)
-           
-        # Check if x_min equals x_max - constant message size    
+
+        # Check if x_min equals x_max - constant message size
         if x_min == x_max:
             # Use iteration number as x-axis
-            df['iteration'] = range(1, len(df) + 1)
-            x_column = 'iteration'
+            df["iteration"] = range(1, len(df) + 1)
+            x_column = "iteration"
             x_axis_label = "Iteration"
             x_axis_type = "linear"
             x_range = Range1d(start=1, end=len(df))
@@ -283,7 +284,7 @@ class BokehReportTool:
             y_axis_label=y_axis_label,
             x_axis_type=x_axis_type,
             y_range=Range1d(start=0, end=y_max * 1.1),
-            x_range=x_range
+            x_range=x_range,
         )
 
         # Adding lines for each data type specified
