@@ -26,6 +26,19 @@ from .slurm_install_strategy import JaxToolboxSlurmInstallStrategy
 class JaxToolboxGptCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for GPT tests on Slurm systems."""
 
+    @staticmethod
+    def supports(test_name: str) -> bool:
+        """
+        Determine if this strategy supports the given test name.
+
+        Args:
+            test_name (str): The name of the test (e.g., "gpt").
+
+        Returns:
+            bool: True if this strategy supports the test name, False otherwise.
+        """
+        return test_name == "gpt"
+
     def __init__(self, system: SlurmSystem, env_vars: Dict[str, Any], cmd_args: Dict[str, Any]) -> None:
         super().__init__(system, env_vars, cmd_args)
         self.test_name = "GPT"

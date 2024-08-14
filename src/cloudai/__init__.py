@@ -51,10 +51,11 @@ from .schema.test_template.chakra_replay.template import ChakraReplay
 from .schema.test_template.common.default_job_status_retrieval_strategy import DefaultJobStatusRetrievalStrategy
 from .schema.test_template.common.slurm_job_id_retrieval_strategy import SlurmJobIdRetrievalStrategy
 from .schema.test_template.common.standalone_job_id_retrieval_strategy import StandaloneJobIdRetrievalStrategy
+from .schema.test_template.jax_toolbox.gpt_slurm_command_gen_strategy import JaxToolboxGptCommandGenStrategy
 from .schema.test_template.jax_toolbox.grading_strategy import JaxToolboxGradingStrategy
+from .schema.test_template.jax_toolbox.grok_slurm_command_gen_strategy import JaxToolboxGrokCommandGenStrategy
 from .schema.test_template.jax_toolbox.job_status_retrieval_strategy import JaxToolboxJobStatusRetrievalStrategy
 from .schema.test_template.jax_toolbox.report_generation_strategy import JaxToolboxReportGenerationStrategy
-from .schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
 from .schema.test_template.jax_toolbox.slurm_install_strategy import JaxToolboxSlurmInstallStrategy
 from .schema.test_template.jax_toolbox.template import JaxToolbox
 from .schema.test_template.nccl_test.grading_strategy import NcclTestGradingStrategy
@@ -113,7 +114,8 @@ Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [UCCTest], UCCT
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [NeMoLauncher], NeMoLauncherGradingStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [JaxToolbox], JaxToolboxGradingStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [UCCTest], UCCTestGradingStrategy)
-Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [JaxToolbox], JaxToolboxSlurmCommandGenStrategy)
+Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [JaxToolbox], JaxToolboxGrokCommandGenStrategy)
+Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [JaxToolbox], JaxToolboxGptCommandGenStrategy)
 Registry().add_strategy(
     JobIdRetrievalStrategy,
     [SlurmSystem],
