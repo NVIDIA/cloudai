@@ -48,6 +48,7 @@ class BokehReportTool:
         height: int = 308,
         x_axis_type: str = "linear",
         tools: str = "pan,wheel_zoom,box_zoom,reset,save",
+        x_range: Optional[Range1d] = None
     ) -> figure:
         """
         Create a configured Bokeh figure with common settings.
@@ -76,6 +77,10 @@ class BokehReportTool:
             y_range=y_range,
             align="center",
         )
+        
+        if x_range is not None:
+            plot.x_range = x_range
+            
         return plot
 
     def add_sol_line(
@@ -194,14 +199,27 @@ class BokehReportTool:
         """
         x_min, x_max = self.find_min_max(df, x_column)
         y_min, y_max = self.find_min_max(df, y_column, sol)
+        
+        # Check if x_min equals x_max - constant message size
+        if x_min == x_max:
+            # Use iteration number as x-axis
+            df['iteration'] = range(1, len(df) + 1)
+            x_column = 'iteration'
+            x_axis_label = "Iteration"
+            x_axis_type = "linear"
+            x_range = Range1d(start=1, end=len(df))
+        else:
+            x_axis_type = "log"
+            x_range = None
 
         # Create a Bokeh figure with logarithmic x-axis
         p = self.create_figure(
             title="CloudAI " + title,
             x_axis_label=x_axis_label,
             y_axis_label=y_axis_label,
-            x_axis_type="log",
+            x_axis_type=x_axis_type,
             y_range=Range1d(start=0, end=y_max * 1.1),
+            x_range=x_range
         )
 
         # Add main line plot
@@ -211,9 +229,10 @@ class BokehReportTool:
 
         p.legend.location = "bottom_right"
 
-        p.xaxis.ticker = calculate_power_of_two_ticks(x_min, x_max)
-        p.xaxis.formatter = CustomJSTickFormatter(code=bokeh_size_unit_js_tick_formatter)
-        p.xaxis.major_label_orientation = pi / 4
+        if x_axis_type == "log":
+            p.xaxis.ticker = calculate_power_of_two_ticks(x_min, x_max)
+            p.xaxis.formatter = CustomJSTickFormatter(code=bokeh_size_unit_js_tick_formatter)
+            p.xaxis.major_label_orientation = pi / 4
 
         # Append plot to internal list for future rendering
         self.plots.append(p)
@@ -245,13 +264,26 @@ class BokehReportTool:
         for y_column, _ in y_columns:
             _, col_max = self.find_min_max(df, y_column, sol)
             y_max = max(y_max, col_max)
+           
+        # Check if x_min equals x_max - constant message size    
+        if x_min == x_max:
+            # Use iteration number as x-axis
+            df['iteration'] = range(1, len(df) + 1)
+            x_column = 'iteration'
+            x_axis_label = "Iteration"
+            x_axis_type = "linear"
+            x_range = Range1d(start=1, end=len(df))
+        else:
+            x_axis_type = "log"
+            x_range = None
 
         p = self.create_figure(
             title="CloudAI " + title,
             x_axis_label=x_axis_label,
             y_axis_label=y_axis_label,
-            x_axis_type="log",
+            x_axis_type=x_axis_type,
             y_range=Range1d(start=0, end=y_max * 1.1),
+            x_range=x_range
         )
 
         # Adding lines for each data type specified
@@ -265,10 +297,11 @@ class BokehReportTool:
 
         p.legend.location = "bottom_right"
 
-        # Setting up custom tick formatter for log scale readability
-        p.xaxis.ticker = calculate_power_of_two_ticks(x_min, x_max)
-        p.xaxis.formatter = CustomJSTickFormatter(code=bokeh_size_unit_js_tick_formatter)
-        p.xaxis.major_label_orientation = pi / 4
+        if x_axis_type == "log":
+            # Setting up custom tick formatter for log scale readability
+            p.xaxis.ticker = calculate_power_of_two_ticks(x_min, x_max)
+            p.xaxis.formatter = CustomJSTickFormatter(code=bokeh_size_unit_js_tick_formatter)
+            p.xaxis.major_label_orientation = pi / 4
 
         self.plots.append(p)
 
