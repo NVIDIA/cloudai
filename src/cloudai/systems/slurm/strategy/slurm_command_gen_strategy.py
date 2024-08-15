@@ -175,6 +175,10 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             f"#SBATCH -N {args['num_nodes']}",
         ]
 
+        reservation_key = "--reservation "
+        if self.slurm_system.extra_srun_args and reservation_key in self.slurm_system.extra_srun_args:
+            reservation = self.slurm_system.extra_srun_args.split(reservation_key, 1)[1].split(" ", 1)[0]
+            batch_script_content.append(f"#SBATCH --reservation={reservation}")
         if "output" not in args:
             batch_script_content.append(f"#SBATCH --output={os.path.join(output_path, 'stdout.txt')}")
         if "error" not in args:
