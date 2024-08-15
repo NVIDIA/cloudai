@@ -60,6 +60,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 raise ValueError("None of the GPT specific keys are found in cmd_args.")
         elif self.test_name == "Grok":
             key = f"{self.test_name}.XLA_FLAGS.combine_threshold_bytes"
+        elif self.test_name == "Nemotron":
+            key = f"{self.test_name}.XLA_FLAGS.xla_gpu_all_reduce_combine_threshold_bytes"
         else:
             key = "XLA_FLAGS.combine_threshold_bytes"
 
@@ -71,7 +73,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         setup_flags_key = (
             f"{self.test_name}.setup_flags.gpus_per_node"
-            if self.test_name in ["Grok", "GPT"]
+            if self.test_name in ["Grok", "GPT", "Nemotron"]
             else "common.setup_flags.gpus_per_node"
         )
         per_gpu_combine_threshold = int(combine_threshold_bytes / (int(final_cmd_args[setup_flags_key]) * num_nodes))
@@ -104,37 +106,28 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         # Standard flags that are always included
         if self.test_name == "Grok":
-            xla_flags.extend(
-                [
-                    "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
-                    "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
-                ]
-            )
-        elif self.test_name == "GPT":
-            xla_flags.extend(
-                [
-                    "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
-                    "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
-                    "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD",
-                ]
-            )
+            xla_flags.extend([
+                "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
+                "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
+            ])
+        if self.test_name in ["GPT", "Nemotron"]:
+            xla_flags.extend([
+            "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
+            "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
+            "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD",
+            ])
 
         # Prefixes for common and test-specific XLA flags
         common_prefix = "common.XLA_FLAGS."
         test_prefix = f"{self.test_name}.XLA_FLAGS."
 
         for key, value in cmd_args.items():
-            # Check if the key starts with either common or test-specific prefix
             if key.startswith(common_prefix) or key.startswith(test_prefix):
-                # Extract the flag name from the key
                 flag_name = key.split(".")[-1]
-                # Check if the flag is 'xla_gpu_simplify_all_fp_conversions'
                 if flag_name.lower() == "xla_gpu_simplify_all_fp_conversions":
-                    # For this specific flag, append only the flag name if the value is True
                     if value:
                         xla_flags.append(f"--{flag_name.lower()}")
                 else:
-                    # For all other flags, format the flag with its value, appending boolean values as is
                     flag = f"--{flag_name.lower()}={'true' if value is True else 'false' if value is False else value}"
                     xla_flags.append(flag)
         return " ".join(xla_flags)
@@ -147,10 +140,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         num_nodes: int,
         nodes: List[str],
     ) -> Dict[str, Any]:
-        # Determine the key prefix based on test_name
-        key_prefix = f"{self.test_name}" if self.test_name in ["GPT", "Grok"] else "common"
+        key_prefix = f"{self.test_name}" if self.test_name in ["GPT", "Grok", "Nemotron"] else "common"
 
-        # Adjusted the key to use the dynamic key_prefix
         if not all(k in cmd_args for k in [f"{key_prefix}.setup_flags.docker_workspace_dir"]):
             raise ValueError("Required cmd_args keys are missing: docker_workspace_dir")
 
@@ -206,11 +197,9 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if run_pre_test:
             pre_test_command = self._generate_pre_test_command(cmd_args, output_path, error_path)
             commands.append(pre_test_command)
-            # Check if the keyword is found in the pre-test output
             pre_test_check_command = self._generate_pre_test_check_command(cmd_args, output_path)
             commands.append(pre_test_check_command)
 
-        # Construct the srun command with the specific formatting
         srun_command_parts = [
             "srun",
             f"--mpi={self.slurm_system.mpi}",
@@ -223,16 +212,13 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "/opt/paxml/workspace/run.sh",
         ]
 
-        # Join the srun command parts with newlines and backslashes for readability
         srun_command = " \\\n".join(srun_command_parts).strip()
 
-        # Add conditional check if pre_test_value is True
         if run_pre_test:
             srun_command = f'if [ "$keyword_found" = true ]; then\n{srun_command}\nfi'
 
         commands.append(srun_command)
 
-        # Join all commands into the final full command string
         full_command = "\n\n".join(commands)
 
         return full_command
@@ -289,7 +275,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             str: The generated command for pre-test check.
         """
         directory_path = os.path.dirname(output_path)
-        # Create the file pattern with wildcard
         file_pattern = os.path.join(directory_path, "output_pretest-*.txt")
         keyword = cmd_args.get("keyword", "Avg bus bandwidth")
 
@@ -394,7 +379,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ]
 
         script_lines.append(self._generate_python_command(stage, slurm_args, env_vars, cmd_args, extra_cmd_args))
-        if self.test_name == "Grok" or self.test_name == "GPT":
+        if self.test_name == "Grok" or self.test_name == "GPT" or self.test_name == "Nemotron":
             script_lines.extend(
                 [
                     self._create_pgo_nsys_converter_command(stage, cmd_args),
@@ -406,28 +391,22 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _combine_fdl_flags(self, cmd_args: Dict[str, str], test_name: str) -> Dict[str, str]:
         combined_fdl_args = {}
-        # Combine common.fdl flags
         common_prefix = "common.fdl."
         for key, value in cmd_args.items():
             if key.startswith(common_prefix):
-                flag_name = key[len(common_prefix) :]
+                flag_name = key[len(common_prefix):]
                 combined_fdl_args[flag_name] = value
 
-        # Override with test_name.fdl flags
         test_prefix = f"{test_name}.fdl."
         for key, value in cmd_args.items():
             if key.startswith(test_prefix):
-                flag_name = key[len(test_prefix) :]
+                flag_name = key[len(test_prefix):]
                 combined_fdl_args[flag_name] = value
 
-        # Now combined_fdl_args contains all fdl flags, with test_name.fdl overriding common.fdl where applicable
         return combined_fdl_args
 
     def _get_fdl_config_value(self, cmd_args):
-        # Format the key based on the test_name
         key = f"{self.test_name}.fdl_config"
-
-        # Access and return the value from cmd_args
         return cmd_args.get(key)
 
     def _generate_python_command(
@@ -472,7 +451,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         # Dynamically adding fdl. prefixed arguments
         fdl_prefix = f"{self.test_name}.fdl."
-        fdl_args = {k[len(fdl_prefix) :]: v for k, v in cmd_args.items() if k.startswith(fdl_prefix)}
+        fdl_args = {k[len(fdl_prefix):]: v for k, v in cmd_args.items() if k.startswith(fdl_prefix)}
 
         for key, value in fdl_args.items():
             parts.append(f"--fdl.{key.upper()}={value}")
