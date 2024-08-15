@@ -57,6 +57,26 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         else:
             self.docker_image_url = ""
 
+    @staticmethod
+    def _extract_test_name(cmd_args: Dict[str, Any]) -> str:
+        """
+        Extract the test name from the command arguments.
+
+        Args:
+            cmd_args (Dict[str, Any]): Command-line arguments.
+
+        Returns:
+            str: The name of the test (e.g., "GPT" or "Grok").
+        """
+        for key in cmd_args:
+            if "." in key:
+                name = key.split(".")[0]
+                if name.lower() == "grok":
+                    return "Grok"
+                elif name.lower() == "gpt":
+                    return "GPT"
+        return ""
+
     def _format_env_vars(self, env_vars: Dict[str, Any]) -> str:
         """
         Format environment variables for inclusion in a batch script.
