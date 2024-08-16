@@ -46,22 +46,19 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         final_cmd_args["output_path"] = output_path
 
         self.test_name = self._extract_test_name(cmd_args)
-
-        if self.test_name == "GPT":
-            # Define the keys to check for the GPT test
-            gpt_keys = [
-                "GPT.XLA_FLAGS.xla_gpu_all_reduce_combine_threshold_bytes",
-                "GPT.XLA_FLAGS.xla_gpu_all_gather_combine_threshold_bytes",
-                "GPT.XLA_FLAGS.xla_gpu_reduce_scatter_combine_threshold_bytes",
+        if self.test_name == "GPT" or self.test_name == "Nemotron":
+            # Define the keys to check for the GPT and Nemotron tests
+            keys = [
+                f"{self.test_name}.XLA_FLAGS.xla_gpu_all_reduce_combine_threshold_bytes",
+                f"{self.test_name}.XLA_FLAGS.xla_gpu_all_gather_combine_threshold_bytes",
+                f"{self.test_name}.XLA_FLAGS.xla_gpu_reduce_scatter_combine_threshold_bytes",
             ]
             # Find the first key that exists in final_cmd_args
-            key = next((k for k in gpt_keys if k in final_cmd_args), None)
+            key = next((k for k in keys if k in final_cmd_args), None)
             if key is None:
-                raise ValueError("None of the GPT specific keys are found in cmd_args.")
+                raise ValueError(f"None of the {self.test_name} specific keys are found in cmd_args.")
         elif self.test_name == "Grok":
             key = f"{self.test_name}.XLA_FLAGS.combine_threshold_bytes"
-        elif self.test_name == "Nemotron":
-            key = f"{self.test_name}.XLA_FLAGS.xla_gpu_all_reduce_combine_threshold_bytes"
         else:
             key = "XLA_FLAGS.combine_threshold_bytes"
 
@@ -87,6 +84,19 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         slurm_args = self._parse_slurm_args("JaxToolbox", final_env_vars, final_cmd_args, num_nodes, nodes)
         srun_command = self.generate_full_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
         return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, output_path)
+
+    def _extract_test_name(self, cmd_args: Dict[str, Any]) -> str:
+        test_name = ""
+        for key in cmd_args:
+            if "." in key:
+                name = key.split(".")[0]
+                if name.lower() == "grok":
+                    test_name = "Grok"
+                elif name.lower() == "gpt":
+                    test_name = "GPT"
+                elif name.lower() == "nemotron":
+                    test_name = "Nemotron"
+        return test_name
 
     def _format_xla_flags(self, cmd_args: Dict[str, str]) -> str:
         """

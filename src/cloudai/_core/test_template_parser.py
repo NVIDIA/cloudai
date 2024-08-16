@@ -41,7 +41,7 @@ class TestTemplateParser(BaseMultiFileParser):
 
     __test__ = False
 
-    VALID_DATA_TYPES = ["preset", "bool", "int", "str"]
+    VALID_DATA_TYPES = ["preset", "bool", "int", "str", "float"]
 
     def __init__(self, system: System, directory_path: Path) -> None:
         """
@@ -214,7 +214,7 @@ class TestTemplateParser(BaseMultiFileParser):
 
             if details["type"] == "bool":
                 self._validate_boolean(details, arg, arg_type)
-            elif details["type"] in ["int", "str"]:
+            elif details["type"] in ["int", "str", "float"]:
                 self._validate_type(details, arg, arg_type)
             elif details["type"] == "preset":
                 self._validate_preset(details, arg, arg_type)
