@@ -106,16 +106,20 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         # Standard flags that are always included
         if self.test_name == "Grok":
-            xla_flags.extend([
-                "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
-                "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
-            ])
+            xla_flags.extend(
+                [
+                    "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
+                    "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
+                ]
+            )
         if self.test_name in ["GPT", "Nemotron"]:
-            xla_flags.extend([
-            "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
-            "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
-            "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD",
-            ])
+            xla_flags.extend(
+                [
+                    "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
+                    "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
+                    "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD",
+                ]
+            )
 
         # Prefixes for common and test-specific XLA flags
         common_prefix = "common.XLA_FLAGS."
@@ -394,13 +398,13 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         common_prefix = "common.fdl."
         for key, value in cmd_args.items():
             if key.startswith(common_prefix):
-                flag_name = key[len(common_prefix):]
+                flag_name = key[len(common_prefix) :]
                 combined_fdl_args[flag_name] = value
 
         test_prefix = f"{test_name}.fdl."
         for key, value in cmd_args.items():
             if key.startswith(test_prefix):
-                flag_name = key[len(test_prefix):]
+                flag_name = key[len(test_prefix) :]
                 combined_fdl_args[flag_name] = value
 
         return combined_fdl_args
@@ -451,7 +455,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         # Dynamically adding fdl. prefixed arguments
         fdl_prefix = f"{self.test_name}.fdl."
-        fdl_args = {k[len(fdl_prefix):]: v for k, v in cmd_args.items() if k.startswith(fdl_prefix)}
+        fdl_args = {k[len(fdl_prefix) :]: v for k, v in cmd_args.items() if k.startswith(fdl_prefix)}
 
         for key, value in fdl_args.items():
             parts.append(f"--fdl.{key.upper()}={value}")
