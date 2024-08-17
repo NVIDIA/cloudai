@@ -65,6 +65,7 @@ def jax_strategy_fixture() -> JaxToolboxSlurmCommandGenStrategy:
     mock_slurm_system = Mock()
     env_vars = {"TEST_VAR": "VALUE"}
     cmd_args = {"test_arg": "test_value"}
+    mock_slurm_system.install_path = "/mock/install/path"
 
     # Use patch to mock the __init__ method of JaxToolboxSlurmCommandGenStrategy
     with patch.object(JaxToolboxSlurmCommandGenStrategy, "__init__", lambda self, _, __, ___: None):
@@ -264,6 +265,22 @@ class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
         expected_flags_list = sorted(expected_flags.split())
 
         assert actual_flags_list == expected_flags_list
+
+    def test_handle_threshold_and_env_common(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
+        cmd_args = {"XLA_FLAGS.combine_threshold_bytes": "value", "common.setup_flags.gpus_per_node": "4"}
+        env_vars = {"TEST_VAR": "VALUE"}
+        combine_threshold_bytes = 1024
+        num_nodes = 2
+
+        jax_strategy_fixture.env_vars = env_vars
+        jax_strategy_fixture.cmd_args = cmd_args
+        jax_strategy_fixture.test_name = "Other"
+
+        jax_strategy_fixture._handle_threshold_and_env(cmd_args, env_vars, combine_threshold_bytes, num_nodes)
+
+        assert "PER_GPU_COMBINE_THRESHOLD" in env_vars
+        assert env_vars["PER_GPU_COMBINE_THRESHOLD"] == str(combine_threshold_bytes // (4 * num_nodes))
+        assert "XLA_FLAGS.combine_threshold_bytes" not in cmd_args
 
 
 class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
