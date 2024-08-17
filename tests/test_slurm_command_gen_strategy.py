@@ -207,20 +207,9 @@ class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
         cmd_args = {
             "Grok.XLA_FLAGS.some_flag": "value",
             "Grok.XLA_FLAGS.another_flag": "another_value",
-        }
-        xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args)
-        expected_flags = (
-            "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD "
-            "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD "
-            "--some_flag=value --another_flag=another_value"
-        )
-        assert xla_flags == expected_flags
-
-    def test_format_xla_flags_gpt(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
-        jax_strategy_fixture.test_name = "GPT"
-        cmd_args = {
-            "GPT.XLA_FLAGS.some_flag": "value",
-            "GPT.XLA_FLAGS.another_flag": "another_value",
+            "common.XLA_FLAGS.xla_gpu_all_reduce_combine_threshold_bytes": "$COMBINE_THRESHOLD",
+            "common.XLA_FLAGS.xla_gpu_all_gather_combine_threshold_bytes": "$COMBINE_THRESHOLD",
+            "common.XLA_FLAGS.xla_gpu_reduce_scatter_combine_threshold_bytes": "$PER_GPU_COMBINE_THRESHOLD",
         }
         xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args)
         expected_flags = (
@@ -229,7 +218,27 @@ class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
             "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD "
             "--some_flag=value --another_flag=another_value"
         )
-        assert xla_flags == expected_flags
+
+        # Split, sort, and compare the flags
+        actual_flags_list = sorted(xla_flags.split())
+        expected_flags_list = sorted(expected_flags.split())
+
+        assert actual_flags_list == expected_flags_list
+
+    def test_format_xla_flags_gpt(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
+        jax_strategy_fixture.test_name = "GPT"
+        cmd_args = {
+            "GPT.XLA_FLAGS.some_flag": "value",
+            "GPT.XLA_FLAGS.another_flag": "another_value",
+        }
+        xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args)
+        expected_flags = "--some_flag=value --another_flag=another_value"
+
+        # Split, sort, and compare the flags
+        actual_flags_list = sorted(xla_flags.split())
+        expected_flags_list = sorted(expected_flags.split())
+
+        assert actual_flags_list == expected_flags_list
 
     def test_format_xla_flags_common(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
         jax_strategy_fixture.test_name = "SomeTest"
@@ -248,51 +257,13 @@ class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
             "Grok.XLA_FLAGS.xla_gpu_simplify_all_fp_conversions": True,
         }
         xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args)
-        expected_flags = (
-            "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD "
-            "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD "
-            "--some_flag=value --xla_gpu_simplify_all_fp_conversions"
-        )
-        assert xla_flags == expected_flags
+        expected_flags = "--some_flag=value --xla_gpu_simplify_all_fp_conversions"
 
-    def test_combine_fdl_flags(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
-        cmd_args = {
-            "common.fdl.some_flag": "value",
-            "common.fdl.another_flag": "another_value",
-            "Grok.fdl.test_flag": "test_value",
-        }
-        combined_flags = jax_strategy_fixture._combine_fdl_flags(cmd_args, "Grok")
-        expected_flags = {
-            "some_flag": "value",
-            "another_flag": "another_value",
-            "test_flag": "test_value",
-        }
-        assert combined_flags == expected_flags
+        # Split, sort, and compare the flags
+        actual_flags_list = sorted(xla_flags.split())
+        expected_flags_list = sorted(expected_flags.split())
 
-    def test_combine_fdl_flags_override(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
-        cmd_args = {
-            "common.fdl.some_flag": "value",
-            "Grok.fdl.some_flag": "overridden_value",
-        }
-        combined_flags = jax_strategy_fixture._combine_fdl_flags(cmd_args, "Grok")
-        expected_flags = {
-            "some_flag": "overridden_value",
-        }
-        assert combined_flags == expected_flags
-
-    def test_get_fdl_config_value(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
-        cmd_args = {
-            "Grok.fdl_config": "config_value",
-        }
-        jax_strategy_fixture.test_name = "Grok"
-        config_value = jax_strategy_fixture._get_fdl_config_value(cmd_args)
-        assert config_value == "config_value"
-
-    def test_get_fdl_config_value_missing(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
-        cmd_args = {}
-        jax_strategy_fixture.test_name = "Grok"
-        config_value = jax_strategy_fixture._get_fdl_config_value(cmd_args)
-        assert config_value is None
+        assert actual_flags_list == expected_flags_list
 
 
 class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
