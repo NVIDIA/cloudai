@@ -156,6 +156,23 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     ) -> List[str]:
         return []
 
+    def _add_reservation(self, batch_script_content: List[str]):
+        """
+        Add reservation if provided.
+
+        Args:
+            batch_script_content (List[str]): content of the batch script.
+
+        Returns:
+            List[str]: updated batch script with reservation if exists.
+        """
+        reservation_key = "--reservation "
+        if self.slurm_system.extra_srun_args and reservation_key in self.slurm_system.extra_srun_args:
+            reservation = self.slurm_system.extra_srun_args.split(reservation_key, 1)[1].split(" ", 1)[0]
+            batch_script_content.append(f"#SBATCH --reservation={reservation}")
+
+        return batch_script_content
+
     def _write_sbatch_script(self, args: Dict[str, Any], env_vars_str: str, srun_command: str, output_path: str) -> str:
         """
         Write the batch script for Slurm submission and returns the sbatch command.
@@ -175,10 +192,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             f"#SBATCH -N {args['num_nodes']}",
         ]
 
-        reservation_key = "--reservation "
-        if self.slurm_system.extra_srun_args and reservation_key in self.slurm_system.extra_srun_args:
-            reservation = self.slurm_system.extra_srun_args.split(reservation_key, 1)[1].split(" ", 1)[0]
-            batch_script_content.append(f"#SBATCH --reservation={reservation}")
+        batch_script_content = self._add_reservation(batch_script_content)
         if "output" not in args:
             batch_script_content.append(f"#SBATCH --output={os.path.join(output_path, 'stdout.txt')}")
         if "error" not in args:
