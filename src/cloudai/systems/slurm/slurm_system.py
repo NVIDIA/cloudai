@@ -443,11 +443,7 @@ class SlurmSystem(System):
         """
         # Allocate nodes based on priority: idle, then completing, then allocated
         allocated_nodes = []
-        available_states = [
-            SlurmNodeState.IDLE,
-            SlurmNodeState.COMPLETING,
-            SlurmNodeState.ALLOCATED
-        ]
+        available_states = [SlurmNodeState.IDLE, SlurmNodeState.COMPLETING, SlurmNodeState.ALLOCATED]
 
         if isinstance(number_of_nodes, str) and number_of_nodes == "max_avail":
             for state in available_states:
