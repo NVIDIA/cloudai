@@ -415,9 +415,11 @@ class SlurmSystem(System):
 
         for node in self.groups[partition_name][group_name]:
             if node.state in grouped_nodes:
+                # Exclude nodes allocated to the current user
                 if node.state == SlurmNodeState.ALLOCATED and node.user == current_user:
                     continue
-                grouped_nodes[node.state].append(node)
+                if node.state in grouped_nodes:
+                    grouped_nodes[node.state].append(node)
 
         return grouped_nodes
 
@@ -440,7 +442,11 @@ class SlurmSystem(System):
             ValueError: If the requested number of nodes exceeds the available nodes.
         """
         allocated_nodes = []
-        available_states = [SlurmNodeState.IDLE, SlurmNodeState.COMPLETING, SlurmNodeState.ALLOCATED]
+        available_states = [
+            SlurmNodeState.IDLE,
+            SlurmNodeState.COMPLETING,
+            SlurmNodeState.ALLOCATED
+        ]
 
         if isinstance(number_of_nodes, str) and number_of_nodes == "max_avail":
             for state in available_states:
