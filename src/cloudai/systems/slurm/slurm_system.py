@@ -358,15 +358,55 @@ class SlurmSystem(System):
             ValueError: If the partition or group is not found, or if the requested number of nodes exceeds the
                 available nodes.
         """
+        self.validate_partition_and_group(partition_name, group_name)
+        current_user = getpass.getuser()
+        self.update_node_states()
+
+        grouped_nodes = self.group_nodes_by_state(partition_name, group_name, current_user)
+        allocated_nodes = self.allocate_nodes(grouped_nodes, number_of_nodes, group_name)
+
+        # Log allocation details
+        logging.info(
+            "Allocated nodes from group '{}' in partition '{}': {}".format(
+                group_name,
+                partition_name,
+                [node.name for node in allocated_nodes],
+            )
+        )
+
+        return allocated_nodes
+
+    def validate_partition_and_group(self, partition_name: str, group_name: str) -> None:
+        """
+        Validate that the partition and group exist.
+
+        Args:
+            partition_name (str): The name of the partition.
+            group_name (str): The name of the group.
+
+        Raises:
+            ValueError: If the partition or group is not found.
+
+        """
         if partition_name not in self.groups:
             raise ValueError(f"Partition '{partition_name}' not found.")
         if group_name not in self.groups[partition_name]:
             raise ValueError(f"Group '{group_name}' not found in partition '{partition_name}'.")
 
-        current_user = getpass.getuser()
-        self.update_node_states()
+    def group_nodes_by_state(
+        self, partition_name: str, group_name: str, current_user: str
+    ) -> Dict[SlurmNodeState, List[SlurmNode]]:
+        """
+        Group nodes by their states, excluding nodes allocated to the current user.
 
-        # Group nodes by their states
+        Args:
+            partition_name (str): The name of the partition.
+            group_name (str): The name of the group.
+            current_user (str): The username of the current user.
+
+        Returns:
+            Dict[SlurmNodeState, List[SlurmNode]]: A dictionary grouping nodes by their state.
+        """
         grouped_nodes = {
             SlurmNodeState.IDLE: [],
             SlurmNodeState.COMPLETING: [],
@@ -375,28 +415,39 @@ class SlurmSystem(System):
 
         for node in self.groups[partition_name][group_name]:
             if node.state in grouped_nodes:
-                # Exclude nodes allocated to the current user
                 if node.state == SlurmNodeState.ALLOCATED and node.user == current_user:
                     continue
-                if node.state in grouped_nodes:
-                    grouped_nodes[node.state].append(node)
+                grouped_nodes[node.state].append(node)
 
-        # Allocate nodes based on priority: idle, then completing, then allocated
+        return grouped_nodes
+
+    def allocate_nodes(
+        self, grouped_nodes: Dict[SlurmNodeState, List[SlurmNode]], number_of_nodes: Union[int, str], group_name: str
+    ) -> List[SlurmNode]:
+        """
+        Allocate nodes based on the requested number or maximum availability.
+
+        Args:
+            grouped_nodes (Dict[SlurmNodeState, List[SlurmNode]]): Nodes grouped by their state.
+            number_of_nodes (Union[int, str]): The number of nodes to allocate, or 'max_avail' to allocate
+                all available nodes.
+            group_name (str): The name of the group.
+
+        Returns:
+            List[SlurmNode]: A list of allocated nodes.
+
+        Raises:
+            ValueError: If the requested number of nodes exceeds the available nodes.
+        """
         allocated_nodes = []
-        available_states = [
-            SlurmNodeState.IDLE,
-            SlurmNodeState.COMPLETING,
-            SlurmNodeState.ALLOCATED,
-        ]
+        available_states = [SlurmNodeState.IDLE, SlurmNodeState.COMPLETING, SlurmNodeState.ALLOCATED]
 
-        if isinstance(number_of_nodes, str) and number_of_nodes == "all":
+        if isinstance(number_of_nodes, str) and number_of_nodes == "max_avail":
             for state in available_states:
                 allocated_nodes.extend(grouped_nodes[state])
 
             if len(allocated_nodes) == 0:
-                raise ValueError(
-                    "Requested all the nodes exceeds the number of " "available nodes in group '{}'.".format(group_name)
-                )
+                raise ValueError(f"No available nodes in group '{group_name}'.")
 
         elif isinstance(number_of_nodes, int):
             for state in available_states:
@@ -409,15 +460,6 @@ class SlurmSystem(System):
                         number_of_nodes, group_name
                     )
                 )
-
-        # Log allocation details
-        logging.info(
-            "Allocated nodes from group '{}' in partition '{}': {}".format(
-                group_name,
-                partition_name,
-                [node.name for node in allocated_nodes],
-            )
-        )
 
         return allocated_nodes
 
