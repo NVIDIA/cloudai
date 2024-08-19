@@ -441,6 +441,7 @@ class SlurmSystem(System):
         Raises:
             ValueError: If the requested number of nodes exceeds the available nodes.
         """
+        # Allocate nodes based on priority: idle, then completing, then allocated
         allocated_nodes = []
         available_states = [
             SlurmNodeState.IDLE,
@@ -774,8 +775,7 @@ class SlurmSystem(System):
                 if len(parts) != 3:
                     raise ValueError("Format should be partition:group:num_nodes")
                 partition_name, group_name, num_nodes_str = parts
-
-                num_nodes = int(num_nodes_str) if num_nodes_str != "all" else num_nodes_str
+                num_nodes = int(num_nodes_str) if num_nodes_str != "max_avail" else num_nodes_str
                 group_nodes = self.get_available_nodes_from_group(partition_name, group_name, num_nodes)
                 parsed_nodes += [node.name for node in group_nodes]
             else:
