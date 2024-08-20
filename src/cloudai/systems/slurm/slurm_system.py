@@ -31,7 +31,6 @@ class SlurmSystem(System):
     Represents a Slurm system.
 
     Attributes
-        install_path (Path): Installation path of CloudAI software.
         output_path (Path): Path to the output directory.
         default_partition (str): The default partition for job submission.
         partitions (Dict[str, List[SlurmNode]]): Mapping of partition names to lists of SlurmNodes.
@@ -45,8 +44,6 @@ class SlurmSystem(System):
         groups (Dict[str, Dict[str, List[SlurmNode]]]): Nested mapping where the key is the partition name and the
             value is another dictionary with group names as keys and lists of SlurmNodes as values, representing the
             group composition within each partition.
-        global_env_vars (Optional[Dict[str, Any]]): Dictionary containing additional configuration settings for the
-            system.
         cmd_shell (CommandShell): An instance of CommandShell for executing system commands.
     """
 
@@ -90,8 +87,7 @@ class SlurmSystem(System):
                 the system.
             extra_srun_args (Optional[str]): Additional arguments to be passed to the srun command.
         """
-        super().__init__(name, "slurm", output_path)
-        self.install_path = install_path
+        super().__init__(name, "slurm", install_path, output_path, global_env_vars)
         self.default_partition = default_partition
         self.partitions = partitions
         self.account = account
@@ -101,7 +97,6 @@ class SlurmSystem(System):
         self.ntasks_per_node = ntasks_per_node
         self.cache_docker_images_locally = cache_docker_images_locally
         self.groups = groups if groups is not None else {}
-        self.global_env_vars = global_env_vars if global_env_vars is not None else {}
         self.extra_srun_args = extra_srun_args
         self.cmd_shell = CommandShell()
         logging.debug(f"{self.__class__.__name__} initialized")

@@ -44,7 +44,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         super().__init__(system, env_vars, cmd_args)
         self.slurm_system = system
         self.install_path = self.slurm_system.install_path
-        self.default_env_vars.update(self.slurm_system.global_env_vars)
 
         self.docker_image_cache_manager = DockerImageCacheManager(
             self.slurm_system.install_path,
