@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -75,7 +76,7 @@ def test_nccl_report_generation(setup_test_environment):
     assert strategy.can_handle_directory(test_dir) is True
 
     # Generate the report
-    strategy.generate_report("nccl_test", test_dir)
+    strategy.generate_report("nccl_test", Path(test_dir))
 
     # Verify the CSV report
     csv_report_path = os.path.join(test_dir, "cloudai_nccl_test_csv_report.csv")

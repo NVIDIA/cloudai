@@ -17,6 +17,7 @@
 
 import logging
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -30,18 +31,18 @@ class System(ABC):
     Attributes
         name (str): Unique name of the system.
         scheduler (str): Type of scheduler used by the system, determining the specific subclass of System to be used.
-        output_path (str): Path to the output directory.
+        output_path (Path): Path to the output directory.
         monitor_interval (int): Interval in seconds for monitoring jobs.
     """
 
-    def __init__(self, name: str, scheduler: str, output_path: str, monitor_interval: int = 1) -> None:
+    def __init__(self, name: str, scheduler: str, output_path: Path, monitor_interval: int = 1) -> None:
         """
         Initialize a System instance.
 
         Args:
             name (str): Name of the system.
             scheduler (str): Type of scheduler used by the system.
-            output_path (str): Path to the output directory.
+            output_path (Path): Path to the output directory.
             monitor_interval (int): Interval in seconds for monitoring jobs.
         """
         self.name = name

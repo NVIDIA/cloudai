@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
+from pathlib import Path
 from typing import Any, Dict, List
 
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
@@ -27,7 +27,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     Command generation strategy for NeMo Megatron Launcher on Slurm systems.
 
     Attributes
-        install_path (str): The installation path of CloudAI.
+        install_path (Path): The installation path of CloudAI.
     """
 
     def gen_exec_command(
@@ -36,32 +36,36 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
-        output_path: str,
+        output_path: Path,
         num_nodes: int,
         nodes: List[str],
     ) -> str:
         final_env_vars = self._override_env_vars(self.default_env_vars, env_vars)
         final_env_vars = self._override_env_vars(final_env_vars, extra_env_vars)
 
-        launcher_path = os.path.join(
-            self.install_path,
-            NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH,
-            NeMoLauncherSlurmInstallStrategy.REPOSITORY_NAME,
+        launcher_path = (
+            self.install_path
+            / NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH
+            / NeMoLauncherSlurmInstallStrategy.REPOSITORY_NAME
         )
         overriden_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
         self.final_cmd_args = {
-            k: self._handle_special_keys(k, v, launcher_path, output_path) for k, v in overriden_cmd_args.items()
+            k: self._handle_special_keys(k, v, str(launcher_path), str(output_path))
+            for k, v in overriden_cmd_args.items()
         }
-        self.final_cmd_args["base_results_dir"] = output_path
-        self.final_cmd_args["training.model.data.index_mapping_dir"] = output_path
-        self.final_cmd_args["launcher_scripts_path"] = os.path.join(launcher_path, "launcher_scripts")
+        self.final_cmd_args["base_results_dir"] = str(output_path)
+        self.final_cmd_args["training.model.data.index_mapping_dir"] = str(output_path)
+        self.final_cmd_args["launcher_scripts_path"] = str(launcher_path / "launcher_scripts")
+
         for key, value in final_env_vars.items():
             self.final_cmd_args[f"env_vars.{key}"] = value
+
         self.final_cmd_args["cluster.partition"] = self.slurm_system.default_partition
         reservation_key = "--reservation "
         if self.slurm_system.extra_srun_args and reservation_key in self.slurm_system.extra_srun_args:
             reservation = self.slurm_system.extra_srun_args.split(reservation_key, 1)[1].split(" ", 1)[0]
             self.final_cmd_args["+cluster.reservation"] = reservation
+
         nodes = self.slurm_system.parse_nodes(nodes)
         if nodes:
             self.final_cmd_args["training.trainer.num_nodes"] = str(len(nodes))
@@ -87,7 +91,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             tokenizer_key = "training.model.tokenizer.model="
             if tokenizer_key in extra_cmd_args:
                 tokenizer_path = extra_cmd_args.split(tokenizer_key, 1)[1].split(" ", 1)[0]
-                if not os.path.isfile(tokenizer_path):
+                if not Path(tokenizer_path).is_file():
                     raise ValueError(
                         f"The provided tokenizer path '{tokenizer_path}' is not valid. "
                         "Please review the test schema file to ensure the tokenizer path is correct. "

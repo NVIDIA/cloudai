@@ -31,7 +31,7 @@ def standalone_system():
     Returns:
         StandaloneSystem: A new instance of StandaloneSystem for testing.
     """
-    return StandaloneSystem("StandaloneTestSystem", "/fake/output/path")
+    return StandaloneSystem("StandaloneTestSystem", Path("/fake/output/path"))
 
 
 @pytest.fixture

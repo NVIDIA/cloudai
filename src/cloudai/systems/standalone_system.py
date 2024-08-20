@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import logging
+from pathlib import Path
 
 from cloudai import BaseJob, System
 from cloudai.util import CommandShell
@@ -28,13 +29,13 @@ class StandaloneSystem(System):
         cmd_shell (CommandShell): An instance of CommandShell for executing system commands.
     """
 
-    def __init__(self, name: str, output_path: str) -> None:
+    def __init__(self, name: str, output_path: Path) -> None:
         """
         Initialize a StandaloneSystem instance.
 
         Args:
             name (str): Name of the standalone system.
-            output_path (str): Path to the output directory.
+            output_path (Path): Path to the output directory.
         """
         super().__init__(name, "standalone", output_path)
         self.cmd_shell = CommandShell()

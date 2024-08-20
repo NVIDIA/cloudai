@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from concurrent.futures import Future
+from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -34,8 +35,8 @@ def slurm_system() -> SlurmSystem:
 
     system = SlurmSystem(
         name="test_system",
-        install_path="/fake/path",
-        output_path="/fake/output",
+        install_path=Path("/fake/path"),
+        output_path=Path("/fake/output"),
         default_partition="main",
         partitions={"main": nodes, "backup": backup_nodes},
     )
