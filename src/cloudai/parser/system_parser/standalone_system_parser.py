@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+from pathlib import Path
 from typing import Any, Dict
 
 from cloudai import BaseSystemParser
@@ -45,6 +46,6 @@ class StandaloneSystemParser(BaseSystemParser):
         output_path = data.get("output_path")
         if not output_path:
             raise ValueError("Field 'output_path' is required.")
-        output_path = os.path.abspath(output_path)
+        output_path = Path(os.path.abspath(output_path))
 
         return StandaloneSystem(name=name, output_path=output_path)

@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from typing import Any, Dict
 
 import pytest
@@ -61,8 +62,8 @@ def test_parse_slurm_system_parser_with_mpi(example_data, mpi_value, expected_mp
 
     assert isinstance(slurm_system, SlurmSystem)
     assert slurm_system.name == "test_system"
-    assert slurm_system.install_path == "/fake/path"
-    assert slurm_system.output_path == "/fake/output"
+    assert slurm_system.install_path == Path("/fake/path")
+    assert slurm_system.output_path == Path("/fake/output")
     assert slurm_system.default_partition == "main"
     assert slurm_system.cache_docker_images_locally is True
     assert "main" in slurm_system.partitions

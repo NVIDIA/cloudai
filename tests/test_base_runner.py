@@ -55,14 +55,14 @@ def test_setup_output_directory(mock_datetime_now, tmp_path):
     mock_test_scenario = MagicMock(spec=TestScenario)
     mock_test_scenario.name = scenario_name
     mock_system = MagicMock(spec=System)
-    mock_system.output_path = str(base_output_path)
+    mock_system.output_path = base_output_path
     mock_system.monitor_interval = 5
 
     runner = MockRunner("run", mock_system, mock_test_scenario)
 
     assert base_output_path.exists()
     assert expected_path.exists()
-    assert runner.output_path == str(expected_path)
+    assert runner.output_path == expected_path
 
 
 def test_setup_output_directory_existing_base_path(mock_datetime_now, tmp_path):
@@ -77,10 +77,10 @@ def test_setup_output_directory_existing_base_path(mock_datetime_now, tmp_path):
     mock_test_scenario = MagicMock(spec=TestScenario)
     mock_test_scenario.name = scenario_name
     mock_system = MagicMock(spec=System)
-    mock_system.output_path = str(base_output_path)
+    mock_system.output_path = base_output_path
     mock_system.monitor_interval = 5
 
     runner = MockRunner("run", mock_system, mock_test_scenario)
 
     assert expected_path.exists()
-    assert runner.output_path == str(expected_path)
+    assert runner.output_path == expected_path

@@ -32,8 +32,8 @@ from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 def slurm_system(tmp_path: Path) -> SlurmSystem:
     slurm_system = SlurmSystem(
         name="TestSystem",
-        install_path=str(tmp_path / "install"),
-        output_path=str(tmp_path / "output"),
+        install_path=tmp_path / "install",
+        output_path=tmp_path / "output",
         default_partition="main",
         extra_srun_args="",
         partitions={
@@ -46,8 +46,8 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
         },
         mpi="fake-mpi",
     )
-    Path(slurm_system.install_path).mkdir()
-    Path(slurm_system.output_path).mkdir()
+    slurm_system.install_path.mkdir()
+    slurm_system.output_path.mkdir()
     return slurm_system
 
 
@@ -81,13 +81,13 @@ def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, tmp_path
     args = {"job_name": "test_job", "num_nodes": 2, "partition": "test_partition", "node_list_str": "node1,node2"}
     env_vars_str = "export TEST_VAR=VALUE"
     srun_command = "srun --test test_arg"
-    output_path = str(tmp_path)
+    output_path = tmp_path
 
     sbatch_command = strategy_fixture._write_sbatch_script(args, env_vars_str, srun_command, output_path)
     filepath_from_command = sbatch_command.split()[-1]
 
     # Check that the file exists at the specified path
-    assert tmp_path.joinpath("cloudai_sbatch_script.sh").exists()
+    assert output_path.joinpath("cloudai_sbatch_script.sh").exists()
 
     # Read the file and check the contents
     with open(filepath_from_command, "r") as file:
@@ -315,7 +315,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             cmd_args=cmd_args,
             extra_env_vars=extra_env_vars,
             extra_cmd_args="",
-            output_path="",
+            output_path=Path(""),
             num_nodes=1,
             nodes=[],
         )
@@ -335,7 +335,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             cmd_args=cmd_args,
             extra_env_vars=extra_env_vars,
             extra_cmd_args="",
-            output_path="",
+            output_path=Path(""),
             num_nodes=1,
             nodes=[],
         )
@@ -357,7 +357,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             cmd_args=cmd_args,
             extra_env_vars=extra_env_vars,
             extra_cmd_args=f"training.model.tokenizer.model={tokenizer_path}",
-            output_path="",
+            output_path=Path(""),
             num_nodes=1,
             nodes=[],
         )
@@ -377,7 +377,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             cmd_args=cmd_args,
             extra_cmd_args="",
             extra_env_vars=extra_env_vars,
-            output_path="",
+            output_path=Path(""),
             num_nodes=1,
             nodes=[],
         )
@@ -391,7 +391,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             "repository_url": "fake",
             "repository_commit_hash": "fake",
         }
-        invalid_tokenizer_path = "/invalid/path/to/tokenizer"
+        invalid_tokenizer_path = Path("/invalid/path/to/tokenizer")
 
         with pytest.raises(
             ValueError,
@@ -406,7 +406,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
                 cmd_args=cmd_args,
                 extra_env_vars=extra_env_vars,
                 extra_cmd_args=f"training.model.tokenizer.model={invalid_tokenizer_path}",
-                output_path="",
+                output_path=Path(""),
                 num_nodes=1,
                 nodes=[],
             )
@@ -439,12 +439,12 @@ class TestWriteSbatchScript:
         del args[missing_arg]
 
         with pytest.raises(KeyError) as exc_info:
-            strategy_fixture._write_sbatch_script(args, self.env_vars_str, self.srun_command, str(tmp_path))
+            strategy_fixture._write_sbatch_script(args, self.env_vars_str, self.srun_command, tmp_path)
         assert f"KeyError('{missing_arg}')" in str(exc_info)
 
     def test_only_mandatory_args(self, strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path):
         sbatch_command = strategy_fixture._write_sbatch_script(
-            self.MANDATORY_ARGS, self.env_vars_str, self.srun_command, str(tmp_path)
+            self.MANDATORY_ARGS, self.env_vars_str, self.srun_command, tmp_path
         )
 
         filepath_from_command = sbatch_command.split()[-1]
@@ -482,9 +482,7 @@ class TestWriteSbatchScript:
         args = self.MANDATORY_ARGS.copy()
         args[arg] = arg_value
 
-        sbatch_command = strategy_fixture._write_sbatch_script(
-            args, self.env_vars_str, self.srun_command, str(tmp_path)
-        )
+        sbatch_command = strategy_fixture._write_sbatch_script(args, self.env_vars_str, self.srun_command, tmp_path)
 
         filepath_from_command = sbatch_command.split()[-1]
         with open(filepath_from_command, "r") as file:
@@ -498,9 +496,7 @@ class TestWriteSbatchScript:
         args = self.MANDATORY_ARGS.copy()
         args[add_arg] = "fake"
 
-        sbatch_command = strategy_fixture._write_sbatch_script(
-            args, self.env_vars_str, self.srun_command, str(tmp_path)
-        )
+        sbatch_command = strategy_fixture._write_sbatch_script(args, self.env_vars_str, self.srun_command, tmp_path)
 
         filepath_from_command = sbatch_command.split()[-1]
         with open(filepath_from_command, "r") as file:

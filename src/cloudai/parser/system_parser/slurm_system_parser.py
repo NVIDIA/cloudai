@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+from pathlib import Path
 from typing import Any, Dict, List
 
 from cloudai import BaseSystemParser
@@ -57,12 +58,12 @@ class SlurmSystemParser(BaseSystemParser):
         install_path = data.get("install_path")
         if not install_path:
             raise ValueError("Field 'install_path' is required.")
-        install_path = os.path.abspath(install_path)
+        install_path = Path(os.path.abspath(install_path))
 
         output_path = data.get("output_path")
         if not output_path:
             raise ValueError("Field 'output_path' is required.")
-        output_path = os.path.abspath(output_path)
+        output_path = Path(os.path.abspath(output_path))
 
         default_partition = data.get("default_partition")
         if not default_partition:
