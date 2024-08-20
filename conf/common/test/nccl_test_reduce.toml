@@ -19,4 +19,4 @@ description = "reduce"
 test_template_name = "NcclTest"
 
 [cmd_args]
-"subtest_name" = "reduce_perf_mpi"
+"subtest_name" = "reduce_perf"

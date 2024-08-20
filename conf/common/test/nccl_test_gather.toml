@@ -19,4 +19,4 @@ description = "gather"
 test_template_name = "NcclTest"
 
 [cmd_args]
-"subtest_name" = "gather_perf_mpi"
+"subtest_name" = "gather_perf"
