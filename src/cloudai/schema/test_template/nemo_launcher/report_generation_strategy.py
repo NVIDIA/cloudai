@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+from pathlib import Path
 from typing import Optional
 
 import pandas as pd
@@ -31,14 +32,14 @@ class NeMoLauncherReportGenerationStrategy(ReportGenerationStrategy):
     Now updated to handle TensorBoard log files and visualize data using Bokeh plots.
     """
 
-    def can_handle_directory(self, directory_path: str) -> bool:
+    def can_handle_directory(self, directory_path: Path) -> bool:
         for _, __, files in os.walk(directory_path):
             for file in files:
                 if file.startswith("events.out.tfevents"):
                     return True
         return False
 
-    def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
+    def generate_report(self, test_name: str, directory_path: Path, sol: Optional[float] = None) -> None:
         tags = ["train_step_timing in s"]
         data_reader = TensorBoardDataReader(directory_path)
         report_tool = BokehReportTool(directory_path)
@@ -57,4 +58,4 @@ class NeMoLauncherReportGenerationStrategy(ReportGenerationStrategy):
                     color="black",
                 )
 
-        report_tool.finalize_report("cloudai_nemo_launcher_bokeh_report.html")
+        report_tool.finalize_report(Path("cloudai_nemo_launcher_bokeh_report.html"))

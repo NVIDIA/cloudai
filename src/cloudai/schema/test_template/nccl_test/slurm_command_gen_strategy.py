@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+from pathlib import Path
 from typing import Any, Dict, List
 
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
@@ -31,7 +32,7 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
-        output_path: str,
+        output_path: Path,
         num_nodes: int,
         nodes: List[str],
     ) -> str:

@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from typing import List
 from unittest.mock import patch
 
@@ -31,8 +32,8 @@ def slurm_system():
 
     system = SlurmSystem(
         name="test_system",
-        install_path="/fake/path",
-        output_path="/fake/output",
+        install_path=Path("/fake/path"),
+        output_path=Path("/fake/output"),
         default_partition="main",
         partitions={"main": nodes, "backup": backup_nodes},
     )

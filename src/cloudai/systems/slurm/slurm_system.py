@@ -17,6 +17,7 @@
 import getpass
 import logging
 import re
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from cloudai import BaseJob, System
@@ -30,8 +31,8 @@ class SlurmSystem(System):
     Represents a Slurm system.
 
     Attributes
-        install_path (str): Installation path of CloudAI software.
-        output_path (str): Directory path for output files.
+        install_path (Path): Installation path of CloudAI software.
+        output_path (Path): Path to the output directory.
         default_partition (str): The default partition for job submission.
         partitions (Dict[str, List[SlurmNode]]): Mapping of partition names to lists of SlurmNodes.
         account (Optional[str]): Account name for charging resources used by this job.
@@ -52,8 +53,8 @@ class SlurmSystem(System):
     def __init__(
         self,
         name: str,
-        install_path: str,
-        output_path: str,
+        install_path: Path,
+        output_path: Path,
         default_partition: str,
         partitions: Dict[str, List[SlurmNode]],
         account: Optional[str] = None,
@@ -71,8 +72,8 @@ class SlurmSystem(System):
 
         Args:
             name (str): Name of the Slurm system.
-            install_path (str): The installation path of CloudAI.
-            output_path (str): Path to the output directory.
+            install_path (Path): The installation path of CloudAI.
+            output_path (Path): Path to the output directory.
             default_partition (str): Default partition.
             partitions (Dict[str, List[SlurmNode]]): Partitions in the system.
             account (Optional[str]): Account name for charging resources used by this job.

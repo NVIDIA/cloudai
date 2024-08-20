@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import subprocess
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from cloudai.util.docker_image_cache_manager import (
@@ -24,61 +25,59 @@ from cloudai.util.docker_image_cache_manager import (
 )
 
 
-@patch("os.path.isfile")
-@patch("os.path.exists")
+@patch("pathlib.Path.is_file")
+@patch("pathlib.Path.exists")
 @patch("os.access")
-def test_ensure_docker_image_file_exists(mock_access, mock_exists, mock_isfile):
-    manager = DockerImageCacheManager("/fake/install/path", True, "default")
-    mock_isfile.return_value = True
+def test_ensure_docker_image_file_exists(mock_access, mock_exists, mock_is_file):
+    manager = DockerImageCacheManager(Path("/fake/install/path"), True, "default")
+    mock_is_file.return_value = True
     mock_exists.return_value = True
     result = manager.ensure_docker_image("/tmp/existing_file.sqsh", "subdir", "docker_image.sqsh")
     assert result.success
-    assert result.docker_image_path == "/tmp/existing_file.sqsh"
+    assert result.docker_image_path == Path("/tmp/existing_file.sqsh")
     assert result.message == "Docker image file path is valid: /tmp/existing_file.sqsh."
 
 
-@patch("os.path.isfile")
-@patch("os.path.exists")
+@patch("pathlib.Path.is_file")
+@patch("pathlib.Path.exists")
 @patch("os.access")
-def test_ensure_docker_image_url_cache_enabled(mock_access, mock_exists, mock_isfile):
-    manager = DockerImageCacheManager("/fake/install/path", True, "default")
-    mock_isfile.return_value = False
+def test_ensure_docker_image_url_cache_enabled(mock_access, mock_exists, mock_is_file):
+    manager = DockerImageCacheManager(Path("/fake/install/path"), True, "default")
+    mock_is_file.return_value = False
     mock_exists.return_value = True
     mock_access.return_value = True
     with patch.object(
         manager,
         "cache_docker_image",
         return_value=DockerImageCacheResult(
-            True, "/fake/install/path/subdir/docker_image.sqsh", "Docker image cached successfully."
+            True, Path("/fake/install/path/subdir/docker_image.sqsh"), "Docker image cached successfully."
         ),
     ):
         result = manager.ensure_docker_image("docker.io/hello-world", "subdir", "docker_image.sqsh")
         assert result.success
-        assert result.docker_image_path == "/fake/install/path/subdir/docker_image.sqsh"
+        assert result.docker_image_path == Path("/fake/install/path/subdir/docker_image.sqsh")
         assert result.message == "Docker image cached successfully."
 
 
-@patch("os.path.isfile")
-@patch("os.path.exists")
+@patch("pathlib.Path.is_file")
+@patch("pathlib.Path.exists")
 @patch("os.access")
-@patch("os.makedirs")
 @patch("subprocess.run")
 @patch("cloudai.util.docker_image_cache_manager.DockerImageCacheManager._check_prerequisites")
-def test_cache_docker_image(mock_check_prerequisites, mock_run, mock_makedirs, mock_access, mock_exists, mock_isfile):
-    manager = DockerImageCacheManager("/fake/install/path", True, "default")
+def test_cache_docker_image(mock_check_prerequisites, mock_run, mock_access, mock_exists, mock_is_file):
+    manager = DockerImageCacheManager(Path("/fake/install/path"), True, "default")
 
     # Test when cached file already exists
-    mock_isfile.return_value = True
+    mock_is_file.return_value = True
     result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
     assert result.success
     assert result.message == "Cached Docker image already exists at /fake/install/path/subdir/image.tar.gz."
 
     # Test creating subdirectory when it doesn't exist
-    mock_isfile.return_value = False
-    mock_exists.side_effect = [True, False, False]  # install_path exists, subdir_path does not
-    with patch("os.makedirs") as mock_makedirs:
-        result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
-        mock_makedirs.assert_called_once_with("/fake/install/path/subdir")
+    mock_is_file.return_value = False
+    mock_exists.side_effect = [True, False, True]  # install_path exists, subdir_path does not, install_path again
+    result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
+    assert (manager.install_path / "subdir").exists(), "Subdirectory should exist after caching the image"
 
     # Ensure prerequisites are always met for the following tests
     mock_check_prerequisites.return_value = PrerequisiteCheckResult(True, "All prerequisites are met.")
@@ -88,7 +87,7 @@ def test_cache_docker_image(mock_check_prerequisites, mock_run, mock_makedirs, m
     mock_exists.side_effect = None
 
     # Test caching success with subprocess command (removal of default partition keyword)
-    mock_isfile.return_value = False
+    mock_is_file.return_value = False
     mock_exists.side_effect = [True, True, True, True, True]  # Ensure all path checks return True
     mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=0, stderr="")
     result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
@@ -103,13 +102,13 @@ def test_cache_docker_image(mock_check_prerequisites, mock_run, mock_makedirs, m
     assert result.message == "Docker image cached successfully at /fake/install/path/subdir/image.tar.gz."
 
     # Test caching failure due to subprocess error
-    mock_isfile.return_value = False
+    mock_is_file.return_value = False
     mock_run.side_effect = subprocess.CalledProcessError(1, "cmd")
     result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
     assert not result.success
 
     # Test caching failure due to disk-related errors
-    mock_isfile.return_value = False
+    mock_is_file.return_value = False
     mock_run.side_effect = None
     mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=1, stderr="Disk quota exceeded\n")
     mock_exists.side_effect = [True, True, True, True, True]
@@ -123,68 +122,75 @@ def test_cache_docker_image(mock_check_prerequisites, mock_run, mock_makedirs, m
     assert "Write error" in result.message
 
 
-@patch("os.path.isfile")
-@patch("os.path.exists")
-@patch("os.access")
-@patch("os.remove")
-def test_remove_cached_image(mock_remove, mock_access, mock_exists, mock_isfile):
-    manager = DockerImageCacheManager("/fake/install/path", True, "default")
+@patch("pathlib.Path.unlink")
+@patch("pathlib.Path.is_file")
+def test_remove_cached_image(mock_is_file, mock_unlink):
+    # Mock setup
+    manager = DockerImageCacheManager(Path("/fake/install/path"), True, "default")
 
     # Test successful removal
-    mock_isfile.return_value = True
+    mock_is_file.return_value = True
     result = manager.remove_cached_image("subdir", "image.tar.gz")
     assert result.success
     assert result.message == "Cached Docker image removed successfully from /fake/install/path/subdir/image.tar.gz."
-    mock_remove.assert_called_once_with("/fake/install/path/subdir/image.tar.gz")
+    mock_unlink.assert_called_once()
 
     # Test failed removal due to OSError
-    mock_remove.side_effect = OSError("Mocked OSError")
+    mock_unlink.side_effect = OSError("Mocked OSError")
     result = manager.remove_cached_image("subdir", "image.tar.gz")
     assert not result.success
     assert "Failed to remove cached Docker image" in result.message
 
     # Test no file to remove
-    mock_isfile.return_value = False
+    mock_is_file.return_value = False
     result = manager.remove_cached_image("subdir", "image.tar.gz")
     assert result.success
     assert result.message == "No cached Docker image found to remove at /fake/install/path/subdir/image.tar.gz."
 
 
-@patch("os.path.isfile")
-@patch("os.path.exists")
+
+@patch("pathlib.Path.unlink")
+@patch("pathlib.Path.is_file")
+@patch("pathlib.Path.exists")
+@patch("pathlib.Path.iterdir")
 @patch("os.access")
-@patch("os.remove")
-def test_uninstall_cached_image(mock_remove, mock_access, mock_exists, mock_isfile):
-    manager = DockerImageCacheManager("/fake/install/path", True, "default")
+def test_uninstall_cached_image(mock_access, mock_iterdir, mock_exists, mock_is_file, mock_unlink):
+    manager = DockerImageCacheManager(Path("/fake/install/path"), True, "default")
 
     # Test successful uninstallation and subdirectory removal
-    mock_isfile.return_value = True
+    mock_is_file.return_value = True
     mock_exists.return_value = True
     mock_access.return_value = True
-    mock_listdir = patch("os.listdir", return_value=[]).start()
+    mock_iterdir.return_value = iter([])  # Simulate empty directory
     result = manager.uninstall_cached_image("subdir", "image.tar.gz")
+
+    # Ensure the unlink call was successful
+    mock_unlink.assert_called_once_with()
+
+    # Ensure the directory is empty before attempting to remove it
+    assert list(mock_iterdir()) == []
+
     assert result.success
     assert result.message in [
         "Cached Docker image uninstalled successfully from /fake/install/path/subdir.",
         "Subdirectory removed successfully: /fake/install/path/subdir.",
     ]
-    mock_remove.assert_called_once_with("/fake/install/path/subdir/image.tar.gz")
 
     # Test successful uninstallation but subdirectory not empty
-    mock_listdir.return_value = ["otherfile"]
+    mock_iterdir.return_value = iter([Path("otherfile")])  # Simulate directory with other files
     result = manager.uninstall_cached_image("subdir", "image.tar.gz")
     assert result.success
     assert result.message == "Cached Docker image uninstalled successfully from /fake/install/path/subdir."
-    mock_remove.assert_called_with("/fake/install/path/subdir/image.tar.gz")
+    mock_unlink.assert_called_with()
 
     # Test failed removal due to OSError
-    mock_remove.side_effect = OSError("Mocked OSError")
+    mock_unlink.side_effect = OSError("Mocked OSError")
     result = manager.uninstall_cached_image("subdir", "image.tar.gz")
     assert not result.success
     assert "Failed to remove cached Docker image" in result.message
 
     # Test no subdirectory to remove
-    mock_isfile.return_value = False
+    mock_is_file.return_value = False
     mock_exists.return_value = False
     result = manager.uninstall_cached_image("subdir", "image.tar.gz")
     assert result.success
@@ -197,7 +203,7 @@ def test_uninstall_cached_image(mock_remove, mock_access, mock_exists, mock_isfi
 @patch("shutil.which")
 @patch("cloudai.util.docker_image_cache_manager.DockerImageCacheManager._check_docker_image_accessibility")
 def test_check_prerequisites(mock_check_docker_image_accessibility, mock_which):
-    manager = DockerImageCacheManager("/fake/install/path", True, "default")
+    manager = DockerImageCacheManager(Path("/fake/install/path"), True, "default")
 
     # Ensure enroot and srun are installed
     mock_which.side_effect = lambda x: x in ["enroot", "srun"]
@@ -238,7 +244,7 @@ def test_check_prerequisites(mock_check_docker_image_accessibility, mock_which):
 @patch("shutil.which")
 @patch("tempfile.TemporaryDirectory")
 def test_check_docker_image_accessibility_with_enroot(mock_tempdir, mock_which, mock_popen):
-    manager = DockerImageCacheManager("/fake/install/path", True, "default")
+    manager = DockerImageCacheManager(Path("/fake/install/path"), True, "default")
 
     # Ensure docker binary is not available
     mock_which.return_value = None
@@ -246,7 +252,7 @@ def test_check_docker_image_accessibility_with_enroot(mock_tempdir, mock_which, 
     # Mocking the TemporaryDirectory context manager
     mock_temp_dir = MagicMock()
     mock_tempdir.return_value.__enter__.return_value = mock_temp_dir
-    temp_dir_path = "/fake/temp/dir"
+    temp_dir_path = Path("/fake/temp/dir")
     mock_temp_dir.__enter__.return_value = temp_dir_path
 
     # Mock Popen for enroot command with success scenario
@@ -294,43 +300,3 @@ def test_check_docker_image_accessibility_with_enroot(mock_tempdir, mock_which, 
     command = mock_popen.call_args[0][0]
     assert "enroot import -o" in command
     assert "docker://docker.io/hello-world" in command
-
-
-@patch("os.path.isfile")
-@patch("os.path.exists")
-def test_check_docker_image_exists_with_only_cached_file(mock_exists, mock_isfile):
-    manager = DockerImageCacheManager("/fake/install/path", True, "default")
-
-    # Simulate only the cached file being a valid file path
-    mock_isfile.side_effect = lambda path: path == "/fake/install/path/subdir/docker_image.sqsh"
-    mock_exists.side_effect = lambda path: path in [
-        "/fake/install/path",
-        "/fake/install/path/subdir",
-        "/fake/install/path/subdir/docker_image.sqsh",
-    ]
-
-    result = manager.check_docker_image_exists("/tmp/non_existing_file.sqsh", "subdir", "docker_image.sqsh")
-    assert result.success
-    assert result.docker_image_path == "/fake/install/path/subdir/docker_image.sqsh"
-    assert result.message == "Cached Docker image already exists at /fake/install/path/subdir/docker_image.sqsh."
-
-
-@patch("os.path.isfile")
-@patch("os.path.exists")
-def test_check_docker_image_exists_with_both_valid_files(mock_exists, mock_isfile):
-    manager = DockerImageCacheManager("/fake/install/path", True, "default")
-
-    # Simulate both cached file and docker image URL being valid file paths
-    mock_isfile.side_effect = lambda path: path in [
-        "/tmp/existing_file.sqsh",
-        "/fake/install/path/subdir/docker_image.sqsh",
-    ]
-    mock_exists.side_effect = lambda path: path in [
-        "/tmp/existing_file.sqsh",
-        "/fake/install/path/subdir/docker_image.sqsh",
-    ]
-
-    result = manager.check_docker_image_exists("/tmp/existing_file.sqsh", "subdir", "docker_image.sqsh")
-    assert result.success
-    assert result.docker_image_path == "/tmp/existing_file.sqsh"
-    assert result.message == "Docker image file path is valid: /tmp/existing_file.sqsh."

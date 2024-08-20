@@ -29,7 +29,7 @@ class TestNcclTestJobStatusRetrievalStrategy:
 
     def test_no_stdout_file(self, tmp_path: Path) -> None:
         """Test that job status is False when no stdout.txt file is present."""
-        result = self.js.get_job_status(str(tmp_path))
+        result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
             f"stdout.txt file not found in the specified output directory {tmp_path}. "
@@ -50,7 +50,7 @@ class TestNcclTestJobStatusRetrievalStrategy:
         # Some final output
         """
         stdout_file.write_text(stdout_content)
-        result = self.js.get_job_status(str(tmp_path))
+        result = self.js.get_job_status(tmp_path)
         assert result.is_successful
         assert result.error_message == ""
 
@@ -63,7 +63,7 @@ class TestNcclTestJobStatusRetrievalStrategy:
         # Some final output without success indicators
         """
         stdout_file.write_text(stdout_content)
-        result = self.js.get_job_status(str(tmp_path))
+        result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
             f"Missing success indicators in {stdout_file}: '# Out of bounds values', '# Avg bus bandwidth'. "
@@ -88,7 +88,7 @@ class TestNcclTestJobStatusRetrievalStrategy:
         .. node pid: Test failure common.cu:844
         """
         stdout_file.write_text(stdout_content)
-        result = self.js.get_job_status(str(tmp_path))
+        result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
             f"NCCL test failure detected in {stdout_file}. "
@@ -105,7 +105,7 @@ class TestNcclTestJobStatusRetrievalStrategy:
         .. node pid: Test failure common.cu:401
         """
         stdout_file.write_text(stdout_content)
-        result = self.js.get_job_status(str(tmp_path))
+        result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
             f"Test failure detected in {stdout_file}. "
@@ -124,10 +124,10 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
 
     def test_no_profile_stderr_file(self, tmp_path: Path) -> None:
         """Test that job status is False when no profile_stderr.txt file is present."""
-        result = self.js.get_job_status(str(tmp_path))
+        result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
-            f"profile_stderr.txt file not found in the specified output directory, {str(tmp_path)}. "
+            f"profile_stderr.txt file not found in the specified output directory, {tmp_path}. "
             "This file is expected to be created during the profiling stage. "
             "Please ensure the profiling stage completed successfully. "
             "Run the generated sbatch script manually to debug."
@@ -138,7 +138,7 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         profile_stderr_file = tmp_path / "profile_stderr.txt"
         profile_stderr_content = "Some initialization output\nMore output\nFinal output without the expected keyword"
         profile_stderr_file.write_text(profile_stderr_content)
-        result = self.js.get_job_status(str(tmp_path))
+        result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
             "The profiling stage completed but did not generate the expected '[PAX STATUS]: E2E time: "
@@ -152,10 +152,10 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         profile_stderr_file = tmp_path / "profile_stderr.txt"
         profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling"
         profile_stderr_file.write_text(profile_stderr_content)
-        result = self.js.get_job_status(str(tmp_path))
+        result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
-            f"No 'error-*.txt' files found in the output directory, {str(tmp_path)}. There are two stages in the Grok "
+            f"No 'error-*.txt' files found in the output directory, {tmp_path}. There are two stages in the Grok "
             "run. The profiling stage passed successfully, but something went wrong in the actual run stage. "
             "Please ensure the actual run stage completed successfully. "
             "Run the generated sbatch script manually to debug."
@@ -168,7 +168,7 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         profile_stderr_content += "CUDA_ERROR_NO_DEVICE: no CUDA-capable device is detected"
         profile_stderr_file.write_text(profile_stderr_content)
 
-        result = self.js.get_job_status(str(tmp_path))
+        result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
             "CUDA_ERROR_NO_DEVICE: no CUDA-capable device is detected. This may be due to missing "
@@ -190,10 +190,10 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         error_content = "Some initialization output\nMore output\nFinal output without the expected keyword"
         error_file.write_text(error_content)
 
-        result = self.js.get_job_status(str(tmp_path))
+        result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
-            f"The file {str(error_file)} does not contain the expected 'E2E time: Elapsed time for' keyword at the "
+            f"The file {error_file} does not contain the expected 'E2E time: Elapsed time for' keyword at the "
             "end. This indicates the actual run did not complete successfully. "
             "Please debug this manually to ensure the actual run stage completes as expected."
         )
@@ -208,7 +208,7 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         error_content = "CUDA_ERROR_NO_DEVICE: no CUDA-capable device is detected"
         error_file.write_text(error_content)
 
-        result = self.js.get_job_status(str(tmp_path))
+        result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
             "CUDA_ERROR_NO_DEVICE: no CUDA-capable device is detected. This may be due to missing "
@@ -230,7 +230,7 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         error_content = "Some initialization output\nMore output\nE2E time: Elapsed time for actual run\nFinal output"
         error_file.write_text(error_content)
 
-        result = self.js.get_job_status(str(tmp_path))
+        result = self.js.get_job_status(tmp_path)
         assert result.is_successful
         assert result.error_message == ""
 
@@ -241,7 +241,7 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         profile_stderr_content += "NCCL operation ncclGroupEnd() failed: unhandled system error"
         profile_stderr_file.write_text(profile_stderr_content)
 
-        result = self.js.get_job_status(str(tmp_path))
+        result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
             "NCCL operation ncclGroupEnd() failed: unhandled system error. Please check if the NCCL-test "
@@ -258,7 +258,7 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         error_content = "NCCL operation ncclGroupEnd() failed: unhandled system error"
         error_file.write_text(error_content)
 
-        result = self.js.get_job_status(str(tmp_path))
+        result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
             "NCCL operation ncclGroupEnd() failed: unhandled system error. Please check if the NCCL-test "
@@ -272,12 +272,12 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         profile_stderr_content += "Terminating process because the coordinator detected missing heartbeats"
         profile_stderr_file.write_text(profile_stderr_content)
 
-        result = self.js.get_job_status(str(tmp_path))
+        result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
             "Terminating process because the coordinator detected missing heartbeats. This most likely "
-            f"indicates that another task died. Please review the file at {str(profile_stderr_file)} and any relevant "
-            f"logs in {str(tmp_path)}. Ensure the servers allocated for this task can reach each other with their "
+            f"indicates that another task died. Please review the file at {profile_stderr_file} and any relevant "
+            f"logs in {tmp_path}. Ensure the servers allocated for this task can reach each other with their "
             "hostnames, and they can open any ports and reach others' ports."
         )
 
@@ -291,12 +291,12 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         error_content = "Terminating process because the coordinator detected missing heartbeats"
         error_file.write_text(error_content)
 
-        result = self.js.get_job_status(str(tmp_path))
+        result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
             "Terminating process because the coordinator detected missing heartbeats. This most likely "
-            f"indicates that another task died. Please review the file at {str(error_file)} and any relevant logs in"
-            f" {str(tmp_path)}. Ensure the servers allocated for this task can reach each other with their "
+            f"indicates that another task died. Please review the file at {error_file} and any relevant logs in"
+            f" {tmp_path}. Ensure the servers allocated for this task can reach each other with their "
             "hostnames, and they can open any ports and reach others' ports."
         )
 
@@ -310,7 +310,7 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         )
         profile_stderr_file.write_text(profile_stderr_content)
 
-        result = self.js.get_job_status(str(tmp_path))
+        result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
             "pyxis: mktemp: failed to create directory via template. This is due to insufficient disk cache "
@@ -333,7 +333,7 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         )
         error_file.write_text(error_content)
 
-        result = self.js.get_job_status(str(tmp_path))
+        result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
             "pyxis: mktemp: failed to create directory via template. This is due to insufficient disk cache "

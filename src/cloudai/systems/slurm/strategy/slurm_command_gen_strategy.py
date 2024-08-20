@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List
 
 from cloudai import CommandGenStrategy
@@ -37,7 +37,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         Initialize a new SlurmCommandGenStrategy instance.
 
         Args:
-            system (System): The system schema object.
+            system (SlurmSystem): The system schema object.
             env_vars (Dict[str, Any]): Environment variables.
             cmd_args (Dict[str, Any]): Command-line arguments.
         """
@@ -156,15 +156,17 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     ) -> List[str]:
         return []
 
-    def _write_sbatch_script(self, args: Dict[str, Any], env_vars_str: str, srun_command: str, output_path: str) -> str:
+    def _write_sbatch_script(
+        self, args: Dict[str, Any], env_vars_str: str, srun_command: str, output_path: Path
+    ) -> str:
         """
-        Write the batch script for Slurm submission and returns the sbatch command.
+        Write the batch script for Slurm submission and return the sbatch command.
 
         Args:
             args (Dict[str, Any]): Arguments including job settings.
             env_vars_str (str): Environment variables.
             srun_command (str): srun command.
-            output_path (str): Output directory for script and logs.
+            output_path (Path): Output directory for script and logs.
 
         Returns:
             str: sbatch command to submit the job.
@@ -176,9 +178,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         ]
 
         if "output" not in args:
-            batch_script_content.append(f"#SBATCH --output={os.path.join(output_path, 'stdout.txt')}")
+            batch_script_content.append(f"#SBATCH --output={output_path / 'stdout.txt'}")
         if "error" not in args:
-            batch_script_content.append(f"#SBATCH --error={os.path.join(output_path, 'stderr.txt')}")
+            batch_script_content.append(f"#SBATCH --error={output_path / 'stderr.txt'}")
         if args["partition"]:
             batch_script_content.append(f"#SBATCH --partition={args['partition']}")
         if args["node_list_str"]:
@@ -200,8 +202,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         batch_script_content.extend(["", env_vars_str, "", srun_command])
 
-        batch_script_path = os.path.join(output_path, "cloudai_sbatch_script.sh")
-        with open(batch_script_path, "w") as batch_file:
+        batch_script_path = output_path / "cloudai_sbatch_script.sh"
+        with batch_script_path.open("w") as batch_file:
             batch_file.write("\n".join(batch_script_content))
 
         return f"sbatch {batch_script_path}"

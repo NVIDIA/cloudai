@@ -34,8 +34,8 @@ from cloudai.systems.slurm.strategy import SlurmInstallStrategy
 def slurm_system(tmp_path: Path) -> SlurmSystem:
     slurm_system = SlurmSystem(
         name="TestSystem",
-        install_path=str(tmp_path / "install"),
-        output_path=str(tmp_path / "output"),
+        install_path=tmp_path / "install",
+        output_path=tmp_path / "output",
         default_partition="main",
         partitions={
             "main": [
