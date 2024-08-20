@@ -234,10 +234,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "/opt/paxml/workspace/run.sh",
         ]
 
-        # Join the srun command parts with newlines and backslashes for readability
         srun_command = " \\\n".join(srun_command_parts).strip()
 
-        # Add conditional check if pre_test_value is True
         if run_pre_test:
             srun_command = f'if [ "$keyword_found" = true ]; then\n{srun_command}\nfi'
 

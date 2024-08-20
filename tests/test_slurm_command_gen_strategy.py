@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
@@ -184,6 +184,47 @@ class TestGenerateSrunCommand__CmdGeneration:
 
         full_srun_command = strategy_fixture.generate_full_srun_command({}, {}, {}, "")
         assert full_srun_command == " \\\n".join(["srun", "--test", "test_arg", "test_command"])
+
+    def test_generate_full_srun_command_with_run_pre_test_flag(
+        self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy, slurm_system: SlurmSystem
+    ):
+        # Assign the slurm_system to the strategy fixture
+        jax_strategy_fixture.slurm_system = slurm_system
+
+        # Mock necessary methods and attributes
+        jax_strategy_fixture._create_run_script = MagicMock()
+        jax_strategy_fixture._generate_pre_test_command = MagicMock(return_value="pre_test_command")
+        jax_strategy_fixture._generate_pre_test_check_command = MagicMock(return_value="pre_test_check_command")
+
+        slurm_args = {
+            "output": "output.txt",
+            "error": "error.txt",
+            "image_path": "image_path",
+            "container_mounts": "container_mounts",
+        }
+        env_vars = {}
+        extra_cmd_args = ""
+
+        # run_pre_test is True
+        cmd_args = {"output_path": "/path/to/output", "pre_test": "true"}
+        result = jax_strategy_fixture.generate_full_srun_command(slurm_args, env_vars, cmd_args, extra_cmd_args)
+        assert "pre_test_command" in result
+        assert "pre_test_check_command" in result
+        assert "--mpi=fake-mpi" in result
+        assert "--container-image=image_path" in result
+        assert "--container-mounts=container_mounts" in result
+
+        # run_pre_test is False
+        cmd_args = {
+            "output_path": "/path/to/output",
+            "pre_test": "false", 
+        }
+        result = jax_strategy_fixture.generate_full_srun_command(slurm_args, env_vars, cmd_args, extra_cmd_args)
+        assert "pre_test_command" not in result
+        assert "pre_test_check_command" not in result
+        assert "--mpi=fake-mpi" in result
+        assert "--container-image=image_path" in result
+        assert "--container-mounts=container_mounts" in result
 
 
 class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
