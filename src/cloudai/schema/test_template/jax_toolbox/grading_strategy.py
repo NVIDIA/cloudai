@@ -13,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from pathlib import Path
 
 from cloudai import GradingStrategy
 
@@ -20,5 +21,5 @@ from cloudai import GradingStrategy
 class JaxToolboxGradingStrategy(GradingStrategy):
     """Performance grading strategy for JaxToolbox test templates on Slurm systems."""
 
-    def grade(self, directory_path: str, ideal_perf: float) -> float:
+    def grade(self, directory_path: Path, ideal_perf: float) -> float:
         return 0.0

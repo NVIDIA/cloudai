@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+from pathlib import Path
 from typing import Any, Dict, List
 
 from cloudai.systems import SlurmSystem
@@ -36,14 +37,14 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
-        output_path: str,
+        output_path: Path,
         num_nodes: int,
         nodes: List[str],
     ) -> str:
         final_env_vars = self._override_env_vars(self.default_env_vars, env_vars)
         final_env_vars = self._override_env_vars(final_env_vars, extra_env_vars)
         final_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
-        final_cmd_args["output_path"] = output_path
+        final_cmd_args["output_path"] = str(output_path)
 
         self.test_name = self._extract_test_name(cmd_args)
 
@@ -262,11 +263,11 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         # Combine both parts into the run script content
         run_script_content = profile_content + perf_content
-        run_script_path = os.path.join(cmd_args["output_path"], "run.sh")
+        run_script_path = Path(cmd_args["output_path"]) / "run.sh"
         with open(run_script_path, "w") as run_file:
             run_file.write("\n".join(run_script_content))
         os.chmod(run_script_path, 0o755)
-        return run_script_path
+        return str(run_script_path)
 
     def _script_content(
         self,

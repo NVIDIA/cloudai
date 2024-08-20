@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from math import pi
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 import pandas as pd
@@ -31,10 +31,10 @@ class BokehReportTool:
     Tool for creating interactive Bokeh plots.
 
     Attributes
-        output_directory (str): Directory to save the generated reports.
+        output_directory (Path): Directory to save the generated reports.
     """
 
-    def __init__(self, output_directory: str):
+    def __init__(self, output_directory: Path):
         self.output_directory = output_directory
         self.plots = []
 
@@ -272,14 +272,14 @@ class BokehReportTool:
 
         self.plots.append(p)
 
-    def finalize_report(self, output_filename: str):
+    def finalize_report(self, output_filename: Path):
         """
         Save all accumulated plots to a single HTML file.
 
         Args:
-            output_filename (str): output_filename to save the final report.
+            output_filename (Path): Path to save the final report.
         """
-        output_filepath = os.path.join(self.output_directory, output_filename)
+        output_filepath = self.output_directory / output_filename
         output_file(output_filepath)
         save(column(*self.plots))
         self.plots = []  # Clear the list after saving to prepare for future use.

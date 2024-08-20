@@ -15,6 +15,8 @@
 # limitations under the License.
 
 
+from pathlib import Path
+
 from cloudai import JobStatusResult, JobStatusRetrievalStrategy
 
 
@@ -26,5 +28,5 @@ class DefaultJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
     It always returns a success result, indicating that the job has successfully completed.
     """
 
-    def get_job_status(self, output_path: str) -> JobStatusResult:
+    def get_job_status(self, output_path: Path) -> JobStatusResult:
         return JobStatusResult(is_successful=True)

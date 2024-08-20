@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+from pathlib import Path
 from typing import List, Tuple
 
 
@@ -23,10 +24,10 @@ class TensorBoardDataReader:
     Reads scalar data from TensorBoard log files for specified tags.
 
     Attributes
-        directory_path (str): Path to the directory containing TensorBoard logs.
+        directory_path (Path): Path to the directory containing TensorBoard logs.
     """
 
-    def __init__(self, directory_path: str):
+    def __init__(self, directory_path: Path):
         self.directory_path = directory_path
 
     def extract_data(self, tag: str) -> List[Tuple[int, float]]:
@@ -45,8 +46,8 @@ class TensorBoardDataReader:
         for root, _, files in os.walk(self.directory_path):
             for file in files:
                 if file.startswith("events.out.tfevents"):
-                    path = os.path.join(root, file)
-                    reader = SummaryReader(path)
+                    path = Path(root) / file
+                    reader = SummaryReader(str(path))
                     df = reader.scalars
                     if tag in df["tag"].values:
                         filtered_data = df[df["tag"] == tag]
@@ -61,7 +62,7 @@ def main():
         print("Usage: python script_name.py <directory_path> <tag>")
         return
 
-    directory_path = sys.argv[1]
+    directory_path = Path(sys.argv[1])
     tag = sys.argv[2]
 
     try:
