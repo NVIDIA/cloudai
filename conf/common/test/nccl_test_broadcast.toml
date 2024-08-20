@@ -19,4 +19,4 @@ description = "broadcast"
 test_template_name = "NcclTest"
 
 [cmd_args]
-"subtest_name" = "broadcast_perf_mpi"
+"subtest_name" = "broadcast_perf"
