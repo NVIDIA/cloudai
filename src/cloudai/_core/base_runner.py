@@ -337,6 +337,9 @@ class BaseRunner(ABC):
             completed_job (BaseJob): The job that has just been completed.
         """
         logging.info(f"Job completed: {completed_job.test.section_name}")
+
+        await self.job_completion_callback(completed_job)
+
         self.jobs.remove(completed_job)
         del self.test_to_job_map[completed_job.test]
         completed_job.increment_iteration()
@@ -346,6 +349,18 @@ class BaseRunner(ABC):
             await self.submit_test(completed_job.test)
         else:
             await self.handle_dependencies(completed_job)
+
+    async def job_completion_callback(self, job: BaseJob) -> None:
+        """
+        Call callback functions upon job completion.
+
+        This method can be overridden by subclasses to invoke custom actions or callback functions when a job
+        completes, such as storing logs or other processing.
+
+        Args:
+            job (BaseJob): The job that has completed and for which callback functions are being invoked.
+        """
+        pass
 
     async def handle_dependencies(self, completed_job: BaseJob) -> List[Task]:
         """

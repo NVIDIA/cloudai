@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import logging
+import os
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, cast
@@ -586,6 +587,32 @@ class KubernetesSystem(System):
         """
         namespaces = self.core_v1.list_namespace().items
         return [ns.metadata.name for ns in namespaces]
+
+    def store_logs_for_job(self, namespace: str, job_name: str, output_dir: Path) -> None:
+        """
+        Retrieve and store logs for all pods associated with a given job.
+
+        Args:
+            namespace (str): The namespace where the job is running.
+            job_name (str): The name of the job.
+            output_dir (Path): The directory where logs will be saved.
+        """
+        pod_names = self.get_pod_names_for_job(namespace, job_name)
+        if not pod_names:
+            logging.warning(f"No pods found for job '{job_name}' in namespace '{namespace}'")
+            return
+
+        os.makedirs(output_dir, exist_ok=True)
+
+        for pod_name in pod_names:
+            try:
+                logs = self.core_v1.read_namespaced_pod_log(name=pod_name, namespace=namespace)
+                log_file_path = output_dir / f"{pod_name}.txt"
+                with open(log_file_path, "w") as log_file:
+                    log_file.write(logs)
+                logging.info(f"Logs for pod '{pod_name}' saved to '{log_file_path}'")
+            except client.ApiException as e:
+                logging.error(f"Error retrieving logs for pod '{pod_name}' in namespace '{namespace}': {e}")
 
     def get_pod_names_for_job(self, namespace: str, job_name: str) -> List[str]:
         """

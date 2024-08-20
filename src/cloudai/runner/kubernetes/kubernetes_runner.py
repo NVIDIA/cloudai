@@ -50,6 +50,18 @@ class KubernetesRunner(BaseRunner):
 
         return KubernetesJob(self.mode, self.system, test, job_namespace, job_name, job_kind, job_output_path)
 
+    async def job_completion_callback(self, job: BaseJob) -> None:
+        """
+        Handle job completion by storing job logs and deleting the job.
+
+        Args:
+            job (BaseJob): The job that has completed.
+        """
+        k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)
+        k_job = cast(KubernetesJob, job)
+        k8s_system.store_logs_for_job(k_job.get_namespace(), k_job.get_name(), k_job.get_output_path())
+        k8s_system.delete_job(k_job.get_namespace(), k_job.get_name(), k_job.get_kind())
+
     def kill_job(self, job: BaseJob) -> None:
         """
         Terminate a Kubernetes job.
@@ -60,4 +72,5 @@ class KubernetesRunner(BaseRunner):
         k8s_system = cast(KubernetesSystem, self.system)
         k_job = cast(KubernetesJob, job)
         k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)
+        k8s_system.store_logs_for_job(k_job.get_namespace(), k_job.get_name(), k_job.get_output_path())
         k8s_system.delete_job(k_job.get_namespace(), k_job.get_name(), k_job.get_kind())
