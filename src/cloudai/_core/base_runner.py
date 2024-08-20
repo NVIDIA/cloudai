@@ -350,7 +350,7 @@ class BaseRunner(ABC):
         else:
             await self.handle_dependencies(completed_job)
 
-    async def job_completion_callback(self, job: BaseJob) -> None:
+    async def job_completion_callback(self, job: BaseJob) -> None:  # noqa: B027
         """
         Call callback functions upon job completion.
 
