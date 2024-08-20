@@ -203,13 +203,12 @@ class BokehReportTool:
 
         # Check if x_min equals x_max - constant message size
         if x_min == x_max:
-            # Use time number as x-axis
-            df["time_sec"] = df["time"] / 1e6
-            x_min, x_max = self.find_min_max(df, "time_sec")
-            x_column = "time_sec"
-            x_axis_label = "Time (s)"
+            # Use iteration number as x-axis
+            df["iteration"] = range(1, len(df) + 1)
+            x_column = "iteration"
+            x_axis_label = "Iteration"
             x_axis_type = "linear"
-            x_range = Range1d(start=0, end=x_max)
+            x_range = Range1d(start=1, end=len(df))
         else:
             x_axis_type = "log"
             x_range = None
@@ -269,13 +268,13 @@ class BokehReportTool:
 
         # Check if x_min equals x_max - constant message size
         if x_min == x_max:
-            # Use time number as x-axis
-            df["time_sec"] = df["time"] / 1e6
-            x_min, x_max = self.find_min_max(df, "time_sec")
-            x_column = "time_sec"
-            x_axis_label = "Time (s)"
+            # Use iteration number as x-axis
+            df["iteration"] = range(1, len(df) + 1)
+            x_column = "iteration"
+            x_axis_label = "Iteration"
             x_axis_type = "linear"
-            x_range = Range1d(start=0, end=x_max)
+            x_range = Range1d(start=1, end=len(df))
+
         else:
             x_axis_type = "log"
             x_range = None
