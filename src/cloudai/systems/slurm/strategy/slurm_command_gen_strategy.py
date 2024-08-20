@@ -193,7 +193,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             f"#SBATCH -N {args['num_nodes']}",
         ]
 
-
         self._append_sbatch_directives(batch_script_content, args, output_path)
 
         batch_script_content.append(env_vars_str)
@@ -216,7 +215,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             args (Dict[str, Any]): Arguments including job settings.
             output_path (str): Output directory for script and logs.
         """
-
         batch_script_content = self._add_reservation(batch_script_content)
 
         if "output" not in args:

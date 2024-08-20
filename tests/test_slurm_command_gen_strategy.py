@@ -217,7 +217,7 @@ class TestGenerateSrunCommand__CmdGeneration:
         # run_pre_test is False
         cmd_args = {
             "output_path": "/path/to/output",
-            "pre_test": "false", 
+            "pre_test": "false",
         }
         result = jax_strategy_fixture.generate_full_srun_command(slurm_args, env_vars, cmd_args, extra_cmd_args)
         assert "pre_test_command" not in result
