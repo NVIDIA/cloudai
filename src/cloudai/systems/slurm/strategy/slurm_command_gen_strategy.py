@@ -202,12 +202,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             batch_script_content.append(f"#SBATCH --output={os.path.join(output_path, 'stdout.txt')}")
         if "error" not in args:
             batch_script_content.append(f"#SBATCH --error={os.path.join(output_path, 'stderr.txt')}")
-
-        # safely access parition
-        partition = args.get("partition")
-        if partition:
+        if args["partition"]:
             batch_script_content.append(f"#SBATCH --partition={args['partition']}")
-        if args.get("node_list_str"):
+        if args["node_list_str"]:
             batch_script_content.append(f"#SBATCH --nodelist={args['node_list_str']}")
         if "account" in args:
             batch_script_content.append(f"#SBATCH --account={args['account']}")

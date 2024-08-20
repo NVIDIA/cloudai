@@ -424,7 +424,7 @@ class TestWriteSbatchScript:
         self.env_vars_str = "export TEST_VAR=VALUE"
         self.srun_command = "srun --test test_arg"
 
-    def assert_positional_lines(self, lines: list[str]):
+    def assert_slurm_directives(self, lines: list[str]):
         assert lines[0] == "#!/bin/bash"
 
         assert f"#SBATCH --job-name={self.MANDATORY_ARGS['job_name']}" in lines
@@ -461,16 +461,8 @@ class TestWriteSbatchScript:
         assert missing_arg in str(exc_info.value)
 
     def test_only_mandatory_args(self, strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path):
-        # Ensure MANDATORY_ARGS includes all the arguments you expect to be present
-        args = {
-            "job_name": "test_job",
-            "num_nodes": 2,
-            "partition": "default",
-            "node_list_str": "node1,node2",
-        }
-
         sbatch_command = strategy_fixture._write_sbatch_script(
-            args, self.env_vars_str, self.srun_command, str(tmp_path)
+            self.MANDATORY_ARGS, self.env_vars_str, self.srun_command, str(tmp_path)
         )
 
         filepath_from_command = sbatch_command.split()[-1]
@@ -484,13 +476,13 @@ class TestWriteSbatchScript:
 
         assert len(lines) == 11
 
-        self.assert_positional_lines(lines)
+        self.assert_slurm_directives(lines)
 
         # Check for the specific lines in the file
-        assert f"#SBATCH --job-name={args['job_name']}" in file_contents
-        assert f"#SBATCH -N {args['num_nodes']}" in file_contents
-        assert f"#SBATCH --partition={args['partition']}" in file_contents
-        assert f"#SBATCH --nodelist={args['node_list_str']}" in file_contents
+        assert f"#SBATCH --job-name={self.MANDATORY_ARGS['job_name']}" in file_contents
+        assert f"#SBATCH -N {self.MANDATORY_ARGS['num_nodes']}" in file_contents
+        assert f"#SBATCH --partition={self.MANDATORY_ARGS['partition']}" in file_contents
+        assert f"#SBATCH --nodelist={self.MANDATORY_ARGS['node_list_str']}" in file_contents
         assert f"#SBATCH --output={tmp_path / 'stdout.txt'}" in file_contents
         assert f"#SBATCH --error={tmp_path / 'stderr.txt'}" in file_contents
 
@@ -518,7 +510,7 @@ class TestWriteSbatchScript:
         with open(filepath_from_command, "r") as file:
             file_contents = file.read()
 
-        self.assert_positional_lines(file_contents.splitlines())
+        self.assert_slurm_directives(file_contents.splitlines())
         assert expected_str in file_contents
 
     @pytest.mark.parametrize("add_arg", ["output", "error"])
@@ -534,7 +526,7 @@ class TestWriteSbatchScript:
         with open(filepath_from_command, "r") as file:
             file_contents = file.read()
 
-        self.assert_positional_lines(file_contents.splitlines())
+        self.assert_slurm_directives(file_contents.splitlines())
         assert f"--{add_arg}=" not in file_contents
 
 
