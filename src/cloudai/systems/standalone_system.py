@@ -37,7 +37,7 @@ class StandaloneSystem(System):
             name (str): Name of the standalone system.
             output_path (Path): Path to the output directory.
         """
-        super().__init__(name, "standalone", output_path)
+        super().__init__(name, "standalone", Path(), output_path, {})
         self.cmd_shell = CommandShell()
 
     def __repr__(self) -> str:
