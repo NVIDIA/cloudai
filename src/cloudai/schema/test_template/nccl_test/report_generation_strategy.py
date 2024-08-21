@@ -25,8 +25,10 @@ from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.report_generator.tool.csv_report_tool import CSVReportTool
 from cloudai.report_generator.util import add_human_readable_sizes
 
+from .output_reader_mixin import NcclTestOutputReaderMixin
 
-class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
+
+class NcclTestReportGenerationStrategy(NcclTestOutputReaderMixin, ReportGenerationStrategy):
     """
     Strategy for generating reports from NCCL test outputs.
 
@@ -34,18 +36,19 @@ class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
     """
 
     def can_handle_directory(self, directory_path: Path) -> bool:
-        stdout_path = directory_path / "stdout.txt"
-        if stdout_path.exists():
-            with stdout_path.open("r") as file:
-                content = file.read()
-                if re.search(r"out-of-place|in-place", content) and re.search(
-                    r"\b(size\s+count\s+type\s+redop\s+root\s+"
-                    r"time\s+algbw\s+busbw\s+#wrong\s+time\s+"
-                    r"algbw\s+busbw\s+#wrong)\b",
-                    content,
-                    re.IGNORECASE,
-                ):
-                    return True
+        content = self._get_stdout_content(directory_path)
+        if (
+            content
+            and re.search(r"out-of-place|in-place", content)
+            and re.search(
+                r"\b(size\s+count\s+type\s+redop\s+root\s+"
+                r"time\s+algbw\s+busbw\s+#wrong\s+time\s+"
+                r"algbw\s+busbw\s+#wrong)\b",
+                content,
+                re.IGNORECASE,
+            )
+        ):
+            return True
         return False
 
     def generate_report(self, test_name: str, directory_path: Path, sol: Optional[float] = None) -> None:
@@ -80,33 +83,39 @@ class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
 
     def _parse_output(self, directory_path: Path) -> Tuple[List[List[str]], Optional[float]]:
         """
-        Extract data from 'stdout.txt' for report generation.
+        Extract data from stdout for report generation.
 
         Args:
-            directory_path (Path): Directory containing 'stdout.txt'.
+            directory_path (Path): Directory containing stdout.
 
         Returns:
             Tuple[List[List[str]], Optional[float]]: Parsed data and optional average bus bandwidth.
         """
-        stdout_path = directory_path / "stdout.txt"
+        content = self._get_stdout_content(directory_path)
         avg_bus_bw = None
         data = []
-        if stdout_path.is_file():
-            with stdout_path.open("r") as file:
-                for line in file:
-                    line = line.strip()
-                    if re.match(r"^\d", line):
-                        data.append(re.split(r"\s+", line))
-                content = file.read()
-                avg_bus_bw_match = re.search(r"Avg bus bandwidth\s+:\s+(\d+\.\d+)", content)
-                avg_bus_bw = float(avg_bus_bw_match.group(1)) if avg_bus_bw_match else None
+
+        if content:
+            for line in content.strip().splitlines():
+                line = line.strip()
+
+                # Adjust the regex to match lines that start with digits and likely contain data
+                if re.match(r"^\s*\d", line):
+                    split_line = list(filter(None, re.split(r"\s+", line)))
+                    data.append(split_line)
+
+            # Search for the average bus bandwidth in the content
+            avg_bus_bw_match = re.search(r"Avg bus bandwidth\s*:\s*(\d+\.\d+)", content)
+            if avg_bus_bw_match:
+                avg_bus_bw = float(avg_bus_bw_match.group(1))
+
         return data, avg_bus_bw
 
     def _generate_bokeh_report(
         self, test_name: str, df: pd.DataFrame, directory_path: Path, sol: Optional[float]
     ) -> None:
         """
-        Create and saves plots to visualize NCCL test metrics.
+        Create and save plots to visualize NCCL test metrics.
 
         Args:
             test_name (str): The name of the test.

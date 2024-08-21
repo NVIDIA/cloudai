@@ -18,11 +18,13 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-from cloudai.schema.test_template.nccl_test.report_generation_strategy import NcclTestReportGenerationStrategy
+from cloudai.schema.test_template.nccl_test.slurm_report_generation_strategy import (
+    SlurmNcclTestReportGenerationStrategy,
+)
 
 
 @pytest.fixture
-def setup_test_environment(tmp_path: Path):
+def setup_test_environment(tmp_path: Path) -> Path:
     # Create a temporary directory for the test
     test_dir = tmp_path / "test_env"
     test_dir.mkdir()
@@ -65,11 +67,12 @@ def setup_test_environment(tmp_path: Path):
     return test_dir
 
 
-def test_nccl_report_generation(setup_test_environment):
+def test_nccl_report_generation(setup_test_environment: Path) -> None:
+    """Test the NCCL report generation process."""
     test_dir = setup_test_environment
 
     # Instantiate the strategy
-    strategy = NcclTestReportGenerationStrategy()
+    strategy = SlurmNcclTestReportGenerationStrategy()
 
     # Validate the directory can be handled
     assert strategy.can_handle_directory(test_dir) is True
