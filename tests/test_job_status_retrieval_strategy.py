@@ -15,69 +15,78 @@
 # limitations under the License.
 
 from pathlib import Path
+from typing import Optional
 
 from cloudai.schema.test_template.jax_toolbox.job_status_retrieval_strategy import JaxToolboxJobStatusRetrievalStrategy
 from cloudai.schema.test_template.nccl_test.job_status_retrieval_strategy import NcclTestJobStatusRetrievalStrategy
 
 
+class MockNcclTestJobStatusRetrievalStrategy(NcclTestJobStatusRetrievalStrategy):
+    """Mock class for testing NcclTestJobStatusRetrievalStrategy."""
+
+    def __init__(self) -> None:
+        """Initialize with a default empty mock_stdout_content."""
+        self.mock_stdout_content: Optional[str] = None
+
+    def _get_stdout_content(self, directory_path: Path) -> Optional[str]:
+        """Mock implementation of the abstract method."""
+        return self.mock_stdout_content
+
+
 class TestNcclTestJobStatusRetrievalStrategy:
-    """Tests for the NcclTestJobStatusRetrievalStrategy class."""
+    """Tests for the NcclTestJobStatusRetrievalStrategy class using a mock subclass."""
 
     def setup_method(self) -> None:
-        """Setup method for initializing NcclTestJobStatusRetrievalStrategy."""
-        self.js = NcclTestJobStatusRetrievalStrategy()
+        """Setup method for initializing MockNcclTestJobStatusRetrievalStrategy."""
+        self.js = MockNcclTestJobStatusRetrievalStrategy()
 
     def test_no_stdout_file(self, tmp_path: Path) -> None:
-        """Test that job status is False when no stdout.txt file is present."""
+        """Test that job status is False when no stdout content is provided."""
+        self.js.mock_stdout_content = None  # Simulate no stdout content
         result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
-            f"stdout.txt file not found in the specified output directory {tmp_path}. "
+            "stdout file not found in the specified output directory. "
             "This file is expected to be created as a result of the NCCL test run. "
-            "Please ensure the NCCL test was executed properly and that stdout.txt is generated. "
-            "You can run the generated NCCL test command manually and verify the creation of "
-            f"{tmp_path / 'stdout.txt'}. If the issue persists, contact the system administrator."
+            "Please ensure the NCCL test was executed properly and that stdout is generated. "
+            "You can run the generated NCCL test command manually and verify the creation of stdout. "
+            "If the issue persists, contact the system administrator."
         )
 
     def test_successful_job(self, tmp_path: Path) -> None:
-        """Test that job status is True when stdout.txt contains success indicators."""
-        stdout_file = tmp_path / "stdout.txt"
-        stdout_content = """
+        """Test that job status is True when stdout contains success indicators."""
+        self.js.mock_stdout_content = """
         # Some initialization output
         # More output
         # Out of bounds values : 0 OK
         # Avg bus bandwidth    : 100.00
         # Some final output
         """
-        stdout_file.write_text(stdout_content)
         result = self.js.get_job_status(tmp_path)
         assert result.is_successful
         assert result.error_message == ""
 
     def test_failed_job(self, tmp_path: Path) -> None:
-        """Test that job status is False when stdout.txt does not contain success indicators."""
-        stdout_file = tmp_path / "stdout.txt"
-        stdout_content = """
+        """Test that job status is False when stdout does not contain success indicators."""
+        self.js.mock_stdout_content = """
         # Some initialization output
         # More output
         # Some final output without success indicators
         """
-        stdout_file.write_text(stdout_content)
         result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
-            f"Missing success indicators in {stdout_file}: '# Out of bounds values', '# Avg bus bandwidth'. "
-            "These keywords are expected to be present in stdout.txt, usually towards the end of the file. "
-            f"Please review the NCCL test output and errors in the file. "
+            "Missing success indicators in stdout: '# Out of bounds values', '# Avg bus bandwidth'. "
+            "These keywords are expected to be present in stdout, usually towards the end of the file. "
+            "Please review the NCCL test output and errors in the file. "
             "Ensure the NCCL test ran to completion. You can run the generated sbatch script manually "
-            f"and check if {stdout_file} is created and contains the expected keywords. "
+            "and check if stdout is created and contains the expected keywords. "
             "If the issue persists, contact the system administrator."
         )
 
     def test_nccl_failure_job(self, tmp_path: Path) -> None:
-        """Test that job status is False when stdout.txt contains NCCL failure indicators."""
-        stdout_file = tmp_path / "stdout.txt"
-        stdout_content = """
+        """Test that job status is False when stdout contains NCCL failure indicators."""
+        self.js.mock_stdout_content = """
         # Some initialization output
         node: Test NCCL failure common.cu:303 'remote process exited or there was a network error / '
         .. node pid: Test failure common.cu:401
@@ -87,28 +96,25 @@ class TestNcclTestJobStatusRetrievalStrategy:
         .. node pid: Test failure common.cu:1019
         .. node pid: Test failure common.cu:844
         """
-        stdout_file.write_text(stdout_content)
         result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
-            f"NCCL test failure detected in {stdout_file}. "
+            "NCCL test failure detected in stdout. "
             "Possible reasons include network errors or remote process exits. "
             "Please review the NCCL test output and errors in the file first. "
             "If the issue persists, contact the system administrator."
         )
 
     def test_generic_test_failure_job(self, tmp_path: Path) -> None:
-        """Test that job status is False when stdout.txt contains generic test failure indicators."""
-        stdout_file = tmp_path / "stdout.txt"
-        stdout_content = """
+        """Test that job status is False when stdout contains generic test failure indicators."""
+        self.js.mock_stdout_content = """
         # Some initialization output
         .. node pid: Test failure common.cu:401
         """
-        stdout_file.write_text(stdout_content)
         result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
-            f"Test failure detected in {stdout_file}. "
+            "Test failure detected in stdout. "
             "Please review the specific test failure messages in the file. "
             "Ensure that the NCCL test environment is correctly set up and configured. "
             "If the issue persists, contact the system administrator."
