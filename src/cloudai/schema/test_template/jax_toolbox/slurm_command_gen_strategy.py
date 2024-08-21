@@ -257,7 +257,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         commands = []
 
-        run_pre_test = cmd_args.get("pre_test", "False").lower() in ("true", "1", "yes")
+        run_pre_test = str(cmd_args.get("pre_test", "False")).lower() in ("true", "1", "yes")
 
         if run_pre_test:
             pre_test_command = self._generate_pre_test_command(cmd_args, output_path, error_path)
@@ -307,6 +307,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         pre_test_command_parts = [
             "srun",
             "--mpi=pmix",
+            f"-N {nccl_test.get('num_nodes', 2)}",
             f"-o {output_path}",
             f"-e {error_path}",
             f"--container-image={nccl_test.get('docker_image_url', 'nvcr.io/nvidia/pytorch:24.02-py3')}",
