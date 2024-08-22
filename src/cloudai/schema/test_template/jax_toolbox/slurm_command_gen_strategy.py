@@ -267,7 +267,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         srun_command_parts = [
             "srun",
-            f"--mpi={self.slurm_system.mpi}",
+            "--mpi=none",
             f"{self.slurm_system.extra_srun_args if self.slurm_system.extra_srun_args else ''}",
             "--export=ALL",
             f"-o {slurm_args['output']}",
@@ -455,7 +455,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             script_lines.extend(
                 [
                     self._create_pgo_nsys_converter_command(stage, cmd_args),
-                    self._create_nsys_to_sqlite_command(stage, cmd_args),
                 ]
             )
 
