@@ -27,8 +27,12 @@ from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm import SlurmNode, SlurmNodeState
 
 SLURM_TEST_SCENARIOS = [
-    {"path": Path("conf/test_scenario/sleep.toml"), "expected_dirs_number": 4, "log_file": "sleep_debug.log"},
-    {"path": Path("conf/test_scenario/ucc_test.toml"), "expected_dirs_number": 5, "log_file": "ucc_test_debug.log"},
+    {"path": Path("conf/common/test_scenario/sleep.toml"), "expected_dirs_number": 4, "log_file": "sleep_debug.log"},
+    {
+        "path": Path("conf/common/test_scenario/ucc_test.toml"),
+        "expected_dirs_number": 5,
+        "log_file": "ucc_test_debug.log",
+    },
 ]
 
 
@@ -39,8 +43,8 @@ def test_slurm(tmp_path: Path, scenario: Dict):
     log_file = scenario.get("log_file")
     log_file_path = tmp_path / str(log_file)
 
-    parser = Parser(Path("conf/system/example_slurm_cluster.toml"), Path("conf/test_template"))
-    system, tests, test_scenario = parser.parse(Path("conf/test"), test_scenario_path)
+    parser = Parser(Path("conf/common/system/example_slurm_cluster.toml"), Path("conf/common/test_template"))
+    system, tests, test_scenario = parser.parse(Path("conf/common/test"), test_scenario_path)
     system.output_path = str(tmp_path)
     assert test_scenario is not None, "Test scenario is None"
     setup_logging(str(log_file_path), "DEBUG")
