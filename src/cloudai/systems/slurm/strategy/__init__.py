@@ -14,10 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .slurm_command_gen_strategy import SlurmCommandGenStrategy
 from .slurm_install_strategy import SlurmInstallStrategy
+from .slurm_job_spec_gen_strategy import SlurmJobSpecGenStrategy
 
 __all__ = [
-    "SlurmCommandGenStrategy",
+    "SlurmJobSpecGenStrategy",
     "SlurmInstallStrategy",
 ]

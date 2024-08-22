@@ -16,20 +16,20 @@
 
 from .grading_strategy import SleepGradingStrategy
 from .kubernetes_install_strategy import SleepKubernetesInstallStrategy
-from .kubernetes_json_gen_strategy import SleepKubernetesJsonGenStrategy
+from .kubernetes_job_spec_gen_strategy import SleepKubernetesJobSpecGenStrategy
 from .report_generation_strategy import SleepReportGenerationStrategy
-from .slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
-from .standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
+from .slurm_job_spec_gen_strategy import SleepSlurmJobSpecGenStrategy
 from .standalone_install_strategy import SleepStandaloneInstallStrategy
+from .standalone_job_spec_gen_strategy import SleepStandaloneJobSpecGenStrategy
 from .template import Sleep
 
 __all__ = [
     "Sleep",
     "SleepStandaloneInstallStrategy",
-    "SleepStandaloneCommandGenStrategy",
-    "SleepKubernetesJsonGenStrategy",
+    "SleepStandaloneJobSpecGenStrategy",
+    "SleepKubernetesJobSpecGenStrategy",
     "SleepKubernetesInstallStrategy",
-    "SleepSlurmCommandGenStrategy",
+    "SleepSlurmJobSpecGenStrategy",
     "SleepReportGenerationStrategy",
     "SleepGradingStrategy",
 ]

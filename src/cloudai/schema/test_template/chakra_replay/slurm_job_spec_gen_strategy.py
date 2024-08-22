@@ -14,28 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
 from typing import Any, Dict, List
 
-from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai import JobContext, JobSpecification
+from cloudai.systems.slurm.strategy import SlurmJobSpecGenStrategy
 
 
-class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
+class ChakraReplaySlurmJobSpecGenStrategy(SlurmJobSpecGenStrategy):
     """Command generation strategy for ChakraReplay on Slurm systems."""
 
-    def gen_exec_command(
-        self,
-        env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
-        extra_env_vars: Dict[str, str],
-        extra_cmd_args: str,
-        output_path: Path,
-        num_nodes: int,
-        nodes: List[str],
-    ) -> str:
-        final_env_vars = self._override_env_vars(self.default_env_vars, env_vars)
-        final_env_vars = self._override_env_vars(final_env_vars, extra_env_vars)
-        final_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
+    def gen_job_spec(self, context: JobContext) -> JobSpecification:
+        final_env_vars = self._override_env_vars(self.default_env_vars, context.env_vars)
+        final_env_vars = self._override_env_vars(final_env_vars, context.extra_env_vars)
+        final_cmd_args = self._override_cmd_args(self.default_cmd_args, context.cmd_args)
         env_vars_str = self._format_env_vars(final_env_vars)
 
         required_args = [
@@ -50,9 +41,13 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
             raise KeyError(f"Missing required command-line arguments: {missing_args}")
 
         job_name_prefix = "chakra_replay"
-        slurm_args = self._parse_slurm_args(job_name_prefix, final_env_vars, final_cmd_args, num_nodes, nodes)
-        srun_command = self.generate_full_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
-        return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, output_path)
+        slurm_args = self._parse_slurm_args(
+            job_name_prefix, final_env_vars, final_cmd_args, context.num_nodes, context.nodes
+        )
+        srun_command = self.generate_full_srun_command(
+            slurm_args, final_env_vars, final_cmd_args, context.extra_cmd_args
+        )
+        return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, context.output_path)
 
     def _parse_slurm_args(
         self,

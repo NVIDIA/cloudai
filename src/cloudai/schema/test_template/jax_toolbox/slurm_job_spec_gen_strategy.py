@@ -18,35 +18,27 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List
 
+from cloudai import JobContext, JobSpecification
 from cloudai.systems import SlurmSystem
-from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.systems.slurm.strategy import SlurmJobSpecGenStrategy
 
 from .slurm_install_strategy import JaxToolboxSlurmInstallStrategy
 
 
-class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
+class JaxToolboxSlurmJobSpecGenStrategy(SlurmJobSpecGenStrategy):
     """Command generation strategy for JaxToolbox tests on Slurm systems."""
 
     def __init__(self, system: SlurmSystem, env_vars: Dict[str, Any], cmd_args: Dict[str, Any]) -> None:
         super().__init__(system, env_vars, cmd_args)
         self.test_name = ""
 
-    def gen_exec_command(
-        self,
-        env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
-        extra_env_vars: Dict[str, str],
-        extra_cmd_args: str,
-        output_path: Path,
-        num_nodes: int,
-        nodes: List[str],
-    ) -> str:
-        final_env_vars = self._override_env_vars(self.default_env_vars, env_vars)
-        final_env_vars = self._override_env_vars(final_env_vars, extra_env_vars)
-        final_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
-        final_cmd_args["output_path"] = str(output_path)
+    def gen_job_spec(self, context: JobContext) -> JobSpecification:
+        final_env_vars = self._override_env_vars(self.default_env_vars, context.env_vars)
+        final_env_vars = self._override_env_vars(final_env_vars, context.extra_env_vars)
+        final_cmd_args = self._override_cmd_args(self.default_cmd_args, context.cmd_args)
+        final_cmd_args["output_path"] = str(context.output_path)
 
-        self.test_name = self._extract_test_name(cmd_args)
+        self.test_name = self._extract_test_name(context.cmd_args)
 
         if self.test_name == "GPT":
             # Define the keys to check for the GPT test
@@ -68,7 +60,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         del final_cmd_args[key]
 
         final_env_vars["COMBINE_THRESHOLD"] = f"{combine_threshold_bytes}"
-        num_nodes = len(nodes) if nodes else num_nodes
+        num_nodes = len(context.nodes) if context.nodes else context.num_nodes
 
         setup_flags_key = (
             f"{self.test_name}.setup_flags.gpus_per_node"
@@ -83,9 +75,13 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         env_vars_str = self._format_env_vars(final_env_vars)
 
-        slurm_args = self._parse_slurm_args("JaxToolbox", final_env_vars, final_cmd_args, num_nodes, nodes)
-        srun_command = self.generate_full_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
-        return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, output_path)
+        slurm_args = self._parse_slurm_args(
+            "JaxToolbox", final_env_vars, final_cmd_args, context.num_nodes, context.nodes
+        )
+        srun_command = self.generate_full_srun_command(
+            slurm_args, final_env_vars, final_cmd_args, context.extra_cmd_args
+        )
+        return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, context.output_path)
 
     def _extract_test_name(self, cmd_args: Dict[str, Any]) -> str:
         test_name = ""

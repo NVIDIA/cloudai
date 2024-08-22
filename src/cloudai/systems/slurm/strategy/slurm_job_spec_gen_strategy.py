@@ -18,12 +18,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-from cloudai import CommandGenStrategy
+from cloudai import JobSpecGenStrategy
 from cloudai.systems import SlurmSystem
 from cloudai.util.docker_image_cache_manager import DockerImageCacheManager
 
 
-class SlurmCommandGenStrategy(CommandGenStrategy):
+class SlurmJobSpecGenStrategy(JobSpecGenStrategy):
     """
     Abstract base class for defining command generation strategies specific to Slurm environments.
 
@@ -34,7 +34,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
     def __init__(self, system: SlurmSystem, env_vars: Dict[str, Any], cmd_args: Dict[str, Any]) -> None:
         """
-        Initialize a new SlurmCommandGenStrategy instance.
+        Initialize a new SlurmJobSpecGenStrategy instance.
 
         Args:
             system (SlurmSystem): The system schema object.

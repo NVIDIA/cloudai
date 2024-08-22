@@ -14,32 +14,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
 from typing import Any, Dict, List
 
-from cloudai import JsonGenStrategy
+from cloudai import JobContext, JobSpecGenStrategy, JobSpecification
 
 
-class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
+class NcclTestKubernetesJobSpecGenStrategy(JobSpecGenStrategy):
     """JSON generation strategy for NCCL tests on Kubernetes systems."""
 
-    def gen_json(
-        self,
-        env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
-        extra_env_vars: Dict[str, str],
-        extra_cmd_args: str,
-        output_path: Path,
-        job_name: str,
-        num_nodes: int,
-        nodes: List[str],
-    ) -> Dict[Any, Any]:
-        final_env_vars = self._override_env_vars(self.default_env_vars, env_vars)
-        final_env_vars = self._override_env_vars(final_env_vars, extra_env_vars)
-        final_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
-        final_num_nodes = self._determine_num_nodes(num_nodes, nodes)
+    def gen_job_spec(self, context: JobContext) -> JobSpecification:
+        final_env_vars = self._override_env_vars(self.default_env_vars, context.env_vars)
+        final_env_vars = self._override_env_vars(final_env_vars, context.extra_env_vars)
+        final_cmd_args = self._override_cmd_args(self.default_cmd_args, context.cmd_args)
+        final_num_nodes = self._determine_num_nodes(context.num_nodes, context.nodes)
         job_spec = self._create_job_spec(
-            job_name, final_num_nodes, nodes, final_env_vars, final_cmd_args, extra_cmd_args
+            context.job_name, final_num_nodes, context.nodes, final_env_vars, final_cmd_args, context.extra_cmd_args
         )
 
         return job_spec

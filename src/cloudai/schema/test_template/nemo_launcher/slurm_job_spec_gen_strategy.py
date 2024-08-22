@@ -17,12 +17,13 @@
 from pathlib import Path
 from typing import Any, Dict, List
 
-from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai import JobContext, JobSpecification
+from cloudai.systems.slurm.strategy import SlurmJobSpecGenStrategy
 
 from .slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
 
 
-class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
+class NeMoLauncherSlurmJobSpecGenStrategy(SlurmJobSpecGenStrategy):
     """
     Command generation strategy for NeMo Megatron Launcher on Slurm systems.
 
@@ -30,31 +31,22 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         install_path (Path): The installation path of CloudAI.
     """
 
-    def gen_exec_command(
-        self,
-        env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
-        extra_env_vars: Dict[str, str],
-        extra_cmd_args: str,
-        output_path: Path,
-        num_nodes: int,
-        nodes: List[str],
-    ) -> str:
-        final_env_vars = self._override_env_vars(self.default_env_vars, env_vars)
-        final_env_vars = self._override_env_vars(final_env_vars, extra_env_vars)
+    def gen_job_spec(self, context: JobContext) -> JobSpecification:
+        final_env_vars = self._override_env_vars(self.default_env_vars, context.env_vars)
+        final_env_vars = self._override_env_vars(final_env_vars, context.extra_env_vars)
 
         launcher_path = (
             self.install_path
             / NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH
             / NeMoLauncherSlurmInstallStrategy.REPOSITORY_NAME
         )
-        overriden_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
+        overriden_cmd_args = self._override_cmd_args(self.default_cmd_args, context.cmd_args)
         self.final_cmd_args = {
-            k: self._handle_special_keys(k, v, str(launcher_path), str(output_path))
+            k: self._handle_special_keys(k, v, str(launcher_path), str(context.output_path))
             for k, v in overriden_cmd_args.items()
         }
-        self.final_cmd_args["base_results_dir"] = str(output_path)
-        self.final_cmd_args["training.model.data.index_mapping_dir"] = str(output_path)
+        self.final_cmd_args["base_results_dir"] = str(context.output_path)
+        self.final_cmd_args["training.model.data.index_mapping_dir"] = str(context.output_path)
         self.final_cmd_args["launcher_scripts_path"] = str(launcher_path / "launcher_scripts")
 
         for key, value in final_env_vars.items():
@@ -66,11 +58,11 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             reservation = self.slurm_system.extra_srun_args.split(reservation_key, 1)[1].split(" ", 1)[0]
             self.final_cmd_args["+cluster.reservation"] = reservation
 
-        nodes = self.slurm_system.parse_nodes(nodes)
+        nodes = self.slurm_system.parse_nodes(context.nodes)
         if nodes:
-            self.final_cmd_args["training.trainer.num_nodes"] = str(len(nodes))
+            self.final_cmd_args["training.trainer.num_nodes"] = str(len(context.nodes))
         else:
-            self.final_cmd_args["training.trainer.num_nodes"] = num_nodes
+            self.final_cmd_args["training.trainer.num_nodes"] = context.num_nodes
 
         self.final_cmd_args["container"] = self.docker_image_cache_manager.ensure_docker_image(
             self.docker_image_url,
@@ -86,11 +78,11 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         full_cmd = f"python {launcher_path}/launcher_scripts/main.py {cmd_args_str}"
 
-        if extra_cmd_args:
-            full_cmd += f" {extra_cmd_args}"
+        if context.extra_cmd_args:
+            full_cmd += f" {context.extra_cmd_args}"
             tokenizer_key = "training.model.tokenizer.model="
-            if tokenizer_key in extra_cmd_args:
-                tokenizer_path = extra_cmd_args.split(tokenizer_key, 1)[1].split(" ", 1)[0]
+            if tokenizer_key in context.extra_cmd_args:
+                tokenizer_path = context.extra_cmd_args.split(tokenizer_key, 1)[1].split(" ", 1)[0]
                 if not Path(tokenizer_path).is_file():
                     raise ValueError(
                         f"The provided tokenizer path '{tokenizer_path}' is not valid. "
