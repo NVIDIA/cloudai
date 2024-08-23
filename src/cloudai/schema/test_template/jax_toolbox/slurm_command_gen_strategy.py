@@ -470,17 +470,17 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     ) -> str:
         """
         Construct the complete Python command for execution in the SLURM environment.
-
+    
         The command is structured with specific ordering of arguments
         to match the operational requirements of the JaxToolbox on Slurm systems.
-
+    
         Args:
             stage (str): The stage of processing (e.g., 'profile', 'perf').
             slurm_args (Dict[str, Any]): Dictionary containing the SLURM job settings such as number of nodes.
             env_vars (Dict[str, str]): Environment variables.
             cmd_args (Dict[str, str]): Command-line arguments.
             extra_cmd_args (str): Additional command-line arguments to be included in the Python command.
-
+    
         Returns:
             str: The formatted Python command string to be executed within a SLURM job.
         """
@@ -497,32 +497,39 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "--alsologtostderr",
             f'--fdl_config="{fdl_config}"',
         ]
-
+    
         # Dynamically adding fdl. prefixed arguments
         fdl_prefix = f"{self.test_name}.fdl."
-        fdl_args = {k[len(fdl_prefix) :]: v for k, v in cmd_args.items() if k.startswith(fdl_prefix)}
-
+        fdl_args = {k[len(fdl_prefix):]: v for k, v in cmd_args.items() if k.startswith(fdl_prefix)}
+    
         for key, value in fdl_args.items():
             parts.append(f"--fdl.{key.upper()}={value}")
         if extra_cmd_args:
             parts.append(extra_cmd_args)
-        python_command = " \\\n".join(parts)
-
+        python_command = " \\\n    ".join(parts)
+    
         if stage == "profile":
             python_command += " >> /opt/paxml/workspace/profile_stderr.txt 2>&1"
-
+    
         nsys_command = (
             "nsys profile \\\n"
-            "-s none \\\n"
-            f"-o /opt/paxml/workspace/nsys_profile_{stage} \\\n"
-            "--force-overwrite true \\\n"
-            "--capture-range=cudaProfilerApi \\\n"
-            "--capture-range-end=stop \\\n"
-            "--cuda-graph-trace=node \\\n"
+            "    -s none \\\n"
+            f"    -o /opt/paxml/workspace/nsys_profile_{stage} \\\n"
+            "    --force-overwrite true \\\n"
+            "    --capture-range=cudaProfilerApi \\\n"
+            "    --capture-range-end=stop \\\n"
+            "    --cuda-graph-trace=node \\\n"
         )
-        python_command = nsys_command + python_command
-
-        return python_command
+    
+        slurm_check = (
+            'if [ "$SLURM_NODEID" -eq 0 ] && [ "$SLURM_PROCID" -eq 0 ]; then\n'
+            f"    {nsys_command}    {python_command}\n"
+            "else\n"
+            f"    {python_command}\n"
+            "fi"
+        )
+    
+        return slurm_check
 
     def _create_pgo_nsys_converter_command(self, stage: str, cmd_args: Dict[str, str]) -> str:
         """
