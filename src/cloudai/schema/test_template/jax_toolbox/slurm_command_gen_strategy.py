@@ -74,7 +74,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         # Handle thresholds and environment variable adjustments
         self._handle_threshold_and_env(final_cmd_args, final_env_vars, combine_threshold_bytes, num_nodes)
 
-        xla_flags = self._format_xla_flags(final_cmd_args)
+        xla_flags = self._format_xla_flags(final_cmd_args, "perf")
         final_env_vars["XLA_FLAGS"] = f'"{xla_flags}"'
 
         env_vars_str = self._format_env_vars(final_env_vars)
@@ -109,7 +109,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 raise ValueError(f"None of the {self.test_name} specific keys are found in cmd_args.")
 
         elif self.test_name == "Grok":
-            key = f"{self.test_name}.XLA_FLAGS.combine_threshold_bytes"
+            key = f"{self.test_name}.perf.XLA_FLAGS.combine_threshold_bytes"
         else:
             key = "XLA_FLAGS.combine_threshold_bytes"
 
@@ -145,26 +145,30 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     return name.upper() if name.lower() == "gpt" else name.capitalize()
         return ""
 
-    def _format_xla_flags(self, cmd_args: Dict[str, str]) -> str:
+    def _format_xla_flags(self, cmd_args: Dict[str, str], stage: str) -> str:
         """
         Format the XLA_FLAGS environment variable.
 
         This method extracts all command-line arguments prefixed with 'common.XLA_FLAGS'
-        or '{test_name}.XLA_FLAGS' and concatenates them into a single string formatted
+        or '{test_name}.{stage}.XLA_FLAGS' and concatenates them into a single string formatted
         for execution.
 
         Args:
             cmd_args (Dict[str, str]): Command-line arguments for the job.
+            stage (str): The stage of the test, can be "profile" or "perf".
 
         Returns:
             str: A single string containing all XLA-related flags formatted for inclusion
-                 in the environment variables.
+                    in the environment variables.
         """
-        xla_flags = []
-
+        xla_flags = [
+            "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
+            "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
+            "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD",
+        ]
         # Prefixes for common and test-specific XLA flags
         common_prefix = "common.XLA_FLAGS."
-        test_prefix = f"{self.test_name}.XLA_FLAGS."
+        test_prefix = f"{self.test_name}.{stage}.XLA_FLAGS."
 
         for key, value in cmd_args.items():
             if key.startswith(common_prefix) or key.startswith(test_prefix):
@@ -444,16 +448,16 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         # Prepare environment and script content for the 'profile' stage
         set_xla_flags(test_name, False)
-        env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args)}"'
+        env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "profile")}"'
 
         profile_content = self._script_content("profile", slurm_args, env_vars, cmd_args, extra_cmd_args)
 
         # Prepare environment and script content for the 'perf' stage
         set_xla_flags(test_name, True)
-        cmd_args[f"{self.test_name}.XLA_FLAGS.xla_gpu_pgle_profile_file_or_directory_path"] = (
+        cmd_args[f"{self.test_name}.perf.XLA_FLAGS.xla_gpu_pgle_profile_file_or_directory_path"] = (
             "/opt/paxml/workspace/pgle_output_profile.pbtxt"
         )
-        env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args)}"'
+        env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
 
         perf_content = self._script_content("perf", slurm_args, env_vars, cmd_args, extra_cmd_args)
 
