@@ -258,6 +258,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         commands = []
 
         run_pre_test = str(cmd_args.get("pre_test", "False")).lower() in ("true", "1", "yes")
+        start_container_run = str(cmd_args.get("load_container", "False")).lower() in ("true", "1", "yes")
 
         if run_pre_test:
             pre_test_command = self._generate_pre_test_command(cmd_args, output_path, error_path)
@@ -265,28 +266,72 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             pre_test_check_command = self._generate_pre_test_check_command(cmd_args, output_path)
             commands.append(pre_test_check_command)
 
-        srun_command_parts = [
-            "srun",
-            "--mpi=none",
-            f"{self.slurm_system.extra_srun_args if self.slurm_system.extra_srun_args else ''}",
-            "--export=ALL",
-            f"-o {slurm_args['output']}",
-            f"-e {slurm_args['error']}",
-            f"--container-image={slurm_args['image_path']}",
-            f"--container-mounts={slurm_args['container_mounts']}",
-            "/opt/paxml/workspace/run.sh",
-        ]
+        if start_container_run:
+            # Load container command
+            srun_command_load = self._generate_container_load_srun_command(
+                slurm_args, env_vars, cmd_args, extra_cmd_args
+            )
+            commands.append('if [ "$keyword_found" = true ]; then')
+            commands.append('    echo "Loading container with srun command"')
+            commands.append(f"    {srun_command_load}")
+            commands.append("fi")
 
-        srun_command = " \\\n".join(srun_command_parts).strip()
+        main_srun_command = "\n".join(
+            [
+                'if [ "$keyword_found" = true ]; then',
+                '    echo "Running srun command"',
+                "    srun \\",
+                "    --mpi=none \\",
+                f'    {self.slurm_system.extra_srun_args if self.slurm_system.extra_srun_args else ""} \\',
+                "    --export=ALL \\",
+                f'    -o {slurm_args["output"]} \\',
+                f'    -e {slurm_args["error"]} \\',
+                "    --container-name=cont \\",
+                f'    --container-mounts={slurm_args["container_mounts"]} \\',
+                "    /opt/paxml/workspace/run.sh",
+                "fi",
+            ]
+        )
 
-        if run_pre_test:
-            srun_command = f'if [ "$keyword_found" = true ]; then\n{srun_command}\nfi'
+        # Add the final srun command to the list of commands
+        commands.append(main_srun_command)
 
-        commands.append(srun_command)
-
+        # Combine all parts into the final batch script
         full_command = "\n\n".join(commands)
 
         return full_command
+
+    def _generate_container_load_srun_command(
+        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
+    ) -> str:
+        """
+        Generate the srun command to load a container and log the status using Docker commands.
+
+        Args:
+            slurm_args (Dict[str, Any]): Dictionary containing the SLURM job settings such as image path.
+            env_vars (Dict[str, str]): Environment variables.
+            cmd_args (Dict[str, str]): Command-line arguments.
+            extra_cmd_args (str): Additional command-line arguments to be included in the command.
+
+        Returns:
+            str: The generated srun command with proper indentation and logging.
+        """
+        container_name = "cont"
+        container_image = slurm_args["image_path"]
+
+        # Construct the srun command to load the container and check if it's running
+        srun_command = "\n".join(
+            [
+                "",
+                "    srun \\",
+                "    --mpi=none \\",
+                f"    --container-image={container_image} \\",
+                f"    --container-name={container_name} \\",
+                "    true",
+            ]
+        )
+
+        return srun_command
 
     def _generate_pre_test_command(self, cmd_args: Dict[str, Any], output_path: str, error_path: str) -> str:
         """
@@ -470,17 +515,17 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     ) -> str:
         """
         Construct the complete Python command for execution in the SLURM environment.
-    
+
         The command is structured with specific ordering of arguments
         to match the operational requirements of the JaxToolbox on Slurm systems.
-    
+
         Args:
             stage (str): The stage of processing (e.g., 'profile', 'perf').
             slurm_args (Dict[str, Any]): Dictionary containing the SLURM job settings such as number of nodes.
             env_vars (Dict[str, str]): Environment variables.
             cmd_args (Dict[str, str]): Command-line arguments.
             extra_cmd_args (str): Additional command-line arguments to be included in the Python command.
-    
+
         Returns:
             str: The formatted Python command string to be executed within a SLURM job.
         """
@@ -497,20 +542,20 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "--alsologtostderr",
             f'--fdl_config="{fdl_config}"',
         ]
-    
+
         # Dynamically adding fdl. prefixed arguments
         fdl_prefix = f"{self.test_name}.fdl."
-        fdl_args = {k[len(fdl_prefix):]: v for k, v in cmd_args.items() if k.startswith(fdl_prefix)}
-    
+        fdl_args = {k[len(fdl_prefix) :]: v for k, v in cmd_args.items() if k.startswith(fdl_prefix)}
+
         for key, value in fdl_args.items():
             parts.append(f"--fdl.{key.upper()}={value}")
         if extra_cmd_args:
             parts.append(extra_cmd_args)
         python_command = " \\\n    ".join(parts)
-    
+
         if stage == "profile":
             python_command += " >> /opt/paxml/workspace/profile_stderr.txt 2>&1"
-    
+
         nsys_command = (
             "nsys profile \\\n"
             "    -s none \\\n"
@@ -520,7 +565,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "    --capture-range-end=stop \\\n"
             "    --cuda-graph-trace=node \\\n"
         )
-    
+
         slurm_check = (
             'if [ "$SLURM_NODEID" -eq 0 ] && [ "$SLURM_PROCID" -eq 0 ]; then\n'
             f"    {nsys_command}    {python_command}\n"
@@ -528,7 +573,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f"    {python_command}\n"
             "fi"
         )
-    
+
         return slurm_check
 
     def _create_pgo_nsys_converter_command(self, stage: str, cmd_args: Dict[str, str]) -> str:
