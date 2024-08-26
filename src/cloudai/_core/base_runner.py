@@ -263,7 +263,7 @@ class BaseRunner(ABC):
         if not self.output_path.exists():
             raise FileNotFoundError(f"Output directory {self.output_path} does not exist")
 
-        job_output_path = None  # Initialize the variable
+        job_output_path = Path()  # avoid reportPossiblyUnboundVariable from pyright
 
         try:
             assert test.section_name is not None, "test.section_name must not be None"

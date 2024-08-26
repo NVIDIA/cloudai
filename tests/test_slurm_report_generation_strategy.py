@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from pathlib import Path
 
 import pandas as pd
@@ -60,9 +59,8 @@ def setup_test_environment(tmp_path: Path):
     # Avg bus bandwidth    : 111.111
     #
     """
-    stdout_path = os.path.join(test_dir, "stdout.txt")
-    with open(stdout_path, "w") as f:
-        f.write(stdout_content)
+    stdout_path = test_dir / "stdout.txt"
+    stdout_path.write_text(stdout_content)
 
     return test_dir
 
@@ -77,11 +75,11 @@ def test_nccl_report_generation(setup_test_environment):
     assert strategy.can_handle_directory(test_dir) is True
 
     # Generate the report
-    strategy.generate_report("nccl_test", Path(test_dir))
+    strategy.generate_report("nccl_test", test_dir)
 
     # Verify the CSV report
-    csv_report_path = os.path.join(test_dir, "cloudai_nccl_test_csv_report.csv")
-    assert os.path.isfile(csv_report_path), "CSV report was not generated."
+    csv_report_path = test_dir / "cloudai_nccl_test_csv_report.csv"
+    assert csv_report_path.is_file(), "CSV report was not generated."
 
     # Read the CSV and validate the content
     df = pd.read_csv(csv_report_path)
