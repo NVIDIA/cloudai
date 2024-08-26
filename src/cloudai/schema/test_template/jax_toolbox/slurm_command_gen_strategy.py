@@ -173,21 +173,20 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             JaxToolboxSlurmInstallStrategy.DOCKER_IMAGE_FILENAME,
         ).docker_image_path
 
-        local_workspace_dir = os.path.abspath(cmd_args["output_path"])
-        # Use the dynamic key_prefix for accessing docker_workspace_dir
+        local_workspace_dir = Path(cmd_args["output_path"]).resolve()
         docker_workspace_dir = cmd_args[f"{key_prefix}.setup_flags.docker_workspace_dir"]
         container_mounts = f"{local_workspace_dir}:{docker_workspace_dir}"
 
         if "pgo_nsys_converter.profile_path" in cmd_args:
-            profile_path = cmd_args["pgo_nsys_converter.profile_path"]
+            profile_path = Path(cmd_args["pgo_nsys_converter.profile_path"]).resolve()
             container_mounts += f",{profile_path}:{profile_path}"
 
         base_args.update({"image_path": image_path, "container_mounts": container_mounts})
 
-        output_path = os.path.abspath(cmd_args["output_path"])
+        output_path = Path(cmd_args["output_path"]).resolve()
         output_suffix = "-%j.txt" if env_vars.get("UNIFIED_STDOUT_STDERR") == "1" else "-%j-%n-%t.txt"
-        base_args["output"] = os.path.join(output_path, f"output{output_suffix}")
-        base_args["error"] = os.path.join(output_path, f"error{output_suffix}")
+        base_args["output"] = str(output_path / f"output{output_suffix}")
+        base_args["error"] = str(output_path / f"error{output_suffix}")
 
         return base_args
 

@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -73,7 +72,7 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         container_mounts = ""
         if "NCCL_TOPO_FILE" in env_vars and "DOCKER_NCCL_TOPO_FILE" in env_vars:
-            nccl_graph_path = os.path.abspath(env_vars["NCCL_TOPO_FILE"])
+            nccl_graph_path = Path(env_vars["NCCL_TOPO_FILE"]).resolve()
             nccl_graph_file = env_vars["DOCKER_NCCL_TOPO_FILE"]
             container_mounts = f"{nccl_graph_path}:{nccl_graph_file}"
         elif "NCCL_TOPO_FILE" in env_vars:

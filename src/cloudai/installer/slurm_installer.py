@@ -17,6 +17,7 @@
 import contextlib
 import os
 import subprocess
+from pathlib import Path
 from typing import Dict, Iterable, cast
 
 import toml
@@ -35,9 +36,9 @@ class SlurmInstaller(BaseInstaller):
         CONFIG_FILE_NAME (str): The name of the configuration file.
         PREREQUISITES (List[str]): A list of required binaries for the installer.
         REQUIRED_SRUN_OPTIONS (List[str]): A list of required srun options to check.
-        install_path (str): Path where the benchmarks are to be installed. This is optional since uninstallation does
+        install_path (Path): Path where the benchmarks are to be installed. This is optional since uninstallation does
             not require it.
-        config_path (str): Path to the installation configuration file.
+        config_path (Path): Path to the installation configuration file.
     """
 
     CONFIG_FILE_NAME = ".cloudai.toml"
@@ -60,7 +61,7 @@ class SlurmInstaller(BaseInstaller):
         super().__init__(system)
         slurm_system = cast(SlurmSystem, self.system)
         self.install_path = slurm_system.install_path
-        self.config_path = os.path.join(os.path.expanduser("~"), self.CONFIG_FILE_NAME)
+        self.config_path = Path.home() / self.CONFIG_FILE_NAME
 
     def _check_prerequisites(self) -> InstallStatusResult:
         """
@@ -108,16 +109,16 @@ class SlurmInstaller(BaseInstaller):
 
     def _write_config(self) -> InstallStatusResult:
         """Write the installation configuration to a TOML file atomically."""
-        absolute_install_path = os.path.abspath(self.install_path)
-        config_data: Dict[str, str] = {"install_path": absolute_install_path}
+        absolute_install_path = self.install_path.resolve()
+        config_data: Dict[str, str] = {"install_path": str(absolute_install_path)}
 
         try:
-            with open(self.config_path, "w") as file:
+            with self.config_path.open("w") as file:
                 toml.dump(config_data, file)
             return InstallStatusResult(True)
         except Exception as e:
             with contextlib.suppress(OSError):
-                os.remove(self.config_path)
+                self.config_path.unlink()
             return InstallStatusResult(False, str(e))
 
     def _read_config(self) -> Dict[str, str]:
@@ -128,7 +129,7 @@ class SlurmInstaller(BaseInstaller):
             Dict[str, str]: Configuration, including installation path.
         """
         try:
-            with open(self.config_path, "r") as file:
+            with self.config_path.open("r") as file:
                 return toml.load(file)
         except FileNotFoundError as e:
             raise FileNotFoundError(
@@ -138,8 +139,8 @@ class SlurmInstaller(BaseInstaller):
 
     def _remove_config(self) -> None:
         """Remove the installation configuration file."""
-        if os.path.exists(self.config_path):
-            os.remove(self.config_path)
+        if self.config_path.exists():
+            self.config_path.unlink()
 
     def is_installed(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
         """
@@ -153,7 +154,7 @@ class SlurmInstaller(BaseInstaller):
         Returns:
             InstallStatusResult: Result containing the installation status and error message if not installed.
         """
-        if not os.path.exists(self.config_path):
+        if not self.config_path.exists():
             return InstallStatusResult(
                 False,
                 f"Configuration file does not exist at {self.config_path}. "
@@ -189,11 +190,11 @@ class SlurmInstaller(BaseInstaller):
             return prerequisites_result
 
         try:
-            os.makedirs(self.install_path, exist_ok=True)
+            self.install_path.mkdir(parents=True, exist_ok=True)
         except OSError as e:
             return InstallStatusResult(False, f"Failed to create installation directory at {self.install_path}: {e}")
 
-        if not os.access(self.install_path, os.W_OK):
+        if not self.install_path.is_dir() or not os.access(self.install_path, os.W_OK):
             return InstallStatusResult(False, f"The installation path {self.install_path} is not writable.")
 
         install_result = super().install(test_templates)

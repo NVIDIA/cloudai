@@ -65,7 +65,7 @@ class Parser:
         if not test_path.exists():
             raise FileNotFoundError(f"Test path '{test_path}' not found.")
 
-        system_parser = SystemParser(str(self.system_config_path))
+        system_parser = SystemParser(self.system_config_path)
         system = system_parser.parse()
         logging.debug("Parsed system config")
 
