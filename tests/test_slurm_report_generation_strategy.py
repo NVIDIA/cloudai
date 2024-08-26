@@ -23,9 +23,10 @@ from cloudai.schema.test_template.nccl_test.report_generation_strategy import Nc
 
 
 @pytest.fixture
-def setup_test_environment(tmpdir):
+def setup_test_environment(tmp_path: Path):
     # Create a temporary directory for the test
-    test_dir = tmpdir.mkdir("test_env")
+    test_dir = tmp_path / "test_env"
+    test_dir.mkdir()
 
     # Create the mock stdout.txt file
     stdout_content = """

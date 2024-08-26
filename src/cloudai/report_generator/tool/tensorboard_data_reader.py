@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from pathlib import Path
 from typing import List, Tuple
 
@@ -43,15 +42,12 @@ class TensorBoardDataReader:
         from tbparse import SummaryReader  # lazy import to improve overall performance
 
         data = []
-        for root, _, files in os.walk(self.directory_path):
-            for file in files:
-                if file.startswith("events.out.tfevents"):
-                    path = Path(root) / file
-                    reader = SummaryReader(str(path))
-                    df = reader.scalars
-                    if tag in df["tag"].values:
-                        filtered_data = df[df["tag"] == tag]
-                        data.extend(filtered_data[["step", "value"]].values)
+        for path in self.directory_path.rglob("events.out.tfevents*"):
+            reader = SummaryReader(str(path))
+            df = reader.scalars
+            if tag in df["tag"].values:
+                filtered_data = df[df["tag"] == tag]
+                data.extend(filtered_data[["step", "value"]].values)
         return data
 
 

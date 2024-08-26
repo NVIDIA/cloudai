@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from pathlib import Path
 from typing import Any, Dict
 
@@ -46,6 +45,6 @@ class StandaloneSystemParser(BaseSystemParser):
         output_path = data.get("output_path")
         if not output_path:
             raise ValueError("Field 'output_path' is required.")
-        output_path = Path(os.path.abspath(output_path))
+        output_path = Path(output_path).absolute()
 
         return StandaloneSystem(name=name, output_path=output_path)

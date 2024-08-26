@@ -274,7 +274,7 @@ def main() -> None:
     system, tests, test_scenario = parser.parse(tests_dir, test_scenario_path)
 
     if output_dir:
-        system.output_path = Path(output_dir.absolute())
+        system.output_path = output_dir.absolute()
     system.update()
 
     if args.mode in ["install", "uninstall"]:
