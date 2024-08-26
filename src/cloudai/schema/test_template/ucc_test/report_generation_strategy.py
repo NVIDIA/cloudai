@@ -96,15 +96,14 @@ class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
         report_tool = BokehReportTool(directory_path)
         line_plots = [("Bandwidth (GB/s) avg", "black", "Average Bandwidth")]
         for col_name, color, title in line_plots:
-            report_tool.add_log_x_linear_y_single_line_plot(
+            report_tool.add_log_x_linear_y_multi_line_plot(
                 title=title,
                 x_column="Size (B)",
-                y_column=col_name,
+                y_columns=[(col_name, color)],
                 x_axis_label="Message Size",
                 y_axis_label="Bandwidth (GB/s)",
                 df=df,
                 sol=sol,
-                color=color,
             )
 
         combined_columns = [
