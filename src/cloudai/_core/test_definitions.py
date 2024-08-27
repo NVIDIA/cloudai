@@ -40,7 +40,10 @@ class TestDefinition(BaseModel):
     extra_cmd_args: dict[str, str] = {}
 
     def extra_args_str(self) -> str:
-        return " ".join([f"{k}={v}" for k, v in self.extra_cmd_args.items()])
+        parts = []
+        for k, v in self.extra_cmd_args.items():
+            parts.append(f"{k}={v}" if v else k)
+        return " ".join(parts)
 
 
 class UCCCmdArgs(CmdArgs):

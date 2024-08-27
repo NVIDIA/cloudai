@@ -24,11 +24,11 @@ TOML_FILES = list(Path("conf").glob("**/*.toml"))
 ALL_TESTS = [t for t in TOML_FILES if "test_template_name" in t.read_text()]
 
 
-def test_extra_args_str():
-    t = TestDefinition(
-        name="test", description="test", test_template_name="test", cmd_args={}, extra_cmd_args={"-a": "1"}
-    )
-    assert t.extra_args_str() == "-a=1"
+# ids should be the value of "expected"
+@pytest.mark.parametrize("input,expected", [({"-a": "1"}, "-a=1"), ({"-a": ""}, "-a")])
+def test_extra_args_str(input: dict, expected: str):
+    t = TestDefinition(name="test", description="test", test_template_name="test", cmd_args={}, extra_cmd_args=input)
+    assert t.extra_args_str() == expected
 
 
 @pytest.mark.parametrize("toml_file", ALL_TESTS, ids=lambda x: str(x))
