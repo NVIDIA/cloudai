@@ -1,5 +1,6 @@
-#
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -157,4 +158,5 @@ class SlurmSystemParser(BaseSystemParser):
             cache_docker_images_locally=cache_docker_images_locally,
             groups=updated_groups,
             global_env_vars=global_env_vars,
+            extra_srun_args=data.get("extra_srun_args"),
         )

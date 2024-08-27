@@ -1,5 +1,6 @@
-#
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -145,12 +146,32 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             if slurm_args.get("container_mounts"):
                 srun_command_parts.append(f'--container-mounts={slurm_args["container_mounts"]}')
 
+        if self.slurm_system.extra_srun_args:
+            srun_command_parts.append(self.slurm_system.extra_srun_args)
+
         return srun_command_parts
 
     def generate_test_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
     ) -> List[str]:
         return []
+
+    def _add_reservation(self, batch_script_content: List[str]):
+        """
+        Add reservation if provided.
+
+        Args:
+            batch_script_content (List[str]): content of the batch script.
+
+        Returns:
+            List[str]: updated batch script with reservation if exists.
+        """
+        reservation_key = "--reservation "
+        if self.slurm_system.extra_srun_args and reservation_key in self.slurm_system.extra_srun_args:
+            reservation = self.slurm_system.extra_srun_args.split(reservation_key, 1)[1].split(" ", 1)[0]
+            batch_script_content.append(f"#SBATCH --reservation={reservation}")
+
+        return batch_script_content
 
     def _write_sbatch_script(self, args: Dict[str, Any], env_vars_str: str, srun_command: str, output_path: str) -> str:
         """
@@ -171,6 +192,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             f"#SBATCH -N {args['num_nodes']}",
         ]
 
+        batch_script_content = self._add_reservation(batch_script_content)
         if "output" not in args:
             batch_script_content.append(f"#SBATCH --output={os.path.join(output_path, 'stdout.txt')}")
         if "error" not in args:

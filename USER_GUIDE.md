@@ -48,7 +48,7 @@ CloudAI allows users to package workloads as test templates to facilitate the au
    ```
 
 #### Step 2: Prepare configuration files
-CloudAI is fully configurable via set of TOML configuration files. You can find examples of these files under `conf/`. In this guide, we will use the following configuration files:
+CloudAI is fully configurable via set of TOML configuration files. You can find examples of these files under `conf/common`. In this guide, we will use the following configuration files:
 1. `myconfig/test_templates/nccl_template.toml` - Describes the test template configuration.
 1. `myconfig/system.toml` - Describes the system configuration.
 1. `myconfig/tests/nccl_test.toml` - Describes the test to run.
@@ -56,7 +56,7 @@ CloudAI is fully configurable via set of TOML configuration files. You can find 
 
 
 #### Step 3: Test Template
-Test template config describes all arguments of a test. Let's create a test template file for the NCCL test. You can find more examples of test templates under `conf/test_template/`. Our example will be small for demonstration purposes. Below is the `myconfig/test_templates/nccl_template.toml` file:
+Test template config describes all arguments of a test. Let's create a test template file for the NCCL test. You can find more examples of test templates under `conf/common/test_template/`. Our example will be small for demonstration purposes. Below is the `myconfig/test_templates/nccl_template.toml` file:
 ```toml
 name = "NcclTest"
 
@@ -93,7 +93,7 @@ name = "NcclTest"
 Notice that `cmd_args.docker_image_url` uses `nvcr.io/nvidia/pytorch:24.02-py3`, but you can use Docker image from Step 1.
 
 #### Step 3: System Config
-System config describes the system configuration. You can find more examples of system configs under `conf/system/`. Our example will be small for demonstration purposes. Below is the `myconfig/system.toml` file:
+System config describes the system configuration. You can find more examples of system configs under `conf/common/system/`. Our example will be small for demonstration purposes. Below is the `myconfig/system.toml` file:
 ```toml
 name = "my-cluster"
 scheduler = "slurm"
@@ -139,7 +139,7 @@ extra_cmd_args = "--stepfactor 2"
 "iters" = "5"
 "warmup_iters" = "3"
 ```
-You can find more examples under `conf/test`. In a test schema file, you can adjust arguments as shown above. In the `cmd_args` section, you can provide different values other than the default values for each argument. In `extra_cmd_args`, you can provide additional arguments that will be appended after the NCCL test command. You can specify additional environment variables in the `extra_env_vars` section.
+You can find more examples under `conf/common/test`. In a test schema file, you can adjust arguments as shown above. In the `cmd_args` section, you can provide different values other than the default values for each argument. In `extra_cmd_args`, you can provide additional arguments that will be appended after the NCCL test command. You can specify additional environment variables in the `extra_env_vars` section.
 
 #### Step 6: Run Experiments
 Test Scenario uses Test description from the previous step. Below is the `myconfig/scenario.toml` file:
@@ -361,7 +361,7 @@ You can update the fields to adjust the behavior. For example, you can update th
 ### Note: For running Nemo Llama model, it is important to follow these additional steps:
 1. Go to https://huggingface.co/docs/transformers/en/model_doc/llama#usage-tips.
 2. Follow the instructions under 'Usage Tips' on how to download the tokenizer.
-3. Replace "training.model.tokenizer.model=TOKENIZER_MODEL" with "training.model.tokenizer.model=YOUR_TOKENIZER_PATH" (the tokenizer should be a .model file) in conf/general/test/llama.toml.
+3. Replace "training.model.tokenizer.model=TOKENIZER_MODEL" with "training.model.tokenizer.model=YOUR_TOKENIZER_PATH" (the tokenizer should be a .model file) in conf/common/test/llama.toml.
 
 ## Troubleshooting
 In this section, we will guide you through identifying the root cause of issues, determining whether they stem from system infrastructure or a bug in CloudAI. Users should closely follow the USER_GUIDE.md and README.md for installation, adding test templates, tests, and test scenarios.

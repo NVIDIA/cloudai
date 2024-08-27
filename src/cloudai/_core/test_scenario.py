@@ -1,5 +1,6 @@
-#
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,20 +26,23 @@ class TestScenario:
     Attributes
         name (str): Unique name of the test scenario.
         tests (List[Test]): Tests in the scenario.
+        job_status_check (bool): Flag indicating whether to check the job status or not.
     """
 
     __test__ = False
 
-    def __init__(self, name: str, tests: List[Test]) -> None:
+    def __init__(self, name: str, tests: List[Test], job_status_check: bool = True) -> None:
         """
         Initialize a TestScenario instance.
 
         Args:
             name (str): Name of the test scenario.
             tests (List[Test]): List of tests in the scenario.
+            job_status_check (bool): Flag indicating whether to check the job status or not.
         """
         self.name = name
         self.tests = tests
+        self.job_status_check = job_status_check
 
     def __repr__(self) -> str:
         """

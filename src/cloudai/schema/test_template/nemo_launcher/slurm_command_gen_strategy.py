@@ -1,5 +1,6 @@
-#
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -57,6 +58,10 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         for key, value in final_env_vars.items():
             self.final_cmd_args[f"env_vars.{key}"] = value
         self.final_cmd_args["cluster.partition"] = self.slurm_system.default_partition
+        reservation_key = "--reservation "
+        if self.slurm_system.extra_srun_args and reservation_key in self.slurm_system.extra_srun_args:
+            reservation = self.slurm_system.extra_srun_args.split(reservation_key, 1)[1].split(" ", 1)[0]
+            self.final_cmd_args["+cluster.reservation"] = reservation
         nodes = self.slurm_system.parse_nodes(nodes)
         if nodes:
             self.final_cmd_args["training.trainer.num_nodes"] = str(len(nodes))

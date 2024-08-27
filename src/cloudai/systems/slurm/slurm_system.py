@@ -1,5 +1,6 @@
-#
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -190,6 +191,7 @@ class SlurmSystem(System):
         cache_docker_images_locally: bool = False,
         groups: Optional[Dict[str, Dict[str, List[SlurmNode]]]] = None,
         global_env_vars: Optional[Dict[str, Any]] = None,
+        extra_srun_args: Optional[str] = None,
     ) -> None:
         """
         Initialize a SlurmSystem instance.
@@ -212,6 +214,7 @@ class SlurmSystem(System):
                 empty dictionary if not provided.
             global_env_vars (Optional[Dict[str, Any]]): Dictionary containing additional configuration settings for
                 the system.
+            extra_srun_args (Optional[str]): Additional arguments to be passed to the srun command.
         """
         super().__init__(name, "slurm", output_path)
         self.install_path = install_path
@@ -225,6 +228,7 @@ class SlurmSystem(System):
         self.cache_docker_images_locally = cache_docker_images_locally
         self.groups = groups if groups is not None else {}
         self.global_env_vars = global_env_vars if global_env_vars is not None else {}
+        self.extra_srun_args = extra_srun_args
         self.cmd_shell = CommandShell()
         logging.debug(f"{self.__class__.__name__} initialized")
 
@@ -447,7 +451,13 @@ class SlurmSystem(System):
 
             if "Socket timed out" in stderr or "slurm_load_jobs error" in stderr:
                 retry_count += 1
-                logging.warning(f"Transient error encountered. Retrying... " f"({retry_count}/{retry_threshold})")
+                logging.warning(
+                    f"An error occurred while querying the job status. Retrying... ({retry_count}/{retry_threshold}). "
+                    "CloudAI uses Slurm commands by default to check the job status. The Slurm daemon can become "
+                    "overloaded and unresponsive, causing this error message. CloudAI retries the command multiple "
+                    f"times, with a maximum of {retry_threshold} attempts. There is no action required from the user "
+                    "for this warning. Please ensure that the Slurm daemon is running and responsive."
+                )
                 continue
 
             if stderr:

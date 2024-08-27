@@ -1,5 +1,6 @@
-#
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -197,7 +198,7 @@ class BaseRunner(ABC):
         Returns:
             BaseJob: A BaseJob object
         """
-        return BaseJob
+        pass
 
     async def check_start_post_init_dependencies(self):
         """
@@ -289,17 +290,29 @@ class BaseRunner(ABC):
                     successful_jobs_count += 1
                     await self.handle_job_completion(job)
                 else:
-                    job_status_result = self.get_job_status(job)
-                    if job_status_result.is_successful:
+                    if self.test_scenario.job_status_check:
+                        job_status_result = self.get_job_status(job)
+                        if job_status_result.is_successful:
+                            successful_jobs_count += 1
+                            await self.handle_job_completion(job)
+                        else:
+                            error_message = (
+                                f"Job {job.id} for test {job.test.section_name} failed: "
+                                f"{job_status_result.error_message}"
+                            )
+                            logging.error(error_message)
+                            await self.shutdown()
+                            raise JobFailureError(job.test.section_name, error_message, job_status_result.error_message)
+                    else:
+                        job_status_result = self.get_job_status(job)
+                        if not job_status_result.is_successful:
+                            error_message = (
+                                f"Job {job.id} for test {job.test.section_name} failed: "
+                                f"{job_status_result.error_message}"
+                            )
+                            logging.error(error_message)
                         successful_jobs_count += 1
                         await self.handle_job_completion(job)
-                    else:
-                        error_message = (
-                            f"Job {job.id} for test {job.test.section_name} failed: {job_status_result.error_message}"
-                        )
-                        logging.error(error_message)
-                        await self.shutdown()
-                        raise JobFailureError(job.test.section_name, error_message, job_status_result.error_message)
 
         return successful_jobs_count
 
