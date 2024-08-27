@@ -17,7 +17,6 @@
 name = "nccl_test_alltoall_worst"
 description = "alltoall_tested_job"
 test_template_name = "NcclTest"
-extra_cmd_args = "--stepfactor 2"
 
 [cmd_args]
 subtest_name = "alltoall_perf_mpi"
@@ -27,3 +26,6 @@ stepbytes = "0"
 iters = "60"
 check = "0"
 warmup_iters = "40"
+
+[extra_cmd_args]
+"--stepfactor" = "2"

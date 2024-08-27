@@ -93,7 +93,7 @@ class TestParser(BaseMultiFileParser):
         """
         cmd_args = test_def.cmd_args.model_dump()
         extra_env_vars = test_def.extra_env_vars
-        extra_cmd_args = test_def.extra_cmd_args
+        extra_cmd_args = test_def.extra_args_str()
 
         return Test(
             name=test_def.name,

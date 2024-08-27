@@ -17,7 +17,6 @@
 name = "nccl_test_all_reduce"
 description = "all_reduce"
 test_template_name = "NcclTest"
-extra_cmd_args = "--stepfactor 2"
 
 [cmd_args]
 "subtest_name" = "all_reduce_perf_mpi"
@@ -26,3 +25,6 @@ maxbytes = "16G"
 stepbytes = "0"
 check = "0"
 warmup_iters = "20"
+
+[extra_cmd_args]
+"--stepfactor" = "2"

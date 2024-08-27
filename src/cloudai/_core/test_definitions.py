@@ -37,7 +37,10 @@ class TestDefinition(BaseModel):
     test_template_name: str
     cmd_args: Any
     extra_env_vars: dict[str, str] = {}
-    extra_cmd_args: str = ""
+    extra_cmd_args: dict[str, str] = {}
+
+    def extra_args_str(self) -> str:
+        return " ".join([f"{k}={v}" for k, v in self.extra_cmd_args.items()])
 
 
 class UCCCmdArgs(CmdArgs):
