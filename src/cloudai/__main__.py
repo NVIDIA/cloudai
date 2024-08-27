@@ -256,18 +256,32 @@ def handle_generate_report(test_scenario: TestScenario, output_dir: Path) -> Non
     logging.info("Report generation completed.")
 
 
+def handle_verify_tests(root: Path) -> int:
+    if not root.exists():
+        logging.error(f"Tests directory {root} does not exist.")
+        return 1
+
+    test_tomls = list(root.glob("*.toml"))
+    if not test_tomls:
+        logging.error(f"No test tomls found in {root}")
+        return 1
+
+    tp = TestParser(root, {})
+    for test_toml in test_tomls:
+        logging.info(f"Verifying {test_toml}...")
+        tp.load_test_definition(toml.load(test_toml))
+
+    return 0
+
+
 def main() -> None:
     args = parse_arguments()
 
     setup_logging(args.log_file, args.log_level)
 
     if args.mode == "verify-tests":
-        test_tomls = list(Path(args.tests_dir).rglob("*.toml"))
-        tp = TestParser(args.tests_dir, {})
-        for test_toml in test_tomls:
-            logging.info(f"Verifying {test_toml}...")
-            tp.load_test_definition(toml.load(test_toml))
-        exit(0)
+        rc = handle_verify_tests(Path(args.tests_dir))
+        exit(rc)
 
     system_config_path = Path(args.system_config)
     test_templates_dir = Path(args.test_templates_dir)
