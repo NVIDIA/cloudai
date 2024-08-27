@@ -23,10 +23,10 @@ test_template_name = "NeMoLauncher"
 extra_cmd_args = "~training.model.position_embedding_type +training.model.fsdp=True ~training.model.optim.bucket_cap_mb ~training.model.optim.overlap_grad_sync ~training.model.optim.overlap_param_sync ~training.model.optim.contiguous_grad_buffer training.model.virtual_pipeline_model_parallel_size=null training.model.megatron_amp_O2=False training.model.activations_checkpoint_num_layers=null training.model.gradient_accumulation_fusion=False training.model.use_cpu_initialization=True training.model.optim.name=fused_adam training.model.tokenizer.model=TOKENIZER_MODEL training.exp_manager.create_wandb_logger=False"
 
 [cmd_args]
-[cmd_args.training]
-values = "llama/llama2_70b"
-[cmd_args.training.trainer]
-max_steps = "120"
-[cmd_args.training.model]
-global_batch_size = "256"
-pipeline_model_parallel_size = "2"
+  [cmd_args.training]
+  values = "llama/llama2_70b"
+    [cmd_args.training.trainer]
+    max_steps = "120"
+    [cmd_args.training.model]
+    global_batch_size = "256"
+    pipeline_model_parallel_size = "2"
