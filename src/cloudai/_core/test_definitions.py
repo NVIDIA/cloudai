@@ -88,6 +88,7 @@ class NCCLCmdArgs(CmdArgs):
         "reduce_scatter_perf_mpi",
         "scatter_perf_mpi",
         "sendrecv_perf_mpi",
+        "bisection_perf_mpi",
     ] = Field(default="all_reduce_perf_mpi")
     nthreads: int = Field(default=1)
     ngpus: int = Field(default=1)

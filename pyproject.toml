@@ -63,6 +63,7 @@ line-length = 120
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+empty_parameter_set_mark = "fail_at_collect"
 
 [tool.importlinter]
 root_package = "cloudai"

@@ -28,7 +28,7 @@ from cloudai._core.test_definitions import (
 )
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
-ALL_TESTS = list(Path("conf/test").glob("*.toml"))
+ALL_TESTS = [t for t in TOML_FILES if "test_template_name" in t.read_text()]
 UCC_TESTS = [t for t in ALL_TESTS if 'test_template_name = "UCCTest"' in t.read_text()]
 NCCL_TESTS = [t for t in ALL_TESTS if 'test_template_name = "NcclTest"' in t.read_text()]
 NEMO_TESTS = [t for t in ALL_TESTS if 'test_template_name = "NeMoLauncher"' in t.read_text()]
