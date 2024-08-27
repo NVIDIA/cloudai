@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Union
 
@@ -22,11 +21,12 @@ from .system import System
 from .test import Test
 
 
-class BaseJob(ABC):
+class BaseJob:
     """
     Base class for representing a job created by executing a test.
 
     Attributes
+        id (Union[str, int]): The unique identifier of the job.
         mode (str): The mode of the job (e.g., 'run', 'dry-run').
         system (System): The system in which the job is running.
         test (Test): The test instance associated with this job.
@@ -44,66 +44,12 @@ class BaseJob(ABC):
             test (Test): The test instance associated with the job.
             output_path (Path): The path where the job's output is stored.
         """
-        self.mode = mode
-        self.system = system
-        self.test = test
-        self.output_path = output_path
-        self.terminated_by_dependency = False
-
-    def get_mode(self) -> str:
-        """
-        Retrieve the mode of the job.
-
-        Returns
-            str: The mode of the job.
-        """
-        return self.mode
-
-    def get_system(self) -> System:
-        """
-        Get the system in which the job is running.
-
-        Returns
-            System: The system associated with the job.
-        """
-        return self.system
-
-    def get_test(self) -> Test:
-        """
-        Get the test instance associated with this job.
-
-        Returns
-            Test: The test instance associated with the job.
-        """
-        return self.test
-
-    def get_output_path(self) -> Path:
-        """
-        Retrieve the path where the job's output is stored.
-
-        Returns
-            Path: The path to the job's output directory.
-        """
-        return self.output_path
-
-    def is_terminated_by_dependency(self) -> bool:
-        """
-        Check if the job was terminated due to a dependency.
-
-        Returns
-            bool: True if the job was terminated by a dependency, False otherwise.
-        """
-        return self.terminated_by_dependency
-
-    @abstractmethod
-    def get_id(self) -> Union[str, int]:
-        """
-        Abstract method to retrieve the unique identifier of the job.
-
-        Returns
-            Union[str, int]: The unique identifier of the job.
-        """
-        pass
+        self.id: Union[str, int] = 0
+        self.mode: str = mode
+        self.system: System = system
+        self.test: Test = test
+        self.output_path: Path = output_path
+        self.terminated_by_dependency: bool = False
 
     def is_running(self) -> bool:
         """
@@ -138,4 +84,4 @@ class BaseJob(ABC):
         Returns
             str: String representation of the job.
         """
-        return f"BaseJob(mode={self.mode}, system={self.system.name}, test={self.test.name})"
+        return f"BaseJob(id={self.id}, mode={self.mode}, system={self.system.name}, test={self.test.name})"

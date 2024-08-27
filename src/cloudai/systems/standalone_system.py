@@ -67,13 +67,13 @@ class StandaloneSystem(System):
         Returns:
             bool: True if the job is running, False otherwise.
         """
-        command = f"ps -p {job.get_id()}"
+        command = f"ps -p {job.id}"
         logging.debug(f"Checking job status with command: {command}")
         stdout = self.cmd_shell.execute(command).communicate()[0]
 
         # Check if the job's PID is in the ps output
-        is_running = str(job.get_id()) in stdout
-        logging.debug(f"Job {job.get_id()} running status: {is_running}")
+        is_running = str(job.id) in stdout
+        logging.debug(f"Job {job.id} running status: {is_running}")
 
         return is_running
 
@@ -96,6 +96,6 @@ class StandaloneSystem(System):
         Args:
             job (BaseJob): The job to be terminated.
         """
-        cmd = f"kill -9 {job.get_id()}"
-        logging.debug(f"Executing termination command for job {job.get_id()}: {cmd}")
+        cmd = f"kill -9 {job.id}"
+        logging.debug(f"Executing termination command for job {job.id}: {cmd}")
         self.cmd_shell.execute(cmd)

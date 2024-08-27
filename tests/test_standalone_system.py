@@ -100,7 +100,7 @@ def test_kill_job(mock_execute, standalone_system, standalone_job):
     mock_execute.return_value = mock_process
 
     standalone_system.kill(standalone_job)
-    kill_command = f"kill -9 {standalone_job.get_id()}"
+    kill_command = f"kill -9 {standalone_job.id}"
 
     mock_execute.assert_called_once_with(kill_command)
 

@@ -298,7 +298,7 @@ class BaseRunner(ABC):
                             await self.handle_job_completion(job)
                         else:
                             error_message = (
-                                f"Job {job.get_id()} for test {job.test.section_name} failed: "
+                                f"Job {job.id} for test {job.test.section_name} failed: "
                                 f"{job_status_result.error_message}"
                             )
                             logging.error(error_message)
@@ -308,7 +308,7 @@ class BaseRunner(ABC):
                         job_status_result = self.get_job_status(job)
                         if not job_status_result.is_successful:
                             error_message = (
-                                f"Job {job.get_id()} for test {job.test.section_name} failed: "
+                                f"Job {job.id} for test {job.test.section_name} failed: "
                                 f"{job_status_result.error_message}"
                             )
                             logging.error(error_message)
@@ -385,7 +385,7 @@ class BaseRunner(ABC):
             job (BaseJob): The job to be terminated.
             delay (int): Delay in seconds after which the job should be terminated.
         """
-        logging.info(f"Scheduling termination of job {job.get_id()} after {delay} seconds.")
+        logging.info(f"Scheduling termination of job {job.id} after {delay} seconds.")
         await asyncio.sleep(delay)
         job.terminated_by_dependency = True
         self.system.kill(job)

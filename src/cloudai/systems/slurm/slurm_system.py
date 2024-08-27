@@ -154,7 +154,7 @@ class SlurmSystem(System):
                          cannot be determined after the specified number of retries.
         """
         retry_count = 0
-        command = f"squeue -j {job.get_id()} --noheader --format=%T"
+        command = f"squeue -j {job.id} --noheader --format=%T"
 
         while retry_count < retry_threshold:
             logging.debug(f"Executing command to check job status: {command}")
@@ -207,7 +207,7 @@ class SlurmSystem(System):
         """
         retry_count = 0
         while retry_count < retry_threshold:
-            command = f"squeue -j {job.get_id()}"
+            command = f"squeue -j {job.id}"
             logging.debug(f"Checking job status with command: {command}")
             stdout, stderr = self.cmd_shell.execute(command).communicate()
 
@@ -221,7 +221,7 @@ class SlurmSystem(System):
                 logging.error(error_message)
                 raise RuntimeError(error_message)
 
-            return str(job.get_id()) not in stdout
+            return str(job.id) not in stdout
 
         error_message = f"Failed to confirm job completion status after {retry_threshold} attempts."
         logging.error(error_message)
@@ -234,9 +234,8 @@ class SlurmSystem(System):
         Args:
             job (BaseJob): The job to be terminated.
         """
-        job_id = job.get_id()
-        assert isinstance(job_id, int)
-        self.scancel(job_id)
+        assert isinstance(job.id, int)
+        self.scancel(job.id)
 
     @classmethod
     def parse_node_list(cls, node_list: str) -> List[str]:
