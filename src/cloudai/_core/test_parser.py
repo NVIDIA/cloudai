@@ -63,7 +63,7 @@ class TestParser(BaseMultiFileParser):
             test_def = registry.test_definitions_map[test_template_name].model_validate(data)
         except ValidationError as e:
             for err in e.errors(include_url=False):
-                logging.error(f"Field '{err['loc'][0]}' with value '{err['input']})' is invalid: {err['msg']}")
+                logging.error(f"Field '{err['loc'][0]}' with value '{err['input']}' is invalid: {err['msg']}")
             raise ValueError("Failed to parse test spec") from e
 
         return test_def
