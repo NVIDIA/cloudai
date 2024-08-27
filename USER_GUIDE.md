@@ -49,48 +49,28 @@ CloudAI allows users to package workloads as test templates to facilitate the au
 
 #### Step 2: Prepare configuration files
 CloudAI is fully configurable via set of TOML configuration files. You can find examples of these files under `conf/common`. In this guide, we will use the following configuration files:
-1. `myconfig/test_templates/nccl_template.toml` - Describes the test template configuration.
 1. `myconfig/system.toml` - Describes the system configuration.
 1. `myconfig/tests/nccl_test.toml` - Describes the test to run.
 1. `myconfig/scenario.toml` - Describes the test scenario configuration.
 
 
-#### Step 3: Test Template
-Test template config describes all arguments of a test. Let's create a test template file for the NCCL test. You can find more examples of test templates under `conf/common/test_template/`. Our example will be small for demonstration purposes. Below is the `myconfig/test_templates/nccl_template.toml` file:
-```toml
-name = "NcclTest"
+#### Step 3: Test definition
+Test definition is a Pydantic model that describes the arguments of a test. Such models should be inherited from the `TestDefinition` class:
+```py
+class MyTestCmdArgs(CmdArgs):
+     an_arg: str
+     docker_image_url: str = "nvcr.io/nvidia/pytorch:24.02-py3"
 
-[cmd_args]
-  [cmd_args.docker_image_url]
-  type = "str"
-  default = "nvcr.io/nvidia/pytorch:24.02-py3"
-
-  [cmd_args.subtest_name]
-  type = "preset"
-  values = ["all_reduce_perf_mpi"]
-  default = "all_reduce_perf_mpi"
-
-  [cmd_args.ngpus]
-  type = "int"
-  default = "1"
-
-  [cmd_args.minbytes]
-  type = "str"
-  default = "32M"
-
-  [cmd_args.maxbytes]
-  type = "str"
-  default = "32M"
-
-  [cmd_args.iters]
-  type = "int"
-  default = "20"
-
-  [cmd_args.warmup_iters]
-  type = "int"
-  default = "5"
+class MyTestDefinition(TestDefinition):
+    cmd_args: MyTestCmdArgs
 ```
 Notice that `cmd_args.docker_image_url` uses `nvcr.io/nvidia/pytorch:24.02-py3`, but you can use Docker image from Step 1.
+
+A custom test definition should be registered to handle relevant Test Configs. For this, `Registry()` object is used:
+```py
+Registry().add_test_definition("MyTest", MyTestDefinition)
+```
+Relevant Test Configs should specify `test_template_name = MyTest` to use the custom test definition.
 
 #### Step 3: System Config
 System config describes the system configuration. You can find more examples of system configs under `conf/common/system/`. Our example will be small for demonstration purposes. Below is the `myconfig/system.toml` file:
@@ -124,7 +104,7 @@ cloudai --mode install \
 ```
 
 #### Step 5: Test Configuration
-Test Config describes a particular test configuration to be run. It is based on Test Template and will be used in Test Sceanrio. Below is the `myconfig/tests/nccl_test.toml` file:
+Test Config describes a particular test configuration to be run. It is based on Test definition and will be used in Test Sceanrio. Below is the `myconfig/tests/nccl_test.toml` file, definition is based on built-in `NcclTest` definition:
 ```toml
 name = "nccl_test_all_reduce_single_node"
 description = "all_reduce"

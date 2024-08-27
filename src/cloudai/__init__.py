@@ -34,9 +34,11 @@ from ._core.system import System
 from ._core.test import Test
 from ._core.test_definitions import (
     ChakraReplayTestDefinition,
+    CmdArgs,
     NCCLTestDefinition,
     NeMoLauncherTestDefinition,
     SleepTestDefinition,
+    TestDefinition,
     UCCTestDefinition,
 )
 from ._core.test_scenario import TestScenario
@@ -164,6 +166,7 @@ __all__ = [
     "BaseJob",
     "BaseRunner",
     "BaseSystemParser",
+    "CmdArgs",
     "CommandGenStrategy",
     "Grader",
     "GradingStrategy",
@@ -178,6 +181,7 @@ __all__ = [
     "Runner",
     "System",
     "Test",
+    "TestDefinition",
     "TestScenario",
     "TestTemplate",
     "TestTemplateStrategy",
