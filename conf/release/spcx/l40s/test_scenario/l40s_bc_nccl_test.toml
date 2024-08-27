@@ -1,0 +1,119 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name = "l40s_bc_all_nccl_test"
+
+[Tests]
+  [Tests.1]
+  name = "nccl_test_all_gather_worst"
+  num_nodes = "16"
+
+  [Tests.2]
+  name = "nccl_test_all_gather"
+  num_nodes = "16"
+    [Tests.2.dependencies]
+    end_post_comp = { name = "Tests.1", time = 0 }
+
+  [Tests.3]
+  name = "nccl_test_all_reduce_worst"
+  num_nodes = "16"
+    [Tests.3.dependencies]
+    end_post_comp = { name = "Tests.2", time = 0 }
+
+  [Tests.4]
+  name = "nccl_test_all_reduce"
+  num_nodes = "16"
+    [Tests.4.dependencies]
+    end_post_comp = { name = "Tests.3", time = 0 }
+
+  [Tests.5]
+  name = "nccl_test_alltoall_worst_failover"
+  num_nodes = "16"
+  time_limit = "00:30:00"
+    [Tests.5.dependencies]
+    end_post_comp = { name = "Tests.4", time = 0 }
+
+  [Tests.6]
+  name = "nccl_test_alltoall_worst"
+  num_nodes = "16"
+    [Tests.6.dependencies]
+    end_post_comp = { name = "Tests.5", time = 0 }
+
+  [Tests.7]
+  name = "nccl_test_alltoall"
+  num_nodes = "16"
+    [Tests.7.dependencies]
+    end_post_comp = { name = "Tests.6", time = 0 }
+
+  [Tests.8]
+  name = "nccl_test_bisection"
+  num_nodes = "16"
+    [Tests.8.dependencies]
+    end_post_comp = { name = "Tests.7", time = 0 }
+
+  [Tests.9]
+  name = "nccl_test_broadcast"
+  num_nodes = "16"
+    [Tests.9.dependencies]
+    end_post_comp = { name = "Tests.8", time = 0 }
+
+  [Tests.10]
+  name = "nccl_test_gather"
+  num_nodes = "16"
+    [Tests.10.dependencies]
+    end_post_comp = { name = "Tests.9", time = 0 }
+
+  [Tests.11]
+  name = "nccl_test_hypercube"
+  num_nodes = "16"
+    [Tests.11.dependencies]
+    end_post_comp = { name = "Tests.10", time = 0 }
+
+  [Tests.12]
+  name = "nccl_test_reduce_scatter_worst"
+  num_nodes = "16"
+    [Tests.12.dependencies]
+    end_post_comp = { name = "Tests.11", time = 0 }
+
+  [Tests.13]
+  name = "nccl_test_reduce_scatter"
+  num_nodes = "16"
+    [Tests.13.dependencies]
+    end_post_comp = { name = "Tests.12", time = 0 }
+
+  [Tests.14]
+  name = "nccl_test_reduce"
+  num_nodes = "16"
+    [Tests.14.dependencies]
+    end_post_comp = { name = "Tests.13", time = 0 }
+
+  [Tests.15]
+  name = "nccl_test_scatter"
+  num_nodes = "16"
+    [Tests.15.dependencies]
+    end_post_comp = { name = "Tests.14", time = 0 }
+
+  [Tests.16]
+  name = "nccl_test_sendrecv_worst"
+  num_nodes = "16"
+    [Tests.16.dependencies]
+    end_post_comp = { name = "Tests.15", time = 0 }
+
+  [Tests.17]
+  name = "nccl_test_sendrecv"
+  num_nodes = "16"
+    [Tests.17.dependencies]
+    end_post_comp = { name = "Tests.16", time = 0 }

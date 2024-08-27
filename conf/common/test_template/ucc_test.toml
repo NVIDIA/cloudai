@@ -14,16 +14,40 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "nccl_test_alltoall_worst_failover"
-description = "alltoall_tested_job"
-test_template_name = "NcclTest"
-extra_cmd_args = "--stepfactor 1"
+name = "UCCTest"
 
 [cmd_args]
-subtest_name = "alltoall_perf_mpi"
-minbytes = "128M"
-maxbytes = "128M"
-stepbytes = "0"
-iters = "20"
-check = "0"
-warmup_iters ="40"
+  [cmd_args.docker_image_url]
+  type = "str"
+  default = "nvcr.io/nvidia/pytorch:24.02-py3"
+
+  [cmd_args.collective]
+  type = "preset"
+  values = [
+    "allgather",
+    "allgatherv",
+    "allreduce",
+    "alltoall",
+    "alltoallv",
+    "barrier",
+    "bcast",
+    "gather",
+    "gatherv",
+    "reduce",
+    "reduce_scatter",
+    "reduce_scatterv",
+    "scatter",
+    "scatterv",
+    "memcpy",
+    "reducedt",
+    "reducedt_strided",
+  ]
+  default = "alltoall"
+
+  [cmd_args.b]
+  type = "str"
+  default = "1"
+
+  [cmd_args.e]
+  type = "str"
+  default = "8M"

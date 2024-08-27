@@ -1,7 +1,7 @@
 -r requirements.txt
 ruff==0.3.7
 pandas-stubs==2.2.*
-pyright==1.1.359
+pyright==1.1.372
 build==1.2.*
 vulture==2.11
 pytest==8.1.1

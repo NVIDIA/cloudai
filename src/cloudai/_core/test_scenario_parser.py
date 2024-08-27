@@ -71,6 +71,7 @@ class TestScenarioParser:
         if "name" not in data:
             raise KeyError("The 'name' field is missing from the data.")
         test_scenario_name = data["name"]
+        job_status_check = data.get("job_status_check", True)
         raw_tests_data = data.get("Tests", {})
         tests_data = {f"Tests.{k}": v for k, v in raw_tests_data.items()}
 
@@ -103,7 +104,9 @@ class TestScenarioParser:
             if "time_limit" in test_info:
                 tr.time_limit = test_info["time_limit"]
 
-        return TestScenario(name=test_scenario_name, test_runs=list(section_test_runs.values()))
+        return TestScenario(
+            name=test_scenario_name, test_runs=list(section_test_runs.values()), job_status_check=job_status_check
+        )
 
     def _create_section_test_run(self, section: str, test_info: Dict[str, Any]) -> TestRun:
         """

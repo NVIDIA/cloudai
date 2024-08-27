@@ -14,20 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "nccl_test_all_gather_worst"
-description = "all_gather"
+name = "nccl_test_alltoall_worst_failover"
+description = "alltoall_tested_job"
 test_template_name = "NcclTest"
-extra_cmd_args = "--stepfactor 2"
+extra_cmd_args = "--stepfactor 1"
 
 [cmd_args]
-subtest_name = "all_gather_perf_mpi"
-minbytes = "1K"
-maxbytes = "16G"
+subtest_name = "alltoall_perf_mpi"
+minbytes = "128M"
+maxbytes = "128M"
 stepbytes = "0"
-iters = "60"
+iters = "20"
 check = "0"
-warmup_iters ="40"
-
-[extra_env_vars]
-"NCCL_TESTS_SPLIT_MASK" = "0x7"
-"NCCL_MIN_NCHANNELS" = "12" # only for low number of servers
+warmup_iters = "40"
