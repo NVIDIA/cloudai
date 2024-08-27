@@ -51,16 +51,6 @@ class TestParser(BaseMultiFileParser):
         super().__init__(directory_path)
         self.test_template_mapping: Dict[str, TestTemplate] = test_template_mapping
 
-    def _extract_name_keyword(self, name: Optional[str]) -> Optional[str]:
-        if name is None:
-            return None
-        lower_name = name.lower()
-        if "grok" in lower_name:
-            return "Grok"
-        elif "gpt" in lower_name:
-            return "GPT"
-        return None
-
     def _parse_data(self, data: Dict[str, Any]) -> Test:
         """
         Parse data for a Test object.
@@ -71,7 +61,6 @@ class TestParser(BaseMultiFileParser):
         Returns:
             Test: Parsed Test object.
         """
-        test_name = self._extract_name_keyword(data.get("name"))
         test_template_name = data.get("test_template_name", "")
         test_template = self.test_template_mapping.get(test_template_name)
 
