@@ -256,8 +256,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         self._create_run_script(slurm_args, env_vars, cmd_args, extra_cmd_args)
 
-        output_path = os.path.join(os.path.abspath(cmd_args["output_path"]), "output_pretest-%j-%n-%t.txt")
-        error_path = os.path.join(os.path.abspath(cmd_args["output_path"]), "error_pretest-%j-%n-%t.txt")
+        output_path = os.path.join(os.path.abspath(cmd_args["output_path"]), "output_pretest-%j-%n.txt")
+        error_path = os.path.join(os.path.abspath(cmd_args["output_path"]), "error_pretest-%j-%n.txt")
 
         commands = []
 
@@ -558,7 +558,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         python_command = " \\\n    ".join(parts)
 
         if stage == "profile":
-            python_command += " >> /opt/paxml/workspace/profile_stderr.txt 2>&1"
+            python_command += " >> /opt/paxml/workspace/profile_stderr_${SLURM_PROCID}.txt 2>&1"
 
         nsys_command = (
             "nsys profile \\\n"
