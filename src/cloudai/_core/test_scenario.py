@@ -62,18 +62,18 @@ class TestScenario:
         Returns
             str: String representation of the test scenario.
         """
-        test_names = ", ".join([tr.name for tr in self.test_runs])
+        test_names = ", ".join([tr.test.name for tr in self.test_runs])
         return f"TestScenario(name={self.name}, tests=[{test_names}])"
 
     def pretty_print(self) -> str:
         """Print each test in the scenario along with its section name, description, and visualized dependencies."""
         s = f"Test Scenario: {self.name}\n"
         for tr in self.test_runs:
-            s += f"\nSection Name: {tr.section_name}\n"
-            s += f"  Test Name: {tr.name}\n"
-            s += f"  Description: {tr.description}\n"
-            if tr.dependencies:
-                for dep_type, dependency in tr.dependencies.items():
+            s += f"\nSection Name: {tr.test.section_name}\n"
+            s += f"  Test Name: {tr.test.name}\n"
+            s += f"  Description: {tr.test.description}\n"
+            if tr.test.dependencies:
+                for dep_type, dependency in tr.test.dependencies.items():
                     if dependency:
                         s += (
                             f"  {dep_type.replace('_', ' ').title()}: {dependency.test.section_name}, "
