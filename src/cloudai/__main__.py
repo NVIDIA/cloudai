@@ -22,7 +22,9 @@ import sys
 from pathlib import Path
 from typing import List, Set
 
-from cloudai import Installer, Parser, ReportGenerator, Runner, System, Test, TestScenario, TestTemplate
+import toml
+
+from cloudai import Installer, Parser, ReportGenerator, Runner, System, Test, TestParser, TestScenario, TestTemplate
 
 
 def setup_logging(log_file: str, log_level: str) -> None:
@@ -88,6 +90,7 @@ def parse_arguments() -> argparse.Namespace:
             "run",
             "generate-report",
             "uninstall",
+            "verify-tests",
         ],
         help=(
             "Operating mode: 'install' to install test templates, 'dry-run' "
@@ -257,6 +260,14 @@ def main() -> None:
     args = parse_arguments()
 
     setup_logging(args.log_file, args.log_level)
+
+    if args.mode == "verify-tests":
+        test_tomls = list(Path(args.tests_dir).rglob("*.toml"))
+        tp = TestParser(args.tests_dir, {})
+        for test_toml in test_tomls:
+            logging.info(f"Verifying {test_toml}...")
+            tp.load_test_definition(toml.load(test_toml))
+        exit(0)
 
     system_config_path = Path(args.system_config)
     test_templates_dir = Path(args.test_templates_dir)

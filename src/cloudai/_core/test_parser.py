@@ -23,6 +23,7 @@ from pydantic import ValidationError
 from .base_multi_file_parser import BaseMultiFileParser
 from .registry import Registry
 from .test import Test
+from .test_definitions import TestDefinition
 from .test_template import TestTemplate
 
 
@@ -51,6 +52,22 @@ class TestParser(BaseMultiFileParser):
         super().__init__(directory_path)
         self.test_template_mapping: Dict[str, TestTemplate] = test_template_mapping
 
+    @staticmethod
+    def load_test_definition(data: dict) -> TestDefinition:
+        test_template_name = data.get("test_template_name", "")
+        registry = Registry()
+        if test_template_name not in registry.test_definitions_map:
+            raise NotImplementedError(f"TestTemplate with name '{test_template_name}' not supported.")
+
+        try:
+            test_def = registry.test_definitions_map[test_template_name].model_validate(data)
+        except ValidationError as e:
+            for err in e.errors(include_url=False):
+                logging.error(f"Field '{err['loc'][0]}' with value '{err['input']})' is invalid: {err['msg']}")
+            raise ValueError("Failed to parse test spec") from e
+
+        return test_def
+
     def _parse_data(self, data: Dict[str, Any]) -> Test:
         """
         Parse data for a Test object.
@@ -64,8 +81,6 @@ class TestParser(BaseMultiFileParser):
         test_template_name = data.get("test_template_name", "")
         test_template = self.test_template_mapping.get(test_template_name)
 
-        registry = Registry()
-
         if not test_template:
             test_name = data.get("name", "Unnamed Test")
             raise ValueError(
@@ -75,15 +90,7 @@ class TestParser(BaseMultiFileParser):
                 f"test template TOML file for '{test_template_name}' in the directory or remove the test schema file "
                 f"that references this non-existing test template."
             )
-        if test_template_name not in registry.test_definitions_map:
-            raise NotImplementedError(f"TestTemplate with name '{test_template_name}' not supported.")
-
-        try:
-            test_def = registry.test_definitions_map[test_template_name](**data)
-        except ValidationError as e:
-            for err in e.errors():
-                logging.error(err)
-            raise ValueError("Failed to parse test definition") from e
+        test_def = self.load_test_definition(data)
 
         env_vars = {}  # this field doesn't exist in Test or TestTemplate TOMLs
         """

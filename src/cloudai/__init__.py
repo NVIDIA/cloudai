@@ -41,6 +41,7 @@ from ._core.test_definitions import (
     TestDefinition,
     UCCTestDefinition,
 )
+from ._core.test_parser import TestParser
 from ._core.test_scenario import TestScenario
 from ._core.test_template import TestTemplate
 from ._core.test_template_strategy import TestTemplateStrategy
@@ -182,6 +183,7 @@ __all__ = [
     "System",
     "Test",
     "TestDefinition",
+    "TestParser",
     "TestScenario",
     "TestTemplate",
     "TestTemplateStrategy",
