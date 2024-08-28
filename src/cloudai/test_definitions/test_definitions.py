@@ -14,36 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Literal, Optional
+from typing import Literal, Optional
 
+from cloudai import CmdArgs, TestDefinition
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-
-
-class CmdArgs(BaseModel):
-    """Test command arguments."""
-
-    model_config = ConfigDict(extra="forbid")
-
-
-class TestDefinition(BaseModel):
-    """Base Test object."""
-
-    __test__ = False
-
-    model_config = ConfigDict(extra="forbid")
-
-    name: str
-    description: str
-    test_template_name: str
-    cmd_args: Any
-    extra_env_vars: dict[str, str] = {}
-    extra_cmd_args: dict[str, str] = {}
-
-    def extra_args_str(self) -> str:
-        parts = []
-        for k, v in self.extra_cmd_args.items():
-            parts.append(f"{k}={v}" if v else k)
-        return " ".join(parts)
 
 
 class UCCCmdArgs(CmdArgs):
@@ -150,11 +124,15 @@ class SleepTestDefinition(TestDefinition):
 
 
 class NumaMapping(BaseModel):
+    """NUMA mapping configuration."""
+
     model_config = ConfigDict(extra="forbid")
     enable: bool = Field(default=True)
 
 
 class Cluster(BaseModel):
+    """Cluster configuration."""
+
     model_config = ConfigDict(extra="forbid")
     gpus_per_node: int = Field(default=8)
 
@@ -167,11 +145,15 @@ class Cluster(BaseModel):
 
 
 class ExpManager(BaseModel):
+    """Experiment manager configuration."""
+
     model_config = ConfigDict(extra="forbid")
     create_checkpoint_callback: bool = Field(default=False)
 
 
 class Trainer(BaseModel):
+    """Trainer configuration."""
+
     model_config = ConfigDict(extra="forbid")
     max_steps: int = 400
     val_check_interval: int = 100
@@ -187,6 +169,8 @@ class Trainer(BaseModel):
 
 
 class TrainingModelData(BaseModel):
+    """Training model data configuration."""
+
     model_config = ConfigDict(extra="forbid")
     data_prefix: Literal["[\"1.0\",'${data_dir}/my-gpt3_00_text_document']"] = Field(
         default="[\"1.0\",'${data_dir}/my-gpt3_00_text_document']"
@@ -194,6 +178,8 @@ class TrainingModelData(BaseModel):
 
 
 class TrainingModel(BaseModel):
+    """Training model configuration."""
+
     model_config = ConfigDict(extra="forbid")
     global_batch_size: int = 128
     micro_batch_size: int = 2
@@ -224,12 +210,16 @@ class TrainingModel(BaseModel):
 
 
 class TrainingRun(BaseModel):
+    """Training run configuration."""
+
     model_config = ConfigDict(extra="forbid")
     time_limit: str = "3:00:00"
     name: str = "run"
 
 
 class Training(BaseModel):
+    """Training configuration."""
+
     model_config = ConfigDict(extra="forbid")
     values: Literal["gpt3/40b_improved", "llama/llama2_70b"] = Field(default="gpt3/40b_improved")
     exp_manager: ExpManager = Field(default_factory=ExpManager)
@@ -258,6 +248,8 @@ class NeMoLauncherTestDefinition(TestDefinition):
 
 
 class JaxFdl(BaseModel):
+    """JAX FDL configuration."""
+
     model_config = ConfigDict(extra="forbid")
     num_gpus: int = 64
     num_groups: int = 64
@@ -266,30 +258,44 @@ class JaxFdl(BaseModel):
 
 
 class JaxToolboxCmdArgs(CmdArgs):
+    """JAX Toolbox test command arguments."""
+
     pass
 
 
 class JaxToolboxTestDefinition(TestDefinition):
+    """Test object for JAX Toolbox."""
+
     pass
 
 
 class GrokCmdArgs(JaxToolboxCmdArgs):
+    """Grok test command arguments."""
+
     fdl: JaxFdl
 
 
 class GrokTestDefinition(JaxToolboxTestDefinition):
+    """Test object for Grok."""
+
     cmd_args: GrokCmdArgs
 
 
 class GPTFdl(JaxFdl):
+    """GPT FDL configuration."""
+
     use_repeated_layer: bool = False
     checkpoint_policy: str = "save_nothing"
 
 
 class GPTJaxToolboxCmdArgs(JaxToolboxCmdArgs):
+    """GPT JAX Toolbox test command arguments."""
+
     fdl_config: str
     fdl: GPTFdl
 
 
 class GPTTestDefinition(JaxToolboxTestDefinition):
+    """Test object for GPT."""
+
     cmd_args: GPTJaxToolboxCmdArgs

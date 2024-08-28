@@ -20,7 +20,7 @@ from cloudai._core.base_installer import BaseInstaller
 from cloudai._core.base_runner import BaseRunner
 from cloudai._core.base_system_parser import BaseSystemParser
 from cloudai._core.registry import Registry
-from cloudai._core.test_definitions import TestDefinition
+from cloudai._core.test import TestDefinition
 from cloudai._core.test_template_strategy import TestTemplateStrategy
 
 

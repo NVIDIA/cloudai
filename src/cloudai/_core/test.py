@@ -15,7 +15,9 @@
 # limitations under the License.
 
 import sys
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
+
+from pydantic import BaseModel, ConfigDict
 
 from .job_status_result import JobStatusResult
 from .test_template import TestTemplate
@@ -183,3 +185,30 @@ class TestDependency:
         """
         self.test = test
         self.time = time
+
+
+class CmdArgs(BaseModel):
+    """Test command arguments."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class TestDefinition(BaseModel):
+    """Base Test object."""
+
+    __test__ = False
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    description: str
+    test_template_name: str
+    cmd_args: Any
+    extra_env_vars: dict[str, str] = {}
+    extra_cmd_args: dict[str, str] = {}
+
+    def extra_args_str(self) -> str:
+        parts = []
+        for k, v in self.extra_cmd_args.items():
+            parts.append(f"{k}={v}" if v else k)
+        return " ".join(parts)

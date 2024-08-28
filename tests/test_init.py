@@ -23,15 +23,6 @@ from cloudai import (
     Registry,
     ReportGenerationStrategy,
 )
-from cloudai._core.test_definitions import (
-    ChakraReplayTestDefinition,
-    GPTTestDefinition,
-    GrokTestDefinition,
-    NCCLTestDefinition,
-    NeMoLauncherTestDefinition,
-    SleepTestDefinition,
-    UCCTestDefinition,
-)
 from cloudai.installer.slurm_installer import SlurmInstaller
 from cloudai.installer.standalone_installer import StandaloneInstaller
 from cloudai.schema.test_template.chakra_replay.grading_strategy import ChakraReplayGradingStrategy
@@ -72,6 +63,15 @@ from cloudai.schema.test_template.ucc_test.slurm_install_strategy import UCCTest
 from cloudai.schema.test_template.ucc_test.template import UCCTest
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.standalone_system import StandaloneSystem
+from cloudai.test_definitions.test_definitions import (
+    ChakraReplayTestDefinition,
+    GPTTestDefinition,
+    GrokTestDefinition,
+    NCCLTestDefinition,
+    NeMoLauncherTestDefinition,
+    SleepTestDefinition,
+    UCCTestDefinition,
+)
 
 
 def test_system_parsers():

@@ -31,19 +31,7 @@ from ._core.registry import Registry
 from ._core.report_generation_strategy import ReportGenerationStrategy
 from ._core.runner import Runner
 from ._core.system import System
-from ._core.test import Test
-from ._core.test_definitions import (
-    ChakraReplayTestDefinition,
-    CmdArgs,
-    GPTTestDefinition,
-    GrokTestDefinition,
-    JaxToolboxTestDefinition,
-    NCCLTestDefinition,
-    NeMoLauncherTestDefinition,
-    SleepTestDefinition,
-    TestDefinition,
-    UCCTestDefinition,
-)
+from ._core.test import CmdArgs, Test, TestDefinition
 from ._core.test_parser import TestParser
 from ._core.test_scenario import TestScenario
 from ._core.test_template import TestTemplate
@@ -97,6 +85,15 @@ from .schema.test_template.ucc_test.slurm_install_strategy import UCCTestSlurmIn
 from .schema.test_template.ucc_test.template import UCCTest
 from .systems.slurm.slurm_system import SlurmSystem
 from .systems.standalone_system import StandaloneSystem
+from .test_definitions.test_definitions import (
+    ChakraReplayTestDefinition,
+    GPTTestDefinition,
+    GrokTestDefinition,
+    NCCLTestDefinition,
+    NeMoLauncherTestDefinition,
+    SleepTestDefinition,
+    UCCTestDefinition,
+)
 
 Registry().add_system_parser("standalone", StandaloneSystemParser)
 Registry().add_system_parser("slurm", SlurmSystemParser)

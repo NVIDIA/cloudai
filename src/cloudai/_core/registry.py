@@ -23,7 +23,7 @@ from .job_id_retrieval_strategy import JobIdRetrievalStrategy
 from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
-from .test_definitions import TestDefinition
+from .test import TestDefinition
 from .test_template import TestTemplate
 from .test_template_strategy import TestTemplateStrategy
 

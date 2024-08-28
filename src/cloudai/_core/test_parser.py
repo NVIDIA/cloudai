@@ -22,8 +22,7 @@ from pydantic import ValidationError
 
 from .base_multi_file_parser import BaseMultiFileParser
 from .registry import Registry
-from .test import Test
-from .test_definitions import TestDefinition
+from .test import Test, TestDefinition
 from .test_template import TestTemplate
 
 
@@ -64,7 +63,8 @@ class TestParser(BaseMultiFileParser):
         except ValidationError as e:
             for err in e.errors(include_url=False):
                 logging.error(
-                    f"Field '{'.'.join(str(v) for v in err['loc'])}' with value '{err['input']}' is invalid: {err['msg']}"
+                    f"Field '{'.'.join(str(v) for v in err['loc'])}' with value"
+                    f" '{err['input']}' is invalid: {err['msg']}"
                 )
             raise ValueError("Failed to parse test spec") from e
 
