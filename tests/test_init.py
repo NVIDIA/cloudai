@@ -25,6 +25,8 @@ from cloudai import (
 )
 from cloudai._core.test_definitions import (
     ChakraReplayTestDefinition,
+    GPTTestDefinition,
+    GrokTestDefinition,
     NCCLTestDefinition,
     NeMoLauncherTestDefinition,
     SleepTestDefinition,
@@ -149,9 +151,11 @@ def test_installers():
 
 def test_definitions():
     test_definitions = Registry().test_definitions_map
-    assert len(test_definitions) == 5
+    assert len(test_definitions) == 7
     assert test_definitions["UCCTest"] == UCCTestDefinition
     assert test_definitions["NcclTest"] == NCCLTestDefinition
     assert test_definitions["ChakraReplay"] == ChakraReplayTestDefinition
     assert test_definitions["Sleep"] == SleepTestDefinition
     assert test_definitions["NeMoLauncher"] == NeMoLauncherTestDefinition
+    assert test_definitions["JaxToolboxGrok"] == GrokTestDefinition
+    assert test_definitions["JaxToolboxGPT"] == GPTTestDefinition

@@ -35,6 +35,9 @@ from ._core.test import Test
 from ._core.test_definitions import (
     ChakraReplayTestDefinition,
     CmdArgs,
+    GPTTestDefinition,
+    GrokTestDefinition,
+    JaxToolboxTestDefinition,
     NCCLTestDefinition,
     NeMoLauncherTestDefinition,
     SleepTestDefinition,
@@ -161,6 +164,8 @@ Registry().add_test_definition("NcclTest", NCCLTestDefinition)
 Registry().add_test_definition("ChakraReplay", ChakraReplayTestDefinition)
 Registry().add_test_definition("Sleep", SleepTestDefinition)
 Registry().add_test_definition("NeMoLauncher", NeMoLauncherTestDefinition)
+Registry().add_test_definition("JaxToolboxGrok", GrokTestDefinition)
+Registry().add_test_definition("JaxToolboxGPT", GPTTestDefinition)
 
 __all__ = [
     "BaseInstaller",

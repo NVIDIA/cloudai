@@ -255,3 +255,41 @@ class NeMoLauncherTestDefinition(TestDefinition):
     """Test object for NeMoLauncher."""
 
     cmd_args: NeMoLauncherCmdArgs
+
+
+class JaxFdl(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    num_gpus: int = 64
+    num_groups: int = 64
+    ici_mesh_shape: str = "'[1, 1, 8, 1]'"
+    dcn_mesh_shape: str = "'[1, 8, 1, 1]'"
+
+
+class JaxToolboxCmdArgs(CmdArgs):
+    pass
+
+
+class JaxToolboxTestDefinition(TestDefinition):
+    pass
+
+
+class GrokCmdArgs(JaxToolboxCmdArgs):
+    fdl: JaxFdl
+
+
+class GrokTestDefinition(JaxToolboxTestDefinition):
+    cmd_args: GrokCmdArgs
+
+
+class GPTFdl(JaxFdl):
+    use_repeated_layer: bool = False
+    checkpoint_policy: str = "save_nothing"
+
+
+class GPTJaxToolboxCmdArgs(JaxToolboxCmdArgs):
+    fdl_config: str
+    fdl: GPTFdl
+
+
+class GPTTestDefinition(JaxToolboxTestDefinition):
+    cmd_args: GPTJaxToolboxCmdArgs

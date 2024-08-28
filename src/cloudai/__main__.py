@@ -261,10 +261,12 @@ def handle_verify_tests(root: Path) -> int:
         logging.error(f"Tests directory {root} does not exist.")
         return 1
 
-    test_tomls = list(root.glob("*.toml"))
-    if not test_tomls:
-        logging.error(f"No test tomls found in {root}")
-        return 1
+    test_tomls = [root]
+    if root.is_dir():
+        test_tomls = list(root.glob("*.toml"))
+        if not test_tomls:
+            logging.error(f"No test tomls found in {root}")
+            return 1
 
     for test_toml in test_tomls:
         logging.info(f"Verifying {test_toml}...")
