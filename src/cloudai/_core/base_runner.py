@@ -16,12 +16,12 @@
 
 import asyncio
 import logging
-import os
 import signal
 import sys
 from abc import ABC, abstractmethod
 from asyncio import Task
 from datetime import datetime
+from pathlib import Path
 from types import FrameType
 from typing import Dict, List, Optional
 
@@ -44,7 +44,7 @@ class BaseRunner(ABC):
         mode (str): The operation mode ('dry-run', 'run').
         system (System): The system schema object.
         test_scenario (TestScenario): The test scenario to run.
-        output_path (str): Path to the output directory.
+        output_path (Path): Path to the output directory.
         monitor_interval (int): Interval in seconds for monitoring jobs.
         jobs (List[BaseJob]): List to track jobs created by the runner.
         test_to_job_map (Dict[Test, BaseJob]): Mapping from tests to their jobs.
@@ -78,21 +78,21 @@ class BaseRunner(ABC):
         self.shutting_down = False
         self.register_signal_handlers()
 
-    def setup_output_directory(self, base_output_path: str) -> str:
+    def setup_output_directory(self, base_output_path: Path) -> Path:
         """
         Set up and return the output directory path for the runner instance.
 
         Args:
-            base_output_path (str): The base output directory.
+            base_output_path (Path): The base output directory.
 
         Returns:
-            str: The path to the output directory.
+            Path: The path to the output directory.
         """
-        if not os.path.exists(base_output_path):
-            os.makedirs(base_output_path)
+        if not base_output_path.exists():
+            base_output_path.mkdir()
         current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        output_subpath = os.path.join(base_output_path, f"{self.test_scenario.name}_{current_time}")
-        os.makedirs(output_subpath)
+        output_subpath = base_output_path / f"{self.test_scenario.name}_{current_time}"
+        output_subpath.mkdir()
         return output_subpath
 
     def register_signal_handlers(self):
@@ -242,9 +242,9 @@ class BaseRunner(ABC):
 
         return dependency_free_tests
 
-    def get_job_output_path(self, test: Test) -> str:
+    def get_job_output_path(self, test: Test) -> Path:
         """
-        Generate and ensures the existence of the output directory for a given test.
+        Generate and ensure the existence of the output directory for a given test.
 
         It constructs the path based on the test's section name and current iteration, creating the directories if they
         do not exist.
@@ -253,23 +253,24 @@ class BaseRunner(ABC):
             test (Test): The test instance for which to generate the output directory path.
 
         Returns:
-            str: The path to the job's output directory.
+            Path: The path to the job's output directory.
 
         Raises:
             ValueError: If the test's section name is None.
             FileNotFoundError: If the base output directory does not exist.
             PermissionError: If there is a permission issue creating the directories.
         """
-        job_output_path = ""
+        if not self.output_path.exists():
+            raise FileNotFoundError(f"Output directory {self.output_path} does not exist")
 
-        if not os.path.exists(self.output_path):
-            raise FileNotFoundError(f"Output directory {self.output_path} " f"does not exist")
+        job_output_path = Path()  # avoid reportPossiblyUnboundVariable from pyright
+
         try:
             assert test.section_name is not None, "test.section_name must not be None"
-            test_output_path = os.path.join(self.output_path, test.section_name)
-            os.makedirs(test_output_path, exist_ok=True)
-            job_output_path = os.path.join(test_output_path, str(test.current_iteration))
-            os.makedirs(job_output_path, exist_ok=True)
+            test_output_path = self.output_path / test.section_name
+            test_output_path.mkdir()
+            job_output_path = test_output_path / str(test.current_iteration)
+            job_output_path.mkdir()
         except PermissionError as e:
             raise PermissionError(f"Cannot create directory {job_output_path}: {e}") from e
 

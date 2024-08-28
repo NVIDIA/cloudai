@@ -17,6 +17,7 @@
 import getpass
 import logging
 import re
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from cloudai import System
@@ -31,8 +32,8 @@ class SlurmSystem(System):
 
     Attributes
         name (str): The name of the Slurm system.
-        install_path (str): Installation path of CloudAI software.
-        output_path (str): Directory path for output files.
+        install_path (Path): Installation path of CloudAI software.
+        output_path (Path): Path to the output directory.
         default_partition (str): The default partition for job submission.
         partitions (Dict[str, List[SlurmNode]]): Mapping of partition names to lists of SlurmNodes.
         account (Optional[str]): Account name for charging resources used by this job.
@@ -49,6 +50,80 @@ class SlurmSystem(System):
             system.
         cmd_shell (CommandShell): An instance of CommandShell for executing system commands.
     """
+
+    def __init__(
+        self,
+        name: str,
+        install_path: Path,
+        output_path: Path,
+        default_partition: str,
+        partitions: Dict[str, List[SlurmNode]],
+        account: Optional[str] = None,
+        distribution: Optional[str] = None,
+        mpi: Optional[str] = None,
+        gpus_per_node: Optional[int] = None,
+        ntasks_per_node: Optional[int] = None,
+        cache_docker_images_locally: bool = False,
+        groups: Optional[Dict[str, Dict[str, List[SlurmNode]]]] = None,
+        global_env_vars: Optional[Dict[str, Any]] = None,
+        extra_srun_args: Optional[str] = None,
+    ) -> None:
+        """
+        Initialize a SlurmSystem instance.
+
+        Args:
+            name (str): Name of the Slurm system.
+            install_path (Path): The installation path of CloudAI.
+            output_path (Path): Path to the output directory.
+            default_partition (str): Default partition.
+            partitions (Dict[str, List[SlurmNode]]): Partitions in the system.
+            account (Optional[str]): Account name for charging resources used by this job.
+            distribution (Optional[str]): Specifies alternate distribution methods for remote processes.
+            mpi (Optional[str]): Indicates the Process Management Interface (PMI) implementation to be used for
+                inter-process communication.
+            gpus_per_node (Optional[int]): Specifies the number of GPUs available per node.
+            ntasks_per_node (Optional[int]): Specifies the number of tasks that can run concurrently on a single node.
+            cache_docker_images_locally (bool): Whether to cache Docker images locally for the Slurm system.
+            groups (Optional[Dict[str, Dict[str, List[SlurmNode]]]]): Nested mapping of group names to lists of
+                SlurmNodes within partitions, defining the group composition within each partition. Defaults to an
+                empty dictionary if not provided.
+            global_env_vars (Optional[Dict[str, Any]]): Dictionary containing additional configuration settings for
+                the system.
+            extra_srun_args (Optional[str]): Additional arguments to be passed to the srun command.
+        """
+        super().__init__(name, "slurm", output_path)
+        self.install_path = install_path
+        self.default_partition = default_partition
+        self.partitions = partitions
+        self.account = account
+        self.distribution = distribution
+        self.mpi = mpi
+        self.gpus_per_node = gpus_per_node
+        self.ntasks_per_node = ntasks_per_node
+        self.cache_docker_images_locally = cache_docker_images_locally
+        self.groups = groups if groups is not None else {}
+        self.global_env_vars = global_env_vars if global_env_vars is not None else {}
+        self.extra_srun_args = extra_srun_args
+        self.cmd_shell = CommandShell()
+        logging.debug(f"{self.__class__.__name__} initialized")
+
+    def __repr__(self) -> str:
+        """
+        Provide a structured string representation of the system.
+
+        Including the system name, scheduler type, and a simplified view similar to the `sinfo` command output,
+        focusing on the partition, state, and nodelist.
+        """
+        header = f"System Name: {self.name}\nScheduler Type: {self.scheduler}"
+        parts = [header, "\tPARTITION  STATE    NODELIST"]
+        for partition_name, nodes in self.partitions.items():
+            state_count = {}
+            for node in nodes:
+                state_count.setdefault(node.state, []).append(node.name)
+            for state, names in state_count.items():
+                node_list_str = self.format_node_list(names)
+                parts.append(f"\t{partition_name:<10} {state.name:<7} {node_list_str}")
+        return "\n".join(parts)
 
     def update(self) -> None:
         """
@@ -175,80 +250,6 @@ class SlurmSystem(System):
             formatted_ranges.append(f"{prefix}{range_str}")
 
         return ", ".join(formatted_ranges)
-
-    def __init__(
-        self,
-        name: str,
-        install_path: str,
-        output_path: str,
-        default_partition: str,
-        partitions: Dict[str, List[SlurmNode]],
-        account: Optional[str] = None,
-        distribution: Optional[str] = None,
-        mpi: Optional[str] = None,
-        gpus_per_node: Optional[int] = None,
-        ntasks_per_node: Optional[int] = None,
-        cache_docker_images_locally: bool = False,
-        groups: Optional[Dict[str, Dict[str, List[SlurmNode]]]] = None,
-        global_env_vars: Optional[Dict[str, Any]] = None,
-        extra_srun_args: Optional[str] = None,
-    ) -> None:
-        """
-        Initialize a SlurmSystem instance.
-
-        Args:
-            name (str): Name of the Slurm system.
-            install_path (str): The installation path of CloudAI.
-            output_path (str): Path to the output directory.
-            default_partition (str): Default partition.
-            partitions (Dict[str, List[SlurmNode]]): Partitions in the system.
-            account (Optional[str]): Account name for charging resources used by this job.
-            distribution (Optional[str]): Specifies alternate distribution methods for remote processes.
-            mpi (Optional[str]): Indicates the Process Management Interface (PMI) implementation to be used for
-                inter-process communication.
-            gpus_per_node (Optional[int]): Specifies the number of GPUs available per node.
-            ntasks_per_node (Optional[int]): Specifies the number of tasks that can run concurrently on a single node.
-            cache_docker_images_locally (bool): Whether to cache Docker images locally for the Slurm system.
-            groups (Optional[Dict[str, Dict[str, List[SlurmNode]]]]): Nested mapping of group names to lists of
-                SlurmNodes within partitions, defining the group composition within each partition. Defaults to an
-                empty dictionary if not provided.
-            global_env_vars (Optional[Dict[str, Any]]): Dictionary containing additional configuration settings for
-                the system.
-            extra_srun_args (Optional[str]): Additional arguments to be passed to the srun command.
-        """
-        super().__init__(name, "slurm", output_path)
-        self.install_path = install_path
-        self.default_partition = default_partition
-        self.partitions = partitions
-        self.account = account
-        self.distribution = distribution
-        self.mpi = mpi
-        self.gpus_per_node = gpus_per_node
-        self.ntasks_per_node = ntasks_per_node
-        self.cache_docker_images_locally = cache_docker_images_locally
-        self.groups = groups if groups is not None else {}
-        self.global_env_vars = global_env_vars if global_env_vars is not None else {}
-        self.extra_srun_args = extra_srun_args
-        self.cmd_shell = CommandShell()
-        logging.debug(f"{self.__class__.__name__} initialized")
-
-    def __repr__(self) -> str:
-        """
-        Provide a structured string representation of the system.
-
-        Including the system name, scheduler type, and a simplified view similar to the `sinfo` command output,
-        focusing on the partition, state, and nodelist.
-        """
-        header = f"System Name: {self.name}\nScheduler Type: {self.scheduler}"
-        parts = [header, "\tPARTITION  STATE    NODELIST"]
-        for partition_name, nodes in self.partitions.items():
-            state_count = {}
-            for node in nodes:
-                state_count.setdefault(node.state, []).append(node.name)
-            for state, names in state_count.items():
-                node_list_str = self.format_node_list(names)
-                parts.append(f"\t{partition_name:<10} {state.name:<7} {node_list_str}")
-        return "\n".join(parts)
 
     def get_partition_names(self) -> List[str]:
         """Return a list of all partition names."""
