@@ -231,8 +231,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         gpus_per_node = args.get("gpus_per_node")
         if gpus_per_node:
-            batch_script_content.append(f"#SBATCH --gpus-per-node={args['gpus_per_node']}")
-            batch_script_content.append(f"#SBATCH --gres=gpu:{args['gpus_per_node']}")
+            batch_script_content.append(f"#SBATCH --gpus-per-node={gpus_per_node}")
+            batch_script_content.append(f"#SBATCH --gres=gpu:{gpus_per_node}")
         if "ntasks_per_node" in args:
             batch_script_content.append(f"#SBATCH --ntasks-per-node={args['ntasks_per_node']}")
         if "time_limit" in args:
