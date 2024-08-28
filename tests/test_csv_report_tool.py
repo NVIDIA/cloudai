@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -22,44 +22,44 @@ from cloudai.report_generator.tool.csv_report_tool import CSVReportTool
 
 
 @pytest.fixture
-def output_directory(tmpdir):
-    return tmpdir.mkdir("reports")
+def output_directory(tmpdir) -> Path:
+    return Path(tmpdir.mkdir("reports"))
 
 
 @pytest.fixture
-def example_dataframe():
+def example_dataframe() -> pd.DataFrame:
     data = {"A": [1, 2, 3], "B": [4, 5, 6]}
     return pd.DataFrame(data)
 
 
-def test_set_dataframe(example_dataframe):
-    csv_tool = CSVReportTool(output_directory=".")
+def test_set_dataframe(example_dataframe: pd.DataFrame):
+    csv_tool = CSVReportTool(output_directory=Path("."))
     csv_tool.set_dataframe(example_dataframe)
     assert csv_tool.dataframe is not None, "The dataframe was not set."
     assert csv_tool.dataframe.equals(example_dataframe), "The dataframe was not set correctly."
 
 
-def test_finalize_report_no_dataframe(output_directory):
-    csv_tool = CSVReportTool(output_directory=str(output_directory))
+def test_finalize_report_no_dataframe(output_directory: Path):
+    csv_tool = CSVReportTool(output_directory=output_directory)
     with pytest.raises(ValueError, match="No DataFrame has been set for the report."):
-        csv_tool.finalize_report("report.csv")
+        csv_tool.finalize_report(Path("report.csv"))
 
 
-def test_finalize_report(output_directory, example_dataframe):
-    csv_tool = CSVReportTool(output_directory=str(output_directory))
+def test_finalize_report(output_directory: Path, example_dataframe: pd.DataFrame):
+    csv_tool = CSVReportTool(output_directory=output_directory)
     csv_tool.set_dataframe(example_dataframe)
-    output_filename = "report.csv"
+    output_filename = Path("report.csv")
     csv_tool.finalize_report(output_filename)
 
-    output_filepath = os.path.join(str(output_directory), output_filename)
-    assert os.path.exists(output_filepath), "The report file was not created."
+    output_filepath = output_directory / output_filename
+    assert output_filepath.exists(), "The report file was not created."
 
     saved_df = pd.read_csv(output_filepath)
     assert saved_df.equals(example_dataframe), "The saved dataframe does not match the original dataframe."
 
 
-def test_finalize_report_resets_dataframe(output_directory, example_dataframe):
-    csv_tool = CSVReportTool(output_directory=str(output_directory))
+def test_finalize_report_resets_dataframe(output_directory: Path, example_dataframe: pd.DataFrame):
+    csv_tool = CSVReportTool(output_directory=output_directory)
     csv_tool.set_dataframe(example_dataframe)
-    csv_tool.finalize_report("report.csv")
+    csv_tool.finalize_report(Path("report.csv"))
     assert csv_tool.dataframe is None, "The dataframe was not reset after finalizing the report."

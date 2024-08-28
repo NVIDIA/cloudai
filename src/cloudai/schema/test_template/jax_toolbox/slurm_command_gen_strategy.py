@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+from pathlib import Path
 from typing import Any, Dict, List
 
 from cloudai.systems import SlurmSystem
@@ -36,14 +37,14 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
-        output_path: str,
+        output_path: Path,
         num_nodes: int,
         nodes: List[str],
     ) -> str:
         final_env_vars = self._override_env_vars(self.default_env_vars, env_vars)
         final_env_vars = self._override_env_vars(final_env_vars, extra_env_vars)
         final_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
-        final_cmd_args["output_path"] = output_path
+        final_cmd_args["output_path"] = str(output_path)
 
         self.test_name = self._extract_test_name(cmd_args)
 
@@ -172,21 +173,20 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             JaxToolboxSlurmInstallStrategy.DOCKER_IMAGE_FILENAME,
         ).docker_image_path
 
-        local_workspace_dir = os.path.abspath(cmd_args["output_path"])
-        # Use the dynamic key_prefix for accessing docker_workspace_dir
+        local_workspace_dir = Path(cmd_args["output_path"]).resolve()
         docker_workspace_dir = cmd_args[f"{key_prefix}.setup_flags.docker_workspace_dir"]
         container_mounts = f"{local_workspace_dir}:{docker_workspace_dir}"
 
         if "pgo_nsys_converter.profile_path" in cmd_args:
-            profile_path = cmd_args["pgo_nsys_converter.profile_path"]
+            profile_path = Path(cmd_args["pgo_nsys_converter.profile_path"]).resolve()
             container_mounts += f",{profile_path}:{profile_path}"
 
         base_args.update({"image_path": image_path, "container_mounts": container_mounts})
 
-        output_path = os.path.abspath(cmd_args["output_path"])
+        output_path = Path(cmd_args["output_path"]).resolve()
         output_suffix = "-%j.txt" if env_vars.get("UNIFIED_STDOUT_STDERR") == "1" else "-%j-%n-%t.txt"
-        base_args["output"] = os.path.join(output_path, f"output{output_suffix}")
-        base_args["error"] = os.path.join(output_path, f"error{output_suffix}")
+        base_args["output"] = str(output_path / f"output{output_suffix}")
+        base_args["error"] = str(output_path / f"error{output_suffix}")
 
         return base_args
 
@@ -215,7 +215,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_cmd_args: str,
-    ) -> str:
+    ) -> None:
         """
         Generate and writes the run.sh script to the specified output directory.
 
@@ -229,9 +229,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             cmd_args (Dict[str, str]): Command-line arguments.
             extra_cmd_args (str): Additional command-line arguments to be included
                                   in the srun command.
-
-        Returns:
-            str: The path to the run.sh script that was created.
         """
         test_name = self.test_name
 
@@ -262,11 +259,10 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         # Combine both parts into the run script content
         run_script_content = profile_content + perf_content
-        run_script_path = os.path.join(cmd_args["output_path"], "run.sh")
+        run_script_path = Path(cmd_args["output_path"]) / "run.sh"
         with open(run_script_path, "w") as run_file:
             run_file.write("\n".join(run_script_content))
         os.chmod(run_script_path, 0o755)
-        return run_script_path
 
     def _script_content(
         self,

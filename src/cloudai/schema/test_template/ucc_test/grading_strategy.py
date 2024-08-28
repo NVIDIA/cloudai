@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
+from pathlib import Path
 
 from cloudai import GradingStrategy
 
@@ -27,22 +27,22 @@ class UCCTestGradingStrategy(GradingStrategy):
     ideal performance metric. The grade is normalized and scaled between 0 and 100.
     """
 
-    def grade(self, directory_path: str, ideal_perf: float) -> float:
+    def grade(self, directory_path: Path, ideal_perf: float) -> float:
         """
-        Grade the performance of an UCCTest based on the maximum bus bandwidth.
+        Grade the performance of a UCCTest based on the maximum bus bandwidth.
 
         Reported in the test's stdout.txt file, considering both in-place and out-of-place updates.
 
         Args:
-            directory_path (str): Path to the directory containing the test's output.
+            directory_path (Path): Path to the directory containing the test's output.
             ideal_perf (float): The ideal performance value for comparison.
 
         Returns:
             float: The performance grade of the test, normalized and
                    scaled between 0 and 100.
         """
-        stdout_path = os.path.join(directory_path, "stdout.txt")
-        if not os.path.isfile(stdout_path):
+        stdout_path = directory_path / "stdout.txt"
+        if not stdout_path.is_file():
             return 0.0
 
         max_bus_bw = self._extract_max_bus_bandwidth(stdout_path)
@@ -53,18 +53,18 @@ class UCCTestGradingStrategy(GradingStrategy):
         grade = min(max(normalized_perf, 0), 100)
         return grade
 
-    def _extract_max_bus_bandwidth(self, stdout_path: str) -> float:
+    def _extract_max_bus_bandwidth(self, stdout_path: Path) -> float:
         """
         Extract the maximum bus bandwidth from the UCCTest output file.
 
         Args:
-            stdout_path (str): Path to the stdout.txt file containing the UCCTest output.
+            stdout_path (Path): Path to the stdout.txt file containing the UCCTest output.
 
         Returns:
             float: The maximum bus bandwidth value.
         """
         max_bus_bw = 0.0
-        with open(stdout_path, "r") as file:
+        with stdout_path.open("r") as file:
             for line in file:
                 parts = line.split()
                 if len(parts) == 8:  # Ensure it's a data line

@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
+
 from cloudai import System
 
 
@@ -29,13 +31,13 @@ class StandaloneSystem(System):
         output_path (str): Path to the output directory.
     """
 
-    def __init__(self, name: str, output_path: str) -> None:
+    def __init__(self, name: str, output_path: Path) -> None:
         """
         Initialize a StandaloneSystem instance.
 
         Args:
             name (str): Name of the standalone system.
-            output_path (str): Path to the output directory.
+            output_path (Path): Path to the output directory.
         """
         super().__init__(name, "standalone", output_path)
 

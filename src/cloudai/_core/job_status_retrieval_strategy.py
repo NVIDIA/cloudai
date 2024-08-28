@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from abc import abstractmethod
+from pathlib import Path
 
 from .job_status_result import JobStatusResult
 
@@ -23,12 +24,12 @@ class JobStatusRetrievalStrategy:
     """Abstract class to define a strategy for retrieving job statuses from a given output directory."""
 
     @abstractmethod
-    def get_job_status(self, output_path: str) -> JobStatusResult:
+    def get_job_status(self, output_path: Path) -> JobStatusResult:
         """
         Retrieve the job status from a specified output directory.
 
         Args:
-            output_path (str): Path to the output directory.
+            output_path (Path): Path to the output directory.
 
         Returns:
             JobStatusResult: The result containing the job status and an optional error message.

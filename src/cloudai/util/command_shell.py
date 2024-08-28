@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import subprocess
+from pathlib import Path
 
 
 class CommandShell:
@@ -23,20 +23,20 @@ class CommandShell:
     A class responsible for executing shell commands using a specified shell executable.
 
     Attributes
-        executable (str): The path to the shell executable used for running commands.
+        executable (Path): The path to the shell executable used for running commands.
     """
 
-    def __init__(self, executable: str = "/bin/bash"):
+    def __init__(self, executable: Path = Path("/bin/bash")):
         """
         Initialize the CommandShell with a shell executable.
 
         Args:
-            executable (str): The shell executable path. Defaults to "/bin/bash".
+            executable (Path): The shell executable path. Defaults to Path("/bin/bash").
 
         Raises:
             FileNotFoundError: If the specified executable does not exist.
         """
-        if not os.path.exists(executable):
+        if not executable.exists():
             raise FileNotFoundError(f"Executable '{executable}' not found.")
         self.executable = executable
 
@@ -56,7 +56,7 @@ class CommandShell:
         process = subprocess.Popen(
             command,
             shell=True,
-            executable=self.executable,
+            executable=str(self.executable),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
