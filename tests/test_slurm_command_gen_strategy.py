@@ -515,7 +515,7 @@ class TestWriteSbatchScript:
 
         lines = file_contents.splitlines()
 
-        assert len(lines) == 11
+        assert len(lines) == 12
 
         self.assert_slurm_directives(lines)
 

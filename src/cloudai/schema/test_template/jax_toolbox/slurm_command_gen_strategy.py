@@ -212,7 +212,12 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         commands = []
 
-        run_pre_test = cmd_args.get("pre_test", "False").lower() in ("true", "1", "yes")
+        pre_test_value = cmd_args.get("pre_test", "False")
+
+        if isinstance(pre_test_value, bool):
+            run_pre_test = pre_test_value
+        else:
+            run_pre_test = str(pre_test_value).lower() in ("true", "1", "yes")
 
         if run_pre_test:
             pre_test_command = self._generate_pre_test_command(cmd_args, output_path, error_path)
