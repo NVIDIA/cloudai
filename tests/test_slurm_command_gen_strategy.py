@@ -514,9 +514,8 @@ class TestWriteSbatchScript:
         del args[missing_arg]
 
         with pytest.raises(KeyError) as exc_info:
-            strategy_fixture._write_sbatch_script(args, self.env_vars_str, self.srun_command, str(tmp_path))
+            strategy_fixture._write_sbatch_script(args, self.env_vars_str, self.srun_command, tmp_path)
         assert missing_arg in str(exc_info.value)
-
 
     def test_only_mandatory_args(self, strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path):
         sbatch_command = strategy_fixture._write_sbatch_script(

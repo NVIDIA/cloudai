@@ -199,14 +199,14 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         batch_script_content.extend([env_vars_str, "", srun_command])
 
-        script_path = os.path.join(output_path, "cloudai_sbatch_script.sh")
-        with open(script_path, "w") as script_file:
-            script_file.write("\n".join(batch_script_content))
+        batch_script_path = output_path / "cloudai_sbatch_script.sh"
+        with batch_script_path.open("w") as batch_file:
+            batch_file.write("\n".join(batch_script_content))
 
-        return f"sbatch {script_path}"
+        return f"sbatch {batch_script_path}"
 
     def _append_sbatch_directives(
-        self, batch_script_content: List[str], args: Dict[str, Any], output_path: str
+        self, batch_script_content: List[str], args: Dict[str, Any], output_path: Path
     ) -> None:
         """
         Append SBATCH directives to the batch script content.
