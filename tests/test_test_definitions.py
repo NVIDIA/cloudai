@@ -40,5 +40,4 @@ def test_all_tests(toml_file: Path):
     template_name = toml_dict["test_template_name"]
     assert template_name in registry.test_definitions_map, f"Unknown test template: {template_name}"
 
-    tp = TestParser(Path(), {})
-    tp.load_test_definition(toml.load(toml_file))
+    TestParser.load_test_definition(toml.load(toml_file))
