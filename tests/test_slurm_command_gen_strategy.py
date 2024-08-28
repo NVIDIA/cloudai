@@ -208,9 +208,9 @@ class TestGenerateSrunCommand__CmdGeneration:
         result = jax_strategy_fixture.generate_full_srun_command(slurm_args, env_vars, cmd_args, extra_cmd_args)
         assert "pre_test_command" in result
         assert "pre_test_check_command" in result
-        assert "--mpi=fake-mpi" in result
-        assert "--container-image=image_path" in result
-        assert "--container-mounts=container_mounts" in result
+        assert f"--mpi={slurm_system.mpi}" in result
+        assert f"--container-image={slurm_args['image_path']}" in result
+        assert "--container-mounts=" + slurm_args.get("container_mounts", "") in result
 
     def test_generate_full_srun_command_without_pre_test(
         self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy, slurm_system: SlurmSystem
