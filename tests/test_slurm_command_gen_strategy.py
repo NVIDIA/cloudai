@@ -185,13 +185,11 @@ class TestGenerateSrunCommand__CmdGeneration:
         full_srun_command = strategy_fixture.generate_full_srun_command({}, {}, {}, "")
         assert full_srun_command == " \\\n".join(["srun", "--test", "test_arg", "test_command"])
 
-    def test_generate_full_srun_command_with_run_pre_test_flag(
+    def test_generate_full_srun_command_with_pre_test(
         self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy, slurm_system: SlurmSystem
     ):
-        # Assign the slurm_system to the strategy fixture
         jax_strategy_fixture.slurm_system = slurm_system
 
-        # Mock necessary methods and attributes
         jax_strategy_fixture._create_run_script = MagicMock()
         jax_strategy_fixture._generate_pre_test_command = MagicMock(return_value="pre_test_command")
         jax_strategy_fixture._generate_pre_test_check_command = MagicMock(return_value="pre_test_check_command")
@@ -213,6 +211,24 @@ class TestGenerateSrunCommand__CmdGeneration:
         assert "--mpi=fake-mpi" in result
         assert "--container-image=image_path" in result
         assert "--container-mounts=container_mounts" in result
+
+    def test_generate_full_srun_command_without_pre_test(
+        self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy, slurm_system: SlurmSystem
+    ):
+        jax_strategy_fixture.slurm_system = slurm_system
+
+        jax_strategy_fixture._create_run_script = MagicMock()
+        jax_strategy_fixture._generate_pre_test_command = MagicMock(return_value="pre_test_command")
+        jax_strategy_fixture._generate_pre_test_check_command = MagicMock(return_value="pre_test_check_command")
+
+        slurm_args = {
+            "output": "output.txt",
+            "error": "error.txt",
+            "image_path": "image_path",
+            "container_mounts": "container_mounts",
+        }
+        env_vars = {}
+        extra_cmd_args = ""
 
         # run_pre_test is False
         cmd_args = {
