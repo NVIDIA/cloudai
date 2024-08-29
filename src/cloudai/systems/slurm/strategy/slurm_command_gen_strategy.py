@@ -214,7 +214,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         Args:
             batch_script_content (List[str]): The list of script lines to append to.
             args (Dict[str, Any]): Arguments including job settings.
-            output_path (str): Output directory for script and logs.
+            output_path (Path): Output directory for script and logs.
         """
         batch_script_content = self._add_reservation(batch_script_content)
 
