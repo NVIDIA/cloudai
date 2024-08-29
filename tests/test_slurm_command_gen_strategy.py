@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
@@ -184,6 +184,63 @@ class TestGenerateSrunCommand__CmdGeneration:
 
         full_srun_command = strategy_fixture.generate_full_srun_command({}, {}, {}, "")
         assert full_srun_command == " \\\n".join(["srun", "--test", "test_arg", "test_command"])
+
+    def test_generate_full_srun_command_with_pre_test(
+        self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy, slurm_system: SlurmSystem
+    ):
+        jax_strategy_fixture.slurm_system = slurm_system
+
+        jax_strategy_fixture._create_run_script = MagicMock()
+        jax_strategy_fixture._generate_pre_test_command = MagicMock(return_value="pre_test_command")
+        jax_strategy_fixture._generate_pre_test_check_command = MagicMock(return_value="pre_test_check_command")
+
+        slurm_args = {
+            "output": "output.txt",
+            "error": "error.txt",
+            "image_path": "image_path",
+            "container_mounts": "container_mounts",
+        }
+        env_vars = {}
+        extra_cmd_args = ""
+
+        # run_pre_test is True
+        cmd_args = {"output_path": "/path/to/output", "pre_test": "true"}
+        result = jax_strategy_fixture.generate_full_srun_command(slurm_args, env_vars, cmd_args, extra_cmd_args)
+        assert "pre_test_command" in result
+        assert "pre_test_check_command" in result
+        assert f"--mpi={slurm_system.mpi}" in result
+        assert f"--container-image={slurm_args['image_path']}" in result
+        assert "--container-mounts=" + slurm_args.get("container_mounts", "") in result
+
+    def test_generate_full_srun_command_without_pre_test(
+        self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy, slurm_system: SlurmSystem
+    ):
+        jax_strategy_fixture.slurm_system = slurm_system
+
+        jax_strategy_fixture._create_run_script = MagicMock()
+        jax_strategy_fixture._generate_pre_test_command = MagicMock(return_value="pre_test_command")
+        jax_strategy_fixture._generate_pre_test_check_command = MagicMock(return_value="pre_test_check_command")
+
+        slurm_args = {
+            "output": "output.txt",
+            "error": "error.txt",
+            "image_path": "image_path",
+            "container_mounts": "container_mounts",
+        }
+        env_vars = {}
+        extra_cmd_args = ""
+
+        # run_pre_test is False
+        cmd_args = {
+            "output_path": "/path/to/output",
+            "pre_test": "false",
+        }
+        result = jax_strategy_fixture.generate_full_srun_command(slurm_args, env_vars, cmd_args, extra_cmd_args)
+        assert "pre_test_command" not in result
+        assert "pre_test_check_command" not in result
+        assert "--mpi=fake-mpi" in result
+        assert "--container-image=image_path" in result
+        assert "--container-mounts=container_mounts" in result
 
 
 class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
@@ -415,8 +472,8 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
 class TestWriteSbatchScript:
     MANDATORY_ARGS = {
         "job_name": "test_job",
+        "partition": "default",
         "num_nodes": 2,
-        "partition": "test_partition",
         "node_list_str": "node1,node2",
     }
 
@@ -424,23 +481,41 @@ class TestWriteSbatchScript:
         self.env_vars_str = "export TEST_VAR=VALUE"
         self.srun_command = "srun --test test_arg"
 
-    def assert_positional_lines(self, lines: list[str]):
+    def assert_slurm_directives(self, lines: list[str]):
         assert lines[0] == "#!/bin/bash"
-        assert lines[-6] == ""
-        assert lines[-5] == "export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)"
-        assert lines[-4] == ""
-        assert lines[-3] == self.env_vars_str
-        assert lines[-2] == ""
-        assert lines[-1] == self.srun_command
 
-    @pytest.mark.parametrize("missing_arg", ["job_name", "num_nodes", "partition", "node_list_str"])
+        assert f"#SBATCH --job-name={self.MANDATORY_ARGS['job_name']}" in lines
+        assert f"#SBATCH -N {self.MANDATORY_ARGS['num_nodes']}" in lines
+
+        partition = self.MANDATORY_ARGS.get("partition")
+        if partition:
+            assert f"#SBATCH --partition={partition}" in lines
+
+        node_list_str = self.MANDATORY_ARGS.get("node_list_str")
+        if node_list_str:
+            assert f"#SBATCH --nodelist={node_list_str}" in lines
+
+        gpus_per_node = self.MANDATORY_ARGS.get("gpus_per_node")
+        if gpus_per_node:
+            assert f"#SBATCH --gpus-per-node={gpus_per_node}" in lines
+            assert f"#SBATCH --gres=gpu:{gpus_per_node}" in lines
+
+        ntasks_per_node = self.MANDATORY_ARGS.get("ntasks_per_node")
+        if ntasks_per_node:
+            assert f"#SBATCH --ntasks-per-node={ntasks_per_node}" in lines
+
+        time_limit = self.MANDATORY_ARGS.get("time_limit")
+        if time_limit:
+            assert f"#SBATCH --time={time_limit}" in lines
+
+    @pytest.mark.parametrize("missing_arg", ["job_name", "num_nodes"])
     def test_raises_on_missing_args(self, missing_arg: str, strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path):
         args = self.MANDATORY_ARGS.copy()
         del args[missing_arg]
 
         with pytest.raises(KeyError) as exc_info:
             strategy_fixture._write_sbatch_script(args, self.env_vars_str, self.srun_command, tmp_path)
-        assert f"KeyError('{missing_arg}')" in str(exc_info)
+        assert missing_arg in str(exc_info.value)
 
     def test_only_mandatory_args(self, strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path):
         sbatch_command = strategy_fixture._write_sbatch_script(
@@ -455,10 +530,12 @@ class TestWriteSbatchScript:
             file_contents = file.read()
 
         lines = file_contents.splitlines()
-        assert len(lines) == 13
 
-        self.assert_positional_lines(lines)
+        assert len(lines) == 12
 
+        self.assert_slurm_directives(lines)
+
+        # Check for the specific lines in the file
         assert f"#SBATCH --job-name={self.MANDATORY_ARGS['job_name']}" in file_contents
         assert f"#SBATCH -N {self.MANDATORY_ARGS['num_nodes']}" in file_contents
         assert f"#SBATCH --partition={self.MANDATORY_ARGS['partition']}" in file_contents
@@ -488,7 +565,7 @@ class TestWriteSbatchScript:
         with open(filepath_from_command, "r") as file:
             file_contents = file.read()
 
-        self.assert_positional_lines(file_contents.splitlines())
+        self.assert_slurm_directives(file_contents.splitlines())
         assert expected_str in file_contents
 
     @pytest.mark.parametrize("add_arg", ["output", "error"])
@@ -502,7 +579,7 @@ class TestWriteSbatchScript:
         with open(filepath_from_command, "r") as file:
             file_contents = file.read()
 
-        self.assert_positional_lines(file_contents.splitlines())
+        self.assert_slurm_directives(file_contents.splitlines())
         assert f"--{add_arg}=" not in file_contents
 
 

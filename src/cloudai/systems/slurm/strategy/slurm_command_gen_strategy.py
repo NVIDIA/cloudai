@@ -117,6 +117,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             "num_nodes": num_nodes,
             "node_list_str": node_list_str,
         }
+
         if self.slurm_system.account:
             slurm_args["account"] = self.slurm_system.account
         if self.slurm_system.distribution:
@@ -194,7 +195,29 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             f"#SBATCH -N {args['num_nodes']}",
         ]
 
+        self._append_sbatch_directives(batch_script_content, args, output_path)
+
+        batch_script_content.extend([env_vars_str, "", srun_command])
+
+        batch_script_path = output_path / "cloudai_sbatch_script.sh"
+        with batch_script_path.open("w") as batch_file:
+            batch_file.write("\n".join(batch_script_content))
+
+        return f"sbatch {batch_script_path}"
+
+    def _append_sbatch_directives(
+        self, batch_script_content: List[str], args: Dict[str, Any], output_path: Path
+    ) -> None:
+        """
+        Append SBATCH directives to the batch script content.
+
+        Args:
+            batch_script_content (List[str]): The list of script lines to append to.
+            args (Dict[str, Any]): Arguments including job settings.
+            output_path (Path): Output directory for script and logs.
+        """
         batch_script_content = self._add_reservation(batch_script_content)
+
         if "output" not in args:
             batch_script_content.append(f"#SBATCH --output={output_path / 'stdout.txt'}")
         if "error" not in args:
@@ -207,8 +230,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             batch_script_content.append(f"#SBATCH --account={args['account']}")
         if "distribution" in args:
             batch_script_content.append(f"#SBATCH --distribution={args['distribution']}")
-        if "gpus_per_node" in args:
-            batch_script_content.append(f"#SBATCH --gpus-per-node={args['gpus_per_node']}")
+
+        gpus_per_node = args.get("gpus_per_node")
+        if gpus_per_node:
+            batch_script_content.append(f"#SBATCH --gpus-per-node={gpus_per_node}")
+            batch_script_content.append(f"#SBATCH --gres=gpu:{gpus_per_node}")
         if "ntasks_per_node" in args:
             batch_script_content.append(f"#SBATCH --ntasks-per-node={args['ntasks_per_node']}")
         if "time_limit" in args:
@@ -217,11 +243,3 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         batch_script_content.append(
             "\nexport SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)"
         )
-
-        batch_script_content.extend(["", env_vars_str, "", srun_command])
-
-        batch_script_path = output_path / "cloudai_sbatch_script.sh"
-        with batch_script_path.open("w") as batch_file:
-            batch_file.write("\n".join(batch_script_content))
-
-        return f"sbatch {batch_script_path}"
