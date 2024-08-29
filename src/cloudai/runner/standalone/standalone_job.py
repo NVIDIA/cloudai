@@ -14,10 +14,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai import BaseJob
+from pathlib import Path
+from typing import Union
+
+from cloudai import BaseJob, System, Test
 
 
 class StandaloneJob(BaseJob):
-    """Represents a job in a Standalone environment."""
+    """
+    A job class for standalone execution.
 
-    pass
+    Attributes
+        id (Union[str, int]): The unique identifier of the job.
+    """
+
+    def __init__(self, mode: str, system: System, test: Test, job_id: Union[str, int], output_path: Path):
+        BaseJob.__init__(self, mode, system, test, output_path)
+        self.id = job_id
+
+    def __repr__(self) -> str:
+        """
+        Return a string representation of the StandaloneJob instance.
+
+        Returns
+            str: String representation of the job.
+        """
+        return f"StandaloneJob(id={self.id}, test={self.test.name})"
