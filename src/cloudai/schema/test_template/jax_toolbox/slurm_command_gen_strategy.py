@@ -207,8 +207,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         self._create_run_script(slurm_args, env_vars, cmd_args, extra_cmd_args)
 
-        output_path = os.path.join(os.path.abspath(cmd_args["output_path"]), "output_pretest-%j-%n-%t.txt")
-        error_path = os.path.join(os.path.abspath(cmd_args["output_path"]), "error_pretest-%j-%n-%t.txt")
+        output_path = Path(cmd_args["output_path"]).resolve() / "output_pretest-%j-%n-%t.txt"
+        error_path = Path(cmd_args["output_path"]).resolve() / "error_pretest-%j-%n-%t.txt"
 
         commands = []
 
@@ -251,14 +251,14 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return full_command
 
-    def _generate_pre_test_command(self, cmd_args: Dict[str, Any], output_path: str, error_path: str) -> str:
+    def _generate_pre_test_command(self, cmd_args: Dict[str, Any], output_path: Path, error_path: Path) -> str:
         """
         Generate the pre-test command for running a test.
 
         Args:
             cmd_args (Dict[str, Any]): A dictionary containing command arguments.
-            output_path (str): The path to the output file.
-            error_path (str): The path to the error file.
+            output_path (Path): The path to the output file.
+            error_path (Path): The path to the error file.
 
         Returns:
             str: The generated pre-test command.
@@ -291,7 +291,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ]
         return " \\\n".join(pre_test_command_parts)
 
-    def _generate_pre_test_check_command(self, cmd_args: Dict[str, str], output_path: str) -> str:
+    def _generate_pre_test_check_command(self, cmd_args: Dict[str, str], output_path: Path) -> str:
         """
         Generate the command for pre-test check.
 
@@ -302,9 +302,9 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         Returns:
             str: The generated command for pre-test check.
         """
-        directory_path = os.path.dirname(output_path)
+        directory_path = Path(output_path).parent
         # Create the file pattern with wildcard
-        file_pattern = os.path.join(directory_path, "output_pretest-*.txt")
+        file_pattern = str(directory_path / "output_pretest-*.txt")
         keyword = cmd_args.get("keyword", "Avg bus bandwidth")
 
         script_lines = [
