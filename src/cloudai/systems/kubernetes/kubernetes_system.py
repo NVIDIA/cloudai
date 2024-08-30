@@ -116,7 +116,7 @@ class KubernetesSystem(System):
             bool: True if the job is running, False otherwise.
         """
         k_job: KubernetesJob = cast(KubernetesJob, job)
-        return self._is_job_running(k_job.get_namespace(), k_job.get_name(), k_job.get_kind())
+        return self._is_job_running(k_job.namespace, k_job.name, k_job.kind)
 
     def is_job_completed(self, job: BaseJob) -> bool:
         """
@@ -129,7 +129,7 @@ class KubernetesSystem(System):
             bool: True if the job is completed, False otherwise.
         """
         k_job: KubernetesJob = cast(KubernetesJob, job)
-        return not self._is_job_running(k_job.get_namespace(), k_job.get_name(), k_job.get_kind())
+        return not self._is_job_running(k_job.namespace, k_job.name, k_job.kind)
 
     def _is_job_running(self, job_namespace: str, job_name: str, job_kind: str) -> bool:
         """
@@ -266,7 +266,7 @@ class KubernetesSystem(System):
             job (BaseJob): The job to be terminated.
         """
         k_job: KubernetesJob = cast(KubernetesJob, job)
-        self.delete_job(k_job.get_namespace(), k_job.get_name(), k_job.get_kind())
+        self.delete_job(k_job.namespace, k_job.name, k_job.kind)
 
     def delete_job(self, namespace: str, job_name: str, job_kind: str) -> None:
         """

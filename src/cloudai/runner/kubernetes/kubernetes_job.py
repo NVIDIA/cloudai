@@ -16,9 +16,8 @@
 
 
 from pathlib import Path
-from typing import Union
 
-from cloudai import BaseJob, System, Test
+from cloudai import BaseJob, System, TestRun
 
 
 class KubernetesJob(BaseJob):
@@ -28,66 +27,33 @@ class KubernetesJob(BaseJob):
     Attributes
         mode (str): The mode of the job (e.g., 'run', 'dry-run').
         system (System): The system in which the job is running.
-        test (Test): The test instance associated with this job.
+        test_run (TestRun): The test instance associated with this job.
         namespace (str): The namespace of the job.
         name (str): The name of the job.
         kind (str): The kind of the job.
         output_path (Path): The path where the job's output is stored.
     """
 
-    def __init__(self, mode: str, system: System, test: Test, namespace: str, name: str, kind: str, output_path: Path):
+    def __init__(
+        self, mode: str, system: System, test_run: TestRun, namespace: str, name: str, kind: str, output_path: Path
+    ):
         """
         Initialize a KubernetesJob instance.
 
         Args:
             mode (str): The mode of the job (e.g., 'run', 'dry-run').
             system (System): The system in which the job is running.
-            test (Test): The test instance associated with this job.
+            test_run (TestRun): The test instance associated with this job.
             namespace (str): The namespace of the job.
             name (str): The name of the job.
             kind (str): The kind of the job.
             output_path (Path): The path where the job's output is stored.
         """
-        super().__init__(mode, system, test, output_path)
+        super().__init__(mode, system, test_run, output_path)
+        self.id = name
         self.namespace = namespace
         self.name = name
         self.kind = kind
-
-    def get_id(self) -> Union[str, int]:
-        """
-        Retrieve the unique name of the Kubernetes job.
-
-        Returns
-            Union[str, int]: The unique identifier of the job.
-        """
-        return self.name
-
-    def get_namespace(self) -> str:
-        """
-        Retrieve the namespace of the Kubernetes job.
-
-        Returns
-            str: The namespace of the job.
-        """
-        return self.namespace
-
-    def get_name(self) -> str:
-        """
-        Retrieve the name of the Kubernetes job.
-
-        Returns
-            str: The name of the job.
-        """
-        return self.name
-
-    def get_kind(self) -> str:
-        """
-        Retrieve the kind of the Kubernetes job.
-
-        Returns
-            str: The kind of the job.
-        """
-        return self.kind
 
     def __repr__(self) -> str:
         """
@@ -96,4 +62,7 @@ class KubernetesJob(BaseJob):
         Returns
             str: String representation of the job.
         """
-        return f"KubernetesJob(name={self.name}, namespace={self.namespace}, test={self.test.name}, kind={self.kind})"
+        return (
+            f"KubernetesJob(name={self.name}, namespace={self.namespace}, test={self.test_run.test.name}, "
+            f"kind={self.kind})"
+        )

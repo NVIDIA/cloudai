@@ -17,7 +17,7 @@
 import logging
 from typing import cast
 
-from cloudai import BaseJob, BaseRunner, Test
+from cloudai import BaseJob, BaseRunner, TestRun
 from cloudai.systems import KubernetesSystem
 
 from .kubernetes_job import KubernetesJob
@@ -26,29 +26,29 @@ from .kubernetes_job import KubernetesJob
 class KubernetesRunner(BaseRunner):
     """Implementation of the Runner for a system using Kubernetes."""
 
-    def _submit_test(self, test: Test) -> KubernetesJob:
+    def _submit_test(self, tr: TestRun) -> KubernetesJob:
         """
         Submit a test for execution on Kubernetes and return a KubernetesJob object.
 
         Args:
-            test (Test): The test to be executed.
+            tr (TestRun): The test run to be executed.
 
         Returns:
             KubernetesJob: A KubernetesJob object containing job details.
         """
-        logging.info(f"Running test: {test.section_name}")
-        job_output_path = self.get_job_output_path(test)
-        job_name = test.section_name.replace(".", "-").lower()
-        job_spec = test.gen_json(job_output_path, job_name)
+        logging.info(f"Running test: {tr.test.section_name}")
+        job_output_path = self.get_job_output_path(tr.test)
+        job_name = tr.test.section_name.replace(".", "-").lower()
+        job_spec = tr.test.gen_json(job_output_path, job_name)
         job_kind = job_spec.get("kind", "").lower()
-        logging.info(f"Generated JSON string for test {test.section_name}: {job_spec}")
+        logging.info(f"Generated JSON string for test {tr.test.section_name}: {job_spec}")
         job_namespace = ""
 
         if self.mode == "run":
             k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)
             job_name, job_namespace = k8s_system.create_job(job_spec)
 
-        return KubernetesJob(self.mode, self.system, test, job_namespace, job_name, job_kind, job_output_path)
+        return KubernetesJob(self.mode, self.system, tr, job_namespace, job_name, job_kind, job_output_path)
 
     def kill_job(self, job: BaseJob) -> None:
         """
@@ -57,7 +57,6 @@ class KubernetesRunner(BaseRunner):
         Args:
             job (BaseJob): The job to be terminated, casted to KubernetesJob.
         """
-        k8s_system = cast(KubernetesSystem, self.system)
-        k_job = cast(KubernetesJob, job)
         k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)
-        k8s_system.delete_job(k_job.get_namespace(), k_job.get_name(), k_job.get_kind())
+        k_job = cast(KubernetesJob, job)
+        k8s_system.delete_job(k_job.namespace, k_job.name, k_job.kind)

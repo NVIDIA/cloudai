@@ -120,7 +120,7 @@ class Test:
         Generate the command to run this specific test.
 
         Args:
-            output_path (str): Path to the output directory.
+            output_path (Path): Path to the output directory where logs and results will be stored.
             time_limit (Optional[str]): Time limit for the test execution.
             num_nodes (Optional[int]): Number of nodes to be used for the test execution.
             nodes (Optional[List[str]]): List of nodes involved in the test.
@@ -143,19 +143,31 @@ class Test:
             nodes,
         )
 
-    def gen_json(self, output_path: Path, job_name: str) -> Dict[Any, Any]:
+    def gen_json(
+        self,
+        output_path: Path,
+        job_name: str,
+        time_limit: Optional[str] = None,
+        num_nodes: int = 1,
+        nodes: Optional[List[str]] = None,
+    ) -> Dict[Any, Any]:
         """
-        Generate the JSON string for the Kubernetes job specification for this specific test.
+        Generate a JSON dictionary representing the Kubernetes job specification for this test.
 
         Args:
-            output_path (Path): Path to the output directory.
-            job_name (str): The name of the job.
+            output_path (Path): Path to the output directory where logs and results will be stored.
+            job_name (str): The name assigned to the Kubernetes job.
+            time_limit (Optional[str]): Time limit for the test execution.
+            num_nodes (Optional[int]): Number of nodes to be used for the test execution.
+            nodes (Optional[List[str]]): List of nodes involved in the test.
 
         Returns:
             Dict[Any, Any]: A dictionary representing the Kubernetes job specification.
         """
-        if self.time_limit is not None:
-            self.cmd_args["time_limit"] = self.time_limit
+        if time_limit is not None:
+            self.cmd_args["time_limit"] = time_limit
+        if not nodes:
+            nodes = []
 
         return self.test_template.gen_json(
             self.env_vars,
@@ -164,8 +176,8 @@ class Test:
             self.extra_cmd_args,
             output_path,
             job_name,
-            self.num_nodes,
-            self.nodes,
+            num_nodes,
+            nodes,
         )
 
     def get_job_id(self, stdout: str, stderr: str) -> Optional[int]:
