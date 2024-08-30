@@ -70,7 +70,7 @@ class Parser:
         if not test_path.exists():
             raise FileNotFoundError(f"Test path '{test_path}' not found.")
 
-        system = self.parse_system()
+        system = self.parse_system(self.system_config_path)
 
         test_template_parser = TestTemplateParser(system, self.test_template_path)
         test_templates: List[TestTemplate] = test_template_parser.parse_all()
@@ -94,23 +94,34 @@ class Parser:
 
         return system, filtered_tests, test_scenario
 
-    def parse_system(self) -> System:
+    @staticmethod
+    def parse_system(system_config_path: Path) -> System:
         registry = Registry()
-        with Path(self.system_config_path).open() as f:
-            logging.debug(f"Opened system config file: {self.system_config_path}")
+        with Path(system_config_path).open() as f:
+            logging.debug(f"Opened system config file: {system_config_path}")
             data = toml.load(f)
             scheduler = data.get("scheduler", "").lower()
             if scheduler not in registry.systems_map:
                 raise ValueError(
-                    f"Unsupported system type '{scheduler}' in {self.system_config_path}. "
+                    f"Unsupported system type '{scheduler}' in {system_config_path}. "
                     f"Supported types: {', '.join(registry.systems_map.keys())}"
                 )
 
         try:
             system = registry.systems_map[scheduler](**data)
         except ValidationError as e:
-            for err in e.errors():
-                logging.error(err)
+            Parser.log_validation_errors(e)
             raise ValueError("Failed to parse system definition") from e
 
         return system
+
+    @staticmethod
+    def log_validation_errors(e: ValidationError) -> None:
+        for err in e.errors(include_url=False):
+            if err["msg"] == "Field required":
+                logging.error(f"Field '{'.'.join(str(v) for v in err['loc'])}': {err['msg']}")
+            else:
+                logging.error(
+                    f"Field '{'.'.join(str(v) for v in err['loc'])}' with value"
+                    f" '{err['input']}' is invalid: {err['msg']}"
+                )
