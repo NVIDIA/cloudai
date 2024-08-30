@@ -52,6 +52,7 @@ class TestTemplateStrategy:
         self.cmd_args = cmd_args
         self.default_env_vars = self._construct_default_env_vars()
         self.default_cmd_args = self._construct_default_cmd_args()
+        self.default_env_vars.update(system.global_env_vars)
 
     def _construct_default_env_vars(self) -> Dict[str, str]:
         """

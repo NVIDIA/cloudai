@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .command_gen_strategy import CommandGenStrategy
@@ -127,7 +128,7 @@ class TestTemplate:
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
-        output_path: str,
+        output_path: Path,
         num_nodes: int,
         nodes: List[str],
     ) -> str:
@@ -141,7 +142,7 @@ class TestTemplate:
             cmd_args (Dict[str, str]): Command-line arguments for the test.
             extra_env_vars (Dict[str, str]): Extra environment variables.
             extra_cmd_args (str): Extra command-line arguments.
-            output_path (str): Path to the output directory.
+            output_path (Path): Path to the output directory.
             num_nodes (int): The number of nodes to be used for the test execution.
             nodes (List[str]): A list of nodes where the test will be executed.
 
@@ -183,12 +184,12 @@ class TestTemplate:
             )
         return self.job_id_retrieval_strategy.get_job_id(stdout, stderr)
 
-    def get_job_status(self, output_path: str) -> JobStatusResult:
+    def get_job_status(self, output_path: Path) -> JobStatusResult:
         """
         Determine the job status by evaluating the contents or results in a specified output directory.
 
         Args:
-            output_path (str): Path to the output directory.
+            output_path (Path): Path to the output directory.
 
         Returns:
             JobStatusResult: The result containing the job status and an optional error message.
@@ -200,12 +201,12 @@ class TestTemplate:
             )
         return self.job_status_retrieval_strategy.get_job_status(output_path)
 
-    def can_handle_directory(self, directory_path: str) -> bool:
+    def can_handle_directory(self, directory_path: Path) -> bool:
         """
         Determine if the strategy can handle the directory.
 
         Args:
-            directory_path (str): Path to the directory.
+            directory_path (Path): Path to the directory.
 
         Returns:
             bool: True if can handle, False otherwise.
@@ -215,24 +216,24 @@ class TestTemplate:
         else:
             return False
 
-    def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
+    def generate_report(self, test_name: str, directory_path: Path, sol: Optional[float] = None) -> None:
         """
         Generate a report from the directory.
 
         Args:
             test_name (str): The name of the test.
-            directory_path (str): Path to the directory.
+            directory_path (Path): Path to the directory.
             sol (Optional[float]): Speed-of-light performance for reference.
         """
         if self.report_generation_strategy is not None:
             return self.report_generation_strategy.generate_report(test_name, directory_path, sol)
 
-    def grade(self, directory_path: str, ideal_perf: float) -> Optional[float]:
+    def grade(self, directory_path: Path, ideal_perf: float) -> Optional[float]:
         """
         Read the performance value from the directory.
 
         Args:
-            directory_path (str): Path to the directory containing performance data.
+            directory_path (Path): Path to the directory containing performance data.
             ideal_perf (float): The ideal performance metric to compare against.
 
         Returns:

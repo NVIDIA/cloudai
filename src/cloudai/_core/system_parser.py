@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
+from pathlib import Path
 
 import toml
 
@@ -29,19 +29,19 @@ class SystemParser:
     Attributes
         _parsers (Dict[str, Type[BaseSystemParser]]): A mapping from system types to their corresponding parser
             classes.
-        file_path (str): The file path to the system configuration file.
+        file_path (Path): The file path to the system configuration file.
     """
 
     _parsers = {}
 
-    def __init__(self, file_path: str):
+    def __init__(self, file_path: Path):
         """
         Initialize a SystemParser instance.
 
         Args:
-            file_path (str): The file path to the system configuration file.
+            file_path (Path): The file path to the system configuration file.
         """
-        self.file_path: str = file_path
+        self.file_path: Path = file_path
 
     def parse(self) -> System:
         """
@@ -55,10 +55,10 @@ class SystemParser:
         Returns
             System: The parsed system object.
         """
-        if not os.path.isfile(self.file_path):
+        if not self.file_path.is_file():
             raise FileNotFoundError(f"The file '{self.file_path}' does not exist.")
 
-        with open(self.file_path, "r") as file:
+        with self.file_path.open("r") as file:
             data = toml.load(file)
             scheduler = data.get("scheduler", "").lower()
             registry = Registry()

@@ -16,12 +16,12 @@
 
 import asyncio
 import logging
-import os
 import signal
 import sys
 from abc import ABC, abstractmethod
 from asyncio import Task
 from datetime import datetime
+from pathlib import Path
 from types import FrameType
 from typing import Dict, List, Optional
 
@@ -37,14 +37,14 @@ class BaseRunner(ABC):
     """
     Abstract base class for a Runner that manages test execution.
 
-    This class provides a framework for executing tests within a given test
-    scenario, handling dependencies and execution order.
+    This class provides a framework for executing tests within a given test scenario, handling dependencies and
+    execution order.
 
     Attributes
         mode (str): The operation mode ('dry-run', 'run').
         system (System): The system schema object.
         test_scenario (TestScenario): The test scenario to run.
-        output_path (str): Path to the output directory.
+        output_path (Path): Path to the output directory.
         monitor_interval (int): Interval in seconds for monitoring jobs.
         jobs (List[BaseJob]): List to track jobs created by the runner.
         test_to_job_map (Dict[Test, BaseJob]): Mapping from tests to their jobs.
@@ -78,21 +78,21 @@ class BaseRunner(ABC):
         self.shutting_down = False
         self.register_signal_handlers()
 
-    def setup_output_directory(self, base_output_path: str) -> str:
+    def setup_output_directory(self, base_output_path: Path) -> Path:
         """
         Set up and return the output directory path for the runner instance.
 
         Args:
-            base_output_path (str): The base output directory.
+            base_output_path (Path): The base output directory.
 
         Returns:
-            str: The path to the output directory.
+            Path: The path to the output directory.
         """
-        if not os.path.exists(base_output_path):
-            os.makedirs(base_output_path)
+        if not base_output_path.exists():
+            base_output_path.mkdir()
         current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        output_subpath = os.path.join(base_output_path, f"{self.test_scenario.name}_{current_time}")
-        os.makedirs(output_subpath)
+        output_subpath = base_output_path / f"{self.test_scenario.name}_{current_time}"
+        output_subpath.mkdir()
         return output_subpath
 
     def register_signal_handlers(self):
@@ -136,7 +136,7 @@ class BaseRunner(ABC):
             return
         logging.info("Terminating all jobs...")
         for job in self.jobs:
-            self.kill_job(job)
+            self.system.kill(job)
         logging.info("All jobs have been killed.")
 
         sys.exit(0)
@@ -210,7 +210,7 @@ class BaseRunner(ABC):
         items = list(self.test_to_job_map.items())
 
         for test, job in items:
-            if self.is_job_running(job):
+            if job.is_running():
                 await self.check_and_schedule_start_post_init_dependent_tests(test)
 
     async def check_and_schedule_start_post_init_dependent_tests(self, started_test: Test):
@@ -242,9 +242,9 @@ class BaseRunner(ABC):
 
         return dependency_free_tests
 
-    def get_job_output_path(self, test: Test) -> str:
+    def get_job_output_path(self, test: Test) -> Path:
         """
-        Generate and ensures the existence of the output directory for a given test.
+        Generate and ensure the existence of the output directory for a given test.
 
         It constructs the path based on the test's section name and current iteration, creating the directories if they
         do not exist.
@@ -253,23 +253,24 @@ class BaseRunner(ABC):
             test (Test): The test instance for which to generate the output directory path.
 
         Returns:
-            str: The path to the job's output directory.
+            Path: The path to the job's output directory.
 
         Raises:
             ValueError: If the test's section name is None.
             FileNotFoundError: If the base output directory does not exist.
             PermissionError: If there is a permission issue creating the directories.
         """
-        job_output_path = ""
+        if not self.output_path.exists():
+            raise FileNotFoundError(f"Output directory {self.output_path} does not exist")
 
-        if not os.path.exists(self.output_path):
-            raise FileNotFoundError(f"Output directory {self.output_path} " f"does not exist")
+        job_output_path = Path()  # avoid reportPossiblyUnboundVariable from pyright
+
         try:
             assert test.section_name is not None, "test.section_name must not be None"
-            test_output_path = os.path.join(self.output_path, test.section_name)
-            os.makedirs(test_output_path, exist_ok=True)
-            job_output_path = os.path.join(test_output_path, str(test.current_iteration))
-            os.makedirs(job_output_path, exist_ok=True)
+            test_output_path = self.output_path / test.section_name
+            test_output_path.mkdir()
+            job_output_path = test_output_path / str(test.current_iteration)
+            job_output_path.mkdir()
         except PermissionError as e:
             raise PermissionError(f"Cannot create directory {job_output_path}: {e}") from e
 
@@ -285,7 +286,7 @@ class BaseRunner(ABC):
         successful_jobs_count = 0
 
         for job in list(self.jobs):
-            if self.is_job_completed(job):
+            if job.is_completed():
                 if self.mode == "dry-run":
                     successful_jobs_count += 1
                     await self.handle_job_completion(job)
@@ -346,32 +347,6 @@ class BaseRunner(ABC):
         else:
             await self.handle_dependencies(completed_job)
 
-    @abstractmethod
-    def is_job_running(self, job: BaseJob) -> bool:
-        """
-        Check if a job is currently running.
-
-        Args:
-            job (BaseJob): The job to check.
-
-        Returns:
-            bool: True if the job is running, False otherwise.
-        """
-        pass
-
-    @abstractmethod
-    def is_job_completed(self, job: BaseJob) -> bool:
-        """
-        Determine if a job is completed.
-
-        Args:
-            job (BaseJob): The job to be checked.
-
-        Returns:
-            bool: True if the job is completed, False otherwise.
-        """
-        pass
-
     async def handle_dependencies(self, completed_job: BaseJob) -> List[Task]:
         """
         Handle the start_post_comp and end_post_comp dependencies for a completed job.
@@ -402,16 +377,6 @@ class BaseRunner(ABC):
 
         return tasks
 
-    @abstractmethod
-    def kill_job(self, job: BaseJob):
-        """
-        Kill a specific job.
-
-        Args:
-            job (BaseJob): The job to be killed.
-        """
-        pass
-
     async def delayed_kill_job(self, job: BaseJob, delay: int = 0):
         """
         Schedule termination of a Standalone job after a specified delay.
@@ -423,4 +388,4 @@ class BaseRunner(ABC):
         logging.info(f"Scheduling termination of job {job.id} after {delay} seconds.")
         await asyncio.sleep(delay)
         job.terminated_by_dependency = True
-        self.kill_job(job)
+        self.system.kill(job)

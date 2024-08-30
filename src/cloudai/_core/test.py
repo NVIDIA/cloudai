@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import sys
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict
@@ -106,12 +107,12 @@ class Test:
             f"nodes={self.nodes})"
         )
 
-    def gen_exec_command(self, output_path: str) -> str:
+    def gen_exec_command(self, output_path: Path) -> str:
         """
         Generate the command to run this specific test.
 
         Args:
-            output_path (str): Path to the output directory.
+            output_path (Path): Path to the output directory.
 
         Returns:
             str: The command string.
@@ -142,12 +143,12 @@ class Test:
         """
         return self.test_template.get_job_id(stdout, stderr)
 
-    def get_job_status(self, output_path: str) -> JobStatusResult:
+    def get_job_status(self, output_path: Path) -> JobStatusResult:
         """
         Determine the status of a job based on the outputs located in the given output directory.
 
         Args:
-            output_path (str): Path to the output directory.
+            output_path (Path): Path to the output directory.
 
         Returns:
             JobStatusResult: The result containing the job status and an optional error message.

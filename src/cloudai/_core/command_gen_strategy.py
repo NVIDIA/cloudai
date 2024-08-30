@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from abc import abstractmethod
+from pathlib import Path
 from typing import Dict, List
 
 from .test_template_strategy import TestTemplateStrategy
@@ -34,7 +35,7 @@ class CommandGenStrategy(TestTemplateStrategy):
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
-        output_path: str,
+        output_path: Path,
         num_nodes: int,
         nodes: List[str],
     ) -> str:
@@ -46,7 +47,7 @@ class CommandGenStrategy(TestTemplateStrategy):
             cmd_args (Dict[str, str]): Command-line arguments for the test.
             extra_env_vars (Dict[str, str]): Additional environment variables.
             extra_cmd_args (str): Additional command-line arguments.
-            output_path (str): Path to the output directory.
+            output_path (Path): Path to the output directory.
             num_nodes (int): The number of nodes to be used for the test execution.
             nodes (List[str]): List of nodes for test execution, optional.
 

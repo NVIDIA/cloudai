@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import logging
-import os
+from pathlib import Path
 
 from cloudai import Test, TestScenario
 
@@ -28,12 +28,12 @@ class ReportGenerator:
     based on subdirectories.
     """
 
-    def __init__(self, output_path: str) -> None:
+    def __init__(self, output_path: Path) -> None:
         """
         Initialize the ReportGenerator with the path for output.
 
         Args:
-            output_path (str): Output directory path.
+            output_path (Path): Output directory path.
         """
         self.output_path = output_path
 
@@ -52,26 +52,25 @@ class ReportGenerator:
             if not section_name:
                 logging.warning(f"Missing section name for test {test.name}")
                 continue
-            test_output_dir = os.path.join(self.output_path, section_name)
-            if not os.path.exists(test_output_dir):
+            test_output_dir = self.output_path / section_name
+            if not test_output_dir.exists():
                 logging.warning(f"Directory '{test_output_dir}' not found.")
                 continue
 
             self._generate_test_report(test_output_dir, test)
 
-    def _generate_test_report(self, directory_path: str, test: Test) -> None:
+    def _generate_test_report(self, directory_path: Path, test: Test) -> None:
         """
         Generate reports for a test by iterating through subdirectories within the directory path.
 
         Checks if the test's template can handle each, and generating reports accordingly.
 
         Args:
-            directory_path (str): Directory for the test's section.
+            directory_path (Path): Directory for the test's section.
             test (Test): The test for report generation.
         """
-        for subdir in os.listdir(directory_path):
-            subdir_path = os.path.join(directory_path, subdir)
-            if os.path.isdir(subdir_path) and test.test_template.can_handle_directory(subdir_path):
-                test.test_template.generate_report(test.name, subdir_path, test.sol)
+        for subdir in directory_path.iterdir():
+            if subdir.is_dir() and test.test_template.can_handle_directory(subdir):
+                test.test_template.generate_report(test.name, subdir, test.sol)
             else:
-                logging.warning(f"Skipping directory '{subdir_path}' for test '{test.name}'")
+                logging.warning(f"Skipping directory '{subdir}' for test '{test.name}'")
