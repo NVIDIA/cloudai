@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List
 
 from cloudai import CommandGenStrategy
@@ -37,14 +37,13 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         Initialize a new SlurmCommandGenStrategy instance.
 
         Args:
-            system (System): The system schema object.
+            system (SlurmSystem): The system schema object.
             env_vars (Dict[str, Any]): Environment variables.
             cmd_args (Dict[str, Any]): Command-line arguments.
         """
         super().__init__(system, env_vars, cmd_args)
         self.slurm_system = system
         self.install_path = self.slurm_system.install_path
-        self.default_env_vars.update(self.slurm_system.global_env_vars)
 
         self.docker_image_cache_manager = DockerImageCacheManager(
             self.slurm_system.install_path,
@@ -117,6 +116,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             "num_nodes": num_nodes,
             "node_list_str": node_list_str,
         }
+
         if self.slurm_system.account:
             slurm_args["account"] = self.slurm_system.account
         if self.slurm_system.distribution:
@@ -146,6 +146,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             if slurm_args.get("container_mounts"):
                 srun_command_parts.append(f'--container-mounts={slurm_args["container_mounts"]}')
 
+        if self.slurm_system.extra_srun_args:
+            srun_command_parts.append(self.slurm_system.extra_srun_args)
+
         return srun_command_parts
 
     def generate_test_command(
@@ -153,15 +156,34 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     ) -> List[str]:
         return []
 
-    def _write_sbatch_script(self, args: Dict[str, Any], env_vars_str: str, srun_command: str, output_path: str) -> str:
+    def _add_reservation(self, batch_script_content: List[str]):
         """
-        Write the batch script for Slurm submission and returns the sbatch command.
+        Add reservation if provided.
+
+        Args:
+            batch_script_content (List[str]): content of the batch script.
+
+        Returns:
+            List[str]: updated batch script with reservation if exists.
+        """
+        reservation_key = "--reservation "
+        if self.slurm_system.extra_srun_args and reservation_key in self.slurm_system.extra_srun_args:
+            reservation = self.slurm_system.extra_srun_args.split(reservation_key, 1)[1].split(" ", 1)[0]
+            batch_script_content.append(f"#SBATCH --reservation={reservation}")
+
+        return batch_script_content
+
+    def _write_sbatch_script(
+        self, args: Dict[str, Any], env_vars_str: str, srun_command: str, output_path: Path
+    ) -> str:
+        """
+        Write the batch script for Slurm submission and return the sbatch command.
 
         Args:
             args (Dict[str, Any]): Arguments including job settings.
             env_vars_str (str): Environment variables.
             srun_command (str): srun command.
-            output_path (str): Output directory for script and logs.
+            output_path (Path): Output directory for script and logs.
 
         Returns:
             str: sbatch command to submit the job.
@@ -172,10 +194,33 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             f"#SBATCH -N {args['num_nodes']}",
         ]
 
+        self._append_sbatch_directives(batch_script_content, args, output_path)
+
+        batch_script_content.extend([env_vars_str, "", srun_command])
+
+        batch_script_path = output_path / "cloudai_sbatch_script.sh"
+        with batch_script_path.open("w") as batch_file:
+            batch_file.write("\n".join(batch_script_content))
+
+        return f"sbatch {batch_script_path}"
+
+    def _append_sbatch_directives(
+        self, batch_script_content: List[str], args: Dict[str, Any], output_path: Path
+    ) -> None:
+        """
+        Append SBATCH directives to the batch script content.
+
+        Args:
+            batch_script_content (List[str]): The list of script lines to append to.
+            args (Dict[str, Any]): Arguments including job settings.
+            output_path (Path): Output directory for script and logs.
+        """
+        batch_script_content = self._add_reservation(batch_script_content)
+
         if "output" not in args:
-            batch_script_content.append(f"#SBATCH --output={os.path.join(output_path, 'stdout.txt')}")
+            batch_script_content.append(f"#SBATCH --output={output_path / 'stdout.txt'}")
         if "error" not in args:
-            batch_script_content.append(f"#SBATCH --error={os.path.join(output_path, 'stderr.txt')}")
+            batch_script_content.append(f"#SBATCH --error={output_path / 'stderr.txt'}")
         if args["partition"]:
             batch_script_content.append(f"#SBATCH --partition={args['partition']}")
         if args["node_list_str"]:
@@ -184,8 +229,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             batch_script_content.append(f"#SBATCH --account={args['account']}")
         if "distribution" in args:
             batch_script_content.append(f"#SBATCH --distribution={args['distribution']}")
-        if "gpus_per_node" in args:
-            batch_script_content.append(f"#SBATCH --gpus-per-node={args['gpus_per_node']}")
+
+        gpus_per_node = args.get("gpus_per_node")
+        if gpus_per_node:
+            batch_script_content.append(f"#SBATCH --gpus-per-node={gpus_per_node}")
+            batch_script_content.append(f"#SBATCH --gres=gpu:{gpus_per_node}")
         if "ntasks_per_node" in args:
             batch_script_content.append(f"#SBATCH --ntasks-per-node={args['ntasks_per_node']}")
         if "time_limit" in args:
@@ -194,11 +242,3 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         batch_script_content.append(
             "\nexport SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)"
         )
-
-        batch_script_content.extend(["", env_vars_str, "", srun_command])
-
-        batch_script_path = os.path.join(output_path, "cloudai_sbatch_script.sh")
-        with open(batch_script_path, "w") as batch_file:
-            batch_file.write("\n".join(batch_script_content))
-
-        return f"sbatch {batch_script_path}"

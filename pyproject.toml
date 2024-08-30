@@ -16,25 +16,32 @@
 
 [project]
 name = "cloudai"
-version = "0.7.14"
+dynamic = ["version"]
 dependencies = [
-    "bokeh==3.4.1",
-    "pandas==2.2.1",
-    "tbparse==0.0.8",
-    "toml==0.10.2",
-    "pydantic==2.8.2",
+  "bokeh==3.4.1",
+  "pandas==2.2.1",
+  "tbparse==0.0.8",
+  "toml==0.10.2",
+  "pydantic==2.8.2",
 ]
 
-[project.scripts]
-cloudai = "cloudai.__main__:main"
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.pdm.version]
+source = "scm"
+
+  [project.scripts]
+  cloudai = "cloudai.__main__:main"
 
 [tool.ruff]
 target-version = "py39"
 line-length = 120
 
-[tool.ruff.lint]
-select = ["I", "B", "E", "D", "F", "SIM", "W", "C90", "EXE", "ERA"]
-ignore = [
+  [tool.ruff.lint]
+  select = ["I", "B", "E", "D", "F", "SIM", "W", "C90", "EXE", "ERA"]
+  ignore = [
     "D407", # Missing dashed underline after section
     "D203", # conflicts with D211
     "D212", # conflicts with D213
@@ -46,13 +53,13 @@ ignore = [
     "D103", # Missing docstring in public function
     "D104", # Missing docstring in public package
     "D107", # Missing docstring in `__init__`
-]
+  ]
 
-[tool.ruff.lint.per-file-ignores]
-"**/tests/*" = ["D"]
+    [tool.ruff.lint.per-file-ignores]
+    "**/tests/*" = ["D"]
 
-[tool.ruff.format]
-indent-style = "space"
+  [tool.ruff.format]
+  indent-style = "space"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -61,28 +68,28 @@ pythonpath = ["src"]
 [tool.importlinter]
 root_package = "cloudai"
 
-[[tool.importlinter.contracts]]
-name = "_core does not depends on higher level layers"
-type = "layers"
-layers = [
+  [[tool.importlinter.contracts]]
+  name = "_core does not depends on higher level layers"
+  type = "layers"
+  layers = [
     "installer : parser : report_generator : runner : schema : util",
     "_core",
-]
-containers = ["cloudai"]
+  ]
+  containers = ["cloudai"]
 
-[[tool.importlinter.contracts]]
-name = "_core is not accessed directly"
-type = "forbidden"
-forbidden_modules = ["cloudai._core"]
-allow_indirect_imports = true # this is to allow "from cloudai import ..."
-source_modules = [
+  [[tool.importlinter.contracts]]
+  name = "_core is not accessed directly"
+  type = "forbidden"
+  forbidden_modules = ["cloudai._core"]
+  allow_indirect_imports = true # this is to allow "from cloudai import ..."
+  source_modules = [
     "cloudai.installer",
     "cloudai.parser",
     "cloudai.report_generator",
     "cloudai.runner",
     "cloudai.schema",
     "cloudai.util",
-]
+  ]
 
 [tool.vulture]
 ignore_names = ["mock_datetime_now"]

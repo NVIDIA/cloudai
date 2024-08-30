@@ -35,7 +35,7 @@ def test_toml_files(toml_file: Path):
         assert toml.load(f) is not None
 
 
-ALL_SYSTEMS = list(Path("conf/system").glob("*.toml"))
+ALL_SYSTEMS = list(Path("conf/common/system").glob("*.toml"))
 
 
 @pytest.mark.parametrize("system_file", ALL_SYSTEMS, ids=lambda x: str(x))

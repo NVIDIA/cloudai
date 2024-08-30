@@ -18,6 +18,7 @@ import logging
 import os
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 from typing import Any, Dict, List
 
 from cloudai import InstallStatusResult, System
@@ -89,15 +90,15 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         return arg_value
 
     def is_installed(self) -> InstallStatusResult:
-        subdir_path = os.path.join(self.install_path, self.SUBDIR_PATH)
-        repo_path = os.path.join(subdir_path, self.REPOSITORY_NAME)
-        repo_installed = os.path.isdir(repo_path)
+        subdir_path = self.install_path / self.SUBDIR_PATH
+        repo_path = subdir_path / self.REPOSITORY_NAME
+        repo_installed = repo_path.is_dir()
 
         docker_image_installed = self.docker_image_cache_manager.check_docker_image_exists(
             self.docker_image_url, self.SUBDIR_PATH, self.DOCKER_IMAGE_FILENAME
         ).success
 
-        data_dir_path = self.default_cmd_args["data_dir"]
+        data_dir_path = Path(self.default_cmd_args["data_dir"])
         datasets_check_result = self._check_datasets_on_nodes(data_dir_path)
         if not datasets_check_result.success:
             return InstallStatusResult(
@@ -121,8 +122,8 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
                     f"with commit hash {self.repository_commit_hash}"
                 )
             if not docker_image_installed:
-                docker_image_path = os.path.join(subdir_path, self.DOCKER_IMAGE_FILENAME)
-                missing_components.append(f"Docker image at {docker_image_path} " f"from URL {self.docker_image_url}")
+                docker_image_path = subdir_path / self.DOCKER_IMAGE_FILENAME
+                missing_components.append(f"Docker image at {docker_image_path} from URL {self.docker_image_url}")
             if not datasets_check_result.success:
                 missing_components.append(f"Datasets in {data_dir_path} on some nodes")
             return InstallStatusResult(
@@ -141,10 +142,10 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         except PermissionError as e:
             return InstallStatusResult(success=False, message=str(e))
 
-        subdir_path = os.path.join(self.install_path, self.SUBDIR_PATH)
-        os.makedirs(subdir_path, exist_ok=True)
+        subdir_path = self.install_path / self.SUBDIR_PATH
+        subdir_path.mkdir(parents=True, exist_ok=True)
 
-        data_dir_path = self.default_cmd_args["data_dir"]
+        data_dir_path = Path(self.default_cmd_args["data_dir"])
         datasets_check_result = self._check_datasets_on_nodes(data_dir_path)
         if not datasets_check_result.success:
             return InstallStatusResult(
@@ -195,12 +196,12 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
             PermissionError: If the install path does not exist or if there is no permission to create directories and
                 files.
         """
-        if not os.path.exists(self.install_path):
+        if not self.install_path.exists():
             raise PermissionError(f"Install path {self.install_path} does not exist.")
-        if not os.access(self.install_path, os.W_OK):
+        if not self.install_path.is_dir() or not os.access(self.install_path, os.W_OK):
             raise PermissionError(f"No permission to write in install path {self.install_path}.")
 
-    def _check_datasets_on_nodes(self, data_dir_path: str) -> DatasetCheckResult:
+    def _check_datasets_on_nodes(self, data_dir_path: Path) -> DatasetCheckResult:
         """
         Verify the presence of specified dataset files and directories on all idle compute nodes.
 
@@ -210,7 +211,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         for systems with multiple nodes.
 
         Args:
-            data_dir_path (str): Path where dataset files and directories are stored.
+            data_dir_path (Path): Path where dataset files and directories are stored.
 
         Returns:
             DatasetCheckResult: Result object containing success status and nodes without datasets.
@@ -248,22 +249,20 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
 
         return DatasetCheckResult(success=not nodes_without_datasets, nodes_without_datasets=nodes_without_datasets)
 
-    def _check_dataset_on_node(self, node: str, data_dir_path: str, dataset_items: List[str]) -> bool:
+    def _check_dataset_on_node(self, node: str, data_dir_path: Path, dataset_items: List[str]) -> bool:
         """
         Check if dataset files and directories exist on a single compute node.
 
         Args:
             node (str): The name of the compute node.
-            data_dir_path (str): Path to the data directory.
+            data_dir_path (Path): Path to the data directory.
             dataset_items (List[str]): List of dataset file and directory names to check.
 
         Returns:
             bool: True if all dataset files and directories exist on the node, False otherwise.
         """
         python_check_script = (
-            f"import os;print(all(os.path.isfile(os.path.join('{data_dir_path}', "
-            f"item)) or os.path.isdir(os.path.join('{data_dir_path}', item)) "
-            f"for item in {dataset_items}))"
+            f"import os;print(all(Path('{data_dir_path}') / item).exists() for item in {dataset_items})"
         )
         cmd = (
             f"srun --nodes=1 --nodelist={node} "
@@ -273,43 +272,43 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         result = subprocess.run(cmd, shell=True, check=False, capture_output=True, text=True)
         return result.returncode == 0 and result.stdout.strip() == "True"
 
-    def _clone_repository(self, subdir_path: str) -> None:
+    def _clone_repository(self, subdir_path: Path) -> None:
         """
         Clones NeMo-Launcher repository into specified path if it does not already exist.
 
         Args:
-            subdir_path (str): Subdirectory path for installation.
+            subdir_path (Path): Subdirectory path for installation.
         """
-        repo_path = os.path.join(subdir_path, self.REPOSITORY_NAME)
+        repo_path = subdir_path / self.REPOSITORY_NAME
 
-        if os.path.exists(repo_path):
+        if repo_path.exists():
             logging.warning("Repository already exists at %s, clone skipped", repo_path)
         else:
             logging.debug("Cloning NeMo-Launcher repository into %s", repo_path)
-            clone_cmd = ["git", "clone", self.repository_url, repo_path]
+            clone_cmd = ["git", "clone", self.repository_url, str(repo_path)]
             result = subprocess.run(clone_cmd, capture_output=True, text=True)
             if result.returncode != 0:
                 raise RuntimeError(f"Failed to clone repository: {result.stderr}")
 
         logging.debug("Checking out specific commit %s in repository", self.repository_commit_hash)
         checkout_cmd = ["git", "checkout", self.repository_commit_hash]
-        result = subprocess.run(checkout_cmd, cwd=repo_path, capture_output=True, text=True)
+        result = subprocess.run(checkout_cmd, cwd=str(repo_path), capture_output=True, text=True)
         if result.returncode != 0:
             raise RuntimeError(f"Failed to checkout commit: {result.stderr}")
 
-    def _install_requirements(self, subdir_path: str) -> None:
+    def _install_requirements(self, subdir_path: Path) -> None:
         """
         Installs the required Python packages from the requirements.txt file in the cloned repository.
 
         Args:
-            subdir_path (str): Subdirectory path for installation.
+            subdir_path (Path): Subdirectory path for installation.
         """
-        repo_path = os.path.join(subdir_path, self.REPOSITORY_NAME)
-        requirements_file = os.path.join(repo_path, "requirements.txt")
+        repo_path = subdir_path / self.REPOSITORY_NAME
+        requirements_file = repo_path / "requirements.txt"
 
-        if os.path.isfile(requirements_file):
+        if requirements_file.is_file():
             logging.debug("Installing requirements from %s", requirements_file)
-            install_cmd = ["pip", "install", "-r", requirements_file]
+            install_cmd = ["pip", "install", "-r", str(requirements_file)]
             result = subprocess.run(install_cmd, capture_output=True, text=True)
             if result.returncode != 0:
                 raise RuntimeError(f"Failed to install requirements: {result.stderr}")

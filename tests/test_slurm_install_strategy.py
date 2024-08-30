@@ -35,8 +35,8 @@ from cloudai.systems.slurm.strategy import SlurmInstallStrategy
 def slurm_system(tmp_path: Path) -> SlurmSystem:
     slurm_system = SlurmSystem(
         name="TestSystem",
-        install_path=str(tmp_path / "install"),
-        output_path=str(tmp_path / "output"),
+        install_path=tmp_path / "install",
+        output_path=tmp_path / "output",
         default_partition="main",
         partitions=[
             SlurmPartition(name="main", nodes=["node[1-4]"]),
@@ -155,8 +155,8 @@ class TestNeMoLauncherSlurmInstallStrategy:
         with patch("subprocess.run") as mock_run, patch("os.path.exists") as mock_exists:
             mock_run.return_value.returncode = 0
             mock_exists.side_effect = lambda path: path == str(subdir_path)
-            strategy._clone_repository(str(subdir_path))
-            strategy._install_requirements(str(subdir_path))
+            strategy._clone_repository(subdir_path)
+            strategy._install_requirements(subdir_path)
 
             mock_run.assert_any_call(
                 ["git", "clone", strategy.repository_url, str(repo_path)], capture_output=True, text=True
@@ -177,7 +177,7 @@ class TestNeMoLauncherSlurmInstallStrategy:
 
         with patch("subprocess.run") as mock_run:
             mock_run.return_value.returncode = 0
-            strategy._install_requirements(str(subdir_path))
+            strategy._install_requirements(subdir_path)
             mock_run.assert_called_with(
                 ["pip", "install", "-r", str(requirements_file)], capture_output=True, text=True
             )
@@ -190,7 +190,7 @@ class TestNeMoLauncherSlurmInstallStrategy:
         with patch("subprocess.run") as mock_run, patch("os.path.exists") as mock_exists:
             mock_run.return_value.returncode = 0
             mock_exists.side_effect = lambda path: path in [str(subdir_path), str(repo_path)]
-            strategy._clone_repository(str(subdir_path))
+            strategy._clone_repository(subdir_path)
 
             # Ensure that the checkout command was run
             mock_run.assert_any_call(

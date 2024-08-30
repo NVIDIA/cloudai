@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from typing import Any, Dict, List
 
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
@@ -28,7 +29,7 @@ class SleepSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
-        output_path: str,
+        output_path: Path,
         num_nodes: int,
         nodes: List[str],
     ) -> str:
@@ -44,7 +45,11 @@ class SleepSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def generate_full_srun_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
     ) -> str:
-        srun_command_parts = ["srun", f"--mpi={self.slurm_system.mpi}"]
+        srun_command_parts = [
+            "srun",
+            f"--mpi={self.slurm_system.mpi}",
+            f"{self.slurm_system.extra_srun_args if self.slurm_system.extra_srun_args else ''}",
+        ]
 
         sec = cmd_args["seconds"]
         srun_command_parts.append(f"sleep {sec}")

@@ -26,8 +26,12 @@ from cloudai._core.base_installer import BaseInstaller
 from cloudai.systems import SlurmSystem
 
 SLURM_TEST_SCENARIOS = [
-    {"path": Path("conf/test_scenario/sleep.toml"), "expected_dirs_number": 4, "log_file": "sleep_debug.log"},
-    {"path": Path("conf/test_scenario/ucc_test.toml"), "expected_dirs_number": 5, "log_file": "ucc_test_debug.log"},
+    {"path": Path("conf/common/test_scenario/sleep.toml"), "expected_dirs_number": 4, "log_file": "sleep_debug.log"},
+    {
+        "path": Path("conf/common/test_scenario/ucc_test.toml"),
+        "expected_dirs_number": 5,
+        "log_file": "ucc_test_debug.log",
+    },
 ]
 
 
@@ -35,14 +39,14 @@ SLURM_TEST_SCENARIOS = [
 def test_slurm(tmp_path: Path, scenario: Dict):
     test_scenario_path = scenario["path"]
     expected_dirs_number = scenario.get("expected_dirs_number")
-    log_file = scenario.get("log_file")
-    log_file_path = tmp_path / str(log_file)
+    log_file = scenario.get("log_file", ".")
+    log_file_path = tmp_path / log_file
 
-    parser = Parser(Path("conf/system/example_slurm_cluster.toml"), Path("conf/test_template"))
-    system, tests, test_scenario = parser.parse(Path("conf/test"), test_scenario_path)
-    system.output_path = str(tmp_path)
+    parser = Parser(Path("conf/common/system/example_slurm_cluster.toml"), Path("conf/common/test_template"))
+    system, tests, test_scenario = parser.parse(Path("conf/common/test"), test_scenario_path)
+    system.output_path = tmp_path
     assert test_scenario is not None, "Test scenario is None"
-    setup_logging(str(log_file_path), "DEBUG")
+    setup_logging(log_file_path, "DEBUG")
     handle_dry_run_and_run("dry-run", system, tests, test_scenario)
 
     # Find the directory that was created for the test results

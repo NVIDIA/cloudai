@@ -71,6 +71,7 @@ class TestScenarioParser:
         if "name" not in data:
             raise KeyError("The 'name' field is missing from the data.")
         test_scenario_name = data["name"]
+        job_status_check = data.get("job_status_check", True)
         raw_tests_data = data.get("Tests", {})
         tests_data = {f"Tests.{k}": v for k, v in raw_tests_data.items()}
 
@@ -101,7 +102,9 @@ class TestScenarioParser:
             if "time_limit" in test_info:
                 test.time_limit = test_info["time_limit"]
 
-        return TestScenario(name=test_scenario_name, tests=list(section_tests.values()))
+        return TestScenario(
+            name=test_scenario_name, tests=list(section_tests.values()), job_status_check=job_status_check
+        )
 
     def _create_section_test(self, section: str, test_info: Dict[str, Any]) -> Test:
         """
@@ -126,11 +129,30 @@ class TestScenarioParser:
                 f"reference from the test scenario schema."
             )
 
-        test = copy.deepcopy(self.test_mapping[test_name])
-        test.test_template = self.test_mapping[test_name].test_template
+        original_test = self.test_mapping[test_name]
+
+        test = Test(
+            name=original_test.name,
+            description=original_test.description,
+            test_template=original_test.test_template,
+            env_vars=copy.deepcopy(original_test.env_vars),
+            cmd_args=copy.deepcopy(original_test.cmd_args),
+            extra_env_vars=copy.deepcopy(original_test.extra_env_vars),
+            extra_cmd_args=original_test.extra_cmd_args,
+            dependencies=copy.deepcopy(original_test.dependencies),
+            iterations=original_test.iterations,
+            num_nodes=original_test.num_nodes,
+            nodes=original_test.nodes,
+            sol=original_test.sol,
+            weight=original_test.weight,
+            ideal_perf=original_test.ideal_perf,
+            time_limit=original_test.time_limit,
+        )
+
         test.section_name = section
         test.num_nodes = int(test_info.get("num_nodes", 1))
         test.nodes = test_info.get("nodes", [])
+
         return test
 
     def _parse_dependencies_for_test(

@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Optional, Set
 
 from .base_multi_file_parser import BaseMultiFileParser
 from .test import Test
@@ -47,6 +47,16 @@ class TestParser(BaseMultiFileParser):
         super().__init__(directory_path)
         self.test_template_mapping: Dict[str, TestTemplate] = test_template_mapping
 
+    def _extract_name_keyword(self, name: Optional[str]) -> Optional[str]:
+        if name is None:
+            return None
+        lower_name = name.lower()
+        if "grok" in lower_name:
+            return "Grok"
+        elif "gpt" in lower_name:
+            return "GPT"
+        return None
+
     def _parse_data(self, data: Dict[str, Any]) -> Test:
         """
         Parse data for a Test object.
@@ -57,6 +67,7 @@ class TestParser(BaseMultiFileParser):
         Returns:
             Test: Parsed Test object.
         """
+        test_name = self._extract_name_keyword(data.get("name"))
         test_template_name = data.get("test_template_name", "")
         test_template = self.test_template_mapping.get(test_template_name)
 
@@ -76,10 +87,13 @@ class TestParser(BaseMultiFileParser):
         extra_cmd_args = data.get("extra_cmd_args", "")
 
         flattened_template_cmd_args = self._flatten_template_dict_keys(test_template.cmd_args)
-        self._validate_args(cmd_args, flattened_template_cmd_args)
+
+        # Ensure test_name is not None by providing a default value if necessary
+        test_name_str = test_name if test_name is not None else ""
+        self._validate_args(cmd_args, flattened_template_cmd_args, test_name_str)
 
         flattened_template_env_vars = self._flatten_template_dict_keys(test_template.env_vars)
-        self._validate_args(env_vars, flattened_template_env_vars)
+        self._validate_args(env_vars, flattened_template_env_vars, test_name_str)
 
         return Test(
             name=data.get("name", ""),
@@ -133,17 +147,32 @@ class TestParser(BaseMultiFileParser):
 
         return keys
 
-    def _validate_args(self, args: Dict[str, Any], valid_keys: Set[str]) -> None:
+    def _validate_args(self, args: Dict[str, Any], valid_keys: Set[str], test_name: str) -> None:
         """
         Validate the provided arguments against a set of valid keys.
 
         Args:
             args (Dict[str, Any]): Arguments provided in the TOML configuration.
             valid_keys (Set[str]): Set of valid keys from the flattened template arguments.
+            test_name (str): The name of the test for which arguments are being validated.
 
         Raises:
             ValueError: If an argument is not defined in the TestTemplate's arguments.
         """
         for arg_key in args:
-            if arg_key not in valid_keys:
-                raise ValueError(f"Argument '{arg_key}' is not defined in the TestTemplate's arguments.")
+            # Check if the arg_key directly exists in valid_keys
+            if arg_key in valid_keys:
+                continue
+
+            # Check if arg_key with test_name prefix exists in valid_keys
+            test_specific_key = f"{test_name}.{arg_key}"
+            if test_specific_key in valid_keys:
+                continue
+
+            # Check if arg_key with 'common' prefix exists in valid_keys
+            common_key = f"common.{arg_key}"
+            if common_key in valid_keys:
+                continue
+
+            # If none of the conditions above are met, the arg_key is invalid
+            raise ValueError(f"Argument '{arg_key}' is not defined in the TestTemplate's arguments.")

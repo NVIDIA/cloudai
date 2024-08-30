@@ -26,7 +26,7 @@ from cloudai.systems.slurm.slurm_system import SlurmSystem
 class Test_Parser:
     @pytest.fixture()
     def parser(self, tmp_path: Path) -> Parser:
-        system = Path.cwd() / "conf" / "system" / "standalone_system.toml"
+        system = Path.cwd() / "conf" / "common" / "system" / "standalone_system.toml"
         templates_dir = tmp_path / "templates"
         return Parser(system, templates_dir)
 
@@ -67,7 +67,7 @@ class Test_Parser:
         assert len(tests) == 1
 
     def test_parse_system(self, parser: Parser):
-        parser.system_config_path = Path("conf/system/example_slurm_cluster.toml")
+        parser.system_config_path = Path("conf/common/system/example_slurm_cluster.toml")
         system = cast(SlurmSystem, parser.parse_system())
 
         assert len(system.partitions) == 2

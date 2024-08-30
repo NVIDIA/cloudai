@@ -14,15 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "nccl_test_all_reduce"
-description = "all_reduce"
+name = "nccl_test_alltoall_worst"
+description = "alltoall_tested_job"
 test_template_name = "NcclTest"
 extra_cmd_args = "--stepfactor 2"
 
 [cmd_args]
-"subtest_name" = "all_reduce_perf_mpi"
-minbytes = "1K"
+subtest_name = "alltoall_perf_mpi"
+minbytes = "1k"
 maxbytes = "16G"
 stepbytes = "0"
+iters = "60"
 check = "0"
-warmup_iters ="20"
+warmup_iters = "40"

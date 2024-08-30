@@ -13,9 +13,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import os
 import re
+from pathlib import Path
 from typing import List, Optional
 
 import pandas as pd
@@ -32,20 +31,20 @@ class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
     Visualizing bus bandwidth changes over epochs using interactive Bokeh plots.
     """
 
-    def can_handle_directory(self, directory_path: str) -> bool:
-        stdout_path = os.path.join(directory_path, "stdout.txt")
-        if os.path.exists(stdout_path):
-            with open(stdout_path, "r") as file:
+    def can_handle_directory(self, directory_path: Path) -> bool:
+        stdout_path = directory_path / "stdout.txt"
+        if stdout_path.exists():
+            with stdout_path.open("r") as file:
                 content = file.read()
                 if re.search(r"\b(avg\s+min\s+max\s+avg\s+max\s+min)\b", content):
                     return True
         return False
 
-    def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
+    def generate_report(self, test_name: str, directory_path: Path, sol: Optional[float] = None) -> None:
         report_data = []
-        stdout_path = os.path.join(directory_path, "stdout.txt")
-        if os.path.isfile(stdout_path):
-            with open(stdout_path, "r") as file:
+        stdout_path = directory_path / "stdout.txt"
+        if stdout_path.is_file():
+            with stdout_path.open("r") as file:
                 content = file.read()
                 report_data = self._parse_output(content)
 
@@ -84,27 +83,26 @@ class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
                 data.append(values)
         return data
 
-    def _generate_plots(self, df: pd.DataFrame, directory_path: str, sol: Optional[float]) -> None:
+    def _generate_plots(self, df: pd.DataFrame, directory_path: Path, sol: Optional[float]) -> None:
         """
         Create and saves plots to visualize UCC test metrics.
 
         Args:
             df (pd.DataFrame): DataFrame containing the NCCL test data.
-            directory_path (str): Output directory path for saving the plots.
+            directory_path (Path): Output directory path for saving the plots.
             sol (Optional[float]): Speed-of-light performance for reference.
         """
         report_tool = BokehReportTool(directory_path)
         line_plots = [("Bandwidth (GB/s) avg", "black", "Average Bandwidth")]
         for col_name, color, title in line_plots:
-            report_tool.add_log_x_linear_y_single_line_plot(
+            report_tool.add_log_x_linear_y_multi_line_plot(
                 title=title,
                 x_column="Size (B)",
-                y_column=col_name,
+                y_columns=[(col_name, color)],
                 x_axis_label="Message Size",
                 y_axis_label="Bandwidth (GB/s)",
                 df=df,
                 sol=sol,
-                color=color,
             )
 
         combined_columns = [
@@ -122,4 +120,4 @@ class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
             sol=sol,
         )
 
-        report_tool.finalize_report("cloudai_ucc_test_bokeh_report.html")
+        report_tool.finalize_report(Path("cloudai_ucc_test_bokeh_report.html"))

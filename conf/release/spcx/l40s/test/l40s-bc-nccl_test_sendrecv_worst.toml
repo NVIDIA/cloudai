@@ -13,13 +13,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from pathlib import Path
 
-from cloudai import GradingStrategy
+name = "nccl_test_sendrecv_worst"
+description = "sendrecv"
+test_template_name = "NcclTest"
+extra_cmd_args = "--stepfactor 2"
 
-
-class JaxToolboxGradingStrategy(GradingStrategy):
-    """Performance grading strategy for JaxToolbox test templates on Slurm systems."""
-
-    def grade(self, directory_path: Path, ideal_perf: float) -> float:
-        return 0.0
+[cmd_args]
+subtest_name = "sendrecv_perf_mpi"
+minbytes = "1K"
+maxbytes = "16G"
+stepbytes = "0"
+iters = "60"
+check = "0"
+warmup_iters = "40"

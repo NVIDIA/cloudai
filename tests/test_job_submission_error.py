@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import subprocess
+from pathlib import Path
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -58,11 +59,11 @@ class MockTest(Test):
 
 
 @pytest.fixture
-def slurm_system(tmpdir):
+def slurm_system(tmp_path: Path):
     system = SlurmSystem(
         name="test_system",
-        install_path=str(tmpdir),
-        output_path=str(tmpdir),
+        install_path=tmp_path,
+        output_path=tmp_path,
         default_partition="main",
         partitions=[SlurmPartition(name="main", nodes=["nodeA001", "nodeB001"])],
     )
