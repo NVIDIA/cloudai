@@ -21,7 +21,6 @@ from unittest.mock import Mock, patch
 import pytest
 from cloudai import Parser
 from cloudai.systems.slurm.slurm_system import SlurmSystem
-from pydantic import ValidationError
 from pydantic_core import ErrorDetails
 
 
