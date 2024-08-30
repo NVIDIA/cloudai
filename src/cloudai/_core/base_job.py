@@ -14,6 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
+from typing import Union
+
+from .system import System
 from .test_scenario import TestRun
 
 
@@ -22,32 +26,55 @@ class BaseJob:
     Base class for representing a job created by executing a test.
 
     Attributes
-        id (int): The unique identifier of the job.
-        test (Test): The test instance associated with this job.
-        output_path (str): The path where the job's output is stored.
+        id (Union[str, int]): The unique identifier of the job.
+        mode (str): The mode of the job (e.g., 'run', 'dry-run').
+        system (System): The system in which the job is running.
+        test_run (TestRun): The TestRun instance associated with this job.
+        output_path (Path): The path where the job's output is stored.
         terminated_by_dependency (bool): Flag to indicate if the job was terminated due to a dependency.
     """
 
-    def __init__(self, job_id: int, tr: TestRun, output_path: str):
+    def __init__(self, mode: str, system: System, test_run: TestRun, output_path: Path):
         """
         Initialize a BaseJob instance.
 
         Args:
-            job_id (int): The unique identifier of the job.
-            output_path (str): The path where the job's output is stored.
-            tr (TestRun): The test run instance associated with this job.
+            mode (str): The mode of the job (e.g., 'run', 'dry-run').
+            system (System): The system in which the job is running.
+            test_run (TestRun): The TestRun instance associated with this job.
+            output_path (Path): The path where the job's output is stored.
         """
-        self.id = job_id
-        self.test_run = tr
-        self.output_path = output_path
-        self.terminated_by_dependency = False
+        self.id: Union[str, int] = 0
+        self.mode: str = mode
+        self.system: System = system
+        self.test_run: TestRun = test_run
+        self.output_path: Path = output_path
+        self.terminated_by_dependency: bool = False
+
+    def is_running(self) -> bool:
+        """
+        Check if the specified job is currently running.
+
+        Returns
+            bool: True if the job is running, False otherwise.
+        """
+        if self.mode == "dry-run":
+            return True
+        return self.system.is_job_running(self)
+
+    def is_completed(self) -> bool:
+        """
+        Check if a job is completed.
+
+        Returns
+            bool: True if the job is completed, False otherwise.
+        """
+        if self.mode == "dry-run":
+            return True
+        return self.system.is_job_completed(self)
 
     def increment_iteration(self):
-        """
-        Increment the iteration count of the associated test.
-
-        This method should be called when the job completes an iteration and is ready to proceed to the next one.
-        """
+        """Increment the iteration count of the associated test."""
         self.test_run.test.current_iteration += 1
 
     def __repr__(self) -> str:
@@ -57,7 +84,4 @@ class BaseJob:
         Returns
             str: String representation of the job.
         """
-        return (
-            f"BaseJob(id={self.id}, test={self.test_run.test.name}, "
-            f"terminated_by_dependency={self.terminated_by_dependency})"
-        )
+        return f"BaseJob(id={self.id}, mode={self.mode}, system={self.system.name}, test={self.test_run.test.name})"

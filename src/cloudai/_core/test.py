@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import sys
+from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from .job_status_result import JobStatusResult
@@ -113,7 +114,7 @@ class Test:
         )
 
     def gen_exec_command(
-        self, output_path: str, time_limit: Optional[str] = None, num_nodes: int = 1, nodes: Optional[List[str]] = None
+        self, output_path: Path, time_limit: Optional[str] = None, num_nodes: int = 1, nodes: Optional[List[str]] = None
     ) -> str:
         """
         Generate the command to run this specific test.
@@ -155,12 +156,12 @@ class Test:
         """
         return self.test_template.get_job_id(stdout, stderr)
 
-    def get_job_status(self, output_path: str) -> JobStatusResult:
+    def get_job_status(self, output_path: Path) -> JobStatusResult:
         """
         Determine the status of a job based on the outputs located in the given output directory.
 
         Args:
-            output_path (str): Path to the output directory.
+            output_path (Path): Path to the output directory.
 
         Returns:
             JobStatusResult: The result containing the job status and an optional error message.

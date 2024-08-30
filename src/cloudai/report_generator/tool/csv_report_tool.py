@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
+from pathlib import Path
 
 import pandas as pd
 
@@ -26,11 +26,11 @@ class CSVReportTool(ReportToolInterface):
     Tool for creating CSV reports.
 
     Attributes
-        output_directory (str): Directory to save the generated reports.
+        output_directory (Path): Directory to save the generated reports.
         dataframe (pd.DataFrame): DataFrame containing the data to be saved.
     """
 
-    def __init__(self, output_directory: str):
+    def __init__(self, output_directory: Path):
         self.output_directory = output_directory
         self.dataframe = None
 
@@ -43,16 +43,16 @@ class CSVReportTool(ReportToolInterface):
         """
         self.dataframe = df
 
-    def finalize_report(self, output_filename: str):
+    def finalize_report(self, output_filename: Path):
         """
         Save the DataFrame to a CSV file.
 
         Args:
-            output_filename (str): The filename to save the final report.
+            output_filename (Path): The filename to save the final report.
         """
         if self.dataframe is None:
             raise ValueError("No DataFrame has been set for the report.")
 
-        output_filepath = os.path.join(self.output_directory, output_filename)
+        output_filepath = self.output_directory / output_filename
         self.dataframe.to_csv(output_filepath, index=False)
         self.dataframe = None

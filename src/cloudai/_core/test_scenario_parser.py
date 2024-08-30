@@ -131,8 +131,23 @@ class TestScenarioParser:
                 f"reference from the test scenario schema."
             )
 
-        test = copy.deepcopy(self.test_mapping[test_name])
-        test.test_template = self.test_mapping[test_name].test_template
+        original_test = self.test_mapping[test_name]
+
+        test = Test(
+            name=original_test.name,
+            description=original_test.description,
+            test_template=original_test.test_template,
+            env_vars=copy.deepcopy(original_test.env_vars),
+            cmd_args=copy.deepcopy(original_test.cmd_args),
+            extra_env_vars=copy.deepcopy(original_test.extra_env_vars),
+            extra_cmd_args=original_test.extra_cmd_args,
+            dependencies=copy.deepcopy(original_test.dependencies),
+            iterations=original_test.iterations,
+            sol=original_test.sol,
+            weight=original_test.weight,
+            ideal_perf=original_test.ideal_perf,
+        )
+
         test.section_name = section
         tr = TestRun(
             test,
