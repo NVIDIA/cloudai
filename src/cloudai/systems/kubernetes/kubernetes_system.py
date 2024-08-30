@@ -234,6 +234,10 @@ class KubernetesSystem(System):
 
             conditions = k8s_job.status.conditions or []
 
+            # Consider an empty conditions list as running
+            if not conditions:
+                return True
+
             for condition in conditions:
                 if condition.type == "Complete" and condition.status == "True":
                     return False
