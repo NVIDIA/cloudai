@@ -106,8 +106,8 @@ class Test_Parser:
                 "Field 'field': Field required",
             ),
             (
-                ErrorDetails(type="value_error", loc=("field",), msg="Invalid field", input="value"),
-                "Field 'field' with value 'value' is invalid: Invalid field",
+                ErrorDetails(type="value_error", loc=("field", "subf"), msg="Invalid field", input="value"),
+                "Field 'field.subf' with value 'value' is invalid: Invalid field",
             ),
         ],
     )
