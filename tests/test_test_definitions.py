@@ -20,15 +20,39 @@ import pytest
 import toml
 from cloudai import Registry, TestParser
 from cloudai._core.test import TestDefinition
+from cloudai.test_definitions.test_definitions import NCCLTestDefinition
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
 ALL_TESTS = [t for t in TOML_FILES if "test_template_name" in t.read_text()]
 
 
-# ids should be the value of "expected"
-@pytest.mark.parametrize("input,expected", [({"-a": "1"}, "-a=1"), ({"-a": ""}, "-a")])
+@pytest.mark.parametrize(
+    "input,expected",
+    [
+        ({"-a": "1"}, "-a=1"),
+        ({"-a": ""}, "-a"),
+        ({"-a": "1", "-b": "2"}, "-a=1 -b=2"),
+        ({"-a": "1", "-b": "2", "-c": ""}, "-a=1 -b=2 -c"),
+    ],
+)
 def test_extra_args_str(input: dict, expected: str):
     t = TestDefinition(name="test", description="test", test_template_name="test", cmd_args={}, extra_cmd_args=input)
+    assert t.extra_args_str() == expected
+
+
+@pytest.mark.parametrize(
+    "input,expected",
+    [
+        ({"-a": "1"}, "-a 1"),
+        ({"-a": ""}, "-a"),
+        ({"-a": "1", "-b": "2"}, "-a 1 -b 2"),
+        ({"-a": "1", "-b": "2", "-c": ""}, "-a 1 -b 2 -c"),
+    ],
+)
+def test_extra_args_str_nccl(input: dict, expected: str):
+    t = NCCLTestDefinition(
+        name="test", description="test", test_template_name="test", cmd_args={}, extra_cmd_args=input
+    )
     assert t.extra_args_str() == expected
 
 

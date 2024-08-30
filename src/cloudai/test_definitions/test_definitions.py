@@ -93,6 +93,12 @@ class NCCLTestDefinition(TestDefinition):
 
     cmd_args: NCCLCmdArgs
 
+    def extra_args_str(self) -> str:
+        parts = []
+        for k, v in self.extra_cmd_args.items():
+            parts.append(f"{k} {v}" if v else k)
+        return " ".join(parts)
+
 
 class ChakraReplayCmdArgs(CmdArgs):
     """ChakraReplay test command arguments."""
