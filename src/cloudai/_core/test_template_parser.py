@@ -19,10 +19,10 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Type, Union, cast
 
 from .base_multi_file_parser import BaseMultiFileParser
-from .command_gen_strategy import CommandGenStrategy
 from .grading_strategy import GradingStrategy
 from .install_strategy import InstallStrategy
 from .job_id_retrieval_strategy import JobIdRetrievalStrategy
+from .job_spec_gen_strategy import JobSpecGenStrategy
 from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from .registry import Registry
 from .report_generation_strategy import ReportGenerationStrategy
@@ -123,9 +123,9 @@ class TestTemplateParser(BaseMultiFileParser):
         obj.install_strategy = cast(
             InstallStrategy, self._fetch_strategy(InstallStrategy, type(obj.system), type(obj), env_vars, cmd_args)
         )
-        obj.command_gen_strategy = cast(
-            CommandGenStrategy,
-            self._fetch_strategy(CommandGenStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+        obj.job_spec_gen_strategy = cast(
+            JobSpecGenStrategy,
+            self._fetch_strategy(JobSpecGenStrategy, type(obj.system), type(obj), env_vars, cmd_args),
         )
         obj.job_id_retrieval_strategy = cast(
             JobIdRetrievalStrategy,

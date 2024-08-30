@@ -19,12 +19,12 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from cloudai.systems import SlurmSystem
-from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.systems.slurm.strategy import SlurmJobSpecGenStrategy
 
 from .slurm_install_strategy import JaxToolboxSlurmInstallStrategy
 
 
-class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
+class JaxToolboxSlurmJobSpecGenStrategy(SlurmJobSpecGenStrategy):
     """Command generation strategy for JaxToolbox tests on Slurm systems."""
 
     def __init__(self, system: SlurmSystem, env_vars: Dict[str, Any], cmd_args: Dict[str, Any]) -> None:

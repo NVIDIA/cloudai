@@ -21,7 +21,7 @@ from typing import Dict, List
 from .test_template_strategy import TestTemplateStrategy
 
 
-class CommandGenStrategy(TestTemplateStrategy):
+class JobSpecGenStrategy(TestTemplateStrategy):
     """
     Abstract base class defining the interface for command generation strategies across different system environments.
 

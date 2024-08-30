@@ -17,10 +17,10 @@
 from pathlib import Path
 from typing import Dict, List
 
-from cloudai import CommandGenStrategy
+from cloudai import JobSpecGenStrategy
 
 
-class SleepStandaloneCommandGenStrategy(CommandGenStrategy):
+class SleepStandaloneJobSpecGenStrategy(JobSpecGenStrategy):
     """
     Command generation strategy for the Sleep test on standalone systems.
 
