@@ -56,6 +56,7 @@ class TestParser(BaseMultiFileParser):
         test_template_name = data.get("test_template_name", "")
         registry = Registry()
         if test_template_name not in registry.test_definitions_map:
+            logging.error(f"TestTemplate with name '{test_template_name}' not supported.")
             raise NotImplementedError(f"TestTemplate with name '{test_template_name}' not supported.")
 
         try:

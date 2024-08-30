@@ -203,7 +203,7 @@ class TrainingModel(BaseModel):
 
     @field_validator("pipeline_model_parallel_size")
     def validate_pipeline_model_parallel_size(cls, value):
-        valid_values = {2, 4, 8}
+        valid_values = {1, 2, 4, 8}
         if value not in valid_values:
             raise ValueError(f"pipeline_model_parallel_size must be one of {valid_values}")
         return value
@@ -221,7 +221,7 @@ class Training(BaseModel):
     """Training configuration."""
 
     model_config = ConfigDict(extra="forbid")
-    values: Literal["gpt3/40b_improved", "llama/llama2_70b"] = Field(default="gpt3/40b_improved")
+    values: str = "gpt3/40b_improved"
     exp_manager: ExpManager = Field(default_factory=ExpManager)
     trainer: Trainer = Field(default_factory=Trainer)
     model: TrainingModel = Field(default_factory=TrainingModel)
@@ -253,6 +253,10 @@ class JaxFdl(BaseModel):
     model_config = ConfigDict(extra="forbid")
     num_gpus: int = 64
     num_groups: int = 64
+    max_steps: int = 20
+    num_layers: int = 1
+    num_stages: int = 1
+    num_microbatches: int = 1
     ici_mesh_shape: str = "'[1, 1, 8, 1]'"
     dcn_mesh_shape: str = "'[1, 8, 1, 1]'"
 
@@ -273,6 +277,7 @@ class GrokCmdArgs(JaxToolboxCmdArgs):
     """Grok test command arguments."""
 
     fdl: JaxFdl
+    fdl_config: Optional[str] = None
 
 
 class GrokTestDefinition(JaxToolboxTestDefinition):

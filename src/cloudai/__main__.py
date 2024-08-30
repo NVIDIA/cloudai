@@ -268,11 +268,16 @@ def handle_verify_tests(root: Path) -> int:
             logging.error(f"No test tomls found in {root}")
             return 1
 
+    rc = 0
     for test_toml in test_tomls:
         logging.info(f"Verifying {test_toml}...")
-        TestParser.load_test_definition(toml.load(test_toml))
+        try:
+            TestParser.load_test_definition(toml.load(test_toml))
+        except Exception:
+            rc = 1
+            break
 
-    return 0
+    return rc
 
 
 def main() -> None:
