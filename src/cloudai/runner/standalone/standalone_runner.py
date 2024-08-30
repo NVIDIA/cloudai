@@ -55,7 +55,7 @@ class StandaloneRunner(BaseRunner):
         """
         logging.info(f"Running test: {test.section_name}")
         job_output_path = self.get_job_output_path(test)
-        exec_cmd = test.gen_exec_command(job_output_path)
+        exec_cmd = test.gen_job_spec(job_output_path)
         logging.info(f"Executing command for test {test.section_name}: {exec_cmd}")
         job_id = 0
         if self.mode == "run":

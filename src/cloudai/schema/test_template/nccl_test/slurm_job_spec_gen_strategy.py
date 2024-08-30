@@ -25,7 +25,7 @@ from .slurm_install_strategy import NcclTestSlurmInstallStrategy
 class NcclTestSlurmJobSpecGenStrategy(SlurmJobSpecGenStrategy):
     """Command generation strategy for NCCL tests on Slurm systems."""
 
-    def gen_exec_command(
+    def gen_job_spec(
         self,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],

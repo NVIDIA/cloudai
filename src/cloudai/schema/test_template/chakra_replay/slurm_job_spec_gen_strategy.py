@@ -23,7 +23,7 @@ from cloudai.systems.slurm.strategy import SlurmJobSpecGenStrategy
 class ChakraReplaySlurmJobSpecGenStrategy(SlurmJobSpecGenStrategy):
     """Command generation strategy for ChakraReplay on Slurm systems."""
 
-    def gen_exec_command(
+    def gen_job_spec(
         self,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],

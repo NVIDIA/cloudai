@@ -27,7 +27,7 @@ class SleepStandaloneJobSpecGenStrategy(JobSpecGenStrategy):
     This strategy generates a command to execute a sleep operation with specified duration on standalone systems.
     """
 
-    def gen_exec_command(
+    def gen_job_spec(
         self,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],

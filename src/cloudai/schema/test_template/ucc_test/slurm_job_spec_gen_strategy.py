@@ -26,7 +26,7 @@ from .template import UCCTest
 class UCCTestSlurmJobSpecGenStrategy(SlurmJobSpecGenStrategy):
     """Command generation strategy for UCC tests on Slurm systems."""
 
-    def gen_exec_command(
+    def gen_job_spec(
         self,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],

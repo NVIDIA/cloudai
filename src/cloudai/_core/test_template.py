@@ -122,7 +122,7 @@ class TestTemplate:
 
         return InstallStatusResult(success=True)
 
-    def gen_exec_command(
+    def gen_job_spec(
         self,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
@@ -156,7 +156,7 @@ class TestTemplate:
                 "job_spec_gen_strategy is missing. Ensure the strategy is registered in the Registry "
                 "by calling the appropriate registration function for the system type."
             )
-        return self.job_spec_gen_strategy.gen_exec_command(
+        return self.job_spec_gen_strategy.gen_job_spec(
             env_vars,
             cmd_args,
             extra_env_vars,

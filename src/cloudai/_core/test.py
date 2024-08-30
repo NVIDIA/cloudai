@@ -127,7 +127,7 @@ class Test:
             f"nodes={self.nodes})"
         )
 
-    def gen_exec_command(self, output_path: Path) -> str:
+    def gen_job_spec(self, output_path: Path) -> str:
         """
         Generate the command to run this specific test.
 
@@ -140,7 +140,7 @@ class Test:
         if self.time_limit is not None:
             self.cmd_args["time_limit"] = self.time_limit
 
-        return self.test_template.gen_exec_command(
+        return self.test_template.gen_job_spec(
             self.env_vars,
             self.cmd_args,
             self.extra_env_vars,

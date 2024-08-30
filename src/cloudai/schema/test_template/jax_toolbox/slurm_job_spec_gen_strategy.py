@@ -31,7 +31,7 @@ class JaxToolboxSlurmJobSpecGenStrategy(SlurmJobSpecGenStrategy):
         super().__init__(system, env_vars, cmd_args)
         self.test_name = ""
 
-    def gen_exec_command(
+    def gen_job_spec(
         self,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],

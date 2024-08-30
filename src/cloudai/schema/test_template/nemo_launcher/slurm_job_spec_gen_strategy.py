@@ -30,7 +30,7 @@ class NeMoLauncherSlurmJobSpecGenStrategy(SlurmJobSpecGenStrategy):
         install_path (Path): The installation path of CloudAI.
     """
 
-    def gen_exec_command(
+    def gen_job_spec(
         self,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],

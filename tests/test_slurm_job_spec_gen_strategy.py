@@ -367,7 +367,7 @@ class TestNeMoLauncherSlurmJobSpecGenStrategy__GenExecCommand:
             "repository_url": "fake",
             "repository_commit_hash": "fake",
         }
-        cmd = nemo_cmd_gen.gen_exec_command(
+        cmd = nemo_cmd_gen.gen_job_spec(
             env_vars={},
             cmd_args=cmd_args,
             extra_env_vars=extra_env_vars,
@@ -387,7 +387,7 @@ class TestNeMoLauncherSlurmJobSpecGenStrategy__GenExecCommand:
             "repository_url": "fake",
             "repository_commit_hash": "fake",
         }
-        cmd = nemo_cmd_gen.gen_exec_command(
+        cmd = nemo_cmd_gen.gen_job_spec(
             env_vars={},
             cmd_args=cmd_args,
             extra_env_vars=extra_env_vars,
@@ -409,7 +409,7 @@ class TestNeMoLauncherSlurmJobSpecGenStrategy__GenExecCommand:
         tokenizer_path = tmp_path / "tokenizer"
         tokenizer_path.touch()
 
-        cmd = nemo_cmd_gen.gen_exec_command(
+        cmd = nemo_cmd_gen.gen_job_spec(
             env_vars={},
             cmd_args=cmd_args,
             extra_env_vars=extra_env_vars,
@@ -429,7 +429,7 @@ class TestNeMoLauncherSlurmJobSpecGenStrategy__GenExecCommand:
             "repository_commit_hash": "fake",
         }
         nemo_cmd_gen.slurm_system.extra_srun_args = "--reservation my-reservation"
-        cmd = nemo_cmd_gen.gen_exec_command(
+        cmd = nemo_cmd_gen.gen_job_spec(
             env_vars={},
             cmd_args=cmd_args,
             extra_cmd_args="",
@@ -458,7 +458,7 @@ class TestNeMoLauncherSlurmJobSpecGenStrategy__GenExecCommand:
                 r"USER_GUIDE.md to download the tokenizer and update the schema file accordingly."
             ),
         ):
-            nemo_cmd_gen.gen_exec_command(
+            nemo_cmd_gen.gen_job_spec(
                 env_vars={},
                 cmd_args=cmd_args,
                 extra_env_vars=extra_env_vars,
