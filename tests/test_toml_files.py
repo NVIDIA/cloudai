@@ -35,7 +35,7 @@ def test_toml_files(toml_file: Path):
         assert toml.load(f) is not None
 
 
-ALL_SYSTEMS = list(Path("conf/common/system").glob("*.toml"))
+ALL_SYSTEMS = [p for p in Path("conf/").glob("**/*.toml") if "scheduler =" in p.read_text()]
 
 
 @pytest.mark.parametrize("system_file", ALL_SYSTEMS, ids=lambda x: str(x))
