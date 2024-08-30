@@ -22,6 +22,7 @@ from ._core.exceptions import JobIdRetrievalError
 from ._core.grader import Grader
 from ._core.grading_strategy import GradingStrategy
 from ._core.install_strategy import InstallStrategy
+from ._core.job_context import JobContext
 from ._core.job_id_retrieval_strategy import JobIdRetrievalStrategy
 from ._core.job_spec_gen_strategy import JobSpecGenStrategy
 from ._core.job_status_result import JobStatusResult
@@ -157,6 +158,7 @@ __all__ = [
     "Installer",
     "InstallStatusResult",
     "InstallStrategy",
+    "JobContext",
     "JobIdRetrievalError",
     "JobStatusResult",
     "Parser",

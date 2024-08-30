@@ -15,43 +15,29 @@
 # limitations under the License.
 
 from abc import abstractmethod
-from pathlib import Path
-from typing import Dict, List
+from typing import Any
 
+from .job_context import JobContext
 from .test_template_strategy import TestTemplateStrategy
 
 
 class JobSpecGenStrategy(TestTemplateStrategy):
     """
-    Abstract base class defining the interface for command generation strategies across different system environments.
+    Abstract base class defining the interface for job specification generation strategies.
 
-    It specifies how to generate execution commands based on system and test parameters.
+    It specifies how to generate job specifications based on system and test parameters.
     """
 
     @abstractmethod
-    def gen_job_spec(
-        self,
-        env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
-        extra_env_vars: Dict[str, str],
-        extra_cmd_args: str,
-        output_path: Path,
-        num_nodes: int,
-        nodes: List[str],
-    ) -> str:
+    def gen_job_spec(self, context: JobContext) -> Any:
         """
-        Generate the execution command for a test based on the given parameters.
+        Generate the job specification for a test based on the given context.
 
         Args:
-            env_vars (Dict[str, str]): Environment variables for the test.
-            cmd_args (Dict[str, str]): Command-line arguments for the test.
-            extra_env_vars (Dict[str, str]): Additional environment variables.
-            extra_cmd_args (str): Additional command-line arguments.
-            output_path (Path): Path to the output directory.
-            num_nodes (int): The number of nodes to be used for the test execution.
-            nodes (List[str]): List of nodes for test execution, optional.
+            context (JobContext): The context containing all necessary parameters.
 
         Returns:
-            str: The generated execution command.
+            Any: The generated job specification, which could be a command string,
+                a JSON object, or other format suitable for the system environment.
         """
         pass

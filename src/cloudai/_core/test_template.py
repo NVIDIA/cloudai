@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional
 from .grading_strategy import GradingStrategy
 from .install_status_result import InstallStatusResult
 from .install_strategy import InstallStrategy
+from .job_context import JobContext
 from .job_id_retrieval_strategy import JobIdRetrievalStrategy
 from .job_spec_gen_strategy import JobSpecGenStrategy
 from .job_status_result import JobStatusResult
@@ -157,13 +158,7 @@ class TestTemplate:
                 "by calling the appropriate registration function for the system type."
             )
         return self.job_spec_gen_strategy.gen_job_spec(
-            env_vars,
-            cmd_args,
-            extra_env_vars,
-            extra_cmd_args,
-            output_path,
-            num_nodes,
-            nodes,
+            JobContext(env_vars, cmd_args, extra_env_vars, extra_cmd_args, output_path, num_nodes, nodes)
         )
 
     def get_job_id(self, stdout: str, stderr: str) -> Optional[int]:

@@ -17,6 +17,7 @@
 from pathlib import Path
 from typing import Any, Dict, List
 
+from cloudai import JobContext
 from cloudai.systems.slurm.strategy import SlurmJobSpecGenStrategy
 
 from .slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
@@ -30,16 +31,7 @@ class NeMoLauncherSlurmJobSpecGenStrategy(SlurmJobSpecGenStrategy):
         install_path (Path): The installation path of CloudAI.
     """
 
-    def gen_job_spec(
-        self,
-        env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
-        extra_env_vars: Dict[str, str],
-        extra_cmd_args: str,
-        output_path: Path,
-        num_nodes: int,
-        nodes: List[str],
-    ) -> str:
+    def gen_job_spec(self, context: JobContext) -> str:
         final_env_vars = self._override_env_vars(self.default_env_vars, env_vars)
         final_env_vars = self._override_env_vars(final_env_vars, extra_env_vars)
 
