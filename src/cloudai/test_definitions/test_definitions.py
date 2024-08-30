@@ -257,6 +257,9 @@ class JaxFdl(BaseModel):
     num_layers: int = 1
     num_stages: int = 1
     num_microbatches: int = 1
+    use_repeated_layer: bool = False
+    percore_batch_size: int = 1
+    checkpoint_policy: str = "save_nothing"
     ici_mesh_shape: str = "'[1, 1, 8, 1]'"
     dcn_mesh_shape: str = "'[1, 8, 1, 1]'"
 
@@ -289,7 +292,6 @@ class GrokTestDefinition(JaxToolboxTestDefinition):
 class GPTFdl(JaxFdl):
     """GPT FDL configuration."""
 
-    use_repeated_layer: bool = False
     checkpoint_policy: str = "save_nothing"
 
 
