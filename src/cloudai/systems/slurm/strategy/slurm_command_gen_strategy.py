@@ -43,6 +43,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         """
         super().__init__(system, env_vars, cmd_args)
         self.slurm_system = system
+        if not self.slurm_system.default_partition:
+            raise ValueError("Partition not specified in the system configuration.")
+
         self.install_path = self.slurm_system.install_path
 
         self.docker_image_cache_manager = DockerImageCacheManager(
@@ -97,14 +100,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         Raises:
             KeyError: If partition or essential node settings are missing.
         """
-        account = self.slurm_system.account
-        if account is None:
-            job_name = f"{job_name_prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        else:
-            job_name = f"{account}-{job_name_prefix}.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        partition = self.slurm_system.default_partition
-        if not partition:
-            raise KeyError("Partition not specified in the system configuration.")
+        job_name = self.job_name(job_name_prefix)
 
         parsed_nodes = self.slurm_system.parse_nodes(nodes)
         num_nodes = len(parsed_nodes) if parsed_nodes else num_nodes
@@ -112,23 +108,19 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         slurm_args = {
             "job_name": job_name,
-            "partition": partition,
             "num_nodes": num_nodes,
             "node_list_str": node_list_str,
         }
-
-        if self.slurm_system.account:
-            slurm_args["account"] = self.slurm_system.account
-        if self.slurm_system.distribution:
-            slurm_args["distribution"] = self.slurm_system.distribution
-        if self.slurm_system.gpus_per_node:
-            slurm_args["gpus_per_node"] = self.slurm_system.gpus_per_node
-        if self.slurm_system.ntasks_per_node:
-            slurm_args["ntasks_per_node"] = self.slurm_system.ntasks_per_node
         if "time_limit" in cmd_args:
             slurm_args["time_limit"] = cmd_args["time_limit"]
 
         return slurm_args
+
+    def job_name(self, job_name_prefix: str) -> str:
+        job_name = f"{job_name_prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        if self.slurm_system.account:
+            job_name = f"{self.slurm_system.account}-{job_name_prefix}.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        return job_name
 
     def generate_full_srun_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
@@ -221,21 +213,18 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             batch_script_content.append(f"#SBATCH --output={output_path / 'stdout.txt'}")
         if "error" not in args:
             batch_script_content.append(f"#SBATCH --error={output_path / 'stderr.txt'}")
-        if args["partition"]:
-            batch_script_content.append(f"#SBATCH --partition={args['partition']}")
+        batch_script_content.append(f"#SBATCH --partition={self.slurm_system.default_partition}")
         if args["node_list_str"]:
             batch_script_content.append(f"#SBATCH --nodelist={args['node_list_str']}")
-        if "account" in args:
-            batch_script_content.append(f"#SBATCH --account={args['account']}")
-        if "distribution" in args:
-            batch_script_content.append(f"#SBATCH --distribution={args['distribution']}")
-
-        gpus_per_node = args.get("gpus_per_node")
-        if gpus_per_node:
-            batch_script_content.append(f"#SBATCH --gpus-per-node={gpus_per_node}")
-            batch_script_content.append(f"#SBATCH --gres=gpu:{gpus_per_node}")
-        if "ntasks_per_node" in args:
-            batch_script_content.append(f"#SBATCH --ntasks-per-node={args['ntasks_per_node']}")
+        if self.slurm_system.account:
+            batch_script_content.append(f"#SBATCH --account={self.slurm_system.account}")
+        if self.slurm_system.distribution:
+            batch_script_content.append(f"#SBATCH --distribution={self.slurm_system.distribution}")
+        if self.slurm_system.gpus_per_node:
+            batch_script_content.append(f"#SBATCH --gpus-per-node={self.slurm_system.gpus_per_node}")
+            batch_script_content.append(f"#SBATCH --gres=gpu:{self.slurm_system.gpus_per_node}")
+        if self.slurm_system.ntasks_per_node:
+            batch_script_content.append(f"#SBATCH --ntasks-per-node={self.slurm_system.ntasks_per_node}")
         if "time_limit" in args:
             batch_script_content.append(f"#SBATCH --time={args['time_limit']}")
 

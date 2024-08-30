@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Union
 
 from .system import System
-from .test import Test
+from .test_scenario import TestRun
 
 
 class BaseJob:
@@ -29,25 +29,25 @@ class BaseJob:
         id (Union[str, int]): The unique identifier of the job.
         mode (str): The mode of the job (e.g., 'run', 'dry-run').
         system (System): The system in which the job is running.
-        test (Test): The test instance associated with this job.
+        test_run (TestRun): The TestRun instance associated with this job.
         output_path (Path): The path where the job's output is stored.
         terminated_by_dependency (bool): Flag to indicate if the job was terminated due to a dependency.
     """
 
-    def __init__(self, mode: str, system: System, test: Test, output_path: Path):
+    def __init__(self, mode: str, system: System, test_run: TestRun, output_path: Path):
         """
         Initialize a BaseJob instance.
 
         Args:
             mode (str): The mode of the job (e.g., 'run', 'dry-run').
             system (System): The system in which the job is running.
-            test (Test): The test instance associated with the job.
+            test_run (TestRun): The TestRun instance associated with this job.
             output_path (Path): The path where the job's output is stored.
         """
         self.id: Union[str, int] = 0
         self.mode: str = mode
         self.system: System = system
-        self.test: Test = test
+        self.test_run: TestRun = test_run
         self.output_path: Path = output_path
         self.terminated_by_dependency: bool = False
 
@@ -75,7 +75,7 @@ class BaseJob:
 
     def increment_iteration(self):
         """Increment the iteration count of the associated test."""
-        self.test.current_iteration += 1
+        self.test_run.test.current_iteration += 1
 
     def __repr__(self) -> str:
         """
@@ -84,4 +84,4 @@ class BaseJob:
         Returns
             str: String representation of the job.
         """
-        return f"BaseJob(id={self.id}, mode={self.mode}, system={self.system.name}, test={self.test.name})"
+        return f"BaseJob(id={self.id}, mode={self.mode}, system={self.system.name}, test={self.test_run.test.name})"
