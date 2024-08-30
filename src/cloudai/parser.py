@@ -20,6 +20,7 @@ from typing import List, Optional, Tuple
 
 import toml
 from pydantic import ValidationError
+from pydantic_core import ErrorDetails
 
 from cloudai import (
     Registry,
@@ -34,16 +35,7 @@ from cloudai import (
 
 
 class Parser:
-    """
-    Main parser for parsing all types of configurations.
-
-    Attributes
-        system_config_path (str): The file path for system configurations.
-        test_template_path (str): The file path for test template configurations.
-        test_path (str): The file path for test configurations.
-        test_scenario_path (str): The file path for test scenario configurations.
-        logger (logging.Logger): Logger for the parser.
-    """
+    """Main parser for parsing all types of configurations."""
 
     def __init__(self, system_config_path: Path, test_templates_dir: Path) -> None:
         """
@@ -110,18 +102,17 @@ class Parser:
         try:
             system = registry.systems_map[scheduler](**data)
         except ValidationError as e:
-            Parser.log_validation_errors(e)
+            for err in e.errors(include_url=False):
+                err_msg = Parser.format_validation_error(err)
+                logging.error(err_msg)
             raise ValueError("Failed to parse system definition") from e
 
         return system
 
     @staticmethod
-    def log_validation_errors(e: ValidationError) -> None:
-        for err in e.errors(include_url=False):
-            if err["msg"] == "Field required":
-                logging.error(f"Field '{'.'.join(str(v) for v in err['loc'])}': {err['msg']}")
-            else:
-                logging.error(
-                    f"Field '{'.'.join(str(v) for v in err['loc'])}' with value"
-                    f" '{err['input']}' is invalid: {err['msg']}"
-                )
+    def format_validation_error(err: ErrorDetails) -> str:
+        logging.error(f"Validation error: {err}")
+        if err["msg"] == "Field required":
+            return f"Field '{'.'.join(str(v) for v in err['loc'])}': {err['msg']}"
+
+        return f"Field '{'.'.join(str(v) for v in err['loc'])}' with value '{err['input']}' is invalid: {err['msg']}"

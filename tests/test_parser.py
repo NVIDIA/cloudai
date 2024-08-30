@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 from pathlib import Path
 from typing import cast
 from unittest.mock import Mock, patch
@@ -23,6 +22,7 @@ import pytest
 from cloudai import Parser
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from pydantic import ValidationError
+from pydantic_core import ErrorDetails
 
 
 class Test_Parser:
@@ -70,7 +70,7 @@ class Test_Parser:
 
     def test_parse_system(self, parser: Parser):
         parser.system_config_path = Path("conf/common/system/example_slurm_cluster.toml")
-        system = cast(SlurmSystem, parser.parse_system())
+        system = cast(SlurmSystem, parser.parse_system(parser.system_config_path))
 
         assert len(system.partitions) == 2
         names = [partition.name for partition in system.partitions]
@@ -99,14 +99,19 @@ class Test_Parser:
         assert len(system.groups["partition_1"]["group_3"]) == 25
         assert len(system.groups["partition_1"]["group_4"]) == 25
 
-    def test_log_validation_errors_with_required_field_error(self, capsys):
-        error = ValidationError([{"loc": ["field"], "msg": "Field required"}])
-        Parser.log_validation_errors(error)
-        captured = capsys.readouterr()
-        assert "Field 'field': Field required" in captured.err
-
-    def test_log_validation_errors_with_invalid_field_error(self, capsys):
-        error = ValidationError([{"loc": ["field"], "msg": "Invalid field", "input": "value"}])
-        Parser.log_validation_errors(error)
-        captured = capsys.readouterr()
-        assert "Field 'field' with value 'value' is invalid: Invalid field" in captured.err
+    @pytest.mark.parametrize(
+        "error, expected_msg",
+        [
+            (
+                ErrorDetails(type="missing", loc=("field",), msg="Field required", input=None),
+                "Field 'field': Field required",
+            ),
+            (
+                ErrorDetails(type="value_error", loc=("field",), msg="Invalid field", input="value"),
+                "Field 'field' with value 'value' is invalid: Invalid field",
+            ),
+        ],
+    )
+    def test_log_validation_errors_with_required_field_error(self, error: ErrorDetails, expected_msg: str):
+        err_msg = Parser.format_validation_error(error)
+        assert err_msg == expected_msg
