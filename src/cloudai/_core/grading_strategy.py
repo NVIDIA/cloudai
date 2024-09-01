@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from abc import abstractmethod
+from pathlib import Path
 
 from .test_template_strategy import TestTemplateStrategy
 
@@ -23,12 +24,12 @@ class GradingStrategy(TestTemplateStrategy):
     """Abstract class for grading test performance."""
 
     @abstractmethod
-    def grade(self, directory_path: str, ideal_perf: float) -> float:
+    def grade(self, directory_path: Path, ideal_perf: float) -> float:
         """
         Grades the performance of a test.
 
         Args:
-            directory_path (str): Path to the directory containing the test's output.
+            directory_path (Path): Path to the directory containing the test's output.
             ideal_perf (float): The ideal performance value for comparison.
 
         Returns:

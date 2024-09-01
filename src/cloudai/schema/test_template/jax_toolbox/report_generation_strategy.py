@@ -14,10 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import glob
 import logging
-import os
 import statistics
+from pathlib import Path
 from typing import List, Optional
 
 from cloudai import ReportGenerationStrategy
@@ -26,16 +25,16 @@ from cloudai import ReportGenerationStrategy
 class JaxToolboxReportGenerationStrategy(ReportGenerationStrategy):
     """Strategy for generating reports from JaxToolbox."""
 
-    def can_handle_directory(self, directory_path: str) -> bool:
-        error_files = glob.glob(os.path.join(directory_path, "error-*.txt"))
+    def can_handle_directory(self, directory_path: Path) -> bool:
+        error_files = directory_path.glob("error-*.txt")
         for error_file in error_files:
-            with open(error_file, "r") as file:
+            with error_file.open("r") as file:
                 content = file.read()
                 if "[PAX STATUS]: E2E time: Elapsed time for <_main>: " in content:
                     return True
         return False
 
-    def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
+    def generate_report(self, test_name: str, directory_path: Path, sol: Optional[float] = None) -> None:
         times = self._extract_times(directory_path)
         if times:
             stats = {
@@ -47,24 +46,24 @@ class JaxToolboxReportGenerationStrategy(ReportGenerationStrategy):
             }
             self._write_report(directory_path, stats)
 
-    def _extract_times(self, directory_path: str) -> List[float]:
+    def _extract_times(self, directory_path: Path) -> List[float]:
         """
         Extract elapsed times from all error files matching the pattern in the directory.
 
         Starting after the 10th occurrence of a line matching the "[PAX STATUS]: train_step() took" pattern.
 
         Args:
-            directory_path (str): Directory containing error files.
+            directory_path (Path): Directory containing error files.
 
         Returns:
             List[float]: List of extracted times as floats, starting from the epoch after the 10th occurrence.
         """
         times = []
-        error_files = glob.glob(os.path.join(directory_path, "error-*.txt"))
+        error_files = directory_path.glob("error-*.txt")
         for stderr_path in error_files:
             file_times = []
             epoch_count = 0
-            with open(stderr_path, "r") as file:
+            with stderr_path.open("r") as file:
                 for line in file:
                     if "[PAX STATUS]: train_step() took" in line:
                         epoch_count += 1
@@ -89,15 +88,15 @@ class JaxToolboxReportGenerationStrategy(ReportGenerationStrategy):
 
         return times
 
-    def _write_report(self, directory_path: str, stats: dict) -> None:
+    def _write_report(self, directory_path: Path, stats: dict) -> None:
         """
         Write the computed statistics to a file named 'report.txt' in the same directory.
 
         Args:
-            directory_path (str): Path to the directory.
+            directory_path (Path): Path to the directory.
             stats (dict): Dictionary containing computed statistics.
         """
-        report_path = os.path.join(directory_path, "report.txt")
-        with open(report_path, "w") as file:
+        report_path = directory_path / "report.txt"
+        with report_path.open("w") as file:
             for key, value in stats.items():
                 file.write(f"{key.capitalize()}: {value}\n")

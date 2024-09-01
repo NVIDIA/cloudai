@@ -17,9 +17,10 @@
 import getpass
 import logging
 import re
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from cloudai import System
+from cloudai import BaseJob, System
 from cloudai.util import CommandShell
 
 from .slurm_node import SlurmNode, SlurmNodeState
@@ -27,12 +28,10 @@ from .slurm_node import SlurmNode, SlurmNodeState
 
 class SlurmSystem(System):
     """
-    Represents a Slurm system, encapsulating the system's configuration.
+    Represents a Slurm system.
 
     Attributes
-        name (str): The name of the Slurm system.
-        install_path (str): Installation path of CloudAI software.
-        output_path (str): Directory path for output files.
+        output_path (Path): Path to the output directory.
         default_partition (str): The default partition for job submission.
         partitions (Dict[str, List[SlurmNode]]): Mapping of partition names to lists of SlurmNodes.
         account (Optional[str]): Account name for charging resources used by this job.
@@ -45,10 +44,80 @@ class SlurmSystem(System):
         groups (Dict[str, Dict[str, List[SlurmNode]]]): Nested mapping where the key is the partition name and the
             value is another dictionary with group names as keys and lists of SlurmNodes as values, representing the
             group composition within each partition.
-        global_env_vars (Optional[Dict[str, Any]]): Dictionary containing additional configuration settings for the
-            system.
         cmd_shell (CommandShell): An instance of CommandShell for executing system commands.
     """
+
+    def __init__(
+        self,
+        name: str,
+        install_path: Path,
+        output_path: Path,
+        default_partition: str,
+        partitions: Dict[str, List[SlurmNode]],
+        account: Optional[str] = None,
+        distribution: Optional[str] = None,
+        mpi: Optional[str] = None,
+        gpus_per_node: Optional[int] = None,
+        ntasks_per_node: Optional[int] = None,
+        cache_docker_images_locally: bool = False,
+        groups: Optional[Dict[str, Dict[str, List[SlurmNode]]]] = None,
+        global_env_vars: Optional[Dict[str, Any]] = None,
+        extra_srun_args: Optional[str] = None,
+    ) -> None:
+        """
+        Initialize a SlurmSystem instance.
+
+        Args:
+            name (str): Name of the Slurm system.
+            install_path (Path): The installation path of CloudAI.
+            output_path (Path): Path to the output directory.
+            default_partition (str): Default partition.
+            partitions (Dict[str, List[SlurmNode]]): Partitions in the system.
+            account (Optional[str]): Account name for charging resources used by this job.
+            distribution (Optional[str]): Specifies alternate distribution methods for remote processes.
+            mpi (Optional[str]): Indicates the Process Management Interface (PMI) implementation to be used for
+                inter-process communication.
+            gpus_per_node (Optional[int]): Specifies the number of GPUs available per node.
+            ntasks_per_node (Optional[int]): Specifies the number of tasks that can run concurrently on a single node.
+            cache_docker_images_locally (bool): Whether to cache Docker images locally for the Slurm system.
+            groups (Optional[Dict[str, Dict[str, List[SlurmNode]]]]): Nested mapping of group names to lists of
+                SlurmNodes within partitions, defining the group composition within each partition. Defaults to an
+                empty dictionary if not provided.
+            global_env_vars (Optional[Dict[str, Any]]): Dictionary containing additional configuration settings for
+                the system.
+            extra_srun_args (Optional[str]): Additional arguments to be passed to the srun command.
+        """
+        super().__init__(name, "slurm", install_path, output_path, global_env_vars)
+        self.default_partition = default_partition
+        self.partitions = partitions
+        self.account = account
+        self.distribution = distribution
+        self.mpi = mpi
+        self.gpus_per_node = gpus_per_node
+        self.ntasks_per_node = ntasks_per_node
+        self.cache_docker_images_locally = cache_docker_images_locally
+        self.groups = groups if groups is not None else {}
+        self.extra_srun_args = extra_srun_args
+        self.cmd_shell = CommandShell()
+        logging.debug(f"{self.__class__.__name__} initialized")
+
+    def __repr__(self) -> str:
+        """
+        Provide a structured string representation of the system.
+
+        Including the system name, scheduler type, and a simplified view similar to the `sinfo` command output,
+        focusing on the partition, state, and nodelist.
+        """
+        header = f"System Name: {self.name}\nScheduler Type: {self.scheduler}"
+        parts = [header, "\tPARTITION  STATE    NODELIST"]
+        for partition_name, nodes in self.partitions.items():
+            state_count = {}
+            for node in nodes:
+                state_count.setdefault(node.state, []).append(node.name)
+            for state, names in state_count.items():
+                node_list_str = self.format_node_list(names)
+                parts.append(f"\t{partition_name:<10} {state.name:<7} {node_list_str}")
+        return "\n".join(parts)
 
     def update(self) -> None:
         """
@@ -59,6 +128,108 @@ class SlurmSystem(System):
         each node.
         """
         self.update_node_states()
+
+    def is_job_running(self, job: BaseJob, retry_threshold: int = 3) -> bool:
+        """
+        Determine if a specified Slurm job is currently running by checking its presence and state in the job queue.
+
+        This method queries the Slurm job queue using 'squeue' to identify if the job with the specified ID is running.
+        It handles transient network or system errors by retrying the query a limited number of times.
+
+        Args:
+            job (BaseJob): The job to check.
+            retry_threshold (int): Maximum number of retry attempts for the query in case of transient errors.
+
+        Returns:
+            bool: True if the job is currently running, False otherwise.
+
+        Raises:
+            RuntimeError: If an error occurs that prevents determination of the job's running status, or if the status
+                         cannot be determined after the specified number of retries.
+        """
+        retry_count = 0
+        command = f"squeue -j {job.id} --noheader --format=%T"
+
+        while retry_count < retry_threshold:
+            logging.debug(f"Executing command to check job status: {command}")
+            stdout, stderr = self.cmd_shell.execute(command).communicate()
+
+            if "Socket timed out" in stderr or "slurm_load_jobs error" in stderr:
+                retry_count += 1
+                logging.warning(
+                    f"An error occurred while querying the job status. Retrying... ({retry_count}/{retry_threshold}). "
+                    "CloudAI uses Slurm commands by default to check the job status. The Slurm daemon can become "
+                    "overloaded and unresponsive, causing this error message. CloudAI retries the command multiple "
+                    f"times, with a maximum of {retry_threshold} attempts. Please ensure that the Slurm daemon is "
+                    "running and responsive."
+                )
+                continue
+
+            if stderr:
+                error_message = f"Error checking job status: {stderr}"
+                logging.error(error_message)
+                raise RuntimeError(error_message)
+
+            job_state = stdout.strip()
+            if job_state == "RUNNING":
+                return True
+
+            break
+
+        if retry_count == retry_threshold:
+            error_message = f"Failed to confirm job running status after {retry_threshold} attempts."
+            logging.error(error_message)
+            raise RuntimeError(error_message)
+
+        return False
+
+    def is_job_completed(self, job: BaseJob, retry_threshold: int = 3) -> bool:
+        """
+        Check if a Slurm job is completed by querying its status.
+
+        Retries the query a specified number of times if certain errors are encountered.
+
+        Args:
+            job (BaseJob): The job to check.
+            retry_threshold (int): Maximum number of retries for transient errors.
+
+        Returns:
+            bool: True if the job is completed, False otherwise.
+
+        Raises:
+            RuntimeError: If unable to determine job status after retries, or if a non-retryable error is encountered.
+        """
+        retry_count = 0
+        while retry_count < retry_threshold:
+            command = f"squeue -j {job.id}"
+            logging.debug(f"Checking job status with command: {command}")
+            stdout, stderr = self.cmd_shell.execute(command).communicate()
+
+            if "Socket timed out" in stderr:
+                retry_count += 1
+                logging.warning(f"Retrying job status check (attempt {retry_count}/{retry_threshold})")
+                continue
+
+            if stderr:
+                error_message = f"Error checking job status: {stderr}"
+                logging.error(error_message)
+                raise RuntimeError(error_message)
+
+            return str(job.id) not in stdout
+
+        error_message = f"Failed to confirm job completion status after {retry_threshold} attempts."
+        logging.error(error_message)
+        raise RuntimeError(error_message)
+
+    def kill(self, job: BaseJob) -> None:
+        """
+        Terminate a Slurm job.
+
+        Args:
+            job (BaseJob): The job to be terminated.
+        """
+        assert isinstance(job.id, int)
+        self.scancel(job.id)
 
     @classmethod
     def parse_node_list(cls, node_list: str) -> List[str]:
@@ -176,80 +347,6 @@ class SlurmSystem(System):
 
         return ", ".join(formatted_ranges)
 
-    def __init__(
-        self,
-        name: str,
-        install_path: str,
-        output_path: str,
-        default_partition: str,
-        partitions: Dict[str, List[SlurmNode]],
-        account: Optional[str] = None,
-        distribution: Optional[str] = None,
-        mpi: Optional[str] = None,
-        gpus_per_node: Optional[int] = None,
-        ntasks_per_node: Optional[int] = None,
-        cache_docker_images_locally: bool = False,
-        groups: Optional[Dict[str, Dict[str, List[SlurmNode]]]] = None,
-        global_env_vars: Optional[Dict[str, Any]] = None,
-        extra_srun_args: Optional[str] = None,
-    ) -> None:
-        """
-        Initialize a SlurmSystem instance.
-
-        Args:
-            name (str): Name of the Slurm system.
-            install_path (str): The installation path of CloudAI.
-            output_path (str): Path to the output directory.
-            default_partition (str): Default partition.
-            partitions (Dict[str, List[SlurmNode]]): Partitions in the system.
-            account (Optional[str]): Account name for charging resources used by this job.
-            distribution (Optional[str]): Specifies alternate distribution methods for remote processes.
-            mpi (Optional[str]): Indicates the Process Management Interface (PMI) implementation to be used for
-                inter-process communication.
-            gpus_per_node (Optional[int]): Specifies the number of GPUs available per node.
-            ntasks_per_node (Optional[int]): Specifies the number of tasks that can run concurrently on a single node.
-            cache_docker_images_locally (bool): Whether to cache Docker images locally for the Slurm system.
-            groups (Optional[Dict[str, Dict[str, List[SlurmNode]]]]): Nested mapping of group names to lists of
-                SlurmNodes within partitions, defining the group composition within each partition. Defaults to an
-                empty dictionary if not provided.
-            global_env_vars (Optional[Dict[str, Any]]): Dictionary containing additional configuration settings for
-                the system.
-            extra_srun_args (Optional[str]): Additional arguments to be passed to the srun command.
-        """
-        super().__init__(name, "slurm", output_path)
-        self.install_path = install_path
-        self.default_partition = default_partition
-        self.partitions = partitions
-        self.account = account
-        self.distribution = distribution
-        self.mpi = mpi
-        self.gpus_per_node = gpus_per_node
-        self.ntasks_per_node = ntasks_per_node
-        self.cache_docker_images_locally = cache_docker_images_locally
-        self.groups = groups if groups is not None else {}
-        self.global_env_vars = global_env_vars if global_env_vars is not None else {}
-        self.extra_srun_args = extra_srun_args
-        self.cmd_shell = CommandShell()
-        logging.debug(f"{self.__class__.__name__} initialized")
-
-    def __repr__(self) -> str:
-        """
-        Provide a structured string representation of the system.
-
-        Including the system name, scheduler type, and a simplified view similar to the `sinfo` command output,
-        focusing on the partition, state, and nodelist.
-        """
-        header = f"System Name: {self.name}\nScheduler Type: {self.scheduler}"
-        parts = [header, "\tPARTITION  STATE    NODELIST"]
-        for partition_name, nodes in self.partitions.items():
-            state_count = {}
-            for node in nodes:
-                state_count.setdefault(node.state, []).append(node.name)
-            for state, names in state_count.items():
-                node_list_str = self.format_node_list(names)
-                parts.append(f"\t{partition_name:<10} {state.name:<7} {node_list_str}")
-        return "\n".join(parts)
-
     def get_partition_names(self) -> List[str]:
         """Return a list of all partition names."""
         return list(self.partitions.keys())
@@ -348,7 +445,7 @@ class SlurmSystem(System):
         Args:
             partition_name (str): The name of the partition.
             group_name (str): The name of the group.
-            number_of_nodes (int/str): The number of nodes to retrieve.
+            number_of_nodes (Union[int,str]): The number of nodes to retrieve.
                 Could also be 'all' to retrieve all the nodes from the group.
 
         Returns:
@@ -477,96 +574,6 @@ class SlurmSystem(System):
             True if the node is part of the system, otherwise False.
         """
         return any(any(node.name == node_name for node in nodes) for nodes in self.partitions.values())
-
-    def is_job_running(self, job_id: int, retry_threshold: int = 3) -> bool:
-        """
-        Determine if a specified Slurm job is currently running by checking its presence and state in the job queue.
-
-        This method queries the Slurm job queue using 'squeue' to identify if the
-        job with the specified ID is running. It handles transient network or
-        system errors by retrying the query a limited number of times.
-
-        Args:
-            job_id (int): The ID of the job to check.
-            retry_threshold (int): The maximum number of retry attempts for the
-                                   query in case of transient errors.
-
-        Returns:
-            bool: True if the job is currently running (i.e., listed in the job
-                  queue with a running state), False otherwise.
-
-        Raises:
-            RuntimeError: If an error occurs that prevents determination of the
-                          job's running status, or if the status cannot be
-                          determined after the specified number of retries.
-        """
-        retry_count = 0
-        command = f"squeue -j {job_id} --noheader --format=%T"
-
-        while retry_count < retry_threshold:
-            logging.debug(f"Executing command to check job status: {command}")
-            stdout, stderr = self.cmd_shell.execute(command).communicate()
-
-            if "Socket timed out" in stderr or "slurm_load_jobs error" in stderr:
-                retry_count += 1
-                logging.warning(
-                    f"An error occurred while querying the job status. Retrying... ({retry_count}/{retry_threshold}). "
-                    "CloudAI uses Slurm commands by default to check the job status. The Slurm daemon can become "
-                    "overloaded and unresponsive, causing this error message. CloudAI retries the command multiple "
-                    f"times, with a maximum of {retry_threshold} attempts. There is no action required from the user "
-                    "for this warning. Please ensure that the Slurm daemon is running and responsive."
-                )
-                continue
-
-            if stderr:
-                raise RuntimeError(f"Error checking job status: {stderr}")
-
-            job_state = stdout.strip()
-            # If the job is listed with a "RUNNING" state, it's considered active
-            if job_state == "RUNNING":
-                return True
-
-            # No need for further retries if we got a clear answer
-            break
-
-        if retry_count == retry_threshold:
-            raise RuntimeError("Failed to confirm job running status after " f"{retry_threshold} attempts.")
-
-        # Job is not active if not "RUNNING" or not found
-        return False
-
-    def is_job_completed(self, job_id: int, retry_threshold: int = 3) -> bool:
-        """
-        Check if a Slurm job is completed by querying its status.
-
-        Retries the query a specified number of times if certain errors are encountered.
-
-        Args:
-            job_id (int): The ID of the job to check.
-            retry_threshold (int): Maximum number of retries for transient errors.
-
-        Returns:
-            bool: True if the job is completed, False otherwise.
-
-        Raises:
-            RuntimeError: If unable to determine job status after retries, or if a non-retryable error is encountered.
-        """
-        retry_count = 0
-        while retry_count < retry_threshold:
-            command = f"squeue -j {job_id}"
-            logging.debug(f"Checking job status with command: {command}")
-            stdout, stderr = self.cmd_shell.execute(command).communicate()
-            if "Socket timed out" in stderr:
-                retry_count += 1
-                logging.warning(f"Retrying job status check (attempt {retry_count}/" f"{retry_threshold})")
-                continue
-
-            if stderr:
-                raise RuntimeError(f"Error checking job status: {stderr}")
-
-            return str(job_id) not in stdout
-
-        raise RuntimeError("Failed to confirm job completion status after " f"{retry_threshold} attempts.")
 
     def scancel(self, job_id: int) -> None:
         """

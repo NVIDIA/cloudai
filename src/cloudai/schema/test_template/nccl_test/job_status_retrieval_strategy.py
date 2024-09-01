@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
+from pathlib import Path
 
 from cloudai import JobStatusResult, JobStatusRetrievalStrategy
 
@@ -22,19 +22,19 @@ from cloudai import JobStatusResult, JobStatusRetrievalStrategy
 class NcclTestJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
     """Strategy to retrieve job status for NCCL tests by checking the contents of 'stdout.txt'."""
 
-    def get_job_status(self, output_path: str) -> JobStatusResult:
+    def get_job_status(self, output_path: Path) -> JobStatusResult:
         """
         Determine the job status by examining 'stdout.txt' in the output directory.
 
         Args:
-            output_path (str): Path to the directory containing 'stdout.txt'.
+            output_path (Path): Path to the directory containing 'stdout.txt'.
 
         Returns:
             JobStatusResult: The result containing the job status and an optional error message.
         """
-        stdout_path = os.path.join(output_path, "stdout.txt")
-        if os.path.isfile(stdout_path):
-            with open(stdout_path, "r") as file:
+        stdout_path = output_path / "stdout.txt"
+        if stdout_path.is_file():
+            with stdout_path.open("r") as file:
                 content = file.read()
 
                 # Check for specific error patterns

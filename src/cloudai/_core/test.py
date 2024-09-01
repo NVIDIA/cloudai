@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import sys
+from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from .job_status_result import JobStatusResult
@@ -37,13 +38,9 @@ class Test:
         dependencies (Optional[Dict[str, Optional['TestDependency']]]): Dependencies of the test.
         iterations (Union[int, str]): Number of iterations to run the test.
         current_iteration (int): The current iteration count.
-        num_nodes (int): The number of nodes to be used for the test execution.
-        nodes (List[str]): List of nodes involved in the test.
         sol (Optional[float]): Speed-of-light performance for reference.
         weight (float): The weight of this test in a test scenario, indicating its relative importance or priority.
         ideal_perf (float): The ideal performance value for comparison.
-        time_limit (Optional[str]): Time limit for the test specified as a string in "hh:mm:ss" format, or None if no
-            limit.
     """
 
     __test__ = False
@@ -60,12 +57,9 @@ class Test:
         section_name: str = "",
         dependencies: Optional[Dict[str, "TestDependency"]] = None,
         iterations: Union[int, str] = 1,
-        num_nodes: int = 1,
-        nodes: Optional[List[str]] = None,
         sol: Optional[float] = None,
         weight: float = 0.0,
         ideal_perf: float = 1.0,
-        time_limit: Optional[str] = None,
     ) -> None:
         """
         Initialize a Test instance.
@@ -82,12 +76,9 @@ class Test:
             dependencies (Optional[Dict[str, TestDependency]]): Test dependencies.
             iterations (Union[int, str]): Total number of iterations to run the test. Can be an integer or 'infinite'
                 for endless iterations.
-            num_nodes (int): The number of nodes to be used for the test execution.
-            nodes (List[str]): List of nodes to be used in the test.
             sol (Optional[float]): Speed-of-light performance for reference.
             weight (float): The weight of this test in a test scenario, indicating its relative importance or priority.
             ideal_perf (float): The ideal performance value for comparison.
-            time_limit (Optional[str]): Time limit for the test specified as a string
         """
         self.name = name
         self.description = description
@@ -100,12 +91,9 @@ class Test:
         self.dependencies = dependencies or {}
         self.iterations = iterations if isinstance(iterations, int) else sys.maxsize
         self.current_iteration = 0
-        self.num_nodes = num_nodes
-        self.nodes = nodes if nodes else []
         self.sol = sol
         self.weight = weight
         self.ideal_perf = ideal_perf
-        self.time_limit = time_limit
 
     def __repr__(self) -> str:
         """
@@ -123,21 +111,27 @@ class Test:
             f"extra_cmd_args={self.extra_cmd_args}, "
             f"section_name={self.section_name}, "
             f"dependencies={self.dependencies}, iterations={self.iterations}, "
-            f"nodes={self.nodes})"
         )
 
-    def gen_exec_command(self, output_path: str) -> str:
+    def gen_exec_command(
+        self, output_path: Path, time_limit: Optional[str] = None, num_nodes: int = 1, nodes: Optional[List[str]] = None
+    ) -> str:
         """
         Generate the command to run this specific test.
 
         Args:
             output_path (str): Path to the output directory.
+            time_limit (Optional[str]): Time limit for the test execution.
+            num_nodes (Optional[int]): Number of nodes to be used for the test execution.
+            nodes (Optional[List[str]]): List of nodes involved in the test.
 
         Returns:
             str: The command string.
         """
-        if self.time_limit is not None:
-            self.cmd_args["time_limit"] = self.time_limit
+        if time_limit is not None:
+            self.cmd_args["time_limit"] = time_limit
+        if not nodes:
+            nodes = []
 
         return self.test_template.gen_exec_command(
             self.env_vars,
@@ -145,8 +139,8 @@ class Test:
             self.extra_env_vars,
             self.extra_cmd_args,
             output_path,
-            self.num_nodes,
-            self.nodes,
+            num_nodes,
+            nodes,
         )
 
     def get_job_id(self, stdout: str, stderr: str) -> Optional[int]:
@@ -162,12 +156,12 @@ class Test:
         """
         return self.test_template.get_job_id(stdout, stderr)
 
-    def get_job_status(self, output_path: str) -> JobStatusResult:
+    def get_job_status(self, output_path: Path) -> JobStatusResult:
         """
         Determine the status of a job based on the outputs located in the given output directory.
 
         Args:
-            output_path (str): Path to the output directory.
+            output_path (Path): Path to the output directory.
 
         Returns:
             JobStatusResult: The result containing the job status and an optional error message.
