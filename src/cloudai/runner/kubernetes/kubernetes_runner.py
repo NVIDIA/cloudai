@@ -39,7 +39,7 @@ class KubernetesRunner(BaseRunner):
         logging.info(f"Running test: {tr.test.section_name}")
         job_output_path = self.get_job_output_path(tr.test)
         job_name = tr.test.section_name.replace(".", "-").lower()
-        job_spec = tr.test.gen_json(job_output_path, job_name)
+        job_spec = tr.test.gen_json(job_output_path, job_name, tr.time_limit, tr.num_nodes, tr.nodes)
         job_kind = job_spec.get("kind", "").lower()
         logging.info(f"Generated JSON string for test {tr.test.section_name}: {job_spec}")
         job_namespace = ""
