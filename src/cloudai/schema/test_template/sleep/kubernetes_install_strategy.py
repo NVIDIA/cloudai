@@ -14,12 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .kubernetes.kubernetes_system import KubernetesSystem
-from .slurm.slurm_system import SlurmSystem
-from .standalone_system import StandaloneSystem
+from cloudai import InstallStatusResult, InstallStrategy
 
-__all__ = [
-    "SlurmSystem",
-    "StandaloneSystem",
-    "KubernetesSystem",
-]
+
+class SleepKubernetesInstallStrategy(InstallStrategy):
+    """Installation strategy for the Sleep test on Kubernetes systems."""
+
+    def is_installed(self) -> InstallStatusResult:
+        return InstallStatusResult(success=True)
+
+    def install(self) -> InstallStatusResult:
+        return InstallStatusResult(success=True)
+
+    def uninstall(self) -> InstallStatusResult:
+        return InstallStatusResult(success=True)
