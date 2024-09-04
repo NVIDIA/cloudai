@@ -157,6 +157,7 @@ Registry().add_installer("kubernetes", KubernetesInstaller)
 
 Registry().add_system("slurm", SlurmSystem)
 Registry().add_system("standalone", StandaloneSystem)
+Registry().add_system("kubernetes", KubernetesSystem)
 
 __all__ = [
     "BaseInstaller",
