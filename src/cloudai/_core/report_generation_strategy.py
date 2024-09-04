@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from abc import abstractmethod
+from pathlib import Path
 from typing import Optional
 
 
@@ -27,12 +28,12 @@ class ReportGenerationStrategy:
     """
 
     @abstractmethod
-    def can_handle_directory(self, directory_path: str) -> bool:
+    def can_handle_directory(self, directory_path: Path) -> bool:
         """
         Determine if the strategy can handle the directory.
 
         Args:
-            directory_path (str): Path to the directory.
+            directory_path (Path): Path to the directory.
 
         Returns:
             bool: True if can handle, False otherwise.
@@ -40,13 +41,13 @@ class ReportGenerationStrategy:
         pass
 
     @abstractmethod
-    def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
+    def generate_report(self, test_name: str, directory_path: Path, sol: Optional[float] = None) -> None:
         """
         Generate a report from the directory.
 
         Args:
             test_name (str): The name of the test.
-            directory_path (str): Path to the directory.
+            directory_path (Path): Path to the directory.
             sol (Optional[float]): Speed-of-light performance for reference.
         """
         pass

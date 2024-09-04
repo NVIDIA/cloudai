@@ -40,14 +40,14 @@ SLURM_TEST_SCENARIOS = [
 def test_slurm(tmp_path: Path, scenario: Dict):
     test_scenario_path = scenario["path"]
     expected_dirs_number = scenario.get("expected_dirs_number")
-    log_file = scenario.get("log_file")
-    log_file_path = tmp_path / str(log_file)
+    log_file = scenario.get("log_file", ".")
+    log_file_path = tmp_path / log_file
 
     parser = Parser(Path("conf/common/system/example_slurm_cluster.toml"), Path("conf/common/test_template"))
     system, tests, test_scenario = parser.parse(Path("conf/common/test"), test_scenario_path)
     system.output_path = str(tmp_path)
     assert test_scenario is not None, "Test scenario is None"
-    setup_logging(str(log_file_path), "DEBUG")
+    setup_logging(log_file_path, "DEBUG")
     handle_dry_run_and_run("dry-run", system, tests, test_scenario)
 
     # Find the directory that was created for the test results
@@ -78,8 +78,8 @@ def slurm_system() -> SlurmSystem:
 
     system = SlurmSystem(
         name="test_system",
-        install_path="/fake/path",
-        output_path="/fake/output",
+        install_path=Path("/fake/path"),
+        output_path=Path("/fake/output"),
         default_partition="main",
         partitions={"main": nodes, "backup": backup_nodes},
     )

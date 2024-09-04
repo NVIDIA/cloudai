@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import re
 from math import pi
+from pathlib import Path
 from typing import Dict, Optional
 
 import pandas as pd
@@ -37,17 +37,17 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
     tensor sizes from stdout files, and generate a report using Bokeh.
     """
 
-    def can_handle_directory(self, directory_path: str) -> bool:
-        stdout_path = os.path.join(directory_path, "stdout.txt")
-        if os.path.exists(stdout_path):
-            with open(stdout_path, "r") as file:
+    def can_handle_directory(self, directory_path: Path) -> bool:
+        stdout_path = directory_path / "stdout.txt"
+        if stdout_path.exists():
+            with stdout_path.open("r") as file:
                 if re.search(r"Hello from Rank \d+: \[Rank\s+\d+\]", file.read()):
                     return True
         return False
 
-    def generate_report(self, test_name: str, directory_path: str, sol: Optional[float] = None) -> None:
-        stdout_path = os.path.join(directory_path, "stdout.txt")
-        if not os.path.isfile(stdout_path):
+    def generate_report(self, test_name: str, directory_path: Path, sol: Optional[float] = None) -> None:
+        stdout_path = directory_path / "stdout.txt"
+        if not stdout_path.is_file():
             return
 
         comms_data = self._extract_comms_data(stdout_path)
@@ -56,7 +56,7 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
 
         self._generate_bokeh_content(comms_data, latency_tables, tensor_sizes, directory_path)
 
-    def _extract_comms_data(self, file_path: str) -> Dict[str, int]:
+    def _extract_comms_data(self, file_path: Path) -> Dict[str, int]:
         """
         Extract the number of times each communication operation is called from the specified file.
 
@@ -70,7 +70,7 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
         comms_data = {}
         pattern = r"Replayed (\d+) (\w+)"
 
-        with open(file_path, "r") as file:
+        with file_path.open("r") as file:
             for line in file:
                 match = re.search(pattern, line)
                 if match:
@@ -79,7 +79,7 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
 
         return comms_data
 
-    def _extract_latency_tables(self, file_path: str) -> Dict[str, pd.DataFrame]:
+    def _extract_latency_tables(self, file_path: Path) -> Dict[str, pd.DataFrame]:
         """
         Extract latency distribution tables for communication operations from the specified file.
 
@@ -93,7 +93,7 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
         comms_data = {}
         headers = ["Total", "Max", "Min", "Average", "p50", "p95"]
 
-        with open(file_path, "r") as file:
+        with file_path.open("r") as file:
             lines = file.readlines()
 
         op_name = None
@@ -124,7 +124,7 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
 
         return comms_data
 
-    def _extract_tensor_sizes(self, file_path: str) -> Dict[str, Dict[str, pd.DataFrame]]:  # noqa: C901
+    def _extract_tensor_sizes(self, file_path: Path) -> Dict[str, Dict[str, pd.DataFrame]]:  # noqa: C901
         """
         Extract input and output tensor size distribution tables from the specified file.
 
@@ -139,7 +139,7 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
         tensor_sizes = {}
         headers = ["Total (MB)", "Max.", "Min.", "Average", "p50", "p95"]
 
-        with open(file_path, "r") as file:
+        with file_path.open("r") as file:
             lines = file.readlines()
 
         op_name = None
@@ -197,7 +197,7 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
         comms_data: Dict[str, int],
         latency_tables: Dict[str, pd.DataFrame],
         tensor_sizes: Dict[str, Dict[str, pd.DataFrame]],
-        directory_path: str,
+        directory_path: Path,
     ) -> None:
         """
         Generate Bokeh visualizations for the report.
@@ -289,9 +289,9 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
         layout_final = column(layout, table_title_div, data_table)  # Combine layouts
 
         # Generate and save the report
-        output_filepath = os.path.join(directory_path, "chakra_replay_report.html")
-        if os.path.exists(output_filepath):
-            os.remove(output_filepath)
+        output_filepath = directory_path / "chakra_replay_report.html"
+        if output_filepath.exists():
+            output_filepath.unlink()
         output_file(output_filepath)
         save(layout_final)  # Generates an HTML file with the specified filename
 

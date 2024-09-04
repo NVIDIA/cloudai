@@ -15,17 +15,18 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
+from pathlib import Path
 
 
 class ReportToolInterface(ABC):
     """Interface for report tools, defining methods to add and finalize reports."""
 
     @abstractmethod
-    def finalize_report(self, output_filename: str) -> None:
+    def finalize_report(self, output_filename: Path) -> None:
         """
         Finalize the report and save it to the specified filename.
 
         Args:
-            output_filename (str): The filename where the report will be saved.
+            output_filename (Path): The filename where the report will be saved.
         """
         pass

@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 import glob
 import os
 import re
@@ -25,21 +26,25 @@ from cloudai import JobStatusResult, JobStatusRetrievalStrategy
 class JaxToolboxJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
     """Strategy to retrieve job status for JaxToolbox by checking the contents of output_path."""
 
-    def get_job_status(self, output_path: str) -> JobStatusResult:
+    def get_job_status(self, output_path: Path) -> JobStatusResult:
         """
         Determine the job status by examining 'profile_stderr.txt' and 'error-*.txt' in the output directory.
 
         Args:
-            output_path (str): Path to the directory containing 'profile_stderr.txt' and 'error-*.txt'.
+            output_path (Path): Path to the directory containing 'profile_stderr.txt' and 'error-*.txt'.
 
         Returns:
             JobStatusResult: The result containing the job status and an optional error message.
         """
+
         result = self.check_profile_stderr(output_path)
+        profile_stderr_path = output_path / "profile_stderr.txt"
+
+        result = self.check_profile_stderr(profile_stderr_path, output_path)
         if not result.is_successful:
             return result
 
-        error_files = list(Path(output_path).glob("error-*.txt"))
+        error_files = list(output_path.glob("error-*.txt"))
         if not error_files:
             return JobStatusResult(
                 is_successful=False,
@@ -53,19 +58,18 @@ class JaxToolboxJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
 
         return self.check_error_files(error_files, output_path)
 
-    def check_profile_stderr(self, output_path: str) -> JobStatusResult:
+
+    def check_profile_stderr(self, profile_stderr_path: Path, output_path: Path) -> JobStatusResult:
         """
         Check all profile_stderr_*.txt files for known error messages.
 
         Args:
-            output_path (str): Path to the output directory.
-
+            profile_stderr_path (Path): Path to the 'profile_stderr.txt' file.
+            output_path (Path): Path to the output directory.
         Returns:
             JobStatusResult: The result containing the job status and an optional error message.
         """
-        profile_stderr_files = glob.glob(os.path.join(output_path, "profile_stderr_*.txt"))
-
-        if not profile_stderr_files:
+        if not profile_stderr_path.is_file():
             return JobStatusResult(
                 is_successful=False,
                 error_message=(
@@ -79,7 +83,7 @@ class JaxToolboxJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
         for profile_stderr_path in profile_stderr_files:
             with open(profile_stderr_path, "r") as file:
                 content = file.read()
-
+                
                 if "[PAX STATUS]: E2E time: Elapsed time for " in content:
                     result = self.check_common_errors(content, profile_stderr_path, output_path)
                     if result.is_successful:
@@ -99,14 +103,14 @@ class JaxToolboxJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
             ),
         )
 
-    def check_common_errors(self, content: str, file_path: str, output_path: str) -> JobStatusResult:
+    def check_common_errors(self, content: str, file_path: Path, output_path: Path) -> JobStatusResult:
         """
         Check for common errors in the file content.
 
         Args:
             content (str): The content of the file to check.
-            file_path (str): The path of the file being checked.
-            output_path (str): Path to the output directory.
+            file_path (Path): The path of the file being checked.
+            output_path (Path): Path to the output directory.
 
         Returns:
             JobStatusResult: The result containing the job status and an optional error message.
@@ -156,19 +160,19 @@ class JaxToolboxJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
 
         return JobStatusResult(is_successful=True)
 
-    def check_error_files(self, error_files: list, output_path: str) -> JobStatusResult:
+    def check_error_files(self, error_files: list[Path], output_path: Path) -> JobStatusResult:
         """
         Check the error-*.txt files for known error messages.
 
         Args:
-            error_files (list): List of paths to error files.
-            output_path (str): Path to the output directory.
+            error_files (list[Path]): List of paths to error files.
+            output_path (Path): Path to the output directory.
 
         Returns:
             JobStatusResult: The result containing the job status and an optional error message.
         """
         for error_file in error_files:
-            with open(error_file, "r") as file:
+            with error_file.open("r") as file:
                 content = file.read()
                 result = self.check_common_errors(content, error_file, output_path)
                 if not result.is_successful:

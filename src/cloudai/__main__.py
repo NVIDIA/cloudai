@@ -247,7 +247,7 @@ def handle_generate_report(test_scenario: TestScenario, output_dir: Path) -> Non
         output_dir (Path): The path to the output directory.
     """
     logging.info("Generating report based on system and test scenario")
-    generator = ReportGenerator(str(output_dir))
+    generator = ReportGenerator(output_dir)
     generator.generate_report(test_scenario)
 
     logging.info("Report generation completed.")
@@ -274,7 +274,7 @@ def main() -> None:
     system, tests, test_scenario = parser.parse(tests_dir, test_scenario_path)
 
     if output_dir:
-        system.output_path = str(output_dir.absolute())
+        system.output_path = output_dir.absolute()
     system.update()
 
     if args.mode in ["install", "uninstall"]:

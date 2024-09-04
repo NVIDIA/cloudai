@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 
 from cloudai import InstallStatusResult
 from cloudai.systems.slurm.strategy import SlurmInstallStrategy
@@ -34,8 +33,8 @@ class JaxToolboxSlurmInstallStrategy(SlurmInstallStrategy):
             return InstallStatusResult(success=True)
         else:
             if self.docker_image_cache_manager.cache_docker_images_locally:
-                expected_docker_image_path = os.path.join(
-                    self.docker_image_cache_manager.install_path, self.SUBDIR_PATH, self.DOCKER_IMAGE_FILENAME
+                expected_docker_image_path = (
+                    self.docker_image_cache_manager.install_path / self.SUBDIR_PATH / self.DOCKER_IMAGE_FILENAME
                 )
                 return InstallStatusResult(
                     success=False,

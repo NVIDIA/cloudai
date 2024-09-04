@@ -16,6 +16,7 @@
 
 
 import os
+from pathlib import Path
 from typing import Any, Dict, List
 
 from cloudai.systems import SlurmSystem
@@ -37,7 +38,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
-        output_path: str,
+        output_path: Path,
         num_nodes: int,
         nodes: List[str],
     ) -> str:
@@ -66,7 +67,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         final_env_vars = self._override_env_vars(self.default_env_vars, env_vars)
         final_env_vars = self._override_env_vars(final_env_vars, extra_env_vars)
         final_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
-        final_cmd_args["output_path"] = output_path
+        final_cmd_args["output_path"] = str(output_path)
 
         combine_threshold_bytes = int(final_env_vars["COMBINE_THRESHOLD"])
         num_nodes = len(nodes) if nodes else num_nodes
@@ -218,20 +219,20 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             JaxToolboxSlurmInstallStrategy.DOCKER_IMAGE_FILENAME,
         ).docker_image_path
 
-        local_workspace_dir = os.path.abspath(cmd_args["output_path"])
+        local_workspace_dir = Path(cmd_args["output_path"]).resolve()
         docker_workspace_dir = cmd_args[f"{key_prefix}.setup_flags.docker_workspace_dir"]
         container_mounts = f"{local_workspace_dir}:{docker_workspace_dir}"
 
         if "pgo_nsys_converter.profile_path" in cmd_args:
-            profile_path = cmd_args["pgo_nsys_converter.profile_path"]
+            profile_path = Path(cmd_args["pgo_nsys_converter.profile_path"]).resolve()
             container_mounts += f",{profile_path}:{profile_path}"
 
         base_args.update({"image_path": image_path, "container_mounts": container_mounts})
 
-        output_path = os.path.abspath(cmd_args["output_path"])
+        output_path = Path(cmd_args["output_path"]).resolve()
         output_suffix = "-%j.txt" if env_vars.get("UNIFIED_STDOUT_STDERR") == "1" else "-%j-%n-%t.txt"
-        base_args["output"] = os.path.join(output_path, f"output{output_suffix}")
-        base_args["error"] = os.path.join(output_path, f"error{output_suffix}")
+        base_args["output"] = str(output_path / f"output{output_suffix}")
+        base_args["error"] = str(output_path / f"error{output_suffix}")
 
         return base_args
 
@@ -256,13 +257,18 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         self._create_run_script(slurm_args, env_vars, cmd_args, extra_cmd_args)
 
-        output_path = os.path.join(os.path.abspath(cmd_args["output_path"]), "output_pretest-%j-%n.txt")
-        error_path = os.path.join(os.path.abspath(cmd_args["output_path"]), "error_pretest-%j-%n.txt")
+        start_container_run = str(cmd_args.get("load_container", "False")).lower() in ("true", "1", "yes")
+        output_path = Path(cmd_args["output_path"]).resolve() / "output_pretest-%j-%n-%t.txt"
+        error_path = Path(cmd_args["output_path"]).resolve() / "error_pretest-%j-%n-%t.txt"
 
         commands = []
 
-        run_pre_test = str(cmd_args.get("pre_test", "False")).lower() in ("true", "1", "yes")
-        start_container_run = str(cmd_args.get("load_container", "False")).lower() in ("true", "1", "yes")
+        pre_test_value = cmd_args.get("pre_test", "False")
+
+        if isinstance(pre_test_value, bool):
+            run_pre_test = pre_test_value
+        else:
+            run_pre_test = str(pre_test_value).lower() in ("true", "1", "yes")
 
         if run_pre_test:
             pre_test_command = self._generate_pre_test_command(cmd_args, output_path, error_path)
@@ -337,7 +343,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return srun_command
 
-    def _generate_pre_test_command(self, cmd_args: Dict[str, Any], output_path: str, error_path: str) -> str:
+    def _generate_pre_test_command(self, cmd_args: Dict[str, Any], output_path: Path, error_path: Path) -> str:
         """
         Generate the pre-test command for running a test.
 
@@ -345,9 +351,9 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         arguments provided.
 
         Args:
-            cmd_args (Dict[str, Any]): Command-line arguments for the job.
-            output_path (str): The path to the output file.
-            error_path (str): The path to the error file.
+            cmd_args (Dict[str, Any]): A dictionary containing command arguments.
+            output_path (Path): The path to the output file.
+            error_path (Path): The path to the error file.
 
         Returns:
             str: The generated pre-test command.
@@ -381,7 +387,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ]
         return " \\\n".join(pre_test_command_parts)
 
-    def _generate_pre_test_check_command(self, cmd_args: Dict[str, str], output_path: str) -> str:
+    def _generate_pre_test_check_command(self, cmd_args: Dict[str, str], output_path: Path) -> str:
         """
         Generate the command for pre-test check.
 
@@ -395,8 +401,9 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         Returns:
             str: The generated command for pre-test check.
         """
-        directory_path = os.path.dirname(output_path)
-        file_pattern = os.path.join(directory_path, "output_pretest-*.txt")
+        directory_path = Path(output_path).parent
+        # Create the file pattern with wildcard
+        file_pattern = str(directory_path / "output_pretest-*.txt")
         keyword = cmd_args.get("keyword", "Avg bus bandwidth")
 
         script_lines = [
@@ -418,7 +425,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_cmd_args: str,
-    ) -> str:
+    ) -> None:
         """
         Generate and write the run.sh script to the specified output directory.
 
@@ -429,8 +436,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             slurm_args (Dict[str, Any]): SLURM arguments including the output path and other job-related settings.
             env_vars (Dict[str, str]): Environment variables.
             cmd_args (Dict[str, str]): Command-line arguments.
-            extra_cmd_args (str): Additional command-line arguments to be included in the srun command.
-
+            extra_cmd_args (str): Additional command-line arguments to be included
+                                  in the srun command.
         Returns:
             str: The path to the run.sh script that was created.
         """
@@ -473,7 +480,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             run_script_content += perf_content
 
         # Write the combined script content to the run.sh file
-        run_script_path = os.path.join(cmd_args["output_path"], "run.sh")
+        run_script_path = Path(cmd_args["output_path"]) / "run.sh"
         with open(run_script_path, "w") as run_file:
             run_file.write("\n".join(run_script_content))
         os.chmod(run_script_path, 0o755)
