@@ -14,9 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from dataclasses import dataclass
+from typing import List, Optional
 
 from .test import Test
+
+
+@dataclass
+class TestRun:
+    __test__ = False
+
+    test: Test
+    num_nodes: int
+    nodes: List[str]
+    time_limit: Optional[str] = None
 
 
 class TestScenario:
@@ -31,17 +42,17 @@ class TestScenario:
 
     __test__ = False
 
-    def __init__(self, name: str, tests: List[Test], job_status_check: bool = True) -> None:
+    def __init__(self, name: str, test_runs: List[TestRun], job_status_check: bool = True) -> None:
         """
         Initialize a TestScenario instance.
 
         Args:
             name (str): Name of the test scenario.
-            tests (List[Test]): List of tests in the scenario.
+            test_runs (List[TestRun]): List of tests in the scenario with custom run options.
             job_status_check (bool): Flag indicating whether to check the job status or not.
         """
         self.name = name
-        self.tests = tests
+        self.test_runs = test_runs
         self.job_status_check = job_status_check
 
     def __repr__(self) -> str:
@@ -51,18 +62,18 @@ class TestScenario:
         Returns
             str: String representation of the test scenario.
         """
-        test_names = ", ".join([test.name for test in self.tests])
+        test_names = ", ".join([tr.test.name for tr in self.test_runs])
         return f"TestScenario(name={self.name}, tests=[{test_names}])"
 
     def pretty_print(self) -> str:
         """Print each test in the scenario along with its section name, description, and visualized dependencies."""
         s = f"Test Scenario: {self.name}\n"
-        for test in self.tests:
-            s += f"\nSection Name: {test.section_name}\n"
-            s += f"  Test Name: {test.name}\n"
-            s += f"  Description: {test.description}\n"
-            if test.dependencies:
-                for dep_type, dependency in test.dependencies.items():
+        for tr in self.test_runs:
+            s += f"\nSection Name: {tr.test.section_name}\n"
+            s += f"  Test Name: {tr.test.name}\n"
+            s += f"  Description: {tr.test.description}\n"
+            if tr.test.dependencies:
+                for dep_type, dependency in tr.test.dependencies.items():
                     if dependency:
                         s += (
                             f"  {dep_type.replace('_', ' ').title()}: {dependency.test.section_name}, "

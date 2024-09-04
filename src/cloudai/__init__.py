@@ -26,22 +26,25 @@ from ._core.install_strategy import InstallStrategy
 from ._core.job_id_retrieval_strategy import JobIdRetrievalStrategy
 from ._core.job_status_result import JobStatusResult
 from ._core.job_status_retrieval_strategy import JobStatusRetrievalStrategy
+from ._core.json_gen_strategy import JsonGenStrategy
 from ._core.registry import Registry
 from ._core.report_generation_strategy import ReportGenerationStrategy
 from ._core.runner import Runner
 from ._core.system import System
 from ._core.test import Test
 from ._core.test_parser import TestParser
-from ._core.test_scenario import TestScenario
+from ._core.test_scenario import TestRun, TestScenario
 from ._core.test_scenario_parser import TestScenarioParser
 from ._core.test_template import TestTemplate
 from ._core.test_template_parser import TestTemplateParser
 from ._core.test_template_strategy import TestTemplateStrategy
 from .installer.installer import Installer
+from .installer.kubernetes_installer import KubernetesInstaller
 from .installer.slurm_installer import SlurmInstaller
 from .installer.standalone_installer import StandaloneInstaller
 from .parser import Parser
 from .report_generator import ReportGenerator
+from .runner.kubernetes.kubernetes_runner import KubernetesRunner
 from .runner.slurm.slurm_runner import SlurmRunner
 from .runner.standalone.standalone_runner import StandaloneRunner
 from .schema.test_template.chakra_replay.grading_strategy import ChakraReplayGradingStrategy
@@ -73,6 +76,8 @@ from .schema.test_template.nemo_launcher.slurm_job_id_retrieval_strategy import 
 )
 from .schema.test_template.nemo_launcher.template import NeMoLauncher
 from .schema.test_template.sleep.grading_strategy import SleepGradingStrategy
+from .schema.test_template.sleep.kubernetes_install_strategy import SleepKubernetesInstallStrategy
+from .schema.test_template.sleep.kubernetes_json_gen_strategy import SleepKubernetesJsonGenStrategy
 from .schema.test_template.sleep.report_generation_strategy import SleepReportGenerationStrategy
 from .schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from .schema.test_template.sleep.standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
@@ -83,10 +88,12 @@ from .schema.test_template.ucc_test.report_generation_strategy import UCCTestRep
 from .schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 from .schema.test_template.ucc_test.slurm_install_strategy import UCCTestSlurmInstallStrategy
 from .schema.test_template.ucc_test.template import UCCTest
+from .systems.kubernetes.kubernetes_system import KubernetesSystem
 from .systems.slurm.slurm_system import SlurmSystem
 from .systems.standalone_system import StandaloneSystem
 
 Registry().add_runner("slurm", SlurmRunner)
+Registry().add_runner("kubernetes", KubernetesRunner)
 Registry().add_runner("standalone", StandaloneRunner)
 
 Registry().add_strategy(InstallStrategy, [SlurmSystem], [NcclTest], NcclTestSlurmInstallStrategy)
@@ -94,10 +101,12 @@ Registry().add_strategy(InstallStrategy, [SlurmSystem], [NeMoLauncher], NeMoLaun
 Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [NcclTest], NcclTestReportGenerationStrategy)
 Registry().add_strategy(CommandGenStrategy, [StandaloneSystem], [Sleep], SleepStandaloneCommandGenStrategy)
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [Sleep], SleepSlurmCommandGenStrategy)
+Registry().add_strategy(JsonGenStrategy, [KubernetesSystem], [Sleep], SleepKubernetesJsonGenStrategy)
 Registry().add_strategy(InstallStrategy, [SlurmSystem], [JaxToolbox], JaxToolboxSlurmInstallStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [NcclTest], NcclTestGradingStrategy)
 Registry().add_strategy(InstallStrategy, [SlurmSystem], [UCCTest], UCCTestSlurmInstallStrategy)
 Registry().add_strategy(InstallStrategy, [StandaloneSystem, SlurmSystem], [Sleep], SleepStandaloneInstallStrategy)
+Registry().add_strategy(InstallStrategy, [KubernetesSystem], [Sleep], SleepKubernetesInstallStrategy)
 Registry().add_strategy(
     ReportGenerationStrategy, [StandaloneSystem, SlurmSystem], [Sleep], SleepReportGenerationStrategy
 )
@@ -120,6 +129,7 @@ Registry().add_strategy(
 )
 Registry().add_strategy(JobIdRetrievalStrategy, [StandaloneSystem], [Sleep], StandaloneJobIdRetrievalStrategy)
 Registry().add_strategy(JobStatusRetrievalStrategy, [StandaloneSystem], [Sleep], DefaultJobStatusRetrievalStrategy)
+Registry().add_strategy(JobStatusRetrievalStrategy, [KubernetesSystem], [Sleep], DefaultJobStatusRetrievalStrategy)
 Registry().add_strategy(JobStatusRetrievalStrategy, [SlurmSystem], [NcclTest], NcclTestJobStatusRetrievalStrategy)
 Registry().add_strategy(JobStatusRetrievalStrategy, [SlurmSystem], [JaxToolbox], JaxToolboxJobStatusRetrievalStrategy)
 Registry().add_strategy(
@@ -143,6 +153,7 @@ Registry().add_test_template("UCCTest", UCCTest)
 
 Registry().add_installer("slurm", SlurmInstaller)
 Registry().add_installer("standalone", StandaloneInstaller)
+Registry().add_installer("kubernetes", KubernetesInstaller)
 
 Registry().add_system("slurm", SlurmSystem)
 Registry().add_system("standalone", StandaloneSystem)
@@ -153,6 +164,7 @@ __all__ = [
     "BaseRunner",
     "BaseSystemParser",
     "CommandGenStrategy",
+    "JsonGenStrategy",
     "Grader",
     "GradingStrategy",
     "Installer",
@@ -166,6 +178,7 @@ __all__ = [
     "Runner",
     "System",
     "Test",
+    "TestRun",
     "TestScenario",
     "TestTemplate",
     "TestTemplateStrategy",

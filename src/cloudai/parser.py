@@ -81,7 +81,7 @@ class Parser:
             test_scenario = test_scenario_parser.parse()
             logging.debug("Parsed test scenario")
 
-            scenario_tests = set(t.name for t in test_scenario.tests)
+            scenario_tests = set(tr.test.name for tr in test_scenario.test_runs)
             filtered_tests = [t for t in tests if t.name in scenario_tests]
 
         return system, filtered_tests, test_scenario

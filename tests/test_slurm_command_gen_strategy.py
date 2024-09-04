@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
+from typing import Optional
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -131,6 +132,13 @@ def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
     slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
 
     assert slurm_args["num_nodes"] == len(nodes)
+
+
+def test_raises_if_no_default_partition(slurm_system: SlurmSystem):
+    slurm_system.default_partition = ""
+    with pytest.raises(ValueError) as exc_info:
+        SlurmCommandGenStrategy(slurm_system, {}, {})
+    assert "Partition not specified in the system configuration." in str(exc_info)
 
 
 class TestGenerateSrunCommand__CmdGeneration:
@@ -469,7 +477,6 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
 class TestWriteSbatchScript:
     MANDATORY_ARGS = {
         "job_name": "test_job",
-        "partition": "default",
         "num_nodes": 2,
         "node_list_str": "node1,node2",
     }
@@ -535,7 +542,7 @@ class TestWriteSbatchScript:
         # Check for the specific lines in the file
         assert f"#SBATCH --job-name={self.MANDATORY_ARGS['job_name']}" in file_contents
         assert f"#SBATCH -N {self.MANDATORY_ARGS['num_nodes']}" in file_contents
-        assert f"#SBATCH --partition={self.MANDATORY_ARGS['partition']}" in file_contents
+        assert f"#SBATCH --partition={strategy_fixture.slurm_system.default_partition}" in file_contents
         assert f"#SBATCH --nodelist={self.MANDATORY_ARGS['node_list_str']}" in file_contents
         assert f"#SBATCH --output={tmp_path / 'stdout.txt'}" in file_contents
         assert f"#SBATCH --error={tmp_path / 'stderr.txt'}" in file_contents
@@ -543,18 +550,31 @@ class TestWriteSbatchScript:
     @pytest.mark.parametrize(
         "arg, arg_value, expected_str",
         [
-            ("account", "test_account", "#SBATCH --account=test_account"),
-            ("distribution", "block", "#SBATCH --distribution=block"),
-            ("gpus_per_node", 2, "#SBATCH --gpus-per-node=2"),
-            ("ntasks_per_node", 2, "#SBATCH --ntasks-per-node=2"),
+            ("account", "test_account", None),
+            ("distribution", "block", None),
+            ("gpus_per_node", 2, None),
+            ("ntasks_per_node", 2, None),
             ("time_limit", "00:30:00", "#SBATCH --time=00:30:00"),
         ],
     )
     def test_extra_args(
-        self, arg: str, arg_value: str, expected_str: str, strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path
+        self,
+        arg: str,
+        arg_value: str,
+        expected_str: Optional[str],
+        strategy_fixture: SlurmCommandGenStrategy,
+        tmp_path: Path,
     ):
         args = self.MANDATORY_ARGS.copy()
-        args[arg] = arg_value
+        if expected_str:  # use slurm_args
+            args[arg] = arg_value
+        else:  # use strategy.slurm_system.<arg>
+            v = getattr(strategy_fixture.slurm_system, arg)
+            if not v:
+                setattr(strategy_fixture.slurm_system, arg, arg_value)
+                v = arg_value
+            str_arg = arg.replace("_", "-")
+            expected_str = f"#SBATCH --{str_arg}={v}"
 
         sbatch_command = strategy_fixture._write_sbatch_script(args, self.env_vars_str, self.srun_command, tmp_path)
 

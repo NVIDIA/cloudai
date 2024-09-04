@@ -17,7 +17,7 @@
 from pathlib import Path
 from typing import Union
 
-from cloudai import BaseJob, System, Test
+from cloudai import BaseJob, System, TestRun
 
 
 class StandaloneJob(BaseJob):
@@ -28,8 +28,8 @@ class StandaloneJob(BaseJob):
         id (Union[str, int]): The unique identifier of the job.
     """
 
-    def __init__(self, mode: str, system: System, test: Test, job_id: Union[str, int], output_path: Path):
-        BaseJob.__init__(self, mode, system, test, output_path)
+    def __init__(self, mode: str, system: System, test_run: TestRun, job_id: Union[str, int], output_path: Path):
+        BaseJob.__init__(self, mode, system, test_run, output_path)
         self.id = job_id
 
     def __repr__(self) -> str:
@@ -39,4 +39,4 @@ class StandaloneJob(BaseJob):
         Returns
             str: String representation of the job.
         """
-        return f"StandaloneJob(id={self.id}, test={self.test.name})"
+        return f"StandaloneJob(id={self.id}, test={self.test_run.test.name})"
