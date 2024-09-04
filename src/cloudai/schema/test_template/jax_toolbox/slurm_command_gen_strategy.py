@@ -446,21 +446,33 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             for flag in flags:
                 cmd_args[f"{test_name}.XLA_FLAGS.{flag}"] = state
 
-        # Prepare environment and script content for the 'profile' stage
-        set_xla_flags(test_name, False)
-        env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "profile")}"'
+        run_script_content = []
+        enable_pgle = cmd_args.get(f"{test_name}.enable_pgle", "True")
 
-        profile_content = self._script_content("profile", slurm_args, env_vars, cmd_args, extra_cmd_args)
+        do_pgle = enable_pgle if isinstance(enable_pgle, bool) else str(enable_pgle).lower() in ("true", "1", "yes")
 
-        # Prepare environment and script content for the 'perf' stage
-        set_xla_flags(test_name, True)
-        cmd_args[f"{self.test_name}.perf.XLA_FLAGS.xla_gpu_pgle_profile_file_or_directory_path"] = '""'
-        env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
+        if do_pgle:
+            # Prepare environment and script content for the 'profile' stage
+            set_xla_flags(test_name, False)
+            env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "profile")}"'
+            profile_content = self._script_content("profile", slurm_args, env_vars, cmd_args, extra_cmd_args)
+            run_script_content += profile_content
 
-        perf_content = self._script_content("perf", slurm_args, env_vars, cmd_args, extra_cmd_args)
+            set_xla_flags(test_name, True)
+            cmd_args[f"{self.test_name}.perf.XLA_FLAGS.xla_gpu_pgle_profile_file_or_directory_path"] = (
+                "/opt/paxml/workspace/pgle_output_profile.pbtxt"
+            )
+            env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
+            perf_content = self._script_content("perf", slurm_args, env_vars, cmd_args, extra_cmd_args)
+            run_script_content += perf_content
+        else:
+            set_xla_flags(test_name, True)
+            cmd_args[f"{self.test_name}.perf.XLA_FLAGS.xla_gpu_pgle_profile_file_or_directory_path"] = '""'
+            env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
+            perf_content = self._script_content("perf", slurm_args, env_vars, cmd_args, extra_cmd_args)
+            run_script_content += perf_content
 
-        # Combine both parts into the run script content
-        run_script_content = profile_content + perf_content
+        # Write the combined script content to the run.sh file
         run_script_path = os.path.join(cmd_args["output_path"], "run.sh")
         with open(run_script_path, "w") as run_file:
             run_file.write("\n".join(run_script_content))

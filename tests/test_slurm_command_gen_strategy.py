@@ -206,13 +206,10 @@ class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
     def test_format_xla_flags_grok(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
         jax_strategy_fixture.test_name = "Grok"
         cmd_args = {
-            "Grok.XLA_FLAGS.some_flag": "value",
-            "Grok.XLA_FLAGS.another_flag": "another_value",
-            "common.XLA_FLAGS.xla_gpu_all_reduce_combine_threshold_bytes": "$COMBINE_THRESHOLD",
-            "common.XLA_FLAGS.xla_gpu_all_gather_combine_threshold_bytes": "$COMBINE_THRESHOLD",
-            "common.XLA_FLAGS.xla_gpu_reduce_scatter_combine_threshold_bytes": "$PER_GPU_COMBINE_THRESHOLD",
+            "Grok.profile.XLA_FLAGS.some_flag": "value",
+            "Grok.profile.XLA_FLAGS.another_flag": "another_value",
         }
-        xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args)
+        xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args, "profile")
         expected_flags = (
             "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD "
             "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD "
@@ -229,11 +226,16 @@ class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
     def test_format_xla_flags_gpt(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
         jax_strategy_fixture.test_name = "GPT"
         cmd_args = {
-            "GPT.XLA_FLAGS.some_flag": "value",
-            "GPT.XLA_FLAGS.another_flag": "another_value",
+            "GPT.profile.XLA_FLAGS.some_flag": "value",
+            "GPT.profile.XLA_FLAGS.another_flag": "another_value",
         }
-        xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args)
-        expected_flags = "--some_flag=value --another_flag=another_value"
+        xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args, "profile")
+        expected_flags = (
+            "--some_flag=value --another_flag=another_value "
+            "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD "
+            "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD "
+            "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD"
+        )
 
         # Split, sort, and compare the flags
         actual_flags_list = sorted(xla_flags.split())
@@ -247,18 +249,33 @@ class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
             "common.XLA_FLAGS.some_flag": "value",
             "common.XLA_FLAGS.another_flag": "another_value",
         }
-        xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args)
-        expected_flags = "--some_flag=value --another_flag=another_value"
-        assert xla_flags == expected_flags
+        xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args, "profile")
+        expected_flags = (
+            "--some_flag=value --another_flag=another_value "
+            "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD "
+            "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD "
+            "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD"
+        )
+
+        # Split, sort, and compare the flags
+        actual_flags_list = sorted(xla_flags.split())
+        expected_flags_list = sorted(expected_flags.split())
+
+        assert actual_flags_list == expected_flags_list
 
     def test_format_xla_flags_boolean(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
         jax_strategy_fixture.test_name = "Grok"
         cmd_args = {
-            "Grok.XLA_FLAGS.some_flag": "value",
-            "Grok.XLA_FLAGS.xla_gpu_simplify_all_fp_conversions": True,
+            "Grok.profile.XLA_FLAGS.some_flag": "value",
+            "Grok.profile.XLA_FLAGS.xla_gpu_simplify_all_fp_conversions": True,
         }
-        xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args)
-        expected_flags = "--some_flag=value --xla_gpu_simplify_all_fp_conversions"
+        xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args, "profile")
+        expected_flags = (
+            "--some_flag=value --xla_gpu_simplify_all_fp_conversions "
+            "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD "
+            "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD "
+            "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD"
+        )
 
         # Split, sort, and compare the flags
         actual_flags_list = sorted(xla_flags.split())
