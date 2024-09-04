@@ -2,3 +2,4 @@ bokeh==3.4.1
 pandas==2.2.1
 tbparse==0.0.8
 toml==0.10.2
+kubernetes==30.1.0

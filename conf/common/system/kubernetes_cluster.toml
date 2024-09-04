@@ -14,12 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .kubernetes.kubernetes_system import KubernetesSystem
-from .slurm.slurm_system import SlurmSystem
-from .standalone_system import StandaloneSystem
+name = "kubernetes-cluster"
+scheduler = "kubernetes"
+kube_config_path = ""
 
-__all__ = [
-    "SlurmSystem",
-    "StandaloneSystem",
-    "KubernetesSystem",
-]
+install_path = "./install"
+output_path = "./results"
+default_image = "ubuntu:22.04"
+default_namespace = "default"
+
+[global_env_vars]
+NCCL_IB_GID_INDEX = "3"
+NCCL_SOCKET_IFNAME = "ib0"
+NCCL_IB_HCA = "mlx5_0"
+UCX_NET_DEVICES = "mlx5_0:1"
+NCCL_P2P_LEVEL = "PIX"
+UCX_TLS = "rc_x,sm,cuda_copy"
+NCCL_IB_TC = "96"

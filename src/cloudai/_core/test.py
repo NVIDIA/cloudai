@@ -16,7 +16,7 @@
 
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from .job_status_result import JobStatusResult
 from .test_template import TestTemplate
@@ -120,7 +120,7 @@ class Test:
         Generate the command to run this specific test.
 
         Args:
-            output_path (str): Path to the output directory.
+            output_path (Path): Path to the output directory where logs and results will be stored.
             time_limit (Optional[str]): Time limit for the test execution.
             num_nodes (Optional[int]): Number of nodes to be used for the test execution.
             nodes (Optional[List[str]]): List of nodes involved in the test.
@@ -139,6 +139,43 @@ class Test:
             self.extra_env_vars,
             self.extra_cmd_args,
             output_path,
+            num_nodes,
+            nodes,
+        )
+
+    def gen_json(
+        self,
+        output_path: Path,
+        job_name: str,
+        time_limit: Optional[str] = None,
+        num_nodes: int = 1,
+        nodes: Optional[List[str]] = None,
+    ) -> Dict[Any, Any]:
+        """
+        Generate a JSON dictionary representing the Kubernetes job specification for this test.
+
+        Args:
+            output_path (Path): Path to the output directory where logs and results will be stored.
+            job_name (str): The name assigned to the Kubernetes job.
+            time_limit (Optional[str]): Time limit for the test execution.
+            num_nodes (Optional[int]): Number of nodes to be used for the test execution.
+            nodes (Optional[List[str]]): List of nodes involved in the test.
+
+        Returns:
+            Dict[Any, Any]: A dictionary representing the Kubernetes job specification.
+        """
+        if time_limit is not None:
+            self.cmd_args["time_limit"] = time_limit
+        if not nodes:
+            nodes = []
+
+        return self.test_template.gen_json(
+            self.env_vars,
+            self.cmd_args,
+            self.extra_env_vars,
+            self.extra_cmd_args,
+            output_path,
+            job_name,
             num_nodes,
             nodes,
         )
