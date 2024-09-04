@@ -425,7 +425,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_cmd_args: str,
-    ) -> None:
+    ) -> Path:
         """
         Generate and write the run.sh script to the specified output directory.
 
@@ -438,6 +438,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             cmd_args (Dict[str, str]): Command-line arguments.
             extra_cmd_args (str): Additional command-line arguments to be included
                                   in the srun command.
+
         Returns:
             str: The path to the run.sh script that was created.
         """

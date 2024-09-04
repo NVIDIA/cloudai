@@ -15,8 +15,6 @@
 # limitations under the License.
 
 
-import glob
-import os
 import re
 from pathlib import Path
 
@@ -36,15 +34,11 @@ class JaxToolboxJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
         Returns:
             JobStatusResult: The result containing the job status and an optional error message.
         """
-
         result = self.check_profile_stderr(output_path)
-        profile_stderr_path = output_path / "profile_stderr.txt"
-
-        result = self.check_profile_stderr(profile_stderr_path, output_path)
         if not result.is_successful:
             return result
 
-        error_files = list(output_path.glob("error-*.txt"))
+        error_files = list(Path(output_path).glob("error-*.txt"))
         if not error_files:
             return JobStatusResult(
                 is_successful=False,
@@ -58,18 +52,19 @@ class JaxToolboxJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
 
         return self.check_error_files(error_files, output_path)
 
-
-    def check_profile_stderr(self, profile_stderr_path: Path, output_path: Path) -> JobStatusResult:
+    def check_profile_stderr(self, output_path: Path) -> JobStatusResult:
         """
         Check all profile_stderr_*.txt files for known error messages.
 
         Args:
             profile_stderr_path (Path): Path to the 'profile_stderr.txt' file.
             output_path (Path): Path to the output directory.
+
         Returns:
             JobStatusResult: The result containing the job status and an optional error message.
         """
-        if not profile_stderr_path.is_file():
+        profile_stderr_files = list(Path(output_path).glob("profile_stderr_*.txt"))
+        if not profile_stderr_files:
             return JobStatusResult(
                 is_successful=False,
                 error_message=(
@@ -83,7 +78,7 @@ class JaxToolboxJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
         for profile_stderr_path in profile_stderr_files:
             with open(profile_stderr_path, "r") as file:
                 content = file.read()
-                
+
                 if "[PAX STATUS]: E2E time: Elapsed time for " in content:
                     result = self.check_common_errors(content, profile_stderr_path, output_path)
                     if result.is_successful:
