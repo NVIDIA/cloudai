@@ -127,26 +127,25 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
-            f"profile_stderr.txt file not found in the specified output directory, {tmp_path}. "
-            "This file is expected to be created during the profiling stage. "
+            f"No profile_stderr_*.txt files found in the specified output directory, {tmp_path}. "
+            "These files are expected to be created during the profiling stage. "
             "Please ensure the profiling stage completed successfully. "
             "Run the generated sbatch script manually to debug."
         )
 
     def test_missing_pax_status_keyword(self, tmp_path: Path) -> None:
-        """Test that job status is False when profile_stderr.txt does not contain the PAX STATUS keyword."""
-        profile_stderr_file = tmp_path / "profile_stderr.txt"
+        """Test that job status is False when profile_stderr_*.txt does not contain the PAX STATUS keyword."""
+        profile_stderr_file = tmp_path / "profile_stderr_1.txt"
         profile_stderr_content = "Some initialization output\nMore output\nFinal output without the expected keyword"
         profile_stderr_file.write_text(profile_stderr_content)
         result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
             "The profiling stage completed but did not generate the expected '[PAX STATUS]: E2E time: "
-            "Elapsed time for ' keyword. There are two stages in the Grok run, and an error occurred in "
-            "the profiling stage. While profile_stderr.txt was created, the expected keyword is missing. "
-            "You need to run the sbatch script manually to see what happens."
+            "Elapsed time for ' keyword in any of the profile_stderr_*.txt files. There are two stages in the Grok run, "
+            "and an error occurred in the profiling stage. While profile_stderr_*.txt files were created, the expected "
+            "keyword is missing. You need to run the sbatch script manually to see what happens."
         )
-
     def test_no_error_files(self, tmp_path: Path) -> None:
         """Test that job status is False when no error-*.txt files are present."""
         profile_stderr_file = tmp_path / "profile_stderr.txt"
@@ -155,15 +154,14 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
-            f"No 'error-*.txt' files found in the output directory, {tmp_path}. There are two stages in the Grok "
-            "run. The profiling stage passed successfully, but something went wrong in the actual run stage. "
-            "Please ensure the actual run stage completed successfully. "
+            f"No profile_stderr_*.txt files found in the specified output directory, {tmp_path}. "
+            "These files are expected to be created during the profiling stage. "
+            "Please ensure the profiling stage completed successfully. "
             "Run the generated sbatch script manually to debug."
         )
-
     def test_cuda_no_device_error_in_profile_stderr(self, tmp_path: Path) -> None:
         """Test that job status is False when profile_stderr.txt contains CUDA_ERROR_NO_DEVICE."""
-        profile_stderr_file = tmp_path / "profile_stderr.txt"
+        profile_stderr_file = tmp_path / "profile_stderr_1.txt"
         profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling\n"
         profile_stderr_content += "CUDA_ERROR_NO_DEVICE: no CUDA-capable device is detected"
         profile_stderr_file.write_text(profile_stderr_content)
@@ -182,7 +180,7 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
 
     def test_missing_e2e_time_keyword(self, tmp_path: Path) -> None:
         """Test that job status is False when error-*.txt files do not contain the E2E time keyword."""
-        profile_stderr_file = tmp_path / "profile_stderr.txt"
+        profile_stderr_file = tmp_path / "profile_stderr_1.txt"
         profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling"
         profile_stderr_file.write_text(profile_stderr_content)
 
@@ -200,7 +198,7 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
 
     def test_cuda_no_device_error_in_error_file(self, tmp_path: Path) -> None:
         """Test that job status is False when error-*.txt contains CUDA_ERROR_NO_DEVICE."""
-        profile_stderr_file = tmp_path / "profile_stderr.txt"
+        profile_stderr_file = tmp_path / "profile_stderr_1.txt"
         profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling"
         profile_stderr_file.write_text(profile_stderr_content)
 
@@ -222,7 +220,7 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
 
     def test_successful_job(self, tmp_path: Path) -> None:
         """Test that job status is True when profile_stderr.txt and error-*.txt files contain success indicators."""
-        profile_stderr_file = tmp_path / "profile_stderr.txt"
+        profile_stderr_file = tmp_path / "profile_stderr_1.txt"
         profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling"
         profile_stderr_file.write_text(profile_stderr_content)
 
@@ -236,7 +234,7 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
 
     def test_nccl_group_end_error_in_profile_stderr(self, tmp_path: Path) -> None:
         """Test that job status is False when profile_stderr.txt contains NCCL operation ncclGroupEnd() failed."""
-        profile_stderr_file = tmp_path / "profile_stderr.txt"
+        profile_stderr_file = tmp_path / "profile_stderr_1.txt"
         profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling\n"
         profile_stderr_content += "NCCL operation ncclGroupEnd() failed: unhandled system error"
         profile_stderr_file.write_text(profile_stderr_content)
@@ -250,7 +248,7 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
 
     def test_nccl_group_end_error_in_error_file(self, tmp_path: Path) -> None:
         """Test that job status is False when error-*.txt contains NCCL operation ncclGroupEnd() failed."""
-        profile_stderr_file = tmp_path / "profile_stderr.txt"
+        profile_stderr_file = tmp_path / "profile_stderr_1.txt"
         profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling"
         profile_stderr_file.write_text(profile_stderr_content)
 
@@ -267,7 +265,7 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
 
     def test_heartbeat_error_in_profile_stderr(self, tmp_path: Path) -> None:
         """Test that job status is False when profile_stderr.txt contains coordinator detected missing heartbeats."""
-        profile_stderr_file = tmp_path / "profile_stderr.txt"
+        profile_stderr_file = tmp_path / "profile_stderr_1.txt"
         profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling\n"
         profile_stderr_content += "Terminating process because the coordinator detected missing heartbeats"
         profile_stderr_file.write_text(profile_stderr_content)
@@ -283,7 +281,7 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
 
     def test_heartbeat_error_in_error_file(self, tmp_path: Path) -> None:
         """Test that job status is False when error-*.txt contains coordinator detected missing heartbeats."""
-        profile_stderr_file = tmp_path / "profile_stderr.txt"
+        profile_stderr_file = tmp_path / "profile_stderr_1.txt"
         profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling"
         profile_stderr_file.write_text(profile_stderr_content)
 
@@ -302,7 +300,7 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
 
     def test_pyxis_mktemp_error_in_profile_stderr(self, tmp_path: Path) -> None:
         """Test that job status is False when profile_stderr.txt contains pyxis and mktemp error."""
-        profile_stderr_file = tmp_path / "profile_stderr.txt"
+        profile_stderr_file = tmp_path / "profile_stderr_1.txt"
         profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling\n"
         profile_stderr_content += (
             "pyxis:     mktemp: failed to create directory via template '/tmp/enroot.XXXXXXXXXX': "
@@ -322,7 +320,7 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
 
     def test_pyxis_mktemp_error_in_error_file(self, tmp_path: Path) -> None:
         """Test that job status is False when error-*.txt contains pyxis and mktemp error."""
-        profile_stderr_file = tmp_path / "profile_stderr.txt"
+        profile_stderr_file = tmp_path / "profile_stderr_1.txt"
         profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling"
         profile_stderr_file.write_text(profile_stderr_content)
 
