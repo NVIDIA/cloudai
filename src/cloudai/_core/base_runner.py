@@ -282,6 +282,8 @@ class BaseRunner(ABC):
 
         for job in list(self.jobs):
             if job.is_completed():
+                await self.job_completion_callback(job)
+
                 if self.mode == "dry-run":
                     successful_jobs_count += 1
                     await self.handle_job_completion(job)
@@ -334,6 +336,7 @@ class BaseRunner(ABC):
             completed_job (BaseJob): The job that has just been completed.
         """
         logging.info(f"Job completed: {completed_job.test_run.test.section_name}")
+
         self.jobs.remove(completed_job)
         del self.test_to_job_map[completed_job.test_run.test]
         completed_job.increment_iteration()
@@ -343,6 +346,18 @@ class BaseRunner(ABC):
             await self.submit_test(completed_job.test_run)
         else:
             await self.handle_dependencies(completed_job)
+
+    async def job_completion_callback(self, job: BaseJob) -> None:  # noqa: B027
+        """
+        Call callback functions upon job completion.
+
+        This method can be overridden by subclasses to invoke custom actions or callback functions when a job
+        completes, such as storing logs or other processing.
+
+        Args:
+            job (BaseJob): The job that has completed and for which callback functions are being invoked.
+        """
+        pass
 
     async def handle_dependencies(self, completed_job: BaseJob) -> List[Task]:
         """
