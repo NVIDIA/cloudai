@@ -203,11 +203,13 @@ class TestGenerateSrunCommand__CmdGeneration:
         jax_strategy_fixture._generate_pre_test_command = MagicMock(return_value="pre_test_command")
         jax_strategy_fixture._generate_pre_test_check_command = MagicMock(return_value="pre_test_check_command")
 
+        slurm_system.mpi = "none"
         slurm_args = {
             "output": "output.txt",
             "error": "error.txt",
             "image_path": "image_path",
             "container_mounts": "container_mounts",
+            "container_name": "cont",
         }
         env_vars = {}
         extra_cmd_args = ""
@@ -218,8 +220,11 @@ class TestGenerateSrunCommand__CmdGeneration:
         assert "pre_test_command" in result
         assert "pre_test_check_command" in result
         assert f"--mpi={slurm_system.mpi}" in result
-        assert f"--container-image={slurm_args['image_path']}" in result
         assert "--container-mounts=" + slurm_args.get("container_mounts", "") in result
+        assert f"-o {slurm_args['output']}" in result
+        assert f"-e {slurm_args['error']}" in result
+        assert "--container-name=" + slurm_args.get("container_name", "") in result
+        assert "/opt/paxml/workspace/run.sh" in result
 
     def test_generate_full_srun_command_without_pre_test(
         self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy, slurm_system: SlurmSystem
@@ -230,11 +235,13 @@ class TestGenerateSrunCommand__CmdGeneration:
         jax_strategy_fixture._generate_pre_test_command = MagicMock(return_value="pre_test_command")
         jax_strategy_fixture._generate_pre_test_check_command = MagicMock(return_value="pre_test_check_command")
 
+        slurm_system.mpi = "none"
         slurm_args = {
             "output": "output.txt",
             "error": "error.txt",
             "image_path": "image_path",
             "container_mounts": "container_mounts",
+            "container_name": "cont",
         }
         env_vars = {}
         extra_cmd_args = ""
@@ -247,9 +254,11 @@ class TestGenerateSrunCommand__CmdGeneration:
         result = jax_strategy_fixture.generate_full_srun_command(slurm_args, env_vars, cmd_args, extra_cmd_args)
         assert "pre_test_command" not in result
         assert "pre_test_check_command" not in result
-        assert "--mpi=fake-mpi" in result
-        assert "--container-image=image_path" in result
-        assert "--container-mounts=container_mounts" in result
+        assert f"--mpi={slurm_system.mpi}" in result
+        assert f"--container-mounts={slurm_args['container_mounts']}" in result
+        assert "--container-name=" + slurm_args.get("container_name", "") in result
+        assert f"-o {slurm_args['output']}" in result
+        assert f"-e {slurm_args['error']}" in result
 
 
 class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
