@@ -114,7 +114,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         else:
             key = "XLA_FLAGS.combine_threshold_bytes"
 
-        # Remove the specific key from cmd_args after processing it
         del cmd_args[key]
 
         # Determine the per-GPU combine threshold based on the number of nodes and GPUs per node
