@@ -142,10 +142,12 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         assert not result.is_successful
         assert result.error_message == (
             "The profiling stage completed but did not generate the expected '[PAX STATUS]: E2E time: "
-            "Elapsed time for ' keyword in any of the profile_stderr_*.txt files. There are two stages in the Grok run, "
-            "and an error occurred in the profiling stage. While profile_stderr_*.txt files were created, the expected "
-            "keyword is missing. You need to run the sbatch script manually to see what happens."
+            "Elapsed time for ' keyword in any of the profile_stderr_*.txt files. "
+            "There are two stages in the Grok run, and an error occurred in the profiling stage. "
+            "While profile_stderr_*.txt files were created, the expected keyword is missing. "
+            "You need to run the sbatch script manually to see what happens."
         )
+
     def test_no_error_files(self, tmp_path: Path) -> None:
         """Test that job status is False when no error-*.txt files are present."""
         profile_stderr_file = tmp_path / "profile_stderr.txt"
@@ -159,6 +161,7 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
             "Please ensure the profiling stage completed successfully. "
             "Run the generated sbatch script manually to debug."
         )
+
     def test_cuda_no_device_error_in_profile_stderr(self, tmp_path: Path) -> None:
         """Test that job status is False when profile_stderr.txt contains CUDA_ERROR_NO_DEVICE."""
         profile_stderr_file = tmp_path / "profile_stderr_1.txt"
