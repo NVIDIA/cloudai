@@ -80,8 +80,6 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
         Returns:
             Dict[Any, Any]: A dictionary representing the Kubernetes MPIJob specification.
         """
-        docker_image_url = "ghcr.io/coreweave/nccl-tests:12.4.1-cudnn-devel-ubuntu20.04-nccl2.21.5-1-85f9143"
-
         return {
             "apiVersion": "kubeflow.org/v2beta1",
             "kind": "MPIJob",
@@ -99,7 +97,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
                             "spec": {
                                 "containers": [
                                     {
-                                        "image": docker_image_url,
+                                        "image": cmd_args["docker_image_url"],
                                         "name": "nccl",
                                         "env": self._generate_env_list(env_vars),
                                         "command": self._generate_launcher_command(
@@ -119,7 +117,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
                             "spec": {
                                 "containers": [
                                     {
-                                        "image": docker_image_url,
+                                        "image": cmd_args["docker_image_url"],
                                         "env": self._generate_env_list(env_vars),
                                         "name": "nccl",
                                         "resources": self._prepare_worker_resources(),
