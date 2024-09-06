@@ -17,10 +17,8 @@
 from abc import abstractmethod
 from pathlib import Path
 
-from .test_template_strategy import TestTemplateStrategy
 
-
-class GradingStrategy(TestTemplateStrategy):
+class GradingStrategy:
     """Abstract class for grading test performance."""
 
     @abstractmethod

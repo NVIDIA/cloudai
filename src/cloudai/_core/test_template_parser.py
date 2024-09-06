@@ -59,14 +59,26 @@ class TestTemplateParser(BaseMultiFileParser):
     def _fetch_strategy(  # noqa: D417
         self,
         strategy_interface: Type[
-            Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy, JobStatusRetrievalStrategy]
+            Union[
+                TestTemplateStrategy,
+                ReportGenerationStrategy,
+                JobIdRetrievalStrategy,
+                JobStatusRetrievalStrategy,
+                GradingStrategy,
+            ]
         ],
         system_type: Type[System],
         test_template_type: Type[TestTemplate],
         env_vars: Dict[str, Any],
         cmd_args: Dict[str, Any],
     ) -> Optional[
-        Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy, JobStatusRetrievalStrategy]
+        Union[
+            TestTemplateStrategy,
+            ReportGenerationStrategy,
+            JobIdRetrievalStrategy,
+            JobStatusRetrievalStrategy,
+            GradingStrategy,
+        ]
     ]:
         """
         Fetch a strategy from the registry based on system and template.
