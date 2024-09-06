@@ -114,6 +114,16 @@ cloudai\
     --tests-dir conf/common/tests
 ```
 
+Verify if system configs are valid:
+```bash
+cloudai\
+    --mode verify-systems\
+    --tests-dir s\          # any value here
+    --test-templates-dir d\ # ... and here
+    --system-config conf/common/system
+```
+`--system-config` can be a file or a directory to verify all configs in the directory.
+
 ## Contributing
 Feel free to contribute to the CloudAI project. Your contributions are highly appreciated.
 
