@@ -33,13 +33,11 @@ class JaxToolboxJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
         Returns:
             JobStatusResult: The result containing the job status and an optional error message.
         """
-        profile_stderr_path = output_path / "profile_stderr.txt"
-
-        result = self.check_profile_stderr(profile_stderr_path, output_path)
+        result = self.check_profile_stderr(output_path)
         if not result.is_successful:
             return result
 
-        error_files = list(output_path.glob("error-*.txt"))
+        error_files = list(Path(output_path).glob("error-*.txt"))
         if not error_files:
             return JobStatusResult(
                 is_successful=False,
@@ -53,9 +51,9 @@ class JaxToolboxJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
 
         return self.check_error_files(error_files, output_path)
 
-    def check_profile_stderr(self, profile_stderr_path: Path, output_path: Path) -> JobStatusResult:
+    def check_profile_stderr(self, output_path: Path) -> JobStatusResult:
         """
-        Check the profile_stderr.txt file for known error messages.
+        Check all profile_stderr_*.txt files for known error messages.
 
         Args:
             profile_stderr_path (Path): Path to the 'profile_stderr.txt' file.
@@ -64,36 +62,40 @@ class JaxToolboxJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
         Returns:
             JobStatusResult: The result containing the job status and an optional error message.
         """
-        if not profile_stderr_path.is_file():
+        profile_stderr_files = list(Path(output_path).glob("profile_stderr_*.txt"))
+        if not profile_stderr_files:
             return JobStatusResult(
                 is_successful=False,
                 error_message=(
-                    f"profile_stderr.txt file not found in the specified output directory, {output_path}. "
-                    "This file is expected to be created during the profiling stage. "
+                    f"No profile_stderr_*.txt files found in the specified output directory, {output_path}. "
+                    "These files are expected to be created during the profiling stage. "
                     "Please ensure the profiling stage completed successfully. "
                     "Run the generated sbatch script manually to debug."
                 ),
             )
 
-        with profile_stderr_path.open("r") as file:
-            content = file.read()
+        for profile_stderr_path in profile_stderr_files:
+            with open(profile_stderr_path, "r") as file:
+                content = file.read()
 
-            if "[PAX STATUS]: E2E time: Elapsed time for " not in content:
-                return JobStatusResult(
-                    is_successful=False,
-                    error_message=(
-                        "The profiling stage completed but did not generate the expected '[PAX STATUS]: E2E time: "
-                        "Elapsed time for ' keyword. There are two stages in the Grok run, and an error occurred in "
-                        "the profiling stage. While profile_stderr.txt was created, the expected keyword is missing. "
-                        "You need to run the sbatch script manually to see what happens."
-                    ),
-                )
+                if "[PAX STATUS]: E2E time: Elapsed time for " in content:
+                    result = self.check_common_errors(content, profile_stderr_path, output_path)
+                    if result.is_successful:
+                        return JobStatusResult(is_successful=True)
+                    else:
+                        return result
 
-            result = self.check_common_errors(content, profile_stderr_path, output_path)
-            if not result.is_successful:
-                return result
-
-        return JobStatusResult(is_successful=True)
+        return JobStatusResult(
+            is_successful=False,
+            error_message=(
+                "The profiling stage completed but did not generate the expected "
+                "'[PAX STATUS]: E2E time: Elapsed time for ' keyword in any of the "
+                "profile_stderr_*.txt files. There are two stages in the Grok run, "
+                "and an error occurred in the profiling stage. While profile_stderr_*.txt "
+                "files were created, the expected keyword is missing. You need to run the "
+                "sbatch script manually to see what happens."
+            ),
+        )
 
     def check_common_errors(self, content: str, file_path: Path, output_path: Path) -> JobStatusResult:
         """
