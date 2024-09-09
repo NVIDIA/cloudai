@@ -155,3 +155,26 @@ def test_update_node_states_with_mocked_outputs(mock_get_sinfo, mock_get_squeue,
 def test_parse_node_list(node_list: str, expected_parsed_node_list: List[str], slurm_system):
     parsed_node_list = slurm_system.parse_node_list(node_list)
     assert parsed_node_list == expected_parsed_node_list
+
+
+def test_get_available_nodes_from_group_max_avail(slurm_system):
+    group_name = "backup"
+    partition_name = "backup"
+
+    slurm_system.groups = {
+        "backup": {
+            group_name: [
+                SlurmNode(name="node01", partition=partition_name, state=SlurmNodeState.IDLE),
+                SlurmNode(name="node02", partition=partition_name, state=SlurmNodeState.COMPLETING),
+                SlurmNode(name="node03", partition=partition_name, state=SlurmNodeState.IDLE),
+                SlurmNode(name="node04", partition=partition_name, state=SlurmNodeState.DOWN),
+            ]
+        }
+    }
+
+    available_nodes = slurm_system.get_available_nodes_from_group(partition_name, group_name, "max_avail")
+    expected_node_names = ["node01", "node02", "node03"]
+    returned_node_names = [node.name for node in available_nodes]
+
+    assert set(returned_node_names) == set(expected_node_names), "Should return all available nodes except DOWN nodes"
+    assert "node05" not in returned_node_names, "DOWN node should not be included"
