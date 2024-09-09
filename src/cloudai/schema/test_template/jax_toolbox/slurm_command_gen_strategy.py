@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 import os
 from pathlib import Path
 from typing import Any, Dict, List
@@ -41,44 +42,40 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         num_nodes: int,
         nodes: List[str],
     ) -> str:
+        """
+        Generate the SLURM execution command.
+
+        This method generates the full SLURM command based on environment
+        variables, command-line arguments, and other parameters. It handles
+        the merging of environment variables and command arguments, and invokes
+        the appropriate strategy for handling thresholds.
+
+        Args:
+            env_vars (Dict[str, str]): Environment variables for the job.
+            cmd_args (Dict[str, str]): Command-line arguments for the job.
+            extra_env_vars (Dict[str, str]): Additional environment variables.
+            extra_cmd_args (str): Additional command arguments.
+            output_path (str): Path to the output directory.
+            num_nodes (int): Number of nodes to use.
+            nodes (List[str]): List of nodes.
+
+        Returns:
+            str: The full SLURM command to be executed.
+        """
+        self.test_name = self._extract_test_name(cmd_args)
+
         final_env_vars = self._override_env_vars(self.default_env_vars, env_vars)
         final_env_vars = self._override_env_vars(final_env_vars, extra_env_vars)
         final_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
         final_cmd_args["output_path"] = str(output_path)
 
-        self.test_name = self._extract_test_name(cmd_args)
-
-        if self.test_name == "GPT":
-            # Define the keys to check for the GPT test
-            gpt_keys = [
-                "GPT.XLA_FLAGS.xla_gpu_all_reduce_combine_threshold_bytes",
-                "GPT.XLA_FLAGS.xla_gpu_all_gather_combine_threshold_bytes",
-                "GPT.XLA_FLAGS.xla_gpu_reduce_scatter_combine_threshold_bytes",
-            ]
-            # Find the first key that exists in final_cmd_args
-            key = next((k for k in gpt_keys if k in final_cmd_args), None)
-            if key is None:
-                raise ValueError("None of the GPT specific keys are found in cmd_args.")
-        elif self.test_name == "Grok":
-            key = f"{self.test_name}.XLA_FLAGS.combine_threshold_bytes"
-        else:
-            key = "XLA_FLAGS.combine_threshold_bytes"
-
         combine_threshold_bytes = int(final_env_vars["COMBINE_THRESHOLD"])
-        del final_cmd_args[key]
-
-        final_env_vars["COMBINE_THRESHOLD"] = f"{combine_threshold_bytes}"
         num_nodes = len(nodes) if nodes else num_nodes
 
-        setup_flags_key = (
-            f"{self.test_name}.setup_flags.gpus_per_node"
-            if self.test_name in ["Grok", "GPT"]
-            else "common.setup_flags.gpus_per_node"
-        )
-        per_gpu_combine_threshold = int(combine_threshold_bytes / (int(final_cmd_args[setup_flags_key]) * num_nodes))
-        final_env_vars["PER_GPU_COMBINE_THRESHOLD"] = str(per_gpu_combine_threshold)
+        # Handle thresholds and environment variable adjustments
+        self._handle_threshold_and_env(final_cmd_args, final_env_vars, combine_threshold_bytes, num_nodes)
 
-        xla_flags = self._format_xla_flags(final_cmd_args)
+        xla_flags = self._format_xla_flags(final_cmd_args, "perf")
         final_env_vars["XLA_FLAGS"] = f'"{xla_flags}"'
 
         env_vars_str = self._format_env_vars(final_env_vars)
@@ -87,68 +84,102 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         srun_command = self.generate_full_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
         return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, output_path)
 
+    def _handle_threshold_and_env(
+        self, cmd_args: Dict[str, str], env_vars: Dict[str, str], combine_threshold_bytes: int, num_nodes: int
+    ):
+        """
+        Handle threshold and environment variable adjustments based on the test name.
+
+        This method handles the test-specific logic for setting the correct thresholds
+        and environment variables based on the type of test being run (e.g., GPT, Grok, Nemotron).
+
+        Args:
+            cmd_args (Dict[str, str]): Command-line arguments for the job.
+            env_vars (Dict[str, str]): Environment variables for the job.
+            combine_threshold_bytes (int): The combine threshold in bytes.
+            num_nodes (int): Number of nodes to use.
+        """
+        if self.test_name in ["GPT", "Nemotron"]:
+            keys = [
+                f"{self.test_name}.XLA_FLAGS.xla_gpu_all_reduce_combine_threshold_bytes",
+                f"{self.test_name}.XLA_FLAGS.xla_gpu_all_gather_combine_threshold_bytes",
+                f"{self.test_name}.XLA_FLAGS.xla_gpu_reduce_scatter_combine_threshold_bytes",
+            ]
+            key = next((k for k in keys if k in cmd_args), None)
+            if key is None:
+                raise ValueError(f"None of the {self.test_name} specific keys are found in cmd_args.")
+
+        elif self.test_name == "Grok":
+            key = f"{self.test_name}.perf.XLA_FLAGS.combine_threshold_bytes"
+        else:
+            key = "XLA_FLAGS.combine_threshold_bytes"
+
+        del cmd_args[key]
+
+        # Determine the per-GPU combine threshold based on the number of nodes and GPUs per node
+        setup_flags_key = (
+            f"{self.test_name}.setup_flags.gpus_per_node"
+            if self.test_name in ["Grok", "GPT", "Nemotron"]
+            else "common.setup_flags.gpus_per_node"
+        )
+        per_gpu_combine_threshold = int(combine_threshold_bytes / (int(cmd_args[setup_flags_key]) * num_nodes))
+        env_vars["PER_GPU_COMBINE_THRESHOLD"] = str(per_gpu_combine_threshold)
+
     def _extract_test_name(self, cmd_args: Dict[str, Any]) -> str:
-        test_name = ""
+        """
+        Extract the test name from the command-line arguments.
+
+        This method identifies the test name (e.g., GPT, Grok, Nemotron) by examining
+        the command-line arguments.
+
+        Args:
+            cmd_args (Dict[str, Any]): Command-line arguments for the job.
+
+        Returns:
+            str: The name of the test (capitalized).
+        """
         for key in cmd_args:
             if "." in key:
                 name = key.split(".")[0]
-                if name.lower() == "grok":
-                    test_name = "Grok"
-                elif name.lower() == "gpt":
-                    test_name = "GPT"
-        return test_name
+                if name.lower() in ["grok", "gpt", "nemotron"]:
+                    return name.upper() if name.lower() == "gpt" else name.capitalize()
+        return ""
 
-    def _format_xla_flags(self, cmd_args: Dict[str, str]) -> str:
+    def _format_xla_flags(self, cmd_args: Dict[str, str], stage: str) -> str:
         """
         Format the XLA_FLAGS environment variable.
 
-        Done by extracting all command-line arguments prefixed with 'common.XLA_FLAGS' or '{test_name}.XLA_FLAGS'
-        and concatenating them into a single string with the appropriate formatting for execution.
+        This method extracts all command-line arguments prefixed with 'common.XLA_FLAGS'
+        or '{test_name}.{stage}.XLA_FLAGS' and concatenates them into a single string formatted
+        for execution.
 
         Args:
-            test_name (str): The name of the test (e.g., "GPT" or "Grok").
-            cmd_args (Dict[str, str]): Command-line arguments.
+            cmd_args (Dict[str, str]): Command-line arguments for the job.
+            stage (str): The stage of the test, can be "profile" or "perf".
 
         Returns:
-            str: A single string containing all XLA-related flags formatted for inclusion in the environment variables.
+            str: A single string containing all XLA-related flags formatted for inclusion
+                    in the environment variables.
         """
-        xla_flags = []
-
-        # Standard flags that are always included
-        if self.test_name == "Grok":
-            xla_flags.extend(
-                [
-                    "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
-                    "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
-                ]
-            )
-        elif self.test_name == "GPT":
-            xla_flags.extend(
-                [
-                    "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
-                    "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
-                    "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD",
-                ]
-            )
-
+        xla_flags = [
+            "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
+            "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
+            "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD",
+        ]
         # Prefixes for common and test-specific XLA flags
         common_prefix = "common.XLA_FLAGS."
-        test_prefix = f"{self.test_name}.XLA_FLAGS."
+        test_prefix = f"{self.test_name}.{stage}.XLA_FLAGS."
 
         for key, value in cmd_args.items():
-            # Check if the key starts with either common or test-specific prefix
             if key.startswith(common_prefix) or key.startswith(test_prefix):
-                # Extract the flag name from the key
                 flag_name = key.split(".")[-1]
-                # Check if the flag is 'xla_gpu_simplify_all_fp_conversions'
                 if flag_name.lower() == "xla_gpu_simplify_all_fp_conversions":
-                    # For this specific flag, append only the flag name if the value is True
                     if value:
                         xla_flags.append(f"--{flag_name.lower()}")
                 else:
-                    # For all other flags, format the flag with its value, appending boolean values as is
                     flag = f"--{flag_name.lower()}={'true' if value is True else 'false' if value is False else value}"
                     xla_flags.append(flag)
+
         return " ".join(xla_flags)
 
     def _parse_slurm_args(
@@ -159,10 +190,24 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         num_nodes: int,
         nodes: List[str],
     ) -> Dict[str, Any]:
-        # Determine the key prefix based on test_name
-        key_prefix = f"{self.test_name}" if self.test_name in ["GPT", "Grok"] else "common"
+        """
+        Parse SLURM arguments.
 
-        # Adjusted the key to use the dynamic key_prefix
+        This method generates a dictionary of SLURM arguments required for the job,
+        including paths, node configurations, and container mounts.
+
+        Args:
+            job_name_prefix (str): Prefix for the job name.
+            env_vars (Dict[str, str]): Environment variables for the job.
+            cmd_args (Dict[str, str]): Command-line arguments for the job.
+            num_nodes (int): Number of nodes to use.
+            nodes (List[str]): List of nodes.
+
+        Returns:
+            Dict[str, Any]: Dictionary of SLURM arguments.
+        """
+        key_prefix = f"{self.test_name}" if self.test_name in ["GPT", "Grok", "Nemotron"] else "common"
+
         if not all(k in cmd_args for k in [f"{key_prefix}.setup_flags.docker_workspace_dir"]):
             raise ValueError("Required cmd_args keys are missing: docker_workspace_dir")
 
@@ -196,6 +241,10 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         Generate the full srun command for running a job on SLURM.
 
+        This method constructs the srun command that SLURM will execute,
+        including setting up the container environment, output paths, and
+        any pre-test commands if specified.
+
         Args:
             slurm_args (Dict[str, Any]): A dictionary containing SLURM arguments.
             env_vars (Dict[str, str]): A dictionary containing environment variables.
@@ -207,6 +256,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         self._create_run_script(slurm_args, env_vars, cmd_args, extra_cmd_args)
 
+        start_container_run = str(cmd_args.get("load_container", "False")).lower() in ("true", "1", "yes")
         output_path = Path(cmd_args["output_path"]).resolve() / "output_pretest-%j-%n-%t.txt"
         error_path = Path(cmd_args["output_path"]).resolve() / "error_pretest-%j-%n-%t.txt"
 
@@ -222,38 +272,82 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if run_pre_test:
             pre_test_command = self._generate_pre_test_command(cmd_args, output_path, error_path)
             commands.append(pre_test_command)
-            # Check if the keyword is found in the pre-test output
             pre_test_check_command = self._generate_pre_test_check_command(cmd_args, output_path)
             commands.append(pre_test_check_command)
 
-        # Construct the srun command with the specific formatting
-        srun_command_parts = [
-            "srun",
-            f"--mpi={self.slurm_system.mpi}",
-            f"{self.slurm_system.extra_srun_args if self.slurm_system.extra_srun_args else ''}",
-            "--export=ALL",
-            f"-o {slurm_args['output']}",
-            f"-e {slurm_args['error']}",
-            f"--container-image={slurm_args['image_path']}",
-            f"--container-mounts={slurm_args['container_mounts']}",
-            "/opt/paxml/workspace/run.sh",
-        ]
+        if start_container_run:
+            # Load container command
+            srun_command_load = self._generate_container_load_srun_command(
+                slurm_args, env_vars, cmd_args, extra_cmd_args
+            )
+            commands.append('if [ "$keyword_found" = true ]; then')
+            commands.append('    echo "Loading container with srun command"')
+            commands.append(f"    {srun_command_load}")
+            commands.append("fi")
 
-        srun_command = " \\\n".join(srun_command_parts).strip()
+        main_srun_command = "\n".join(
+            [
+                'if [ "$keyword_found" = true ]; then',
+                '    echo "Running srun command"',
+                "    srun \\",
+                "    --mpi=none \\",
+                f'    {self.slurm_system.extra_srun_args if self.slurm_system.extra_srun_args else ""} \\',
+                "    --export=ALL \\",
+                f'    -o {slurm_args["output"]} \\',
+                f'    -e {slurm_args["error"]} \\',
+                "    --container-name=cont \\",
+                f'    --container-mounts={slurm_args["container_mounts"]} \\',
+                "    /opt/paxml/workspace/run.sh",
+                "fi",
+            ]
+        )
 
-        if run_pre_test:
-            srun_command = f'if [ "$keyword_found" = true ]; then\n{srun_command}\nfi'
+        # Add the final srun command to the list of commands
+        commands.append(main_srun_command)
 
-        commands.append(srun_command)
-
-        # Join all commands into the final full command string
+        # Combine all parts into the final batch script
         full_command = "\n\n".join(commands)
 
         return full_command
 
+    def _generate_container_load_srun_command(
+        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
+    ) -> str:
+        """
+        Generate the srun command to load a container and log the status using Docker commands.
+
+        Args:
+            slurm_args (Dict[str, Any]): Dictionary containing the SLURM job settings such as image path.
+            env_vars (Dict[str, str]): Environment variables.
+            cmd_args (Dict[str, str]): Command-line arguments.
+            extra_cmd_args (str): Additional command-line arguments to be included in the command.
+
+        Returns:
+            str: The generated srun command with proper indentation and logging.
+        """
+        container_name = "cont"
+        container_image = slurm_args["image_path"]
+
+        # Construct the srun command to load the container and check if it's running
+        srun_command = "\n".join(
+            [
+                "",
+                "    srun \\",
+                "    --mpi=none \\",
+                f"    --container-image={container_image} \\",
+                f"    --container-name={container_name} \\",
+                "    true",
+            ]
+        )
+
+        return srun_command
+
     def _generate_pre_test_command(self, cmd_args: Dict[str, Any], output_path: Path, error_path: Path) -> str:
         """
         Generate the pre-test command for running a test.
+
+        This method constructs the pre-test command based on the command-line
+        arguments provided.
 
         Args:
             cmd_args (Dict[str, Any]): A dictionary containing command arguments.
@@ -267,6 +361,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         pre_test_command_parts = [
             "srun",
             "--mpi=pmix",
+            f"-N {nccl_test.get('num_nodes', 2)}",
             f"-o {output_path}",
             f"-e {error_path}",
             f"--container-image={nccl_test.get('docker_image_url', 'nvcr.io/nvidia/pytorch:24.02-py3')}",
@@ -295,8 +390,11 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         Generate the command for pre-test check.
 
+        This method generates the command that checks the output of the pre-test
+        to determine if the main test should be run.
+
         Args:
-            cmd_args (Dict[str, str]): A dictionary containing command arguments.
+            cmd_args (Dict[str, str]): Command-line arguments for the job.
             output_path (str): The path to the output file.
 
         Returns:
@@ -326,20 +424,22 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_cmd_args: str,
-    ) -> None:
+    ) -> Path:
         """
-        Generate and writes the run.sh script to the specified output directory.
+        Generate and write the run.sh script to the specified output directory.
 
         The script configures environment variables, applies necessary command options, and executes the Python command
         within the SLURM environment.
 
         Args:
-            test_name (str): The name of the test being run.
             slurm_args (Dict[str, Any]): SLURM arguments including the output path and other job-related settings.
             env_vars (Dict[str, str]): Environment variables.
             cmd_args (Dict[str, str]): Command-line arguments.
             extra_cmd_args (str): Additional command-line arguments to be included
                                   in the srun command.
+
+        Returns:
+            str: The path to the run.sh script that was created.
         """
         test_name = self.test_name
 
@@ -353,27 +453,38 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             for flag in flags:
                 cmd_args[f"{test_name}.XLA_FLAGS.{flag}"] = state
 
-        # Prepare environment and script content for the 'profile' stage
-        set_xla_flags(test_name, False)
-        env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args)}"'
+        run_script_content = []
+        enable_pgle = cmd_args.get(f"{test_name}.enable_pgle", "True")
 
-        profile_content = self._script_content("profile", slurm_args, env_vars, cmd_args, extra_cmd_args)
+        do_pgle = enable_pgle if isinstance(enable_pgle, bool) else str(enable_pgle).lower() in ("true", "1", "yes")
 
-        # Prepare environment and script content for the 'perf' stage
-        set_xla_flags(test_name, True)
-        cmd_args[f"{self.test_name}.XLA_FLAGS.xla_gpu_pgle_profile_file_or_directory_path"] = (
-            "/opt/paxml/workspace/pgle_output_profile.pbtxt"
-        )
-        env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args)}"'
+        if do_pgle:
+            # Prepare environment and script content for the 'profile' stage
+            set_xla_flags(test_name, False)
+            env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "profile")}"'
+            profile_content = self._script_content("profile", slurm_args, env_vars, cmd_args, extra_cmd_args)
+            run_script_content += profile_content
 
-        perf_content = self._script_content("perf", slurm_args, env_vars, cmd_args, extra_cmd_args)
+            set_xla_flags(test_name, True)
+            cmd_args[f"{self.test_name}.perf.XLA_FLAGS.xla_gpu_pgle_profile_file_or_directory_path"] = (
+                "/opt/paxml/workspace/pgle_output_profile.pbtxt"
+            )
+            env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
+            perf_content = self._script_content("perf", slurm_args, env_vars, cmd_args, extra_cmd_args)
+            run_script_content += perf_content
+        else:
+            set_xla_flags(test_name, True)
+            cmd_args[f"{self.test_name}.perf.XLA_FLAGS.xla_gpu_pgle_profile_file_or_directory_path"] = '""'
+            env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
+            perf_content = self._script_content("perf", slurm_args, env_vars, cmd_args, extra_cmd_args)
+            run_script_content += perf_content
 
-        # Combine both parts into the run script content
-        run_script_content = profile_content + perf_content
+        # Write the combined script content to the run.sh file
         run_script_path = Path(cmd_args["output_path"]) / "run.sh"
         with open(run_script_path, "w") as run_file:
             run_file.write("\n".join(run_script_content))
         os.chmod(run_script_path, 0o755)
+        return run_script_path
 
     def _script_content(
         self,
@@ -385,6 +496,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     ) -> list:
         """
         Generate the content of the run script for a given stage.
+
+        This method creates the script lines for a specific stage (e.g., 'profile' or 'perf').
 
         Args:
             stage (str): The stage of the process ('profile' or 'perf').
@@ -404,41 +517,14 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ]
 
         script_lines.append(self._generate_python_command(stage, slurm_args, env_vars, cmd_args, extra_cmd_args))
-        if self.test_name == "Grok" or self.test_name == "GPT":
+        if self.test_name == "Grok" or self.test_name == "GPT" or self.test_name == "Nemotron":
             script_lines.extend(
                 [
                     self._create_pgo_nsys_converter_command(stage, cmd_args),
-                    self._create_nsys_to_sqlite_command(stage, cmd_args),
                 ]
             )
 
         return script_lines
-
-    def _combine_fdl_flags(self, cmd_args: Dict[str, str], test_name: str) -> Dict[str, str]:
-        combined_fdl_args = {}
-        # Combine common.fdl flags
-        common_prefix = "common.fdl."
-        for key, value in cmd_args.items():
-            if key.startswith(common_prefix):
-                flag_name = key[len(common_prefix) :]
-                combined_fdl_args[flag_name] = value
-
-        # Override with test_name.fdl flags
-        test_prefix = f"{test_name}.fdl."
-        for key, value in cmd_args.items():
-            if key.startswith(test_prefix):
-                flag_name = key[len(test_prefix) :]
-                combined_fdl_args[flag_name] = value
-
-        # Now combined_fdl_args contains all fdl flags, with test_name.fdl overriding common.fdl where applicable
-        return combined_fdl_args
-
-    def _get_fdl_config_value(self, cmd_args):
-        # Format the key based on the test_name
-        key = f"{self.test_name}.fdl_config"
-
-        # Access and return the value from cmd_args
-        return cmd_args.get(key)
 
     def _generate_python_command(
         self,
@@ -456,17 +542,15 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         Args:
             stage (str): The stage of processing (e.g., 'profile', 'perf').
-            test_name (str): The name of the test being run.
             slurm_args (Dict[str, Any]): Dictionary containing the SLURM job settings such as number of nodes.
             env_vars (Dict[str, str]): Environment variables.
             cmd_args (Dict[str, str]): Command-line arguments.
             extra_cmd_args (str): Additional command-line arguments to be included in the Python command.
 
         Returns:
-            str: The formatted Python command string to be executed within a
-                 SLURM job.
+            str: The formatted Python command string to be executed within a SLURM job.
         """
-        fdl_config = self._get_fdl_config_value(cmd_args)
+        fdl_config = cmd_args.get(f"{self.test_name}.fdl_config")
         parts = [
             "python3 -u -m paxml.main",
             "--num_hosts=$SLURM_NTASKS",
@@ -488,23 +572,30 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             parts.append(f"--fdl.{key.upper()}={value}")
         if extra_cmd_args:
             parts.append(extra_cmd_args)
-        python_command = " \\\n".join(parts)
+        python_command = " \\\n    ".join(parts)
 
         if stage == "profile":
-            python_command += " >> /opt/paxml/workspace/profile_stderr.txt 2>&1"
+            python_command += " >> /opt/paxml/workspace/profile_stderr_${SLURM_PROCID}.txt 2>&1"
 
         nsys_command = (
             "nsys profile \\\n"
-            "-s none \\\n"
-            f"-o /opt/paxml/workspace/nsys_profile_{stage} \\\n"
-            "--force-overwrite true \\\n"
-            "--capture-range=cudaProfilerApi \\\n"
-            "--capture-range-end=stop \\\n"
-            "--cuda-graph-trace=node \\\n"
+            "    -s none \\\n"
+            f"    -o /opt/paxml/workspace/nsys_profile_{stage} \\\n"
+            "    --force-overwrite true \\\n"
+            "    --capture-range=cudaProfilerApi \\\n"
+            "    --capture-range-end=stop \\\n"
+            "    --cuda-graph-trace=node \\\n"
         )
-        python_command = nsys_command + python_command
 
-        return python_command
+        slurm_check = (
+            'if [ "$SLURM_NODEID" -eq 0 ] && [ "$SLURM_PROCID" -eq 0 ]; then\n'
+            f"    {nsys_command}    {python_command}\n"
+            "else\n"
+            f"    {python_command}\n"
+            "fi"
+        )
+
+        return slurm_check
 
     def _create_pgo_nsys_converter_command(self, stage: str, cmd_args: Dict[str, str]) -> str:
         """

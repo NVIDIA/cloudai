@@ -63,6 +63,7 @@ def jax_strategy_fixture() -> JaxToolboxSlurmCommandGenStrategy:
     mock_slurm_system = Mock()
     env_vars = {"TEST_VAR": "VALUE"}
     cmd_args = {"test_arg": "test_value"}
+    mock_slurm_system.install_path = "/mock/install/path"
 
     # Use patch to mock the __init__ method of JaxToolboxSlurmCommandGenStrategy
     with patch.object(JaxToolboxSlurmCommandGenStrategy, "__init__", lambda self, _, __, ___: None):
@@ -199,11 +200,13 @@ class TestGenerateSrunCommand__CmdGeneration:
         jax_strategy_fixture._generate_pre_test_command = MagicMock(return_value="pre_test_command")
         jax_strategy_fixture._generate_pre_test_check_command = MagicMock(return_value="pre_test_check_command")
 
+        slurm_system.mpi = "none"
         slurm_args = {
             "output": "output.txt",
             "error": "error.txt",
             "image_path": "image_path",
             "container_mounts": "container_mounts",
+            "container_name": "cont",
         }
         env_vars = {}
         extra_cmd_args = ""
@@ -214,8 +217,11 @@ class TestGenerateSrunCommand__CmdGeneration:
         assert "pre_test_command" in result
         assert "pre_test_check_command" in result
         assert f"--mpi={slurm_system.mpi}" in result
-        assert f"--container-image={slurm_args['image_path']}" in result
         assert "--container-mounts=" + slurm_args.get("container_mounts", "") in result
+        assert f"-o {slurm_args['output']}" in result
+        assert f"-e {slurm_args['error']}" in result
+        assert "--container-name=" + slurm_args.get("container_name", "") in result
+        assert "/opt/paxml/workspace/run.sh" in result
 
     def test_generate_full_srun_command_without_pre_test(
         self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy, slurm_system: SlurmSystem
@@ -226,11 +232,13 @@ class TestGenerateSrunCommand__CmdGeneration:
         jax_strategy_fixture._generate_pre_test_command = MagicMock(return_value="pre_test_command")
         jax_strategy_fixture._generate_pre_test_check_command = MagicMock(return_value="pre_test_check_command")
 
+        slurm_system.mpi = "none"
         slurm_args = {
             "output": "output.txt",
             "error": "error.txt",
             "image_path": "image_path",
             "container_mounts": "container_mounts",
+            "container_name": "cont",
         }
         env_vars = {}
         extra_cmd_args = ""
@@ -243,9 +251,11 @@ class TestGenerateSrunCommand__CmdGeneration:
         result = jax_strategy_fixture.generate_full_srun_command(slurm_args, env_vars, cmd_args, extra_cmd_args)
         assert "pre_test_command" not in result
         assert "pre_test_check_command" not in result
-        assert "--mpi=fake-mpi" in result
-        assert "--container-image=image_path" in result
-        assert "--container-mounts=container_mounts" in result
+        assert f"--mpi={slurm_system.mpi}" in result
+        assert f"--container-mounts={slurm_args['container_mounts']}" in result
+        assert "--container-name=" + slurm_args.get("container_name", "") in result
+        assert f"-o {slurm_args['output']}" in result
+        assert f"-e {slurm_args['error']}" in result
 
 
 class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
@@ -267,31 +277,42 @@ class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
     def test_format_xla_flags_grok(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
         jax_strategy_fixture.test_name = "Grok"
         cmd_args = {
-            "Grok.XLA_FLAGS.some_flag": "value",
-            "Grok.XLA_FLAGS.another_flag": "another_value",
+            "Grok.profile.XLA_FLAGS.some_flag": "value",
+            "Grok.profile.XLA_FLAGS.another_flag": "another_value",
         }
-        xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args)
-        expected_flags = (
-            "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD "
-            "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD "
-            "--some_flag=value --another_flag=another_value"
-        )
-        assert xla_flags == expected_flags
-
-    def test_format_xla_flags_gpt(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
-        jax_strategy_fixture.test_name = "GPT"
-        cmd_args = {
-            "GPT.XLA_FLAGS.some_flag": "value",
-            "GPT.XLA_FLAGS.another_flag": "another_value",
-        }
-        xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args)
+        xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args, "profile")
         expected_flags = (
             "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD "
             "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD "
             "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD "
             "--some_flag=value --another_flag=another_value"
         )
-        assert xla_flags == expected_flags
+
+        # Split, sort, and compare the flags
+        actual_flags_list = sorted(xla_flags.split())
+        expected_flags_list = sorted(expected_flags.split())
+
+        assert actual_flags_list == expected_flags_list
+
+    def test_format_xla_flags_gpt(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
+        jax_strategy_fixture.test_name = "GPT"
+        cmd_args = {
+            "GPT.profile.XLA_FLAGS.some_flag": "value",
+            "GPT.profile.XLA_FLAGS.another_flag": "another_value",
+        }
+        xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args, "profile")
+        expected_flags = (
+            "--some_flag=value --another_flag=another_value "
+            "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD "
+            "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD "
+            "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD"
+        )
+
+        # Split, sort, and compare the flags
+        actual_flags_list = sorted(xla_flags.split())
+        expected_flags_list = sorted(expected_flags.split())
+
+        assert actual_flags_list == expected_flags_list
 
     def test_format_xla_flags_common(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
         jax_strategy_fixture.test_name = "SomeTest"
@@ -299,62 +320,55 @@ class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
             "common.XLA_FLAGS.some_flag": "value",
             "common.XLA_FLAGS.another_flag": "another_value",
         }
-        xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args)
-        expected_flags = "--some_flag=value --another_flag=another_value"
-        assert xla_flags == expected_flags
+        xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args, "profile")
+        expected_flags = (
+            "--some_flag=value --another_flag=another_value "
+            "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD "
+            "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD "
+            "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD"
+        )
+
+        # Split, sort, and compare the flags
+        actual_flags_list = sorted(xla_flags.split())
+        expected_flags_list = sorted(expected_flags.split())
+
+        assert actual_flags_list == expected_flags_list
 
     def test_format_xla_flags_boolean(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
         jax_strategy_fixture.test_name = "Grok"
         cmd_args = {
-            "Grok.XLA_FLAGS.some_flag": "value",
-            "Grok.XLA_FLAGS.xla_gpu_simplify_all_fp_conversions": True,
+            "Grok.profile.XLA_FLAGS.some_flag": "value",
+            "Grok.profile.XLA_FLAGS.xla_gpu_simplify_all_fp_conversions": True,
         }
-        xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args)
+        xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args, "profile")
         expected_flags = (
+            "--some_flag=value --xla_gpu_simplify_all_fp_conversions "
             "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD "
             "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD "
-            "--some_flag=value --xla_gpu_simplify_all_fp_conversions"
+            "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD"
         )
-        assert xla_flags == expected_flags
 
-    def test_combine_fdl_flags(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
-        cmd_args = {
-            "common.fdl.some_flag": "value",
-            "common.fdl.another_flag": "another_value",
-            "Grok.fdl.test_flag": "test_value",
-        }
-        combined_flags = jax_strategy_fixture._combine_fdl_flags(cmd_args, "Grok")
-        expected_flags = {
-            "some_flag": "value",
-            "another_flag": "another_value",
-            "test_flag": "test_value",
-        }
-        assert combined_flags == expected_flags
+        # Split, sort, and compare the flags
+        actual_flags_list = sorted(xla_flags.split())
+        expected_flags_list = sorted(expected_flags.split())
 
-    def test_combine_fdl_flags_override(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
-        cmd_args = {
-            "common.fdl.some_flag": "value",
-            "Grok.fdl.some_flag": "overridden_value",
-        }
-        combined_flags = jax_strategy_fixture._combine_fdl_flags(cmd_args, "Grok")
-        expected_flags = {
-            "some_flag": "overridden_value",
-        }
-        assert combined_flags == expected_flags
+        assert actual_flags_list == expected_flags_list
 
-    def test_get_fdl_config_value(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
-        cmd_args = {
-            "Grok.fdl_config": "config_value",
-        }
-        jax_strategy_fixture.test_name = "Grok"
-        config_value = jax_strategy_fixture._get_fdl_config_value(cmd_args)
-        assert config_value == "config_value"
+    def test_handle_threshold_and_env_common(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
+        cmd_args = {"XLA_FLAGS.combine_threshold_bytes": "value", "common.setup_flags.gpus_per_node": "4"}
+        env_vars = {"TEST_VAR": "VALUE"}
+        combine_threshold_bytes = 1024
+        num_nodes = 2
 
-    def test_get_fdl_config_value_missing(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
-        cmd_args = {}
-        jax_strategy_fixture.test_name = "Grok"
-        config_value = jax_strategy_fixture._get_fdl_config_value(cmd_args)
-        assert config_value is None
+        jax_strategy_fixture.env_vars = env_vars
+        jax_strategy_fixture.cmd_args = cmd_args
+        jax_strategy_fixture.test_name = "Other"
+
+        jax_strategy_fixture._handle_threshold_and_env(cmd_args, env_vars, combine_threshold_bytes, num_nodes)
+
+        assert "PER_GPU_COMBINE_THRESHOLD" in env_vars
+        assert env_vars["PER_GPU_COMBINE_THRESHOLD"] == str(combine_threshold_bytes // (4 * num_nodes))
+        assert "XLA_FLAGS.combine_threshold_bytes" not in cmd_args
 
 
 class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:

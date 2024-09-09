@@ -39,7 +39,7 @@ class KubernetesRunner(BaseRunner):
         logging.info(f"Running test: {tr.test.section_name}")
         job_output_path = self.get_job_output_path(tr.test)
         job_name = tr.test.section_name.replace(".", "-").lower()
-        job_spec = tr.test.gen_json(job_output_path, job_name)
+        job_spec = tr.test.gen_json(job_output_path, job_name, tr.time_limit, tr.num_nodes, tr.nodes)
         job_kind = job_spec.get("kind", "").lower()
         logging.info(f"Generated JSON string for test {tr.test.section_name}: {job_spec}")
         job_namespace = ""
@@ -50,6 +50,18 @@ class KubernetesRunner(BaseRunner):
 
         return KubernetesJob(self.mode, self.system, tr, job_namespace, job_name, job_kind, job_output_path)
 
+    async def job_completion_callback(self, job: BaseJob) -> None:
+        """
+        Handle job completion by storing job logs and deleting the job.
+
+        Args:
+            job (BaseJob): The job that has completed.
+        """
+        k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)
+        k_job = cast(KubernetesJob, job)
+        k8s_system.store_logs_for_job(k_job.namespace, k_job.name, k_job.output_path)
+        k8s_system.delete_job(k_job.namespace, k_job.name, k_job.kind)
+
     def kill_job(self, job: BaseJob) -> None:
         """
         Terminate a Kubernetes job.
@@ -59,4 +71,5 @@ class KubernetesRunner(BaseRunner):
         """
         k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)
         k_job = cast(KubernetesJob, job)
+        k8s_system.store_logs_for_job(k_job.namespace, k_job.name, k_job.output_path)
         k8s_system.delete_job(k_job.namespace, k_job.name, k_job.kind)

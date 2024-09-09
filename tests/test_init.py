@@ -40,6 +40,7 @@ from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import 
 from cloudai.schema.test_template.jax_toolbox.slurm_install_strategy import JaxToolboxSlurmInstallStrategy
 from cloudai.schema.test_template.jax_toolbox.template import JaxToolbox
 from cloudai.schema.test_template.nccl_test.grading_strategy import NcclTestGradingStrategy
+from cloudai.schema.test_template.nccl_test.kubernetes_json_gen_strategy import NcclTestKubernetesJsonGenStrategy
 from cloudai.schema.test_template.nccl_test.report_generation_strategy import NcclTestReportGenerationStrategy
 from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from cloudai.schema.test_template.nccl_test.slurm_install_strategy import NcclTestSlurmInstallStrategy
@@ -114,6 +115,7 @@ def test_runners():
         ((JobIdRetrievalStrategy, SlurmSystem, NeMoLauncher), NeMoLauncherSlurmJobIdRetrievalStrategy),
         ((JobIdRetrievalStrategy, SlurmSystem, UCCTest), SlurmJobIdRetrievalStrategy),
         ((JobIdRetrievalStrategy, StandaloneSystem, Sleep), StandaloneJobIdRetrievalStrategy),
+        ((JsonGenStrategy, KubernetesSystem, NcclTest), NcclTestKubernetesJsonGenStrategy),
         ((JsonGenStrategy, KubernetesSystem, Sleep), SleepKubernetesJsonGenStrategy),
         ((ReportGenerationStrategy, SlurmSystem, ChakraReplay), ChakraReplayReportGenerationStrategy),
         ((ReportGenerationStrategy, SlurmSystem, JaxToolbox), JaxToolboxReportGenerationStrategy),

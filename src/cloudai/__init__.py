@@ -63,6 +63,7 @@ from .schema.test_template.jax_toolbox.slurm_install_strategy import JaxToolboxS
 from .schema.test_template.jax_toolbox.template import JaxToolbox
 from .schema.test_template.nccl_test.grading_strategy import NcclTestGradingStrategy
 from .schema.test_template.nccl_test.job_status_retrieval_strategy import NcclTestJobStatusRetrievalStrategy
+from .schema.test_template.nccl_test.kubernetes_json_gen_strategy import NcclTestKubernetesJsonGenStrategy
 from .schema.test_template.nccl_test.report_generation_strategy import NcclTestReportGenerationStrategy
 from .schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from .schema.test_template.nccl_test.slurm_install_strategy import NcclTestSlurmInstallStrategy
@@ -103,6 +104,7 @@ Registry().add_strategy(CommandGenStrategy, [StandaloneSystem], [Sleep], SleepSt
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [Sleep], SleepSlurmCommandGenStrategy)
 Registry().add_strategy(JsonGenStrategy, [KubernetesSystem], [Sleep], SleepKubernetesJsonGenStrategy)
 Registry().add_strategy(InstallStrategy, [SlurmSystem], [JaxToolbox], JaxToolboxSlurmInstallStrategy)
+Registry().add_strategy(JsonGenStrategy, [KubernetesSystem], [NcclTest], NcclTestKubernetesJsonGenStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [NcclTest], NcclTestGradingStrategy)
 Registry().add_strategy(InstallStrategy, [SlurmSystem], [UCCTest], UCCTestSlurmInstallStrategy)
 Registry().add_strategy(InstallStrategy, [StandaloneSystem, SlurmSystem], [Sleep], SleepStandaloneInstallStrategy)
@@ -129,7 +131,9 @@ Registry().add_strategy(
 )
 Registry().add_strategy(JobIdRetrievalStrategy, [StandaloneSystem], [Sleep], StandaloneJobIdRetrievalStrategy)
 Registry().add_strategy(JobStatusRetrievalStrategy, [StandaloneSystem], [Sleep], DefaultJobStatusRetrievalStrategy)
-Registry().add_strategy(JobStatusRetrievalStrategy, [KubernetesSystem], [Sleep], DefaultJobStatusRetrievalStrategy)
+Registry().add_strategy(
+    JobStatusRetrievalStrategy, [KubernetesSystem], [Sleep, NcclTest], DefaultJobStatusRetrievalStrategy
+)
 Registry().add_strategy(JobStatusRetrievalStrategy, [SlurmSystem], [NcclTest], NcclTestJobStatusRetrievalStrategy)
 Registry().add_strategy(JobStatusRetrievalStrategy, [SlurmSystem], [JaxToolbox], JaxToolboxJobStatusRetrievalStrategy)
 Registry().add_strategy(
