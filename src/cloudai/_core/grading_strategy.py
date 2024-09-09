@@ -14,13 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from pathlib import Path
 
-from .test_template_strategy import TestTemplateStrategy
 
-
-class GradingStrategy(TestTemplateStrategy):
+class GradingStrategy(ABC):
     """Abstract class for grading test performance."""
 
     @abstractmethod

@@ -14,18 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .grading_strategy import NcclTestGradingStrategy
-from .kubernetes_json_gen_strategy import NcclTestKubernetesJsonGenStrategy
-from .report_generation_strategy import NcclTestReportGenerationStrategy
-from .slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
-from .slurm_install_strategy import NcclTestSlurmInstallStrategy
-from .template import NcclTest
+from cloudai import InstallStatusResult, InstallStrategy
 
-__all__ = [
-    "NcclTest",
-    "NcclTestSlurmInstallStrategy",
-    "NcclTestSlurmCommandGenStrategy",
-    "NcclTestKubernetesJsonGenStrategy",
-    "NcclTestReportGenerationStrategy",
-    "NcclTestGradingStrategy",
-]
+
+class SleepKubernetesInstallStrategy(InstallStrategy):
+    """Installation strategy for the Sleep test on Kubernetes systems."""
+
+    def is_installed(self) -> InstallStatusResult:
+        return InstallStatusResult(success=True)
+
+    def install(self) -> InstallStatusResult:
+        return InstallStatusResult(success=True)
+
+    def uninstall(self) -> InstallStatusResult:
+        return InstallStatusResult(success=True)

@@ -20,9 +20,11 @@ from cloudai import (
     GradingStrategy,
     InstallStrategy,
     JobIdRetrievalStrategy,
+    JsonGenStrategy,
     Registry,
     ReportGenerationStrategy,
 )
+from cloudai.installer.kubernetes_installer import KubernetesInstaller
 from cloudai.installer.slurm_installer import SlurmInstaller
 from cloudai.installer.standalone_installer import StandaloneInstaller
 from cloudai.schema.test_template.chakra_replay.grading_strategy import ChakraReplayGradingStrategy
@@ -38,6 +40,7 @@ from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import 
 from cloudai.schema.test_template.jax_toolbox.slurm_install_strategy import JaxToolboxSlurmInstallStrategy
 from cloudai.schema.test_template.jax_toolbox.template import JaxToolbox
 from cloudai.schema.test_template.nccl_test.grading_strategy import NcclTestGradingStrategy
+from cloudai.schema.test_template.nccl_test.kubernetes_json_gen_strategy import NcclTestKubernetesJsonGenStrategy
 from cloudai.schema.test_template.nccl_test.report_generation_strategy import NcclTestReportGenerationStrategy
 from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from cloudai.schema.test_template.nccl_test.slurm_install_strategy import NcclTestSlurmInstallStrategy
@@ -51,6 +54,7 @@ from cloudai.schema.test_template.nemo_launcher.slurm_job_id_retrieval_strategy 
 )
 from cloudai.schema.test_template.nemo_launcher.template import NeMoLauncher
 from cloudai.schema.test_template.sleep.grading_strategy import SleepGradingStrategy
+from cloudai.schema.test_template.sleep.kubernetes_json_gen_strategy import SleepKubernetesJsonGenStrategy
 from cloudai.schema.test_template.sleep.report_generation_strategy import SleepReportGenerationStrategy
 from cloudai.schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from cloudai.schema.test_template.sleep.standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
@@ -61,6 +65,7 @@ from cloudai.schema.test_template.ucc_test.report_generation_strategy import UCC
 from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 from cloudai.schema.test_template.ucc_test.slurm_install_strategy import UCCTestSlurmInstallStrategy
 from cloudai.schema.test_template.ucc_test.template import UCCTest
+from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.standalone_system import StandaloneSystem
 
@@ -69,14 +74,16 @@ def test_system_parsers():
     parsers = Registry().system_parsers_map.keys()
     assert "standalone" in parsers
     assert "slurm" in parsers
-    assert len(parsers) == 2
+    assert "kubernetes" in parsers
+    assert len(parsers) == 3
 
 
 def test_runners():
     runners = Registry().runners_map.keys()
     assert "standalone" in runners
     assert "slurm" in runners
-    assert len(runners) == 2
+    assert "kubernetes" in runners
+    assert len(runners) == 3
 
 
 @pytest.mark.parametrize(
@@ -108,6 +115,8 @@ def test_runners():
         ((JobIdRetrievalStrategy, SlurmSystem, NeMoLauncher), NeMoLauncherSlurmJobIdRetrievalStrategy),
         ((JobIdRetrievalStrategy, SlurmSystem, UCCTest), SlurmJobIdRetrievalStrategy),
         ((JobIdRetrievalStrategy, StandaloneSystem, Sleep), StandaloneJobIdRetrievalStrategy),
+        ((JsonGenStrategy, KubernetesSystem, NcclTest), NcclTestKubernetesJsonGenStrategy),
+        ((JsonGenStrategy, KubernetesSystem, Sleep), SleepKubernetesJsonGenStrategy),
         ((ReportGenerationStrategy, SlurmSystem, ChakraReplay), ChakraReplayReportGenerationStrategy),
         ((ReportGenerationStrategy, SlurmSystem, JaxToolbox), JaxToolboxReportGenerationStrategy),
         ((ReportGenerationStrategy, SlurmSystem, NcclTest), NcclTestReportGenerationStrategy),
@@ -135,6 +144,7 @@ def test_test_templates():
 
 def test_installers():
     installers = Registry().installers_map
-    assert len(installers) == 2
+    assert len(installers) == 3
     assert installers["standalone"] == StandaloneInstaller
     assert installers["slurm"] == SlurmInstaller
+    assert installers["kubernetes"] == KubernetesInstaller
