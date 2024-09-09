@@ -602,6 +602,21 @@ class TestWriteSbatchScript:
         self.assert_slurm_directives(file_contents.splitlines())
         assert expected_str in file_contents
 
+    def test_reservation(
+        self,
+        strategy_fixture: SlurmCommandGenStrategy,
+        tmp_path: Path,
+    ):
+        strategy_fixture.slurm_system.extra_srun_args = "--reservation my-reservation"
+        args = self.MANDATORY_ARGS.copy()
+
+        sbatch_command = strategy_fixture._write_sbatch_script(args, self.env_vars_str, self.srun_command, tmp_path)
+        filepath_from_command = sbatch_command.split()[-1]
+        with open(filepath_from_command, "r") as file:
+            file_contents = file.read()
+
+        assert "#SBATCH --reservation=my-reservation" in file_contents
+
     @pytest.mark.parametrize("add_arg", ["output", "error"])
     def test_disable_output_and_error(self, add_arg: str, strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path):
         args = self.MANDATORY_ARGS.copy()
