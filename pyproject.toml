@@ -59,8 +59,8 @@ line-length = 120
     [tool.ruff.lint.per-file-ignores]
     "**/tests/*" = ["D"]
 
-[tool.ruff.format]
-indent-style = "space"
+  [tool.ruff.format]
+  indent-style = "space"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
