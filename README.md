@@ -70,7 +70,7 @@ cloudai\
     --mode install\
     --system-config conf/common/system/example_slurm_cluster.toml\
     --test-templates-dir conf/common/test_template\
-    --tests-dir conf/common/tests
+    --tests-dir conf/common/test
 ```
 
 To simulate running experiments without execution, use the dry-run mode:
@@ -79,7 +79,7 @@ cloudai\
     --mode dry-run\
     --system-config conf/common/system/example_slurm_cluster.toml\
     --test-templates-dir conf/common/test_template\
-    --tests-dir conf/common/tests\
+    --tests-dir conf/common/test\
     --test-scenario conf/common/test_scenario/sleep.toml
 ```
 
@@ -89,7 +89,7 @@ cloudai\
     --mode run\
     --system-config conf/common/system/example_slurm_cluster.toml\
     --test-templates-dir conf/common/test_template\
-    --tests-dir conf/common/tests\
+    --tests-dir conf/common/test\
     --test-scenario conf/common/test_scenario/sleep.toml
 ```
 
@@ -99,7 +99,7 @@ cloudai\
     --mode generate-report\
     --system-config conf/common/system/example_slurm_cluster.toml\
     --test-templates-dir conf/common/test_template\
-    --tests-dir conf/common/tests\
+    --tests-dir conf/common/test\
     --output-dir /path/to/output_directory
 ```
 In the generate-report mode, use the --output-dir argument to specify a subdirectory under the result directory.
@@ -111,7 +111,7 @@ cloudai\
     --mode uninstall\
     --system-config conf/common/system/example_slurm_cluster.toml\
     --test-templates-dir conf/common/test_template\
-    --tests-dir conf/common/tests
+    --tests-dir conf/common/test
 ```
 
 Verify if system configs are valid:
