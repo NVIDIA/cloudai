@@ -59,8 +59,8 @@ line-length = 120
     [tool.ruff.lint.per-file-ignores]
     "**/tests/*" = ["D"]
 
-  [tool.ruff.format]
-  indent-style = "space"
+[tool.ruff.format]
+indent-style = "space"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -74,7 +74,7 @@ root_package = "cloudai"
   name = "_core does not depends on higher level layers"
   type = "layers"
   layers = [
-    "installer : parser : report_generator : runner : schema : util",
+    "installer : parser : report_generator : runner : schema : util : test_definitions",
     "_core",
   ]
   containers = ["cloudai"]
@@ -90,6 +90,7 @@ root_package = "cloudai"
     "cloudai.report_generator",
     "cloudai.runner",
     "cloudai.schema",
+    "cloudai.test_definitions",
     "cloudai.util",
   ]
 
