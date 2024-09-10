@@ -14,18 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .grading_strategy import NcclTestGradingStrategy
-from .kubernetes_json_gen_strategy import NcclTestKubernetesJsonGenStrategy
-from .report_generation_strategy import NcclTestReportGenerationStrategy
-from .slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
-from .slurm_install_strategy import NcclTestSlurmInstallStrategy
-from .template import NcclTest
+import toml
 
-__all__ = [
-    "NcclTest",
-    "NcclTestSlurmInstallStrategy",
-    "NcclTestSlurmCommandGenStrategy",
-    "NcclTestKubernetesJsonGenStrategy",
-    "NcclTestReportGenerationStrategy",
-    "NcclTestGradingStrategy",
-]
+
+def test_requirements():
+    """
+    Test that the requirements in the requirements.txt file are the same as the requirements in the pyproject.toml file.
+    """
+    with open("requirements.txt", "r") as f:
+        requirements_txt = sorted(f.read().splitlines())
+    with open("pyproject.toml", "r") as f:
+        requirements_toml = sorted(toml.load(f)["project"]["dependencies"])
+    assert requirements_txt == requirements_toml

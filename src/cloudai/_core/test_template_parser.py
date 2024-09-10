@@ -24,6 +24,7 @@ from .grading_strategy import GradingStrategy
 from .install_strategy import InstallStrategy
 from .job_id_retrieval_strategy import JobIdRetrievalStrategy
 from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
+from .json_gen_strategy import JsonGenStrategy
 from .registry import Registry
 from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
@@ -41,7 +42,7 @@ class TestTemplateParser(BaseMultiFileParser):
 
     __test__ = False
 
-    VALID_DATA_TYPES = ["preset", "bool", "int", "str"]
+    VALID_DATA_TYPES = ["preset", "bool", "int", "str", "float"]
 
     def __init__(self, system: System, directory_path: Path) -> None:
         """
@@ -58,14 +59,26 @@ class TestTemplateParser(BaseMultiFileParser):
     def _fetch_strategy(  # noqa: D417
         self,
         strategy_interface: Type[
-            Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy, JobStatusRetrievalStrategy]
+            Union[
+                TestTemplateStrategy,
+                ReportGenerationStrategy,
+                JobIdRetrievalStrategy,
+                JobStatusRetrievalStrategy,
+                GradingStrategy,
+            ]
         ],
         system_type: Type[System],
         test_template_type: Type[TestTemplate],
         env_vars: Dict[str, Any],
         cmd_args: Dict[str, Any],
     ) -> Optional[
-        Union[TestTemplateStrategy, ReportGenerationStrategy, JobIdRetrievalStrategy, JobStatusRetrievalStrategy]
+        Union[
+            TestTemplateStrategy,
+            ReportGenerationStrategy,
+            JobIdRetrievalStrategy,
+            JobStatusRetrievalStrategy,
+            GradingStrategy,
+        ]
     ]:
         """
         Fetch a strategy from the registry based on system and template.
@@ -126,6 +139,10 @@ class TestTemplateParser(BaseMultiFileParser):
         obj.command_gen_strategy = cast(
             CommandGenStrategy,
             self._fetch_strategy(CommandGenStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+        )
+        obj.json_gen_strategy = cast(
+            JsonGenStrategy,
+            self._fetch_strategy(JsonGenStrategy, type(obj.system), type(obj), env_vars, cmd_args),
         )
         obj.job_id_retrieval_strategy = cast(
             JobIdRetrievalStrategy,
@@ -214,7 +231,7 @@ class TestTemplateParser(BaseMultiFileParser):
 
             if details["type"] == "bool":
                 self._validate_boolean(details, arg, arg_type)
-            elif details["type"] in ["int", "str"]:
+            elif details["type"] in ["int", "str", "float"]:
                 self._validate_type(details, arg, arg_type)
             elif details["type"] == "preset":
                 self._validate_preset(details, arg, arg_type)

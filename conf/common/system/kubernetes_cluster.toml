@@ -14,18 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .grading_strategy import NcclTestGradingStrategy
-from .kubernetes_json_gen_strategy import NcclTestKubernetesJsonGenStrategy
-from .report_generation_strategy import NcclTestReportGenerationStrategy
-from .slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
-from .slurm_install_strategy import NcclTestSlurmInstallStrategy
-from .template import NcclTest
+name = "kubernetes-cluster"
+scheduler = "kubernetes"
+kube_config_path = ""
 
-__all__ = [
-    "NcclTest",
-    "NcclTestSlurmInstallStrategy",
-    "NcclTestSlurmCommandGenStrategy",
-    "NcclTestKubernetesJsonGenStrategy",
-    "NcclTestReportGenerationStrategy",
-    "NcclTestGradingStrategy",
-]
+install_path = "./install"
+output_path = "./results"
+default_image = "ubuntu:22.04"
+default_namespace = "default"
+
+[global_env_vars]
+NCCL_IB_GID_INDEX = "3"
+NCCL_SOCKET_IFNAME = "ib0"
+NCCL_IB_HCA = "mlx5_0"
+UCX_NET_DEVICES = "mlx5_0:1"
+NCCL_P2P_LEVEL = "PIX"
+UCX_TLS = "rc_x,sm,cuda_copy"
+NCCL_IB_TC = "96"

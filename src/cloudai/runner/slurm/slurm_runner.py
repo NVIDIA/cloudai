@@ -15,9 +15,8 @@
 # limitations under the License.
 
 import logging
-from pathlib import Path
 
-from cloudai import BaseRunner, JobIdRetrievalError, System, Test, TestScenario
+from cloudai import BaseRunner, JobIdRetrievalError, System, TestRun, TestScenario
 from cloudai.util import CommandShell
 
 from .slurm_job import SlurmJob
@@ -43,30 +42,31 @@ class SlurmRunner(BaseRunner):
         super().__init__(mode, system, test_scenario)
         self.cmd_shell = CommandShell()
 
-    def _submit_test(self, test: Test) -> SlurmJob:
+    def _submit_test(self, tr: TestRun) -> SlurmJob:
         """
         Submit a test for execution on Slurm and returns a SlurmJob.
 
         Args:
-            test (Test): The test to be executed.
+            tr (TestRun): The test run to be executed.
 
         Returns:
             SlurmJob: A SlurmJob object
         """
-        logging.info(f"Running test: {test.section_name}")
-        job_output_path = self.get_job_output_path(test)
-        exec_cmd = test.gen_exec_command(job_output_path)
-        logging.info(f"Executing command for test {test.section_name}: {exec_cmd}")
+        logging.info(f"Running test: {tr.test.section_name}")
+        job_output_path = self.get_job_output_path(tr.test)
+
+        exec_cmd = tr.test.gen_exec_command(job_output_path, tr.time_limit, tr.num_nodes, tr.nodes)
+        logging.info(f"Executing command for test {tr.test.section_name}: {exec_cmd}")
         job_id = 0
         if self.mode == "run":
             stdout, stderr = self.cmd_shell.execute(exec_cmd).communicate()
-            job_id = test.get_job_id(stdout, stderr)
+            job_id = tr.test.get_job_id(stdout, stderr)
             if job_id is None:
                 raise JobIdRetrievalError(
-                    test_name=str(test.section_name),
+                    test_name=str(tr.test.section_name),
                     command=exec_cmd,
                     stdout=stdout,
                     stderr=stderr,
                     message="Failed to retrieve job ID from command output.",
                 )
-        return SlurmJob(self.mode, self.system, test, job_id, Path(job_output_path))
+        return SlurmJob(self.mode, self.system, tr, job_id, job_output_path)

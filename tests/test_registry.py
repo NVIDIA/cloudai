@@ -171,7 +171,8 @@ class TestRegistry__StrategiesMap:
             registry.update_strategy((str, MySystem, MyTestTemplate), MyStrategy)  # pyright: ignore
         err = (
             "Invalid strategy interface type, should be subclass of 'TestTemplateStrategy' or "
-            "'ReportGenerationStrategy' or 'JobIdRetrievalStrategy' or 'JobStatusRetrievalStrategy'."
+            "'ReportGenerationStrategy' or 'JobIdRetrievalStrategy' or 'JobStatusRetrievalStrategy' "
+            "or 'GradingStrategy'."
         )
         assert err in str(exc_info.value)
 
