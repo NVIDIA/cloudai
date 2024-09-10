@@ -67,19 +67,21 @@ classDiagram
     class TestRun {
         Test test
         TestRun[] dependencies
+        Path _base_output_dir
         int num_nodes
         str[] nodes
         str time_limit
+
+        +output_dir()
     }
     class Job {
         int job_id
-        tr: TestRun
+        TestRun tr
         System system
 
         +run()
         +kill()
 
-        +output_path()
         +job_id()
         +is_running()
         +is_done()
@@ -92,3 +94,35 @@ classDiagram
 
 Notes:
 1. `BaseRunner` and derivatives to be merged into Job class.
+
+# Execution flow through the system
+```mermaid
+flowchart TB
+    ur(A user runs cloudai specifying CLI arguments)
+    ur --> parsing
+    sp --> ttp
+    ttp --> tp
+    tp --> tsp
+
+    subgraph parsing
+    sp(First, System TOML is parsed into System object. It contains all system-specific parameters, plus output and installation directories.)
+    ttp(Then, all Test Template TOMLs are parsed into TestTemplate objects. These objects contain env and cmd arguments. TestTemplate requires a System object to be construct Strategies: Install, CommandGen, etc. *)
+    tp(Then, all Test TOMLs are parsed into Test objects. These objects contain TestTemplate as a property. And again, use env and cmd arguments, but also have extra_env and extra_cmd arguments.)
+    tsp(Finally, Test Scenario TOML is parsed into TestScenario object. It constructs TestRun objects, which contain Test objects and some run-specific parameters like num_nodes.)
+    end
+
+    parsing --> execution    
+    subgraph execution
+    end
+
+    execution --> report_generation
+    subgraph report_generation
+    end
+```
+\* Some Strategies are inherited from TestTemplateStrategy and require System, env, and cmd arguments for their construction. Other Strategies fo not require any arguments.
+
+## output directory
+Output directory is set per Cloud AI invocation. It is constructed as follows:
+1. `BaseOutputDir = System.output_directory + TestScenario.name + CurrentTime`
+1. Each test then adds its own subdirectory to the output directory like `BaseOutputDir/TestName`
+
