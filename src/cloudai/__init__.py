@@ -93,7 +93,7 @@ from .schema.test_template.ucc_test.template import UCCTest
 from .systems.kubernetes.kubernetes_system import KubernetesSystem
 from .systems.slurm.slurm_system import SlurmSystem
 from .systems.standalone_system import StandaloneSystem
-from .test_definitions.test_definitions import (
+from .test_definitions import (
     ChakraReplayTestDefinition,
     GPTTestDefinition,
     GrokTestDefinition,

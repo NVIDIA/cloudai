@@ -22,7 +22,6 @@ import pandas as pd
 from bokeh.layouts import column
 from bokeh.models import ColumnDataSource, CustomJSTickFormatter, Range1d
 from bokeh.plotting import figure, output_file, save
-
 from cloudai.report_generator.util import bokeh_size_unit_js_tick_formatter, calculate_power_of_two_ticks
 
 

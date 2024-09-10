@@ -19,7 +19,6 @@ from pathlib import Path
 from typing import Optional
 
 import pandas as pd
-
 from cloudai import ReportGenerationStrategy
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.report_generator.tool.tensorboard_data_reader import TensorBoardDataReader

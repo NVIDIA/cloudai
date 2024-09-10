@@ -16,10 +16,9 @@
 
 import logging
 
+from cloudai import BaseInstaller, InstallStatusResult
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
-
-from cloudai import BaseInstaller, InstallStatusResult
 
 
 class KubernetesInstaller(BaseInstaller):

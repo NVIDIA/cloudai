@@ -21,7 +21,6 @@ from pathlib import Path
 from typing import Dict, Iterable, cast
 
 import toml
-
 from cloudai import BaseInstaller, InstallStatusResult, System, TestTemplate
 from cloudai.systems import SlurmSystem
 

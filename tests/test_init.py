@@ -67,7 +67,7 @@ from cloudai.schema.test_template.ucc_test.template import UCCTest
 from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.standalone_system import StandaloneSystem
-from cloudai.test_definitions.test_definitions import (
+from cloudai.test_definitions import (
     ChakraReplayTestDefinition,
     GPTTestDefinition,
     GrokTestDefinition,

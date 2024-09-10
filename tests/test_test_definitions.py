@@ -18,9 +18,8 @@ from pathlib import Path
 
 import pytest
 import toml
-from cloudai import Registry, TestParser
-from cloudai._core.test import TestDefinition
-from cloudai.test_definitions.test_definitions import NCCLCmdArgs, NCCLTestDefinition
+from cloudai import Registry, TestDefinition, TestParser
+from cloudai.test_definitions import NCCLCmdArgs, NCCLTestDefinition
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
 ALL_TESTS = [t for t in TOML_FILES if "test_template_name" in t.read_text()]

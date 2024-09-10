@@ -17,7 +17,6 @@
 from pathlib import Path
 
 import numpy as np
-
 from cloudai import GradingStrategy
 from cloudai.report_generator.tool import TensorBoardDataReader
 

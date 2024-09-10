@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import List, Optional
 
 import pandas as pd
-
 from cloudai import ReportGenerationStrategy
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.report_generator.util import add_human_readable_sizes
