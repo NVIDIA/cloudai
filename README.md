@@ -118,8 +118,8 @@ Verify if system configs are valid:
 ```bash
 cloudai\
     --mode verify-systems\
-    --tests-dir s\          # any value here
-    --test-templates-dir d\ # ... and here
+    --tests-dir conf/common/test\
+    --test-templates-dir conf/common/test_template\
     --system-config conf/common/system
 ```
 `--system-config` can be a file or a directory to verify all configs in the directory.
