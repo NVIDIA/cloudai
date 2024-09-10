@@ -63,12 +63,6 @@ class BaseRunner(ABC):
             test_scenario (TestScenario): The test scenario to run.
         """
         self.mode = mode
-
-        if self.mode == "dry-run":
-            logging.info("Initializing Runner [DRY-RUN mode]")
-        else:
-            logging.info("Initializing Runner [RUN mode]")
-
         self.system = system
         self.test_scenario = test_scenario
         self.output_path = self.setup_output_directory(system.output_path)
