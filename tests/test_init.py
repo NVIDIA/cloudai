@@ -120,6 +120,7 @@ def test_runners():
         ((ReportGenerationStrategy, SlurmSystem, ChakraReplay), ChakraReplayReportGenerationStrategy),
         ((ReportGenerationStrategy, SlurmSystem, JaxToolbox), JaxToolboxReportGenerationStrategy),
         ((ReportGenerationStrategy, SlurmSystem, NcclTest), NcclTestReportGenerationStrategy),
+        ((ReportGenerationStrategy, KubernetesSystem, NcclTest), NcclTestReportGenerationStrategy),
         ((ReportGenerationStrategy, SlurmSystem, NeMoLauncher), NeMoLauncherReportGenerationStrategy),
         ((ReportGenerationStrategy, SlurmSystem, Sleep), SleepReportGenerationStrategy),
         ((ReportGenerationStrategy, SlurmSystem, UCCTest), UCCTestReportGenerationStrategy),
