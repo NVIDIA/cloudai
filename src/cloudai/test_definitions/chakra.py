@@ -16,20 +16,18 @@
 
 from typing import Optional
 
-from pydantic import Field
-
 from cloudai import CmdArgs, TestDefinition
 
 
 class ChakraReplayCmdArgs(CmdArgs):
     """ChakraReplay test command arguments."""
 
-    docker_image_url: str = Field(default="DOCKER_IMAGE_URL")
-    mpi: str = Field(default="pmix")
-    trace_type: str = Field(default="et")
+    docker_image_url: str = "DOCKER_IMAGE_URL"
+    mpi: str = "pmix"
+    trace_type: str = "et"
     trace_path: Optional[str] = None
-    backend: str = Field(default="nccl")
-    device: str = Field(default="cuda")
+    backend: str = "nccl"
+    device: str = "cuda"
 
 
 class ChakraReplayTestDefinition(TestDefinition):

@@ -16,15 +16,13 @@
 
 from typing import Literal
 
-from pydantic import Field
-
 from cloudai import CmdArgs, TestDefinition
 
 
 class NCCLCmdArgs(CmdArgs):
     """NCCL test command arguments."""
 
-    docker_image_url: str = Field(default="nvcr.io/nvidia/pytorch:24.02-py3")
+    docker_image_url: str = "nvcr.io/nvidia/pytorch:24.02-py3"
     subtest_name: Literal[
         "all_reduce_perf_mpi",
         "all_gather_perf_mpi",
@@ -37,23 +35,23 @@ class NCCLCmdArgs(CmdArgs):
         "scatter_perf_mpi",
         "sendrecv_perf_mpi",
         "bisection_perf_mpi",
-    ] = Field(default="all_reduce_perf_mpi")
-    nthreads: int = Field(default=1)
-    ngpus: int = Field(default=1)
-    minbytes: str = Field(default="32M")
-    maxbytes: str = Field(default="32M")
-    stepbytes: str = Field(default="1M")
-    op: Literal["sum", "prod", "min", "max", "avg", "all"] = Field(default="sum")
-    datatype: str = Field(default="float")
-    root: int = Field(default=0)
-    iters: int = Field(default=20)
-    warmup_iters: int = Field(default=5)
-    agg_iters: int = Field(default=1)
-    average: int = Field(default=1)
-    parallel_init: int = Field(default=0)
-    check: int = Field(default=1)
-    blocking: int = Field(default=0)
-    cudagraph: int = Field(default=0)
+    ] = "all_reduce_perf_mpi"
+    nthreads: int = 1
+    ngpus: int = 1
+    minbytes: str = "32M"
+    maxbytes: str = "32M"
+    stepbytes: str = "1M"
+    op: Literal["sum", "prod", "min", "max", "avg", "all"] = "sum"
+    datatype: str = "float"
+    root: int = 0
+    iters: int = 20
+    warmup_iters: int = 5
+    agg_iters: int = 1
+    average: int = 1
+    parallel_init: int = 0
+    check: int = 1
+    blocking: int = 0
+    cudagraph: int = 0
 
 
 class NCCLTestDefinition(TestDefinition):

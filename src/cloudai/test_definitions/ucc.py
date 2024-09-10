@@ -43,9 +43,9 @@ class UCCCmdArgs(CmdArgs):
         "memcpy",
         "reducedt",
         "reducedt_strided",
-    ] = Field(default="alltoall")
-    b: int = Field(default=1)
-    e: str = Field(default="8M")
+    ] = "alltoall"
+    b: int = 1
+    e: str = "8M"
 
 
 class UCCTestDefinition(TestDefinition):

@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pydantic import Field
 
 from cloudai import CmdArgs, TestDefinition
 
@@ -22,7 +21,7 @@ from cloudai import CmdArgs, TestDefinition
 class SleepCmdArgs(CmdArgs):
     """Sleep test command arguments."""
 
-    seconds: int = Field(default=5)
+    seconds: int = 5
 
 
 class SleepTestDefinition(TestDefinition):

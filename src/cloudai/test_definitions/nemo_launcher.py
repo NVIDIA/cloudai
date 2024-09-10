@@ -46,7 +46,7 @@ class ExpManager(BaseModel):
     """Experiment manager configuration."""
 
     model_config = ConfigDict(extra="forbid")
-    create_checkpoint_callback: bool = Field(default=False)
+    create_checkpoint_callback: bool = False
 
 
 class Trainer(BaseModel):
@@ -55,8 +55,8 @@ class Trainer(BaseModel):
     model_config = ConfigDict(extra="forbid")
     max_steps: int = 400
     val_check_interval: int = 100
-    log_every_n_steps: Literal["1", "2"] = Field(default="1")
-    enable_checkpointing: bool = Field(default=False)
+    log_every_n_steps: Literal["1", "2"] = "1"
+    enable_checkpointing: bool = False
 
     @field_validator("val_check_interval")
     def validate_val_check_interval(cls, value):
@@ -70,8 +70,8 @@ class TrainingModelData(BaseModel):
     """Training model data configuration."""
 
     model_config = ConfigDict(extra="forbid")
-    data_prefix: Literal["[\"1.0\",'${data_dir}/my-gpt3_00_text_document']"] = Field(
-        default="[\"1.0\",'${data_dir}/my-gpt3_00_text_document']"
+    data_prefix: Literal["[\"1.0\",'${data_dir}/my-gpt3_00_text_document']"] = (
+        "[\"1.0\",'${data_dir}/my-gpt3_00_text_document']"
     )
 
 
@@ -129,11 +129,11 @@ class Training(BaseModel):
 class NeMoLauncherCmdArgs(CmdArgs):
     """NeMoLauncher test command arguments."""
 
-    repository_url: str = Field(default="https://github.com/NVIDIA/NeMo-Framework-Launcher.git")
-    repository_commit_hash: str = Field(default="cf411a9ede3b466677df8ee672bcc6c396e71e1a")
-    docker_image_url: str = Field(default="nvcr.io/nvidian/nemofw-training:24.01.01")
-    stages: str = Field(default='["training"]')
-    data_dir: str = Field(default="DATA_DIR")
+    repository_url: str = "https://github.com/NVIDIA/NeMo-Framework-Launcher.git"
+    repository_commit_hash: str = "cf411a9ede3b466677df8ee672bcc6c396e71e1a"
+    docker_image_url: str = "nvcr.io/nvidian/nemofw-training:24.01.01"
+    stages: str = '["training"]'
+    data_dir: str = "DATA_DIR"
     numa_mapping: NumaMapping = Field(default_factory=NumaMapping)
     cluster: Cluster = Field(default_factory=Cluster)
     training: Training = Field(default_factory=Training)
