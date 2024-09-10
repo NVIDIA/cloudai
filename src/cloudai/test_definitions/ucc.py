@@ -16,8 +16,9 @@
 
 from typing import Literal
 
-from cloudai import CmdArgs, TestDefinition
 from pydantic import Field
+
+from cloudai import CmdArgs, TestDefinition
 
 
 class UCCCmdArgs(CmdArgs):

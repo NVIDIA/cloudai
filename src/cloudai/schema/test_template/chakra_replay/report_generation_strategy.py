@@ -25,6 +25,7 @@ from bokeh.models import ColumnDataSource, DataTable, Div, TableColumn, Title
 from bokeh.palettes import Turbo256
 from bokeh.plotting import figure, output_file, save
 from bokeh.transform import cumsum
+
 from cloudai import ReportGenerationStrategy
 
 

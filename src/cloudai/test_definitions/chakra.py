@@ -16,8 +16,9 @@
 
 from typing import Optional
 
-from cloudai import CmdArgs, TestDefinition
 from pydantic import Field
+
+from cloudai import CmdArgs, TestDefinition
 
 
 class ChakraReplayCmdArgs(CmdArgs):

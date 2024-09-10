@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import List, Set
 
 import toml
+
 from cloudai import Installer, Parser, ReportGenerator, Runner, System, Test, TestParser, TestScenario, TestTemplate
 
 

@@ -14,8 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai import CmdArgs, TestDefinition
 from pydantic import Field
+
+from cloudai import CmdArgs, TestDefinition
 
 
 class SleepCmdArgs(CmdArgs):
