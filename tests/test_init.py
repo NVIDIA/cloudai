@@ -24,7 +24,6 @@ from cloudai import (
     Registry,
     ReportGenerationStrategy,
 )
-from cloudai.installer.kubernetes_installer import KubernetesInstaller
 from cloudai.installer.slurm_installer import SlurmInstaller
 from cloudai.installer.standalone_installer import StandaloneInstaller
 from cloudai.schema.test_template.chakra_replay.grading_strategy import ChakraReplayGradingStrategy

@@ -33,6 +33,7 @@ from ._core.report_generation_strategy import ReportGenerationStrategy
 from ._core.runner import Runner
 from ._core.system import System
 from ._core.test import CmdArgs, Test, TestDefinition
+from ._core.test_parser import TestParser
 from ._core.test_scenario import TestRun, TestScenario
 from ._core.test_template import TestTemplate
 from ._core.test_template_strategy import TestTemplateStrategy
@@ -205,6 +206,7 @@ __all__ = [
     "Test",
     "TestDefinition",
     "TestRun",
+    "TestParser",
     "TestScenario",
     "TestTemplate",
     "TestTemplateStrategy",
