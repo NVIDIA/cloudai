@@ -79,53 +79,33 @@ def parse_arguments() -> argparse.Namespace:
         arguments.
     """
     parser = argparse.ArgumentParser(description="CloudAI")
-    parser.add_argument(
-        "--mode",
-        default="run",
-        choices=[
-            "install",
-            "dry-run",
-            "run",
-            "generate-report",
-            "uninstall",
-            "verify-systems",
-        ],
-        help=(
-            "Operating mode: 'install' to install test templates, 'dry-run' "
-            "to simulate running experiments without checking for "
-            "installation, 'run' to run experiments, 'generate-report' to "
-            "generate a report from existing data, 'uninstall' to remove "
-            "installed templates."
-        ),
-    )
-    parser.add_argument(
-        "--system-config",
-        required=True,
-        help="Path to the system configuration file.",
-    )
-    parser.add_argument(
-        "--test-templates-dir",
-        required=True,
-        help="Path to the test template configuration directory.",
-    )
-    parser.add_argument(
-        "--tests-dir",
-        required=True,
-        help="Path to the test configuration directory.",
-    )
-    parser.add_argument(
-        "--test-scenario",
-        required=False,
-        help="Path to the test scenario file.",
-    )
-    parser.add_argument("--output-dir", help="Path to the output directory.")
     parser.add_argument("--log-file", default="debug.log", help="The name of the log file (default: %(default)s).")
     parser.add_argument(
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help="Set the logging level (e.g., DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+        help="Set the logging level (default: %(default)s).",
     )
+    subparsers = parser.add_subparsers(dest="mode")
+    COMMANDS_HELP = {
+        "install": "Prepare execution by setting up env and dependencies for the tests to run.",
+        "uninstall": "Remove installed test templates.",
+        "run": "Execute specific Test Scenario.",
+        "dry-run": "Emulate the execution of the Test Scenario without actually running the tests.",
+        "generate-report": "Generate a report based on the existing configuration and test results.",
+        "verify-systems": "Verify the system configuration files.",
+    }
+    for cmd, help_text in COMMANDS_HELP.items():
+        exec_parser = subparsers.add_parser(cmd, help=help_text)
+        if cmd == "verify-systems":
+            exec_parser.add_argument("system_configs", help="Path to the system configuration file or directory.")
+        else:
+            exec_parser.add_argument(
+                "--test-templates-dir", required=True, help="Path to the test template configuration directory."
+            )
+            exec_parser.add_argument("--tests-dir", required=True, help="Path to the test configuration directory.")
+            need_scenario = cmd in ["run", "dry-run", "generate-report"]
+            exec_parser.add_argument("--test-scenario", required=need_scenario, help="Path to the test scenario file.")
 
     return parser.parse_args()
 
@@ -281,10 +261,13 @@ def handle_verify_systems(root: Path) -> int:
 def main() -> None:
     args = parse_arguments()
 
+    print(args)
+    # exit(0)
+
     setup_logging(args.log_file, args.log_level)
 
     if args.mode == "verify-systems":
-        rc = handle_verify_systems(Path(args.system_config))
+        rc = handle_verify_systems(Path(args.system_configs))
         exit(rc)
 
     system_config_path = Path(args.system_config)
