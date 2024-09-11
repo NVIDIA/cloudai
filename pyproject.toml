@@ -73,7 +73,7 @@ root_package = "cloudai"
   name = "_core does not depends on higher level layers"
   type = "layers"
   layers = [
-    "installer : parser : report_generator : runner : schema : util",
+    "installer : parser : report_generator : runner : schema : util : cli",
     "_core",
   ]
   containers = ["cloudai"]
@@ -90,6 +90,7 @@ root_package = "cloudai"
     "cloudai.runner",
     "cloudai.schema",
     "cloudai.util",
+    "cloudai.cli",
   ]
 
 [tool.vulture]
