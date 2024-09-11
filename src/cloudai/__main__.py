@@ -66,10 +66,10 @@ def setup_logging(log_file: str, log_level: str) -> None:
 
 
 def main() -> None:
-    ca = CloudAICLI()
-    args = ca.init_default_args().parse_args()
+    cloudai_cli = CloudAICLI()
+    args = cloudai_cli.init_default_args().parse_args()
     setup_logging(args.log_file, args.log_level)
-    rc = ca.run()
+    rc = cloudai_cli.run()
     exit(rc)
 
 
