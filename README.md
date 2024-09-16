@@ -66,8 +66,7 @@ CloudAI supports five modes: install, dry-run, run, generate-report, and uninsta
 To install test templates, run CloudAI CLI in install mode.
 Please make sure to use the correct system configuration file that corresponds to your current setup for installation and experiments.
 ```bash
-cloudai\
-    --mode install\
+cloudai install\
     --system-config conf/common/system/example_slurm_cluster.toml\
     --test-templates-dir conf/common/test_template\
     --tests-dir conf/common/test
@@ -75,8 +74,7 @@ cloudai\
 
 To simulate running experiments without execution, use the dry-run mode:
 ```bash
-cloudai\
-    --mode dry-run\
+cloudai dry-run\
     --system-config conf/common/system/example_slurm_cluster.toml\
     --test-templates-dir conf/common/test_template\
     --tests-dir conf/common/test\
@@ -85,8 +83,7 @@ cloudai\
 
 To run experiments, execute CloudAI CLI in run mode:
 ```bash
-cloudai\
-    --mode run\
+cloudai run\
     --system-config conf/common/system/example_slurm_cluster.toml\
     --test-templates-dir conf/common/test_template\
     --tests-dir conf/common/test\
@@ -95,8 +92,7 @@ cloudai\
 
 To generate reports, execute CloudAI CLI in generate-report mode:
 ```bash
-cloudai\
-    --mode generate-report\
+cloudai generate-report\
     --system-config conf/common/system/example_slurm_cluster.toml\
     --test-templates-dir conf/common/test_template\
     --tests-dir conf/common/test\
@@ -107,8 +103,7 @@ This subdirectory is usually named with a timestamp for unique identification.
 
 To uninstall test templates, run CloudAI CLI in uninstall mode:
 ```bash
-cloudai\
-    --mode uninstall\
+cloudai uninstall\
     --system-config conf/common/system/example_slurm_cluster.toml\
     --test-templates-dir conf/common/test_template\
     --tests-dir conf/common/test
@@ -116,13 +111,9 @@ cloudai\
 
 Verify if system configs are valid:
 ```bash
-cloudai\
-    --mode verify-systems\
-    --tests-dir conf/common/test\
-    --test-templates-dir conf/common/test_template\
-    --system-config conf/common/system
+cloudai verify-systems conf/common/system
 ```
-`--system-config` can be a file or a directory to verify all configs in the directory.
+An argument for `verify-systems` can be a file or a directory to verify all configs in the directory.
 
 ## Contributing
 Feel free to contribute to the CloudAI project. Your contributions are highly appreciated.

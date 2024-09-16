@@ -171,7 +171,7 @@ Notes on the test scenario:
 
 To generate NCCL test commands without actual execution, use the `dry-run` mode. You can review `debug.log` (or other file specifued with `--log-file`) to see the generated commands from CloudAI. Please note that group node allocations are not currently supported in the `dry-run` mode.
 ```bash
-cloudai --mode dry-run \
+cloudai dry-run \
     --test-scenario myconfig/scenario.toml \
     --system-config myconfig/system.toml \
     --test-templates-dir myconfig/test_templates/ \
@@ -180,7 +180,7 @@ cloudai --mode dry-run \
 
 You can run NCCL test experiments with the following command. Whenever you run CloudAI in the `run` mode, a new directory will be created under the results directory with the timestamp. In the directory, you can find the results from the test scenario including stdout and stderr. Once completed successfully, you can find generated reports under the directories as well.
 ```bash
-cloudai --mode run \
+cloudai run \
     --test-scenario myconfig/scenario.toml \
     --system-config myconfig/system.toml \
     --test-templates-dir myconfig/test_templates/ \
@@ -190,7 +190,7 @@ cloudai --mode run \
 #### Step 7: Generate Reports
 Once the test scenario is completed, you can generate reports using the following command:
 ```bash
-cloudai --mode generate-report \
+cloudai generate-report \
    --test-scenario myconfig/scenario.toml \
    --system-config myconfig/system.toml \
    --test-templates-dir myconfig/test_templates/ \
