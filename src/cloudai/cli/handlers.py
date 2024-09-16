@@ -101,12 +101,12 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
                 break
 
         if all_installed:
-            logging.info("CloudAI is already installed.")
+            logging.info(f"CloudAI is already installed into '{system.install_path}'.")
         else:
             logging.info("Not all components are ready")
             result = installer.install(list(unique_test_templates))
             if result.success:
-                logging.info("Installation successful.")
+                logging.info(f"CloudAI is successful installed into '{system.install_path}'.")
             else:
                 logging.error(result.message)
                 rc = 1
