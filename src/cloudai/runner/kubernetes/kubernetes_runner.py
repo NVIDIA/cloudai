@@ -42,13 +42,12 @@ class KubernetesRunner(BaseRunner):
         job_spec = tr.test.gen_json(job_output_path, job_name, tr.time_limit, tr.num_nodes, tr.nodes)
         job_kind = job_spec.get("kind", "").lower()
         logging.info(f"Generated JSON string for test {tr.test.section_name}: {job_spec}")
-        job_namespace = ""
 
         if self.mode == "run":
             k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)
-            job_name, job_namespace = k8s_system.create_job(job_spec)
+            job_name = k8s_system.create_job(job_spec)
 
-        return KubernetesJob(self.mode, self.system, tr, job_namespace, job_name, job_kind, job_output_path)
+        return KubernetesJob(self.mode, self.system, tr, job_name, job_kind, job_output_path)
 
     async def job_completion_callback(self, job: BaseJob) -> None:
         """
@@ -59,8 +58,8 @@ class KubernetesRunner(BaseRunner):
         """
         k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)
         k_job = cast(KubernetesJob, job)
-        k8s_system.store_logs_for_job(k_job.namespace, k_job.name, k_job.output_path)
-        k8s_system.delete_job(k_job.namespace, k_job.name, k_job.kind)
+        k8s_system.store_logs_for_job(k_job.name, k_job.output_path)
+        k8s_system.delete_job(k_job.name, k_job.kind)
 
     def kill_job(self, job: BaseJob) -> None:
         """
@@ -71,5 +70,5 @@ class KubernetesRunner(BaseRunner):
         """
         k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)
         k_job = cast(KubernetesJob, job)
-        k8s_system.store_logs_for_job(k_job.namespace, k_job.name, k_job.output_path)
-        k8s_system.delete_job(k_job.namespace, k_job.name, k_job.kind)
+        k8s_system.store_logs_for_job(k_job.name, k_job.output_path)
+        k8s_system.delete_job(k_job.name, k_job.kind)
