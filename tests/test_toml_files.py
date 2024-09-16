@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pytest
 import toml
+from cloudai import Parser
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
 
@@ -32,3 +33,18 @@ def test_toml_files(toml_file: Path):
     """
     with toml_file.open("r") as f:
         assert toml.load(f) is not None
+
+
+ALL_SYSTEMS = [p for p in Path("conf/").glob("**/*.toml") if "scheduler =" in p.read_text()]
+
+
+@pytest.mark.parametrize("system_file", ALL_SYSTEMS, ids=lambda x: str(x))
+def test_systems(system_file: Path):
+    """
+    Validate the syntax of a system configuration file.
+
+    Args:
+        system_file (Path): The path to the system configuration file to validate.
+    """
+    system = Parser(system_file, Path("conf/test_template")).parse_system(system_file)
+    assert system is not None

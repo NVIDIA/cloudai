@@ -78,8 +78,8 @@ from cloudai.test_definitions import (
 )
 
 
-def test_system_parsers():
-    parsers = Registry().system_parsers_map.keys()
+def test_systems():
+    parsers = Registry().systems_map.keys()
     assert "standalone" in parsers
     assert "slurm" in parsers
     assert "kubernetes" in parsers

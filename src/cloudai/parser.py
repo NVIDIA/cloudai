@@ -18,27 +18,24 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from .system import System
-from .system_parser import SystemParser
-from .test import Test
-from .test_parser import TestParser
-from .test_scenario import TestScenario
-from .test_scenario_parser import TestScenarioParser
-from .test_template import TestTemplate
-from .test_template_parser import TestTemplateParser
+import toml
+from pydantic import ValidationError
+from pydantic_core import ErrorDetails
+
+from cloudai import (
+    Registry,
+    System,
+    Test,
+    TestParser,
+    TestScenario,
+    TestScenarioParser,
+    TestTemplate,
+    TestTemplateParser,
+)
 
 
 class Parser:
-    """
-    Main parser for parsing all types of configurations.
-
-    Attributes
-        system_config_path (str): The file path for system configurations.
-        test_template_path (str): The file path for test template configurations.
-        test_path (str): The file path for test configurations.
-        test_scenario_path (str): The file path for test scenario configurations.
-        logger (logging.Logger): Logger for the parser.
-    """
+    """Main parser for parsing all types of configurations."""
 
     def __init__(self, system_config_path: Path, test_templates_dir: Path) -> None:
         """
@@ -65,9 +62,7 @@ class Parser:
         if not test_path.exists():
             raise FileNotFoundError(f"Test path '{test_path}' not found.")
 
-        system_parser = SystemParser(self.system_config_path)
-        system = system_parser.parse()
-        logging.debug("Parsed system config")
+        system = self.parse_system(self.system_config_path)
 
         test_template_parser = TestTemplateParser(system, self.test_template_path)
         test_templates: List[TestTemplate] = test_template_parser.parse_all()
@@ -90,3 +85,34 @@ class Parser:
             filtered_tests = [t for t in tests if t.name in scenario_tests]
 
         return system, filtered_tests, test_scenario
+
+    @staticmethod
+    def parse_system(system_config_path: Path) -> System:
+        registry = Registry()
+        with Path(system_config_path).open() as f:
+            logging.debug(f"Opened system config file: {system_config_path}")
+            data = toml.load(f)
+            scheduler = data.get("scheduler", "").lower()
+            if scheduler not in registry.systems_map:
+                raise ValueError(
+                    f"Unsupported system type '{scheduler}' in {system_config_path}. "
+                    f"Supported types: {', '.join(registry.systems_map.keys())}"
+                )
+
+        try:
+            system = registry.systems_map[scheduler](**data)
+        except ValidationError as e:
+            for err in e.errors(include_url=False):
+                err_msg = Parser.format_validation_error(err)
+                logging.error(err_msg)
+            raise ValueError("Failed to parse system definition") from e
+
+        return system
+
+    @staticmethod
+    def format_validation_error(err: ErrorDetails) -> str:
+        logging.error(f"Validation error: {err}")
+        if err["msg"] == "Field required":
+            return f"Field '{'.'.join(str(v) for v in err['loc'])}': {err['msg']}"
+
+        return f"Field '{'.'.join(str(v) for v in err['loc'])}' with value '{err['input']}' is invalid: {err['msg']}"
