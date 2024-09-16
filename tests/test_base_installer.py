@@ -15,7 +15,6 @@
 # limitations under the License.
 
 from concurrent.futures import Future
-from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -23,24 +22,6 @@ from cloudai import InstallStatusResult, TestTemplate
 from cloudai._core.base_installer import BaseInstaller
 from cloudai._core.test import Test
 from cloudai.systems import SlurmSystem
-from cloudai.systems.slurm import SlurmNode, SlurmNodeState
-
-
-@pytest.fixture
-def slurm_system() -> SlurmSystem:
-    nodes = [SlurmNode(name=f"node-0{i}", partition="main", state=SlurmNodeState.UNKNOWN_STATE) for i in range(33, 65)]
-    backup_nodes = [
-        SlurmNode(name=f"node0{i}", partition="backup", state=SlurmNodeState.UNKNOWN_STATE) for i in range(1, 9)
-    ]
-
-    system = SlurmSystem(
-        name="test_system",
-        install_path=Path("/fake/path"),
-        output_path=Path("/fake/output"),
-        default_partition="main",
-        partitions={"main": nodes, "backup": backup_nodes},
-    )
-    return system
 
 
 @pytest.fixture

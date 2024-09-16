@@ -17,37 +17,27 @@
 import logging
 from pathlib import Path
 
+from pydantic import BaseModel, ConfigDict
+
 from cloudai import BaseJob, System
-from cloudai.util import CommandShell
+from cloudai.util.command_shell import CommandShell
 
 
-class StandaloneSystem(System):
+class StandaloneSystem(BaseModel, System):
     """
-    Represents a standalone system without a job scheduler.
+    Class representing a Standalone system.
 
-    Attributes
-        cmd_shell (CommandShell): An instance of CommandShell for executing system commands.
+    This class is used for systems that execute commands directly without a job scheduler.
     """
 
-    def __init__(self, name: str, output_path: Path) -> None:
-        """
-        Initialize a StandaloneSystem instance.
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
-        Args:
-            name (str): Name of the standalone system.
-            output_path (Path): Path to the output directory.
-        """
-        super().__init__(name, "standalone", Path(), output_path, {})
-        self.cmd_shell = CommandShell()
-
-    def __repr__(self) -> str:
-        """
-        Provide a string representation of the StandaloneSystem instance.
-
-        Returns
-            str: String representation of the standalone system including its name and scheduler type.
-        """
-        return f"StandaloneSystem(name={self.name}, scheduler={self.scheduler})"
+    name: str
+    install_path: Path
+    output_path: Path
+    scheduler: str = "standalone"
+    monitor_interval: int = 1
+    cmd_shell: CommandShell = CommandShell()
 
     def update(self) -> None:
         """

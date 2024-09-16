@@ -25,31 +25,29 @@ mpi = "pmix"
 gpus_per_node = 8
 ntasks_per_node = 8
 
-[partitions]
-  [partitions.partition_1]
-  name = "partition_1"
-  nodes = ["node-[001-100]"]
+[[partitions]]
+name = "partition_1"
+nodes = ["node-[001-100]"]
 
-  [partitions.partition_2]
-  name = "partition_2"
-  nodes = ["node-[101-200]"]
+  [[partitions.groups]]
+  name = "group_1"
+  nodes = ["node-[001-025]"]
 
-    [partitions.partition_1.groups]
-      [partitions.partition_1.groups.group_1]
-      name = "group_1"
-      nodes = ["node-[001-025]"]
+  [[partitions.groups]]
+  name = "group_2"
+  nodes = ["node-[026-050]"]
 
-      [partitions.partition_1.groups.group_2]
-      name = "group_2"
-      nodes = ["node-[026-050]"]
+  [[partitions.groups]]
+  name = "group_3"
+  nodes = ["node-[051-075]"]
 
-      [partitions.partition_1.groups.group_3]
-      name = "group_3"
-      nodes = ["node-[051-075]"]
+  [[partitions.groups]]
+  name = "group_4"
+  nodes = ["node-[076-100]"]
 
-      [partitions.partition_1.groups.group_4]
-      name = "group_4"
-      nodes = ["node-[076-100]"]
+[[partitions]]
+name = "partition_2"
+nodes = ["node-[101-200]"]
 
 [global_env_vars]
 # NCCL Specific Configurations

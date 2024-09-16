@@ -18,48 +18,13 @@ import pytest
 from cloudai import JobIdRetrievalStrategy, JobStatusRetrievalStrategy, ReportGenerationStrategy, System, TestTemplate
 from cloudai._core.base_installer import BaseInstaller
 from cloudai._core.base_runner import BaseRunner
-from cloudai._core.base_system_parser import BaseSystemParser
 from cloudai._core.registry import Registry
 from cloudai._core.test_template_strategy import TestTemplateStrategy
-
-
-class MySystemParser(BaseSystemParser):
-    pass
-
-
-class AnotherSystemParser(BaseSystemParser):
-    pass
 
 
 @pytest.fixture
 def registry():
     return Registry()
-
-
-class TestRegistry__SystemParsersMap:
-    """This test verifies Registry class functionality.
-
-    Since Registry is a Singleton, the order of cases is important.
-    Only covers the system_parsers_map attribute.
-    """
-
-    def test_add_system(self, registry: Registry):
-        registry.add_system_parser("system", MySystemParser)
-        assert registry.system_parsers_map["system"] == MySystemParser
-
-    def test_add_system_duplicate(self, registry: Registry):
-        with pytest.raises(ValueError) as exc_info:
-            registry.add_system_parser("system", MySystemParser)
-        assert "Duplicating implementation for 'system'" in str(exc_info.value)
-
-    def test_update_system(self, registry: Registry):
-        registry.update_system_parser("system", AnotherSystemParser)
-        assert registry.system_parsers_map["system"] == AnotherSystemParser
-
-    def test_invalid_type(self, registry: Registry):
-        with pytest.raises(ValueError) as exc_info:
-            registry.update_system_parser("TestSystem", str)  # pyright: ignore
-        assert "Invalid system implementation for 'TestSystem'" in str(exc_info.value)
 
 
 class MyRunner(BaseRunner):

@@ -27,22 +27,22 @@ from ._core.job_id_retrieval_strategy import JobIdRetrievalStrategy
 from ._core.job_status_result import JobStatusResult
 from ._core.job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from ._core.json_gen_strategy import JsonGenStrategy
-from ._core.parser import Parser
 from ._core.registry import Registry
 from ._core.report_generation_strategy import ReportGenerationStrategy
 from ._core.runner import Runner
 from ._core.system import System
 from ._core.test import Test
+from ._core.test_parser import TestParser
 from ._core.test_scenario import TestRun, TestScenario
+from ._core.test_scenario_parser import TestScenarioParser
 from ._core.test_template import TestTemplate
+from ._core.test_template_parser import TestTemplateParser
 from ._core.test_template_strategy import TestTemplateStrategy
 from .installer.installer import Installer
 from .installer.kubernetes_installer import KubernetesInstaller
 from .installer.slurm_installer import SlurmInstaller
 from .installer.standalone_installer import StandaloneInstaller
-from .parser.system_parser.kubernetes_system_parser import KubernetesSystemParser
-from .parser.system_parser.slurm_system_parser import SlurmSystemParser
-from .parser.system_parser.standalone_system_parser import StandaloneSystemParser
+from .parser import Parser
 from .report_generator import ReportGenerator
 from .runner.kubernetes.kubernetes_runner import KubernetesRunner
 from .runner.slurm.slurm_runner import SlurmRunner
@@ -92,10 +92,6 @@ from .schema.test_template.ucc_test.template import UCCTest
 from .systems.kubernetes.kubernetes_system import KubernetesSystem
 from .systems.slurm.slurm_system import SlurmSystem
 from .systems.standalone_system import StandaloneSystem
-
-Registry().add_system_parser("standalone", StandaloneSystemParser)
-Registry().add_system_parser("slurm", SlurmSystemParser)
-Registry().add_system_parser("kubernetes", KubernetesSystemParser)
 
 Registry().add_runner("slurm", SlurmRunner)
 Registry().add_runner("kubernetes", KubernetesRunner)
@@ -165,6 +161,10 @@ Registry().add_installer("slurm", SlurmInstaller)
 Registry().add_installer("standalone", StandaloneInstaller)
 Registry().add_installer("kubernetes", KubernetesInstaller)
 
+Registry().add_system("slurm", SlurmSystem)
+Registry().add_system("standalone", StandaloneSystem)
+Registry().add_system("kubernetes", KubernetesSystem)
+
 __all__ = [
     "BaseInstaller",
     "BaseJob",
@@ -189,4 +189,7 @@ __all__ = [
     "TestScenario",
     "TestTemplate",
     "TestTemplateStrategy",
+    "TestParser",
+    "TestScenarioParser",
+    "TestTemplateParser",
 ]

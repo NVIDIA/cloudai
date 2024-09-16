@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import subprocess
+from pathlib import Path
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -24,7 +25,7 @@ from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestRun, TestScenario
 from cloudai.runner.slurm.slurm_runner import SlurmRunner
 from cloudai.systems import SlurmSystem
-from cloudai.systems.slurm import SlurmNode, SlurmNodeState
+from cloudai.systems.slurm.slurm_system import SlurmPartition
 from cloudai.util import CommandShell
 
 
@@ -58,17 +59,13 @@ class MockTest(Test):
 
 
 @pytest.fixture
-def slurm_system(tmpdir):
-    nodes = [
-        SlurmNode(name="nodeA001", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-        SlurmNode(name="nodeB001", partition="main", state=SlurmNodeState.UNKNOWN_STATE),
-    ]
+def slurm_system(tmp_path: Path):
     system = SlurmSystem(
         name="test_system",
-        install_path=tmpdir,
-        output_path=tmpdir,
+        install_path=tmp_path,
+        output_path=tmp_path,
         default_partition="main",
-        partitions={"main": nodes},
+        partitions=[SlurmPartition(name="main", nodes=["nodeA001", "nodeB001"])],
     )
     return system
 

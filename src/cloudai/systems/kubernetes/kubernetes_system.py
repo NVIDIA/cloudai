@@ -17,16 +17,17 @@
 import logging
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, List, Tuple, cast
 
 from kubernetes import client, config
 from kubernetes.client import ApiException, CustomObjectsApi, V1DeleteOptions, V1Job
+from pydantic import BaseModel, ConfigDict
 
 from cloudai import BaseJob, System
 from cloudai.runner.kubernetes.kubernetes_job import KubernetesJob
 
 
-class KubernetesSystem(System):
+class KubernetesSystem(BaseModel, System):
     """
     Represents a Kubernetes system.
 
@@ -36,34 +37,22 @@ class KubernetesSystem(System):
         default_image (str): Default Docker image to be used for jobs.
     """
 
-    def __init__(
-        self,
-        name: str,
-        install_path: Path,
-        output_path: Path,
-        kube_config_path: Path,
-        default_namespace: str,
-        default_image: str,
-        global_env_vars: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """
-        Initialize a KubernetesSystem instance.
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
-        Args:
-            name (str): Name of the Kubernetes system.
-            install_path (Path): The installation path of CloudAI.
-            output_path (Path): Path to the output directory.
-            kube_config_path (Path): Path to the Kubernetes config file.
-            default_namespace (str): The default Kubernetes namespace for jobs.
-            default_image (str): Default Docker image to be used for jobs.
-            global_env_vars (Optional[Dict[str, Any]]): Dictionary containing additional configuration settings for
-                the system.
-        """
-        super().__init__(name, "kubernetes", install_path, output_path, global_env_vars)
-        self.kube_config_path = kube_config_path.resolve()
-        self.default_namespace = default_namespace
-        self.default_image = default_image
+    name: str
+    install_path: Path
+    output_path: Path
+    kube_config_path: Path
+    default_namespace: str
+    default_image: str
+    scheduler: str = "kubernetes"
+    global_env_vars: Dict[str, Any] = {}
+    _core_v1: client.CoreV1Api
+    _batch_v1: client.BatchV1Api
+    _custom_objects_api: CustomObjectsApi
 
+    def __post_init__(self) -> None:
+        """Initialize the KubernetesSystem instance."""
         # Load the Kubernetes configuration
         if not self.kube_config_path.exists():
             error_message = (
@@ -76,11 +65,26 @@ class KubernetesSystem(System):
         # Instantiate Kubernetes APIs
         logging.debug(f"Loading kube config from: {self.kube_config_path}")
         config.load_kube_config(config_file=str(self.kube_config_path))
-        self.core_v1 = client.CoreV1Api()
-        self.batch_v1 = client.BatchV1Api()
-        self.custom_objects_api = CustomObjectsApi()
 
         logging.debug(f"{self.__class__.__name__} initialized")
+
+    @property
+    def core_v1(self) -> client.CoreV1Api:
+        if self._core_v1 is None:
+            self._core_v1 = client.CoreV1Api()
+        return self._core_v1
+
+    @property
+    def batch_v1(self) -> client.BatchV1Api:
+        if self._batch_v1 is None:
+            self._batch_v1 = client.BatchV1Api()
+        return self._batch_v1
+
+    @property
+    def custom_objects_api(self) -> CustomObjectsApi:
+        if self._custom_objects_api is None:
+            self._custom_objects_api = CustomObjectsApi()
+        return self._custom_objects_api
 
     def __repr__(self) -> str:
         """
