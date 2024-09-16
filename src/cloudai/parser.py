@@ -20,7 +20,6 @@ from typing import List, Optional, Tuple
 
 import toml
 from pydantic import ValidationError
-from pydantic_core import ErrorDetails
 
 from cloudai import (
     Registry,
@@ -31,6 +30,7 @@ from cloudai import (
     TestScenarioParser,
     TestTemplate,
     TestTemplateParser,
+    format_validation_error,
 )
 
 
@@ -103,16 +103,9 @@ class Parser:
             system = registry.systems_map[scheduler](**data)
         except ValidationError as e:
             for err in e.errors(include_url=False):
-                err_msg = Parser.format_validation_error(err)
+                logging.error(f"Validation error: {err}")
+                err_msg = format_validation_error(err)
                 logging.error(err_msg)
             raise ValueError("Failed to parse system definition") from e
 
         return system
-
-    @staticmethod
-    def format_validation_error(err: ErrorDetails) -> str:
-        logging.error(f"Validation error: {err}")
-        if err["msg"] == "Field required":
-            return f"Field '{'.'.join(str(v) for v in err['loc'])}': {err['msg']}"
-
-        return f"Field '{'.'.join(str(v) for v in err['loc'])}' with value '{err['input']}' is invalid: {err['msg']}"

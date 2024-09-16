@@ -19,7 +19,7 @@ from ._core.base_job import BaseJob
 from ._core.base_runner import BaseRunner
 from ._core.base_system_parser import BaseSystemParser
 from ._core.command_gen_strategy import CommandGenStrategy
-from ._core.exceptions import JobIdRetrievalError
+from ._core.exceptions import JobIdRetrievalError, format_validation_error
 from ._core.grader import Grader
 from ._core.grading_strategy import GradingStrategy
 from ._core.install_strategy import InstallStrategy
@@ -189,6 +189,7 @@ __all__ = [
     "BaseSystemParser",
     "CmdArgs",
     "CommandGenStrategy",
+    "format_validation_error",
     "Grader",
     "GradingStrategy",
     "Installer",
@@ -204,12 +205,12 @@ __all__ = [
     "System",
     "Test",
     "TestDefinition",
+    "TestParser",
+    "TestParser",
     "TestRun",
-    "TestParser",
     "TestScenario",
-    "TestTemplate",
-    "TestTemplateStrategy",
-    "TestParser",
     "TestScenarioParser",
+    "TestTemplate",
     "TestTemplateParser",
+    "TestTemplateStrategy",
 ]
