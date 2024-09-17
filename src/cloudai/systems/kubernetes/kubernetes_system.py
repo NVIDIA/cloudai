@@ -61,7 +61,7 @@ class KubernetesSystem(BaseModel, System):
     _batch_v1: client.BatchV1Api
     _custom_objects_api: CustomObjectsApi
 
-    def model_post_init(self, __context):
+    def model_post_init(self, __context):  # noqa: Vulture
         """Initialize the KubernetesSystem instance."""
         kube_config_path = self.kube_config_path
         if not kube_config_path.is_file():
