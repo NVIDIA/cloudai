@@ -25,21 +25,14 @@ class NumaMapping(BaseModel):
     """NUMA mapping configuration."""
 
     model_config = ConfigDict(extra="forbid")
-    enable: bool = Field(default=True)
+    enable: bool = True
 
 
 class Cluster(BaseModel):
     """Cluster configuration."""
 
     model_config = ConfigDict(extra="forbid")
-    gpus_per_node: int = Field(default=8)
-
-    @field_validator("gpus_per_node")
-    def validate_gpus_per_node(cls, value):
-        valid_values = {4, 8, 16}
-        if value not in valid_values:
-            raise ValueError(f"gpus_per_node must be one of {valid_values}")
-        return value
+    gpus_per_node: int = 8
 
 
 class ExpManager(BaseModel):
@@ -58,21 +51,12 @@ class Trainer(BaseModel):
     log_every_n_steps: Literal["1", "2"] = "1"
     enable_checkpointing: bool = False
 
-    @field_validator("val_check_interval")
-    def validate_val_check_interval(cls, value):
-        valid_values = {100, 500, 1000, 2000}
-        if value not in valid_values:
-            raise ValueError(f"val_check_interval must be one of {valid_values}")
-        return value
-
 
 class TrainingModelData(BaseModel):
     """Training model data configuration."""
 
     model_config = ConfigDict(extra="forbid")
-    data_prefix: Literal["[\"1.0\",'${data_dir}/my-gpt3_00_text_document']"] = (
-        "[\"1.0\",'${data_dir}/my-gpt3_00_text_document']"
-    )
+    data_prefix: str = "[\"1.0\",'${data_dir}/my-gpt3_00_text_document']"
 
 
 class TrainingModel(BaseModel):
@@ -84,27 +68,6 @@ class TrainingModel(BaseModel):
     tensor_model_parallel_size: int = 4
     pipeline_model_parallel_size: int = 4
     data: TrainingModelData = Field(default_factory=TrainingModelData)
-
-    @field_validator("micro_batch_size")
-    def validate_micro_batch_size(cls, value):
-        valid_values = {1, 2, 4}
-        if value not in valid_values:
-            raise ValueError(f"micro_batch_size must be one of {valid_values}")
-        return value
-
-    @field_validator("tensor_model_parallel_size")
-    def validate_tensor_model_parallel_size(cls, value):
-        valid_values = {4, 8, 16}
-        if value not in valid_values:
-            raise ValueError(f"tensor_model_parallel_size must be one of {valid_values}")
-        return value
-
-    @field_validator("pipeline_model_parallel_size")
-    def validate_pipeline_model_parallel_size(cls, value):
-        valid_values = {1, 2, 4, 8}
-        if value not in valid_values:
-            raise ValueError(f"pipeline_model_parallel_size must be one of {valid_values}")
-        return value
 
 
 class TrainingRun(BaseModel):
