@@ -25,8 +25,8 @@ from kubernetes import client
 @pytest.fixture
 def k8s_system():
     """Fixture to create a KubernetesSystem instance."""
-    with patch("kubernetes.config.load_kube_config"):
-        yield KubernetesSystem(
+    with patch("kubernetes.config.load_kube_config"), patch("pathlib.Path.exists", return_value=True):
+        k8s_system = KubernetesSystem(
             name="test-system",
             install_path=Path("/fake/install/path"),
             output_path=Path("/fake/output/path"),
@@ -34,16 +34,14 @@ def k8s_system():
             default_namespace="default",
             default_image="test-image",
         )
-        _core_v1 = MagicMock(client.CoreV1Api)
-        _batch_v1 = MagicMock(client.BatchV1Api)
-        _custom_objects_api = MagicMock(client.CustomObjectsApi)
+        k8s_system._core_v1 = MagicMock(client.CoreV1Api)
+        k8s_system._batch_v1 = MagicMock(client.BatchV1Api)
+        k8s_system._custom_objects_api = MagicMock(client.CustomObjectsApi)
+        yield k8s_system
 
 
-@patch("kubernetes.config.load_kube_config")
-@patch("pathlib.Path.exists", return_value=True)
-def test_initialization(mock_exists, mock_load_kube_config, k8s_system):
+def test_initialization(k8s_system):
     """Test that all attributes are properly initialized."""
-    mock_load_kube_config.return_value = None
     assert k8s_system.name == "test-system"
     assert k8s_system.install_path == Path("/fake/install/path")
     assert k8s_system.output_path == Path("/fake/output/path")
