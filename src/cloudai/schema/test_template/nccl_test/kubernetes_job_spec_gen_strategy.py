@@ -17,10 +17,10 @@
 from pathlib import Path
 from typing import Any, Dict, List
 
-from cloudai import JsonGenStrategy
+from cloudai import JobSpecGenStrategy
 
 
-class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
+class NcclTestKubernetesJobSpecGenStrategy(JobSpecGenStrategy):
     """JSON generation strategy for NCCL tests on Kubernetes systems."""
 
     def gen_json(

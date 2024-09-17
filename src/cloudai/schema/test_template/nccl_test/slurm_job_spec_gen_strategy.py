@@ -17,21 +17,22 @@
 from pathlib import Path
 from typing import Any, Dict, List
 
-from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.systems.slurm.strategy import SlurmJobSpecGenStrategy
 
 from .slurm_install_strategy import NcclTestSlurmInstallStrategy
 
 
-class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
+class NcclTestSlurmJobSpecGenStrategy(SlurmJobSpecGenStrategy):
     """Command generation strategy for NCCL tests on Slurm systems."""
 
-    def gen_exec_command(
+    def gen_job_spec(
         self,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
         output_path: Path,
+        job_name: str,
         num_nodes: int,
         nodes: List[str],
     ) -> str:

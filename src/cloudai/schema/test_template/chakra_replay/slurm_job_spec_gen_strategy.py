@@ -17,22 +17,20 @@
 from pathlib import Path
 from typing import Any, Dict, List
 
-from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
-
-from .slurm_install_strategy import UCCTestSlurmInstallStrategy
-from .template import UCCTest
+from cloudai.systems.slurm.strategy import SlurmJobSpecGenStrategy
 
 
-class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
-    """Command generation strategy for UCC tests on Slurm systems."""
+class ChakraReplaySlurmJobSpecGenStrategy(SlurmJobSpecGenStrategy):
+    """Command generation strategy for ChakraReplay on Slurm systems."""
 
-    def gen_exec_command(
+    def gen_job_spec(
         self,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
         output_path: Path,
+        job_name: str,
         num_nodes: int,
         nodes: List[str],
     ) -> str:
@@ -41,11 +39,19 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         final_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
         env_vars_str = self._format_env_vars(final_env_vars)
 
-        collective = final_cmd_args.get("collective")
-        if not collective or collective not in UCCTest.SUPPORTED_COLLECTIVES:
-            raise KeyError("Collective name not specified or unsupported.")
+        required_args = [
+            "docker_image_url",
+            "trace_path",
+            "trace_type",
+            "backend",
+            "device",
+        ]
+        missing_args = [arg for arg in required_args if arg not in final_cmd_args]
+        if missing_args:
+            raise KeyError(f"Missing required command-line arguments: {missing_args}")
 
-        slurm_args = self._parse_slurm_args(collective, final_env_vars, final_cmd_args, num_nodes, nodes)
+        job_name_prefix = "chakra_replay"
+        slurm_args = self._parse_slurm_args(job_name_prefix, final_env_vars, final_cmd_args, num_nodes, nodes)
         srun_command = self.generate_full_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
         return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, output_path)
 
@@ -59,37 +65,22 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     ) -> Dict[str, Any]:
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
 
-        base_args.update(
-            {
-                "image_path": self.docker_image_cache_manager.ensure_docker_image(
-                    self.docker_image_url,
-                    UCCTestSlurmInstallStrategy.SUBDIR_PATH,
-                    UCCTestSlurmInstallStrategy.DOCKER_IMAGE_FILENAME,
-                ).docker_image_path,
-            }
-        )
+        image_path = cmd_args["docker_image_url"]
+        container_mounts = f"{cmd_args['trace_path']}:{cmd_args['trace_path']}"
+
+        base_args.update({"image_path": image_path, "container_mounts": container_mounts})
 
         return base_args
 
     def generate_test_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
     ) -> List[str]:
-        srun_command_parts = ["/opt/hpcx/ucc/bin/ucc_perftest"]
-
-        # Add collective, minimum bytes, and maximum bytes options if available
-        if "collective" in cmd_args:
-            srun_command_parts.append(f"-c {cmd_args['collective']}")
-        if "b" in cmd_args:
-            srun_command_parts.append(f"-b {cmd_args['b']}")
-        if "e" in cmd_args:
-            srun_command_parts.append(f"-e {cmd_args['e']}")
-
-        # Append fixed string options for memory type and additional flags
-        srun_command_parts.append("-m cuda")
-        srun_command_parts.append("-F")
-
-        # Append any extra command-line arguments provided
-        if extra_cmd_args:
-            srun_command_parts.append(extra_cmd_args)
-
+        srun_command_parts = [
+            "python /workspace/param/train/comms/pt/commsTraceReplay.py",
+            f'--trace-type {cmd_args["trace_type"]}',
+            f'--trace-path {cmd_args["trace_path"]}',
+            f'--backend {cmd_args["backend"]}',
+            f'--device {cmd_args["device"]}',
+            extra_cmd_args,
+        ]
         return srun_command_parts

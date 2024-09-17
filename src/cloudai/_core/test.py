@@ -113,46 +113,16 @@ class Test:
             f"dependencies={self.dependencies}, iterations={self.iterations}, "
         )
 
-    def gen_exec_command(
-        self, output_path: Path, time_limit: Optional[str] = None, num_nodes: int = 1, nodes: Optional[List[str]] = None
-    ) -> str:
-        """
-        Generate the command to run this specific test.
-
-        Args:
-            output_path (Path): Path to the output directory where logs and results will be stored.
-            time_limit (Optional[str]): Time limit for the test execution.
-            num_nodes (Optional[int]): Number of nodes to be used for the test execution.
-            nodes (Optional[List[str]]): List of nodes involved in the test.
-
-        Returns:
-            str: The command string.
-        """
-        if time_limit is not None:
-            self.cmd_args["time_limit"] = time_limit
-        if not nodes:
-            nodes = []
-
-        return self.test_template.gen_exec_command(
-            self.env_vars,
-            self.cmd_args,
-            self.extra_env_vars,
-            self.extra_cmd_args,
-            output_path,
-            num_nodes,
-            nodes,
-        )
-
-    def gen_json(
+    def gen_job_spec(
         self,
         output_path: Path,
         job_name: str,
         time_limit: Optional[str] = None,
         num_nodes: int = 1,
         nodes: Optional[List[str]] = None,
-    ) -> Dict[Any, Any]:
+    ) -> Any:
         """
-        Generate a JSON dictionary representing the Kubernetes job specification for this test.
+        Generate the job specification for running this specific test.
 
         Args:
             output_path (Path): Path to the output directory where logs and results will be stored.
@@ -162,14 +132,15 @@ class Test:
             nodes (Optional[List[str]]): List of nodes involved in the test.
 
         Returns:
-            Dict[Any, Any]: A dictionary representing the Kubernetes job specification.
+            Any: The generated job specification, which could be a command string, dictionary,
+                 or another format depending on the implementation.
         """
         if time_limit is not None:
             self.cmd_args["time_limit"] = time_limit
         if not nodes:
             nodes = []
 
-        return self.test_template.gen_json(
+        return self.test_template.gen_job_spec(
             self.env_vars,
             self.cmd_args,
             self.extra_env_vars,

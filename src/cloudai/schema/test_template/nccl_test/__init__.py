@@ -15,17 +15,17 @@
 # limitations under the License.
 
 from .grading_strategy import NcclTestGradingStrategy
-from .kubernetes_json_gen_strategy import NcclTestKubernetesJsonGenStrategy
+from .kubernetes_job_spec_gen_strategy import NcclTestKubernetesJobSpecGenStrategy
 from .report_generation_strategy import NcclTestReportGenerationStrategy
-from .slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from .slurm_install_strategy import NcclTestSlurmInstallStrategy
+from .slurm_job_spec_gen_strategy import NcclTestSlurmJobSpecGenStrategy
 from .template import NcclTest
 
 __all__ = [
     "NcclTest",
     "NcclTestSlurmInstallStrategy",
-    "NcclTestSlurmCommandGenStrategy",
-    "NcclTestKubernetesJsonGenStrategy",
+    "NcclTestSlurmJobSpecGenStrategy",
+    "NcclTestKubernetesJobSpecGenStrategy",
     "NcclTestReportGenerationStrategy",
     "NcclTestGradingStrategy",
 ]
