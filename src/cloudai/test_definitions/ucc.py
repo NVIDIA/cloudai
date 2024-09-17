@@ -16,15 +16,13 @@
 
 from typing import Literal
 
-from pydantic import Field
-
 from cloudai import CmdArgs, TestDefinition
 
 
 class UCCCmdArgs(CmdArgs):
     """UCC test command arguments."""
 
-    docker_image_url: str = Field(default="nvcr.io/nvidia/pytorch:24.02-py3")
+    docker_image_url: str = "nvcr.io/nvidia/pytorch:24.02-py3"
     collective: Literal[
         "allgather",
         "allgatherv",
