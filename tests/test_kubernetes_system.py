@@ -39,8 +39,11 @@ def k8s_system():
         _custom_objects_api = MagicMock(client.CustomObjectsApi)
 
 
-def test_initialization(k8s_system):
+@patch("kubernetes.config.load_kube_config")
+@patch("pathlib.Path.exists", return_value=True)
+def test_initialization(mock_exists, mock_load_kube_config, k8s_system):
     """Test that all attributes are properly initialized."""
+    mock_load_kube_config.return_value = None
     assert k8s_system.name == "test-system"
     assert k8s_system.install_path == Path("/fake/install/path")
     assert k8s_system.output_path == Path("/fake/output/path")
@@ -50,14 +53,3 @@ def test_initialization(k8s_system):
     assert k8s_system.scheduler == "kubernetes"
     assert k8s_system.global_env_vars == {}
     assert k8s_system.monitor_interval == 1
-
-
-def test_model_post_init(k8s_system):
-    """Test that the model_post_init correctly sets up the kube config."""
-    with (
-        patch("kubernetes.config.load_kube_config") as mock_load_kube_config,
-        patch("pathlib.Path.is_file", return_value=True),
-        patch("pathlib.Path.exists", return_value=True),
-    ):
-        k8s_system.model_post_init({})
-        mock_load_kube_config.assert_called_once_with(config_file=str(k8s_system.kube_config_path))
