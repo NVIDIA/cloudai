@@ -20,7 +20,6 @@ kube_config_path = ""
 
 install_path = "./install"
 output_path = "./results"
-default_image = "ubuntu:22.04"
 default_namespace = "default"
 
 [global_env_vars]

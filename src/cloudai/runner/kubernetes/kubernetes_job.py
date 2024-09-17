@@ -28,15 +28,12 @@ class KubernetesJob(BaseJob):
         mode (str): The mode of the job (e.g., 'run', 'dry-run').
         system (System): The system in which the job is running.
         test_run (TestRun): The test instance associated with this job.
-        namespace (str): The namespace of the job.
         name (str): The name of the job.
         kind (str): The kind of the job.
         output_path (Path): The path where the job's output is stored.
     """
 
-    def __init__(
-        self, mode: str, system: System, test_run: TestRun, namespace: str, name: str, kind: str, output_path: Path
-    ):
+    def __init__(self, mode: str, system: System, test_run: TestRun, name: str, kind: str, output_path: Path):
         """
         Initialize a KubernetesJob instance.
 
@@ -44,14 +41,12 @@ class KubernetesJob(BaseJob):
             mode (str): The mode of the job (e.g., 'run', 'dry-run').
             system (System): The system in which the job is running.
             test_run (TestRun): The test instance associated with this job.
-            namespace (str): The namespace of the job.
             name (str): The name of the job.
             kind (str): The kind of the job.
             output_path (Path): The path where the job's output is stored.
         """
         super().__init__(mode, system, test_run, output_path)
         self.id = name
-        self.namespace = namespace
         self.name = name
         self.kind = kind
 
@@ -62,7 +57,4 @@ class KubernetesJob(BaseJob):
         Returns
             str: String representation of the job.
         """
-        return (
-            f"KubernetesJob(name={self.name}, namespace={self.namespace}, test={self.test_run.test.name}, "
-            f"kind={self.kind})"
-        )
+        return f"KubernetesJob(name={self.name}, test={self.test_run.test.name}, kind={self.kind})"
