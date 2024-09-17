@@ -225,13 +225,30 @@ class TestCLIDefaultModes:
         assert "generate-report" in cli.handlers
         assert cli.handlers["generate-report"] is handle_generate_report
 
-        args = cli.parser.parse_args(["generate-report", "--test-scenario", "test_scenario"])
+        args = cli.parser.parse_args(
+            [
+                "generate-report",
+                "--system-config",
+                "system_config",
+                "--test-templates-dir",
+                "test_templates_dir",
+                "--tests-dir",
+                "tests_dir",
+                "--test-scenario",
+                "test_scenario",
+                "--output-dir",
+                "output_dir",
+            ]
+        )
         assert args == argparse.Namespace(
             log_file="debug.log",
             log_level="INFO",
             mode="generate-report",
             test_scenario=Path("test_scenario"),
-            output_dir=None,
+            output_dir=Path("output_dir"),
+            system_config=Path("system_config"),
+            test_templates_dir=Path("test_templates_dir"),
+            tests_dir=Path("tests_dir"),
         )
 
     def test_run_dry_run_modes(self, cli: CloudAICLI):
@@ -263,3 +280,37 @@ class TestCLIDefaultModes:
                 test_scenario=Path("test_scenario"),
                 output_dir=None,
             )
+
+    @pytest.mark.parametrize(
+        "mode_and_missing_options",
+        [
+            (
+                "generate-report",
+                ["--system-config", "--test-templates-dir", "--tests-dir", "--test-scenario", "--output-dir"],
+            ),
+            ("install", ["--system-config", "--test-templates-dir", "--tests-dir"]),
+            ("uninstall", ["--system-config", "--test-templates-dir", "--tests-dir"]),
+            ("dry-run", ["--system-config", "--test-templates-dir", "--tests-dir", "--test-scenario"]),
+            ("run", ["--system-config", "--test-templates-dir", "--tests-dir", "--test-scenario"]),
+        ],
+    )
+    def test_required_args(
+        self, mode_and_missing_options: tuple[str, list[str]], cli: CloudAICLI, capsys: pytest.CaptureFixture[str]
+    ):
+        opts = {
+            "--system-config": "system_config",
+            "--test-templates-dir": "test_templates_dir",
+            "--tests-dir": "tests_dir",
+            "--test-scenario": "test_scenario",
+            "--output-dir": "output_dir",
+        }
+        mode, missing_options = mode_and_missing_options
+
+        for missing_option in missing_options:
+            opts.pop(missing_option)
+
+            with pytest.raises(SystemExit) as e:
+                cli.parser.parse_args([mode, *[f"{k} {v}" for k, v in opts.items()]])
+
+            assert e.value.code == 2
+            assert f"{mode}: error: the following arguments are required" in capsys.readouterr().err

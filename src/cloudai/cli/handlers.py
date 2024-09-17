@@ -184,9 +184,13 @@ def handle_generate_report(args: argparse.Namespace) -> int:
     Args:
         args (argparse.Namespace): The parsed command-line arguments.
     """
+    parser = Parser(args.system_config, args.test_templates_dir)
+    _, _, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
+    assert test_scenario is not None
+
     logging.info("Generating report based on system and test scenario")
     generator = ReportGenerator(args.output_dir)
-    generator.generate_report(args.test_scenario)
+    generator.generate_report(test_scenario)
 
     logging.info("Report generation completed.")
 

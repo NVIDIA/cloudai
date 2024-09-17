@@ -86,9 +86,12 @@ class CloudAICLI:
             if mode not in self.DEFAULT_MODES:
                 continue
 
+            desc = "Prepare execution by setting up env and dependencies for the tests to run."
+            if mode == "uninstall":
+                desc = "Remove the installed dependencies."
             self.add_command(
                 mode,
-                "Prepare execution by setting up env and dependencies for the tests to run.",
+                desc,
                 handle_install_and_uninstall,
                 system_config=True,
                 test_templates_dir=True,
@@ -101,9 +104,12 @@ class CloudAICLI:
             if mode not in self.DEFAULT_MODES:
                 continue
 
+            desc = "Execute the test scenarios."
+            if mode == "dry-run":
+                desc = "Perform a dry-run of the test scenarios without executing them."
             self.add_command(
                 mode,
-                "Execute the test scenarios.",
+                desc,
                 handle_dry_run_and_run,
                 system_config=True,
                 test_templates_dir=True,
@@ -117,11 +123,11 @@ class CloudAICLI:
                 "generate-report",
                 "Generate a report based on the test results.",
                 handle_generate_report,
-                system_config=None,
-                test_templates_dir=None,
-                tests_dir=None,
+                system_config=True,
+                test_templates_dir=True,
+                tests_dir=True,
                 test_scenario=True,
-                output_dir=False,
+                output_dir=True,
             )
 
         if "verify-systems" in self.DEFAULT_MODES:
