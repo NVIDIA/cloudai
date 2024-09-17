@@ -22,6 +22,7 @@ install_path = "./install"
 output_path = "./results"
 default_image = "ubuntu:22.04"
 default_namespace = "default"
+monitor_interval = 1
 
 [global_env_vars]
 NCCL_IB_GID_INDEX = "3"
