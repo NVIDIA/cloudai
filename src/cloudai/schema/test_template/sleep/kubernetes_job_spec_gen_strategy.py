@@ -17,14 +17,14 @@
 from pathlib import Path
 from typing import Any, Dict, List, cast
 
-from cloudai import JsonGenStrategy
+from cloudai import JobSpecGenStrategy
 from cloudai.systems import KubernetesSystem
 
 
-class SleepKubernetesJsonGenStrategy(JsonGenStrategy):
+class SleepKubernetesJobSpecGenStrategy(JobSpecGenStrategy):
     """JSON generation strategy for Sleep on Kubernetes systems."""
 
-    def gen_json(
+    def gen_job_spec(
         self,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],

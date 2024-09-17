@@ -19,15 +19,15 @@ from typing import Optional
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
-from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
-from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import (
-    NeMoLauncherSlurmCommandGenStrategy,
+from cloudai.schema.test_template.jax_toolbox.slurm_job_spec_gen_strategy import JaxToolboxSlurmJobSpecGenStrategy
+from cloudai.schema.test_template.nccl_test.slurm_job_spec_gen_strategy import NcclTestSlurmJobSpecGenStrategy
+from cloudai.schema.test_template.nemo_launcher.slurm_job_spec_gen_strategy import (
+    NeMoLauncherSlurmJobSpecGenStrategy,
 )
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm import SlurmNodeState
 from cloudai.systems.slurm.slurm_system import SlurmPartition
-from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.systems.slurm.strategy import SlurmJobSpecGenStrategy
 
 
 @pytest.fixture
@@ -50,24 +50,24 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
 
 
 @pytest.fixture
-def strategy_fixture(slurm_system: SlurmSystem) -> SlurmCommandGenStrategy:
+def strategy_fixture(slurm_system: SlurmSystem) -> SlurmJobSpecGenStrategy:
     env_vars = {"TEST_VAR": "VALUE"}
     cmd_args = {"test_arg": "test_value"}
-    strategy = SlurmCommandGenStrategy(slurm_system, env_vars, cmd_args)
+    strategy = SlurmJobSpecGenStrategy(slurm_system, env_vars, cmd_args)
     return strategy
 
 
 @pytest.fixture
-def jax_strategy_fixture() -> JaxToolboxSlurmCommandGenStrategy:
+def jax_strategy_fixture() -> JaxToolboxSlurmJobSpecGenStrategy:
     # Mock the SlurmSystem and other dependencies
     mock_slurm_system = Mock()
     env_vars = {"TEST_VAR": "VALUE"}
     cmd_args = {"test_arg": "test_value"}
     mock_slurm_system.install_path = "/mock/install/path"
 
-    # Use patch to mock the __init__ method of JaxToolboxSlurmCommandGenStrategy
-    with patch.object(JaxToolboxSlurmCommandGenStrategy, "__init__", lambda self, _, __, ___: None):
-        strategy = JaxToolboxSlurmCommandGenStrategy(mock_slurm_system, env_vars, cmd_args)
+    # Use patch to mock the __init__ method of JaxToolboxSlurmJobSpecGenStrategy
+    with patch.object(JaxToolboxSlurmJobSpecGenStrategy, "__init__", lambda self, _, __, ___: None):
+        strategy = JaxToolboxSlurmJobSpecGenStrategy(mock_slurm_system, env_vars, cmd_args)
         # Manually set attributes needed for the tests
         strategy.env_vars = env_vars
         strategy.cmd_args = cmd_args
@@ -76,7 +76,7 @@ def jax_strategy_fixture() -> JaxToolboxSlurmCommandGenStrategy:
         return strategy
 
 
-def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path):
+def test_filename_generation(strategy_fixture: SlurmJobSpecGenStrategy, tmp_path: Path):
     args = {"job_name": "test_job", "num_nodes": 2, "partition": "test_partition", "node_list_str": "node1,node2"}
     env_vars_str = "export TEST_VAR=VALUE"
     srun_command = "srun --test test_arg"
@@ -99,7 +99,7 @@ def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, tmp_path
     assert sbatch_command == f"sbatch {filepath_from_command}"
 
 
-def test_num_nodes_and_nodes(strategy_fixture: SlurmCommandGenStrategy):
+def test_num_nodes_and_nodes(strategy_fixture: SlurmJobSpecGenStrategy):
     job_name_prefix = "test_job"
     env_vars = {"TEST_VAR": "VALUE"}
     cmd_args = {"test_arg": "test_value"}
@@ -111,7 +111,7 @@ def test_num_nodes_and_nodes(strategy_fixture: SlurmCommandGenStrategy):
     assert slurm_args["num_nodes"] == len(nodes)
 
 
-def test_only_num_nodes(strategy_fixture: SlurmCommandGenStrategy):
+def test_only_num_nodes(strategy_fixture: SlurmJobSpecGenStrategy):
     job_name_prefix = "test_job"
     env_vars = {"TEST_VAR": "VALUE"}
     cmd_args = {"test_arg": "test_value"}
@@ -123,7 +123,7 @@ def test_only_num_nodes(strategy_fixture: SlurmCommandGenStrategy):
     assert slurm_args["num_nodes"] == num_nodes
 
 
-def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
+def test_only_nodes(strategy_fixture: SlurmJobSpecGenStrategy):
     job_name_prefix = "test_job"
     env_vars = {"TEST_VAR": "VALUE"}
     cmd_args = {"test_arg": "test_value"}
@@ -138,25 +138,25 @@ def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
 def test_raises_if_no_default_partition(slurm_system: SlurmSystem):
     slurm_system.default_partition = ""
     with pytest.raises(ValueError) as exc_info:
-        SlurmCommandGenStrategy(slurm_system, {}, {})
+        SlurmJobSpecGenStrategy(slurm_system, {}, {})
     assert "Partition not specified in the system configuration." in str(exc_info)
 
 
 class TestGenerateSrunCommand__CmdGeneration:
-    def test_generate_test_command(self, strategy_fixture: SlurmCommandGenStrategy):
+    def test_generate_test_command(self, strategy_fixture: SlurmJobSpecGenStrategy):
         test_command = strategy_fixture.generate_test_command({}, {}, {}, "")
         assert test_command == []
 
-    def test_generate_srun_command(self, strategy_fixture: SlurmCommandGenStrategy):
+    def test_generate_srun_command(self, strategy_fixture: SlurmJobSpecGenStrategy):
         srun_command = strategy_fixture.generate_srun_command({}, {}, {}, "")
         assert srun_command == ["srun", f"--mpi={strategy_fixture.slurm_system.mpi}"]
 
-    def test_generate_srun_command_with_extra_args(self, strategy_fixture: SlurmCommandGenStrategy):
+    def test_generate_srun_command_with_extra_args(self, strategy_fixture: SlurmJobSpecGenStrategy):
         strategy_fixture.slurm_system.extra_srun_args = "--extra-args value"
         srun_command = strategy_fixture.generate_srun_command({}, {}, {}, "")
         assert srun_command == ["srun", f"--mpi={strategy_fixture.slurm_system.mpi}", "--extra-args value"]
 
-    def test_generate_srun_command_with_container_image(self, strategy_fixture: SlurmCommandGenStrategy):
+    def test_generate_srun_command_with_container_image(self, strategy_fixture: SlurmJobSpecGenStrategy):
         slurm_args = {"image_path": "fake_image_path"}
         srun_command = strategy_fixture.generate_srun_command(slurm_args, {}, {}, "")
         assert srun_command == [
@@ -165,7 +165,7 @@ class TestGenerateSrunCommand__CmdGeneration:
             "--container-image=fake_image_path",
         ]
 
-    def test_generate_srun_command_with_container_image_and_mounts(self, strategy_fixture: SlurmCommandGenStrategy):
+    def test_generate_srun_command_with_container_image_and_mounts(self, strategy_fixture: SlurmJobSpecGenStrategy):
         slurm_args = {"image_path": "fake_image_path", "container_mounts": "fake_mounts"}
         srun_command = strategy_fixture.generate_srun_command(slurm_args, {}, {}, "")
         assert srun_command == [
@@ -175,7 +175,7 @@ class TestGenerateSrunCommand__CmdGeneration:
             "--container-mounts=fake_mounts",
         ]
 
-    def test_generate_srun_empty_str(self, strategy_fixture: SlurmCommandGenStrategy):
+    def test_generate_srun_empty_str(self, strategy_fixture: SlurmJobSpecGenStrategy):
         slurm_args = {"image_path": "", "container_mounts": ""}
         srun_command = strategy_fixture.generate_srun_command(slurm_args, {}, {}, "")
         assert srun_command == ["srun", f"--mpi={strategy_fixture.slurm_system.mpi}"]
@@ -184,7 +184,7 @@ class TestGenerateSrunCommand__CmdGeneration:
         srun_command = strategy_fixture.generate_srun_command(slurm_args, {}, {}, "")
         assert srun_command == ["srun", f"--mpi={strategy_fixture.slurm_system.mpi}", "--container-image=fake"]
 
-    def test_generate_full_srun_command(self, strategy_fixture: SlurmCommandGenStrategy):
+    def test_generate_full_srun_command(self, strategy_fixture: SlurmJobSpecGenStrategy):
         strategy_fixture.generate_srun_command = lambda *_, **__: ["srun", "--test", "test_arg"]
         strategy_fixture.generate_test_command = lambda *_, **__: ["test_command"]
 
@@ -192,7 +192,7 @@ class TestGenerateSrunCommand__CmdGeneration:
         assert full_srun_command == " \\\n".join(["srun", "--test", "test_arg", "test_command"])
 
     def test_generate_full_srun_command_with_pre_test(
-        self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy, slurm_system: SlurmSystem
+        self, jax_strategy_fixture: JaxToolboxSlurmJobSpecGenStrategy, slurm_system: SlurmSystem
     ):
         jax_strategy_fixture.slurm_system = slurm_system
 
@@ -224,7 +224,7 @@ class TestGenerateSrunCommand__CmdGeneration:
         assert "/opt/paxml/workspace/run.sh" in result
 
     def test_generate_full_srun_command_without_pre_test(
-        self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy, slurm_system: SlurmSystem
+        self, jax_strategy_fixture: JaxToolboxSlurmJobSpecGenStrategy, slurm_system: SlurmSystem
     ):
         jax_strategy_fixture.slurm_system = slurm_system
 
@@ -258,23 +258,23 @@ class TestGenerateSrunCommand__CmdGeneration:
         assert f"-e {slurm_args['error']}" in result
 
 
-class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
-    def test_extract_test_name_grok(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
+class TestJaxToolboxSlurmJobSpecGenStrategy__ExtractTestName:
+    def test_extract_test_name_grok(self, jax_strategy_fixture: JaxToolboxSlurmJobSpecGenStrategy):
         cmd_args = {"Grok.setup_flags.docker_workspace_dir": "/some/dir", "Grok.some_other_flag": "value"}
         test_name = jax_strategy_fixture._extract_test_name(cmd_args)
         assert test_name == "Grok"
 
-    def test_extract_test_name_gpt(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
+    def test_extract_test_name_gpt(self, jax_strategy_fixture: JaxToolboxSlurmJobSpecGenStrategy):
         cmd_args = {"GPT.setup_flags.docker_workspace_dir": "/some/dir", "GPT.some_other_flag": "value"}
         test_name = jax_strategy_fixture._extract_test_name(cmd_args)
         assert test_name == "GPT"
 
-    def test_extract_test_name_none(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
+    def test_extract_test_name_none(self, jax_strategy_fixture: JaxToolboxSlurmJobSpecGenStrategy):
         cmd_args = {"some_other_flag": "value", "another_flag": "value"}
         test_name = jax_strategy_fixture._extract_test_name(cmd_args)
         assert test_name == ""
 
-    def test_format_xla_flags_grok(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
+    def test_format_xla_flags_grok(self, jax_strategy_fixture: JaxToolboxSlurmJobSpecGenStrategy):
         jax_strategy_fixture.test_name = "Grok"
         cmd_args = {
             "Grok.profile.XLA_FLAGS.some_flag": "value",
@@ -294,7 +294,7 @@ class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
 
         assert actual_flags_list == expected_flags_list
 
-    def test_format_xla_flags_gpt(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
+    def test_format_xla_flags_gpt(self, jax_strategy_fixture: JaxToolboxSlurmJobSpecGenStrategy):
         jax_strategy_fixture.test_name = "GPT"
         cmd_args = {
             "GPT.profile.XLA_FLAGS.some_flag": "value",
@@ -314,7 +314,7 @@ class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
 
         assert actual_flags_list == expected_flags_list
 
-    def test_format_xla_flags_common(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
+    def test_format_xla_flags_common(self, jax_strategy_fixture: JaxToolboxSlurmJobSpecGenStrategy):
         jax_strategy_fixture.test_name = "SomeTest"
         cmd_args = {
             "common.XLA_FLAGS.some_flag": "value",
@@ -334,7 +334,7 @@ class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
 
         assert actual_flags_list == expected_flags_list
 
-    def test_format_xla_flags_boolean(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
+    def test_format_xla_flags_boolean(self, jax_strategy_fixture: JaxToolboxSlurmJobSpecGenStrategy):
         jax_strategy_fixture.test_name = "Grok"
         cmd_args = {
             "Grok.profile.XLA_FLAGS.some_flag": "value",
@@ -354,7 +354,7 @@ class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
 
         assert actual_flags_list == expected_flags_list
 
-    def test_handle_threshold_and_env_common(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
+    def test_handle_threshold_and_env_common(self, jax_strategy_fixture: JaxToolboxSlurmJobSpecGenStrategy):
         cmd_args = {"XLA_FLAGS.combine_threshold_bytes": "value", "common.setup_flags.gpus_per_node": "4"}
         env_vars = {"TEST_VAR": "VALUE"}
         combine_threshold_bytes = 1024
@@ -371,27 +371,28 @@ class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
         assert "XLA_FLAGS.combine_threshold_bytes" not in cmd_args
 
 
-class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
+class TestNeMoLauncherSlurmJobSpecGenStrategy__GenExecCommand:
     @pytest.fixture
-    def nemo_cmd_gen(self, slurm_system: SlurmSystem) -> NeMoLauncherSlurmCommandGenStrategy:
+    def nemo_cmd_gen(self, slurm_system: SlurmSystem) -> NeMoLauncherSlurmJobSpecGenStrategy:
         env_vars = {"TEST_VAR": "VALUE"}
         cmd_args = {"test_arg": "test_value"}
-        strategy = NeMoLauncherSlurmCommandGenStrategy(slurm_system, env_vars, cmd_args)
+        strategy = NeMoLauncherSlurmJobSpecGenStrategy(slurm_system, env_vars, cmd_args)
         return strategy
 
-    def test_extra_env_vars_added(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
+    def test_extra_env_vars_added(self, nemo_cmd_gen: NeMoLauncherSlurmJobSpecGenStrategy):
         extra_env_vars = {"TEST_VAR_1": "value1", "TEST_VAR_2": "value2"}
         cmd_args = {
             "docker_image_url": "fake",
             "repository_url": "fake",
             "repository_commit_hash": "fake",
         }
-        cmd = nemo_cmd_gen.gen_exec_command(
+        cmd = nemo_cmd_gen.gen_job_spec(
             env_vars={},
             cmd_args=cmd_args,
             extra_env_vars=extra_env_vars,
             extra_cmd_args="",
             output_path=Path(""),
+            job_name="",
             num_nodes=1,
             nodes=[],
         )
@@ -399,26 +400,27 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
         for k, v in extra_env_vars.items():
             assert f"{k}={v}" in cmd
 
-    def test_env_var_escaping(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
+    def test_env_var_escaping(self, nemo_cmd_gen: NeMoLauncherSlurmJobSpecGenStrategy):
         extra_env_vars = {"TEST_VAR": "value,with,commas"}
         cmd_args = {
             "docker_image_url": "fake",
             "repository_url": "fake",
             "repository_commit_hash": "fake",
         }
-        cmd = nemo_cmd_gen.gen_exec_command(
+        cmd = nemo_cmd_gen.gen_job_spec(
             env_vars={},
             cmd_args=cmd_args,
             extra_env_vars=extra_env_vars,
             extra_cmd_args="",
             output_path=Path(""),
+            job_name="",
             num_nodes=1,
             nodes=[],
         )
 
         assert "TEST_VAR=\\'value,with,commas\\'" in cmd
 
-    def test_tokenizer_handled(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, tmp_path: Path):
+    def test_tokenizer_handled(self, nemo_cmd_gen: NeMoLauncherSlurmJobSpecGenStrategy, tmp_path: Path):
         extra_env_vars = {"TEST_VAR_1": "value1"}
         cmd_args = {
             "docker_image_url": "fake",
@@ -428,19 +430,20 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
         tokenizer_path = tmp_path / "tokenizer"
         tokenizer_path.touch()
 
-        cmd = nemo_cmd_gen.gen_exec_command(
+        cmd = nemo_cmd_gen.gen_job_spec(
             env_vars={},
             cmd_args=cmd_args,
             extra_env_vars=extra_env_vars,
             extra_cmd_args=f"training.model.tokenizer.model={tokenizer_path}",
             output_path=Path(""),
+            job_name="",
             num_nodes=1,
             nodes=[],
         )
 
         assert f"container_mounts=[{tokenizer_path}:{tokenizer_path}]" in cmd
 
-    def test_reservation_handled(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
+    def test_reservation_handled(self, nemo_cmd_gen: NeMoLauncherSlurmJobSpecGenStrategy):
         extra_env_vars = {"TEST_VAR_1": "value1"}
         cmd_args = {
             "docker_image_url": "fake",
@@ -448,19 +451,20 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             "repository_commit_hash": "fake",
         }
         nemo_cmd_gen.slurm_system.extra_srun_args = "--reservation my-reservation"
-        cmd = nemo_cmd_gen.gen_exec_command(
+        cmd = nemo_cmd_gen.gen_job_spec(
             env_vars={},
             cmd_args=cmd_args,
             extra_cmd_args="",
             extra_env_vars=extra_env_vars,
             output_path=Path(""),
+            job_name="",
             num_nodes=1,
             nodes=[],
         )
 
         assert "+cluster.reservation=my-reservation" in cmd
 
-    def test_invalid_tokenizer_path(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
+    def test_invalid_tokenizer_path(self, nemo_cmd_gen: NeMoLauncherSlurmJobSpecGenStrategy):
         extra_env_vars = {"TEST_VAR_1": "value1"}
         cmd_args = {
             "docker_image_url": "fake",
@@ -477,12 +481,13 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
                 r"USER_GUIDE.md to download the tokenizer and update the schema file accordingly."
             ),
         ):
-            nemo_cmd_gen.gen_exec_command(
+            nemo_cmd_gen.gen_job_spec(
                 env_vars={},
                 cmd_args=cmd_args,
                 extra_env_vars=extra_env_vars,
                 extra_cmd_args=f"training.model.tokenizer.model={invalid_tokenizer_path}",
                 output_path=Path(""),
+                job_name="",
                 num_nodes=1,
                 nodes=[],
             )
@@ -527,7 +532,7 @@ class TestWriteSbatchScript:
             assert f"#SBATCH --time={time_limit}" in lines
 
     @pytest.mark.parametrize("missing_arg", ["job_name", "num_nodes"])
-    def test_raises_on_missing_args(self, missing_arg: str, strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path):
+    def test_raises_on_missing_args(self, missing_arg: str, strategy_fixture: SlurmJobSpecGenStrategy, tmp_path: Path):
         args = self.MANDATORY_ARGS.copy()
         del args[missing_arg]
 
@@ -535,7 +540,7 @@ class TestWriteSbatchScript:
             strategy_fixture._write_sbatch_script(args, self.env_vars_str, self.srun_command, tmp_path)
         assert missing_arg in str(exc_info.value)
 
-    def test_only_mandatory_args(self, strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path):
+    def test_only_mandatory_args(self, strategy_fixture: SlurmJobSpecGenStrategy, tmp_path: Path):
         sbatch_command = strategy_fixture._write_sbatch_script(
             self.MANDATORY_ARGS, self.env_vars_str, self.srun_command, tmp_path
         )
@@ -576,7 +581,7 @@ class TestWriteSbatchScript:
         arg: str,
         arg_value: str,
         expected_str: Optional[str],
-        strategy_fixture: SlurmCommandGenStrategy,
+        strategy_fixture: SlurmJobSpecGenStrategy,
         tmp_path: Path,
     ):
         args = self.MANDATORY_ARGS.copy()
@@ -601,7 +606,7 @@ class TestWriteSbatchScript:
 
     def test_reservation(
         self,
-        strategy_fixture: SlurmCommandGenStrategy,
+        strategy_fixture: SlurmJobSpecGenStrategy,
         tmp_path: Path,
     ):
         strategy_fixture.slurm_system.extra_srun_args = "--reservation my-reservation"
@@ -615,7 +620,7 @@ class TestWriteSbatchScript:
         assert "#SBATCH --reservation=my-reservation" in file_contents
 
     @pytest.mark.parametrize("add_arg", ["output", "error"])
-    def test_disable_output_and_error(self, add_arg: str, strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path):
+    def test_disable_output_and_error(self, add_arg: str, strategy_fixture: SlurmJobSpecGenStrategy, tmp_path: Path):
         args = self.MANDATORY_ARGS.copy()
         args[add_arg] = "fake"
 
@@ -631,7 +636,7 @@ class TestWriteSbatchScript:
 
 class TestNCCLSlurmCommandGen:
     def get_cmd(self, slurm_system: SlurmSystem, slurm_args: dict, cmd_args: dict) -> str:
-        return NcclTestSlurmCommandGenStrategy(slurm_system, {}, {}).generate_full_srun_command(
+        return NcclTestSlurmJobSpecGenStrategy(slurm_system, {}, {}).generate_full_srun_command(
             slurm_args, {}, cmd_args, ""
         )
 

@@ -17,14 +17,13 @@
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .command_gen_strategy import CommandGenStrategy
 from .grading_strategy import GradingStrategy
 from .install_status_result import InstallStatusResult
 from .install_strategy import InstallStrategy
 from .job_id_retrieval_strategy import JobIdRetrievalStrategy
+from .job_spec_gen_strategy import JobSpecGenStrategy
 from .job_status_result import JobStatusResult
 from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
-from .json_gen_strategy import JsonGenStrategy
 from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
 
@@ -42,8 +41,7 @@ class TestTemplate:
         cmd_args (Dict[str, Any]): Default command-line arguments.
         logger (logging.Logger): Logger for the test template.
         install_strategy (InstallStrategy): Strategy for installing test prerequisites.
-        command_gen_strategy (CommandGenStrategy): Strategy for generating execution commands.
-        json_gen_strategy (JsonGenStrategy): Strategy for generating json string.
+        job_spec_gen_strategy (JobSpecGenStrategy): Strategy for generating json string.
         job_id_retrieval_strategy (JobIdRetrievalStrategy): Strategy for retrieving job IDs.
         report_generation_strategy (ReportGenerationStrategy): Strategy for generating reports.
         grading_strategy (GradingStrategy): Strategy for grading performance based on test outcomes.
@@ -73,8 +71,7 @@ class TestTemplate:
         self.env_vars = env_vars
         self.cmd_args = cmd_args
         self.install_strategy: Optional[InstallStrategy] = None
-        self.command_gen_strategy: Optional[CommandGenStrategy] = None
-        self.json_gen_strategy: Optional[JsonGenStrategy] = None
+        self.job_spec_gen_strategy: Optional[JobSpecGenStrategy] = None
         self.job_id_retrieval_strategy: Optional[JobIdRetrievalStrategy] = None
         self.job_status_retrieval_strategy: Optional[JobStatusRetrievalStrategy] = None
         self.report_generation_strategy: Optional[ReportGenerationStrategy] = None
@@ -125,51 +122,7 @@ class TestTemplate:
 
         return InstallStatusResult(success=True)
 
-    def gen_exec_command(
-        self,
-        env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
-        extra_env_vars: Dict[str, str],
-        extra_cmd_args: str,
-        output_path: Path,
-        num_nodes: int,
-        nodes: List[str],
-    ) -> str:
-        """
-        Generate an execution command for a test using this template.
-
-        This method must be implemented by subclasses.
-
-        Args:
-            env_vars (Dict[str, str]): Environment variables for the test.
-            cmd_args (Dict[str, str]): Command-line arguments for the test.
-            extra_env_vars (Dict[str, str]): Extra environment variables.
-            extra_cmd_args (str): Extra command-line arguments.
-            output_path (Path): Path to the output directory.
-            num_nodes (int): The number of nodes to be used for the test execution.
-            nodes (List[str]): A list of nodes where the test will be executed.
-
-        Returns:
-            str: The generated execution command.
-        """
-        if not nodes:
-            nodes = []
-        if self.command_gen_strategy is None:
-            raise ValueError(
-                "command_gen_strategy is missing. Ensure the strategy is registered in the Registry "
-                "by calling the appropriate registration function for the system type."
-            )
-        return self.command_gen_strategy.gen_exec_command(
-            env_vars,
-            cmd_args,
-            extra_env_vars,
-            extra_cmd_args,
-            output_path,
-            num_nodes,
-            nodes,
-        )
-
-    def gen_json(
+    def gen_job_spec(
         self,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
@@ -179,9 +132,9 @@ class TestTemplate:
         job_name: str,
         num_nodes: int,
         nodes: List[str],
-    ) -> Dict[Any, Any]:
+    ) -> Any:
         """
-        Generate a JSON string representing the Kubernetes job specification for this test using this template.
+        Generate a job specification for a test using this template.
 
         Args:
             env_vars (Dict[str, str]): Environment variables for the test.
@@ -194,16 +147,17 @@ class TestTemplate:
             nodes (List[str]): A list of nodes where the test will be executed.
 
         Returns:
-            Dict[Any, Any]: A dictionary representing the Kubernetes job specification.
+            Any: The generated job specification, which could be a command string, dictionary,
+                 or another format depending on the implementation.
         """
         if not nodes:
             nodes = []
-        if self.json_gen_strategy is None:
+        if self.job_spec_gen_strategy is None:
             raise ValueError(
-                "json_gen_strategy is missing. Ensure the strategy is registered in the Registry "
+                "job_spec_gen_strategy is missing. Ensure the strategy is registered in the Registry "
                 "by calling the appropriate registration function for the system type."
             )
-        return self.json_gen_strategy.gen_json(
+        return self.job_spec_gen_strategy.gen_job_spec(
             env_vars,
             cmd_args,
             extra_env_vars,

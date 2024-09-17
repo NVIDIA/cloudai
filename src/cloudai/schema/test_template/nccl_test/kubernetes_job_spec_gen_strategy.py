@@ -17,13 +17,13 @@
 from pathlib import Path
 from typing import Any, Dict, List
 
-from cloudai import JsonGenStrategy
+from cloudai import JobSpecGenStrategy
 
 
-class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
+class NcclTestKubernetesJobSpecGenStrategy(JobSpecGenStrategy):
     """JSON generation strategy for NCCL tests on Kubernetes systems."""
 
-    def gen_json(
+    def gen_job_spec(
         self,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],

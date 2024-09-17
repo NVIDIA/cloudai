@@ -17,12 +17,12 @@
 from pathlib import Path
 from typing import Any, Dict, List
 
-from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.systems.slurm.strategy import SlurmJobSpecGenStrategy
 
 from .slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
 
 
-class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
+class NeMoLauncherSlurmJobSpecGenStrategy(SlurmJobSpecGenStrategy):
     """
     Command generation strategy for NeMo Megatron Launcher on Slurm systems.
 
@@ -30,13 +30,14 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         install_path (Path): The installation path of CloudAI.
     """
 
-    def gen_exec_command(
+    def gen_job_spec(
         self,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
         output_path: Path,
+        job_name: str,
         num_nodes: int,
         nodes: List[str],
     ) -> str:
