@@ -22,7 +22,7 @@ from cloudai import CmdArgs, TestDefinition
 class ChakraReplayCmdArgs(CmdArgs):
     """ChakraReplay test command arguments."""
 
-    docker_image_url: str = "DOCKER_IMAGE_URL"
+    docker_image_url: str
     mpi: str = "pmix"
     trace_type: str = "et"
     trace_path: Optional[str] = None

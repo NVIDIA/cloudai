@@ -20,6 +20,7 @@ test_template_name = "ChakraReplay"
 
 [cmd_args]
 "trace_path" = "TRACE_PATH"
+docker_image_url = "DOCKER_IMAGE"
 
 [extra_cmd_args]
 "--reuse-tensors" = ""

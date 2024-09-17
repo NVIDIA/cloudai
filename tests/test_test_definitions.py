@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 import toml
 from cloudai import Registry, TestDefinition, TestParser
-from cloudai.test_definitions import NCCLCmdArgs, NCCLTestDefinition
+from cloudai.test_definitions import ChakraReplayCmdArgs, NCCLCmdArgs, NCCLTestDefinition
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
 ALL_TESTS = [t for t in TOML_FILES if "test_template_name" in t.read_text()]
@@ -65,3 +65,10 @@ def test_all_tests(toml_file: Path):
     assert template_name in registry.test_definitions_map, f"Unknown test template: {template_name}"
 
     TestParser.load_test_definition(toml.load(toml_file))
+
+
+def test_chakra_docker_image_is_required():
+    with pytest.raises(ValueError) as exc_info:
+        ChakraReplayCmdArgs.model_validate({})
+    assert "Field required" in str(exc_info.value)
+    assert "docker_image_url" in str(exc_info.value)
