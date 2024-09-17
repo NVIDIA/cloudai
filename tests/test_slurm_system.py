@@ -149,7 +149,7 @@ def mock_grouped_nodes():
     """
     Helper function to set up a mock Slurm system with nodes and their states.
     """
-    partition_name = "backup"
+    partition_name = "partition_name"
 
     grouped_nodes = {
         SlurmNodeState.IDLE: [
@@ -167,7 +167,7 @@ def mock_grouped_nodes():
 
 
 def test_allocate_nodes_max_avail(slurm_system):
-    group_name = "backup"
+    group_name = "group_name"
 
     grouped_nodes = mock_grouped_nodes()
 
@@ -185,7 +185,7 @@ def test_allocate_nodes_max_avail(slurm_system):
 
 
 def test_allocate_nodes_num_nodes_integers(slurm_system):
-    group_name = "backup"
+    group_name = "group_name"
 
     grouped_nodes = mock_grouped_nodes()
 
@@ -198,12 +198,12 @@ def test_allocate_nodes_num_nodes_integers(slurm_system):
 
 
 def test_allocate_nodes_exceeding_limit(slurm_system):
-    group_name = "backup"
+    group_name = "group_name"
 
     grouped_nodes = mock_grouped_nodes()
 
     with pytest.raises(
         ValueError,
-        match=re.escape("Requested number of nodes (4) exceeds the number of available nodes in group 'backup'."),
+        match=re.escape("Requested number of nodes (4) exceeds the number of available nodes in group 'group_name'."),
     ):
         slurm_system.allocate_nodes(grouped_nodes, 4, group_name)
