@@ -199,7 +199,8 @@ def test_allocate_nodes_max_avail(slurm_system):
     returned_node_names = [node.name for node in available_nodes]
 
     assert set(returned_node_names) == set(expected_node_names), "Should return all available nodes except DOWN nodes"
-    assert slurm_system.groups["backup"][group_name][3] not in returned_node_names, "DOWN node should not be included"
+    down_node_name = slurm_system.groups["backup"][group_name][3].name
+    assert down_node_name not in returned_node_names, "DOWN node should not be included"
 
 
 def test_allocate_nodes_num_nodes_integers(slurm_system):
@@ -215,7 +216,8 @@ def test_allocate_nodes_num_nodes_integers(slurm_system):
     returned_node_names = [node.name for node in max_available_nodes]
 
     assert set(returned_node_names) == set(expected_node_names), "Should return 2 available nodes"
-    assert slurm_system.groups["backup"][group_name][1] not in returned_node_names, "Only 2 nodes should be included"
+    down_node_name = slurm_system.groups["backup"][group_name][3].name
+    assert down_node_name not in returned_node_names, "Only 2 nodes should be included"
 
 
 def test_allocate_nodes_exceeding_limit(slurm_system):
