@@ -43,7 +43,7 @@ class Runner:
     _runners = {}
 
     def __init__(self, mode: str, system: System, test_scenario: TestScenario):
-        logging.info("Initializing Runner")
+        logging.info(f"Initializing Runner [{mode.upper()}] mode")
         self.runner = self.create_runner(mode, system, test_scenario)
 
     def create_runner(self, mode: str, system: System, test_scenario: TestScenario) -> BaseRunner:

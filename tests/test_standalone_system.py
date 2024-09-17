@@ -31,7 +31,11 @@ def standalone_system():
     Returns:
         StandaloneSystem: A new instance of StandaloneSystem for testing.
     """
-    return StandaloneSystem("StandaloneTestSystem", Path("/fake/output/path"))
+    return StandaloneSystem(
+        name="StandaloneTestSystem",
+        install_path=Path("/fake/install/path"),
+        output_path=Path("/fake/output/path"),
+    )
 
 
 @pytest.fixture
@@ -103,14 +107,3 @@ def test_kill_job(mock_execute, standalone_system, standalone_job):
     kill_command = f"kill -9 {standalone_job.id}"
 
     mock_execute.assert_called_once_with(kill_command)
-
-
-def test_repr(standalone_system):
-    """
-    Test the string representation of StandaloneSystem.
-
-    Args:
-        standalone_system (StandaloneSystem): Instance of the system under test.
-    """
-    expected_repr = f"StandaloneSystem(name={standalone_system.name}, scheduler=standalone)"
-    assert repr(standalone_system) == expected_repr

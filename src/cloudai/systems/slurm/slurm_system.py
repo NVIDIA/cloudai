@@ -20,13 +20,85 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from pydantic import BaseModel, ConfigDict
+
 from cloudai import BaseJob, System
 from cloudai.util import CommandShell
 
 from .slurm_node import SlurmNode, SlurmNodeState
 
 
-class SlurmSystem(System):
+def parse_node_list(node_list: str) -> List[str]:
+    """
+    Expand a list of node names (with ranges) into a flat list of individual node names, keeping leading zeroes.
+
+    Args:
+        node_list (str): A list of node names, possibly including ranges.
+
+    Returns:
+        List[str]: A flat list of expanded node names with preserved zeroes.
+    """
+    node_list = node_list.strip()
+    nodes = []
+    if not node_list:
+        return []
+
+    components = re.split(r",\s*(?![^[]*\])", node_list)
+    for component in components:
+        if "[" not in component:
+            nodes.append(component)
+        else:
+            header, node_number = component.split("[")
+            node_number = node_number.replace("]", "")
+            ranges = node_number.split(",")
+            for r in ranges:
+                if "-" in r:
+                    start_node, end_node = r.split("-")
+                    number_of_digits = len(end_node)
+                    nodes.extend(
+                        [f"{header}{str(i).zfill(number_of_digits)}" for i in range(int(start_node), int(end_node) + 1)]
+                    )
+                else:
+                    nodes.append(f"{header}{r}")
+
+    return nodes
+
+
+class SlurmGroup(BaseModel):
+    """Represents a group of nodes within a partition."""
+
+    model_config = ConfigDict(extra="forbid")
+    name: str
+    nodes: List[str]
+
+
+class SlurmPartition(BaseModel):
+    """Represents a partition within a Slurm system."""
+
+    model_config = ConfigDict(extra="forbid")
+    name: str
+    nodes: List[str]
+    groups: List[SlurmGroup] = []
+
+    _slurm_nodes: List[SlurmNode] = []
+
+    @property
+    def slurm_nodes(self) -> List[SlurmNode]:
+        if self._slurm_nodes:
+            return self._slurm_nodes
+
+        node_names = set()
+        for nodes_list in self.nodes:
+            node_names.update(set(parse_node_list(nodes_list)))
+
+        self._slurm_nodes = [
+            SlurmNode(name=node_name, partition=self.name, state=SlurmNodeState.UNKNOWN_STATE)
+            for node_name in node_names
+        ]
+        return self._slurm_nodes
+
+
+class SlurmSystem(BaseModel, System):
     """
     Represents a Slurm system.
 
@@ -47,77 +119,37 @@ class SlurmSystem(System):
         cmd_shell (CommandShell): An instance of CommandShell for executing system commands.
     """
 
-    def __init__(
-        self,
-        name: str,
-        install_path: Path,
-        output_path: Path,
-        default_partition: str,
-        partitions: Dict[str, List[SlurmNode]],
-        account: Optional[str] = None,
-        distribution: Optional[str] = None,
-        mpi: Optional[str] = None,
-        gpus_per_node: Optional[int] = None,
-        ntasks_per_node: Optional[int] = None,
-        cache_docker_images_locally: bool = False,
-        groups: Optional[Dict[str, Dict[str, List[SlurmNode]]]] = None,
-        global_env_vars: Optional[Dict[str, Any]] = None,
-        extra_srun_args: Optional[str] = None,
-    ) -> None:
-        """
-        Initialize a SlurmSystem instance.
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
-        Args:
-            name (str): Name of the Slurm system.
-            install_path (Path): The installation path of CloudAI.
-            output_path (Path): Path to the output directory.
-            default_partition (str): Default partition.
-            partitions (Dict[str, List[SlurmNode]]): Partitions in the system.
-            account (Optional[str]): Account name for charging resources used by this job.
-            distribution (Optional[str]): Specifies alternate distribution methods for remote processes.
-            mpi (Optional[str]): Indicates the Process Management Interface (PMI) implementation to be used for
-                inter-process communication.
-            gpus_per_node (Optional[int]): Specifies the number of GPUs available per node.
-            ntasks_per_node (Optional[int]): Specifies the number of tasks that can run concurrently on a single node.
-            cache_docker_images_locally (bool): Whether to cache Docker images locally for the Slurm system.
-            groups (Optional[Dict[str, Dict[str, List[SlurmNode]]]]): Nested mapping of group names to lists of
-                SlurmNodes within partitions, defining the group composition within each partition. Defaults to an
-                empty dictionary if not provided.
-            global_env_vars (Optional[Dict[str, Any]]): Dictionary containing additional configuration settings for
-                the system.
-            extra_srun_args (Optional[str]): Additional arguments to be passed to the srun command.
-        """
-        super().__init__(name, "slurm", install_path, output_path, global_env_vars)
-        self.default_partition = default_partition
-        self.partitions = partitions
-        self.account = account
-        self.distribution = distribution
-        self.mpi = mpi
-        self.gpus_per_node = gpus_per_node
-        self.ntasks_per_node = ntasks_per_node
-        self.cache_docker_images_locally = cache_docker_images_locally
-        self.groups = groups if groups is not None else {}
-        self.extra_srun_args = extra_srun_args
-        self.cmd_shell = CommandShell()
-        logging.debug(f"{self.__class__.__name__} initialized")
+    name: str
+    install_path: Path
+    output_path: Path
+    default_partition: str
+    partitions: List[SlurmPartition]
+    account: Optional[str] = None
+    distribution: Optional[str] = None
+    mpi: str = "pmix"
+    gpus_per_node: Optional[int] = None
+    ntasks_per_node: Optional[int] = None
+    cache_docker_images_locally: bool = False
+    global_env_vars: Dict[str, Any] = {}
+    scheduler: str = "standalone"
+    monitor_interval: int = 1
+    cmd_shell: CommandShell = CommandShell()
+    extra_srun_args: Optional[str] = None
 
-    def __repr__(self) -> str:
-        """
-        Provide a structured string representation of the system.
+    @property
+    def groups(self) -> Dict[str, Dict[str, List[SlurmNode]]]:
+        groups: Dict[str, Dict[str, List[SlurmNode]]] = {}
+        for part in self.partitions:
+            groups[part.name] = {}
+            for group in part.groups:
+                node_names = set()
+                for group_nodes in group.nodes:
+                    node_names.update(set(parse_node_list(group_nodes)))
+                groups[part.name][group.name] = [node for node in part.slurm_nodes if node.name in node_names]
 
-        Including the system name, scheduler type, and a simplified view similar to the `sinfo` command output,
-        focusing on the partition, state, and nodelist.
-        """
-        header = f"System Name: {self.name}\nScheduler Type: {self.scheduler}"
-        parts = [header, "\tPARTITION  STATE    NODELIST"]
-        for partition_name, nodes in self.partitions.items():
-            state_count = {}
-            for node in nodes:
-                state_count.setdefault(node.state, []).append(node.name)
-            for state, names in state_count.items():
-                node_list_str = self.format_node_list(names)
-                parts.append(f"\t{partition_name:<10} {state.name:<7} {node_list_str}")
-        return "\n".join(parts)
+        return groups
 
     def update(self) -> None:
         """
@@ -232,45 +264,6 @@ class SlurmSystem(System):
         self.scancel(job.id)
 
     @classmethod
-    def parse_node_list(cls, node_list: str) -> List[str]:
-        """
-        Expand a list of node names (with ranges) into a flat list of individual node names, keeping leading zeroes.
-
-        Args:
-            node_list (str): A list of node names, possibly including ranges.
-
-        Returns:
-            List[str]: A flat list of expanded node names with preserved zeroes.
-        """
-        node_list = node_list.strip()
-        nodes = []
-        if not node_list:
-            return []
-
-        components = re.split(r",\s*(?![^[]*\])", node_list)
-        for component in components:
-            if "[" not in component:
-                nodes.append(component)
-            else:
-                header, node_number = component.split("[")
-                node_number = node_number.replace("]", "")
-                ranges = node_number.split(",")
-                for r in ranges:
-                    if "-" in r:
-                        start_node, end_node = r.split("-")
-                        number_of_digits = len(end_node)
-                        nodes.extend(
-                            [
-                                f"{header}{str(i).zfill(number_of_digits)}"
-                                for i in range(int(start_node), int(end_node) + 1)
-                            ]
-                        )
-                    else:
-                        nodes.append(f"{header}{r}")
-
-        return nodes
-
-    @classmethod
     def format_node_list(cls, node_names: List[str]) -> str:
         """
         Format a list of node names into a condensed string representing groups of nodes as ranges.
@@ -347,9 +340,27 @@ class SlurmSystem(System):
 
         return ", ".join(formatted_ranges)
 
+    def __repr__(self) -> str:
+        """
+        Provide a structured string representation of the system.
+
+        Including the system name, scheduler type, and a simplified view similar to the `sinfo` command output,
+        focusing on the partition, state, and nodelist.
+        """
+        header = f"System Name: {self.name}\nScheduler Type: {self.scheduler}"
+        parts = [header, "\tPARTITION  STATE    NODELIST"]
+        for partition in self.partitions:
+            state_count = {}
+            for node in partition.slurm_nodes:
+                state_count.setdefault(node.state, []).append(node.name)
+            for state, names in state_count.items():
+                node_list_str = self.format_node_list(names)
+                parts.append(f"\t{partition.name:<10} {state.name:<7} {node_list_str}")
+        return "\n".join(parts)
+
     def get_partition_names(self) -> List[str]:
         """Return a list of all partition names."""
-        return list(self.partitions.keys())
+        return [partition.name for partition in self.partitions]
 
     def get_partition_nodes(self, partition_name: str) -> List[SlurmNode]:
         """
@@ -364,9 +375,10 @@ class SlurmSystem(System):
         Raises:
             ValueError: If the partition does not exist.
         """
-        if partition_name not in self.partitions:
-            raise ValueError(f"Partition '{partition_name}' not found.")
-        return self.partitions[partition_name]
+        for partition in self.partitions:
+            if partition.name == partition_name:
+                return partition.slurm_nodes
+        raise ValueError(f"Partition '{partition_name}' not found.")
 
     def get_partition_node_names(self, partition_name: str) -> List[str]:
         """
@@ -573,7 +585,7 @@ class SlurmSystem(System):
         Returns:
             True if the node is part of the system, otherwise False.
         """
-        return any(any(node.name == node_name for node in nodes) for nodes in self.partitions.values())
+        return any(any(node.name == node_name for node in part.slurm_nodes) for part in self.partitions)
 
     def scancel(self, job_id: int) -> None:
         """
@@ -656,7 +668,7 @@ class SlurmSystem(System):
 
                 node_list_part, user = parts[0], "|".join(parts[1:])
                 # Handle cases where multiple node groups or ranges are specified
-                for node in self.parse_node_list(node_list_part):
+                for node in parse_node_list(node_list_part):
                     node_user_map[node] = user.strip()
 
         return node_user_map
@@ -677,17 +689,17 @@ class SlurmSystem(System):
                 continue
             partition, _, _, _, state, nodelist = parts[:6]
             partition = partition.rstrip("*")
-            node_names = self.parse_node_list(nodelist)
+            node_names = parse_node_list(nodelist)
 
             # Convert state to enum, handling states with suffixes
             state_enum = self.convert_state_to_enum(state)
 
             for node_name in node_names:
                 # Find the partition and node to update the state
-                for part_name, nodes in self.partitions.items():
-                    if part_name != partition:
+                for part in self.partitions:
+                    if part.name != partition:
                         continue
-                    for node in nodes:
+                    for node in part.slurm_nodes:
                         if node.name == node_name:
                             node.state = state_enum
                             node.user = node_user_map.get(node_name, "N/A")
@@ -784,7 +796,7 @@ class SlurmSystem(System):
             else:
                 # Handle both individual node names and ranges
                 if self.is_node_in_system(node_spec) or "[" in node_spec:
-                    expanded_nodes = self.parse_node_list(node_spec)
+                    expanded_nodes = parse_node_list(node_spec)
                     parsed_nodes += expanded_nodes
                 else:
                     raise ValueError(f"Node '{node_spec}' not found.")

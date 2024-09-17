@@ -18,7 +18,6 @@ from typing import Dict, List, Tuple, Type, Union
 
 from .base_installer import BaseInstaller
 from .base_runner import BaseRunner
-from .base_system_parser import BaseSystemParser
 from .grading_strategy import GradingStrategy
 from .job_id_retrieval_strategy import JobIdRetrievalStrategy
 from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
@@ -42,7 +41,6 @@ class Singleton(type):
 class Registry(metaclass=Singleton):
     """Registry for implementations mappings."""
 
-    system_parsers_map: Dict[str, Type[BaseSystemParser]] = {}
     runners_map: Dict[str, Type[BaseRunner]] = {}
     strategies_map: Dict[
         Tuple[
@@ -70,36 +68,7 @@ class Registry(metaclass=Singleton):
     ] = {}
     test_templates_map: Dict[str, Type[TestTemplate]] = {}
     installers_map: Dict[str, Type[BaseInstaller]] = {}
-
-    def add_system_parser(self, name: str, value: Type[BaseSystemParser]) -> None:
-        """
-        Add a new system parser implementation mapping.
-
-        Args:
-            name (str): The name of the system parser.
-            value (Type[BaseSystemParser]): The system parser implementation.
-
-        Raises:
-            ValueError: If the system parser implementation already exists.
-        """
-        if name in self.system_parsers_map:
-            raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
-        self.update_system_parser(name, value)
-
-    def update_system_parser(self, name: str, value: Type[BaseSystemParser]) -> None:
-        """
-        Create or replace system parser implementation mapping.
-
-        Args:
-            name (str): The name of the system parser.
-            value (Type[BaseSystemParser]): The system parser implementation.
-
-        Raises:
-            ValueError: If value is not a subclass of BaseSystemParser.
-        """
-        if not issubclass(value, BaseSystemParser):
-            raise ValueError(f"Invalid system implementation for '{name}', should be subclass of 'System'.")
-        self.system_parsers_map[name] = value
+    systems_map: Dict[str, Type[System]] = {}
 
     def add_runner(self, name: str, value: Type[BaseRunner]) -> None:
         """
@@ -274,3 +243,33 @@ class Registry(metaclass=Singleton):
         if not issubclass(value, BaseInstaller):
             raise ValueError(f"Invalid installer implementation for '{name}', should be subclass of 'BaseInstaller'.")
         self.installers_map[name] = value
+
+    def add_system(self, name: str, value: Type[System]) -> None:
+        """
+        Add a new system implementation mapping.
+
+        Args:
+            name (str): The name of the system.
+            value (Type[System]): The system implementation.
+
+        Raises:
+            ValueError: If the system implementation already exists.
+        """
+        if name in self.systems_map:
+            raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
+        self.update_system(name, value)
+
+    def update_system(self, name: str, value: Type[System]) -> None:
+        """
+        Create or replace system implementation mapping.
+
+        Args:
+            name (str): The name of the system.
+            value (Type[System]): The system implementation.
+
+        Raises:
+            ValueError: If value is not a subclass of System.
+        """
+        if not issubclass(value, System):
+            raise ValueError(f"Invalid system implementation for '{name}', should be subclass of 'System'.")
+        self.systems_map[name] = value

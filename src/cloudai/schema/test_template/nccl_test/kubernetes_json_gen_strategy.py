@@ -93,16 +93,19 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
                     "Launcher": {
                         "replicas": 1,
                         "template": {
-                            "metadata": {"annotations": {"k8s.v1.cni.cncf.io/networks": "ipoib-cx7-h1@ib0"}},
                             "spec": {
                                 "containers": [
                                     {
                                         "image": cmd_args["docker_image_url"],
-                                        "name": "nccl",
+                                        "name": "nccl-launcher",
                                         "env": self._generate_env_list(env_vars),
-                                        "command": self._generate_launcher_command(
-                                            final_num_nodes, nodes, env_vars, cmd_args, extra_cmd_args
-                                        ),
+                                        "command": ["/bin/bash"],
+                                        "args": [
+                                            "-c",
+                                            self._generate_launcher_command(
+                                                final_num_nodes, nodes, env_vars, cmd_args, extra_cmd_args
+                                            ),
+                                        ],
                                         "resources": self._prepare_launcher_resources(),
                                     }
                                 ],
@@ -113,13 +116,15 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
                     "Worker": {
                         "replicas": final_num_nodes,
                         "template": {
-                            "metadata": {"annotations": {"k8s.v1.cni.cncf.io/networks": "ipoib-cx7-h1@ib0"}},
                             "spec": {
+                                "hostNetwork": True,
                                 "containers": [
                                     {
                                         "image": cmd_args["docker_image_url"],
+                                        "name": "nccl-worker",
                                         "env": self._generate_env_list(env_vars),
-                                        "name": "nccl",
+                                        "command": ["/bin/bash"],
+                                        "args": ["-c", "/usr/sbin/sshd -p 2222; sleep infinity"],
                                         "resources": self._prepare_worker_resources(),
                                         "volumeMounts": [
                                             {"mountPath": "/dev/shm", "name": "dshm"},
@@ -160,7 +165,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_cmd_args: str,
-    ) -> List[str]:
+    ) -> str:
         """
         Generate the launcher command for the Kubernetes container.
 
@@ -172,7 +177,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
             extra_cmd_args (str): Additional command-line arguments for the NCCL test.
 
         Returns:
-            List[str]: A list representing the launcher command to be executed.
+            str: The launcher command to be executed.
         """
         subtest_name = cmd_args.get("subtest_name")
         if subtest_name is None:
@@ -211,17 +216,13 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
         if extra_cmd_args:
             command_parts.append(extra_cmd_args)
 
-        return [
-            "/bin/bash",
-            "-c",
-            (
-                f"mpirun -v --allow-run-as-root -np {final_num_nodes} "
-                "--hostfile /etc/mpi/hostfile "
-                "-mca coll ^hcoll -bind-to none "
-                f"{' '.join([f'-x {key}={value}' for key, value in env_vars.items()])} "
-                f"{' '.join(command_parts)}"
-            ),
-        ]
+        return (
+            f"mpirun -v --allow-run-as-root -np {final_num_nodes} "
+            "--hostfile /etc/mpi/hostfile "
+            "-mca coll ^hcoll -mca plm_rsh_args '-p 2222' -bind-to none "
+            f"{' '.join([f'-x {key}={value}' for key, value in env_vars.items()])} "
+            f"{' '.join(command_parts)}"
+        )
 
     def _prepare_launcher_resources(self) -> Dict[str, Dict[str, str]]:
         """
@@ -231,8 +232,8 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
             Dict[str, Dict[str, str]]: A dictionary representing the resource requests and limits.
         """
         return {
-            "requests": {"cpu": "2", "memory": "128Mi", "rdma/rdma_ib": "1"},
-            "limits": {"cpu": "2", "memory": "128Mi", "rdma/rdma_ib": "1"},
+            "requests": {"cpu": "2", "memory": "8Gi"},
+            "limits": {"cpu": "2", "memory": "8Gi"},
         }
 
     def _prepare_worker_resources(self) -> Dict[str, Dict[str, str]]:
