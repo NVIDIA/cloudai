@@ -17,7 +17,7 @@
 import logging
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, cast
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from kubernetes import client, config
 from kubernetes.client import ApiException, CustomObjectsApi, V1DeleteOptions, V1Job
@@ -57,9 +57,9 @@ class KubernetesSystem(BaseModel, System):
     scheduler: str = "kubernetes"
     global_env_vars: Dict[str, Any] = {}
     monitor_interval: int = 1
-    _core_v1: client.CoreV1Api
-    _batch_v1: client.BatchV1Api
-    _custom_objects_api: CustomObjectsApi
+    _core_v1: Optional[client.CoreV1Api] = None
+    _batch_v1: Optional[client.BatchV1Api] = None
+    _custom_objects_api: Optional[CustomObjectsApi] = None
 
     def model_post_init(self, __context):  # noqa: Vulture
         """Initialize the KubernetesSystem instance."""
@@ -91,16 +91,19 @@ class KubernetesSystem(BaseModel, System):
     @property
     def core_v1(self) -> client.CoreV1Api:
         """Returns the Kubernetes Core V1 API client."""
+        assert self._core_v1 is not None
         return self._core_v1
 
     @property
     def batch_v1(self) -> client.BatchV1Api:
         """Returns the Kubernetes Batch V1 API client."""
+        assert self._batch_v1 is not None
         return self._batch_v1
 
     @property
     def custom_objects_api(self) -> CustomObjectsApi:
         """Returns the Kubernetes Custom Objects API client."""
+        assert self._custom_objects_api is not None
         return self._custom_objects_api
 
     def __repr__(self) -> str:
