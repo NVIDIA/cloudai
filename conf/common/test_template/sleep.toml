@@ -20,3 +20,7 @@ name = "Sleep"
   [cmd_args.seconds]
   type = "int"
   default = "5"
+
+  [cmd_args.docker_image_url]
+  type = "str"
+  default = "ubuntu:22.04"
