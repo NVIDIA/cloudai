@@ -15,7 +15,6 @@
 # limitations under the License.
 
 
-import os
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -98,29 +97,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             combine_threshold_bytes (int): The combine threshold in bytes.
             num_nodes (int): Number of nodes to use.
         """
-        # if self.test_name in ["GPT", "Nemotron"]:
-        #     keys = [
-        #         f"{self.test_name}.XLA_FLAGS.xla_gpu_all_reduce_combine_threshold_bytes",
-        #         f"{self.test_name}.XLA_FLAGS.xla_gpu_all_gather_combine_threshold_bytes",
-        #         f"{self.test_name}.XLA_FLAGS.xla_gpu_reduce_scatter_combine_threshold_bytes",
-        #     ]
-        #     key = next((k for k in keys if k in cmd_args), None)
-        #     if key is None:
-        #         raise ValueError(f"None of the {self.test_name} specific keys are found in cmd_args.")
-
-        # elif self.test_name == "Grok":
-        #     key = f"{self.test_name}.perf.XLA_FLAGS.combine_threshold_bytes"
-        # else:
-        #     key = "XLA_FLAGS.combine_threshold_bytes"
-
-        # del cmd_args[key]
-
-        # # Determine the per-GPU combine threshold based on the number of nodes and GPUs per node
-        # setup_flags_key = (
-        #     f"{self.test_name}.setup_flags.gpus_per_node"
-        #     if self.test_name in ["Grok", "GPT", "Nemotron"]
-        #     else "common.setup_flags.gpus_per_node"
-        # )
         per_gpu_combine_threshold = int(
             combine_threshold_bytes / (int(cmd_args[f"{self.test_name}.setup_flags"]["gpus_per_node"]) * num_nodes)
         )
@@ -436,37 +412,18 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         test_name = self.test_name
 
-        # def set_xla_flags(test_name: str, profile_enabled: bool):
-        #     """Set the XLA_FLAGS for profiling or performance based on the stage."""
-        #     flags = [
-        #         "xla_gpu_enable_latency_hiding_scheduler",
-        #     ]
-
-        #     state = "true" if profile_enabled else "false"
-        #     for flag in flags:
-        #         cmd_args[f"{test_name}.XLA_FLAGS.{flag}"] = state
-
         run_script_content = []
-        do_pgle = cmd_args.get(f"{test_name}.enable_pgle", False)
-
-        # do_pgle = enable_pgle if isinstance(enable_pgle, bool) else str(enable_pgle).lower() in ("true", "1", "yes")
+        do_pgle = cmd_args.get(f"{test_name}.enable_pgle", True)
 
         if do_pgle:
-            # Prepare environment and script content for the 'profile' stage
-            # set_xla_flags(test_name, False)
             env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "profile")}"'
             profile_content = self._script_content("profile", slurm_args, env_vars, cmd_args, extra_cmd_args)
             run_script_content += profile_content
 
-            # set_xla_flags(test_name, True)
-            cmd_args[f"{self.test_name}.perf"]["xla_gpu_pgle_profile_file_or_directory_path"] = (
-                "/opt/paxml/workspace/pgle_output_profile.pbtxt"
-            )
             env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
             perf_content = self._script_content("perf", slurm_args, env_vars, cmd_args, extra_cmd_args)
             run_script_content += perf_content
         else:
-            # set_xla_flags(test_name, True)
             cmd_args[f"{self.test_name}.XLA_FLAGS"]["xla_gpu_pgle_profile_file_or_directory_path"] = '""'
             env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
             perf_content = self._script_content("perf", slurm_args, env_vars, cmd_args, extra_cmd_args)
@@ -476,7 +433,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         run_script_path = Path(cmd_args["output_path"]) / "run.sh"
         with open(run_script_path, "w") as run_file:
             run_file.write("\n".join(run_script_content))
-        os.chmod(run_script_path, 0o755)
+        run_script_path.chmod(0o755)
         return run_script_path
 
     def _script_content(
@@ -557,9 +514,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f'--fdl_config="{fdl_config}"',
         ]
 
-        # Dynamically adding fdl. prefixed arguments
-        fdl_prefix = f"{self.test_name}.fdl."
-        fdl_args = {k[len(fdl_prefix) :]: v for k, v in cmd_args.items() if k.startswith(fdl_prefix)}
+        fdl_args: dict[str, str] = cmd_args[f"{self.test_name}.fdl"]
 
         for key, value in sorted(fdl_args.items()):
             parts.append(f"--fdl.{key.upper()}={value}")

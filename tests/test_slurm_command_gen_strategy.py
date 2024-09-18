@@ -146,7 +146,7 @@ def test_raises_if_no_default_partition(slurm_system: SlurmSystem):
 
 class TestGenerateSrunCommand__CmdGeneration:
     @pytest.fixture
-    def grok_test(self) -> GPTTestDefinition:
+    def gpt_test(self) -> GPTTestDefinition:
         return GPTTestDefinition(
             name="gpt",
             description="desc",
@@ -203,8 +203,8 @@ class TestGenerateSrunCommand__CmdGeneration:
         full_srun_command = strategy_fixture.generate_full_srun_command({}, {}, {}, "")
         assert full_srun_command == " \\\n".join(["srun", "--test", "test_arg", "test_command"])
 
-    def test_generate_full_srun_command_with_pre_test(self, slurm_system: SlurmSystem, grok_test: GPTTestDefinition):
-        cmd_gen = JaxToolboxSlurmCommandGenStrategy(slurm_system, grok_test.extra_env_vars, grok_test.cmd_args_dict)
+    def test_generate_full_srun_command_with_pre_test(self, slurm_system: SlurmSystem, gpt_test: GPTTestDefinition):
+        cmd_gen = JaxToolboxSlurmCommandGenStrategy(slurm_system, gpt_test.extra_env_vars, gpt_test.cmd_args_dict)
         cmd_gen._create_run_script = MagicMock()
         cmd_gen._generate_pre_test_command = MagicMock(return_value="pre_test_command")
         cmd_gen._generate_pre_test_check_command = MagicMock(return_value="pre_test_check_command")
@@ -216,8 +216,8 @@ class TestGenerateSrunCommand__CmdGeneration:
             "container_mounts": "container_mounts",
             "container_name": "cont",
         }
-        grok_test.cmd_args.pre_test = PreTest()
-        cargs = {"output_path": "/path/to/output", **grok_test.cmd_args_dict}
+        gpt_test.cmd_args.pre_test = PreTest()
+        cargs = {"output_path": "/path/to/output", **gpt_test.cmd_args_dict}
         result = cmd_gen.generate_full_srun_command(slurm_args, {}, cargs, "")
         assert "pre_test_command" in result
         assert "pre_test_check_command" in result
@@ -228,8 +228,8 @@ class TestGenerateSrunCommand__CmdGeneration:
         assert "--container-name=" + slurm_args["container_name"] in result
         assert "/opt/paxml/workspace/run.sh" in result
 
-    def test_generate_full_srun_command_without_pre_test(self, slurm_system: SlurmSystem, grok_test: GPTTestDefinition):
-        cmd_gen = JaxToolboxSlurmCommandGenStrategy(slurm_system, grok_test.extra_env_vars, grok_test.cmd_args_dict)
+    def test_generate_full_srun_command_without_pre_test(self, slurm_system: SlurmSystem, gpt_test: GPTTestDefinition):
+        cmd_gen = JaxToolboxSlurmCommandGenStrategy(slurm_system, gpt_test.extra_env_vars, gpt_test.cmd_args_dict)
         cmd_gen._create_run_script = MagicMock()
         cmd_gen._generate_pre_test_command = MagicMock(return_value="pre_test_command")
         cmd_gen._generate_pre_test_check_command = MagicMock(return_value="pre_test_check_command")
@@ -241,8 +241,8 @@ class TestGenerateSrunCommand__CmdGeneration:
             "container_mounts": "container_mounts",
             "container_name": "cont",
         }
-        grok_test.cmd_args.pre_test = PreTest(enable=False)
-        cargs = {"output_path": "/path/to/output", **grok_test.cmd_args_dict}
+        gpt_test.cmd_args.pre_test = PreTest(enable=False)
+        cargs = {"output_path": "/path/to/output", **gpt_test.cmd_args_dict}
         result = cmd_gen.generate_full_srun_command(slurm_args, {}, cargs, "")
 
         assert "pre_test_command" not in result
@@ -253,19 +253,17 @@ class TestGenerateSrunCommand__CmdGeneration:
         assert f"-o {slurm_args['output']}" in result
         assert f"-e {slurm_args['error']}" in result
 
-    def test_gen_exec_command(self, slurm_system: SlurmSystem, tmp_path: Path, grok_test: GPTTestDefinition):
-        cmd_gen = JaxToolboxSlurmCommandGenStrategy(slurm_system, grok_test.extra_env_vars, grok_test.cmd_args_dict)
-        cmd = cmd_gen.gen_exec_command(
-            {}, grok_test.cmd_args_dict, grok_test.extra_env_vars, "", tmp_path, 1, ["node1"]
-        )
+    def test_gen_exec_command(self, slurm_system: SlurmSystem, tmp_path: Path, gpt_test: GPTTestDefinition):
+        cmd_gen = JaxToolboxSlurmCommandGenStrategy(slurm_system, gpt_test.extra_env_vars, gpt_test.cmd_args_dict)
+        cmd = cmd_gen.gen_exec_command({}, gpt_test.cmd_args_dict, gpt_test.extra_env_vars, "", tmp_path, 1, ["node1"])
         assert cmd == f"sbatch {tmp_path}/cloudai_sbatch_script.sh"
         assert (tmp_path / "run.sh").exists()
 
-    def test_generate_pre_test_command(self, slurm_system: SlurmSystem, grok_test: GPTTestDefinition, tmp_path: Path):
-        cmd_gen = JaxToolboxSlurmCommandGenStrategy(slurm_system, grok_test.extra_env_vars, grok_test.cmd_args_dict)
-        cargs = {"output_path": "/path/to/output", **grok_test.cmd_args_dict}
+    def test_generate_pre_test_command(self, slurm_system: SlurmSystem, gpt_test: GPTTestDefinition, tmp_path: Path):
+        cmd_gen = JaxToolboxSlurmCommandGenStrategy(slurm_system, gpt_test.extra_env_vars, gpt_test.cmd_args_dict)
+        cargs = {"output_path": "/path/to/output", **gpt_test.cmd_args_dict}
         pre_test_cli = cmd_gen._generate_pre_test_command(cargs, tmp_path, tmp_path).splitlines()
-        nccl_test = grok_test.cmd_args.pre_test.nccl_test
+        nccl_test = gpt_test.cmd_args.pre_test.nccl_test
         assert pre_test_cli == [
             "srun \\",
             "--mpi=pmix \\",
@@ -291,6 +289,47 @@ class TestGenerateSrunCommand__CmdGeneration:
             f"--blocking {nccl_test.blocking} \\",
             f"--cudagraph {nccl_test.cudagraph} \\",
             f"--stepfactor {nccl_test.stepfactor}",
+        ]
+
+    def test_generate_python_command(self, slurm_system: SlurmSystem, gpt_test: GPTTestDefinition, tmp_path: Path):
+        cmd_gen = JaxToolboxSlurmCommandGenStrategy(slurm_system, gpt_test.extra_env_vars, gpt_test.cmd_args_dict)
+        cargs = {"output_path": "/path/to/output", **gpt_test.cmd_args_dict}
+        cmd_gen.test_name = "GPT"
+        stage = "stage"
+        python_cli = cmd_gen._generate_python_command(stage, {}, {}, cargs, "").splitlines()
+
+        fdl_args = gpt_test.cmd_args.fdl.model_dump()
+        fdl_args_list = []
+        for k, v in sorted(fdl_args.items()):
+            fdl_args_list.append(f"    --fdl.{k.upper()}={v} \\")
+        fdl_args_list[-1] = fdl_args_list[-1].replace(" \\", "")
+        py_cmd = [
+            "    python3 -u -m paxml.main \\",
+            "    --num_hosts=$SLURM_NTASKS \\",
+            "    --server_addr=$SLURM_JOB_MASTER_NODE:12345 \\",
+            "    --host_idx=$SLURM_PROCID \\",
+            f"    --job_log_dir={gpt_test.cmd_args.setup_flags.docker_workspace_dir} \\",
+            f"    --tfds_data_dir={gpt_test.cmd_args.setup_flags.tfds_data_dir} \\",
+            f"    --enable_checkpoint_saving={gpt_test.cmd_args.setup_flags.enable_checkpoint_saving} \\",
+            "    --multiprocess_gpu \\",
+            "    --alsologtostderr \\",
+            f'    --fdl_config="{gpt_test.cmd_args.fdl_config}" \\',
+            *fdl_args_list,
+        ]
+
+        assert python_cli == [
+            'if [ "$SLURM_NODEID" -eq 0 ] && [ "$SLURM_PROCID" -eq 0 ]; then',
+            "    nsys profile \\",
+            "    -s none \\",
+            f"    -o /opt/paxml/workspace/nsys_profile_{stage} \\",
+            "    --force-overwrite true \\",
+            "    --capture-range=cudaProfilerApi \\",
+            "    --capture-range-end=stop \\",
+            "    --cuda-graph-trace=node \\",
+            *py_cmd,
+            "else",
+            *py_cmd,
+            "fi",
         ]
 
 
