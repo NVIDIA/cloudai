@@ -15,7 +15,6 @@
 # limitations under the License.
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
@@ -23,31 +22,66 @@ from kubernetes import client
 
 
 @pytest.fixture
-def k8s_system():
-    """Fixture to create a KubernetesSystem instance."""
-    with patch("kubernetes.config.load_kube_config"), patch("pathlib.Path.exists", return_value=True):
-        k8s_system = KubernetesSystem(
-            name="test-system",
-            install_path=Path("/fake/install/path"),
-            output_path=Path("/fake/output/path"),
-            kube_config_path=Path("/fake/kube/config"),
-            default_namespace="default",
-            default_image="test-image",
-        )
-        k8s_system._core_v1 = MagicMock(client.CoreV1Api)
-        k8s_system._batch_v1 = MagicMock(client.BatchV1Api)
-        k8s_system._custom_objects_api = MagicMock(client.CustomObjectsApi)
-        yield k8s_system
+def kube_config_tempfile():
+    """Fixture to create a kube config file in $HOME/.kube/config with reasonable content."""
+    kube_config_content = """
+    apiVersion: v1
+    kind: Config
+    clusters:
+    - cluster:
+        server: https://127.0.0.1:6443
+      name: local-cluster
+    contexts:
+    - context:
+        cluster: local-cluster
+        user: local-user
+      name: local-context
+    current-context: local-context
+    users:
+    - name: local-user
+      user:
+        token: fake-token
+    """
+
+    home_dir = Path.home()
+    kube_config_dir = home_dir / ".kube"
+    kube_config_path = kube_config_dir / "config"
+
+    kube_config_dir.mkdir(parents=True, exist_ok=True)
+
+    with kube_config_path.open("w") as config_file:
+        config_file.write(kube_config_content)
+
+    yield kube_config_path
+
+
+@pytest.fixture
+def k8s_system(kube_config_tempfile):
+    """Fixture to create a KubernetesSystem instance with a valid kube config."""
+    k8s_system = KubernetesSystem(
+        name="test-system",
+        install_path=Path("/fake/install/path"),
+        output_path=Path("/fake/output/path"),
+        kube_config_path=kube_config_tempfile,
+        default_namespace="default",
+        default_image="test-image",
+    )
+    k8s_system.model_post_init(None)
+    yield k8s_system
 
 
 def test_initialization(k8s_system):
-    """Test that all attributes are properly initialized."""
+    """Test that all attributes and Kubernetes API clients are properly initialized."""
     assert k8s_system.name == "test-system"
     assert k8s_system.install_path == Path("/fake/install/path")
     assert k8s_system.output_path == Path("/fake/output/path")
-    assert k8s_system.kube_config_path == Path("/fake/kube/config")
+    assert k8s_system.kube_config_path.exists()
     assert k8s_system.default_namespace == "default"
     assert k8s_system.default_image == "test-image"
     assert k8s_system.scheduler == "kubernetes"
     assert k8s_system.global_env_vars == {}
     assert k8s_system.monitor_interval == 1
+
+    assert isinstance(k8s_system.core_v1, client.CoreV1Api)
+    assert isinstance(k8s_system.batch_v1, client.BatchV1Api)
+    assert isinstance(k8s_system.custom_objects_api, client.CustomObjectsApi)
