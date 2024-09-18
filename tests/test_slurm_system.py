@@ -144,6 +144,7 @@ def test_parse_node_list(node_list: str, expected_parsed_node_list: List[str]):
     parsed_node_list = parse_node_list(node_list)
     assert parsed_node_list == expected_parsed_node_list
 
+
 @pytest.fixture
 def grouped_nodes() -> dict[SlurmNodeState, list[SlurmNode]]:
     """
@@ -182,7 +183,9 @@ def test_allocate_nodes_max_avail(slurm_system: SlurmSystem, grouped_nodes: dict
     assert down_node_name not in returned_node_names, "DOWN node should not be included"
 
 
-def test_allocate_nodes_num_nodes_integers(slurm_system: SlurmSystem, grouped_nodes: dict[SlurmNodeState, list[SlurmNode]]):
+def test_allocate_nodes_num_nodes_integers(
+    slurm_system: SlurmSystem, grouped_nodes: dict[SlurmNodeState, list[SlurmNode]]
+):
     group_name = "group_name"
 
     available_nodes = slurm_system.allocate_nodes(grouped_nodes, 1, group_name)
@@ -193,11 +196,15 @@ def test_allocate_nodes_num_nodes_integers(slurm_system: SlurmSystem, grouped_no
     assert len(returned_node_names) == len(expected_node_names), "Should return 1 available node"
 
 
-def test_allocate_nodes_exceeding_limit(slurm_system: SlurmSystem, grouped_nodes: dict[SlurmNodeState, list[SlurmNode]]):
+def test_allocate_nodes_exceeding_limit(
+    slurm_system: SlurmSystem, grouped_nodes: dict[SlurmNodeState, list[SlurmNode]]
+):
     group_name = "group_name"
 
     with pytest.raises(
         ValueError,
-        match=re.escape(f"Requested number of nodes (4) exceeds the number of available nodes in group '{group_name}'."),
+        match=re.escape(
+            f"Requested number of nodes (4) exceeds the number of available nodes in group '{group_name}'."
+        ),
     ):
         slurm_system.allocate_nodes(grouped_nodes, 4, group_name)
