@@ -28,7 +28,7 @@ from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm import SlurmNodeState
 from cloudai.systems.slurm.slurm_system import SlurmPartition
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
-from cloudai.test_definitions.gpt import GPTCmdArgs, GPTFdl, GPTSetupFlags, GPTTestDefinition, GPTXLAFlags
+from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
 from cloudai.test_definitions.jax_toolbox import PreTest
 
 

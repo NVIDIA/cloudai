@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -45,11 +45,13 @@ class NCCLCmdAgrsPreTest(NCCLCmdArgs):
     """NCCL pre-test command arguments."""
 
     num_nodes: int = 8
-    subtest_name: str = "all_gather_perf_mpi"
     stepfactor: int = 2
     minbytes: str = "8M"
     maxbytes: str = "16G"
     blocking: int = 1
+
+    def model_post_init(self, __context: Any) -> None:
+        self.subtest_name = "all_gather_perf_mpi"
 
 
 class PreTest(BaseModel):

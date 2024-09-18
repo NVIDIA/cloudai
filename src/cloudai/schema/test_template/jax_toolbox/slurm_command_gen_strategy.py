@@ -436,29 +436,29 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         test_name = self.test_name
 
-        def set_xla_flags(test_name: str, profile_enabled: bool):
-            """Set the XLA_FLAGS for profiling or performance based on the stage."""
-            flags = [
-                "xla_gpu_enable_latency_hiding_scheduler",
-            ]
+        # def set_xla_flags(test_name: str, profile_enabled: bool):
+        #     """Set the XLA_FLAGS for profiling or performance based on the stage."""
+        #     flags = [
+        #         "xla_gpu_enable_latency_hiding_scheduler",
+        #     ]
 
-            state = "true" if profile_enabled else "false"
-            for flag in flags:
-                cmd_args[f"{test_name}.XLA_FLAGS.{flag}"] = state
+        #     state = "true" if profile_enabled else "false"
+        #     for flag in flags:
+        #         cmd_args[f"{test_name}.XLA_FLAGS.{flag}"] = state
 
         run_script_content = []
-        enable_pgle = cmd_args.get(f"{test_name}.enable_pgle", "True")
+        do_pgle = cmd_args.get(f"{test_name}.enable_pgle", False)
 
-        do_pgle = enable_pgle if isinstance(enable_pgle, bool) else str(enable_pgle).lower() in ("true", "1", "yes")
+        # do_pgle = enable_pgle if isinstance(enable_pgle, bool) else str(enable_pgle).lower() in ("true", "1", "yes")
 
         if do_pgle:
             # Prepare environment and script content for the 'profile' stage
-            set_xla_flags(test_name, False)
+            # set_xla_flags(test_name, False)
             env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "profile")}"'
             profile_content = self._script_content("profile", slurm_args, env_vars, cmd_args, extra_cmd_args)
             run_script_content += profile_content
 
-            set_xla_flags(test_name, True)
+            # set_xla_flags(test_name, True)
             cmd_args[f"{self.test_name}.perf"]["xla_gpu_pgle_profile_file_or_directory_path"] = (
                 "/opt/paxml/workspace/pgle_output_profile.pbtxt"
             )
@@ -466,8 +466,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             perf_content = self._script_content("perf", slurm_args, env_vars, cmd_args, extra_cmd_args)
             run_script_content += perf_content
         else:
-            set_xla_flags(test_name, True)
-            cmd_args[f"{self.test_name}.perf"]["xla_gpu_pgle_profile_file_or_directory_path"] = '""'
+            # set_xla_flags(test_name, True)
+            cmd_args[f"{self.test_name}.XLA_FLAGS"]["xla_gpu_pgle_profile_file_or_directory_path"] = '""'
             env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
             perf_content = self._script_content("perf", slurm_args, env_vars, cmd_args, extra_cmd_args)
             run_script_content += perf_content
