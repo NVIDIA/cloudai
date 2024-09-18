@@ -122,7 +122,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     return name.upper() if name.lower() == "gpt" else name.capitalize()
         return ""
 
-    def _format_xla_flags(self, cmd_args: Dict[str, str], stage: str) -> str:
+    def _format_xla_flags(self, cmd_args: Dict[str, Any], stage: str) -> str:
         """
         Format the XLA_FLAGS environment variable.
 
@@ -143,21 +143,15 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
             "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD",
         ]
-        # Prefixes for common and test-specific XLA flags
-        common_prefix = "common.XLA_FLAGS."
-        test_prefix = f"{self.test_name}.{stage}.XLA_FLAGS."
+        args: dict[str, str] = cmd_args.get(f"{self.test_name}.{stage}", {}).get("XLA_FLAGS", {})
 
-        for key, value in cmd_args.items():
-            if key.startswith(common_prefix) or key.startswith(test_prefix):
-                flag_name = key.split(".")[-1]
-                if flag_name.lower() == "xla_gpu_simplify_all_fp_conversions":
-                    if value:
-                        xla_flags.append(f"--{flag_name.lower()}")
-                else:
-                    flag = f"--{flag_name.lower()}={'true' if value is True else 'false' if value is False else value}"
-                    xla_flags.append(flag)
+        for flag_name, value in args.items():
+            if not flag_name.startswith("xla_"):
+                continue
+            flag = f"--{flag_name.lower()}={value}"
+            xla_flags.append(flag)
 
-        return " ".join(xla_flags)
+        return " ".join(sorted(xla_flags))
 
     def _parse_slurm_args(
         self,
