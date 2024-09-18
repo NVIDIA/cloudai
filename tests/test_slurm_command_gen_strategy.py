@@ -144,6 +144,16 @@ def test_raises_if_no_default_partition(slurm_system: SlurmSystem):
 
 
 class TestGenerateSrunCommand__CmdGeneration:
+    @pytest.fixture
+    def grok_test(self) -> GPTTestDefinition:
+        return GPTTestDefinition(
+            name="gpt",
+            description="desc",
+            test_template_name="gpt",
+            cmd_args=GPTCmdArgs(fdl_config=""),
+            extra_env_vars={"COMBINE_THRESHOLD": "1"},  # it is always set in Test TOMLs
+        )
+
     def test_generate_test_command(self, strategy_fixture: SlurmCommandGenStrategy):
         test_command = strategy_fixture.generate_test_command({}, {}, {}, "")
         assert test_command == []
@@ -192,16 +202,12 @@ class TestGenerateSrunCommand__CmdGeneration:
         full_srun_command = strategy_fixture.generate_full_srun_command({}, {}, {}, "")
         assert full_srun_command == " \\\n".join(["srun", "--test", "test_arg", "test_command"])
 
-    def test_generate_full_srun_command_with_pre_test(
-        self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy, slurm_system: SlurmSystem
-    ):
-        jax_strategy_fixture.slurm_system = slurm_system
+    def test_generate_full_srun_command_with_pre_test(self, slurm_system: SlurmSystem, grok_test: GPTTestDefinition):
+        cmd_gen = JaxToolboxSlurmCommandGenStrategy(slurm_system, grok_test.extra_env_vars, grok_test.cmd_args_dict)
+        cmd_gen._create_run_script = MagicMock()
+        cmd_gen._generate_pre_test_command = MagicMock(return_value="pre_test_command")
+        cmd_gen._generate_pre_test_check_command = MagicMock(return_value="pre_test_check_command")
 
-        jax_strategy_fixture._create_run_script = MagicMock()
-        jax_strategy_fixture._generate_pre_test_command = MagicMock(return_value="pre_test_command")
-        jax_strategy_fixture._generate_pre_test_check_command = MagicMock(return_value="pre_test_check_command")
-
-        slurm_system.mpi = "none"
         slurm_args = {
             "output": "output.txt",
             "error": "error.txt",
@@ -209,31 +215,23 @@ class TestGenerateSrunCommand__CmdGeneration:
             "container_mounts": "container_mounts",
             "container_name": "cont",
         }
-        env_vars = {}
-        extra_cmd_args = ""
-
-        # run_pre_test is True
         cmd_args = {"output_path": "/path/to/output", "pre_test": "true"}
-        result = jax_strategy_fixture.generate_full_srun_command(slurm_args, env_vars, cmd_args, extra_cmd_args)
+        result = cmd_gen.generate_full_srun_command(slurm_args, {}, cmd_args, "")
         assert "pre_test_command" in result
         assert "pre_test_check_command" in result
-        assert f"--mpi={slurm_system.mpi}" in result
-        assert "--container-mounts=" + slurm_args.get("container_mounts", "") in result
+        assert "--mpi=none" in result
+        assert "--container-mounts=" + slurm_args["container_mounts"] in result
         assert f"-o {slurm_args['output']}" in result
         assert f"-e {slurm_args['error']}" in result
-        assert "--container-name=" + slurm_args.get("container_name", "") in result
+        assert "--container-name=" + slurm_args["container_name"] in result
         assert "/opt/paxml/workspace/run.sh" in result
 
-    def test_generate_full_srun_command_without_pre_test(
-        self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy, slurm_system: SlurmSystem
-    ):
-        jax_strategy_fixture.slurm_system = slurm_system
+    def test_generate_full_srun_command_without_pre_test(self, slurm_system: SlurmSystem, grok_test: GPTTestDefinition):
+        cmd_gen = JaxToolboxSlurmCommandGenStrategy(slurm_system, grok_test.extra_env_vars, grok_test.cmd_args_dict)
+        cmd_gen._create_run_script = MagicMock()
+        cmd_gen._generate_pre_test_command = MagicMock(return_value="pre_test_command")
+        cmd_gen._generate_pre_test_check_command = MagicMock(return_value="pre_test_check_command")
 
-        jax_strategy_fixture._create_run_script = MagicMock()
-        jax_strategy_fixture._generate_pre_test_command = MagicMock(return_value="pre_test_command")
-        jax_strategy_fixture._generate_pre_test_check_command = MagicMock(return_value="pre_test_check_command")
-
-        slurm_system.mpi = "none"
         slurm_args = {
             "output": "output.txt",
             "error": "error.txt",
@@ -241,31 +239,18 @@ class TestGenerateSrunCommand__CmdGeneration:
             "container_mounts": "container_mounts",
             "container_name": "cont",
         }
-        env_vars = {}
-        extra_cmd_args = ""
+        cmd_args = {"output_path": "/path/to/output", "pre_test": "false"}
+        result = cmd_gen.generate_full_srun_command(slurm_args, {}, cmd_args, "")
 
-        # run_pre_test is False
-        cmd_args = {
-            "output_path": "/path/to/output",
-            "pre_test": "false",
-        }
-        result = jax_strategy_fixture.generate_full_srun_command(slurm_args, env_vars, cmd_args, extra_cmd_args)
         assert "pre_test_command" not in result
         assert "pre_test_check_command" not in result
-        assert f"--mpi={slurm_system.mpi}" in result
+        assert "--mpi=none" in result
         assert f"--container-mounts={slurm_args['container_mounts']}" in result
         assert "--container-name=" + slurm_args.get("container_name", "") in result
         assert f"-o {slurm_args['output']}" in result
         assert f"-e {slurm_args['error']}" in result
 
-    def test_gen_exec_command(self, slurm_system: SlurmSystem, tmp_path: Path):
-        grok_test = GPTTestDefinition(
-            name="gpt",
-            description="desc",
-            test_template_name="gpt",
-            cmd_args=GPTCmdArgs(fdl_config="", fdl=GPTFdl(), xla_flags=GPTXLAFlags(), setup_flags=GPTSetupFlags()),
-            extra_env_vars={"COMBINE_THRESHOLD": "1"},  # it is always set in Test TOMLs
-        )
+    def test_gen_exec_command(self, slurm_system: SlurmSystem, tmp_path: Path, grok_test: GPTTestDefinition):
         cmd_gen = JaxToolboxSlurmCommandGenStrategy(slurm_system, grok_test.extra_env_vars, grok_test.cmd_args_dict)
         cmd = cmd_gen.gen_exec_command(
             {}, grok_test.cmd_args_dict, grok_test.extra_env_vars, "", tmp_path, 1, ["node1"]
