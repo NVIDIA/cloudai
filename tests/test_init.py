@@ -142,9 +142,10 @@ def test_strategies(key: tuple, value: type):
 
 def test_test_templates():
     test_templates = Registry().test_templates_map
-    assert len(test_templates) == 6
+    assert len(test_templates) == 7
     assert test_templates["ChakraReplay"] == ChakraReplay
-    assert test_templates["JaxToolbox"] == JaxToolbox
+    assert test_templates["JaxToolboxGPT"] == JaxToolbox
+    assert test_templates["JaxToolboxGrok"] == JaxToolbox
     assert test_templates["NcclTest"] == NcclTest
     assert test_templates["NeMoLauncher"] == NeMoLauncher
     assert test_templates["Sleep"] == Sleep
@@ -159,12 +160,21 @@ def test_installers():
 
 
 def test_definitions():
-    test_definitions = Registry().test_definitions_map
-    assert len(test_definitions) == 7
-    assert test_definitions["UCCTest"] == UCCTestDefinition
-    assert test_definitions["NcclTest"] == NCCLTestDefinition
-    assert test_definitions["ChakraReplay"] == ChakraReplayTestDefinition
-    assert test_definitions["Sleep"] == SleepTestDefinition
-    assert test_definitions["NeMoLauncher"] == NeMoLauncherTestDefinition
-    assert test_definitions["JaxToolboxGrok"] == GrokTestDefinition
-    assert test_definitions["JaxToolboxGPT"] == GPTTestDefinition
+    test_defs = Registry().test_definitions_map
+    assert len(test_defs) == 7
+    assert test_defs["UCCTest"] == UCCTestDefinition
+    assert test_defs["NcclTest"] == NCCLTestDefinition
+    assert test_defs["ChakraReplay"] == ChakraReplayTestDefinition
+    assert test_defs["Sleep"] == SleepTestDefinition
+    assert test_defs["NeMoLauncher"] == NeMoLauncherTestDefinition
+    assert test_defs["JaxToolboxGrok"] == GrokTestDefinition
+    assert test_defs["JaxToolboxGPT"] == GPTTestDefinition
+
+
+def test_definitions_matches_templates():
+    test_defs = Registry().test_definitions_map
+    test_templates = Registry().test_templates_map
+
+    def_names = set(test_defs.keys())
+    template_names = set(test_templates.keys())
+    assert def_names == template_names

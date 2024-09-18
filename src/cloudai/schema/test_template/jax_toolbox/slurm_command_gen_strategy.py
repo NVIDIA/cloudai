@@ -568,7 +568,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         fdl_prefix = f"{self.test_name}.fdl."
         fdl_args = {k[len(fdl_prefix) :]: v for k, v in cmd_args.items() if k.startswith(fdl_prefix)}
 
-        for key, value in fdl_args.items():
+        for key, value in sorted(fdl_args.items()):
             parts.append(f"--fdl.{key.upper()}={value}")
         if extra_cmd_args:
             parts.append(extra_cmd_args)

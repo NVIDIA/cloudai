@@ -28,8 +28,6 @@ from cloudai import (
     TestParser,
     TestScenario,
     TestScenarioParser,
-    TestTemplate,
-    TestTemplateParser,
     format_validation_error,
 )
 
@@ -37,17 +35,15 @@ from cloudai import (
 class Parser:
     """Main parser for parsing all types of configurations."""
 
-    def __init__(self, system_config_path: Path, test_templates_dir: Path) -> None:
+    def __init__(self, system_config_path: Path) -> None:
         """
         Initialize a Parser instance.
 
         Args:
             system_config_path (str): The file path for system configurations.
-            test_templates_dir (str): The file path for test_template configurations.
         """
-        logging.debug(f"Initializing parser with: {system_config_path=} {test_templates_dir=}")
+        logging.debug(f"Initializing parser with: {system_config_path=}")
         self.system_config_path = system_config_path
-        self.test_template_path = test_templates_dir
 
     def parse(
         self, test_path: Path, test_scenario_path: Optional[Path] = None
@@ -64,12 +60,7 @@ class Parser:
 
         system = self.parse_system(self.system_config_path)
 
-        test_template_parser = TestTemplateParser(system, self.test_template_path)
-        test_templates: List[TestTemplate] = test_template_parser.parse_all()
-        test_template_mapping = {t.name: t for t in test_templates}
-        logging.debug(f"Parsed {len(test_templates)} test templates: {[t.name for t in test_templates]}")
-
-        test_parser = TestParser(test_path, test_template_mapping)
+        test_parser = TestParser(test_path, system)
         tests: List[Test] = test_parser.parse_all()
         test_mapping = {t.name: t for t in tests}
         logging.debug(f"Parsed {len(tests)} tests: {[t.name for t in tests]}")

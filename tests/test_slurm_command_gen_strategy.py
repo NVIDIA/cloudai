@@ -28,6 +28,8 @@ from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm import SlurmNodeState
 from cloudai.systems.slurm.slurm_system import SlurmPartition
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.test_definitions.gpt import GPTCmdArgs, GPTFdl, GPTSetupFlags, GPTTestDefinition, GPTXLAFlags
+from cloudai.test_definitions.grok import GrokCmdArgs, GrokFdl, GrokTestDefinition
 
 
 @pytest.fixture
@@ -256,6 +258,21 @@ class TestGenerateSrunCommand__CmdGeneration:
         assert "--container-name=" + slurm_args.get("container_name", "") in result
         assert f"-o {slurm_args['output']}" in result
         assert f"-e {slurm_args['error']}" in result
+
+    def test_gen_exec_command(self, slurm_system: SlurmSystem, tmp_path: Path):
+        grok_test = GPTTestDefinition(
+            name="gpt",
+            description="desc",
+            test_template_name="gpt",
+            cmd_args=GPTCmdArgs(fdl_config="", fdl=GPTFdl(), xla_flags=GPTXLAFlags(), setup_flags=GPTSetupFlags()),
+            extra_env_vars={"COMBINE_THRESHOLD": "1"},  # it is always set in Test TOMLs
+        )
+        cmd_gen = JaxToolboxSlurmCommandGenStrategy(slurm_system, grok_test.extra_env_vars, grok_test.cmd_args_dict)
+        cmd = cmd_gen.gen_exec_command(
+            {}, grok_test.cmd_args_dict, grok_test.extra_env_vars, "", tmp_path, 1, ["node1"]
+        )
+        assert cmd == f"sbatch {tmp_path}/cloudai_sbatch_script.sh"
+        assert (tmp_path / "run.sh").exists()
 
 
 class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:

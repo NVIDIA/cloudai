@@ -28,11 +28,10 @@ class Test_Parser:
     @pytest.fixture()
     def parser(self, tmp_path: Path) -> Parser:
         system = Path.cwd() / "conf" / "common" / "system" / "standalone_system.toml"
-        templates_dir = tmp_path / "templates"
-        return Parser(system, templates_dir)
+        return Parser(system)
 
     def test_no_tests_dir(self, parser: Parser):
-        tests_dir = parser.test_template_path.parent / "tests"
+        tests_dir = parser.system_config_path.parent / "tests"
         with pytest.raises(FileNotFoundError) as exc_info:
             parser.parse(tests_dir, None)
         assert "Test path" in str(exc_info.value)

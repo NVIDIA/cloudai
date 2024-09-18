@@ -242,6 +242,11 @@ class TestDefinition(BaseModel):
     extra_env_vars: dict[str, str] = {}
     extra_cmd_args: dict[str, str] = {}
 
+    @property
+    def cmd_args_dict(self) -> Dict[str, str]:
+        return self.cmd_args.model_dump()
+
+    @property
     def extra_args_str(self) -> str:
         parts = []
         for k, v in self.extra_cmd_args.items():

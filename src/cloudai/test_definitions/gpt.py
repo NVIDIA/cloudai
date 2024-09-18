@@ -14,23 +14,51 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .jax_toolbox import JaxFdl, JaxToolboxCmdArgs, JaxToolboxTestDefinition
+from pydantic import Field
+
+from .jax_toolbox import JaxFdl, JaxToolboxCmdArgs, JaxToolboxTestDefinition, PreTest, SetupFlags, XLAFlags
 
 
 class GPTFdl(JaxFdl):
     """GPT FDL configuration."""
 
-    checkpoint_policy: str = "save_nothing"
+    num_groups: int = 64
+
+
+class GPTXLAFlags(XLAFlags):
+    """GPT XLA flags."""
+
+    xla_gpu_all_reduce_combine_threshold_bytes: int = 447741952
+    xla_gpu_enable_while_loop_double_buffering: bool = False
+
+
+class GPTSetupFlags(SetupFlags):
+    """GPT setup flags."""
+
+    gpt_vocab_path: str = "gs://t5-data/vocabs/cc_all.32000.100extra/sentencepiece.model"
 
 
 class GPTCmdArgs(JaxToolboxCmdArgs):
     """GPT JAX Toolbox test command arguments."""
 
     fdl_config: str
-    fdl: GPTFdl
+    fdl: GPTFdl = Field(default_factory=GPTFdl)
+    pre_test: PreTest = Field(default_factory=PreTest)
+    xla_flags: GPTXLAFlags = Field(default_factory=GPTXLAFlags)
+    setup_flags: GPTSetupFlags = Field(default_factory=GPTSetupFlags)
 
 
 class GPTTestDefinition(JaxToolboxTestDefinition):
     """Test object for GPT."""
 
     cmd_args: GPTCmdArgs
+
+    @property
+    def cmd_args_dict(self):
+        d = self.cmd_args.model_dump()
+        res = {}
+        for k, v in d.items():
+            if k == "xla_flags":
+                k = k.upper()
+            res[f"GPT.{k}"] = v
+        return res

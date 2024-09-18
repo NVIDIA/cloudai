@@ -71,6 +71,7 @@ class NCCLTestDefinition(TestDefinition):
 
     cmd_args: NCCLCmdArgs
 
+    @property
     def extra_args_str(self) -> str:
         parts = []
         for k, v in self.extra_cmd_args.items():

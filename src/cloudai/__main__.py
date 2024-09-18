@@ -107,11 +107,6 @@ def parse_arguments() -> argparse.Namespace:
         help="Path to the system configuration file.",
     )
     parser.add_argument(
-        "--test-templates-dir",
-        required=True,
-        help="Path to the test template configuration directory.",
-    )
-    parser.add_argument(
         "--tests-dir",
         required=True,
         help="Path to the test configuration directory.",
@@ -318,18 +313,16 @@ def main() -> None:
         exit(rc)
 
     system_config_path = Path(args.system_config)
-    test_templates_dir = Path(args.test_templates_dir)
     tests_dir = Path(args.tests_dir)
     test_scenario_path = Path(args.test_scenario) if args.test_scenario else None
     output_dir = Path(args.output_dir) if args.output_dir else None
 
     logging.info(f"System configuration file: {system_config_path}")
-    logging.info(f"Test templates directory: {test_templates_dir}")
     logging.info(f"Tests directory: {tests_dir}")
     logging.info(f"Test scenario file: {test_scenario_path}")
     logging.info(f"Output directory: {output_dir}")
 
-    parser = Parser(system_config_path, test_templates_dir)
+    parser = Parser(system_config_path)
     system, tests, test_scenario = parser.parse(tests_dir, test_scenario_path)
 
     if output_dir:

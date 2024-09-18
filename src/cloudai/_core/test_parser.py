@@ -16,15 +16,24 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Type, Union, cast
 
 from pydantic import ValidationError
 
 from .base_multi_file_parser import BaseMultiFileParser
+from .command_gen_strategy import CommandGenStrategy
 from .exceptions import format_validation_error
+from .grading_strategy import GradingStrategy
+from .install_strategy import InstallStrategy
+from .job_id_retrieval_strategy import JobIdRetrievalStrategy
+from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
+from .json_gen_strategy import JsonGenStrategy
 from .registry import Registry
+from .report_generation_strategy import ReportGenerationStrategy
+from .system import System
 from .test import Test, TestDefinition
 from .test_template import TestTemplate
+from .test_template_strategy import TestTemplateStrategy
 
 
 class TestParser(BaseMultiFileParser):
@@ -37,20 +46,16 @@ class TestParser(BaseMultiFileParser):
 
     __test__ = False
 
-    def __init__(
-        self,
-        directory_path: Path,
-        test_template_mapping: Dict[str, TestTemplate],
-    ) -> None:
+    def __init__(self, directory_path: Path, system: System) -> None:
         """
         Initialize the TestParser instance.
 
         Args:
             directory_path (str): Path to the directory containing test data.
-            test_template_mapping (Dict[str, TestTemplate]): Mapping of test template names to TestTemplate objects.
+            system (System): The system object.
         """
         super().__init__(directory_path)
-        self.test_template_mapping: Dict[str, TestTemplate] = test_template_mapping
+        self.system = system
 
     @staticmethod
     def load_test_definition(data: dict) -> TestDefinition:
@@ -70,6 +75,106 @@ class TestParser(BaseMultiFileParser):
 
         return test_def
 
+    def _fetch_strategy(  # noqa: D417
+        self,
+        strategy_interface: Type[
+            Union[
+                TestTemplateStrategy,
+                ReportGenerationStrategy,
+                JobIdRetrievalStrategy,
+                JobStatusRetrievalStrategy,
+                GradingStrategy,
+            ]
+        ],
+        system_type: Type[System],
+        test_template_type: Type[TestTemplate],
+        env_vars: Dict[str, Any],
+        cmd_args: Dict[str, Any],
+    ) -> Optional[
+        Union[
+            TestTemplateStrategy,
+            ReportGenerationStrategy,
+            JobIdRetrievalStrategy,
+            JobStatusRetrievalStrategy,
+            GradingStrategy,
+        ]
+    ]:
+        """
+        Fetch a strategy from the registry based on system and template.
+
+        Args:
+            strategy_interface (Type[Union[TestTemplateStrategy, ReportGenerationStrategy,
+                JobIdRetrievalStrategy, JobStatusRetrievalStrategy]]):
+                The strategy interface to fetch.
+            system_type (Type[System]): The system type.
+            test_template_type (Type[TestTemplate]): The test template type.
+            env_vars (Dict[str, Any]): Environment variables.
+            cmd_args (Dict[str, Any]): Command-line arguments.
+
+        Returns:
+            An instance of the requested strategy, or None.
+        """
+        key = (strategy_interface, system_type, test_template_type)
+        registry = Registry()
+        strategy_type = registry.strategies_map.get(key)
+        if strategy_type:
+            if issubclass(strategy_type, TestTemplateStrategy):
+                return strategy_type(self.system, env_vars, cmd_args)
+            else:
+                return strategy_type()
+
+        logging.warning(
+            f"No {strategy_interface.__name__} found for " f"{type(self).__name__} and " f"{type(self.system).__name__}"
+        )
+        return None
+
+    def _get_test_template(self, name: str, env_vars: Dict[str, Any], cmd_args: Dict[str, Any]) -> TestTemplate:
+        """
+        Dynamically retrieves the appropriate TestTemplate subclass based on the given name.
+
+        Args:
+            name (str): The name of the test template.
+            env_vars (Dict[str, Any]): Environment variables.
+            cmd_args (Dict[str, Any]): Command-line arguments.
+
+        Returns:
+            Type[TestTemplate]: A subclass of TestTemplate corresponding to the given name.
+        """
+        template_classes = Registry().test_templates_map
+
+        test_template_class = template_classes.get(name)
+        if not test_template_class:
+            raise ValueError(f"Unsupported test_template name: {name}")
+
+        obj = test_template_class(system=self.system, name=name, env_vars=env_vars, cmd_args=cmd_args)
+        obj.install_strategy = cast(
+            InstallStrategy, self._fetch_strategy(InstallStrategy, type(obj.system), type(obj), env_vars, cmd_args)
+        )
+        obj.command_gen_strategy = cast(
+            CommandGenStrategy,
+            self._fetch_strategy(CommandGenStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+        )
+        obj.json_gen_strategy = cast(
+            JsonGenStrategy,
+            self._fetch_strategy(JsonGenStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+        )
+        obj.job_id_retrieval_strategy = cast(
+            JobIdRetrievalStrategy,
+            self._fetch_strategy(JobIdRetrievalStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+        )
+        obj.job_status_retrieval_strategy = cast(
+            JobStatusRetrievalStrategy,
+            self._fetch_strategy(JobStatusRetrievalStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+        )
+        obj.report_generation_strategy = cast(
+            ReportGenerationStrategy,
+            self._fetch_strategy(ReportGenerationStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+        )
+        obj.grading_strategy = cast(
+            GradingStrategy, self._fetch_strategy(GradingStrategy, type(obj.system), type(obj), env_vars, cmd_args)
+        )
+        return obj
+
     def _parse_data(self, data: Dict[str, Any]) -> Test:
         """
         Parse data for a Test object.
@@ -80,8 +185,20 @@ class TestParser(BaseMultiFileParser):
         Returns:
             Test: Parsed Test object.
         """
+        test_def = self.load_test_definition(data)
+
+        env_vars = {}  # this field doesn't exist in Test or TestTemplate TOMLs
+        """
+        There are:
+        1. global_env_vars, used in System
+        2. extra_env_vars, used in Test
+        """
+        cmd_args = test_def.cmd_args_dict
+        extra_env_vars = test_def.extra_env_vars
+        extra_cmd_args = test_def.extra_args_str
+
         test_template_name = data.get("test_template_name", "")
-        test_template = self.test_template_mapping.get(test_template_name)
+        test_template = self._get_test_template(test_template_name, env_vars, cmd_args)
 
         if not test_template:
             test_name = data.get("name", "Unnamed Test")
@@ -92,17 +209,6 @@ class TestParser(BaseMultiFileParser):
                 f"test template TOML file for '{test_template_name}' in the directory or remove the test schema file "
                 f"that references this non-existing test template."
             )
-        test_def = self.load_test_definition(data)
-
-        env_vars = {}  # this field doesn't exist in Test or TestTemplate TOMLs
-        """
-        There are:
-        1. global_env_vars, used in System
-        2. extra_env_vars, used in Test
-        """
-        cmd_args = test_def.cmd_args.model_dump()
-        extra_env_vars = test_def.extra_env_vars
-        extra_cmd_args = test_def.extra_args_str()
 
         return Test(
             name=test_def.name,

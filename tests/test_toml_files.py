@@ -46,5 +46,5 @@ def test_systems(system_file: Path):
     Args:
         system_file (Path): The path to the system configuration file to validate.
     """
-    system = Parser(system_file, Path("conf/test_template")).parse_system(system_file)
+    system = Parser(system_file).parse_system(system_file)
     assert system is not None

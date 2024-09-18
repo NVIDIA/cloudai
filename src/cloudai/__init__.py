@@ -36,7 +36,6 @@ from ._core.test_parser import TestParser
 from ._core.test_scenario import TestRun, TestScenario
 from ._core.test_scenario_parser import TestScenarioParser
 from ._core.test_template import TestTemplate
-from ._core.test_template_parser import TestTemplateParser
 from ._core.test_template_strategy import TestTemplateStrategy
 from .installer.installer import Installer
 from .installer.kubernetes_installer import KubernetesInstaller
@@ -159,13 +158,6 @@ Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [ChakraReplay],
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [ChakraReplay], ChakraReplayGradingStrategy)
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [ChakraReplay], ChakraReplaySlurmCommandGenStrategy)
 
-Registry().add_test_template("ChakraReplay", ChakraReplay)
-Registry().add_test_template("JaxToolbox", JaxToolbox)
-Registry().add_test_template("NcclTest", NcclTest)
-Registry().add_test_template("NeMoLauncher", NeMoLauncher)
-Registry().add_test_template("Sleep", Sleep)
-Registry().add_test_template("UCCTest", UCCTest)
-
 Registry().add_installer("slurm", SlurmInstaller)
 Registry().add_installer("standalone", StandaloneInstaller)
 Registry().add_installer("kubernetes", KubernetesInstaller)
@@ -181,6 +173,14 @@ Registry().add_test_definition("Sleep", SleepTestDefinition)
 Registry().add_test_definition("NeMoLauncher", NeMoLauncherTestDefinition)
 Registry().add_test_definition("JaxToolboxGrok", GrokTestDefinition)
 Registry().add_test_definition("JaxToolboxGPT", GPTTestDefinition)
+
+Registry().add_test_template("ChakraReplay", ChakraReplay)
+Registry().add_test_template("JaxToolboxGrok", JaxToolbox)
+Registry().add_test_template("JaxToolboxGPT", JaxToolbox)
+Registry().add_test_template("NcclTest", NcclTest)
+Registry().add_test_template("NeMoLauncher", NeMoLauncher)
+Registry().add_test_template("Sleep", Sleep)
+Registry().add_test_template("UCCTest", UCCTest)
 
 __all__ = [
     "BaseInstaller",
@@ -211,6 +211,5 @@ __all__ = [
     "TestScenario",
     "TestScenarioParser",
     "TestTemplate",
-    "TestTemplateParser",
     "TestTemplateStrategy",
 ]

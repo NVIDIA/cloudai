@@ -20,6 +20,15 @@ import pytest
 import toml
 from cloudai import Registry, TestDefinition, TestParser
 from cloudai.test_definitions import ChakraReplayCmdArgs, NCCLCmdArgs, NCCLTestDefinition
+from cloudai.test_definitions.gpt import GPTCmdArgs, GPTFdl, GPTSetupFlags, GPTTestDefinition, GPTXLAFlags
+from cloudai.test_definitions.grok import (
+    GrokCmdArgs,
+    GrokFdl,
+    GrokPerfXLAFlags,
+    GrokProfileXLAFlags,
+    GrokTestDefinition,
+)
+from cloudai.test_definitions.jax_toolbox import SetupFlags
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
 ALL_TESTS = [t for t in TOML_FILES if "test_template_name" in t.read_text()]
@@ -36,7 +45,7 @@ ALL_TESTS = [t for t in TOML_FILES if "test_template_name" in t.read_text()]
 )
 def test_extra_args_str(input: dict, expected: str):
     t = TestDefinition(name="test", description="test", test_template_name="test", cmd_args={}, extra_cmd_args=input)
-    assert t.extra_args_str() == expected
+    assert t.extra_args_str == expected
 
 
 @pytest.mark.parametrize(
@@ -52,7 +61,7 @@ def test_extra_args_str_nccl(input: dict, expected: str):
     t = NCCLTestDefinition(
         name="test", description="test", test_template_name="test", cmd_args=NCCLCmdArgs(), extra_cmd_args=input
     )
-    assert t.extra_args_str() == expected
+    assert t.extra_args_str == expected
 
 
 @pytest.mark.parametrize("toml_file", ALL_TESTS, ids=lambda x: str(x))
@@ -72,3 +81,44 @@ def test_chakra_docker_image_is_required():
         ChakraReplayCmdArgs.model_validate({})
     assert "Field required" in str(exc_info.value)
     assert "docker_image_url" in str(exc_info.value)
+
+
+def test_gpt_test_definition_cmd_args_dict():
+    gpt = GPTTestDefinition(
+        name="gpt",
+        description="gpt",
+        test_template_name="gpt",
+        cmd_args=GPTCmdArgs(fdl_config=""),
+    )
+
+    cargs = gpt.cmd_args_dict
+    for key in cargs:
+        assert key.startswith("GPT.")
+
+    print(list(cargs.keys()))
+
+    assert "GPT.XLA_FLAGS" in cargs
+    assert "GPT.fdl" in cargs
+    assert "GPT.setup_flags" in cargs
+    assert "GPT.pre_test" in cargs
+
+
+def test_grok_test_definition_cmd_args_dict():
+    grok = GrokTestDefinition(
+        name="grok",
+        description="grok",
+        test_template_name="grok",
+        cmd_args=GrokCmdArgs(),
+    )
+
+    cargs = grok.cmd_args_dict
+    for key in cargs:
+        assert key.startswith("Grok.")
+
+    assert "Grok.pre_test" not in cargs
+    assert "Grok.fdl" in cargs
+    assert "Grok.setup_flags" in cargs
+    assert "Grok.profile" in cargs
+    assert "XLA_FLAGS" in cargs["Grok.profile"]
+    assert "Grok.perf" in cargs
+    assert "XLA_FLAGS" in cargs["Grok.perf"]
