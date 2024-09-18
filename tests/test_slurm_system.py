@@ -144,8 +144,8 @@ def test_parse_node_list(node_list: str, expected_parsed_node_list: List[str]):
     parsed_node_list = parse_node_list(node_list)
     assert parsed_node_list == expected_parsed_node_list
 
-
-def mock_grouped_nodes():
+@pytest.fixture
+def grouped_nodes() -> dict[SlurmNodeState, list[SlurmNode]]:
     """
     Helper function to set up a mock Slurm system with nodes and their states.
     """
@@ -166,10 +166,8 @@ def mock_grouped_nodes():
     return grouped_nodes
 
 
-def test_allocate_nodes_max_avail(slurm_system):
+def test_allocate_nodes_max_avail(slurm_system: SlurmSystem, grouped_nodes: dict[SlurmNodeState, list[SlurmNode]]):
     group_name = "group_name"
-
-    grouped_nodes = mock_grouped_nodes()
 
     available_nodes = slurm_system.allocate_nodes(grouped_nodes, "max_avail", group_name)
     expected_node_names = [
@@ -184,10 +182,8 @@ def test_allocate_nodes_max_avail(slurm_system):
     assert down_node_name not in returned_node_names, "DOWN node should not be included"
 
 
-def test_allocate_nodes_num_nodes_integers(slurm_system):
+def test_allocate_nodes_num_nodes_integers(slurm_system: SlurmSystem, grouped_nodes: dict[SlurmNodeState, list[SlurmNode]]):
     group_name = "group_name"
-
-    grouped_nodes = mock_grouped_nodes()
 
     available_nodes = slurm_system.allocate_nodes(grouped_nodes, 1, group_name)
     expected_node_names = [grouped_nodes[SlurmNodeState.IDLE][0].name]
@@ -197,13 +193,11 @@ def test_allocate_nodes_num_nodes_integers(slurm_system):
     assert len(returned_node_names) == len(expected_node_names), "Should return 1 available node"
 
 
-def test_allocate_nodes_exceeding_limit(slurm_system):
+def test_allocate_nodes_exceeding_limit(slurm_system: SlurmSystem, grouped_nodes: dict[SlurmNodeState, list[SlurmNode]]):
     group_name = "group_name"
-
-    grouped_nodes = mock_grouped_nodes()
 
     with pytest.raises(
         ValueError,
-        match=re.escape("Requested number of nodes (4) exceeds the number of available nodes in group 'group_name'."),
+        match=re.escape(f"Requested number of nodes (4) exceeds the number of available nodes in group '{group_name}'."),
     ):
         slurm_system.allocate_nodes(grouped_nodes, 4, group_name)

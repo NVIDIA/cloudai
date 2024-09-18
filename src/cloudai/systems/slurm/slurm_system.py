@@ -789,8 +789,8 @@ class SlurmSystem(BaseModel, System):
                 parts = node_spec.split(":")
                 if len(parts) != 3:
                     raise ValueError("Format should be partition:group:num_nodes")
-                partition_name, group_name, num_nodes_str = parts
-                num_nodes = int(num_nodes_str) if num_nodes_str != "max_avail" else num_nodes_str
+                partition_name, group_name, num_nodes_spec = parts
+                num_nodes = int(num_nodes_spec) if num_nodes_spec != "max_avail" else num_nodes_spec
                 group_nodes = self.get_available_nodes_from_group(partition_name, group_name, num_nodes)
                 parsed_nodes += [node.name for node in group_nodes]
             else:
