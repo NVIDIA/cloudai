@@ -16,14 +16,34 @@
 
 from typing import Optional
 
-from .jax_toolbox import JaxFdl, JaxToolboxCmdArgs, JaxToolboxTestDefinition
+from pydantic import BaseModel
+
+from .jax_toolbox import JaxFdl, JaxToolboxCmdArgs, JaxToolboxTestDefinition, NCCLPreTest
+
+
+class XLAFlags(BaseModel):
+    """XLA flags configuration."""
+
+    xla_gpu_run_post_layout_collective_pipeliner: bool = False
+
+
+class GrokFdl(JaxFdl):
+    """Fool data loader for Grok."""
+
+    use_fp8: bool = False
+    use_te_dpa: bool = False
+    checkpoint_policy: str = '"save_iteration_input"'
 
 
 class GrokCmdArgs(JaxToolboxCmdArgs):
     """Grok test command arguments."""
 
-    fdl: JaxFdl
+    fdl: GrokFdl
     fdl_config: Optional[str] = None
+    enable_pgle: bool = False
+    pre_test: Optional[NCCLPreTest] = None
+    profile: Optional[XLAFlags] = None
+    perf: Optional[XLAFlags] = None
 
 
 class GrokTestDefinition(JaxToolboxTestDefinition):

@@ -14,9 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
+
 from pydantic import BaseModel, ConfigDict
 
 from cloudai import CmdArgs, TestDefinition
+
+from .nccl import NCCLCmdArgs
 
 
 class JaxFdl(BaseModel):
@@ -30,10 +34,23 @@ class JaxFdl(BaseModel):
     num_stages: int = 1
     num_microbatches: int = 1
     use_repeated_layer: bool = False
-    percore_batch_size: int = 1
+    percore_batch_size: float = 1
     checkpoint_policy: str = "save_nothing"
     ici_mesh_shape: str = "'[1, 1, 8, 1]'"
     dcn_mesh_shape: str = "'[1, 8, 1, 1]'"
+
+
+class NCCLCmdAgrsPreTest(NCCLCmdArgs):
+    """NCCL pre-test command arguments."""
+
+    num_nodes: int = 2
+
+
+class NCCLPreTest(BaseModel):
+    """Pre-test configuration."""
+
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+    nccl_test: Optional[NCCLCmdAgrsPreTest] = None
 
 
 class JaxToolboxCmdArgs(CmdArgs):

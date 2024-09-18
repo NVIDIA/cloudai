@@ -35,6 +35,18 @@ class NCCLCmdArgs(CmdArgs):
         "scatter_perf_mpi",
         "sendrecv_perf_mpi",
         "bisection_perf_mpi",
+        # K8s tests
+        "all_reduce_perf",
+        "all_gather_perf",
+        "alltoall_perf",
+        "broadcast_perf",
+        "gather_perf",
+        "hypercube_perf",
+        "reduce_perf",
+        "reduce_scatter_perf",
+        "scatter_perf",
+        "sendrecv_perf",
+        "bisection_perf",
     ] = "all_reduce_perf_mpi"
     nthreads: int = 1
     ngpus: int = 1

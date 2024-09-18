@@ -64,7 +64,6 @@ class TestParser(BaseMultiFileParser):
             test_def = registry.test_definitions_map[test_template_name].model_validate(data)
         except ValidationError as e:
             for err in e.errors(include_url=False):
-                logging.error(f"Validation error: {err}")
                 err_msg = format_validation_error(err)
                 logging.error(err_msg)
             raise ValueError("Failed to parse test spec") from e
