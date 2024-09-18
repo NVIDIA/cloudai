@@ -97,7 +97,5 @@ class GrokTestDefinition(JaxToolboxTestDefinition):
             elif k == "pre_test":
                 res[k] = v
             else:
-                if k == "xla_flags":
-                    k = k.upper()
                 res[f"Grok.{k}"] = v
         return res
