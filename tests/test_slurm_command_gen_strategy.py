@@ -29,6 +29,7 @@ from cloudai.systems.slurm import SlurmNodeState
 from cloudai.systems.slurm.slurm_system import SlurmPartition
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 from cloudai.test_definitions.gpt import GPTCmdArgs, GPTFdl, GPTSetupFlags, GPTTestDefinition, GPTXLAFlags
+from cloudai.test_definitions.jax_toolbox import PreTest
 
 
 @pytest.fixture
@@ -215,8 +216,9 @@ class TestGenerateSrunCommand__CmdGeneration:
             "container_mounts": "container_mounts",
             "container_name": "cont",
         }
-        cmd_args = {"output_path": "/path/to/output", "pre_test": "true"}
-        result = cmd_gen.generate_full_srun_command(slurm_args, {}, cmd_args, "")
+        grok_test.cmd_args.pre_test = PreTest()
+        cargs = {"output_path": "/path/to/output", **grok_test.cmd_args_dict}
+        result = cmd_gen.generate_full_srun_command(slurm_args, {}, cargs, "")
         assert "pre_test_command" in result
         assert "pre_test_check_command" in result
         assert "--mpi=none" in result
@@ -239,8 +241,9 @@ class TestGenerateSrunCommand__CmdGeneration:
             "container_mounts": "container_mounts",
             "container_name": "cont",
         }
-        cmd_args = {"output_path": "/path/to/output", "pre_test": "false"}
-        result = cmd_gen.generate_full_srun_command(slurm_args, {}, cmd_args, "")
+        grok_test.cmd_args.pre_test = PreTest(enable=False)
+        cargs = {"output_path": "/path/to/output", **grok_test.cmd_args_dict}
+        result = cmd_gen.generate_full_srun_command(slurm_args, {}, cargs, "")
 
         assert "pre_test_command" not in result
         assert "pre_test_check_command" not in result
@@ -258,22 +261,54 @@ class TestGenerateSrunCommand__CmdGeneration:
         assert cmd == f"sbatch {tmp_path}/cloudai_sbatch_script.sh"
         assert (tmp_path / "run.sh").exists()
 
+    def test_generate_pre_test_command(self, slurm_system: SlurmSystem, grok_test: GPTTestDefinition, tmp_path: Path):
+        cmd_gen = JaxToolboxSlurmCommandGenStrategy(slurm_system, grok_test.extra_env_vars, grok_test.cmd_args_dict)
+        cargs = {"output_path": "/path/to/output", **grok_test.cmd_args_dict}
+        pre_test_cli = cmd_gen._generate_pre_test_command(cargs, tmp_path, tmp_path).splitlines()
+        nccl_test = grok_test.cmd_args.pre_test.nccl_test
+        assert pre_test_cli == [
+            "srun \\",
+            "--mpi=pmix \\",
+            f"-N {nccl_test.num_nodes} \\",
+            f"-o {tmp_path} \\",
+            f"-e {tmp_path} \\",
+            f"--container-image={nccl_test.docker_image_url} \\",
+            f"/usr/local/bin/{nccl_test.subtest_name} \\",
+            f"--nthreads {nccl_test.nthreads} \\",
+            f"--ngpus {nccl_test.ngpus} \\",
+            f"--minbytes {nccl_test.minbytes} \\",
+            f"--maxbytes {nccl_test.maxbytes} \\",
+            f"--stepbytes {nccl_test.stepbytes} \\",
+            f"--op {nccl_test.op} \\",
+            f"--datatype {nccl_test.datatype} \\",
+            f"--root {nccl_test.root} \\",
+            f"--iters {nccl_test.iters} \\",
+            f"--warmup_iters {nccl_test.warmup_iters} \\",
+            f"--agg_iters {nccl_test.agg_iters} \\",
+            f"--average {nccl_test.average} \\",
+            f"--parallel_init {nccl_test.parallel_init} \\",
+            f"--check {nccl_test.check} \\",
+            f"--blocking {nccl_test.blocking} \\",
+            f"--cudagraph {nccl_test.cudagraph} \\",
+            f"--stepfactor {nccl_test.stepfactor}",
+        ]
+
 
 class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
-    def test_extract_test_name_grok(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
-        cmd_args = {"Grok.setup_flags.docker_workspace_dir": "/some/dir", "Grok.some_other_flag": "value"}
+    @pytest.mark.parametrize(
+        "cmd_args, expected",
+        [
+            ({"Grok.setup_flags": "/some/dir"}, "Grok"),
+            ({"GPT.setup_flags": "/some/dir"}, "GPT"),
+            ({"Nemotron.setup_flags": "/some/dir"}, "Nemotron"),
+            ({"unknown": "value"}, ""),
+        ],
+    )
+    def test_extract_test_name(
+        self, cmd_args: dict, expected: str, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy
+    ):
         test_name = jax_strategy_fixture._extract_test_name(cmd_args)
-        assert test_name == "Grok"
-
-    def test_extract_test_name_gpt(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
-        cmd_args = {"GPT.setup_flags.docker_workspace_dir": "/some/dir", "GPT.some_other_flag": "value"}
-        test_name = jax_strategy_fixture._extract_test_name(cmd_args)
-        assert test_name == "GPT"
-
-    def test_extract_test_name_none(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
-        cmd_args = {"some_other_flag": "value", "another_flag": "value"}
-        test_name = jax_strategy_fixture._extract_test_name(cmd_args)
-        assert test_name == ""
+        assert test_name == expected
 
     def test_format_xla_flags_grok(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
         jax_strategy_fixture.test_name = "Grok"
@@ -356,19 +391,21 @@ class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
         assert actual_flags_list == expected_flags_list
 
     def test_handle_threshold_and_env_common(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
-        cmd_args = {"XLA_FLAGS.combine_threshold_bytes": "value", "common.setup_flags.gpus_per_node": "4"}
-        env_vars = {"TEST_VAR": "VALUE"}
+        cmd_args = {"GPT.XLA_FLAGS": "combine_threshold_bytes", "GPT.setup_flags": {"gpus_per_node": 4}}
+        env_vars = {}
         combine_threshold_bytes = 1024
         num_nodes = 2
 
         jax_strategy_fixture.env_vars = env_vars
         jax_strategy_fixture.cmd_args = cmd_args
-        jax_strategy_fixture.test_name = "Other"
+        jax_strategy_fixture.test_name = "GPT"
 
         jax_strategy_fixture._handle_threshold_and_env(cmd_args, env_vars, combine_threshold_bytes, num_nodes)
 
         assert "PER_GPU_COMBINE_THRESHOLD" in env_vars
-        assert env_vars["PER_GPU_COMBINE_THRESHOLD"] == str(combine_threshold_bytes // (4 * num_nodes))
+        assert env_vars["PER_GPU_COMBINE_THRESHOLD"] == str(
+            combine_threshold_bytes // (cmd_args["GPT.setup_flags"]["gpus_per_node"] * num_nodes)
+        )
         assert "XLA_FLAGS.combine_threshold_bytes" not in cmd_args
 
 

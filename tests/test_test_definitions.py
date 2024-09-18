@@ -88,13 +88,13 @@ def test_gpt_test_definition_cmd_args_dict():
     )
 
     cargs = gpt.cmd_args_dict
-    for key in cargs:
-        assert key.startswith("GPT.")
 
-    assert "GPT.XLA_FLAGS" in cargs
     assert "GPT.fdl" in cargs
     assert "GPT.setup_flags" in cargs
-    assert "GPT.pre_test" in cargs
+    assert "GPT.XLA_FLAGS" in cargs
+
+    assert "pre_test" in cargs
+    assert "GPT.pre_test" not in cargs
 
 
 def test_grok_test_definition_cmd_args_dict():
@@ -106,12 +106,13 @@ def test_grok_test_definition_cmd_args_dict():
     )
 
     cargs = grok.cmd_args_dict
-    for key in cargs:
-        assert key.startswith("Grok.")
 
-    assert "Grok.pre_test" in cargs
-    assert "Grok.fdl" in cargs
     assert "Grok.setup_flags" in cargs
+    assert "Grok.fdl" in cargs
+
+    assert "pre_test" in cargs
+    assert "Grok.pre_test" not in cargs
+
     assert "Grok.profile" in cargs
     assert "XLA_FLAGS" in cargs["Grok.profile"]
     assert "Grok.perf" in cargs

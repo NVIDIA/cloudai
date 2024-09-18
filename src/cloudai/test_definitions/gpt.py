@@ -58,7 +58,10 @@ class GPTTestDefinition(JaxToolboxTestDefinition):
         d = self.cmd_args.model_dump()
         res = {}
         for k, v in d.items():
-            if k == "xla_flags":
-                k = k.upper()
-            res[f"GPT.{k}"] = v
+            if k == "pre_test":
+                res[k] = v
+            else:
+                if k == "xla_flags":
+                    k = k.upper()
+                res[f"GPT.{k}"] = v
         return res

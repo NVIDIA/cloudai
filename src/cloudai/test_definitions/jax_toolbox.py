@@ -44,7 +44,12 @@ class JaxFdl(BaseModel):
 class NCCLCmdAgrsPreTest(NCCLCmdArgs):
     """NCCL pre-test command arguments."""
 
-    num_nodes: int = 2
+    num_nodes: int = 8
+    subtest_name: str = "all_gather_perf_mpi"
+    stepfactor: int = 2
+    minbytes: str = "8M"
+    maxbytes: str = "16G"
+    blocking: int = 1
 
 
 class PreTest(BaseModel):

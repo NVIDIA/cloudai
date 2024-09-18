@@ -94,6 +94,8 @@ class GrokTestDefinition(JaxToolboxTestDefinition):
             if k in {"profile", "perf"}:
                 res.setdefault(f"Grok.{k}", {})
                 res[f"Grok.{k}"]["XLA_FLAGS"] = v
+            elif k == "pre_test":
+                res[k] = v
             else:
                 if k == "xla_flags":
                     k = k.upper()
