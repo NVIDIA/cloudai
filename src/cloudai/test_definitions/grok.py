@@ -70,7 +70,7 @@ class GrokCmdArgs(JaxToolboxCmdArgs):
     """Grok test command arguments."""
 
     fdl: GrokFdl = Field(default_factory=GrokFdl)
-    fdl_config: Optional[str] = None
+    fdl_config: str = "paxml.tasks.lm.params.nvidia.Grok_Proxy"
     enable_pgle: bool = False
     setup_flags: SetupFlags = Field(default_factory=SetupFlags)
     profile: GrokProfileXLAFlags = Field(default_factory=GrokProfileXLAFlags)
