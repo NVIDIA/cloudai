@@ -20,15 +20,11 @@ import pytest
 import toml
 from cloudai import Registry, TestDefinition, TestParser
 from cloudai.test_definitions import ChakraReplayCmdArgs, NCCLCmdArgs, NCCLTestDefinition
-from cloudai.test_definitions.gpt import GPTCmdArgs, GPTFdl, GPTSetupFlags, GPTTestDefinition, GPTXLAFlags
+from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
 from cloudai.test_definitions.grok import (
     GrokCmdArgs,
-    GrokFdl,
-    GrokPerfXLAFlags,
-    GrokProfileXLAFlags,
     GrokTestDefinition,
 )
-from cloudai.test_definitions.jax_toolbox import SetupFlags
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
 ALL_TESTS = [t for t in TOML_FILES if "test_template_name" in t.read_text()]
@@ -95,8 +91,6 @@ def test_gpt_test_definition_cmd_args_dict():
     for key in cargs:
         assert key.startswith("GPT.")
 
-    print(list(cargs.keys()))
-
     assert "GPT.XLA_FLAGS" in cargs
     assert "GPT.fdl" in cargs
     assert "GPT.setup_flags" in cargs
@@ -115,7 +109,7 @@ def test_grok_test_definition_cmd_args_dict():
     for key in cargs:
         assert key.startswith("Grok.")
 
-    assert "Grok.pre_test" not in cargs
+    assert "Grok.pre_test" in cargs
     assert "Grok.fdl" in cargs
     assert "Grok.setup_flags" in cargs
     assert "Grok.profile" in cargs

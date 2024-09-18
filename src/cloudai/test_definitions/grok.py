@@ -20,7 +20,7 @@ from pydantic import ConfigDict, Field
 
 from cloudai.test_definitions.jax_toolbox import XLAFlags
 
-from .jax_toolbox import JaxFdl, JaxToolboxCmdArgs, JaxToolboxTestDefinition, NCCLPreTest, PreTest, SetupFlags
+from .jax_toolbox import JaxFdl, JaxToolboxCmdArgs, JaxToolboxTestDefinition, PreTest, SetupFlags
 
 
 class GrokFdl(JaxFdl):
