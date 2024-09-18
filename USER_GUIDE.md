@@ -1,9 +1,6 @@
 # CloudAI User Guide
 This is a CloudAI user guide to help users use CloudAI, covering topics such as adding a new test template and downloading datasets for running NeMo-launcher.
 
-## Adding a New Test Template
-CloudAI allows users to package workloads as test templates to facilitate the automation of running experiments. This method involves packaging workloads as docker images, which is one of several approaches you can take with CloudAI. Users can run workloads using test templates. However, since docker images are not part of the CloudAI distribution, users must build their own docker image. This guide describes how to build a docker image and then run experiments.
-
 #### Step 1: Create a Docker Image
 1. **Set Up the GitLab Repository**
    Start by setting up a repository on GitLab to host your docker image. For this example, use `gitlab-url.com/cloudai/nccl-test`.
@@ -69,6 +66,7 @@ Notice that `cmd_args.docker_image_url` uses `nvcr.io/nvidia/pytorch:24.02-py3`,
 A custom test definition should be registered to handle relevant Test Configs. For this, `Registry()` object is used:
 ```py
 Registry().add_test_definition("MyTest", MyTestDefinition)
+Registry().add_test_template("MyTest", MyTest)
 ```
 Relevant Test Configs should specify `test_template_name = MyTest` to use the custom test definition.
 
@@ -99,7 +97,6 @@ Once all configs are ready, it is time to install test requirements. It is done 
 ```bash
 cloudai --mode install \
    --system-config myconfig/system.toml \
-   --test-templates-dir myconfig/test_templates/ \
    --tests-dir myconfig/tests/
 ```
 
@@ -154,7 +151,6 @@ To generate NCCL test commands without actual execution, use the `dry-run` mode.
 cloudai --mode dry-run \
     --test-scenario myconfig/scenario.toml \
     --system-config myconfig/system.toml \
-    --test-templates-dir myconfig/test_templates/ \
     --tests-dir myconfig/tests/
 ```
 
@@ -163,7 +159,6 @@ You can run NCCL test experiments with the following command. Whenever you run C
 cloudai --mode run \
     --test-scenario myconfig/scenario.toml \
     --system-config myconfig/system.toml \
-    --test-templates-dir myconfig/test_templates/ \
     --tests-dir myconfig/tests/
 ```
 
@@ -173,7 +168,6 @@ Once the test scenario is completed, you can generate reports using the followin
 cloudai --mode generate-report \
    --test-scenario myconfig/scenario.toml \
    --system-config myconfig/system.toml \
-   --test-templates-dir myconfig/test_templates/ \
    --tests-dir myconfig/tests/ \
    --output-dir results/2024-06-18_17-40-13/
 ```

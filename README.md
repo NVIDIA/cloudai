@@ -63,13 +63,12 @@ CloudAI supports five modes: install, dry-run, run, generate-report, and uninsta
 * Use the generate-report mode to generate reports under the test directories alongside the raw data.
 * Use the uninstall mode to remove installed test templates.
 
-To install test templates, run CloudAI CLI in install mode.
+To install test prerequisites, run CloudAI CLI in install mode.
 Please make sure to use the correct system configuration file that corresponds to your current setup for installation and experiments.
 ```bash
 cloudai\
     --mode install\
     --system-config conf/common/system/example_slurm_cluster.toml\
-    --test-templates-dir conf/common/test_template\
     --tests-dir conf/common/test
 ```
 
@@ -78,7 +77,6 @@ To simulate running experiments without execution, use the dry-run mode:
 cloudai\
     --mode dry-run\
     --system-config conf/common/system/example_slurm_cluster.toml\
-    --test-templates-dir conf/common/test_template\
     --tests-dir conf/common/test\
     --test-scenario conf/common/test_scenario/sleep.toml
 ```
@@ -88,7 +86,6 @@ To run experiments, execute CloudAI CLI in run mode:
 cloudai\
     --mode run\
     --system-config conf/common/system/example_slurm_cluster.toml\
-    --test-templates-dir conf/common/test_template\
     --tests-dir conf/common/test\
     --test-scenario conf/common/test_scenario/sleep.toml
 ```
@@ -98,19 +95,17 @@ To generate reports, execute CloudAI CLI in generate-report mode:
 cloudai\
     --mode generate-report\
     --system-config conf/common/system/example_slurm_cluster.toml\
-    --test-templates-dir conf/common/test_template\
     --tests-dir conf/common/test\
     --output-dir /path/to/output_directory
 ```
 In the generate-report mode, use the --output-dir argument to specify a subdirectory under the result directory.
 This subdirectory is usually named with a timestamp for unique identification.
 
-To uninstall test templates, run CloudAI CLI in uninstall mode:
+To uninstall test prerequisites, run CloudAI CLI in uninstall mode:
 ```bash
 cloudai\
     --mode uninstall\
     --system-config conf/common/system/example_slurm_cluster.toml\
-    --test-templates-dir conf/common/test_template\
     --tests-dir conf/common/test
 ```
 
@@ -119,7 +114,6 @@ Verify if system configs are valid:
 cloudai\
     --mode verify-systems\
     --tests-dir conf/common/test\
-    --test-templates-dir conf/common/test_template\
     --system-config conf/common/system
 ```
 `--system-config` can be a file or a directory to verify all configs in the directory.
