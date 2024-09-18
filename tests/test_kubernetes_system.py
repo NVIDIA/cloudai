@@ -67,7 +67,10 @@ def k8s_system(kube_config_tempfile):
         default_image="test-image",
     )
     k8s_system.model_post_init(None)
-    yield k8s_system
+
+    validated_system = KubernetesSystem.model_validate(k8s_system)
+
+    yield validated_system
 
 
 def test_initialization(k8s_system):
