@@ -68,7 +68,7 @@ def k8s_system(kube_config_tempfile):
     )
     k8s_system.model_post_init(None)
 
-    validated_system = KubernetesSystem.model_validate(k8s_system)
+    validated_system = KubernetesSystem.model_validate(k8s_system.model_dump())
 
     yield validated_system
 
