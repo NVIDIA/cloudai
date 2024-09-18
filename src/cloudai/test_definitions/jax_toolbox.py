@@ -50,7 +50,7 @@ class NCCLCmdAgrsPreTest(NCCLCmdArgs):
     maxbytes: str = "16G"
     blocking: int = 1
 
-    def model_post_init(self, __context: Any) -> None:
+    def model_post_init(self, _: Any) -> None:
         self.subtest_name = "all_gather_perf_mpi"
 
 
