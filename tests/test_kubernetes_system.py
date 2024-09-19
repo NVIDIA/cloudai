@@ -58,17 +58,22 @@ def kube_config_tempfile():
 @pytest.fixture
 def k8s_system(kube_config_tempfile):
     """Fixture to create a KubernetesSystem instance with a valid kube config."""
-    k8s_system = KubernetesSystem(
-        name="test-system",
-        install_path=Path("/fake/install/path"),
-        output_path=Path("/fake/output/path"),
-        kube_config_path=kube_config_tempfile,
-        default_namespace="default",
-        default_image="test-image",
-    )
+    system_data = {
+        "name": "test-system",
+        "install_path": Path("/fake/install/path"),
+        "output_path": Path("/fake/output/path"),
+        "kube_config_path": kube_config_tempfile,
+        "default_namespace": "default",
+        "default_image": "test-image",
+        "scheduler": "kubernetes",
+        "global_env_vars": {},
+        "monitor_interval": 1,
+    }
+
+    k8s_system = KubernetesSystem(**system_data)
     k8s_system.model_post_init(None)
 
-    validated_system = KubernetesSystem.model_validate(k8s_system.__dict__)
+    validated_system = KubernetesSystem.model_validate(system_data)
 
     yield validated_system
 
