@@ -17,7 +17,7 @@
 import logging
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, cast
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from kubernetes import client, config
 from kubernetes.client import ApiException, CustomObjectsApi, V1DeleteOptions, V1Job
@@ -32,9 +32,18 @@ class KubernetesSystem(BaseModel, System):
     Represents a Kubernetes system.
 
     Attributes
+        name (str): The name of the Kubernetes system.
+        install_path (Path): Path to the installation directory.
+        output_path (Path): Path to the output directory.
         kube_config_path (Path): Path to the Kubernetes config file.
         default_namespace (str): The default Kubernetes namespace for jobs.
         default_image (str): Default Docker image to be used for jobs.
+        scheduler (str): The scheduler type, default is "kubernetes".
+        global_env_vars (Dict[str, Any]): Global environment variables to be passed to jobs.
+        monitor_interval (int): Time interval to monitor jobs, in seconds.
+        _core_v1 (client.CoreV1Api): Kubernetes Core V1 API client instance.
+        _batch_v1 (client.BatchV1Api): Kubernetes Batch V1 API client instance.
+        _custom_objects_api (CustomObjectsApi): Kubernetes Custom Objects API client instance.
     """
 
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
@@ -47,43 +56,54 @@ class KubernetesSystem(BaseModel, System):
     default_image: str
     scheduler: str = "kubernetes"
     global_env_vars: Dict[str, Any] = {}
-    _core_v1: client.CoreV1Api
-    _batch_v1: client.BatchV1Api
-    _custom_objects_api: CustomObjectsApi
+    monitor_interval: int = 1
+    _core_v1: Optional[client.CoreV1Api] = None
+    _batch_v1: Optional[client.BatchV1Api] = None
+    _custom_objects_api: Optional[CustomObjectsApi] = None
 
-    def __post_init__(self) -> None:
+    def model_post_init(self, __context):  # noqa: Vulture
         """Initialize the KubernetesSystem instance."""
-        # Load the Kubernetes configuration
-        if not self.kube_config_path.exists():
+        kube_config_path = self.kube_config_path
+        if not kube_config_path.is_file():
+            home_directory = Path.home()
+            kube_config_path = home_directory / ".kube" / "config"
+        else:
+            kube_config_path = kube_config_path.resolve()
+
+        if not kube_config_path.exists():
             error_message = (
-                f"Kube config file '{self.kube_config_path}' not found. This file is required to configure the "
+                f"Kube config file '{kube_config_path}' not found. This file is required to configure the "
                 f"Kubernetes environment. Please verify that the file exists at the specified path."
             )
             logging.error(error_message)
             raise FileNotFoundError(error_message)
 
         # Instantiate Kubernetes APIs
-        logging.debug(f"Loading kube config from: {self.kube_config_path}")
-        config.load_kube_config(config_file=str(self.kube_config_path))
+        logging.debug(f"Loading kube config from: {kube_config_path}")
+        config.load_kube_config(config_file=str(kube_config_path))
+
+        self._core_v1 = client.CoreV1Api()
+        self._batch_v1 = client.BatchV1Api()
+        self._custom_objects_api = CustomObjectsApi()
 
         logging.debug(f"{self.__class__.__name__} initialized")
 
     @property
     def core_v1(self) -> client.CoreV1Api:
-        if self._core_v1 is None:
-            self._core_v1 = client.CoreV1Api()
+        """Returns the Kubernetes Core V1 API client."""
+        assert self._core_v1 is not None
         return self._core_v1
 
     @property
     def batch_v1(self) -> client.BatchV1Api:
-        if self._batch_v1 is None:
-            self._batch_v1 = client.BatchV1Api()
+        """Returns the Kubernetes Batch V1 API client."""
+        assert self._batch_v1 is not None
         return self._batch_v1
 
     @property
     def custom_objects_api(self) -> CustomObjectsApi:
-        if self._custom_objects_api is None:
-            self._custom_objects_api = CustomObjectsApi()
+        """Returns the Kubernetes Custom Objects API client."""
+        assert self._custom_objects_api is not None
         return self._custom_objects_api
 
     def __repr__(self) -> str:
@@ -91,7 +111,7 @@ class KubernetesSystem(BaseModel, System):
         Provide a structured string representation of the system.
 
         Returns
-            str: A string that contains the system name and scheduler type.
+            str: A string that contains the system name, scheduler type, kube config path, namespace, and image.
         """
         return (
             f"System Name: {self.name}\n"
