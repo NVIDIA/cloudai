@@ -60,8 +60,8 @@ def k8s_system(kube_config_tempfile):
     """Fixture to create a KubernetesSystem instance with a valid kube config."""
     system_data = {
         "name": "test-system",
-        "install_path": Path("/fake/install/path"),
-        "output_path": Path("/fake/output/path"),
+        "install_path": "/fake/install/path",
+        "output_path": "/fake/output/path",
         "kube_config_path": kube_config_tempfile,
         "default_namespace": "default",
         "default_image": "test-image",
