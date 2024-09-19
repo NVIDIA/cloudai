@@ -369,7 +369,10 @@ class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
         xla_flags = cmd_gen._format_xla_flags(grok_test.cmd_args_dict, "profile")
 
         actual_flags_list = sorted(xla_flags.split())
+
         profile_xlas = [f"--{k}={v}" for k, v in grok_test.cmd_args.profile.model_dump().items()]
+        profile_xlas = [x.replace("=False", "=false") for x in profile_xlas]
+        profile_xlas = [x.replace("=True", "=true") for x in profile_xlas]
         expected_flags_list = sorted(
             [
                 "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
@@ -383,7 +386,10 @@ class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
         xla_flags = cmd_gen._format_xla_flags(grok_test.cmd_args_dict, "perf")
 
         actual_flags_list = sorted(xla_flags.split())
+
         perf_xlas = [f"--{k}={v}" for k, v in grok_test.cmd_args.perf.model_dump().items() if k.startswith("xla_")]
+        perf_xlas = [x.replace("=False", "=false") for x in perf_xlas]
+        perf_xlas = [x.replace("=True", "=true") for x in perf_xlas]
         expected_flags_list = sorted(
             [
                 "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
