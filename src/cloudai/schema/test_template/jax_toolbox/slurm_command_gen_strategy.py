@@ -148,6 +148,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         for flag_name, value in args.items():
             if not flag_name.startswith("xla_"):
                 continue
+            if isinstance(value, bool):
+                value = str(value).lower()
             flag = f"--{flag_name.lower()}={value}"
             xla_flags.append(flag)
 

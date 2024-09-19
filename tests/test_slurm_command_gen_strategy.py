@@ -407,6 +407,16 @@ class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
         )
         assert actual_flags_list == expected_flags_list
 
+    def test_format_xla_flags_boolean_are_lowcased(self, slurm_system: SlurmSystem):
+        cmd_gen = JaxToolboxSlurmCommandGenStrategy(slurm_system, {}, {})
+        cmd_gen.test_name = "GPT"
+
+        xla_flags = cmd_gen._format_xla_flags(
+            {"GPT.profile": {"XLA_FLAGS": {"xla_gpu_enable_while_loop_double_buffering": True}}}, "profile"
+        ).split()
+        assert len(xla_flags) == 4
+        assert xla_flags[-2] == "--xla_gpu_enable_while_loop_double_buffering=true"
+
     def test_handle_threshold_and_env_common(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
         cmd_args = {"GPT.XLA_FLAGS": "combine_threshold_bytes", "GPT.setup_flags": {"gpus_per_node": 4}}
         env_vars = {}
