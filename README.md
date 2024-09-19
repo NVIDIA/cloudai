@@ -118,6 +118,15 @@ cloudai\
 ```
 `--system-config` can be a file or a directory to verify all configs in the directory.
 
+Verify if test configs are valid:
+```bash
+cloudai\
+    --mode verify-tests\
+    --system-config conf/common/system/example_slurm_cluster.toml\
+    --tests-dir conf/common/test
+```
+`--tests-dir` can be a file or a directory to verify all configs in the directory.
+
 ## Contributing
 Feel free to contribute to the CloudAI project. Your contributions are highly appreciated.
 
