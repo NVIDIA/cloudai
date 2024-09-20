@@ -26,15 +26,15 @@ dependencies = [
   "pydantic==2.8.2",
 ]
 
+  [project.scripts]
+  cloudai = "cloudai.__main__:main"
+
 [build-system]
 requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
 [tool.pdm.version]
 source = "scm"
-
-  [project.scripts]
-  cloudai = "cloudai.__main__:main"
 
 [tool.ruff]
 target-version = "py39"
@@ -95,3 +95,6 @@ root_package = "cloudai"
 [tool.vulture]
 ignore_names = ["mock_datetime_now"]
 min_confidence = 100
+
+[tool.coverage.report]
+exclude_also = ["@abstractmethod"]
