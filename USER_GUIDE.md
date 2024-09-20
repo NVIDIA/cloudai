@@ -268,7 +268,7 @@ name = "nccl-test"
 
 The `name` field is the test scenario name, which can be any unique identifier for the scenario. Each test has a section name, following the convention `Tests.1`, `Tests.2`, etc., with an increasing index. The `name` of a test should be specified in this section and must correspond to an entry in the test schema. If a test in a test scenario is not present in the test schema, CloudAI will not be able to identify it.
 
-There are two ways to specify nodes. The first is using the `num_nodes` field as shown in the example. The second is specifying nodes explicitly like `nodes = ["node-001", "node-002"]`. Alternatively, you can utilize the groups feature in the system schema to specify nodes like `nodes = ['PARTITION_NAME:GROUP_NAME:NUM_NODES']`, which allocates `num_nodes` from the group name in the specified partition.
+There are two ways to specify nodes. The first is using the `num_nodes` field as shown in the example. The second is specifying nodes explicitly like `nodes = ["node-001", "node-002"]`. Alternatively, you can utilize the groups feature in the system schema to specify nodes like `nodes = ['PARTITION_NAME:GROUP_NAME:NUM_NODES']`, which allocates `num_nodes` from the group name in the specified partition. You can also use `nodes = ['PARTITION_NAME:GROUP_NAME:max_avail']`, which allocates all the available nodes from the group name in the specified partition.
 
 You can optionally specify a time limit in the Slurm format. Tests can have dependencies. If no dependencies are specified, all tests will run in parallel. CloudAI supports three types of dependencies: `start_post_init`, `start_post_comp`, and `end_post_comp`.
 

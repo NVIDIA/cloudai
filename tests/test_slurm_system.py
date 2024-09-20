@@ -14,12 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from typing import List
 from unittest.mock import patch
 
 import pytest
 from cloudai.systems import SlurmSystem
-from cloudai.systems.slurm import SlurmNodeState
+from cloudai.systems.slurm import SlurmNode, SlurmNodeState
 from cloudai.systems.slurm.slurm_system import parse_node_list
 
 
@@ -142,3 +143,68 @@ def test_update_node_states_with_mocked_outputs(mock_get_sinfo, mock_get_squeue,
 def test_parse_node_list(node_list: str, expected_parsed_node_list: List[str]):
     parsed_node_list = parse_node_list(node_list)
     assert parsed_node_list == expected_parsed_node_list
+
+
+@pytest.fixture
+def grouped_nodes() -> dict[SlurmNodeState, list[SlurmNode]]:
+    """
+    Helper function to set up a mock Slurm system with nodes and their states.
+    """
+    partition_name = "partition_name"
+
+    grouped_nodes = {
+        SlurmNodeState.IDLE: [
+            SlurmNode(name="node01", partition=partition_name, state=SlurmNodeState.IDLE),
+            SlurmNode(name="node02", partition=partition_name, state=SlurmNodeState.IDLE),
+        ],
+        SlurmNodeState.COMPLETING: [
+            SlurmNode(name="node04", partition=partition_name, state=SlurmNodeState.COMPLETING)
+        ],
+        SlurmNodeState.ALLOCATED: [],
+        SlurmNodeState.DOWN: [SlurmNode(name="node05", partition=partition_name, state=SlurmNodeState.DOWN)],
+    }
+
+    return grouped_nodes
+
+
+def test_allocate_nodes_max_avail(slurm_system: SlurmSystem, grouped_nodes: dict[SlurmNodeState, list[SlurmNode]]):
+    group_name = "group_name"
+
+    available_nodes = slurm_system.allocate_nodes(grouped_nodes, "max_avail", group_name)
+    expected_node_names = [
+        grouped_nodes[SlurmNodeState.IDLE][0].name,
+        grouped_nodes[SlurmNodeState.IDLE][1].name,
+        grouped_nodes[SlurmNodeState.COMPLETING][0].name,
+    ]
+    returned_node_names = [node.name for node in available_nodes]
+
+    assert set(returned_node_names) == set(expected_node_names), "Should return all available nodes except DOWN nodes"
+    down_node_name = grouped_nodes[SlurmNodeState.DOWN][0].name
+    assert down_node_name not in returned_node_names, "DOWN node should not be included"
+
+
+def test_allocate_nodes_num_nodes_integers(
+    slurm_system: SlurmSystem, grouped_nodes: dict[SlurmNodeState, list[SlurmNode]]
+):
+    group_name = "group_name"
+
+    available_nodes = slurm_system.allocate_nodes(grouped_nodes, 1, group_name)
+    expected_node_names = [grouped_nodes[SlurmNodeState.IDLE][0].name]
+
+    returned_node_names = [node.name for node in available_nodes]
+
+    assert len(returned_node_names) == len(expected_node_names), "Should return 1 available node"
+
+
+def test_allocate_nodes_exceeding_limit(
+    slurm_system: SlurmSystem, grouped_nodes: dict[SlurmNodeState, list[SlurmNode]]
+):
+    group_name = "group_name"
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            f"Requested number of nodes (4) exceeds the number of available nodes in group '{group_name}'."
+        ),
+    ):
+        slurm_system.allocate_nodes(grouped_nodes, 4, group_name)

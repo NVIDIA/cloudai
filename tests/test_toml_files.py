@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import toml
@@ -39,12 +40,15 @@ ALL_SYSTEMS = [p for p in Path("conf/").glob("**/*.toml") if "scheduler =" in p.
 
 
 @pytest.mark.parametrize("system_file", ALL_SYSTEMS, ids=lambda x: str(x))
-def test_systems(system_file: Path):
+@patch("kubernetes.config.load_kube_config")
+@patch("pathlib.Path.exists", return_value=True)
+def test_systems(mock_exists, mock_load_kube_config, system_file: Path):
     """
     Validate the syntax of a system configuration file.
 
     Args:
         system_file (Path): The path to the system configuration file to validate.
     """
+    mock_load_kube_config.return_value = None
     system = Parser(system_file).parse_system(system_file)
     assert system is not None
