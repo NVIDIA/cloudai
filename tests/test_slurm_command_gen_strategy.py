@@ -345,6 +345,25 @@ class TestGenerateSrunCommand__CmdGeneration:
             "fi",
         ]
 
+    @pytest.mark.parametrize("enable_pgle,expected_ncalls", [(True, 2), (False, 1)])
+    def test_create_run_script_pgle_control(
+        self,
+        enable_pgle: bool,
+        expected_ncalls: int,
+        slurm_system: SlurmSystem,
+        grok_test: GrokTestDefinition,
+        tmp_path: Path,
+    ):
+        grok_test.cmd_args.enable_pgle = enable_pgle
+        cmd_args = grok_test.cmd_args_dict
+        cmd_args["output_path"] = str(tmp_path)
+        cmd_gen = JaxToolboxSlurmCommandGenStrategy(slurm_system, grok_test.extra_env_vars, cmd_args)
+        cmd_gen.test_name = "Grok"
+        cmd_gen._script_content = Mock(return_value="")
+        cmd_gen._create_run_script({}, grok_test.extra_env_vars, cmd_args, "")
+        assert (tmp_path / "run.sh").exists()
+        assert cmd_gen._script_content.call_count == expected_ncalls
+
 
 class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
     @pytest.mark.parametrize(

@@ -25,6 +25,7 @@ from cloudai.test_definitions.grok import (
     GrokCmdArgs,
     GrokTestDefinition,
 )
+from cloudai.test_definitions.jax_toolbox import JaxFdl
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
 ALL_TESTS = [t for t in TOML_FILES if "test_template_name" in t.read_text()]
@@ -108,6 +109,7 @@ def test_grok_test_definition_cmd_args_dict():
     cargs = grok.cmd_args_dict
 
     assert "Grok.setup_flags" in cargs
+    assert "Grok.enable_pgle" in cargs
     assert "Grok.fdl" in cargs
 
     assert "pre_test" in cargs
@@ -117,3 +119,9 @@ def test_grok_test_definition_cmd_args_dict():
     assert "XLA_FLAGS" in cargs["Grok.profile"]
     assert "Grok.perf" in cargs
     assert "XLA_FLAGS" in cargs["Grok.perf"]
+
+
+def test_jax_fprop_dtype_is_escaped():
+    fdl = JaxFdl()
+    d = fdl.model_dump()
+    assert d["fprop_dtype"] == f'\\"{fdl.fprop_dtype}\\"'

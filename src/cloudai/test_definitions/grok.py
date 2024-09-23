@@ -40,9 +40,9 @@ class GrokFdl(JaxFdl):
     num_heads: int = 48
     num_kv_heads: int = 8
     num_layers: int = 64
-    percore_batch_size: float = 1.0  # type: ignore
+    percore_batch_size: float = 1.0
     use_expert_parallel: bool = True
-    use_fp8: int = 1  # type: ignore
+    use_fp8: int = 1
     use_te_dpa: bool = True
     vocab_size: int = 131072
 
@@ -53,6 +53,7 @@ class GrokPerfXLAFlags(XLAFlags):
     combine_threshold_bytes: int = 301989888
     xla_gpu_run_post_layout_collective_pipeliner: bool = False
     xla_gpu_use_memcpy_local_p2p: bool = False
+    xla_gpu_pgle_profile_file_or_directory_path: str = "/opt/paxml/workspace/pgle_output_profile.pbtxt"
 
 
 class GrokProfileXLAFlags(XLAFlags):
@@ -70,7 +71,7 @@ class GrokCmdArgs(JaxToolboxCmdArgs):
 
     fdl: GrokFdl = Field(default_factory=GrokFdl)
     fdl_config: str = "paxml.tasks.lm.params.nvidia.Grok_Proxy"
-    enable_pgle: bool = False
+    enable_pgle: bool = True
     setup_flags: SetupFlags = Field(default_factory=SetupFlags)
     profile: GrokProfileXLAFlags = Field(default_factory=GrokProfileXLAFlags)
     perf: GrokPerfXLAFlags = Field(default_factory=GrokPerfXLAFlags)
@@ -87,7 +88,7 @@ class GrokTestDefinition(JaxToolboxTestDefinition):
         d = self.cmd_args.model_dump()
         res = {}
         for k, v in d.items():
-            if not v:
+            if v is None:
                 continue
 
             if k in {"profile", "perf"}:

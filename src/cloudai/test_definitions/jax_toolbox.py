@@ -16,7 +16,7 @@
 
 from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 from cloudai import CmdArgs, TestDefinition
 
@@ -30,15 +30,19 @@ class JaxFdl(BaseModel):
 
     checkpoint_policy: str = '"save_nothing"'
     dcn_mesh_shape: str = "'[1, 1, 1]'"
-    fprop_dtype: str = '"bfloat16"'
+    fprop_dtype: str = "bfloat16"
     ici_mesh_shape: str = "'[1, 8, 1]'"
     max_steps: int = 20
     num_gpus: int = 64
     num_microbatches: int = 1
     num_stages: int = 1
-    percore_batch_size: int = 4
-    use_fp8: bool = False
+    percore_batch_size: float = 4
+    use_fp8: int = 1
     use_repeated_layer: bool = False
+
+    @field_serializer("fprop_dtype")
+    def fprop_dtype_serializer(self, value: str) -> str:
+        return f'\\"{value}\\"'
 
 
 class NCCLCmdAgrsPreTest(NCCLCmdArgs):

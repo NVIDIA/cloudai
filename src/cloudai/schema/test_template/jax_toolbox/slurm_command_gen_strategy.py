@@ -420,7 +420,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             perf_content = self._script_content("perf", slurm_args, env_vars, cmd_args, extra_cmd_args)
             run_script_content += perf_content
         else:
-            cmd_args[f"{self.test_name}.XLA_FLAGS"]["xla_gpu_pgle_profile_file_or_directory_path"] = '""'
+            cmd_args[f"{self.test_name}.perf"]["XLA_FLAGS"]["xla_gpu_pgle_profile_file_or_directory_path"] = '""'
             env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
             perf_content = self._script_content("perf", slurm_args, env_vars, cmd_args, extra_cmd_args)
             run_script_content += perf_content
