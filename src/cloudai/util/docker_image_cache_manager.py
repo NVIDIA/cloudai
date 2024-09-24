@@ -82,7 +82,7 @@ class DockerImageCacheResult:
             message (str): A message providing additional information about the result.
         """
         self.success = success
-        self.docker_image_path = docker_image_path or Path()
+        self._docker_image_path = docker_image_path or Path()
         self.message = message
 
     def __bool__(self):
@@ -102,7 +102,24 @@ class DockerImageCacheResult:
             str: The message providing additional information about the result.
         """
         return self.message
+    
+    @property
+     def docker_image_path(self) -> Path:
+         """
+         Get the path to the Docker image.
+         Returns
+             Path: Absolute path to the Docker image.
+         """
+         return self._docker_image_path.absolute()
 
+     @docker_image_path.setter
+     def docker_image_path(self, value: Path) -> None:
+         """
+         Set the path to the Docker image.
+         Args:
+             value (Path): The path to the Docker image.
+         """
+         self._docker_image_path = value
 
 class DockerImageCacheManager:
     """

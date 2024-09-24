@@ -226,13 +226,13 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         self._create_run_script(slurm_args, env_vars, cmd_args, extra_cmd_args)
 
-        start_container_run = cmd_args.get(f"{self.test_name}.load_container", False)
+        start_container_run = cmd_args.get("load_container", False)
         output_path = Path(cmd_args["output_path"]).resolve() / "output_pretest-%j-%n-%t.txt"
         error_path = Path(cmd_args["output_path"]).resolve() / "error_pretest-%j-%n-%t.txt"
 
         commands = []
 
-        run_pre_test = cmd_args.get("pre_test", {}).get("enable", False)
+        run_pre_test = cmd_args.get("pre_test", False)
 
         if run_pre_test:
             pre_test_command = self._generate_pre_test_command(cmd_args, output_path, error_path)
@@ -292,7 +292,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         container_name = "cont"
         container_image = slurm_args["image_path"]
-
+        print(f"Container image: {container_image}")
         # Construct the srun command to load the container and check if it's running
         srun_command = "\n".join(
             [
