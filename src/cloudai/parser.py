@@ -25,12 +25,12 @@ from cloudai import (
     Registry,
     System,
     Test,
+    TestConfigParsingError,
     TestParser,
     TestScenario,
     TestScenarioParser,
     format_validation_error,
 )
-from cloudai._core.exceptions import TestConfigParsingError
 
 
 class Parser:

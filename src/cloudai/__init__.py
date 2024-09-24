@@ -19,7 +19,7 @@ from ._core.base_job import BaseJob
 from ._core.base_runner import BaseRunner
 from ._core.base_system_parser import BaseSystemParser
 from ._core.command_gen_strategy import CommandGenStrategy
-from ._core.exceptions import JobIdRetrievalError, format_validation_error
+from ._core.exceptions import JobIdRetrievalError, TestConfigParsingError, format_validation_error
 from ._core.grader import Grader
 from ._core.grading_strategy import GradingStrategy
 from ._core.install_strategy import InstallStrategy
@@ -206,4 +206,5 @@ __all__ = [
     "TestScenarioParser",
     "TestTemplate",
     "TestTemplateStrategy",
+    "TestConfigParsingError",
 ]
