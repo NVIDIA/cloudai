@@ -1,5 +1,5 @@
 # CloudAI User Guide
-This is a CloudAI user guide to help users use CloudAI, covering topics such as adding a new test template and downloading datasets for running NeMo-launcher.
+This is a CloudAI user guide to help users use CloudAI, covering topics such as adding new tests and downloading datasets for running NeMo-launcher.
 
 #### Step 1: Create a Docker Image
 1. **Set Up the GitLab Repository**
@@ -231,14 +231,14 @@ cache_docker_images_locally = true
 ### Field Descriptions
 - **name**: Specifies the name of the system. Users can choose any name that is convenient for them.
 - **scheduler**: Indicates the type of system. It should be one of the supported types, currently `slurm` or `standalone`. `slurm` refers to a system with the Slurm scheduler, while `standalone` refers to a single-node system without any slave nodes.
-- **install_path**: Specifies the path where test templates are installed. Docker images are downloaded to this path if the user chooses to cache Docker images.
+- **install_path**: Specifies the path where test prerequisites are installed. Docker images are downloaded to this path if the user chooses to cache Docker images.
 - **output_path**: Defines the default path where outputs are stored. Whenever a user runs a test scenario, a new subdirectory will be created under this path.
 - **default_partition**: Specifies the default partition where jobs are scheduled.
 - **partitions**: Describes the available partitions and nodes within those partitions.
   - **groups**: Within the same partition, users can define groups of nodes. This is a logical grouping that does not overlap between groups. The group concept can be used to allocate nodes from specific groups in a test scenario schema.
 - **mpi**: Indicates the Process Management Interface (PMI) implementation to be used for inter-process communication.
 - **gpus_per_node** and **ntasks_per_node**: These are Slurm arguments passed to the `sbatch` script and `srun`.
-- **cache_docker_images_locally**: Specifies whether CloudAI should cache remote Docker images locally during installation. If set to `true`, CloudAI will cache the Docker images, enabling local access without needing to download them each time a test template is run. This approach saves network bandwidth but requires more disk capacity. If set to `false`, CloudAI will allow Slurm to download the Docker images as needed when they are not cached locally by Slurm.
+- **cache_docker_images_locally**: Specifies whether CloudAI should cache remote Docker images locally during installation. If set to `true`, CloudAI will cache the Docker images, enabling local access without needing to download them each time a test is run. This approach saves network bandwidth but requires more disk capacity. If set to `false`, CloudAI will allow Slurm to download the Docker images as needed when they are not cached locally by Slurm.
 - **global_env_vars**: Lists all global environment variables that will be applied globally whenever tests are run.
 
 ## Describing a Test Scenario in the Test Scenario Schema
@@ -280,7 +280,7 @@ Dependencies of a test can be described as a subsection of the test. The depende
 
 
 ## Downloading and Installing the NeMo Dataset (The Pile Dataset)
-This section describes how you can download the NeMo datasets on your server. The install mode of CloudAI handles the installation of all test templates, but downloading and installing datasets is not the responsibility of the install mode. This is because any large datasets should be installed globally by the administrator and shared with multiple users, even if a user does not use CloudAI. For CloudAI users, we provide a detailed guide about downloading and installing the NeMo datasets in this section. To understand the datasets available in the NeMo framework, you can refer to the Data Preparation section of [the document](https://docs.nvidia.com/nemo-framework/user-guide/latest/llms/baichuan2/dataprep.html). According to the document, you can download and use the Pile dataset. The document also provides detailed instructions on how to download these datasets for various platforms. Let’s assume that we have a Slurm cluster.
+This section describes how you can download the NeMo datasets on your server. The install mode of CloudAI handles the installation of all test prerequisites, but downloading and installing datasets is not the responsibility of the install mode. This is because any large datasets should be installed globally by the administrator and shared with multiple users, even if a user does not use CloudAI. For CloudAI users, we provide a detailed guide about downloading and installing the NeMo datasets in this section. To understand the datasets available in the NeMo framework, you can refer to the Data Preparation section of [the document](https://docs.nvidia.com/nemo-framework/user-guide/latest/llms/baichuan2/dataprep.html). According to the document, you can download and use the Pile dataset. The document also provides detailed instructions on how to download these datasets for various platforms. Let’s assume that we have a Slurm cluster.
 
 You can download the datasets with the following command:
 ```bash
@@ -338,7 +338,7 @@ You can update the fields to adjust the behavior. For example, you can update th
 3. Replace "training.model.tokenizer.model=TOKENIZER_MODEL" with "training.model.tokenizer.model=YOUR_TOKENIZER_PATH" (the tokenizer should be a .model file) in conf/common/test/llama.toml.
 
 ## Troubleshooting
-In this section, we will guide you through identifying the root cause of issues, determining whether they stem from system infrastructure or a bug in CloudAI. Users should closely follow the USER_GUIDE.md and README.md for installation, adding test templates, tests, and test scenarios.
+In this section, we will guide you through identifying the root cause of issues, determining whether they stem from system infrastructure or a bug in CloudAI. Users should closely follow the USER_GUIDE.md and README.md for installation, tests, and test scenarios.
 
 ### Identifying the Root Cause
 If you encounter issues running a command, start by reading the error message to understand the root cause. We strive to make our error messages and exception messages as readable and interpretable as possible.
@@ -347,7 +347,7 @@ If you encounter issues running a command, start by reading the error message to
 To determine whether an issue is due to system infrastructure or a CloudAI bug, follow these steps:
 
 1. **Check stdout Messages**
-   If CloudAI fails to run a test template successfully, it will be indicated in the stdout messages that a test has failed.
+   If CloudAI fails to run a test successfully, it will be indicated in the stdout messages that a test has failed.
 
 2. **Review Log Files**
    - Navigate to the output directory and review `debug.log`, stdout, and stderr files.
@@ -366,8 +366,8 @@ To determine whether an issue is due to system infrastructure or a CloudAI bug, 
 
 If the problem persists, please report the issue at [https://github.com/NVIDIA/cloudai/issues/new/choose](https://github.com/NVIDIA/cloudai/issues/new/choose). When you report an issue, ensure it is reproducible. Follow the issue template and provide any necessary details, such as the hash commit used, system settings, any changes in the schema files, and the command.
 
-### Test Template-Specific Troubleshooting Guides
-In addition to the general troubleshooting steps, this section provides specific troubleshooting guides for each test template used in CloudAI. These guides help you identify and resolve issues unique to each template.
+### Test Specific Troubleshooting Guides
+In addition to the general troubleshooting steps, this section provides specific troubleshooting guides for each test used in CloudAI. These guides help you identify and resolve issues unique to each template.
 
 #### NeMo Launcher
 * If your run is not successful, please review the stderr and stdout files generated under the results directory. Within the output directory, locate the run directory, and under the run directory, you will find stderr files like log-nemo-megatron-run_[job_id].err. Please review these files for any meaningful error messages.
