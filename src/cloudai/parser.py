@@ -30,6 +30,7 @@ from cloudai import (
     TestScenarioParser,
     format_validation_error,
 )
+from cloudai._core.exceptions import TestConfigParsingError
 
 
 class Parser:
@@ -61,7 +62,11 @@ class Parser:
         system = self.parse_system(self.system_config_path)
 
         test_parser = TestParser(test_path, system)
-        tests: List[Test] = test_parser.parse_all()
+        try:
+            tests: List[Test] = test_parser.parse_all()
+        except TestConfigParsingError:
+            # exit right away to keep error message readable for users
+            exit(1)
         test_mapping = {t.name: t for t in tests}
         logging.debug(f"Parsed {len(tests)} tests: {[t.name for t in tests]}")
 

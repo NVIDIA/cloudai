@@ -22,7 +22,7 @@ from pydantic import ValidationError
 
 from .base_multi_file_parser import BaseMultiFileParser
 from .command_gen_strategy import CommandGenStrategy
-from .exceptions import format_validation_error
+from .exceptions import TestConfigParsingError, format_validation_error
 from .grading_strategy import GradingStrategy
 from .install_strategy import InstallStrategy
 from .job_id_retrieval_strategy import JobIdRetrievalStrategy
@@ -57,8 +57,7 @@ class TestParser(BaseMultiFileParser):
         super().__init__(directory_path)
         self.system = system
 
-    @staticmethod
-    def load_test_definition(data: dict) -> TestDefinition:
+    def load_test_definition(self, data: dict) -> TestDefinition:
         test_template_name = data.get("test_template_name", "")
         registry = Registry()
         if test_template_name not in registry.test_definitions_map:
@@ -68,10 +67,11 @@ class TestParser(BaseMultiFileParser):
         try:
             test_def = registry.test_definitions_map[test_template_name].model_validate(data)
         except ValidationError as e:
+            logging.error(f"Failed to parse test spec: '{self.current_file}'")
             for err in e.errors(include_url=False):
                 err_msg = format_validation_error(err)
                 logging.error(err_msg)
-            raise ValueError("Failed to parse test spec") from e
+            raise TestConfigParsingError("Failed to parse test spec") from e
 
         return test_def
 

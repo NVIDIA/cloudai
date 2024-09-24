@@ -64,7 +64,9 @@ def test_all_tests(toml_file: Path):
     template_name = toml_dict["test_template_name"]
     assert template_name in registry.test_definitions_map, f"Unknown test template: {template_name}"
 
-    TestParser.load_test_definition(toml.load(toml_file))
+    parser = TestParser(Path(), None)  # type: ignore
+    parser.current_file = toml_file
+    parser.load_test_definition(toml.load(toml_file))
 
 
 def test_chakra_docker_image_is_required():

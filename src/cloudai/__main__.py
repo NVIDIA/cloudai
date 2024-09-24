@@ -292,7 +292,9 @@ def handle_verify_tests(root: Path) -> int:
     for test_toml in test_tomls:
         logging.info(f"Verifying {test_toml}...")
         try:
-            TestParser.load_test_definition(toml.load(test_toml))
+            parser = TestParser(Path(), None)  # type: ignore
+            parser.current_file = test_toml
+            parser.load_test_definition(toml.load(test_toml))
         except Exception:
             rc = 1
             break
