@@ -69,8 +69,6 @@ from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.standalone_system import StandaloneSystem
 from cloudai.test_definitions import (
     ChakraReplayTestDefinition,
-    GPTTestDefinition,
-    GrokTestDefinition,
     NCCLTestDefinition,
     NeMoLauncherTestDefinition,
     SleepTestDefinition,
@@ -142,10 +140,8 @@ def test_strategies(key: tuple, value: type):
 
 def test_test_templates():
     test_templates = Registry().test_templates_map
-    assert len(test_templates) == 7
+    assert len(test_templates) == 5
     assert test_templates["ChakraReplay"] == ChakraReplay
-    assert test_templates["JaxToolboxGPT"] == JaxToolbox
-    assert test_templates["JaxToolboxGrok"] == JaxToolbox
     assert test_templates["NcclTest"] == NcclTest
     assert test_templates["NeMoLauncher"] == NeMoLauncher
     assert test_templates["Sleep"] == Sleep
@@ -161,14 +157,12 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 7
+    assert len(test_defs) == 5
     assert test_defs["UCCTest"] == UCCTestDefinition
     assert test_defs["NcclTest"] == NCCLTestDefinition
     assert test_defs["ChakraReplay"] == ChakraReplayTestDefinition
     assert test_defs["Sleep"] == SleepTestDefinition
     assert test_defs["NeMoLauncher"] == NeMoLauncherTestDefinition
-    assert test_defs["JaxToolboxGrok"] == GrokTestDefinition
-    assert test_defs["JaxToolboxGPT"] == GPTTestDefinition
 
 
 def test_definitions_matches_templates():
