@@ -232,7 +232,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         commands = []
 
-        run_pre_test = cmd_args.get("pre_test", False)
+        run_pre_test = cmd_args.get("pre_test", {}).get("enable", False)
 
         if run_pre_test:
             pre_test_command = self._generate_pre_test_command(cmd_args, output_path, error_path)
