@@ -124,7 +124,6 @@ class DockerImageCacheResult:
         self._docker_image_path = value
 
 
-
 class DockerImageCacheManager:
     """
     Manages the caching of Docker images for installation strategies.
