@@ -299,3 +299,11 @@ def test_check_docker_image_accessibility_with_enroot(mock_tempdir, mock_which, 
     command = mock_popen.call_args[0][0]
     assert "enroot import -o" in command
     assert "docker://docker.io/hello-world" in command
+
+
+def test_docker_image_path_is_always_absolute():
+    r = DockerImageCacheResult(True, Path("relative/path"), "message")
+    assert r.docker_image_path.is_absolute()
+
+    r.docker_image_path = Path("another/relative/path")
+    assert r.docker_image_path.is_absolute()
