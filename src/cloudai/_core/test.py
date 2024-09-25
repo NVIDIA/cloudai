@@ -18,30 +18,14 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from pydantic import BaseModel, ConfigDict
+
 from .job_status_result import JobStatusResult
 from .test_template import TestTemplate
 
 
 class Test:
-    """
-    Represent a test, an instance of a test template with custom arguments, node configuration, and other details.
-
-    Attributes
-        name (str): Unique name of the test.
-        description (str): Description of the test.
-        test_template (TestTemplate): The test template object.
-        env_vars (Dict[str, str]): Environment variables for the test.
-        cmd_args (Dict[str, str]): Arguments for the test.
-        extra_env_vars (Dict[str, str]): Extra environment variables.
-        extra_cmd_args (str): Extra command-line arguments.
-        section_name (str): The section name of the test in the configuration.
-        dependencies (Optional[Dict[str, Optional['TestDependency']]]): Dependencies of the test.
-        iterations (Union[int, str]): Number of iterations to run the test.
-        current_iteration (int): The current iteration count.
-        sol (Optional[float]): Speed-of-light performance for reference.
-        weight (float): The weight of this test in a test scenario, indicating its relative importance or priority.
-        ideal_perf (float): The ideal performance value for comparison.
-    """
+    """Represent a test, an instance of a test template with custom arguments, node configuration, and other details."""
 
     __test__ = False
 
@@ -236,3 +220,35 @@ class TestDependency:
         """
         self.test = test
         self.time = time
+
+
+class CmdArgs(BaseModel):
+    """Test command arguments."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class TestDefinition(BaseModel):
+    """Base Test object."""
+
+    __test__ = False
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    description: str
+    test_template_name: str
+    cmd_args: Any
+    extra_env_vars: dict[str, str] = {}
+    extra_cmd_args: dict[str, str] = {}
+
+    @property
+    def cmd_args_dict(self) -> Dict[str, str]:
+        return self.cmd_args.model_dump()
+
+    @property
+    def extra_args_str(self) -> str:
+        parts = []
+        for k, v in self.extra_cmd_args.items():
+            parts.append(f"{k}={v}" if v else k)
+        return " ".join(parts)

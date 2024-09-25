@@ -14,9 +14,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "Sleep"
+from typing import Optional
 
-[cmd_args]
-  [cmd_args.seconds]
-  type = "int"
-  default = "5"
+from cloudai import CmdArgs, TestDefinition
+
+
+class ChakraReplayCmdArgs(CmdArgs):
+    """ChakraReplay test command arguments."""
+
+    docker_image_url: str
+    mpi: str = "pmix"
+    trace_type: str = "et"
+    trace_path: Optional[str] = None
+    backend: str = "nccl"
+    device: str = "cuda"
+
+
+class ChakraReplayTestDefinition(TestDefinition):
+    """Test object for ChakraReplay."""
+
+    cmd_args: ChakraReplayCmdArgs

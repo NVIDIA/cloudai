@@ -22,7 +22,9 @@ import sys
 from pathlib import Path
 from typing import List, Set
 
-from cloudai import Installer, Parser, ReportGenerator, Runner, System, Test, TestScenario, TestTemplate
+import toml
+
+from cloudai import Installer, Parser, ReportGenerator, Runner, System, Test, TestParser, TestScenario, TestTemplate
 
 
 def setup_logging(log_file: str, log_level: str) -> None:
@@ -89,6 +91,7 @@ def parse_arguments() -> argparse.Namespace:
             "generate-report",
             "uninstall",
             "verify-systems",
+            "verify-tests",
         ],
         help=(
             "Operating mode: 'install' to install test templates, 'dry-run' "
@@ -102,11 +105,6 @@ def parse_arguments() -> argparse.Namespace:
         "--system-config",
         required=True,
         help="Path to the system configuration file.",
-    )
-    parser.add_argument(
-        "--test-templates-dir",
-        required=True,
-        help="Path to the test template configuration directory.",
     )
     parser.add_argument(
         "--tests-dir",
@@ -278,6 +276,32 @@ def handle_verify_systems(root: Path) -> int:
     return rc
 
 
+def handle_verify_tests(root: Path) -> int:
+    if not root.exists():
+        logging.error(f"Tests directory {root} does not exist.")
+        return 1
+
+    test_tomls = [root]
+    if root.is_dir():
+        test_tomls = list(root.glob("*.toml"))
+        if not test_tomls:
+            logging.error(f"No test tomls found in {root}")
+            return 1
+
+    rc = 0
+    for test_toml in test_tomls:
+        logging.info(f"Verifying {test_toml}...")
+        try:
+            parser = TestParser(Path(), None)  # type: ignore
+            parser.current_file = test_toml
+            parser.load_test_definition(toml.load(test_toml))
+        except Exception:
+            rc = 1
+            break
+
+    return rc
+
+
 def main() -> None:
     args = parse_arguments()
 
@@ -286,20 +310,21 @@ def main() -> None:
     if args.mode == "verify-systems":
         rc = handle_verify_systems(Path(args.system_config))
         exit(rc)
+    if args.mode == "verify-tests":
+        rc = handle_verify_tests(Path(args.tests_dir))
+        exit(rc)
 
     system_config_path = Path(args.system_config)
-    test_templates_dir = Path(args.test_templates_dir)
     tests_dir = Path(args.tests_dir)
     test_scenario_path = Path(args.test_scenario) if args.test_scenario else None
     output_dir = Path(args.output_dir) if args.output_dir else None
 
     logging.info(f"System configuration file: {system_config_path}")
-    logging.info(f"Test templates directory: {test_templates_dir}")
     logging.info(f"Tests directory: {tests_dir}")
     logging.info(f"Test scenario file: {test_scenario_path}")
     logging.info(f"Output directory: {output_dir}")
 
-    parser = Parser(system_config_path, test_templates_dir)
+    parser = Parser(system_config_path)
     system, tests, test_scenario = parser.parse(tests_dir, test_scenario_path)
 
     if output_dir:

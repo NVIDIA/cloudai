@@ -14,12 +14,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Type, Union, cast
+
+from pydantic import ValidationError
 
 from .base_multi_file_parser import BaseMultiFileParser
-from .test import Test
+from .command_gen_strategy import CommandGenStrategy
+from .exceptions import TestConfigParsingError, format_validation_error
+from .grading_strategy import GradingStrategy
+from .install_strategy import InstallStrategy
+from .job_id_retrieval_strategy import JobIdRetrievalStrategy
+from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
+from .json_gen_strategy import JsonGenStrategy
+from .registry import Registry
+from .report_generation_strategy import ReportGenerationStrategy
+from .system import System
+from .test import Test, TestDefinition
 from .test_template import TestTemplate
+from .test_template_strategy import TestTemplateStrategy
 
 
 class TestParser(BaseMultiFileParser):
@@ -32,30 +46,134 @@ class TestParser(BaseMultiFileParser):
 
     __test__ = False
 
-    def __init__(
-        self,
-        directory_path: Path,
-        test_template_mapping: Dict[str, TestTemplate],
-    ) -> None:
+    def __init__(self, directory_path: Path, system: System) -> None:
         """
         Initialize the TestParser instance.
 
         Args:
             directory_path (str): Path to the directory containing test data.
-            test_template_mapping (Dict[str, TestTemplate]): Mapping of test template names to TestTemplate objects.
+            system (System): The system object.
         """
         super().__init__(directory_path)
-        self.test_template_mapping: Dict[str, TestTemplate] = test_template_mapping
+        self.system = system
 
-    def _extract_name_keyword(self, name: Optional[str]) -> Optional[str]:
-        if name is None:
-            return None
-        lower_name = name.lower()
-        if "grok" in lower_name:
-            return "Grok"
-        elif "gpt" in lower_name:
-            return "GPT"
+    def load_test_definition(self, data: dict) -> TestDefinition:
+        test_template_name = data.get("test_template_name", "")
+        registry = Registry()
+        if test_template_name not in registry.test_definitions_map:
+            logging.error(f"TestTemplate with name '{test_template_name}' not supported.")
+            raise NotImplementedError(f"TestTemplate with name '{test_template_name}' not supported.")
+
+        try:
+            test_def = registry.test_definitions_map[test_template_name].model_validate(data)
+        except ValidationError as e:
+            logging.error(f"Failed to parse test spec: '{self.current_file}'")
+            for err in e.errors(include_url=False):
+                err_msg = format_validation_error(err)
+                logging.error(err_msg)
+            raise TestConfigParsingError("Failed to parse test spec") from e
+
+        return test_def
+
+    def _fetch_strategy(  # noqa: D417
+        self,
+        strategy_interface: Type[
+            Union[
+                TestTemplateStrategy,
+                ReportGenerationStrategy,
+                JobIdRetrievalStrategy,
+                JobStatusRetrievalStrategy,
+                GradingStrategy,
+            ]
+        ],
+        system_type: Type[System],
+        test_template_type: Type[TestTemplate],
+        env_vars: Dict[str, Any],
+        cmd_args: Dict[str, Any],
+    ) -> Optional[
+        Union[
+            TestTemplateStrategy,
+            ReportGenerationStrategy,
+            JobIdRetrievalStrategy,
+            JobStatusRetrievalStrategy,
+            GradingStrategy,
+        ]
+    ]:
+        """
+        Fetch a strategy from the registry based on system and template.
+
+        Args:
+            strategy_interface (Type[Union[TestTemplateStrategy, ReportGenerationStrategy,
+                JobIdRetrievalStrategy, JobStatusRetrievalStrategy]]):
+                The strategy interface to fetch.
+            system_type (Type[System]): The system type.
+            test_template_type (Type[TestTemplate]): The test template type.
+            env_vars (Dict[str, Any]): Environment variables.
+            cmd_args (Dict[str, Any]): Command-line arguments.
+
+        Returns:
+            An instance of the requested strategy, or None.
+        """
+        key = (strategy_interface, system_type, test_template_type)
+        registry = Registry()
+        strategy_type = registry.strategies_map.get(key)
+        if strategy_type:
+            if issubclass(strategy_type, TestTemplateStrategy):
+                return strategy_type(self.system, env_vars, cmd_args)
+            else:
+                return strategy_type()
+
+        logging.warning(
+            f"No {strategy_interface.__name__} found for " f"{type(self).__name__} and " f"{type(self.system).__name__}"
+        )
         return None
+
+    def _get_test_template(self, name: str, env_vars: Dict[str, Any], cmd_args: Dict[str, Any]) -> TestTemplate:
+        """
+        Dynamically retrieves the appropriate TestTemplate subclass based on the given name.
+
+        Args:
+            name (str): The name of the test template.
+            env_vars (Dict[str, Any]): Environment variables.
+            cmd_args (Dict[str, Any]): Command-line arguments.
+
+        Returns:
+            Type[TestTemplate]: A subclass of TestTemplate corresponding to the given name.
+        """
+        template_classes = Registry().test_templates_map
+
+        test_template_class = template_classes.get(name)
+        if not test_template_class:
+            raise ValueError(f"Unsupported test_template name: {name}")
+
+        obj = test_template_class(system=self.system, name=name, env_vars=env_vars, cmd_args=cmd_args)
+        obj.install_strategy = cast(
+            InstallStrategy, self._fetch_strategy(InstallStrategy, type(obj.system), type(obj), env_vars, cmd_args)
+        )
+        obj.command_gen_strategy = cast(
+            CommandGenStrategy,
+            self._fetch_strategy(CommandGenStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+        )
+        obj.json_gen_strategy = cast(
+            JsonGenStrategy,
+            self._fetch_strategy(JsonGenStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+        )
+        obj.job_id_retrieval_strategy = cast(
+            JobIdRetrievalStrategy,
+            self._fetch_strategy(JobIdRetrievalStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+        )
+        obj.job_status_retrieval_strategy = cast(
+            JobStatusRetrievalStrategy,
+            self._fetch_strategy(JobStatusRetrievalStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+        )
+        obj.report_generation_strategy = cast(
+            ReportGenerationStrategy,
+            self._fetch_strategy(ReportGenerationStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+        )
+        obj.grading_strategy = cast(
+            GradingStrategy, self._fetch_strategy(GradingStrategy, type(obj.system), type(obj), env_vars, cmd_args)
+        )
+        return obj
 
     def _parse_data(self, data: Dict[str, Any]) -> Test:
         """
@@ -67,9 +185,20 @@ class TestParser(BaseMultiFileParser):
         Returns:
             Test: Parsed Test object.
         """
-        test_name = self._extract_name_keyword(data.get("name"))
+        test_def = self.load_test_definition(data)
+
+        env_vars = {}  # this field doesn't exist in Test or TestTemplate TOMLs
+        """
+        There are:
+        1. global_env_vars, used in System
+        2. extra_env_vars, used in Test
+        """
+        cmd_args = test_def.cmd_args_dict
+        extra_env_vars = test_def.extra_env_vars
+        extra_cmd_args = test_def.extra_args_str
+
         test_template_name = data.get("test_template_name", "")
-        test_template = self.test_template_mapping.get(test_template_name)
+        test_template = self._get_test_template(test_template_name, env_vars, cmd_args)
 
         if not test_template:
             test_name = data.get("name", "Unnamed Test")
@@ -81,22 +210,8 @@ class TestParser(BaseMultiFileParser):
                 f"that references this non-existing test template."
             )
 
-        env_vars = data.get("env_vars", {})
-        cmd_args = data.get("cmd_args", {})
-        extra_env_vars = data.get("extra_env_vars", {})
-        extra_cmd_args = data.get("extra_cmd_args", "")
-
-        flattened_template_cmd_args = self._flatten_template_dict_keys(test_template.cmd_args)
-
-        # Ensure test_name is not None by providing a default value if necessary
-        test_name_str = test_name if test_name is not None else ""
-        self._validate_args(cmd_args, flattened_template_cmd_args, test_name_str)
-
-        flattened_template_env_vars = self._flatten_template_dict_keys(test_template.env_vars)
-        self._validate_args(env_vars, flattened_template_env_vars, test_name_str)
-
         return Test(
-            name=data.get("name", ""),
+            name=test_def.name,
             description=data.get("description", ""),
             test_template=test_template,
             env_vars=env_vars,
@@ -116,63 +231,3 @@ class TestParser(BaseMultiFileParser):
             List[str]: List of command-line arguments.
         """
         return cmd_args_str.split() if cmd_args_str else []
-
-    def _flatten_template_dict_keys(self, nested_args: Dict[str, Any], parent_key: str = "") -> Set[str]:
-        """
-        Recursively flattens the nested dictionary structure from the test template.
-
-        Includes keys with 'default' and 'values' as valid keys, while ignoring keys that specifically end with
-        'default' or 'values'.
-
-        Args:
-            nested_args (Dict[str, Any]): Nested argument structure from the test template.
-            parent_key (str): Parent key for nested arguments.
-
-        Returns:
-            Set[str]: Set of all valid argument keys.
-        """
-        keys = set()
-        for k, v in nested_args.items():
-            new_key = f"{parent_key}.{k}" if parent_key else k
-
-            if k in ["type", "values", "default"]:
-                continue
-
-            if isinstance(v, dict):
-                if "default" in v:
-                    keys.add(new_key)
-                keys.update(self._flatten_template_dict_keys(v, new_key))
-            else:
-                keys.add(new_key)
-
-        return keys
-
-    def _validate_args(self, args: Dict[str, Any], valid_keys: Set[str], test_name: str) -> None:
-        """
-        Validate the provided arguments against a set of valid keys.
-
-        Args:
-            args (Dict[str, Any]): Arguments provided in the TOML configuration.
-            valid_keys (Set[str]): Set of valid keys from the flattened template arguments.
-            test_name (str): The name of the test for which arguments are being validated.
-
-        Raises:
-            ValueError: If an argument is not defined in the TestTemplate's arguments.
-        """
-        for arg_key in args:
-            # Check if the arg_key directly exists in valid_keys
-            if arg_key in valid_keys:
-                continue
-
-            # Check if arg_key with test_name prefix exists in valid_keys
-            test_specific_key = f"{test_name}.{arg_key}"
-            if test_specific_key in valid_keys:
-                continue
-
-            # Check if arg_key with 'common' prefix exists in valid_keys
-            common_key = f"common.{arg_key}"
-            if common_key in valid_keys:
-                continue
-
-            # If none of the conditions above are met, the arg_key is invalid
-            raise ValueError(f"Argument '{arg_key}' is not defined in the TestTemplate's arguments.")

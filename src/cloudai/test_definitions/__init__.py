@@ -14,40 +14,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "UCCTest"
+from .chakra import ChakraReplayCmdArgs, ChakraReplayTestDefinition
+from .nccl import NCCLCmdArgs, NCCLTestDefinition
+from .nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
+from .sleep import SleepCmdArgs, SleepTestDefinition
+from .ucc import UCCCmdArgs, UCCTestDefinition
 
-[cmd_args]
-  [cmd_args.docker_image_url]
-  type = "str"
-  default = "nvcr.io/nvidia/pytorch:24.02-py3"
-
-  [cmd_args.collective]
-  type = "preset"
-  values = [
-    "allgather",
-    "allgatherv",
-    "allreduce",
-    "alltoall",
-    "alltoallv",
-    "barrier",
-    "bcast",
-    "gather",
-    "gatherv",
-    "reduce",
-    "reduce_scatter",
-    "reduce_scatterv",
-    "scatter",
-    "scatterv",
-    "memcpy",
-    "reducedt",
-    "reducedt_strided",
-  ]
-  default = "alltoall"
-
-  [cmd_args.b]
-  type = "str"
-  default = "1"
-
-  [cmd_args.e]
-  type = "str"
-  default = "8M"
+__all__ = [
+    "ChakraReplayCmdArgs",
+    "ChakraReplayTestDefinition",
+    "NCCLCmdArgs",
+    "NCCLTestDefinition",
+    "NeMoLauncherCmdArgs",
+    "NeMoLauncherTestDefinition",
+    "SleepCmdArgs",
+    "SleepTestDefinition",
+    "UCCCmdArgs",
+    "UCCTestDefinition",
+]

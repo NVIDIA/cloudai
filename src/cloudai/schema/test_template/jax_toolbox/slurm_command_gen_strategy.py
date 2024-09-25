@@ -15,7 +15,6 @@
 # limitations under the License.
 
 
-import os
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -66,26 +65,25 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         final_env_vars = self._override_env_vars(self.default_env_vars, env_vars)
         final_env_vars = self._override_env_vars(final_env_vars, extra_env_vars)
-        final_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
-        final_cmd_args["output_path"] = str(output_path)
+        cmd_args["output_path"] = str(output_path)
 
         combine_threshold_bytes = int(final_env_vars["COMBINE_THRESHOLD"])
         num_nodes = len(nodes) if nodes else num_nodes
 
         # Handle thresholds and environment variable adjustments
-        self._handle_threshold_and_env(final_cmd_args, final_env_vars, combine_threshold_bytes, num_nodes)
+        self._handle_threshold_and_env(cmd_args, final_env_vars, combine_threshold_bytes, num_nodes)
 
-        xla_flags = self._format_xla_flags(final_cmd_args, "perf")
+        xla_flags = self._format_xla_flags(cmd_args, "perf")
         final_env_vars["XLA_FLAGS"] = f'"{xla_flags}"'
 
         env_vars_str = self._format_env_vars(final_env_vars)
 
-        slurm_args = self._parse_slurm_args("JaxToolbox", final_env_vars, final_cmd_args, num_nodes, nodes)
-        srun_command = self.generate_full_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
+        slurm_args = self._parse_slurm_args("JaxToolbox", final_env_vars, cmd_args, num_nodes, nodes)
+        srun_command = self.generate_full_srun_command(slurm_args, final_env_vars, cmd_args, extra_cmd_args)
         return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, output_path)
 
     def _handle_threshold_and_env(
-        self, cmd_args: Dict[str, str], env_vars: Dict[str, str], combine_threshold_bytes: int, num_nodes: int
+        self, cmd_args: Dict[str, Any], env_vars: Dict[str, str], combine_threshold_bytes: int, num_nodes: int
     ):
         """
         Handle threshold and environment variable adjustments based on the test name.
@@ -99,30 +97,9 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             combine_threshold_bytes (int): The combine threshold in bytes.
             num_nodes (int): Number of nodes to use.
         """
-        if self.test_name in ["GPT", "Nemotron"]:
-            keys = [
-                f"{self.test_name}.XLA_FLAGS.xla_gpu_all_reduce_combine_threshold_bytes",
-                f"{self.test_name}.XLA_FLAGS.xla_gpu_all_gather_combine_threshold_bytes",
-                f"{self.test_name}.XLA_FLAGS.xla_gpu_reduce_scatter_combine_threshold_bytes",
-            ]
-            key = next((k for k in keys if k in cmd_args), None)
-            if key is None:
-                raise ValueError(f"None of the {self.test_name} specific keys are found in cmd_args.")
-
-        elif self.test_name == "Grok":
-            key = f"{self.test_name}.perf.XLA_FLAGS.combine_threshold_bytes"
-        else:
-            key = "XLA_FLAGS.combine_threshold_bytes"
-
-        del cmd_args[key]
-
-        # Determine the per-GPU combine threshold based on the number of nodes and GPUs per node
-        setup_flags_key = (
-            f"{self.test_name}.setup_flags.gpus_per_node"
-            if self.test_name in ["Grok", "GPT", "Nemotron"]
-            else "common.setup_flags.gpus_per_node"
+        per_gpu_combine_threshold = int(
+            combine_threshold_bytes / (int(cmd_args[f"{self.test_name}.setup_flags"]["gpus_per_node"]) * num_nodes)
         )
-        per_gpu_combine_threshold = int(combine_threshold_bytes / (int(cmd_args[setup_flags_key]) * num_nodes))
         env_vars["PER_GPU_COMBINE_THRESHOLD"] = str(per_gpu_combine_threshold)
 
     def _extract_test_name(self, cmd_args: Dict[str, Any]) -> str:
@@ -145,7 +122,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     return name.upper() if name.lower() == "gpt" else name.capitalize()
         return ""
 
-    def _format_xla_flags(self, cmd_args: Dict[str, str], stage: str) -> str:
+    def _format_xla_flags(self, cmd_args: Dict[str, Any], stage: str) -> str:
         """
         Format the XLA_FLAGS environment variable.
 
@@ -166,27 +143,23 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
             "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD",
         ]
-        # Prefixes for common and test-specific XLA flags
-        common_prefix = "common.XLA_FLAGS."
-        test_prefix = f"{self.test_name}.{stage}.XLA_FLAGS."
+        args: dict[str, str] = cmd_args.get(f"{self.test_name}.{stage}", {}).get("XLA_FLAGS", {})
 
-        for key, value in cmd_args.items():
-            if key.startswith(common_prefix) or key.startswith(test_prefix):
-                flag_name = key.split(".")[-1]
-                if flag_name.lower() == "xla_gpu_simplify_all_fp_conversions":
-                    if value:
-                        xla_flags.append(f"--{flag_name.lower()}")
-                else:
-                    flag = f"--{flag_name.lower()}={'true' if value is True else 'false' if value is False else value}"
-                    xla_flags.append(flag)
+        for flag_name, value in args.items():
+            if not flag_name.startswith("xla_"):
+                continue
+            if isinstance(value, bool):
+                value = str(value).lower()
+            flag = f"--{flag_name.lower()}={value}"
+            xla_flags.append(flag)
 
-        return " ".join(xla_flags)
+        return " ".join(sorted(xla_flags))
 
     def _parse_slurm_args(
         self,
         job_name_prefix: str,
         env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
+        cmd_args: Dict[str, Any],
         num_nodes: int,
         nodes: List[str],
     ) -> Dict[str, Any]:
@@ -208,9 +181,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         key_prefix = f"{self.test_name}" if self.test_name in ["GPT", "Grok", "Nemotron"] else "common"
 
-        if not all(k in cmd_args for k in [f"{key_prefix}.setup_flags.docker_workspace_dir"]):
-            raise ValueError("Required cmd_args keys are missing: docker_workspace_dir")
-
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
         image_path = self.docker_image_cache_manager.ensure_docker_image(
             self.docker_image_url,
@@ -219,7 +189,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ).docker_image_path
 
         local_workspace_dir = Path(cmd_args["output_path"]).resolve()
-        docker_workspace_dir = cmd_args[f"{key_prefix}.setup_flags.docker_workspace_dir"]
+        docker_workspace_dir = cmd_args[f"{key_prefix}.setup_flags"]["docker_workspace_dir"]
         container_mounts = f"{local_workspace_dir}:{docker_workspace_dir}"
 
         if "pgo_nsys_converter.profile_path" in cmd_args:
@@ -236,7 +206,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return base_args
 
     def generate_full_srun_command(
-        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
+        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, Any], extra_cmd_args: str
     ) -> str:
         """
         Generate the full srun command for running a job on SLURM.
@@ -256,18 +226,13 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         self._create_run_script(slurm_args, env_vars, cmd_args, extra_cmd_args)
 
-        start_container_run = str(cmd_args.get("load_container", "False")).lower() in ("true", "1", "yes")
+        start_container_run = cmd_args.get("load_container", False)
         output_path = Path(cmd_args["output_path"]).resolve() / "output_pretest-%j-%n-%t.txt"
         error_path = Path(cmd_args["output_path"]).resolve() / "error_pretest-%j-%n-%t.txt"
 
         commands = []
 
-        pre_test_value = cmd_args.get("pre_test", "False")
-
-        if isinstance(pre_test_value, bool):
-            run_pre_test = pre_test_value
-        else:
-            run_pre_test = str(pre_test_value).lower() in ("true", "1", "yes")
+        run_pre_test = cmd_args.get("pre_test", {}).get("enable", False)
 
         if run_pre_test:
             pre_test_command = self._generate_pre_test_command(cmd_args, output_path, error_path)
@@ -357,7 +322,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         Returns:
             str: The generated pre-test command.
         """
-        nccl_test = {k.split(".")[-1]: v for k, v in cmd_args.items() if k.startswith("pre_test.nccl_test")}
+        nccl_test = cmd_args.get("pre_test", {}).get("nccl_test", {})
         pre_test_command_parts = [
             "srun",
             "--mpi=pmix",
@@ -365,7 +330,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f"-o {output_path}",
             f"-e {error_path}",
             f"--container-image={nccl_test.get('docker_image_url', 'nvcr.io/nvidia/pytorch:24.02-py3')}",
-            f"/usr/local/bin/{nccl_test.get('preset', 'all_gather_perf_mpi')}",
+            f"/usr/local/bin/{nccl_test.get('subtest_name', 'all_gather_perf_mpi')}",
             f"--nthreads {nccl_test.get('nthreads', 1)}",
             f"--ngpus {nccl_test.get('ngpus', 1)}",
             f"--minbytes {nccl_test.get('minbytes', '32M')}",
@@ -422,7 +387,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self,
         slurm_args: Dict[str, Any],
         env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
+        cmd_args: Dict[str, Any],
         extra_cmd_args: str,
     ) -> Path:
         """
@@ -443,38 +408,19 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         test_name = self.test_name
 
-        def set_xla_flags(test_name: str, profile_enabled: bool):
-            """Set the XLA_FLAGS for profiling or performance based on the stage."""
-            flags = [
-                "xla_gpu_enable_latency_hiding_scheduler",
-            ]
-
-            state = "true" if profile_enabled else "false"
-            for flag in flags:
-                cmd_args[f"{test_name}.XLA_FLAGS.{flag}"] = state
-
         run_script_content = []
-        enable_pgle = cmd_args.get(f"{test_name}.enable_pgle", "True")
-
-        do_pgle = enable_pgle if isinstance(enable_pgle, bool) else str(enable_pgle).lower() in ("true", "1", "yes")
+        do_pgle = cmd_args.get(f"{test_name}.enable_pgle", True)
 
         if do_pgle:
-            # Prepare environment and script content for the 'profile' stage
-            set_xla_flags(test_name, False)
             env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "profile")}"'
             profile_content = self._script_content("profile", slurm_args, env_vars, cmd_args, extra_cmd_args)
             run_script_content += profile_content
 
-            set_xla_flags(test_name, True)
-            cmd_args[f"{self.test_name}.perf.XLA_FLAGS.xla_gpu_pgle_profile_file_or_directory_path"] = (
-                "/opt/paxml/workspace/pgle_output_profile.pbtxt"
-            )
             env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
             perf_content = self._script_content("perf", slurm_args, env_vars, cmd_args, extra_cmd_args)
             run_script_content += perf_content
         else:
-            set_xla_flags(test_name, True)
-            cmd_args[f"{self.test_name}.perf.XLA_FLAGS.xla_gpu_pgle_profile_file_or_directory_path"] = '""'
+            cmd_args[f"{self.test_name}.perf"]["XLA_FLAGS"]["xla_gpu_pgle_profile_file_or_directory_path"] = '""'
             env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
             perf_content = self._script_content("perf", slurm_args, env_vars, cmd_args, extra_cmd_args)
             run_script_content += perf_content
@@ -483,7 +429,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         run_script_path = Path(cmd_args["output_path"]) / "run.sh"
         with open(run_script_path, "w") as run_file:
             run_file.write("\n".join(run_script_content))
-        os.chmod(run_script_path, 0o755)
+        run_script_path.chmod(0o755)
         return run_script_path
 
     def _script_content(
@@ -531,7 +477,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         stage: str,
         slurm_args: Dict[str, Any],
         env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
+        cmd_args: Dict[str, Any],
         extra_cmd_args: str,
     ) -> str:
         """
@@ -556,19 +502,17 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "--num_hosts=$SLURM_NTASKS",
             "--server_addr=$SLURM_JOB_MASTER_NODE:12345",
             "--host_idx=$SLURM_PROCID",
-            f"--job_log_dir={cmd_args[f'{self.test_name}.setup_flags.docker_workspace_dir']}",
-            f"--tfds_data_dir={cmd_args[f'{self.test_name}.setup_flags.tfds_data_dir']}",
-            f"--enable_checkpoint_saving={cmd_args[f'{self.test_name}.setup_flags.enable_checkpoint_saving']}",
+            f"--job_log_dir={cmd_args[f'{self.test_name}.setup_flags']['docker_workspace_dir']}",
+            f"--tfds_data_dir={cmd_args[f'{self.test_name}.setup_flags']['tfds_data_dir']}",
+            f"--enable_checkpoint_saving={cmd_args[f'{self.test_name}.setup_flags']['enable_checkpoint_saving']}",
             "--multiprocess_gpu",
             "--alsologtostderr",
             f'--fdl_config="{fdl_config}"',
         ]
 
-        # Dynamically adding fdl. prefixed arguments
-        fdl_prefix = f"{self.test_name}.fdl."
-        fdl_args = {k[len(fdl_prefix) :]: v for k, v in cmd_args.items() if k.startswith(fdl_prefix)}
+        fdl_args: dict[str, str] = cmd_args[f"{self.test_name}.fdl"]
 
-        for key, value in fdl_args.items():
+        for key, value in sorted(fdl_args.items()):
             parts.append(f"--fdl.{key.upper()}={value}")
         if extra_cmd_args:
             parts.append(extra_cmd_args)
