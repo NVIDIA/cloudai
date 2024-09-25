@@ -104,7 +104,7 @@ class DockerImageCacheResult:
         return self.message
     
     @property
-     def docker_image_path(self) -> Path:
+    def docker_image_path(self) -> Path:
          """
          Get the path to the Docker image.
          Returns
@@ -112,8 +112,8 @@ class DockerImageCacheResult:
          """
          return self._docker_image_path.absolute()
 
-     @docker_image_path.setter
-     def docker_image_path(self, value: Path) -> None:
+    @docker_image_path.setter
+    def docker_image_path(self, value: Path) -> None:
          """
          Set the path to the Docker image.
          Args:
