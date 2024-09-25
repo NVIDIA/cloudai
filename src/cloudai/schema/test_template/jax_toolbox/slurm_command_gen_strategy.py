@@ -226,7 +226,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         self._create_run_script(slurm_args, env_vars, cmd_args, extra_cmd_args)
 
-        start_container_run = cmd_args.get(f"{self.test_name}.load_container", False)
+        start_container_run = cmd_args.get("load_container", False)
         output_path = Path(cmd_args["output_path"]).resolve() / "output_pretest-%j-%n-%t.txt"
         error_path = Path(cmd_args["output_path"]).resolve() / "error_pretest-%j-%n-%t.txt"
 
