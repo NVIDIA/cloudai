@@ -48,7 +48,7 @@ class ReportGenerator:
             test_scenario (TestScenario): The scenario containing tests.
         """
         for tr in test_scenario.test_runs:
-            section_name = str(tr.test.section_name) if tr.test.section_name else ""
+            section_name = tr.name
             if not section_name:
                 logging.warning(f"Missing section name for test {tr.test.name}")
                 continue

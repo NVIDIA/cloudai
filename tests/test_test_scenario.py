@@ -21,6 +21,7 @@ from unittest.mock import Mock
 
 import pytest
 from cloudai import Test, TestRun, TestScenarioParser
+from cloudai._core.test_scenario_parser import _TestDependencyTOML, _TestRunTOML, _TestScenarioTOML
 from cloudai.systems.standalone_system import StandaloneSystem
 
 
@@ -46,15 +47,17 @@ def test() -> Test:
 
 def test_single_test_case(test: Test, test_scenario_parser: TestScenarioParser) -> None:
     test_scenario_parser.test_mapping = {"nccl": test}
-    test_scenario = test_scenario_parser._parse_data({"name": "nccl-test", "Tests": {"1": {"name": "nccl"}}})
+    test_scenario = test_scenario_parser._parse_data(
+        {"name": "nccl-test", "Tests": [{"id": "1", "template_test": "nccl"}]}
+    )
     assert test_scenario.name == "nccl-test"
     assert len(test_scenario.test_runs) == 1
     assert test_scenario.job_status_check is True
 
+    assert test_scenario.test_runs[0].name == "1"
     atest = test_scenario.test_runs[0].test
     assert atest.name == test.name
     assert atest.description == test.description
-    assert atest.section_name == "Tests.1"
     assert atest.dependencies == {}
     assert atest.iterations == 1
     assert atest.current_iteration == 0
@@ -78,7 +81,7 @@ def test_with_some_props(
     setattr(test, prop, tvalue)
     test_scenario_parser.test_mapping = {"nccl": test}
     test_scenario = test_scenario_parser._parse_data(
-        {"name": "nccl-test", "Tests": {"1": {"name": "nccl", prop: cfg_value}}}
+        {"name": "nccl-test", "Tests": [{"id": "1", "template_test": "nccl", prop: cfg_value}]}
     )
     atest = test_scenario.test_runs[0].test
     val = getattr(atest, prop)
@@ -89,7 +92,7 @@ def test_with_some_props(
 def test_with_time_limit(test: Test, test_scenario_parser: TestScenarioParser) -> None:
     test_scenario_parser.test_mapping = {"nccl": test}
     test_scenario = test_scenario_parser._parse_data(
-        {"name": "nccl-test", "Tests": {"1": {"name": "nccl", "time_limit": "10m"}}}
+        {"name": "nccl-test", "Tests": [{"id": "1", "template_test": "nccl", "time_limit": "10m"}]}
     )
     assert test_scenario.test_runs[0].time_limit == "10m"
 
@@ -100,7 +103,7 @@ def test_two_independent_cases(test: Test, test_scenario_parser: TestScenarioPar
 
     test_scenario_parser.test_mapping = {"nccl": t1, "nccl2": t2}
     test_scenario = test_scenario_parser._parse_data(
-        {"name": "nccl-test", "Tests": {"1": {"name": "nccl"}, "2": {"name": "nccl2"}}}
+        {"name": "nccl-test", "Tests": [{"id": "1", "template_test": "nccl"}, {"id": "2", "template_test": "nccl2"}]}
     )
     assert len(test_scenario.test_runs) == 2
 
@@ -111,61 +114,63 @@ def test_two_independent_cases(test: Test, test_scenario_parser: TestScenarioPar
     assert test_scenario.test_runs[1].test.dependencies == {}
 
 
-def test_raises_on_missing_name(test_scenario_parser: TestScenarioParser):
-    with pytest.raises(ValueError) as exc_info:
-        test_scenario_parser._parse_data({"Tests": []})
-    assert exc_info.match("Failed to parse Test Scenario definition")
-
-
 def test_raises_on_missing_mapping(test_scenario_parser: TestScenarioParser):
     with pytest.raises(ValueError) as exc_info:
-        test_scenario_parser._parse_data({"name": "nccl-test", "Tests": {"1": {"name": "nccl1"}}})
+        test_scenario_parser._parse_data({"name": "nccl-test", "Tests": [{"id": "1", "template_test": "nccl1"}]})
     assert exc_info.match("Test 'nccl1' not found in the test schema directory")
 
 
-def test_raises_on_invalid_dependency_format(test_scenario_parser: TestScenarioParser) -> None:
-    test_info = {"dependencies": {"dep": "should-be-dict-here"}}
-    with pytest.raises(ValueError) as exc_info:
-        test_scenario_parser._parse_dependencies_for_test("Tests.1", test_info, {})
-
-    assert exc_info.match("Invalid format for dependency ")
-
-
 def test_raises_on_unknown_dependency(test_scenario_parser: TestScenarioParser) -> None:
-    test_info = {"dependencies": {"dep": {"unknown": "Tests.2"}}}
+    dep = _TestDependencyTOML(type="end_post_comp", id="dep")
+    test_info = _TestRunTOML(id="test", template_test="nccl", dependencies=[dep])
     with pytest.raises(ValueError) as exc_info:
-        test_scenario_parser._parse_dependencies_for_test("Tests.1", test_info, {})
+        test_scenario_parser._parse_dependencies_for_test(test_info, {})
 
-    assert exc_info.match("Dependency section .* not found")
+    assert exc_info.match(f"Dependency section '{dep.id}' not found for " f"test '{test_info.id}'.")
 
 
 def test_empty_dependency(test_scenario_parser: TestScenarioParser) -> None:
-    deps = test_scenario_parser._parse_dependencies_for_test("Tests.1", {}, {})
-    assert deps == {}
-
-    test_info = {"dependencies": {}}
-    deps = test_scenario_parser._parse_dependencies_for_test("Tests.1", test_info, {})
+    test_info = _TestRunTOML(id="1", template_test="nccl")
+    deps = test_scenario_parser._parse_dependencies_for_test(test_info, {})
     assert deps == {}
 
 
-@pytest.mark.parametrize("time", [None, "10m", 1, 1.5])
+@pytest.mark.parametrize("time", [None, 1])
 def test_returns_valid_dependency(time: Any, test_scenario_parser: TestScenarioParser, test: Test) -> None:
-    test_info = {"dependencies": {"dep_type": {"name": "Tests.1"}}}
+    dep = _TestDependencyTOML(type="end_post_comp", id="dep")
+    test_info = _TestRunTOML(id="test", template_test="nccl", dependencies=[dep])
     if time is not None:
-        test_info["dependencies"]["dep_type"]["time"] = time
-    sec_runs = {"Tests.1": TestRun(test, 1, [])}
-    deps = test_scenario_parser._parse_dependencies_for_test("Tests.1", test_info, sec_runs)
+        dep.time = time
+    sec_runs = {"dep": TestRun("", test, 1, [])}
+    deps = test_scenario_parser._parse_dependencies_for_test(test_info, sec_runs)
 
     assert len(deps) == 1
-    assert "dep_type" in deps
-    assert deps["dep_type"].test == test
+    assert "end_post_comp" in deps
+    assert deps["end_post_comp"].test == test
     if time is not None:
-        assert deps["dep_type"].time == time
+        assert deps["end_post_comp"].time == time
     else:
-        assert deps["dep_type"].time == 0
+        assert deps["end_post_comp"].time == 0
 
 
-def test_two_dependent_tests(test: Test, test_scenario_parser: TestScenarioParser) -> None:
+def test_cant_depends_on_itself(test: Test, test_scenario_parser: TestScenarioParser) -> None:
+    with pytest.raises(ValueError) as exc_info:
+        _TestScenarioTOML.model_validate(
+            {
+                "name": "nccl-test",
+                "Tests": [
+                    {
+                        "id": "1",
+                        "template_test": "nccl",
+                        "dependencies": [{"type": "end_post_comp", "id": "1"}],
+                    },
+                ],
+            }
+        )
+    assert exc_info.match("Test '1' must not depend on itself.")
+
+
+def test_two_dependent_cases(test: Test, test_scenario_parser: TestScenarioParser) -> None:
     t1, t2 = test, test
     t2.name = "t2"
 
@@ -173,18 +178,33 @@ def test_two_dependent_tests(test: Test, test_scenario_parser: TestScenarioParse
     test_scenario = test_scenario_parser._parse_data(
         {
             "name": "nccl-test",
-            "Tests": {
-                "1": {"name": "nccl", "dependencies": {"dep": {"name": "Tests.2"}}},
-                "2": {"name": "nccl2"},
-            },
+            "Tests": [
+                {"id": "1", "template_test": "nccl", "dependencies": [{"type": "end_post_comp", "id": "2"}]},
+                {"id": "2", "template_test": "nccl2"},
+            ],
         }
     )
     assert len(test_scenario.test_runs) == 2
 
     assert test_scenario.test_runs[0].test.name == t1.name
-    assert "dep" in test_scenario.test_runs[0].test.dependencies
-    assert isinstance(test_scenario.test_runs[0].test.dependencies["dep"].test, Test)
-    assert test_scenario.test_runs[0].test.dependencies["dep"].time == 0
+    assert "end_post_comp" in test_scenario.test_runs[0].test.dependencies
+    assert isinstance(test_scenario.test_runs[0].test.dependencies["end_post_comp"].test, Test)
+    assert test_scenario.test_runs[0].test.dependencies["end_post_comp"].time == 0
 
     assert test_scenario.test_runs[1].test.name == t2.name
     assert test_scenario.test_runs[1].test.dependencies == {}
+
+
+def test_ids_must_be_unique(test: Test, test_scenario_parser: TestScenarioParser) -> None:
+    test_scenario_parser.test_mapping = {"nccl": test}
+    with pytest.raises(ValueError) as exc_info:
+        test_scenario_parser._parse_data(
+            {
+                "name": "nccl-test",
+                "Tests": [
+                    {"id": "1", "template_test": "nccl"},
+                    {"id": "1", "template_test": "nccl"},
+                ],
+            }
+        )
+    assert exc_info.match("Duplicate test id '1' found in the test scenario.")

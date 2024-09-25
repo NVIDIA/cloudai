@@ -24,6 +24,7 @@ from .test import Test
 class TestRun:
     __test__ = False
 
+    name: str
     test: Test
     num_nodes: int
     nodes: List[str]
@@ -69,14 +70,14 @@ class TestScenario:
         """Print each test in the scenario along with its section name, description, and visualized dependencies."""
         s = f"Test Scenario: {self.name}\n"
         for tr in self.test_runs:
-            s += f"\nSection Name: {tr.test.section_name}\n"
+            s += f"\nSection Name: {tr.name}\n"
             s += f"  Test Name: {tr.test.name}\n"
             s += f"  Description: {tr.test.description}\n"
             if tr.test.dependencies:
                 for dep_type, dependency in tr.test.dependencies.items():
                     if dependency:
                         s += (
-                            f"  {dep_type.replace('_', ' ').title()}: {dependency.test.section_name}, "
+                            # f"  {dep_type.replace('_', ' ').title()}: {dependency.test.section_name}, "
                             f"Time: {dependency.time} seconds"
                         )
             else:

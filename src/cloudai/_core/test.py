@@ -54,7 +54,6 @@ class Test:
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
-        section_name: str = "",
         dependencies: Optional[Dict[str, "TestDependency"]] = None,
         iterations: Union[int, str] = 1,
         sol: Optional[float] = None,
@@ -72,7 +71,6 @@ class Test:
             cmd_args (Dict[str, str]): Command-line arguments for the test.
             extra_env_vars (Dict[str, str]): Extra environment variables.
             extra_cmd_args (str): Extra command-line arguments.
-            section_name (str): The section name of the test in the configuration.
             dependencies (Optional[Dict[str, TestDependency]]): Test dependencies.
             iterations (Union[int, str]): Total number of iterations to run the test. Can be an integer or 'infinite'
                 for endless iterations.
@@ -87,7 +85,6 @@ class Test:
         self.cmd_args = cmd_args
         self.extra_env_vars = extra_env_vars
         self.extra_cmd_args = extra_cmd_args
-        self.section_name = section_name
         self.dependencies = dependencies or {}
         self.iterations = iterations if isinstance(iterations, int) else sys.maxsize
         self.current_iteration = 0
@@ -109,7 +106,6 @@ class Test:
             f"cmd_args={self.cmd_args}, "
             f"extra_env_vars={self.extra_env_vars}, "
             f"extra_cmd_args={self.extra_cmd_args}, "
-            f"section_name={self.section_name}, "
             f"dependencies={self.dependencies}, iterations={self.iterations}, "
         )
 

@@ -161,7 +161,7 @@ class BaseRunner(ABC):
         Args:
             tr (TestRun): The test to be started.
         """
-        logging.info(f"Starting test: {tr.test.section_name}")
+        logging.info(f"Starting test: {tr.name}")
         try:
             job = self._submit_test(tr)
             self.jobs.append(job)
@@ -178,7 +178,7 @@ class BaseRunner(ABC):
             tr (TestRun): The test to start after a delay.
             delay (int): Delay in seconds before starting the test.
         """
-        logging.info(f"Delayed start for test {tr.test.section_name} by {delay} seconds.")
+        logging.info(f"Delayed start for test {tr.name} by {delay} seconds.")
         await asyncio.sleep(delay)
         await self.submit_test(tr)
 
@@ -237,7 +237,7 @@ class BaseRunner(ABC):
 
         return dependency_free_tests
 
-    def get_job_output_path(self, test: Test) -> Path:
+    def get_job_output_path(self, tr: TestRun) -> Path:
         """
         Generate and ensure the existence of the output directory for a given test.
 
@@ -245,7 +245,7 @@ class BaseRunner(ABC):
         do not exist.
 
         Args:
-            test (Test): The test instance for which to generate the output directory path.
+            tr (TestRun): The test run object.
 
         Returns:
             Path: The path to the job's output directory.
@@ -261,10 +261,9 @@ class BaseRunner(ABC):
         job_output_path = Path()  # avoid reportPossiblyUnboundVariable from pyright
 
         try:
-            assert test.section_name is not None, "test.section_name must not be None"
-            test_output_path = self.output_path / test.section_name
+            test_output_path = self.output_path / tr.name
             test_output_path.mkdir()
-            job_output_path = test_output_path / str(test.current_iteration)
+            job_output_path = test_output_path / str(tr.test.current_iteration)
             job_output_path.mkdir()
         except PermissionError as e:
             raise PermissionError(f"Cannot create directory {job_output_path}: {e}") from e
@@ -295,19 +294,17 @@ class BaseRunner(ABC):
                             await self.handle_job_completion(job)
                         else:
                             error_message = (
-                                f"Job {job.id} for test {job.test_run.test.section_name} failed: "
+                                f"Job {job.id} for test {job.test_run.name} failed: "
                                 f"{job_status_result.error_message}"
                             )
                             logging.error(error_message)
                             await self.shutdown()
-                            raise JobFailureError(
-                                job.test_run.test.section_name, error_message, job_status_result.error_message
-                            )
+                            raise JobFailureError(job.test_run.name, error_message, job_status_result.error_message)
                     else:
                         job_status_result = self.get_job_status(job)
                         if not job_status_result.is_successful:
                             error_message = (
-                                f"Job {job.id} for test {job.test_run.test.section_name} failed: "
+                                f"Job {job.id} for test {job.test_run.name} failed: "
                                 f"{job_status_result.error_message}"
                             )
                             logging.error(error_message)
@@ -335,7 +332,7 @@ class BaseRunner(ABC):
         Args:
             completed_job (BaseJob): The job that has just been completed.
         """
-        logging.info(f"Job completed: {completed_job.test_run.test.section_name}")
+        logging.info(f"Job completed: {completed_job.test_run.name}")
 
         self.jobs.remove(completed_job)
         del self.test_to_job_map[completed_job.test_run.test]
