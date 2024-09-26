@@ -66,6 +66,28 @@ class _TestScenarioTOML(BaseModel):
 
         return self
 
+    @model_validator(mode="after")
+    def check_no_duplicate_ids(self):
+        """Check for duplicate test ids in the test scenario."""
+        test_ids = set()
+        for tr in self.tests:
+            if tr.id in test_ids:
+                raise ValueError(f"Duplicate test id '{tr.id}' found in the test scenario.")
+            test_ids.add(tr.id)
+
+        return self
+
+    @model_validator(mode="after")
+    def all_dependencies_are_known(self):
+        """Check that all dependencies are known."""
+        test_ids = set(tr.id for tr in self.tests)
+        for tr in self.tests:
+            for dep in tr.dependencies:
+                if dep.id not in test_ids:
+                    raise ValueError(f"Dependency section '{dep.id}' not found for test '{tr.id}'.")
+
+        return self
+
 
 class TestScenarioParser:
     """
@@ -81,7 +103,6 @@ class TestScenarioParser:
     def __init__(self, file_path: str, test_mapping: Dict[str, Test]) -> None:
         self.file_path = file_path
         self.test_mapping = test_mapping
-        self.testruns_by_id: dict[str, TestRun] = {}
 
     def parse(self) -> TestScenario:
         """
@@ -116,23 +137,21 @@ class TestScenarioParser:
         total_weight = sum(tr.weight for tr in ts_model.tests)
         normalized_weight = 0 if total_weight == 0 else 100 / total_weight
 
-        self.testruns_by_id: dict[str, TestRun] = {}
-        for tr in ts_model.tests:
-            if tr.id in self.testruns_by_id:
-                raise ValueError(f"Duplicate test id '{tr.id}' found in the test scenario.")
-            self.testruns_by_id[tr.id] = self._create_section_test_run(tr, normalized_weight)
+        testruns_by_id: dict[str, TestRun] = {
+            tr.id: self._create_section_test_run(tr, normalized_weight) for tr in ts_model.tests
+        }
 
-        tests_data: dict[str, _TestRunTOML] = {}
-        for tr in ts_model.tests:
-            tests_data[tr.id] = tr
-
-        for section, tr in self.testruns_by_id.items():
+        tests_data: dict[str, _TestRunTOML] = {tr.id: tr for tr in ts_model.tests}
+        for section, tr in testruns_by_id.items():
             test_info = tests_data[section]
-            tr.dependencies = self._parse_dependencies_for_test(test_info)
+            tr.dependencies = {
+                dep.type: TestDependency(time=dep.time, test_run=testruns_by_id[dep.id])
+                for dep in test_info.dependencies
+            }
 
         return TestScenario(
             name=ts_model.name,
-            test_runs=list(self.testruns_by_id.values()),
+            test_runs=list(testruns_by_id.values()),
             job_status_check=ts_model.job_status_check,
         )
 
@@ -182,23 +201,3 @@ class TestScenarioParser:
             time_limit=test_info.time_limit,
         )
         return tr
-
-    def _parse_dependencies_for_test(self, test_info: _TestRunTOML) -> Dict[str, TestDependency]:
-        """
-        Parse and creates TestDependency objects for various types of dependencies, ignoring empty dependencies.
-
-        Args:
-            section (str): Section name of the test.
-            test_info (_TestRunTOML): Information of the test.
-            section_test_runs (Dict[str, TestRun]): Mapping of section names to TestRun objects.
-
-        Returns:
-            Dict[str, Optional[TestDependency]]: Parsed dependencies for the test.
-        """
-        dependencies = {}
-        for dep in test_info.dependencies:
-            if dep.id not in self.testruns_by_id:
-                raise ValueError(f"Dependency section '{dep.id}' not found for " f"test '{test_info.id}'.")
-            dependencies[dep.type] = TestDependency(time=dep.time, test_run=self.testruns_by_id[dep.id])
-
-        return dependencies
