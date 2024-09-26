@@ -21,7 +21,7 @@ from typing import Any, Dict, Literal, Optional
 import toml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from .exceptions import format_validation_error
+from .exceptions import TestScenarioParsingError, format_validation_error
 from .system import System
 from .test import Test
 from .test_scenario import TestDependency, TestRun, TestScenario
@@ -110,10 +110,11 @@ class TestScenarioParser:
         try:
             ts_model = _TestScenarioTOML.model_validate(data)
         except ValidationError as e:
+            logging.error(f"Failed to parse Test Scenario definition: {self.file_path}")
             for err in e.errors(include_url=False):
                 err_msg = format_validation_error(err)
                 logging.error(err_msg)
-            raise ValueError("Failed to parse Test Scenario definition") from e
+            raise TestScenarioParsingError("Failed to parse Test Scenario definition") from e
 
         self.testruns_by_id: dict[str, TestRun] = {}
         for tr in ts_model.tests:

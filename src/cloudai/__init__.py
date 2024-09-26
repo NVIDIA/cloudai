@@ -19,7 +19,13 @@ from ._core.base_job import BaseJob
 from ._core.base_runner import BaseRunner
 from ._core.base_system_parser import BaseSystemParser
 from ._core.command_gen_strategy import CommandGenStrategy
-from ._core.exceptions import JobIdRetrievalError, TestConfigParsingError, format_validation_error
+from ._core.exceptions import (
+    JobIdRetrievalError,
+    SystemConfigParsingError,
+    TestConfigParsingError,
+    TestScenarioParsingError,
+    format_validation_error,
+)
 from ._core.grader import Grader
 from ._core.grading_strategy import GradingStrategy
 from ._core.install_strategy import InstallStrategy
@@ -197,14 +203,16 @@ __all__ = [
     "ReportGenerator",
     "Runner",
     "System",
+    "SystemConfigParsingError",
     "Test",
+    "TestConfigParsingError",
     "TestDefinition",
     "TestParser",
     "TestParser",
     "TestRun",
     "TestScenario",
     "TestScenarioParser",
+    "TestScenarioParsingError",
     "TestTemplate",
     "TestTemplateStrategy",
-    "TestConfigParsingError",
 ]

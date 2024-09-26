@@ -119,6 +119,14 @@ class TestConfigParsingError(Exception):
     pass
 
 
+class TestScenarioParsingError(Exception):
+    pass
+
+
+class SystemConfigParsingError(Exception):
+    pass
+
+
 def format_validation_error(err: ErrorDetails) -> str:
     if err["msg"] == "Field required":
         return f"Field '{'.'.join(str(v) for v in err['loc'])}': {err['msg']}"

@@ -24,11 +24,13 @@ from pydantic import ValidationError
 from cloudai import (
     Registry,
     System,
+    SystemConfigParsingError,
     Test,
     TestConfigParsingError,
     TestParser,
     TestScenario,
     TestScenarioParser,
+    TestScenarioParsingError,
     format_validation_error,
 )
 
@@ -59,7 +61,11 @@ class Parser:
         if not test_path.exists():
             raise FileNotFoundError(f"Test path '{test_path}' not found.")
 
-        system = self.parse_system(self.system_config_path)
+        try:
+            system = self.parse_system(self.system_config_path)
+        except SystemConfigParsingError:
+            # exit right away to keep error message readable for users
+            exit(1)
 
         test_parser = TestParser(test_path, system)
         try:
@@ -74,7 +80,11 @@ class Parser:
         test_scenario: Optional[TestScenario] = None
         if test_scenario_path:
             test_scenario_parser = TestScenarioParser(str(test_scenario_path), system, test_mapping)
-            test_scenario = test_scenario_parser.parse()
+            try:
+                test_scenario = test_scenario_parser.parse()
+            except TestScenarioParsingError:
+                # exit right away to keep error message readable for users
+                exit(1)
             logging.debug("Parsed test scenario")
 
             scenario_tests = set(tr.test.name for tr in test_scenario.test_runs)
@@ -90,7 +100,7 @@ class Parser:
             data = toml.load(f)
             scheduler = data.get("scheduler", "").lower()
             if scheduler not in registry.systems_map:
-                raise ValueError(
+                raise SystemConfigParsingError(
                     f"Unsupported system type '{scheduler}' in {system_config_path}. "
                     f"Supported types: {', '.join(registry.systems_map.keys())}"
                 )
@@ -99,9 +109,9 @@ class Parser:
             system = registry.systems_map[scheduler](**data)
         except ValidationError as e:
             for err in e.errors(include_url=False):
-                logging.error(f"Validation error: {err}")
+                logging.error(f"Failed to parse system definition: {system_config_path}")
                 err_msg = format_validation_error(err)
                 logging.error(err_msg)
-            raise ValueError("Failed to parse system definition") from e
+            raise SystemConfigParsingError("Failed to parse system definition") from e
 
         return system
