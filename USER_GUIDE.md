@@ -123,20 +123,24 @@ Test Scenario uses Test description from the previous step. Below is the `myconf
 ```toml
 name = "nccl-test"
 
-[Tests.1]
-  name = "nccl_test_all_reduce_single_node"
-  time_limit = "00:20:00"
+[[Tests]]
+id = "Tests.1"
+template_test = "nccl_test_all_reduce_single_node"
+time_limit = "00:20:00"
 
-[Tests.2]
-  name = "nccl_test_all_reduce_single_node"
-  time_limit = "00:20:00"
-  [Tests.2.dependencies]
-    start_post_comp = { name = "Tests.1", time = 0 }
+[[Tests]]
+id = "Tests.2"
+template_test = "nccl_test_all_reduce_single_node"
+time_limit = "00:20:00"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.1"
+  time = 0
 ```
 
 Notes on the test scenario:
-1. `name` is a mandatory filed. Other fields describe arbitrary number of tests and their dependencies.
-1. The `name` of the tests should be found in the test schema files. Node lists and time limits are optional.
+1. `id` is a mandatory filed and must be uniq for each test.
+1. The `template_test` specifies test definition from one of the Test TOML files. Node lists and time limits are optional.
 1. If needed, `nodes` should be described as a list of node names as shown in a Slurm system. Alternatively, if groups are defined in the system schema, you can ask CloudAI to allocate a specific number of nodes from a specified partition and group. For example `nodes = ['PARTITION:GROUP:16']`: 16 nodes are allocated from a group `GROUP`, from a partition `PARTITION`.
 1. There are three types of dependencies: `start_post_comp`, `start_post_init` and `end_post_comp`.
     1. `start_post_comp` means that the current test should be started after a specific delay of the completion of the depending test.
@@ -243,27 +247,34 @@ cache_docker_images_locally = true
 
 ## Describing a Test Scenario in the Test Scenario Schema
 A test scenario is a set of tests with specific dependencies between them. A test scenario is described in a TOML schema file. This is an example of a test scenario file:
-```
+```toml
 name = "nccl-test"
 
-[Tests.1]
-  name = "nccl_test_all_reduce"
-  num_nodes = "2"
-  time_limit = "00:20:00"
+[[Tests]]
+id = "Tests.1"
+template_test = "nccl_test_all_reduce"
+num_nodes = "2"
+time_limit = "00:20:00"
 
-[Tests.2]
-  name = "nccl_test_all_gather"
-  num_nodes = "2"
-  time_limit = "00:20:00"
-  [Tests.2.dependencies]
-    start_post_comp = { name = "Tests.1", time = 0 }
+[[Tests]]
+id = "Tests.2"
+template_test = "nccl_test_all_gather"
+num_nodes = "2"
+time_limit = "00:20:00"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.1"
+  time = 0
 
-[Tests.3]
-  name = "nccl_test_reduce_scatter"
-  num_nodes = "2"
-  time_limit = "00:20:00"
-  [Tests.3.dependencies]
-    start_post_comp = { name = "Tests.2", time = 0 }
+[[Tests]]
+id = "Tests.3"
+templat_test = "nccl_test_reduce_scatter"
+num_nodes = "2"
+time_limit = "00:20:00"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.2"
+  time = 0
 ```
 
 The `name` field is the test scenario name, which can be any unique identifier for the scenario. Each test has a section name, following the convention `Tests.1`, `Tests.2`, etc., with an increasing index. The `name` of a test should be specified in this section and must correspond to an entry in the test schema. If a test in a test scenario is not present in the test schema, CloudAI will not be able to identify it.
