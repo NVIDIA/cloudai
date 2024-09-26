@@ -80,6 +80,13 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         del self.final_cmd_args["repository_commit_hash"]
         del self.final_cmd_args["docker_image_url"]
 
+        if self.slurm_system.account is not None:
+            self.final_cmd_args["cluster.account"] = self.slurm_system.account
+            self.final_cmd_args["cluster.job_name_prefix"] = f"{self.slurm_system.account}-cloudai.nemo:"
+        self.final_cmd_args["cluster.gpus_per_node"] = (
+            self.slurm_system.gpus_per_node if self.slurm_system.gpus_per_node is not None else "null"
+        )
+
         cmd_args_str = self._generate_cmd_args_str(self.final_cmd_args, nodes)
 
         full_cmd = f"python {launcher_path}/launcher_scripts/main.py {cmd_args_str}"
