@@ -57,14 +57,7 @@ class TestRun:
     dependencies: dict[str, TestDependency] = field(default_factory=dict)
 
     def __hash__(self) -> int:
-        return hash(
-            self.name
-            + self.test.name
-            + str(self.num_nodes)
-            + str(self.nodes)
-            + str(self.iterations)
-            + str(self.time_limit)
-        )
+        return hash(self.name + self.test.name + str(self.iterations) + str(self.current_iteration))
 
     def has_more_iterations(self) -> bool:
         """

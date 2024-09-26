@@ -215,7 +215,7 @@ class BaseRunner(ABC):
             started_test_run (TestRun): The test that has just started.
         """
         for tr in self.test_scenario.test_runs:
-            if tr.test not in self.testrun_to_job_map:
+            if tr not in self.testrun_to_job_map:
                 for dep_type, dep in tr.dependencies.items():
                     if (dep_type == "start_post_init") and (dep.test_run == started_test_run):
                         await self.delayed_submit_test(tr, dep.time)
@@ -369,7 +369,7 @@ class BaseRunner(ABC):
 
         # Handling start_post_comp dependencies
         for tr in self.test_scenario.test_runs:
-            if tr.test not in self.testrun_to_job_map:
+            if tr not in self.testrun_to_job_map:
                 for dep_type, dep in tr.dependencies.items():
                     if dep_type == "start_post_comp" and dep.test_run.test == completed_job.test_run.test:
                         task = await self.delayed_submit_test(tr, dep.time)
