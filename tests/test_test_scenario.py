@@ -19,7 +19,7 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
-from cloudai import Test, TestRun, TestScenarioParser
+from cloudai import Test, TestRun, TestScenarioParser, TestScenarioParsingError
 from cloudai._core.test_scenario_parser import _TestScenarioTOML
 
 
@@ -113,7 +113,7 @@ def test_two_independent_cases(test: Test, test_scenario_parser: TestScenarioPar
 
 
 def test_raises_on_missing_mapping(test_scenario_parser: TestScenarioParser):
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(TestScenarioParsingError) as exc_info:
         test_scenario_parser._parse_data({"name": "nccl-test", "Tests": [{"id": "1", "template_test": "nccl1"}]})
     assert exc_info.match("Test 'nccl1' not found in the test schema directory")
 
