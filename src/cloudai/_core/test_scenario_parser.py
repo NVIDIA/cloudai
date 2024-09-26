@@ -30,7 +30,7 @@ from .test_scenario import TestRun, TestScenario
 class _TestDependencyTOML(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    type: Literal["end_post_comp"]
+    type: Literal["end_post_comp", "start_post_init", "start_post_comp"]
     id: str
     time: int = 0
 
