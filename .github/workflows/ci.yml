@@ -66,3 +66,21 @@ jobs:
 
       - name: Run pytest
         run: pytest -vv --cov
+
+      - name: Test local installation
+        run: |
+          set -eE
+          set -o pipefail
+
+          pip install .
+          pip uninstall -y cloudai
+          pip install -e .
+
+      - name: Test commands
+        run: |
+          set -eE
+          set -o pipefail
+
+          cloudai --help
+          cloudai --mode verify-systems --tests-dir conf/common/test --system-config conf/common/system
+          cloudai --mode verify-tests --system-config conf/common/system/standalone_system.toml --tests-dir conf/common/test
