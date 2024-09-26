@@ -24,7 +24,6 @@ from cloudai import (
     Registry,
     ReportGenerationStrategy,
 )
-from cloudai.installer.kubernetes_installer import KubernetesInstaller
 from cloudai.installer.slurm_installer import SlurmInstaller
 from cloudai.installer.standalone_installer import StandaloneInstaller
 from cloudai.schema.test_template.chakra_replay.grading_strategy import ChakraReplayGradingStrategy
@@ -68,6 +67,13 @@ from cloudai.schema.test_template.ucc_test.template import UCCTest
 from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.standalone_system import StandaloneSystem
+from cloudai.test_definitions import (
+    ChakraReplayTestDefinition,
+    NCCLTestDefinition,
+    NeMoLauncherTestDefinition,
+    SleepTestDefinition,
+    UCCTestDefinition,
+)
 
 
 def test_systems():
@@ -134,9 +140,8 @@ def test_strategies(key: tuple, value: type):
 
 def test_test_templates():
     test_templates = Registry().test_templates_map
-    assert len(test_templates) == 6
+    assert len(test_templates) == 5
     assert test_templates["ChakraReplay"] == ChakraReplay
-    assert test_templates["JaxToolbox"] == JaxToolbox
     assert test_templates["NcclTest"] == NcclTest
     assert test_templates["NeMoLauncher"] == NeMoLauncher
     assert test_templates["Sleep"] == Sleep
@@ -148,4 +153,22 @@ def test_installers():
     assert len(installers) == 3
     assert installers["standalone"] == StandaloneInstaller
     assert installers["slurm"] == SlurmInstaller
-    assert installers["kubernetes"] == KubernetesInstaller
+
+
+def test_definitions():
+    test_defs = Registry().test_definitions_map
+    assert len(test_defs) == 5
+    assert test_defs["UCCTest"] == UCCTestDefinition
+    assert test_defs["NcclTest"] == NCCLTestDefinition
+    assert test_defs["ChakraReplay"] == ChakraReplayTestDefinition
+    assert test_defs["Sleep"] == SleepTestDefinition
+    assert test_defs["NeMoLauncher"] == NeMoLauncherTestDefinition
+
+
+def test_definitions_matches_templates():
+    test_defs = Registry().test_definitions_map
+    test_templates = Registry().test_templates_map
+
+    def_names = set(test_defs.keys())
+    template_names = set(test_templates.keys())
+    assert def_names == template_names

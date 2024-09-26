@@ -58,36 +58,11 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
     REPOSITORY_NAME = "NeMo-Launcher"
     DOCKER_IMAGE_FILENAME = "nemo_launcher.sqsh"
 
-    def __init__(
-        self,
-        system: System,
-        env_vars: Dict[str, Any],
-        cmd_args: Dict[str, Any],
-    ) -> None:
+    def __init__(self, system: System, env_vars: Dict[str, Any], cmd_args: Dict[str, Any]) -> None:
         super().__init__(system, env_vars, cmd_args)
-        self.repository_url = self._validate_cmd_arg(cmd_args, "repository_url")
-        self.repository_commit_hash = self._validate_cmd_arg(cmd_args, "repository_commit_hash")
-        self.docker_image_url = self._validate_cmd_arg(cmd_args, "docker_image_url")
-
-    def _validate_cmd_arg(self, cmd_args: Dict[str, Any], arg_name: str) -> str:
-        """
-        Validate and returns specified command-line argument.
-
-        Args:
-            cmd_args (Dict[str, Any]): Command-line arguments.
-            arg_name (str): Argument name to validate.
-
-        Returns:
-            str: Validated command-line argument value.
-
-        Raises:
-            ValueError: If argument not specified or default value is None.
-        """
-        arg_info = cmd_args.get(arg_name)
-        arg_value = arg_info.get("default") if arg_info else None
-        if arg_value is None:
-            raise ValueError(f"{arg_name} not specified or default value is None in command-line arguments.")
-        return arg_value
+        self.repository_url = cmd_args["repository_url"]
+        self.repository_commit_hash = cmd_args["repository_commit_hash"]
+        self.docker_image_url = cmd_args["docker_image_url"]
 
     def is_installed(self) -> InstallStatusResult:
         subdir_path = self.install_path / self.SUBDIR_PATH

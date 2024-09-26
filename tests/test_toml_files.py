@@ -50,5 +50,5 @@ def test_systems(mock_exists, mock_load_kube_config, system_file: Path):
         system_file (Path): The path to the system configuration file to validate.
     """
     mock_load_kube_config.return_value = None
-    system = Parser(system_file, Path("conf/test_template")).parse_system(system_file)
+    system = Parser(system_file).parse_system(system_file)
     assert system is not None

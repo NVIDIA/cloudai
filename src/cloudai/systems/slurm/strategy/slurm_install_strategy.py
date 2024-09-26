@@ -46,8 +46,4 @@ class SlurmInstallStrategy(InstallStrategy):
             self.slurm_system.cache_docker_images_locally,
             self.slurm_system.default_partition,
         )
-        docker_image_url_info = self.cmd_args.get("docker_image_url")
-        if docker_image_url_info is not None:
-            self.docker_image_url = docker_image_url_info.get("default")
-        else:
-            self.docker_image_url = ""
+        self.docker_image_url = self.cmd_args.get("docker_image_url", "")

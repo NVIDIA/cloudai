@@ -20,34 +20,31 @@ from typing import List, Optional, Tuple
 
 import toml
 from pydantic import ValidationError
-from pydantic_core import ErrorDetails
 
 from cloudai import (
     Registry,
     System,
     Test,
+    TestConfigParsingError,
     TestParser,
     TestScenario,
     TestScenarioParser,
-    TestTemplate,
-    TestTemplateParser,
+    format_validation_error,
 )
 
 
 class Parser:
     """Main parser for parsing all types of configurations."""
 
-    def __init__(self, system_config_path: Path, test_templates_dir: Path) -> None:
+    def __init__(self, system_config_path: Path) -> None:
         """
         Initialize a Parser instance.
 
         Args:
             system_config_path (str): The file path for system configurations.
-            test_templates_dir (str): The file path for test_template configurations.
         """
-        logging.debug(f"Initializing parser with: {system_config_path=} {test_templates_dir=}")
+        logging.debug(f"Initializing parser with: {system_config_path=}")
         self.system_config_path = system_config_path
-        self.test_template_path = test_templates_dir
 
     def parse(
         self, test_path: Path, test_scenario_path: Optional[Path] = None
@@ -64,13 +61,12 @@ class Parser:
 
         system = self.parse_system(self.system_config_path)
 
-        test_template_parser = TestTemplateParser(system, self.test_template_path)
-        test_templates: List[TestTemplate] = test_template_parser.parse_all()
-        test_template_mapping = {t.name: t for t in test_templates}
-        logging.debug(f"Parsed {len(test_templates)} test templates: {[t.name for t in test_templates]}")
-
-        test_parser = TestParser(test_path, test_template_mapping)
-        tests: List[Test] = test_parser.parse_all()
+        test_parser = TestParser(test_path, system)
+        try:
+            tests: List[Test] = test_parser.parse_all()
+        except TestConfigParsingError:
+            # exit right away to keep error message readable for users
+            exit(1)
         test_mapping = {t.name: t for t in tests}
         logging.debug(f"Parsed {len(tests)} tests: {[t.name for t in tests]}")
 
@@ -103,16 +99,9 @@ class Parser:
             system = registry.systems_map[scheduler](**data)
         except ValidationError as e:
             for err in e.errors(include_url=False):
-                err_msg = Parser.format_validation_error(err)
+                logging.error(f"Validation error: {err}")
+                err_msg = format_validation_error(err)
                 logging.error(err_msg)
             raise ValueError("Failed to parse system definition") from e
 
         return system
-
-    @staticmethod
-    def format_validation_error(err: ErrorDetails) -> str:
-        logging.error(f"Validation error: {err}")
-        if err["msg"] == "Field required":
-            return f"Field '{'.'.join(str(v) for v in err['loc'])}': {err['msg']}"
-
-        return f"Field '{'.'.join(str(v) for v in err['loc'])}' with value '{err['input']}' is invalid: {err['msg']}"
