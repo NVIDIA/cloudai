@@ -113,14 +113,14 @@ class TestScenarioParser:
                 logging.error(err_msg)
             raise TestScenarioParsingError("Failed to parse Test Scenario definition") from e
 
+        total_weight = sum(tr.weight for tr in ts_model.tests)
+        normalized_weight = 0 if total_weight == 0 else 100 / total_weight
+
         self.testruns_by_id: dict[str, TestRun] = {}
         for tr in ts_model.tests:
             if tr.id in self.testruns_by_id:
                 raise ValueError(f"Duplicate test id '{tr.id}' found in the test scenario.")
-            self.testruns_by_id[tr.id] = self._create_section_test_run(tr)
-
-        total_weight = sum(tr.weight for tr in ts_model.tests)
-        normalized_weight = 0 if total_weight == 0 else 100 / total_weight
+            self.testruns_by_id[tr.id] = self._create_section_test_run(tr, normalized_weight)
 
         tests_data: dict[str, _TestRunTOML] = {}
         for tr in ts_model.tests:
@@ -128,16 +128,7 @@ class TestScenarioParser:
 
         for section, tr in self.testruns_by_id.items():
             test_info = tests_data[section]
-
-            deps = self._parse_dependencies_for_test(test_info)
-
-            tr.iterations = test_info.iterations
-            tr.dependencies = deps
-            tr.time_limit = test_info.time_limit
-
-            tr.test.weight = test_info.weight * normalized_weight
-            tr.test.sol = test_info.sol
-            tr.test.ideal_perf = test_info.ideal_perf
+            tr.dependencies = self._parse_dependencies_for_test(test_info)
 
         return TestScenario(
             name=ts_model.name,
@@ -145,12 +136,13 @@ class TestScenarioParser:
             job_status_check=ts_model.job_status_check,
         )
 
-    def _create_section_test_run(self, test_info: _TestRunTOML) -> TestRun:
+    def _create_section_test_run(self, test_info: _TestRunTOML, normalized_weight: float) -> TestRun:
         """
         Create a section-specific Test object by copying from the test mapping.
 
         Args:
             test_info (Dict[str, Any]): Information of the test.
+            normalized_weight (float): Normalized weight for the test.
 
         Returns:
             Test: Copied and updated Test object for the section.
@@ -176,9 +168,9 @@ class TestScenarioParser:
             cmd_args=copy.deepcopy(original_test.cmd_args),
             extra_env_vars=copy.deepcopy(original_test.extra_env_vars),
             extra_cmd_args=original_test.extra_cmd_args,
-            sol=original_test.sol,
-            weight=original_test.weight,
-            ideal_perf=original_test.ideal_perf,
+            sol=test_info.sol,
+            weight=test_info.weight * normalized_weight,
+            ideal_perf=test_info.ideal_perf,
         )
 
         tr = TestRun(
@@ -187,6 +179,7 @@ class TestScenarioParser:
             num_nodes=test_info.num_nodes or 1,
             iterations=test_info.iterations,
             nodes=test_info.nodes,
+            time_limit=test_info.time_limit,
         )
         return tr
 
