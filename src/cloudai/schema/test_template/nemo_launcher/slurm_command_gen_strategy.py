@@ -60,6 +60,9 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         for key, value in final_env_vars.items():
             self.final_cmd_args[f"env_vars.{key}"] = value
 
+        if "training.values" in self.final_cmd_args:
+            self.final_cmd_args["training"] = self.final_cmd_args.pop("training.values")
+
         self.final_cmd_args["cluster.partition"] = self.slurm_system.default_partition
         reservation_key = "--reservation "
         if self.slurm_system.extra_srun_args and reservation_key in self.slurm_system.extra_srun_args:
