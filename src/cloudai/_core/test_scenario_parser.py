@@ -54,7 +54,7 @@ class _TestScenarioTOML(BaseModel):
 
     name: str
     job_status_check: bool = True
-    tests: list[_TestRunTOML] = Field(default_factory=list, alias="Tests")
+    tests: list[_TestRunTOML] = Field(alias="Tests", min_length=1)
 
     @model_validator(mode="after")
     def check_circular_dependencies(self):

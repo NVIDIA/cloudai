@@ -25,7 +25,7 @@ class TestDependency:
     Represents a dependency for a test.
 
     Attributes
-        test (Test): The test object it depends on.
+        test_run (TestRun): TestRun object it depends on.
         time (int): Time in seconds after which this dependency is met.
     """
 

@@ -207,3 +207,19 @@ def test_ids_must_be_unique(test: Test, test_scenario_parser: TestScenarioParser
             }
         )
     assert exc_info.match("Duplicate test id '1' found in the test scenario.")
+
+
+def test_list_of_tests_must_not_be_empty() -> None:
+    with pytest.raises(ValueError) as exc_info:
+        _TestScenarioTOML.model_validate({"name": "name"})
+    assert exc_info.match("_TestScenarioTOML\nTests\n  Field required")
+
+    with pytest.raises(ValueError) as exc_info:
+        _TestScenarioTOML.model_validate({"name": "name", "Tests": []})
+    assert exc_info.match("_TestScenarioTOML\nTests\n  List should have at least 1 item after validation")
+
+
+def test_test_id_must_contain_at_least_one_letter() -> None:
+    with pytest.raises(ValueError) as exc_info:
+        _TestScenarioTOML.model_validate({"name": "name", "Tests": [{"id": "", "template_test": "nccl"}]})
+    assert exc_info.match("_TestScenarioTOML\nTests.0.id\n  String should have at least 1 character")
