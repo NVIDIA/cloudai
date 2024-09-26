@@ -23,12 +23,7 @@ from .slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
 
 
 class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
-    """
-    Command generation strategy for NeMo Megatron Launcher on Slurm systems.
-
-    Attributes
-        install_path (Path): The installation path of CloudAI.
-    """
+    """Command generation strategy for NeMo Megatron Launcher on Slurm systems."""
 
     def gen_exec_command(
         self,
@@ -44,7 +39,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         final_env_vars = self._override_env_vars(final_env_vars, extra_env_vars)
 
         launcher_path = (
-            self.install_path
+            self.system.install_path
             / NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH
             / NeMoLauncherSlurmInstallStrategy.REPOSITORY_NAME
         )
