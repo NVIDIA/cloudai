@@ -58,10 +58,10 @@ def test_single_test_case(test: Test, test_scenario_parser: TestScenarioParser) 
     assert tr.name == "1"
     assert tr.iterations == 1
     assert tr.current_iteration == 0
+    assert tr.dependencies == {}
     atest = test_scenario.test_runs[0].test
     assert atest.name == test.name
     assert atest.description == test.description
-    assert atest.dependencies == {}
     assert atest.weight == 0
     assert atest.ideal_perf == 1.0
     assert atest.sol is None
@@ -109,10 +109,10 @@ def test_two_independent_cases(test: Test, test_scenario_parser: TestScenarioPar
     assert len(test_scenario.test_runs) == 2
 
     assert test_scenario.test_runs[0].test.name == t1.name
-    assert test_scenario.test_runs[0].test.dependencies == {}
+    assert test_scenario.test_runs[0].dependencies == {}
 
     assert test_scenario.test_runs[1].test.name == t2.name
-    assert test_scenario.test_runs[1].test.dependencies == {}
+    assert test_scenario.test_runs[1].dependencies == {}
 
 
 def test_raises_on_missing_mapping(test_scenario_parser: TestScenarioParser):
@@ -125,14 +125,14 @@ def test_raises_on_unknown_dependency(test_scenario_parser: TestScenarioParser) 
     dep = _TestDependencyTOML(type="end_post_comp", id="dep")
     test_info = _TestRunTOML(id="test", template_test="nccl", dependencies=[dep])
     with pytest.raises(ValueError) as exc_info:
-        test_scenario_parser._parse_dependencies_for_test(test_info, {})
+        test_scenario_parser._parse_dependencies_for_test(test_info)
 
     assert exc_info.match(f"Dependency section '{dep.id}' not found for " f"test '{test_info.id}'.")
 
 
 def test_empty_dependency(test_scenario_parser: TestScenarioParser) -> None:
     test_info = _TestRunTOML(id="1", template_test="nccl")
-    deps = test_scenario_parser._parse_dependencies_for_test(test_info, {})
+    deps = test_scenario_parser._parse_dependencies_for_test(test_info)
     assert deps == {}
 
 
@@ -142,12 +142,12 @@ def test_returns_valid_dependency(time: Any, test_scenario_parser: TestScenarioP
     test_info = _TestRunTOML(id="test", template_test="nccl", dependencies=[dep])
     if time is not None:
         dep.time = time
-    sec_runs = {"dep": TestRun("", test, 1, [])}
-    deps = test_scenario_parser._parse_dependencies_for_test(test_info, sec_runs)
+    test_scenario_parser.testruns_by_id = {"dep": TestRun("", test, 1, [])}
+    deps = test_scenario_parser._parse_dependencies_for_test(test_info)
 
     assert len(deps) == 1
     assert "end_post_comp" in deps
-    assert deps["end_post_comp"].test == test
+    assert deps["end_post_comp"].test_run.test == test
     if time is not None:
         assert deps["end_post_comp"].time == time
     else:
@@ -188,12 +188,12 @@ def test_two_dependent_cases(test: Test, test_scenario_parser: TestScenarioParse
     assert len(test_scenario.test_runs) == 2
 
     assert test_scenario.test_runs[0].test.name == t1.name
-    assert "end_post_comp" in test_scenario.test_runs[0].test.dependencies
-    assert isinstance(test_scenario.test_runs[0].test.dependencies["end_post_comp"].test, Test)
-    assert test_scenario.test_runs[0].test.dependencies["end_post_comp"].time == 0
+    assert "end_post_comp" in test_scenario.test_runs[0].dependencies
+    assert isinstance(test_scenario.test_runs[0].dependencies["end_post_comp"].test_run, TestRun)
+    assert test_scenario.test_runs[0].dependencies["end_post_comp"].time == 0
 
     assert test_scenario.test_runs[1].test.name == t2.name
-    assert test_scenario.test_runs[1].test.dependencies == {}
+    assert test_scenario.test_runs[1].dependencies == {}
 
 
 def test_ids_must_be_unique(test: Test, test_scenario_parser: TestScenarioParser) -> None:

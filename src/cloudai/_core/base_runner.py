@@ -29,7 +29,6 @@ from .base_job import BaseJob
 from .exceptions import JobFailureError, JobSubmissionError
 from .job_status_result import JobStatusResult
 from .system import System
-from .test import Test
 from .test_scenario import TestRun, TestScenario
 
 
@@ -68,7 +67,7 @@ class BaseRunner(ABC):
         self.output_path = self.setup_output_directory(system.output_path)
         self.monitor_interval = system.monitor_interval
         self.jobs: List[BaseJob] = []
-        self.test_to_job_map: Dict[Test, BaseJob] = {}
+        self.testrun_to_job_map: Dict[TestRun, BaseJob] = {}
         logging.debug(f"{self.__class__.__name__} initialized")
         self.shutting_down = False
         self.register_signal_handlers()
@@ -165,7 +164,7 @@ class BaseRunner(ABC):
         try:
             job = self._submit_test(tr)
             self.jobs.append(job)
-            self.test_to_job_map[tr.test] = job
+            self.testrun_to_job_map[tr] = job
         except JobSubmissionError as e:
             logging.error(e)
             exit(1)
@@ -202,23 +201,23 @@ class BaseRunner(ABC):
         This method should be called periodically to ensure timely execution of tests with
         start_post_init dependencies.
         """
-        items = list(self.test_to_job_map.items())
+        items = list(self.testrun_to_job_map.items())
 
-        for test, job in items:
+        for tr, job in items:
             if job.is_running():
-                await self.check_and_schedule_start_post_init_dependent_tests(test)
+                await self.check_and_schedule_start_post_init_dependent_tests(tr)
 
-    async def check_and_schedule_start_post_init_dependent_tests(self, started_test: Test):
+    async def check_and_schedule_start_post_init_dependent_tests(self, started_test_run: TestRun):
         """
         Schedule tests with a start_post_init dependency on the provided started_test.
 
         Args:
-            started_test (Test): The test that has just been started.
+            started_test_run (TestRun): The test that has just started.
         """
         for tr in self.test_scenario.test_runs:
-            if tr.test not in self.test_to_job_map:
-                for dep_type, dep in tr.test.dependencies.items():
-                    if (dep_type == "start_post_init") and (dep.test == started_test):
+            if tr.test not in self.testrun_to_job_map:
+                for dep_type, dep in tr.dependencies.items():
+                    if (dep_type == "start_post_init") and (dep.test_run == started_test_run):
                         await self.delayed_submit_test(tr, dep.time)
 
     def find_dependency_free_tests(self) -> List[TestRun]:
@@ -232,7 +231,7 @@ class BaseRunner(ABC):
         """
         dependency_free_tests = []
         for tr in self.test_scenario.test_runs:
-            if "start_post_comp" not in tr.test.dependencies and "start_post_init" not in tr.test.dependencies:
+            if "start_post_comp" not in tr.dependencies and "start_post_init" not in tr.dependencies:
                 dependency_free_tests.append(tr)
 
         return dependency_free_tests
@@ -335,7 +334,7 @@ class BaseRunner(ABC):
         logging.info(f"Job completed: {completed_job.test_run.name}")
 
         self.jobs.remove(completed_job)
-        del self.test_to_job_map[completed_job.test_run.test]
+        del self.testrun_to_job_map[completed_job.test_run]
         completed_job.increment_iteration()
         if not completed_job.terminated_by_dependency and completed_job.test_run.has_more_iterations():
             msg = f"Re-running job for iteration {completed_job.test_run.current_iteration}"
@@ -370,17 +369,17 @@ class BaseRunner(ABC):
 
         # Handling start_post_comp dependencies
         for tr in self.test_scenario.test_runs:
-            if tr.test not in self.test_to_job_map:
-                for dep_type, dep in tr.test.dependencies.items():
-                    if dep_type == "start_post_comp" and dep.test == completed_job.test_run.test:
+            if tr.test not in self.testrun_to_job_map:
+                for dep_type, dep in tr.dependencies.items():
+                    if dep_type == "start_post_comp" and dep.test_run.test == completed_job.test_run.test:
                         task = await self.delayed_submit_test(tr, dep.time)
                         if task:
                             tasks.append(task)
 
         # Handling end_post_comp dependencies
-        for test, dependent_job in self.test_to_job_map.items():
+        for test, dependent_job in self.testrun_to_job_map.items():
             for dep_type, dep in test.dependencies.items():
-                if dep_type == "end_post_comp" and dep.test == completed_job.test_run.test:
+                if dep_type == "end_post_comp" and dep.test_run.test == completed_job.test_run.test:
                     task = await self.delayed_kill_job(dependent_job, dep.time)
                     tasks.append(task)
 

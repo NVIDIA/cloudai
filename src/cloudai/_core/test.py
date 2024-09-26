@@ -14,9 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -38,7 +37,6 @@ class Test:
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
-        dependencies: Optional[Dict[str, "TestDependency"]] = None,
         sol: Optional[float] = None,
         weight: float = 0.0,
         ideal_perf: float = 1.0,
@@ -54,7 +52,6 @@ class Test:
             cmd_args (Dict[str, str]): Command-line arguments for the test.
             extra_env_vars (Dict[str, str]): Extra environment variables.
             extra_cmd_args (str): Extra command-line arguments.
-            dependencies (Optional[Dict[str, TestDependency]]): Test dependencies.
             iterations (Union[int, str]): Total number of iterations to run the test. Can be an integer or 'infinite'
                 for endless iterations.
             sol (Optional[float]): Speed-of-light performance for reference.
@@ -68,7 +65,6 @@ class Test:
         self.cmd_args = cmd_args
         self.extra_env_vars = extra_env_vars
         self.extra_cmd_args = extra_cmd_args
-        self.dependencies = dependencies or {}
         self.sol = sol
         self.weight = weight
         self.ideal_perf = ideal_perf
@@ -86,8 +82,7 @@ class Test:
             f"env_vars={self.env_vars}, "
             f"cmd_args={self.cmd_args}, "
             f"extra_env_vars={self.extra_env_vars}, "
-            f"extra_cmd_args={self.extra_cmd_args}, "
-            f"dependencies={self.dependencies}, "
+            f"extra_cmd_args={self.extra_cmd_args}"
         )
 
     def gen_exec_command(
@@ -181,29 +176,6 @@ class Test:
             JobStatusResult: The result containing the job status and an optional error message.
         """
         return self.test_template.get_job_status(output_path)
-
-
-class TestDependency:
-    """
-    Represents a dependency for a test.
-
-    Attributes
-        test (Test): The test object it depends on.
-        time (int): Time in seconds after which this dependency is met.
-    """
-
-    __test__ = False
-
-    def __init__(self, test: Test, time: int) -> None:
-        """
-        Initialize a TestDependency instance.
-
-        Args:
-            test (Test): The test object it depends on.
-            time (int): Time in seconds to meet the dependency.
-        """
-        self.test = test
-        self.time = time
 
 
 class CmdArgs(BaseModel):

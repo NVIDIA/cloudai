@@ -14,10 +14,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional
 
 from .test import Test
+
+
+class TestDependency:
+    """
+    Represents a dependency for a test.
+
+    Attributes
+        test (Test): The test object it depends on.
+        time (int): Time in seconds after which this dependency is met.
+    """
+
+    __test__ = False
+
+    def __init__(self, test_run: "TestRun", time: int) -> None:
+        """
+        Initialize a TestDependency instance.
+
+        Args:
+            test_run (TestRun): TestRun object it depends on.
+            time (int): Time in seconds to meet the dependency.
+        """
+        self.test_run = test_run
+        self.time = time
 
 
 @dataclass
@@ -31,6 +54,17 @@ class TestRun:
     iterations: int = 1
     current_iteration: int = 0
     time_limit: Optional[str] = None
+    dependencies: dict[str, TestDependency] = field(default_factory=dict)
+
+    def __hash__(self) -> int:
+        return hash(
+            self.name
+            + self.test.name
+            + str(self.num_nodes)
+            + str(self.nodes)
+            + str(self.iterations)
+            + str(self.time_limit)
+        )
 
     def has_more_iterations(self) -> bool:
         """
@@ -84,11 +118,11 @@ class TestScenario:
             s += f"\nSection Name: {tr.name}\n"
             s += f"  Test Name: {tr.test.name}\n"
             s += f"  Description: {tr.test.description}\n"
-            if tr.test.dependencies:
-                for dep_type, dependency in tr.test.dependencies.items():
+            if tr.dependencies:
+                for dep_type, dependency in tr.dependencies.items():
                     if dependency:
                         s += (
-                            # f"  {dep_type.replace('_', ' ').title()}: {dependency.test.section_name}, "
+                            f"  {dep_type.replace('_', ' ').title()}: {dependency.test_run.name}, "
                             f"Time: {dependency.time} seconds"
                         )
             else:

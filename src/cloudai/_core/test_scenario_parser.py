@@ -23,8 +23,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 
 from .exceptions import format_validation_error
 from .system import System
-from .test import Test, TestDependency
-from .test_scenario import TestRun, TestScenario
+from .test import Test
+from .test_scenario import TestDependency, TestRun, TestScenario
 
 
 class _TestDependencyTOML(BaseModel):
@@ -84,6 +84,7 @@ class TestScenarioParser:
         self.file_path = file_path
         self.system = system
         self.test_mapping = test_mapping
+        self.testruns_by_id: dict[str, TestRun] = {}
 
     def parse(self) -> TestScenario:
         """
@@ -114,11 +115,11 @@ class TestScenarioParser:
                 logging.error(err_msg)
             raise ValueError("Failed to parse Test Scenario definition") from e
 
-        test_runs_by_id = {}
+        self.testruns_by_id: dict[str, TestRun] = {}
         for tr in ts_model.tests:
-            if tr.id in test_runs_by_id:
+            if tr.id in self.testruns_by_id:
                 raise ValueError(f"Duplicate test id '{tr.id}' found in the test scenario.")
-            test_runs_by_id[tr.id] = self._create_section_test_run(tr)
+            self.testruns_by_id[tr.id] = self._create_section_test_run(tr)
 
         total_weight = sum(tr.weight for tr in ts_model.tests)
         normalized_weight = 0 if total_weight == 0 else 100 / total_weight
@@ -127,20 +128,23 @@ class TestScenarioParser:
         for tr in ts_model.tests:
             tests_data[tr.id] = tr
 
-        for section, tr in test_runs_by_id.items():
+        for section, tr in self.testruns_by_id.items():
             test_info = tests_data[section]
 
-            deps = self._parse_dependencies_for_test(test_info, test_runs_by_id)
-            tr.test.dependencies = deps
+            deps = self._parse_dependencies_for_test(test_info)
 
             tr.iterations = test_info.iterations
+            tr.dependencies = deps
+            tr.time_limit = test_info.time_limit
+
             tr.test.weight = test_info.weight * normalized_weight
             tr.test.sol = test_info.sol
             tr.test.ideal_perf = test_info.ideal_perf
-            tr.time_limit = test_info.time_limit
 
         return TestScenario(
-            name=ts_model.name, test_runs=list(test_runs_by_id.values()), job_status_check=ts_model.job_status_check
+            name=ts_model.name,
+            test_runs=list(self.testruns_by_id.values()),
+            job_status_check=ts_model.job_status_check,
         )
 
     def _create_section_test_run(self, test_info: _TestRunTOML) -> TestRun:
@@ -174,7 +178,6 @@ class TestScenarioParser:
             cmd_args=copy.deepcopy(original_test.cmd_args),
             extra_env_vars=copy.deepcopy(original_test.extra_env_vars),
             extra_cmd_args=original_test.extra_cmd_args,
-            dependencies=copy.deepcopy(original_test.dependencies),
             sol=original_test.sol,
             weight=original_test.weight,
             ideal_perf=original_test.ideal_perf,
@@ -189,9 +192,7 @@ class TestScenarioParser:
         )
         return tr
 
-    def _parse_dependencies_for_test(
-        self, test_info: _TestRunTOML, section_test_runs: Dict[str, TestRun]
-    ) -> Dict[str, TestDependency]:
+    def _parse_dependencies_for_test(self, test_info: _TestRunTOML) -> Dict[str, TestDependency]:
         """
         Parse and creates TestDependency objects for various types of dependencies, ignoring empty dependencies.
 
@@ -205,11 +206,8 @@ class TestScenarioParser:
         """
         dependencies = {}
         for dep in test_info.dependencies:
-            dep_section = dep.id
-            dep_test = section_test_runs.get(dep_section)
-            if not dep_test:
-                raise ValueError(f"Dependency section '{dep_section}' not found for " f"test '{test_info.id}'.")
-            dep_time = dep.time
-            dependencies[dep.type] = TestDependency(test=dep_test.test, time=dep_time)
+            if dep.id not in self.testruns_by_id:
+                raise ValueError(f"Dependency section '{dep.id}' not found for " f"test '{test_info.id}'.")
+            dependencies[dep.type] = TestDependency(time=dep.time, test_run=self.testruns_by_id[dep.id])
 
         return dependencies
