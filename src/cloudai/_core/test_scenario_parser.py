@@ -22,7 +22,6 @@ import toml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from .exceptions import TestScenarioParsingError, format_validation_error
-from .system import System
 from .test import Test
 from .test_scenario import TestDependency, TestRun, TestScenario
 
@@ -74,15 +73,13 @@ class TestScenarioParser:
 
     Attributes
         file_path (str): Path to the TOML configuration file.
-        system: The system object to which the test scenarios apply.
         test_mapping: Mapping of test names to Test objects.
     """
 
     __test__ = False
 
-    def __init__(self, file_path: str, system: System, test_mapping: Dict[str, Test]) -> None:
+    def __init__(self, file_path: str, test_mapping: Dict[str, Test]) -> None:
         self.file_path = file_path
-        self.system = system
         self.test_mapping = test_mapping
         self.testruns_by_id: dict[str, TestRun] = {}
 

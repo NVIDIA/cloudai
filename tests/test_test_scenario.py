@@ -22,13 +22,11 @@ from unittest.mock import Mock
 import pytest
 from cloudai import Test, TestRun, TestScenarioParser
 from cloudai._core.test_scenario_parser import _TestDependencyTOML, _TestRunTOML, _TestScenarioTOML
-from cloudai.systems.standalone_system import StandaloneSystem
 
 
 @pytest.fixture
 def test_scenario_parser(tmp_path: Path) -> TestScenarioParser:
-    system = StandaloneSystem(name="test", install_path=tmp_path, output_path=tmp_path)
-    tsp = TestScenarioParser("", system, {})
+    tsp = TestScenarioParser("", {})
     return tsp
 
 

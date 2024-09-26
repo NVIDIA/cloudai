@@ -79,7 +79,7 @@ class Parser:
         filtered_tests = tests
         test_scenario: Optional[TestScenario] = None
         if test_scenario_path:
-            test_scenario_parser = TestScenarioParser(str(test_scenario_path), system, test_mapping)
+            test_scenario_parser = TestScenarioParser(str(test_scenario_path), test_mapping)
             try:
                 test_scenario = test_scenario_parser.parse()
             except TestScenarioParsingError:
