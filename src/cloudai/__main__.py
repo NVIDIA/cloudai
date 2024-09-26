@@ -281,8 +281,8 @@ def handle_verify_systems(root: Path) -> int:
         except Exception:
             rc = 1
             break
-
-    logging.info(f"Checked systems: {len(test_tomls)}, all passed")
+    if rc == 0:
+        logging.info(f"Checked systems: {len(test_tomls)}, all passed")
 
     return rc
 
@@ -309,8 +309,8 @@ def handle_verify_tests(root: Path) -> int:
         except Exception:
             rc = 1
             break
-
-    logging.info(f"Checked tests: {len(test_tomls)}, all passed")
+    if rc == 0:
+        logging.info(f"Checked tests: {len(test_tomls)}, all passed")
 
     return rc
 
@@ -336,12 +336,13 @@ def handle_verify_test_scenarios(root: Path, system_config: Path, tests_dir: Pat
             rc = 1
             break
 
-    logging.info(f"Checked scenarios: {len(test_tomls)}, all passed")
+    if rc == 0:
+        logging.info(f"Checked scenarios: {len(test_tomls)}, all passed")
 
     return rc
 
 
-def handle_scenario_specific_runs(
+def handle_runs_with_scenario(
     mode: str, output_dir: Optional[Path], system: System, tests: list[Test], test_scenario: TestScenario, log_file: str
 ) -> None:
     if mode in ["dry-run", "run"]:
@@ -396,7 +397,7 @@ def main() -> None:
         if not test_scenario:
             logging.error(f"Error: --test-scenario is required for mode={args.mode}")
             exit(1)
-        handle_scenario_specific_runs(args.mode, output_dir, system, tests, test_scenario, args.log_file)
+        handle_runs_with_scenario(args.mode, output_dir, system, tests, test_scenario, args.log_file)
 
 
 if __name__ == "__main__":
