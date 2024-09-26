@@ -51,9 +51,8 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
 
 @pytest.fixture
 def strategy_fixture(slurm_system: SlurmSystem) -> SlurmCommandGenStrategy:
-    env_vars = {"TEST_VAR": "VALUE"}
     cmd_args = {"test_arg": "test_value"}
-    strategy = SlurmCommandGenStrategy(slurm_system, env_vars, cmd_args)
+    strategy = SlurmCommandGenStrategy(slurm_system, cmd_args)
     return strategy
 
 
@@ -61,17 +60,15 @@ def strategy_fixture(slurm_system: SlurmSystem) -> SlurmCommandGenStrategy:
 def jax_strategy_fixture() -> JaxToolboxSlurmCommandGenStrategy:
     # Mock the SlurmSystem and other dependencies
     mock_slurm_system = Mock()
-    env_vars = {"TEST_VAR": "VALUE"}
     cmd_args = {"test_arg": "test_value"}
     mock_slurm_system.install_path = "/mock/install/path"
 
     # Use patch to mock the __init__ method of JaxToolboxSlurmCommandGenStrategy
     with patch.object(JaxToolboxSlurmCommandGenStrategy, "__init__", lambda self, _, __, ___: None):
-        strategy = JaxToolboxSlurmCommandGenStrategy(mock_slurm_system, env_vars, cmd_args)
+        strategy = JaxToolboxSlurmCommandGenStrategy(mock_slurm_system, cmd_args)
         # Manually set attributes needed for the tests
-        strategy.env_vars = env_vars
         strategy.cmd_args = cmd_args
-        strategy.default_env_vars = env_vars
+        strategy.default_env_vars = {}
         strategy.default_cmd_args = cmd_args
         return strategy
 
@@ -138,7 +135,7 @@ def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
 def test_raises_if_no_default_partition(slurm_system: SlurmSystem):
     slurm_system.default_partition = ""
     with pytest.raises(ValueError) as exc_info:
-        SlurmCommandGenStrategy(slurm_system, {}, {})
+        SlurmCommandGenStrategy(slurm_system, {})
     assert "Partition not specified in the system configuration." in str(exc_info)
 
 
@@ -195,9 +192,8 @@ class TestGenerateSrunCommand__CmdGeneration:
 class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
     @pytest.fixture
     def nemo_cmd_gen(self, slurm_system: SlurmSystem) -> NeMoLauncherSlurmCommandGenStrategy:
-        env_vars = {"TEST_VAR": "VALUE"}
         cmd_args = {"test_arg": "test_value"}
-        strategy = NeMoLauncherSlurmCommandGenStrategy(slurm_system, env_vars, cmd_args)
+        strategy = NeMoLauncherSlurmCommandGenStrategy(slurm_system, cmd_args)
         return strategy
 
     def test_extra_env_vars_added(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
@@ -208,7 +204,6 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             "repository_commit_hash": "fake",
         }
         cmd = nemo_cmd_gen.gen_exec_command(
-            env_vars={},
             cmd_args=cmd_args,
             extra_env_vars=extra_env_vars,
             extra_cmd_args="",
@@ -228,7 +223,6 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             "repository_commit_hash": "fake",
         }
         cmd = nemo_cmd_gen.gen_exec_command(
-            env_vars={},
             cmd_args=cmd_args,
             extra_env_vars=extra_env_vars,
             extra_cmd_args="",
@@ -250,7 +244,6 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
         tokenizer_path.touch()
 
         cmd = nemo_cmd_gen.gen_exec_command(
-            env_vars={},
             cmd_args=cmd_args,
             extra_env_vars=extra_env_vars,
             extra_cmd_args=f"training.model.tokenizer.model={tokenizer_path}",
@@ -270,7 +263,6 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
         }
         nemo_cmd_gen.slurm_system.extra_srun_args = "--reservation my-reservation"
         cmd = nemo_cmd_gen.gen_exec_command(
-            env_vars={},
             cmd_args=cmd_args,
             extra_cmd_args="",
             extra_env_vars=extra_env_vars,
@@ -299,7 +291,6 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             ),
         ):
             nemo_cmd_gen.gen_exec_command(
-                env_vars={},
                 cmd_args=cmd_args,
                 extra_env_vars=extra_env_vars,
                 extra_cmd_args=f"training.model.tokenizer.model={invalid_tokenizer_path}",
@@ -452,7 +443,7 @@ class TestWriteSbatchScript:
 
 class TestNCCLSlurmCommandGen:
     def get_cmd(self, slurm_system: SlurmSystem, slurm_args: dict, cmd_args: dict) -> str:
-        return NcclTestSlurmCommandGenStrategy(slurm_system, {}, {}).generate_full_srun_command(
+        return NcclTestSlurmCommandGenStrategy(slurm_system, {}).generate_full_srun_command(
             slurm_args, {}, cmd_args, ""
         )
 

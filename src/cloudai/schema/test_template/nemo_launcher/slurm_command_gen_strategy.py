@@ -32,7 +32,6 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def gen_exec_command(
         self,
-        env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
@@ -40,8 +39,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         num_nodes: int,
         nodes: List[str],
     ) -> str:
-        final_env_vars = self._override_env_vars(self.default_env_vars, env_vars)
-        final_env_vars = self._override_env_vars(final_env_vars, extra_env_vars)
+        final_env_vars = self._override_env_vars(self.default_env_vars, extra_env_vars)
 
         launcher_path = (
             self.install_path
