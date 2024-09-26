@@ -84,3 +84,4 @@ jobs:
           cloudai --help
           cloudai --mode verify-systems --tests-dir conf/common/test --system-config conf/common/system
           cloudai --mode verify-tests --system-config conf/common/system/standalone_system.toml --tests-dir conf/common/test
+          cloudai --mode verify-test-scenarios --system-config conf/common/system/example_slurm_cluster.toml --tests-dir conf/common/test --test-scenario conf/common/test_scenario
