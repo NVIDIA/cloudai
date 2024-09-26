@@ -263,7 +263,7 @@ class BaseRunner(ABC):
         try:
             test_output_path = self.output_path / tr.name
             test_output_path.mkdir()
-            job_output_path = test_output_path / str(tr.test.current_iteration)
+            job_output_path = test_output_path / str(tr.current_iteration)
             job_output_path.mkdir()
         except PermissionError as e:
             raise PermissionError(f"Cannot create directory {job_output_path}: {e}") from e
@@ -337,8 +337,8 @@ class BaseRunner(ABC):
         self.jobs.remove(completed_job)
         del self.test_to_job_map[completed_job.test_run.test]
         completed_job.increment_iteration()
-        if not completed_job.terminated_by_dependency and completed_job.test_run.test.has_more_iterations():
-            msg = f"Re-running job for iteration {completed_job.test_run.test.current_iteration}"
+        if not completed_job.terminated_by_dependency and completed_job.test_run.has_more_iterations():
+            msg = f"Re-running job for iteration {completed_job.test_run.current_iteration}"
             logging.info(msg)
             await self.submit_test(completed_job.test_run)
         else:

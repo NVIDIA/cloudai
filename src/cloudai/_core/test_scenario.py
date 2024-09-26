@@ -28,7 +28,18 @@ class TestRun:
     test: Test
     num_nodes: int
     nodes: List[str]
+    iterations: int = 1
+    current_iteration: int = 0
     time_limit: Optional[str] = None
+
+    def has_more_iterations(self) -> bool:
+        """
+        Check if the test has more iterations to run.
+
+        Returns
+            bool: True if more iterations are pending, False otherwise.
+        """
+        return self.current_iteration < self.iterations
 
 
 class TestScenario:

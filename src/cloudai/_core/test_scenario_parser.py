@@ -20,8 +20,8 @@ from typing import Any, Dict, Literal, Optional
 
 import toml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
-from pydantic_core import ErrorDetails
 
+from .exceptions import format_validation_error
 from .system import System
 from .test import Test, TestDependency
 from .test_scenario import TestRun, TestScenario
@@ -38,7 +38,7 @@ class _TestDependencyTOML(BaseModel):
 class _TestRunTOML(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: str
+    id: str = Field(min_length=1)
     template_test: str
     num_nodes: Optional[int] = None
     nodes: list[str] = Field(default_factory=list)
@@ -85,14 +85,6 @@ class TestScenarioParser:
         self.system = system
         self.test_mapping = test_mapping
 
-    @staticmethod
-    def format_validation_error(err: ErrorDetails) -> str:
-        logging.error(f"Validation error: {err}")
-        if err["msg"] == "Field required":
-            return f"Field '{'.'.join(str(v) for v in err['loc'])}': {err['msg']}"
-
-        return f"Field '{'.'.join(str(v) for v in err['loc'])}' with value '{err['input']}' is invalid: {err['msg']}"
-
     def parse(self) -> TestScenario:
         """
         Parse the TOML file and returns a TestScenario object.
@@ -118,7 +110,7 @@ class TestScenarioParser:
             ts_model = _TestScenarioTOML.model_validate(data)
         except ValidationError as e:
             for err in e.errors(include_url=False):
-                err_msg = self.format_validation_error(err)
+                err_msg = format_validation_error(err)
                 logging.error(err_msg)
             raise ValueError("Failed to parse Test Scenario definition") from e
 
@@ -141,7 +133,7 @@ class TestScenarioParser:
             deps = self._parse_dependencies_for_test(test_info, test_runs_by_id)
             tr.test.dependencies = deps
 
-            tr.test.iterations = test_info.iterations
+            tr.iterations = test_info.iterations
             tr.test.weight = test_info.weight * normalized_weight
             tr.test.sol = test_info.sol
             tr.test.ideal_perf = test_info.ideal_perf
@@ -183,13 +175,18 @@ class TestScenarioParser:
             extra_env_vars=copy.deepcopy(original_test.extra_env_vars),
             extra_cmd_args=original_test.extra_cmd_args,
             dependencies=copy.deepcopy(original_test.dependencies),
-            iterations=original_test.iterations,
             sol=original_test.sol,
             weight=original_test.weight,
             ideal_perf=original_test.ideal_perf,
         )
 
-        tr = TestRun(test_info.id, test, num_nodes=test_info.num_nodes or 1, nodes=test_info.nodes)
+        tr = TestRun(
+            test_info.id,
+            test,
+            num_nodes=test_info.num_nodes or 1,
+            iterations=test_info.iterations,
+            nodes=test_info.nodes,
+        )
         return tr
 
     def _parse_dependencies_for_test(

@@ -54,13 +54,14 @@ def test_single_test_case(test: Test, test_scenario_parser: TestScenarioParser) 
     assert len(test_scenario.test_runs) == 1
     assert test_scenario.job_status_check is True
 
-    assert test_scenario.test_runs[0].name == "1"
+    tr = test_scenario.test_runs[0]
+    assert tr.name == "1"
+    assert tr.iterations == 1
+    assert tr.current_iteration == 0
     atest = test_scenario.test_runs[0].test
     assert atest.name == test.name
     assert atest.description == test.description
     assert atest.dependencies == {}
-    assert atest.iterations == 1
-    assert atest.current_iteration == 0
     assert atest.weight == 0
     assert atest.ideal_perf == 1.0
     assert atest.sol is None

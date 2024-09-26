@@ -39,7 +39,6 @@ class Test:
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
         dependencies: Optional[Dict[str, "TestDependency"]] = None,
-        iterations: Union[int, str] = 1,
         sol: Optional[float] = None,
         weight: float = 0.0,
         ideal_perf: float = 1.0,
@@ -70,8 +69,6 @@ class Test:
         self.extra_env_vars = extra_env_vars
         self.extra_cmd_args = extra_cmd_args
         self.dependencies = dependencies or {}
-        self.iterations = iterations if isinstance(iterations, int) else sys.maxsize
-        self.current_iteration = 0
         self.sol = sol
         self.weight = weight
         self.ideal_perf = ideal_perf
@@ -90,7 +87,7 @@ class Test:
             f"cmd_args={self.cmd_args}, "
             f"extra_env_vars={self.extra_env_vars}, "
             f"extra_cmd_args={self.extra_cmd_args}, "
-            f"dependencies={self.dependencies}, iterations={self.iterations}, "
+            f"dependencies={self.dependencies}, "
         )
 
     def gen_exec_command(
@@ -184,15 +181,6 @@ class Test:
             JobStatusResult: The result containing the job status and an optional error message.
         """
         return self.test_template.get_job_status(output_path)
-
-    def has_more_iterations(self) -> bool:
-        """
-        Check if the test has more iterations to run.
-
-        Returns
-            bool: True if more iterations are pending, False otherwise.
-        """
-        return self.current_iteration < self.iterations
 
 
 class TestDependency:

@@ -73,7 +73,7 @@ def slurm_system(tmp_path: Path):
 @pytest.fixture
 def slurm_runner(slurm_system) -> SlurmRunner:
     test_scenario = TestScenario(
-        name="Test Scenario", test_runs=[TestRun("", MockTest(section_name="Mock Test"), 1, [])]
+        name="Test Scenario", test_runs=[TestRun("tr-name", MockTest(section_name="Mock Test"), 1, [])]
     )
     runner = SlurmRunner(mode="run", system=slurm_system, test_scenario=test_scenario)
     runner.cmd_shell = MockCommandShell()

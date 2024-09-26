@@ -75,7 +75,7 @@ class BaseJob:
 
     def increment_iteration(self):
         """Increment the iteration count of the associated test."""
-        self.test_run.test.current_iteration += 1
+        self.test_run.current_iteration += 1
 
     def __repr__(self) -> str:
         """
