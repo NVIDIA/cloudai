@@ -21,6 +21,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List
 
+import pkg_resources
+
 from cloudai import InstallStatusResult, System
 from cloudai.systems.slurm import SlurmNodeState
 from cloudai.systems.slurm.strategy import SlurmInstallStrategy
@@ -73,6 +75,8 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
             self.docker_image_url, self.SUBDIR_PATH, self.DOCKER_IMAGE_FILENAME
         ).success
 
+        requirements_installed = self._check_requirements_installed(subdir_path)
+
         data_dir_path = Path(self.default_cmd_args["data_dir"])
         datasets_check_result = self._check_datasets_on_nodes(data_dir_path)
         if not datasets_check_result.success:
@@ -87,7 +91,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
                 ),
             )
 
-        if repo_installed and docker_image_installed and datasets_check_result.success:
+        if repo_installed and docker_image_installed and requirements_installed and datasets_check_result.success:
             return InstallStatusResult(success=True)
         else:
             missing_components = []
@@ -99,6 +103,8 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
             if not docker_image_installed:
                 docker_image_path = subdir_path / self.DOCKER_IMAGE_FILENAME
                 missing_components.append(f"Docker image at {docker_image_path} from URL {self.docker_image_url}")
+            if not requirements_installed:
+                missing_components.append("Python requirements from requirements.txt")
             if not datasets_check_result.success:
                 missing_components.append(f"Datasets in {data_dir_path} on some nodes")
             return InstallStatusResult(
@@ -106,6 +112,36 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
                 message="The following components are missing:\n"
                 + "\n".join(f"    - {item}" for item in missing_components),
             )
+
+    def _check_requirements_installed(self, subdir_path: Path) -> bool:
+        """
+        Check if all the required Python packages are installed based on the requirements.txt file.
+
+        Args:
+            subdir_path (Path): Subdirectory path where the repository is installed.
+
+        Returns:
+            bool: True if all requirements are installed, False otherwise.
+        """
+        repo_path = subdir_path / self.REPOSITORY_NAME
+        requirements_file = repo_path / "requirements.txt"
+
+        if not requirements_file.is_file():
+            logging.warning(f"requirements.txt not found in {repo_path}")
+            return False
+
+        with requirements_file.open() as f:
+            requirements = f.read().splitlines()
+
+        try:
+            pkg_resources.require(requirements)
+            return True
+        except pkg_resources.DistributionNotFound as e:
+            logging.warning(f"Missing required package: {e}")
+            return False
+        except pkg_resources.VersionConflict as e:
+            logging.warning(f"Version conflict: {e}")
+            return False
 
     def install(self) -> InstallStatusResult:
         install_status = self.is_installed()
