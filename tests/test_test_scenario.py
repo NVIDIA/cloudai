@@ -16,12 +16,11 @@
 
 
 from pathlib import Path
-from typing import Any
 from unittest.mock import Mock
 
 import pytest
 from cloudai import Test, TestRun, TestScenarioParser
-from cloudai._core.test_scenario_parser import _TestDependencyTOML, _TestRunTOML, _TestScenarioTOML
+from cloudai._core.test_scenario_parser import _TestScenarioTOML
 
 
 @pytest.fixture
