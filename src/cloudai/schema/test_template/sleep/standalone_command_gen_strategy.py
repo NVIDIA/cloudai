@@ -29,7 +29,6 @@ class SleepStandaloneCommandGenStrategy(CommandGenStrategy):
 
     def gen_exec_command(
         self,
-        env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,

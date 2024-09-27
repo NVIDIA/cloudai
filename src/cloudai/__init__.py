@@ -19,7 +19,7 @@ from ._core.base_job import BaseJob
 from ._core.base_runner import BaseRunner
 from ._core.base_system_parser import BaseSystemParser
 from ._core.command_gen_strategy import CommandGenStrategy
-from ._core.exceptions import JobIdRetrievalError
+from ._core.exceptions import JobIdRetrievalError, TestConfigParsingError, format_validation_error
 from ._core.grader import Grader
 from ._core.grading_strategy import GradingStrategy
 from ._core.install_strategy import InstallStrategy
@@ -31,12 +31,11 @@ from ._core.registry import Registry
 from ._core.report_generation_strategy import ReportGenerationStrategy
 from ._core.runner import Runner
 from ._core.system import System
-from ._core.test import Test
+from ._core.test import CmdArgs, Test, TestDefinition
 from ._core.test_parser import TestParser
 from ._core.test_scenario import TestRun, TestScenario
 from ._core.test_scenario_parser import TestScenarioParser
 from ._core.test_template import TestTemplate
-from ._core.test_template_parser import TestTemplateParser
 from ._core.test_template_strategy import TestTemplateStrategy
 from .installer.installer import Installer
 from .installer.kubernetes_installer import KubernetesInstaller
@@ -92,6 +91,13 @@ from .schema.test_template.ucc_test.template import UCCTest
 from .systems.kubernetes.kubernetes_system import KubernetesSystem
 from .systems.slurm.slurm_system import SlurmSystem
 from .systems.standalone_system import StandaloneSystem
+from .test_definitions import (
+    ChakraReplayTestDefinition,
+    NCCLTestDefinition,
+    NeMoLauncherTestDefinition,
+    SleepTestDefinition,
+    UCCTestDefinition,
+)
 
 Registry().add_runner("slurm", SlurmRunner)
 Registry().add_runner("kubernetes", KubernetesRunner)
@@ -150,13 +156,6 @@ Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [ChakraReplay],
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [ChakraReplay], ChakraReplayGradingStrategy)
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [ChakraReplay], ChakraReplaySlurmCommandGenStrategy)
 
-Registry().add_test_template("ChakraReplay", ChakraReplay)
-Registry().add_test_template("JaxToolbox", JaxToolbox)
-Registry().add_test_template("NcclTest", NcclTest)
-Registry().add_test_template("NeMoLauncher", NeMoLauncher)
-Registry().add_test_template("Sleep", Sleep)
-Registry().add_test_template("UCCTest", UCCTest)
-
 Registry().add_installer("slurm", SlurmInstaller)
 Registry().add_installer("standalone", StandaloneInstaller)
 Registry().add_installer("kubernetes", KubernetesInstaller)
@@ -165,13 +164,26 @@ Registry().add_system("slurm", SlurmSystem)
 Registry().add_system("standalone", StandaloneSystem)
 Registry().add_system("kubernetes", KubernetesSystem)
 
+Registry().add_test_definition("UCCTest", UCCTestDefinition)
+Registry().add_test_definition("NcclTest", NCCLTestDefinition)
+Registry().add_test_definition("ChakraReplay", ChakraReplayTestDefinition)
+Registry().add_test_definition("Sleep", SleepTestDefinition)
+Registry().add_test_definition("NeMoLauncher", NeMoLauncherTestDefinition)
+
+Registry().add_test_template("ChakraReplay", ChakraReplay)
+Registry().add_test_template("NcclTest", NcclTest)
+Registry().add_test_template("NeMoLauncher", NeMoLauncher)
+Registry().add_test_template("Sleep", Sleep)
+Registry().add_test_template("UCCTest", UCCTest)
+
 __all__ = [
     "BaseInstaller",
     "BaseJob",
     "BaseRunner",
     "BaseSystemParser",
+    "CmdArgs",
     "CommandGenStrategy",
-    "JsonGenStrategy",
+    "format_validation_error",
     "Grader",
     "GradingStrategy",
     "Installer",
@@ -179,17 +191,20 @@ __all__ = [
     "InstallStrategy",
     "JobIdRetrievalError",
     "JobStatusResult",
+    "JsonGenStrategy",
     "Parser",
     "ReportGenerationStrategy",
     "ReportGenerator",
     "Runner",
     "System",
     "Test",
+    "TestDefinition",
+    "TestParser",
+    "TestParser",
     "TestRun",
     "TestScenario",
+    "TestScenarioParser",
     "TestTemplate",
     "TestTemplateStrategy",
-    "TestParser",
-    "TestScenarioParser",
-    "TestTemplateParser",
+    "TestConfigParsingError",
 ]

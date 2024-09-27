@@ -15,6 +15,9 @@
 # limitations under the License.
 
 
+from pydantic_core import ErrorDetails
+
+
 class JobSubmissionError(Exception):
     """
     Exception raised for errors that occur during job submission.
@@ -110,3 +113,14 @@ class JobFailureError(Exception):
             f"\tMessage: {self.message}\n"
             f"\tDetails: '{self.details}'\n"
         )
+
+
+class TestConfigParsingError(Exception):
+    pass
+
+
+def format_validation_error(err: ErrorDetails) -> str:
+    if err["msg"] == "Field required":
+        return f"Field '{'.'.join(str(v) for v in err['loc'])}': {err['msg']}"
+
+    return f"Field '{'.'.join(str(v) for v in err['loc'])}' with value '{err['input']}' is invalid: {err['msg']}"

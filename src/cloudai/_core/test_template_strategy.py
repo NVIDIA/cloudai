@@ -28,44 +28,23 @@ class TestTemplateStrategy:
 
     Attributes
         system (System): The system schema object.
-        install_path (str): Path where the benchmarks are to be installed.
-        env_vars (Dict[str, Any]): Default environment variables.
         cmd_args (Dict[str, Any]): Default command-line arguments.
-        default_env_vars (Dict[str, str]): Constructed default environment variables.
         default_cmd_args (Dict[str, str]): Constructed default command-line arguments.
     """
 
     __test__ = False
 
-    def __init__(self, system: System, env_vars: Dict[str, Any], cmd_args: Dict[str, Any]) -> None:
+    def __init__(self, system: System, cmd_args: Dict[str, Any]) -> None:
         """
         Initialize a TestTemplateStrategy instance with system configuration, env variables, and command-line arguments.
 
         Args:
             system (System): The system configuration for the test.
-            env_vars (Dict[str, Any]): Default environment variables.
             cmd_args (Dict[str, Any]): Default command-line arguments.
         """
         self.system = system
-        self.install_path = ""
-        self.env_vars = env_vars
         self.cmd_args = cmd_args
-        self.default_env_vars = self._construct_default_env_vars()
         self.default_cmd_args = self._construct_default_cmd_args()
-        self.default_env_vars.update(system.global_env_vars)
-
-    def _construct_default_env_vars(self) -> Dict[str, str]:
-        """
-        Construct the default environment variables for the test template.
-
-        Returns
-            Dict[str, str]: A dictionary containing the default environment variables.
-        """
-        return {
-            key: value["default"]
-            for key, value in self.env_vars.items()
-            if isinstance(value, dict) and "default" in value
-        }
 
     def _construct_default_cmd_args(self) -> Dict[str, str]:
         """

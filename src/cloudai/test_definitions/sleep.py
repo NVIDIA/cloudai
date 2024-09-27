@@ -14,33 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "ChakraReplay"
 
-[cmd_args]
-  [cmd_args.docker_image_url]
-  type = "str"
-  default = "DOCKER_IMAGE_URL"
+from cloudai import CmdArgs, TestDefinition
 
-  [cmd_args.mpi]
-  type = "preset"
-  values = ["pmix"]
-  default = "pmix"
 
-  [cmd_args.trace_type]
-  type = "preset"
-  values = ["et"]
-  default = "et"
+class SleepCmdArgs(CmdArgs):
+    """Sleep test command arguments."""
 
-  [cmd_args.trace_path]
-  type = "str"
-  default = ""
+    seconds: int = 5
 
-  [cmd_args.backend]
-  type = "preset"
-  values = ["nccl"]
-  default = "nccl"
 
-  [cmd_args.device]
-  type = "preset"
-  values = ["cuda"]
-  default = "cuda"
+class SleepTestDefinition(TestDefinition):
+    """Test object for Sleep."""
+
+    cmd_args: SleepCmdArgs

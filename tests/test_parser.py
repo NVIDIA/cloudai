@@ -19,7 +19,7 @@ from typing import cast
 from unittest.mock import Mock, patch
 
 import pytest
-from cloudai import Parser
+from cloudai import Parser, format_validation_error
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from pydantic_core import ErrorDetails
 
@@ -28,11 +28,10 @@ class Test_Parser:
     @pytest.fixture()
     def parser(self, tmp_path: Path) -> Parser:
         system = Path.cwd() / "conf" / "common" / "system" / "standalone_system.toml"
-        templates_dir = tmp_path / "templates"
-        return Parser(system, templates_dir)
+        return Parser(system)
 
     def test_no_tests_dir(self, parser: Parser):
-        tests_dir = parser.test_template_path.parent / "tests"
+        tests_dir = parser.system_config_path.parent / "tests"
         with pytest.raises(FileNotFoundError) as exc_info:
             parser.parse(tests_dir, None)
         assert "Test path" in str(exc_info.value)
@@ -112,5 +111,5 @@ class Test_Parser:
         ],
     )
     def test_log_validation_errors_with_required_field_error(self, error: ErrorDetails, expected_msg: str):
-        err_msg = Parser.format_validation_error(error)
+        err_msg = format_validation_error(error)
         assert err_msg == expected_msg

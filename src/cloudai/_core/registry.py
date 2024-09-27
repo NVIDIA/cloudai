@@ -23,6 +23,7 @@ from .job_id_retrieval_strategy import JobIdRetrievalStrategy
 from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
+from .test import TestDefinition
 from .test_template import TestTemplate
 from .test_template_strategy import TestTemplateStrategy
 
@@ -69,6 +70,7 @@ class Registry(metaclass=Singleton):
     test_templates_map: Dict[str, Type[TestTemplate]] = {}
     installers_map: Dict[str, Type[BaseInstaller]] = {}
     systems_map: Dict[str, Type[System]] = {}
+    test_definitions_map: Dict[str, Type[TestDefinition]] = {}
 
     def add_runner(self, name: str, value: Type[BaseRunner]) -> None:
         """
@@ -273,3 +275,35 @@ class Registry(metaclass=Singleton):
         if not issubclass(value, System):
             raise ValueError(f"Invalid system implementation for '{name}', should be subclass of 'System'.")
         self.systems_map[name] = value
+
+    def add_test_definition(self, name: str, value: Type[TestDefinition]) -> None:
+        """
+        Add a new test definition implementation mapping.
+
+        Args:
+            name (str): The name of the test definition.
+            value (Type[TestDefinition]): The test definition implementation.
+
+        Raises:
+            ValueError: If the test definition implementation already exists.
+        """
+        if name in self.test_definitions_map:
+            raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
+        self.update_test_definition(name, value)
+
+    def update_test_definition(self, name: str, value: Type[TestDefinition]) -> None:
+        """
+        Create or replace test definition implementation mapping.
+
+        Args:
+            name (str): The name of the test definition.
+            value (Type[TestDefinition]): The test definition implementation.
+
+        Raises:
+            ValueError: If value is not a subclass of TestDefinition.
+        """
+        if not issubclass(value, TestDefinition):
+            raise ValueError(
+                f"Invalid test definition implementation for '{name}', should be subclass of 'TestDefinition'."
+            )
+        self.test_definitions_map[name] = value

@@ -16,7 +16,7 @@
 
 from pathlib import Path
 from typing import Optional
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
@@ -51,9 +51,8 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
 
 @pytest.fixture
 def strategy_fixture(slurm_system: SlurmSystem) -> SlurmCommandGenStrategy:
-    env_vars = {"TEST_VAR": "VALUE"}
     cmd_args = {"test_arg": "test_value"}
-    strategy = SlurmCommandGenStrategy(slurm_system, env_vars, cmd_args)
+    strategy = SlurmCommandGenStrategy(slurm_system, cmd_args)
     return strategy
 
 
@@ -61,17 +60,14 @@ def strategy_fixture(slurm_system: SlurmSystem) -> SlurmCommandGenStrategy:
 def jax_strategy_fixture() -> JaxToolboxSlurmCommandGenStrategy:
     # Mock the SlurmSystem and other dependencies
     mock_slurm_system = Mock()
-    env_vars = {"TEST_VAR": "VALUE"}
     cmd_args = {"test_arg": "test_value"}
     mock_slurm_system.install_path = "/mock/install/path"
 
     # Use patch to mock the __init__ method of JaxToolboxSlurmCommandGenStrategy
     with patch.object(JaxToolboxSlurmCommandGenStrategy, "__init__", lambda self, _, __, ___: None):
-        strategy = JaxToolboxSlurmCommandGenStrategy(mock_slurm_system, env_vars, cmd_args)
+        strategy = JaxToolboxSlurmCommandGenStrategy(mock_slurm_system, cmd_args)
         # Manually set attributes needed for the tests
-        strategy.env_vars = env_vars
         strategy.cmd_args = cmd_args
-        strategy.default_env_vars = env_vars
         strategy.default_cmd_args = cmd_args
         return strategy
 
@@ -138,7 +134,7 @@ def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
 def test_raises_if_no_default_partition(slurm_system: SlurmSystem):
     slurm_system.default_partition = ""
     with pytest.raises(ValueError) as exc_info:
-        SlurmCommandGenStrategy(slurm_system, {}, {})
+        SlurmCommandGenStrategy(slurm_system, {})
     assert "Partition not specified in the system configuration." in str(exc_info)
 
 
@@ -191,192 +187,12 @@ class TestGenerateSrunCommand__CmdGeneration:
         full_srun_command = strategy_fixture.generate_full_srun_command({}, {}, {}, "")
         assert full_srun_command == " \\\n".join(["srun", "--test", "test_arg", "test_command"])
 
-    def test_generate_full_srun_command_with_pre_test(
-        self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy, slurm_system: SlurmSystem
-    ):
-        jax_strategy_fixture.slurm_system = slurm_system
-
-        jax_strategy_fixture._create_run_script = MagicMock()
-        jax_strategy_fixture._generate_pre_test_command = MagicMock(return_value="pre_test_command")
-        jax_strategy_fixture._generate_pre_test_check_command = MagicMock(return_value="pre_test_check_command")
-
-        slurm_system.mpi = "none"
-        slurm_args = {
-            "output": "output.txt",
-            "error": "error.txt",
-            "image_path": "image_path",
-            "container_mounts": "container_mounts",
-            "container_name": "cont",
-        }
-        env_vars = {}
-        extra_cmd_args = ""
-
-        # run_pre_test is True
-        cmd_args = {"output_path": "/path/to/output", "pre_test": "true"}
-        result = jax_strategy_fixture.generate_full_srun_command(slurm_args, env_vars, cmd_args, extra_cmd_args)
-        assert "pre_test_command" in result
-        assert "pre_test_check_command" in result
-        assert f"--mpi={slurm_system.mpi}" in result
-        assert "--container-mounts=" + slurm_args.get("container_mounts", "") in result
-        assert f"-o {slurm_args['output']}" in result
-        assert f"-e {slurm_args['error']}" in result
-        assert "--container-name=" + slurm_args.get("container_name", "") in result
-        assert "/opt/paxml/workspace/run.sh" in result
-
-    def test_generate_full_srun_command_without_pre_test(
-        self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy, slurm_system: SlurmSystem
-    ):
-        jax_strategy_fixture.slurm_system = slurm_system
-
-        jax_strategy_fixture._create_run_script = MagicMock()
-        jax_strategy_fixture._generate_pre_test_command = MagicMock(return_value="pre_test_command")
-        jax_strategy_fixture._generate_pre_test_check_command = MagicMock(return_value="pre_test_check_command")
-
-        slurm_system.mpi = "none"
-        slurm_args = {
-            "output": "output.txt",
-            "error": "error.txt",
-            "image_path": "image_path",
-            "container_mounts": "container_mounts",
-            "container_name": "cont",
-        }
-        env_vars = {}
-        extra_cmd_args = ""
-
-        # run_pre_test is False
-        cmd_args = {
-            "output_path": "/path/to/output",
-            "pre_test": "false",
-        }
-        result = jax_strategy_fixture.generate_full_srun_command(slurm_args, env_vars, cmd_args, extra_cmd_args)
-        assert "pre_test_command" not in result
-        assert "pre_test_check_command" not in result
-        assert f"--mpi={slurm_system.mpi}" in result
-        assert f"--container-mounts={slurm_args['container_mounts']}" in result
-        assert "--container-name=" + slurm_args.get("container_name", "") in result
-        assert f"-o {slurm_args['output']}" in result
-        assert f"-e {slurm_args['error']}" in result
-
-
-class TestJaxToolboxSlurmCommandGenStrategy__ExtractTestName:
-    def test_extract_test_name_grok(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
-        cmd_args = {"Grok.setup_flags.docker_workspace_dir": "/some/dir", "Grok.some_other_flag": "value"}
-        test_name = jax_strategy_fixture._extract_test_name(cmd_args)
-        assert test_name == "Grok"
-
-    def test_extract_test_name_gpt(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
-        cmd_args = {"GPT.setup_flags.docker_workspace_dir": "/some/dir", "GPT.some_other_flag": "value"}
-        test_name = jax_strategy_fixture._extract_test_name(cmd_args)
-        assert test_name == "GPT"
-
-    def test_extract_test_name_none(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
-        cmd_args = {"some_other_flag": "value", "another_flag": "value"}
-        test_name = jax_strategy_fixture._extract_test_name(cmd_args)
-        assert test_name == ""
-
-    def test_format_xla_flags_grok(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
-        jax_strategy_fixture.test_name = "Grok"
-        cmd_args = {
-            "Grok.profile.XLA_FLAGS.some_flag": "value",
-            "Grok.profile.XLA_FLAGS.another_flag": "another_value",
-        }
-        xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args, "profile")
-        expected_flags = (
-            "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD "
-            "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD "
-            "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD "
-            "--some_flag=value --another_flag=another_value"
-        )
-
-        # Split, sort, and compare the flags
-        actual_flags_list = sorted(xla_flags.split())
-        expected_flags_list = sorted(expected_flags.split())
-
-        assert actual_flags_list == expected_flags_list
-
-    def test_format_xla_flags_gpt(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
-        jax_strategy_fixture.test_name = "GPT"
-        cmd_args = {
-            "GPT.profile.XLA_FLAGS.some_flag": "value",
-            "GPT.profile.XLA_FLAGS.another_flag": "another_value",
-        }
-        xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args, "profile")
-        expected_flags = (
-            "--some_flag=value --another_flag=another_value "
-            "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD "
-            "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD "
-            "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD"
-        )
-
-        # Split, sort, and compare the flags
-        actual_flags_list = sorted(xla_flags.split())
-        expected_flags_list = sorted(expected_flags.split())
-
-        assert actual_flags_list == expected_flags_list
-
-    def test_format_xla_flags_common(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
-        jax_strategy_fixture.test_name = "SomeTest"
-        cmd_args = {
-            "common.XLA_FLAGS.some_flag": "value",
-            "common.XLA_FLAGS.another_flag": "another_value",
-        }
-        xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args, "profile")
-        expected_flags = (
-            "--some_flag=value --another_flag=another_value "
-            "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD "
-            "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD "
-            "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD"
-        )
-
-        # Split, sort, and compare the flags
-        actual_flags_list = sorted(xla_flags.split())
-        expected_flags_list = sorted(expected_flags.split())
-
-        assert actual_flags_list == expected_flags_list
-
-    def test_format_xla_flags_boolean(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
-        jax_strategy_fixture.test_name = "Grok"
-        cmd_args = {
-            "Grok.profile.XLA_FLAGS.some_flag": "value",
-            "Grok.profile.XLA_FLAGS.xla_gpu_simplify_all_fp_conversions": True,
-        }
-        xla_flags = jax_strategy_fixture._format_xla_flags(cmd_args, "profile")
-        expected_flags = (
-            "--some_flag=value --xla_gpu_simplify_all_fp_conversions "
-            "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD "
-            "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD "
-            "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD"
-        )
-
-        # Split, sort, and compare the flags
-        actual_flags_list = sorted(xla_flags.split())
-        expected_flags_list = sorted(expected_flags.split())
-
-        assert actual_flags_list == expected_flags_list
-
-    def test_handle_threshold_and_env_common(self, jax_strategy_fixture: JaxToolboxSlurmCommandGenStrategy):
-        cmd_args = {"XLA_FLAGS.combine_threshold_bytes": "value", "common.setup_flags.gpus_per_node": "4"}
-        env_vars = {"TEST_VAR": "VALUE"}
-        combine_threshold_bytes = 1024
-        num_nodes = 2
-
-        jax_strategy_fixture.env_vars = env_vars
-        jax_strategy_fixture.cmd_args = cmd_args
-        jax_strategy_fixture.test_name = "Other"
-
-        jax_strategy_fixture._handle_threshold_and_env(cmd_args, env_vars, combine_threshold_bytes, num_nodes)
-
-        assert "PER_GPU_COMBINE_THRESHOLD" in env_vars
-        assert env_vars["PER_GPU_COMBINE_THRESHOLD"] == str(combine_threshold_bytes // (4 * num_nodes))
-        assert "XLA_FLAGS.combine_threshold_bytes" not in cmd_args
-
 
 class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
     @pytest.fixture
     def nemo_cmd_gen(self, slurm_system: SlurmSystem) -> NeMoLauncherSlurmCommandGenStrategy:
-        env_vars = {"TEST_VAR": "VALUE"}
         cmd_args = {"test_arg": "test_value"}
-        strategy = NeMoLauncherSlurmCommandGenStrategy(slurm_system, env_vars, cmd_args)
+        strategy = NeMoLauncherSlurmCommandGenStrategy(slurm_system, cmd_args)
         return strategy
 
     def test_extra_env_vars_added(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
@@ -387,7 +203,6 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             "repository_commit_hash": "fake",
         }
         cmd = nemo_cmd_gen.gen_exec_command(
-            env_vars={},
             cmd_args=cmd_args,
             extra_env_vars=extra_env_vars,
             extra_cmd_args="",
@@ -407,7 +222,6 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             "repository_commit_hash": "fake",
         }
         cmd = nemo_cmd_gen.gen_exec_command(
-            env_vars={},
             cmd_args=cmd_args,
             extra_env_vars=extra_env_vars,
             extra_cmd_args="",
@@ -429,7 +243,6 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
         tokenizer_path.touch()
 
         cmd = nemo_cmd_gen.gen_exec_command(
-            env_vars={},
             cmd_args=cmd_args,
             extra_env_vars=extra_env_vars,
             extra_cmd_args=f"training.model.tokenizer.model={tokenizer_path}",
@@ -449,7 +262,6 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
         }
         nemo_cmd_gen.slurm_system.extra_srun_args = "--reservation my-reservation"
         cmd = nemo_cmd_gen.gen_exec_command(
-            env_vars={},
             cmd_args=cmd_args,
             extra_cmd_args="",
             extra_env_vars=extra_env_vars,
@@ -478,7 +290,6 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             ),
         ):
             nemo_cmd_gen.gen_exec_command(
-                env_vars={},
                 cmd_args=cmd_args,
                 extra_env_vars=extra_env_vars,
                 extra_cmd_args=f"training.model.tokenizer.model={invalid_tokenizer_path}",
@@ -631,7 +442,7 @@ class TestWriteSbatchScript:
 
 class TestNCCLSlurmCommandGen:
     def get_cmd(self, slurm_system: SlurmSystem, slurm_args: dict, cmd_args: dict) -> str:
-        return NcclTestSlurmCommandGenStrategy(slurm_system, {}, {}).generate_full_srun_command(
+        return NcclTestSlurmCommandGenStrategy(slurm_system, {}).generate_full_srun_command(
             slurm_args, {}, cmd_args, ""
         )
 

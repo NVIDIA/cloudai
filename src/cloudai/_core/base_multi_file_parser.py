@@ -17,7 +17,7 @@
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 import toml
 
@@ -37,6 +37,7 @@ class BaseMultiFileParser(ABC):
 
     def __init__(self, directory_path: Path):
         self.directory_path = directory_path
+        self.current_file: Optional[Path] = None
 
     @abstractmethod
     def _parse_data(self, data: Dict[str, Any]) -> Union[Test, TestTemplate]:
@@ -62,6 +63,7 @@ class BaseMultiFileParser(ABC):
         """
         objects: List[Any] = []
         for f in self.directory_path.glob("*.toml"):
+            self.current_file = f
             logging.debug(f"Parsing file: {f}")
             with f.open() as fh:
                 data: Dict[str, Any] = toml.load(fh)

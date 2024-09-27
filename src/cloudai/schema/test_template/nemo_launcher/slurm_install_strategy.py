@@ -58,39 +58,14 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
     REPOSITORY_NAME = "NeMo-Launcher"
     DOCKER_IMAGE_FILENAME = "nemo_launcher.sqsh"
 
-    def __init__(
-        self,
-        system: System,
-        env_vars: Dict[str, Any],
-        cmd_args: Dict[str, Any],
-    ) -> None:
-        super().__init__(system, env_vars, cmd_args)
-        self.repository_url = self._validate_cmd_arg(cmd_args, "repository_url")
-        self.repository_commit_hash = self._validate_cmd_arg(cmd_args, "repository_commit_hash")
-        self.docker_image_url = self._validate_cmd_arg(cmd_args, "docker_image_url")
-
-    def _validate_cmd_arg(self, cmd_args: Dict[str, Any], arg_name: str) -> str:
-        """
-        Validate and returns specified command-line argument.
-
-        Args:
-            cmd_args (Dict[str, Any]): Command-line arguments.
-            arg_name (str): Argument name to validate.
-
-        Returns:
-            str: Validated command-line argument value.
-
-        Raises:
-            ValueError: If argument not specified or default value is None.
-        """
-        arg_info = cmd_args.get(arg_name)
-        arg_value = arg_info.get("default") if arg_info else None
-        if arg_value is None:
-            raise ValueError(f"{arg_name} not specified or default value is None in command-line arguments.")
-        return arg_value
+    def __init__(self, system: System, cmd_args: Dict[str, Any]) -> None:
+        super().__init__(system, cmd_args)
+        self.repository_url = cmd_args["repository_url"]
+        self.repository_commit_hash = cmd_args["repository_commit_hash"]
+        self.docker_image_url = cmd_args["docker_image_url"]
 
     def is_installed(self) -> InstallStatusResult:
-        subdir_path = self.install_path / self.SUBDIR_PATH
+        subdir_path = self.system.install_path / self.SUBDIR_PATH
         repo_path = subdir_path / self.REPOSITORY_NAME
         repo_installed = repo_path.is_dir()
 
@@ -142,7 +117,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         except PermissionError as e:
             return InstallStatusResult(success=False, message=str(e))
 
-        subdir_path = self.install_path / self.SUBDIR_PATH
+        subdir_path = self.system.install_path / self.SUBDIR_PATH
         subdir_path.mkdir(parents=True, exist_ok=True)
 
         data_dir_path = Path(self.default_cmd_args["data_dir"])
@@ -196,10 +171,10 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
             PermissionError: If the install path does not exist or if there is no permission to create directories and
                 files.
         """
-        if not self.install_path.exists():
-            raise PermissionError(f"Install path {self.install_path} does not exist.")
-        if not self.install_path.is_dir() or not os.access(self.install_path, os.W_OK):
-            raise PermissionError(f"No permission to write in install path {self.install_path}.")
+        if not self.system.install_path.exists():
+            raise PermissionError(f"Install path {self.system.install_path} does not exist.")
+        if not self.system.install_path.is_dir() or not os.access(self.system.install_path, os.W_OK):
+            raise PermissionError(f"No permission to write in install path {self.system.install_path}.")
 
     def _check_datasets_on_nodes(self, data_dir_path: Path) -> DatasetCheckResult:
         """

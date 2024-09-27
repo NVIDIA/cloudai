@@ -20,6 +20,7 @@ from .handlers import (
     handle_generate_report,
     handle_install_and_uninstall,
     handle_verify_systems,
+    handle_verify_tests,
 )
 
 __all__ = [
@@ -28,4 +29,5 @@ __all__ = [
     "handle_generate_report",
     "handle_install_and_uninstall",
     "handle_verify_systems",
+    "handle_verify_tests",
 ]

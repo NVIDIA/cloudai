@@ -20,7 +20,9 @@ import logging
 from pathlib import Path
 from typing import List, Set
 
-from cloudai import Installer, Parser, ReportGenerator, Runner, Test, TestTemplate
+import toml
+
+from cloudai import Installer, Parser, ReportGenerator, Runner, Test, TestParser, TestTemplate
 
 
 def handle_verify_systems(args: argparse.Namespace) -> int:
@@ -79,7 +81,7 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     Args:
         args (argparse.Namespace): The parsed command-line arguments.
     """
-    parser = Parser(args.system_config_path, args.test_templates_dir)
+    parser = Parser(args.system_config_path)
     system, tests, _ = parser.parse(args.tests_dir, None)
 
     if args.output_dir:
@@ -132,7 +134,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     Args:
         args (argparse.Namespace): The parsed command-line arguments.
     """
-    parser = Parser(args.system_config, args.test_templates_dir)
+    parser = Parser(args.system_config)
     system, tests, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
     assert test_scenario is not None
 
@@ -184,7 +186,7 @@ def handle_generate_report(args: argparse.Namespace) -> int:
     Args:
         args (argparse.Namespace): The parsed command-line arguments.
     """
-    parser = Parser(args.system_config, args.test_templates_dir)
+    parser = Parser(args.system_config)
     _, _, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
     assert test_scenario is not None
 
@@ -195,3 +197,31 @@ def handle_generate_report(args: argparse.Namespace) -> int:
     logging.info("Report generation completed.")
 
     return 0
+
+
+def handle_verify_tests(args: argparse.Namespace) -> int:
+    """Verify the test configurations."""
+    root: Path = args.test_configs
+    if not root.exists():
+        logging.error(f"Tests directory {root} does not exist.")
+        return 1
+
+    test_tomls = [root]
+    if root.is_dir():
+        test_tomls = list(root.glob("*.toml"))
+        if not test_tomls:
+            logging.error(f"No test tomls found in {root}")
+            return 1
+
+    rc = 0
+    for test_toml in test_tomls:
+        logging.info(f"Verifying {test_toml}...")
+        try:
+            parser = TestParser(Path(), None)  # type: ignore
+            parser.current_file = test_toml
+            parser.load_test_definition(toml.load(test_toml))
+        except Exception:
+            rc = 1
+            break
+
+    return rc

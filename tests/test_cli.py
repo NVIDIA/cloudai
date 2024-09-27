@@ -19,7 +19,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from cloudai.cli import CloudAICLI, handle_generate_report, handle_install_and_uninstall, handle_verify_systems
+from cloudai.cli import (
+    CloudAICLI,
+    handle_generate_report,
+    handle_install_and_uninstall,
+    handle_verify_systems,
+    handle_verify_tests,
+)
 
 
 def test_help_message(capsys: pytest.CaptureFixture[str]) -> None:
@@ -219,6 +225,18 @@ class TestCLIDefaultModes:
             log_level="INFO",
             mode="verify-systems",
             **{"system-configs": Path("system_config")},
+        )
+
+    def test_verify_tests_mode(self, cli: CloudAICLI):
+        assert "verify-tests" in cli.handlers
+        assert cli.handlers["verify-tests"] is handle_verify_tests
+
+        args = cli.parser.parse_args(["verify-tests", "test_configs"])
+        assert args == argparse.Namespace(
+            log_file="debug.log",
+            log_level="INFO",
+            mode="verify-tests",
+            **{"test-configs": Path("test_configs")},
         )
 
     def test_report_generation_mode(self, cli: CloudAICLI):

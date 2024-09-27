@@ -23,16 +23,10 @@ from .slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
 
 
 class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
-    """
-    Command generation strategy for NeMo Megatron Launcher on Slurm systems.
-
-    Attributes
-        install_path (Path): The installation path of CloudAI.
-    """
+    """Command generation strategy for NeMo Megatron Launcher on Slurm systems."""
 
     def gen_exec_command(
         self,
-        env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
@@ -40,11 +34,10 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         num_nodes: int,
         nodes: List[str],
     ) -> str:
-        final_env_vars = self._override_env_vars(self.default_env_vars, env_vars)
-        final_env_vars = self._override_env_vars(final_env_vars, extra_env_vars)
+        final_env_vars = self._override_env_vars(self.system.global_env_vars, extra_env_vars)
 
         launcher_path = (
-            self.install_path
+            self.system.install_path
             / NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH
             / NeMoLauncherSlurmInstallStrategy.REPOSITORY_NAME
         )
@@ -59,6 +52,9 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         for key, value in final_env_vars.items():
             self.final_cmd_args[f"env_vars.{key}"] = value
+
+        if "training.values" in self.final_cmd_args:
+            self.final_cmd_args["training"] = self.final_cmd_args.pop("training.values")
 
         self.final_cmd_args["cluster.partition"] = self.slurm_system.default_partition
         reservation_key = "--reservation "

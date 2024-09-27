@@ -23,6 +23,7 @@ from .handlers import (
     handle_generate_report,
     handle_install_and_uninstall,
     handle_verify_systems,
+    handle_verify_tests,
 )
 
 
@@ -30,7 +31,15 @@ class CloudAICLI:
     """Command-line argument parser for Cloud AI and derivatives."""
 
     def __init__(self):
-        self.DEFAULT_MODES = {"install", "uninstall", "verify-systems", "generate-report", "run", "dry-run"}
+        self.DEFAULT_MODES = {
+            "dry-run",
+            "generate-report",
+            "install",
+            "run",
+            "uninstall",
+            "verify-systems",
+            "verify-tests",
+        }
 
         self.parser = argparse.ArgumentParser(description="Cloud AI")
         self.parser.add_argument(
@@ -133,6 +142,10 @@ class CloudAICLI:
         if "verify-systems" in self.DEFAULT_MODES:
             p = self.add_command("verify-systems", "Verify the system configurations.", handle_verify_systems)
             p.add_argument("system-configs", help="Path to the system configuration file or directory.", type=Path)
+
+        if "verify-tests" in self.DEFAULT_MODES:
+            p = self.add_command("verify-tests", "Verify the test configurations.", handle_verify_tests)
+            p.add_argument("test-configs", help="Path to the test configuration file or directory.", type=Path)
 
         return self.parser
 

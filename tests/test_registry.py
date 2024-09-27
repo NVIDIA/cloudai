@@ -19,6 +19,7 @@ from cloudai import JobIdRetrievalStrategy, JobStatusRetrievalStrategy, ReportGe
 from cloudai._core.base_installer import BaseInstaller
 from cloudai._core.base_runner import BaseRunner
 from cloudai._core.registry import Registry
+from cloudai._core.test import TestDefinition
 from cloudai._core.test_template_strategy import TestTemplateStrategy
 
 
@@ -225,3 +226,37 @@ class TestRegistry__Installers:
         with pytest.raises(ValueError) as exc_info:
             registry.update_installer("TestInstaller", str)  # pyright: ignore
         assert "Invalid installer implementation for 'TestInstaller'" in str(exc_info.value)
+
+
+class MyTestDefinition(TestDefinition):
+    pass
+
+
+class AnotherTestDefinition(TestDefinition):
+    pass
+
+
+class TestRegistry__TestDefinitions:
+    """This test verifies Registry class functionality.
+
+    Since Registry is a Singleton, the order of cases is important.
+    Only covers the test_definitions_map attribute.
+    """
+
+    def test_add_test_definition(self, registry: Registry):
+        registry.add_test_definition("test_definition", MyTestDefinition)
+        assert registry.test_definitions_map["test_definition"] == MyTestDefinition
+
+    def test_add_test_definition_duplicate(self, registry: Registry):
+        with pytest.raises(ValueError) as exc_info:
+            registry.add_test_definition("test_definition", MyTestDefinition)
+        assert "Duplicating implementation for 'test_definition'" in str(exc_info.value)
+
+    def test_update_test_definition(self, registry: Registry):
+        registry.update_test_definition("test_definition", AnotherTestDefinition)
+        assert registry.test_definitions_map["test_definition"] == AnotherTestDefinition
+
+    def test_invalid_type(self, registry: Registry):
+        with pytest.raises(ValueError) as exc_info:
+            registry.update_test_definition("TestDefinition", str)  # pyright: ignore
+        assert "Invalid test definition implementation for 'TestDefinition'" in str(exc_info.value)

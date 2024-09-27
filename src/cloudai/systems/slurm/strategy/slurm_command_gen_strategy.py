@@ -32,16 +32,15 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             properties and methods.
     """
 
-    def __init__(self, system: SlurmSystem, env_vars: Dict[str, Any], cmd_args: Dict[str, Any]) -> None:
+    def __init__(self, system: SlurmSystem, cmd_args: Dict[str, Any]) -> None:
         """
         Initialize a new SlurmCommandGenStrategy instance.
 
         Args:
             system (SlurmSystem): The system schema object.
-            env_vars (Dict[str, Any]): Environment variables.
             cmd_args (Dict[str, Any]): Command-line arguments.
         """
-        super().__init__(system, env_vars, cmd_args)
+        super().__init__(system, cmd_args)
         self.slurm_system = system
         if not self.slurm_system.default_partition:
             raise ValueError("Partition not specified in the system configuration.")
@@ -53,11 +52,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             self.slurm_system.cache_docker_images_locally,
             self.slurm_system.default_partition,
         )
-        docker_image_url_info = self.cmd_args.get("docker_image_url")
-        if docker_image_url_info is not None:
-            self.docker_image_url = docker_image_url_info.get("default")
-        else:
-            self.docker_image_url = ""
+        self.docker_image_url = self.cmd_args.get("docker_image_url", "")
 
     def _format_env_vars(self, env_vars: Dict[str, Any]) -> str:
         """
