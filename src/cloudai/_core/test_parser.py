@@ -88,7 +88,6 @@ class TestParser(BaseMultiFileParser):
         ],
         system_type: Type[System],
         test_template_type: Type[TestTemplate],
-        env_vars: Dict[str, Any],
         cmd_args: Dict[str, Any],
     ) -> Optional[
         Union[
@@ -108,7 +107,6 @@ class TestParser(BaseMultiFileParser):
                 The strategy interface to fetch.
             system_type (Type[System]): The system type.
             test_template_type (Type[TestTemplate]): The test template type.
-            env_vars (Dict[str, Any]): Environment variables.
             cmd_args (Dict[str, Any]): Command-line arguments.
 
         Returns:
@@ -119,7 +117,7 @@ class TestParser(BaseMultiFileParser):
         strategy_type = registry.strategies_map.get(key)
         if strategy_type:
             if issubclass(strategy_type, TestTemplateStrategy):
-                return strategy_type(self.system, env_vars, cmd_args)
+                return strategy_type(self.system, cmd_args)
             else:
                 return strategy_type()
 
@@ -128,13 +126,12 @@ class TestParser(BaseMultiFileParser):
         )
         return None
 
-    def _get_test_template(self, name: str, env_vars: Dict[str, Any], cmd_args: Dict[str, Any]) -> TestTemplate:
+    def _get_test_template(self, name: str, cmd_args: Dict[str, Any]) -> TestTemplate:
         """
         Dynamically retrieves the appropriate TestTemplate subclass based on the given name.
 
         Args:
             name (str): The name of the test template.
-            env_vars (Dict[str, Any]): Environment variables.
             cmd_args (Dict[str, Any]): Command-line arguments.
 
         Returns:
@@ -146,32 +143,32 @@ class TestParser(BaseMultiFileParser):
         if not test_template_class:
             raise ValueError(f"Unsupported test_template name: {name}")
 
-        obj = test_template_class(system=self.system, name=name, env_vars=env_vars, cmd_args=cmd_args)
+        obj = test_template_class(system=self.system, name=name, cmd_args=cmd_args)
         obj.install_strategy = cast(
-            InstallStrategy, self._fetch_strategy(InstallStrategy, type(obj.system), type(obj), env_vars, cmd_args)
+            InstallStrategy, self._fetch_strategy(InstallStrategy, type(obj.system), type(obj), cmd_args)
         )
         obj.command_gen_strategy = cast(
             CommandGenStrategy,
-            self._fetch_strategy(CommandGenStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+            self._fetch_strategy(CommandGenStrategy, type(obj.system), type(obj), cmd_args),
         )
         obj.json_gen_strategy = cast(
             JsonGenStrategy,
-            self._fetch_strategy(JsonGenStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+            self._fetch_strategy(JsonGenStrategy, type(obj.system), type(obj), cmd_args),
         )
         obj.job_id_retrieval_strategy = cast(
             JobIdRetrievalStrategy,
-            self._fetch_strategy(JobIdRetrievalStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+            self._fetch_strategy(JobIdRetrievalStrategy, type(obj.system), type(obj), cmd_args),
         )
         obj.job_status_retrieval_strategy = cast(
             JobStatusRetrievalStrategy,
-            self._fetch_strategy(JobStatusRetrievalStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+            self._fetch_strategy(JobStatusRetrievalStrategy, type(obj.system), type(obj), cmd_args),
         )
         obj.report_generation_strategy = cast(
             ReportGenerationStrategy,
-            self._fetch_strategy(ReportGenerationStrategy, type(obj.system), type(obj), env_vars, cmd_args),
+            self._fetch_strategy(ReportGenerationStrategy, type(obj.system), type(obj), cmd_args),
         )
         obj.grading_strategy = cast(
-            GradingStrategy, self._fetch_strategy(GradingStrategy, type(obj.system), type(obj), env_vars, cmd_args)
+            GradingStrategy, self._fetch_strategy(GradingStrategy, type(obj.system), type(obj), cmd_args)
         )
         return obj
 
@@ -187,7 +184,6 @@ class TestParser(BaseMultiFileParser):
         """
         test_def = self.load_test_definition(data)
 
-        env_vars = {}  # this field doesn't exist in Test or TestTemplate TOMLs
         """
         There are:
         1. global_env_vars, used in System
@@ -198,7 +194,7 @@ class TestParser(BaseMultiFileParser):
         extra_cmd_args = test_def.extra_args_str
 
         test_template_name = data.get("test_template_name", "")
-        test_template = self._get_test_template(test_template_name, env_vars, cmd_args)
+        test_template = self._get_test_template(test_template_name, cmd_args)
 
         if not test_template:
             test_name = data.get("name", "Unnamed Test")
@@ -214,7 +210,6 @@ class TestParser(BaseMultiFileParser):
             name=test_def.name,
             description=data.get("description", ""),
             test_template=test_template,
-            env_vars=env_vars,
             cmd_args=cmd_args,
             extra_env_vars=extra_env_vars,
             extra_cmd_args=extra_cmd_args,
