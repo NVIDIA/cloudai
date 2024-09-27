@@ -200,8 +200,7 @@ class TestNeMoLauncherSlurmInstallStrategy:
             )
 
     def test_no_requirements_file(self, strategy: NeMoLauncherSlurmInstallStrategy):
-        with patch("pathlib.Path.is_file", return_value=False):
-            assert not strategy._check_requirements_installed(Path())
+        assert not strategy._check_requirements_installed(Path())
 
     def test_distribution_not_found(self, strategy: NeMoLauncherSlurmInstallStrategy, tmp_path: Path):
         with patch(
@@ -232,12 +231,22 @@ class TestNeMoLauncherSlurmInstallStrategy:
             assert strategy._check_requirements_installed(tmp_path)
 
     def test_all_requirements_satisfied(self, strategy: NeMoLauncherSlurmInstallStrategy, tmp_path_factory):
+        current_path = Path(__file__).resolve()
+
+        while not (current_path / "requirements.txt").exists():
+            if current_path.parent == current_path:
+                raise FileNotFoundError("Could not find the root directory with 'requirements.txt'.")
+            current_path = current_path.parent
+
+        project_root_requirements = current_path / "requirements.txt"
+        with project_root_requirements.open() as f:
+            first_requirement = f.readline().strip()
+
         tmp_path = tmp_path_factory.mktemp("requirements")
         requirements_dir = tmp_path / strategy.REPOSITORY_NAME
         requirements_dir.mkdir()
 
-        requirements_txt = "setuptools>=40.0\n"
-        (requirements_dir / "requirements.txt").write_text(requirements_txt)
+        (requirements_dir / "requirements.txt").write_text(first_requirement)
 
         assert strategy._check_requirements_installed(tmp_path)
 
