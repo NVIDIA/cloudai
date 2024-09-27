@@ -33,7 +33,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
         num_nodes: int,
         nodes: List[str],
     ) -> Dict[Any, Any]:
-        final_env_vars = self._override_env_vars(self.default_env_vars, extra_env_vars)
+        final_env_vars = self._override_env_vars(self.system.global_env_vars, extra_env_vars)
         final_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
         final_num_nodes = self._determine_num_nodes(num_nodes, nodes)
         job_spec = self._create_job_spec(

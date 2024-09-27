@@ -30,7 +30,6 @@ class TestTemplateStrategy:
         system (System): The system schema object.
         install_path (str): Path where the benchmarks are to be installed.
         cmd_args (Dict[str, Any]): Default command-line arguments.
-        default_env_vars (Dict[str, str]): Constructed default environment variables.
         default_cmd_args (Dict[str, str]): Constructed default command-line arguments.
     """
 
@@ -47,9 +46,7 @@ class TestTemplateStrategy:
         self.system = system
         self.install_path = ""
         self.cmd_args = cmd_args
-        self.default_env_vars = {}
         self.default_cmd_args = self._construct_default_cmd_args()
-        self.default_env_vars.update(system.global_env_vars)
 
     def _construct_default_cmd_args(self) -> Dict[str, str]:
         """

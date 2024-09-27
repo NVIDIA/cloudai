@@ -39,7 +39,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         num_nodes: int,
         nodes: List[str],
     ) -> str:
-        final_env_vars = self._override_env_vars(self.default_env_vars, extra_env_vars)
+        final_env_vars = self._override_env_vars(self.system.global_env_vars, extra_env_vars)
 
         launcher_path = (
             self.install_path

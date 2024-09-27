@@ -61,7 +61,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         self.test_name = self._extract_test_name(cmd_args)
 
-        final_env_vars = self._override_env_vars(self.default_env_vars, extra_env_vars)
+        final_env_vars = self._override_env_vars(self.system.global_env_vars, extra_env_vars)
         cmd_args["output_path"] = str(output_path)
 
         combine_threshold_bytes = int(final_env_vars["COMBINE_THRESHOLD"])

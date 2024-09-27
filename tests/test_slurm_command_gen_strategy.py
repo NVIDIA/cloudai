@@ -68,7 +68,6 @@ def jax_strategy_fixture() -> JaxToolboxSlurmCommandGenStrategy:
         strategy = JaxToolboxSlurmCommandGenStrategy(mock_slurm_system, cmd_args)
         # Manually set attributes needed for the tests
         strategy.cmd_args = cmd_args
-        strategy.default_env_vars = {}
         strategy.default_cmd_args = cmd_args
         return strategy
 
