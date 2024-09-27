@@ -33,7 +33,6 @@ class Test:
         name: str,
         description: str,
         test_template: TestTemplate,
-        env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
@@ -48,7 +47,6 @@ class Test:
             name (str): Name of the test.
             description (str): Description of the test.
             test_template (TestTemplate): Test template object.
-            env_vars (Dict[str, str]): Environment variables for the test.
             cmd_args (Dict[str, str]): Command-line arguments for the test.
             extra_env_vars (Dict[str, str]): Extra environment variables.
             extra_cmd_args (str): Extra command-line arguments.
@@ -61,7 +59,6 @@ class Test:
         self.name = name
         self.description = description
         self.test_template = test_template
-        self.env_vars = env_vars
         self.cmd_args = cmd_args
         self.extra_env_vars = extra_env_vars
         self.extra_cmd_args = extra_cmd_args
@@ -79,7 +76,6 @@ class Test:
         return (
             f"Test(name={self.name}, description={self.description}, "
             f"test_template={self.test_template.name}, "
-            f"env_vars={self.env_vars}, "
             f"cmd_args={self.cmd_args}, "
             f"extra_env_vars={self.extra_env_vars}, "
             f"extra_cmd_args={self.extra_cmd_args}"
@@ -106,7 +102,6 @@ class Test:
             nodes = []
 
         return self.test_template.gen_exec_command(
-            self.env_vars,
             self.cmd_args,
             self.extra_env_vars,
             self.extra_cmd_args,
@@ -142,7 +137,6 @@ class Test:
             nodes = []
 
         return self.test_template.gen_json(
-            self.env_vars,
             self.cmd_args,
             self.extra_env_vars,
             self.extra_cmd_args,

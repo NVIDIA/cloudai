@@ -26,7 +26,6 @@ class SleepKubernetesJsonGenStrategy(JsonGenStrategy):
 
     def gen_json(
         self,
-        env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,

@@ -186,7 +186,6 @@ class TestScenarioParser:
             name=original_test.name,
             description=original_test.description,
             test_template=original_test.test_template,
-            env_vars=copy.deepcopy(original_test.env_vars),
             cmd_args=copy.deepcopy(original_test.cmd_args),
             extra_env_vars=copy.deepcopy(original_test.extra_env_vars),
             extra_cmd_args=original_test.extra_cmd_args,

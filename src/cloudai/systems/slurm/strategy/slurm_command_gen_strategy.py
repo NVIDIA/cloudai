@@ -32,16 +32,15 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             properties and methods.
     """
 
-    def __init__(self, system: SlurmSystem, env_vars: Dict[str, Any], cmd_args: Dict[str, Any]) -> None:
+    def __init__(self, system: SlurmSystem, cmd_args: Dict[str, Any]) -> None:
         """
         Initialize a new SlurmCommandGenStrategy instance.
 
         Args:
             system (SlurmSystem): The system schema object.
-            env_vars (Dict[str, Any]): Environment variables.
             cmd_args (Dict[str, Any]): Command-line arguments.
         """
-        super().__init__(system, env_vars, cmd_args)
+        super().__init__(system, cmd_args)
         self.slurm_system = system
         if not self.slurm_system.default_partition:
             raise ValueError("Partition not specified in the system configuration.")

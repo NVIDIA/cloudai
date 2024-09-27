@@ -38,7 +38,6 @@ class TestTemplate:
 
     Attributes
         name (str): Unique name of the test template.
-        env_vars (Dict[str, Any]): Default environment variables.
         cmd_args (Dict[str, Any]): Default command-line arguments.
         logger (logging.Logger): Logger for the test template.
         install_strategy (InstallStrategy): Strategy for installing test prerequisites.
@@ -56,7 +55,6 @@ class TestTemplate:
         self,
         system: System,
         name: str,
-        env_vars: Dict[str, Any],
         cmd_args: Dict[str, Any],
     ) -> None:
         """
@@ -65,12 +63,10 @@ class TestTemplate:
         Args:
             system (System): System configuration for the test template.
             name (str): Name of the test template.
-            env_vars (Dict[str, Any]): Environment variables.
             cmd_args (Dict[str, Any]): Command-line arguments.
         """
         self.system = system
         self.name = name
-        self.env_vars = env_vars
         self.cmd_args = cmd_args
         self.install_strategy: Optional[InstallStrategy] = None
         self.command_gen_strategy: Optional[CommandGenStrategy] = None
@@ -127,7 +123,6 @@ class TestTemplate:
 
     def gen_exec_command(
         self,
-        env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
@@ -141,7 +136,6 @@ class TestTemplate:
         This method must be implemented by subclasses.
 
         Args:
-            env_vars (Dict[str, str]): Environment variables for the test.
             cmd_args (Dict[str, str]): Command-line arguments for the test.
             extra_env_vars (Dict[str, str]): Extra environment variables.
             extra_cmd_args (str): Extra command-line arguments.
@@ -160,7 +154,6 @@ class TestTemplate:
                 "by calling the appropriate registration function for the system type."
             )
         return self.command_gen_strategy.gen_exec_command(
-            env_vars,
             cmd_args,
             extra_env_vars,
             extra_cmd_args,
@@ -171,7 +164,6 @@ class TestTemplate:
 
     def gen_json(
         self,
-        env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
@@ -184,7 +176,6 @@ class TestTemplate:
         Generate a JSON string representing the Kubernetes job specification for this test using this template.
 
         Args:
-            env_vars (Dict[str, str]): Environment variables for the test.
             cmd_args (Dict[str, str]): Command-line arguments for the test.
             extra_env_vars (Dict[str, str]): Extra environment variables.
             extra_cmd_args (str): Extra command-line arguments.
@@ -204,7 +195,6 @@ class TestTemplate:
                 "by calling the appropriate registration function for the system type."
             )
         return self.json_gen_strategy.gen_json(
-            env_vars,
             cmd_args,
             extra_env_vars,
             extra_cmd_args,
