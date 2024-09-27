@@ -200,45 +200,34 @@ class TestNeMoLauncherSlurmInstallStrategy:
                 text=True,
             )
 
-    def create_empty_requirements_file(self, tmp_path: Path, strategy) -> Path:
-        """Helper method to create an empty requirements.txt file."""
+    @pytest.fixture
+    def empty_requirements_txt(self, tmp_path: Path, strategy) -> Path:
         requirements_dir = tmp_path / strategy.REPOSITORY_NAME
         requirements_dir.mkdir()
         requirements_file = requirements_dir / "requirements.txt"
         requirements_file.touch()
-        return requirements_file
+        return tmp_path
 
     def test_no_requirements_file(self, strategy: NeMoLauncherSlurmInstallStrategy):
-        """Test when the requirements.txt file is missing."""
         with patch("pathlib.Path.is_file", return_value=False):
             assert not strategy._check_requirements_installed(Path())
 
-    def test_distribution_not_found(self, strategy: NeMoLauncherSlurmInstallStrategy, tmp_path: Path):
-        """Test when a required Python package is missing."""
-        self.create_empty_requirements_file(tmp_path, strategy)
-
+    def test_distribution_not_found(self, strategy: NeMoLauncherSlurmInstallStrategy, empty_requirements_txt: Path):
         mock_dist = Mock(spec=Distribution)
         with patch("pkg_resources.require", side_effect=pkg_resources.DistributionNotFound(mock_dist, None)):
-            assert not strategy._check_requirements_installed(tmp_path)
+            assert not strategy._check_requirements_installed(empty_requirements_txt)
 
-    def test_version_conflict(self, strategy: NeMoLauncherSlurmInstallStrategy, tmp_path: Path):
-        """Test when there's a version conflict in the requirements."""
-        self.create_empty_requirements_file(tmp_path, strategy)
-
+    def test_version_conflict(self, strategy: NeMoLauncherSlurmInstallStrategy, empty_requirements_txt: Path):
         mock_dist = Mock(spec=Distribution)
         mock_req = Requirement.parse("packageA")
         with patch("pkg_resources.require", side_effect=pkg_resources.VersionConflict(mock_dist, mock_req)):
-            assert not strategy._check_requirements_installed(tmp_path)
+            assert not strategy._check_requirements_installed(empty_requirements_txt)
 
-    def test_empty_requirements_list(self, strategy: NeMoLauncherSlurmInstallStrategy, tmp_path: Path):
-        """Test when the requirements.txt file is empty."""
-        self.create_empty_requirements_file(tmp_path, strategy)
-
+    def test_empty_requirements_list(self, strategy: NeMoLauncherSlurmInstallStrategy, empty_requirements_txt: Path):
         with patch("pkg_resources.require", return_value=True):
-            assert strategy._check_requirements_installed(tmp_path)
+            assert strategy._check_requirements_installed(empty_requirements_txt)
 
     def test_all_requirements_satisfied(self, strategy: NeMoLauncherSlurmInstallStrategy, tmp_path: Path):
-        """Test when all the required packages are installed without issues using real pkg_resources.require."""
         requirements_dir = tmp_path / strategy.REPOSITORY_NAME
         requirements_dir.mkdir()
 
