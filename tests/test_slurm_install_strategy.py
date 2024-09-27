@@ -14,10 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from importlib.metadata import PackageNotFoundError
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
-import pkg_resources
 import pytest
 from cloudai import InstallStatusResult
 from cloudai.schema.test_template.nccl_test.slurm_install_strategy import NcclTestSlurmInstallStrategy
@@ -30,7 +30,6 @@ from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm import SlurmNodeState
 from cloudai.systems.slurm.slurm_system import SlurmPartition
 from cloudai.systems.slurm.strategy import SlurmInstallStrategy
-from pkg_resources import Distribution, Requirement
 
 
 @pytest.fixture
@@ -200,34 +199,40 @@ class TestNeMoLauncherSlurmInstallStrategy:
                 text=True,
             )
 
-    @pytest.fixture
-    def empty_requirements_txt(self, tmp_path: Path, strategy) -> Path:
-        requirements_dir = tmp_path / strategy.REPOSITORY_NAME
-        requirements_dir.mkdir()
-        requirements_file = requirements_dir / "requirements.txt"
-        requirements_file.touch()
-        return tmp_path
-
     def test_no_requirements_file(self, strategy: NeMoLauncherSlurmInstallStrategy):
         with patch("pathlib.Path.is_file", return_value=False):
             assert not strategy._check_requirements_installed(Path())
 
-    def test_distribution_not_found(self, strategy: NeMoLauncherSlurmInstallStrategy, empty_requirements_txt: Path):
-        mock_dist = Mock(spec=Distribution)
-        with patch("pkg_resources.require", side_effect=pkg_resources.DistributionNotFound(mock_dist, None)):
-            assert not strategy._check_requirements_installed(empty_requirements_txt)
+    def test_distribution_not_found(self, strategy: NeMoLauncherSlurmInstallStrategy, tmp_path: Path):
+        with patch(
+            "cloudai.schema.test_template.nemo_launcher.slurm_install_strategy.version",
+            side_effect=PackageNotFoundError,
+        ):
+            assert not strategy._check_requirements_installed(tmp_path)
 
-    def test_version_conflict(self, strategy: NeMoLauncherSlurmInstallStrategy, empty_requirements_txt: Path):
-        mock_dist = Mock(spec=Distribution)
-        mock_req = Requirement.parse("packageA")
-        with patch("pkg_resources.require", side_effect=pkg_resources.VersionConflict(mock_dist, mock_req)):
-            assert not strategy._check_requirements_installed(empty_requirements_txt)
+    def test_version_conflict(self, strategy: NeMoLauncherSlurmInstallStrategy, tmp_path_factory):
+        tmp_path = tmp_path_factory.mktemp("requirements")
+        requirements_dir = tmp_path / strategy.REPOSITORY_NAME
+        requirements_dir.mkdir()
 
-    def test_empty_requirements_list(self, strategy: NeMoLauncherSlurmInstallStrategy, empty_requirements_txt: Path):
-        with patch("pkg_resources.require", return_value=True):
-            assert strategy._check_requirements_installed(empty_requirements_txt)
+        requirements_txt = "packageA>=2.0.0\n"
+        (requirements_dir / "requirements.txt").write_text(requirements_txt)
 
-    def test_all_requirements_satisfied(self, strategy: NeMoLauncherSlurmInstallStrategy, tmp_path: Path):
+        mock_version = "1.0.0"
+        with patch("importlib.metadata.version", return_value=mock_version):
+            assert not strategy._check_requirements_installed(tmp_path)
+
+    def test_empty_requirements_list(self, strategy: NeMoLauncherSlurmInstallStrategy, tmp_path: Path):
+        requirements_dir = tmp_path / strategy.REPOSITORY_NAME
+        requirements_dir.mkdir()
+        requirements_file = requirements_dir / "requirements.txt"
+        requirements_file.touch()
+
+        with patch("importlib.metadata.version", return_value=True):
+            assert strategy._check_requirements_installed(tmp_path)
+
+    def test_all_requirements_satisfied(self, strategy: NeMoLauncherSlurmInstallStrategy, tmp_path_factory):
+        tmp_path = tmp_path_factory.mktemp("requirements")
         requirements_dir = tmp_path / strategy.REPOSITORY_NAME
         requirements_dir.mkdir()
 

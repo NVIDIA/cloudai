@@ -18,10 +18,11 @@ import logging
 import os
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any, Dict, List
 
-import pkg_resources
+from packaging import version as packaging_version
 
 from cloudai import InstallStatusResult, System
 from cloudai.systems.slurm import SlurmNodeState
@@ -133,15 +134,39 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         with requirements_file.open() as f:
             requirements = f.read().splitlines()
 
-        try:
-            pkg_resources.require(requirements)
-            return True
-        except pkg_resources.DistributionNotFound as e:
-            logging.warning(f"Missing required package: {e}")
-            return False
-        except pkg_resources.VersionConflict as e:
-            logging.warning(f"Version conflict: {e}")
-            return False
+        for req in requirements:
+            package_name = None
+            required_version = None
+
+            try:
+                if ">=" in req:
+                    package_name, required_version = req.split(">=")
+                elif "==" in req:
+                    package_name, required_version = req.split("==")
+                else:
+                    package_name = req.strip()
+
+                package_name = package_name.strip()
+                installed_version = version(package_name)
+
+                if required_version and packaging_version.parse(installed_version) < packaging_version.parse(
+                    required_version.strip()
+                ):
+                    logging.warning(
+                        f"Version conflict for {package_name}: Installed version {installed_version}, "
+                        f"required >= {required_version}"
+                    )
+                    return False
+
+            except PackageNotFoundError:
+                logging.warning(f"Missing required package: {package_name}")
+                return False
+
+            except Exception as e:
+                logging.warning(f"Error while checking requirements for {package_name}: {e}")
+                return False
+
+        return True
 
     def install(self) -> InstallStatusResult:
         install_status = self.is_installed()
