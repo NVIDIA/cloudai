@@ -58,8 +58,8 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
     REPOSITORY_NAME = "NeMo-Launcher"
     DOCKER_IMAGE_FILENAME = "nemo_launcher.sqsh"
 
-    def __init__(self, system: System, env_vars: Dict[str, Any], cmd_args: Dict[str, Any]) -> None:
-        super().__init__(system, env_vars, cmd_args)
+    def __init__(self, system: System, cmd_args: Dict[str, Any]) -> None:
+        super().__init__(system, cmd_args)
         self.repository_url = cmd_args["repository_url"]
         self.repository_commit_hash = cmd_args["repository_commit_hash"]
         self.docker_image_url = cmd_args["docker_image_url"]

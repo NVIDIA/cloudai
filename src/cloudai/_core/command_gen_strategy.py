@@ -31,7 +31,6 @@ class CommandGenStrategy(TestTemplateStrategy):
     @abstractmethod
     def gen_exec_command(
         self,
-        env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
@@ -43,7 +42,6 @@ class CommandGenStrategy(TestTemplateStrategy):
         Generate the execution command for a test based on the given parameters.
 
         Args:
-            env_vars (Dict[str, str]): Environment variables for the test.
             cmd_args (Dict[str, str]): Command-line arguments for the test.
             extra_env_vars (Dict[str, str]): Additional environment variables.
             extra_cmd_args (str): Additional command-line arguments.
