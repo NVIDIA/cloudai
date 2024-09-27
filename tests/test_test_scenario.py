@@ -31,15 +31,7 @@ def test_scenario_parser(tmp_path: Path) -> TestScenarioParser:
 
 @pytest.fixture
 def test() -> Test:
-    return Test(
-        name="t1",
-        description="desc",
-        test_template=Mock(),
-        env_vars={},
-        cmd_args={},
-        extra_cmd_args="",
-        extra_env_vars={},
-    )
+    return Test(name="t1", description="desc", test_template=Mock(), cmd_args={}, extra_cmd_args="", extra_env_vars={})
 
 
 def test_single_test_case(test: Test, test_scenario_parser: TestScenarioParser) -> None:
@@ -63,7 +55,6 @@ def test_single_test_case(test: Test, test_scenario_parser: TestScenarioParser) 
     assert atest.ideal_perf == 1.0
     assert atest.sol is None
     assert atest.test_template == test.test_template
-    assert atest.env_vars == test.env_vars
     assert atest.cmd_args == test.cmd_args
     assert atest.extra_env_vars == test.extra_env_vars
     assert atest.extra_cmd_args == test.extra_cmd_args
