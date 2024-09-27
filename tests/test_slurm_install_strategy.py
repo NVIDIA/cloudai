@@ -15,8 +15,9 @@
 # limitations under the License.
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, mock_open, patch
 
+import pkg_resources
 import pytest
 from cloudai import InstallStatusResult
 from cloudai.schema.test_template.nccl_test.slurm_install_strategy import NcclTestSlurmInstallStrategy
@@ -29,6 +30,7 @@ from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm import SlurmNodeState
 from cloudai.systems.slurm.slurm_system import SlurmPartition
 from cloudai.systems.slurm.strategy import SlurmInstallStrategy
+from pkg_resources import Distribution, Requirement
 
 
 @pytest.fixture
@@ -199,6 +201,56 @@ class TestNeMoLauncherSlurmInstallStrategy:
                 capture_output=True,
                 text=True,
             )
+
+    def test_no_requirements_file(self, strategy: NeMoLauncherSlurmInstallStrategy):
+        """Test when the requirements.txt file is missing."""
+        with patch("pathlib.Path.is_file", return_value=False):
+            assert not strategy._check_requirements_installed(Path())
+
+    def test_distribution_not_found(self, strategy: NeMoLauncherSlurmInstallStrategy):
+        """Test when a required Python package is missing."""
+        requirements_txt = "packageA==1.0\npackageB==2.0"
+        mock_dist = Mock(spec=Distribution)
+
+        with (
+            patch("builtins.open", mock_open(read_data=requirements_txt)),
+            patch("pkg_resources.require", side_effect=pkg_resources.DistributionNotFound(mock_dist, None)),
+        ):
+            assert not strategy._check_requirements_installed(Path())
+
+    def test_version_conflict(self, strategy: NeMoLauncherSlurmInstallStrategy):
+        """Test when there's a version conflict in the requirements."""
+        requirements_txt = "packageA==1.0\npackageB==2.0"
+        mock_dist = Mock(spec=Distribution)
+        mock_req = Requirement.parse("packageA")
+
+        with (
+            patch("builtins.open", mock_open(read_data=requirements_txt)),
+            patch("pkg_resources.require", side_effect=pkg_resources.VersionConflict(mock_dist, mock_req)),
+        ):
+            assert not strategy._check_requirements_installed(Path())
+
+    def test_empty_requirements_list(self, strategy: NeMoLauncherSlurmInstallStrategy, tmp_path: Path):
+        """Test when the requirements.txt file is empty."""
+        requirements_dir = tmp_path / strategy.REPOSITORY_NAME
+        requirements_dir.mkdir()
+        (requirements_dir / "requirements.txt").touch()
+
+        with patch("builtins.open", mock_open(read_data="")), patch("pkg_resources.require", return_value=True):
+            assert strategy._check_requirements_installed(tmp_path)
+
+    def test_all_requirements_satisfied(self, strategy: NeMoLauncherSlurmInstallStrategy, tmp_path: Path):
+        """Test when all the required packages are installed without issues."""
+        requirements_dir = tmp_path / strategy.REPOSITORY_NAME
+        requirements_dir.mkdir()
+        requirements_txt = "packageA==1.0\npackageB==2.0"
+        (requirements_dir / "requirements.txt").write_text(requirements_txt)
+
+        with (
+            patch("builtins.open", mock_open(read_data=requirements_txt)),
+            patch("pkg_resources.require", return_value=True),
+        ):
+            assert strategy._check_requirements_installed(tmp_path)
 
 
 class TestUCCTestSlurmInstallStrategy:
