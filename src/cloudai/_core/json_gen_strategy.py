@@ -31,7 +31,6 @@ class JsonGenStrategy(TestTemplateStrategy):
     @abstractmethod
     def gen_json(
         self,
-        env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
@@ -44,7 +43,6 @@ class JsonGenStrategy(TestTemplateStrategy):
         Generate the Kubernetes job specification based on the given parameters.
 
         Args:
-            env_vars (Dict[str, str]): Environment variables for the job.
             cmd_args (Dict[str, str]): Command-line arguments for the job.
             extra_env_vars (Dict[str, str]): Additional environment variables.
             extra_cmd_args (str): Additional command-line arguments.

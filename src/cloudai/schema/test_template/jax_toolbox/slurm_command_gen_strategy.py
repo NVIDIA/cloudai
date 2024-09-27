@@ -27,13 +27,12 @@ from .slurm_install_strategy import JaxToolboxSlurmInstallStrategy
 class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for JaxToolbox tests on Slurm systems."""
 
-    def __init__(self, system: SlurmSystem, env_vars: Dict[str, Any], cmd_args: Dict[str, Any]) -> None:
-        super().__init__(system, env_vars, cmd_args)
+    def __init__(self, system: SlurmSystem, cmd_args: Dict[str, Any]) -> None:
+        super().__init__(system, cmd_args)
         self.test_name = ""
 
     def gen_exec_command(
         self,
-        env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
@@ -50,7 +49,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         the appropriate strategy for handling thresholds.
 
         Args:
-            env_vars (Dict[str, str]): Environment variables for the job.
             cmd_args (Dict[str, str]): Command-line arguments for the job.
             extra_env_vars (Dict[str, str]): Additional environment variables.
             extra_cmd_args (str): Additional command arguments.
@@ -63,8 +61,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         self.test_name = self._extract_test_name(cmd_args)
 
-        final_env_vars = self._override_env_vars(self.default_env_vars, env_vars)
-        final_env_vars = self._override_env_vars(final_env_vars, extra_env_vars)
+        final_env_vars = self._override_env_vars(self.system.global_env_vars, extra_env_vars)
         cmd_args["output_path"] = str(output_path)
 
         combine_threshold_bytes = int(final_env_vars["COMBINE_THRESHOLD"])
