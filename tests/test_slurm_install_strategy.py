@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from importlib.metadata import PackageNotFoundError
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -197,6 +198,57 @@ class TestNeMoLauncherSlurmInstallStrategy:
                 capture_output=True,
                 text=True,
             )
+
+    def test_no_requirements_file(self, strategy: NeMoLauncherSlurmInstallStrategy):
+        assert not strategy._check_requirements_installed(Path())
+
+    def test_distribution_not_found(self, strategy: NeMoLauncherSlurmInstallStrategy, tmp_path: Path):
+        with patch(
+            "cloudai.schema.test_template.nemo_launcher.slurm_install_strategy.version",
+            side_effect=PackageNotFoundError,
+        ):
+            assert not strategy._check_requirements_installed(tmp_path)
+
+    def test_version_conflict(self, strategy: NeMoLauncherSlurmInstallStrategy, tmp_path_factory):
+        tmp_path = tmp_path_factory.mktemp("requirements")
+        requirements_dir = tmp_path / strategy.REPOSITORY_NAME
+        requirements_dir.mkdir()
+
+        requirements_txt = "packageA>=2.0.0\n"
+        (requirements_dir / "requirements.txt").write_text(requirements_txt)
+
+        mock_version = "1.0.0"
+        with patch("importlib.metadata.version", return_value=mock_version):
+            assert not strategy._check_requirements_installed(tmp_path)
+
+    def test_empty_requirements_list(self, strategy: NeMoLauncherSlurmInstallStrategy, tmp_path: Path):
+        requirements_dir = tmp_path / strategy.REPOSITORY_NAME
+        requirements_dir.mkdir()
+        requirements_file = requirements_dir / "requirements.txt"
+        requirements_file.touch()
+
+        with patch("importlib.metadata.version", return_value=True):
+            assert strategy._check_requirements_installed(tmp_path)
+
+    def test_all_requirements_satisfied(self, strategy: NeMoLauncherSlurmInstallStrategy, tmp_path_factory):
+        current_path = Path(__file__).resolve()
+
+        while not (current_path / "requirements.txt").exists():
+            if current_path.parent == current_path:
+                raise FileNotFoundError("Could not find the root directory with 'requirements.txt'.")
+            current_path = current_path.parent
+
+        project_root_requirements = current_path / "requirements.txt"
+        with project_root_requirements.open() as f:
+            first_requirement = f.readline().strip()
+
+        tmp_path = tmp_path_factory.mktemp("requirements")
+        requirements_dir = tmp_path / strategy.REPOSITORY_NAME
+        requirements_dir.mkdir()
+
+        (requirements_dir / "requirements.txt").write_text(first_requirement)
+
+        assert strategy._check_requirements_installed(tmp_path)
 
 
 class TestUCCTestSlurmInstallStrategy:
