@@ -298,6 +298,101 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
                 nodes=[],
             )
 
+    def test_account_in_command(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
+        extra_env_vars = {"TEST_VAR_1": "value1"}
+        cmd_args = {
+            "docker_image_url": "fake",
+            "repository_url": "fake",
+            "repository_commit_hash": "fake",
+        }
+
+        nemo_cmd_gen.slurm_system.account = "test_account"
+        cmd = nemo_cmd_gen.gen_exec_command(
+            cmd_args=cmd_args,
+            extra_env_vars=extra_env_vars,
+            extra_cmd_args="",
+            output_path=Path(""),
+            num_nodes=1,
+            nodes=[],
+        )
+
+        assert "cluster.account=test_account" in cmd
+        assert "cluster.job_name_prefix=test_account-cloudai.nemo:" in cmd
+
+    def test_no_account_in_command(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
+        extra_env_vars = {"TEST_VAR_1": "value1"}
+        cmd_args = {
+            "docker_image_url": "fake",
+            "repository_url": "fake",
+            "repository_commit_hash": "fake",
+        }
+
+        nemo_cmd_gen.slurm_system.account = None
+        cmd = nemo_cmd_gen.gen_exec_command(
+            cmd_args=cmd_args,
+            extra_env_vars=extra_env_vars,
+            extra_cmd_args="",
+            output_path=Path(""),
+            num_nodes=1,
+            nodes=[],
+        )
+
+        assert "cluster.account" not in cmd
+        assert "cluster.job_name_prefix" not in cmd
+
+    def test_gpus_per_node_value(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
+        extra_env_vars = {"TEST_VAR_1": "value1"}
+        cmd_args = {
+            "docker_image_url": "fake",
+            "repository_url": "fake",
+            "repository_commit_hash": "fake",
+        }
+
+        nemo_cmd_gen.slurm_system.gpus_per_node = 4
+        cmd = nemo_cmd_gen.gen_exec_command(
+            cmd_args=cmd_args,
+            extra_env_vars=extra_env_vars,
+            extra_cmd_args="",
+            output_path=Path(""),
+            num_nodes=1,
+            nodes=[],
+        )
+
+        assert "cluster.gpus_per_node=4" in cmd
+
+        nemo_cmd_gen.slurm_system.gpus_per_node = None
+        cmd = nemo_cmd_gen.gen_exec_command(
+            cmd_args=cmd_args,
+            extra_env_vars=extra_env_vars,
+            extra_cmd_args="",
+            output_path=Path(""),
+            num_nodes=1,
+            nodes=[],
+        )
+
+        assert "cluster.gpus_per_node=null" in cmd
+
+    def test_data_dir_validation(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
+        extra_env_vars = {"TEST_VAR_1": "value1"}
+        cmd_args = {
+            "docker_image_url": "fake",
+            "repository_url": "fake",
+            "repository_commit_hash": "fake",
+            "data_dir": "DATA_DIR",  # Invalid placeholder
+        }
+
+        with pytest.raises(
+            ValueError, match="The 'data_dir' field of the NeMo launcher test contains the placeholder 'DATA_DIR'."
+        ):
+            nemo_cmd_gen.gen_exec_command(
+                cmd_args=cmd_args,
+                extra_env_vars=extra_env_vars,
+                extra_cmd_args="",
+                output_path=Path(""),
+                num_nodes=1,
+                nodes=[],
+            )
+
 
 class TestWriteSbatchScript:
     MANDATORY_ARGS = {

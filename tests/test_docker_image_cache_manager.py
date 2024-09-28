@@ -71,6 +71,7 @@ def test_cache_docker_image(mock_check_prerequisites, mock_run, mock_access, moc
     mock_is_file.return_value = True
     result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
     assert result.success
+    assert result.docker_image_path == Path("/fake/install/path/subdir/image.tar.gz")
     assert result.message == "Cached Docker image already exists at /fake/install/path/subdir/image.tar.gz."
 
     # Test creating subdirectory when it doesn't exist
@@ -301,9 +302,18 @@ def test_check_docker_image_accessibility_with_enroot(mock_tempdir, mock_which, 
     assert "docker://docker.io/hello-world" in command
 
 
-def test_docker_image_path_is_always_absolute():
-    r = DockerImageCacheResult(True, Path("relative/path"), "message")
-    assert r.docker_image_path.is_absolute()
+@patch("pathlib.Path.is_file")
+@patch("pathlib.Path.exists")
+def test_ensure_docker_image_no_local_cache(mock_exists, mock_is_file):
+    manager = DockerImageCacheManager(Path("/fake/install/path"), False, "default")
 
-    r.docker_image_path = Path("another/relative/path")
-    assert r.docker_image_path.is_absolute()
+    mock_is_file.return_value = False
+    mock_exists.return_value = True
+
+    result = manager.ensure_docker_image("docker.io/hello-world", "subdir", "docker_image.sqsh")
+
+    assert result.success
+    assert result.docker_image_path is not None
+    assert str(result.docker_image_path) == "docker.io/hello-world"
+    assert not result.docker_image_path.is_absolute()
+    assert result.message == ""
