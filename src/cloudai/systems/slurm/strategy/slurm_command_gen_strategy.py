@@ -45,8 +45,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         if not self.slurm_system.default_partition:
             raise ValueError("Partition not specified in the system configuration.")
 
-        self.install_path = self.slurm_system.install_path
-
         self.docker_image_cache_manager = DockerImageCacheManager(
             self.slurm_system.install_path,
             self.slurm_system.cache_docker_images_locally,
