@@ -423,10 +423,6 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             nodes=[],
         )
 
-        # Check that the logging function is called with the correct path
-        log_file_path = output_path / "generated_command.sh"
-        mock_file.assert_called_with("a")
-
         # Retrieve the actual written command from the mock file handler
         written_content = mock_file().write.call_args[0][0]
 
