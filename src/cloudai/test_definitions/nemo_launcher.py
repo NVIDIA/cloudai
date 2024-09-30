@@ -28,11 +28,35 @@ class NumaMapping(BaseModel):
     enable: bool = True
 
 
+class PersistentVolumeClaim(BaseModel):
+    """Persistent volume claim configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+    claim_name: str = "nemo-workspace"
+
+
+class ClusterWorkspace(BaseModel):
+    """Cluster workspace configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+    persistent_volume_claim: PersistentVolumeClaim = Field(default_factory=PersistentVolumeClaim)
+    mount_path: str = "/nemo-workspace"
+
+
+class ClusterVolume(BaseModel):
+    """Cluster volume configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+    workspace: ClusterWorkspace = Field(default_factory=ClusterWorkspace)
+
+
 class Cluster(BaseModel):
     """Cluster configuration."""
 
     model_config = ConfigDict(extra="forbid")
+    value: str = "k8s_v2"
     gpus_per_node: int = 8
+    volumes: ClusterVolume = Field(default_factory=ClusterVolume)
 
 
 class ExpManager(BaseModel):
@@ -50,6 +74,8 @@ class Trainer(BaseModel):
     val_check_interval: int = 100
     log_every_n_steps: Literal["1", "2"] = "1"
     enable_checkpointing: bool = False
+    num_nodes: int = 3
+    devices: int = 8
 
 
 class TrainingModelData(BaseModel):

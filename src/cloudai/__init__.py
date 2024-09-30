@@ -68,6 +68,7 @@ from .schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestS
 from .schema.test_template.nccl_test.slurm_install_strategy import NcclTestSlurmInstallStrategy
 from .schema.test_template.nccl_test.template import NcclTest
 from .schema.test_template.nemo_launcher.grading_strategy import NeMoLauncherGradingStrategy
+from .schema.test_template.nemo_launcher.kubernetes_command_gen_strategy import NeMoLauncherKubernetesCommandGenStrategy
 from .schema.test_template.nemo_launcher.kubernetes_install_strategy import NeMoLauncherKubernetesInstallStrategy
 from .schema.test_template.nemo_launcher.report_generation_strategy import NeMoLauncherReportGenerationStrategy
 from .schema.test_template.nemo_launcher.slurm_command_gen_strategy import NeMoLauncherSlurmCommandGenStrategy
@@ -128,6 +129,9 @@ Registry().add_strategy(GradingStrategy, [SlurmSystem], [Sleep], SleepGradingStr
 Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [JaxToolbox], JaxToolboxReportGenerationStrategy)
 Registry().add_strategy(JobIdRetrievalStrategy, [SlurmSystem], [NeMoLauncher], NeMoLauncherSlurmJobIdRetrievalStrategy)
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NeMoLauncher], NeMoLauncherSlurmCommandGenStrategy)
+Registry().add_strategy(
+    CommandGenStrategy, [KubernetesSystem], [NeMoLauncher], NeMoLauncherKubernetesCommandGenStrategy
+)
 Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [UCCTest], UCCTestReportGenerationStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [NeMoLauncher], NeMoLauncherGradingStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [JaxToolbox], JaxToolboxGradingStrategy)
