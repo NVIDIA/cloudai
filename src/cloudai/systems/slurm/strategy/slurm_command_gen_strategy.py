@@ -50,8 +50,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
                 "(e.g., system.toml)."
             )
 
-        self.install_path = self.slurm_system.install_path
-
         self.docker_image_cache_manager = DockerImageCacheManager(
             self.slurm_system.install_path,
             self.slurm_system.cache_docker_images_locally,
