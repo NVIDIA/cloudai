@@ -160,8 +160,7 @@ def grouped_nodes() -> dict[SlurmNodeState, list[SlurmNode]]:
         SlurmNodeState.COMPLETING: [
             SlurmNode(name="node04", partition=partition_name, state=SlurmNodeState.COMPLETING)
         ],
-        SlurmNodeState.ALLOCATED: [],
-        SlurmNodeState.DOWN: [SlurmNode(name="node05", partition=partition_name, state=SlurmNodeState.DOWN)],
+        SlurmNodeState.ALLOCATED: [SlurmNode(name="node05", partition=partition_name, state=SlurmNodeState.ALLOCATED)],
     }
 
     return grouped_nodes
@@ -178,9 +177,11 @@ def test_allocate_nodes_max_avail(slurm_system: SlurmSystem, grouped_nodes: dict
     ]
     returned_node_names = [node.name for node in available_nodes]
 
-    assert set(returned_node_names) == set(expected_node_names), "Should return all available nodes except DOWN nodes"
-    down_node_name = grouped_nodes[SlurmNodeState.DOWN][0].name
-    assert down_node_name not in returned_node_names, "DOWN node should not be included"
+    assert set(returned_node_names) == set(
+        expected_node_names
+    ), "Should return all available nodes except ALLOCATED nodes"
+    allocated_node_name = grouped_nodes[SlurmNodeState.ALLOCATED][0].name
+    assert allocated_node_name not in returned_node_names, "ALLOCATED node should not be included"
 
 
 def test_allocate_nodes_num_nodes_integers(
@@ -200,11 +201,12 @@ def test_allocate_nodes_exceeding_limit(
     slurm_system: SlurmSystem, grouped_nodes: dict[SlurmNodeState, list[SlurmNode]]
 ):
     group_name = "group_name"
+    num_nodes = 5
 
     with pytest.raises(
         ValueError,
         match=re.escape(
-            f"Requested number of nodes (4) exceeds the number of available nodes in group '{group_name}'."
+            f"Requested number of nodes ({num_nodes}) exceeds the number of nodes in group '{group_name}'."
         ),
     ):
-        slurm_system.allocate_nodes(grouped_nodes, 4, group_name)
+        slurm_system.allocate_nodes(grouped_nodes, num_nodes, group_name)

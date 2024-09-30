@@ -135,7 +135,12 @@ def test_raises_if_no_default_partition(slurm_system: SlurmSystem):
     slurm_system.default_partition = ""
     with pytest.raises(ValueError) as exc_info:
         SlurmCommandGenStrategy(slurm_system, {})
-    assert "Partition not specified in the system configuration." in str(exc_info)
+    assert (
+        "Default partition not set in the Slurm system object. "
+        "The 'default_partition' attribute should be properly defined in the Slurm "
+        "system configuration. Please ensure that 'default_partition' is set correctly "
+        "in the corresponding system configuration (e.g., system.toml)."
+    ) in str(exc_info.value)
 
 
 class TestGenerateSrunCommand__CmdGeneration:
