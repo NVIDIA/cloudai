@@ -49,6 +49,8 @@ class Trainer(BaseModel):
     max_steps: int = 400
     val_check_interval: int = 100
     log_every_n_steps: Literal["1", "2"] = "1"
+    limit_val_batches: int = 5
+    num_nodes: int = 1
     enable_checkpointing: bool = False
 
 
@@ -59,6 +61,17 @@ class TrainingModelData(BaseModel):
     data_prefix: str = "[\"1.0\",'${data_dir}/my-gpt3_00_text_document']"
 
 
+class Optim(BaseModel):
+    """Optimizer configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+    name: str = "fused_adam"
+    bucket_cap_mb: str = "200"
+    overlap_grad_sync: str = "True"
+    contiguous_grad_buffer: str = "True"
+    overlap_param_sync: str = "True"
+
+
 class TrainingModel(BaseModel):
     """Training model configuration."""
 
@@ -67,14 +80,21 @@ class TrainingModel(BaseModel):
     micro_batch_size: int = 2
     tensor_model_parallel_size: int = 4
     pipeline_model_parallel_size: int = 4
+    activations_checkpoint_num_layers: Literal["null"] = "null"
+    mcore_gpt: bool = True
+    fsdp: bool = True
+    fsdp_sharding_strategy: Literal["full"] = "full"
+    fsdp_grad_reduce_dtype: Literal["bf16"] = "bf16"
+    optim: Optim = Field(default_factory=Optim)
     data: TrainingModelData = Field(default_factory=TrainingModelData)
+    megatron_amp_O2: bool = False
 
 
 class TrainingRun(BaseModel):
     """Training run configuration."""
 
     model_config = ConfigDict(extra="forbid")
-    time_limit: str = "3:00:00"
+    time_limit: str = "1:00:00"
     name: str = "run"
 
 
