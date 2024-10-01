@@ -56,7 +56,8 @@ class TrainingModelData(BaseModel):
     """Training model data configuration."""
 
     model_config = ConfigDict(extra="forbid")
-    data_prefix: str = "[\"1.0\",'${data_dir}/my-gpt3_00_text_document']"
+    data_prefix: str = "[]"
+    data_impl: str = "mock"
 
 
 class TrainingModel(BaseModel):
@@ -96,7 +97,7 @@ class NeMoLauncherCmdArgs(CmdArgs):
     repository_commit_hash: str = "cf411a9ede3b466677df8ee672bcc6c396e71e1a"
     docker_image_url: str = "nvcr.io/nvidian/nemofw-training:24.01.01"
     stages: str = '["training"]'
-    data_dir: str = "DATA_DIR"
+    data_dir: str = "~"
     numa_mapping: NumaMapping = Field(default_factory=NumaMapping)
     cluster: Cluster = Field(default_factory=Cluster)
     training: Training = Field(default_factory=Training)
