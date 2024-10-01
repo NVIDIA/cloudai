@@ -34,40 +34,10 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         num_nodes: int,
         nodes: List[str],
     ) -> str:
-        final_env_vars = self._override_env_vars(self.system.global_env_vars, extra_env_vars)
-
-        launcher_path = (
-            self.system.install_path
-            / NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH
-            / NeMoLauncherSlurmInstallStrategy.REPOSITORY_NAME
-        ).absolute()
-        output_path_abs = output_path.absolute()
-        overriden_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
-        self.final_cmd_args = {
-            k: self._handle_special_keys(k, v, str(launcher_path), str(output_path_abs))
-            for k, v in overriden_cmd_args.items()
-        }
-        self.final_cmd_args["base_results_dir"] = str(output_path_abs)
-        self.final_cmd_args["training.model.data.index_mapping_dir"] = str(output_path_abs)
-        self.final_cmd_args["launcher_scripts_path"] = str(launcher_path / "launcher_scripts")
-
-        for key, value in final_env_vars.items():
-            self.final_cmd_args[f"env_vars.{key}"] = value
-
-        if "training.values" in self.final_cmd_args:
-            self.final_cmd_args["training"] = self.final_cmd_args.pop("training.values")
-
-        self.final_cmd_args["cluster.partition"] = self.slurm_system.default_partition
-        reservation_key = "--reservation "
-        if self.slurm_system.extra_srun_args and reservation_key in self.slurm_system.extra_srun_args:
-            reservation = self.slurm_system.extra_srun_args.split(reservation_key, 1)[1].split(" ", 1)[0]
-            self.final_cmd_args["+cluster.reservation"] = reservation
+        self._prepare_environment(cmd_args, extra_env_vars, output_path)
 
         nodes = self.slurm_system.parse_nodes(nodes)
-        if nodes:
-            self.final_cmd_args["training.trainer.num_nodes"] = str(len(nodes))
-        else:
-            self.final_cmd_args["training.trainer.num_nodes"] = num_nodes
+        self._set_node_config(nodes, num_nodes)
 
         self.final_cmd_args["container"] = self.docker_image_cache_manager.ensure_docker_image(
             self.docker_image_url,
@@ -75,22 +45,104 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             NeMoLauncherSlurmInstallStrategy.DOCKER_IMAGE_FILENAME,
         ).docker_image_path
 
-        del self.final_cmd_args["repository_url"]
-        del self.final_cmd_args["repository_commit_hash"]
-        del self.final_cmd_args["docker_image_url"]
+        for key in ("repository_url", "repository_commit_hash", "docker_image_url"):
+            self.final_cmd_args.pop(key, None)
 
-        if self.slurm_system.account is not None:
-            self.final_cmd_args["cluster.account"] = self.slurm_system.account
-            self.final_cmd_args["cluster.job_name_prefix"] = f"{self.slurm_system.account}-cloudai.nemo:"
-        self.final_cmd_args["cluster.gpus_per_node"] = (
-            self.slurm_system.gpus_per_node if self.slurm_system.gpus_per_node is not None else "null"
+        if self.slurm_system.account:
+            self.final_cmd_args.update(
+                {
+                    "cluster.account": self.slurm_system.account,
+                    "cluster.job_name_prefix": f"{self.slurm_system.account}-cloudai.nemo:",
+                }
+            )
+        self.final_cmd_args["cluster.gpus_per_node"] = self.slurm_system.gpus_per_node or "null"
+
+        self._validate_data_config()
+
+        cmd_args_str = self._generate_cmd_args_str(self.final_cmd_args, nodes)
+
+        full_cmd = f"python {self._launcher_scripts_path()}/launcher_scripts/main.py {cmd_args_str}"
+
+        if extra_cmd_args:
+            full_cmd = self._handle_extra_cmd_args(full_cmd, extra_cmd_args)
+
+        env_vars_str = " ".join(f"{key}={value}" for key, value in self.final_env_vars.items())
+        full_cmd = f"{env_vars_str} {full_cmd}" if env_vars_str else full_cmd
+
+        return full_cmd.strip()
+
+    def _prepare_environment(self, cmd_args: Dict[str, str], extra_env_vars: Dict[str, str], output_path: Path) -> None:
+        """
+        Prepare the environment variables and command arguments.
+
+        Args:
+            cmd_args (Dict[str, str]): Command-line arguments for the launcher.
+            extra_env_vars (Dict[str, str]): Additional environment variables.
+            output_path (Path): Path to the output directory.
+        """
+        self.final_env_vars = self._override_env_vars(self.system.global_env_vars, extra_env_vars)
+
+        launcher_path = self._launcher_scripts_path()
+        output_path_abs = output_path.absolute()
+        overriden_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
+        self.final_cmd_args = {
+            k: self._handle_special_keys(k, v, str(launcher_path), str(output_path_abs))
+            for k, v in overriden_cmd_args.items()
+        }
+        self.final_cmd_args.update(
+            {
+                "base_results_dir": str(output_path_abs),
+                "training.model.data.index_mapping_dir": str(output_path_abs),
+                "launcher_scripts_path": str(launcher_path / "launcher_scripts"),
+            }
         )
 
+        for key, value in self.final_env_vars.items():
+            self.final_cmd_args[f"env_vars.{key}"] = value
+
+        if "training.values" in self.final_cmd_args:
+            self.final_cmd_args["training"] = self.final_cmd_args.pop("training.values")
+
+        self.final_cmd_args["cluster.partition"] = self.slurm_system.default_partition
+        self._handle_reservation()
+
+    def _handle_reservation(self) -> None:
+        """Handle Slurm reservation if provided."""
+        reservation_key = "--reservation "
+        if self.slurm_system.extra_srun_args and reservation_key in self.slurm_system.extra_srun_args:
+            reservation = self.slurm_system.extra_srun_args.split(reservation_key, 1)[1].split(" ", 1)[0]
+            self.final_cmd_args["+cluster.reservation"] = reservation
+
+    def _launcher_scripts_path(self) -> Path:
+        """
+        Return the launcher scripts path.
+
+        Returns
+            Path: Absolute path to the NeMo launcher scripts directory.
+        """
+        return (
+            self.system.install_path
+            / NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH
+            / NeMoLauncherSlurmInstallStrategy.REPOSITORY_NAME
+        ).absolute()
+
+    def _set_node_config(self, nodes: List[str], num_nodes: int) -> None:
+        """
+        Set the number of nodes configuration.
+
+        Args:
+            nodes (List[str]): List of nodes where the test will run.
+            num_nodes (int): Number of nodes to allocate if no specific node list is provided.
+        """
+        self.final_cmd_args["training.trainer.num_nodes"] = str(len(nodes)) if nodes else num_nodes
+
+    def _validate_data_config(self) -> None:
+        """Validate the data directory and prefix configuration for non-mock environments."""
         if self.final_cmd_args.get("training.model.data.data_impl") != "mock":
             data_dir = self.final_cmd_args.get("data_dir")
             data_prefix = self.final_cmd_args.get("training.model.data.data_prefix")
 
-            if data_dir is None or data_dir == "~":
+            if not data_dir or data_dir == "~":
                 raise ValueError(
                     "The 'data_dir' field of the NeMo launcher test contains an invalid placeholder '~'. "
                     "Please provide a valid path to the dataset in the test schema TOML file. "
@@ -103,46 +155,30 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     "Please update the test schema TOML file with a valid prefix for the training datasets."
                 )
 
-        cmd_args_str = self._generate_cmd_args_str(self.final_cmd_args, nodes)
-
-        full_cmd = f"python {launcher_path}/launcher_scripts/main.py {cmd_args_str}"
-
-        if extra_cmd_args:
-            full_cmd += f" {extra_cmd_args}"
-            tokenizer_key = "training.model.tokenizer.model="
-            if tokenizer_key in extra_cmd_args:
-                tokenizer_path = extra_cmd_args.split(tokenizer_key, 1)[1].split(" ", 1)[0]
-                if not Path(tokenizer_path).is_file():
-                    raise ValueError(
-                        f"The provided tokenizer path '{tokenizer_path}' is not valid. "
-                        "Please review the test schema file to ensure the tokenizer path is correct. "
-                        "If it contains a placeholder value, refer to USER_GUIDE.md to download the tokenizer "
-                        "and update the schema file accordingly."
-                    )
-                full_cmd += f" container_mounts=[{tokenizer_path}:{tokenizer_path}]"
-
-        env_vars_str = " ".join(f"{key}={value}" for key, value in final_env_vars.items())
-        full_cmd = f"{env_vars_str} {full_cmd}" if env_vars_str else full_cmd
-
-        return full_cmd.strip()
-
-    def _handle_special_keys(self, key: str, value: Any, launcher_path: str, output_path: str) -> Any:
+    def _handle_extra_cmd_args(self, full_cmd: str, extra_cmd_args: str) -> str:
         """
-        Handle special formatting for specific keys.
+        Handle additional command arguments such as the tokenizer path.
 
         Args:
-            key (str): The argument key.
-            value (Any): The argument value.
-            launcher_path (str): The base path for NeMo Megatron launcher.
-            output_path (str): Path to the output directory.
+            full_cmd (str): The full command string generated so far.
+            extra_cmd_args (str): Additional command-line arguments to append.
 
         Returns:
-            Any: The specially formatted value, if applicable.
+            str: Updated command string with the additional arguments.
         """
-        if key == "training.model.data.data_prefix":
-            return value.replace("\\", "")
-
-        return value
+        full_cmd += f" {extra_cmd_args}"
+        tokenizer_key = "training.model.tokenizer.model="
+        if tokenizer_key in extra_cmd_args:
+            tokenizer_path = extra_cmd_args.split(tokenizer_key, 1)[1].split(" ", 1)[0]
+            if not Path(tokenizer_path).is_file():
+                raise ValueError(
+                    f"The provided tokenizer path '{tokenizer_path}' is not valid. "
+                    "Please review the test schema file to ensure the tokenizer path is correct. "
+                    "If it contains a placeholder value, refer to USER_GUIDE.md to download the tokenizer "
+                    "and update the schema file accordingly."
+                )
+            full_cmd += f" container_mounts=[{tokenizer_path}:{tokenizer_path}]"
+        return full_cmd
 
     def _generate_cmd_args_str(self, args: Dict[str, str], nodes: List[str]) -> str:
         """
@@ -174,3 +210,21 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             cmd_arg_str_parts.append(f"+cluster.nodelist=\\'{nodes_str}\\'")
 
         return " ".join(cmd_arg_str_parts + env_var_str_parts)
+
+    def _handle_special_keys(self, key: str, value: Any, launcher_path: str, output_path: str) -> Any:
+        """
+        Handle special formatting for specific keys.
+
+        Args:
+            key (str): The argument key.
+            value (Any): The argument value.
+            launcher_path (str): The base path for NeMo Megatron launcher.
+            output_path (str): Path to the output directory.
+
+        Returns:
+            Any: The specially formatted value, if applicable.
+        """
+        if key == "training.model.data.data_prefix":
+            return value.replace("\\", "")
+
+        return value
