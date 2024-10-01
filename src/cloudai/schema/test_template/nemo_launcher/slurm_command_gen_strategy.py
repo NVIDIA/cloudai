@@ -40,14 +40,15 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             self.system.install_path
             / NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH
             / NeMoLauncherSlurmInstallStrategy.REPOSITORY_NAME
-        )
+        ).absolute()
+        output_path_abs = output_path.absolute()
         overriden_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
         self.final_cmd_args = {
-            k: self._handle_special_keys(k, v, str(launcher_path), str(output_path))
+            k: self._handle_special_keys(k, v, str(launcher_path), str(output_path_abs))
             for k, v in overriden_cmd_args.items()
         }
-        self.final_cmd_args["base_results_dir"] = str(output_path)
-        self.final_cmd_args["training.model.data.index_mapping_dir"] = str(output_path)
+        self.final_cmd_args["base_results_dir"] = str(output_path_abs)
+        self.final_cmd_args["training.model.data.index_mapping_dir"] = str(output_path_abs)
         self.final_cmd_args["launcher_scripts_path"] = str(launcher_path / "launcher_scripts")
 
         for key, value in final_env_vars.items():
@@ -156,7 +157,10 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     value = f"\\'{value}\\'"
                 env_var_str_parts.append(f"+{key}={value}")
             else:
-                cmd_arg_str_parts.append(f"{key}={value}")
+                if value == "~":
+                    cmd_arg_str_parts.append(f"~{key}=null")
+                else:
+                    cmd_arg_str_parts.append(f"{key}={value}")
 
         if nodes:
             nodes_str = ",".join(nodes)
