@@ -206,6 +206,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             "docker_image_url": "fake",
             "repository_url": "fake",
             "repository_commit_hash": "fake",
+            "data_dir": "/fake/data_dir",
         }
         cmd = nemo_cmd_gen.gen_exec_command(
             cmd_args=cmd_args,
@@ -225,6 +226,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             "docker_image_url": "fake",
             "repository_url": "fake",
             "repository_commit_hash": "fake",
+            "data_dir": "/fake/data_dir",
         }
         cmd = nemo_cmd_gen.gen_exec_command(
             cmd_args=cmd_args,
@@ -243,6 +245,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             "docker_image_url": "fake",
             "repository_url": "fake",
             "repository_commit_hash": "fake",
+            "data_dir": "/fake/data_dir",
         }
         tokenizer_path = tmp_path / "tokenizer"
         tokenizer_path.touch()
@@ -264,6 +267,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             "docker_image_url": "fake",
             "repository_url": "fake",
             "repository_commit_hash": "fake",
+            "data_dir": "/fake/data_dir",
         }
         nemo_cmd_gen.slurm_system.extra_srun_args = "--reservation my-reservation"
         cmd = nemo_cmd_gen.gen_exec_command(
@@ -283,6 +287,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             "docker_image_url": "fake",
             "repository_url": "fake",
             "repository_commit_hash": "fake",
+            "data_dir": "/fake/data_dir",
         }
         invalid_tokenizer_path = Path("/invalid/path/to/tokenizer")
 
@@ -309,6 +314,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             "docker_image_url": "fake",
             "repository_url": "fake",
             "repository_commit_hash": "fake",
+            "data_dir": "/fake/data_dir",
         }
 
         nemo_cmd_gen.slurm_system.account = "test_account"
@@ -330,6 +336,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             "docker_image_url": "fake",
             "repository_url": "fake",
             "repository_commit_hash": "fake",
+            "data_dir": "/fake/data_dir",
         }
 
         nemo_cmd_gen.slurm_system.account = None
@@ -351,6 +358,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             "docker_image_url": "fake",
             "repository_url": "fake",
             "repository_commit_hash": "fake",
+            "data_dir": "/fake/data_dir",
         }
 
         nemo_cmd_gen.slurm_system.gpus_per_node = 4
@@ -377,27 +385,6 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
 
         assert "cluster.gpus_per_node=null" in cmd
 
-    def test_data_dir_validation(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
-        extra_env_vars = {"TEST_VAR_1": "value1"}
-        cmd_args = {
-            "docker_image_url": "fake",
-            "repository_url": "fake",
-            "repository_commit_hash": "fake",
-            "data_dir": "DATA_DIR",  # Invalid placeholder
-        }
-
-        with pytest.raises(
-            ValueError, match="The 'data_dir' field of the NeMo launcher test contains the placeholder 'DATA_DIR'."
-        ):
-            nemo_cmd_gen.gen_exec_command(
-                cmd_args=cmd_args,
-                extra_env_vars=extra_env_vars,
-                extra_cmd_args="",
-                output_path=Path(""),
-                num_nodes=1,
-                nodes=[],
-            )
-
     def test_argument_with_tilde_value(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
         extra_env_vars = {"TEST_VAR_1": "value1"}
         cmd_args = {
@@ -405,6 +392,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             "repository_url": "fake",
             "repository_commit_hash": "fake",
             "training.model.optim.bucket_cap_mb": "~",
+            "data_dir": "/fake/data_dir",
         }
 
         cmd = nemo_cmd_gen.gen_exec_command(
@@ -416,6 +404,65 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             nodes=[],
         )
         assert "~training.model.optim.bucket_cap_mb=null" in cmd
+
+    def test_data_impl_mock_skips_checks(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
+        extra_env_vars = {"TEST_VAR_1": "value1"}
+        cmd_args = {
+            "docker_image_url": "fake",
+            "repository_url": "fake",
+            "repository_commit_hash": "fake",
+            "data_impl": "mock",
+            "data_dir": "DATA_DIR",
+        }
+
+        cmd = nemo_cmd_gen.gen_exec_command(
+            cmd_args=cmd_args,
+            extra_env_vars=extra_env_vars,
+            extra_cmd_args="",
+            output_path=Path(""),
+            num_nodes=1,
+            nodes=[],
+        )
+        assert "data_dir" in cmd
+
+    def test_data_dir_and_data_prefix_validation(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
+        extra_env_vars = {"TEST_VAR_1": "value1"}
+        cmd_args = {
+            "docker_image_url": "fake",
+            "repository_url": "fake",
+            "repository_commit_hash": "fake",
+            "data_impl": "not_mock",
+            "data_dir": "~",
+            "training.model.data.data_prefix": "[]",
+        }
+
+        with pytest.raises(
+            ValueError,
+            match=(
+                "The 'data_dir' field of the NeMo launcher test contains an invalid placeholder '~'. "
+                "Please provide a valid path to the dataset in the test schema TOML file. "
+                "The 'data_dir' field must point to an actual dataset location."
+            ),
+        ):
+            nemo_cmd_gen.gen_exec_command(
+                cmd_args=cmd_args,
+                extra_env_vars=extra_env_vars,
+                extra_cmd_args="",
+                output_path=Path(""),
+                num_nodes=1,
+                nodes=[],
+            )
+
+        cmd_args["data_dir"] = "/fake/data_dir"
+        with pytest.raises(ValueError, match="The 'data_prefix' field of the NeMo launcher test is missing or empty."):
+            nemo_cmd_gen.gen_exec_command(
+                cmd_args=cmd_args,
+                extra_env_vars=extra_env_vars,
+                extra_cmd_args="",
+                output_path=Path(""),
+                num_nodes=1,
+                nodes=[],
+            )
 
     @patch("pathlib.Path.open", new_callable=mock_open)
     def test_log_command_to_file(self, mock_file, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, tmp_path: Path):
