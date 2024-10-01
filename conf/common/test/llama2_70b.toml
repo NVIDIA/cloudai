@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "llama"
+name = "llama2_70b"
 description = "Llama2 70b"
 test_template_name = "NeMoLauncher"
 
