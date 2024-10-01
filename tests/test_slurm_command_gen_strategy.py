@@ -473,6 +473,9 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             "docker_image_url": "fake",
             "repository_url": "fake",
             "repository_commit_hash": "fake",
+            "data_impl": "not_mock",
+            "data_dir": "/fake/data_dir",
+            "data_prefix": "[]",
         }
 
         # Define the output path
@@ -507,8 +510,10 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             "docker_image_url": "fake",
             "repository_url": "fake",
             "repository_commit_hash": "fake",
+            "data_impl": "not_mock",
+            "data_dir": "/fake/data_dir",
+            "data_prefix": "[]",
         }
-
         # Define the output path
         output_path = tmp_path / "output_dir"
         output_path.mkdir()

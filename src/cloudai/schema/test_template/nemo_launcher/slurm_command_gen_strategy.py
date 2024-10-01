@@ -72,6 +72,9 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         env_vars_str = " ".join(f"{key}={value}" for key, value in self.final_env_vars.items())
         full_cmd = f"{env_vars_str} {full_cmd}" if env_vars_str else full_cmd
 
+        # Log the generated command to a bash file
+        self._log_command_to_file(full_cmd, output_path)
+
         return full_cmd.strip()
 
     def _prepare_environment(self, cmd_args: Dict[str, str], extra_env_vars: Dict[str, str], output_path: Path) -> None:
@@ -128,12 +131,6 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             / NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH
             / NeMoLauncherSlurmInstallStrategy.REPOSITORY_NAME
         ).absolute()
-
-
-        # Log the generated command to a bash file
-        self._log_command_to_file(full_cmd, output_path)
-
-        return full_cmd.strip()
 
     def _set_node_config(self, nodes: List[str], num_nodes: int) -> None:
         """
@@ -220,7 +217,6 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return " ".join(cmd_arg_str_parts + env_var_str_parts)
 
-
     def _log_command_to_file(self, command: str, output_path: Path):
         """Log the generated command to a bash file in the specified output path."""
         log_file = output_path / "generated_command.sh"
@@ -250,4 +246,3 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             return value.replace("\\", "")
 
         return value
-
