@@ -86,12 +86,22 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             self.slurm_system.gpus_per_node if self.slurm_system.gpus_per_node is not None else "null"
         )
 
-        if ("data_dir" in self.final_cmd_args) and (self.final_cmd_args["data_dir"] == "DATA_DIR"):
-            raise ValueError(
-                "The 'data_dir' field of the NeMo launcher test contains the placeholder 'DATA_DIR'. "
-                "Please update the test schema TOML file with a valid path to the dataset. "
-                "The 'data_dir' field must point to an actual dataset location, not a placeholder."
-            )
+        if self.final_cmd_args.get("training.model.data.data_impl") != "mock":
+            data_dir = self.final_cmd_args.get("data_dir")
+            data_prefix = self.final_cmd_args.get("training.model.data.data_prefix")
+
+            if data_dir is None or data_dir == "~":
+                raise ValueError(
+                    "The 'data_dir' field of the NeMo launcher test contains an invalid placeholder '~'. "
+                    "Please provide a valid path to the dataset in the test schema TOML file. "
+                    "The 'data_dir' field must point to an actual dataset location."
+                )
+
+            if data_prefix == "[]":
+                raise ValueError(
+                    "The 'data_prefix' field of the NeMo launcher test is missing or empty. "
+                    "Please update the test schema TOML file with a valid prefix for the training datasets."
+                )
 
         cmd_args_str = self._generate_cmd_args_str(self.final_cmd_args, nodes)
 
