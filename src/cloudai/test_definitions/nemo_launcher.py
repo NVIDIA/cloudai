@@ -46,12 +46,12 @@ class Trainer(BaseModel):
     """Trainer configuration."""
 
     model_config = ConfigDict(extra="forbid")
-    max_steps: int = 400
-    val_check_interval: int = 100
-    log_every_n_steps: Literal["1", "2"] = "1"
-    limit_val_batches: int = 5
-    num_nodes: int = 1
     enable_checkpointing: bool = False
+    limit_val_batches: int = 5
+    log_every_n_steps: Literal["1", "2"] = "1"
+    max_steps: int = 400
+    num_nodes: int = 1
+    val_check_interval: int = 100
 
 
 class TrainingModelData(BaseModel):
@@ -67,8 +67,8 @@ class Optim(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = "fused_adam"
     bucket_cap_mb: str = "200"
-    overlap_grad_sync: str = "True"
     contiguous_grad_buffer: str = "True"
+    overlap_grad_sync: str = "True"
     overlap_param_sync: str = "True"
 
 
@@ -76,37 +76,37 @@ class TrainingModel(BaseModel):
     """Training model configuration."""
 
     model_config = ConfigDict(extra="forbid")
-    global_batch_size: int = 128
-    micro_batch_size: int = 2
-    tensor_model_parallel_size: int = 4
-    pipeline_model_parallel_size: int = 4
     activations_checkpoint_num_layers: Literal["null"] = "null"
-    mcore_gpt: bool = True
-    fsdp: bool = True
-    fsdp_sharding_strategy: Literal["full"] = "full"
-    fsdp_grad_reduce_dtype: Literal["bf16"] = "bf16"
-    optim: Optim = Field(default_factory=Optim)
     data: TrainingModelData = Field(default_factory=TrainingModelData)
+    fsdp: bool = True
+    fsdp_grad_reduce_dtype: Literal["bf16"] = "bf16"
+    fsdp_sharding_strategy: Literal["full"] = "full"
+    global_batch_size: int = 128
+    mcore_gpt: bool = True
     megatron_amp_O2: bool = False
+    micro_batch_size: int = 2
+    optim: Optim = Field(default_factory=Optim)
+    pipeline_model_parallel_size: int = 4
+    tensor_model_parallel_size: int = 4
 
 
 class TrainingRun(BaseModel):
     """Training run configuration."""
 
     model_config = ConfigDict(extra="forbid")
-    time_limit: str = "1:00:00"
     name: str = "run"
+    time_limit: str = "1:00:00"
 
 
 class Training(BaseModel):
     """Training configuration."""
 
     model_config = ConfigDict(extra="forbid")
-    values: str = "gpt3/40b_improved"
     exp_manager: ExpManager = Field(default_factory=ExpManager)
-    trainer: Trainer = Field(default_factory=Trainer)
     model: TrainingModel = Field(default_factory=TrainingModel)
     run: TrainingRun = Field(default_factory=TrainingRun)
+    trainer: Trainer = Field(default_factory=Trainer)
+    values: str = "gpt3/40b_improved"
 
 
 class NeMoLauncherCmdArgs(CmdArgs):
@@ -117,8 +117,8 @@ class NeMoLauncherCmdArgs(CmdArgs):
     docker_image_url: str = "nvcr.io/nvidian/nemofw-training:24.01.01"
     stages: str = '["training"]'
     data_dir: str = "DATA_DIR"
-    numa_mapping: NumaMapping = Field(default_factory=NumaMapping)
     cluster: Cluster = Field(default_factory=Cluster)
+    numa_mapping: NumaMapping = Field(default_factory=NumaMapping)
     training: Training = Field(default_factory=Training)
 
 
