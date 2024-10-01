@@ -16,7 +16,7 @@
 
 from pathlib import Path
 from typing import Optional
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, mock_open, patch
 
 import pytest
 from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
@@ -463,6 +463,73 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
                 num_nodes=1,
                 nodes=[],
             )
+
+    @patch("pathlib.Path.open", new_callable=mock_open)
+    def test_log_command_to_file(self, mock_file, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, tmp_path: Path):
+        """Test that the command is correctly logged with line breaks."""
+        # Define the command arguments
+        extra_env_vars = {"TEST_VAR_1": "value1"}
+        cmd_args = {
+            "docker_image_url": "fake",
+            "repository_url": "fake",
+            "repository_commit_hash": "fake",
+            "data_impl": "not_mock",
+            "data_dir": "/fake/data_dir",
+            "data_prefix": "[]",
+        }
+
+        # Define the output path
+        output_path = tmp_path / "output_dir"
+        output_path.mkdir()
+
+        # Generate the command and trigger the logging without assigning to a variable
+        nemo_cmd_gen.gen_exec_command(
+            cmd_args=cmd_args,
+            extra_env_vars=extra_env_vars,
+            extra_cmd_args="",
+            output_path=output_path,
+            num_nodes=1,
+            nodes=[],
+        )
+
+        # Retrieve the actual written command from the mock file handler
+        written_content = mock_file().write.call_args[0][0]
+
+        # Ensure that the logged command has line breaks for readability
+        assert " \\\n " in written_content, "Command should contain line breaks when written to the file"
+        assert "python" in written_content, "Logged command should start with 'python'"
+        assert "TEST_VAR_1=value1" in written_content, "Logged command should contain environment variables"
+        assert "training.trainer.num_nodes=1" in written_content, "Command should contain the number of nodes"
+
+    def test_no_line_breaks_in_executed_command(
+        self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, tmp_path: Path
+    ):
+        """Test that the command used for execution has no line breaks."""
+        extra_env_vars = {"TEST_VAR_1": "value1"}
+        cmd_args = {
+            "docker_image_url": "fake",
+            "repository_url": "fake",
+            "repository_commit_hash": "fake",
+            "data_impl": "not_mock",
+            "data_dir": "/fake/data_dir",
+            "data_prefix": "[]",
+        }
+        # Define the output path
+        output_path = tmp_path / "output_dir"
+        output_path.mkdir()
+
+        # Generate the command
+        cmd = nemo_cmd_gen.gen_exec_command(
+            cmd_args=cmd_args,
+            extra_env_vars=extra_env_vars,
+            extra_cmd_args="",
+            output_path=output_path,
+            num_nodes=1,
+            nodes=[],
+        )
+
+        # Assert that there are no line breaks in the executed command
+        assert "\n" not in cmd, "Executed command should not contain line breaks"
 
 
 class TestWriteSbatchScript:

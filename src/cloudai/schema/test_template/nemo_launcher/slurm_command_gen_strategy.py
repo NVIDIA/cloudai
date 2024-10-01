@@ -72,6 +72,9 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         env_vars_str = " ".join(f"{key}={value}" for key, value in self.final_env_vars.items())
         full_cmd = f"{env_vars_str} {full_cmd}" if env_vars_str else full_cmd
 
+        # Log the generated command to a bash file
+        self._log_command_to_file(full_cmd, output_path)
+
         return full_cmd.strip()
 
     def _prepare_environment(self, cmd_args: Dict[str, str], extra_env_vars: Dict[str, str], output_path: Path) -> None:
@@ -210,9 +213,21 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         if nodes:
             nodes_str = ",".join(nodes)
-            cmd_arg_str_parts.append(f"+cluster.nodelist=\\'{nodes_str}\\'")
+            cmd_arg_str_parts.append(f"+cluster.nodelist=\\'{nodes_str}\\'\n")
 
         return " ".join(cmd_arg_str_parts + env_var_str_parts)
+
+    def _log_command_to_file(self, command: str, output_path: Path):
+        """Log the generated command to a bash file in the specified output path."""
+        log_file = output_path / "generated_command.sh"
+
+        # Ensure the output path exists
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+
+        command_with_line_breaks = command.replace(" ", " \\\n ")
+
+        with log_file.open("a") as f:
+            f.write(f"{command_with_line_breaks}\n\n")
 
     def _handle_special_keys(self, key: str, value: Any, launcher_path: str, output_path: str) -> Any:
         """
