@@ -154,7 +154,10 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     value = f"\\'{value}\\'"
                 env_var_str_parts.append(f"+{key}={value}")
             else:
-                cmd_arg_str_parts.append(f"{key}={value}")
+                if value == "~":
+                    cmd_arg_str_parts.append(f"~{key}=null")
+                else:
+                    cmd_arg_str_parts.append(f"{key}={value}")
 
         if nodes:
             nodes_str = ",".join(nodes)
