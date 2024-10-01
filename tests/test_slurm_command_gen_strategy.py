@@ -398,6 +398,25 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
                 nodes=[],
             )
 
+    def test_argument_with_tilde_value(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
+        extra_env_vars = {"TEST_VAR_1": "value1"}
+        cmd_args = {
+            "docker_image_url": "fake",
+            "repository_url": "fake",
+            "repository_commit_hash": "fake",
+            "training.model.optim.bucket_cap_mb": "~",
+        }
+
+        cmd = nemo_cmd_gen.gen_exec_command(
+            cmd_args=cmd_args,
+            extra_env_vars=extra_env_vars,
+            extra_cmd_args="",
+            output_path=Path(""),
+            num_nodes=1,
+            nodes=[],
+        )
+        assert "~training.model.optim.bucket_cap_mb=null" in cmd
+
 
 class TestWriteSbatchScript:
     MANDATORY_ARGS = {
