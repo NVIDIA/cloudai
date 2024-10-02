@@ -527,17 +527,17 @@ class SlurmSystem(BaseModel, System):
             grouped_nodes = {
                 SlurmNodeState.RESERVED: [],
                 }
-            for node in self.groups[partition_name][group_name]:
-                if node.state in grouped_nodes and node.name in reserved_nodes:
-                    grouped_nodes[node.state].append(node)
         else:
+            reserved_nodes = []
             grouped_nodes = {
                 SlurmNodeState.IDLE: [],
                 SlurmNodeState.COMPLETING: [],
                 SlurmNodeState.ALLOCATED: [],
             }
-            for node in self.groups[partition_name][group_name]:
-                if node.state in grouped_nodes:
+            
+        for node in self.groups[partition_name][group_name]:
+            if node.state in grouped_nodes:
+                if not reserved_nodes or node.name in reserved_nodes:
                     grouped_nodes[node.state].append(node)
 
         return grouped_nodes
@@ -745,6 +745,7 @@ class SlurmSystem(BaseModel, System):
         Returns:
             Dict[str, str]: A dictionary mapping node names to usernames.
         """
+        node_list = []
         for reservation in reservation_output.split("ReservationName"):
             if reservation_name in reservation:
                 nodes = reservation.split("Nodes=")[1].split(" ")[0]
