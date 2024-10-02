@@ -98,7 +98,6 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self.final_cmd_args.update(
             {
                 "base_results_dir": str(output_path_abs),
-                "training.model.data.index_mapping_dir": str(output_path_abs),
                 "launcher_scripts_path": str(launcher_path / "launcher_scripts"),
             }
         )
