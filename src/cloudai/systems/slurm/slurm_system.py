@@ -448,10 +448,7 @@ class SlurmSystem(BaseModel, System):
         self, partition_name: str, group_name: str, number_of_nodes: Union[int, str]
     ) -> List[SlurmNode]:
         """
-        Retrieve a specific number of potentially available nodes from a group within a partition.
-
-        Prioritizes nodes by their current state, preferring idle nodes first, then completing nodes, and finally
-        allocated nodes, while excluding nodes that are down and allocated nodes to the current user.
+        Return the reserved nodes corresponding to the given reservation name.
 
         Args:
             partition_name (str): The name of the partition.
@@ -460,11 +457,7 @@ class SlurmSystem(BaseModel, System):
                 Could also be 'all' to retrieve all the nodes from the group.
 
         Returns:
-            List[SlurmNode]: Objects that are potentially available for use.
-
-        Raises:
-            ValueError: If the partition or group is not found, or if the requested number of nodes exceeds the
-                available nodes.
+            Dict[str, str]: Names of nodes within the specified group and partition and reservation.
         """
         self.validate_partition_and_group(partition_name, group_name)
         self.update_node_states()
@@ -472,16 +465,27 @@ class SlurmSystem(BaseModel, System):
         grouped_nodes = self.group_nodes_by_state(partition_name, group_name)
         allocated_nodes = self.allocate_nodes(grouped_nodes, number_of_nodes, group_name)
 
-        # Log allocation details
-        logging.info(
-            "Allocated nodes from group '{}' in partition '{}': {}".format(
-                group_name,
-                partition_name,
-                [node.name for node in allocated_nodes],
-            )
-        )
+    def _get_available_nodes(self, partition_name: str, group_name: str):
+        """
+        Return the available nodes sorted into idle and completing.
 
-        return allocated_nodes
+        Args:
+            partition_name (str): The name of the partition.
+            group_name (str): The name of the group.
+
+        Returns:
+            Dict[str, str]: Names of nodes within the specified group and partition and reservation.
+        """
+        grouped_nodes = {
+            SlurmNodeState.IDLE: [],
+            SlurmNodeState.COMPLETING: [],
+        }
+
+        for node in self.groups[partition_name][group_name]:
+            if node.state in grouped_nodes:
+                grouped_nodes[node.state].append(node)
+
+        return grouped_nodes
 
     def validate_partition_and_group(self, partition_name: str, group_name: str) -> None:
         """
@@ -512,15 +516,27 @@ class SlurmSystem(BaseModel, System):
         Returns:
             Dict[SlurmNodeState, List[SlurmNode]]: A dictionary grouping nodes by their state.
         """
-        grouped_nodes = {
-            SlurmNodeState.IDLE: [],
-            SlurmNodeState.COMPLETING: [],
-            SlurmNodeState.ALLOCATED: [],
-        }
+        
+        if "reservation" in self.extra_srun_args:
+            reservation_key = "--reservation "
+            reservation_name = self.extra_srun_args.split(reservation_key, 1)[1].split(" ", 1)[0]
+            reserved_nodes = self.get_reservation(reservation_name)
+            grouped_nodes = {
+                SlurmNodeState.RESERVED: [],
+                }
+            for node in self.groups[partition_name][group_name]:
+                if node.state in grouped_nodes and node.name in reserved_nodes:
+                    grouped_nodes[node.state].append(node)
+        else:
+            grouped_nodes = {
+                SlurmNodeState.IDLE: [],
+                SlurmNodeState.COMPLETING: [],
+                SlurmNodeState.ALLOCATED: [],
+            }
 
-        for node in self.groups[partition_name][group_name]:
-            if node.state in grouped_nodes:
-                grouped_nodes[node.state].append(node)
+            for node in self.groups[partition_name][group_name]:
+                if node.state in grouped_nodes:
+                    grouped_nodes[node.state].append(node)
 
         return grouped_nodes
 
@@ -622,6 +638,16 @@ class SlurmSystem(BaseModel, System):
         sinfo_output, _ = self.fetch_command_output("sinfo")
         return sinfo_output
 
+    def get_reservation(self, reservation_name: str) -> str:
+        """
+        Fetch the output from the 'scontrol show reservation' command.
+
+        Returns
+            str: The stdout from the 'scontrol show reservation' command execution.
+        """
+        reservation_output, _ = self.fetch_command_output("scontrol show reservation")
+        return reservation_output
+
     def fetch_command_output(self, command: str) -> Tuple[str, str]:
         """
         Execute a system command and return its output.
@@ -697,6 +723,28 @@ class SlurmSystem(BaseModel, System):
                             node.state = state_enum
                             node.user = node_user_map.get(node_name, "N/A")
                             break
+
+    def parse_reservation_output(self, reservation_output: str, reservation_name: str) -> List[str]:
+        """
+        Parse the output from the 'scontrol show reservation' command to get the nodes of a specific reservation.
+
+        The expected format of scontrol show reservation is lines of 'ReservationName=... /n Nodes=...'.
+
+        Args:
+            reservation_output (str): The raw output from the scontrol show reservation command.
+            reservation_name (str) : The name of the reservation the user wants to use.
+
+        Returns:
+            List[str]: A list of the nodes related to the reservation.
+        """
+        for reservation in reservation_output.split("ReservationName"):
+            if reservation_name in reservation:
+                nodes = reservation.split("Nodes=")[1].split(" ")[0]
+                node_list = self.parse_node_list(nodes)
+                return node_list
+        raise ValueError(
+            'wrong reservation specified \n. Reservation should be in the form "--reservation reservation_name"'
+        )
 
     def convert_state_to_enum(self, state_str: str) -> SlurmNodeState:
         """
