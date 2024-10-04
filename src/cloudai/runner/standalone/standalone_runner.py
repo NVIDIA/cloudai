@@ -60,7 +60,7 @@ class StandaloneRunner(BaseRunner):
         job_id = 0
         if self.mode == "run":
             pid = self.cmd_shell.execute(exec_cmd).pid
-            job_id = tr.test.get_job_id(str(pid), "")
+            job_id = tr.test.test_template.get_job_id(str(pid), "")
             if job_id is None:
                 raise JobIdRetrievalError(
                     test_name=str(tr.test.section_name),

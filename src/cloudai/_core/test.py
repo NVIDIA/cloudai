@@ -157,19 +157,6 @@ class Test:
             nodes,
         )
 
-    def get_job_id(self, stdout: str, stderr: str) -> Optional[int]:
-        """
-        Retrieve the job ID using the test template's method.
-
-        Args:
-            stdout (str): Standard output from the command execution.
-            stderr (str): Standard error from the command execution.
-
-        Returns:
-            Optional[int]: The retrieved job ID, or None if not found.
-        """
-        return self.test_template.get_job_id(stdout, stderr)
-
     def has_more_iterations(self) -> bool:
         """
         Check if the test has more iterations to run.
