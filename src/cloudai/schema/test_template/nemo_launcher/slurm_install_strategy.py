@@ -144,14 +144,20 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         Args:
             subdir_path (Path): Subdirectory path for installation.
         """
+        venv_dir = subdir_path / "nemo-venv"
+        logging.debug(f"Creating virtual environment in {venv_dir}")
+        result = subprocess.run(["python", "-m", "venv", str(venv_dir)], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"Failed to create venv: {result.stderr}")
+
         repo_path = subdir_path / self.REPOSITORY_NAME
         requirements_file = repo_path / "requirements.txt"
 
         if requirements_file.is_file():
-            logging.debug("Installing requirements from %s", requirements_file)
-            install_cmd = ["pip", "install", "-r", str(requirements_file)]
+            install_cmd = [(venv_dir / "bin" / "python"), "-m", "pip", "install", "-r", str(requirements_file)]
+            logging.debug(f"Installing requirements from {requirements_file} using command: {install_cmd}")
             result = subprocess.run(install_cmd, capture_output=True, text=True)
             if result.returncode != 0:
                 raise RuntimeError(f"Failed to install requirements: {result.stderr}")
         else:
-            logging.warning("requirements.txt not found in %s", repo_path)
+            logging.warning(f"requirements.txt not found in {repo_path}")
