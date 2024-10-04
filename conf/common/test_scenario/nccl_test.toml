@@ -15,6 +15,25 @@
 # limitations under the License.
 
 name = "nccl-test"
+
+[prologue]
+  [[prologue.task]]
+  name = "setup_environment"
+  command = "/path/to/setup_script.sh"
+
+  [[prologue.task]]
+  name = "load_modules"
+  command = "module load nccl"
+
+[epilogue]
+  [[epilogue.task]]
+  name = "cleanup_environment"
+  command = "/path/to/cleanup_script.sh"
+
+  [[epilogue.task]]
+  name = "unload_modules"
+  command = "module unload nccl"
+
 [[Tests]]
 id = "Tests.1"
 test_name = "nccl_test_all_reduce"
