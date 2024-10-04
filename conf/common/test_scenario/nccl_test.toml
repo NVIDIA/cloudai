@@ -16,6 +16,24 @@
 
 name = "nccl-test"
 
+[pre_test]
+  [[pre_test.tasks]]
+  name = "setup_environment"
+  command = "/path/to/setup_script.sh"
+
+  [[pre_test.tasks]]
+  name = "load_modules"
+  command = "module load nccl"
+
+[post_test]
+  [[post_test.tasks]]
+  name = "cleanup_environment"
+  command = "/path/to/cleanup_script.sh"
+
+  [[post_test.tasks]]
+  name = "unload_modules"
+  command = "module unload nccl"
+
 [Tests.1]
 name = "nccl_test_all_reduce"
 num_nodes = "2"
