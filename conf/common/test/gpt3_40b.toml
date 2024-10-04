@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "gpt"
-description = "gpt"
+name = "gpt3_40b"
+description = "gpt3_40b"
 test_template_name = "NeMoLauncher"
 
 [cmd_args]
