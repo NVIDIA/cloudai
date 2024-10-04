@@ -15,19 +15,23 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import List, Optional
+from pathlib import Path
+from typing import TYPE_CHECKING, List, Optional
 
-from .test import Test
+if TYPE_CHECKING:
+    from .test import Test
 
 
 @dataclass
 class TestRun:
     __test__ = False
 
-    test: Test
+    test: "Test"
     num_nodes: int
     nodes: List[str]
+    output_path: Path = Path("")
     time_limit: Optional[str] = None
+    job_name: str = ""
 
 
 class TestScenario:

@@ -15,8 +15,8 @@
 # limitations under the License.
 
 from abc import abstractmethod
-from pathlib import Path
-from typing import Dict, List
+
+from cloudai._core.test_scenario import TestRun
 
 from .test_template_strategy import TestTemplateStrategy
 
@@ -29,25 +29,12 @@ class CommandGenStrategy(TestTemplateStrategy):
     """
 
     @abstractmethod
-    def gen_exec_command(
-        self,
-        cmd_args: Dict[str, str],
-        extra_env_vars: Dict[str, str],
-        extra_cmd_args: str,
-        output_path: Path,
-        num_nodes: int,
-        nodes: List[str],
-    ) -> str:
+    def gen_exec_command(self, tr: TestRun) -> str:
         """
         Generate the execution command for a test based on the given parameters.
 
         Args:
-            cmd_args (Dict[str, str]): Command-line arguments for the test.
-            extra_env_vars (Dict[str, str]): Additional environment variables.
-            extra_cmd_args (str): Additional command-line arguments.
-            output_path (Path): Path to the output directory.
-            num_nodes (int): The number of nodes to be used for the test execution.
-            nodes (List[str]): List of nodes for test execution, optional.
+            tr (TestRun): Contains the test and its run-specific configurations.
 
         Returns:
             str: The generated execution command.
