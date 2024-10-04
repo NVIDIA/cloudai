@@ -17,7 +17,7 @@
 name = "nemo_launcher_with_noise"
 [[Tests]]
 id = "Tests.1"
-template_test = "llama"
+template_test = "llama2_70b"
 num_nodes = "4"
 weight = 100
 
