@@ -326,7 +326,7 @@ class BaseRunner(ABC):
         Returns:
             JobStatusResult: The result containing the job status and an optional error message.
         """
-        return job.test_run.test.get_job_status(job.output_path)
+        return job.test_run.test.test_template.get_job_status(job.output_path)
 
     async def handle_job_completion(self, completed_job: BaseJob):
         """

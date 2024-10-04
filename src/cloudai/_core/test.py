@@ -20,7 +20,6 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict
 
-from .job_status_result import JobStatusResult
 from .test_template import TestTemplate
 
 
@@ -157,31 +156,6 @@ class Test:
             num_nodes,
             nodes,
         )
-
-    def get_job_id(self, stdout: str, stderr: str) -> Optional[int]:
-        """
-        Retrieve the job ID using the test template's method.
-
-        Args:
-            stdout (str): Standard output from the command execution.
-            stderr (str): Standard error from the command execution.
-
-        Returns:
-            Optional[int]: The retrieved job ID, or None if not found.
-        """
-        return self.test_template.get_job_id(stdout, stderr)
-
-    def get_job_status(self, output_path: Path) -> JobStatusResult:
-        """
-        Determine the status of a job based on the outputs located in the given output directory.
-
-        Args:
-            output_path (Path): Path to the output directory.
-
-        Returns:
-            JobStatusResult: The result containing the job status and an optional error message.
-        """
-        return self.test_template.get_job_status(output_path)
 
     def has_more_iterations(self) -> bool:
         """
