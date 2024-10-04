@@ -148,27 +148,27 @@ class TestGenerateSrunCommand__CmdGeneration:
         test_command = strategy_fixture.generate_test_command({}, {}, {}, "")
         assert test_command == []
 
-    def test_generate_srun_command(self, strategy_fixture: SlurmCommandGenStrategy):
-        srun_command = strategy_fixture.generate_srun_command({}, {}, {}, "")
+    def test_generate_srun_prefix(self, strategy_fixture: SlurmCommandGenStrategy):
+        srun_command = strategy_fixture.generate_srun_prefix({}, {}, {}, "")
         assert srun_command == ["srun", f"--mpi={strategy_fixture.slurm_system.mpi}"]
 
-    def test_generate_srun_command_with_extra_args(self, strategy_fixture: SlurmCommandGenStrategy):
+    def test_generate_srun_prefix_with_extra_args(self, strategy_fixture: SlurmCommandGenStrategy):
         strategy_fixture.slurm_system.extra_srun_args = "--extra-args value"
-        srun_command = strategy_fixture.generate_srun_command({}, {}, {}, "")
+        srun_command = strategy_fixture.generate_srun_prefix({}, {}, {}, "")
         assert srun_command == ["srun", f"--mpi={strategy_fixture.slurm_system.mpi}", "--extra-args value"]
 
-    def test_generate_srun_command_with_container_image(self, strategy_fixture: SlurmCommandGenStrategy):
+    def test_generate_srun_prefix_with_container_image(self, strategy_fixture: SlurmCommandGenStrategy):
         slurm_args = {"image_path": "fake_image_path"}
-        srun_command = strategy_fixture.generate_srun_command(slurm_args, {}, {}, "")
+        srun_command = strategy_fixture.generate_srun_prefix(slurm_args, {}, {}, "")
         assert srun_command == [
             "srun",
             f"--mpi={strategy_fixture.slurm_system.mpi}",
             "--container-image=fake_image_path",
         ]
 
-    def test_generate_srun_command_with_container_image_and_mounts(self, strategy_fixture: SlurmCommandGenStrategy):
+    def test_generate_srun_prefix_with_container_image_and_mounts(self, strategy_fixture: SlurmCommandGenStrategy):
         slurm_args = {"image_path": "fake_image_path", "container_mounts": "fake_mounts"}
-        srun_command = strategy_fixture.generate_srun_command(slurm_args, {}, {}, "")
+        srun_command = strategy_fixture.generate_srun_prefix(slurm_args, {}, {}, "")
         assert srun_command == [
             "srun",
             f"--mpi={strategy_fixture.slurm_system.mpi}",
@@ -178,15 +178,15 @@ class TestGenerateSrunCommand__CmdGeneration:
 
     def test_generate_srun_empty_str(self, strategy_fixture: SlurmCommandGenStrategy):
         slurm_args = {"image_path": "", "container_mounts": ""}
-        srun_command = strategy_fixture.generate_srun_command(slurm_args, {}, {}, "")
+        srun_command = strategy_fixture.generate_srun_prefix(slurm_args, {}, {}, "")
         assert srun_command == ["srun", f"--mpi={strategy_fixture.slurm_system.mpi}"]
 
         slurm_args = {"image_path": "fake", "container_mounts": ""}
-        srun_command = strategy_fixture.generate_srun_command(slurm_args, {}, {}, "")
+        srun_command = strategy_fixture.generate_srun_prefix(slurm_args, {}, {}, "")
         assert srun_command == ["srun", f"--mpi={strategy_fixture.slurm_system.mpi}", "--container-image=fake"]
 
     def test_generate_full_srun_command(self, strategy_fixture: SlurmCommandGenStrategy):
-        strategy_fixture.generate_srun_command = lambda *_, **__: ["srun", "--test", "test_arg"]
+        strategy_fixture.generate_srun_prefix = lambda *_, **__: ["srun", "--test", "test_arg"]
         strategy_fixture.generate_test_command = lambda *_, **__: ["test_command"]
 
         full_srun_command = strategy_fixture.generate_full_srun_command({}, {}, {}, "")
