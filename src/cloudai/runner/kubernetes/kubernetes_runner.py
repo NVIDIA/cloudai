@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import logging
+from pathlib import Path
 from typing import cast
 
 from cloudai import BaseJob, BaseRunner, TestRun
@@ -36,19 +37,23 @@ class KubernetesRunner(BaseRunner):
         Returns:
             KubernetesJob: A KubernetesJob object containing job details.
         """
-        logging.info(f"Running test: {tr.test.section_name}")
-        job_output_path = self.get_job_output_path(tr.test)
-        job_name = tr.test.section_name.replace(".", "-").lower()
-        job_spec = tr.test.gen_json(job_output_path, job_name, tr.time_limit, tr.num_nodes, tr.nodes)
-        job_kind = job_spec.get("kind", "").lower()
-        logging.info(f"Generated JSON string for test {tr.test.section_name}: {job_spec}")
-        job_namespace = ""
+        if tr.test.test_template.json_gen_strategy is not None:
+            logging.info(f"Running test: {tr.test.section_name}")
+            job_output_path = self.get_job_output_path(tr.test)
+            job_name = tr.test.section_name.replace(".", "-").lower()
+            job_spec = tr.test.gen_json(job_output_path, job_name, tr.time_limit, tr.num_nodes, tr.nodes)
+            job_kind = job_spec.get("kind", "").lower()
+            logging.info(f"Generated JSON string for test {tr.test.section_name}: {job_spec}")
+            job_namespace = ""
 
-        if self.mode == "run":
-            k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)
-            job_name, job_namespace = k8s_system.create_job(job_spec)
+            if self.mode == "run":
+                k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)
+                job_name, job_namespace = k8s_system.create_job(job_spec)
 
-        return KubernetesJob(self.mode, self.system, tr, job_namespace, job_name, job_kind, job_output_path)
+            return KubernetesJob(self.mode, self.system, tr, job_namespace, job_name, job_kind, job_output_path)
+        else:
+            print("Command Gen")
+            return KubernetesJob(self.mode, self.system, tr, "", "", "", Path(""))
 
     async def job_completion_callback(self, job: BaseJob) -> None:
         """
