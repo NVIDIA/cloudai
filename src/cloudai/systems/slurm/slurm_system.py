@@ -519,14 +519,14 @@ class SlurmSystem(BaseModel, System):
         Returns:
             Dict[SlurmNodeState, List[SlurmNode]]: A dictionary grouping nodes by their state.
         """
-        if "reservation" in self.extra_srun_args:
+        if self.extra_srun_args and "reservation" in self.extra_srun_args:
             reservation_key = "--reservation "
             reservation_name = self.extra_srun_args.split(reservation_key, 1)[1].split(" ", 1)[0]
             reservation_output = self.get_reservation()
             reserved_nodes = self.parse_reservation_output(reservation_output, reservation_name)
             grouped_nodes = {
                 SlurmNodeState.RESERVED: [],
-                }
+            }
         else:
             reserved_nodes = []
             grouped_nodes = {
@@ -534,11 +534,10 @@ class SlurmSystem(BaseModel, System):
                 SlurmNodeState.COMPLETING: [],
                 SlurmNodeState.ALLOCATED: [],
             }
-            
+
         for node in self.groups[partition_name][group_name]:
-            if node.state in grouped_nodes:
-                if not reserved_nodes or node.name in reserved_nodes:
-                    grouped_nodes[node.state].append(node)
+            if node.state in grouped_nodes and (not reserved_nodes or node.name in reserved_nodes):
+                grouped_nodes[node.state].append(node)
 
         return grouped_nodes
 
@@ -653,6 +652,7 @@ class SlurmSystem(BaseModel, System):
     def get_reservation(self) -> str:
         """
         Fetch the output from the 'scontrol show reservation' command.
+
         Returns
             str: The stdout from the 'scontrol show reservation' command execution.
         """
@@ -734,22 +734,25 @@ class SlurmSystem(BaseModel, System):
                             node.state = state_enum
                             node.user = node_user_map.get(node_name, "N/A")
                             break
-                        
-    def parse_reservation_output(self, reservation_output: str, reservation_name) -> Dict[str, str]:
+
+    def parse_reservation_output(self, reservation_output: str, reservation_name: str) -> List[str]:
         """
-        Parse the output from the 'scontrol show reservation' command to map nodes to users.
-        The expected format of scontrol show reservation is lines of 'node_spec|user', where node_spec can include comma-separated
-        node names or ranges.
+        Parse the output from the 'scontrol show reservation' command to get reserved nodes from this reservation.
+
+        The expected format of scontrol show reservation is lines of 'ReservationName='.
+
         Args:
-            scontrol show reservation (str): The raw output from the squeue command.
+            reservation_output (str): The raw output from the scontrol show reservation command.
+            reservation_name (str): The name of the reservation specified.
+
         Returns:
-            Dict[str, str]: A dictionary mapping node names to usernames.
+            List[str]: A list of all the nodes belonging to this reservation.
         """
         node_list = []
         for reservation in reservation_output.split("ReservationName"):
             if reservation_name in reservation:
                 nodes = reservation.split("Nodes=")[1].split(" ")[0]
-                node_list = self.parse_node_list(nodes)
+                node_list = parse_node_list(nodes)
 
         return node_list
 
