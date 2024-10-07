@@ -168,9 +168,10 @@ class TestNeMoLauncherSlurmInstallStrategy:
         with patch("subprocess.run") as mock_run:
             mock_run.return_value.returncode = 0
             strategy._install_requirements(subdir_path)
-            mock_run.assert_called_with(
-                [py_bin, "-m", "pip", "install", "-r", str(requirements_file)], capture_output=True, text=True
-            )
+
+        calls = mock_run.call_args_list
+        assert calls[0][0][0] == ["python", "-m", "venv", str(py_bin.parent.parent)]
+        assert calls[1][0][0] == [py_bin, "-m", "pip", "install", "-r", str(requirements_file)]
 
     def test_clone_repository_when_path_exists(self, strategy: NeMoLauncherSlurmInstallStrategy):
         subdir_path = Path(strategy.slurm_system.install_path) / strategy.SUBDIR_PATH
