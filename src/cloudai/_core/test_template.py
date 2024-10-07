@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from .command_gen_strategy import CommandGenStrategy
 from .grading_strategy import GradingStrategy
@@ -27,6 +27,7 @@ from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from .json_gen_strategy import JsonGenStrategy
 from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
+from .test_scenario import TestRun
 
 
 class TestTemplate:
@@ -121,88 +122,39 @@ class TestTemplate:
 
         return InstallStatusResult(success=True)
 
-    def gen_exec_command(
-        self,
-        cmd_args: Dict[str, str],
-        extra_env_vars: Dict[str, str],
-        extra_cmd_args: str,
-        output_path: Path,
-        num_nodes: int,
-        nodes: List[str],
-    ) -> str:
+    def gen_exec_command(self, tr: TestRun) -> str:
         """
         Generate an execution command for a test using this template.
 
-        This method must be implemented by subclasses.
-
         Args:
-            cmd_args (Dict[str, str]): Command-line arguments for the test.
-            extra_env_vars (Dict[str, str]): Extra environment variables.
-            extra_cmd_args (str): Extra command-line arguments.
-            output_path (Path): Path to the output directory.
-            num_nodes (int): The number of nodes to be used for the test execution.
-            nodes (List[str]): A list of nodes where the test will be executed.
+            tr (TestRun): Contains the test and its run-specific configurations.
 
         Returns:
             str: The generated execution command.
         """
-        if not nodes:
-            nodes = []
         if self.command_gen_strategy is None:
             raise ValueError(
                 "command_gen_strategy is missing. Ensure the strategy is registered in the Registry "
                 "by calling the appropriate registration function for the system type."
             )
-        return self.command_gen_strategy.gen_exec_command(
-            cmd_args,
-            extra_env_vars,
-            extra_cmd_args,
-            output_path,
-            num_nodes,
-            nodes,
-        )
+        return self.command_gen_strategy.gen_exec_command(tr)
 
-    def gen_json(
-        self,
-        cmd_args: Dict[str, str],
-        extra_env_vars: Dict[str, str],
-        extra_cmd_args: str,
-        output_path: Path,
-        job_name: str,
-        num_nodes: int,
-        nodes: List[str],
-    ) -> Dict[Any, Any]:
+    def gen_json(self, tr: TestRun) -> Dict[Any, Any]:
         """
         Generate a JSON string representing the Kubernetes job specification for this test using this template.
 
         Args:
-            cmd_args (Dict[str, str]): Command-line arguments for the test.
-            extra_env_vars (Dict[str, str]): Extra environment variables.
-            extra_cmd_args (str): Extra command-line arguments.
-            output_path (Path): Path to the output directory.
-            job_name (str): The name of the job.
-            num_nodes (int): The number of nodes to be used for the test execution.
-            nodes (List[str]): A list of nodes where the test will be executed.
+            tr (TestRun): Contains the test and its run-specific configurations.
 
         Returns:
             Dict[Any, Any]: A dictionary representing the Kubernetes job specification.
         """
-        if not nodes:
-            nodes = []
         if self.json_gen_strategy is None:
             raise ValueError(
                 "json_gen_strategy is missing. Ensure the strategy is registered in the Registry "
                 "by calling the appropriate registration function for the system type."
             )
-        return self.json_gen_strategy.gen_json(
-            cmd_args,
-            extra_env_vars,
-            extra_cmd_args,
-            output_path,
-            job_name,
-            num_nodes,
-            nodes,
-        )
+        return self.json_gen_strategy.gen_json(tr)
 
     def get_job_id(self, stdout: str, stderr: str) -> Optional[int]:
         """

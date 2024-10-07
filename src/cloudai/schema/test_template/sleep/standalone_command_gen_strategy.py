@@ -14,10 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
-from typing import Dict, List
 
-from cloudai import CommandGenStrategy
+from cloudai import CommandGenStrategy, TestRun
 
 
 class SleepStandaloneCommandGenStrategy(CommandGenStrategy):
@@ -27,17 +25,7 @@ class SleepStandaloneCommandGenStrategy(CommandGenStrategy):
     This strategy generates a command to execute a sleep operation with specified duration on standalone systems.
     """
 
-    def gen_exec_command(
-        self,
-        cmd_args: Dict[str, str],
-        extra_env_vars: Dict[str, str],
-        extra_cmd_args: str,
-        output_path: Path,
-        num_nodes: int,
-        nodes: List[str],
-    ) -> str:
-        if not nodes:
-            nodes = []
-        self.final_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
+    def gen_exec_command(self, tr: TestRun) -> str:
+        self.final_cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
         sec = self.final_cmd_args["seconds"]
         return f"sleep {sec}"

@@ -15,9 +15,9 @@
 # limitations under the License.
 
 from abc import abstractmethod
-from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
+from .test_scenario import TestRun
 from .test_template_strategy import TestTemplateStrategy
 
 
@@ -29,27 +29,12 @@ class JsonGenStrategy(TestTemplateStrategy):
     """
 
     @abstractmethod
-    def gen_json(
-        self,
-        cmd_args: Dict[str, str],
-        extra_env_vars: Dict[str, str],
-        extra_cmd_args: str,
-        output_path: Path,
-        job_name: str,
-        num_nodes: int,
-        nodes: List[str],
-    ) -> Dict[Any, Any]:
+    def gen_json(self, tr: TestRun) -> Dict[Any, Any]:
         """
         Generate the Kubernetes job specification based on the given parameters.
 
         Args:
-            cmd_args (Dict[str, str]): Command-line arguments for the job.
-            extra_env_vars (Dict[str, str]): Additional environment variables.
-            extra_cmd_args (str): Additional command-line arguments.
-            output_path (Path): Path to the output directory.
-            job_name (str): The name of the job.
-            num_nodes (int): The number of nodes to be used for job execution.
-            nodes (List[str]): List of nodes for job execution, optional.
+            tr (TestRun): Contains the test and its run-specific configurations.
 
         Returns:
             Dict[Any, Any]: The generated Kubernetes job specification in JSON format.

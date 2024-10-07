@@ -15,8 +15,6 @@
 # limitations under the License.
 
 
-from pathlib import Path
-
 from cloudai import BaseJob, System, TestRun
 
 
@@ -31,12 +29,9 @@ class KubernetesJob(BaseJob):
         namespace (str): The namespace of the job.
         name (str): The name of the job.
         kind (str): The kind of the job.
-        output_path (Path): The path where the job's output is stored.
     """
 
-    def __init__(
-        self, mode: str, system: System, test_run: TestRun, namespace: str, name: str, kind: str, output_path: Path
-    ):
+    def __init__(self, mode: str, system: System, test_run: TestRun, namespace: str, name: str, kind: str):
         """
         Initialize a KubernetesJob instance.
 
@@ -47,9 +42,8 @@ class KubernetesJob(BaseJob):
             namespace (str): The namespace of the job.
             name (str): The name of the job.
             kind (str): The kind of the job.
-            output_path (Path): The path where the job's output is stored.
         """
-        super().__init__(mode, system, test_run, output_path)
+        super().__init__(mode, system, test_run)
         self.id = name
         self.namespace = namespace
         self.name = name
