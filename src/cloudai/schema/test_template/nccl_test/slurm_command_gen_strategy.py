@@ -42,9 +42,7 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             )
 
         slurm_args = self._parse_slurm_args(subtest_name, final_env_vars, final_cmd_args, tr.num_nodes, tr.nodes)
-        srun_command = self.generate_full_srun_command(
-            slurm_args, final_env_vars, final_cmd_args, tr.test.extra_cmd_args
-        )
+        srun_command = self.generate_srun_command(slurm_args, final_env_vars, final_cmd_args, tr.test.extra_cmd_args)
         return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, tr.output_path)
 
     def _parse_slurm_args(
