@@ -53,9 +53,8 @@ class SlurmRunner(BaseRunner):
             SlurmJob: A SlurmJob object
         """
         logging.info(f"Running test: {tr.name}")
-        job_output_path = self.get_job_output_path(tr)
-
-        exec_cmd = tr.test.gen_exec_command(job_output_path, tr.time_limit, tr.num_nodes, tr.nodes)
+        tr.output_path = self.get_job_output_path(tr)
+        exec_cmd = tr.test.test_template.gen_exec_command(tr)
         logging.info(f"Executing command for test {tr.name}: {exec_cmd}")
         job_id = 0
         if self.mode == "run":
@@ -69,4 +68,4 @@ class SlurmRunner(BaseRunner):
                     stderr=stderr,
                     message="Failed to retrieve job ID from command output.",
                 )
-        return SlurmJob(self.mode, self.system, tr, job_id, job_output_path)
+        return SlurmJob(self.mode, self.system, tr, job_id)

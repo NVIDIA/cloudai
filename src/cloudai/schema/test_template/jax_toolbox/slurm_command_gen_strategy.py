@@ -14,10 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 from pathlib import Path
 from typing import Any, Dict, List
 
+from cloudai import TestRun
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
@@ -31,53 +31,26 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         super().__init__(system, cmd_args)
         self.test_name = ""
 
-    def gen_exec_command(
-        self,
-        cmd_args: Dict[str, str],
-        extra_env_vars: Dict[str, str],
-        extra_cmd_args: str,
-        output_path: Path,
-        num_nodes: int,
-        nodes: List[str],
-    ) -> str:
-        """
-        Generate the SLURM execution command.
+    def gen_exec_command(self, tr: TestRun) -> str:
+        self.test_name = self._extract_test_name(tr.test.cmd_args)
 
-        This method generates the full SLURM command based on environment
-        variables, command-line arguments, and other parameters. It handles
-        the merging of environment variables and command arguments, and invokes
-        the appropriate strategy for handling thresholds.
-
-        Args:
-            cmd_args (Dict[str, str]): Command-line arguments for the job.
-            extra_env_vars (Dict[str, str]): Additional environment variables.
-            extra_cmd_args (str): Additional command arguments.
-            output_path (str): Path to the output directory.
-            num_nodes (int): Number of nodes to use.
-            nodes (List[str]): List of nodes.
-
-        Returns:
-            str: The full SLURM command to be executed.
-        """
-        self.test_name = self._extract_test_name(cmd_args)
-
-        final_env_vars = self._override_env_vars(self.system.global_env_vars, extra_env_vars)
-        cmd_args["output_path"] = str(output_path)
+        final_env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
+        tr.test.cmd_args["output_path"] = str(tr.output_path)
 
         combine_threshold_bytes = int(final_env_vars["COMBINE_THRESHOLD"])
-        num_nodes = len(nodes) if nodes else num_nodes
+        num_nodes = len(tr.nodes) if tr.nodes else tr.num_nodes
 
         # Handle thresholds and environment variable adjustments
-        self._handle_threshold_and_env(cmd_args, final_env_vars, combine_threshold_bytes, num_nodes)
+        self._handle_threshold_and_env(tr.test.cmd_args, final_env_vars, combine_threshold_bytes, num_nodes)
 
-        xla_flags = self._format_xla_flags(cmd_args, "perf")
+        xla_flags = self._format_xla_flags(tr.test.cmd_args, "perf")
         final_env_vars["XLA_FLAGS"] = f'"{xla_flags}"'
 
         env_vars_str = self._format_env_vars(final_env_vars)
 
-        slurm_args = self._parse_slurm_args("JaxToolbox", final_env_vars, cmd_args, num_nodes, nodes)
-        srun_command = self.generate_srun_command(slurm_args, final_env_vars, cmd_args, extra_cmd_args)
-        return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, output_path)
+        slurm_args = self._parse_slurm_args("JaxToolbox", final_env_vars, tr.test.cmd_args, num_nodes, tr.nodes)
+        srun_command = self.generate_srun_command(slurm_args, final_env_vars, tr.test.cmd_args, tr.test.extra_cmd_args)
+        return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, tr.output_path)
 
     def _handle_threshold_and_env(
         self, cmd_args: Dict[str, Any], env_vars: Dict[str, str], combine_threshold_bytes: int, num_nodes: int

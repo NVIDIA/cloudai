@@ -15,9 +15,11 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from pathlib import Path
+from typing import TYPE_CHECKING, List, Optional
 
-from .test import Test
+if TYPE_CHECKING:
+    from .test import Test
 
 
 class TestDependency:
@@ -48,9 +50,10 @@ class TestRun:
     __test__ = False
 
     name: str
-    test: Test
+    test: "Test"
     num_nodes: int
     nodes: List[str]
+    output_path: Path = Path("")
     iterations: int = 1
     current_iteration: int = 0
     time_limit: Optional[str] = None
