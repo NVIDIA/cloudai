@@ -224,7 +224,7 @@ class TestCLIDefaultModes:
             log_file="debug.log",
             log_level="INFO",
             mode="verify-systems",
-            **{"system-configs": Path("system_config")},
+            **{"system_configs": Path("system_config")},
         )
 
     def test_verify_tests_mode(self, cli: CloudAICLI):
@@ -236,7 +236,7 @@ class TestCLIDefaultModes:
             log_file="debug.log",
             log_level="INFO",
             mode="verify-tests",
-            **{"test-configs": Path("test_configs")},
+            **{"test_configs": Path("test_configs")},
         )
 
     def test_report_generation_mode(self, cli: CloudAICLI):
