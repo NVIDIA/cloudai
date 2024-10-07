@@ -82,7 +82,7 @@ class DockerImageCacheResult:
             message (str): A message providing additional information about the result.
         """
         self.success = success
-        self._docker_image_path = docker_image_path or Path()
+        self.docker_image_path = docker_image_path
         self.message = message
 
     def __bool__(self):
@@ -102,26 +102,6 @@ class DockerImageCacheResult:
             str: The message providing additional information about the result.
         """
         return self.message
-
-    @property
-    def docker_image_path(self) -> Path:
-        """
-        Get the path to the Docker image.
-
-        Returns
-            Path: Absolute path to the Docker image.
-        """
-        return self._docker_image_path.absolute()
-
-    @docker_image_path.setter
-    def docker_image_path(self, value: Path) -> None:
-        """
-        Set the path to the Docker image.
-
-        Args:
-            value (Path): The path to the Docker image.
-        """
-        self._docker_image_path = value
 
 
 class DockerImageCacheManager:
@@ -189,7 +169,7 @@ class DockerImageCacheManager:
         docker_image_path = Path(docker_image_url)
         if docker_image_path.is_file() and docker_image_path.exists():
             return DockerImageCacheResult(
-                True, docker_image_path, f"Docker image file path is valid: {docker_image_url}."
+                True, docker_image_path.absolute(), f"Docker image file path is valid: {docker_image_url}."
             )
 
         # Check if the cache file exists
@@ -208,7 +188,7 @@ class DockerImageCacheManager:
         if docker_image_path.is_file() and docker_image_path.exists():
             message = f"Cached Docker image already exists at {docker_image_path}."
             logging.debug(message)
-            return DockerImageCacheResult(True, docker_image_path, message)
+            return DockerImageCacheResult(True, docker_image_path.absolute(), message)
 
         message = f"Docker image does not exist at the specified path: {docker_image_path}."
         logging.debug(message)
@@ -234,7 +214,7 @@ class DockerImageCacheManager:
         if docker_image_path.is_file():
             success_message = f"Cached Docker image already exists at {docker_image_path}."
             logging.info(success_message)
-            return DockerImageCacheResult(True, docker_image_path, success_message)
+            return DockerImageCacheResult(True, docker_image_path.absolute(), success_message)
 
         prerequisite_check = self._check_prerequisites(docker_image_url)
         if not prerequisite_check:
@@ -281,7 +261,7 @@ class DockerImageCacheManager:
             success_message = f"Docker image cached successfully at {docker_image_path}."
             logging.debug(success_message)
             logging.debug(f"Command used: {enroot_import_cmd}, stdout: {p.stdout}, stderr: {p.stderr}")
-            return DockerImageCacheResult(True, docker_image_path, success_message)
+            return DockerImageCacheResult(True, docker_image_path.absolute(), success_message)
         except subprocess.CalledProcessError as e:
             error_message = (
                 f"Failed to import Docker image from {docker_image_url}. Command: {enroot_import_cmd}. Error: {e}"
@@ -416,14 +396,14 @@ class DockerImageCacheManager:
                     subdir_path.rmdir()
                     success_message = f"Subdirectory removed successfully: {subdir_path}."
                     logging.info(success_message)
-                    return DockerImageCacheResult(True, subdir_path, success_message)
+                    return DockerImageCacheResult(True, subdir_path.absolute(), success_message)
             except OSError as e:
                 error_message = f"Failed to remove subdirectory {subdir_path}. Error: {e}"
                 logging.error(error_message)
                 return DockerImageCacheResult(False, subdir_path, error_message)
         success_message = f"Cached Docker image uninstalled successfully from {subdir_path}."
         logging.info(success_message)
-        return DockerImageCacheResult(True, subdir_path, success_message)
+        return DockerImageCacheResult(True, subdir_path.absolute(), success_message)
 
     def remove_cached_image(self, subdir_name: str, docker_image_filename: str) -> DockerImageCacheResult:
         """
@@ -442,11 +422,11 @@ class DockerImageCacheManager:
                 docker_image_path.unlink()
                 success_message = f"Cached Docker image removed successfully from {docker_image_path}."
                 logging.info(success_message)
-                return DockerImageCacheResult(True, docker_image_path, success_message)
+                return DockerImageCacheResult(True, docker_image_path.absolute(), success_message)
             except OSError as e:
                 error_message = f"Failed to remove cached Docker image at {docker_image_path}. Error: {e}"
                 logging.error(error_message)
                 return DockerImageCacheResult(False, docker_image_path, error_message)
         success_message = f"No cached Docker image found to remove at {docker_image_path}."
         logging.info(success_message)
-        return DockerImageCacheResult(True, docker_image_path, success_message)
+        return DockerImageCacheResult(True, docker_image_path.absolute(), success_message)

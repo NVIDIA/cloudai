@@ -22,7 +22,7 @@ from typing import List, Set
 
 import toml
 
-from cloudai import Installer, Parser, ReportGenerator, Runner, Test, TestParser, TestTemplate
+from cloudai import Parser, Registry, ReportGenerator, Runner, Test, TestParser, TestTemplate
 
 
 def handle_verify_systems(args: argparse.Namespace) -> int:
@@ -91,7 +91,12 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     logging.info(f"Scheduler: {system.scheduler}")
 
     unique_test_templates = identify_unique_test_templates(tests)
-    installer = Installer(system)
+
+    registry = Registry()
+    installer_class = registry.installers_map.get(system.scheduler)
+    if installer_class is None:
+        raise NotImplementedError(f"No installer available for scheduler: {system.scheduler}")
+    installer = installer_class(system)
 
     rc = 0
     if args.mode == "install":
@@ -152,7 +157,12 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
 
         unique_templates = identify_unique_test_templates(tests)
 
-        installer = Installer(system)
+        registry = Registry()
+        installer_class = registry.installers_map.get(system.scheduler)
+        if installer_class is None:
+            raise NotImplementedError(f"No installer available for scheduler: {system.scheduler}")
+        installer = installer_class(system)
+
         result = installer.is_installed(unique_templates)
 
         if not result.success:

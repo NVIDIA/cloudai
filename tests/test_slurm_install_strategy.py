@@ -20,10 +20,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from cloudai import InstallStatusResult
 from cloudai.schema.test_template.nccl_test.slurm_install_strategy import NcclTestSlurmInstallStrategy
-from cloudai.schema.test_template.nemo_launcher.slurm_install_strategy import (
-    DatasetCheckResult,
-    NeMoLauncherSlurmInstallStrategy,
-)
+from cloudai.schema.test_template.nemo_launcher.slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
 from cloudai.schema.test_template.ucc_test.slurm_install_strategy import UCCTestSlurmInstallStrategy
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm import SlurmNodeState
@@ -125,25 +122,19 @@ class TestNeMoLauncherSlurmInstallStrategy:
                 "repository_url": {"default": "https://github.com/NVIDIA/NeMo-Framework-Launcher.git"},
                 "repository_commit_hash": {"default": "cf411a9ede3b466677df8ee672bcc6c396e71e1a"},
                 "docker_image_url": {"default": "nvcr.io/nvidian/nemofw-training:24.01.01"},
-                "data_dir": {"default": "DATA_DIR"},
             },
         )
         strategy.docker_image_cache_manager = mock_docker_image_cache_manager
         return strategy
 
     def test_is_installed(self, strategy: NeMoLauncherSlurmInstallStrategy):
-        with patch.object(
-            strategy,
-            "_check_datasets_on_nodes",
-            return_value=DatasetCheckResult(success=True, nodes_without_datasets=[]),
-        ):
-            result = strategy.is_installed()
-            assert not result.success
-            assert (
-                "The following components are missing:" in result.message
-                and "Repository" in result.message
-                and "Docker image" in result.message
-            )
+        result = strategy.is_installed()
+        assert not result.success
+        assert (
+            "The following components are missing:" in result.message
+            and "Repository" in result.message
+            and "Docker image" in result.message
+        )
 
     def test_clone_repository_when_path_does_not_exist(self, strategy: NeMoLauncherSlurmInstallStrategy):
         subdir_path = Path(strategy.slurm_system.install_path) / strategy.SUBDIR_PATH

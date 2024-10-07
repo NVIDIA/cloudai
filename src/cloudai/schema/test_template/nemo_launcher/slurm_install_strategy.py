@@ -15,29 +15,12 @@
 # limitations under the License.
 
 import logging
-import os
 import subprocess
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from cloudai import InstallStatusResult, System
-from cloudai.systems.slurm import SlurmNodeState
 from cloudai.systems.slurm.strategy import SlurmInstallStrategy
-
-
-class DatasetCheckResult:
-    """
-    Result class for dataset check on Slurm nodes.
-
-    Attributes
-        success (bool): Whether the datasets are present on all nodes.
-        nodes_without_datasets (List[str]): List of nodes missing one or more datasets.
-    """
-
-    def __init__(self, success: bool, nodes_without_datasets: List[str]) -> None:
-        self.success = success
-        self.nodes_without_datasets = nodes_without_datasets
 
 
 class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
@@ -73,21 +56,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
             self.docker_image_url, self.SUBDIR_PATH, self.DOCKER_IMAGE_FILENAME
         ).success
 
-        data_dir_path = Path(self.default_cmd_args["data_dir"])
-        datasets_check_result = self._check_datasets_on_nodes(data_dir_path)
-        if not datasets_check_result.success:
-            return InstallStatusResult(
-                success=False,
-                message=(
-                    "NeMo datasets are not installed on some nodes. "
-                    f"Nodes without datasets: {', '.join(datasets_check_result.nodes_without_datasets)}. "
-                    f"Please ensure that the NeMo datasets are manually installed on each node in the specified "
-                    f"data directory: {data_dir_path}. This directory should contain all necessary datasets for "
-                    f"NeMo Launcher to function properly."
-                ),
-            )
-
-        if repo_installed and docker_image_installed and datasets_check_result.success:
+        if repo_installed and docker_image_installed:
             return InstallStatusResult(success=True)
         else:
             missing_components = []
@@ -99,8 +68,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
             if not docker_image_installed:
                 docker_image_path = subdir_path / self.DOCKER_IMAGE_FILENAME
                 missing_components.append(f"Docker image at {docker_image_path} from URL {self.docker_image_url}")
-            if not datasets_check_result.success:
-                missing_components.append(f"Datasets in {data_dir_path} on some nodes")
+
             return InstallStatusResult(
                 success=False,
                 message="The following components are missing:\n"
@@ -112,26 +80,8 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         if install_status.success:
             return InstallStatusResult(success=True, message="NeMo-Launcher is already installed.")
 
-        try:
-            self._check_install_path_access()
-        except PermissionError as e:
-            return InstallStatusResult(success=False, message=str(e))
-
         subdir_path = self.system.install_path / self.SUBDIR_PATH
         subdir_path.mkdir(parents=True, exist_ok=True)
-
-        data_dir_path = Path(self.default_cmd_args["data_dir"])
-        datasets_check_result = self._check_datasets_on_nodes(data_dir_path)
-        if not datasets_check_result.success:
-            return InstallStatusResult(
-                success=False,
-                message=(
-                    "Some nodes do not have the NeMo-Launcher datasets installed. "
-                    f"Nodes without datasets: {', '.join(datasets_check_result.nodes_without_datasets)}. "
-                    f"Datasets directory: {data_dir_path}. "
-                    "Please ensure that datasets are installed on all nodes."
-                ),
-            )
 
         try:
             self._clone_repository(subdir_path)
@@ -162,90 +112,6 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
             )
 
         return InstallStatusResult(success=True)
-
-    def _check_install_path_access(self):
-        """
-        Check if the install path exists and if there is permission to create a directory or file in the path.
-
-        Raises
-            PermissionError: If the install path does not exist or if there is no permission to create directories and
-                files.
-        """
-        if not self.system.install_path.exists():
-            raise PermissionError(f"Install path {self.system.install_path} does not exist.")
-        if not self.system.install_path.is_dir() or not os.access(self.system.install_path, os.W_OK):
-            raise PermissionError(f"No permission to write in install path {self.system.install_path}.")
-
-    def _check_datasets_on_nodes(self, data_dir_path: Path) -> DatasetCheckResult:
-        """
-        Verify the presence of specified dataset files and directories on all idle compute nodes.
-
-        Default partition is used.
-
-        This method uses parallel execution to check datasets on multiple nodes simultaneously, improving efficiency
-        for systems with multiple nodes.
-
-        Args:
-            data_dir_path (Path): Path where dataset files and directories are stored.
-
-        Returns:
-            DatasetCheckResult: Result object containing success status and nodes without datasets.
-        """
-        partition_nodes = self.slurm_system.get_partition_nodes(self.slurm_system.default_partition)
-
-        idle_nodes = [node.name for node in partition_nodes if node.state == SlurmNodeState.IDLE]
-
-        if not idle_nodes:
-            logging.warning(
-                "There are no idle nodes in the default partition to check. "
-                "Skipping NeMo-Launcher dataset verification."
-            )
-            return DatasetCheckResult(success=True, nodes_without_datasets=[])
-
-        nodes_without_datasets = []
-        with ThreadPoolExecutor(max_workers=len(idle_nodes)) as executor:
-            futures = {
-                executor.submit(
-                    self._check_dataset_on_node,
-                    node,
-                    data_dir_path,
-                    [
-                        "bpe",
-                        "my-gpt3_00_text_document.bin",
-                        "my-gpt3_00_text_document.idx",
-                    ],
-                ): node
-                for node in idle_nodes
-            }
-            for future in as_completed(futures):
-                node = futures[future]
-                if not future.result():
-                    nodes_without_datasets.append(node)
-
-        return DatasetCheckResult(success=not nodes_without_datasets, nodes_without_datasets=nodes_without_datasets)
-
-    def _check_dataset_on_node(self, node: str, data_dir_path: Path, dataset_items: List[str]) -> bool:
-        """
-        Check if dataset files and directories exist on a single compute node.
-
-        Args:
-            node (str): The name of the compute node.
-            data_dir_path (Path): Path to the data directory.
-            dataset_items (List[str]): List of dataset file and directory names to check.
-
-        Returns:
-            bool: True if all dataset files and directories exist on the node, False otherwise.
-        """
-        python_check_script = (
-            f"import os;print(all(Path('{data_dir_path}') / item).exists() for item in {dataset_items})"
-        )
-        cmd = (
-            f"srun --nodes=1 --nodelist={node} "
-            f"--partition={self.slurm_system.default_partition} "
-            f'python -c "{python_check_script}"'
-        )
-        result = subprocess.run(cmd, shell=True, check=False, capture_output=True, text=True)
-        return result.returncode == 0 and result.stdout.strip() == "True"
 
     def _clone_repository(self, subdir_path: Path) -> None:
         """
