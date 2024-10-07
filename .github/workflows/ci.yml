@@ -78,9 +78,10 @@ jobs:
 
       - name: Test commands
         run: |
-          set -eE
+          set -eEx
           set -o pipefail
 
           cloudai --help
-          cloudai verify-systems --tests-dir conf/common/test --system-config conf/common/system
-          cloudai verify-tests --system-config conf/common/system/standalone_system.toml --tests-dir conf/common/test
+          cloudai verify-systems conf/common/system
+          cloudai verify-tests conf/common/test
+          cloudai verify-tests conf/release/spcx/l40s/test
