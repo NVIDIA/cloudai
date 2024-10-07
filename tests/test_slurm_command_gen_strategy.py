@@ -99,11 +99,11 @@ def jax_strategy_fixture() -> JaxToolboxSlurmCommandGenStrategy:
 
 def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path):
     args = {"job_name": "test_job", "num_nodes": 2, "partition": "test_partition", "node_list_str": "node1,node2"}
-    env_vars_str = "export TEST_VAR=VALUE"
+    env_vars = {"TEST_VAR": "VALUE"}
     srun_command = "srun --test test_arg"
     output_path = tmp_path
 
-    sbatch_command = strategy_fixture._write_sbatch_script(args, env_vars_str, srun_command, output_path)
+    sbatch_command = strategy_fixture._write_sbatch_script(args, env_vars, srun_command, output_path)
     filepath_from_command = sbatch_command.split()[-1]
 
     # Check that the file exists at the specified path
@@ -387,7 +387,7 @@ class TestWriteSbatchScript:
     }
 
     def setup_method(self):
-        self.env_vars_str = "export TEST_VAR=VALUE"
+        self.env_vars = {"TEST_VAR": "VALUE"}
         self.srun_command = "srun --test test_arg"
 
     def assert_slurm_directives(self, lines: list[str]):
@@ -423,12 +423,12 @@ class TestWriteSbatchScript:
         del args[missing_arg]
 
         with pytest.raises(KeyError) as exc_info:
-            strategy_fixture._write_sbatch_script(args, self.env_vars_str, self.srun_command, tmp_path)
+            strategy_fixture._write_sbatch_script(args, self.env_vars, self.srun_command, tmp_path)
         assert missing_arg in str(exc_info.value)
 
     def test_only_mandatory_args(self, strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path):
         sbatch_command = strategy_fixture._write_sbatch_script(
-            self.MANDATORY_ARGS, self.env_vars_str, self.srun_command, tmp_path
+            self.MANDATORY_ARGS, self.env_vars, self.srun_command, tmp_path
         )
 
         filepath_from_command = sbatch_command.split()[-1]
@@ -481,7 +481,7 @@ class TestWriteSbatchScript:
             str_arg = arg.replace("_", "-")
             expected_str = f"#SBATCH --{str_arg}={v}"
 
-        sbatch_command = strategy_fixture._write_sbatch_script(args, self.env_vars_str, self.srun_command, tmp_path)
+        sbatch_command = strategy_fixture._write_sbatch_script(args, self.env_vars, self.srun_command, tmp_path)
 
         filepath_from_command = sbatch_command.split()[-1]
         with open(filepath_from_command, "r") as file:
@@ -498,7 +498,7 @@ class TestWriteSbatchScript:
         strategy_fixture.slurm_system.extra_srun_args = "--reservation my-reservation"
         args = self.MANDATORY_ARGS.copy()
 
-        sbatch_command = strategy_fixture._write_sbatch_script(args, self.env_vars_str, self.srun_command, tmp_path)
+        sbatch_command = strategy_fixture._write_sbatch_script(args, self.env_vars, self.srun_command, tmp_path)
         filepath_from_command = sbatch_command.split()[-1]
         with open(filepath_from_command, "r") as file:
             file_contents = file.read()
@@ -510,7 +510,7 @@ class TestWriteSbatchScript:
         args = self.MANDATORY_ARGS.copy()
         args[add_arg] = "fake"
 
-        sbatch_command = strategy_fixture._write_sbatch_script(args, self.env_vars_str, self.srun_command, tmp_path)
+        sbatch_command = strategy_fixture._write_sbatch_script(args, self.env_vars, self.srun_command, tmp_path)
 
         filepath_from_command = sbatch_command.split()[-1]
         with open(filepath_from_command, "r") as file:
