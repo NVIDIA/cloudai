@@ -141,3 +141,6 @@ Feel free to contribute to the CloudAI project. Your contributions are highly ap
 
 ## License
 This project is licensed under Apache 2.0. See the LICENSE file for detailed information.
+
+## Additional Documentation
+For more detailed instructions and guidance, including advanced usage and troubleshooting, please refer to the [USER_GUIDE.md](./USER_GUIDE.md)
