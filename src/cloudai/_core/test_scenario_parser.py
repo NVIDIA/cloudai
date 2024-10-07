@@ -57,7 +57,7 @@ class _TestScenarioTOML(BaseModel):
     tests: list[_TestRunTOML] = Field(alias="Tests", min_length=1)
 
     @model_validator(mode="after")
-    def check_circular_dependencies(self):
+    def check_no_self_dependency(self):
         """Check for circular dependencies in the test scenario."""
         for test_run in self.tests:
             for dep in test_run.dependencies:
@@ -78,7 +78,7 @@ class _TestScenarioTOML(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def all_dependencies_are_known(self):
+    def check_all_dependencies_are_known(self):
         """Check that all dependencies are known."""
         test_ids = set(tr.id for tr in self.tests)
         for tr in self.tests:
