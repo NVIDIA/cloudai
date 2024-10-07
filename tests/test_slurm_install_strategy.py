@@ -164,11 +164,12 @@ class TestNeMoLauncherSlurmInstallStrategy:
         repo_path.mkdir(parents=True, exist_ok=True)
         requirements_file.touch()
 
+        py_bin = subdir_path / "nemo-venv" / "bin" / "python"
         with patch("subprocess.run") as mock_run:
             mock_run.return_value.returncode = 0
             strategy._install_requirements(subdir_path)
             mock_run.assert_called_with(
-                ["pip", "install", "-r", str(requirements_file)], capture_output=True, text=True
+                [py_bin, "-m", "pip", "install", "-r", str(requirements_file)], capture_output=True, text=True
             )
 
     def test_clone_repository_when_path_exists(self, strategy: NeMoLauncherSlurmInstallStrategy):
