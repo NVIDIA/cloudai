@@ -445,7 +445,7 @@ class SlurmSystem(BaseModel, System):
         return [node.name for node in self.get_group_nodes(partition_name, group_name)]
 
     def get_available_nodes_from_group(
-        self, partition_name: str, group_name: str, number_of_nodes: Union[int, str]
+        self, number_of_nodes: Union[int, str], partition_name: str, group_name: Optional[str] = None
     ) -> List[SlurmNode]:
         """
         Retrieve a specific number of potentially available nodes from a group within a partition.
@@ -466,6 +466,8 @@ class SlurmSystem(BaseModel, System):
             ValueError: If the partition or group is not found, or if the requested number of nodes exceeds the
                 available nodes.
         """
+        group_print = f"group '{group_name}' in " if group_name else ""
+
         self.validate_partition_and_group(partition_name, group_name)
 
         self.update_node_states()
@@ -473,10 +475,10 @@ class SlurmSystem(BaseModel, System):
         grouped_nodes = self.group_nodes_by_state(partition_name, group_name)
 
         try:
-            allocated_nodes = self.allocate_nodes(grouped_nodes, number_of_nodes, group_name)
+            allocated_nodes = self.allocate_nodes(grouped_nodes, number_of_nodes, partition_name, group_name)
 
             logging.info(
-                f"Allocated nodes from group '{group_name}' in partition '{partition_name}': "
+                f"Allocated nodes from {group_print}partition '{partition_name}': "
                 f"{[node.name for node in allocated_nodes]}"
             )
 
@@ -490,7 +492,7 @@ class SlurmSystem(BaseModel, System):
 
             return []
 
-    def validate_partition_and_group(self, partition_name: str, group_name: str) -> None:
+    def validate_partition_and_group(self, partition_name: str, group_name: Optional[str] = None) -> None:
         """
         Validate that the partition and group exist.
 
@@ -504,10 +506,12 @@ class SlurmSystem(BaseModel, System):
         """
         if partition_name not in self.groups:
             raise ValueError(f"Partition '{partition_name}' not found.")
-        if group_name not in self.groups[partition_name]:
+        if group_name and group_name not in self.groups[partition_name]:
             raise ValueError(f"Group '{group_name}' not found in partition '{partition_name}'.")
 
-    def group_nodes_by_state(self, partition_name: str, group_name: str) -> Dict[SlurmNodeState, List[SlurmNode]]:
+    def group_nodes_by_state(
+        self, partition_name: str, group_name: Optional[str]
+    ) -> Dict[SlurmNodeState, List[SlurmNode]]:
         """
         Group nodes by their states, excluding nodes allocated to the current user.
 
@@ -534,15 +538,24 @@ class SlurmSystem(BaseModel, System):
                 SlurmNodeState.COMPLETING: [],
                 SlurmNodeState.ALLOCATED: [],
             }
-
-        for node in self.groups[partition_name][group_name]:
+        if group_name:
+            nodes = self.groups[partition_name][group_name]
+        else:
+            nodes = []
+            for group_name in self.groups[partition_name]:
+                nodes.extend(self.groups[partition_name][group_name])
+        for node in nodes:
             if node.state in grouped_nodes and (not reserved_nodes or node.name in reserved_nodes):
                 grouped_nodes[node.state].append(node)
 
         return grouped_nodes
 
     def allocate_nodes(
-        self, grouped_nodes: Dict[SlurmNodeState, List[SlurmNode]], number_of_nodes: Union[int, str], group_name: str
+        self,
+        grouped_nodes: Dict[SlurmNodeState, List[SlurmNode]],
+        number_of_nodes: Union[int, str],
+        partition_name: str,
+        group_name: Optional[str],
     ) -> List[SlurmNode]:
         """
         Allocate nodes based on the requested number or maximum availability.
@@ -551,6 +564,7 @@ class SlurmSystem(BaseModel, System):
             grouped_nodes (Dict[SlurmNodeState, List[SlurmNode]]): Nodes grouped by their state.
             number_of_nodes (Union[int, str]): The number of nodes to allocate, or 'max_avail' to allocate
                 all available nodes.
+            partition_name (str): The name of the partition.
             group_name (str): The name of the group.
 
         Returns:
@@ -559,6 +573,8 @@ class SlurmSystem(BaseModel, System):
         Raises:
             ValueError: If the requested number of nodes exceeds the available nodes.
         """
+        # Allocate nodes based on priority: idle, then completing, then allocated
+        group_or_partition = f"group '{group_name}'" if group_name else f"partition '{partition_name}'"
         allocated_nodes = []
 
         if isinstance(number_of_nodes, str) and number_of_nodes == "max_avail":
@@ -567,7 +583,7 @@ class SlurmSystem(BaseModel, System):
 
             if len(allocated_nodes) == 0:
                 raise ValueError(
-                    f"CloudAI is requesting the maximum available nodes from the group '{group_name}', "
+                    f"CloudAI is requesting the maximum available nodes from the {group_or_partition}, "
                     f"but no nodes are available. Please review the available nodes in the system and ensure "
                     f"there are sufficient resources to meet the requirements of the test scenario. Additionally, "
                     f"verify that the system is capable of hosting the maximum number of nodes specified in the test "
@@ -581,7 +597,7 @@ class SlurmSystem(BaseModel, System):
 
             if len(allocated_nodes) < number_of_nodes:
                 raise ValueError(
-                    f"CloudAI is requesting {number_of_nodes} nodes from the group '{group_name}', but only "
+                    f"CloudAI is requesting {number_of_nodes} nodes from the {group_or_partition}, but only "
                     f"{len(allocated_nodes)} nodes are available. Please review the available nodes in the system "
                     f"and ensure there are enough resources to meet the requested node count. Additionally, "
                     f"verify that the system can accommodate the number of nodes required by the test scenario."
@@ -838,11 +854,15 @@ class SlurmSystem(BaseModel, System):
         for node_spec in nodes:
             if ":" in node_spec:
                 parts = node_spec.split(":")
-                if len(parts) != 3:
-                    raise ValueError("Format should be partition:group:num_nodes")
-                partition_name, group_name, num_nodes_spec = parts
+                if len(parts) == 2:
+                    partition_name, num_nodes_spec = parts
+                    group_name = None
+                elif len(parts) == 3:
+                    partition_name, group_name, num_nodes_spec = parts
+                else:
+                    raise ValueError("Format should be partition:group:num_nodes or partition:num_nodes")
                 num_nodes = int(num_nodes_spec) if num_nodes_spec != "max_avail" else num_nodes_spec
-                group_nodes = self.get_available_nodes_from_group(partition_name, group_name, num_nodes)
+                group_nodes = self.get_available_nodes_from_group(num_nodes, partition_name, group_name)
                 parsed_nodes += [node.name for node in group_nodes]
             else:
                 # Handle both individual node names and ranges
