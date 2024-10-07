@@ -24,7 +24,7 @@ from typing import List, Optional, Set
 
 import toml
 
-from cloudai import Installer, Parser, ReportGenerator, Runner, System, Test, TestParser, TestScenario, TestTemplate
+from cloudai import Parser, Registry, ReportGenerator, Runner, System, Test, TestParser, TestScenario, TestTemplate
 
 
 def setup_logging(log_file: str, log_level: str) -> None:
@@ -166,7 +166,12 @@ def handle_install_and_uninstall(mode: str, system: System, tests: List[Test]) -
     logging.info(f"Scheduler: {system.scheduler}")
 
     unique_test_templates = identify_unique_test_templates(tests)
-    installer = Installer(system)
+
+    registry = Registry()
+    installer_class = registry.installers_map.get(system.scheduler)
+    if installer_class is None:
+        raise NotImplementedError(f"No installer available for scheduler: {system.scheduler}")
+    installer = installer_class(system)
 
     if mode == "install":
         all_installed = True
@@ -218,7 +223,11 @@ def handle_dry_run_and_run(mode: str, system: System, tests: List[Test], test_sc
 
         unique_templates = identify_unique_test_templates(tests)
 
-        installer = Installer(system)
+        registry = Registry()
+        installer_class = registry.installers_map.get(system.scheduler)
+        if installer_class is None:
+            raise NotImplementedError(f"No installer available for scheduler: {system.scheduler}")
+        installer = installer_class(system)
         result = installer.is_installed(unique_templates)
 
         if not result.success:

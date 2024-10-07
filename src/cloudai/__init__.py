@@ -43,7 +43,6 @@ from ._core.test_scenario import TestRun, TestScenario
 from ._core.test_scenario_parser import TestScenarioParser
 from ._core.test_template import TestTemplate
 from ._core.test_template_strategy import TestTemplateStrategy
-from .installer.installer import Installer
 from .installer.kubernetes_installer import KubernetesInstaller
 from .installer.slurm_installer import SlurmInstaller
 from .installer.standalone_installer import StandaloneInstaller
@@ -192,7 +191,6 @@ __all__ = [
     "format_validation_error",
     "Grader",
     "GradingStrategy",
-    "Installer",
     "InstallStatusResult",
     "InstallStrategy",
     "JobIdRetrievalError",

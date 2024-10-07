@@ -60,7 +60,7 @@ class SlurmRunner(BaseRunner):
         job_id = 0
         if self.mode == "run":
             stdout, stderr = self.cmd_shell.execute(exec_cmd).communicate()
-            job_id = tr.test.get_job_id(stdout, stderr)
+            job_id = tr.test.test_template.get_job_id(stdout, stderr)
             if job_id is None:
                 raise JobIdRetrievalError(
                     test_name=str(tr.name),
