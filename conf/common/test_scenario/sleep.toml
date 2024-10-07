@@ -18,11 +18,11 @@ name = "test_scenario_example"
 
 [[Tests]]
 id = "Tests.1"
-template_test = "sleep_10"
+test_name = "sleep_10"
 
 [[Tests]]
 id = "Tests.2"
-template_test = "sleep_5"
+test_name = "sleep_5"
   [[Tests.dependencies]]
   type = "start_post_init"
   id = "Tests.1"
@@ -30,7 +30,7 @@ template_test = "sleep_5"
 
 [[Tests]]
 id = "Tests.3"
-template_test = "sleep_5"
+test_name = "sleep_5"
   [[Tests.dependencies]]
   type = "start_post_comp"
   id = "Tests.1"
@@ -38,7 +38,7 @@ template_test = "sleep_5"
 
 [[Tests]]
 id = "Tests.4"
-template_test = "sleep_20"
+test_name = "sleep_20"
   [[Tests.dependencies]]
   type = "end_post_comp"
   id = "Tests.1"

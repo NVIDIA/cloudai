@@ -38,7 +38,7 @@ class _TestRunTOML(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1)
-    template_test: str
+    test_name: str
     num_nodes: Optional[int] = None
     nodes: list[str] = Field(default_factory=list)
     weight: int = 0
@@ -169,18 +169,18 @@ class TestScenarioParser:
         Raises:
             ValueError: If the test or nodes are not found within the system.
         """
-        if test_info.template_test not in self.test_mapping:
+        if test_info.test_name not in self.test_mapping:
             msg = (
-                f"Test '{test_info.template_test}' not found in the test schema directory. Please ensure that all "
+                f"Test '{test_info.test_name}' not found in the test schema directory. Please ensure that all "
                 f"tests referenced in the test scenario schema exist in the test schema directory. To resolve this "
-                f"issue, you can either add the corresponding test schema file for '{test_info.template_test}' in "
+                f"issue, you can either add the corresponding test schema file for '{test_info.test_name}' in "
                 f"the directory or remove the testreference from the test scenario schema."
             )
             logging.error(f"Failed to parse Test Scenario definition: {self.file_path}")
             logging.error(msg)
             raise TestScenarioParsingError(msg)
 
-        original_test = self.test_mapping[test_info.template_test]
+        original_test = self.test_mapping[test_info.test_name]
 
         test = Test(
             name=original_test.name,

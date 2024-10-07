@@ -17,13 +17,13 @@
 name = "nemo_launcher_with_noise"
 [[Tests]]
 id = "Tests.1"
-template_test = "llama2_70b"
+test_name = "llama2_70b"
 num_nodes = "4"
 weight = 100
 
 [[Tests]]
 id = "Tests.2"
-template_test = "nccl_test_all_reduce"
+test_name = "nccl_test_all_reduce"
 num_nodes = "16"
   [[Tests.dependencies]]
   type = "start_post_init"

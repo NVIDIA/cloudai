@@ -17,12 +17,12 @@
 name = "l40s_bc_all_nccl_test"
 [[Tests]]
 id = "Tests.1"
-template_test = "nccl_test_all_gather_worst"
+test_name = "nccl_test_all_gather_worst"
 num_nodes = "16"
 
 [[Tests]]
 id = "Tests.2"
-template_test = "nccl_test_all_gather"
+test_name = "nccl_test_all_gather"
 num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
@@ -32,7 +32,7 @@ num_nodes = "16"
 
 [[Tests]]
 id = "Tests.3"
-template_test = "nccl_test_all_reduce_worst"
+test_name = "nccl_test_all_reduce_worst"
 num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
@@ -42,7 +42,7 @@ num_nodes = "16"
 
 [[Tests]]
 id = "Tests.4"
-template_test = "nccl_test_all_reduce"
+test_name = "nccl_test_all_reduce"
 num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
@@ -52,7 +52,7 @@ num_nodes = "16"
 
 [[Tests]]
 id = "Tests.5"
-template_test = "nccl_test_alltoall_worst_failover"
+test_name = "nccl_test_alltoall_worst_failover"
 num_nodes = "16"
 time_limit = "00:30:00"
   [[Tests.dependencies]]
@@ -63,7 +63,7 @@ time_limit = "00:30:00"
 
 [[Tests]]
 id = "Tests.6"
-template_test = "nccl_test_alltoall_worst"
+test_name = "nccl_test_alltoall_worst"
 num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
@@ -73,7 +73,7 @@ num_nodes = "16"
 
 [[Tests]]
 id = "Tests.7"
-template_test = "nccl_test_alltoall"
+test_name = "nccl_test_alltoall"
 num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
@@ -83,7 +83,7 @@ num_nodes = "16"
 
 [[Tests]]
 id = "Tests.8"
-template_test = "nccl_test_bisection"
+test_name = "nccl_test_bisection"
 num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
@@ -93,7 +93,7 @@ num_nodes = "16"
 
 [[Tests]]
 id = "Tests.9"
-template_test = "nccl_test_broadcast"
+test_name = "nccl_test_broadcast"
 num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
@@ -103,7 +103,7 @@ num_nodes = "16"
 
 [[Tests]]
 id = "Tests.10"
-template_test = "nccl_test_gather"
+test_name = "nccl_test_gather"
 num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
@@ -113,7 +113,7 @@ num_nodes = "16"
 
 [[Tests]]
 id = "Tests.11"
-template_test = "nccl_test_hypercube"
+test_name = "nccl_test_hypercube"
 num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
@@ -123,7 +123,7 @@ num_nodes = "16"
 
 [[Tests]]
 id = "Tests.12"
-template_test = "nccl_test_reduce_scatter_worst"
+test_name = "nccl_test_reduce_scatter_worst"
 num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
@@ -133,7 +133,7 @@ num_nodes = "16"
 
 [[Tests]]
 id = "Tests.13"
-template_test = "nccl_test_reduce_scatter"
+test_name = "nccl_test_reduce_scatter"
 num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
@@ -143,7 +143,7 @@ num_nodes = "16"
 
 [[Tests]]
 id = "Tests.14"
-template_test = "nccl_test_reduce"
+test_name = "nccl_test_reduce"
 num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
@@ -153,7 +153,7 @@ num_nodes = "16"
 
 [[Tests]]
 id = "Tests.15"
-template_test = "nccl_test_scatter"
+test_name = "nccl_test_scatter"
 num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
@@ -163,7 +163,7 @@ num_nodes = "16"
 
 [[Tests]]
 id = "Tests.16"
-template_test = "nccl_test_sendrecv_worst"
+test_name = "nccl_test_sendrecv_worst"
 num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
@@ -173,7 +173,7 @@ num_nodes = "16"
 
 [[Tests]]
 id = "Tests.17"
-template_test = "nccl_test_sendrecv"
+test_name = "nccl_test_sendrecv"
 num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"

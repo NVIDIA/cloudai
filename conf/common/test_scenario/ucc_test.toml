@@ -18,12 +18,12 @@ name = "ucc_test"
 
 [[Tests]]
 id = "Tests.1"
-template_test = "ucc_test_alltoall"
+test_name = "ucc_test_alltoall"
 num_nodes = "2"
 
 [[Tests]]
 id = "Tests.2"
-template_test = "ucc_test_alltoall"
+test_name = "ucc_test_alltoall"
 num_nodes = "2"
   [[Tests.dependencies]]
   type = "start_post_comp"
@@ -32,7 +32,7 @@ num_nodes = "2"
 
 [[Tests]]
 id = "Tests.3"
-template_test = "ucc_test_alltoall"
+test_name = "ucc_test_alltoall"
 num_nodes = "2"
   [[Tests.dependencies]]
   type = "start_post_comp"
@@ -41,7 +41,7 @@ num_nodes = "2"
 
 [[Tests]]
 id = "Tests.4"
-template_test = "ucc_test_alltoall"
+test_name = "ucc_test_alltoall"
 num_nodes = "2"
   [[Tests.dependencies]]
   type = "start_post_comp"
@@ -50,7 +50,7 @@ num_nodes = "2"
 
 [[Tests]]
 id = "Tests.5"
-template_test = "ucc_test_alltoall"
+test_name = "ucc_test_alltoall"
 num_nodes = "2"
   [[Tests.dependencies]]
   type = "start_post_comp"

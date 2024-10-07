@@ -17,13 +17,13 @@
 name = "nccl-test"
 [[Tests]]
 id = "Tests.1"
-template_test = "nccl_test_all_reduce"
+test_name = "nccl_test_all_reduce"
 num_nodes = "2"
 time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.2"
-template_test = "nccl_test_all_gather"
+test_name = "nccl_test_all_gather"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -34,7 +34,7 @@ time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.3"
-template_test = "nccl_test_reduce_scatter"
+test_name = "nccl_test_reduce_scatter"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -45,7 +45,7 @@ time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.4"
-template_test = "nccl_test_alltoall"
+test_name = "nccl_test_alltoall"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -56,7 +56,7 @@ time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.5"
-template_test = "nccl_test_all_reduce"
+test_name = "nccl_test_all_reduce"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -67,7 +67,7 @@ time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.6"
-template_test = "nccl_test_all_gather"
+test_name = "nccl_test_all_gather"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -78,7 +78,7 @@ time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.7"
-template_test = "nccl_test_reduce_scatter"
+test_name = "nccl_test_reduce_scatter"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -89,7 +89,7 @@ time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.8"
-template_test = "nccl_test_alltoall"
+test_name = "nccl_test_alltoall"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -100,7 +100,7 @@ time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.9"
-template_test = "nccl_test_all_reduce"
+test_name = "nccl_test_all_reduce"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -111,7 +111,7 @@ time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.10"
-template_test = "nccl_test_all_gather"
+test_name = "nccl_test_all_gather"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -122,7 +122,7 @@ time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.11"
-template_test = "nccl_test_reduce_scatter"
+test_name = "nccl_test_reduce_scatter"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -133,7 +133,7 @@ time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.12"
-template_test = "nccl_test_alltoall"
+test_name = "nccl_test_alltoall"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -144,7 +144,7 @@ time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.13"
-template_test = "nccl_test_all_reduce"
+test_name = "nccl_test_all_reduce"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -155,7 +155,7 @@ time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.14"
-template_test = "nccl_test_all_gather"
+test_name = "nccl_test_all_gather"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -166,7 +166,7 @@ time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.15"
-template_test = "nccl_test_reduce_scatter"
+test_name = "nccl_test_reduce_scatter"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -177,7 +177,7 @@ time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.16"
-template_test = "nccl_test_alltoall"
+test_name = "nccl_test_alltoall"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -188,7 +188,7 @@ time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.17"
-template_test = "nccl_test_all_reduce"
+test_name = "nccl_test_all_reduce"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -199,7 +199,7 @@ time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.18"
-template_test = "nccl_test_all_gather"
+test_name = "nccl_test_all_gather"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -210,7 +210,7 @@ time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.19"
-template_test = "nccl_test_reduce_scatter"
+test_name = "nccl_test_reduce_scatter"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -221,7 +221,7 @@ time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.20"
-template_test = "nccl_test_alltoall"
+test_name = "nccl_test_alltoall"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -232,7 +232,7 @@ time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.21"
-template_test = "nccl_test_all_reduce"
+test_name = "nccl_test_all_reduce"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -243,7 +243,7 @@ time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.22"
-template_test = "nccl_test_all_gather"
+test_name = "nccl_test_all_gather"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -254,7 +254,7 @@ time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.23"
-template_test = "nccl_test_reduce_scatter"
+test_name = "nccl_test_reduce_scatter"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -265,7 +265,7 @@ time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.24"
-template_test = "nccl_test_alltoall"
+test_name = "nccl_test_alltoall"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]

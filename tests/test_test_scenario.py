@@ -36,9 +36,7 @@ def test() -> Test:
 
 def test_single_test_case(test: Test, test_scenario_parser: TestScenarioParser) -> None:
     test_scenario_parser.test_mapping = {"nccl": test}
-    test_scenario = test_scenario_parser._parse_data(
-        {"name": "nccl-test", "Tests": [{"id": "1", "template_test": "nccl"}]}
-    )
+    test_scenario = test_scenario_parser._parse_data({"name": "nccl-test", "Tests": [{"id": "1", "test_name": "nccl"}]})
     assert test_scenario.name == "nccl-test"
     assert len(test_scenario.test_runs) == 1
     assert test_scenario.job_status_check is True
@@ -70,7 +68,7 @@ def test_with_some_props(
     setattr(test, prop, tvalue)
     test_scenario_parser.test_mapping = {"nccl": test}
     test_scenario = test_scenario_parser._parse_data(
-        {"name": "nccl-test", "Tests": [{"id": "1", "template_test": "nccl", prop: cfg_value}]}
+        {"name": "nccl-test", "Tests": [{"id": "1", "test_name": "nccl", prop: cfg_value}]}
     )
     atest = test_scenario.test_runs[0].test
     val = getattr(atest, prop)
@@ -81,7 +79,7 @@ def test_with_some_props(
 def test_with_time_limit(test: Test, test_scenario_parser: TestScenarioParser) -> None:
     test_scenario_parser.test_mapping = {"nccl": test}
     test_scenario = test_scenario_parser._parse_data(
-        {"name": "nccl-test", "Tests": [{"id": "1", "template_test": "nccl", "time_limit": "10m"}]}
+        {"name": "nccl-test", "Tests": [{"id": "1", "test_name": "nccl", "time_limit": "10m"}]}
     )
     assert test_scenario.test_runs[0].time_limit == "10m"
 
@@ -92,7 +90,7 @@ def test_two_independent_cases(test: Test, test_scenario_parser: TestScenarioPar
 
     test_scenario_parser.test_mapping = {"nccl": t1, "nccl2": t2}
     test_scenario = test_scenario_parser._parse_data(
-        {"name": "nccl-test", "Tests": [{"id": "1", "template_test": "nccl"}, {"id": "2", "template_test": "nccl2"}]}
+        {"name": "nccl-test", "Tests": [{"id": "1", "test_name": "nccl"}, {"id": "2", "test_name": "nccl2"}]}
     )
     assert len(test_scenario.test_runs) == 2
 
@@ -105,7 +103,7 @@ def test_two_independent_cases(test: Test, test_scenario_parser: TestScenarioPar
 
 def test_raises_on_missing_mapping(test_scenario_parser: TestScenarioParser):
     with pytest.raises(TestScenarioParsingError) as exc_info:
-        test_scenario_parser._parse_data({"name": "nccl-test", "Tests": [{"id": "1", "template_test": "nccl1"}]})
+        test_scenario_parser._parse_data({"name": "nccl-test", "Tests": [{"id": "1", "test_name": "nccl1"}]})
     assert exc_info.match("Test 'nccl1' not found in the test schema directory")
 
 
@@ -117,7 +115,7 @@ def test_cant_depends_on_itself() -> None:
                 "Tests": [
                     {
                         "id": "1",
-                        "template_test": "nccl",
+                        "test_name": "nccl",
                         "dependencies": [{"type": "end_post_comp", "id": "1"}],
                     },
                 ],
@@ -135,8 +133,8 @@ def test_two_dependent_cases(test: Test, test_scenario_parser: TestScenarioParse
         {
             "name": "nccl-test",
             "Tests": [
-                {"id": "1", "template_test": "nccl", "dependencies": [{"type": "end_post_comp", "id": "2"}]},
-                {"id": "2", "template_test": "nccl2"},
+                {"id": "1", "test_name": "nccl", "dependencies": [{"type": "end_post_comp", "id": "2"}]},
+                {"id": "2", "test_name": "nccl2"},
             ],
         }
     )
@@ -157,8 +155,8 @@ def test_ids_must_be_unique() -> None:
             {
                 "name": "test",
                 "Tests": [
-                    {"id": "1", "template_test": "nccl"},
-                    {"id": "1", "template_test": "nccl"},
+                    {"id": "1", "test_name": "nccl"},
+                    {"id": "1", "test_name": "nccl"},
                 ],
             }
         )
@@ -173,7 +171,7 @@ def test_raises_on_unknown_dependency() -> None:
                 "Tests": [
                     {
                         "id": "test-id",
-                        "template_test": "nccl",
+                        "test_name": "nccl",
                         "dependencies": [{"type": "end_post_comp", "id": "dep-id"}],
                     }
                 ],
@@ -195,5 +193,5 @@ def test_list_of_tests_must_not_be_empty() -> None:
 
 def test_test_id_must_contain_at_least_one_letter() -> None:
     with pytest.raises(ValueError) as exc_info:
-        _TestScenarioTOML.model_validate({"name": "name", "Tests": [{"id": "", "template_test": "nccl"}]})
+        _TestScenarioTOML.model_validate({"name": "name", "Tests": [{"id": "", "test_name": "nccl"}]})
     assert exc_info.match("_TestScenarioTOML\nTests.0.id\n  String should have at least 1 character")

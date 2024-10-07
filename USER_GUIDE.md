@@ -125,12 +125,12 @@ name = "nccl-test"
 
 [[Tests]]
 id = "Tests.1"
-template_test = "nccl_test_all_reduce_single_node"
+test_name = "nccl_test_all_reduce_single_node"
 time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.2"
-template_test = "nccl_test_all_reduce_single_node"
+test_name = "nccl_test_all_reduce_single_node"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
   type = "start_post_comp"
@@ -140,7 +140,7 @@ time_limit = "00:20:00"
 
 Notes on the test scenario:
 1. `id` is a mandatory filed and must be uniq for each test.
-1. The `template_test` specifies test definition from one of the Test TOML files. Node lists and time limits are optional.
+1. The `test_name` specifies test definition from one of the Test TOML files. Node lists and time limits are optional.
 1. If needed, `nodes` should be described as a list of node names as shown in a Slurm system. Alternatively, if groups are defined in the system schema, you can ask CloudAI to allocate a specific number of nodes from a specified partition and group. For example `nodes = ['PARTITION:GROUP:16']`: 16 nodes are allocated from a group `GROUP`, from a partition `PARTITION`.
 1. There are three types of dependencies: `start_post_comp`, `start_post_init` and `end_post_comp`.
     1. `start_post_comp` means that the current test should be started after a specific delay of the completion of the depending test.
@@ -252,13 +252,13 @@ name = "nccl-test"
 
 [[Tests]]
 id = "Tests.1"
-template_test = "nccl_test_all_reduce"
+test_name = "nccl_test_all_reduce"
 num_nodes = "2"
 time_limit = "00:20:00"
 
 [[Tests]]
 id = "Tests.2"
-template_test = "nccl_test_all_gather"
+test_name = "nccl_test_all_gather"
 num_nodes = "2"
 time_limit = "00:20:00"
   [[Tests.dependencies]]

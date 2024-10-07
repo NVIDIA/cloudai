@@ -17,5 +17,5 @@
 name = "chakra_replay"
 [[Tests]]
 id = "Tests.1"
-template_test = "chakra_replay"
+test_name = "chakra_replay"
 num_nodes = "2"
