@@ -16,8 +16,7 @@
 
 from abc import abstractmethod
 
-from cloudai._core.test_scenario import TestRun
-
+from .test_scenario import TestRun
 from .test_template_strategy import TestTemplateStrategy
 
 

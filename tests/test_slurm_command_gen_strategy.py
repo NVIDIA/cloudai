@@ -58,7 +58,7 @@ def strategy_fixture(slurm_system: SlurmSystem) -> SlurmCommandGenStrategy:
 
 
 @pytest.fixture
-def test_run_fixture() -> TestRun:
+def test_run_fixture(tmp_path: Path) -> TestRun:
     test = Mock()
     test.cmd_args = {
         "docker_image_url": "fake",
@@ -74,7 +74,7 @@ def test_run_fixture() -> TestRun:
         test=test,
         num_nodes=2,
         nodes=[],
-        output_path=Path("/tmp/output"),
+        output_path=tmp_path / "output",
         job_name="test-job",
     )
     return tr

@@ -69,4 +69,4 @@ class SlurmRunner(BaseRunner):
                     stderr=stderr,
                     message="Failed to retrieve job ID from command output.",
                 )
-        return SlurmJob(self.mode, self.system, tr, job_id, tr.output_path)
+        return SlurmJob(self.mode, self.system, tr, job_id)

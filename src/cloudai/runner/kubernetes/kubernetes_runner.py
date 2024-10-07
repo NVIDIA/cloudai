@@ -48,7 +48,7 @@ class KubernetesRunner(BaseRunner):
             k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)
             job_name, job_namespace = k8s_system.create_job(job_spec)
 
-        return KubernetesJob(self.mode, self.system, tr, job_namespace, job_name, job_kind, tr.output_path)
+        return KubernetesJob(self.mode, self.system, tr, job_namespace, job_name, job_kind)
 
     async def job_completion_callback(self, job: BaseJob) -> None:
         """

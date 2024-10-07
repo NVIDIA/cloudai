@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import logging
-from pathlib import Path
 
 from cloudai import BaseRunner, JobIdRetrievalError, System, TestRun, TestScenario
 from cloudai.util import CommandShell
@@ -69,4 +68,4 @@ class StandaloneRunner(BaseRunner):
                     stderr="",
                     message="Failed to retrieve job ID from command output.",
                 )
-        return StandaloneJob(self.mode, self.system, tr, job_id, Path(tr.output_path))
+        return StandaloneJob(self.mode, self.system, tr, job_id)

@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
 from typing import Union
 
 from cloudai import BaseJob, System, TestRun
@@ -28,8 +27,8 @@ class SlurmJob(BaseJob):
         id (Union[str, int]): The unique identifier of the job.
     """
 
-    def __init__(self, mode: str, system: System, test_run: TestRun, job_id: Union[str, int], output_path: Path):
-        BaseJob.__init__(self, mode, system, test_run, output_path)
+    def __init__(self, mode: str, system: System, test_run: TestRun, job_id: Union[str, int]):
+        BaseJob.__init__(self, mode, system, test_run)
         self.id = job_id
 
     def __repr__(self) -> str:

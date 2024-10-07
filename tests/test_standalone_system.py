@@ -61,7 +61,7 @@ def standalone_job(standalone_system, mock_test):
     Returns:
         StandaloneJob: A new instance of StandaloneJob for testing.
     """
-    return StandaloneJob("run", standalone_system, mock_test, 12345, Path("/fake/output/path"))
+    return StandaloneJob("run", standalone_system, mock_test, 12345)
 
 
 @pytest.mark.parametrize(
