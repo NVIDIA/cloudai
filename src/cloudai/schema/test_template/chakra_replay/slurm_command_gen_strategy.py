@@ -49,7 +49,7 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         job_name_prefix = "chakra_replay"
         slurm_args = self._parse_slurm_args(job_name_prefix, final_env_vars, final_cmd_args, num_nodes, nodes)
-        srun_command = self.generate_full_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
+        srun_command = self.generate_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
         return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, output_path)
 
     def _parse_slurm_args(

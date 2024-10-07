@@ -37,10 +37,10 @@ class SleepSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         env_vars_str = self._format_env_vars(final_env_vars)
 
         slurm_args = self._parse_slurm_args("sleep", final_env_vars, final_cmd_args, num_nodes, nodes)
-        srun_command = self.generate_full_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
+        srun_command = self.generate_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
         return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, output_path)
 
-    def generate_full_srun_command(
+    def generate_srun_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
     ) -> str:
         srun_command_parts = [
