@@ -82,5 +82,5 @@ jobs:
           set -o pipefail
 
           cloudai --help
-          cloudai --mode verify-systems --tests-dir conf/common/test --system-config conf/common/system
-          cloudai --mode verify-tests --system-config conf/common/system/standalone_system.toml --tests-dir conf/common/test
+          cloudai verify-systems --tests-dir conf/common/test --system-config conf/common/system
+          cloudai verify-tests --system-config conf/common/system/standalone_system.toml --tests-dir conf/common/test
