@@ -120,16 +120,14 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             job_name = f"{self.slurm_system.account}-{job_name_prefix}.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         return job_name
 
-    def generate_full_srun_command(
+    def generate_srun_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
     ) -> str:
-        srun_command_parts = self.generate_srun_command(slurm_args, env_vars, cmd_args, extra_cmd_args)
+        srun_command_parts = self.generate_srun_prefix(slurm_args)
         test_command_parts = self.generate_test_command(slurm_args, env_vars, cmd_args, extra_cmd_args)
         return " \\\n".join(srun_command_parts + test_command_parts)
 
-    def generate_srun_command(
-        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
-    ) -> List[str]:
+    def generate_srun_prefix(self, slurm_args: Dict[str, Any]) -> List[str]:
         srun_command_parts = ["srun", f"--mpi={self.slurm_system.mpi}"]
         if slurm_args.get("image_path"):
             srun_command_parts.append(f'--container-image={slurm_args["image_path"]}')
