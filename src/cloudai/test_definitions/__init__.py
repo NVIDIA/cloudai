@@ -18,7 +18,7 @@ from .chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
 from .nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from .nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
 from .sleep import SleepCmdArgs, SleepTestDefinition
-from .ucc_test import UCCCmdArgs, UCCTestDefinition
+from .ucc_test import UCCTestCmdArgs, UCCTestDefinition
 
 __all__ = [
     "ChakraReplayCmdArgs",
@@ -29,6 +29,6 @@ __all__ = [
     "NeMoLauncherTestDefinition",
     "SleepCmdArgs",
     "SleepTestDefinition",
-    "UCCCmdArgs",
+    "UCCTestCmdArgs",
     "UCCTestDefinition",
 ]
