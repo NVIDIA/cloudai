@@ -229,6 +229,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
         assert "TEST_VAR_1" in cmd
         assert "test_value" in cmd
         assert "extra_args" in cmd
+        assert f"{nemo_cmd_gen.slurm_system.install_path}/NeMo-Launcher/nemo-venv/bin/python " in cmd
 
     def test_env_var_escaping(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, test_run_fixture: TestRun):
         test_run_fixture.test.extra_env_vars = {"TEST_VAR": "value,with,commas"}
