@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 import toml
 from cloudai import Registry, TestDefinition, TestParser
-from cloudai.test_definitions import ChakraReplayCmdArgs, NCCLCmdArgs, NCCLTestDefinition
+from cloudai.test_definitions import ChakraReplayCmdArgs, NCCLTestCmdArgs, NCCLTestDefinition
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
 ALL_TESTS = [t for t in TOML_FILES if "test_template_name" in t.read_text()]
@@ -50,7 +50,7 @@ def test_extra_args_str(input: dict, expected: str):
 )
 def test_extra_args_str_nccl(input: dict, expected: str):
     t = NCCLTestDefinition(
-        name="test", description="test", test_template_name="test", cmd_args=NCCLCmdArgs(), extra_cmd_args=input
+        name="test", description="test", test_template_name="test", cmd_args=NCCLTestCmdArgs(), extra_cmd_args=input
     )
     assert t.extra_args_str == expected
 
