@@ -25,6 +25,7 @@ from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import Nc
 from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import (
     NeMoLauncherSlurmCommandGenStrategy,
 )
+from cloudai.schema.test_template.nemo_launcher.slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm import SlurmNodeState
 from cloudai.systems.slurm.slurm_system import SlurmPartition
@@ -229,7 +230,9 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
         assert "TEST_VAR_1" in cmd
         assert "test_value" in cmd
         assert "extra_args" in cmd
-        assert f"{nemo_cmd_gen.slurm_system.install_path}/NeMo-Launcher/nemo-venv/bin/python " in cmd
+
+        subdir = nemo_cmd_gen.slurm_system.install_path / NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH
+        assert f"{subdir}/nemo-venv/bin/python " in cmd
 
     def test_env_var_escaping(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, test_run_fixture: TestRun):
         test_run_fixture.test.extra_env_vars = {"TEST_VAR": "value,with,commas"}
