@@ -175,16 +175,17 @@ def test_get_available_nodes_exceeding_limit_no_callstack(
     partition_name = "main"
     num_nodes = 5
 
-    slurm_system.get_available_nodes_from_group(partition_name, group_name, num_nodes)
+    slurm_system.get_available_nodes_from_group(num_nodes, partition_name, group_name)
 
     log_message = "CloudAI is requesting 5 nodes from the group 'group1', but only 0 nodes are available."
     assert log_message in caplog.text
 
 
 def test_allocate_nodes_max_avail(slurm_system: SlurmSystem, grouped_nodes: dict[SlurmNodeState, list[SlurmNode]]):
+    partition_name = "main"
     group_name = "group_name"
 
-    available_nodes = slurm_system.allocate_nodes(grouped_nodes, "max_avail", group_name)
+    available_nodes = slurm_system.allocate_nodes(grouped_nodes, "max_avail", partition_name, group_name)
     expected_node_names = [
         grouped_nodes[SlurmNodeState.IDLE][0].name,
         grouped_nodes[SlurmNodeState.IDLE][1].name,
@@ -202,9 +203,10 @@ def test_allocate_nodes_max_avail(slurm_system: SlurmSystem, grouped_nodes: dict
 def test_allocate_nodes_num_nodes_integers(
     slurm_system: SlurmSystem, grouped_nodes: dict[SlurmNodeState, list[SlurmNode]]
 ):
+    partition_name = "main"
     group_name = "group_name"
 
-    available_nodes = slurm_system.allocate_nodes(grouped_nodes, 1, group_name)
+    available_nodes = slurm_system.allocate_nodes(grouped_nodes, 1, partition_name, group_name)
     expected_node_names = [grouped_nodes[SlurmNodeState.IDLE][0].name]
 
     returned_node_names = [node.name for node in available_nodes]
@@ -215,6 +217,7 @@ def test_allocate_nodes_num_nodes_integers(
 def test_allocate_nodes_exceeding_limit(
     slurm_system: SlurmSystem, grouped_nodes: dict[SlurmNodeState, list[SlurmNode]]
 ):
+    partition_name = "main"
     group_name = "group_name"
     num_nodes = 5
     available_nodes = 4
@@ -228,4 +231,4 @@ def test_allocate_nodes_exceeding_limit(
             f"verify that the system can accommodate the number of nodes required by the test scenario."
         ),
     ):
-        slurm_system.allocate_nodes(grouped_nodes, num_nodes, group_name)
+        slurm_system.allocate_nodes(grouped_nodes, num_nodes, partition_name, group_name)
