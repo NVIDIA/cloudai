@@ -15,8 +15,7 @@
 # limitations under the License.
 
 name = "chakra_replay"
-
-[Tests]
-  [Tests.1]
-  name = "chakra_replay"
-  num_nodes = "2"
+[[Tests]]
+id = "Tests.1"
+test_name = "chakra_replay"
+num_nodes = "2"

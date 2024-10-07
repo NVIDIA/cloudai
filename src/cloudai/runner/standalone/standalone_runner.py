@@ -52,17 +52,17 @@ class StandaloneRunner(BaseRunner):
         Returns:
             StandaloneJob: A StandaloneJob object
         """
-        logging.info(f"Running test: {tr.test.section_name}")
-        tr.output_path = self.get_job_output_path(tr.test)
+        logging.info(f"Running test: {tr.name}")
+        tr.output_path = self.get_job_output_path(tr)
         exec_cmd = tr.test.test_template.gen_exec_command(tr)
-        logging.info(f"Executing command for test {tr.test.section_name}: {exec_cmd}")
+        logging.info(f"Executing command for test {tr.name}: {exec_cmd}")
         job_id = 0
         if self.mode == "run":
             pid = self.cmd_shell.execute(exec_cmd).pid
             job_id = tr.test.test_template.get_job_id(str(pid), "")
             if job_id is None:
                 raise JobIdRetrievalError(
-                    test_name=str(tr.test.section_name),
+                    test_name=str(tr.name),
                     command=exec_cmd,
                     stdout="",
                     stderr="",

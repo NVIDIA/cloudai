@@ -20,6 +20,7 @@ from unittest.mock import patch
 import pytest
 import toml
 from cloudai import Parser
+from cloudai._core.test_scenario_parser import _TestScenarioTOML
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
 
@@ -52,3 +53,19 @@ def test_systems(mock_exists, mock_load_kube_config, system_file: Path):
     mock_load_kube_config.return_value = None
     system = Parser(system_file).parse_system(system_file)
     assert system is not None
+
+
+ALL_TEST_SCENARIOS = [p for p in Path("conf/").glob("**/*.toml") if "[[Tests]]" in p.read_text()]
+
+
+@pytest.mark.parametrize("test_scenario_file", ALL_TEST_SCENARIOS, ids=lambda x: str(x))
+def test_test_scenarios(test_scenario_file: Path):
+    """
+    Validate the syntax of a test scenario file.
+
+    Args:
+        test_scenario_file (Path): The path to the test scenario file to validate.
+    """
+    with test_scenario_file.open("r") as f:
+        d = toml.load(f)
+        _TestScenarioTOML.model_validate(d)

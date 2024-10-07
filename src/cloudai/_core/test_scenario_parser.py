@@ -15,14 +15,78 @@
 # limitations under the License.
 
 import copy
-import sys
-from typing import Any, Dict
+import logging
+from typing import Any, Dict, Literal, Optional
 
 import toml
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from .system import System
-from .test import Test, TestDependency
-from .test_scenario import TestRun, TestScenario
+from .exceptions import TestScenarioParsingError, format_validation_error
+from .test import Test
+from .test_scenario import TestDependency, TestRun, TestScenario
+
+
+class _TestDependencyTOML(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["end_post_comp", "start_post_init", "start_post_comp"]
+    id: str
+    time: int = 0
+
+
+class _TestRunTOML(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1)
+    test_name: str
+    num_nodes: Optional[int] = None
+    nodes: list[str] = Field(default_factory=list)
+    weight: int = 0
+    iterations: int = 1
+    sol: Optional[float] = None
+    ideal_perf: float = 1.0
+    time_limit: Optional[str] = None
+    dependencies: list[_TestDependencyTOML] = Field(default_factory=list)
+
+
+class _TestScenarioTOML(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    job_status_check: bool = True
+    tests: list[_TestRunTOML] = Field(alias="Tests", min_length=1)
+
+    @model_validator(mode="after")
+    def check_no_self_dependency(self):
+        """Check for circular dependencies in the test scenario."""
+        for test_run in self.tests:
+            for dep in test_run.dependencies:
+                if dep.id == test_run.id:
+                    raise ValueError(f"Test '{test_run.id}' must not depend on itself.")
+
+        return self
+
+    @model_validator(mode="after")
+    def check_no_duplicate_ids(self):
+        """Check for duplicate test ids in the test scenario."""
+        test_ids = set()
+        for tr in self.tests:
+            if tr.id in test_ids:
+                raise ValueError(f"Duplicate test id '{tr.id}' found in the test scenario.")
+            test_ids.add(tr.id)
+
+        return self
+
+    @model_validator(mode="after")
+    def check_all_dependencies_are_known(self):
+        """Check that all dependencies are known."""
+        test_ids = set(tr.id for tr in self.tests)
+        for tr in self.tests:
+            for dep in tr.dependencies:
+                if dep.id not in test_ids:
+                    raise ValueError(f"Dependency section '{dep.id}' not found for test '{tr.id}'.")
+
+        return self
 
 
 class TestScenarioParser:
@@ -31,20 +95,13 @@ class TestScenarioParser:
 
     Attributes
         file_path (str): Path to the TOML configuration file.
-        system: The system object to which the test scenarios apply.
         test_mapping: Mapping of test names to Test objects.
     """
 
     __test__ = False
 
-    def __init__(
-        self,
-        file_path: str,
-        system: System,
-        test_mapping: Dict[str, Test],
-    ) -> None:
+    def __init__(self, file_path: str, test_mapping: Dict[str, Test]) -> None:
         self.file_path = file_path
-        self.system = system
         self.test_mapping = test_mapping
 
     def parse(self) -> TestScenario:
@@ -68,53 +125,43 @@ class TestScenarioParser:
         Returns:
             TestScenario: Parsed TestScenario object.
         """
-        if "name" not in data:
-            raise KeyError("The 'name' field is missing from the data.")
-        test_scenario_name = data["name"]
-        job_status_check = data.get("job_status_check", True)
-        raw_tests_data = data.get("Tests", {})
-        tests_data = {f"Tests.{k}": v for k, v in raw_tests_data.items()}
+        try:
+            ts_model = _TestScenarioTOML.model_validate(data)
+        except ValidationError as e:
+            logging.error(f"Failed to parse Test Scenario definition: {self.file_path}")
+            for err in e.errors(include_url=False):
+                err_msg = format_validation_error(err)
+                logging.error(err_msg)
+            raise TestScenarioParsingError("Failed to parse Test Scenario definition") from e
 
-        # Create section-specific test instances
-        section_test_runs = {
-            section: self._create_section_test_run(section, info) for section, info in tests_data.items()
-        }
-
-        total_weight = sum(test_info.get("weight", 0) for test_info in tests_data.values())
+        total_weight = sum(tr.weight for tr in ts_model.tests)
         normalized_weight = 0 if total_weight == 0 else 100 / total_weight
 
-        # Update tests with dependencies
-        for section, tr in section_test_runs.items():
+        testruns_by_id: dict[str, TestRun] = {
+            tr.id: self._create_section_test_run(tr, normalized_weight) for tr in ts_model.tests
+        }
+
+        tests_data: dict[str, _TestRunTOML] = {tr.id: tr for tr in ts_model.tests}
+        for section, tr in testruns_by_id.items():
             test_info = tests_data[section]
-            deps = self._parse_dependencies_for_test(section, test_info, section_test_runs)
-            tr.test.dependencies = deps
-
-            # Parse and set iterations
-            iterations = test_info.get("iterations", 1)
-            tr.test.iterations = iterations if isinstance(iterations, int) else sys.maxsize
-
-            tr.test.weight = test_info.get("weight", 0) * normalized_weight
-
-            if "sol" in test_info:
-                tr.test.sol = test_info["sol"]
-
-            if "ideal_perf" in test_info:
-                tr.test.ideal_perf = test_info["ideal_perf"]
-
-            if "time_limit" in test_info:
-                tr.time_limit = test_info["time_limit"]
+            tr.dependencies = {
+                dep.type: TestDependency(time=dep.time, test_run=testruns_by_id[dep.id])
+                for dep in test_info.dependencies
+            }
 
         return TestScenario(
-            name=test_scenario_name, test_runs=list(section_test_runs.values()), job_status_check=job_status_check
+            name=ts_model.name,
+            test_runs=list(testruns_by_id.values()),
+            job_status_check=ts_model.job_status_check,
         )
 
-    def _create_section_test_run(self, section: str, test_info: Dict[str, Any]) -> TestRun:
+    def _create_section_test_run(self, test_info: _TestRunTOML, normalized_weight: float) -> TestRun:
         """
         Create a section-specific Test object by copying from the test mapping.
 
         Args:
-            section (str): Section name of the test.
             test_info (Dict[str, Any]): Information of the test.
+            normalized_weight (float): Normalized weight for the test.
 
         Returns:
             Test: Copied and updated Test object for the section.
@@ -122,16 +169,18 @@ class TestScenarioParser:
         Raises:
             ValueError: If the test or nodes are not found within the system.
         """
-        test_name = test_info.get("name", "")
-        if test_name not in self.test_mapping:
-            raise ValueError(
-                f"Test '{test_name}' not found in the test schema directory. Please ensure that all tests referenced "
-                f"in the test scenario schema exist in the test schema directory. To resolve this issue, you can "
-                f"either add the corresponding test schema file for '{test_name}' in the directory or remove the test "
-                f"reference from the test scenario schema."
+        if test_info.test_name not in self.test_mapping:
+            msg = (
+                f"Test '{test_info.test_name}' not found in the test schema directory. Please ensure that all "
+                f"tests referenced in the test scenario schema exist in the test schema directory. To resolve this "
+                f"issue, you can either add the corresponding test schema file for '{test_info.test_name}' in "
+                f"the directory or remove the testreference from the test scenario schema."
             )
+            logging.error(f"Failed to parse Test Scenario definition: {self.file_path}")
+            logging.error(msg)
+            raise TestScenarioParsingError(msg)
 
-        original_test = self.test_mapping[test_name]
+        original_test = self.test_mapping[test_info.test_name]
 
         test = Test(
             name=original_test.name,
@@ -140,51 +189,17 @@ class TestScenarioParser:
             cmd_args=copy.deepcopy(original_test.cmd_args),
             extra_env_vars=copy.deepcopy(original_test.extra_env_vars),
             extra_cmd_args=original_test.extra_cmd_args,
-            dependencies=copy.deepcopy(original_test.dependencies),
-            iterations=original_test.iterations,
-            sol=original_test.sol,
-            weight=original_test.weight,
-            ideal_perf=original_test.ideal_perf,
+            sol=test_info.sol,
+            weight=test_info.weight * normalized_weight,
+            ideal_perf=test_info.ideal_perf,
         )
 
-        test.section_name = section
         tr = TestRun(
+            test_info.id,
             test,
-            num_nodes=int(test_info.get("num_nodes", 1)),
-            nodes=test_info.get("nodes", []),
+            num_nodes=test_info.num_nodes or 1,
+            iterations=test_info.iterations,
+            nodes=test_info.nodes,
+            time_limit=test_info.time_limit,
         )
         return tr
-
-    def _parse_dependencies_for_test(
-        self,
-        section: str,
-        test_info: Dict[str, Any],
-        section_test_runs: Dict[str, TestRun],
-    ) -> Dict[str, TestDependency]:
-        """
-        Parse and creates TestDependency objects for various types of dependencies, ignoring empty dependencies.
-
-        Args:
-            section (str): Section name of the test.
-            test_info (Dict[str, Any]): Information of the test.
-            section_test_runs (Dict[str, TestRun]): Mapping of section names to TestRun objects.
-
-        Returns:
-            Dict[str, Optional[TestDependency]]: Parsed dependencies for the test.
-        """
-        dependencies = {}
-        dep_info = test_info.get("dependencies", {})
-        for dep_type, dep_details in dep_info.items():
-            if dep_details:  # Check if dep_details is not empty
-                if isinstance(dep_details, dict):
-                    dep_section = dep_details.get("name", "")
-                    dep_test = section_test_runs.get(dep_section)
-                    if not dep_test:
-                        raise ValueError(f"Dependency section '{dep_section}' not found for " f"test '{section}'.")
-                    dep_time = dep_details.get("time", 0)
-                    dependencies[dep_type] = TestDependency(test=dep_test.test, time=dep_time)
-                else:
-                    raise ValueError(f"Invalid format for dependency '{dep_type}' in " f"test '{section}'.")
-            # Else, skip if dep_details is empty
-
-        return dependencies

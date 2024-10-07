@@ -20,7 +20,7 @@ import logging
 import logging.config
 import sys
 from pathlib import Path
-from typing import List, Set
+from typing import List, Optional, Set
 
 import toml
 
@@ -92,6 +92,7 @@ def parse_arguments() -> argparse.Namespace:
             "uninstall",
             "verify-systems",
             "verify-tests",
+            "verify-test-scenarios",
         ],
         help=(
             "Operating mode: 'install' to install test templates, 'dry-run' "
@@ -261,6 +262,14 @@ def handle_generate_report(test_scenario: TestScenario, output_dir: Path) -> Non
     logging.info("Report generation completed.")
 
 
+def init(
+    system_config_path: Path, tests_dir: Path, test_scenario_path: Optional[Path]
+) -> tuple[System, List[Test], Optional[TestScenario]]:
+    parser = Parser(system_config_path)
+    system, tests, test_scenario = parser.parse(tests_dir, test_scenario_path)
+    return system, tests, test_scenario
+
+
 def handle_verify_systems(root: Path) -> int:
     if not root.exists():
         logging.error(f"Tests directory {root} does not exist.")
@@ -281,6 +290,8 @@ def handle_verify_systems(root: Path) -> int:
         except Exception:
             rc = 1
             break
+    if rc == 0:
+        logging.info(f"Checked systems: {len(test_tomls)}, all passed")
 
     return rc
 
@@ -307,8 +318,55 @@ def handle_verify_tests(root: Path) -> int:
         except Exception:
             rc = 1
             break
+    if rc == 0:
+        logging.info(f"Checked tests: {len(test_tomls)}, all passed")
 
     return rc
+
+
+def handle_verify_test_scenarios(root: Path, system_config: Path, tests_dir: Path) -> int:
+    if not root.exists():
+        logging.error(f"Tests directory {root} does not exist.")
+        return 1
+
+    test_tomls = [root]
+    if root.is_dir():
+        test_tomls = list(root.glob("*.toml"))
+        if not test_tomls:
+            logging.error(f"No test tomls found in {root}")
+            return 1
+
+    rc = 0
+    for test_toml in test_tomls:
+        logging.info(f"Verifying {test_toml}...")
+        try:
+            init(system_config, tests_dir, test_toml)
+        except Exception:
+            rc = 1
+            break
+
+    if rc == 0:
+        logging.info(f"Checked scenarios: {len(test_tomls)}, all passed")
+
+    return rc
+
+
+def handle_runs_with_scenario(
+    mode: str, output_dir: Optional[Path], system: System, tests: list[Test], test_scenario: TestScenario, log_file: str
+) -> None:
+    if mode in ["dry-run", "run"]:
+        handle_dry_run_and_run(mode, system, tests, test_scenario)
+        if mode == "run":
+            logging.info(
+                "All test scenario execution attempts are complete. Please review"
+                f" the '{log_file}' file to confirm successful completion or to"
+                " identify any issues."
+            )
+    elif mode == "generate-report":
+        if not output_dir:
+            logging.error("Error: --output-dir is required when mode is generate-report.")
+            exit(1)
+        handle_generate_report(test_scenario, output_dir)
 
 
 def main() -> None:
@@ -319,7 +377,7 @@ def main() -> None:
     if args.mode == "verify-systems":
         rc = handle_verify_systems(Path(args.system_config))
         exit(rc)
-    if args.mode == "verify-tests":
+    elif args.mode == "verify-tests":
         rc = handle_verify_tests(Path(args.tests_dir))
         exit(rc)
 
@@ -328,14 +386,16 @@ def main() -> None:
     test_scenario_path = Path(args.test_scenario) if args.test_scenario else None
     output_dir = Path(args.output_dir) if args.output_dir else None
 
+    if args.mode == "verify-test-scenarios":
+        rc = handle_verify_test_scenarios(Path(args.test_scenario), system_config_path, tests_dir)
+        exit(rc)
+
     logging.info(f"System configuration file: {system_config_path}")
     logging.info(f"Tests directory: {tests_dir}")
     logging.info(f"Test scenario file: {test_scenario_path}")
     logging.info(f"Output directory: {output_dir}")
 
-    parser = Parser(system_config_path)
-    system, tests, test_scenario = parser.parse(tests_dir, test_scenario_path)
-
+    system, tests, test_scenario = init(system_config_path, tests_dir, test_scenario_path)
     if output_dir:
         system.output_path = output_dir.absolute()
     system.update()
@@ -346,20 +406,7 @@ def main() -> None:
         if not test_scenario:
             logging.error(f"Error: --test-scenario is required for mode={args.mode}")
             exit(1)
-
-        elif args.mode in ["dry-run", "run"]:
-            handle_dry_run_and_run(args.mode, system, tests, test_scenario)
-            if args.mode == "run":
-                logging.info(
-                    "All test scenario execution attempts are complete. Please review"
-                    f" the '{args.log_file}' file to confirm successful completion or to"
-                    " identify any issues."
-                )
-        elif args.mode == "generate-report":
-            if not output_dir:
-                logging.error("Error: --output-dir is required when mode is generate-report.")
-                exit(1)
-            handle_generate_report(test_scenario, output_dir)
+        handle_runs_with_scenario(args.mode, output_dir, system, tests, test_scenario, args.log_file)
 
 
 if __name__ == "__main__":

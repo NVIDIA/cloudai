@@ -76,7 +76,7 @@ def test_run_fixture(tmp_path: Path) -> TestRun:
         num_nodes=2,
         nodes=[],
         output_path=tmp_path / "output",
-        job_name="test-job",
+        name="test-job",
     )
     return tr
 

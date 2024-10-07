@@ -32,7 +32,7 @@ class SleepKubernetesJsonGenStrategy(JsonGenStrategy):
         job_spec = {
             "apiVersion": "batch/v1",
             "kind": "Job",
-            "metadata": {"name": tr.job_name, "namespace": kubernetes_system.default_namespace},
+            "metadata": {"name": tr.name, "namespace": kubernetes_system.default_namespace},
             "spec": {
                 "ttlSecondsAfterFinished": 0,
                 "template": {

@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional
 
@@ -22,16 +22,54 @@ if TYPE_CHECKING:
     from .test import Test
 
 
+class TestDependency:
+    """
+    Represents a dependency for a test.
+
+    Attributes
+        test_run (TestRun): TestRun object it depends on.
+        time (int): Time in seconds after which this dependency is met.
+    """
+
+    __test__ = False
+
+    def __init__(self, test_run: "TestRun", time: int) -> None:
+        """
+        Initialize a TestDependency instance.
+
+        Args:
+            test_run (TestRun): TestRun object it depends on.
+            time (int): Time in seconds to meet the dependency.
+        """
+        self.test_run = test_run
+        self.time = time
+
+
 @dataclass
 class TestRun:
     __test__ = False
 
+    name: str
     test: "Test"
     num_nodes: int
     nodes: List[str]
     output_path: Path = Path("")
+    iterations: int = 1
+    current_iteration: int = 0
     time_limit: Optional[str] = None
-    job_name: str = ""
+    dependencies: dict[str, TestDependency] = field(default_factory=dict)
+
+    def __hash__(self) -> int:
+        return hash(self.name + self.test.name + str(self.iterations) + str(self.current_iteration))
+
+    def has_more_iterations(self) -> bool:
+        """
+        Check if the test has more iterations to run.
+
+        Returns
+            bool: True if more iterations are pending, False otherwise.
+        """
+        return self.current_iteration < self.iterations
 
 
 class TestScenario:
@@ -73,14 +111,14 @@ class TestScenario:
         """Print each test in the scenario along with its section name, description, and visualized dependencies."""
         s = f"Test Scenario: {self.name}\n"
         for tr in self.test_runs:
-            s += f"\nSection Name: {tr.test.section_name}\n"
+            s += f"\nSection Name: {tr.name}\n"
             s += f"  Test Name: {tr.test.name}\n"
             s += f"  Description: {tr.test.description}\n"
-            if tr.test.dependencies:
-                for dep_type, dependency in tr.test.dependencies.items():
+            if tr.dependencies:
+                for dep_type, dependency in tr.dependencies.items():
                     if dependency:
                         s += (
-                            f"  {dep_type.replace('_', ' ').title()}: {dependency.test.section_name}, "
+                            f"  {dep_type.replace('_', ' ').title()}: {dependency.test_run.name}, "
                             f"Time: {dependency.time} seconds"
                         )
             else:
