@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List
+from typing import Dict, List
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
@@ -32,6 +32,6 @@ class SleepSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return self._write_sbatch_script(slurm_args, final_env_vars, srun_command, tr.output_path)
 
     def generate_test_command(
-        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
+        self, env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
     ) -> List[str]:
         return [f'sleep {cmd_args["seconds"]}']

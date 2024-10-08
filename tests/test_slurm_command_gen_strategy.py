@@ -170,7 +170,7 @@ def test_raises_if_no_default_partition(slurm_system: SlurmSystem):
 
 class TestGenerateSrunCommand__CmdGeneration:
     def test_generate_test_command(self, strategy_fixture: SlurmCommandGenStrategy):
-        test_command = strategy_fixture.generate_test_command({}, {}, {}, "")
+        test_command = strategy_fixture.generate_test_command({}, {}, "")
         assert test_command == []
 
     def test_generate_srun_prefix(self, strategy_fixture: SlurmCommandGenStrategy):
