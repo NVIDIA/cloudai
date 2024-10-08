@@ -29,7 +29,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def gen_exec_command(self, tr: TestRun) -> str:
         self._prepare_environment(tr.test.cmd_args, tr.test.extra_env_vars, tr.output_path)
 
-        nodes = self.slurm_system.parse_nodes(tr.nodes)
+        nodes = self.system.parse_nodes(tr.nodes)
         self._set_node_config(nodes, tr.num_nodes)
 
         self.final_cmd_args["container"] = self.docker_image_cache_manager.ensure_docker_image(
@@ -41,14 +41,14 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         for key in ("repository_url", "repository_commit_hash", "docker_image_url"):
             self.final_cmd_args.pop(key, None)
 
-        if self.slurm_system.account:
+        if self.system.account:
             self.final_cmd_args.update(
                 {
-                    "cluster.account": self.slurm_system.account,
-                    "cluster.job_name_prefix": f"{self.slurm_system.account}-cloudai.nemo:",
+                    "cluster.account": self.system.account,
+                    "cluster.job_name_prefix": f"{self.system.account}-cloudai.nemo:",
                 }
             )
-        self.final_cmd_args["cluster.gpus_per_node"] = self.slurm_system.gpus_per_node or "null"
+        self.final_cmd_args["cluster.gpus_per_node"] = self.system.gpus_per_node or "null"
 
         self._validate_data_config()
 
@@ -104,14 +104,14 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if "training.values" in self.final_cmd_args:
             self.final_cmd_args["training"] = self.final_cmd_args.pop("training.values")
 
-        self.final_cmd_args["cluster.partition"] = self.slurm_system.default_partition
+        self.final_cmd_args["cluster.partition"] = self.system.default_partition
         self._handle_reservation()
 
     def _handle_reservation(self) -> None:
         """Handle Slurm reservation if provided."""
         reservation_key = "--reservation "
-        if self.slurm_system.extra_srun_args and reservation_key in self.slurm_system.extra_srun_args:
-            reservation = self.slurm_system.extra_srun_args.split(reservation_key, 1)[1].split(" ", 1)[0]
+        if self.system.extra_srun_args and reservation_key in self.system.extra_srun_args:
+            reservation = self.system.extra_srun_args.split(reservation_key, 1)[1].split(" ", 1)[0]
             self.final_cmd_args["+cluster.reservation"] = reservation
 
     def _launcher_scripts_path(self) -> Path:

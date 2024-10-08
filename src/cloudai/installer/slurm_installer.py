@@ -16,9 +16,9 @@
 
 import os
 import subprocess
-from typing import Iterable, cast
+from typing import Iterable
 
-from cloudai import BaseInstaller, InstallStatusResult, System, TestTemplate
+from cloudai import BaseInstaller, InstallStatusResult, TestTemplate
 from cloudai.systems import SlurmSystem
 
 
@@ -44,16 +44,16 @@ class SlurmInstaller(BaseInstaller):
         "--container-mounts",
     ]
 
-    def __init__(self, system: System):
+    def __init__(self, system: SlurmSystem):
         """
         Initialize the SlurmInstaller with a system object and an optional installation path.
 
         Args:
-            system (System): The system schema object.
+            system (SlurmSystem): The system schema object.
         """
         super().__init__(system)
-        slurm_system = cast(SlurmSystem, self.system)
-        self.install_path = slurm_system.install_path
+        self.system = system
+        self.install_path = self.system.install_path
 
     def _check_prerequisites(self) -> InstallStatusResult:
         """

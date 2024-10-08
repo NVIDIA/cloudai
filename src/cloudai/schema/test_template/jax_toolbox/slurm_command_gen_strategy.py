@@ -224,7 +224,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 '    echo "Running srun command"',
                 "    srun \\",
                 "    --mpi=none \\",
-                f'    {self.slurm_system.extra_srun_args if self.slurm_system.extra_srun_args else ""} \\',
+                f'    {self.system.extra_srun_args if self.system.extra_srun_args else ""} \\',
                 "    --export=ALL \\",
                 f'    -o {slurm_args["output"]} \\',
                 f'    -e {slurm_args["error"]} \\',

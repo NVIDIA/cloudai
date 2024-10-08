@@ -175,19 +175,19 @@ class TestGenerateSrunCommand__CmdGeneration:
 
     def test_generate_srun_prefix(self, strategy_fixture: SlurmCommandGenStrategy):
         srun_command = strategy_fixture.generate_srun_prefix({})
-        assert srun_command == ["srun", f"--mpi={strategy_fixture.slurm_system.mpi}"]
+        assert srun_command == ["srun", f"--mpi={strategy_fixture.system.mpi}"]
 
     def test_generate_srun_prefix_with_extra_args(self, strategy_fixture: SlurmCommandGenStrategy):
-        strategy_fixture.slurm_system.extra_srun_args = "--extra-args value"
+        strategy_fixture.system.extra_srun_args = "--extra-args value"
         srun_command = strategy_fixture.generate_srun_prefix({})
-        assert srun_command == ["srun", f"--mpi={strategy_fixture.slurm_system.mpi}", "--extra-args value"]
+        assert srun_command == ["srun", f"--mpi={strategy_fixture.system.mpi}", "--extra-args value"]
 
     def test_generate_srun_prefix_with_container_image(self, strategy_fixture: SlurmCommandGenStrategy):
         slurm_args = {"image_path": "fake_image_path"}
         srun_command = strategy_fixture.generate_srun_prefix(slurm_args)
         assert srun_command == [
             "srun",
-            f"--mpi={strategy_fixture.slurm_system.mpi}",
+            f"--mpi={strategy_fixture.system.mpi}",
             "--container-image=fake_image_path",
         ]
 
@@ -196,7 +196,7 @@ class TestGenerateSrunCommand__CmdGeneration:
         srun_command = strategy_fixture.generate_srun_prefix(slurm_args)
         assert srun_command == [
             "srun",
-            f"--mpi={strategy_fixture.slurm_system.mpi}",
+            f"--mpi={strategy_fixture.system.mpi}",
             "--container-image=fake_image_path",
             "--container-mounts=fake_mounts",
         ]
@@ -204,11 +204,11 @@ class TestGenerateSrunCommand__CmdGeneration:
     def test_generate_srun_empty_str(self, strategy_fixture: SlurmCommandGenStrategy):
         slurm_args = {"image_path": "", "container_mounts": ""}
         srun_command = strategy_fixture.generate_srun_prefix(slurm_args)
-        assert srun_command == ["srun", f"--mpi={strategy_fixture.slurm_system.mpi}"]
+        assert srun_command == ["srun", f"--mpi={strategy_fixture.system.mpi}"]
 
         slurm_args = {"image_path": "fake", "container_mounts": ""}
         srun_command = strategy_fixture.generate_srun_prefix(slurm_args)
-        assert srun_command == ["srun", f"--mpi={strategy_fixture.slurm_system.mpi}", "--container-image=fake"]
+        assert srun_command == ["srun", f"--mpi={strategy_fixture.system.mpi}", "--container-image=fake"]
 
     def test_generate_srun_command(self, strategy_fixture: SlurmCommandGenStrategy):
         strategy_fixture.generate_srun_prefix = lambda *_, **__: ["srun", "--test", "test_arg"]
@@ -231,7 +231,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
         assert "test_value" in cmd
         assert "extra_args" in cmd
 
-        subdir = nemo_cmd_gen.slurm_system.install_path / NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH
+        subdir = nemo_cmd_gen.system.install_path / NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH
         assert f"{subdir}/nemo-venv/bin/python " in cmd
 
     def test_env_var_escaping(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, test_run_fixture: TestRun):
@@ -253,7 +253,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
         assert f"container_mounts=[{tokenizer_path}:{tokenizer_path}]" in cmd
 
     def test_reservation_handled(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, test_run_fixture: TestRun):
-        nemo_cmd_gen.slurm_system.extra_srun_args = "--reservation my-reservation"
+        nemo_cmd_gen.system.extra_srun_args = "--reservation my-reservation"
         cmd = nemo_cmd_gen.gen_exec_command(test_run_fixture)
 
         assert "+cluster.reservation=my-reservation" in cmd
@@ -273,26 +273,26 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             nemo_cmd_gen.gen_exec_command(test_run_fixture)
 
     def test_account_in_command(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, test_run_fixture: TestRun):
-        nemo_cmd_gen.slurm_system.account = "test_account"
+        nemo_cmd_gen.system.account = "test_account"
         cmd = nemo_cmd_gen.gen_exec_command(test_run_fixture)
 
         assert "cluster.account=test_account" in cmd
         assert "cluster.job_name_prefix=test_account-cloudai.nemo:" in cmd
 
     def test_no_account_in_command(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, test_run_fixture: TestRun):
-        nemo_cmd_gen.slurm_system.account = None
+        nemo_cmd_gen.system.account = None
         cmd = nemo_cmd_gen.gen_exec_command(test_run_fixture)
 
         assert "cluster.account" not in cmd
         assert "cluster.job_name_prefix" not in cmd
 
     def test_gpus_per_node_value(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, test_run_fixture: TestRun):
-        nemo_cmd_gen.slurm_system.gpus_per_node = 4
+        nemo_cmd_gen.system.gpus_per_node = 4
         cmd = nemo_cmd_gen.gen_exec_command(test_run_fixture)
 
         assert "cluster.gpus_per_node=4" in cmd
 
-        nemo_cmd_gen.slurm_system.gpus_per_node = None
+        nemo_cmd_gen.system.gpus_per_node = None
         cmd = nemo_cmd_gen.gen_exec_command(test_run_fixture)
 
         assert "cluster.gpus_per_node=null" in cmd
@@ -447,7 +447,7 @@ class TestWriteSbatchScript:
         # Check for the specific lines in the file
         assert f"#SBATCH --job-name={self.MANDATORY_ARGS['job_name']}" in file_contents
         assert f"#SBATCH -N {self.MANDATORY_ARGS['num_nodes']}" in file_contents
-        assert f"#SBATCH --partition={strategy_fixture.slurm_system.default_partition}" in file_contents
+        assert f"#SBATCH --partition={strategy_fixture.system.default_partition}" in file_contents
         assert f"#SBATCH --nodelist={self.MANDATORY_ARGS['node_list_str']}" in file_contents
         assert f"#SBATCH --output={tmp_path / 'stdout.txt'}" in file_contents
         assert f"#SBATCH --error={tmp_path / 'stderr.txt'}" in file_contents
@@ -473,10 +473,10 @@ class TestWriteSbatchScript:
         args = self.MANDATORY_ARGS.copy()
         if expected_str:  # use slurm_args
             args[arg] = arg_value
-        else:  # use strategy.slurm_system.<arg>
-            v = getattr(strategy_fixture.slurm_system, arg)
+        else:  # use strategy.system.<arg>
+            v = getattr(strategy_fixture.system, arg)
             if not v:
-                setattr(strategy_fixture.slurm_system, arg, arg_value)
+                setattr(strategy_fixture.system, arg, arg_value)
                 v = arg_value
             str_arg = arg.replace("_", "-")
             expected_str = f"#SBATCH --{str_arg}={v}"
@@ -495,7 +495,7 @@ class TestWriteSbatchScript:
         strategy_fixture: SlurmCommandGenStrategy,
         tmp_path: Path,
     ):
-        strategy_fixture.slurm_system.extra_srun_args = "--reservation my-reservation"
+        strategy_fixture.system.extra_srun_args = "--reservation my-reservation"
         args = self.MANDATORY_ARGS.copy()
 
         sbatch_command = strategy_fixture._write_sbatch_script(args, self.env_vars, self.srun_command, tmp_path)
