@@ -118,7 +118,6 @@ def test_add_command_all_optional():
         "Test command",
         handler,
         system_config=False,
-        test_templates_dir=False,
         tests_dir=False,
         test_scenario=False,
         output_dir=False,
@@ -129,7 +128,6 @@ def test_add_command_all_optional():
         log_level="INFO",
         mode="test",
         system_config=None,
-        test_templates_dir=None,
         tests_dir=None,
         test_scenario=None,
         output_dir=None,
@@ -147,7 +145,6 @@ def test_add_command_all_required():
         "Test command",
         handler,
         system_config=True,
-        test_templates_dir=True,
         tests_dir=True,
         test_scenario=True,
         output_dir=True,
@@ -157,8 +154,6 @@ def test_add_command_all_required():
             "test",
             "--system-config",
             "system_config",
-            "--test-templates-dir",
-            "test_templates_dir",
             "--tests-dir",
             "tests_dir",
             "--test-scenario",
@@ -172,7 +167,6 @@ def test_add_command_all_required():
         log_level="INFO",
         mode="test",
         system_config=Path("system_config"),
-        test_templates_dir=Path("test_templates_dir"),
         tests_dir=Path("tests_dir"),
         test_scenario=Path("test_scenario"),
         output_dir=Path("output_dir"),
@@ -199,8 +193,6 @@ class TestCLIDefaultModes:
                     mode,
                     "--system-config",
                     "system_config",
-                    "--test-templates-dir",
-                    "test_templates_dir",
                     "--tests-dir",
                     "tests_dir",
                 ]
@@ -211,7 +203,6 @@ class TestCLIDefaultModes:
                 log_level="INFO",
                 mode=mode,
                 system_config=Path("system_config"),
-                test_templates_dir=Path("test_templates_dir"),
                 tests_dir=Path("tests_dir"),
                 output_dir=None,
             )
@@ -265,8 +256,6 @@ class TestCLIDefaultModes:
                 "generate-report",
                 "--system-config",
                 "system_config",
-                "--test-templates-dir",
-                "test_templates_dir",
                 "--tests-dir",
                 "tests_dir",
                 "--test-scenario",
@@ -282,7 +271,6 @@ class TestCLIDefaultModes:
             test_scenario=Path("test_scenario"),
             output_dir=Path("output_dir"),
             system_config=Path("system_config"),
-            test_templates_dir=Path("test_templates_dir"),
             tests_dir=Path("tests_dir"),
         )
 
@@ -296,8 +284,6 @@ class TestCLIDefaultModes:
                     mode,
                     "--system-config",
                     "system_config",
-                    "--test-templates-dir",
-                    "test_templates_dir",
                     "--tests-dir",
                     "tests_dir",
                     "--test-scenario",
@@ -310,7 +296,6 @@ class TestCLIDefaultModes:
                 log_level="INFO",
                 mode=mode,
                 system_config=Path("system_config"),
-                test_templates_dir=Path("test_templates_dir"),
                 tests_dir=Path("tests_dir"),
                 test_scenario=Path("test_scenario"),
                 output_dir=None,
@@ -321,12 +306,12 @@ class TestCLIDefaultModes:
         [
             (
                 "generate-report",
-                ["--system-config", "--test-templates-dir", "--tests-dir", "--test-scenario", "--output-dir"],
+                ["--system-config", "--tests-dir", "--test-scenario", "--output-dir"],
             ),
-            ("install", ["--system-config", "--test-templates-dir", "--tests-dir"]),
-            ("uninstall", ["--system-config", "--test-templates-dir", "--tests-dir"]),
-            ("dry-run", ["--system-config", "--test-templates-dir", "--tests-dir", "--test-scenario"]),
-            ("run", ["--system-config", "--test-templates-dir", "--tests-dir", "--test-scenario"]),
+            ("install", ["--system-config", "--tests-dir"]),
+            ("uninstall", ["--system-config", "--tests-dir"]),
+            ("dry-run", ["--system-config", "--tests-dir", "--test-scenario"]),
+            ("run", ["--system-config", "--tests-dir", "--test-scenario"]),
         ],
     )
     def test_required_args(
@@ -334,7 +319,6 @@ class TestCLIDefaultModes:
     ):
         opts = {
             "--system-config": "system_config",
-            "--test-templates-dir": "test_templates_dir",
             "--tests-dir": "tests_dir",
             "--test-scenario": "test_scenario",
             "--output-dir": "output_dir",

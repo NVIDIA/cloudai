@@ -63,7 +63,6 @@ class CloudAICLI:
         help_text: str,
         handler: Callable[[argparse.Namespace], int],
         system_config: Optional[bool] = None,
-        test_templates_dir: Optional[bool] = None,
         tests_dir: Optional[bool] = None,
         test_scenario: Optional[bool] = None,
         output_dir: Optional[bool] = None,
@@ -73,13 +72,6 @@ class CloudAICLI:
         if system_config is not None:
             p.add_argument(
                 "--system-config", help="Path to the system configuration file.", required=system_config, type=Path
-            )
-        if test_templates_dir is not None:
-            p.add_argument(
-                "--test-templates-dir",
-                help="Path to the test template configuration directory.",
-                required=test_templates_dir,
-                type=Path,
             )
         if tests_dir is not None:
             p.add_argument(
@@ -105,7 +97,6 @@ class CloudAICLI:
                 desc,
                 handle_install_and_uninstall,
                 system_config=True,
-                test_templates_dir=True,
                 tests_dir=True,
                 test_scenario=None,
                 output_dir=False,
@@ -123,7 +114,6 @@ class CloudAICLI:
                 desc,
                 handle_dry_run_and_run,
                 system_config=True,
-                test_templates_dir=True,
                 tests_dir=True,
                 test_scenario=True,
                 output_dir=False,
@@ -135,7 +125,6 @@ class CloudAICLI:
                 "Generate a report based on the test results.",
                 handle_generate_report,
                 system_config=True,
-                test_templates_dir=True,
                 tests_dir=True,
                 test_scenario=True,
                 output_dir=True,
