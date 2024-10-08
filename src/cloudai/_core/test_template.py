@@ -52,12 +52,7 @@ class TestTemplate:
 
     __test__ = False
 
-    def __init__(
-        self,
-        system: System,
-        name: str,
-        cmd_args: Dict[str, Any],
-    ) -> None:
+    def __init__(self, system: System, name: str) -> None:
         """
         Initialize a TestTemplate instance.
 
@@ -68,7 +63,6 @@ class TestTemplate:
         """
         self.system = system
         self.name = name
-        self.cmd_args = cmd_args
         self.install_strategy: Optional[InstallStrategy] = None
         self.command_gen_strategy: Optional[CommandGenStrategy] = None
         self.json_gen_strategy: Optional[JsonGenStrategy] = None

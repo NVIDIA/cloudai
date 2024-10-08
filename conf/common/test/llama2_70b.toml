@@ -19,6 +19,7 @@ description = "Llama2 70b"
 test_template_name = "NeMoLauncher"
 
 [cmd_args]
+data_dir = "DATA_DIR"
   [cmd_args.training]
   values = "llama/llama2_70b"
     [cmd_args.training.trainer]
@@ -33,7 +34,7 @@ test_template_name = "NeMoLauncher"
 [extra_cmd_args]
 "~training.model.position_embedding_type" = ""
 "+training.model.fsdp" = "True"
-"~training.model.optim.bucket_cap_mb" = ""
+# "~training.model.optim.bucket_cap_mb" = ""
 "~training.model.optim.overlap_grad_sync" = ""
 "~training.model.optim.overlap_param_sync" = ""
 "~training.model.optim.contiguous_grad_buffer" = ""
@@ -43,5 +44,6 @@ test_template_name = "NeMoLauncher"
 "training.model.gradient_accumulation_fusion" = "False"
 "training.model.use_cpu_initialization" = "True"
 "training.model.optim.name" = "fused_adam"
-"training.model.tokenizer.model" = "TOKENIZER_MODEL"
+"training.model.tokenizer.model" = "/Users/andreyma/workspace/nvidia/cloudai/tok.model"
 "training.exp_manager.create_wandb_logger" = "False"
+"training.model.optim.bucket_cap_mb" = "~"
