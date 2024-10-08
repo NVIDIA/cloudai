@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .chakra import ChakraReplayCmdArgs, ChakraReplayTestDefinition
+from .chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
 from .nccl import NCCLCmdArgs, NCCLTestDefinition
 from .nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
 from .sleep import SleepCmdArgs, SleepTestDefinition
