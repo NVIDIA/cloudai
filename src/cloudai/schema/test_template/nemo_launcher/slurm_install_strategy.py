@@ -19,7 +19,8 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict
 
-from cloudai import InstallStatusResult, System
+from cloudai import InstallStatusResult
+from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmInstallStrategy
 
 
@@ -41,7 +42,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
     REPOSITORY_NAME = "NeMo-Launcher"
     DOCKER_IMAGE_FILENAME = "nemo_launcher.sqsh"
 
-    def __init__(self, system: System, cmd_args: Dict[str, Any]) -> None:
+    def __init__(self, system: SlurmSystem, cmd_args: Dict[str, Any]) -> None:
         super().__init__(system, cmd_args)
         self.repository_url = cmd_args["repository_url"]
         self.repository_commit_hash = cmd_args["repository_commit_hash"]
