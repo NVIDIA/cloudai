@@ -41,7 +41,7 @@ class SleepKubernetesJsonGenStrategy(JsonGenStrategy):
                             {
                                 "args": ["sleep " + sec],
                                 "command": ["/bin/bash", "-c"],
-                                "image": self.final_cmd_args["docker_image_url"],
+                                "image": tr.test.test_definition.cmd_args.docker_image_url,
                                 "name": "task",
                             }
                         ],
