@@ -20,7 +20,6 @@ from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
 from .slurm_install_strategy import UCCTestSlurmInstallStrategy
-from .template import UCCTest
 
 
 class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -32,15 +31,6 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         slurm_args = self._parse_slurm_args("ucc_test", final_env_vars, final_cmd_args, tr.num_nodes, tr.nodes)
         srun_command = self.generate_srun_command(slurm_args, final_env_vars, final_cmd_args, tr.test.extra_cmd_args)
         return self._write_sbatch_script(slurm_args, final_env_vars, srun_command, tr.output_path)
-
-    def validate_cmd_args(self, cmd_args: Dict[str, Any]) -> None:
-        collective = cmd_args.get("collective")
-        if not collective or collective not in UCCTest.SUPPORTED_COLLECTIVES:
-            raise ValueError(
-                f"Error during UCC test command generation: 'collective' argument is missing or unsupported. "
-                f"Given: '{collective}'. Available options are: {', '.join(UCCTest.SUPPORTED_COLLECTIVES)}. "
-                "Ensure 'collective' is specified correctly in the test schema"
-            )
 
     def _parse_slurm_args(
         self,
@@ -67,7 +57,6 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def generate_test_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
     ) -> List[str]:
-        self.validate_cmd_args(cmd_args)
         srun_command_parts = ["/opt/hpcx/ucc/bin/ucc_perftest"]
 
         # Add collective, minimum bytes, and maximum bytes options if available

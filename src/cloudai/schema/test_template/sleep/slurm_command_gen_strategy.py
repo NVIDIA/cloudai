@@ -30,16 +30,7 @@ class SleepSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         srun_command = self.generate_srun_command(slurm_args, final_env_vars, final_cmd_args, tr.test.extra_cmd_args)
         return self._write_sbatch_script(slurm_args, final_env_vars, srun_command, tr.output_path)
 
-    def validate_cmd_args(self, cmd_args: Dict[str, Any]) -> None:
-        if "seconds" not in cmd_args:
-            raise ValueError(
-                "Error during Sleep command generation: 'seconds' argument is missing. "
-                "Ensure 'seconds' is specified in the test schema and defines the sleep duration in seconds. "
-                "Review and update the schema to include the necessary field."
-            )
-
     def generate_test_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
     ) -> List[str]:
-        self.validate_cmd_args(cmd_args)
         return [f'sleep {cmd_args["seconds"]}']

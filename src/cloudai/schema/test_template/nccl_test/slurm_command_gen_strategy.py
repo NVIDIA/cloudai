@@ -33,16 +33,6 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         srun_command = self.generate_srun_command(slurm_args, final_env_vars, final_cmd_args, tr.test.extra_cmd_args)
         return self._write_sbatch_script(slurm_args, final_env_vars, srun_command, tr.output_path)
 
-    def validate_cmd_args(self, cmd_args: Dict[str, Any]) -> None:
-        if "subtest_name" not in cmd_args:
-            raise ValueError(
-                "Error during NCCL test command generation: 'subtest_name' is missing. "
-                "Ensure 'subtest_name' is specified in the test schema. Valid options: "
-                "all_reduce_perf_mpi, all_gather_perf_mpi, alltoall_perf_mpi, broadcast_perf_mpi, gather_perf_mpi, "
-                "hypercube_perf_mpi, reduce_perf_mpi, reduce_scatter_perf_mpi, scatter_perf_mpi, "
-                "and sendrecv_perf_mpi. Review and update the schema to include the necessary fields."
-            )
-
     def _parse_slurm_args(
         self,
         job_name_prefix: str,
@@ -74,7 +64,6 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def generate_test_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
     ) -> List[str]:
-        self.validate_cmd_args(cmd_args)
         srun_command_parts = [f"/usr/local/bin/{cmd_args['subtest_name']}"]
         nccl_test_args = [
             "nthreads",
