@@ -162,13 +162,13 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return batch_script_content
 
     def _write_sbatch_script(
-        self, args: Dict[str, Any], env_vars: Dict[str, str], srun_command: str, output_path: Path
+        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], srun_command: str, output_path: Path
     ) -> str:
         """
         Write the batch script for Slurm submission and return the sbatch command.
 
         Args:
-            args (Dict[str, Any]): Arguments including job settings.
+            slurm_args (Dict[str, Any]): Slurm-specific arguments.
             env_vars (env_vars: Dict[str, str]): Environment variables.
             srun_command (str): srun command.
             output_path (Path): Output directory for script and logs.
@@ -178,11 +178,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         """
         batch_script_content = [
             "#!/bin/bash",
-            f"#SBATCH --job-name={args['job_name']}",
-            f"#SBATCH -N {args['num_nodes']}",
+            f"#SBATCH --job-name={slurm_args['job_name']}",
+            f"#SBATCH -N {slurm_args['num_nodes']}",
         ]
 
-        self._append_sbatch_directives(batch_script_content, args, output_path)
+        self._append_sbatch_directives(batch_script_content, slurm_args, output_path)
 
         env_vars_str = self._format_env_vars(env_vars)
         batch_script_content.extend([env_vars_str, "", srun_command])
