@@ -116,6 +116,16 @@ class JobFailureError(Exception):
 
 
 class TestConfigParsingError(Exception):
+    __test__ = False
+    pass
+
+
+class TestScenarioParsingError(Exception):
+    __test__ = False
+    pass
+
+
+class SystemConfigParsingError(Exception):
     pass
 
 

@@ -116,8 +116,20 @@ cloudai verify-tests conf/common/test
 ```
 `verify-tests` accepts a file or a directory to verify all configs in the directory.
 
+Verify if test scenarios are valid:
+```bash
+cloudai\ --mode verify-test-scenarios\
+    --system-config conf/common/system/example_slurm_cluster.toml\
+    --tests-dir conf/common/test\
+    --test-scenario conf/common/test_scenario
+```
+`--test-scenario` can be a file or a directory to verify all configs in the directory.
+
 ## Contributing
 Feel free to contribute to the CloudAI project. Your contributions are highly appreciated.
 
 ## License
 This project is licensed under Apache 2.0. See the LICENSE file for detailed information.
+
+## Additional Documentation
+For more detailed instructions and guidance, including advanced usage and troubleshooting, please refer to the [USER_GUIDE.md](./USER_GUIDE.md)

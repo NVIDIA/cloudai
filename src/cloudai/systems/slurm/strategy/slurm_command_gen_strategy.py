@@ -120,16 +120,14 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             job_name = f"{self.slurm_system.account}-{job_name_prefix}.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         return job_name
 
-    def generate_full_srun_command(
+    def generate_srun_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
     ) -> str:
-        srun_command_parts = self.generate_srun_command(slurm_args, env_vars, cmd_args, extra_cmd_args)
+        srun_command_parts = self.generate_srun_prefix(slurm_args)
         test_command_parts = self.generate_test_command(slurm_args, env_vars, cmd_args, extra_cmd_args)
         return " \\\n".join(srun_command_parts + test_command_parts)
 
-    def generate_srun_command(
-        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
-    ) -> List[str]:
+    def generate_srun_prefix(self, slurm_args: Dict[str, Any]) -> List[str]:
         srun_command_parts = ["srun", f"--mpi={self.slurm_system.mpi}"]
         if slurm_args.get("image_path"):
             srun_command_parts.append(f'--container-image={slurm_args["image_path"]}')
@@ -164,14 +162,14 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return batch_script_content
 
     def _write_sbatch_script(
-        self, args: Dict[str, Any], env_vars_str: str, srun_command: str, output_path: Path
+        self, args: Dict[str, Any], env_vars: Dict[str, str], srun_command: str, output_path: Path
     ) -> str:
         """
         Write the batch script for Slurm submission and return the sbatch command.
 
         Args:
             args (Dict[str, Any]): Arguments including job settings.
-            env_vars_str (str): Environment variables.
+            env_vars (env_vars: Dict[str, str]): Environment variables.
             srun_command (str): srun command.
             output_path (Path): Output directory for script and logs.
 
@@ -186,6 +184,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         self._append_sbatch_directives(batch_script_content, args, output_path)
 
+        env_vars_str = self._format_env_vars(env_vars)
         batch_script_content.extend([env_vars_str, "", srun_command])
 
         batch_script_path = output_path / "cloudai_sbatch_script.sh"

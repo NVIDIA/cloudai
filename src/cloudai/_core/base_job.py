@@ -34,7 +34,7 @@ class BaseJob:
         terminated_by_dependency (bool): Flag to indicate if the job was terminated due to a dependency.
     """
 
-    def __init__(self, mode: str, system: System, test_run: TestRun, output_path: Path):
+    def __init__(self, mode: str, system: System, test_run: TestRun):
         """
         Initialize a BaseJob instance.
 
@@ -42,13 +42,12 @@ class BaseJob:
             mode (str): The mode of the job (e.g., 'run', 'dry-run').
             system (System): The system in which the job is running.
             test_run (TestRun): The TestRun instance associated with this job.
-            output_path (Path): The path where the job's output is stored.
         """
         self.id: Union[str, int] = 0
         self.mode: str = mode
         self.system: System = system
         self.test_run: TestRun = test_run
-        self.output_path: Path = output_path
+        self.output_path: Path = test_run.output_path
         self.terminated_by_dependency: bool = False
 
     def is_running(self) -> bool:
@@ -75,7 +74,7 @@ class BaseJob:
 
     def increment_iteration(self):
         """Increment the iteration count of the associated test."""
-        self.test_run.test.current_iteration += 1
+        self.test_run.current_iteration += 1
 
     def __repr__(self) -> str:
         """

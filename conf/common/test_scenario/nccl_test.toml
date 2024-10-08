@@ -15,169 +15,260 @@
 # limitations under the License.
 
 name = "nccl-test"
-
-[Tests.1]
-name = "nccl_test_all_reduce"
+[[Tests]]
+id = "Tests.1"
+test_name = "nccl_test_all_reduce"
 num_nodes = "2"
 time_limit = "00:20:00"
 
-[Tests.2]
-name = "nccl_test_all_gather"
+[[Tests]]
+id = "Tests.2"
+test_name = "nccl_test_all_gather"
 num_nodes = "2"
 time_limit = "00:20:00"
-  [Tests.2.dependencies]
-  start_post_comp = { name = "Tests.1", time = 0 }
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.1"
+  time = 0
 
-[Tests.3]
-name = "nccl_test_reduce_scatter"
-num_nodes = "2"
-time_limit = "00:20:00"
-  [Tests.3.dependencies]
-  start_post_comp = { name = "Tests.2", time = 0 }
 
-[Tests.4]
-name = "nccl_test_alltoall"
+[[Tests]]
+id = "Tests.3"
+test_name = "nccl_test_reduce_scatter"
 num_nodes = "2"
 time_limit = "00:20:00"
-  [Tests.4.dependencies]
-  start_post_comp = { name = "Tests.3", time = 0 }
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.2"
+  time = 0
 
-[Tests.5]
-name = "nccl_test_all_reduce"
-num_nodes = "2"
-time_limit = "00:20:00"
-  [Tests.5.dependencies]
-  start_post_comp = { name = "Tests.4", time = 0 }
 
-[Tests.6]
-name = "nccl_test_all_gather"
+[[Tests]]
+id = "Tests.4"
+test_name = "nccl_test_alltoall"
 num_nodes = "2"
 time_limit = "00:20:00"
-  [Tests.6.dependencies]
-  start_post_comp = { name = "Tests.5", time = 0 }
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.3"
+  time = 0
 
-[Tests.7]
-name = "nccl_test_reduce_scatter"
-num_nodes = "2"
-time_limit = "00:20:00"
-  [Tests.7.dependencies]
-  start_post_comp = { name = "Tests.6", time = 0 }
 
-[Tests.8]
-name = "nccl_test_alltoall"
+[[Tests]]
+id = "Tests.5"
+test_name = "nccl_test_all_reduce"
 num_nodes = "2"
 time_limit = "00:20:00"
-  [Tests.8.dependencies]
-  start_post_comp = { name = "Tests.7", time = 0 }
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.4"
+  time = 0
 
-[Tests.9]
-name = "nccl_test_all_reduce"
-num_nodes = "2"
-time_limit = "00:20:00"
-  [Tests.9.dependencies]
-  start_post_comp = { name = "Tests.8", time = 0 }
 
-[Tests.10]
-name = "nccl_test_all_gather"
+[[Tests]]
+id = "Tests.6"
+test_name = "nccl_test_all_gather"
 num_nodes = "2"
 time_limit = "00:20:00"
-  [Tests.10.dependencies]
-  start_post_comp = { name = "Tests.9", time = 0 }
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.5"
+  time = 0
 
-[Tests.11]
-name = "nccl_test_reduce_scatter"
-num_nodes = "2"
-time_limit = "00:20:00"
-  [Tests.11.dependencies]
-  start_post_comp = { name = "Tests.10", time = 0 }
 
-[Tests.12]
-name = "nccl_test_alltoall"
+[[Tests]]
+id = "Tests.7"
+test_name = "nccl_test_reduce_scatter"
 num_nodes = "2"
 time_limit = "00:20:00"
-  [Tests.12.dependencies]
-  start_post_comp = { name = "Tests.11", time = 0 }
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.6"
+  time = 0
 
-[Tests.13]
-name = "nccl_test_all_reduce"
-num_nodes = "2"
-time_limit = "00:20:00"
-  [Tests.13.dependencies]
-  start_post_comp = { name = "Tests.12", time = 0 }
 
-[Tests.14]
-name = "nccl_test_all_gather"
+[[Tests]]
+id = "Tests.8"
+test_name = "nccl_test_alltoall"
 num_nodes = "2"
 time_limit = "00:20:00"
-  [Tests.14.dependencies]
-  start_post_comp = { name = "Tests.13", time = 0 }
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.7"
+  time = 0
 
-[Tests.15]
-name = "nccl_test_reduce_scatter"
-num_nodes = "2"
-time_limit = "00:20:00"
-  [Tests.15.dependencies]
-  start_post_comp = { name = "Tests.14", time = 0 }
 
-[Tests.16]
-name = "nccl_test_alltoall"
+[[Tests]]
+id = "Tests.9"
+test_name = "nccl_test_all_reduce"
 num_nodes = "2"
 time_limit = "00:20:00"
-  [Tests.16.dependencies]
-  start_post_comp = { name = "Tests.15", time = 0 }
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.8"
+  time = 0
 
-[Tests.17]
-name = "nccl_test_all_reduce"
-num_nodes = "2"
-time_limit = "00:20:00"
-  [Tests.17.dependencies]
-  start_post_comp = { name = "Tests.16", time = 0 }
 
-[Tests.18]
-name = "nccl_test_all_gather"
+[[Tests]]
+id = "Tests.10"
+test_name = "nccl_test_all_gather"
 num_nodes = "2"
 time_limit = "00:20:00"
-  [Tests.18.dependencies]
-  start_post_comp = { name = "Tests.17", time = 0 }
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.9"
+  time = 0
 
-[Tests.19]
-name = "nccl_test_reduce_scatter"
-num_nodes = "2"
-time_limit = "00:20:00"
-  [Tests.19.dependencies]
-  start_post_comp = { name = "Tests.18", time = 0 }
 
-[Tests.20]
-name = "nccl_test_alltoall"
+[[Tests]]
+id = "Tests.11"
+test_name = "nccl_test_reduce_scatter"
 num_nodes = "2"
 time_limit = "00:20:00"
-  [Tests.20.dependencies]
-  start_post_comp = { name = "Tests.19", time = 0 }
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.10"
+  time = 0
 
-[Tests.21]
-name = "nccl_test_all_reduce"
-num_nodes = "2"
-time_limit = "00:20:00"
-  [Tests.21.dependencies]
-  start_post_comp = { name = "Tests.20", time = 0 }
 
-[Tests.22]
-name = "nccl_test_all_gather"
+[[Tests]]
+id = "Tests.12"
+test_name = "nccl_test_alltoall"
 num_nodes = "2"
 time_limit = "00:20:00"
-  [Tests.22.dependencies]
-  start_post_comp = { name = "Tests.21", time = 0 }
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.11"
+  time = 0
 
-[Tests.23]
-name = "nccl_test_reduce_scatter"
-num_nodes = "2"
-time_limit = "00:20:00"
-  [Tests.23.dependencies]
-  start_post_comp = { name = "Tests.22", time = 0 }
 
-[Tests.24]
-name = "nccl_test_alltoall"
+[[Tests]]
+id = "Tests.13"
+test_name = "nccl_test_all_reduce"
 num_nodes = "2"
 time_limit = "00:20:00"
-  [Tests.24.dependencies]
-  start_post_comp = { name = "Tests.23", time = 0 }
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.12"
+  time = 0
+
+
+[[Tests]]
+id = "Tests.14"
+test_name = "nccl_test_all_gather"
+num_nodes = "2"
+time_limit = "00:20:00"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.13"
+  time = 0
+
+
+[[Tests]]
+id = "Tests.15"
+test_name = "nccl_test_reduce_scatter"
+num_nodes = "2"
+time_limit = "00:20:00"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.14"
+  time = 0
+
+
+[[Tests]]
+id = "Tests.16"
+test_name = "nccl_test_alltoall"
+num_nodes = "2"
+time_limit = "00:20:00"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.15"
+  time = 0
+
+
+[[Tests]]
+id = "Tests.17"
+test_name = "nccl_test_all_reduce"
+num_nodes = "2"
+time_limit = "00:20:00"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.16"
+  time = 0
+
+
+[[Tests]]
+id = "Tests.18"
+test_name = "nccl_test_all_gather"
+num_nodes = "2"
+time_limit = "00:20:00"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.17"
+  time = 0
+
+
+[[Tests]]
+id = "Tests.19"
+test_name = "nccl_test_reduce_scatter"
+num_nodes = "2"
+time_limit = "00:20:00"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.18"
+  time = 0
+
+
+[[Tests]]
+id = "Tests.20"
+test_name = "nccl_test_alltoall"
+num_nodes = "2"
+time_limit = "00:20:00"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.19"
+  time = 0
+
+
+[[Tests]]
+id = "Tests.21"
+test_name = "nccl_test_all_reduce"
+num_nodes = "2"
+time_limit = "00:20:00"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.20"
+  time = 0
+
+
+[[Tests]]
+id = "Tests.22"
+test_name = "nccl_test_all_gather"
+num_nodes = "2"
+time_limit = "00:20:00"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.21"
+  time = 0
+
+
+[[Tests]]
+id = "Tests.23"
+test_name = "nccl_test_reduce_scatter"
+num_nodes = "2"
+time_limit = "00:20:00"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.22"
+  time = 0
+
+
+[[Tests]]
+id = "Tests.24"
+test_name = "nccl_test_alltoall"
+num_nodes = "2"
+time_limit = "00:20:00"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.23"
+  time = 0

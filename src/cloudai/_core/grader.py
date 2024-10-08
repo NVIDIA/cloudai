@@ -53,7 +53,7 @@ class Grader:
         total_weight = sum(tr.test.weight for tr in test_scenario.test_runs)
 
         for tr in test_scenario.test_runs:
-            section_name = str(tr.test.section_name) if tr.test.section_name else ""
+            section_name = str(tr.name) if tr.name else ""
             if not section_name:
                 logging.warning(f"Missing section name for test {tr.test.name}")
                 continue

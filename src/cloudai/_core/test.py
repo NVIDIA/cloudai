@@ -14,9 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -36,9 +34,6 @@ class Test:
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
-        section_name: str = "",
-        dependencies: Optional[Dict[str, "TestDependency"]] = None,
-        iterations: Union[int, str] = 1,
         sol: Optional[float] = None,
         weight: float = 0.0,
         ideal_perf: float = 1.0,
@@ -53,8 +48,6 @@ class Test:
             cmd_args (Dict[str, str]): Command-line arguments for the test.
             extra_env_vars (Dict[str, str]): Extra environment variables.
             extra_cmd_args (str): Extra command-line arguments.
-            section_name (str): The section name of the test in the configuration.
-            dependencies (Optional[Dict[str, TestDependency]]): Test dependencies.
             iterations (Union[int, str]): Total number of iterations to run the test. Can be an integer or 'infinite'
                 for endless iterations.
             sol (Optional[float]): Speed-of-light performance for reference.
@@ -67,10 +60,6 @@ class Test:
         self.cmd_args = cmd_args
         self.extra_env_vars = extra_env_vars
         self.extra_cmd_args = extra_cmd_args
-        self.section_name = section_name
-        self.dependencies = dependencies or {}
-        self.iterations = iterations if isinstance(iterations, int) else sys.maxsize
-        self.current_iteration = 0
         self.sol = sol
         self.weight = weight
         self.ideal_perf = ideal_perf
@@ -87,107 +76,8 @@ class Test:
             f"test_template={self.test_template.name}, "
             f"cmd_args={self.cmd_args}, "
             f"extra_env_vars={self.extra_env_vars}, "
-            f"extra_cmd_args={self.extra_cmd_args}, "
-            f"section_name={self.section_name}, "
-            f"dependencies={self.dependencies}, iterations={self.iterations}, "
+            f"extra_cmd_args={self.extra_cmd_args}"
         )
-
-    def gen_exec_command(
-        self, output_path: Path, time_limit: Optional[str] = None, num_nodes: int = 1, nodes: Optional[List[str]] = None
-    ) -> str:
-        """
-        Generate the command to run this specific test.
-
-        Args:
-            output_path (Path): Path to the output directory where logs and results will be stored.
-            time_limit (Optional[str]): Time limit for the test execution.
-            num_nodes (Optional[int]): Number of nodes to be used for the test execution.
-            nodes (Optional[List[str]]): List of nodes involved in the test.
-
-        Returns:
-            str: The command string.
-        """
-        if time_limit is not None:
-            self.cmd_args["time_limit"] = time_limit
-        if not nodes:
-            nodes = []
-
-        return self.test_template.gen_exec_command(
-            self.cmd_args,
-            self.extra_env_vars,
-            self.extra_cmd_args,
-            output_path,
-            num_nodes,
-            nodes,
-        )
-
-    def gen_json(
-        self,
-        output_path: Path,
-        job_name: str,
-        time_limit: Optional[str] = None,
-        num_nodes: int = 1,
-        nodes: Optional[List[str]] = None,
-    ) -> Dict[Any, Any]:
-        """
-        Generate a JSON dictionary representing the Kubernetes job specification for this test.
-
-        Args:
-            output_path (Path): Path to the output directory where logs and results will be stored.
-            job_name (str): The name assigned to the Kubernetes job.
-            time_limit (Optional[str]): Time limit for the test execution.
-            num_nodes (Optional[int]): Number of nodes to be used for the test execution.
-            nodes (Optional[List[str]]): List of nodes involved in the test.
-
-        Returns:
-            Dict[Any, Any]: A dictionary representing the Kubernetes job specification.
-        """
-        if time_limit is not None:
-            self.cmd_args["time_limit"] = time_limit
-        if not nodes:
-            nodes = []
-
-        return self.test_template.gen_json(
-            self.cmd_args,
-            self.extra_env_vars,
-            self.extra_cmd_args,
-            output_path,
-            job_name,
-            num_nodes,
-            nodes,
-        )
-
-    def has_more_iterations(self) -> bool:
-        """
-        Check if the test has more iterations to run.
-
-        Returns
-            bool: True if more iterations are pending, False otherwise.
-        """
-        return self.current_iteration < self.iterations
-
-
-class TestDependency:
-    """
-    Represents a dependency for a test.
-
-    Attributes
-        test (Test): The test object it depends on.
-        time (int): Time in seconds after which this dependency is met.
-    """
-
-    __test__ = False
-
-    def __init__(self, test: Test, time: int) -> None:
-        """
-        Initialize a TestDependency instance.
-
-        Args:
-            test (Test): The test object it depends on.
-            time (int): Time in seconds to meet the dependency.
-        """
-        self.test = test
-        self.time = time
 
 
 class CmdArgs(BaseModel):

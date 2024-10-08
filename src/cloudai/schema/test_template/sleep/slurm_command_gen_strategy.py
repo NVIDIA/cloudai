@@ -14,42 +14,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
 from typing import Any, Dict, List
 
+from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
 
 class SleepSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for Sleep on Slurm systems."""
 
-    def gen_exec_command(
-        self,
-        cmd_args: Dict[str, str],
-        extra_env_vars: Dict[str, str],
-        extra_cmd_args: str,
-        output_path: Path,
-        num_nodes: int,
-        nodes: List[str],
-    ) -> str:
-        final_env_vars = self._override_env_vars(self.system.global_env_vars, extra_env_vars)
-        final_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
-        env_vars_str = self._format_env_vars(final_env_vars)
+    def gen_exec_command(self, tr: TestRun) -> str:
+        final_env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
+        final_cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
 
-        slurm_args = self._parse_slurm_args("sleep", final_env_vars, final_cmd_args, num_nodes, nodes)
-        srun_command = self.generate_full_srun_command(slurm_args, final_env_vars, final_cmd_args, extra_cmd_args)
-        return self._write_sbatch_script(slurm_args, env_vars_str, srun_command, output_path)
+        slurm_args = self._parse_slurm_args("sleep", final_env_vars, final_cmd_args, tr.num_nodes, tr.nodes)
+        srun_command = self.generate_srun_command(slurm_args, final_env_vars, final_cmd_args, tr.test.extra_cmd_args)
+        return self._write_sbatch_script(slurm_args, final_env_vars, srun_command, tr.output_path)
 
-    def generate_full_srun_command(
+    def generate_test_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
-    ) -> str:
-        srun_command_parts = [
-            "srun",
-            f"--mpi={self.slurm_system.mpi}",
-            f"{self.slurm_system.extra_srun_args if self.slurm_system.extra_srun_args else ''}",
-        ]
-
-        sec = cmd_args["seconds"]
-        srun_command_parts.append(f"sleep {sec}")
-
-        return " \\\n".join(srun_command_parts)
+    ) -> List[str]:
+        return [f'sleep {cmd_args["seconds"]}']

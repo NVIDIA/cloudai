@@ -85,3 +85,4 @@ jobs:
           cloudai verify-systems conf/common/system
           cloudai verify-tests conf/common/test
           cloudai verify-tests conf/release/spcx/l40s/test
+          cloudai verify-test-scenarios --system-config conf/common/system/example_slurm_cluster.toml --tests-dir conf/common/test conf/common/test_scenario

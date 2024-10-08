@@ -14,27 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, cast
 
-from cloudai import JsonGenStrategy
+from cloudai import JsonGenStrategy, TestRun
 from cloudai.systems import KubernetesSystem
 
 
 class SleepKubernetesJsonGenStrategy(JsonGenStrategy):
     """JSON generation strategy for Sleep on Kubernetes systems."""
 
-    def gen_json(
-        self,
-        cmd_args: Dict[str, str],
-        extra_env_vars: Dict[str, str],
-        extra_cmd_args: str,
-        output_path: Path,
-        job_name: str,
-        num_nodes: int,
-        nodes: List[str],
-    ) -> Dict[Any, Any]:
-        self.final_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
+    def gen_json(self, tr: TestRun) -> Dict[Any, Any]:
+        self.final_cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
         sec = self.final_cmd_args["seconds"]
 
         kubernetes_system = cast(KubernetesSystem, self.system)
@@ -42,7 +32,7 @@ class SleepKubernetesJsonGenStrategy(JsonGenStrategy):
         job_spec = {
             "apiVersion": "batch/v1",
             "kind": "Job",
-            "metadata": {"name": job_name, "namespace": kubernetes_system.default_namespace},
+            "metadata": {"name": tr.name, "namespace": kubernetes_system.default_namespace},
             "spec": {
                 "ttlSecondsAfterFinished": 0,
                 "template": {

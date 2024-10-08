@@ -29,7 +29,6 @@ from .base_job import BaseJob
 from .exceptions import JobFailureError, JobSubmissionError
 from .job_status_result import JobStatusResult
 from .system import System
-from .test import Test
 from .test_scenario import TestRun, TestScenario
 
 
@@ -68,7 +67,7 @@ class BaseRunner(ABC):
         self.output_path = self.setup_output_directory(system.output_path)
         self.monitor_interval = system.monitor_interval
         self.jobs: List[BaseJob] = []
-        self.test_to_job_map: Dict[Test, BaseJob] = {}
+        self.testrun_to_job_map: Dict[TestRun, BaseJob] = {}
         logging.debug(f"{self.__class__.__name__} initialized")
         self.shutting_down = False
         self.register_signal_handlers()
@@ -161,11 +160,11 @@ class BaseRunner(ABC):
         Args:
             tr (TestRun): The test to be started.
         """
-        logging.info(f"Starting test: {tr.test.section_name}")
+        logging.info(f"Starting test: {tr.name}")
         try:
             job = self._submit_test(tr)
             self.jobs.append(job)
-            self.test_to_job_map[tr.test] = job
+            self.testrun_to_job_map[tr] = job
         except JobSubmissionError as e:
             logging.error(e)
             exit(1)
@@ -178,7 +177,7 @@ class BaseRunner(ABC):
             tr (TestRun): The test to start after a delay.
             delay (int): Delay in seconds before starting the test.
         """
-        logging.info(f"Delayed start for test {tr.test.section_name} by {delay} seconds.")
+        logging.info(f"Delayed start for test {tr.name} by {delay} seconds.")
         await asyncio.sleep(delay)
         await self.submit_test(tr)
 
@@ -202,23 +201,23 @@ class BaseRunner(ABC):
         This method should be called periodically to ensure timely execution of tests with
         start_post_init dependencies.
         """
-        items = list(self.test_to_job_map.items())
+        items = list(self.testrun_to_job_map.items())
 
-        for test, job in items:
+        for tr, job in items:
             if job.is_running():
-                await self.check_and_schedule_start_post_init_dependent_tests(test)
+                await self.check_and_schedule_start_post_init_dependent_tests(tr)
 
-    async def check_and_schedule_start_post_init_dependent_tests(self, started_test: Test):
+    async def check_and_schedule_start_post_init_dependent_tests(self, started_test_run: TestRun):
         """
         Schedule tests with a start_post_init dependency on the provided started_test.
 
         Args:
-            started_test (Test): The test that has just been started.
+            started_test_run (TestRun): The test that has just started.
         """
         for tr in self.test_scenario.test_runs:
-            if tr.test not in self.test_to_job_map:
-                for dep_type, dep in tr.test.dependencies.items():
-                    if (dep_type == "start_post_init") and (dep.test == started_test):
+            if tr not in self.testrun_to_job_map:
+                for dep_type, dep in tr.dependencies.items():
+                    if (dep_type == "start_post_init") and (dep.test_run == started_test_run):
                         await self.delayed_submit_test(tr, dep.time)
 
     def find_dependency_free_tests(self) -> List[TestRun]:
@@ -232,12 +231,12 @@ class BaseRunner(ABC):
         """
         dependency_free_tests = []
         for tr in self.test_scenario.test_runs:
-            if "start_post_comp" not in tr.test.dependencies and "start_post_init" not in tr.test.dependencies:
+            if "start_post_comp" not in tr.dependencies and "start_post_init" not in tr.dependencies:
                 dependency_free_tests.append(tr)
 
         return dependency_free_tests
 
-    def get_job_output_path(self, test: Test) -> Path:
+    def get_job_output_path(self, tr: TestRun) -> Path:
         """
         Generate and ensure the existence of the output directory for a given test.
 
@@ -245,7 +244,7 @@ class BaseRunner(ABC):
         do not exist.
 
         Args:
-            test (Test): The test instance for which to generate the output directory path.
+            tr (TestRun): The test run object.
 
         Returns:
             Path: The path to the job's output directory.
@@ -261,10 +260,9 @@ class BaseRunner(ABC):
         job_output_path = Path()  # avoid reportPossiblyUnboundVariable from pyright
 
         try:
-            assert test.section_name is not None, "test.section_name must not be None"
-            test_output_path = self.output_path / test.section_name
+            test_output_path = self.output_path / tr.name
             test_output_path.mkdir()
-            job_output_path = test_output_path / str(test.current_iteration)
+            job_output_path = test_output_path / str(tr.current_iteration)
             job_output_path.mkdir()
         except PermissionError as e:
             raise PermissionError(f"Cannot create directory {job_output_path}: {e}") from e
@@ -295,19 +293,17 @@ class BaseRunner(ABC):
                             await self.handle_job_completion(job)
                         else:
                             error_message = (
-                                f"Job {job.id} for test {job.test_run.test.section_name} failed: "
+                                f"Job {job.id} for test {job.test_run.name} failed: "
                                 f"{job_status_result.error_message}"
                             )
                             logging.error(error_message)
                             await self.shutdown()
-                            raise JobFailureError(
-                                job.test_run.test.section_name, error_message, job_status_result.error_message
-                            )
+                            raise JobFailureError(job.test_run.name, error_message, job_status_result.error_message)
                     else:
                         job_status_result = self.get_job_status(job)
                         if not job_status_result.is_successful:
                             error_message = (
-                                f"Job {job.id} for test {job.test_run.test.section_name} failed: "
+                                f"Job {job.id} for test {job.test_run.name} failed: "
                                 f"{job_status_result.error_message}"
                             )
                             logging.error(error_message)
@@ -335,13 +331,13 @@ class BaseRunner(ABC):
         Args:
             completed_job (BaseJob): The job that has just been completed.
         """
-        logging.info(f"Job completed: {completed_job.test_run.test.section_name}")
+        logging.info(f"Job completed: {completed_job.test_run.name}")
 
         self.jobs.remove(completed_job)
-        del self.test_to_job_map[completed_job.test_run.test]
+        del self.testrun_to_job_map[completed_job.test_run]
         completed_job.increment_iteration()
-        if not completed_job.terminated_by_dependency and completed_job.test_run.test.has_more_iterations():
-            msg = f"Re-running job for iteration {completed_job.test_run.test.current_iteration}"
+        if not completed_job.terminated_by_dependency and completed_job.test_run.has_more_iterations():
+            msg = f"Re-running job for iteration {completed_job.test_run.current_iteration}"
             logging.info(msg)
             await self.submit_test(completed_job.test_run)
         else:
@@ -373,17 +369,17 @@ class BaseRunner(ABC):
 
         # Handling start_post_comp dependencies
         for tr in self.test_scenario.test_runs:
-            if tr.test not in self.test_to_job_map:
-                for dep_type, dep in tr.test.dependencies.items():
-                    if dep_type == "start_post_comp" and dep.test == completed_job.test_run.test:
+            if tr not in self.testrun_to_job_map:
+                for dep_type, dep in tr.dependencies.items():
+                    if dep_type == "start_post_comp" and dep.test_run.test == completed_job.test_run.test:
                         task = await self.delayed_submit_test(tr, dep.time)
                         if task:
                             tasks.append(task)
 
         # Handling end_post_comp dependencies
-        for test, dependent_job in self.test_to_job_map.items():
+        for test, dependent_job in self.testrun_to_job_map.items():
             for dep_type, dep in test.dependencies.items():
-                if dep_type == "end_post_comp" and dep.test == completed_job.test_run.test:
+                if dep_type == "end_post_comp" and dep.test_run.test == completed_job.test_run.test:
                     task = await self.delayed_kill_job(dependent_job, dep.time)
                     tasks.append(task)
 

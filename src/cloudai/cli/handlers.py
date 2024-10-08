@@ -235,3 +235,32 @@ def handle_verify_tests(args: argparse.Namespace) -> int:
             break
 
     return rc
+
+
+def handle_verify_test_scenarios(args: argparse.Namespace) -> int:
+    root: Path = args.test_scenarios
+    if not root.exists():
+        logging.error(f"Tests directory {root} does not exist.")
+        return 1
+
+    test_tomls = [root]
+    if root.is_dir():
+        test_tomls = list(root.glob("*.toml"))
+        if not test_tomls:
+            logging.error(f"No test tomls found in {root}")
+            return 1
+
+    rc = 0
+    for test_toml in test_tomls:
+        logging.info(f"Verifying {test_toml}...")
+        try:
+            parser = Parser(args.system_config)
+            parser.parse(args.tests_dir, test_toml)
+        except Exception:
+            rc = 1
+            break
+
+    if rc == 0:
+        logging.info(f"Checked scenarios: {len(test_tomls)}, all passed")
+
+    return rc

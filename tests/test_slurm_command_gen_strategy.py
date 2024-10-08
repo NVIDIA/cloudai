@@ -19,11 +19,13 @@ from typing import Optional
 from unittest.mock import Mock, mock_open, patch
 
 import pytest
+from cloudai._core.test_scenario import TestRun
 from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
 from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import (
     NeMoLauncherSlurmCommandGenStrategy,
 )
+from cloudai.schema.test_template.nemo_launcher.slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm import SlurmNodeState
 from cloudai.systems.slurm.slurm_system import SlurmPartition
@@ -57,6 +59,29 @@ def strategy_fixture(slurm_system: SlurmSystem) -> SlurmCommandGenStrategy:
 
 
 @pytest.fixture
+def test_run_fixture(tmp_path: Path) -> TestRun:
+    test = Mock()
+    test.cmd_args = {
+        "docker_image_url": "fake",
+        "repository_url": "fake",
+        "repository_commit_hash": "fake",
+        "data_impl": "mock",
+        "data_dir": "/fake/data_dir",
+    }
+    test.extra_env_vars = {"TEST_VAR_1": "value1"}
+    test.extra_cmd_args = "extra_args"
+
+    tr = TestRun(
+        test=test,
+        num_nodes=2,
+        nodes=[],
+        output_path=tmp_path / "output",
+        name="test-job",
+    )
+    return tr
+
+
+@pytest.fixture
 def jax_strategy_fixture() -> JaxToolboxSlurmCommandGenStrategy:
     # Mock the SlurmSystem and other dependencies
     mock_slurm_system = Mock()
@@ -74,11 +99,11 @@ def jax_strategy_fixture() -> JaxToolboxSlurmCommandGenStrategy:
 
 def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path):
     args = {"job_name": "test_job", "num_nodes": 2, "partition": "test_partition", "node_list_str": "node1,node2"}
-    env_vars_str = "export TEST_VAR=VALUE"
+    env_vars = {"TEST_VAR": "VALUE"}
     srun_command = "srun --test test_arg"
     output_path = tmp_path
 
-    sbatch_command = strategy_fixture._write_sbatch_script(args, env_vars_str, srun_command, output_path)
+    sbatch_command = strategy_fixture._write_sbatch_script(args, env_vars, srun_command, output_path)
     filepath_from_command = sbatch_command.split()[-1]
 
     # Check that the file exists at the specified path
@@ -148,27 +173,27 @@ class TestGenerateSrunCommand__CmdGeneration:
         test_command = strategy_fixture.generate_test_command({}, {}, {}, "")
         assert test_command == []
 
-    def test_generate_srun_command(self, strategy_fixture: SlurmCommandGenStrategy):
-        srun_command = strategy_fixture.generate_srun_command({}, {}, {}, "")
+    def test_generate_srun_prefix(self, strategy_fixture: SlurmCommandGenStrategy):
+        srun_command = strategy_fixture.generate_srun_prefix({})
         assert srun_command == ["srun", f"--mpi={strategy_fixture.slurm_system.mpi}"]
 
-    def test_generate_srun_command_with_extra_args(self, strategy_fixture: SlurmCommandGenStrategy):
+    def test_generate_srun_prefix_with_extra_args(self, strategy_fixture: SlurmCommandGenStrategy):
         strategy_fixture.slurm_system.extra_srun_args = "--extra-args value"
-        srun_command = strategy_fixture.generate_srun_command({}, {}, {}, "")
+        srun_command = strategy_fixture.generate_srun_prefix({})
         assert srun_command == ["srun", f"--mpi={strategy_fixture.slurm_system.mpi}", "--extra-args value"]
 
-    def test_generate_srun_command_with_container_image(self, strategy_fixture: SlurmCommandGenStrategy):
+    def test_generate_srun_prefix_with_container_image(self, strategy_fixture: SlurmCommandGenStrategy):
         slurm_args = {"image_path": "fake_image_path"}
-        srun_command = strategy_fixture.generate_srun_command(slurm_args, {}, {}, "")
+        srun_command = strategy_fixture.generate_srun_prefix(slurm_args)
         assert srun_command == [
             "srun",
             f"--mpi={strategy_fixture.slurm_system.mpi}",
             "--container-image=fake_image_path",
         ]
 
-    def test_generate_srun_command_with_container_image_and_mounts(self, strategy_fixture: SlurmCommandGenStrategy):
+    def test_generate_srun_prefix_with_container_image_and_mounts(self, strategy_fixture: SlurmCommandGenStrategy):
         slurm_args = {"image_path": "fake_image_path", "container_mounts": "fake_mounts"}
-        srun_command = strategy_fixture.generate_srun_command(slurm_args, {}, {}, "")
+        srun_command = strategy_fixture.generate_srun_prefix(slurm_args)
         assert srun_command == [
             "srun",
             f"--mpi={strategy_fixture.slurm_system.mpi}",
@@ -178,18 +203,18 @@ class TestGenerateSrunCommand__CmdGeneration:
 
     def test_generate_srun_empty_str(self, strategy_fixture: SlurmCommandGenStrategy):
         slurm_args = {"image_path": "", "container_mounts": ""}
-        srun_command = strategy_fixture.generate_srun_command(slurm_args, {}, {}, "")
+        srun_command = strategy_fixture.generate_srun_prefix(slurm_args)
         assert srun_command == ["srun", f"--mpi={strategy_fixture.slurm_system.mpi}"]
 
         slurm_args = {"image_path": "fake", "container_mounts": ""}
-        srun_command = strategy_fixture.generate_srun_command(slurm_args, {}, {}, "")
+        srun_command = strategy_fixture.generate_srun_prefix(slurm_args)
         assert srun_command == ["srun", f"--mpi={strategy_fixture.slurm_system.mpi}", "--container-image=fake"]
 
-    def test_generate_full_srun_command(self, strategy_fixture: SlurmCommandGenStrategy):
-        strategy_fixture.generate_srun_command = lambda *_, **__: ["srun", "--test", "test_arg"]
+    def test_generate_srun_command(self, strategy_fixture: SlurmCommandGenStrategy):
+        strategy_fixture.generate_srun_prefix = lambda *_, **__: ["srun", "--test", "test_arg"]
         strategy_fixture.generate_test_command = lambda *_, **__: ["test_command"]
 
-        full_srun_command = strategy_fixture.generate_full_srun_command({}, {}, {}, "")
+        full_srun_command = strategy_fixture.generate_srun_command({}, {}, {}, "")
         assert full_srun_command == " \\\n".join(["srun", "--test", "test_arg", "test_command"])
 
 
@@ -200,96 +225,42 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
         strategy = NeMoLauncherSlurmCommandGenStrategy(slurm_system, cmd_args)
         return strategy
 
-    def test_extra_env_vars_added(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
-        extra_env_vars = {"TEST_VAR_1": "value1", "TEST_VAR_2": "value2"}
-        cmd_args = {
-            "docker_image_url": "fake",
-            "repository_url": "fake",
-            "repository_commit_hash": "fake",
-            "data_dir": "/fake/data_dir",
-        }
-        cmd = nemo_cmd_gen.gen_exec_command(
-            cmd_args=cmd_args,
-            extra_env_vars=extra_env_vars,
-            extra_cmd_args="",
-            output_path=Path(""),
-            num_nodes=1,
-            nodes=[],
-        )
+    def test_generate_exec_command(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, test_run_fixture: TestRun):
+        cmd = nemo_cmd_gen.gen_exec_command(test_run_fixture)
+        assert "TEST_VAR_1" in cmd
+        assert "test_value" in cmd
+        assert "extra_args" in cmd
 
-        for k, v in extra_env_vars.items():
-            assert f"{k}={v}" in cmd
+        subdir = nemo_cmd_gen.slurm_system.install_path / NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH
+        assert f"{subdir}/nemo-venv/bin/python " in cmd
 
-    def test_env_var_escaping(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
-        extra_env_vars = {"TEST_VAR": "value,with,commas"}
-        cmd_args = {
-            "docker_image_url": "fake",
-            "repository_url": "fake",
-            "repository_commit_hash": "fake",
-            "data_dir": "/fake/data_dir",
-        }
-        cmd = nemo_cmd_gen.gen_exec_command(
-            cmd_args=cmd_args,
-            extra_env_vars=extra_env_vars,
-            extra_cmd_args="",
-            output_path=Path(""),
-            num_nodes=1,
-            nodes=[],
-        )
+    def test_env_var_escaping(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, test_run_fixture: TestRun):
+        test_run_fixture.test.extra_env_vars = {"TEST_VAR": "value,with,commas"}
+        cmd = nemo_cmd_gen.gen_exec_command(test_run_fixture)
 
         assert "TEST_VAR=\\'value,with,commas\\'" in cmd
 
-    def test_tokenizer_handled(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, tmp_path: Path):
-        extra_env_vars = {"TEST_VAR_1": "value1"}
-        cmd_args = {
-            "docker_image_url": "fake",
-            "repository_url": "fake",
-            "repository_commit_hash": "fake",
-            "data_dir": "/fake/data_dir",
-        }
+    def test_tokenizer_handled(
+        self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, test_run_fixture: TestRun, tmp_path: Path
+    ):
         tokenizer_path = tmp_path / "tokenizer"
         tokenizer_path.touch()
 
-        cmd = nemo_cmd_gen.gen_exec_command(
-            cmd_args=cmd_args,
-            extra_env_vars=extra_env_vars,
-            extra_cmd_args=f"training.model.tokenizer.model={tokenizer_path}",
-            output_path=Path(""),
-            num_nodes=1,
-            nodes=[],
-        )
+        test_run_fixture.test.extra_cmd_args = f"training.model.tokenizer.model={tokenizer_path}"
+
+        cmd = nemo_cmd_gen.gen_exec_command(test_run_fixture)
 
         assert f"container_mounts=[{tokenizer_path}:{tokenizer_path}]" in cmd
 
-    def test_reservation_handled(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
-        extra_env_vars = {"TEST_VAR_1": "value1"}
-        cmd_args = {
-            "docker_image_url": "fake",
-            "repository_url": "fake",
-            "repository_commit_hash": "fake",
-            "data_dir": "/fake/data_dir",
-        }
+    def test_reservation_handled(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, test_run_fixture: TestRun):
         nemo_cmd_gen.slurm_system.extra_srun_args = "--reservation my-reservation"
-        cmd = nemo_cmd_gen.gen_exec_command(
-            cmd_args=cmd_args,
-            extra_cmd_args="",
-            extra_env_vars=extra_env_vars,
-            output_path=Path(""),
-            num_nodes=1,
-            nodes=[],
-        )
+        cmd = nemo_cmd_gen.gen_exec_command(test_run_fixture)
 
         assert "+cluster.reservation=my-reservation" in cmd
 
-    def test_invalid_tokenizer_path(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
-        extra_env_vars = {"TEST_VAR_1": "value1"}
-        cmd_args = {
-            "docker_image_url": "fake",
-            "repository_url": "fake",
-            "repository_commit_hash": "fake",
-            "data_dir": "/fake/data_dir",
-        }
+    def test_invalid_tokenizer_path(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, test_run_fixture: TestRun):
         invalid_tokenizer_path = Path("/invalid/path/to/tokenizer")
+        test_run_fixture.test.extra_cmd_args = f"training.model.tokenizer.model={invalid_tokenizer_path}"
 
         with pytest.raises(
             ValueError,
@@ -299,95 +270,37 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
                 r"USER_GUIDE.md to download the tokenizer and update the schema file accordingly."
             ),
         ):
-            nemo_cmd_gen.gen_exec_command(
-                cmd_args=cmd_args,
-                extra_env_vars=extra_env_vars,
-                extra_cmd_args=f"training.model.tokenizer.model={invalid_tokenizer_path}",
-                output_path=Path(""),
-                num_nodes=1,
-                nodes=[],
-            )
+            nemo_cmd_gen.gen_exec_command(test_run_fixture)
 
-    def test_account_in_command(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
-        extra_env_vars = {"TEST_VAR_1": "value1"}
-        cmd_args = {
-            "docker_image_url": "fake",
-            "repository_url": "fake",
-            "repository_commit_hash": "fake",
-            "data_dir": "/fake/data_dir",
-        }
-
+    def test_account_in_command(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, test_run_fixture: TestRun):
         nemo_cmd_gen.slurm_system.account = "test_account"
-        cmd = nemo_cmd_gen.gen_exec_command(
-            cmd_args=cmd_args,
-            extra_env_vars=extra_env_vars,
-            extra_cmd_args="",
-            output_path=Path(""),
-            num_nodes=1,
-            nodes=[],
-        )
+        cmd = nemo_cmd_gen.gen_exec_command(test_run_fixture)
 
         assert "cluster.account=test_account" in cmd
         assert "cluster.job_name_prefix=test_account-cloudai.nemo:" in cmd
 
-    def test_no_account_in_command(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
-        extra_env_vars = {"TEST_VAR_1": "value1"}
-        cmd_args = {
-            "docker_image_url": "fake",
-            "repository_url": "fake",
-            "repository_commit_hash": "fake",
-            "data_dir": "/fake/data_dir",
-        }
-
+    def test_no_account_in_command(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, test_run_fixture: TestRun):
         nemo_cmd_gen.slurm_system.account = None
-        cmd = nemo_cmd_gen.gen_exec_command(
-            cmd_args=cmd_args,
-            extra_env_vars=extra_env_vars,
-            extra_cmd_args="",
-            output_path=Path(""),
-            num_nodes=1,
-            nodes=[],
-        )
+        cmd = nemo_cmd_gen.gen_exec_command(test_run_fixture)
 
         assert "cluster.account" not in cmd
         assert "cluster.job_name_prefix" not in cmd
 
-    def test_gpus_per_node_value(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
-        extra_env_vars = {"TEST_VAR_1": "value1"}
-        cmd_args = {
-            "docker_image_url": "fake",
-            "repository_url": "fake",
-            "repository_commit_hash": "fake",
-            "data_dir": "/fake/data_dir",
-        }
-
+    def test_gpus_per_node_value(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, test_run_fixture: TestRun):
         nemo_cmd_gen.slurm_system.gpus_per_node = 4
-        cmd = nemo_cmd_gen.gen_exec_command(
-            cmd_args=cmd_args,
-            extra_env_vars=extra_env_vars,
-            extra_cmd_args="",
-            output_path=Path(""),
-            num_nodes=1,
-            nodes=[],
-        )
+        cmd = nemo_cmd_gen.gen_exec_command(test_run_fixture)
 
         assert "cluster.gpus_per_node=4" in cmd
 
         nemo_cmd_gen.slurm_system.gpus_per_node = None
-        cmd = nemo_cmd_gen.gen_exec_command(
-            cmd_args=cmd_args,
-            extra_env_vars=extra_env_vars,
-            extra_cmd_args="",
-            output_path=Path(""),
-            num_nodes=1,
-            nodes=[],
-        )
+        cmd = nemo_cmd_gen.gen_exec_command(test_run_fixture)
 
         assert "cluster.gpus_per_node=null" in cmd
 
-    def test_argument_with_tilde_value(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
-        extra_env_vars = {"TEST_VAR_1": "value1"}
-        cmd_args = {
+    def test_argument_with_tilde_value(
+        self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, test_run_fixture: TestRun
+    ):
+        test_run_fixture.test.cmd_args = {
             "docker_image_url": "fake",
             "repository_url": "fake",
             "repository_commit_hash": "fake",
@@ -395,19 +308,13 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             "data_dir": "/fake/data_dir",
         }
 
-        cmd = nemo_cmd_gen.gen_exec_command(
-            cmd_args=cmd_args,
-            extra_env_vars=extra_env_vars,
-            extra_cmd_args="",
-            output_path=Path(""),
-            num_nodes=1,
-            nodes=[],
-        )
+        cmd = nemo_cmd_gen.gen_exec_command(test_run_fixture)
         assert "~training.model.optim.bucket_cap_mb=null" in cmd
 
-    def test_data_impl_mock_skips_checks(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
-        extra_env_vars = {"TEST_VAR_1": "value1"}
-        cmd_args = {
+    def test_data_impl_mock_skips_checks(
+        self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, test_run_fixture: TestRun
+    ):
+        test_run_fixture.test.cmd_args = {
             "docker_image_url": "fake",
             "repository_url": "fake",
             "repository_commit_hash": "fake",
@@ -415,19 +322,13 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
             "data_dir": "DATA_DIR",
         }
 
-        cmd = nemo_cmd_gen.gen_exec_command(
-            cmd_args=cmd_args,
-            extra_env_vars=extra_env_vars,
-            extra_cmd_args="",
-            output_path=Path(""),
-            num_nodes=1,
-            nodes=[],
-        )
+        cmd = nemo_cmd_gen.gen_exec_command(test_run_fixture)
         assert "data_dir" in cmd
 
-    def test_data_dir_and_data_prefix_validation(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy):
-        extra_env_vars = {"TEST_VAR_1": "value1"}
-        cmd_args = {
+    def test_data_dir_and_data_prefix_validation(
+        self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, test_run_fixture: TestRun
+    ):
+        test_run_fixture.test.cmd_args = {
             "docker_image_url": "fake",
             "repository_url": "fake",
             "repository_commit_hash": "fake",
@@ -444,91 +345,37 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
                 "The 'data_dir' field must point to an actual dataset location."
             ),
         ):
-            nemo_cmd_gen.gen_exec_command(
-                cmd_args=cmd_args,
-                extra_env_vars=extra_env_vars,
-                extra_cmd_args="",
-                output_path=Path(""),
-                num_nodes=1,
-                nodes=[],
-            )
+            nemo_cmd_gen.gen_exec_command(test_run_fixture)
 
-        cmd_args["data_dir"] = "/fake/data_dir"
+        test_run_fixture.test.cmd_args["data_dir"] = "/fake/data_dir"
         with pytest.raises(ValueError, match="The 'data_prefix' field of the NeMo launcher test is missing or empty."):
-            nemo_cmd_gen.gen_exec_command(
-                cmd_args=cmd_args,
-                extra_env_vars=extra_env_vars,
-                extra_cmd_args="",
-                output_path=Path(""),
-                num_nodes=1,
-                nodes=[],
-            )
+            nemo_cmd_gen.gen_exec_command(test_run_fixture)
 
     @patch("pathlib.Path.open", new_callable=mock_open)
-    def test_log_command_to_file(self, mock_file, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, tmp_path: Path):
-        """Test that the command is correctly logged with line breaks."""
-        # Define the command arguments
-        extra_env_vars = {"TEST_VAR_1": "value1"}
-        cmd_args = {
-            "docker_image_url": "fake",
-            "repository_url": "fake",
-            "repository_commit_hash": "fake",
-            "data_impl": "not_mock",
-            "data_dir": "/fake/data_dir",
-            "data_prefix": "[]",
-        }
+    def test_log_command_to_file(
+        self, mock_file, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, test_run_fixture: TestRun, tmp_path: Path
+    ):
+        test_run_fixture.output_path = tmp_path / "output_dir"
+        test_run_fixture.output_path.mkdir()
+        test_run_fixture.num_nodes = 1
 
-        # Define the output path
-        output_path = tmp_path / "output_dir"
-        output_path.mkdir()
+        nemo_cmd_gen.gen_exec_command(test_run_fixture)
 
-        # Generate the command and trigger the logging without assigning to a variable
-        nemo_cmd_gen.gen_exec_command(
-            cmd_args=cmd_args,
-            extra_env_vars=extra_env_vars,
-            extra_cmd_args="",
-            output_path=output_path,
-            num_nodes=1,
-            nodes=[],
-        )
-
-        # Retrieve the actual written command from the mock file handler
         written_content = mock_file().write.call_args[0][0]
 
-        # Ensure that the logged command has line breaks for readability
         assert " \\\n " in written_content, "Command should contain line breaks when written to the file"
         assert "python" in written_content, "Logged command should start with 'python'"
         assert "TEST_VAR_1=value1" in written_content, "Logged command should contain environment variables"
         assert "training.trainer.num_nodes=1" in written_content, "Command should contain the number of nodes"
 
     def test_no_line_breaks_in_executed_command(
-        self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, tmp_path: Path
+        self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, test_run_fixture: TestRun, tmp_path: Path
     ):
-        """Test that the command used for execution has no line breaks."""
-        extra_env_vars = {"TEST_VAR_1": "value1"}
-        cmd_args = {
-            "docker_image_url": "fake",
-            "repository_url": "fake",
-            "repository_commit_hash": "fake",
-            "data_impl": "not_mock",
-            "data_dir": "/fake/data_dir",
-            "data_prefix": "[]",
-        }
-        # Define the output path
-        output_path = tmp_path / "output_dir"
-        output_path.mkdir()
+        test_run_fixture.output_path = tmp_path / "output_dir"
+        test_run_fixture.output_path.mkdir()
 
-        # Generate the command
-        cmd = nemo_cmd_gen.gen_exec_command(
-            cmd_args=cmd_args,
-            extra_env_vars=extra_env_vars,
-            extra_cmd_args="",
-            output_path=output_path,
-            num_nodes=1,
-            nodes=[],
-        )
+        cmd = nemo_cmd_gen.gen_exec_command(test_run_fixture)
 
-        # Assert that there are no line breaks in the executed command
         assert "\n" not in cmd, "Executed command should not contain line breaks"
 
 
@@ -540,7 +387,7 @@ class TestWriteSbatchScript:
     }
 
     def setup_method(self):
-        self.env_vars_str = "export TEST_VAR=VALUE"
+        self.env_vars = {"TEST_VAR": "VALUE"}
         self.srun_command = "srun --test test_arg"
 
     def assert_slurm_directives(self, lines: list[str]):
@@ -576,12 +423,12 @@ class TestWriteSbatchScript:
         del args[missing_arg]
 
         with pytest.raises(KeyError) as exc_info:
-            strategy_fixture._write_sbatch_script(args, self.env_vars_str, self.srun_command, tmp_path)
+            strategy_fixture._write_sbatch_script(args, self.env_vars, self.srun_command, tmp_path)
         assert missing_arg in str(exc_info.value)
 
     def test_only_mandatory_args(self, strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path):
         sbatch_command = strategy_fixture._write_sbatch_script(
-            self.MANDATORY_ARGS, self.env_vars_str, self.srun_command, tmp_path
+            self.MANDATORY_ARGS, self.env_vars, self.srun_command, tmp_path
         )
 
         filepath_from_command = sbatch_command.split()[-1]
@@ -634,7 +481,7 @@ class TestWriteSbatchScript:
             str_arg = arg.replace("_", "-")
             expected_str = f"#SBATCH --{str_arg}={v}"
 
-        sbatch_command = strategy_fixture._write_sbatch_script(args, self.env_vars_str, self.srun_command, tmp_path)
+        sbatch_command = strategy_fixture._write_sbatch_script(args, self.env_vars, self.srun_command, tmp_path)
 
         filepath_from_command = sbatch_command.split()[-1]
         with open(filepath_from_command, "r") as file:
@@ -651,7 +498,7 @@ class TestWriteSbatchScript:
         strategy_fixture.slurm_system.extra_srun_args = "--reservation my-reservation"
         args = self.MANDATORY_ARGS.copy()
 
-        sbatch_command = strategy_fixture._write_sbatch_script(args, self.env_vars_str, self.srun_command, tmp_path)
+        sbatch_command = strategy_fixture._write_sbatch_script(args, self.env_vars, self.srun_command, tmp_path)
         filepath_from_command = sbatch_command.split()[-1]
         with open(filepath_from_command, "r") as file:
             file_contents = file.read()
@@ -663,7 +510,7 @@ class TestWriteSbatchScript:
         args = self.MANDATORY_ARGS.copy()
         args[add_arg] = "fake"
 
-        sbatch_command = strategy_fixture._write_sbatch_script(args, self.env_vars_str, self.srun_command, tmp_path)
+        sbatch_command = strategy_fixture._write_sbatch_script(args, self.env_vars, self.srun_command, tmp_path)
 
         filepath_from_command = sbatch_command.split()[-1]
         with open(filepath_from_command, "r") as file:
@@ -675,9 +522,7 @@ class TestWriteSbatchScript:
 
 class TestNCCLSlurmCommandGen:
     def get_cmd(self, slurm_system: SlurmSystem, slurm_args: dict, cmd_args: dict) -> str:
-        return NcclTestSlurmCommandGenStrategy(slurm_system, {}).generate_full_srun_command(
-            slurm_args, {}, cmd_args, ""
-        )
+        return NcclTestSlurmCommandGenStrategy(slurm_system, {}).generate_srun_command(slurm_args, {}, cmd_args, "")
 
     def test_only_mandatory(self, slurm_system: SlurmSystem) -> None:
         slurm_args = {"image_path": "fake_image_path"}

@@ -17,6 +17,7 @@
 from pathlib import Path
 from typing import Any, Dict, List
 
+from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
 from .slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
@@ -25,19 +26,11 @@ from .slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
 class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for NeMo Megatron Launcher on Slurm systems."""
 
-    def gen_exec_command(
-        self,
-        cmd_args: Dict[str, str],
-        extra_env_vars: Dict[str, str],
-        extra_cmd_args: str,
-        output_path: Path,
-        num_nodes: int,
-        nodes: List[str],
-    ) -> str:
-        self._prepare_environment(cmd_args, extra_env_vars, output_path)
+    def gen_exec_command(self, tr: TestRun) -> str:
+        self._prepare_environment(tr.test.cmd_args, tr.test.extra_env_vars, tr.output_path)
 
-        nodes = self.slurm_system.parse_nodes(nodes)
-        self._set_node_config(nodes, num_nodes)
+        nodes = self.slurm_system.parse_nodes(tr.nodes)
+        self._set_node_config(nodes, tr.num_nodes)
 
         self.final_cmd_args["container"] = self.docker_image_cache_manager.ensure_docker_image(
             self.docker_image_url,
@@ -64,16 +57,19 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         cmd_args_str = self._generate_cmd_args_str(self.final_cmd_args, nodes)
 
-        full_cmd = f"python {self._launcher_scripts_path()}/launcher_scripts/main.py {cmd_args_str}"
+        py_bin = (
+            self.system.install_path / NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH / "nemo-venv" / "bin" / "python"
+        ).absolute()
+        full_cmd = f"{py_bin} {self._launcher_scripts_path()}/launcher_scripts/main.py {cmd_args_str}"
 
-        if extra_cmd_args:
-            full_cmd = self._handle_extra_cmd_args(full_cmd, extra_cmd_args)
+        if tr.test.extra_cmd_args:
+            full_cmd = self._handle_extra_cmd_args(full_cmd, tr.test.extra_cmd_args)
 
         env_vars_str = " ".join(f"{key}={value}" for key, value in self.final_env_vars.items())
         full_cmd = f"{env_vars_str} {full_cmd}" if env_vars_str else full_cmd
 
         # Log the generated command to a bash file
-        self._log_command_to_file(full_cmd, output_path)
+        self._log_command_to_file(full_cmd, tr.output_path)
 
         return full_cmd.strip()
 

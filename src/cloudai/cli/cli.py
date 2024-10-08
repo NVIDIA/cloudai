@@ -23,6 +23,7 @@ from .handlers import (
     handle_generate_report,
     handle_install_and_uninstall,
     handle_verify_systems,
+    handle_verify_test_scenarios,
     handle_verify_tests,
 )
 
@@ -39,6 +40,7 @@ class CloudAICLI:
             "uninstall",
             "verify-systems",
             "verify-tests",
+            "verify-test-scenarios",
         }
 
         self.parser = argparse.ArgumentParser(description="Cloud AI")
@@ -146,6 +148,16 @@ class CloudAICLI:
         if "verify-tests" in self.DEFAULT_MODES:
             p = self.add_command("verify-tests", "Verify the test configurations.", handle_verify_tests)
             p.add_argument("test_configs", help="Path to the test configuration file or directory.", type=Path)
+
+        if "verify-test-scenarios" in self.DEFAULT_MODES:
+            p = self.add_command(
+                "verify-test-scenarios",
+                "Verify the test scenario configurations.",
+                handle_verify_test_scenarios,
+                system_config=True,
+                tests_dir=True,
+            )
+            p.add_argument("test_scenarios", help="Path to the test scenario file or directory.", type=Path)
 
         return self.parser
 
