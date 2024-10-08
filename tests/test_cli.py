@@ -137,13 +137,10 @@ def test_add_command_all_optional():
 def test_add_command_all_required():
     cli = CloudAICLI()
 
-    def handler(args):
-        return 0
-
     cli.add_command(
         "test",
         "Test command",
-        handler,
+        lambda _: 0,
         system_config=True,
         tests_dir=True,
         test_scenario=True,
