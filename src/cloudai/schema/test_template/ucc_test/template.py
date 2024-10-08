@@ -18,30 +18,4 @@ from cloudai import TestTemplate
 
 
 class UCCTest(TestTemplate):
-    """
-    Test template for UCC tests.
-
-    Attributes
-        SUPPORTED_COLLECTIVES (List[str]): List of supported collectives for UCC
-            test, including alltoall, allreduce, and others.
-    """
-
-    SUPPORTED_COLLECTIVES = [
-        "allgather",
-        "allgatherv",
-        "allreduce",
-        "alltoall",
-        "alltoallv",
-        "barrier",
-        "bcast",
-        "gather",
-        "gatherv",
-        "reduce",
-        "reduce_scatter",
-        "reduce_scatterv",
-        "scatter",
-        "scatterv",
-        "memcpy",
-        "reducedt",
-        "reducedt_strided",
-    ]
+    """Test template for UCC tests."""

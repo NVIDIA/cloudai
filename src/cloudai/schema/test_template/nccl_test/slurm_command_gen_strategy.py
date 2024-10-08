@@ -29,18 +29,7 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def gen_exec_command(self, tr: TestRun) -> str:
         final_env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
         final_cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
-
-        subtest_name = final_cmd_args.get("subtest_name")
-        if subtest_name is None:
-            raise ValueError(
-                "The NCCL test's 'subtest_name' is not provided. Please ensure 'subtest_name' "
-                "is included in the test template schema or the test schema. Valid subtest names "
-                "include: all_reduce_perf_mpi, all_gather_perf_mpi, alltoall_perf_mpi, "
-                "broadcast_perf_mpi, gather_perf_mpi, hypercube_perf_mpi, reduce_perf_mpi, "
-                "reduce_scatter_perf_mpi, scatter_perf_mpi, and sendrecv_perf_mpi."
-            )
-
-        slurm_args = self._parse_slurm_args(subtest_name, final_env_vars, final_cmd_args, tr.num_nodes, tr.nodes)
+        slurm_args = self._parse_slurm_args("nccl_test", final_env_vars, final_cmd_args, tr.num_nodes, tr.nodes)
         srun_command = self.generate_srun_command(slurm_args, final_env_vars, final_cmd_args, tr.test.extra_cmd_args)
         return self._write_sbatch_script(slurm_args, final_env_vars, srun_command, tr.output_path)
 
