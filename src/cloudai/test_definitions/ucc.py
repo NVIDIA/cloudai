@@ -19,7 +19,7 @@ from typing import Literal
 from cloudai import CmdArgs, TestDefinition
 
 
-class UCCTestCmdArgs(CmdArgs):
+class UCCCmdArgs(CmdArgs):
     """UCC test command arguments."""
 
     docker_image_url: str = "nvcr.io/nvidia/pytorch:24.02-py3"
@@ -49,4 +49,4 @@ class UCCTestCmdArgs(CmdArgs):
 class UCCTestDefinition(TestDefinition):
     """Test object for UCC."""
 
-    cmd_args: UCCTestCmdArgs
+    cmd_args: UCCCmdArgs

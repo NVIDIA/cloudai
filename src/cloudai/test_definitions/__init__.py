@@ -15,20 +15,20 @@
 # limitations under the License.
 
 from .chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
-from .nccl_test import NCCLTestCmdArgs, NCCLTestDefinition
+from .nccl import NCCLCmdArgs, NCCLTestDefinition
 from .nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
 from .sleep import SleepCmdArgs, SleepTestDefinition
-from .ucc_test import UCCTestCmdArgs, UCCTestDefinition
+from .ucc import UCCCmdArgs, UCCTestDefinition
 
 __all__ = [
     "ChakraReplayCmdArgs",
     "ChakraReplayTestDefinition",
-    "NCCLTestCmdArgs",
+    "NCCLCmdArgs",
     "NCCLTestDefinition",
     "NeMoLauncherCmdArgs",
     "NeMoLauncherTestDefinition",
     "SleepCmdArgs",
     "SleepTestDefinition",
-    "UCCTestCmdArgs",
+    "UCCCmdArgs",
     "UCCTestDefinition",
 ]

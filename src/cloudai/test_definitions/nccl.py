@@ -19,7 +19,7 @@ from typing import Literal
 from cloudai import CmdArgs, TestDefinition
 
 
-class NCCLTestCmdArgs(CmdArgs):
+class NCCLCmdArgs(CmdArgs):
     """NCCL test command arguments."""
 
     docker_image_url: str = "nvcr.io/nvidia/pytorch:24.02-py3"
@@ -69,7 +69,7 @@ class NCCLTestCmdArgs(CmdArgs):
 class NCCLTestDefinition(TestDefinition):
     """Test object for NCCL."""
 
-    cmd_args: NCCLTestCmdArgs
+    cmd_args: NCCLCmdArgs
 
     @property
     def extra_args_str(self) -> str:
