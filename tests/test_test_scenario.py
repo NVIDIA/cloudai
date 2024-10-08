@@ -46,12 +46,12 @@ def test_single_test_case(test: Test, test_scenario_parser: TestScenarioParser) 
     assert tr.iterations == 1
     assert tr.current_iteration == 0
     assert tr.dependencies == {}
+    assert tr.weight == 0
+    assert tr.ideal_perf == 1.0
+    assert tr.sol is None
     atest = test_scenario.test_runs[0].test
     assert atest.name == test.name
     assert atest.description == test.description
-    assert atest.weight == 0
-    assert atest.ideal_perf == 1.0
-    assert atest.sol is None
     assert atest.test_template == test.test_template
     assert atest.cmd_args == test.cmd_args
     assert atest.extra_env_vars == test.extra_env_vars
@@ -70,7 +70,7 @@ def test_with_some_props(
     test_scenario = test_scenario_parser._parse_data(
         {"name": "nccl-test", "Tests": [{"id": "1", "test_name": "nccl", prop: cfg_value}]}
     )
-    atest = test_scenario.test_runs[0].test
+    atest = test_scenario.test_runs[0]
     val = getattr(atest, prop)
     assert val != tvalue
     assert val == cfg_value

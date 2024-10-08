@@ -19,8 +19,7 @@ import logging
 from pathlib import Path
 from typing import Dict, List
 
-from .test import Test
-from .test_scenario import TestScenario
+from .test_scenario import TestRun, TestScenario
 
 
 class Grader:
@@ -50,7 +49,7 @@ class Grader:
         """
         weighted_perfs: List[float] = []
         test_perfs: Dict[str, List[float]] = {}
-        total_weight = sum(tr.test.weight for tr in test_scenario.test_runs)
+        total_weight = sum(tr.weight for tr in test_scenario.test_runs)
 
         for tr in test_scenario.test_runs:
             section_name = str(tr.name) if tr.name else ""
@@ -58,10 +57,10 @@ class Grader:
                 logging.warning(f"Missing section name for test {tr.test.name}")
                 continue
             test_output_dir = self.output_path / section_name
-            perfs = self._get_perfs_from_subdirs(test_output_dir, tr.test)
+            perfs = self._get_perfs_from_subdirs(test_output_dir, tr)
             avg_perf = sum(perfs) / len(perfs) if perfs else 0
             test_perfs[tr.test.name] = perfs + [avg_perf]
-            weighted_avg = (avg_perf * tr.test.weight / total_weight) if total_weight else 0
+            weighted_avg = (avg_perf * tr.weight / total_weight) if total_weight else 0
             weighted_perfs.append(weighted_avg)
 
         overall_weighted_avg = sum(weighted_perfs)
@@ -69,13 +68,13 @@ class Grader:
         self._save_report(report)
         return report
 
-    def _get_perfs_from_subdirs(self, directory_path: Path, test: Test) -> List[float]:
+    def _get_perfs_from_subdirs(self, directory_path: Path, tr: TestRun) -> List[float]:
         """
         Average performance values from subdirectories within a given path, according to the test's grading template.
 
         Args:
             directory_path (Path): Directory path.
-            test (Test): The test to grade.
+            tr (TestRun): TestRun object containing the test and its associated grading
 
         Returns:
             List[float]: A list of performance values.
@@ -83,7 +82,7 @@ class Grader:
         perfs = []
         for subdir in directory_path.iterdir():
             if subdir.is_dir() and subdir.name.isdigit():
-                perf = test.test_template.grade(subdir, test.ideal_perf)
+                perf = tr.test.test_template.grade(subdir, tr.ideal_perf)
                 perfs.append(perf)
         return perfs
 
