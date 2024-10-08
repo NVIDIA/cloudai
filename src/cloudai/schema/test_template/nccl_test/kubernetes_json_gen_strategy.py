@@ -27,7 +27,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
         final_cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
         final_num_nodes = self._determine_num_nodes(tr.num_nodes, tr.nodes)
         job_spec = self._create_job_spec(
-            tr.name, final_num_nodes, tr.nodes, final_env_vars, final_cmd_args, tr.test.extra_cmd_args
+            "nccl-test", final_num_nodes, tr.nodes, final_env_vars, final_cmd_args, tr.test.extra_cmd_args
         )
 
         return job_spec
