@@ -70,7 +70,7 @@ def test_with_some_props(
     test_scenario = test_scenario_parser._parse_data(
         {"name": "nccl-test", "Tests": [{"id": "1", "test_name": "nccl", prop: cfg_value}]}
     )
-    atest = test_scenario.test_runs[0].test
+    atest = test_scenario.test_runs[0]
     val = getattr(atest, prop)
     assert val != tvalue
     assert val == cfg_value
