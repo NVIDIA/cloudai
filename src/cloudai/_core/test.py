@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from pydantic import BaseModel, ConfigDict
 
@@ -26,29 +26,16 @@ class Test:
 
     __test__ = False
 
-    def __init__(
-        self,
-        test_definition: "TestDefinition",
-        test_template: TestTemplate,
-        sol: Optional[float] = None,
-        weight: float = 0.0,
-        ideal_perf: float = 1.0,
-    ) -> None:
+    def __init__(self, test_definition: "TestDefinition", test_template: TestTemplate) -> None:
         """
         Initialize a Test instance.
 
         Args:
             test_definition (TestDefinition): The test definition object.
             test_template (TestTemplate): The test template object
-            sol (Optional[float]): Speed-of-light performance for reference.
-            weight (float): The weight of this test in a test scenario, indicating its relative importance or priority.
-            ideal_perf (float): The ideal performance value for comparison.
         """
         self.test_template = test_template
         self.test_definition = test_definition
-        self.sol = sol
-        self.weight = weight
-        self.ideal_perf = ideal_perf
 
     def __repr__(self) -> str:
         """

@@ -181,13 +181,7 @@ class TestScenarioParser:
 
         original_test = self.test_mapping[test_info.test_name]
 
-        test = Test(
-            test_definition=original_test.test_definition,
-            test_template=original_test.test_template,
-            sol=test_info.sol,
-            weight=test_info.weight * normalized_weight,
-            ideal_perf=test_info.ideal_perf,
-        )
+        test = Test(test_definition=original_test.test_definition, test_template=original_test.test_template)
 
         tr = TestRun(
             test_info.id,
@@ -196,5 +190,8 @@ class TestScenarioParser:
             iterations=test_info.iterations,
             nodes=test_info.nodes,
             time_limit=test_info.time_limit,
+            sol=test_info.sol,
+            weight=test_info.weight * normalized_weight,
+            ideal_perf=test_info.ideal_perf,
         )
         return tr

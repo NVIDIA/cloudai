@@ -17,7 +17,7 @@
 import logging
 from pathlib import Path
 
-from cloudai import Test, TestScenario
+from cloudai import TestRun, TestScenario
 
 
 class ReportGenerator:
@@ -57,9 +57,9 @@ class ReportGenerator:
                 logging.warning(f"Directory '{test_output_dir}' not found.")
                 continue
 
-            self._generate_test_report(test_output_dir, tr.test)
+            self._generate_test_report(test_output_dir, tr)
 
-    def _generate_test_report(self, directory_path: Path, test: Test) -> None:
+    def _generate_test_report(self, directory_path: Path, tr: TestRun) -> None:
         """
         Generate reports for a test by iterating through subdirectories within the directory path.
 
@@ -67,10 +67,10 @@ class ReportGenerator:
 
         Args:
             directory_path (Path): Directory for the test's section.
-            test (Test): The test for report generation.
+            tr (TestRun): The test run object.
         """
         for subdir in directory_path.iterdir():
-            if subdir.is_dir() and test.test_template.can_handle_directory(subdir):
-                test.test_template.generate_report(test.name, subdir, test.sol)
+            if subdir.is_dir() and tr.test.test_template.can_handle_directory(subdir):
+                tr.test.test_template.generate_report(tr.test.name, subdir, tr.sol)
             else:
-                logging.warning(f"Skipping directory '{subdir}' for test '{test.name}'")
+                logging.warning(f"Skipping directory '{subdir}' for test '{tr.test.name}'")
