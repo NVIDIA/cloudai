@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from pydantic import BaseModel, ConfigDict
 
@@ -34,9 +34,6 @@ class Test:
         cmd_args: Dict[str, str],
         extra_env_vars: Dict[str, str],
         extra_cmd_args: str,
-        sol: Optional[float] = None,
-        weight: float = 0.0,
-        ideal_perf: float = 1.0,
     ) -> None:
         """
         Initialize a Test instance.
@@ -48,11 +45,6 @@ class Test:
             cmd_args (Dict[str, str]): Command-line arguments for the test.
             extra_env_vars (Dict[str, str]): Extra environment variables.
             extra_cmd_args (str): Extra command-line arguments.
-            iterations (Union[int, str]): Total number of iterations to run the test. Can be an integer or 'infinite'
-                for endless iterations.
-            sol (Optional[float]): Speed-of-light performance for reference.
-            weight (float): The weight of this test in a test scenario, indicating its relative importance or priority.
-            ideal_perf (float): The ideal performance value for comparison.
         """
         self.name = name
         self.description = description
@@ -60,9 +52,6 @@ class Test:
         self.cmd_args = cmd_args
         self.extra_env_vars = extra_env_vars
         self.extra_cmd_args = extra_cmd_args
-        self.sol = sol
-        self.weight = weight
-        self.ideal_perf = ideal_perf
 
     def __repr__(self) -> str:
         """

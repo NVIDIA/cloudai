@@ -189,9 +189,6 @@ class TestScenarioParser:
             cmd_args=copy.deepcopy(original_test.cmd_args),
             extra_env_vars=copy.deepcopy(original_test.extra_env_vars),
             extra_cmd_args=original_test.extra_cmd_args,
-            sol=test_info.sol,
-            weight=test_info.weight * normalized_weight,
-            ideal_perf=test_info.ideal_perf,
         )
 
         tr = TestRun(
@@ -201,5 +198,8 @@ class TestScenarioParser:
             iterations=test_info.iterations,
             nodes=test_info.nodes,
             time_limit=test_info.time_limit,
+            sol=test_info.sol,
+            weight=test_info.weight * normalized_weight,
+            ideal_perf=test_info.ideal_perf,
         )
         return tr
