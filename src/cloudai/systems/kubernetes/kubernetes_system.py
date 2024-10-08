@@ -17,7 +17,7 @@
 import logging
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional, cast
 
 from kubernetes import client, config
 from kubernetes.client import ApiException, CustomObjectsApi, V1DeleteOptions, V1Job
@@ -37,7 +37,6 @@ class KubernetesSystem(BaseModel, System):
         output_path (Path): Path to the output directory.
         kube_config_path (Path): Path to the Kubernetes config file.
         default_namespace (str): The default Kubernetes namespace for jobs.
-        default_image (str): Default Docker image to be used for jobs.
         scheduler (str): The scheduler type, default is "kubernetes".
         global_env_vars (Dict[str, Any]): Global environment variables to be passed to jobs.
         monitor_interval (int): Time interval to monitor jobs, in seconds.
@@ -53,7 +52,6 @@ class KubernetesSystem(BaseModel, System):
     output_path: Path
     kube_config_path: Path
     default_namespace: str
-    default_image: str
     scheduler: str = "kubernetes"
     global_env_vars: Dict[str, Any] = {}
     monitor_interval: int = 1
@@ -117,8 +115,7 @@ class KubernetesSystem(BaseModel, System):
             f"System Name: {self.name}\n"
             f"Scheduler Type: {self.scheduler}\n"
             f"Kube Config Path: {self.kube_config_path}\n"
-            f"Default Namespace: {self.default_namespace}\n"
-            f"Default Docker Image: {self.default_image}"
+            f"Default Namespace: {self.default_namespace}"
         )
 
     def update(self) -> None:
@@ -140,7 +137,7 @@ class KubernetesSystem(BaseModel, System):
             bool: True if the job is running, False otherwise.
         """
         k_job: KubernetesJob = cast(KubernetesJob, job)
-        return self._is_job_running(k_job.namespace, k_job.name, k_job.kind)
+        return self._is_job_running(k_job.name, k_job.kind)
 
     def is_job_completed(self, job: BaseJob) -> bool:
         """
@@ -153,29 +150,25 @@ class KubernetesSystem(BaseModel, System):
             bool: True if the job is completed, False otherwise.
         """
         k_job: KubernetesJob = cast(KubernetesJob, job)
-        return not self._is_job_running(k_job.namespace, k_job.name, k_job.kind)
+        return not self._is_job_running(k_job.name, k_job.kind)
 
-    def _is_job_running(self, job_namespace: str, job_name: str, job_kind: str) -> bool:
+    def _is_job_running(self, job_name: str, job_kind: str) -> bool:
         """
         Check if a job is currently running.
 
         Args:
-            job_namespace (str): The namespace of the job.
             job_name (str): The name of the job.
             job_kind (str): The kind of the job ('MPIJob' or 'Job').
 
         Returns:
             bool: True if the job is running, False if the job has completed or is not found.
         """
-        logging.debug(
-            f"Checking for job '{job_name}' of kind '{job_kind}' in namespace '{job_namespace}' to determine if "
-            "it is running."
-        )
+        logging.debug(f"Checking for job '{job_name}' of kind '{job_kind}' to determine if it is running.")
 
         if "mpijob" in job_kind.lower():
-            return self._is_mpijob_running(job_namespace, job_name)
+            return self._is_mpijob_running(job_name)
         elif "job" in job_kind.lower():
-            return self._is_batch_job_running(job_namespace, job_name)
+            return self._is_batch_job_running(job_name)
         else:
             error_message = (
                 f"Unsupported job kind: '{job_kind}'. Supported kinds are 'MPIJob' for MPI workloads and 'Job' for "
@@ -184,12 +177,11 @@ class KubernetesSystem(BaseModel, System):
             logging.error(error_message)
             raise ValueError(error_message)
 
-    def _is_mpijob_running(self, job_namespace: str, job_name: str) -> bool:
+    def _is_mpijob_running(self, job_name: str) -> bool:
         """
         Check if an MPIJob is currently running.
 
         Args:
-            job_namespace (str): The namespace of the MPIJob.
             job_name (str): The name of the MPIJob.
 
         Returns:
@@ -197,7 +189,11 @@ class KubernetesSystem(BaseModel, System):
         """
         try:
             mpijob = self.custom_objects_api.get_namespaced_custom_object(
-                group="kubeflow.org", version="v2beta1", namespace=job_namespace, plural="mpijobs", name=job_name
+                group="kubeflow.org",
+                version="v2beta1",
+                namespace=self.default_namespace,
+                plural="mpijobs",
+                name=job_name,
             )
 
             assert isinstance(mpijob, dict)
@@ -222,38 +218,32 @@ class KubernetesSystem(BaseModel, System):
 
         except ApiException as e:
             if e.status == 404:
-                logging.debug(
-                    f"MPIJob '{job_name}' not found in namespace '{job_namespace}'. It may have completed and been "
-                    "removed from the system."
-                )
+                logging.debug(f"MPIJob '{job_name}' not found. It may have completed and been removed from the system.")
                 return False
             else:
                 error_message = (
-                    f"Error occurred while retrieving status for MPIJob '{job_name}' in namespace '{job_namespace}'. "
+                    f"Error occurred while retrieving status for MPIJob '{job_name}' "
                     f"Error code: {e.status}. Message: {e.reason}. Please check the job name, namespace, and "
                     "Kubernetes API server."
                 )
                 logging.error(error_message)
                 raise
 
-    def _is_batch_job_running(self, job_namespace: str, job_name: str) -> bool:
+    def _is_batch_job_running(self, job_name: str) -> bool:
         """
         Check if a batch job is currently running.
 
         Args:
-            job_namespace (str): The namespace of the batch job.
             job_name (str): The name of the batch job.
 
         Returns:
             bool: True if the batch job is running, False if the job has completed or is not found.
         """
         try:
-            k8s_job: Any = self.batch_v1.read_namespaced_job_status(name=job_name, namespace=job_namespace)
+            k8s_job: Any = self.batch_v1.read_namespaced_job_status(name=job_name, namespace=self.default_namespace)
 
             if not (hasattr(k8s_job, "status") and hasattr(k8s_job.status, "conditions")):
-                logging.debug(
-                    f"Job '{job_name}' in namespace '{job_namespace}' does not have expected status attributes."
-                )
+                logging.debug(f"Job '{job_name}' does not have expected status attributes.")
                 return False
 
             conditions = k8s_job.status.conditions or []
@@ -273,16 +263,13 @@ class KubernetesSystem(BaseModel, System):
         except ApiException as e:
             if e.status == 404:
                 logging.debug(
-                    f"Batch job '{job_name}' not found in namespace '{job_namespace}'."
-                    "It may have completed and been removed from the system."
+                    f"Batch job '{job_name}' not found." "It may have completed and been removed from the system."
                 )
                 return False
             else:
                 logging.error(
-                    f"Error occurred while retrieving status for batch job '{job_name}' in namespace "
-                    "'{job_namespace}'."
-                    f"Error code: {e.status}. Message: {e.reason}. Please check the job name, namespace, "
-                    "and Kubernetes API server."
+                    f"Error occurred while retrieving status for batch job '{job_name}'."
+                    f"Error code: {e.status}. Message: {e.reason}. Please check the job name and Kubernetes API server."
                 )
                 raise
 
@@ -294,21 +281,20 @@ class KubernetesSystem(BaseModel, System):
             job (BaseJob): The job to be terminated.
         """
         k_job: KubernetesJob = cast(KubernetesJob, job)
-        self.delete_job(k_job.namespace, k_job.name, k_job.kind)
+        self.delete_job(k_job.name, k_job.kind)
 
-    def delete_job(self, namespace: str, job_name: str, job_kind: str) -> None:
+    def delete_job(self, job_name: str, job_kind: str) -> None:
         """
-        Delete a job in the specified namespace.
+        Delete a job.
 
         Args:
-            namespace (str): The namespace of the job.
             job_name (str): The name of the job.
             job_kind (str): The kind of the job ('MPIJob' or 'Job').
         """
         if "mpijob" in job_kind.lower():
-            self._delete_mpi_job(namespace, job_name)
+            self._delete_mpi_job(job_name)
         elif "job" in job_kind.lower():
-            self._delete_batch_job(namespace, job_name)
+            self._delete_batch_job(job_name)
         else:
             error_message = (
                 f"Unsupported job kind: '{job_kind}'. Supported kinds are 'MPIJob' for MPI workloads and 'Job' for "
@@ -317,57 +303,53 @@ class KubernetesSystem(BaseModel, System):
             logging.error(error_message)
             raise ValueError(error_message)
 
-    def _delete_mpi_job(self, namespace: str, job_name: str) -> None:
+    def _delete_mpi_job(self, job_name: str) -> None:
         """
-        Delete an MPIJob in the specified namespace.
+        Delete an MPIJob.
 
         Args:
-            namespace (str): The namespace of the job.
             job_name (str): The name of the job.
         """
-        logging.debug(f"Deleting MPIJob '{job_name}' in namespace '{namespace}'")
+        logging.debug(f"Deleting MPIJob '{job_name}'")
         try:
             self.custom_objects_api.delete_namespaced_custom_object(
                 group="kubeflow.org",
                 version="v2beta1",
-                namespace=namespace,
+                namespace=self.default_namespace,
                 plural="mpijobs",
                 name=job_name,
                 body=V1DeleteOptions(propagation_policy="Foreground", grace_period_seconds=5),
             )
-            logging.debug(f"MPIJob '{job_name}' deleted successfully in namespace '{namespace}'")
+            logging.debug(f"MPIJob '{job_name}' deleted successfully")
         except ApiException as e:
             if e.status == 404:
-                logging.debug(
-                    f"MPIJob '{job_name}' not found in namespace '{namespace}'. " "It may have already been deleted."
-                )
+                logging.debug(f"MPIJob '{job_name}' not found. " "It may have already been deleted.")
             else:
                 logging.error(
-                    f"An error occurred while attempting to delete MPIJob '{job_name}' in namespace '{namespace}'. "
-                    f"Error code: {e.status}. Message: {e.reason}. Please verify the job name, namespace, "
-                    "and Kubernetes API server."
+                    f"An error occurred while attempting to delete MPIJob '{job_name}'. "
+                    f"Error code: {e.status}. Message: {e.reason}. "
+                    "Please verify the job name and Kubernetes API server."
                 )
                 raise
 
-    def _delete_batch_job(self, namespace: str, job_name: str) -> None:
+    def _delete_batch_job(self, job_name: str) -> None:
         """
-        Delete a batch job in the specified namespace.
+        Delete a batch job.
 
         Args:
-            namespace (str): The namespace of the job.
             job_name (str): The name of the job.
         """
-        logging.debug(f"Deleting batch job '{job_name}' in namespace '{namespace}'")
+        logging.debug(f"Deleting batch job '{job_name}'")
         api_response = self.batch_v1.delete_namespaced_job(
             name=job_name,
-            namespace=namespace,
+            namespace=self.default_namespace,
             body=V1DeleteOptions(propagation_policy="Foreground", grace_period_seconds=5),
         )
         api_response = cast(V1Job, api_response)
 
         logging.debug(f"Batch job '{job_name}' deleted with status: {api_response.status}")
 
-    def create_job(self, job_spec: Dict[Any, Any], timeout: int = 60, interval: int = 1) -> Tuple[str, str]:
+    def create_job(self, job_spec: Dict[Any, Any], timeout: int = 60, interval: int = 1) -> str:
         """
         Create a job in the Kubernetes system in a blocking manner.
 
@@ -377,36 +359,35 @@ class KubernetesSystem(BaseModel, System):
             interval (int): The time to wait between checks, in seconds.
 
         Returns:
-            Tuple[str, str]: The job name and namespace.
+            str: The job name.
 
         Raises:
             ValueError: If the job specification does not contain a valid 'kind' field.
             TimeoutError: If the job is not observable within the timeout period.
         """
         logging.debug(f"Creating job with spec: {job_spec}")
-        job_name, namespace = self._create_job(self.default_namespace, job_spec)
+        job_name = self._create_job(job_spec)
 
         # Wait for the job to be observable by Kubernetes
         start_time = time.time()
         while time.time() - start_time < timeout:
-            if self._is_job_observable(namespace, job_name, job_spec.get("kind", "")):
-                logging.debug(f"Job '{job_name}' is now observable in namespace '{namespace}'.")
-                return job_name, namespace
-            logging.debug(f"Waiting for job '{job_name}' to become observable in namespace '{namespace}'...")
+            if self._is_job_observable(job_name, job_spec.get("kind", "")):
+                logging.debug(f"Job '{job_name}' is now observable.")
+                return job_name
+            logging.debug(f"Waiting for job '{job_name}' to become observable...")
             time.sleep(interval)
 
-        raise TimeoutError(f"Job '{job_name}' in namespace '{namespace}' was not observable within {timeout} seconds.")
+        raise TimeoutError(f"Job '{job_name}' was not observable within {timeout} seconds.")
 
-    def _create_job(self, namespace: str, job_spec: Dict[Any, Any]) -> Tuple[str, str]:
+    def _create_job(self, job_spec: Dict[Any, Any]) -> str:
         """
-        Submit a job to the specified namespace.
+        Submit a job.
 
         Args:
-            namespace (str): The namespace where the job will be created.
             job_spec (Dict[Any, Any]): The job specification.
 
         Returns:
-            Tuple[str, str]: The job name and namespace.
+            str: The job name.
 
         Raises:
             ValueError: If the job specification does not contain a valid 'kind' field.
@@ -415,9 +396,9 @@ class KubernetesSystem(BaseModel, System):
         kind = job_spec.get("kind", "").lower()
 
         if "mpijob" in kind:
-            return self._create_mpi_job(namespace, job_spec)
+            return self._create_mpi_job(job_spec)
         elif ("batch" in api_version) and ("job" in kind):
-            return self._create_batch_job(namespace, job_spec)
+            return self._create_batch_job(job_spec)
         else:
             error_message = (
                 f"Unsupported job kind: '{job_spec.get('kind')}'.\n"
@@ -428,105 +409,97 @@ class KubernetesSystem(BaseModel, System):
             logging.error(error_message)
             raise ValueError(error_message)
 
-    def _create_batch_job(self, namespace: str, job_spec: Dict[Any, Any]) -> Tuple[str, str]:
+    def _create_batch_job(self, job_spec: Dict[Any, Any]) -> str:
         """
-        Submit a batch job to the specified namespace.
+        Submit a batch job.
 
         Args:
-            namespace (str): The namespace where the job will be created.
             job_spec (Dict[Any, Any]): The job specification.
 
         Returns:
-            Tuple[str, str]: The job name and namespace.
+            str: The job name.
         """
-        logging.debug(f"Creating job in namespace '{namespace}'")
-        api_response = self.batch_v1.create_namespaced_job(body=job_spec, namespace=namespace)
+        api_response = self.batch_v1.create_namespaced_job(body=job_spec, namespace=self.default_namespace)
 
         if not isinstance(api_response, V1Job) or api_response.metadata is None:
             raise ValueError("Job creation failed or returned an unexpected type")
 
         job_name: str = api_response.metadata.name
-        job_namespace: str = api_response.metadata.namespace
         logging.debug(f"Job '{job_name}' created with status: {api_response.status}")
-        return job_name, job_namespace
+        return job_name
 
-    def _create_mpi_job(self, namespace: str, job_spec: Dict[Any, Any]) -> Tuple[str, str]:
+    def _create_mpi_job(self, job_spec: Dict[Any, Any]) -> str:
         """
-        Submit an MPIJob to the specified namespace.
+        Submit an MPIJob.
 
         Args:
-            namespace (str): The namespace where the MPIJob will be created.
             job_spec (Dict[Any, Any]): The MPIJob specification.
 
         Returns:
-            Tuple[str, str]: The job name and namespace.
+            str: The job name.
         """
-        logging.debug(f"Creating MPIJob in namespace '{namespace}'")
         api_response = self.custom_objects_api.create_namespaced_custom_object(
             group="kubeflow.org",
             version="v2beta1",
-            namespace=namespace,
+            namespace=self.default_namespace,
             plural="mpijobs",
             body=job_spec,
         )
 
         job_name: str = api_response["metadata"]["name"]
-        job_namespace: str = api_response["metadata"]["namespace"]
         logging.debug(f"MPIJob '{job_name}' created with status: {api_response.get('status')}")
-        return job_name, job_namespace
+        return job_name
 
-    def _is_job_observable(self, namespace: str, job_name: str, job_kind: str) -> bool:
+    def _is_job_observable(self, job_name: str, job_kind: str) -> bool:
         """
         Check if a job is observable by the Kubernetes client.
 
         Args:
-            namespace (str): The namespace of the job.
             job_name (str): The name of the job.
             job_kind (str): The kind of the job (e.g., 'Job', 'MPIJob').
 
         Returns:
             bool: True if the job is observable, False otherwise.
         """
-        logging.debug(f"Checking if job '{job_name}' of kind '{job_kind}' in namespace '{namespace}' is observable.")
+        logging.debug(f"Checking if job '{job_name}' of kind '{job_kind}' is observable.")
 
         if "mpijob" in job_kind.lower():
-            return self._is_mpijob_observable(namespace, job_name)
+            return self._is_mpijob_observable(job_name)
         elif "job" in job_kind.lower():
-            return self._is_batch_job_observable(namespace, job_name)
+            return self._is_batch_job_observable(job_name)
         else:
             logging.error(f"Unsupported job kind: '{job_kind}'")
             return False
 
-    def _is_mpijob_observable(self, namespace: str, job_name: str) -> bool:
+    def _is_mpijob_observable(self, job_name: str) -> bool:
         """
         Check if an MPIJob is observable by the Kubernetes client.
 
         Args:
-            namespace (str): The namespace of the MPIJob.
             job_name (str): The name of the MPIJob.
 
         Returns:
             bool: True if the MPIJob is observable, False otherwise.
         """
-        logging.debug(f"Attempting to observe MPIJob '{job_name}' in namespace '{namespace}'.")
+        logging.debug(f"Attempting to observe MPIJob '{job_name}'.")
         try:
             api_instance = CustomObjectsApi()
             mpijob = api_instance.get_namespaced_custom_object(
                 group="kubeflow.org",
                 version="v2beta1",
-                namespace=namespace,
+                namespace=self.default_namespace,
                 plural="mpijobs",
                 name=job_name,
             )
             if mpijob:
-                logging.debug(f"MPIJob '{job_name}' found in namespace '{namespace}' with details: {mpijob}.")
+                logging.debug(f"MPIJob '{job_name}' found with details: {mpijob}.")
                 return True
             else:
-                logging.debug(f"MPIJob '{job_name}' in namespace '{namespace}' is not yet observable.")
+                logging.debug(f"MPIJob '{job_name}' is not yet observable.")
                 return False
         except ApiException as e:
             if e.status == 404:
-                logging.debug(f"MPIJob '{job_name}' not found in namespace '{namespace}'.")
+                logging.debug(f"MPIJob '{job_name}' not found.")
                 return False
             else:
                 logging.error(
@@ -535,23 +508,22 @@ class KubernetesSystem(BaseModel, System):
                 )
                 raise
 
-    def _is_batch_job_observable(self, namespace: str, job_name: str) -> bool:
+    def _is_batch_job_observable(self, job_name: str) -> bool:
         """
         Check if a batch job is observable by the Kubernetes client.
 
         Args:
-            namespace (str): The namespace of the batch job.
             job_name (str): The name of the batch job.
 
         Returns:
             bool: True if the batch job is observable, False otherwise.
         """
-        logging.debug(f"Attempting to observe batch job '{job_name}' in namespace '{namespace}'.")
+        logging.debug(f"Attempting to observe batch job '{job_name}'.")
         try:
-            return self.batch_v1.read_namespaced_job_status(name=job_name, namespace=namespace) is not None
+            return self.batch_v1.read_namespaced_job_status(name=job_name, namespace=self.default_namespace) is not None
         except ApiException as e:
             if e.status == 404:
-                logging.debug(f"Batch job '{job_name}' not found in namespace '{namespace}'.")
+                logging.debug(f"Batch job '{job_name}' not found.")
                 return False
             else:
                 logging.error(
@@ -584,49 +556,17 @@ class KubernetesSystem(BaseModel, System):
             logging.debug(f"Labeling node '{node}' with group '{name}'")
             self.core_v1.patch_node(node, body)
 
-    def create_namespace(self, namespace: str) -> None:
-        """
-        Create a new namespace in the Kubernetes cluster.
-
-        Args:
-            namespace (str): The name of the namespace to create.
-        """
-        body = client.V1Namespace(metadata=client.V1ObjectMeta(name=namespace))
-        self.core_v1.create_namespace(body=body)
-        logging.debug(f"Namespace '{namespace}' created successfully.")
-
-    def delete_namespace(self, namespace: str) -> None:
-        """
-        Delete an existing namespace from the Kubernetes cluster.
-
-        Args:
-            namespace (str): The name of the namespace to delete.
-        """
-        self.core_v1.delete_namespace(name=namespace, body=client.V1DeleteOptions())
-        logging.debug(f"Namespace '{namespace}' deleted successfully.")
-
-    def list_namespaces(self) -> List[str]:
-        """
-        List all namespaces in the Kubernetes cluster.
-
-        Returns
-            List[str]: A list of namespace names.
-        """
-        namespaces = self.core_v1.list_namespace().items
-        return [ns.metadata.name for ns in namespaces]
-
-    def store_logs_for_job(self, namespace: str, job_name: str, output_dir: Path) -> None:
+    def store_logs_for_job(self, job_name: str, output_dir: Path) -> None:
         """
         Retrieve and store logs for all pods associated with a given job.
 
         Args:
-            namespace (str): The namespace where the job is running.
             job_name (str): The name of the job.
             output_dir (Path): The directory where logs will be saved.
         """
-        pod_names = self.get_pod_names_for_job(namespace, job_name)
+        pod_names = self.get_pod_names_for_job(job_name)
         if not pod_names:
-            logging.warning(f"No pods found for job '{job_name}' in namespace '{namespace}'")
+            logging.warning(f"No pods found for job '{job_name}'")
             return
 
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -636,7 +576,7 @@ class KubernetesSystem(BaseModel, System):
         with stdout_file_path.open("w") as stdout_file:
             for pod_name in pod_names:
                 try:
-                    logs = self.core_v1.read_namespaced_pod_log(name=pod_name, namespace=namespace)
+                    logs = self.core_v1.read_namespaced_pod_log(name=pod_name, namespace=self.default_namespace)
 
                     log_file_path = output_dir / f"{pod_name}.txt"
                     with log_file_path.open("w") as log_file:
@@ -646,16 +586,15 @@ class KubernetesSystem(BaseModel, System):
                     stdout_file.write(logs + "\n")
 
                 except client.ApiException as e:
-                    logging.error(f"Error retrieving logs for pod '{pod_name}' in namespace '{namespace}': {e}")
+                    logging.error(f"Error retrieving logs for pod '{pod_name}': {e}")
 
         logging.info(f"All logs concatenated and saved to '{stdout_file_path}'")
 
-    def get_pod_names_for_job(self, namespace: str, job_name: str) -> List[str]:
+    def get_pod_names_for_job(self, job_name: str) -> List[str]:
         """
         Retrieve pod names associated with a given job.
 
         Args:
-            namespace (str): The namespace where the job is running.
             job_name (str): The name of the job.
 
         Returns:
@@ -663,10 +602,10 @@ class KubernetesSystem(BaseModel, System):
         """
         pod_names = []
         try:
-            pods = self.core_v1.list_namespaced_pod(namespace=namespace)
+            pods = self.core_v1.list_namespaced_pod(namespace=self.default_namespace)
             for pod in pods.items:
                 if pod.metadata.labels and pod.metadata.labels.get("training.kubeflow.org/job-name") == job_name:
                     pod_names.append(pod.metadata.name)
         except client.ApiException as e:
-            logging.error(f"Error retrieving pods for job '{job_name}' in namespace '{namespace}': {e}")
+            logging.error(f"Error retrieving pods for job '{job_name}': {e}")
         return pod_names
