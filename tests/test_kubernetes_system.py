@@ -64,7 +64,6 @@ def k8s_system(kube_config_tempfile):
         "output_path": "/fake/output/path",
         "kube_config_path": kube_config_tempfile,
         "default_namespace": "default",
-        "default_image": "test-image",
         "scheduler": "kubernetes",
         "global_env_vars": {},
         "monitor_interval": 1,
@@ -85,7 +84,6 @@ def test_initialization(k8s_system):
     assert k8s_system.output_path == Path("/fake/output/path")
     assert k8s_system.kube_config_path.exists()
     assert k8s_system.default_namespace == "default"
-    assert k8s_system.default_image == "test-image"
     assert k8s_system.scheduler == "kubernetes"
     assert k8s_system.global_env_vars == {}
     assert k8s_system.monitor_interval == 1

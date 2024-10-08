@@ -37,7 +37,6 @@ class KubernetesSystem(BaseModel, System):
         output_path (Path): Path to the output directory.
         kube_config_path (Path): Path to the Kubernetes config file.
         default_namespace (str): The default Kubernetes namespace for jobs.
-        default_image (str): Default Docker image to be used for jobs.
         scheduler (str): The scheduler type, default is "kubernetes".
         global_env_vars (Dict[str, Any]): Global environment variables to be passed to jobs.
         monitor_interval (int): Time interval to monitor jobs, in seconds.
@@ -53,7 +52,6 @@ class KubernetesSystem(BaseModel, System):
     output_path: Path
     kube_config_path: Path
     default_namespace: str
-    default_image: str
     scheduler: str = "kubernetes"
     global_env_vars: Dict[str, Any] = {}
     monitor_interval: int = 1
@@ -117,8 +115,7 @@ class KubernetesSystem(BaseModel, System):
             f"System Name: {self.name}\n"
             f"Scheduler Type: {self.scheduler}\n"
             f"Kube Config Path: {self.kube_config_path}\n"
-            f"Default Namespace: {self.default_namespace}\n"
-            f"Default Docker Image: {self.default_image}"
+            f"Default Namespace: {self.default_namespace}"
         )
 
     def update(self) -> None:
