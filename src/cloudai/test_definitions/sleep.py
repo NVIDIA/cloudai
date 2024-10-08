@@ -21,6 +21,7 @@ from cloudai import CmdArgs, TestDefinition
 class SleepCmdArgs(CmdArgs):
     """Sleep test command arguments."""
 
+    docker_image_url: str = "ubuntu:22.04"
     seconds: int = 5
 
 
