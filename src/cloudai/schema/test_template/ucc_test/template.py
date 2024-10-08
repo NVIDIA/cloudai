@@ -18,4 +18,4 @@ from cloudai import TestTemplate
 
 
 class UCCTest(TestTemplate):
-    """ Test template for UCC tests. """
+    """Test template for UCC tests."""
