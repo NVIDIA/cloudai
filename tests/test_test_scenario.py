@@ -19,7 +19,8 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
-from cloudai import Test, TestRun, TestScenarioParser, TestScenarioParsingError
+from cloudai import Test, TestDefinition, TestRun, TestScenarioParser, TestScenarioParsingError
+from cloudai._core.test import CmdArgs
 from cloudai._core.test_scenario_parser import _TestScenarioTOML
 
 
@@ -31,7 +32,15 @@ def test_scenario_parser(tmp_path: Path) -> TestScenarioParser:
 
 @pytest.fixture
 def test() -> Test:
-    return Test(name="t1", description="desc", test_template=Mock(), cmd_args={}, extra_cmd_args="", extra_env_vars={})
+    return Test(
+        test_definition=TestDefinition(
+            name="t1",
+            description="desc1",
+            test_template_name="tt",
+            cmd_args=CmdArgs(),
+        ),
+        test_template=Mock(),
+    )
 
 
 def test_single_test_case(test: Test, test_scenario_parser: TestScenarioParser) -> None:
@@ -86,7 +95,6 @@ def test_with_time_limit(test: Test, test_scenario_parser: TestScenarioParser) -
 
 def test_two_independent_cases(test: Test, test_scenario_parser: TestScenarioParser) -> None:
     t1, t2 = test, test
-    t2.name = "t2"
 
     test_scenario_parser.test_mapping = {"nccl": t1, "nccl2": t2}
     test_scenario = test_scenario_parser._parse_data(
@@ -126,7 +134,6 @@ def test_cant_depends_on_itself() -> None:
 
 def test_two_dependent_cases(test: Test, test_scenario_parser: TestScenarioParser) -> None:
     t1, t2 = test, test
-    t2.name = "t2"
 
     test_scenario_parser.test_mapping = {"nccl": t1, "nccl2": t2}
     test_scenario = test_scenario_parser._parse_data(

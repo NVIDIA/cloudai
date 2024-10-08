@@ -41,14 +41,9 @@ class MockCommandShell(CommandShell):
 
 class MockTest(Test):
     def __init__(self, section_name):
-        self.name = "Mock Test"
-        self.description = "A mock test description"
         self.test_template = MagicMock(spec=TestTemplate)
         self.test_template.get_job_id.return_value = None
         self.env_vars = {}
-        self.cmd_args = {}
-        self.extra_env_vars = {}
-        self.extra_cmd_args = ""
         self.section_name = "Tests.1"
         self.current_iteration = 0
 

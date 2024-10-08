@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import logging
 from typing import Any, Dict, Literal, Optional
 
@@ -182,14 +181,7 @@ class TestScenarioParser:
 
         original_test = self.test_mapping[test_info.test_name]
 
-        test = Test(
-            name=original_test.name,
-            description=original_test.description,
-            test_template=original_test.test_template,
-            cmd_args=copy.deepcopy(original_test.cmd_args),
-            extra_env_vars=copy.deepcopy(original_test.extra_env_vars),
-            extra_cmd_args=original_test.extra_cmd_args,
-        )
+        test = Test(test_definition=original_test.test_definition, test_template=original_test.test_template)
 
         tr = TestRun(
             test_info.id,

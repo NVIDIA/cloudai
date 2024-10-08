@@ -26,32 +26,16 @@ class Test:
 
     __test__ = False
 
-    def __init__(
-        self,
-        name: str,
-        description: str,
-        test_template: TestTemplate,
-        cmd_args: Dict[str, str],
-        extra_env_vars: Dict[str, str],
-        extra_cmd_args: str,
-    ) -> None:
+    def __init__(self, test_definition: "TestDefinition", test_template: TestTemplate) -> None:
         """
         Initialize a Test instance.
 
         Args:
-            name (str): Name of the test.
-            description (str): Description of the test.
-            test_template (TestTemplate): Test template object.
-            cmd_args (Dict[str, str]): Command-line arguments for the test.
-            extra_env_vars (Dict[str, str]): Extra environment variables.
-            extra_cmd_args (str): Extra command-line arguments.
+            test_definition (TestDefinition): The test definition object.
+            test_template (TestTemplate): The test template object
         """
-        self.name = name
-        self.description = description
         self.test_template = test_template
-        self.cmd_args = cmd_args
-        self.extra_env_vars = extra_env_vars
-        self.extra_cmd_args = extra_cmd_args
+        self.test_definition = test_definition
 
     def __repr__(self) -> str:
         """
@@ -67,6 +51,26 @@ class Test:
             f"extra_env_vars={self.extra_env_vars}, "
             f"extra_cmd_args={self.extra_cmd_args}"
         )
+
+    @property
+    def name(self) -> str:
+        return self.test_definition.name
+
+    @property
+    def description(self) -> str:
+        return self.test_definition.description
+
+    @property
+    def cmd_args(self) -> Dict[str, str]:
+        return self.test_definition.cmd_args_dict
+
+    @property
+    def extra_cmd_args(self) -> str:
+        return self.test_definition.extra_args_str
+
+    @property
+    def extra_env_vars(self) -> Dict[str, str]:
+        return self.test_definition.extra_env_vars
 
 
 class CmdArgs(BaseModel):

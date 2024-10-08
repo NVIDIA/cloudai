@@ -52,9 +52,6 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         self._validate_data_config()
 
-        if self.final_cmd_args.get("training.model.data.data_impl") == "mock":
-            self.final_cmd_args.pop("data_dir", None)
-
         cmd_args_str = self._generate_cmd_args_str(self.final_cmd_args, nodes)
 
         py_bin = (
