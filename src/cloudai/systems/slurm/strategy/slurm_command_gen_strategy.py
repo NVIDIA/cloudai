@@ -162,14 +162,14 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return batch_script_content
 
     def _write_sbatch_script(
-        self, args: Dict[str, Any], env_vars_str: str, srun_command: str, output_path: Path
+        self, args: Dict[str, Any], env_vars: Dict[str, str], srun_command: str, output_path: Path
     ) -> str:
         """
         Write the batch script for Slurm submission and return the sbatch command.
 
         Args:
             args (Dict[str, Any]): Arguments including job settings.
-            env_vars_str (str): Environment variables.
+            env_vars (env_vars: Dict[str, str]): Environment variables.
             srun_command (str): srun command.
             output_path (Path): Output directory for script and logs.
 
@@ -184,6 +184,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         self._append_sbatch_directives(batch_script_content, args, output_path)
 
+        env_vars_str = self._format_env_vars(env_vars)
         batch_script_content.extend([env_vars_str, "", srun_command])
 
         batch_script_path = output_path / "cloudai_sbatch_script.sh"
