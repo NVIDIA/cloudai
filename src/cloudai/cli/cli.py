@@ -85,39 +85,8 @@ class CloudAICLI:
         return p
 
     def init_default_args(self) -> argparse.ArgumentParser:
-        for mode in {"install", "uninstall"}:
-            if mode not in self.DEFAULT_MODES:
-                continue
-
-            desc = "Prepare execution by setting up env and dependencies for the tests to run."
-            if mode == "uninstall":
-                desc = "Remove the installed dependencies."
-            self.add_command(
-                mode,
-                desc,
-                handle_install_and_uninstall,
-                system_config=True,
-                tests_dir=True,
-                test_scenario=None,
-                output_dir=False,
-            )
-
-        for mode in {"run", "dry-run"}:
-            if mode not in self.DEFAULT_MODES:
-                continue
-
-            desc = "Execute the test scenarios."
-            if mode == "dry-run":
-                desc = "Perform a dry-run of the test scenarios without executing them."
-            self.add_command(
-                mode,
-                desc,
-                handle_dry_run_and_run,
-                system_config=True,
-                tests_dir=True,
-                test_scenario=True,
-                output_dir=False,
-            )
+        self.add_install_and_uninstall()
+        self.add_run_and_dry_run()
 
         if "generate-report" in self.DEFAULT_MODES:
             p = self.add_command(
@@ -149,6 +118,42 @@ class CloudAICLI:
             p.add_argument("test_scenarios", help="Path to the test scenario file or directory.", type=Path)
 
         return self.parser
+
+    def add_run_and_dry_run(self):
+        for mode in {"run", "dry-run"}:
+            if mode not in self.DEFAULT_MODES:
+                continue
+
+            desc = "Execute the test scenarios."
+            if mode == "dry-run":
+                desc = "Perform a dry-run of the test scenarios without executing them."
+            self.add_command(
+                mode,
+                desc,
+                handle_dry_run_and_run,
+                system_config=True,
+                tests_dir=True,
+                test_scenario=True,
+                output_dir=False,
+            )
+
+    def add_install_and_uninstall(self):
+        for mode in {"install", "uninstall"}:
+            if mode not in self.DEFAULT_MODES:
+                continue
+
+            desc = "Prepare execution by setting up env and dependencies for the tests to run."
+            if mode == "uninstall":
+                desc = "Remove the installed dependencies."
+            self.add_command(
+                mode,
+                desc,
+                handle_install_and_uninstall,
+                system_config=True,
+                tests_dir=True,
+                test_scenario=None,
+                output_dir=False,
+            )
 
     def run(self) -> int:
         args = self.parser.parse_args()
