@@ -81,7 +81,7 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     Args:
         args (argparse.Namespace): The parsed command-line arguments.
     """
-    parser = Parser(args.system_config_path)
+    parser = Parser(args.system_config)
     system, tests, _ = parser.parse(args.tests_dir, None)
 
     if args.output_dir:

@@ -170,6 +170,22 @@ def test_add_command_all_required():
     )
 
 
+def test_real_uninstall():
+    cli = CloudAICLI()
+    cli.init_default_args()
+
+    args = cli.parser.parse_args(
+        [
+            "uninstall",
+            "--system-config",
+            "conf/common/system/example_slurm_cluster.toml",
+            "--tests-dir",
+            "conf/common/test",
+        ]
+    )
+    cli.handlers["uninstall"](args)
+
+
 class TestCLIDefaultModes:
     @pytest.fixture()
     def cli(self) -> CloudAICLI:
