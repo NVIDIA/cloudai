@@ -49,21 +49,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         srun_command = self.generate_srun_command(slurm_args, final_env_vars, cmd_args, tr.test.extra_cmd_args)
         return self._write_sbatch_script(slurm_args, final_env_vars, srun_command, tr.output_path)
 
-    def _handle_threshold_and_env(self, env_vars: Dict[str, str], cmd_args: Dict[str, Any], num_nodes: int):
-        """
-        Handle threshold and environment variable adjustments.
-
-        Args:
-            env_vars (Dict[str, str]): Environment variables.
-            cmd_args (Dict[str, str]): Command-line arguments.
-            num_nodes (int): Number of nodes to use.
-        """
-        combine_threshold_bytes = int(env_vars["COMBINE_THRESHOLD"])
-        per_gpu_combine_threshold = int(
-            combine_threshold_bytes / (int(cmd_args[f"{self.test_name}.setup_flags"]["gpus_per_node"]) * num_nodes)
-        )
-        env_vars["PER_GPU_COMBINE_THRESHOLD"] = str(per_gpu_combine_threshold)
-
     def _extract_test_name(self, cmd_args: Dict[str, Any]) -> str:
         """
         Extract the test name from the command-line arguments.
@@ -83,6 +68,21 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 if name.lower() in ["grok", "gpt", "nemotron"]:
                     return name.upper() if name.lower() == "gpt" else name.capitalize()
         return ""
+
+    def _handle_threshold_and_env(self, env_vars: Dict[str, str], cmd_args: Dict[str, Any], num_nodes: int):
+        """
+        Handle threshold and environment variable adjustments.
+
+        Args:
+            env_vars (Dict[str, str]): Environment variables.
+            cmd_args (Dict[str, str]): Command-line arguments.
+            num_nodes (int): Number of nodes to use.
+        """
+        combine_threshold_bytes = int(env_vars["COMBINE_THRESHOLD"])
+        per_gpu_combine_threshold = int(
+            combine_threshold_bytes / (int(cmd_args[f"{self.test_name}.setup_flags"]["gpus_per_node"]) * num_nodes)
+        )
+        env_vars["PER_GPU_COMBINE_THRESHOLD"] = str(per_gpu_combine_threshold)
 
     def _format_xla_flags(self, cmd_args: Dict[str, Any], stage: str) -> str:
         """
@@ -201,103 +201,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         full_command = "\n\n".join(commands)
 
         return full_command
-
-    def _generate_container_load_srun_command(self, slurm_args: Dict[str, Any]) -> str:
-        """
-        Generate an srun command to load a container using the specified image.
-
-        Args:
-            slurm_args (Dict[str, Any]): Slurm job settings, including the image path.
-
-        Returns:
-            str: The srun command.
-        """
-        container_name = "cont"
-        container_image = slurm_args.get("image_path")
-
-        return (
-            "srun \\\n"
-            "    --mpi=none \\\n"
-            f"    --container-image={container_image} \\\n"
-            f"    --container-name={container_name} \\\n"
-            "    true"
-        )
-
-    def _generate_pre_test_command(self, cmd_args: Dict[str, Any], output_path: Path, error_path: Path) -> str:
-        """
-        Generate the pre-test command for running a test.
-
-        This method constructs the pre-test command based on the command-line
-        arguments provided.
-
-        Args:
-            cmd_args (Dict[str, Any]): A dictionary containing command arguments.
-            output_path (Path): The path to the output file.
-            error_path (Path): The path to the error file.
-
-        Returns:
-            str: The generated pre-test command.
-        """
-        nccl_test = cmd_args.get("pre_test", {}).get("nccl_test", {})
-        pre_test_command_parts = [
-            "srun",
-            "--mpi=pmix",
-            f"-N {nccl_test.get('num_nodes', 2)}",
-            f"-o {output_path}",
-            f"-e {error_path}",
-            f"--container-image={nccl_test.get('docker_image_url', 'nvcr.io/nvidia/pytorch:24.02-py3')}",
-            f"/usr/local/bin/{nccl_test.get('subtest_name', 'all_gather_perf_mpi')}",
-            f"--nthreads {nccl_test.get('nthreads', 1)}",
-            f"--ngpus {nccl_test.get('ngpus', 1)}",
-            f"--minbytes {nccl_test.get('minbytes', '32M')}",
-            f"--maxbytes {nccl_test.get('maxbytes', '16G')}",
-            f"--stepbytes {nccl_test.get('stepbytes', '1M')}",
-            f"--op {nccl_test.get('op', 'sum')}",
-            f"--datatype {nccl_test.get('datatype', 'float')}",
-            f"--root {nccl_test.get('root', 0)}",
-            f"--iters {nccl_test.get('iters', 20)}",
-            f"--warmup_iters {nccl_test.get('warmup_iters', 5)}",
-            f"--agg_iters {nccl_test.get('agg_iters', 1)}",
-            f"--average {nccl_test.get('average', 1)}",
-            f"--parallel_init {nccl_test.get('parallel_init', 0)}",
-            f"--check {nccl_test.get('check', 1)}",
-            f"--blocking {nccl_test.get('blocking', 0)}",
-            f"--cudagraph {nccl_test.get('cudagraph', 0)}",
-            f"--stepfactor {nccl_test.get('stepfactor', 2)}",
-        ]
-        return " \\\n".join(pre_test_command_parts)
-
-    def _generate_pre_test_check_command(self, cmd_args: Dict[str, str], output_path: Path) -> str:
-        """
-        Generate the command for pre-test check.
-
-        This method generates the command that checks the output of the pre-test
-        to determine if the main test should be run.
-
-        Args:
-            cmd_args (Dict[str, str]): Command-line arguments for the job.
-            output_path (str): The path to the output file.
-
-        Returns:
-            str: The generated command for pre-test check.
-        """
-        directory_path = Path(output_path).parent
-        # Create the file pattern with wildcard
-        file_pattern = str(directory_path / "output_pretest-*.txt")
-        keyword = cmd_args.get("keyword", "Avg bus bandwidth")
-
-        script_lines = [
-            f'file_pattern="{file_pattern}"',
-            f'keyword="{keyword}"',
-            "",
-            "# Use grep to search for the keyword in the files",
-            'if grep -q "$keyword" $file_pattern; then',
-            "    keyword_found=true",
-            "fi",
-        ]
-
-        script = "\n".join(script_lines)
-        return script
 
     def _create_run_script(
         self,
@@ -481,4 +384,101 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return "\n".join(
             ["", 'if [ "$SLURM_NODEID" -eq 0 ] && [ "$SLURM_PROCID" -eq 0 ]; then', f"    {command}", "fi"]
+        )
+
+    def _generate_pre_test_command(self, cmd_args: Dict[str, Any], output_path: Path, error_path: Path) -> str:
+        """
+        Generate the pre-test command for running a test.
+
+        This method constructs the pre-test command based on the command-line
+        arguments provided.
+
+        Args:
+            cmd_args (Dict[str, Any]): A dictionary containing command arguments.
+            output_path (Path): The path to the output file.
+            error_path (Path): The path to the error file.
+
+        Returns:
+            str: The generated pre-test command.
+        """
+        nccl_test = cmd_args.get("pre_test", {}).get("nccl_test", {})
+        pre_test_command_parts = [
+            "srun",
+            "--mpi=pmix",
+            f"-N {nccl_test.get('num_nodes', 2)}",
+            f"-o {output_path}",
+            f"-e {error_path}",
+            f"--container-image={nccl_test.get('docker_image_url', 'nvcr.io/nvidia/pytorch:24.02-py3')}",
+            f"/usr/local/bin/{nccl_test.get('subtest_name', 'all_gather_perf_mpi')}",
+            f"--nthreads {nccl_test.get('nthreads', 1)}",
+            f"--ngpus {nccl_test.get('ngpus', 1)}",
+            f"--minbytes {nccl_test.get('minbytes', '32M')}",
+            f"--maxbytes {nccl_test.get('maxbytes', '16G')}",
+            f"--stepbytes {nccl_test.get('stepbytes', '1M')}",
+            f"--op {nccl_test.get('op', 'sum')}",
+            f"--datatype {nccl_test.get('datatype', 'float')}",
+            f"--root {nccl_test.get('root', 0)}",
+            f"--iters {nccl_test.get('iters', 20)}",
+            f"--warmup_iters {nccl_test.get('warmup_iters', 5)}",
+            f"--agg_iters {nccl_test.get('agg_iters', 1)}",
+            f"--average {nccl_test.get('average', 1)}",
+            f"--parallel_init {nccl_test.get('parallel_init', 0)}",
+            f"--check {nccl_test.get('check', 1)}",
+            f"--blocking {nccl_test.get('blocking', 0)}",
+            f"--cudagraph {nccl_test.get('cudagraph', 0)}",
+            f"--stepfactor {nccl_test.get('stepfactor', 2)}",
+        ]
+        return " \\\n".join(pre_test_command_parts)
+
+    def _generate_pre_test_check_command(self, cmd_args: Dict[str, str], output_path: Path) -> str:
+        """
+        Generate the command for pre-test check.
+
+        This method generates the command that checks the output of the pre-test
+        to determine if the main test should be run.
+
+        Args:
+            cmd_args (Dict[str, str]): Command-line arguments for the job.
+            output_path (str): The path to the output file.
+
+        Returns:
+            str: The generated command for pre-test check.
+        """
+        directory_path = Path(output_path).parent
+        # Create the file pattern with wildcard
+        file_pattern = str(directory_path / "output_pretest-*.txt")
+        keyword = cmd_args.get("keyword", "Avg bus bandwidth")
+
+        script_lines = [
+            f'file_pattern="{file_pattern}"',
+            f'keyword="{keyword}"',
+            "",
+            "# Use grep to search for the keyword in the files",
+            'if grep -q "$keyword" $file_pattern; then',
+            "    keyword_found=true",
+            "fi",
+        ]
+
+        script = "\n".join(script_lines)
+        return script
+
+    def _generate_container_load_srun_command(self, slurm_args: Dict[str, Any]) -> str:
+        """
+        Generate an srun command to load a container using the specified image.
+
+        Args:
+            slurm_args (Dict[str, Any]): Slurm job settings, including the image path.
+
+        Returns:
+            str: The srun command.
+        """
+        container_name = "cont"
+        container_image = slurm_args.get("image_path")
+
+        return (
+            "srun \\\n"
+            "    --mpi=none \\\n"
+            f"    --container-image={container_image} \\\n"
+            f"    --container-name={container_name} \\\n"
+            "    true"
         )
