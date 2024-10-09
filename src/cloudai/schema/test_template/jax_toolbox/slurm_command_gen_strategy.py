@@ -156,7 +156,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def generate_srun_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, Any], extra_cmd_args: str
     ) -> str:
-        self._create_run_script(slurm_args, env_vars, cmd_args, extra_cmd_args)
+        self._create_run_script(env_vars, cmd_args, extra_cmd_args)
 
         commands = []
 
@@ -200,7 +200,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _create_run_script(
         self,
-        slurm_args: Dict[str, Any],
         env_vars: Dict[str, str],
         cmd_args: Dict[str, Any],
         extra_cmd_args: str,
@@ -208,11 +207,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         Generate and write the run.sh script to the specified output directory.
 
-        The script configures environment variables, applies necessary command options, and executes the Python command
-        within the SLURM environment.
-
         Args:
-            slurm_args (Dict[str, Any]): SLURM arguments including the output path and other job-related settings.
             env_vars (Dict[str, str]): Environment variables.
             cmd_args (Dict[str, str]): Command-line arguments.
             extra_cmd_args (str): Additional command-line arguments to be included
@@ -221,26 +216,20 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         Returns:
             str: The path to the run.sh script that was created.
         """
-        test_name = self.test_name
-
         run_script_content = []
-        do_pgle = cmd_args.get(f"{test_name}.enable_pgle", True)
+        do_pgle = cmd_args.get(f"{self.test_name}.enable_pgle", True)
 
         if do_pgle:
             env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "profile")}"'
-            profile_content = self._script_content("profile", env_vars, cmd_args, extra_cmd_args)
-            run_script_content += profile_content
+            run_script_content += self._script_content("profile", env_vars, cmd_args, extra_cmd_args)
 
             env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
-            perf_content = self._script_content("perf", env_vars, cmd_args, extra_cmd_args)
-            run_script_content += perf_content
+            run_script_content += self._script_content("perf", env_vars, cmd_args, extra_cmd_args)
         else:
             cmd_args[f"{self.test_name}.perf"]["XLA_FLAGS"]["xla_gpu_pgle_profile_file_or_directory_path"] = '""'
             env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
-            perf_content = self._script_content("perf", env_vars, cmd_args, extra_cmd_args)
-            run_script_content += perf_content
+            run_script_content += self._script_content("perf", env_vars, cmd_args, extra_cmd_args)
 
-        # Write the combined script content to the run.sh file
         run_script_path = Path(cmd_args["output_path"]) / "run.sh"
         with open(run_script_path, "w") as run_file:
             run_file.write("\n".join(run_script_content))
