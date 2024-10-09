@@ -228,16 +228,16 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         if do_pgle:
             env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "profile")}"'
-            profile_content = self._script_content("profile", slurm_args, env_vars, cmd_args, extra_cmd_args)
+            profile_content = self._script_content("profile", env_vars, cmd_args, extra_cmd_args)
             run_script_content += profile_content
 
             env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
-            perf_content = self._script_content("perf", slurm_args, env_vars, cmd_args, extra_cmd_args)
+            perf_content = self._script_content("perf", env_vars, cmd_args, extra_cmd_args)
             run_script_content += perf_content
         else:
             cmd_args[f"{self.test_name}.perf"]["XLA_FLAGS"]["xla_gpu_pgle_profile_file_or_directory_path"] = '""'
             env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
-            perf_content = self._script_content("perf", slurm_args, env_vars, cmd_args, extra_cmd_args)
+            perf_content = self._script_content("perf", env_vars, cmd_args, extra_cmd_args)
             run_script_content += perf_content
 
         # Write the combined script content to the run.sh file
@@ -250,7 +250,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _script_content(
         self,
         stage: str,
-        slurm_args: Dict[str, Any],
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_cmd_args: str,
@@ -262,7 +261,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         Args:
             stage (str): The stage of the process ('profile' or 'perf').
-            slurm_args (Dict[str, Any]): SLURM job settings.
             env_vars (Dict[str, str]): Environment variables for the job.
             cmd_args (Dict[str, str]): Command-line arguments.
             extra_cmd_args (str): Additional command-line arguments.
