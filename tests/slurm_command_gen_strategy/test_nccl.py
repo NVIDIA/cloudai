@@ -14,38 +14,87 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Any, Dict, List
 
+import pytest
 from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
 
 
-class TestNCCLSlurmCommandGen:
-    def get_cmd(self, slurm_system: SlurmSystem, slurm_args: dict, cmd_args: dict) -> str:
-        return NcclTestSlurmCommandGenStrategy(slurm_system, {}).generate_srun_command(slurm_args, {}, cmd_args, "")
+class TestNcclTestSlurmCommandGenStrategy:
+    @pytest.fixture
+    def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> NcclTestSlurmCommandGenStrategy:
+        return NcclTestSlurmCommandGenStrategy(slurm_system, {})
 
-    def test_only_mandatory(self, slurm_system: SlurmSystem) -> None:
-        slurm_args = {"image_path": "fake_image_path"}
-        cmd_args = {"subtest_name": "fake_subtest_name"}
-        cmd = self.get_cmd(slurm_system, slurm_args, cmd_args)
-        assert cmd == " \\\n".join(
-            [
-                "srun",
-                f"--mpi={slurm_system.mpi}",
-                f"--container-image={slurm_args['image_path']}",
-                f"/usr/local/bin/{cmd_args['subtest_name']}",
-            ]
-        )
+    @pytest.mark.parametrize(
+        "job_name_prefix, env_vars, cmd_args, num_nodes, nodes, expected_result",
+        [
+            (
+                "nccl_test",
+                {"NCCL_TOPO_FILE": "/path/to/topo", "DOCKER_NCCL_TOPO_FILE": "/docker/topo"},
+                {"subtest_name": "all_reduce_perf", "docker_image_url": "fake_image_url"},
+                2,
+                ["node1", "node2"],
+                {
+                    "container_mounts": "/path/to/topo:/docker/topo",
+                },
+            ),
+            (
+                "nccl_test",
+                {"NCCL_TOPO_FILE": "/path/to/topo"},
+                {"subtest_name": "all_reduce_perf", "docker_image_url": "another_image_url"},
+                1,
+                ["node1"],
+                {
+                    "container_mounts": "",
+                },
+            ),
+        ],
+    )
+    def test_parse_slurm_args(
+        self,
+        cmd_gen_strategy: NcclTestSlurmCommandGenStrategy,
+        job_name_prefix: str,
+        env_vars: Dict[str, str],
+        cmd_args: Dict[str, str],
+        num_nodes: int,
+        nodes: List[str],
+        expected_result: Dict[str, Any],
+    ) -> None:
+        slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
+        assert slurm_args["container_mounts"] == expected_result["container_mounts"]
 
-    def test_with_container_mounts(self, slurm_system: SlurmSystem) -> None:
-        slurm_args = {"image_path": "fake_image_path", "container_mounts": "fake_mounts"}
-        cmd_args = {"subtest_name": "fake_subtest_name"}
-        cmd = self.get_cmd(slurm_system, slurm_args, cmd_args)
-        assert cmd == " \\\n".join(
-            [
-                "srun",
-                f"--mpi={slurm_system.mpi}",
-                f"--container-image={slurm_args['image_path']}",
-                f"--container-mounts={slurm_args['container_mounts']}",
-                f"/usr/local/bin/{cmd_args['subtest_name']}",
-            ]
-        )
+    @pytest.mark.parametrize(
+        "cmd_args, extra_cmd_args, expected_command",
+        [
+            (
+                {"subtest_name": "all_reduce_perf", "nthreads": "4", "ngpus": "2"},
+                "--max-steps 100",
+                [
+                    "/usr/local/bin/all_reduce_perf",
+                    "--nthreads 4",
+                    "--ngpus 2",
+                    "--max-steps 100",
+                ],
+            ),
+            (
+                {"subtest_name": "all_reduce_perf", "op": "sum", "datatype": "float"},
+                "",
+                [
+                    "/usr/local/bin/all_reduce_perf",
+                    "--op sum",
+                    "--datatype float",
+                ],
+            ),
+        ],
+    )
+    def test_generate_test_command(
+        self,
+        cmd_gen_strategy: NcclTestSlurmCommandGenStrategy,
+        cmd_args: Dict[str, str],
+        extra_cmd_args: str,
+        expected_command: List[str],
+    ) -> None:
+        env_vars = {}
+        command = cmd_gen_strategy.generate_test_command(env_vars, cmd_args, extra_cmd_args)
+        assert command == expected_command
