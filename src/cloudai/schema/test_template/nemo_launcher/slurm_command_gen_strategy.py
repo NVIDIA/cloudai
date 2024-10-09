@@ -135,18 +135,9 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self.final_cmd_args["training.trainer.num_nodes"] = str(len(nodes)) if nodes else num_nodes
 
     def _validate_data_config(self) -> None:
-        """Validate the data directory and prefix configuration for non-mock environments."""
+        """Validate the data prefix configuration for non-mock environments."""
         if self.final_cmd_args.get("training.model.data.data_impl") != "mock":
-            data_dir = self.final_cmd_args.get("data_dir")
             data_prefix = self.final_cmd_args.get("training.model.data.data_prefix")
-
-            if not data_dir or data_dir == "~":
-                raise ValueError(
-                    "The 'data_dir' field of the NeMo launcher test contains an invalid placeholder '~'. "
-                    "Please provide a valid path to the dataset in the test schema TOML file. "
-                    "The 'data_dir' field must point to an actual dataset location."
-                )
-
             if data_prefix == "[]":
                 raise ValueError(
                     "The 'data_prefix' field of the NeMo launcher test is missing or empty. "
@@ -198,10 +189,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     value = f"\\'{value}\\'"
                 env_var_str_parts.append(f"+{key}={value}")
             else:
-                if value == "~":
-                    cmd_arg_str_parts.append(f"~{key}=null")
-                else:
-                    cmd_arg_str_parts.append(f"{key}={value}")
+                cmd_arg_str_parts.append(f"{key}={value}")
 
         if nodes:
             nodes_str = ",".join(nodes)
