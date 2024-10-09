@@ -164,10 +164,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if run_pre_test:
             output_path = Path(cmd_args["output_path"]).resolve() / "output_pretest-%j-%n-%t.txt"
             error_path = Path(cmd_args["output_path"]).resolve() / "error_pretest-%j-%n-%t.txt"
-            pre_test_command = self._generate_pre_test_command(cmd_args, output_path, error_path)
-            commands.append(pre_test_command)
-            pre_test_check_command = self._generate_pre_test_check_command(cmd_args, output_path)
-            commands.append(pre_test_check_command)
+            commands.append(self._generate_pre_test_command(cmd_args, output_path, error_path))
+            commands.append(self._generate_pre_test_check_command(cmd_args, output_path))
 
         load_container = cmd_args.get("load_container", False)
         if load_container:
@@ -180,24 +178,24 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             commands.append(f"    {srun_command_load}")
             commands.append("fi")
 
-        main_srun_command = "\n".join(
-            [
-                'if [ "$keyword_found" = true ]; then',
-                '    echo "Running srun command"',
-                "    srun \\",
-                "    --mpi=none \\",
-                f'    {self.system.extra_srun_args if self.system.extra_srun_args else ""} \\',
-                "    --export=ALL \\",
-                f'    -o {slurm_args["output"]} \\',
-                f'    -e {slurm_args["error"]} \\',
-                "    --container-name=cont \\",
-                f'    --container-mounts={slurm_args["container_mounts"]} \\',
-                "    /opt/paxml/workspace/run.sh",
-                "fi",
-            ]
+        commands.append(
+            "\n".join(
+                [
+                    'if [ "$keyword_found" = true ]; then',
+                    '    echo "Running srun command"',
+                    "    srun \\",
+                    "    --mpi=none \\",
+                    f'    {self.system.extra_srun_args if self.system.extra_srun_args else ""} \\',
+                    "    --export=ALL \\",
+                    f'    -o {slurm_args["output"]} \\',
+                    f'    -e {slurm_args["error"]} \\',
+                    "    --container-name=cont \\",
+                    f'    --container-mounts={slurm_args["container_mounts"]} \\',
+                    "    /opt/paxml/workspace/run.sh",
+                    "fi",
+                ]
+            )
         )
-
-        commands.append(main_srun_command)
 
         return "\n\n".join(commands)
 
