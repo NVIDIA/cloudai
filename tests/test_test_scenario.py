@@ -19,7 +19,8 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
-from cloudai import Test, TestRun, TestScenarioParser, TestScenarioParsingError
+from cloudai import Test, TestDefinition, TestRun, TestScenarioParser, TestScenarioParsingError
+from cloudai._core.test import CmdArgs
 from cloudai._core.test_scenario_parser import _TestScenarioTOML
 
 
@@ -31,7 +32,15 @@ def test_scenario_parser(tmp_path: Path) -> TestScenarioParser:
 
 @pytest.fixture
 def test() -> Test:
-    return Test(name="t1", description="desc", test_template=Mock(), cmd_args={}, extra_cmd_args="", extra_env_vars={})
+    return Test(
+        test_definition=TestDefinition(
+            name="t1",
+            description="desc1",
+            test_template_name="tt",
+            cmd_args=CmdArgs(),
+        ),
+        test_template=Mock(),
+    )
 
 
 def test_single_test_case(test: Test, test_scenario_parser: TestScenarioParser) -> None:
@@ -46,12 +55,12 @@ def test_single_test_case(test: Test, test_scenario_parser: TestScenarioParser) 
     assert tr.iterations == 1
     assert tr.current_iteration == 0
     assert tr.dependencies == {}
+    assert tr.weight == 0
+    assert tr.ideal_perf == 1.0
+    assert tr.sol is None
     atest = test_scenario.test_runs[0].test
     assert atest.name == test.name
     assert atest.description == test.description
-    assert atest.weight == 0
-    assert atest.ideal_perf == 1.0
-    assert atest.sol is None
     assert atest.test_template == test.test_template
     assert atest.cmd_args == test.cmd_args
     assert atest.extra_env_vars == test.extra_env_vars
@@ -70,7 +79,7 @@ def test_with_some_props(
     test_scenario = test_scenario_parser._parse_data(
         {"name": "nccl-test", "Tests": [{"id": "1", "test_name": "nccl", prop: cfg_value}]}
     )
-    atest = test_scenario.test_runs[0].test
+    atest = test_scenario.test_runs[0]
     val = getattr(atest, prop)
     assert val != tvalue
     assert val == cfg_value
@@ -86,7 +95,6 @@ def test_with_time_limit(test: Test, test_scenario_parser: TestScenarioParser) -
 
 def test_two_independent_cases(test: Test, test_scenario_parser: TestScenarioParser) -> None:
     t1, t2 = test, test
-    t2.name = "t2"
 
     test_scenario_parser.test_mapping = {"nccl": t1, "nccl2": t2}
     test_scenario = test_scenario_parser._parse_data(
@@ -126,7 +134,6 @@ def test_cant_depends_on_itself() -> None:
 
 def test_two_dependent_cases(test: Test, test_scenario_parser: TestScenarioParser) -> None:
     t1, t2 = test, test
-    t2.name = "t2"
 
     test_scenario_parser.test_mapping = {"nccl": t1, "nccl2": t2}
     test_scenario = test_scenario_parser._parse_data(

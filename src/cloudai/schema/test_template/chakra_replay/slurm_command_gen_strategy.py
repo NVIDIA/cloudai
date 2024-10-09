@@ -26,20 +26,7 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def gen_exec_command(self, tr: TestRun) -> str:
         final_env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
         final_cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
-
-        required_args = [
-            "docker_image_url",
-            "trace_path",
-            "trace_type",
-            "backend",
-            "device",
-        ]
-        missing_args = [arg for arg in required_args if arg not in final_cmd_args]
-        if missing_args:
-            raise KeyError(f"Missing required command-line arguments: {missing_args}")
-
-        job_name_prefix = "chakra_replay"
-        slurm_args = self._parse_slurm_args(job_name_prefix, final_env_vars, final_cmd_args, tr.num_nodes, tr.nodes)
+        slurm_args = self._parse_slurm_args("chakra_replay", final_env_vars, final_cmd_args, tr.num_nodes, tr.nodes)
         srun_command = self.generate_srun_command(slurm_args, final_env_vars, final_cmd_args, tr.test.extra_cmd_args)
         return self._write_sbatch_script(slurm_args, final_env_vars, srun_command, tr.output_path)
 
@@ -61,7 +48,7 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return base_args
 
     def generate_test_command(
-        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
+        self, env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
     ) -> List[str]:
         srun_command_parts = [
             "python /workspace/param/train/comms/pt/commsTraceReplay.py",

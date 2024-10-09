@@ -57,6 +57,9 @@ class TestRun:
     iterations: int = 1
     current_iteration: int = 0
     time_limit: Optional[str] = None
+    sol: Optional[float] = None
+    weight: float = 0.0
+    ideal_perf: float = 1.0
     dependencies: dict[str, TestDependency] = field(default_factory=dict)
 
     def __hash__(self) -> int:

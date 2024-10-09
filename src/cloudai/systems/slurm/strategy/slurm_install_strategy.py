@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, cast
+from typing import Any, Dict
 
-from cloudai import InstallStrategy, System
+from cloudai import InstallStrategy
 from cloudai.systems import SlurmSystem
 from cloudai.util.docker_image_cache_manager import DockerImageCacheManager
 
@@ -32,17 +32,13 @@ class SlurmInstallStrategy(InstallStrategy):
         docker_image_url (str): URL to the Docker image in a remote container registry.
     """
 
-    def __init__(
-        self,
-        system: System,
-        cmd_args: Dict[str, Any],
-    ) -> None:
+    def __init__(self, system: SlurmSystem, cmd_args: Dict[str, Any]) -> None:
         super().__init__(system, cmd_args)
-        self.slurm_system = cast(SlurmSystem, self.system)
-        self.install_path = self.slurm_system.install_path
+        self.system = system
+        self.install_path = self.system.install_path
         self.docker_image_cache_manager = DockerImageCacheManager(
-            self.slurm_system.install_path,
-            self.slurm_system.cache_docker_images_locally,
-            self.slurm_system.default_partition,
+            self.system.install_path,
+            self.system.cache_docker_images_locally,
+            self.system.default_partition,
         )
         self.docker_image_url = self.cmd_args.get("docker_image_url", "")

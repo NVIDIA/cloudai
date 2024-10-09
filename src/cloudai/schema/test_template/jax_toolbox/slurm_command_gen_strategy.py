@@ -131,22 +131,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         num_nodes: int,
         nodes: List[str],
     ) -> Dict[str, Any]:
-        """
-        Parse SLURM arguments.
-
-        This method generates a dictionary of SLURM arguments required for the job,
-        including paths, node configurations, and container mounts.
-
-        Args:
-            job_name_prefix (str): Prefix for the job name.
-            env_vars (Dict[str, str]): Environment variables for the job.
-            cmd_args (Dict[str, str]): Command-line arguments for the job.
-            num_nodes (int): Number of nodes to use.
-            nodes (List[str]): List of nodes.
-
-        Returns:
-            Dict[str, Any]: Dictionary of SLURM arguments.
-        """
         key_prefix = f"{self.test_name}" if self.test_name in ["GPT", "Grok", "Nemotron"] else "common"
 
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
@@ -176,22 +160,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def generate_srun_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, Any], extra_cmd_args: str
     ) -> str:
-        """
-        Generate the full srun command for running a job on SLURM.
-
-        This method constructs the srun command that SLURM will execute,
-        including setting up the container environment, output paths, and
-        any pre-test commands if specified.
-
-        Args:
-            slurm_args (Dict[str, Any]): A dictionary containing SLURM arguments.
-            env_vars (Dict[str, str]): A dictionary containing environment variables.
-            cmd_args (Dict[str, str]): A dictionary containing command arguments.
-            extra_cmd_args (str): Additional command arguments.
-
-        Returns:
-            str: The full srun command as a string.
-        """
         self._create_run_script(slurm_args, env_vars, cmd_args, extra_cmd_args)
 
         start_container_run = cmd_args.get("load_container", False)
@@ -224,7 +192,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 '    echo "Running srun command"',
                 "    srun \\",
                 "    --mpi=none \\",
-                f'    {self.slurm_system.extra_srun_args if self.slurm_system.extra_srun_args else ""} \\',
+                f'    {self.system.extra_srun_args if self.system.extra_srun_args else ""} \\',
                 "    --export=ALL \\",
                 f'    -o {slurm_args["output"]} \\',
                 f'    -e {slurm_args["error"]} \\',

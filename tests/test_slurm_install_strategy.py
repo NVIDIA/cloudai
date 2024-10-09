@@ -77,7 +77,7 @@ class TestNcclTestSlurmInstallStrategy:
         return strategy
 
     def test_is_installed_locally(self, strategy: NcclTestSlurmInstallStrategy):
-        expected_docker_image_path = str(Path(strategy.slurm_system.install_path) / "nccl-test" / "nccl_test.sqsh")
+        expected_docker_image_path = str(Path(strategy.system.install_path) / "nccl-test" / "nccl_test.sqsh")
 
         result = strategy.is_installed()
 
@@ -137,7 +137,7 @@ class TestNeMoLauncherSlurmInstallStrategy:
         )
 
     def test_clone_repository_when_path_does_not_exist(self, strategy: NeMoLauncherSlurmInstallStrategy):
-        subdir_path = Path(strategy.slurm_system.install_path) / strategy.SUBDIR_PATH
+        subdir_path = Path(strategy.system.install_path) / strategy.SUBDIR_PATH
         repo_path = subdir_path / strategy.REPOSITORY_NAME
         assert not repo_path.exists()
 
@@ -158,7 +158,7 @@ class TestNeMoLauncherSlurmInstallStrategy:
             )
 
     def test_install_requirements(self, strategy: NeMoLauncherSlurmInstallStrategy):
-        subdir_path = Path(strategy.slurm_system.install_path) / strategy.SUBDIR_PATH
+        subdir_path = Path(strategy.system.install_path) / strategy.SUBDIR_PATH
         repo_path = subdir_path / strategy.REPOSITORY_NAME
         requirements_file = repo_path / "requirements.txt"
         repo_path.mkdir(parents=True, exist_ok=True)
@@ -174,7 +174,7 @@ class TestNeMoLauncherSlurmInstallStrategy:
         assert calls[1][0][0] == [py_bin, "-m", "pip", "install", "-r", str(requirements_file)]
 
     def test_clone_repository_when_path_exists(self, strategy: NeMoLauncherSlurmInstallStrategy):
-        subdir_path = Path(strategy.slurm_system.install_path) / strategy.SUBDIR_PATH
+        subdir_path = Path(strategy.system.install_path) / strategy.SUBDIR_PATH
         repo_path = subdir_path / strategy.REPOSITORY_NAME
         repo_path.mkdir(parents=True)
 
@@ -200,7 +200,7 @@ class TestUCCTestSlurmInstallStrategy:
         return strategy
 
     def test_is_installed_locally(self, strategy: UCCTestSlurmInstallStrategy):
-        expected_docker_image_path = str(Path(strategy.slurm_system.install_path) / "ucc-test" / "ucc_test.sqsh")
+        expected_docker_image_path = str(Path(strategy.system.install_path) / "ucc-test" / "ucc_test.sqsh")
 
         result = strategy.is_installed()
 

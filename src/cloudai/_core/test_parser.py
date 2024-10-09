@@ -143,7 +143,7 @@ class TestParser(BaseMultiFileParser):
         if not test_template_class:
             raise ValueError(f"Unsupported test_template name: {name}")
 
-        obj = test_template_class(system=self.system, name=name, cmd_args=cmd_args)
+        obj = test_template_class(system=self.system, name=name)
         obj.install_strategy = cast(
             InstallStrategy, self._fetch_strategy(InstallStrategy, type(obj.system), type(obj), cmd_args)
         )
@@ -190,8 +190,6 @@ class TestParser(BaseMultiFileParser):
         2. extra_env_vars, used in Test
         """
         cmd_args = test_def.cmd_args_dict
-        extra_env_vars = test_def.extra_env_vars
-        extra_cmd_args = test_def.extra_args_str
 
         test_template_name = data.get("test_template_name", "")
         test_template = self._get_test_template(test_template_name, cmd_args)
@@ -206,14 +204,7 @@ class TestParser(BaseMultiFileParser):
                 f"that references this non-existing test template."
             )
 
-        return Test(
-            name=test_def.name,
-            description=data.get("description", ""),
-            test_template=test_template,
-            cmd_args=cmd_args,
-            extra_env_vars=extra_env_vars,
-            extra_cmd_args=extra_cmd_args,
-        )
+        return Test(test_definition=test_def, test_template=test_template)
 
     def _parse_cmd_args(self, cmd_args_str: str) -> List[str]:
         """
