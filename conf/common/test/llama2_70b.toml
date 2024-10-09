@@ -24,9 +24,9 @@ test_template_name = "NeMoLauncher"
     [cmd_args.training.trainer]
     max_steps = "120"
     [cmd_args.training.model]
-    global_batch_size = "256"
-    pipeline_model_parallel_size = "2"
+pipeline_model_parallel_size = null
 
+    global_batch_size = "256"
 # FIXME : ~training.model.position_embedding_type was added in the extra_cmd_args in order to fix a bug from NeMo repository (https://github.com/NVIDIA/NeMo).
 # the commit that should fix this issue in NeMo is : 5b296e8af832c67d361fdfb80a165db3affaf76a.
 # Once the new release of NeMoLauncher includes this commit (check by downloading the corresponding container and look inside /opt for this commit), ~training.model.position_embedding_type should be removed from the extra args

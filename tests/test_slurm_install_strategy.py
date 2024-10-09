@@ -15,10 +15,11 @@
 # limitations under the License.
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from cloudai import InstallStatusResult
+from cloudai._core.test_scenario import TestRun
 from cloudai.schema.test_template.nccl_test.slurm_install_strategy import NcclTestSlurmInstallStrategy
 from cloudai.schema.test_template.nemo_launcher.slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
 from cloudai.schema.test_template.ucc_test.slurm_install_strategy import UCCTestSlurmInstallStrategy
@@ -69,6 +70,13 @@ def mock_docker_image_cache_manager(slurm_system: SlurmSystem):
     return mock
 
 
+@pytest.fixture
+def tr() -> TestRun:
+    t = Mock()
+    t.test_template = Mock()
+    return TestRun(name="test_run", test=t, num_nodes=1, nodes=[])
+
+
 class TestNcclTestSlurmInstallStrategy:
     @pytest.fixture
     def strategy(self, slurm_system, mock_docker_image_cache_manager) -> NcclTestSlurmInstallStrategy:
@@ -76,10 +84,10 @@ class TestNcclTestSlurmInstallStrategy:
         strategy.docker_image_cache_manager = mock_docker_image_cache_manager
         return strategy
 
-    def test_is_installed_locally(self, strategy: NcclTestSlurmInstallStrategy):
+    def test_is_installed_locally(self, strategy: NcclTestSlurmInstallStrategy, tr: TestRun):
         expected_docker_image_path = str(Path(strategy.system.install_path) / "nccl-test" / "nccl_test.sqsh")
 
-        result = strategy.is_installed()
+        result = strategy.is_installed(tr)
 
         assert not result.success
         assert result.message == (
@@ -88,27 +96,27 @@ class TestNcclTestSlurmInstallStrategy:
             f"    - Error: Docker image not found"
         )
 
-    def test_is_installed_remote(self, strategy: NcclTestSlurmInstallStrategy):
+    def test_is_installed_remote(self, strategy: NcclTestSlurmInstallStrategy, tr: TestRun):
         strategy.docker_image_cache_manager.cache_docker_images_locally = False
 
-        result = strategy.is_installed()
+        result = strategy.is_installed(tr)
 
         assert not result.success
         assert result.message == (
             "Docker image for NCCL test is not accessible.\n" "    - Error: Docker image not found"
         )
 
-    def test_install_success(self, strategy: NcclTestSlurmInstallStrategy):
+    def test_install_success(self, strategy: NcclTestSlurmInstallStrategy, tr: TestRun):
         with patch.object(
             strategy.docker_image_cache_manager,
             "check_docker_image_exists",
             return_value=InstallStatusResult(success=True),
         ):
-            result = strategy.install()
+            result = strategy.install(tr)
             assert result.success
 
-    def test_uninstall_success(self, strategy: NcclTestSlurmInstallStrategy):
-        result = strategy.uninstall()
+    def test_uninstall_success(self, strategy: NcclTestSlurmInstallStrategy, tr: TestRun):
+        result = strategy.uninstall(tr)
 
         assert result.success
 
@@ -127,8 +135,8 @@ class TestNeMoLauncherSlurmInstallStrategy:
         strategy.docker_image_cache_manager = mock_docker_image_cache_manager
         return strategy
 
-    def test_is_installed(self, strategy: NeMoLauncherSlurmInstallStrategy):
-        result = strategy.is_installed()
+    def test_is_installed(self, strategy: NeMoLauncherSlurmInstallStrategy, tr: TestRun):
+        result = strategy.is_installed(tr)
         assert not result.success
         assert (
             "The following components are missing:" in result.message
@@ -199,10 +207,10 @@ class TestUCCTestSlurmInstallStrategy:
         strategy.docker_image_cache_manager = mock_docker_image_cache_manager
         return strategy
 
-    def test_is_installed_locally(self, strategy: UCCTestSlurmInstallStrategy):
+    def test_is_installed_locally(self, strategy: UCCTestSlurmInstallStrategy, tr: TestRun):
         expected_docker_image_path = str(Path(strategy.system.install_path) / "ucc-test" / "ucc_test.sqsh")
 
-        result = strategy.is_installed()
+        result = strategy.is_installed(tr)
 
         assert not result.success
         assert result.message == (
@@ -211,26 +219,26 @@ class TestUCCTestSlurmInstallStrategy:
             f"    - Error: Docker image not found"
         )
 
-    def test_is_installed_remote(self, strategy: UCCTestSlurmInstallStrategy):
+    def test_is_installed_remote(self, strategy: UCCTestSlurmInstallStrategy, tr: TestRun):
         strategy.docker_image_cache_manager.cache_docker_images_locally = False
 
-        result = strategy.is_installed()
+        result = strategy.is_installed(tr)
 
         assert not result.success
         assert result.message == (
             "Docker image for UCC test is not accessible.\n" "    - Error: Docker image not found"
         )
 
-    def test_install_success(self, strategy: UCCTestSlurmInstallStrategy):
+    def test_install_success(self, strategy: UCCTestSlurmInstallStrategy, tr: TestRun):
         with patch.object(
             strategy.docker_image_cache_manager,
             "check_docker_image_exists",
             return_value=InstallStatusResult(success=True),
         ):
-            result = strategy.install()
+            result = strategy.install(tr)
             assert result.success
 
-    def test_uninstall_success(self, strategy: UCCTestSlurmInstallStrategy):
-        result = strategy.uninstall()
+    def test_uninstall_success(self, strategy: UCCTestSlurmInstallStrategy, tr: TestRun):
+        result = strategy.uninstall(tr)
 
         assert result.success

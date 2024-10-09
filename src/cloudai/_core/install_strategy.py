@@ -17,6 +17,7 @@
 from abc import abstractmethod
 
 from .install_status_result import InstallStatusResult
+from .test_scenario import TestRun
 from .test_template_strategy import TestTemplateStrategy
 
 
@@ -24,7 +25,7 @@ class InstallStrategy(TestTemplateStrategy):
     """Abstract base class defining the interface for installation strategies across different system environments."""
 
     @abstractmethod
-    def is_installed(self) -> InstallStatusResult:
+    def is_installed(self, tr: TestRun) -> InstallStatusResult:
         """
         Check if the necessary components are already installed on the system.
 
@@ -34,7 +35,7 @@ class InstallStrategy(TestTemplateStrategy):
         return InstallStatusResult(success=True)
 
     @abstractmethod
-    def install(self) -> InstallStatusResult:
+    def install(self, tr: TestRun) -> InstallStatusResult:
         """
         Perform installation operations for a specific system.
 
@@ -44,7 +45,7 @@ class InstallStrategy(TestTemplateStrategy):
         return InstallStatusResult(success=True)
 
     @abstractmethod
-    def uninstall(self) -> InstallStatusResult:
+    def uninstall(self, tr: TestRun) -> InstallStatusResult:
         """
         Perform uninstallation operations for a specific system.
 

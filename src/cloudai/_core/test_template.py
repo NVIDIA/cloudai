@@ -80,7 +80,7 @@ class TestTemplate:
         """
         return f"TestTemplate(name={self.name})"
 
-    def is_installed(self) -> InstallStatusResult:
+    def is_installed(self, tr: TestRun) -> InstallStatusResult:
         """
         Check if the test template is already installed on the specified system.
 
@@ -88,11 +88,11 @@ class TestTemplate:
             InstallStatusResult: Result containing the installation status and error message if not installed.
         """
         if self.install_strategy is not None:
-            return self.install_strategy.is_installed()
+            return self.install_strategy.is_installed(tr)
 
         return InstallStatusResult(success=True)
 
-    def install(self) -> InstallStatusResult:
+    def install(self, tr: TestRun) -> InstallStatusResult:
         """
         Install the test template at the specified location using the system's installation strategy.
 
@@ -100,11 +100,11 @@ class TestTemplate:
             InstallStatusResult: Result containing the installation status and error message if installation failed.
         """
         if self.install_strategy is not None:
-            return self.install_strategy.install()
+            return self.install_strategy.install(tr)
 
         return InstallStatusResult(success=True)
 
-    def uninstall(self) -> InstallStatusResult:
+    def uninstall(self, tr: TestRun) -> InstallStatusResult:
         """
         Uninstall the test template from the specified location using the system's uninstallation strategy.
 
@@ -112,7 +112,7 @@ class TestTemplate:
             InstallStatusResult: Result containing the uninstallation status and error message if uninstallation failed.
         """
         if self.install_strategy is not None:
-            return self.install_strategy.uninstall()
+            return self.install_strategy.uninstall(tr)
 
         return InstallStatusResult(success=True)
 

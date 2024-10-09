@@ -24,7 +24,17 @@ from typing import List, Optional, Set
 
 import toml
 
-from cloudai import Parser, Registry, ReportGenerator, Runner, System, Test, TestParser, TestScenario, TestTemplate
+from cloudai import (
+    Parser,
+    Registry,
+    ReportGenerator,
+    Runner,
+    System,
+    Test,
+    TestParser,
+    TestRun,
+    TestScenario,
+)
 
 
 def setup_logging(log_file: str, log_level: str) -> None:
@@ -129,26 +139,35 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def identify_unique_test_templates(tests: List[Test]) -> List[TestTemplate]:
+def identify_unique_installations(tests: List[Test], system: System) -> List[TestRun]:
     """
-    Identify unique test templates from a list of tests.
+    Identify unique tests (by template) from a list of tests.
 
     Args:
         tests (List[Test]): The list of test objects.
+        system (System): The system
 
     Returns:
-        List[TestTemplate]: The list of unique test templates.
+        List[Test]: The list of unique tests.
     """
-    unique_templates: List[TestTemplate] = []
+    unique_trs: List[TestRun] = []
     seen_names: Set[str] = set()
 
     for test in tests:
         template_name = test.test_template.name
         if template_name not in seen_names:
             seen_names.add(template_name)
-            unique_templates.append(test.test_template)
+            unique_trs.append(
+                TestRun(
+                    name=test.name,
+                    test=test,
+                    num_nodes=1,
+                    nodes=[],
+                    output_path=system.install_path / test.name,
+                )
+            )
 
-    return unique_templates
+    return unique_trs
 
 
 def handle_install_and_uninstall(mode: str, system: System, tests: List[Test]) -> None:
@@ -165,7 +184,7 @@ def handle_install_and_uninstall(mode: str, system: System, tests: List[Test]) -
     logging.info(f"System Name: {system.name}")
     logging.info(f"Scheduler: {system.scheduler}")
 
-    unique_test_templates = identify_unique_test_templates(tests)
+    unique_trs = identify_unique_installations(tests, system)
 
     registry = Registry()
     installer_class = registry.installers_map.get(system.scheduler)
@@ -175,17 +194,17 @@ def handle_install_and_uninstall(mode: str, system: System, tests: List[Test]) -
 
     if mode == "install":
         all_installed = True
-        for template in unique_test_templates:
-            if not installer.is_installed([template]):
+        for tr in unique_trs:
+            if not installer.is_installed([tr]):
                 all_installed = False
-                logging.debug(f"Test template {template.name} is not installed.")
+                logging.debug(f"Test template {tr.name} is not installed.")
                 break
 
         if all_installed:
             logging.info("CloudAI is already installed.")
         else:
             logging.info("Not all components are ready")
-            result = installer.install(list(unique_test_templates))
+            result = installer.install(unique_trs)
             if result.success:
                 logging.info("Installation successful.")
             else:
@@ -194,7 +213,7 @@ def handle_install_and_uninstall(mode: str, system: System, tests: List[Test]) -
 
     elif mode == "uninstall":
         logging.info("Uninstalling test templates.")
-        result = installer.uninstall(list(unique_test_templates))
+        result = installer.uninstall(unique_trs)
         if result.success:
             logging.info("Uninstallation successful.")
         else:
@@ -221,14 +240,14 @@ def handle_dry_run_and_run(mode: str, system: System, tests: List[Test], test_sc
     if mode == "run":
         logging.info("Checking if test templates are installed.")
 
-        unique_templates = identify_unique_test_templates(tests)
+        unique_trs = identify_unique_installations(tests, system)
 
         registry = Registry()
         installer_class = registry.installers_map.get(system.scheduler)
         if installer_class is None:
             raise NotImplementedError(f"No installer available for scheduler: {system.scheduler}")
         installer = installer_class(system)
-        result = installer.is_installed(unique_templates)
+        result = installer.is_installed(unique_trs)
 
         if not result.success:
             logging.error("CloudAI has not been installed. Please run install mode first.")

@@ -15,7 +15,7 @@
 # limitations under the License.
 
 
-from cloudai import InstallStatusResult
+from cloudai import InstallStatusResult, TestRun
 from cloudai.systems.slurm.strategy import SlurmInstallStrategy
 
 
@@ -31,7 +31,7 @@ class UCCTestSlurmInstallStrategy(SlurmInstallStrategy):
     SUBDIR_PATH = "ucc-test"
     DOCKER_IMAGE_FILENAME = "ucc_test.sqsh"
 
-    def is_installed(self) -> InstallStatusResult:
+    def is_installed(self, tr: TestRun) -> InstallStatusResult:
         docker_image_result = self.docker_image_cache_manager.check_docker_image_exists(
             self.docker_image_url, self.SUBDIR_PATH, self.DOCKER_IMAGE_FILENAME
         )
@@ -56,8 +56,8 @@ class UCCTestSlurmInstallStrategy(SlurmInstallStrategy):
                     ),
                 )
 
-    def install(self) -> InstallStatusResult:
-        install_status = self.is_installed()
+    def install(self, tr: TestRun) -> InstallStatusResult:
+        install_status = self.is_installed(tr)
         if install_status.success:
             return InstallStatusResult(success=True)
 
@@ -75,7 +75,7 @@ class UCCTestSlurmInstallStrategy(SlurmInstallStrategy):
 
         return InstallStatusResult(success=True)
 
-    def uninstall(self) -> InstallStatusResult:
+    def uninstall(self, tr: TestRun) -> InstallStatusResult:
         docker_image_result = self.docker_image_cache_manager.uninstall_cached_image(
             self.SUBDIR_PATH, self.DOCKER_IMAGE_FILENAME
         )

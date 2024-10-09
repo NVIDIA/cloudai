@@ -14,17 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai import InstallStatusResult, InstallStrategy
+from cloudai import InstallStatusResult, InstallStrategy, TestRun
 
 
 class SleepKubernetesInstallStrategy(InstallStrategy):
     """Installation strategy for the Sleep test on Kubernetes systems."""
 
-    def is_installed(self) -> InstallStatusResult:
+    def is_installed(self, tr: TestRun) -> InstallStatusResult:
         return InstallStatusResult(success=True)
 
-    def install(self) -> InstallStatusResult:
+    def install(self, tr: TestRun) -> InstallStatusResult:
         return InstallStatusResult(success=True)
 
-    def uninstall(self) -> InstallStatusResult:
+    def uninstall(self, tr: TestRun) -> InstallStatusResult:
         return InstallStatusResult(success=True)

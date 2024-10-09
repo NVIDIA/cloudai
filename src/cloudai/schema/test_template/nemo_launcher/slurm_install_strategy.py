@@ -19,7 +19,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict
 
-from cloudai import InstallStatusResult
+from cloudai import InstallStatusResult, TestRun
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmInstallStrategy
 
@@ -48,7 +48,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
         self.repository_commit_hash = cmd_args["repository_commit_hash"]
         self.docker_image_url = cmd_args["docker_image_url"]
 
-    def is_installed(self) -> InstallStatusResult:
+    def is_installed(self, tr: TestRun) -> InstallStatusResult:
         subdir_path = self.system.install_path / self.SUBDIR_PATH
         repo_path = subdir_path / self.REPOSITORY_NAME
         repo_installed = repo_path.is_dir()
@@ -76,8 +76,8 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
                 + "\n".join(f"    - {item}" for item in missing_components),
             )
 
-    def install(self) -> InstallStatusResult:
-        install_status = self.is_installed()
+    def install(self, tr: TestRun) -> InstallStatusResult:
+        install_status = self.is_installed(tr)
         if install_status.success:
             return InstallStatusResult(success=True, message="NeMo-Launcher is already installed.")
 
@@ -100,7 +100,7 @@ class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
 
         return InstallStatusResult(success=True)
 
-    def uninstall(self) -> InstallStatusResult:
+    def uninstall(self, tr: TestRun) -> InstallStatusResult:
         docker_image_result = self.docker_image_cache_manager.uninstall_cached_image(
             self.SUBDIR_PATH, self.DOCKER_IMAGE_FILENAME
         )

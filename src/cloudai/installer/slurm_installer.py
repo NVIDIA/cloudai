@@ -18,7 +18,7 @@ import os
 import subprocess
 from typing import Iterable
 
-from cloudai import BaseInstaller, InstallStatusResult, TestTemplate
+from cloudai import BaseInstaller, InstallStatusResult, TestRun
 from cloudai.systems import SlurmSystem
 
 
@@ -99,14 +99,14 @@ class SlurmInstaller(BaseInstaller):
             missing_options_str = ", ".join(missing_options)
             raise EnvironmentError(f"Required srun options missing: {missing_options_str}")
 
-    def install(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
+    def install(self, trs: Iterable[TestRun]) -> InstallStatusResult:
         """
         Check if the necessary components are installed and install them if not.
 
         Requires the installation path to be set.
 
         Args:
-            test_templates (Iterable[TestTemplate]): The test templates to install.
+            trs (Iterable[TestRun]): Tests to install.
 
         Returns:
             InstallStatusResult: Result containing the installation status and error message if any.
@@ -128,4 +128,4 @@ class SlurmInstaller(BaseInstaller):
         if not self.install_path.is_dir() or not os.access(self.install_path, os.W_OK):
             return InstallStatusResult(False, f"The installation path {self.install_path} is not writable.")
 
-        return super().install(test_templates)
+        return super().install(trs)

@@ -54,7 +54,9 @@ def test_install_success(mock_executor: Mock, slurm_system: SlurmSystem, test_su
     mock_future = create_real_future(test_success.install.return_value)
     mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
-    result = installer.install([test_success])
+    t = Mock()
+    t.test_template = Mock()
+    result = installer.install([t])
 
     assert result.success
     assert result.message == "All test templates installed successfully."
@@ -66,7 +68,9 @@ def test_install_failure(mock_executor: Mock, slurm_system: SlurmSystem, test_fa
     mock_future = create_real_future(test_failure.install.return_value)
     mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
-    result = installer.install([test_failure])
+    t = Mock()
+    t.test_template = Mock()
+    result = installer.install([t])
 
     assert not result.success
     assert result.message == "Some test templates failed to install."
@@ -78,7 +82,9 @@ def test_uninstall_success(mock_executor: Mock, slurm_system: SlurmSystem, test_
     mock_future = create_real_future(test_success.uninstall.return_value)
     mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
-    result = installer.uninstall([test_success])
+    t = Mock()
+    t.test_template = Mock()
+    result = installer.uninstall([t])
 
     assert result.success
     assert result.message == "All test templates uninstalled successfully."
@@ -90,7 +96,9 @@ def test_uninstall_failure(mock_executor: Mock, slurm_system: SlurmSystem, test_
     mock_future = create_real_future(test_failure.uninstall.return_value)
     mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
-    result = installer.uninstall([test_failure])
+    t = Mock()
+    t.test_template = Mock()
+    result = installer.uninstall([t])
 
     assert not result.success
     assert result.message == "Some test templates failed to uninstall."

@@ -16,7 +16,7 @@
 
 import shutil
 
-from cloudai import InstallStatusResult, InstallStrategy
+from cloudai import InstallStatusResult, InstallStrategy, TestRun
 
 
 class SleepStandaloneInstallStrategy(InstallStrategy):
@@ -27,7 +27,7 @@ class SleepStandaloneInstallStrategy(InstallStrategy):
     which is typically pre-installed on UNIX-like systems.
     """
 
-    def is_installed(self) -> InstallStatusResult:
+    def is_installed(self, tr: TestRun) -> InstallStatusResult:
         """
         Check if the sleep command is available on the system.
 
@@ -38,7 +38,7 @@ class SleepStandaloneInstallStrategy(InstallStrategy):
             return InstallStatusResult(success=True)
         return InstallStatusResult(success=False, message="Sleep command is not available on this system.")
 
-    def install(self) -> InstallStatusResult:
+    def install(self, tr: TestRun) -> InstallStatusResult:
         """
         Verify if the sleep command is available in the system.
 
@@ -55,7 +55,7 @@ class SleepStandaloneInstallStrategy(InstallStrategy):
             return InstallStatusResult(success=False, message="Sleep command is not available on this system.")
         return InstallStatusResult(success=True)
 
-    def uninstall(self) -> InstallStatusResult:
+    def uninstall(self, tr: TestRun) -> InstallStatusResult:
         """
         Uninstall Sleep test.
 

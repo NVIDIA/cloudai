@@ -21,7 +21,8 @@ from typing import Iterable
 
 from .install_status_result import InstallStatusResult
 from .system import System
-from .test_template import TestTemplate
+from .test import Test
+from .test_scenario import TestRun
 
 
 class BaseInstaller:
@@ -70,36 +71,36 @@ class BaseInstaller:
         logging.debug("Checking for common prerequisites.")
         return InstallStatusResult(True)
 
-    def is_installed(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
+    def is_installed(self, trs: Iterable[TestRun]) -> InstallStatusResult:
         """
         Check if the necessary components for the provided test templates are already installed.
 
         Verify the installation status of each test template.
 
         Args:
-            test_templates (Iterable[TestTemplate]): The test templates to check for installation.
+            trs (Iterable[TestRun]): Test to check for installation.
 
         Returns:
             InstallStatusResult: Result containing the installation status and error message if not installed.
         """
         not_installed = {}
-        for test_template in test_templates:
-            logging.debug(f"Verifying installation status of test template: {test_template.name}.")
-            result = test_template.is_installed()
+        for tr in trs:
+            logging.debug(f"Verifying installation status of test template: {tr.test.test_template.name}.")
+            result = tr.test.test_template.is_installed(tr)
             if not result.success:
-                not_installed[test_template.name] = result.message
+                not_installed[tr.test.test_template.name] = result.message
 
         if not_installed:
             return InstallStatusResult(False, "Some test templates are not installed.", not_installed)
         else:
             return InstallStatusResult(True, "All test templates are installed.")
 
-    def install(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
+    def install(self, trs: Iterable[TestRun]) -> InstallStatusResult:
         """
         Install the necessary components if they are not already installed.
 
         Args:
-            test_templates (Iterable[TestTemplate]): The test templates to install.
+            trs (Iterable[TestRun]): Tests to install.
 
         Returns:
             InstallStatusResult: Result containing the installation status and error message if any.
@@ -111,7 +112,7 @@ class BaseInstaller:
 
         install_results = {}
         with ThreadPoolExecutor() as executor:
-            futures = {executor.submit(template.install): template for template in test_templates}
+            futures = {executor.submit(tr.test.test_template.install, tr): tr for tr in trs}
             total, done = len(futures), 0
             for future in as_completed(futures):
                 test_template = futures[future]
@@ -137,12 +138,12 @@ class BaseInstaller:
         else:
             return InstallStatusResult(False, "Some test templates failed to install.", install_results)
 
-    def uninstall(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
+    def uninstall(self, trs: Iterable[TestRun]) -> InstallStatusResult:
         """
         Uninstall the benchmarks or test templates.
 
         Args:
-            test_templates (Iterable[TestTemplate]): The test templates to uninstall.
+            trs (Iterable[TestRun]): Tests to uninstall.
 
         Returns:
             InstallStatusResult: Result containing the uninstallation status and error message if any.
@@ -150,7 +151,7 @@ class BaseInstaller:
         logging.info("Uninstalling test templates.")
         uninstall_results = {}
         with ThreadPoolExecutor() as executor:
-            futures = {executor.submit(template.uninstall): template for template in test_templates}
+            futures = {executor.submit(tr.test.test_template.uninstall, tr): tr for tr in trs}
             for future in as_completed(futures):
                 test_template = futures[future]
                 try:
