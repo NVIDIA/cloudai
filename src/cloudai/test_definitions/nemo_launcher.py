@@ -97,7 +97,6 @@ class NeMoLauncherCmdArgs(CmdArgs):
     repository_commit_hash: str = "cf411a9ede3b466677df8ee672bcc6c396e71e1a"
     docker_image_url: str = "nvcr.io/nvidia/nemo:24.01.01"
     stages: str = '["training"]'
-    data_dir: str = "~"
     numa_mapping: NumaMapping = Field(default_factory=NumaMapping)
     cluster: Cluster = Field(default_factory=Cluster)
     training: Training = Field(default_factory=Training)

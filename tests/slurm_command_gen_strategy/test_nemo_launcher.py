@@ -135,21 +135,13 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
 
         assert "cluster.gpus_per_node=null" in cmd
 
-    def test_argument_with_tilde_value(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, nemo_test_run: TestRun):
-        tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, nemo_test_run.test.test_definition)
-        tdef.cmd_args.training.model.micro_batch_size = "~"  # type: ignore
-
-        cmd = nemo_cmd_gen.gen_exec_command(nemo_test_run)
-        assert "~training.model.micro_batch_size=null" in cmd
-
     def test_data_impl_mock_skips_checks(
         self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, nemo_test_run: TestRun
     ):
         tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, nemo_test_run.test.test_definition)
-        tdef.cmd_args.data_dir = "DATA_DIR"
-
+        tdef.extra_cmd_args = {"data_dir": "DATA_DIR"}
         cmd = nemo_cmd_gen.gen_exec_command(nemo_test_run)
-        assert "data_dir" in cmd
+        assert "data_dir=DATA_DIR" in cmd
 
     def test_data_dir_and_data_prefix_validation(
         self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, nemo_test_run: TestRun
@@ -157,18 +149,8 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
         tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, nemo_test_run.test.test_definition)
         tdef.cmd_args.training.model.data.data_impl = "not_mock"
         tdef.cmd_args.training.model.data.data_prefix = "[]"
+        tdef.extra_cmd_args = {"data_dir": "DATA_DIR"}
 
-        with pytest.raises(
-            ValueError,
-            match=(
-                "The 'data_dir' field of the NeMo launcher test contains an invalid placeholder '~'. "
-                "Please provide a valid path to the dataset in the test schema TOML file. "
-                "The 'data_dir' field must point to an actual dataset location."
-            ),
-        ):
-            nemo_cmd_gen.gen_exec_command(nemo_test_run)
-
-        tdef.cmd_args.data_dir = "/fake/data_dir"
         with pytest.raises(ValueError, match="The 'data_prefix' field of the NeMo launcher test is missing or empty."):
             nemo_cmd_gen.gen_exec_command(nemo_test_run)
 
