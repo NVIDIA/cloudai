@@ -413,8 +413,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         Generate the command for pre-test check.
 
-        This method generates the command that checks the output of the pre-test
-        to determine if the main test should be run.
+        This method generates the command that checks the output of the pre-test to determine if the main test should
+        be run.
 
         Args:
             cmd_args (Dict[str, str]): Command-line arguments for the job.
@@ -423,23 +423,20 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         Returns:
             str: The generated command for pre-test check.
         """
-        directory_path = Path(output_path).parent
-        # Create the file pattern with wildcard
-        file_pattern = str(directory_path / "output_pretest-*.txt")
+        pretest_output_files = str(Path(output_path).parent / "output_pretest-*.txt")
         keyword = cmd_args.get("keyword", "Avg bus bandwidth")
 
-        script_lines = [
-            f'file_pattern="{file_pattern}"',
-            f'keyword="{keyword}"',
-            "",
-            "# Use grep to search for the keyword in the files",
-            'if grep -q "$keyword" $file_pattern; then',
-            "    keyword_found=true",
-            "fi",
-        ]
-
-        script = "\n".join(script_lines)
-        return script
+        return "\n".join(
+            [
+                f'pretest_output_files="{pretest_output_files}"',
+                f'keyword="{keyword}"',
+                "",
+                "# Use grep to search for the keyword in the files",
+                'if grep -q "$keyword" $pretest_output_files; then',
+                "    keyword_found=true",
+                "fi",
+            ]
+        )
 
     def _generate_container_load_srun_command(self, container_image: str) -> str:
         """
