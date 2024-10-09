@@ -29,7 +29,7 @@ from cloudai.systems import SlurmSystem
 from cloudai.test_definitions.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
 
 
-class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
+class TestNeMoLauncherSlurmCommandGenStrategy:
     @pytest.fixture
     def test_run(self, tmp_path: Path) -> TestRun:
         tdef = NeMoLauncherTestDefinition(
