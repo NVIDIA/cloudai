@@ -171,7 +171,10 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         load_container = cmd_args.get("load_container", False)
         if load_container:
-            srun_command_load = self._generate_container_load_srun_command(slurm_args)
+            container_image = slurm_args.get("image_path")
+            if not container_image:
+                raise ValueError("image_path in slurm_args must be a valid path")
+            srun_command_load = self._generate_container_load_srun_command(container_image)
             commands.append('if [ "$keyword_found" = true ]; then')
             commands.append('    echo "Loading container with srun command"')
             commands.append(f"    {srun_command_load}")
@@ -438,18 +441,17 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         script = "\n".join(script_lines)
         return script
 
-    def _generate_container_load_srun_command(self, slurm_args: Dict[str, Any]) -> str:
+    def _generate_container_load_srun_command(self, container_image: str) -> str:
         """
         Generate an srun command to load a container using the specified image.
 
         Args:
-            slurm_args (Dict[str, Any]): Slurm job settings, including the image path.
+            container_image (str): The path to the container image.
 
         Returns:
             str: The srun command.
         """
         container_name = "cont"
-        container_image = slurm_args.get("image_path")
 
         return (
             "srun \\\n"
