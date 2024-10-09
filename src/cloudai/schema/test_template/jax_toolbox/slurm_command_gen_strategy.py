@@ -158,21 +158,19 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     ) -> str:
         self._create_run_script(slurm_args, env_vars, cmd_args, extra_cmd_args)
 
-        start_container_run = cmd_args.get("load_container", False)
-        output_path = Path(cmd_args["output_path"]).resolve() / "output_pretest-%j-%n-%t.txt"
-        error_path = Path(cmd_args["output_path"]).resolve() / "error_pretest-%j-%n-%t.txt"
-
         commands = []
 
         run_pre_test = cmd_args.get("pre_test", {}).get("enable", False)
-
         if run_pre_test:
+            output_path = Path(cmd_args["output_path"]).resolve() / "output_pretest-%j-%n-%t.txt"
+            error_path = Path(cmd_args["output_path"]).resolve() / "error_pretest-%j-%n-%t.txt"
             pre_test_command = self._generate_pre_test_command(cmd_args, output_path, error_path)
             commands.append(pre_test_command)
             pre_test_check_command = self._generate_pre_test_check_command(cmd_args, output_path)
             commands.append(pre_test_check_command)
 
-        if start_container_run:
+        load_container = cmd_args.get("load_container", False)
+        if load_container:
             srun_command_load = self._generate_container_load_srun_command(slurm_args)
             commands.append('if [ "$keyword_found" = true ]; then')
             commands.append('    echo "Loading container with srun command"')
@@ -196,13 +194,9 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             ]
         )
 
-        # Add the final srun command to the list of commands
         commands.append(main_srun_command)
 
-        # Combine all parts into the final batch script
-        full_command = "\n\n".join(commands)
-
-        return full_command
+        return "\n\n".join(commands)
 
     def _create_run_script(
         self,
