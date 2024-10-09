@@ -16,7 +16,7 @@
 
 from pathlib import Path
 from typing import cast
-from unittest.mock import Mock, PropertyMock, mock_open, patch
+from unittest.mock import Mock, mock_open, patch
 
 import pytest
 from cloudai._core.test import Test
@@ -138,10 +138,10 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
     def test_data_impl_mock_skips_checks(
         self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, nemo_test_run: TestRun
     ):
-        with patch.object(Test, "extra_cmd_args", new_callable=PropertyMock) as mock_extra_cmd_args:
-            mock_extra_cmd_args.return_value = "data_dir=DATA_DIR"
-            cmd = nemo_cmd_gen.gen_exec_command(nemo_test_run)
-            assert "data_dir=DATA_DIR" in cmd
+        tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, nemo_test_run.test.test_definition)
+        tdef.extra_cmd_args = {"data_dir": "DATA_DIR"}
+        cmd = nemo_cmd_gen.gen_exec_command(nemo_test_run)
+        assert "data_dir=DATA_DIR" in cmd
 
     def test_data_dir_and_data_prefix_validation(
         self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, nemo_test_run: TestRun
@@ -149,10 +149,9 @@ class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
         tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, nemo_test_run.test.test_definition)
         tdef.cmd_args.training.model.data.data_impl = "not_mock"
         tdef.cmd_args.training.model.data.data_prefix = "[]"
+        tdef.extra_cmd_args = {"data_dir": "DATA_DIR"}
 
-        with patch.object(Test, "extra_cmd_args", return_value="data_dir=DATA_DIR") and pytest.raises(
-            ValueError, match="The 'data_prefix' field of the NeMo launcher test is missing or empty."
-        ):
+        with pytest.raises(ValueError, match="The 'data_prefix' field of the NeMo launcher test is missing or empty."):
             nemo_cmd_gen.gen_exec_command(nemo_test_run)
 
     @patch("pathlib.Path.open", new_callable=mock_open)
