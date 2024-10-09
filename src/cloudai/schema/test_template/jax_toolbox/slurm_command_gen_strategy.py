@@ -503,29 +503,3 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return "\n".join(
             ["", 'if [ "$SLURM_NODEID" -eq 0 ] && [ "$SLURM_PROCID" -eq 0 ]; then', f"    {command}", "fi"]
         )
-
-    def _create_nsys_to_sqlite_command(self, stage: str, cmd_args: Dict[str, str]) -> str:
-        """
-        Construct the command to convert the nsys profile file to an sqlite file.
-
-        This command is to be executed conditionally on the master node only.
-
-        Args:
-            stage (str): The stage of processing (e.g., 'profile', 'perf').
-            cmd_args (Dict[str, str]): Command-line arguments.
-
-        Returns:
-            List[str]: The command split into multiple lines for clarity, enclosed in a conditional check.
-        """
-        base_command = "nsys export"
-        args = [
-            f"/opt/paxml/workspace/nsys_profile_{stage}.nsys-rep",
-            f"--output /opt/paxml/workspace/nsys_profile_{stage}.sqlite",
-            "--type sqlite",
-        ]
-        command = " \\\n    ".join([base_command] + args)
-        command += " > /dev/null 2>&1"
-
-        return "\n".join(
-            ["", 'if [ "$SLURM_NODEID" -eq 0 ] && [ "$SLURM_PROCID" -eq 0 ]; then', f"    {command}", "fi"]
-        )
