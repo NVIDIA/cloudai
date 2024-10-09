@@ -22,18 +22,14 @@ from cloudai.systems import SlurmSystem
 
 
 class TestUCCTestSlurmCommandGenStrategy:
-    def get_test_command(
-        self, slurm_system: SlurmSystem, env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
-    ) -> List[str]:
-        return UCCTestSlurmCommandGenStrategy(slurm_system, {}).generate_test_command(
-            env_vars, cmd_args, extra_cmd_args
-        )
+    @pytest.fixture
+    def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> UCCTestSlurmCommandGenStrategy:
+        return UCCTestSlurmCommandGenStrategy(slurm_system, {})
 
     @pytest.mark.parametrize(
-        "env_vars, cmd_args, extra_cmd_args, expected_command",
+        "cmd_args, extra_cmd_args, expected_command",
         [
             (
-                {},
                 {"collective": "allgather", "b": "8", "e": "256M"},
                 "--max-steps 100",
                 [
@@ -47,7 +43,6 @@ class TestUCCTestSlurmCommandGenStrategy:
                 ],
             ),
             (
-                {},
                 {"collective": "allreduce", "b": "4"},
                 "",
                 [
@@ -62,11 +57,11 @@ class TestUCCTestSlurmCommandGenStrategy:
     )
     def test_generate_test_command(
         self,
-        slurm_system: SlurmSystem,
-        env_vars: Dict[str, str],
+        cmd_gen_strategy: UCCTestSlurmCommandGenStrategy,
         cmd_args: Dict[str, str],
         extra_cmd_args: str,
         expected_command: List[str],
     ) -> None:
-        command = self.get_test_command(slurm_system, env_vars, cmd_args, extra_cmd_args)
+        env_vars = {}
+        command = cmd_gen_strategy.generate_test_command(env_vars, cmd_args, extra_cmd_args)
         assert command == expected_command

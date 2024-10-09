@@ -22,35 +22,24 @@ from cloudai.systems import SlurmSystem
 
 
 class TestSleepSlurmCommandGenStrategy:
-    def get_test_command(
-        self, slurm_system: SlurmSystem, env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
-    ) -> List[str]:
-        return SleepSlurmCommandGenStrategy(slurm_system, {}).generate_test_command(env_vars, cmd_args, extra_cmd_args)
+    @pytest.fixture
+    def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> SleepSlurmCommandGenStrategy:
+        return SleepSlurmCommandGenStrategy(slurm_system, {})
 
     @pytest.mark.parametrize(
-        "env_vars, cmd_args, extra_cmd_args, expected_command",
+        "cmd_args, expected_command",
         [
-            (
-                {},
-                {"seconds": "60"},
-                "",
-                ["sleep 60"],
-            ),
-            (
-                {},
-                {"seconds": "120"},
-                "",
-                ["sleep 120"],
-            ),
+            ({"seconds": "60"}, ["sleep 60"]),
+            ({"seconds": "120"}, ["sleep 120"]),
         ],
     )
     def test_generate_test_command(
         self,
-        slurm_system: SlurmSystem,
-        env_vars: Dict[str, str],
+        cmd_gen_strategy: SleepSlurmCommandGenStrategy,
         cmd_args: Dict[str, str],
-        extra_cmd_args: str,
         expected_command: List[str],
     ) -> None:
-        command = self.get_test_command(slurm_system, env_vars, cmd_args, extra_cmd_args)
+        env_vars = {}
+        extra_cmd_args = ""
+        command = cmd_gen_strategy.generate_test_command(env_vars, cmd_args, extra_cmd_args)
         assert command == expected_command

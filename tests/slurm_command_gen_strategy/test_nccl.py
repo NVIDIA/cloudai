@@ -22,25 +22,9 @@ from cloudai.systems import SlurmSystem
 
 
 class TestNcclTestSlurmCommandGenStrategy:
-    def get_slurm_args(
-        self,
-        slurm_system: SlurmSystem,
-        job_name_prefix: str,
-        env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
-        num_nodes: int,
-        nodes: List[str],
-    ) -> Dict[str, Any]:
-        return NcclTestSlurmCommandGenStrategy(slurm_system, {})._parse_slurm_args(
-            job_name_prefix, env_vars, cmd_args, num_nodes, nodes
-        )
-
-    def get_test_command(
-        self, slurm_system: SlurmSystem, env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
-    ) -> List[str]:
-        return NcclTestSlurmCommandGenStrategy(slurm_system, {}).generate_test_command(
-            env_vars, cmd_args, extra_cmd_args
-        )
+    @pytest.fixture
+    def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> NcclTestSlurmCommandGenStrategy:
+        return NcclTestSlurmCommandGenStrategy(slurm_system, {})
 
     @pytest.mark.parametrize(
         "job_name_prefix, env_vars, cmd_args, num_nodes, nodes, expected_result",
@@ -69,7 +53,7 @@ class TestNcclTestSlurmCommandGenStrategy:
     )
     def test_parse_slurm_args(
         self,
-        slurm_system: SlurmSystem,
+        cmd_gen_strategy: NcclTestSlurmCommandGenStrategy,
         job_name_prefix: str,
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
@@ -77,14 +61,13 @@ class TestNcclTestSlurmCommandGenStrategy:
         nodes: List[str],
         expected_result: Dict[str, Any],
     ) -> None:
-        slurm_args = self.get_slurm_args(slurm_system, job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
+        slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
         assert slurm_args["container_mounts"] == expected_result["container_mounts"]
 
     @pytest.mark.parametrize(
-        "env_vars, cmd_args, extra_cmd_args, expected_command",
+        "cmd_args, extra_cmd_args, expected_command",
         [
             (
-                {},
                 {"subtest_name": "all_reduce_perf", "nthreads": "4", "ngpus": "2"},
                 "--max-steps 100",
                 [
@@ -95,7 +78,6 @@ class TestNcclTestSlurmCommandGenStrategy:
                 ],
             ),
             (
-                {},
                 {"subtest_name": "all_reduce_perf", "op": "sum", "datatype": "float"},
                 "",
                 [
@@ -108,11 +90,11 @@ class TestNcclTestSlurmCommandGenStrategy:
     )
     def test_generate_test_command(
         self,
-        slurm_system: SlurmSystem,
-        env_vars: Dict[str, str],
+        cmd_gen_strategy: NcclTestSlurmCommandGenStrategy,
         cmd_args: Dict[str, str],
         extra_cmd_args: str,
         expected_command: List[str],
     ) -> None:
-        command = self.get_test_command(slurm_system, env_vars, cmd_args, extra_cmd_args)
+        env_vars = {}
+        command = cmd_gen_strategy.generate_test_command(env_vars, cmd_args, extra_cmd_args)
         assert command == expected_command
