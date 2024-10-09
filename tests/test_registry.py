@@ -15,12 +15,18 @@
 # limitations under the License.
 
 import pytest
-from cloudai import JobIdRetrievalStrategy, JobStatusRetrievalStrategy, ReportGenerationStrategy, System, TestTemplate
-from cloudai._core.base_installer import BaseInstaller
-from cloudai._core.base_runner import BaseRunner
-from cloudai._core.registry import Registry
-from cloudai._core.test import TestDefinition
-from cloudai._core.test_template_strategy import TestTemplateStrategy
+from cloudai import (
+    BaseInstaller,
+    BaseRunner,
+    JobIdRetrievalStrategy,
+    JobStatusRetrievalStrategy,
+    Registry,
+    ReportGenerationStrategy,
+    System,
+    TestDefinition,
+    TestTemplate,
+    TestTemplateStrategy,
+)
 
 
 @pytest.fixture
