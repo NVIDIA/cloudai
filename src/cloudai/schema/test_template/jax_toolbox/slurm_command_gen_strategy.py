@@ -277,7 +277,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "",
         ]
 
-        script_lines.append(self._generate_python_command(stage, slurm_args, env_vars, cmd_args, extra_cmd_args))
+        script_lines.append(self._generate_python_command(stage, cmd_args, extra_cmd_args))
         if self.test_name == "Grok" or self.test_name == "GPT" or self.test_name == "Nemotron":
             script_lines.extend(
                 [
@@ -290,26 +290,19 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _generate_python_command(
         self,
         stage: str,
-        slurm_args: Dict[str, Any],
-        env_vars: Dict[str, str],
         cmd_args: Dict[str, Any],
         extra_cmd_args: str,
     ) -> str:
         """
-        Construct the complete Python command for execution in the SLURM environment.
-
-        The command is structured with specific ordering of arguments
-        to match the operational requirements of the JaxToolbox on Slurm systems.
+        Construct the PAXML Python command for execution in the Slurm environment.
 
         Args:
             stage (str): The stage of processing (e.g., 'profile', 'perf').
-            slurm_args (Dict[str, Any]): Dictionary containing the SLURM job settings such as number of nodes.
-            env_vars (Dict[str, str]): Environment variables.
             cmd_args (Dict[str, str]): Command-line arguments.
             extra_cmd_args (str): Additional command-line arguments to be included in the Python command.
 
         Returns:
-            str: The formatted Python command string to be executed within a SLURM job.
+            str: The formatted Python command string to be executed within a Slurm job.
         """
         fdl_config = cmd_args.get(f"{self.test_name}.fdl_config")
         parts = [
@@ -325,7 +318,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f'--fdl_config="{fdl_config}"',
         ]
 
-        fdl_args: dict[str, str] = cmd_args[f"{self.test_name}.fdl"]
+        fdl_args: Dict[str, str] = cmd_args[f"{self.test_name}.fdl"]
 
         for key, value in sorted(fdl_args.items()):
             parts.append(f"--fdl.{key.upper()}={value}")
