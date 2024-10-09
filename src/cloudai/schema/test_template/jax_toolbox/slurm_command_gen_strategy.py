@@ -178,10 +178,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             commands.append(pre_test_check_command)
 
         if start_container_run:
-            # Load container command
-            srun_command_load = self._generate_container_load_srun_command(
-                slurm_args, env_vars, cmd_args, extra_cmd_args
-            )
+            srun_command_load = self._generate_container_load_srun_command(slurm_args)
             commands.append('if [ "$keyword_found" = true ]; then')
             commands.append('    echo "Loading container with srun command"')
             commands.append(f"    {srun_command_load}")
@@ -212,37 +209,26 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return full_command
 
-    def _generate_container_load_srun_command(
-        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
-    ) -> str:
+    def _generate_container_load_srun_command(self, slurm_args: Dict[str, Any]) -> str:
         """
-        Generate the srun command to load a container and log the status using Docker commands.
+        Generate an srun command to load a container using the specified image.
 
         Args:
-            slurm_args (Dict[str, Any]): Dictionary containing the SLURM job settings such as image path.
-            env_vars (Dict[str, str]): Environment variables.
-            cmd_args (Dict[str, str]): Command-line arguments.
-            extra_cmd_args (str): Additional command-line arguments to be included in the command.
+            slurm_args (Dict[str, Any]): Slurm job settings, including the image path.
 
         Returns:
-            str: The generated srun command with proper indentation and logging.
+            str: The srun command.
         """
         container_name = "cont"
-        container_image = slurm_args["image_path"]
+        container_image = slurm_args.get("image_path")
 
-        # Construct the srun command to load the container and check if it's running
-        srun_command = "\n".join(
-            [
-                "",
-                "    srun \\",
-                "    --mpi=none \\",
-                f"    --container-image={container_image} \\",
-                f"    --container-name={container_name} \\",
-                "    true",
-            ]
+        return (
+            "srun \\\n"
+            "    --mpi=none \\\n"
+            f"    --container-image={container_image} \\\n"
+            f"    --container-name={container_name} \\\n"
+            "    true"
         )
-
-        return srun_command
 
     def _generate_pre_test_command(self, cmd_args: Dict[str, Any], output_path: Path, error_path: Path) -> str:
         """
