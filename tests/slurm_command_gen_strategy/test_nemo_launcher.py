@@ -29,32 +29,31 @@ from cloudai.systems import SlurmSystem
 from cloudai.test_definitions.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
 
 
-@pytest.fixture
-def test_run(tmp_path: Path) -> TestRun:
-    tdef = NeMoLauncherTestDefinition(
-        name="t1",
-        description="desc1",
-        test_template_name="tt",
-        cmd_args=NeMoLauncherCmdArgs(),
-        extra_env_vars={"TEST_VAR_1": "value1"},
-        extra_cmd_args={"extra_args": ""},
-    )
-    test = Test(
-        test_definition=tdef,
-        test_template=Mock(),
-    )
-
-    tr = TestRun(
-        test=test,
-        num_nodes=2,
-        nodes=[],
-        output_path=tmp_path / "output",
-        name="test-job",
-    )
-    return tr
-
-
 class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
+    @pytest.fixture
+    def test_run(self, tmp_path: Path) -> TestRun:
+        tdef = NeMoLauncherTestDefinition(
+            name="t1",
+            description="desc1",
+            test_template_name="tt",
+            cmd_args=NeMoLauncherCmdArgs(),
+            extra_env_vars={"TEST_VAR_1": "value1"},
+            extra_cmd_args={"extra_args": ""},
+        )
+        test = Test(
+            test_definition=tdef,
+            test_template=Mock(),
+        )
+
+        tr = TestRun(
+            test=test,
+            num_nodes=2,
+            nodes=[],
+            output_path=tmp_path / "output",
+            name="test-job",
+        )
+        return tr
+
     @pytest.fixture
     def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> NeMoLauncherSlurmCommandGenStrategy:
         cmd_args = {"test_arg": "test_value"}
