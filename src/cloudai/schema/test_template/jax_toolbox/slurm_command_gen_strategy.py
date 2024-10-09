@@ -39,13 +39,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd_args["output_path"] = str(tr.output_path)
 
         num_nodes = len(tr.nodes) if tr.nodes else tr.num_nodes
-
-        self._handle_threshold_and_env(final_env_vars, cmd_args, num_nodes)
-
-        xla_flags = self._format_xla_flags(cmd_args, "perf")
-        final_env_vars["XLA_FLAGS"] = f'"{xla_flags}"'
-
         slurm_args = self._parse_slurm_args("JaxToolbox", final_env_vars, cmd_args, num_nodes, tr.nodes)
+        self._update_env_vars(final_env_vars, cmd_args, num_nodes)
         srun_command = self.generate_srun_command(slurm_args, final_env_vars, cmd_args, tr.test.extra_cmd_args)
         return self._write_sbatch_script(slurm_args, final_env_vars, srun_command, tr.output_path)
 
@@ -69,20 +64,27 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     return name.upper() if name.lower() == "gpt" else name.capitalize()
         return ""
 
-    def _handle_threshold_and_env(self, env_vars: Dict[str, str], cmd_args: Dict[str, Any], num_nodes: int):
+    def _update_env_vars(self, env_vars: Dict[str, str], cmd_args: Dict[str, Any], num_nodes: int):
         """
-        Handle threshold and environment variable adjustments.
+        Update environment variables.
 
         Args:
             env_vars (Dict[str, str]): Environment variables.
             cmd_args (Dict[str, str]): Command-line arguments.
             num_nodes (int): Number of nodes to use.
         """
+        self._update_per_gpu_combine_threshold(env_vars, cmd_args, num_nodes)
+        self._update_xla_flags(env_vars, cmd_args)
+
+    def _update_per_gpu_combine_threshold(self, env_vars: Dict[str, str], cmd_args: Dict[str, Any], num_nodes: int):
         combine_threshold_bytes = int(env_vars["COMBINE_THRESHOLD"])
         per_gpu_combine_threshold = int(
             combine_threshold_bytes / (int(cmd_args[f"{self.test_name}.setup_flags"]["gpus_per_node"]) * num_nodes)
         )
         env_vars["PER_GPU_COMBINE_THRESHOLD"] = str(per_gpu_combine_threshold)
+
+    def _update_xla_flags(self, env_vars: Dict[str, str], cmd_args: Dict[str, Any]):
+        env_vars["XLA_FLAGS"] = self._format_xla_flags(cmd_args, "perf")
 
     def _format_xla_flags(self, cmd_args: Dict[str, Any], stage: str) -> str:
         """
