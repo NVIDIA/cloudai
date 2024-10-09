@@ -24,6 +24,7 @@ from .handlers import (
     handle_install_and_uninstall,
     handle_verify_systems,
     handle_verify_tests,
+    identify_unique_test_templates,
 )
 
 
@@ -79,5 +80,6 @@ __all__ = [
     "handle_install_and_uninstall",
     "handle_verify_systems",
     "handle_verify_tests",
+    "identify_unique_test_templates",
     "setup_logging",
 ]

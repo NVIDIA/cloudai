@@ -64,9 +64,9 @@ def identify_unique_test_templates(tests: List[Test]) -> List[TestTemplate]:
     seen_names: Set[str] = set()
 
     for test in tests:
-        template_name = test.test_template.name
-        if template_name not in seen_names:
-            seen_names.add(template_name)
+        template_type = type(test.test_template).__name__
+        if template_type not in seen_names:
+            seen_names.add(template_type)
             unique_templates.append(test.test_template)
 
     return unique_templates
