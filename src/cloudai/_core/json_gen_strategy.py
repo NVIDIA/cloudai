@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from abc import abstractmethod
 from typing import Any, Dict
 
@@ -27,6 +28,27 @@ class JsonGenStrategy(TestTemplateStrategy):
 
     It specifies how to generate JSON job specifications based on system and test parameters.
     """
+
+    def sanitize_k8s_job_name(self, job_name: str) -> str:
+        """
+        Sanitize the job name to ensure it follows Kubernetes naming rules.
+
+        - Must be lowercase.
+        - Can only contain alphanumeric characters, hyphens, and periods.
+        - Must start and end with an alphanumeric character.
+        - Must be at most 253 characters long.
+
+        Args:
+            job_name (str): The original job name to be sanitized.
+
+        Returns:
+            str: The sanitized job name that complies with Kubernetes naming rules.
+        """
+        sanitized_name = job_name.lower()
+        sanitized_name = re.sub(r"[^a-z0-9.-]", "-", sanitized_name)
+        sanitized_name = re.sub(r"^[^a-z0-9]+", "", sanitized_name)
+        sanitized_name = re.sub(r"[^a-z0-9]+$", "", sanitized_name)
+        return sanitized_name[:253]
 
     @abstractmethod
     def gen_json(self, tr: TestRun) -> Dict[Any, Any]:
