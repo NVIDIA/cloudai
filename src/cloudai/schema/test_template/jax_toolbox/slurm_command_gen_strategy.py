@@ -71,7 +71,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self._update_per_gpu_combine_threshold(env_vars, cmd_args, num_nodes)
         self._update_xla_flags(env_vars, cmd_args)
 
-        tr.test.test_definition.extra_env_vars = env_vars
+        tr.test.test_definition.extra_env_vars.update(env_vars)
 
     def _update_per_gpu_combine_threshold(self, env_vars: Dict[str, str], cmd_args: Dict[str, Any], num_nodes: int):
         combine_threshold_bytes = int(env_vars["COMBINE_THRESHOLD"])
