@@ -151,7 +151,7 @@ class CloudAICLI:
                 handle_install_and_uninstall,
                 system_config=True,
                 tests_dir=True,
-                test_scenario=None,
+                test_scenario=False,
                 output_dir=False,
             )
 

@@ -217,6 +217,7 @@ class TestCLIDefaultModes:
                 mode=mode,
                 system_config=Path("system_config"),
                 tests_dir=Path("tests_dir"),
+                test_scenario=None,
                 output_dir=None,
             )
 
