@@ -33,14 +33,12 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def gen_exec_command(self, tr: TestRun) -> str:
         self.test_name = self._extract_test_name(tr.test.cmd_args)
+        self._update_env_vars(tr)
 
-        final_env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
+        final_env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.test_definition.extra_env_vars)
         cmd_args = tr.test.test_definition.cmd_args_dict
         cmd_args["output_path"] = str(tr.output_path)
-
-        num_nodes = len(tr.nodes) if tr.nodes else tr.num_nodes
-        slurm_args = self._parse_slurm_args("JaxToolbox", final_env_vars, cmd_args, num_nodes, tr.nodes)
-        self._update_env_vars(final_env_vars, cmd_args, num_nodes)
+        slurm_args = self._parse_slurm_args("JaxToolbox", final_env_vars, cmd_args, tr.num_nodes, tr.nodes)
         srun_command = self.generate_srun_command(slurm_args, final_env_vars, cmd_args, tr.test.extra_cmd_args)
         return self._write_sbatch_script(slurm_args, final_env_vars, srun_command, tr.output_path)
 
@@ -64,17 +62,16 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     return name.upper() if name.lower() == "gpt" else name.capitalize()
         return ""
 
-    def _update_env_vars(self, env_vars: Dict[str, str], cmd_args: Dict[str, Any], num_nodes: int):
-        """
-        Update environment variables.
+    def _update_env_vars(self, tr: TestRun):
+        """Update environment variables."""
+        env_vars = tr.test.test_definition.extra_env_vars
+        cmd_args = tr.test.test_definition.cmd_args_dict
+        num_nodes = len(tr.nodes) if tr.nodes else tr.num_nodes
 
-        Args:
-            env_vars (Dict[str, str]): Environment variables.
-            cmd_args (Dict[str, str]): Command-line arguments.
-            num_nodes (int): Number of nodes to use.
-        """
         self._update_per_gpu_combine_threshold(env_vars, cmd_args, num_nodes)
         self._update_xla_flags(env_vars, cmd_args)
+
+        tr.test.test_definition.extra_env_vars = env_vars
 
     def _update_per_gpu_combine_threshold(self, env_vars: Dict[str, str], cmd_args: Dict[str, Any], num_nodes: int):
         combine_threshold_bytes = int(env_vars["COMBINE_THRESHOLD"])
