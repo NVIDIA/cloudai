@@ -33,43 +33,14 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def gen_exec_command(self, tr: TestRun) -> str:
         self.test_name = self._extract_test_name(tr.test.cmd_args)
+        self._update_env_vars(tr)
 
-        final_env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
+        final_env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.test_definition.extra_env_vars)
         cmd_args = tr.test.test_definition.cmd_args_dict
         cmd_args["output_path"] = str(tr.output_path)
-
-        combine_threshold_bytes = int(final_env_vars["COMBINE_THRESHOLD"])
-        num_nodes = len(tr.nodes) if tr.nodes else tr.num_nodes
-
-        # Handle thresholds and environment variable adjustments
-        self._handle_threshold_and_env(cmd_args, final_env_vars, combine_threshold_bytes, num_nodes)
-
-        xla_flags = self._format_xla_flags(cmd_args, "perf")
-        final_env_vars["XLA_FLAGS"] = f'"{xla_flags}"'
-
-        slurm_args = self._parse_slurm_args("JaxToolbox", final_env_vars, cmd_args, num_nodes, tr.nodes)
+        slurm_args = self._parse_slurm_args("JaxToolbox", final_env_vars, cmd_args, tr.num_nodes, tr.nodes)
         srun_command = self.generate_srun_command(slurm_args, final_env_vars, cmd_args, tr.test.extra_cmd_args)
         return self._write_sbatch_script(slurm_args, final_env_vars, srun_command, tr.output_path)
-
-    def _handle_threshold_and_env(
-        self, cmd_args: Dict[str, Any], env_vars: Dict[str, str], combine_threshold_bytes: int, num_nodes: int
-    ):
-        """
-        Handle threshold and environment variable adjustments based on the test name.
-
-        This method handles the test-specific logic for setting the correct thresholds
-        and environment variables based on the type of test being run (e.g., GPT, Grok, Nemotron).
-
-        Args:
-            cmd_args (Dict[str, str]): Command-line arguments for the job.
-            env_vars (Dict[str, str]): Environment variables for the job.
-            combine_threshold_bytes (int): The combine threshold in bytes.
-            num_nodes (int): Number of nodes to use.
-        """
-        per_gpu_combine_threshold = int(
-            combine_threshold_bytes / (int(cmd_args[f"{self.test_name}.setup_flags"]["gpus_per_node"]) * num_nodes)
-        )
-        env_vars["PER_GPU_COMBINE_THRESHOLD"] = str(per_gpu_combine_threshold)
 
     def _extract_test_name(self, cmd_args: Dict[str, Any]) -> str:
         """
@@ -90,6 +61,27 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 if name.lower() in ["grok", "gpt", "nemotron"]:
                     return name.upper() if name.lower() == "gpt" else name.capitalize()
         return ""
+
+    def _update_env_vars(self, tr: TestRun):
+        """Update environment variables."""
+        env_vars = tr.test.test_definition.extra_env_vars
+        cmd_args = tr.test.test_definition.cmd_args_dict
+        num_nodes = len(tr.nodes) if tr.nodes else tr.num_nodes
+
+        self._update_per_gpu_combine_threshold(env_vars, cmd_args, num_nodes)
+        self._update_xla_flags(env_vars, cmd_args)
+
+        tr.test.test_definition.extra_env_vars.update(env_vars)
+
+    def _update_per_gpu_combine_threshold(self, env_vars: Dict[str, str], cmd_args: Dict[str, Any], num_nodes: int):
+        combine_threshold_bytes = int(env_vars["COMBINE_THRESHOLD"])
+        per_gpu_combine_threshold = int(
+            combine_threshold_bytes / (int(cmd_args[f"{self.test_name}.setup_flags"]["gpus_per_node"]) * num_nodes)
+        )
+        env_vars["PER_GPU_COMBINE_THRESHOLD"] = str(per_gpu_combine_threshold)
+
+    def _update_xla_flags(self, env_vars: Dict[str, str], cmd_args: Dict[str, Any]):
+        env_vars["XLA_FLAGS"] = self._format_xla_flags(cmd_args, "perf")
 
     def _format_xla_flags(self, cmd_args: Dict[str, Any], stage: str) -> str:
         """
@@ -161,168 +153,51 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def generate_srun_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, Any], extra_cmd_args: str
     ) -> str:
-        self._create_run_script(slurm_args, env_vars, cmd_args, extra_cmd_args)
-
-        start_container_run = cmd_args.get("load_container", False)
-        output_path = Path(cmd_args["output_path"]).resolve() / "output_pretest-%j-%n-%t.txt"
-        error_path = Path(cmd_args["output_path"]).resolve() / "error_pretest-%j-%n-%t.txt"
+        self._create_run_script(env_vars, cmd_args, extra_cmd_args)
 
         commands = []
 
         run_pre_test = cmd_args.get("pre_test", {}).get("enable", False)
-
         if run_pre_test:
-            pre_test_command = self._generate_pre_test_command(cmd_args, output_path, error_path)
-            commands.append(pre_test_command)
-            pre_test_check_command = self._generate_pre_test_check_command(cmd_args, output_path)
-            commands.append(pre_test_check_command)
+            output_path = Path(cmd_args["output_path"]).resolve() / "output_pretest-%j-%n-%t.txt"
+            error_path = Path(cmd_args["output_path"]).resolve() / "error_pretest-%j-%n-%t.txt"
+            commands.append(self._generate_pre_test_command(cmd_args, output_path, error_path))
+            commands.append(self._generate_pre_test_check_command(cmd_args, output_path))
 
-        if start_container_run:
-            # Load container command
-            srun_command_load = self._generate_container_load_srun_command(
-                slurm_args, env_vars, cmd_args, extra_cmd_args
-            )
+        load_container = cmd_args.get("load_container", False)
+        if load_container:
+            container_image = slurm_args.get("image_path")
+            if not container_image:
+                raise ValueError("image_path in slurm_args must be a valid path")
+            srun_command_load = self._generate_container_load_srun_command(container_image)
             commands.append('if [ "$keyword_found" = true ]; then')
             commands.append('    echo "Loading container with srun command"')
             commands.append(f"    {srun_command_load}")
             commands.append("fi")
 
-        main_srun_command = "\n".join(
-            [
-                'if [ "$keyword_found" = true ]; then',
-                '    echo "Running srun command"',
-                "    srun \\",
-                "    --mpi=none \\",
-                f'    {self.system.extra_srun_args if self.system.extra_srun_args else ""} \\',
-                "    --export=ALL \\",
-                f'    -o {slurm_args["output"]} \\',
-                f'    -e {slurm_args["error"]} \\',
-                "    --container-name=cont \\",
-                f'    --container-mounts={slurm_args["container_mounts"]} \\',
-                "    /opt/paxml/workspace/run.sh",
-                "fi",
-            ]
+        commands.append(
+            "\n".join(
+                [
+                    'if [ "$keyword_found" = true ]; then',
+                    '    echo "Running srun command"',
+                    "    srun \\",
+                    "    --mpi=none \\",
+                    f'    {self.system.extra_srun_args if self.system.extra_srun_args else ""} \\',
+                    "    --export=ALL \\",
+                    f'    -o {slurm_args["output"]} \\',
+                    f'    -e {slurm_args["error"]} \\',
+                    "    --container-name=cont \\",
+                    f'    --container-mounts={slurm_args["container_mounts"]} \\',
+                    "    /opt/paxml/workspace/run.sh",
+                    "fi",
+                ]
+            )
         )
 
-        # Add the final srun command to the list of commands
-        commands.append(main_srun_command)
-
-        # Combine all parts into the final batch script
-        full_command = "\n\n".join(commands)
-
-        return full_command
-
-    def _generate_container_load_srun_command(
-        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
-    ) -> str:
-        """
-        Generate the srun command to load a container and log the status using Docker commands.
-
-        Args:
-            slurm_args (Dict[str, Any]): Dictionary containing the SLURM job settings such as image path.
-            env_vars (Dict[str, str]): Environment variables.
-            cmd_args (Dict[str, str]): Command-line arguments.
-            extra_cmd_args (str): Additional command-line arguments to be included in the command.
-
-        Returns:
-            str: The generated srun command with proper indentation and logging.
-        """
-        container_name = "cont"
-        container_image = slurm_args["image_path"]
-
-        # Construct the srun command to load the container and check if it's running
-        srun_command = "\n".join(
-            [
-                "",
-                "    srun \\",
-                "    --mpi=none \\",
-                f"    --container-image={container_image} \\",
-                f"    --container-name={container_name} \\",
-                "    true",
-            ]
-        )
-
-        return srun_command
-
-    def _generate_pre_test_command(self, cmd_args: Dict[str, Any], output_path: Path, error_path: Path) -> str:
-        """
-        Generate the pre-test command for running a test.
-
-        This method constructs the pre-test command based on the command-line
-        arguments provided.
-
-        Args:
-            cmd_args (Dict[str, Any]): A dictionary containing command arguments.
-            output_path (Path): The path to the output file.
-            error_path (Path): The path to the error file.
-
-        Returns:
-            str: The generated pre-test command.
-        """
-        nccl_test = cmd_args.get("pre_test", {}).get("nccl_test", {})
-        pre_test_command_parts = [
-            "srun",
-            "--mpi=pmix",
-            f"-N {nccl_test.get('num_nodes', 2)}",
-            f"-o {output_path}",
-            f"-e {error_path}",
-            f"--container-image={nccl_test.get('docker_image_url', 'nvcr.io/nvidia/pytorch:24.02-py3')}",
-            f"/usr/local/bin/{nccl_test.get('subtest_name', 'all_gather_perf_mpi')}",
-            f"--nthreads {nccl_test.get('nthreads', 1)}",
-            f"--ngpus {nccl_test.get('ngpus', 1)}",
-            f"--minbytes {nccl_test.get('minbytes', '32M')}",
-            f"--maxbytes {nccl_test.get('maxbytes', '16G')}",
-            f"--stepbytes {nccl_test.get('stepbytes', '1M')}",
-            f"--op {nccl_test.get('op', 'sum')}",
-            f"--datatype {nccl_test.get('datatype', 'float')}",
-            f"--root {nccl_test.get('root', 0)}",
-            f"--iters {nccl_test.get('iters', 20)}",
-            f"--warmup_iters {nccl_test.get('warmup_iters', 5)}",
-            f"--agg_iters {nccl_test.get('agg_iters', 1)}",
-            f"--average {nccl_test.get('average', 1)}",
-            f"--parallel_init {nccl_test.get('parallel_init', 0)}",
-            f"--check {nccl_test.get('check', 1)}",
-            f"--blocking {nccl_test.get('blocking', 0)}",
-            f"--cudagraph {nccl_test.get('cudagraph', 0)}",
-            f"--stepfactor {nccl_test.get('stepfactor', 2)}",
-        ]
-        return " \\\n".join(pre_test_command_parts)
-
-    def _generate_pre_test_check_command(self, cmd_args: Dict[str, str], output_path: Path) -> str:
-        """
-        Generate the command for pre-test check.
-
-        This method generates the command that checks the output of the pre-test
-        to determine if the main test should be run.
-
-        Args:
-            cmd_args (Dict[str, str]): Command-line arguments for the job.
-            output_path (str): The path to the output file.
-
-        Returns:
-            str: The generated command for pre-test check.
-        """
-        directory_path = Path(output_path).parent
-        # Create the file pattern with wildcard
-        file_pattern = str(directory_path / "output_pretest-*.txt")
-        keyword = cmd_args.get("keyword", "Avg bus bandwidth")
-
-        script_lines = [
-            f'file_pattern="{file_pattern}"',
-            f'keyword="{keyword}"',
-            "",
-            "# Use grep to search for the keyword in the files",
-            'if grep -q "$keyword" $file_pattern; then',
-            "    keyword_found=true",
-            "fi",
-        ]
-
-        script = "\n".join(script_lines)
-        return script
+        return "\n\n".join(commands)
 
     def _create_run_script(
         self,
-        slurm_args: Dict[str, Any],
         env_vars: Dict[str, str],
         cmd_args: Dict[str, Any],
         extra_cmd_args: str,
@@ -330,11 +205,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         Generate and write the run.sh script to the specified output directory.
 
-        The script configures environment variables, applies necessary command options, and executes the Python command
-        within the SLURM environment.
-
         Args:
-            slurm_args (Dict[str, Any]): SLURM arguments including the output path and other job-related settings.
             env_vars (Dict[str, str]): Environment variables.
             cmd_args (Dict[str, str]): Command-line arguments.
             extra_cmd_args (str): Additional command-line arguments to be included
@@ -343,26 +214,20 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         Returns:
             str: The path to the run.sh script that was created.
         """
-        test_name = self.test_name
-
         run_script_content = []
-        do_pgle = cmd_args.get(f"{test_name}.enable_pgle", True)
+        do_pgle = cmd_args.get(f"{self.test_name}.enable_pgle", True)
 
         if do_pgle:
             env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "profile")}"'
-            profile_content = self._script_content("profile", slurm_args, env_vars, cmd_args, extra_cmd_args)
-            run_script_content += profile_content
+            run_script_content += self._script_content("profile", env_vars, cmd_args, extra_cmd_args)
 
             env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
-            perf_content = self._script_content("perf", slurm_args, env_vars, cmd_args, extra_cmd_args)
-            run_script_content += perf_content
+            run_script_content += self._script_content("perf", env_vars, cmd_args, extra_cmd_args)
         else:
             cmd_args[f"{self.test_name}.perf"]["XLA_FLAGS"]["xla_gpu_pgle_profile_file_or_directory_path"] = '""'
             env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
-            perf_content = self._script_content("perf", slurm_args, env_vars, cmd_args, extra_cmd_args)
-            run_script_content += perf_content
+            run_script_content += self._script_content("perf", env_vars, cmd_args, extra_cmd_args)
 
-        # Write the combined script content to the run.sh file
         run_script_path = Path(cmd_args["output_path"]) / "run.sh"
         with open(run_script_path, "w") as run_file:
             run_file.write("\n".join(run_script_content))
@@ -372,7 +237,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _script_content(
         self,
         stage: str,
-        slurm_args: Dict[str, Any],
         env_vars: Dict[str, str],
         cmd_args: Dict[str, str],
         extra_cmd_args: str,
@@ -384,7 +248,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         Args:
             stage (str): The stage of the process ('profile' or 'perf').
-            slurm_args (Dict[str, Any]): SLURM job settings.
             env_vars (Dict[str, str]): Environment variables for the job.
             cmd_args (Dict[str, str]): Command-line arguments.
             extra_cmd_args (str): Additional command-line arguments.
@@ -399,7 +262,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "",
         ]
 
-        script_lines.append(self._generate_python_command(stage, slurm_args, env_vars, cmd_args, extra_cmd_args))
+        script_lines.append(self._generate_python_command(stage, cmd_args, extra_cmd_args))
         if self.test_name == "Grok" or self.test_name == "GPT" or self.test_name == "Nemotron":
             script_lines.extend(
                 [
@@ -412,26 +275,19 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _generate_python_command(
         self,
         stage: str,
-        slurm_args: Dict[str, Any],
-        env_vars: Dict[str, str],
         cmd_args: Dict[str, Any],
         extra_cmd_args: str,
     ) -> str:
         """
-        Construct the complete Python command for execution in the SLURM environment.
-
-        The command is structured with specific ordering of arguments
-        to match the operational requirements of the JaxToolbox on Slurm systems.
+        Construct the PAXML Python command for execution in the Slurm environment.
 
         Args:
             stage (str): The stage of processing (e.g., 'profile', 'perf').
-            slurm_args (Dict[str, Any]): Dictionary containing the SLURM job settings such as number of nodes.
-            env_vars (Dict[str, str]): Environment variables.
             cmd_args (Dict[str, str]): Command-line arguments.
             extra_cmd_args (str): Additional command-line arguments to be included in the Python command.
 
         Returns:
-            str: The formatted Python command string to be executed within a SLURM job.
+            str: The formatted Python command string to be executed within a Slurm job.
         """
         fdl_config = cmd_args.get(f"{self.test_name}.fdl_config")
         parts = [
@@ -447,7 +303,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f'--fdl_config="{fdl_config}"',
         ]
 
-        fdl_args: dict[str, str] = cmd_args[f"{self.test_name}.fdl"]
+        fdl_args: Dict[str, str] = cmd_args[f"{self.test_name}.fdl"]
 
         for key, value in sorted(fdl_args.items()):
             parts.append(f"--fdl.{key.upper()}={value}")
@@ -504,28 +360,95 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             ["", 'if [ "$SLURM_NODEID" -eq 0 ] && [ "$SLURM_PROCID" -eq 0 ]; then', f"    {command}", "fi"]
         )
 
-    def _create_nsys_to_sqlite_command(self, stage: str, cmd_args: Dict[str, str]) -> str:
+    def _generate_pre_test_command(self, cmd_args: Dict[str, Any], output_path: Path, error_path: Path) -> str:
         """
-        Construct the command to convert the nsys profile file to an sqlite file.
+        Generate the pre-test command for running a test.
 
-        This command is to be executed conditionally on the master node only.
+        This method constructs the pre-test command based on the command-line
+        arguments provided.
 
         Args:
-            stage (str): The stage of processing (e.g., 'profile', 'perf').
-            cmd_args (Dict[str, str]): Command-line arguments.
+            cmd_args (Dict[str, Any]): A dictionary containing command arguments.
+            output_path (Path): The path to the output file.
+            error_path (Path): The path to the error file.
 
         Returns:
-            List[str]: The command split into multiple lines for clarity, enclosed in a conditional check.
+            str: The generated pre-test command.
         """
-        base_command = "nsys export"
-        args = [
-            f"/opt/paxml/workspace/nsys_profile_{stage}.nsys-rep",
-            f"--output /opt/paxml/workspace/nsys_profile_{stage}.sqlite",
-            "--type sqlite",
+        nccl_test = cmd_args.get("pre_test", {}).get("nccl_test", {})
+        pre_test_command_parts = [
+            "srun",
+            "--mpi=pmix",
+            f"-N {nccl_test.get('num_nodes', 2)}",
+            f"-o {output_path}",
+            f"-e {error_path}",
+            f"--container-image={nccl_test.get('docker_image_url', 'nvcr.io/nvidia/pytorch:24.02-py3')}",
+            f"/usr/local/bin/{nccl_test.get('subtest_name', 'all_gather_perf_mpi')}",
+            f"--nthreads {nccl_test.get('nthreads', 1)}",
+            f"--ngpus {nccl_test.get('ngpus', 1)}",
+            f"--minbytes {nccl_test.get('minbytes', '32M')}",
+            f"--maxbytes {nccl_test.get('maxbytes', '16G')}",
+            f"--stepbytes {nccl_test.get('stepbytes', '1M')}",
+            f"--op {nccl_test.get('op', 'sum')}",
+            f"--datatype {nccl_test.get('datatype', 'float')}",
+            f"--root {nccl_test.get('root', 0)}",
+            f"--iters {nccl_test.get('iters', 20)}",
+            f"--warmup_iters {nccl_test.get('warmup_iters', 5)}",
+            f"--agg_iters {nccl_test.get('agg_iters', 1)}",
+            f"--average {nccl_test.get('average', 1)}",
+            f"--parallel_init {nccl_test.get('parallel_init', 0)}",
+            f"--check {nccl_test.get('check', 1)}",
+            f"--blocking {nccl_test.get('blocking', 0)}",
+            f"--cudagraph {nccl_test.get('cudagraph', 0)}",
+            f"--stepfactor {nccl_test.get('stepfactor', 2)}",
         ]
-        command = " \\\n    ".join([base_command] + args)
-        command += " > /dev/null 2>&1"
+        return " \\\n".join(pre_test_command_parts)
+
+    def _generate_pre_test_check_command(self, cmd_args: Dict[str, str], output_path: Path) -> str:
+        """
+        Generate the command for pre-test check.
+
+        This method generates the command that checks the output of the pre-test to determine if the main test should
+        be run.
+
+        Args:
+            cmd_args (Dict[str, str]): Command-line arguments for the job.
+            output_path (str): The path to the output file.
+
+        Returns:
+            str: The generated command for pre-test check.
+        """
+        pretest_output_files = str(Path(output_path).parent / "output_pretest-*.txt")
+        keyword = cmd_args.get("keyword", "Avg bus bandwidth")
 
         return "\n".join(
-            ["", 'if [ "$SLURM_NODEID" -eq 0 ] && [ "$SLURM_PROCID" -eq 0 ]; then', f"    {command}", "fi"]
+            [
+                f'pretest_output_files="{pretest_output_files}"',
+                f'keyword="{keyword}"',
+                "",
+                "# Use grep to search for the keyword in the files",
+                'if grep -q "$keyword" $pretest_output_files; then',
+                "    keyword_found=true",
+                "fi",
+            ]
+        )
+
+    def _generate_container_load_srun_command(self, container_image: str) -> str:
+        """
+        Generate an srun command to load a container using the specified image.
+
+        Args:
+            container_image (str): The path to the container image.
+
+        Returns:
+            str: The srun command.
+        """
+        container_name = "cont"
+
+        return (
+            "srun \\\n"
+            "    --mpi=none \\\n"
+            f"    --container-image={container_image} \\\n"
+            f"    --container-name={container_name} \\\n"
+            "    true"
         )
