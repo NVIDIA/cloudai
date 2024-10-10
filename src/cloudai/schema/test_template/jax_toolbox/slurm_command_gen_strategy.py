@@ -166,35 +166,11 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         load_container = cmd_args.get("load_container", False)
         if load_container:
-            container_image = slurm_args.get("image_path")
-            if not container_image:
-                raise ValueError("image_path in slurm_args must be a valid path")
-            srun_command_load = self._generate_container_load_srun_command(container_image)
-            commands.append('if [ "$keyword_found" = true ]; then')
-            commands.append('    echo "Loading container with srun command"')
-            commands.append(f"    {srun_command_load}")
-            commands.append("fi")
+            commands += self._generate_container_load_command(slurm_args)
 
-        commands.append(
-            "\n".join(
-                [
-                    'if [ "$keyword_found" = true ]; then',
-                    '    echo "Running srun command"',
-                    "    srun \\",
-                    "    --mpi=none \\",
-                    f'    {self.system.extra_srun_args if self.system.extra_srun_args else ""} \\',
-                    "    --export=ALL \\",
-                    f'    -o {slurm_args["output"]} \\',
-                    f'    -e {slurm_args["error"]} \\',
-                    "    --container-name=cont \\",
-                    f'    --container-mounts={slurm_args["container_mounts"]} \\',
-                    "    /opt/paxml/workspace/run.sh",
-                    "fi",
-                ]
-            )
-        )
+        commands += self._generate_run_command(slurm_args)
 
-        return "\n\n".join(commands)
+        return "\n".join(commands)
 
     def _create_run_script(
         self,
@@ -423,32 +399,45 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return "\n".join(
             [
-                f'pretest_output_files="{pretest_output_files}"',
+                f'PRETEST_OUTPUT_FILES="{pretest_output_files}"',
                 f'keyword="{keyword}"',
                 "",
                 "# Use grep to search for the keyword in the files",
-                'if grep -q "$keyword" $pretest_output_files; then',
-                "    keyword_found=true",
+                'if grep -q "$keyword" $PRETEST_OUTPUT_FILES; then',
+                "    PRE_TEST_SUCCESS=true",
                 "fi",
             ]
         )
 
-    def _generate_container_load_srun_command(self, container_image: str) -> str:
-        """
-        Generate an srun command to load a container using the specified image.
+    def _generate_container_load_command(self, slurm_args: Dict[str, Any]) -> List[str]:
+        """Generate the command for loading a container."""
+        commands = []
+        container_image = slurm_args.get("image_path")
+        if not container_image:
+            raise ValueError("image_path in slurm_args must be a valid path")
 
-        Args:
-            container_image (str): The path to the container image.
+        commands.append('if [ "$PRE_TEST_SUCCESS" = true ]; then')
+        commands.append('    echo "Loading container with srun command"')
+        commands.append(f"    srun --mpi=none --container-image={container_image} --container-name=cont true")
+        commands.append("fi")
 
-        Returns:
-            str: The srun command.
-        """
-        container_name = "cont"
+        return commands
 
-        return (
-            "srun \\\n"
-            "    --mpi=none \\\n"
-            f"    --container-image={container_image} \\\n"
-            f"    --container-name={container_name} \\\n"
-            "    true"
-        )
+    def _generate_run_command(self, slurm_args: Dict[str, Any]) -> List[str]:
+        """Generate the srun command for executing the test."""
+        commands = []
+
+        commands.append('if [ "$PRE_TEST_SUCCESS" = true ]; then')
+        commands.append('    echo "Running srun command"')
+        commands.append("    srun \\")
+        commands.append("    --mpi=none \\")
+        commands.append(f'    {self.system.extra_srun_args if self.system.extra_srun_args else ""} \\')
+        commands.append("    --export=ALL \\")
+        commands.append(f'    -o {slurm_args["output"]} \\')
+        commands.append(f'    -e {slurm_args["error"]} \\')
+        commands.append("    --container-name=cont \\")
+        commands.append(f'    --container-mounts={slurm_args["container_mounts"]} \\')
+        commands.append("    /opt/paxml/workspace/run.sh")
+        commands.append("fi")
+
+        return commands
