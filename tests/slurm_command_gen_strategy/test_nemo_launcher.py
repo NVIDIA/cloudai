@@ -19,6 +19,7 @@ from typing import cast
 from unittest.mock import Mock, mock_open, patch
 
 import pytest
+
 from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestRun
 from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import (

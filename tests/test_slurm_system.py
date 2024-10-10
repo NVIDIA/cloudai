@@ -19,6 +19,7 @@ from typing import List
 from unittest.mock import patch
 
 import pytest
+
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm import SlurmNode, SlurmNodeState
 from cloudai.systems.slurm.slurm_system import parse_node_list

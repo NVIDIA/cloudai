@@ -17,6 +17,7 @@
 from pathlib import Path
 
 import pytest
+
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 

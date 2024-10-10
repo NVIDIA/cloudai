@@ -17,6 +17,7 @@
 from typing import Dict, List
 
 import pytest
+
 from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
 

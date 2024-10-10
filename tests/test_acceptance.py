@@ -14,15 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from concurrent.futures import Future
 from pathlib import Path
 from typing import Dict
-from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from cloudai import BaseInstaller, InstallStatusResult, NcclTest, Parser, Test, TestTemplate, UCCTest
+
+from cloudai import NcclTest, Parser, Test, UCCTest
 from cloudai.__main__ import handle_dry_run_and_run, identify_unique_test_templates, setup_logging
-from cloudai.systems import SlurmSystem, StandaloneSystem
+from cloudai.systems import StandaloneSystem
 from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
 
 SLURM_TEST_SCENARIOS = [

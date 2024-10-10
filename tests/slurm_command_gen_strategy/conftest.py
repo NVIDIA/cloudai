@@ -17,6 +17,7 @@
 from pathlib import Path
 
 import pytest
+
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm import SlurmNodeState
 from cloudai.systems.slurm.slurm_system import SlurmPartition
