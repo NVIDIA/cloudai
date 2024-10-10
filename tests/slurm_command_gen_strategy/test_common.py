@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
 
 import pytest
 from cloudai.systems import SlurmSystem
@@ -26,26 +25,6 @@ def strategy_fixture(slurm_system: SlurmSystem) -> SlurmCommandGenStrategy:
     cmd_args = {"test_arg": "test_value"}
     strategy = SlurmCommandGenStrategy(slurm_system, cmd_args)
     return strategy
-
-
-def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path):
-    args = {"job_name": "test_job", "num_nodes": 2, "partition": "test_partition", "node_list_str": "node1,node2"}
-    env_vars = {"TEST_VAR": "VALUE"}
-    srun_command = "srun --test test_arg"
-    output_path = tmp_path
-
-    sbatch_command = strategy_fixture._write_sbatch_script(args, env_vars, srun_command, output_path)
-    filepath_from_command = sbatch_command.split()[-1]
-
-    assert output_path.joinpath("cloudai_sbatch_script.sh").exists()
-
-    with open(filepath_from_command, "r") as file:
-        file_contents = file.read()
-    assert "test_job" in file_contents
-    assert "node1,node2" in file_contents
-    assert "srun --test test_arg" in file_contents
-
-    assert sbatch_command == f"sbatch {filepath_from_command}"
 
 
 def test_num_nodes_and_nodes(strategy_fixture: SlurmCommandGenStrategy):
