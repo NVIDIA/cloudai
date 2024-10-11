@@ -163,12 +163,16 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             error_path = Path(cmd_args["output_path"]).resolve() / "error_pretest-%j-%n-%t.txt"
             commands.append(self._generate_pre_test_command(cmd_args, output_path, error_path))
             commands.append(self._generate_pre_test_check_command(cmd_args, output_path))
+            commands.append('if [ "$PRE_TEST_SUCCESS" = true ]; then')
 
         load_container = cmd_args.get("load_container", False)
         if load_container:
             commands += self._generate_container_load_command(slurm_args)
 
         commands += self._generate_run_command(slurm_args)
+
+        if run_pre_test:
+            commands.append("fi")
 
         return "\n".join(commands)
 
@@ -416,10 +420,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if not container_image:
             raise ValueError("image_path in slurm_args must be a valid path")
 
-        commands.append('if [ "$PRE_TEST_SUCCESS" = true ]; then')
         commands.append('    echo "Loading container with srun command"')
         commands.append(f"    srun --mpi=none --container-image={container_image} --container-name=cont true")
-        commands.append("fi")
 
         return commands
 
@@ -427,7 +429,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """Generate the srun command for executing the test."""
         commands = []
 
-        commands.append('if [ "$PRE_TEST_SUCCESS" = true ]; then')
         commands.append('    echo "Running srun command"')
         commands.append("    srun \\")
         commands.append("    --mpi=none \\")
@@ -438,6 +439,5 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         commands.append("    --container-name=cont \\")
         commands.append(f'    --container-mounts={slurm_args["container_mounts"]} \\')
         commands.append("    /opt/paxml/workspace/run.sh")
-        commands.append("fi")
 
         return commands
