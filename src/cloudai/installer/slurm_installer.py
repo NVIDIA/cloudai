@@ -122,6 +122,8 @@ class SlurmInstaller(BaseInstaller):
         if isinstance(item, DockerImage):
             res = self._install_docker_image(item)
             return InstallStatusResult(res.success, res.message)
+        elif isinstance(item, PythonExecutable):
+            return self._install_python_executable(item)
 
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
@@ -139,6 +141,8 @@ class SlurmInstaller(BaseInstaller):
         if isinstance(item, DockerImage):
             res = self._uninstall_docker_image(item)
             return InstallStatusResult(res.success, res.message)
+        elif isinstance(item, PythonExecutable):
+            return self._uninstall_python_executable(item)
 
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
@@ -148,6 +152,15 @@ class SlurmInstaller(BaseInstaller):
             if res.success and res.docker_image_path:
                 item.installed_path = res.docker_image_path
             return InstallStatusResult(res.success, res.message)
+        elif isinstance(item, PythonExecutable):
+            ok, msg = True, "python executable installed"
+            if not item.installed_path:
+                ok = False
+                msg = f"Repository {item.git_url} not cloned"
+            elif not item.venv_path:
+                ok = False
+                msg = f"Virtual environment not created for {item.git_url}"
+            return InstallStatusResult(ok, msg)
 
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 

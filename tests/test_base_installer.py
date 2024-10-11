@@ -23,6 +23,7 @@ from cloudai import BaseInstaller, InstallStatusResult
 from cloudai._core.test import DockerImage, Installable, PythonExecutable
 from cloudai.installer.slurm_installer import SlurmInstaller
 from cloudai.systems import SlurmSystem
+from cloudai.util.docker_image_cache_manager import DockerImageCacheResult
 
 
 def create_real_future(result):
@@ -333,3 +334,19 @@ class TestInstallOnePythonExecutable:
         assert res.success
         assert py.installed_path is None
         assert not repo_path.exists()
+
+
+def test_check_supported(slurm_system: SlurmSystem):
+    installer = SlurmInstaller(slurm_system)
+    installer._install_docker_image = lambda item: DockerImageCacheResult(True)
+    installer._install_python_executable = lambda item: InstallStatusResult(True)
+    installer._uninstall_docker_image = lambda item: DockerImageCacheResult(True)
+    installer._uninstall_python_executable = lambda item: InstallStatusResult(True)
+
+    items = [DockerImage("fake_url/img"), PythonExecutable("git_url", "commit_hash")]
+    for item in items:
+        res = installer.install_one(item)
+        assert res.success
+
+        res = installer.uninstall_one(item)
+        assert res.success
