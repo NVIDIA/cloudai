@@ -37,10 +37,12 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
             extra_env_vars={"TEST_VAR_1": "value1"},
             extra_cmd_args={"extra_args": ""},
         )
-        test = Test(
-            test_definition=tdef,
-            test_template=Mock(),
-        )
+        (tmp_path / "python").mkdir()
+        (tmp_path / "venv").mkdir()
+        tdef.python_executable.installed_path = tmp_path / "python"
+        tdef.python_executable.venv_path = tmp_path / "venv"
+
+        test = Test(test_definition=tdef, test_template=Mock())
         tr = TestRun(
             test=test,
             num_nodes=2,
@@ -48,6 +50,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
             output_path=tmp_path / "output",
             name="test-job",
         )
+
         return tr
 
     @pytest.fixture

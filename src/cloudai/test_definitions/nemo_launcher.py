@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Literal
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -96,6 +96,7 @@ class NeMoLauncherCmdArgs(CmdArgs):
 
     repository_url: str = "https://github.com/NVIDIA/NeMo-Framework-Launcher.git"
     repository_commit_hash: str = "cf411a9ede3b466677df8ee672bcc6c396e71e1a"
+    launcher_script: str = "launcher_scripts/main.py"
     docker_image_url: str = "nvcr.io/nvidia/nemo:24.01.01"
     stages: str = '["training"]'
     numa_mapping: NumaMapping = Field(default_factory=NumaMapping)
@@ -107,6 +108,12 @@ class NeMoLauncherTestDefinition(TestDefinition):
     """Test object for NeMoLauncher."""
 
     cmd_args: NeMoLauncherCmdArgs
+    _python_executable: Optional[PythonExecutable] = None
+
+    def model_post_init(self, __context: Any) -> None:
+        self._python_executable = PythonExecutable(
+            git_url=self.cmd_args.repository_url, commit_hash=self.cmd_args.repository_commit_hash
+        )
 
     @property
     def docker_image(self) -> DockerImage:
@@ -116,7 +123,11 @@ class NeMoLauncherTestDefinition(TestDefinition):
     @property
     def python_executable(self) -> PythonExecutable:
         """Get python executable object."""
-        return PythonExecutable(git_url=self.cmd_args.repository_url, commit_hash=self.cmd_args.repository_commit_hash)
+        if self._python_executable is None:
+            self._python_executable = PythonExecutable(
+                git_url=self.cmd_args.repository_url, commit_hash=self.cmd_args.repository_commit_hash
+            )
+        return self._python_executable
 
     @property
     def installables(self) -> list[Installable]:

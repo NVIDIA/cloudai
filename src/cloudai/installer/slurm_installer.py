@@ -17,6 +17,8 @@
 import logging
 import os
 import subprocess
+from pathlib import Path
+from shutil import rmtree
 from typing import Iterable
 
 from cloudai import BaseInstaller, InstallStatusResult
@@ -106,37 +108,6 @@ class SlurmInstaller(BaseInstaller):
             missing_options_str = ", ".join(missing_options)
             raise EnvironmentError(f"Required srun options missing: {missing_options_str}")
 
-    def install(self, items: Iterable[Installable]) -> InstallStatusResult:
-        """
-        Check if the necessary components are installed and install them if not.
-
-        Requires the installation path to be set.
-
-        Args:
-            items (Iterable[Installable]): The test templates to install.
-
-        Returns:
-            InstallStatusResult: Result containing the installation status and error message if any.
-        """
-        if self.install_path is None:
-            return InstallStatusResult(
-                False, "Installation path is not set. Please set the install path in the system schema."
-            )
-
-        prerequisites_result = self._check_prerequisites()
-        if not prerequisites_result.success:
-            return prerequisites_result
-
-        try:
-            self.install_path.mkdir(parents=True, exist_ok=True)
-        except OSError as e:
-            return InstallStatusResult(False, f"Failed to create installation directory at {self.install_path}: {e}")
-
-        if not self.install_path.is_dir() or not os.access(self.install_path, os.W_OK):
-            return InstallStatusResult(False, f"The installation path {self.install_path} is not writable.")
-
-        return super().install(items)
-
     def install_one(self, item: Installable) -> InstallStatusResult:
         """
         Install a single item.
@@ -193,7 +164,85 @@ class SlurmInstaller(BaseInstaller):
         return res
 
     def _install_python_executable(self, item: PythonExecutable) -> InstallStatusResult:
+        repo_path = self.install_path / item.repo_name
+        if repo_path.exists():
+            msg = f"Python executable repository already exists at {repo_path}."
+            logging.warning(msg)
+            return InstallStatusResult(True, msg)
+
+        res = self._clone_repository(item.git_url, repo_path)
+        if not res.success:
+            return res
+
+        res = self._checkout_commit(item.commit_hash, repo_path)
+        if not res.success:
+            return res
+
+        item.installed_path = repo_path
+
+        venv_path = self.install_path / item.venv_name
+        res = self._create_venv(venv_path)
+        if not res.success:
+            return res
+
+        requirements_txt = repo_path / "requirements.txt"
+        res = self._install_requirements(venv_path, requirements_txt)
+        if not res.success:
+            return res
+
+        item.venv_path = venv_path
+
+        return InstallStatusResult(True)
+
+    def _clone_repository(self, git_url: str, path: Path) -> InstallStatusResult:
+        logging.debug(f"Cloning repository {git_url} into {path}")
+        clone_cmd = ["git", "clone", git_url, str(path)]
+        result = subprocess.run(clone_cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            return InstallStatusResult(False, f"Failed to clone repository: {result.stderr}")
+        return InstallStatusResult(True)
+
+    def _checkout_commit(self, commit_hash: str, path: Path) -> InstallStatusResult:
+        logging.debug(f"Checking out specific commit in {path}: {commit_hash}")
+        checkout_cmd = ["git", "checkout", commit_hash]
+        result = subprocess.run(checkout_cmd, cwd=str(path), capture_output=True, text=True)
+        if result.returncode != 0:
+            return InstallStatusResult(False, f"Failed to checkout commit: {result.stderr}")
+        return InstallStatusResult(True)
+
+    def _create_venv(self, venv_dir: Path) -> InstallStatusResult:
+        logging.debug(f"Creating virtual environment in {venv_dir}")
+        if venv_dir.exists():
+            msg = f"Virtual environment already exists at {venv_dir}."
+            logging.warning(msg)
+            return InstallStatusResult(True, msg)
+
+        result = subprocess.run(["python", "-m", "venv", str(venv_dir)], capture_output=True, text=True)
+        if result.returncode != 0:
+            return InstallStatusResult(False, f"Failed to create venv: {result.stderr}")
+        return InstallStatusResult(True)
+
+    def _install_requirements(self, venv_dir: Path, requirements_txt: Path) -> InstallStatusResult:
+        if not requirements_txt.is_file() or not requirements_txt.exists():
+            msg = f"Requirements file is invalid or does not exist: {requirements_txt}"
+            logging.warning(msg)
+            return InstallStatusResult(False, msg)
+
+        install_cmd = [(venv_dir / "bin" / "python"), "-m", "pip", "install", "-r", str(requirements_txt)]
+        logging.debug(f"Installing requirements from {requirements_txt} using command: {install_cmd}")
+        result = subprocess.run(install_cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            return InstallStatusResult(False, f"Failed to install requirements: {result.stderr}")
+
         return InstallStatusResult(True)
 
     def _uninstall_python_executable(self, item: PythonExecutable) -> InstallStatusResult:
+        if not item.installed_path or not item.installed_path.exists():
+            msg = f"Repository {item.git_url} is not cloned."
+            logging.warning(msg)
+            return InstallStatusResult(True, msg)
+
+        rmtree(item.installed_path)
+        item._installed_path = None
+
         return InstallStatusResult(True)

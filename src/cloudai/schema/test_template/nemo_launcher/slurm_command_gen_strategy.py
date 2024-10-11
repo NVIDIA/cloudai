@@ -21,8 +21,6 @@ from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 from cloudai.test_definitions.nemo_launcher import NeMoLauncherTestDefinition
 
-from .slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
-
 
 class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for NeMo Megatron Launcher on Slurm systems."""
@@ -48,14 +46,30 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             )
         self.final_cmd_args["cluster.gpus_per_node"] = self.system.gpus_per_node or "null"
 
+        if not tdef.python_executable.installed_path or not tdef.python_executable.installed_path.exists():
+            raise ValueError(
+                f"The Python executable path '{tdef.python_executable.installed_path}' does not exist. "
+                "Please ensure the Python executable is installed before running the test."
+            )
+        if not tdef.python_executable.venv_path or not tdef.python_executable.venv_path.exists():
+            raise ValueError(
+                f"The Python virtual environment path '{tdef.python_executable.venv_path}' does not exist. "
+                "Please ensure the virtual environment is created before running the test."
+            )
+        py_bin = (tdef.python_executable.venv_path / "bin" / "python").absolute()
+        self.final_cmd_args.update(
+            {
+                "base_results_dir": str(tr.output_path.absolute()),
+                "launcher_scripts_path": str(
+                    (tdef.python_executable.installed_path / tdef.cmd_args.launcher_script).parent
+                ),
+            }
+        )
+
         self._validate_data_config()
 
         cmd_args_str = self._generate_cmd_args_str(self.final_cmd_args, nodes)
-
-        py_bin = (
-            self.system.install_path / NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH / "nemo-venv" / "bin" / "python"
-        ).absolute()
-        full_cmd = f"{py_bin} {self._launcher_scripts_path()}/launcher_scripts/main.py {cmd_args_str}"
+        full_cmd = f"{py_bin} {tdef.python_executable.installed_path / tdef.cmd_args.launcher_script} {cmd_args_str}"
 
         if tr.test.extra_cmd_args:
             full_cmd = self._handle_extra_cmd_args(full_cmd, tr.test.extra_cmd_args)
@@ -79,19 +93,8 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         self.final_env_vars = self._override_env_vars(self.system.global_env_vars, extra_env_vars)
 
-        launcher_path = self._launcher_scripts_path()
-        output_path_abs = output_path.absolute()
         overriden_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
-        self.final_cmd_args = {
-            k: self._handle_special_keys(k, v, str(launcher_path), str(output_path_abs))
-            for k, v in overriden_cmd_args.items()
-        }
-        self.final_cmd_args.update(
-            {
-                "base_results_dir": str(output_path_abs),
-                "launcher_scripts_path": str(launcher_path / "launcher_scripts"),
-            }
-        )
+        self.final_cmd_args = {k: self._handle_special_keys(k, v) for k, v in overriden_cmd_args.items()}
 
         for key, value in self.final_env_vars.items():
             self.final_cmd_args[f"env_vars.{key}"] = value
@@ -108,19 +111,6 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if self.system.extra_srun_args and reservation_key in self.system.extra_srun_args:
             reservation = self.system.extra_srun_args.split(reservation_key, 1)[1].split(" ", 1)[0]
             self.final_cmd_args["+cluster.reservation"] = reservation
-
-    def _launcher_scripts_path(self) -> Path:
-        """
-        Return the launcher scripts path.
-
-        Returns
-            Path: Absolute path to the NeMo launcher scripts directory.
-        """
-        return (
-            self.system.install_path
-            / NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH
-            / NeMoLauncherSlurmInstallStrategy.REPOSITORY_NAME
-        ).absolute()
 
     def _set_node_config(self, nodes: List[str], num_nodes: int) -> None:
         """
@@ -207,7 +197,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         with log_file.open("a") as f:
             f.write(f"{command_with_line_breaks}\n\n")
 
-    def _handle_special_keys(self, key: str, value: Any, launcher_path: str, output_path: str) -> Any:
+    def _handle_special_keys(self, key: str, value: Any) -> Any:
         """
         Handle special formatting for specific keys.
 

@@ -15,10 +15,11 @@
 # limitations under the License.
 
 import logging
+import os
 import shutil
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Iterable
+from typing import Iterable, final
 
 from .install_status_result import InstallStatusResult
 from .system import System
@@ -71,6 +72,7 @@ class BaseInstaller(ABC):
         logging.debug("Checking for common prerequisites.")
         return InstallStatusResult(True)
 
+    @final
     def is_installed(self, items: Iterable[Installable]) -> InstallStatusResult:
         """
         Check if the necessary components for the provided test templates are already installed.
@@ -95,6 +97,7 @@ class BaseInstaller(ABC):
         else:
             return InstallStatusResult(True, "All test templates are installed.")
 
+    @final
     def install(self, items: Iterable[Installable]) -> InstallStatusResult:
         """
         Install the necessary components if they are not already installed.
@@ -105,10 +108,21 @@ class BaseInstaller(ABC):
         Returns:
             InstallStatusResult: Result containing the installation status and error message if any.
         """
-        logging.debug("Starting installation of test templates.")
         prerequisites_result = self._check_prerequisites()
         if not prerequisites_result.success:
-            return InstallStatusResult(False, "Prerequisites check failed.", {"error": prerequisites_result.message})
+            return prerequisites_result
+
+        try:
+            self.system.install_path.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            return InstallStatusResult(
+                False, f"Failed to create installation directory at {self.system.install_path}: {e}"
+            )
+
+        if not self.system.install_path.is_dir() or not os.access(self.system.install_path, os.W_OK):
+            return InstallStatusResult(False, f"The installation path {self.system.install_path} is not writable.")
+
+        logging.debug("Starting installation of test templates.")
 
         install_results = {}
         with ThreadPoolExecutor() as executor:
@@ -138,6 +152,7 @@ class BaseInstaller(ABC):
         else:
             return InstallStatusResult(False, "Some test templates failed to install.", install_results)
 
+    @final
     def uninstall(self, items: Iterable[Installable]) -> InstallStatusResult:
         """
         Uninstall the benchmarks or test templates.

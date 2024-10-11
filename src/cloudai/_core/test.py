@@ -145,6 +145,8 @@ class PythonExecutable(Installable):
 
     git_url: str
     commit_hash: str
+    _installed_path: Optional[Path] = None
+    _venv_path: Optional[Path] = None
 
     def __eq__(self, other: object) -> bool:
         return (
@@ -155,6 +157,30 @@ class PythonExecutable(Installable):
 
     def __hash__(self) -> int:
         return hash((self.git_url, self.commit_hash))
+
+    @property
+    def repo_name(self) -> str:
+        return self.git_url.rsplit("/", maxsplit=1)[1].replace(".git", "")
+
+    @property
+    def venv_name(self) -> str:
+        return f"{self.repo_name}-venv"
+
+    @property
+    def venv_path(self) -> Optional[Path]:
+        return self._venv_path
+
+    @venv_path.setter
+    def venv_path(self, value: Path) -> None:
+        self._venv_path = value
+
+    @property
+    def installed_path(self) -> Optional[Path]:
+        return self._installed_path
+
+    @installed_path.setter
+    def installed_path(self, value: Path) -> None:
+        self._installed_path = value
 
 
 class TestDefinition(BaseModel):

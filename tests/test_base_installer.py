@@ -15,32 +15,14 @@
 # limitations under the License.
 
 from concurrent.futures import Future
-from unittest.mock import MagicMock, Mock, patch
+from subprocess import CompletedProcess
+from unittest.mock import Mock, patch
 
 import pytest
-from cloudai import InstallStatusResult, TestTemplate
-from cloudai._core.base_installer import BaseInstaller
-from cloudai._core.test import DockerImage, Installable, Test
+from cloudai import BaseInstaller, InstallStatusResult
+from cloudai._core.test import DockerImage, Installable, PythonExecutable
 from cloudai.installer.slurm_installer import SlurmInstaller
 from cloudai.systems import SlurmSystem
-
-
-@pytest.fixture
-def test_success() -> Test:
-    template = MagicMock(spec=TestTemplate)
-    template.name = "test_template_success"
-    template.install.return_value = InstallStatusResult(success=True)
-    template.uninstall.return_value = InstallStatusResult(success=True)
-    return template
-
-
-@pytest.fixture
-def test_failure() -> Test:
-    template = MagicMock(spec=TestTemplate)
-    template.name = "test_template_failure"
-    template.install.return_value = InstallStatusResult(success=False, message="Installation failed")
-    template.uninstall.return_value = InstallStatusResult(success=False, message="Uninstallation failed")
-    return template
 
 
 def create_real_future(result):
@@ -60,72 +42,70 @@ class MyInstaller(BaseInstaller):
         return InstallStatusResult(success=True)
 
 
-@patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def test_install_success(mock_executor: Mock, slurm_system: SlurmSystem, test_success: Mock):
-    installer = MyInstaller(slurm_system)
-    mock_future = create_real_future(test_success.install.return_value)
-    mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
-
-    result = installer.install([test_success])
-
-    assert result.success
-    assert result.message == "All test templates installed successfully."
+@pytest.fixture
+def docker_image() -> DockerImage:
+    return DockerImage("fake_url/img")
 
 
 @patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def test_install_failure(mock_executor: Mock, slurm_system: SlurmSystem, test_failure: Mock):
-    installer = MyInstaller(slurm_system)
-    mock_future = create_real_future(test_failure.install.return_value)
-    mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
+class TestBaseInstaller:
+    @pytest.fixture
+    def installer(self, slurm_system: SlurmSystem):
+        return MyInstaller(slurm_system)
 
-    result = installer.install([test_failure])
+    def test_install_success(self, mock_executor: Mock, installer: MyInstaller, docker_image: DockerImage):
+        mock_executor.return_value.__enter__.return_value.submit.return_value = create_real_future(
+            InstallStatusResult(success=True)
+        )
 
-    assert not result.success
-    assert result.message == "Some test templates failed to install."
+        result = installer.install([docker_image])
 
+        assert result.success
+        assert result.message == "All test templates installed successfully."
 
-@patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def test_uninstall_success(mock_executor: Mock, slurm_system: SlurmSystem, test_success: Mock):
-    installer = MyInstaller(slurm_system)
-    mock_future = create_real_future(test_success.uninstall.return_value)
-    mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
+    def test_install_failure(self, mock_executor: Mock, installer: MyInstaller, docker_image: DockerImage):
+        mock_executor.return_value.__enter__.return_value.submit.return_value = create_real_future(
+            InstallStatusResult(False)
+        )
 
-    result = installer.uninstall([test_success])
+        result = installer.install([docker_image])
 
-    assert result.success
-    assert result.message == "All test templates uninstalled successfully."
+        assert not result.success
+        assert result.message == "Some test templates failed to install."
 
+    def test_uninstall_success(self, mock_executor: Mock, installer: MyInstaller, docker_image: DockerImage):
+        mock_executor.return_value.__enter__.return_value.submit.return_value = create_real_future(
+            InstallStatusResult(True)
+        )
 
-@patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def test_uninstall_failure(mock_executor: Mock, slurm_system: SlurmSystem, test_failure: Mock):
-    installer = MyInstaller(slurm_system)
-    mock_future = create_real_future(test_failure.uninstall.return_value)
-    mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
+        result = installer.uninstall([docker_image])
 
-    result = installer.uninstall([test_failure])
+        assert result.success
+        assert result.message == "All test templates uninstalled successfully."
 
-    assert not result.success
-    assert result.message == "Some test templates failed to uninstall."
+    def test_uninstall_failure(self, mock_executor: Mock, installer: MyInstaller, docker_image: DockerImage):
+        mock_executor.return_value.__enter__.return_value.submit.return_value = create_real_future(
+            InstallStatusResult(False)
+        )
 
+        result = installer.uninstall([docker_image])
 
-@patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def test_installs_only_uniq(mock_executor: Mock, slurm_system: SlurmSystem):
-    installer = MyInstaller(slurm_system)
-    mock_executor.return_value.__enter__.return_value.submit.return_value = create_real_future(0)
+        assert not result.success
+        assert result.message == "Some test templates failed to uninstall."
 
-    installer.install([DockerImage("fake_url/img"), DockerImage("fake_url/img")])
+    def test_installs_only_uniq(self, mock_executor: Mock, installer: MyInstaller, docker_image: DockerImage):
+        mock_executor.return_value.__enter__.return_value.submit.return_value = create_real_future(0)
 
-    assert mock_executor.return_value.__enter__.return_value.submit.call_count == 1
+        installer.install([docker_image, docker_image])
 
+        assert mock_executor.return_value.__enter__.return_value.submit.call_count == 1
 
-@patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def test_uninstalls_only_uniq(mock_executor: Mock, slurm_system: SlurmSystem):
-    installer = MyInstaller(slurm_system)
-    mock_executor.return_value.__enter__.return_value.submit.return_value = create_real_future(0)
+    def test_uninstalls_only_uniq(self, mock_executor: Mock, installer: MyInstaller, docker_image: DockerImage):
+        mock_executor.return_value.__enter__.return_value.submit.return_value = create_real_future(0)
 
-    installer.uninstall([DockerImage("fake_url/img"), DockerImage("fake_url/img")])
+        installer.uninstall([docker_image, docker_image])
 
-    assert mock_executor.return_value.__enter__.return_value.submit.call_count == 1
+        assert mock_executor.return_value.__enter__.return_value.submit.call_count == 1
 
 
 @pytest.mark.parametrize(
@@ -189,3 +169,167 @@ class TestInstallOneDocker:
         assert res.success
         assert res.message == f"Cached Docker image already exists at {cached_file}."
         assert d.installed_path == cached_file
+
+
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        ("https://github.com/NVIDIA/cloudai.git", "cloudai"),
+        ("git@github.com:NVIDIA/cloudai.git", "cloudai"),
+        ("./cloudai", "cloudai"),
+    ],
+)
+def test_py_exec_repo_name(url: str, expected: str):
+    assert PythonExecutable(url, "commit").repo_name == expected
+
+
+class TestInstallOnePythonExecutable:
+    @pytest.fixture
+    def installer(self, slurm_system: SlurmSystem):
+        si = SlurmInstaller(slurm_system)
+        si.install_path.mkdir()
+        return si
+
+    def test_repo_exists(self, installer: SlurmInstaller):
+        py = PythonExecutable("./git_url", "commit_hash")
+        repo_path = installer.system.install_path / py.repo_name
+        repo_path.mkdir()
+        res = installer._install_python_executable(py)
+        assert res.success
+        assert res.message == f"Python executable repository already exists at {repo_path}."
+
+    def test_repo_cloned(self, installer: SlurmInstaller):
+        py = PythonExecutable("./git_url", "commit_hash")
+        repo_path = installer.system.install_path / py.repo_name
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = CompletedProcess(args=[], returncode=0)
+            res = installer._clone_repository(py.git_url, repo_path)
+        assert res.success
+        mock_run.assert_called_once_with(["git", "clone", py.git_url, str(repo_path)], capture_output=True, text=True)
+
+    def test_error_cloning_repo(self, installer: SlurmInstaller):
+        py = PythonExecutable("./git_url", "commit_hash")
+        repo_path = installer.system.install_path / py.repo_name
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = CompletedProcess(args=[], returncode=1, stderr="err")
+            res = installer._clone_repository(py.git_url, repo_path)
+        assert not res.success
+        assert res.message == "Failed to clone repository: err"
+
+    def test_commit_checked_out(self, installer: SlurmInstaller):
+        py = PythonExecutable("./git_url", "commit_hash")
+        repo_path = installer.system.install_path / py.repo_name
+        repo_path.mkdir()
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = CompletedProcess(args=[], returncode=0)
+            res = installer._checkout_commit(py.commit_hash, repo_path)
+        assert res.success
+        mock_run.assert_called_once_with(
+            ["git", "checkout", py.commit_hash], cwd=str(repo_path), capture_output=True, text=True
+        )
+
+    def test_error_checking_out_commit(self, installer: SlurmInstaller):
+        py = PythonExecutable("./git_url", "commit_hash")
+        repo_path = installer.system.install_path / py.repo_name
+        repo_path.mkdir()
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = CompletedProcess(args=[], returncode=1, stderr="err")
+            res = installer._checkout_commit(py.commit_hash, repo_path)
+        assert not res.success
+        assert res.message == "Failed to checkout commit: err"
+
+    def test_venv_created(self, installer: SlurmInstaller):
+        py = PythonExecutable("./git_url", "commit_hash")
+        venv_path = installer.system.install_path / py.venv_name
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = CompletedProcess(args=[], returncode=0)
+            res = installer._create_venv(venv_path)
+        assert res.success
+        mock_run.assert_called_once_with(["python", "-m", "venv", str(venv_path)], capture_output=True, text=True)
+
+    def test_error_creating_venv(self, installer: SlurmInstaller):
+        py = PythonExecutable("./git_url", "commit_hash")
+        venv_path = installer.system.install_path / py.venv_name
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = CompletedProcess(args=[], returncode=1, stderr="err")
+            res = installer._create_venv(venv_path)
+        assert not res.success
+        assert res.message == "Failed to create venv: err"
+
+    def test_venv_already_exists(self, installer: SlurmInstaller):
+        py = PythonExecutable("./git_url", "commit_hash")
+        venv_path = installer.system.install_path / py.venv_name
+        venv_path.mkdir()
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = CompletedProcess(args=[], returncode=1, stderr="err")
+            res = installer._create_venv(venv_path)
+        assert mock_run.call_count == 0
+        assert res.success
+        assert res.message == f"Virtual environment already exists at {venv_path}."
+
+    def test_requiretements_no_file(self, installer: SlurmInstaller):
+        res = installer._install_requirements(
+            installer.system.install_path, installer.system.install_path / "requirements.txt"
+        )
+        assert not res.success
+        assert (
+            res.message
+            == f"Requirements file is invalid or does not exist: {installer.system.install_path / 'requirements.txt'}"
+        )
+
+    def test_requirements_installed(self, installer: SlurmInstaller):
+        requirements_file = installer.system.install_path / "requirements.txt"
+        requirements_file.touch()
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = CompletedProcess(args=[], returncode=0)
+            res = installer._install_requirements(installer.system.install_path, requirements_file)
+        assert res.success
+        mock_run.assert_called_once_with(
+            [
+                installer.system.install_path / "bin" / "python",
+                "-m",
+                "pip",
+                "install",
+                "-r",
+                str(requirements_file),
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+    def test_requirements_not_installed(self, installer: SlurmInstaller):
+        requirements_file = installer.system.install_path / "requirements.txt"
+        requirements_file.touch()
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = CompletedProcess(args=[], returncode=1, stderr="err")
+            res = installer._install_requirements(installer.system.install_path, requirements_file)
+        assert not res.success
+        assert res.message == "Failed to install requirements: err"
+
+    def test_repo_is_prepared(self, installer: SlurmInstaller):
+        py = PythonExecutable("./git_url", "commit_hash")
+        installer._clone_repository = Mock(return_value=InstallStatusResult(True))
+        installer._checkout_commit = Mock(return_value=InstallStatusResult(True))
+        installer._create_venv = Mock(return_value=InstallStatusResult(True))
+        installer._install_requirements = Mock(return_value=InstallStatusResult(True))
+        res = installer._install_python_executable(py)
+        assert res.success
+        assert py.installed_path == installer.system.install_path / py.repo_name
+        assert py.venv_path == installer.system.install_path / py.venv_name
+
+    def test_uninstall_no_repo(self, installer: SlurmInstaller):
+        py = PythonExecutable("./git_url", "commit_hash")
+        res = installer._uninstall_python_executable(py)
+        assert res.success
+        assert res.message == f"Repository {py.git_url} is not cloned."
+
+    def test_uninstall_repo_removed(self, installer: SlurmInstaller):
+        py = PythonExecutable("./git_url", "commit_hash")
+        repo_path = installer.system.install_path / py.repo_name
+        repo_path.mkdir()
+        (repo_path / "file").touch()  # test with non-empty directory
+        py.installed_path = repo_path
+        res = installer._uninstall_python_executable(py)
+        assert res.success
+        assert py.installed_path is None
+        assert not repo_path.exists()
