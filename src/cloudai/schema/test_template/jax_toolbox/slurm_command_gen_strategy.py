@@ -163,38 +163,18 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             error_path = Path(cmd_args["output_path"]).resolve() / "error_pretest-%j-%n-%t.txt"
             commands.append(self._generate_pre_test_command(cmd_args, output_path, error_path))
             commands.append(self._generate_pre_test_check_command(cmd_args, output_path))
+            commands.append('if [ "$PRE_TEST_SUCCESS" = true ]; then')
 
         load_container = cmd_args.get("load_container", False)
         if load_container:
-            container_image = slurm_args.get("image_path")
-            if not container_image:
-                raise ValueError("image_path in slurm_args must be a valid path")
-            srun_command_load = self._generate_container_load_srun_command(container_image)
-            commands.append('if [ "$keyword_found" = true ]; then')
-            commands.append('    echo "Loading container with srun command"')
-            commands.append(f"    {srun_command_load}")
+            commands += self._generate_container_load_command(slurm_args)
+
+        commands += self._generate_run_command(slurm_args)
+
+        if run_pre_test:
             commands.append("fi")
 
-        commands.append(
-            "\n".join(
-                [
-                    'if [ "$keyword_found" = true ]; then',
-                    '    echo "Running srun command"',
-                    "    srun \\",
-                    "    --mpi=none \\",
-                    f'    {self.system.extra_srun_args if self.system.extra_srun_args else ""} \\',
-                    "    --export=ALL \\",
-                    f'    -o {slurm_args["output"]} \\',
-                    f'    -e {slurm_args["error"]} \\',
-                    "    --container-name=cont \\",
-                    f'    --container-mounts={slurm_args["container_mounts"]} \\',
-                    "    /opt/paxml/workspace/run.sh",
-                    "fi",
-                ]
-            )
-        )
-
-        return "\n\n".join(commands)
+        return "\n".join(commands)
 
     def _create_run_script(
         self,
@@ -423,32 +403,38 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return "\n".join(
             [
-                f'pretest_output_files="{pretest_output_files}"',
+                f'PRETEST_OUTPUT_FILES="{pretest_output_files}"',
                 f'keyword="{keyword}"',
                 "",
                 "# Use grep to search for the keyword in the files",
-                'if grep -q "$keyword" $pretest_output_files; then',
-                "    keyword_found=true",
+                'if grep -q "$keyword" $PRETEST_OUTPUT_FILES; then',
+                "    PRE_TEST_SUCCESS=true",
                 "fi",
             ]
         )
 
-    def _generate_container_load_srun_command(self, container_image: str) -> str:
-        """
-        Generate an srun command to load a container using the specified image.
+    def _generate_container_load_command(self, slurm_args: Dict[str, Any]) -> List[str]:
+        """Generate the command for loading a container."""
+        container_image = slurm_args.get("image_path")
+        if not container_image:
+            raise ValueError("image_path in slurm_args must be a valid path")
 
-        Args:
-            container_image (str): The path to the container image.
+        return [
+            '    echo "Loading container with srun command"',
+            f"    srun --mpi=none --container-image={container_image} --container-name=cont true",
+        ]
 
-        Returns:
-            str: The srun command.
-        """
-        container_name = "cont"
-
-        return (
-            "srun \\\n"
-            "    --mpi=none \\\n"
-            f"    --container-image={container_image} \\\n"
-            f"    --container-name={container_name} \\\n"
-            "    true"
-        )
+    def _generate_run_command(self, slurm_args: Dict[str, Any]) -> List[str]:
+        """Generate the srun command for executing the test."""
+        return [
+            '    echo "Running srun command"',
+            "    srun \\",
+            "    --mpi=none \\",
+            f'    {self.system.extra_srun_args if self.system.extra_srun_args else ""} \\',
+            "    --export=ALL \\",
+            f'    -o {slurm_args["output"]} \\',
+            f'    -e {slurm_args["error"]} \\',
+            "    --container-name=cont \\",
+            f'    --container-mounts={slurm_args["container_mounts"]} \\',
+            "    /opt/paxml/workspace/run.sh",
+        ]
