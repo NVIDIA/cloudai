@@ -16,7 +16,7 @@
 
 
 from cloudai import CmdArgs, TestDefinition
-from cloudai._core.test import Installable
+from cloudai.installer.installables import Installable
 
 
 class SleepCmdArgs(CmdArgs):

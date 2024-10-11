@@ -19,7 +19,7 @@ from typing import Any, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from cloudai import CmdArgs, TestDefinition
-from cloudai._core.test import DockerImage, Installable, PythonExecutable
+from cloudai.installer.installables import DockerImage, Installable, PythonExecutable
 
 
 class NumaMapping(BaseModel):

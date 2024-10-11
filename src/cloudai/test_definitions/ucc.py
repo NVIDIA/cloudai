@@ -17,7 +17,7 @@
 from typing import Literal
 
 from cloudai import CmdArgs, TestDefinition
-from cloudai._core.test import DockerImage, Installable
+from cloudai.installer.installables import DockerImage, Installable
 
 
 class UCCCmdArgs(CmdArgs):

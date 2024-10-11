@@ -15,16 +15,13 @@
 # limitations under the License.
 
 import logging
-import os
 import subprocess
 from pathlib import Path
 from shutil import rmtree
-from typing import Iterable
 
 from cloudai import BaseInstaller, InstallStatusResult
-from cloudai._core.test import Installable, PythonExecutable
+from cloudai.installer.installables import DockerImage, Installable, PythonExecutable
 from cloudai.systems import SlurmSystem
-from cloudai.test_definitions.nemo_launcher import DockerImage
 from cloudai.util.docker_image_cache_manager import DockerImageCacheManager, DockerImageCacheResult
 
 

@@ -20,11 +20,11 @@ import logging
 import logging.config
 import sys
 from pathlib import Path
-from typing import List, Optional, Set
+from typing import List, Optional
 
 import toml
 
-from cloudai import Parser, Registry, ReportGenerator, Runner, System, Test, TestParser, TestScenario, TestTemplate
+from cloudai import Parser, Registry, ReportGenerator, Runner, System, Test, TestParser, TestScenario
 from cloudai._core.test import Installable
 
 
@@ -128,28 +128,6 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     return parser.parse_args()
-
-
-def identify_unique_test_templates(tests: List[Test]) -> List[TestTemplate]:
-    """
-    Identify unique test templates from a list of tests.
-
-    Args:
-        tests (List[Test]): The list of test objects.
-
-    Returns:
-        List[TestTemplate]: The list of unique test templates.
-    """
-    unique_templates: List[TestTemplate] = []
-    seen_names: Set[str] = set()
-
-    for test in tests:
-        template_type = type(test.test_template).__name__
-        if template_type not in seen_names:
-            seen_names.add(template_type)
-            unique_templates.append(test.test_template)
-
-    return unique_templates
 
 
 def handle_install_and_uninstall(mode: str, system: System, tests: List[Test]) -> None:
