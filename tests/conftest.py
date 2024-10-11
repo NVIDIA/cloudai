@@ -17,6 +17,7 @@
 from pathlib import Path
 
 import pytest
+from cloudai import TestDefinition
 from cloudai.systems.slurm.slurm_system import SlurmPartition, SlurmSystem
 
 
@@ -34,3 +35,9 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
         ],
     )
     return system
+
+
+class MyTestDefinition(TestDefinition):
+    @property
+    def installables(self):
+        return []

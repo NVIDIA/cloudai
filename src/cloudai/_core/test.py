@@ -86,7 +86,7 @@ class Installable(ABC):
     """Installable object."""
 
     @abstractmethod
-    def __eq__(self, other: "Installable") -> bool:
+    def __eq__(self, other: object) -> bool:
         """Check if two installable objects are equal."""
         ...
 
@@ -103,8 +103,8 @@ class DockerImage(Installable):
     url: str
     _installed_path: Optional[Union[str, Path]] = None
 
-    def __eq__(self, other: "DockerImage") -> bool:
-        return self.url == other.url
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, DockerImage) and other.url == self.url
 
     def __hash__(self) -> int:
         return hash(self.url)
@@ -146,11 +146,11 @@ class PythonExecutable(Installable):
     git_url: str
     commit_hash: str
 
-    def __eq__(self, value: object) -> bool:
+    def __eq__(self, other: object) -> bool:
         return (
-            isinstance(value, PythonExecutable)
-            and value.git_url == self.git_url
-            and value.commit_hash == self.commit_hash
+            isinstance(other, PythonExecutable)
+            and other.git_url == self.git_url
+            and other.commit_hash == self.commit_hash
         )
 
     def __hash__(self) -> int:

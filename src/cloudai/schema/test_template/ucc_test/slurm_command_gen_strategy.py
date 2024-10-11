@@ -14,12 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List
+from typing import Dict, List, cast
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
-
-from .slurm_install_strategy import UCCTestSlurmInstallStrategy
+from cloudai.test_definitions.ucc import UCCTestDefinition
 
 
 class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -29,30 +28,10 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         final_env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
         final_cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
         slurm_args = self._parse_slurm_args("ucc_test", final_env_vars, final_cmd_args, tr.num_nodes, tr.nodes)
+        tdef: UCCTestDefinition = cast(UCCTestDefinition, tr.test.test_definition)
+        slurm_args["image_path"] = str(tdef.docker_image.installed_path)
         srun_command = self.generate_srun_command(slurm_args, final_env_vars, final_cmd_args, tr.test.extra_cmd_args)
         return self._write_sbatch_script(slurm_args, final_env_vars, srun_command, tr.output_path)
-
-    def _parse_slurm_args(
-        self,
-        job_name_prefix: str,
-        env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
-        num_nodes: int,
-        nodes: List[str],
-    ) -> Dict[str, Any]:
-        base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
-
-        base_args.update(
-            {
-                "image_path": self.docker_image_cache_manager.ensure_docker_image(
-                    self.docker_image_url,
-                    UCCTestSlurmInstallStrategy.SUBDIR_PATH,
-                    UCCTestSlurmInstallStrategy.DOCKER_IMAGE_FILENAME,
-                ).docker_image_path,
-            }
-        )
-
-        return base_args
 
     def generate_test_command(
         self, env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str

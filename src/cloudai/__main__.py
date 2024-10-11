@@ -166,8 +166,6 @@ def handle_install_and_uninstall(mode: str, system: System, tests: List[Test]) -
     logging.info(f"System Name: {system.name}")
     logging.info(f"Scheduler: {system.scheduler}")
 
-    unique_test_templates = identify_unique_test_templates(tests)
-
     registry = Registry()
     installer_class = registry.installers_map.get(system.scheduler)
     if installer_class is None:
@@ -222,14 +220,17 @@ def handle_dry_run_and_run(mode: str, system: System, tests: List[Test], test_sc
     if mode == "run":
         logging.info("Checking if test templates are installed.")
 
-        unique_templates = identify_unique_test_templates(tests)
+        installables: list[Installable] = []
+        for test in tests:
+            logging.debug(f"{test.name} has {len(test.test_definition.installables)} installables.")
+            installables.extend(test.test_definition.installables)
 
         registry = Registry()
         installer_class = registry.installers_map.get(system.scheduler)
         if installer_class is None:
             raise NotImplementedError(f"No installer available for scheduler: {system.scheduler}")
         installer = installer_class(system)
-        result = installer.is_installed(unique_templates)
+        result = installer.is_installed(installables)
 
         if not result.success:
             logging.error("CloudAI has not been installed. Please run install mode first.")

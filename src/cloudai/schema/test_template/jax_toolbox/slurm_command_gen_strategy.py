@@ -21,8 +21,6 @@ from cloudai import TestRun
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
-from .slurm_install_strategy import JaxToolboxSlurmInstallStrategy
-
 
 class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for JaxToolbox tests on Slurm systems."""
@@ -38,7 +36,11 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         final_env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.test_definition.extra_env_vars)
         cmd_args = tr.test.test_definition.cmd_args_dict
         cmd_args["output_path"] = str(tr.output_path)
+
         slurm_args = self._parse_slurm_args("JaxToolbox", final_env_vars, cmd_args, tr.num_nodes, tr.nodes)
+        tdef = tr.test.test_definition
+        slurm_args["image_path"] = str(tdef.cmd_args.docker_image_url.installed_path)
+
         srun_command = self.generate_srun_command(slurm_args, final_env_vars, cmd_args, tr.test.extra_cmd_args)
         return self._write_sbatch_script(slurm_args, final_env_vars, srun_command, tr.output_path)
 
@@ -127,11 +129,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         key_prefix = f"{self.test_name}" if self.test_name in ["GPT", "Grok", "Nemotron"] else "common"
 
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
-        image_path = self.docker_image_cache_manager.ensure_docker_image(
-            self.docker_image_url,
-            JaxToolboxSlurmInstallStrategy.SUBDIR_PATH,
-            JaxToolboxSlurmInstallStrategy.DOCKER_IMAGE_FILENAME,
-        ).docker_image_path
 
         local_workspace_dir = Path(cmd_args["output_path"]).resolve()
         docker_workspace_dir = cmd_args[f"{key_prefix}.setup_flags"]["docker_workspace_dir"]
@@ -141,7 +138,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             profile_path = Path(cmd_args["pgo_nsys_converter.profile_path"]).resolve()
             container_mounts += f",{profile_path}:{profile_path}"
 
-        base_args.update({"image_path": image_path, "container_mounts": container_mounts})
+        base_args.update({"container_mounts": container_mounts})
 
         output_path = Path(cmd_args["output_path"]).resolve()
         output_suffix = "-%j.txt" if env_vars.get("UNIFIED_STDOUT_STDERR") == "1" else "-%j-%n-%t.txt"

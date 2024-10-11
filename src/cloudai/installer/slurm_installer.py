@@ -19,7 +19,7 @@ import os
 import subprocess
 from typing import Iterable
 
-from cloudai import BaseInstaller, InstallStatusResult, TestTemplate
+from cloudai import BaseInstaller, InstallStatusResult
 from cloudai._core.test import Installable, PythonExecutable
 from cloudai.systems import SlurmSystem
 from cloudai.test_definitions.nemo_launcher import DockerImage
@@ -106,14 +106,14 @@ class SlurmInstaller(BaseInstaller):
             missing_options_str = ", ".join(missing_options)
             raise EnvironmentError(f"Required srun options missing: {missing_options_str}")
 
-    def install(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
+    def install(self, items: Iterable[Installable]) -> InstallStatusResult:
         """
         Check if the necessary components are installed and install them if not.
 
         Requires the installation path to be set.
 
         Args:
-            test_templates (Iterable[TestTemplate]): The test templates to install.
+            items (Iterable[Installable]): The test templates to install.
 
         Returns:
             InstallStatusResult: Result containing the installation status and error message if any.
@@ -135,7 +135,7 @@ class SlurmInstaller(BaseInstaller):
         if not self.install_path.is_dir() or not os.access(self.install_path, os.W_OK):
             return InstallStatusResult(False, f"The installation path {self.install_path} is not writable.")
 
-        return super().install(test_templates)
+        return super().install(items)
 
     def install_one(self, item: Installable) -> InstallStatusResult:
         """

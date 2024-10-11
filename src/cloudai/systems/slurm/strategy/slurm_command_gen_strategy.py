@@ -20,7 +20,6 @@ from typing import Any, Dict, List
 
 from cloudai import CommandGenStrategy
 from cloudai.systems import SlurmSystem
-from cloudai.util.docker_image_cache_manager import DockerImageCacheManager
 
 
 class SlurmCommandGenStrategy(CommandGenStrategy):
@@ -50,11 +49,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
                 "(e.g., system.toml)."
             )
 
-        self.docker_image_cache_manager = DockerImageCacheManager(
-            self.system.install_path,
-            self.system.cache_docker_images_locally,
-            self.system.default_partition,
-        )
         self.docker_image_url = self.cmd_args.get("docker_image_url", "")
 
     def _format_env_vars(self, env_vars: Dict[str, Any]) -> str:

@@ -17,12 +17,10 @@
 from .grading_strategy import UCCTestGradingStrategy
 from .report_generation_strategy import UCCTestReportGenerationStrategy
 from .slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
-from .slurm_install_strategy import UCCTestSlurmInstallStrategy
 from .template import UCCTest
 
 __all__ = [
     "UCCTest",
-    "UCCTestSlurmInstallStrategy",
     "UCCTestSlurmCommandGenStrategy",
     "UCCTestReportGenerationStrategy",
     "UCCTestGradingStrategy",

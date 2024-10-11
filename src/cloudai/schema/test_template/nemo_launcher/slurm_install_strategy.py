@@ -21,10 +21,9 @@ from typing import Any, Dict
 
 from cloudai import InstallStatusResult
 from cloudai.systems.slurm.slurm_system import SlurmSystem
-from cloudai.systems.slurm.strategy import SlurmInstallStrategy
 
 
-class NeMoLauncherSlurmInstallStrategy(SlurmInstallStrategy):
+class NeMoLauncherSlurmInstallStrategy:
     """
     Install strategy for NeMo-Launcher on Slurm systems.
 

@@ -20,7 +20,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from cloudai import InstallStatusResult, TestTemplate
 from cloudai._core.base_installer import BaseInstaller
-from cloudai._core.test import DockerImage, Test
+from cloudai._core.test import DockerImage, Installable, Test
 from cloudai.installer.slurm_installer import SlurmInstaller
 from cloudai.systems import SlurmSystem
 
@@ -49,9 +49,20 @@ def create_real_future(result):
     return future
 
 
+class MyInstaller(BaseInstaller):
+    def install_one(self, item: Installable) -> InstallStatusResult:
+        return InstallStatusResult(success=True)
+
+    def uninstall_one(self, item: Installable) -> InstallStatusResult:
+        return InstallStatusResult(success=True)
+
+    def is_installed_one(self, item: Installable) -> InstallStatusResult:
+        return InstallStatusResult(success=True)
+
+
 @patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def _test_install_success(mock_executor: Mock, slurm_system: SlurmSystem, test_success: Mock):
-    installer = BaseInstaller(slurm_system)
+def test_install_success(mock_executor: Mock, slurm_system: SlurmSystem, test_success: Mock):
+    installer = MyInstaller(slurm_system)
     mock_future = create_real_future(test_success.install.return_value)
     mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
@@ -62,8 +73,8 @@ def _test_install_success(mock_executor: Mock, slurm_system: SlurmSystem, test_s
 
 
 @patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def _test_install_failure(mock_executor: Mock, slurm_system: SlurmSystem, test_failure: Mock):
-    installer = BaseInstaller(slurm_system)
+def test_install_failure(mock_executor: Mock, slurm_system: SlurmSystem, test_failure: Mock):
+    installer = MyInstaller(slurm_system)
     mock_future = create_real_future(test_failure.install.return_value)
     mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
@@ -74,8 +85,8 @@ def _test_install_failure(mock_executor: Mock, slurm_system: SlurmSystem, test_f
 
 
 @patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def _test_uninstall_success(mock_executor: Mock, slurm_system: SlurmSystem, test_success: Mock):
-    installer = BaseInstaller(slurm_system)
+def test_uninstall_success(mock_executor: Mock, slurm_system: SlurmSystem, test_success: Mock):
+    installer = MyInstaller(slurm_system)
     mock_future = create_real_future(test_success.uninstall.return_value)
     mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
@@ -86,8 +97,8 @@ def _test_uninstall_success(mock_executor: Mock, slurm_system: SlurmSystem, test
 
 
 @patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def _test_uninstall_failure(mock_executor: Mock, slurm_system: SlurmSystem, test_failure: Mock):
-    installer = BaseInstaller(slurm_system)
+def test_uninstall_failure(mock_executor: Mock, slurm_system: SlurmSystem, test_failure: Mock):
+    installer = MyInstaller(slurm_system)
     mock_future = create_real_future(test_failure.uninstall.return_value)
     mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
