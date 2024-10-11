@@ -15,11 +15,10 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
-from cloudai.test_definitions.nemo_launcher import NeMoLauncherTestDefinition
 
 from .slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
 

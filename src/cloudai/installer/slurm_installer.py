@@ -17,7 +17,6 @@
 import logging
 import os
 import subprocess
-from pathlib import Path
 from typing import Iterable
 
 from cloudai import BaseInstaller, InstallStatusResult, TestTemplate
