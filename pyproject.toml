@@ -25,7 +25,6 @@ dependencies = [
   "kubernetes==30.1.0",
   "pydantic==2.8.2",
 ]
-
   [project.scripts]
   cloudai = "cloudai.__main__:main"
 
@@ -39,6 +38,9 @@ source = "scm"
 [tool.ruff]
 target-version = "py39"
 line-length = 120
+
+  [tool.ruff.format]
+  indent-style = "space"
 
   [tool.ruff.lint]
   select = ["I", "B", "E", "D", "F", "SIM", "W", "C90", "EXE", "ERA"]
@@ -59,9 +61,6 @@ line-length = 120
     [tool.ruff.lint.per-file-ignores]
     "**/tests/*" = ["D"]
 
-  [tool.ruff.format]
-  indent-style = "space"
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
@@ -74,7 +73,7 @@ root_package = "cloudai"
   name = "_core does not depends on higher level layers"
   type = "layers"
   layers = [
-    "installer : parser : report_generator : runner : schema : util : test_definitions",
+    "installer : parser : report_generator : runner : schema : util : test_definitions : cli",
     "_core",
   ]
   containers = ["cloudai"]
@@ -92,6 +91,7 @@ root_package = "cloudai"
     "cloudai.schema",
     "cloudai.test_definitions",
     "cloudai.util",
+    "cloudai.cli",
   ]
 
 [tool.vulture]

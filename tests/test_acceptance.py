@@ -14,14 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 from pathlib import Path
 from typing import Dict
 
 import pytest
 
-from cloudai import NcclTest, Parser, Test, UCCTest
-from cloudai.__main__ import handle_dry_run_and_run, identify_unique_test_templates, setup_logging
-from cloudai.systems import StandaloneSystem
+from cloudai import Test
+from cloudai.cli import setup_logging
+from cloudai.cli.handlers import handle_dry_run_and_run, identify_unique_test_templates
+from cloudai.schema.test_template.nccl_test.template import NcclTest
+from cloudai.schema.test_template.ucc_test.template import UCCTest
+from cloudai.systems.standalone_system import StandaloneSystem
 from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
 
 SLURM_TEST_SCENARIOS = [
@@ -41,12 +45,16 @@ def test_slurm(tmp_path: Path, scenario: Dict):
     log_file = scenario.get("log_file", ".")
     log_file_path = tmp_path / log_file
 
-    parser = Parser(Path("conf/common/system/example_slurm_cluster.toml"))
-    system, tests, test_scenario = parser.parse(Path("conf/common/test"), test_scenario_path)
-    system.output_path = tmp_path
-    assert test_scenario is not None, "Test scenario is None"
     setup_logging(log_file_path, "DEBUG")
-    handle_dry_run_and_run("dry-run", system, tests, test_scenario)
+    args = argparse.Namespace(
+        mode="dry-run",
+        system_config=Path("conf/common/system/example_slurm_cluster.toml"),
+        test_templates_dir=Path("conf/common/test_template"),
+        tests_dir=Path("conf/common/test"),
+        test_scenario=test_scenario_path,
+        output_dir=tmp_path,
+    )
+    handle_dry_run_and_run(args)
 
     # Find the directory that was created for the test results
     results_output_dirs = [d for d in tmp_path.iterdir() if d.is_dir()]

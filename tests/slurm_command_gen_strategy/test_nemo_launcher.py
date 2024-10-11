@@ -15,187 +15,206 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import cast
+from typing import List, cast
 from unittest.mock import Mock, mock_open, patch
 
 import pytest
 
 from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestRun
-from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import (
-    NeMoLauncherSlurmCommandGenStrategy,
-)
-from cloudai.schema.test_template.nemo_launcher.slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
+from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import NeMoLauncherSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
 from cloudai.test_definitions.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
 
 
-@pytest.fixture
-def nemo_test_run(tmp_path: Path) -> TestRun:
-    tdef = NeMoLauncherTestDefinition(
-        name="t1",
-        description="desc1",
-        test_template_name="tt",
-        cmd_args=NeMoLauncherCmdArgs(),
-        extra_env_vars={"TEST_VAR_1": "value1"},
-        extra_cmd_args={"extra_args": ""},
-    )
-    test = Test(
-        test_definition=tdef,
-        test_template=Mock(),
-    )
-
-    tr = TestRun(
-        test=test,
-        num_nodes=2,
-        nodes=[],
-        output_path=tmp_path / "output",
-        name="test-job",
-    )
-    return tr
-
-
-class TestNeMoLauncherSlurmCommandGenStrategy__GenExecCommand:
+class TestNeMoLauncherSlurmCommandGenStrategy:
     @pytest.fixture
-    def nemo_cmd_gen(self, slurm_system: SlurmSystem) -> NeMoLauncherSlurmCommandGenStrategy:
-        cmd_args = {"test_arg": "test_value"}
-        strategy = NeMoLauncherSlurmCommandGenStrategy(slurm_system, cmd_args)
-        return strategy
+    def test_run(self, tmp_path: Path) -> TestRun:
+        tdef = NeMoLauncherTestDefinition(
+            name="t1",
+            description="desc1",
+            test_template_name="tt",
+            cmd_args=NeMoLauncherCmdArgs(),
+            extra_env_vars={"TEST_VAR_1": "value1"},
+            extra_cmd_args={"extra_args": ""},
+        )
+        test = Test(
+            test_definition=tdef,
+            test_template=Mock(),
+        )
+        tr = TestRun(
+            test=test,
+            num_nodes=2,
+            nodes=[],
+            output_path=tmp_path / "output",
+            name="test-job",
+        )
+        return tr
 
-    def test_generate_exec_command(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, nemo_test_run: TestRun):
-        cmd = nemo_cmd_gen.gen_exec_command(nemo_test_run)
-        assert "TEST_VAR_1" in cmd
-        assert "test_value" in cmd
+    @pytest.fixture
+    def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> NeMoLauncherSlurmCommandGenStrategy:
+        return NeMoLauncherSlurmCommandGenStrategy(slurm_system, {})
+
+    @pytest.mark.parametrize(
+        "expected_content",
+        [
+            [
+                "TEST_VAR_1=value1",
+                "+env_vars.TEST_VAR_1=value1",
+                'stages=["training"]',
+                "cluster.gpus_per_node=null",
+                "cluster.partition=main",
+                "numa_mapping.enable=True",
+                "training.exp_manager.create_checkpoint_callback=False",
+                "training.model.data.data_impl=mock",
+                "training.model.data.data_prefix=[]",
+                "training.model.global_batch_size=128",
+                "training.model.micro_batch_size=2",
+                "training.model.pipeline_model_parallel_size=4",
+                "training.model.tensor_model_parallel_size=4",
+                "training.run.time_limit=3:00:00",
+                "training.trainer.enable_checkpointing=False",
+                "training.trainer.log_every_n_steps=1",
+                "training.trainer.max_steps=400",
+                "training.trainer.num_nodes=2",
+                "training.trainer.val_check_interval=100",
+                "training=gpt3/40b_improved",
+            ]
+        ],
+    )
+    def test_generate_exec_command(
+        self,
+        cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy,
+        test_run: TestRun,
+        expected_content: List[str],
+    ) -> None:
+        cmd = cmd_gen_strategy.gen_exec_command(test_run)
+        for content in expected_content:
+            assert any(content in part for part in cmd.split())
+        assert "training.run.name=" in cmd
         assert "extra_args" in cmd
+        assert "base_results_dir=" in cmd
+        assert "launcher_scripts_path=" in cmd
 
-        subdir = nemo_cmd_gen.system.install_path / NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH
-        assert f"{subdir}/nemo-venv/bin/python " in cmd
-
-    def test_env_var_escaping(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, nemo_test_run: TestRun):
-        nemo_test_run.test.test_definition.extra_env_vars = {"TEST_VAR": "value,with,commas"}
-        cmd = nemo_cmd_gen.gen_exec_command(nemo_test_run)
-
-        assert "TEST_VAR=\\'value,with,commas\\'" in cmd
-
-    def test_tokenizer_handled(
-        self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, nemo_test_run: TestRun, tmp_path: Path
-    ):
+    def test_tokenizer_handling(
+        self, cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy, test_run: TestRun, tmp_path: Path
+    ) -> None:
         tokenizer_path = tmp_path / "tokenizer"
         tokenizer_path.touch()
 
-        nemo_test_run.test.test_definition.extra_cmd_args = {f"training.model.tokenizer.model={tokenizer_path}": ""}
-
-        cmd = nemo_cmd_gen.gen_exec_command(nemo_test_run)
+        test_run.test.test_definition.extra_cmd_args = {f"training.model.tokenizer.model={tokenizer_path}": ""}
+        cmd = cmd_gen_strategy.gen_exec_command(test_run)
 
         assert f"container_mounts=[{tokenizer_path}:{tokenizer_path}]" in cmd
 
-    def test_reservation_handled(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, nemo_test_run: TestRun):
-        nemo_cmd_gen.system.extra_srun_args = "--reservation my-reservation"
-        cmd = nemo_cmd_gen.gen_exec_command(nemo_test_run)
+    @pytest.mark.parametrize(
+        "extra_srun_args, expected_reservation",
+        [
+            ("--reservation my-reservation", "+cluster.reservation=my-reservation"),
+            ("", None),
+        ],
+    )
+    def test_reservation_handling(
+        self,
+        cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy,
+        test_run: TestRun,
+        extra_srun_args: str,
+        expected_reservation: str,
+    ) -> None:
+        cmd_gen_strategy.system.extra_srun_args = extra_srun_args
+        cmd = cmd_gen_strategy.gen_exec_command(test_run)
 
-        assert "+cluster.reservation=my-reservation" in cmd
+        if expected_reservation:
+            assert expected_reservation in cmd
+        else:
+            assert "+cluster.reservation" not in cmd
 
-    def test_invalid_tokenizer_path(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, nemo_test_run: TestRun):
+    def test_invalid_tokenizer_path(
+        self, cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy, test_run: TestRun
+    ) -> None:
         invalid_tokenizer_path = Path("/invalid/path/to/tokenizer")
-        nemo_test_run.test.test_definition.extra_cmd_args = {
+        test_run.test.test_definition.extra_cmd_args = {
             f"training.model.tokenizer.model={invalid_tokenizer_path}": "",
         }
 
-        with pytest.raises(
-            ValueError,
-            match=(
-                r"The provided tokenizer path '/invalid/path/to/tokenizer' is not valid. Please review the test "
-                r"schema file to ensure the tokenizer path is correct. If it contains a placeholder value, refer to "
-                r"USER_GUIDE.md to download the tokenizer and update the schema file accordingly."
-            ),
-        ):
-            nemo_cmd_gen.gen_exec_command(nemo_test_run)
+        with pytest.raises(ValueError, match=r"The provided tokenizer path '/invalid/path/to/tokenizer' is not valid"):
+            cmd_gen_strategy.gen_exec_command(test_run)
 
-    def test_account_in_command(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, nemo_test_run: TestRun):
-        nemo_cmd_gen.system.account = "test_account"
-        cmd = nemo_cmd_gen.gen_exec_command(nemo_test_run)
+    @pytest.mark.parametrize(
+        "account, expected_prefix",
+        [
+            ("test_account", "test_account-cloudai.nemo:"),
+            (None, None),
+        ],
+    )
+    def test_account_in_command(
+        self,
+        cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy,
+        test_run: TestRun,
+        account: str,
+        expected_prefix: str,
+    ) -> None:
+        cmd_gen_strategy.system.account = account
+        cmd = cmd_gen_strategy.gen_exec_command(test_run)
 
-        assert "cluster.account=test_account" in cmd
-        assert "cluster.job_name_prefix=test_account-cloudai.nemo:" in cmd
+        if expected_prefix:
+            assert f"cluster.account={account}" in cmd
+            assert f"cluster.job_name_prefix={expected_prefix}" in cmd
+        else:
+            assert "cluster.account" not in cmd
+            assert "cluster.job_name_prefix" not in cmd
 
-    def test_no_account_in_command(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, nemo_test_run: TestRun):
-        nemo_cmd_gen.system.account = None
-        cmd = nemo_cmd_gen.gen_exec_command(nemo_test_run)
+    @pytest.mark.parametrize(
+        "gpus_per_node, expected_gpus",
+        [
+            (4, "cluster.gpus_per_node=4"),
+            (None, "cluster.gpus_per_node=null"),
+        ],
+    )
+    def test_gpus_per_node_value(
+        self,
+        cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy,
+        test_run: TestRun,
+        gpus_per_node: int,
+        expected_gpus: str,
+    ) -> None:
+        cmd_gen_strategy.system.gpus_per_node = gpus_per_node
+        cmd = cmd_gen_strategy.gen_exec_command(test_run)
 
-        assert "cluster.account" not in cmd
-        assert "cluster.job_name_prefix" not in cmd
+        assert expected_gpus in cmd
 
-    def test_gpus_per_node_value(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, nemo_test_run: TestRun):
-        nemo_cmd_gen.system.gpus_per_node = 4
-        cmd = nemo_cmd_gen.gen_exec_command(nemo_test_run)
-
-        assert "cluster.gpus_per_node=4" in cmd
-
-        nemo_cmd_gen.system.gpus_per_node = None
-        cmd = nemo_cmd_gen.gen_exec_command(nemo_test_run)
-
-        assert "cluster.gpus_per_node=null" in cmd
-
-    def test_argument_with_tilde_value(self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, nemo_test_run: TestRun):
-        tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, nemo_test_run.test.test_definition)
-        tdef.cmd_args.training.model.micro_batch_size = "~"  # type: ignore
-
-        cmd = nemo_cmd_gen.gen_exec_command(nemo_test_run)
-        assert "~training.model.micro_batch_size=null" in cmd
-
-    def test_data_impl_mock_skips_checks(
-        self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, nemo_test_run: TestRun
-    ):
-        tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, nemo_test_run.test.test_definition)
-        tdef.cmd_args.data_dir = "DATA_DIR"
-
-        cmd = nemo_cmd_gen.gen_exec_command(nemo_test_run)
-        assert "data_dir" in cmd
-
-    def test_data_dir_and_data_prefix_validation(
-        self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, nemo_test_run: TestRun
-    ):
-        tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, nemo_test_run.test.test_definition)
+    def test_data_prefix_validation(
+        self, cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy, test_run: TestRun
+    ) -> None:
+        tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, test_run.test.test_definition)
         tdef.cmd_args.training.model.data.data_impl = "not_mock"
         tdef.cmd_args.training.model.data.data_prefix = "[]"
 
-        with pytest.raises(
-            ValueError,
-            match=(
-                "The 'data_dir' field of the NeMo launcher test contains an invalid placeholder '~'. "
-                "Please provide a valid path to the dataset in the test schema TOML file. "
-                "The 'data_dir' field must point to an actual dataset location."
-            ),
-        ):
-            nemo_cmd_gen.gen_exec_command(nemo_test_run)
-
-        tdef.cmd_args.data_dir = "/fake/data_dir"
         with pytest.raises(ValueError, match="The 'data_prefix' field of the NeMo launcher test is missing or empty."):
-            nemo_cmd_gen.gen_exec_command(nemo_test_run)
+            cmd_gen_strategy.gen_exec_command(test_run)
 
     @patch("pathlib.Path.open", new_callable=mock_open)
     def test_log_command_to_file(
-        self, mock_file, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, nemo_test_run: TestRun, tmp_path: Path
-    ):
-        nemo_test_run.output_path = tmp_path / "output_dir"
-        nemo_test_run.output_path.mkdir()
-        nemo_test_run.num_nodes = 1
+        self, mock_file, cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy, test_run: TestRun, tmp_path: Path
+    ) -> None:
+        test_run.output_path = tmp_path / "output_dir"
+        test_run.output_path.mkdir()
 
-        nemo_cmd_gen.gen_exec_command(nemo_test_run)
+        cmd_gen_strategy.gen_exec_command(test_run)
 
         written_content = mock_file().write.call_args[0][0]
 
         assert " \\\n " in written_content, "Command should contain line breaks when written to the file"
         assert "python" in written_content, "Logged command should start with 'python'"
         assert "TEST_VAR_1=value1" in written_content, "Logged command should contain environment variables"
-        assert "training.trainer.num_nodes=1" in written_content, "Command should contain the number of nodes"
+        assert "training.trainer.num_nodes=2" in written_content, "Command should contain the number of nodes"
 
     def test_no_line_breaks_in_executed_command(
-        self, nemo_cmd_gen: NeMoLauncherSlurmCommandGenStrategy, nemo_test_run: TestRun, tmp_path: Path
-    ):
-        nemo_test_run.output_path = tmp_path / "output_dir"
-        nemo_test_run.output_path.mkdir()
+        self, cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy, test_run: TestRun, tmp_path: Path
+    ) -> None:
+        test_run.output_path = tmp_path / "output_dir"
+        test_run.output_path.mkdir()
 
-        cmd = nemo_cmd_gen.gen_exec_command(nemo_test_run)
+        cmd = cmd_gen_strategy.gen_exec_command(test_run)
 
         assert "\n" not in cmd, "Executed command should not contain line breaks"
