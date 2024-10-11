@@ -415,29 +415,26 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _generate_container_load_command(self, slurm_args: Dict[str, Any]) -> List[str]:
         """Generate the command for loading a container."""
-        commands = []
         container_image = slurm_args.get("image_path")
         if not container_image:
             raise ValueError("image_path in slurm_args must be a valid path")
 
-        commands.append('    echo "Loading container with srun command"')
-        commands.append(f"    srun --mpi=none --container-image={container_image} --container-name=cont true")
-
-        return commands
+        return [
+            '    echo "Loading container with srun command"',
+            f"    srun --mpi=none --container-image={container_image} --container-name=cont true",
+        ]
 
     def _generate_run_command(self, slurm_args: Dict[str, Any]) -> List[str]:
         """Generate the srun command for executing the test."""
-        commands = []
-
-        commands.append('    echo "Running srun command"')
-        commands.append("    srun \\")
-        commands.append("    --mpi=none \\")
-        commands.append(f'    {self.system.extra_srun_args if self.system.extra_srun_args else ""} \\')
-        commands.append("    --export=ALL \\")
-        commands.append(f'    -o {slurm_args["output"]} \\')
-        commands.append(f'    -e {slurm_args["error"]} \\')
-        commands.append("    --container-name=cont \\")
-        commands.append(f'    --container-mounts={slurm_args["container_mounts"]} \\')
-        commands.append("    /opt/paxml/workspace/run.sh")
-
-        return commands
+        return [
+            '    echo "Running srun command"',
+            "    srun \\",
+            "    --mpi=none \\",
+            f'    {self.system.extra_srun_args if self.system.extra_srun_args else ""} \\',
+            "    --export=ALL \\",
+            f'    -o {slurm_args["output"]} \\',
+            f'    -e {slurm_args["error"]} \\',
+            "    --container-name=cont \\",
+            f'    --container-mounts={slurm_args["container_mounts"]} \\',
+            "    /opt/paxml/workspace/run.sh",
+        ]
