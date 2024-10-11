@@ -14,14 +14,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from typing import Any, Dict
 
 from pydantic import BaseModel, ConfigDict
 
-from cloudai.installer.installables import Installable
-
 from .test_template import TestTemplate
+
+
+class Installable(ABC):
+    """Installable object."""
+
+    @abstractmethod
+    def __eq__(self, other: object) -> bool: ...
+
+    @abstractmethod
+    def __hash__(self) -> int: ...
 
 
 class Test:

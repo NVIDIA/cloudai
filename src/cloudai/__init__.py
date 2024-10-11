@@ -36,7 +36,7 @@ from ._core.registry import Registry
 from ._core.report_generation_strategy import ReportGenerationStrategy
 from ._core.runner import Runner
 from ._core.system import System
-from ._core.test import CmdArgs, Test, TestDefinition
+from ._core.test import CmdArgs, Installable, Test, TestDefinition
 from ._core.test_parser import TestParser
 from ._core.test_scenario import TestRun, TestScenario
 from ._core.test_scenario_parser import TestScenarioParser
@@ -176,6 +176,7 @@ __all__ = [
     "format_validation_error",
     "Grader",
     "GradingStrategy",
+    "Installable",
     "InstallStatusResult",
     "JobIdRetrievalError",
     "JobStatusResult",
