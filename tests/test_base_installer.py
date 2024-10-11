@@ -108,6 +108,26 @@ def test_uninstall_failure(mock_executor: Mock, slurm_system: SlurmSystem, test_
     assert result.message == "Some test templates failed to uninstall."
 
 
+@patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
+def test_installs_only_uniq(mock_executor: Mock, slurm_system: SlurmSystem):
+    installer = MyInstaller(slurm_system)
+    mock_executor.return_value.__enter__.return_value.submit.return_value = create_real_future(0)
+
+    installer.install([DockerImage("fake_url/img"), DockerImage("fake_url/img")])
+
+    assert mock_executor.return_value.__enter__.return_value.submit.call_count == 1
+
+
+@patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
+def test_uninstalls_only_uniq(mock_executor: Mock, slurm_system: SlurmSystem):
+    installer = MyInstaller(slurm_system)
+    mock_executor.return_value.__enter__.return_value.submit.return_value = create_real_future(0)
+
+    installer.uninstall([DockerImage("fake_url/img"), DockerImage("fake_url/img")])
+
+    assert mock_executor.return_value.__enter__.return_value.submit.call_count == 1
+
+
 @pytest.mark.parametrize(
     "url,expected",
     [

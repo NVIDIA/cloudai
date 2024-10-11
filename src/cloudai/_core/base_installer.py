@@ -112,7 +112,7 @@ class BaseInstaller(ABC):
 
         install_results = {}
         with ThreadPoolExecutor() as executor:
-            futures = {executor.submit(self.install_one, item): item for item in items}
+            futures = {executor.submit(self.install_one, item): item for item in set(items)}
             total, done = len(futures), 0
             for future in as_completed(futures):
                 item = futures[future]
@@ -151,7 +151,7 @@ class BaseInstaller(ABC):
         logging.info("Uninstalling test templates.")
         uninstall_results = {}
         with ThreadPoolExecutor() as executor:
-            futures = {executor.submit(self.uninstall_one, item): item for item in items}
+            futures = {executor.submit(self.uninstall_one, item): item for item in set(items)}
             for future in as_completed(futures):
                 item = futures[future]
                 try:
