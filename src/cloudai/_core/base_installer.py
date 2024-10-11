@@ -72,36 +72,36 @@ class BaseInstaller(ABC):
         logging.debug("Checking for common prerequisites.")
         return InstallStatusResult(True)
 
-    def is_installed(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
+    def is_installed(self, items: Iterable[Installable]) -> InstallStatusResult:
         """
         Check if the necessary components for the provided test templates are already installed.
 
         Verify the installation status of each test template.
 
         Args:
-            test_templates (Iterable[TestTemplate]): The test templates to check for installation.
+            items (Iterable[Installable]): The test templates to check for installation.
 
         Returns:
             InstallStatusResult: Result containing the installation status and error message if not installed.
         """
         not_installed = {}
-        for test_template in test_templates:
-            logging.debug(f"Verifying installation status of test template: {test_template.name}.")
-            result = test_template.is_installed()
+        for item in items:
+            logging.debug(f"Verifying installation status of test template: {item}.")
+            result = self.is_installed_one(item)
             if not result.success:
-                not_installed[test_template.name] = result.message
+                not_installed[item] = result.message
 
         if not_installed:
             return InstallStatusResult(False, "Some test templates are not installed.", not_installed)
         else:
             return InstallStatusResult(True, "All test templates are installed.")
 
-    def install(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
+    def install(self, items: Iterable[Installable]) -> InstallStatusResult:
         """
         Install the necessary components if they are not already installed.
 
         Args:
-            test_templates (Iterable[TestTemplate]): The test templates to install.
+            items (Iterable[TestTemplate]): The test templates to install.
 
         Returns:
             InstallStatusResult: Result containing the installation status and error message if any.
@@ -113,25 +113,25 @@ class BaseInstaller(ABC):
 
         install_results = {}
         with ThreadPoolExecutor() as executor:
-            futures = {executor.submit(template.install): template for template in test_templates}
+            futures = {executor.submit(self.install_one, item): item for item in items}
             total, done = len(futures), 0
             for future in as_completed(futures):
-                test_template = futures[future]
+                item = futures[future]
                 try:
                     result = future.result()
                     if result.success:
-                        install_results[test_template.name] = "Success"
+                        install_results[item] = "Success"
                     else:
-                        install_results[test_template.name] = result.message
+                        install_results[item] = result.message
                     done += 1
                     logging.info(
-                        f"{done}/{total} Installation for {test_template.name} finished with status: "
+                        f"{done}/{total} Installation for {item} finished with status: "
                         f"{result.message if result.message else 'OK'}"
                     )
                 except Exception as e:
                     done += 1
-                    logging.error(f"{done}/{total} Installation failed for {test_template.name}: {e}")
-                    install_results[test_template.name] = str(e)
+                    logging.error(f"{done}/{total} Installation failed for {item}: {e}")
+                    install_results[item] = str(e)
 
         all_success = all(result == "Success" for result in install_results.values())
         if all_success:
@@ -139,12 +139,12 @@ class BaseInstaller(ABC):
         else:
             return InstallStatusResult(False, "Some test templates failed to install.", install_results)
 
-    def uninstall(self, test_templates: Iterable[TestTemplate]) -> InstallStatusResult:
+    def uninstall(self, items: Iterable[Installable]) -> InstallStatusResult:
         """
         Uninstall the benchmarks or test templates.
 
         Args:
-            test_templates (Iterable[TestTemplate]): The test templates to uninstall.
+            items (Iterable[TestTemplate]): The test templates to uninstall.
 
         Returns:
             InstallStatusResult: Result containing the uninstallation status and error message if any.
@@ -152,18 +152,18 @@ class BaseInstaller(ABC):
         logging.info("Uninstalling test templates.")
         uninstall_results = {}
         with ThreadPoolExecutor() as executor:
-            futures = {executor.submit(template.uninstall): template for template in test_templates}
+            futures = {executor.submit(self.uninstall_one, item): item for item in items}
             for future in as_completed(futures):
-                test_template = futures[future]
+                item = futures[future]
                 try:
                     result = future.result()
                     if result.success:
-                        uninstall_results[test_template.name] = "Success"
+                        uninstall_results[item] = "Success"
                     else:
-                        uninstall_results[test_template.name] = result.message
+                        uninstall_results[item] = result.message
                 except Exception as e:
-                    logging.error(f"Uninstallation failed for {test_template.name}: {e}")
-                    uninstall_results[test_template.name] = str(e)
+                    logging.error(f"Uninstallation failed for {item}: {e}")
+                    uninstall_results[item] = str(e)
 
         all_success = all(result == "Success" for result in uninstall_results.values())
         if all_success:
@@ -176,3 +176,6 @@ class BaseInstaller(ABC):
 
     @abstractmethod
     def uninstall_one(self, item: Installable) -> InstallStatusResult: ...
+
+    @abstractmethod
+    def is_installed_one(self, item: Installable) -> InstallStatusResult: ...

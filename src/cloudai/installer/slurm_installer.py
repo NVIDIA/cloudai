@@ -152,8 +152,6 @@ class SlurmInstaller(BaseInstaller):
         if isinstance(item, DockerImage):
             res = self._install_docker_image(item)
             return InstallStatusResult(res.success, res.message)
-        elif isinstance(item, PythonExecutable):
-            return InstallStatusResult(True, "Python executables are not supported for installation.")
 
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
@@ -171,8 +169,15 @@ class SlurmInstaller(BaseInstaller):
         if isinstance(item, DockerImage):
             res = self._uninstall_docker_image(item)
             return InstallStatusResult(res.success, res.message)
-        elif isinstance(item, PythonExecutable):
-            return InstallStatusResult(True, "Python executables are not supported for uninstallation.")
+
+        return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
+
+    def is_installed_one(self, item: Installable) -> InstallStatusResult:
+        if isinstance(item, DockerImage):
+            res = self.docker_image_cache_manager.check_docker_image_exists(item.url, item.cache_filename)
+            if res.success and res.docker_image_path:
+                item.installed_path = res.docker_image_path
+            return InstallStatusResult(res.success, res.message)
 
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
