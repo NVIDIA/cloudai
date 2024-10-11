@@ -36,6 +36,10 @@ class DockerImage(Installable):
         """Hash the installable object."""
         return hash(self.url)
 
+    def __str__(self) -> str:
+        """Return the string representation of the docker image."""
+        return f"DockerImage(url={self.url})"
+
     @property
     def cache_filename(self) -> str:
         """Return the cache filename for the docker image."""
@@ -86,6 +90,10 @@ class PythonExecutable(Installable):
     def __hash__(self) -> int:
         """Hash the installable object."""
         return hash((self.git_url, self.commit_hash))
+
+    def __str__(self) -> str:
+        """Return the string representation of the python executable."""
+        return f"PythonExecutable(git_url={self.git_url}, commit_hash={self.commit_hash})"
 
     @property
     def repo_name(self) -> str:

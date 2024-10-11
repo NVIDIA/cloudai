@@ -115,7 +115,7 @@ class SlurmInstaller(BaseInstaller):
         Returns:
             InstallStatusResult: Result containing the installation status and error message if any.
         """
-        logging.info(f"Attempt to install {item}")
+        logging.debug(f"Attempt to install {item}")
         if isinstance(item, DockerImage):
             res = self._install_docker_image(item)
             return InstallStatusResult(res.success, res.message)
