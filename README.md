@@ -66,16 +66,14 @@ CloudAI supports five modes: install, dry-run, run, generate-report, and uninsta
 To install test prerequisites, run CloudAI CLI in install mode.
 Please make sure to use the correct system configuration file that corresponds to your current setup for installation and experiments.
 ```bash
-cloudai\
-    --mode install\
+cloudai install\
     --system-config conf/common/system/example_slurm_cluster.toml\
     --tests-dir conf/common/test
 ```
 
 To simulate running experiments without execution, use the dry-run mode:
 ```bash
-cloudai\
-    --mode dry-run\
+cloudai dry-run\
     --system-config conf/common/system/example_slurm_cluster.toml\
     --tests-dir conf/common/test\
     --test-scenario conf/common/test_scenario/sleep.toml
@@ -83,8 +81,7 @@ cloudai\
 
 To run experiments, execute CloudAI CLI in run mode:
 ```bash
-cloudai\
-    --mode run\
+cloudai run\
     --system-config conf/common/system/example_slurm_cluster.toml\
     --tests-dir conf/common/test\
     --test-scenario conf/common/test_scenario/sleep.toml
@@ -92,8 +89,7 @@ cloudai\
 
 To generate reports, execute CloudAI CLI in generate-report mode:
 ```bash
-cloudai\
-    --mode generate-report\
+cloudai generate-report\
     --system-config conf/common/system/example_slurm_cluster.toml\
     --tests-dir conf/common/test\
     --output-dir /path/to/output_directory
@@ -103,29 +99,22 @@ This subdirectory is usually named with a timestamp for unique identification.
 
 To uninstall test prerequisites, run CloudAI CLI in uninstall mode:
 ```bash
-cloudai\
-    --mode uninstall\
+cloudai uninstall\
     --system-config conf/common/system/example_slurm_cluster.toml\
     --tests-dir conf/common/test
 ```
 
 Verify if system configs are valid:
 ```bash
-cloudai\
-    --mode verify-systems\
-    --tests-dir conf/common/test\
-    --system-config conf/common/system
+cloudai verify-systems conf/common/system
 ```
-`--system-config` can be a file or a directory to verify all configs in the directory.
+An argument for `verify-systems` accepts a file or a directory to verify all configs in the directory.
 
 Verify if test configs are valid:
 ```bash
-cloudai\
-    --mode verify-tests\
-    --system-config conf/common/system/example_slurm_cluster.toml\
-    --tests-dir conf/common/test
+cloudai verify-tests conf/common/test
 ```
-`--tests-dir` can be a file or a directory to verify all configs in the directory.
+`verify-tests` accepts a file or a directory to verify all configs in the directory.
 
 Verify if test scenarios are valid:
 ```bash

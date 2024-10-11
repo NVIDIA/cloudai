@@ -14,12 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 from pathlib import Path
 from typing import Dict
 
 import pytest
-from cloudai import Parser
-from cloudai.__main__ import handle_dry_run_and_run, setup_logging
+from cloudai.cli import setup_logging
+from cloudai.cli.handlers import handle_dry_run_and_run
 
 SLURM_TEST_SCENARIOS = [
     {"path": Path("conf/common/test_scenario/sleep.toml"), "expected_dirs_number": 4, "log_file": "sleep_debug.log"},
@@ -38,12 +39,16 @@ def test_slurm(tmp_path: Path, scenario: Dict):
     log_file = scenario.get("log_file", ".")
     log_file_path = tmp_path / log_file
 
-    parser = Parser(Path("conf/common/system/example_slurm_cluster.toml"))
-    system, tests, test_scenario = parser.parse(Path("conf/common/test"), test_scenario_path)
-    system.output_path = tmp_path
-    assert test_scenario is not None, "Test scenario is None"
     setup_logging(log_file_path, "DEBUG")
-    handle_dry_run_and_run("dry-run", system, tests, test_scenario)
+    args = argparse.Namespace(
+        mode="dry-run",
+        system_config=Path("conf/common/system/example_slurm_cluster.toml"),
+        test_templates_dir=Path("conf/common/test_template"),
+        tests_dir=Path("conf/common/test"),
+        test_scenario=test_scenario_path,
+        output_dir=tmp_path,
+    )
+    handle_dry_run_and_run(args)
 
     # Find the directory that was created for the test results
     results_output_dirs = [d for d in tmp_path.iterdir() if d.is_dir()]
