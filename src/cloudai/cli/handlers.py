@@ -88,7 +88,7 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
             logging.info("Not all components are ready")
             result = installer.install(installables)
             if result.success:
-                logging.info(f"CloudAI is successful installed into '{system.install_path}'.")
+                logging.info(f"CloudAI is successful installed into '{system.install_path.absolute()}'.")
             else:
                 logging.error(result.message)
                 rc = 1
