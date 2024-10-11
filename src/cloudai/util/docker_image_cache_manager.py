@@ -215,14 +215,6 @@ class DockerImageCacheManager:
             logging.error(error_message)
             return DockerImageCacheResult(False, Path(), error_message)
 
-        if not subdir_path.exists():
-            try:
-                subdir_path.mkdir(parents=True)
-            except OSError as e:
-                error_message = f"Failed to create subdirectory {subdir_path}. Error: {e}"
-                logging.error(error_message)
-                return DockerImageCacheResult(False, Path(), error_message)
-
         enroot_import_cmd = (
             f"srun --export=ALL --partition={self.partition_name} "
             f"enroot import -o {docker_image_path} docker://{docker_image_url}"
