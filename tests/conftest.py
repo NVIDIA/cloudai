@@ -21,11 +21,12 @@ from cloudai.systems.slurm.slurm_system import SlurmPartition, SlurmSystem
 
 
 @pytest.fixture
-def slurm_system() -> SlurmSystem:
+def slurm_system(tmp_path: Path) -> SlurmSystem:
     system = SlurmSystem(
         name="test_system",
-        install_path=Path("/fake/path"),
-        output_path=Path("/fake/output"),
+        install_path=tmp_path / "install",
+        output_path=tmp_path / "output",
+        cache_docker_images_locally=True,
         default_partition="main",
         partitions=[
             SlurmPartition(name="main", nodes=["node-[033-064]"]),

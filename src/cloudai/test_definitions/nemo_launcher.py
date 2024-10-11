@@ -14,11 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from cloudai import CmdArgs, TestDefinition
+from cloudai._core.test import DockerImage, Installable, PythonExecutable
 
 
 class NumaMapping(BaseModel):
@@ -106,3 +109,18 @@ class NeMoLauncherTestDefinition(TestDefinition):
     """Test object for NeMoLauncher."""
 
     cmd_args: NeMoLauncherCmdArgs
+
+    @property
+    def docker_image(self) -> DockerImage:
+        """Get docker image object."""
+        return DockerImage(url=self.cmd_args.docker_image_url)
+
+    @property
+    def python_executable(self) -> PythonExecutable:
+        """Get python executable object."""
+        return PythonExecutable(git_url=self.cmd_args.repository_url, commit_hash=self.cmd_args.repository_commit_hash)
+
+    @property
+    def installables(self) -> list[Installable]:
+        """Get list of installable objects."""
+        return [self.docker_image, self.python_executable]

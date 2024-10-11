@@ -17,6 +17,7 @@
 from typing import Literal
 
 from cloudai import CmdArgs, TestDefinition
+from cloudai._core.test import DockerImage, Installable
 
 
 class NCCLCmdArgs(CmdArgs):
@@ -77,3 +78,11 @@ class NCCLTestDefinition(TestDefinition):
         for k, v in self.extra_cmd_args.items():
             parts.append(f"{k} {v}" if v else k)
         return " ".join(parts)
+
+    @property
+    def docker_image(self) -> DockerImage:
+        return DockerImage(url=self.cmd_args.docker_image_url)
+
+    @property
+    def installables(self) -> list[Installable]:
+        return [self.docker_image]

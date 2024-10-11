@@ -25,6 +25,7 @@ from typing import List, Optional, Set
 import toml
 
 from cloudai import Parser, Registry, ReportGenerator, Runner, System, Test, TestParser, TestScenario, TestTemplate
+from cloudai._core.test import Installable
 
 
 def setup_logging(log_file: str, log_level: str) -> None:
@@ -173,28 +174,28 @@ def handle_install_and_uninstall(mode: str, system: System, tests: List[Test]) -
         raise NotImplementedError(f"No installer available for scheduler: {system.scheduler}")
     installer = installer_class(system)
 
+    installables: list[Installable] = []
+    for test in tests:
+        logging.debug(f"{test.name} has {len(test.test_definition.installables)} installables.")
+        installables.extend(test.test_definition.installables)
+
     if mode == "install":
-        all_installed = True
-        for template in unique_test_templates:
-            if not installer.is_installed([template]):
-                all_installed = False
-                logging.debug(f"Test template {template.name} is not installed.")
-                break
+        all_installed = installer.is_installed(installables)
 
         if all_installed:
             logging.info("CloudAI is already installed.")
+            return
+        logging.info("Not all components are ready")
+        result = installer.install(installables)
+        if result.success:
+            logging.info("Installation successful.")
         else:
-            logging.info("Not all components are ready")
-            result = installer.install(list(unique_test_templates))
-            if result.success:
-                logging.info("Installation successful.")
-            else:
-                logging.error(result.message)
-                exit(1)
+            logging.error(result.message)
+            exit(1)
 
     elif mode == "uninstall":
         logging.info("Uninstalling test templates.")
-        result = installer.uninstall(list(unique_test_templates))
+        result = installer.uninstall(installables)
         if result.success:
             logging.info("Uninstallation successful.")
         else:

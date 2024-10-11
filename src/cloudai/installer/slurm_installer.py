@@ -14,12 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import subprocess
+from pathlib import Path
 from typing import Iterable
 
 from cloudai import BaseInstaller, InstallStatusResult, TestTemplate
+from cloudai._core.test import Installable, PythonExecutable
 from cloudai.systems import SlurmSystem
+from cloudai.test_definitions.nemo_launcher import DockerImage
+from cloudai.util.docker_image_cache_manager import DockerImageCacheManager, DockerImageCacheResult
 
 
 class SlurmInstaller(BaseInstaller):
@@ -54,6 +59,9 @@ class SlurmInstaller(BaseInstaller):
         super().__init__(system)
         self.system = system
         self.install_path = self.system.install_path
+        self.docker_image_cache_manager = DockerImageCacheManager(
+            self.system.install_path, self.system.cache_docker_images_locally, self.system.default_partition
+        )
 
     def _check_prerequisites(self) -> InstallStatusResult:
         """
@@ -129,3 +137,59 @@ class SlurmInstaller(BaseInstaller):
             return InstallStatusResult(False, f"The installation path {self.install_path} is not writable.")
 
         return super().install(test_templates)
+
+    def install_one(self, item: Installable) -> InstallStatusResult:
+        """
+        Install a single item.
+
+        Args:
+            item (Installable): The item to install.
+
+        Returns:
+            InstallStatusResult: Result containing the installation status and error message if any.
+        """
+        logging.info(f"Attempt to install {item}")
+        if isinstance(item, DockerImage):
+            res = self._install_docker_image(item)
+            return InstallStatusResult(res.success, res.message)
+        elif isinstance(item, PythonExecutable):
+            return InstallStatusResult(True, "Python executables are not supported for installation.")
+
+        return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
+
+    def uninstall_one(self, item: Installable) -> InstallStatusResult:
+        """
+        Uninstall a single item.
+
+        Args:
+            item (Installable): The item to uninstall.
+
+        Returns:
+            InstallStatusResult: Result containing the uninstallation status and error message if any.
+        """
+        logging.info(f"Attempt to uninstall {item}")
+        if isinstance(item, DockerImage):
+            res = self._uninstall_docker_image(item)
+            return InstallStatusResult(res.success, res.message)
+        elif isinstance(item, PythonExecutable):
+            return InstallStatusResult(True, "Python executables are not supported for uninstallation.")
+
+        return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
+
+    def _install_docker_image(self, item: DockerImage) -> DockerImageCacheResult:
+        res = self.docker_image_cache_manager.ensure_docker_image(item.url, item.cache_filename)
+        if res.success and res.docker_image_path:
+            item.installed_path = res.docker_image_path
+        return res
+
+    def _uninstall_docker_image(self, item: DockerImage) -> DockerImageCacheResult:
+        res = self.docker_image_cache_manager.uninstall_cached_image(item.cache_filename)
+        if res.success:
+            item.installed_path = item.url
+        return res
+
+    def _install_python_executable(self, item: PythonExecutable) -> InstallStatusResult:
+        return InstallStatusResult(True)
+
+    def _uninstall_python_executable(self, item: PythonExecutable) -> InstallStatusResult:
+        return InstallStatusResult(True)

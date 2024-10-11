@@ -14,7 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, Optional, Union
 
 from pydantic import BaseModel, ConfigDict
 
@@ -79,6 +82,81 @@ class CmdArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class Installable(ABC):
+    """Installable object."""
+
+    @abstractmethod
+    def __eq__(self, other: "Installable") -> bool:
+        """Check if two installable objects are equal."""
+        ...
+
+    @abstractmethod
+    def __hash__(self) -> int:
+        """Hash the installable object."""
+        ...
+
+
+@dataclass
+class DockerImage(Installable):
+    """Docker image object."""
+
+    url: str
+    _installed_path: Optional[Union[str, Path]] = None
+
+    def __eq__(self, other: "DockerImage") -> bool:
+        return self.url == other.url
+
+    def __hash__(self) -> int:
+        return hash(self.url)
+
+    @property
+    def cache_filename(self) -> str:
+        """Return the cache filename for the docker image."""
+        tag, wo_prefix = "notag", self.url
+        is_local = wo_prefix.startswith("/") or wo_prefix.startswith(".")
+        if "://" in wo_prefix:
+            wo_prefix = self.url.split("://", maxsplit=1)[1]
+        if ":" in wo_prefix:
+            tag = wo_prefix.rsplit(":", maxsplit=1)[1]
+        wo_tag = wo_prefix.rsplit(":", maxsplit=1)[0]
+        if is_local:
+            img_name = wo_tag.rsplit("/", maxsplit=1)[1]
+        else:
+            parts = wo_tag.split("/")
+            img_name = "_".join(parts[:-1]) + "__" + parts[-1]
+
+        return f"{img_name}__{tag}.sqsh"
+
+    @property
+    def installed_path(self) -> Union[str, Path]:
+        """Return the cached path or URL of the docker image."""
+        if self._installed_path:
+            return self._installed_path
+        return self.url
+
+    @installed_path.setter
+    def installed_path(self, value: Union[str, Path]) -> None:
+        self._installed_path = value
+
+
+@dataclass
+class PythonExecutable(Installable):
+    """Python executable object."""
+
+    git_url: str
+    commit_hash: str
+
+    def __eq__(self, value: object) -> bool:
+        return (
+            isinstance(value, PythonExecutable)
+            and value.git_url == self.git_url
+            and value.commit_hash == self.commit_hash
+        )
+
+    def __hash__(self) -> int:
+        return hash((self.git_url, self.commit_hash))
+
+
 class TestDefinition(BaseModel):
     """Base Test object."""
 
@@ -103,3 +181,8 @@ class TestDefinition(BaseModel):
         for k, v in self.extra_cmd_args.items():
             parts.append(f"{k}={v}" if v else k)
         return " ".join(parts)
+
+    @property
+    @abstractmethod
+    def installables(self) -> list[Installable]:
+        return []

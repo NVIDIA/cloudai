@@ -17,6 +17,7 @@
 from typing import Literal
 
 from cloudai import CmdArgs, TestDefinition
+from cloudai._core.test import DockerImage, Installable
 
 
 class UCCCmdArgs(CmdArgs):
@@ -50,3 +51,11 @@ class UCCTestDefinition(TestDefinition):
     """Test object for UCC."""
 
     cmd_args: UCCCmdArgs
+
+    @property
+    def docker_image(self) -> DockerImage:
+        return DockerImage(url=self.cmd_args.docker_image_url)
+
+    @property
+    def installables(self) -> list[Installable]:
+        return [self.docker_image]

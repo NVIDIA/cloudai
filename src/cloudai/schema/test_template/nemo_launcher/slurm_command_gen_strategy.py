@@ -15,10 +15,11 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.test_definitions.nemo_launcher import NeMoLauncherTestDefinition
 
 from .slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
 
@@ -37,6 +38,8 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH,
             NeMoLauncherSlurmInstallStrategy.DOCKER_IMAGE_FILENAME,
         ).docker_image_path
+        # tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, tr.test.test_definition)
+        # self.final_cmd_args["container"] = str(tdef.docker_image.installed_url)
 
         for key in ("repository_url", "repository_commit_hash", "docker_image_url"):
             self.final_cmd_args.pop(key, None)

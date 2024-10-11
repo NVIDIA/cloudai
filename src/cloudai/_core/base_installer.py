@@ -16,15 +16,17 @@
 
 import logging
 import shutil
+from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Iterable
 
 from .install_status_result import InstallStatusResult
 from .system import System
+from .test import Installable
 from .test_template import TestTemplate
 
 
-class BaseInstaller:
+class BaseInstaller(ABC):
     """
     Base class for an Installer that manages the installation and uninstallation of benchmarks or test templates.
 
@@ -168,3 +170,9 @@ class BaseInstaller:
             return InstallStatusResult(True, "All test templates uninstalled successfully.", uninstall_results)
         else:
             return InstallStatusResult(False, "Some test templates failed to uninstall.", uninstall_results)
+
+    @abstractmethod
+    def install_one(self, item: Installable) -> InstallStatusResult: ...
+
+    @abstractmethod
+    def uninstall_one(self, item: Installable) -> InstallStatusResult: ...

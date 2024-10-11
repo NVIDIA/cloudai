@@ -94,6 +94,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         assert "extra_args" in cmd
         assert "base_results_dir=" in cmd
         assert "launcher_scripts_path=" in cmd
+        assert "container=nvcr.io/nvidia/nemo:24.01.01" in cmd
 
     def test_tokenizer_handling(
         self, cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy, test_run: TestRun, tmp_path: Path

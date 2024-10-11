@@ -17,6 +17,7 @@
 from typing import Optional
 
 from cloudai import CmdArgs, TestDefinition
+from cloudai._core.test import DockerImage, Installable
 
 
 class ChakraReplayCmdArgs(CmdArgs):
@@ -34,3 +35,11 @@ class ChakraReplayTestDefinition(TestDefinition):
     """Test object for ChakraReplay."""
 
     cmd_args: ChakraReplayCmdArgs
+
+    @property
+    def docker_image(self) -> DockerImage:
+        return DockerImage(url=self.cmd_args.docker_image_url)
+
+    @property
+    def installables(self) -> list[Installable]:
+        return [self.docker_image]
