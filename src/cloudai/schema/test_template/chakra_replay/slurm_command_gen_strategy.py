@@ -24,11 +24,7 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for ChakraReplay on Slurm systems."""
 
     def gen_exec_command(self, tr: TestRun) -> str:
-        final_env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
-        final_cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
-        slurm_args = self._parse_slurm_args("chakra_replay", final_env_vars, final_cmd_args, tr.num_nodes, tr.nodes)
-        srun_command = self.generate_srun_command(slurm_args, final_env_vars, final_cmd_args, tr.test.extra_cmd_args)
-        return self._write_sbatch_script(slurm_args, final_env_vars, srun_command, tr.output_path)
+        return self._write_sbatch_script("chakra_replay", tr)
 
     def _parse_slurm_args(
         self,

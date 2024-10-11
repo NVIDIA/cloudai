@@ -88,6 +88,7 @@ class JaxToolboxCmdArgs(CmdArgs):
 
     docker_image_url: str
     load_container: bool = True
+    output_path: Optional[str] = None
 
 
 class JaxToolboxTestDefinition(TestDefinition):

@@ -15,8 +15,10 @@
 # limitations under the License.
 
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
+from cloudai import Test, TestDefinition, TestRun, TestTemplate
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
@@ -28,24 +30,38 @@ def strategy_fixture(slurm_system: SlurmSystem) -> SlurmCommandGenStrategy:
     return strategy
 
 
-def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path):
-    args = {"job_name": "test_job", "num_nodes": 2, "partition": "test_partition", "node_list_str": "node1,node2"}
-    env_vars = {"TEST_VAR": "VALUE"}
-    srun_command = "srun --test test_arg"
-    output_path = tmp_path
+@pytest.fixture
+def testrun_fixture(tmp_path: Path) -> TestRun:
+    mock_test_definition = MagicMock(spec=TestDefinition)
+    mock_test_template = MagicMock(spec=TestTemplate)
 
-    sbatch_command = strategy_fixture._write_sbatch_script(args, env_vars, srun_command, output_path)
+    mock_test_definition.name = "test_job"
+    mock_test_definition.description = "Test description"
+    mock_test_definition.cmd_args_dict = {"test_arg": "test_value"}
+    mock_test_definition.extra_args_str = "extra_arg"
+    mock_test_definition.extra_env_vars = {"TEST_VAR": "VALUE"}
+
+    mock_test_template.name = "test_template"
+
+    test = Test(test_definition=mock_test_definition, test_template=mock_test_template)
+
+    return TestRun(name="test_job", test=test, output_path=tmp_path, num_nodes=2, nodes=["node1", "node2"])
+
+
+def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun):
+    sbatch_command = strategy_fixture._write_sbatch_script("test_job", testrun_fixture)
     filepath_from_command = sbatch_command.split()[-1]
 
-    assert output_path.joinpath("cloudai_sbatch_script.sh").exists()
+    assert testrun_fixture.output_path.joinpath("cloudai_sbatch_script.sh").exists()
 
     with open(filepath_from_command, "r") as file:
         file_contents = file.read()
+
     assert "test_job" in file_contents
     assert "node1,node2" in file_contents
-    assert "srun --test test_arg" in file_contents
 
-    assert sbatch_command == f"sbatch {filepath_from_command}"
+    assert "srun" in file_contents
+    assert "--mpi=fake-mpi" in file_contents
 
 
 def test_num_nodes_and_nodes(strategy_fixture: SlurmCommandGenStrategy):

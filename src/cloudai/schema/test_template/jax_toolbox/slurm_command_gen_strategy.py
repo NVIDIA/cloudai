@@ -34,13 +34,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def gen_exec_command(self, tr: TestRun) -> str:
         self.test_name = self._extract_test_name(tr.test.cmd_args)
         self._update_env_vars(tr)
-
-        final_env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.test_definition.extra_env_vars)
-        cmd_args = tr.test.test_definition.cmd_args_dict
-        cmd_args["output_path"] = str(tr.output_path)
-        slurm_args = self._parse_slurm_args("JaxToolbox", final_env_vars, cmd_args, tr.num_nodes, tr.nodes)
-        srun_command = self.generate_srun_command(slurm_args, final_env_vars, cmd_args, tr.test.extra_cmd_args)
-        return self._write_sbatch_script(slurm_args, final_env_vars, srun_command, tr.output_path)
+        tr.test.test_definition.cmd_args.output_path = str(tr.output_path)
+        return self._write_sbatch_script("jax_toolbox", tr)
 
     def _extract_test_name(self, cmd_args: Dict[str, Any]) -> str:
         """
@@ -134,7 +129,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ).docker_image_path
 
         local_workspace_dir = Path(cmd_args["output_path"]).resolve()
-        docker_workspace_dir = cmd_args[f"{key_prefix}.setup_flags"]["docker_workspace_dir"]
+        docker_workspace_dir = cmd_args[f"{key_prefix}.setup_flags.docker_workspace_dir"]
         container_mounts = f"{local_workspace_dir}:{docker_workspace_dir}"
 
         if "pgo_nsys_converter.profile_path" in cmd_args:
@@ -275,15 +270,19 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "--num_hosts=$SLURM_NTASKS",
             "--server_addr=$SLURM_JOB_MASTER_NODE:12345",
             "--host_idx=$SLURM_PROCID",
-            f"--job_log_dir={cmd_args[f'{self.test_name}.setup_flags']['docker_workspace_dir']}",
-            f"--tfds_data_dir={cmd_args[f'{self.test_name}.setup_flags']['tfds_data_dir']}",
-            f"--enable_checkpoint_saving={cmd_args[f'{self.test_name}.setup_flags']['enable_checkpoint_saving']}",
+            f"--job_log_dir={cmd_args[f'{self.test_name}.setup_flags.docker_workspace_dir']}",
+            f"--tfds_data_dir={cmd_args[f'{self.test_name}.setup_flags.tfds_data_dir']}",
+            f"--enable_checkpoint_saving={cmd_args[f'{self.test_name}.setup_flags.enable_checkpoint_saving']}",
             "--multiprocess_gpu",
             "--alsologtostderr",
             f'--fdl_config="{fdl_config}"',
         ]
 
-        fdl_args: Dict[str, str] = cmd_args[f"{self.test_name}.fdl"]
+        fdl_args: Dict[str, str] = {}
+        for cmd_arg in cmd_args:
+            if f"{self.test_name}.fdl." in cmd_arg:
+                fdl_key = cmd_arg.replace(f"{self.test_name}.fdl.", "")
+                fdl_args[fdl_key] = cmd_args[cmd_arg]
 
         for key, value in sorted(fdl_args.items()):
             parts.append(f"--fdl.{key.upper()}={value}")

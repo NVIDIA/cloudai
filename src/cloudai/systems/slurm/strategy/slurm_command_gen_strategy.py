@@ -18,7 +18,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-from cloudai import CommandGenStrategy
+from cloudai import CommandGenStrategy, TestRun
 from cloudai.systems import SlurmSystem
 from cloudai.util.docker_image_cache_manager import DockerImageCacheManager
 
@@ -161,33 +161,34 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         return batch_script_content
 
-    def _write_sbatch_script(
-        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], srun_command: str, output_path: Path
-    ) -> str:
+    def _write_sbatch_script(self, job_name_prefix: str, tr: TestRun) -> str:
         """
         Write the batch script for Slurm submission and return the sbatch command.
 
         Args:
-            slurm_args (Dict[str, Any]): Slurm-specific arguments.
-            env_vars (env_vars: Dict[str, str]): Environment variables.
-            srun_command (str): srun command.
-            output_path (Path): Output directory for script and logs.
+            job_name_prefix (str): Prefix for the job name.
+            tr (TestRun): Contains the test and its run-specific configurations.
 
         Returns:
             str: sbatch command to submit the job.
         """
+        env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
+        cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
+        slurm_args = self._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr.num_nodes, tr.nodes)
+        srun_command = self.generate_srun_command(slurm_args, env_vars, cmd_args, tr.test.extra_cmd_args)
+
         batch_script_content = [
             "#!/bin/bash",
             f"#SBATCH --job-name={slurm_args['job_name']}",
             f"#SBATCH -N {slurm_args['num_nodes']}",
         ]
 
-        self._append_sbatch_directives(batch_script_content, slurm_args, output_path)
+        self._append_sbatch_directives(batch_script_content, slurm_args, tr.output_path)
 
         env_vars_str = self._format_env_vars(env_vars)
         batch_script_content.extend([env_vars_str, "", srun_command])
 
-        batch_script_path = output_path / "cloudai_sbatch_script.sh"
+        batch_script_path = tr.output_path / "cloudai_sbatch_script.sh"
         with batch_script_path.open("w") as batch_file:
             batch_file.write("\n".join(batch_script_content))
 

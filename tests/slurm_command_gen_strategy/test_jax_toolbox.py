@@ -109,6 +109,7 @@ class TestGenerateSrunCommand__CmdGeneration:
             "container_name": "cont",
         }
         gpt_test.cmd_args.pre_test = PreTest()
+        gpt_test.cmd_args.output_path = "/path/to/output"
         cargs = {"output_path": "/path/to/output", **gpt_test.cmd_args_dict}
         result = cmd_gen.generate_srun_command(slurm_args, {}, cargs, "")
         assert "pre_test_command" in result
@@ -198,6 +199,7 @@ class TestGenerateSrunCommand__CmdGeneration:
     def test_generate_python_command(self, slurm_system: SlurmSystem, gpt_test: GPTTestDefinition, tmp_path: Path):
         cmd_gen = JaxToolboxSlurmCommandGenStrategy(slurm_system, gpt_test.cmd_args_dict)
         cargs = {"output_path": "/path/to/output", **gpt_test.cmd_args_dict}
+        cargs = cmd_gen._override_cmd_args(cmd_gen.default_cmd_args, cargs)
         cmd_gen.test_name = "GPT"
         stage = "stage"
         python_cli = cmd_gen._generate_python_command(stage, cargs, "").splitlines()
