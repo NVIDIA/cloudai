@@ -95,7 +95,7 @@ Please replace `<YOUR PARTITION NAME>` with the name of the partition you want t
 #### Step 4: Install test requirements
 Once all configs are ready, it is time to install test requirements. It is done once so that you can run multiple experiments without reinstalling the requirements. This step requires the system config file from the previous step.
 ```bash
-cloudai --mode install \
+cloudai install \
    --system-config myconfig/system.toml \
    --tests-dir myconfig/tests/
 ```
