@@ -98,8 +98,16 @@ class Parser:
         with Path(system_config_path).open() as f:
             logging.debug(f"Opened system config file: {system_config_path}")
             data = toml.load(f)
-            scheduler = data.get("scheduler", "").lower()
+            scheduler: Optional[str] = data.get("scheduler")
+            if scheduler is None:
+                logging.error(f"Missing 'scheduler' key in {system_config_path}")
+                raise SystemConfigParsingError(f"Missing 'scheduler' key in {system_config_path}")
+
             if scheduler not in registry.systems_map:
+                logging.error(
+                    f"Unsupported system type '{scheduler}' in {system_config_path}. "
+                    f"Should be one of: {', '.join(registry.systems_map.keys())}"
+                )
                 raise SystemConfigParsingError(
                     f"Unsupported system type '{scheduler}' in {system_config_path}. "
                     f"Supported types: {', '.join(registry.systems_map.keys())}"
