@@ -16,15 +16,11 @@
 
 from typing import Any, Dict, List
 
-from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
 
 class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for ChakraReplay on Slurm systems."""
-
-    def gen_exec_command(self, tr: TestRun) -> str:
-        return self._write_sbatch_script("chakra_replay", tr)
 
     def _parse_slurm_args(
         self,

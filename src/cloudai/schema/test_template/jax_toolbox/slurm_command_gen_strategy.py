@@ -35,7 +35,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self.test_name = self._extract_test_name(tr.test.cmd_args)
         self._update_env_vars(tr)
         tr.test.test_definition.cmd_args.output_path = str(tr.output_path)
-        return self._write_sbatch_script("jax_toolbox", tr)
+        return super().gen_exec_command(tr)
 
     def _extract_test_name(self, cmd_args: Dict[str, Any]) -> str:
         """

@@ -17,7 +17,6 @@
 from pathlib import Path
 from typing import Any, Dict, List
 
-from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
 from .slurm_install_strategy import NcclTestSlurmInstallStrategy
@@ -25,9 +24,6 @@ from .slurm_install_strategy import NcclTestSlurmInstallStrategy
 
 class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for NCCL tests on Slurm systems."""
-
-    def gen_exec_command(self, tr: TestRun) -> str:
-        return self._write_sbatch_script("nccl_test", tr)
 
     def _parse_slurm_args(
         self,
