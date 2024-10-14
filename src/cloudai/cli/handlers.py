@@ -203,7 +203,7 @@ def handle_verify_systems(args: argparse.Namespace) -> int:
     root: Path = args.system_configs
     err, system_tomls = expand_file_list(root)
     if err:
-        return 1
+        return err
 
     nfailed = 0
     for test_toml in system_tomls:
@@ -211,9 +211,11 @@ def handle_verify_systems(args: argparse.Namespace) -> int:
         try:
             Parser.parse_system(test_toml)
         except Exception:
-            nfailed = 1
+            nfailed += 1
 
-    if nfailed == 0:
+    if nfailed:
+        logging.error(f"{nfailed} out of {len(system_tomls)} system configurations have issues.")
+    else:
         logging.info(f"Checked systems: {len(system_tomls)}, all passed")
 
     return nfailed
@@ -223,7 +225,7 @@ def handle_verify_tests(args: argparse.Namespace) -> int:
     root: Path = args.test_configs
     err, test_tomls = expand_file_list(root)
     if err:
-        return 1
+        return err
 
     nfailed = 0
     for test_toml in test_tomls:
@@ -233,9 +235,11 @@ def handle_verify_tests(args: argparse.Namespace) -> int:
             parser.current_file = test_toml
             parser.load_test_definition(toml.load(test_toml))
         except Exception:
-            nfailed = 1
+            nfailed += 1
 
-    if nfailed == 0:
+    if nfailed:
+        logging.error(f"{nfailed} out of {len(test_tomls)} test configurations have issues.")
+    else:
         logging.info(f"Checked tests: {len(test_tomls)}, all passed")
 
     return nfailed
@@ -245,7 +249,7 @@ def handle_verify_test_scenarios(args: argparse.Namespace) -> int:
     root: Path = args.test_scenarios
     err, test_tomls = expand_file_list(root)
     if err:
-        return 1
+        return err
 
     nfailed = 0
     for test_toml in test_tomls:
@@ -254,9 +258,11 @@ def handle_verify_test_scenarios(args: argparse.Namespace) -> int:
             parser = Parser(args.system_config)
             parser.parse(args.tests_dir, test_toml)
         except Exception:
-            nfailed = 1
+            nfailed += 1
 
-    if nfailed == 0:
+    if nfailed:
+        logging.error(f"{nfailed} out of {len(test_tomls)} test scenarios have issues.")
+    else:
         logging.info(f"Checked scenarios: {len(test_tomls)}, all passed")
 
     return nfailed
