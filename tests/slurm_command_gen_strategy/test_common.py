@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import Mock
 
 import pytest
 from cloudai import Test, TestDefinition, TestRun, TestTemplate
@@ -32,8 +32,8 @@ def strategy_fixture(slurm_system: SlurmSystem) -> SlurmCommandGenStrategy:
 
 @pytest.fixture
 def testrun_fixture(tmp_path: Path) -> TestRun:
-    mock_test_definition = MagicMock(spec=TestDefinition)
-    mock_test_template = MagicMock(spec=TestTemplate)
+    mock_test_definition = Mock(spec=TestDefinition)
+    mock_test_template = Mock(spec=TestTemplate)
 
     mock_test_definition.name = "test_job"
     mock_test_definition.description = "Test description"
