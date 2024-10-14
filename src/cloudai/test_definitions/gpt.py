@@ -58,7 +58,7 @@ class GPTTestDefinition(JaxToolboxTestDefinition):
         d = self.cmd_args.model_dump()
         res = {}
         for k, v in d.items():
-            if k in {"pre_test", "docker_image_url", "load_container"}:
+            if k in {"pre_test", "docker_image_url", "load_container", "output_path"}:
                 res[k] = v
             else:
                 if k == "xla_flags":
