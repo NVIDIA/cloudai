@@ -169,6 +169,7 @@ class SlurmInstaller(BaseInstaller):
     def _install_one_git_repo(self, item: GitRepo) -> InstallStatusResult:
         repo_path = self.install_path / item.repo_name
         if repo_path.exists():
+            item.installed_path = repo_path
             msg = f"Git repository already exists at {repo_path}."
             logging.warning(msg)
             return InstallStatusResult(True, msg)

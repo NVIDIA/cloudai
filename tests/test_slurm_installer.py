@@ -85,6 +85,7 @@ class TestInstallOneGitRepo:
         res = installer._install_one_git_repo(git)
         assert res.success
         assert res.message == f"Git repository already exists at {repo_path}."
+        assert git.installed_path == repo_path
 
     def test_repo_cloned(self, installer: SlurmInstaller):
         git = GitRepo("./git_url", "commit_hash")
