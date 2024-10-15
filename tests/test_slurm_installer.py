@@ -294,6 +294,8 @@ def test_check_supported(slurm_system: SlurmSystem):
     installer._install_python_executable = lambda item: InstallStatusResult(True)
     installer._uninstall_docker_image = lambda item: DockerImageCacheResult(True)
     installer._uninstall_python_executable = lambda item: InstallStatusResult(True)
+    installer._is_python_executable_installed = lambda item: InstallStatusResult(True)
+    installer.docker_image_cache_manager.check_docker_image_exists = Mock(return_value=DockerImageCacheResult(True))
 
     git = GitRepo("git_url", "commit_hash")
     items = [DockerImage("fake_url/img"), PythonExecutable(git)]
@@ -304,6 +306,9 @@ def test_check_supported(slurm_system: SlurmSystem):
         res = installer.uninstall_one(item)
         assert res.success
 
+        res = installer.is_installed_one(item)
+        assert res.success
+
     class MyInstallable(Installable):
         def __eq__(self, other: object) -> bool:
             return True
@@ -312,9 +317,7 @@ def test_check_supported(slurm_system: SlurmSystem):
             return hash("MyInstallable")
 
     unsupported = MyInstallable()
-    res = installer.install_one(unsupported)
-    assert not res.success
-    assert res.message == f"Unsupported item type: {type(unsupported)}"
-    res = installer.uninstall_one(unsupported)
-    assert not res.success
-    assert res.message == f"Unsupported item type: {type(unsupported)}"
+    for func in [installer.install_one, installer.uninstall_one, installer.is_installed_one]:
+        res = func(unsupported)
+        assert not res.success
+        assert res.message == f"Unsupported item type: {type(unsupported)}"
