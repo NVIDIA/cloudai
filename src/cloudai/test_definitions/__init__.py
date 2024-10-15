@@ -15,8 +15,12 @@
 # limitations under the License.
 
 from .chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
+from .gpt import GPTCmdArgs, GPTTestDefinition
+from .grok import GrokCmdArgs, GrokTestDefinition
+from .jax_toolbox import JaxToolboxCmdArgs, JaxToolboxTestDefinition
 from .nccl import NCCLCmdArgs, NCCLTestDefinition
 from .nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
+from .nemotron import NemotronCmdArgs, NemotronTestDefinition
 from .sleep import SleepCmdArgs, SleepTestDefinition
 from .ucc import UCCCmdArgs, UCCTestDefinition
 
@@ -31,4 +35,12 @@ __all__ = [
     "SleepTestDefinition",
     "UCCCmdArgs",
     "UCCTestDefinition",
+    "GPTCmdArgs",
+    "GPTTestDefinition",
+    "GrokCmdArgs",
+    "GrokTestDefinition",
+    "JaxToolboxCmdArgs",
+    "JaxToolboxTestDefinition",
+    "NemotronCmdArgs",
+    "NemotronTestDefinition",
 ]

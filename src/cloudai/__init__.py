@@ -90,8 +90,11 @@ from .systems.slurm.slurm_system import SlurmSystem
 from .systems.standalone_system import StandaloneSystem
 from .test_definitions import (
     ChakraReplayTestDefinition,
+    GPTTestDefinition,
+    GrokTestDefinition,
     NCCLTestDefinition,
     NeMoLauncherTestDefinition,
+    NemotronTestDefinition,
     SleepTestDefinition,
     UCCTestDefinition,
 )
@@ -159,12 +162,18 @@ Registry().add_test_definition("NcclTest", NCCLTestDefinition)
 Registry().add_test_definition("ChakraReplay", ChakraReplayTestDefinition)
 Registry().add_test_definition("Sleep", SleepTestDefinition)
 Registry().add_test_definition("NeMoLauncher", NeMoLauncherTestDefinition)
+Registry().add_test_definition("JaxToolboxGPT", GPTTestDefinition)
+Registry().add_test_definition("JaxToolboxGrok", GrokTestDefinition)
+Registry().add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)
 
 Registry().add_test_template("ChakraReplay", ChakraReplay)
 Registry().add_test_template("NcclTest", NcclTest)
 Registry().add_test_template("NeMoLauncher", NeMoLauncher)
 Registry().add_test_template("Sleep", Sleep)
 Registry().add_test_template("UCCTest", UCCTest)
+Registry().add_test_template("JaxToolboxGPT", JaxToolbox)
+Registry().add_test_template("JaxToolboxGrok", JaxToolbox)
+Registry().add_test_template("JaxToolboxNemotron", JaxToolbox)
 
 __all__ = [
     "BaseInstaller",

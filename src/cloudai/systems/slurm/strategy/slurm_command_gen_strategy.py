@@ -18,7 +18,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-from cloudai import CommandGenStrategy
+from cloudai import CommandGenStrategy, TestRun
 from cloudai.systems import SlurmSystem
 
 
@@ -69,12 +69,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return "\n".join(formatted_vars)
 
     def _parse_slurm_args(
-        self,
-        job_name_prefix: str,
-        env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
-        num_nodes: int,
-        nodes: List[str],
+        self, job_name_prefix: str, env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun
     ) -> Dict[str, Any]:
         """
         Parse command arguments to configure Slurm job settings.
@@ -83,8 +78,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             job_name_prefix (str): Prefix for the job name.
             env_vars (Dict[str, str]): Environment variables.
             cmd_args (Dict[str, str]): Command-line arguments.
-            num_nodes (int): The number of nodes to be used for the test execution.
-            nodes (List[str]): List of nodes for the job.
+            tr (TestRun): Test run object.
 
         Returns:
             Dict[str, Any]: Dictionary containing configuration for Slurm job.
@@ -94,8 +88,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         """
         job_name = self.job_name(job_name_prefix)
 
-        parsed_nodes = self.system.parse_nodes(nodes)
-        num_nodes = len(parsed_nodes) if parsed_nodes else num_nodes
+        parsed_nodes = self.system.parse_nodes(tr.nodes)
+        num_nodes = len(parsed_nodes) if parsed_nodes else tr.num_nodes
         node_list_str = ",".join(parsed_nodes) if parsed_nodes else ""
 
         slurm_args = {
@@ -132,6 +126,13 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             srun_command_parts.append(self.system.extra_srun_args)
 
         return srun_command_parts
+
+    def gen_exec_command(self, tr: TestRun) -> str:
+        env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
+        cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
+        slurm_args = self._parse_slurm_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
+        srun_command = self.generate_srun_command(slurm_args, env_vars, cmd_args, tr.test.extra_cmd_args)
+        return self._write_sbatch_script(slurm_args, env_vars, srun_command, tr.output_path)
 
     def generate_test_command(
         self, env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str

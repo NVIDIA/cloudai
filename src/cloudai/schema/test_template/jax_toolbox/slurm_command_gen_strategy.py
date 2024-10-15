@@ -15,11 +15,14 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union, cast
 
 from cloudai import TestRun
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.test_definitions.gpt import GPTTestDefinition
+from cloudai.test_definitions.grok import GrokTestDefinition
+from cloudai.test_definitions.nemotron import NemotronTestDefinition
 
 
 class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -32,17 +35,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def gen_exec_command(self, tr: TestRun) -> str:
         self.test_name = self._extract_test_name(tr.test.cmd_args)
         self._update_env_vars(tr)
-
-        final_env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.test_definition.extra_env_vars)
-        cmd_args = tr.test.test_definition.cmd_args_dict
-        cmd_args["output_path"] = str(tr.output_path)
-
-        slurm_args = self._parse_slurm_args("JaxToolbox", final_env_vars, cmd_args, tr.num_nodes, tr.nodes)
-        tdef = tr.test.test_definition
-        slurm_args["image_path"] = str(tdef.cmd_args.docker_image_url.installed_path)
-
-        srun_command = self.generate_srun_command(slurm_args, final_env_vars, cmd_args, tr.test.extra_cmd_args)
-        return self._write_sbatch_script(slurm_args, final_env_vars, srun_command, tr.output_path)
+        tr.test.test_definition.cmd_args.output_path = str(tr.output_path)
+        return super().gen_exec_command(tr)
 
     def _extract_test_name(self, cmd_args: Dict[str, Any]) -> str:
         """
@@ -119,26 +113,26 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return " ".join(sorted(xla_flags))
 
     def _parse_slurm_args(
-        self,
-        job_name_prefix: str,
-        env_vars: Dict[str, str],
-        cmd_args: Dict[str, Any],
-        num_nodes: int,
-        nodes: List[str],
+        self, job_name_prefix: str, env_vars: Dict[str, str], cmd_args: Dict[str, Any], tr: TestRun
     ) -> Dict[str, Any]:
         key_prefix = f"{self.test_name}" if self.test_name in ["GPT", "Grok", "Nemotron"] else "common"
 
-        base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
+        base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
         local_workspace_dir = Path(cmd_args["output_path"]).resolve()
-        docker_workspace_dir = cmd_args[f"{key_prefix}.setup_flags"]["docker_workspace_dir"]
+        docker_workspace_dir = cmd_args[f"{key_prefix}.setup_flags.docker_workspace_dir"]
         container_mounts = f"{local_workspace_dir}:{docker_workspace_dir}"
 
         if "pgo_nsys_converter.profile_path" in cmd_args:
             profile_path = Path(cmd_args["pgo_nsys_converter.profile_path"]).resolve()
             container_mounts += f",{profile_path}:{profile_path}"
 
-        base_args.update({"container_mounts": container_mounts})
+        tdef: Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition] = cast(
+            Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition], tr.test.test_definition
+        )
+        base_args.update({"image_path": tdef.docker_image.installed_path, "container_mounts": container_mounts})
+        print(base_args)
+        print(tdef.docker_image)
 
         output_path = Path(cmd_args["output_path"]).resolve()
         output_suffix = "-%j.txt" if env_vars.get("UNIFIED_STDOUT_STDERR") == "1" else "-%j-%n-%t.txt"
@@ -272,15 +266,19 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "--num_hosts=$SLURM_NTASKS",
             "--server_addr=$SLURM_JOB_MASTER_NODE:12345",
             "--host_idx=$SLURM_PROCID",
-            f"--job_log_dir={cmd_args[f'{self.test_name}.setup_flags']['docker_workspace_dir']}",
-            f"--tfds_data_dir={cmd_args[f'{self.test_name}.setup_flags']['tfds_data_dir']}",
-            f"--enable_checkpoint_saving={cmd_args[f'{self.test_name}.setup_flags']['enable_checkpoint_saving']}",
+            f"--job_log_dir={cmd_args[f'{self.test_name}.setup_flags.docker_workspace_dir']}",
+            f"--tfds_data_dir={cmd_args[f'{self.test_name}.setup_flags.tfds_data_dir']}",
+            f"--enable_checkpoint_saving={cmd_args[f'{self.test_name}.setup_flags.enable_checkpoint_saving']}",
             "--multiprocess_gpu",
             "--alsologtostderr",
             f'--fdl_config="{fdl_config}"',
         ]
 
-        fdl_args: Dict[str, str] = cmd_args[f"{self.test_name}.fdl"]
+        fdl_args: Dict[str, str] = {}
+        for cmd_arg in cmd_args:
+            if f"{self.test_name}.fdl." in cmd_arg:
+                fdl_key = cmd_arg.replace(f"{self.test_name}.fdl.", "")
+                fdl_args[fdl_key] = cmd_args[cmd_arg]
 
         for key, value in sorted(fdl_args.items()):
             parts.append(f"--fdl.{key.upper()}={value}")

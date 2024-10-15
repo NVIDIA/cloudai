@@ -126,7 +126,7 @@ def test_strategies(key: tuple, value: type):
 
 def test_test_templates():
     test_templates = Registry().test_templates_map
-    assert len(test_templates) == 5
+    assert len(test_templates) == 8
     assert test_templates["ChakraReplay"] == ChakraReplay
     assert test_templates["NcclTest"] == NcclTest
     assert test_templates["NeMoLauncher"] == NeMoLauncher
@@ -143,7 +143,7 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 5
+    assert len(test_defs) == 8
     assert test_defs["UCCTest"] == UCCTestDefinition
     assert test_defs["NcclTest"] == NCCLTestDefinition
     assert test_defs["ChakraReplay"] == ChakraReplayTestDefinition

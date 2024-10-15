@@ -18,35 +18,11 @@ import argparse
 import asyncio
 import logging
 from pathlib import Path
+from typing import List
 
 import toml
 
 from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, TestParser
-
-
-def handle_verify_systems(args: argparse.Namespace) -> int:
-    root: Path = args.system_configs
-    if not root.exists():
-        logging.error(f"Tests directory {root} does not exist.")
-        return 1
-
-    test_tomls = [root]
-    if root.is_dir():
-        test_tomls = list(root.glob("*.toml"))
-        if not test_tomls:
-            logging.error(f"No test tomls found in {root}")
-            return 1
-
-    rc = 0
-    for test_toml in test_tomls:
-        logging.info(f"Verifying {test_toml}...")
-        try:
-            Parser.parse_system(test_toml)
-        except Exception:
-            rc = 1
-            break
-
-    return rc
 
 
 def handle_install_and_uninstall(args: argparse.Namespace) -> int:
@@ -187,21 +163,50 @@ def handle_generate_report(args: argparse.Namespace) -> int:
     return 0
 
 
-def handle_verify_tests(args: argparse.Namespace) -> int:
-    """Verify the test configurations."""
-    root: Path = args.test_configs
+def expand_file_list(root: Path) -> tuple[int, List[Path]]:
     if not root.exists():
-        logging.error(f"Tests directory {root} does not exist.")
-        return 1
+        logging.error(f"{root} does not exist.")
+        return (1, [])
 
     test_tomls = [root]
     if root.is_dir():
         test_tomls = list(root.glob("*.toml"))
         if not test_tomls:
-            logging.error(f"No test tomls found in {root}")
-            return 1
+            logging.error(f"No TOMLs found in {root}")
+            return (1, [])
 
-    rc = 0
+    return (0, test_tomls)
+
+
+def handle_verify_systems(args: argparse.Namespace) -> int:
+    root: Path = args.system_configs
+    err, system_tomls = expand_file_list(root)
+    if err:
+        return err
+
+    nfailed = 0
+    for test_toml in system_tomls:
+        logging.info(f"Verifying {test_toml}...")
+        try:
+            Parser.parse_system(test_toml)
+        except Exception:
+            nfailed += 1
+
+    if nfailed:
+        logging.error(f"{nfailed} out of {len(system_tomls)} system configurations have issues.")
+    else:
+        logging.info(f"Checked systems: {len(system_tomls)}, all passed")
+
+    return nfailed
+
+
+def handle_verify_tests(args: argparse.Namespace) -> int:
+    root: Path = args.test_configs
+    err, test_tomls = expand_file_list(root)
+    if err:
+        return err
+
+    nfailed = 0
     for test_toml in test_tomls:
         logging.info(f"Verifying {test_toml}...")
         try:
@@ -209,36 +214,34 @@ def handle_verify_tests(args: argparse.Namespace) -> int:
             parser.current_file = test_toml
             parser.load_test_definition(toml.load(test_toml))
         except Exception:
-            rc = 1
-            break
+            nfailed += 1
 
-    return rc
+    if nfailed:
+        logging.error(f"{nfailed} out of {len(test_tomls)} test configurations have issues.")
+    else:
+        logging.info(f"Checked tests: {len(test_tomls)}, all passed")
+
+    return nfailed
 
 
 def handle_verify_test_scenarios(args: argparse.Namespace) -> int:
     root: Path = args.test_scenarios
-    if not root.exists():
-        logging.error(f"Tests directory {root} does not exist.")
-        return 1
+    err, test_tomls = expand_file_list(root)
+    if err:
+        return err
 
-    test_tomls = [root]
-    if root.is_dir():
-        test_tomls = list(root.glob("*.toml"))
-        if not test_tomls:
-            logging.error(f"No test tomls found in {root}")
-            return 1
-
-    rc = 0
+    nfailed = 0
     for test_toml in test_tomls:
         logging.info(f"Verifying {test_toml}...")
         try:
             parser = Parser(args.system_config)
             parser.parse(args.tests_dir, test_toml)
         except Exception:
-            rc = 1
-            break
+            nfailed += 1
 
-    if rc == 0:
+    if nfailed:
+        logging.error(f"{nfailed} out of {len(test_tomls)} test scenarios have issues.")
+    else:
         logging.info(f"Checked scenarios: {len(test_tomls)}, all passed")
 
-    return rc
+    return nfailed
