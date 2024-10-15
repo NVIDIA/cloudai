@@ -95,9 +95,9 @@ class NeMoLauncherCmdArgs(CmdArgs):
     """NeMoLauncher test command arguments."""
 
     repository_url: str = "https://github.com/NVIDIA/NeMo-Framework-Launcher.git"
-    repository_commit_hash: str = "cf411a9ede3b466677df8ee672bcc6c396e71e1a"
+    repository_commit_hash: str = "599ecfcbbd64fd2de02f2cc093b1610d73854022"
     launcher_script: str = "launcher_scripts/main.py"
-    docker_image_url: str = "nvcr.io/nvidia/nemo:24.01.01"
+    docker_image_url: str = "nvcr.io/nvidia/nemo:24.05.01"
     stages: str = '["training"]'
     numa_mapping: NumaMapping = Field(default_factory=NumaMapping)
     cluster: Cluster = Field(default_factory=Cluster)

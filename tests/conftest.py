@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 from cloudai import TestDefinition
-from cloudai.systems.slurm.slurm_system import SlurmPartition, SlurmSystem
+from cloudai.systems.slurm.slurm_system import SlurmGroup, SlurmPartition, SlurmSystem
 
 
 @pytest.fixture
@@ -30,8 +30,22 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
         cache_docker_images_locally=True,
         default_partition="main",
         partitions=[
-            SlurmPartition(name="main", nodes=["node-[033-064]"]),
-            SlurmPartition(name="backup", nodes=["node0[1-8]"]),
+            SlurmPartition(
+                name="main",
+                nodes=["node-[033-064]"],
+                groups=[
+                    SlurmGroup(name="group1", nodes=["node-[033-048]"]),
+                    SlurmGroup(name="group2", nodes=["node-[049-064]"]),
+                ],
+            ),
+            SlurmPartition(
+                name="backup",
+                nodes=["node0[1-8]"],
+                groups=[
+                    SlurmGroup(name="group1", nodes=["node0[1-4]"]),
+                    SlurmGroup(name="group2", nodes=["node0[5-8]"]),
+                ],
+            ),
         ],
     )
     return system
