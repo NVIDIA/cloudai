@@ -467,21 +467,28 @@ class SlurmSystem(BaseModel, System):
                 available nodes.
         """
         self.validate_partition_and_group(partition_name, group_name)
+
         self.update_node_states()
 
         grouped_nodes = self.group_nodes_by_state(partition_name, group_name)
-        allocated_nodes = self.allocate_nodes(grouped_nodes, number_of_nodes, group_name)
 
-        # Log allocation details
-        logging.info(
-            "Allocated nodes from group '{}' in partition '{}': {}".format(
-                group_name,
-                partition_name,
-                [node.name for node in allocated_nodes],
+        try:
+            allocated_nodes = self.allocate_nodes(grouped_nodes, number_of_nodes, group_name)
+
+            logging.info(
+                f"Allocated nodes from group '{group_name}' in partition '{partition_name}': "
+                f"{[node.name for node in allocated_nodes]}"
             )
-        )
 
-        return allocated_nodes
+            return allocated_nodes
+
+        except ValueError as e:
+            logging.error(
+                f"Error occurred while allocating nodes from group '{group_name}' in partition '{partition_name}': {e}",
+                exc_info=True,
+            )
+
+            return []
 
     def validate_partition_and_group(self, partition_name: str, group_name: str) -> None:
         """
@@ -542,13 +549,20 @@ class SlurmSystem(BaseModel, System):
         Raises:
             ValueError: If the requested number of nodes exceeds the available nodes.
         """
-        # Allocate nodes based on priority: idle, then completing, then allocated
         allocated_nodes = []
+
         if isinstance(number_of_nodes, str) and number_of_nodes == "max_avail":
             allocated_nodes.extend(grouped_nodes[SlurmNodeState.IDLE])
             allocated_nodes.extend(grouped_nodes[SlurmNodeState.COMPLETING])
+
             if len(allocated_nodes) == 0:
-                raise ValueError(f"No available nodes in group '{group_name}'.")
+                raise ValueError(
+                    f"CloudAI is requesting the maximum available nodes from the group '{group_name}', "
+                    f"but no nodes are available. Please review the available nodes in the system and ensure "
+                    f"there are sufficient resources to meet the requirements of the test scenario. Additionally, "
+                    f"verify that the system is capable of hosting the maximum number of nodes specified in the test "
+                    "scenario."
+                )
 
         elif isinstance(number_of_nodes, int):
             for state in grouped_nodes:
@@ -557,13 +571,16 @@ class SlurmSystem(BaseModel, System):
 
             if len(allocated_nodes) < number_of_nodes:
                 raise ValueError(
-                    "Requested number of nodes ({}) exceeds the number of nodes in group '{}'.".format(
-                        number_of_nodes, group_name
-                    )
+                    f"CloudAI is requesting {number_of_nodes} nodes from the group '{group_name}', but only "
+                    f"{len(allocated_nodes)} nodes are available. Please review the available nodes in the system "
+                    f"and ensure there are enough resources to meet the requested node count. Additionally, "
+                    f"verify that the system can accommodate the number of nodes required by the test scenario."
                 )
         else:
             raise ValueError(
-                f"number of nodes should either be an int or 'max_avail', number of nodes : {number_of_nodes}"
+                f"The 'number_of_nodes' argument must be either an integer specifying the number of nodes to allocate,"
+                f" or 'max_avail' to allocate all available nodes. Received: '{number_of_nodes}'. "
+                "Please correct the input."
             )
 
         return allocated_nodes
