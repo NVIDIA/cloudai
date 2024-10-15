@@ -542,13 +542,20 @@ class SlurmSystem(BaseModel, System):
         Raises:
             ValueError: If the requested number of nodes exceeds the available nodes.
         """
-        # Allocate nodes based on priority: idle, then completing, then allocated
         allocated_nodes = []
+
         if isinstance(number_of_nodes, str) and number_of_nodes == "max_avail":
             allocated_nodes.extend(grouped_nodes[SlurmNodeState.IDLE])
             allocated_nodes.extend(grouped_nodes[SlurmNodeState.COMPLETING])
+
             if len(allocated_nodes) == 0:
-                raise ValueError(f"No available nodes in group '{group_name}'.")
+                raise ValueError(
+                    f"CloudAI is requesting the maximum available nodes from the group '{group_name}', "
+                    f"but no nodes are available. Please review the available nodes in the system and ensure "
+                    f"there are sufficient resources to meet the requirements of the test scenario. Additionally, "
+                    f"verify that the system is capable of hosting the maximum number of nodes specified in the test "
+                    "scenario."
+                )
 
         elif isinstance(number_of_nodes, int):
             for state in grouped_nodes:
@@ -557,13 +564,16 @@ class SlurmSystem(BaseModel, System):
 
             if len(allocated_nodes) < number_of_nodes:
                 raise ValueError(
-                    "Requested number of nodes ({}) exceeds the number of nodes in group '{}'.".format(
-                        number_of_nodes, group_name
-                    )
+                    f"CloudAI is requesting {number_of_nodes} nodes from the group '{group_name}', but only "
+                    f"{len(allocated_nodes)} nodes are available. Please review the available nodes in the system "
+                    f"and ensure there are enough resources to meet the requested node count. Additionally, "
+                    f"verify that the system can accommodate the number of nodes required by the test scenario."
                 )
         else:
             raise ValueError(
-                f"number of nodes should either be an int or 'max_avail', number of nodes : {number_of_nodes}"
+                f"The 'number_of_nodes' argument must be either an integer specifying the number of nodes to allocate,"
+                f" or 'max_avail' to allocate all available nodes. Received: '{number_of_nodes}'. "
+                "Please correct the input."
             )
 
         return allocated_nodes

@@ -202,11 +202,15 @@ def test_allocate_nodes_exceeding_limit(
 ):
     group_name = "group_name"
     num_nodes = 5
+    available_nodes = 4
 
     with pytest.raises(
         ValueError,
         match=re.escape(
-            f"Requested number of nodes ({num_nodes}) exceeds the number of nodes in group '{group_name}'."
+            f"CloudAI is requesting {num_nodes} nodes from the group '{group_name}', but only "
+            f"{available_nodes} nodes are available. Please review the available nodes in the system "
+            f"and ensure there are enough resources to meet the requested node count. Additionally, "
+            f"verify that the system can accommodate the number of nodes required by the test scenario."
         ),
     ):
         slurm_system.allocate_nodes(grouped_nodes, num_nodes, group_name)
