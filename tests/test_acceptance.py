@@ -17,6 +17,7 @@
 import argparse
 from pathlib import Path
 from typing import Dict
+from unittest.mock import patch
 
 import pytest
 
@@ -54,7 +55,8 @@ def test_slurm(tmp_path: Path, scenario: Dict):
         test_scenario=test_scenario_path,
         output_dir=tmp_path,
     )
-    handle_dry_run_and_run(args)
+    with patch("asyncio.sleep", return_value=None):
+        handle_dry_run_and_run(args)
 
     # Find the directory that was created for the test results
     results_output_dirs = [d for d in tmp_path.iterdir() if d.is_dir()]
