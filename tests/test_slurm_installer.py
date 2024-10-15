@@ -147,8 +147,8 @@ class TestInstallOneGitRepo:
         (installer.system.install_path / git.repo_name / "file").touch()  # test with non-empty directory
         res = installer._uninstall_git_repo(git)
         assert res.success
-        assert not git.installed_path.exists()
         assert not (installer.system.install_path / git.repo_name).exists()
+        assert not git.installed_path
 
 
 class TestInstallOnePythonExecutable:
@@ -242,8 +242,8 @@ class TestInstallOnePythonExecutable:
         res = installer._is_python_executable_installed(py)
         assert not res.success
         assert res.message == f"Git repository {py.git_repo.git_url} not cloned"
-        assert not py.git_repo.installed_path.exists()
-        assert not (installer.system.install_path / py.git_repo.installed_path).exists()
+        assert not (installer.system.install_path / py.git_repo.repo_name).exists()
+        assert not py.git_repo.installed_path
         assert not py.venv_path.exists()
         assert not (installer.system.install_path / py.venv_name).exists()
 
@@ -254,7 +254,7 @@ class TestInstallOnePythonExecutable:
         assert not res.success
         assert res.message == f"Virtual environment not created for {py.git_repo.git_url}"
         assert py.git_repo.installed_path == installer.system.install_path / py.git_repo.repo_name
-        assert py.git_repo.installed_path.exists()
+        assert (installer.system.install_path / py.git_repo.repo_name).exists()
         assert not py.venv_path.exists()
         assert not (installer.system.install_path / py.venv_name).exists()
 
@@ -266,7 +266,7 @@ class TestInstallOnePythonExecutable:
         assert res.success
         assert res.message == "Python executable installed"
         assert py.git_repo.installed_path == installer.system.install_path / py.git_repo.repo_name
-        assert py.git_repo.installed_path.exists()
+        assert (installer.system.install_path / py.git_repo.repo_name).exists()
         assert py.venv_path == installer.system.install_path / py.venv_name
         assert py.venv_path.exists()
 

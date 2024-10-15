@@ -92,10 +92,8 @@ class GitRepo(Installable):
         return f"{repo_name}__{self.commit_hash}"
 
     @property
-    def installed_path(self) -> Path:
-        if self._installed_path:
-            return self._installed_path
-        return Path(self.repo_name)
+    def installed_path(self) -> Optional[Path]:
+        return self._installed_path
 
     @installed_path.setter
     def installed_path(self, value: Path) -> None:
