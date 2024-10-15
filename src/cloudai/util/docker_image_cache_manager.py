@@ -300,8 +300,9 @@ class DockerImageCacheManager:
             process = subprocess.Popen(enroot_import_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             try:
                 while True:
-                    error_output = process.stderr.readline() if process.stderr else None
-                    error_output = error_output.decode() if error_output else ""
+                    error_output = ""
+                    if process.stderr:
+                        error_output = process.stderr.readline().decode().strip()
 
                     if error_output:
                         if (
