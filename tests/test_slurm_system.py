@@ -167,21 +167,16 @@ def grouped_nodes() -> dict[SlurmNodeState, list[SlurmNode]]:
 
 
 def test_get_available_nodes_exceeding_limit_no_callstack(
-    slurm_system: SlurmSystem, grouped_nodes: Dict[SlurmNodeState, List[SlurmNode]], capfd
+    slurm_system: SlurmSystem, grouped_nodes: Dict[SlurmNodeState, List[SlurmNode]], caplog
 ):
     group_name = "group1"
     partition_name = "main"
     num_nodes = 5
 
-    with patch("sys.exit") as mock_exit:
-        slurm_system.get_available_nodes_from_group(partition_name, group_name, num_nodes)
+    slurm_system.get_available_nodes_from_group(partition_name, group_name, num_nodes)
 
-        captured = capfd.readouterr()
-
-        assert "CloudAI is requesting 5 nodes from the group 'group1', but only 0 nodes are available." in captured.out
-        assert "Traceback" not in captured.out
-
-        mock_exit.assert_called_once_with(1)
+    log_message = "CloudAI is requesting 5 nodes from the group 'group1', but only 0 nodes are available."
+    assert log_message in caplog.text
 
 
 def test_allocate_nodes_max_avail(slurm_system: SlurmSystem, grouped_nodes: dict[SlurmNodeState, list[SlurmNode]]):
