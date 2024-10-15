@@ -19,7 +19,7 @@ from typing import Any, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from cloudai import CmdArgs, TestDefinition
-from cloudai.installer.installables import DockerImage, Installable, PythonExecutable
+from cloudai.installer.installables import DockerImage, GitRepo, Installable, PythonExecutable
 
 
 class NumaMapping(BaseModel):
@@ -112,7 +112,7 @@ class NeMoLauncherTestDefinition(TestDefinition):
 
     def model_post_init(self, __context: Any) -> None:
         self._python_executable = PythonExecutable(
-            git_url=self.cmd_args.repository_url, commit_hash=self.cmd_args.repository_commit_hash
+            GitRepo(git_url=self.cmd_args.repository_url, commit_hash=self.cmd_args.repository_commit_hash)
         )
 
     @property
@@ -123,9 +123,9 @@ class NeMoLauncherTestDefinition(TestDefinition):
     @property
     def python_executable(self) -> PythonExecutable:
         """Get python executable object."""
-        if self._python_executable is None:
+        if not self._python_executable:
             self._python_executable = PythonExecutable(
-                git_url=self.cmd_args.repository_url, commit_hash=self.cmd_args.repository_commit_hash
+                GitRepo(git_url=self.cmd_args.repository_url, commit_hash=self.cmd_args.repository_commit_hash)
             )
         return self._python_executable
 

@@ -20,7 +20,7 @@ from pathlib import Path
 from shutil import rmtree
 
 from cloudai import BaseInstaller, InstallStatusResult
-from cloudai.installer.installables import DockerImage, Installable, PythonExecutable
+from cloudai.installer.installables import DockerImage, GitRepo, Installable, PythonExecutable
 from cloudai.systems import SlurmSystem
 from cloudai.util.docker_image_cache_manager import DockerImageCacheManager, DockerImageCacheResult
 
@@ -150,14 +150,7 @@ class SlurmInstaller(BaseInstaller):
                 item.installed_path = res.docker_image_path
             return InstallStatusResult(res.success, res.message)
         elif isinstance(item, PythonExecutable):
-            ok, msg = True, "python executable installed"
-            if not item.installed_path:
-                ok = False
-                msg = f"Repository {item.git_url} not cloned"
-            elif not item.venv_path:
-                ok = False
-                msg = f"Virtual environment not created for {item.git_url}"
-            return InstallStatusResult(ok, msg)
+            return self._is_python_executable_installed(item)
 
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
@@ -173,10 +166,10 @@ class SlurmInstaller(BaseInstaller):
             item.installed_path = item.url
         return res
 
-    def _install_python_executable(self, item: PythonExecutable) -> InstallStatusResult:
+    def _install_one_git_repo(self, item: GitRepo) -> InstallStatusResult:
         repo_path = self.install_path / item.repo_name
         if repo_path.exists():
-            msg = f"Python executable repository already exists at {repo_path}."
+            msg = f"Git repository already exists at {repo_path}."
             logging.warning(msg)
             return InstallStatusResult(True, msg)
 
@@ -189,13 +182,21 @@ class SlurmInstaller(BaseInstaller):
             return res
 
         item.installed_path = repo_path
+        return InstallStatusResult(True)
+
+    def _install_python_executable(self, item: PythonExecutable) -> InstallStatusResult:
+        res = self._install_one_git_repo(item.git_repo)
+        if not res.success:
+            return res
+
+        assert item.git_repo.installed_path, "Git repository must be installed before creating virtual environment."
 
         venv_path = self.install_path / item.venv_name
         res = self._create_venv(venv_path)
         if not res.success:
             return res
 
-        requirements_txt = repo_path / "requirements.txt"
+        requirements_txt = item.git_repo.installed_path / "requirements.txt"
         res = self._install_requirements(venv_path, requirements_txt)
         if not res.success:
             return res
@@ -246,7 +247,7 @@ class SlurmInstaller(BaseInstaller):
 
         return InstallStatusResult(True)
 
-    def _uninstall_python_executable(self, item: PythonExecutable) -> InstallStatusResult:
+    def _uninstall_git_repo(self, item: GitRepo) -> InstallStatusResult:
         if not item.installed_path or not item.installed_path.exists():
             msg = f"Repository {item.git_url} is not cloned."
             logging.warning(msg)
@@ -256,3 +257,28 @@ class SlurmInstaller(BaseInstaller):
         item._installed_path = None
 
         return InstallStatusResult(True)
+
+    def _uninstall_python_executable(self, item: PythonExecutable) -> InstallStatusResult:
+        res = self._uninstall_git_repo(item.git_repo)
+        if not res.success:
+            return res
+
+        if not item.venv_path or not item.venv_path.exists():
+            msg = f"Virtual environment {item.venv_name} is not created."
+            logging.warning(msg)
+            return InstallStatusResult(True, msg)
+
+        rmtree(item.venv_path)
+        item._venv_path = None
+
+        return InstallStatusResult(True)
+
+    def _is_python_executable_installed(self, item: PythonExecutable) -> InstallStatusResult:
+        ok, msg = True, "Python executable installed."
+        if not item.git_repo.installed_path or not item.git_repo.installed_path.exists():
+            ok = False
+            msg = f"Git repository {item.git_repo.git_url} not cloned"
+        elif not item.venv_path or not item.venv_path.exists():
+            ok = False
+            msg = f"Virtual environment not created for {item.git_repo.git_url}"
+        return InstallStatusResult(ok, msg)

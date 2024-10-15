@@ -37,9 +37,9 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
             extra_env_vars={"TEST_VAR_1": "value1"},
             extra_cmd_args={"extra_args": ""},
         )
-        (tmp_path / "python").mkdir()
+        (tmp_path / "repo").mkdir()
         (tmp_path / "venv").mkdir()
-        tdef.python_executable.installed_path = tmp_path / "python"
+        tdef.python_executable.git_repo.installed_path = tmp_path / "repo"
         tdef.python_executable.venv_path = tmp_path / "venv"
 
         test = Test(test_definition=tdef, test_template=Mock())

@@ -46,30 +46,29 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             )
         self.final_cmd_args["cluster.gpus_per_node"] = self.system.gpus_per_node or "null"
 
-        if not tdef.python_executable.installed_path or not tdef.python_executable.installed_path.exists():
+        repo_path, venv_path = tdef.python_executable.git_repo.installed_path, tdef.python_executable.venv_path
+        if not repo_path or not repo_path.exists():
             raise ValueError(
-                f"The Python executable path '{tdef.python_executable.installed_path}' does not exist. "
+                f"The Python executable path '{repo_path}' does not exist. "
                 "Please ensure the Python executable is installed before running the test."
             )
-        if not tdef.python_executable.venv_path or not tdef.python_executable.venv_path.exists():
+        if not venv_path or not venv_path.exists():
             raise ValueError(
-                f"The Python virtual environment path '{tdef.python_executable.venv_path}' does not exist. "
+                f"The Python virtual environment path '{venv_path}' does not exist. "
                 "Please ensure the virtual environment is created before running the test."
             )
-        py_bin = (tdef.python_executable.venv_path / "bin" / "python").absolute()
+        py_bin = (venv_path / "bin" / "python").absolute()
         self.final_cmd_args.update(
             {
                 "base_results_dir": str(tr.output_path.absolute()),
-                "launcher_scripts_path": str(
-                    (tdef.python_executable.installed_path / tdef.cmd_args.launcher_script).parent
-                ),
+                "launcher_scripts_path": str((repo_path / tdef.cmd_args.launcher_script).parent),
             }
         )
 
         self._validate_data_config()
 
         cmd_args_str = self._generate_cmd_args_str(self.final_cmd_args, nodes)
-        full_cmd = f"{py_bin} {tdef.python_executable.installed_path / tdef.cmd_args.launcher_script} {cmd_args_str}"
+        full_cmd = f"{py_bin} {repo_path / tdef.cmd_args.launcher_script} {cmd_args_str}"
 
         if tr.test.extra_cmd_args:
             full_cmd = self._handle_extra_cmd_args(full_cmd, tr.test.extra_cmd_args)

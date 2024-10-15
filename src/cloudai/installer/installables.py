@@ -71,46 +71,25 @@ class DockerImage(Installable):
 
 
 @dataclass
-class PythonExecutable(Installable):
-    """Python executable object."""
+class GitRepo(Installable):
+    """Git repository object."""
 
     git_url: str
     commit_hash: str
     _installed_path: Optional[Path] = None
-    _venv_path: Optional[Path] = None
 
     def __eq__(self, other: object) -> bool:
         """Check if two installable objects are equal."""
-        return (
-            isinstance(other, PythonExecutable)
-            and other.git_url == self.git_url
-            and other.commit_hash == self.commit_hash
-        )
+        return isinstance(other, GitRepo) and other.git_url == self.git_url and other.commit_hash == self.commit_hash
 
     def __hash__(self) -> int:
         """Hash the installable object."""
         return hash((self.git_url, self.commit_hash))
 
-    def __str__(self) -> str:
-        """Return the string representation of the python executable."""
-        return f"PythonExecutable(git_url={self.git_url}, commit_hash={self.commit_hash})"
-
     @property
     def repo_name(self) -> str:
         repo_name = self.git_url.rsplit("/", maxsplit=1)[1].replace(".git", "")
         return f"{repo_name}__{self.commit_hash}"
-
-    @property
-    def venv_name(self) -> str:
-        return f"{self.repo_name}-venv"
-
-    @property
-    def venv_path(self) -> Optional[Path]:
-        return self._venv_path
-
-    @venv_path.setter
-    def venv_path(self, value: Path) -> None:
-        self._venv_path = value
 
     @property
     def installed_path(self) -> Optional[Path]:
@@ -119,3 +98,39 @@ class PythonExecutable(Installable):
     @installed_path.setter
     def installed_path(self, value: Path) -> None:
         self._installed_path = value
+
+
+@dataclass
+class PythonExecutable(Installable):
+    """Python executable object."""
+
+    git_repo: GitRepo
+    _venv_path: Optional[Path] = None
+
+    def __eq__(self, other: object) -> bool:
+        """Check if two installable objects are equal."""
+        return (
+            isinstance(other, PythonExecutable)
+            and other.git_repo.git_url == self.git_repo.git_url
+            and other.git_repo.commit_hash == self.git_repo.commit_hash
+        )
+
+    def __hash__(self) -> int:
+        """Hash the installable object."""
+        return self.git_repo.__hash__()
+
+    def __str__(self) -> str:
+        """Return the string representation of the python executable."""
+        return f"PythonExecutable(git_url={self.git_repo.git_url}, commit_hash={self.git_repo.commit_hash})"
+
+    @property
+    def venv_name(self) -> str:
+        return f"{self.git_repo.repo_name}-venv"
+
+    @property
+    def venv_path(self) -> Optional[Path]:
+        return self._venv_path
+
+    @venv_path.setter
+    def venv_path(self, value: Path) -> None:
+        self._venv_path = value
