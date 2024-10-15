@@ -59,7 +59,7 @@ class TestBaseInstaller:
         result = installer.install([docker_image])
 
         assert result.success
-        assert result.message == "All test templates installed successfully."
+        assert result.message == "All items installed successfully."
 
     def test_install_failure(self, mock_executor: Mock, installer: MyInstaller, docker_image: DockerImage):
         mock_executor.return_value.__enter__.return_value.submit.return_value = create_real_future(
@@ -69,7 +69,7 @@ class TestBaseInstaller:
         result = installer.install([docker_image])
 
         assert not result.success
-        assert result.message == "Some test templates failed to install."
+        assert result.message == "1 item(s) failed to install."
 
     def test_uninstall_success(self, mock_executor: Mock, installer: MyInstaller, docker_image: DockerImage):
         mock_executor.return_value.__enter__.return_value.submit.return_value = create_real_future(
@@ -79,7 +79,7 @@ class TestBaseInstaller:
         result = installer.uninstall([docker_image])
 
         assert result.success
-        assert result.message == "All test templates uninstalled successfully."
+        assert result.message == "All items uninstalled successfully."
 
     def test_uninstall_failure(self, mock_executor: Mock, installer: MyInstaller, docker_image: DockerImage):
         mock_executor.return_value.__enter__.return_value.submit.return_value = create_real_future(
@@ -89,7 +89,7 @@ class TestBaseInstaller:
         result = installer.uninstall([docker_image])
 
         assert not result.success
-        assert result.message == "Some test templates failed to uninstall."
+        assert result.message == "1 item(s) failed to uninstall."
 
     def test_installs_only_uniq(self, mock_executor: Mock, installer: MyInstaller, docker_image: DockerImage):
         mock_executor.return_value.__enter__.return_value.submit.return_value = create_real_future(0)

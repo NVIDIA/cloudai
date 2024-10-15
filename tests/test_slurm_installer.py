@@ -142,14 +142,13 @@ class TestInstallOneGitRepo:
 
     def test_uninstall_ok(self, installer: SlurmInstaller):
         git = GitRepo("./git_url", "commit_hash")
-        repo_path = installer.system.install_path / git.repo_name
-        repo_path.mkdir()
-        (repo_path / "file").touch()  # test with non-empty directory
-        git.installed_path = repo_path
+        git.installed_path = installer.system.install_path / git.repo_name
+        git.installed_path.mkdir()
+        (git.installed_path / "file").touch()  # test with non-empty directory
         res = installer._uninstall_git_repo(git)
         assert res.success
-        assert git.installed_path is None
-        assert not repo_path.exists()
+        assert not git.installed_path.exists()
+        assert not (installer.system.install_path / git.repo_name).exists()
 
 
 class TestInstallOnePythonExecutable:
@@ -249,9 +248,8 @@ class TestInstallOnePythonExecutable:
 
     def test_is_installed_no_venv(self, installer: SlurmInstaller, git: GitRepo):
         py = PythonExecutable(git)
-        repo_path = installer.system.install_path / py.git_repo.repo_name
-        repo_path.mkdir()
-        py.git_repo.installed_path = repo_path
+        py.git_repo.installed_path = installer.system.install_path / py.git_repo.repo_name
+        py.git_repo.installed_path.mkdir()
         py.venv_path = installer.system.install_path / py.venv_name
         res = installer._is_python_executable_installed(py)
         assert not res.success
@@ -259,14 +257,10 @@ class TestInstallOnePythonExecutable:
 
     def test_is_installed_ok(self, installer: SlurmInstaller, git: GitRepo):
         py = PythonExecutable(git)
-        venv_path, repo_path = (
-            installer.system.install_path / py.venv_name,
-            installer.system.install_path / py.git_repo.repo_name,
-        )
-        venv_path.mkdir()
-        repo_path.mkdir()
-        py.venv_path = venv_path
-        py.git_repo.installed_path = repo_path
+        py.venv_path = installer.system.install_path / py.venv_name
+        py.git_repo.installed_path = installer.system.install_path / py.git_repo.repo_name
+        py.git_repo.installed_path.mkdir()
+        py.venv_path.mkdir()
         res = installer._is_python_executable_installed(py)
         assert res.success
         assert res.message == "Python executable installed."
@@ -278,15 +272,14 @@ class TestInstallOnePythonExecutable:
         assert res.success
         assert res.message == f"Virtual environment {py.venv_name} is not created."
 
-    def test_uninstall_vevn_removed_ok(self, installer: SlurmInstaller, git: GitRepo):
+    def test_uninstall_venv_removed_ok(self, installer: SlurmInstaller, git: GitRepo):
         py = PythonExecutable(git)
-        venv_path = installer.system.install_path / py.venv_name
-        venv_path.mkdir()
-        (venv_path / "file").touch()
-        py.venv_path = venv_path
+        py.venv_path = installer.system.install_path / py.venv_name
+        py.venv_path.mkdir()
+        (py.venv_path / "file").touch()
         res = installer._uninstall_python_executable(py)
         assert res.success
-        assert py.venv_path is None
+        assert not py.venv_path.exists()
         assert not (installer.system.install_path / py.venv_name).exists()
 
 

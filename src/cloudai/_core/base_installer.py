@@ -93,7 +93,7 @@ class BaseInstaller(ABC):
                 not_installed[item] = result.message
 
         if not_installed:
-            return InstallStatusResult(False, f"{len(not_installed)} items are not installed.", not_installed)
+            return InstallStatusResult(False, f"{len(not_installed)} item(s) are not installed.", not_installed)
         return InstallStatusResult(True, "All test templates are installed.")
 
     @final
@@ -153,7 +153,7 @@ class BaseInstaller(ABC):
             return InstallStatusResult(True, "All items installed successfully.", install_results)
 
         nfailed = len([result for result in install_results.values() if result != "Success"])
-        return InstallStatusResult(False, f"{nfailed} items failed to install.", install_results)
+        return InstallStatusResult(False, f"{nfailed} item(s) failed to install.", install_results)
 
     @final
     def uninstall(self, items: Iterable[Installable]) -> InstallStatusResult:
@@ -188,7 +188,7 @@ class BaseInstaller(ABC):
             return InstallStatusResult(True, "All items uninstalled successfully.", uninstall_results)
 
         nfailed = len([result for result in uninstall_results.values() if result != "Success"])
-        return InstallStatusResult(False, f"{nfailed} items failed to uninstall.", uninstall_results)
+        return InstallStatusResult(False, f"{nfailed} item(s) failed to uninstall.", uninstall_results)
 
     @abstractmethod
     def install_one(self, item: Installable) -> InstallStatusResult: ...

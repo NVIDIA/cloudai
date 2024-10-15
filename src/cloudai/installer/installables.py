@@ -92,8 +92,10 @@ class GitRepo(Installable):
         return f"{repo_name}__{self.commit_hash}"
 
     @property
-    def installed_path(self) -> Optional[Path]:
-        return self._installed_path
+    def installed_path(self) -> Path:
+        if self._installed_path:
+            return self._installed_path
+        return Path(self.repo_name)
 
     @installed_path.setter
     def installed_path(self, value: Path) -> None:
@@ -128,8 +130,10 @@ class PythonExecutable(Installable):
         return f"{self.git_repo.repo_name}-venv"
 
     @property
-    def venv_path(self) -> Optional[Path]:
-        return self._venv_path
+    def venv_path(self) -> Path:
+        if self._venv_path:
+            return self._venv_path
+        return Path(self.venv_name)
 
     @venv_path.setter
     def venv_path(self, value: Path) -> None:

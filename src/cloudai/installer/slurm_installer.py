@@ -189,8 +189,6 @@ class SlurmInstaller(BaseInstaller):
         if not res.success:
             return res
 
-        assert item.git_repo.installed_path, "Git repository must be installed before creating virtual environment."
-
         venv_path = self.install_path / item.venv_name
         res = self._create_venv(venv_path)
         if not res.success:
@@ -248,7 +246,7 @@ class SlurmInstaller(BaseInstaller):
         return InstallStatusResult(True)
 
     def _uninstall_git_repo(self, item: GitRepo) -> InstallStatusResult:
-        if not item.installed_path or not item.installed_path.exists():
+        if not item.installed_path.exists():
             msg = f"Repository {item.git_url} is not cloned."
             logging.warning(msg)
             return InstallStatusResult(True, msg)
@@ -263,7 +261,7 @@ class SlurmInstaller(BaseInstaller):
         if not res.success:
             return res
 
-        if not item.venv_path or not item.venv_path.exists():
+        if not item.venv_path.exists():
             msg = f"Virtual environment {item.venv_name} is not created."
             logging.warning(msg)
             return InstallStatusResult(True, msg)
@@ -281,4 +279,6 @@ class SlurmInstaller(BaseInstaller):
         elif not item.venv_path or not item.venv_path.exists():
             ok = False
             msg = f"Virtual environment not created for {item.git_repo.git_url}"
+
+        logging.debug(f"Python executable installed status: {ok}, {msg}")
         return InstallStatusResult(ok, msg)
