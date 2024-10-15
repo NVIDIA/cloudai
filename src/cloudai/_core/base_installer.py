@@ -87,14 +87,16 @@ class BaseInstaller(ABC):
         """
         not_installed = {}
         for item in items:
-            logging.debug(f"Verifying installation status of {item}.")
+            logging.debug(f"Installation check for {item}")
             result = self.is_installed_one(item)
-            logging.debug(f"Installation status of {item}: {result.success}, {result.message}")
+            logging.debug(f"Installation check for {item}: {result.success}, {result.message}")
             if not result.success:
                 not_installed[item] = result.message
 
         if not_installed:
-            return InstallStatusResult(False, f"{len(not_installed)} item(s) are not installed.", not_installed)
+            res = InstallStatusResult(False, f"{len(not_installed)} item(s) are not installed.", not_installed)
+            logging.debug(str(res))
+            return res
         return InstallStatusResult(True, "All test templates are installed.")
 
     @final
