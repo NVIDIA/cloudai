@@ -16,6 +16,7 @@
 
 import logging
 import re
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -466,22 +467,27 @@ class SlurmSystem(BaseModel, System):
             ValueError: If the partition or group is not found, or if the requested number of nodes exceeds the
                 available nodes.
         """
-        self.validate_partition_and_group(partition_name, group_name)
-        self.update_node_states()
+        try:
+            self.validate_partition_and_group(partition_name, group_name)
+            self.update_node_states()
 
-        grouped_nodes = self.group_nodes_by_state(partition_name, group_name)
-        allocated_nodes = self.allocate_nodes(grouped_nodes, number_of_nodes, group_name)
+            grouped_nodes = self.group_nodes_by_state(partition_name, group_name)
+            allocated_nodes = self.allocate_nodes(grouped_nodes, number_of_nodes, group_name)
 
-        # Log allocation details
-        logging.info(
-            "Allocated nodes from group '{}' in partition '{}': {}".format(
-                group_name,
-                partition_name,
-                [node.name for node in allocated_nodes],
+            logging.info(
+                f"Allocated nodes from group '{group_name}' in partition '{partition_name}': "
+                f"{[node.name for node in allocated_nodes]}"
             )
-        )
 
-        return allocated_nodes
+            return allocated_nodes
+
+        except ValueError as e:
+            logging.error(
+                f"Error occurred while allocating nodes from group '{group_name}' in partition '{partition_name}': {e}",
+                exc_info=True,
+            )
+            print(f"Error: {e}")
+            sys.exit(1)
 
     def validate_partition_and_group(self, partition_name: str, group_name: str) -> None:
         """

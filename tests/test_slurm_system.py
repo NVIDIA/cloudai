@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import re
-from typing import List
+from typing import Dict, List
 from unittest.mock import patch
 
 import pytest
@@ -150,7 +150,7 @@ def grouped_nodes() -> dict[SlurmNodeState, list[SlurmNode]]:
     """
     Helper function to set up a mock Slurm system with nodes and their states.
     """
-    partition_name = "partition_name"
+    partition_name = "main"
 
     grouped_nodes = {
         SlurmNodeState.IDLE: [
@@ -164,6 +164,24 @@ def grouped_nodes() -> dict[SlurmNodeState, list[SlurmNode]]:
     }
 
     return grouped_nodes
+
+
+def test_get_available_nodes_exceeding_limit_no_callstack(
+    slurm_system: SlurmSystem, grouped_nodes: Dict[SlurmNodeState, List[SlurmNode]], capfd
+):
+    group_name = "group1"
+    partition_name = "main"
+    num_nodes = 5
+
+    with patch("sys.exit") as mock_exit:
+        slurm_system.get_available_nodes_from_group(partition_name, group_name, num_nodes)
+
+        captured = capfd.readouterr()
+
+        assert "CloudAI is requesting 5 nodes from the group 'group1', but only 0 nodes are available." in captured.out
+        assert "Traceback" not in captured.out
+
+        mock_exit.assert_called_once_with(1)
 
 
 def test_allocate_nodes_max_avail(slurm_system: SlurmSystem, grouped_nodes: dict[SlurmNodeState, list[SlurmNode]]):
