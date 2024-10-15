@@ -124,8 +124,8 @@ class BaseInstaller(ABC):
         if not self.system.install_path.is_dir() or not os.access(self.system.install_path, os.W_OK):
             return InstallStatusResult(False, f"The installation path {self.system.install_path} is not writable.")
 
-        logging.debug(f"Going to install {len(set(items))} uniq items (total {len(list(items))}).")
-        logging.info(f"Going to install {len(set(items))} items.")
+        logging.debug(f"Going to install {len(set(items))} uniq item(s) (total is {len(list(items))})")
+        logging.info(f"Going to install {len(set(items))} item(s)")
 
         install_results = {}
         with ThreadPoolExecutor() as executor:
