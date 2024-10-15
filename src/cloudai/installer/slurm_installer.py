@@ -134,7 +134,7 @@ class SlurmInstaller(BaseInstaller):
         Returns:
             InstallStatusResult: Result containing the uninstallation status and error message if any.
         """
-        logging.info(f"Attempt to uninstall {item}")
+        logging.debug(f"Attempt to uninstall {item}")
         if isinstance(item, DockerImage):
             res = self._uninstall_docker_image(item)
             return InstallStatusResult(res.success, res.message)
@@ -247,12 +247,13 @@ class SlurmInstaller(BaseInstaller):
         return InstallStatusResult(True)
 
     def _uninstall_git_repo(self, item: GitRepo) -> InstallStatusResult:
-        if not item.installed_path.exists():
+        repo_path = self.system.install_path / item.installed_path
+        if not repo_path.exists():
             msg = f"Repository {item.git_url} is not cloned."
             logging.warning(msg)
             return InstallStatusResult(True, msg)
 
-        rmtree(item.installed_path)
+        rmtree(repo_path)
         item._installed_path = None
 
         return InstallStatusResult(True)
@@ -262,12 +263,13 @@ class SlurmInstaller(BaseInstaller):
         if not res.success:
             return res
 
-        if not item.venv_path.exists():
+        venv_path = self.system.install_path / item.venv_path
+        if not venv_path.exists():
             msg = f"Virtual environment {item.venv_name} is not created."
             logging.warning(msg)
             return InstallStatusResult(True, msg)
 
-        rmtree(item.venv_path)
+        rmtree(venv_path)
         item._venv_path = None
 
         return InstallStatusResult(True)

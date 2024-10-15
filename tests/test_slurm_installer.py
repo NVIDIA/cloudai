@@ -143,9 +143,8 @@ class TestInstallOneGitRepo:
 
     def test_uninstall_ok(self, installer: SlurmInstaller):
         git = GitRepo("./git_url", "commit_hash")
-        git.installed_path = installer.system.install_path / git.repo_name
-        git.installed_path.mkdir()
-        (git.installed_path / "file").touch()  # test with non-empty directory
+        (installer.system.install_path / git.repo_name).mkdir()
+        (installer.system.install_path / git.repo_name / "file").touch()  # test with non-empty directory
         res = installer._uninstall_git_repo(git)
         assert res.success
         assert not git.installed_path.exists()

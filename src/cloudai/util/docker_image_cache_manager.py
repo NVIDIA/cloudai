@@ -373,5 +373,5 @@ class DockerImageCacheManager:
                 logging.error(error_message)
                 return DockerImageCacheResult(False, docker_image_path, error_message)
         success_message = f"No cached Docker image found to remove at {docker_image_path}."
-        logging.info(success_message)
+        logging.warning(success_message)
         return DockerImageCacheResult(True, docker_image_path.absolute(), success_message)
