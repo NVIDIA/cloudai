@@ -128,10 +128,8 @@ class PythonExecutable(Installable):
         return f"{self.git_repo.repo_name}-venv"
 
     @property
-    def venv_path(self) -> Path:
-        if self._venv_path:
-            return self._venv_path
-        return Path(self.venv_name)
+    def venv_path(self) -> Optional[Path]:
+        return self._venv_path
 
     @venv_path.setter
     def venv_path(self, value: Path) -> None:

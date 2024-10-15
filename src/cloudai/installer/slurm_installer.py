@@ -56,7 +56,6 @@ class SlurmInstaller(BaseInstaller):
         """
         super().__init__(system)
         self.system = system
-        self.install_path = self.system.install_path
         self.docker_image_cache_manager = DockerImageCacheManager(
             self.system.install_path, self.system.cache_docker_images_locally, self.system.default_partition
         )
@@ -167,7 +166,7 @@ class SlurmInstaller(BaseInstaller):
         return res
 
     def _install_one_git_repo(self, item: GitRepo) -> InstallStatusResult:
-        repo_path = self.install_path / item.repo_name
+        repo_path = self.system.install_path / item.repo_name
         if repo_path.exists():
             item.installed_path = repo_path
             msg = f"Git repository already exists at {repo_path}."
@@ -190,7 +189,7 @@ class SlurmInstaller(BaseInstaller):
         if not res.success:
             return res
 
-        venv_path = self.install_path / item.venv_name
+        venv_path = self.system.install_path / item.venv_name
         res = self._create_venv(venv_path)
         if not res.success:
             return res
@@ -264,7 +263,7 @@ class SlurmInstaller(BaseInstaller):
         if not res.success:
             return res
 
-        venv_path = self.system.install_path / item.venv_path
+        venv_path = item.venv_path if item.venv_path else self.system.install_path / item.venv_name
         if not venv_path.exists():
             msg = f"Virtual environment {item.venv_name} is not created."
             logging.warning(msg)
@@ -285,7 +284,7 @@ class SlurmInstaller(BaseInstaller):
             return InstallStatusResult(False, f"Git repository {item.git_repo.git_url} not cloned")
         item.git_repo.installed_path = repo_path
 
-        venv_path = self.install_path / item.venv_path
+        venv_path = item.venv_path if item.venv_path else self.system.install_path / item.venv_name
         if not venv_path.exists():
             return InstallStatusResult(False, f"Virtual environment not created for {item.git_repo.git_url}")
         item.venv_path = venv_path

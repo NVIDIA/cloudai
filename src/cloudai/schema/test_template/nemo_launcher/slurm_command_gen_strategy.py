@@ -52,7 +52,13 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 f"The git repository path '{repo_path}' does not exist. "
                 "Please ensure to run installation before running the test."
             )
-        py_bin = (tdef.python_executable.venv_path / "bin" / "python").absolute()
+        venv_path = tdef.python_executable.venv_path
+        if not venv_path or not venv_path.exists():
+            raise ValueError(
+                f"The virtual environment path '{venv_path}' does not exist. "
+                "Please ensure to run installation before running the test."
+            )
+        py_bin = (venv_path / "bin" / "python").absolute()
         self.final_cmd_args.update(
             {
                 "base_results_dir": str(tr.output_path.absolute()),

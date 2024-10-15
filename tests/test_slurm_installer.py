@@ -28,7 +28,7 @@ from cloudai.util.docker_image_cache_manager import DockerImageCacheResult
 @pytest.fixture
 def installer(slurm_system: SlurmSystem):
     si = SlurmInstaller(slurm_system)
-    si.install_path.mkdir()
+    si.system.install_path.mkdir()
     return si
 
 
@@ -244,8 +244,8 @@ class TestInstallOnePythonExecutable:
         assert res.message == f"Git repository {py.git_repo.git_url} not cloned"
         assert not (installer.system.install_path / py.git_repo.repo_name).exists()
         assert not py.git_repo.installed_path
-        assert not py.venv_path.exists()
         assert not (installer.system.install_path / py.venv_name).exists()
+        assert not py.venv_path
 
     def test_is_installed_no_venv(self, installer: SlurmInstaller, git: GitRepo):
         py = PythonExecutable(git)
@@ -255,8 +255,8 @@ class TestInstallOnePythonExecutable:
         assert res.message == f"Virtual environment not created for {py.git_repo.git_url}"
         assert py.git_repo.installed_path == installer.system.install_path / py.git_repo.repo_name
         assert (installer.system.install_path / py.git_repo.repo_name).exists()
-        assert not py.venv_path.exists()
         assert not (installer.system.install_path / py.venv_name).exists()
+        assert not py.venv_path
 
     def test_is_installed_ok(self, installer: SlurmInstaller, git: GitRepo):
         py = PythonExecutable(git)
@@ -268,7 +268,7 @@ class TestInstallOnePythonExecutable:
         assert py.git_repo.installed_path == installer.system.install_path / py.git_repo.repo_name
         assert (installer.system.install_path / py.git_repo.repo_name).exists()
         assert py.venv_path == installer.system.install_path / py.venv_name
-        assert py.venv_path.exists()
+        assert py.venv_path
 
     def test_uninstall_no_venv(self, installer: SlurmInstaller, git: GitRepo):
         py = PythonExecutable(git)
@@ -279,13 +279,13 @@ class TestInstallOnePythonExecutable:
 
     def test_uninstall_venv_removed_ok(self, installer: SlurmInstaller, git: GitRepo):
         py = PythonExecutable(git)
+        (installer.system.install_path / py.venv_name).mkdir()
+        (installer.system.install_path / py.venv_name / "file").touch()
         py.venv_path = installer.system.install_path / py.venv_name
-        py.venv_path.mkdir()
-        (py.venv_path / "file").touch()
         res = installer._uninstall_python_executable(py)
         assert res.success
-        assert not py.venv_path.exists()
         assert not (installer.system.install_path / py.venv_name).exists()
+        assert not py.venv_path
 
 
 def test_check_supported(slurm_system: SlurmSystem):
