@@ -273,13 +273,14 @@ class SlurmInstaller(BaseInstaller):
         return InstallStatusResult(True)
 
     def _is_python_executable_installed(self, item: PythonExecutable) -> InstallStatusResult:
-        ok, msg = True, "Python executable installed."
-        if not item.git_repo.installed_path or not item.git_repo.installed_path.exists():
-            ok = False
-            msg = f"Git repository {item.git_repo.git_url} not cloned"
-        elif not item.venv_path or not item.venv_path.exists():
-            ok = False
-            msg = f"Virtual environment not created for {item.git_repo.git_url}"
+        repo_path = self.install_path / item.git_repo.installed_path
+        if not repo_path.exists():
+            return InstallStatusResult(False, f"Git repository {item.git_repo.git_url} not cloned")
+        item.git_repo.installed_path = repo_path
 
-        logging.debug(f"Python executable installed status: {ok}, {msg}")
-        return InstallStatusResult(ok, msg)
+        venv_path = self.install_path / item.venv_path
+        if not venv_path.exists():
+            return InstallStatusResult(False, f"Virtual environment not created for {item.git_repo.git_url}")
+        item.venv_path = venv_path
+
+        return InstallStatusResult(True, "Python executable installed")
