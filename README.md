@@ -118,12 +118,12 @@ cloudai verify-tests conf/common/test
 
 Verify if test scenarios are valid:
 ```bash
-cloudai\ --mode verify-test-scenarios\
+cloudai verify-test-scenarios\
     --system-config conf/common/system/example_slurm_cluster.toml\
     --tests-dir conf/common/test\
-    --test-scenario conf/common/test_scenario
+    conf/common/test_scenario
 ```
-`--test-scenario` can be a file or a directory to verify all configs in the directory.
+Positional argumen (test scenario path) can be a file or a directory to verify all configs in the directory.
 
 ## Contributing
 Feel free to contribute to the CloudAI project. Your contributions are highly appreciated.

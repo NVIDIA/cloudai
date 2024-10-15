@@ -18,7 +18,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-from cloudai import CommandGenStrategy
+from cloudai import CommandGenStrategy, TestRun
 from cloudai.systems import SlurmSystem
 from cloudai.util.docker_image_cache_manager import DockerImageCacheManager
 
@@ -138,6 +138,15 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             srun_command_parts.append(self.system.extra_srun_args)
 
         return srun_command_parts
+
+    def gen_exec_command(self, tr: TestRun) -> str:
+        env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
+        cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
+        slurm_args = self._parse_slurm_args(
+            tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr.num_nodes, tr.nodes
+        )
+        srun_command = self.generate_srun_command(slurm_args, env_vars, cmd_args, tr.test.extra_cmd_args)
+        return self._write_sbatch_script(slurm_args, env_vars, srun_command, tr.output_path)
 
     def generate_test_command(
         self, env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
