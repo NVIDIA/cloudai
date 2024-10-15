@@ -89,6 +89,7 @@ class BaseInstaller(ABC):
         for item in items:
             logging.debug(f"Verifying installation status of {item}.")
             result = self.is_installed_one(item)
+            logging.debug(f"Installation status of {item}: {result.success}, {result.message}")
             if not result.success:
                 not_installed[item] = result.message
 
