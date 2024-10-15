@@ -132,6 +132,7 @@ class BaseInstaller(ABC):
                 item = futures[future]
                 try:
                     result = future.result()
+                    done += 1
                     msg = (
                         f"{done}/{total} Installation for {item} finished with status: "
                         f"{result.message if result.message else 'OK'}"
@@ -142,7 +143,6 @@ class BaseInstaller(ABC):
                     else:
                         install_results[item] = result.message
                         logging.error(msg)
-                    done += 1
                 except Exception as e:
                     done += 1
                     logging.error(f"{done}/{total} Installation failed for {item}: {e}")
