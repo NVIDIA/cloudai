@@ -254,7 +254,7 @@ class SlurmInstaller(BaseInstaller):
             return InstallStatusResult(True, msg)
 
         rmtree(repo_path)
-        item._installed_path = None
+        item.installed_path = None
 
         return InstallStatusResult(True)
 
@@ -270,7 +270,7 @@ class SlurmInstaller(BaseInstaller):
             return InstallStatusResult(True, msg)
 
         rmtree(venv_path)
-        item._venv_path = None
+        item.venv_path = None
 
         return InstallStatusResult(True)
 

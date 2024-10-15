@@ -76,7 +76,7 @@ class GitRepo(Installable):
 
     git_url: str
     commit_hash: str
-    _installed_path: Optional[Path] = None
+    installed_path: Optional[Path] = None
 
     def __eq__(self, other: object) -> bool:
         """Check if two installable objects are equal."""
@@ -91,21 +91,13 @@ class GitRepo(Installable):
         repo_name = self.git_url.rsplit("/", maxsplit=1)[1].replace(".git", "")
         return f"{repo_name}__{self.commit_hash}"
 
-    @property
-    def installed_path(self) -> Optional[Path]:
-        return self._installed_path
-
-    @installed_path.setter
-    def installed_path(self, value: Path) -> None:
-        self._installed_path = value
-
 
 @dataclass
 class PythonExecutable(Installable):
     """Python executable object."""
 
     git_repo: GitRepo
-    _venv_path: Optional[Path] = None
+    venv_path: Optional[Path] = None
 
     def __eq__(self, other: object) -> bool:
         """Check if two installable objects are equal."""
@@ -126,11 +118,3 @@ class PythonExecutable(Installable):
     @property
     def venv_name(self) -> str:
         return f"{self.git_repo.repo_name}-venv"
-
-    @property
-    def venv_path(self) -> Optional[Path]:
-        return self._venv_path
-
-    @venv_path.setter
-    def venv_path(self, value: Path) -> None:
-        self._venv_path = value
