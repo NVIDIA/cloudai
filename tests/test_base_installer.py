@@ -121,9 +121,9 @@ def test_docker_cache_filename(url: str, expected: str):
 @pytest.mark.parametrize(
     "url,expected",
     [
-        ("https://github.com/NVIDIA/cloudai.git", "cloudai"),
-        ("git@github.com:NVIDIA/cloudai.git", "cloudai"),
-        ("./cloudai", "cloudai"),
+        ("https://github.com/NVIDIA/cloudai.git", "cloudai__commit"),
+        ("git@github.com:NVIDIA/cloudai.git", "cloudai__commit"),
+        ("./cloudai", "cloudai__commit"),
     ],
 )
 def test_py_exec_repo_name(url: str, expected: str):

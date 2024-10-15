@@ -97,7 +97,8 @@ class PythonExecutable(Installable):
 
     @property
     def repo_name(self) -> str:
-        return self.git_url.rsplit("/", maxsplit=1)[1].replace(".git", "")
+        repo_name = self.git_url.rsplit("/", maxsplit=1)[1].replace(".git", "")
+        return f"{repo_name}__{self.commit_hash}"
 
     @property
     def venv_name(self) -> str:
