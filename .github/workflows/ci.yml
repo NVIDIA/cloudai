@@ -65,7 +65,12 @@ jobs:
         run: pip install pytest -r requirements-dev.txt
 
       - name: Run pytest
-        run: pytest -vv --cov
+        run: |
+          set -eE
+          set -o pipefail
+
+          pytest --dead-fixtures
+          pytest -vv --cov
 
       - name: Test local installation
         run: |

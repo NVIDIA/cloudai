@@ -19,6 +19,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, Mock
 
 import pytest
+
 from cloudai import TestTemplate
 from cloudai._core.exceptions import JobIdRetrievalError
 from cloudai._core.test import Test

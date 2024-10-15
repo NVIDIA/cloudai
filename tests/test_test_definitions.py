@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pytest
 import toml
+
 from cloudai import Registry, TestDefinition, TestParser
 from cloudai.test_definitions import ChakraReplayCmdArgs, NCCLCmdArgs, NCCLTestDefinition
 

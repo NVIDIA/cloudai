@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+
 from cloudai.report_generator.tool.csv_report_tool import CSVReportTool
 
 

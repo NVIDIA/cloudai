@@ -19,6 +19,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+
 from cloudai.cli import (
     CloudAICLI,
     handle_generate_report,

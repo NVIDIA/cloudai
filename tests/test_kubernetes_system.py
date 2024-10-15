@@ -17,8 +17,9 @@
 from pathlib import Path
 
 import pytest
-from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
 from kubernetes import client
+
+from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
 
 
 @pytest.fixture
