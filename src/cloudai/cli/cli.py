@@ -22,6 +22,7 @@ from .handlers import (
     handle_dry_run_and_run,
     handle_generate_report,
     handle_install_and_uninstall,
+    handle_verify_all_configs,
     handle_verify_systems,
     handle_verify_test_scenarios,
     handle_verify_tests,
@@ -112,10 +113,19 @@ class CloudAICLI:
                 "verify-test-scenarios",
                 "Verify the test scenario configurations.",
                 handle_verify_test_scenarios,
-                system_config=True,
+                system_config=False,
                 tests_dir=True,
             )
             p.add_argument("test_scenarios", help="Path to the test scenario file or directory.", type=Path)
+
+        p = self.add_command(
+            "verify-configs",
+            "Verify all found TOML files in the given directory.",
+            handle_verify_all_configs,
+            system_config=False,
+            tests_dir=True,
+        )
+        p.add_argument("config_dir", help="Path to a file or the directory containing the TOML files.", type=Path)
 
         return self.parser
 
