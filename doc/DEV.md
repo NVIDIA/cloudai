@@ -51,9 +51,32 @@ Installables are shared among all tests. So if any number of tests use the same 
 
 ```mermaid
 classDiagram
-    class System {
-        + install_path: str
+    class Installable {
+        <<abstract>>
+        + __eq__(other: object)
+        + __hash__()
     }
+
+    class DockerImage {
+        + url: str
+        + install_path: str | Path
+    }
+
+    class GitRepo {
+        + git_url: str
+        + commit_hash: str
+        + install_path: Path
+    }
+
+    class PythonExecutable {
+        + git_repo: GitRepo
+        + venv_path: Path
+    }
+
+    Installable <|-- DockerImage
+    Installable <|-- GitRepo
+    Installable <|-- PythonExecutable
+    PythonExecutable --> GitRepo
 
     class BaseInstaller {
         <<abstract>>
