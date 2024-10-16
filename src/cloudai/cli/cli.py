@@ -42,6 +42,7 @@ class CloudAICLI:
             "verify-systems",
             "verify-tests",
             "verify-test-scenarios",
+            "verify-configs",
         }
 
         self.parser = argparse.ArgumentParser(description="Cloud AI")
@@ -101,31 +102,41 @@ class CloudAICLI:
             )
 
         if "verify-systems" in self.DEFAULT_MODES:
-            p = self.add_command("verify-systems", "Verify the system configurations.", handle_verify_systems)
+            p = self.add_command(
+                "verify-systems",
+                "[DEPRECATED: use verify-configs] Verify the system configurations.",
+                handle_verify_systems,
+            )
             p.add_argument("system_configs", help="Path to the system configuration file or directory.", type=Path)
 
         if "verify-tests" in self.DEFAULT_MODES:
-            p = self.add_command("verify-tests", "Verify the test configurations.", handle_verify_tests)
+            p = self.add_command(
+                "verify-tests", "[DEPRECATED: use verify-configs] Verify the test configurations.", handle_verify_tests
+            )
             p.add_argument("test_configs", help="Path to the test configuration file or directory.", type=Path)
 
         if "verify-test-scenarios" in self.DEFAULT_MODES:
             p = self.add_command(
                 "verify-test-scenarios",
-                "Verify the test scenario configurations.",
+                "[DEPRECATED: use verify-configs] Verify the test scenario configurations.",
                 handle_verify_test_scenarios,
                 system_config=False,
                 tests_dir=True,
             )
             p.add_argument("test_scenarios", help="Path to the test scenario file or directory.", type=Path)
 
-        p = self.add_command(
-            "verify-configs",
-            "Verify all found TOML files in the given directory.",
-            handle_verify_all_configs,
-            system_config=False,
-            tests_dir=False,
-        )
-        p.add_argument("config_dir", help="Path to a file or the directory containing the TOML files.", type=Path)
+        if "verify-configs" in self.DEFAULT_MODES:
+            p = self.add_command(
+                "verify-configs",
+                (
+                    "Verify all found TOML files in the given directory. Test Scenarios are verified against all found "
+                    "Test TOML files or all Test TOML files in the given directory."
+                ),
+                handle_verify_all_configs,
+                system_config=False,
+                tests_dir=False,
+            )
+            p.add_argument("configs_dir", help="Path to a file or the directory containing the TOML files.", type=Path)
 
         return self.parser
 

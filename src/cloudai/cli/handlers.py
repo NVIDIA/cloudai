@@ -286,11 +286,41 @@ def verify_test_scenarios(
 
 
 def handle_verify_all_configs(args: argparse.Namespace) -> int:
-    root: Path = args.config_dir
+    root: Path = args.configs_dir
     err, tomls = expand_file_list(root, glob="**/*.toml")
     if err:
         return err
 
+    files = load_tomls_by_type(tomls)
+
+    test_tomls = files["test"]
+    if args.tests_dir:
+        test_tomls = list(args.tests_dir.glob("*.toml"))
+    elif files["scenario"]:
+        logging.warning(
+            "Test configuration directory not provided, using all found test TOMLs in the specified directory."
+        )
+
+    nfailed = 0
+    if files["system"]:
+        nfailed += verify_system_configs(files["system"])
+    if files["test"]:
+        nfailed += verify_test_configs(files["test"])
+    if files["scenario"]:
+        nfailed += verify_test_scenarios(files["scenario"], test_tomls, args.system_config)
+    if files["unknown"]:
+        logging.error(f"Unknown configuration files: {[str(f) for f in files['unknown']]}")
+        nfailed += len(files["unknown"])
+
+    if nfailed:
+        logging.error(f"{nfailed} out of {len(tomls)} configuration files have issues.")
+    else:
+        logging.info(f"Checked {len(tomls)} configuration files, all passed")
+
+    return nfailed
+
+
+def load_tomls_by_type(tomls: List[Path]) -> dict[str, List[Path]]:
     files: dict[str, List[Path]] = {"system": [], "test": [], "scenario": [], "unknown": []}
     for toml_file in tomls:
         content = toml_file.read_text()
@@ -303,26 +333,4 @@ def handle_verify_all_configs(args: argparse.Namespace) -> int:
         else:
             files["unknown"].append(toml_file)
 
-    test_tomls = files["test"]
-    if args.tests_dir:
-        test_tomls = list(args.tests_dir.glob("*.toml"))
-    else:
-        logging.warning(
-            "Test configuration directory not provided, using all found test TOMLs in the specified directory."
-        )
-
-    nfailed = verify_system_configs(files["system"])
-    nfailed += verify_test_configs(files["test"])
-    nfailed += verify_test_scenarios(files["scenario"], test_tomls, args.system_config)
-
-    if files["unknown"]:
-        logging.error(f"Unknown configuration files: {[str(f) for f in files['unknown']]}")
-        nfailed += len(files["unknown"])
-
-    total_files = len(tomls)
-    if nfailed:
-        logging.error(f"{nfailed} out of {total_files} configuration files have issues.")
-    else:
-        logging.info(f"Checked {total_files} configuration files, all passed")
-
-    return nfailed
+    return files
