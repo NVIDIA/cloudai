@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Literal, Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -108,21 +108,17 @@ class NeMoLauncherTestDefinition(TestDefinition):
     """Test object for NeMoLauncher."""
 
     cmd_args: NeMoLauncherCmdArgs
+    _docker_image: Optional[DockerImage] = None
     _python_executable: Optional[PythonExecutable] = None
-
-    def model_post_init(self, __context: Any) -> None:
-        self._python_executable = PythonExecutable(
-            GitRepo(git_url=self.cmd_args.repository_url, commit_hash=self.cmd_args.repository_commit_hash)
-        )
 
     @property
     def docker_image(self) -> DockerImage:
-        """Get docker image object."""
-        return DockerImage(url=self.cmd_args.docker_image_url)
+        if not self._docker_image:
+            self._docker_image = DockerImage(url=self.cmd_args.docker_image_url)
+        return self._docker_image
 
     @property
     def python_executable(self) -> PythonExecutable:
-        """Get python executable object."""
         if not self._python_executable:
             self._python_executable = PythonExecutable(
                 GitRepo(git_url=self.cmd_args.repository_url, commit_hash=self.cmd_args.repository_commit_hash)

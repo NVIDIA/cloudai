@@ -35,10 +35,13 @@ class ChakraReplayTestDefinition(TestDefinition):
     """Test object for ChakraReplay."""
 
     cmd_args: ChakraReplayCmdArgs
+    _docker_image: Optional[DockerImage] = None
 
     @property
     def docker_image(self) -> DockerImage:
-        return DockerImage(url=self.cmd_args.docker_image_url)
+        if not self._docker_image:
+            self._docker_image = DockerImage(url=self.cmd_args.docker_image_url)
+        return self._docker_image
 
     @property
     def installables(self) -> list[Installable]:

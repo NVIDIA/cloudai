@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
+
 from pydantic import ConfigDict, Field
 
 from cloudai import Installable
@@ -82,6 +84,7 @@ class GrokTestDefinition(JaxToolboxTestDefinition):
     """Test object for Grok."""
 
     cmd_args: GrokCmdArgs
+    _docker_image: Optional[DockerImage] = None
 
     @property
     def cmd_args_dict(self):
@@ -102,7 +105,9 @@ class GrokTestDefinition(JaxToolboxTestDefinition):
 
     @property
     def docker_image(self) -> DockerImage:
-        return DockerImage(url=self.cmd_args.docker_image_url)
+        if not self._docker_image:
+            self._docker_image = DockerImage(url=self.cmd_args.docker_image_url)
+        return self._docker_image
 
     @property
     def installables(self) -> list[Installable]:
