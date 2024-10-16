@@ -20,9 +20,7 @@ import logging
 from pathlib import Path
 from typing import List, Set
 
-import toml
-
-from cloudai import Parser, Registry, ReportGenerator, Runner, Test, TestParser, TestTemplate
+from cloudai import Parser, Registry, ReportGenerator, Runner, Test, TestTemplate
 
 
 def identify_unique_test_templates(tests: List[Test]) -> List[TestTemplate]:
@@ -231,9 +229,7 @@ def handle_verify_tests(args: argparse.Namespace) -> int:
     for test_toml in test_tomls:
         logging.info(f"Verifying {test_toml}...")
         try:
-            parser = TestParser(Path(), None)  # type: ignore
-            parser.current_file = test_toml
-            parser.load_test_definition(toml.load(test_toml))
+            Parser.parse_tests([test_toml], None)  # type: ignore
         except Exception:
             nfailed += 1
 

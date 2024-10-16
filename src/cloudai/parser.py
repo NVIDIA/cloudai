@@ -67,9 +67,8 @@ class Parser:
             # exit right away to keep error message readable for users
             exit(1)
 
-        test_parser = TestParser(test_path, system)
         try:
-            tests: List[Test] = test_parser.parse_all()
+            tests = self.parse_tests(list(test_path.glob("*.toml")), system)
         except TestConfigParsingError:
             # exit right away to keep error message readable for users
             exit(1)
@@ -91,6 +90,12 @@ class Parser:
             filtered_tests = [t for t in tests if t.name in scenario_tests]
 
         return system, filtered_tests, test_scenario
+
+    @staticmethod
+    def parse_tests(test_tomls: list[Path], system: System) -> list[Test]:
+        test_parser = TestParser(test_tomls, system)
+        tests: List[Test] = test_parser.parse_all()
+        return tests
 
     @staticmethod
     def parse_system(system_config_path: Path) -> System:
