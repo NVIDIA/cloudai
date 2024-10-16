@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, cast
 
@@ -47,17 +48,19 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self.final_cmd_args["cluster.gpus_per_node"] = self.system.gpus_per_node or "null"
 
         repo_path = tdef.python_executable.git_repo.installed_path
-        if not repo_path or not repo_path.exists():
-            raise ValueError(
-                f"The git repository path '{repo_path}' does not exist. "
+        if not repo_path:
+            logging.warning(
+                f"Local clone of git repo {tdef.python_executable.git_repo} does not exist. "
                 "Please ensure to run installation before running the test."
             )
+            repo_path = Path.cwd()  # dry-run compatibility
         venv_path = tdef.python_executable.venv_path
-        if not venv_path or not venv_path.exists():
-            raise ValueError(
-                f"The virtual environment path '{venv_path}' does not exist. "
+        if not venv_path:
+            logging.warning(
+                f"The virtual environment for git repo {tdef.python_executable.git_repo} does not exist. "
                 "Please ensure to run installation before running the test."
             )
+            venv_path = repo_path  # dry-run compatibility
         py_bin = (venv_path / "bin" / "python").absolute()
         self.final_cmd_args.update(
             {

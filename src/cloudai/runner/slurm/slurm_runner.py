@@ -55,7 +55,7 @@ class SlurmRunner(BaseRunner):
         logging.info(f"Running test: {tr.name}")
         tr.output_path = self.get_job_output_path(tr)
         exec_cmd = tr.test.test_template.gen_exec_command(tr)
-        logging.info(f"Executing command for test {tr.name}: {exec_cmd}")
+        logging.debug(f"Executing command for test {tr.name}: {exec_cmd}")
         job_id = 0
         if self.mode == "run":
             stdout, stderr = self.cmd_shell.execute(exec_cmd).communicate()

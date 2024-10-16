@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Union
 
@@ -76,7 +76,7 @@ class GitRepo(Installable):
 
     git_url: str
     commit_hash: str
-    installed_path: Optional[Path] = None
+    installed_path: Optional[Path] = field(default=None, repr=False)
 
     def __eq__(self, other: object) -> bool:
         """Check if two installable objects are equal."""
