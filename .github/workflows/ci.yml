@@ -82,7 +82,10 @@ jobs:
           set -o pipefail
 
           cloudai --help
-          cloudai verify-systems conf/common/system
-          cloudai verify-tests conf/common/test
-          cloudai verify-tests conf/release/spcx/l40s/test
-          cloudai verify-test-scenarios --system-config conf/common/system/example_slurm_cluster.toml --tests-dir conf/common/test conf/common/test_scenario
+
+          # this checks that all TOMLs are valid, Test Scenarios are checked agains _all_ tests
+          cloudai verify-configs conf/
+
+          # this checks that all TOMLs are valid, Test Scenarios are checked agains _only_ the tests in the specified directory
+          cloudai verify-configs --tests-dir conf/common/test conf/common
+          cloudai verify-configs --tests-dir conf/release/spcx/l40s/test conf/release/spcx/l40s

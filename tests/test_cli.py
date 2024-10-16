@@ -26,7 +26,7 @@ from cloudai.cli import (
     handle_verify_systems,
     handle_verify_tests,
 )
-from cloudai.cli.handlers import handle_verify_test_scenarios
+from cloudai.cli.handlers import handle_verify_all_configs, handle_verify_test_scenarios
 
 
 def test_help_message(capsys: pytest.CaptureFixture[str]) -> None:
@@ -259,6 +259,32 @@ class TestCLIDefaultModes:
             system_config=Path("system_config"),
             tests_dir=Path("tests_dir"),
             **{"test_scenarios": Path("test_scenarios")},
+        )
+
+    def test_verify_all_configs_mode(self, cli: CloudAICLI):
+        assert "verify-configs" in cli.handlers
+        assert cli.handlers["verify-configs"] is handle_verify_all_configs
+
+        args = cli.parser.parse_args(
+            ["verify-configs", "--system-config", "system_config", "--tests-dir", "tests_dir", "configs_dir"]
+        )
+        assert args == argparse.Namespace(
+            log_file="debug.log",
+            log_level="INFO",
+            mode="verify-configs",
+            system_config=Path("system_config"),
+            tests_dir=Path("tests_dir"),
+            **{"configs_dir": Path("configs_dir")},
+        )
+
+        args = cli.parser.parse_args(["verify-configs", "configs_dir"])
+        assert args == argparse.Namespace(
+            log_file="debug.log",
+            log_level="INFO",
+            mode="verify-configs",
+            system_config=None,
+            tests_dir=None,
+            **{"configs_dir": Path("configs_dir")},
         )
 
     def test_report_generation_mode(self, cli: CloudAICLI):

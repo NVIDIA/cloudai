@@ -16,7 +16,7 @@
 
 import logging
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import toml
 from pydantic import ValidationError
@@ -64,32 +64,33 @@ class Parser:
         try:
             system = self.parse_system(self.system_config_path)
         except SystemConfigParsingError:
-            # exit right away to keep error message readable for users
-            exit(1)
+            exit(1)  # exit right away to keep error message readable for users
 
         try:
             tests = self.parse_tests(list(test_path.glob("*.toml")), system)
         except TestConfigParsingError:
-            # exit right away to keep error message readable for users
-            exit(1)
-        test_mapping = {t.name: t for t in tests}
+            exit(1)  # exit right away to keep error message readable for users
+
         logging.debug(f"Parsed {len(tests)} tests: {[t.name for t in tests]}")
+        test_mapping = {t.name: t for t in tests}
 
         filtered_tests = tests
         test_scenario: Optional[TestScenario] = None
         if test_scenario_path:
-            test_scenario_parser = TestScenarioParser(str(test_scenario_path), test_mapping)
             try:
-                test_scenario = test_scenario_parser.parse()
+                test_scenario = self.parse_test_scenario(test_scenario_path, test_mapping)
             except TestScenarioParsingError:
-                # exit right away to keep error message readable for users
-                exit(1)
-            logging.debug("Parsed test scenario")
-
+                exit(1)  # exit right away to keep error message readable for users
             scenario_tests = set(tr.test.name for tr in test_scenario.test_runs)
             filtered_tests = [t for t in tests if t.name in scenario_tests]
 
         return system, filtered_tests, test_scenario
+
+    @staticmethod
+    def parse_test_scenario(test_scenario_path: Path, test_mapping: Dict[str, Test]) -> TestScenario:
+        test_scenario_parser = TestScenarioParser(str(test_scenario_path), test_mapping)
+        test_scenario = test_scenario_parser.parse()
+        return test_scenario
 
     @staticmethod
     def parse_tests(test_tomls: list[Path], system: System) -> list[Test]:
