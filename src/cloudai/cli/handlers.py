@@ -210,7 +210,7 @@ def handle_verify_systems(args: argparse.Namespace) -> int:
 def verify_system_configs(system_tomls: List[Path]) -> int:
     nfailed = 0
     for test_toml in system_tomls:
-        logging.info(f"Verifying {test_toml}...")
+        logging.debug(f"Verifying System: {test_toml}...")
         try:
             Parser.parse_system(test_toml)
         except Exception:
@@ -236,7 +236,7 @@ def handle_verify_tests(args: argparse.Namespace) -> int:
 def verify_test_configs(test_tomls: List[Path]) -> int:
     nfailed = 0
     for test_toml in test_tomls:
-        logging.info(f"Verifying {test_toml}...")
+        logging.debug(f"Verifying Test: {test_toml}...")
         try:
             Parser.parse_tests([test_toml], None)  # type: ignore
         except Exception:
@@ -256,10 +256,12 @@ def handle_verify_test_scenarios(args: argparse.Namespace) -> int:
     if err:
         return err
 
-    return verify_test_scenarios(test_tomls, args.tests_dir, args.system_config)
+    return verify_test_scenarios(test_tomls, list(args.tests_dir.glob("*.toml")), args.system_config)
 
 
-def verify_test_scenarios(scenario_tomls: List[Path], tests_dir: Path, system_config: Optional[Path] = None) -> int:
+def verify_test_scenarios(
+    scenario_tomls: List[Path], test_tomls: list[Path], system_config: Optional[Path] = None
+) -> int:
     system = Mock(spec=System)
     if system_config:
         system = Parser.parse_system(system_config)
@@ -268,9 +270,9 @@ def verify_test_scenarios(scenario_tomls: List[Path], tests_dir: Path, system_co
 
     nfailed = 0
     for scenario_file in scenario_tomls:
-        logging.info(f"Verifying {scenario_file}...")
+        logging.debug(f"Verifying Test Scenario: {scenario_file}...")
         try:
-            tests = Parser.parse_tests(list(tests_dir.glob("*.toml")), system)
+            tests = Parser.parse_tests(test_tomls, system)
             Parser.parse_test_scenario(scenario_file, {t.name: t for t in tests})
         except Exception:
             nfailed += 1
@@ -301,12 +303,20 @@ def handle_verify_all_configs(args: argparse.Namespace) -> int:
         else:
             files["unknown"].append(toml_file)
 
+    test_tomls = files["test"]
+    if args.tests_dir:
+        test_tomls = list(args.tests_dir.glob("*.toml"))
+    else:
+        logging.warning(
+            "Test configuration directory not provided, using all found test TOMLs in the specified directory."
+        )
+
     nfailed = verify_system_configs(files["system"])
     nfailed += verify_test_configs(files["test"])
-    nfailed += verify_test_scenarios(files["scenario"], args.tests_dir, args.system_config)
+    nfailed += verify_test_scenarios(files["scenario"], test_tomls, args.system_config)
 
     if files["unknown"]:
-        logging.error(f"Unknown configuration files: {files['unknown']}")
+        logging.error(f"Unknown configuration files: {[str(f) for f in files['unknown']]}")
         nfailed += len(files["unknown"])
 
     total_files = len(tomls)

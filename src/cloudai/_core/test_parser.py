@@ -141,7 +141,7 @@ class TestParser:
             else:
                 return strategy_type()
 
-        logging.warning(
+        logging.debug(
             f"No {strategy_interface.__name__} found for " f"{type(self).__name__} and " f"{type(self.system).__name__}"
         )
         return None
