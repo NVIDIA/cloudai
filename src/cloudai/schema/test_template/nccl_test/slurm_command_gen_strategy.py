@@ -15,10 +15,11 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.test_definitions.nccl import NCCLTestDefinition
 
 
 class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -37,7 +38,8 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         elif "NCCL_TOPO_FILE" in env_vars:
             del env_vars["NCCL_TOPO_FILE"]
 
-        base_args.update({"container_mounts": container_mounts})
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, tr.test.test_definition)
+        base_args.update({"image_path": tdef.docker_image.installed_path, "container_mounts": container_mounts})
 
         return base_args
 

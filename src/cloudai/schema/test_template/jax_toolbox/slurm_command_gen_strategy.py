@@ -131,8 +131,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition], tr.test.test_definition
         )
         base_args.update({"image_path": tdef.docker_image.installed_path, "container_mounts": container_mounts})
-        print(base_args)
-        print(tdef.docker_image)
 
         output_path = Path(cmd_args["output_path"]).resolve()
         output_suffix = "-%j.txt" if env_vars.get("UNIFIED_STDOUT_STDERR") == "1" else "-%j-%n-%t.txt"
