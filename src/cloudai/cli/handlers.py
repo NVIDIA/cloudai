@@ -20,9 +20,7 @@ import logging
 from pathlib import Path
 from typing import List, Set
 
-import toml
-
-from cloudai import Parser, Registry, ReportGenerator, Runner, Test, TestParser, TestTemplate
+from cloudai import Parser, Registry, ReportGenerator, Runner, Test, TestTemplate
 
 
 def identify_unique_test_templates(tests: List[Test]) -> List[TestTemplate]:
