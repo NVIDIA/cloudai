@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai import BaseInstaller, InstallStatusResult
+from cloudai import BaseInstaller, Installable, InstallStatusResult
 
 
 class StandaloneInstaller(BaseInstaller):
@@ -39,3 +39,12 @@ class StandaloneInstaller(BaseInstaller):
             return InstallStatusResult(False, f"Required binaries not installed: {missing_str}.")
 
         return InstallStatusResult(True)
+
+    def install_one(self, item: Installable) -> InstallStatusResult:
+        return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
+
+    def uninstall_one(self, item: Installable) -> InstallStatusResult:
+        return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
+
+    def is_installed_one(self, item: Installable) -> InstallStatusResult:
+        return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
