@@ -14,9 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Literal
+from typing import Literal, Optional
 
 from cloudai import CmdArgs, TestDefinition
+from cloudai.installer.installables import DockerImage, Installable
 
 
 class NCCLCmdArgs(CmdArgs):
@@ -70,6 +71,7 @@ class NCCLTestDefinition(TestDefinition):
     """Test object for NCCL."""
 
     cmd_args: NCCLCmdArgs
+    _docker_image: Optional[DockerImage] = None
 
     @property
     def extra_args_str(self) -> str:
@@ -77,3 +79,13 @@ class NCCLTestDefinition(TestDefinition):
         for k, v in self.extra_cmd_args.items():
             parts.append(f"{k} {v}" if v else k)
         return " ".join(parts)
+
+    @property
+    def docker_image(self) -> DockerImage:
+        if not self._docker_image:
+            self._docker_image = DockerImage(url=self.cmd_args.docker_image_url)
+        return self._docker_image
+
+    @property
+    def installables(self) -> list[Installable]:
+        return [self.docker_image]

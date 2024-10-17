@@ -19,8 +19,6 @@ from typing import Any, Dict, Optional
 
 from .command_gen_strategy import CommandGenStrategy
 from .grading_strategy import GradingStrategy
-from .install_status_result import InstallStatusResult
-from .install_strategy import InstallStrategy
 from .job_id_retrieval_strategy import JobIdRetrievalStrategy
 from .job_status_result import JobStatusResult
 from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
@@ -63,7 +61,6 @@ class TestTemplate:
         """
         self.system = system
         self.name = name
-        self.install_strategy: Optional[InstallStrategy] = None
         self.command_gen_strategy: Optional[CommandGenStrategy] = None
         self.json_gen_strategy: Optional[JsonGenStrategy] = None
         self.job_id_retrieval_strategy: Optional[JobIdRetrievalStrategy] = None
@@ -79,42 +76,6 @@ class TestTemplate:
             str: String representation of the test template.
         """
         return f"TestTemplate(name={self.name})"
-
-    def is_installed(self) -> InstallStatusResult:
-        """
-        Check if the test template is already installed on the specified system.
-
-        Returns
-            InstallStatusResult: Result containing the installation status and error message if not installed.
-        """
-        if self.install_strategy is not None:
-            return self.install_strategy.is_installed()
-
-        return InstallStatusResult(success=True)
-
-    def install(self) -> InstallStatusResult:
-        """
-        Install the test template at the specified location using the system's installation strategy.
-
-        Returns
-            InstallStatusResult: Result containing the installation status and error message if installation failed.
-        """
-        if self.install_strategy is not None:
-            return self.install_strategy.install()
-
-        return InstallStatusResult(success=True)
-
-    def uninstall(self) -> InstallStatusResult:
-        """
-        Uninstall the test template from the specified location using the system's uninstallation strategy.
-
-        Returns
-            InstallStatusResult: Result containing the uninstallation status and error message if uninstallation failed.
-        """
-        if self.install_strategy is not None:
-            return self.install_strategy.uninstall()
-
-        return InstallStatusResult(success=True)
 
     def gen_exec_command(self, tr: TestRun) -> str:
         """

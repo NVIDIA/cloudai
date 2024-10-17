@@ -17,7 +17,6 @@
 from .grading_strategy import NeMoLauncherGradingStrategy
 from .report_generation_strategy import NeMoLauncherReportGenerationStrategy
 from .slurm_command_gen_strategy import NeMoLauncherSlurmCommandGenStrategy
-from .slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
 from .slurm_job_id_retrieval_strategy import NeMoLauncherSlurmJobIdRetrievalStrategy
 from .template import NeMoLauncher
 
@@ -26,6 +25,5 @@ __all__ = [
     "NeMoLauncherGradingStrategy",
     "NeMoLauncherReportGenerationStrategy",
     "NeMoLauncherSlurmCommandGenStrategy",
-    "NeMoLauncherSlurmInstallStrategy",
     "NeMoLauncherSlurmJobIdRetrievalStrategy",
 ]
