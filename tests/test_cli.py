@@ -23,10 +23,8 @@ from cloudai.cli import (
     CloudAICLI,
     handle_generate_report,
     handle_install_and_uninstall,
-    handle_verify_systems,
-    handle_verify_tests,
 )
-from cloudai.cli.handlers import handle_verify_all_configs, handle_verify_test_scenarios
+from cloudai.cli.handlers import handle_verify_all_configs
 
 
 def test_help_message(capsys: pytest.CaptureFixture[str]) -> None:

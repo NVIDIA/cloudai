@@ -23,9 +23,6 @@ from .handlers import (
     handle_generate_report,
     handle_install_and_uninstall,
     handle_verify_all_configs,
-    handle_verify_systems,
-    handle_verify_test_scenarios,
-    handle_verify_tests,
 )
 
 

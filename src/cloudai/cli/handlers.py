@@ -198,15 +198,6 @@ def expand_file_list(root: Path, glob: str = "*.toml") -> tuple[int, List[Path]]
     return (0, test_tomls)
 
 
-def handle_verify_systems(args: argparse.Namespace) -> int:
-    root: Path = args.system_configs
-    err, system_tomls = expand_file_list(root)
-    if err:
-        return err
-
-    return verify_system_configs(system_tomls)
-
-
 def verify_system_configs(system_tomls: List[Path]) -> int:
     nfailed = 0
     for test_toml in system_tomls:
@@ -224,15 +215,6 @@ def verify_system_configs(system_tomls: List[Path]) -> int:
     return nfailed
 
 
-def handle_verify_tests(args: argparse.Namespace) -> int:
-    root: Path = args.test_configs
-    err, test_tomls = expand_file_list(root)
-    if err:
-        return err
-
-    return verify_test_configs(test_tomls)
-
-
 def verify_test_configs(test_tomls: List[Path]) -> int:
     nfailed = 0
     for test_toml in test_tomls:
@@ -248,15 +230,6 @@ def verify_test_configs(test_tomls: List[Path]) -> int:
         logging.info(f"Checked tests: {len(test_tomls)}, all passed")
 
     return nfailed
-
-
-def handle_verify_test_scenarios(args: argparse.Namespace) -> int:
-    root: Path = args.test_scenarios
-    err, test_tomls = expand_file_list(root)
-    if err:
-        return err
-
-    return verify_test_scenarios(test_tomls, list(args.tests_dir.glob("*.toml")), args.system_config)
 
 
 def verify_test_scenarios(
