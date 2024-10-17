@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, List, Optional
 
 if TYPE_CHECKING:
     from .test import Test
+from .plugin import Plugin
 
 
 class TestDependency:
@@ -61,6 +62,8 @@ class TestRun:
     weight: float = 0.0
     ideal_perf: float = 1.0
     dependencies: dict[str, TestDependency] = field(default_factory=dict)
+    prologue: List[Plugin] = field(default_factory=list)
+    epilogue: List[Plugin] = field(default_factory=list)
 
     def __hash__(self) -> int:
         return hash(self.name + self.test.name + str(self.iterations) + str(self.current_iteration))

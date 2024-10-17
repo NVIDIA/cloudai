@@ -15,12 +15,13 @@
 # limitations under the License.
 
 import logging
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 import toml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from .exceptions import TestScenarioParsingError, format_validation_error
+from .plugin import Plugin
 from .test import Test
 from .test_scenario import TestDependency, TestRun, TestScenario
 
@@ -136,8 +137,10 @@ class TestScenarioParser:
         total_weight = sum(tr.weight for tr in ts_model.tests)
         normalized_weight = 0 if total_weight == 0 else 100 / total_weight
 
+        prologue = self._parse_plugins(data.get("prologue", {}))
+        epilogue = self._parse_plugins(data.get("epilogue", {}))
         testruns_by_id: dict[str, TestRun] = {
-            tr.id: self._create_section_test_run(tr, normalized_weight) for tr in ts_model.tests
+            tr.id: self._create_section_test_run(tr, normalized_weight, prologue, epilogue) for tr in ts_model.tests
         }
 
         tests_data: dict[str, _TestRunTOML] = {tr.id: tr for tr in ts_model.tests}
@@ -154,13 +157,21 @@ class TestScenarioParser:
             job_status_check=ts_model.job_status_check,
         )
 
-    def _create_section_test_run(self, test_info: _TestRunTOML, normalized_weight: float) -> TestRun:
+    def _create_section_test_run(
+        self,
+        test_info: _TestRunTOML,
+        normalized_weight: float,
+        prologue: Optional[List[Plugin]],
+        epilogue: Optional[List[Plugin]],
+    ) -> TestRun:
         """
         Create a section-specific Test object by copying from the test mapping.
 
         Args:
             test_info (Dict[str, Any]): Information of the test.
             normalized_weight (float): Normalized weight for the test.
+            prologue (Optional[List[Plugin]]): List of plugins to execute before each test.
+            epilogue (Optional[List[Plugin]]): List of plugins to execute after each test.
 
         Returns:
             Test: Copied and updated Test object for the section.
@@ -193,5 +204,25 @@ class TestScenarioParser:
             sol=test_info.sol,
             weight=test_info.weight * normalized_weight,
             ideal_perf=test_info.ideal_perf,
+            prologue=prologue if prologue is not None else [],
+            epilogue=epilogue if epilogue is not None else [],
         )
         return tr
+
+    def _parse_plugins(self, plugin_data: Dict[str, Any]) -> List[Plugin]:
+        """
+        Parse the prologue or epilogue plugin data.
+
+        Args:
+            plugin_data (Dict[str, Any]): Dictionary containing the plugin data.
+
+        Returns:
+            List[Plugin]: List of parsed Plugin objects.
+        """
+        plugins = []
+        tasks = plugin_data.get("task", [])
+        for task in tasks:
+            name = task.get("name", "")
+            command = task.get("command", "")
+            plugins.append(Plugin(name=name, command=command))
+        return plugins
