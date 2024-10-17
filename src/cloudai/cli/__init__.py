@@ -18,13 +18,7 @@ import logging
 import logging.config
 
 from .cli import CloudAICLI
-from .handlers import (
-    handle_dry_run_and_run,
-    handle_generate_report,
-    handle_install_and_uninstall,
-    handle_verify_systems,
-    handle_verify_tests,
-)
+from .handlers import handle_dry_run_and_run, handle_generate_report, handle_install_and_uninstall
 
 
 def setup_logging(log_file: str, log_level: str) -> None:
@@ -77,7 +71,5 @@ __all__ = [
     "handle_dry_run_and_run",
     "handle_generate_report",
     "handle_install_and_uninstall",
-    "handle_verify_systems",
-    "handle_verify_tests",
     "setup_logging",
 ]

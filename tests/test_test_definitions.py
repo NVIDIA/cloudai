@@ -19,7 +19,7 @@ from typing import Union
 
 import pytest
 import toml
-from cloudai import Registry, TestParser
+from cloudai import Parser, Registry
 from cloudai.test_definitions import ChakraReplayCmdArgs, NCCLCmdArgs, NCCLTestDefinition
 from cloudai.test_definitions.chakra_replay import ChakraReplayTestDefinition
 from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
@@ -73,9 +73,7 @@ def test_all_tests(toml_file: Path):
     template_name = toml_dict["test_template_name"]
     assert template_name in registry.test_definitions_map, f"Unknown test template: {template_name}"
 
-    parser = TestParser(Path(), None)  # type: ignore
-    parser.current_file = toml_file
-    parser.load_test_definition(toml.load(toml_file))
+    Parser.parse_tests([toml_file], None)  # type: ignore
 
 
 def test_chakra_docker_image_is_required():

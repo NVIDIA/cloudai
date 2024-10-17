@@ -23,10 +23,8 @@ from cloudai.cli import (
     CloudAICLI,
     handle_generate_report,
     handle_install_and_uninstall,
-    handle_verify_systems,
-    handle_verify_tests,
 )
-from cloudai.cli.handlers import handle_verify_test_scenarios
+from cloudai.cli.handlers import handle_verify_all_configs
 
 
 def test_help_message(capsys: pytest.CaptureFixture[str]) -> None:
@@ -221,44 +219,30 @@ class TestCLIDefaultModes:
                 output_dir=None,
             )
 
-    def test_verify_systems_mode(self, cli: CloudAICLI):
-        assert "verify-systems" in cli.handlers
-        assert cli.handlers["verify-systems"] is handle_verify_systems
-
-        args = cli.parser.parse_args(["verify-systems", "system_config"])
-        assert args == argparse.Namespace(
-            log_file="debug.log",
-            log_level="INFO",
-            mode="verify-systems",
-            **{"system_configs": Path("system_config")},
-        )
-
-    def test_verify_tests_mode(self, cli: CloudAICLI):
-        assert "verify-tests" in cli.handlers
-        assert cli.handlers["verify-tests"] is handle_verify_tests
-
-        args = cli.parser.parse_args(["verify-tests", "test_configs"])
-        assert args == argparse.Namespace(
-            log_file="debug.log",
-            log_level="INFO",
-            mode="verify-tests",
-            **{"test_configs": Path("test_configs")},
-        )
-
-    def test_verify_test_scenarios_mode(self, cli: CloudAICLI):
-        assert "verify-test-scenarios" in cli.handlers
-        assert cli.handlers["verify-test-scenarios"] is handle_verify_test_scenarios
+    def test_verify_all_configs_mode(self, cli: CloudAICLI):
+        assert "verify-configs" in cli.handlers
+        assert cli.handlers["verify-configs"] is handle_verify_all_configs
 
         args = cli.parser.parse_args(
-            ["verify-test-scenarios", "--system-config", "system_config", "--tests-dir", "tests_dir", "test_scenarios"]
+            ["verify-configs", "--system-config", "system_config", "--tests-dir", "tests_dir", "configs_dir"]
         )
         assert args == argparse.Namespace(
             log_file="debug.log",
             log_level="INFO",
-            mode="verify-test-scenarios",
+            mode="verify-configs",
             system_config=Path("system_config"),
             tests_dir=Path("tests_dir"),
-            **{"test_scenarios": Path("test_scenarios")},
+            **{"configs_dir": Path("configs_dir")},
+        )
+
+        args = cli.parser.parse_args(["verify-configs", "configs_dir"])
+        assert args == argparse.Namespace(
+            log_file="debug.log",
+            log_level="INFO",
+            mode="verify-configs",
+            system_config=None,
+            tests_dir=None,
+            **{"configs_dir": Path("configs_dir")},
         )
 
     def test_report_generation_mode(self, cli: CloudAICLI):

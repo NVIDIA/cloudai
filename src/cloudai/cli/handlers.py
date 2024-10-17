@@ -18,11 +18,10 @@ import argparse
 import asyncio
 import logging
 from pathlib import Path
-from typing import List
+from typing import List, Optional
+from unittest.mock import Mock
 
-import toml
-
-from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, TestParser
+from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, System
 
 
 def handle_install_and_uninstall(args: argparse.Namespace) -> int:
@@ -163,14 +162,14 @@ def handle_generate_report(args: argparse.Namespace) -> int:
     return 0
 
 
-def expand_file_list(root: Path) -> tuple[int, List[Path]]:
+def expand_file_list(root: Path, glob: str = "*.toml") -> tuple[int, List[Path]]:
     if not root.exists():
         logging.error(f"{root} does not exist.")
         return (1, [])
 
     test_tomls = [root]
     if root.is_dir():
-        test_tomls = list(root.glob("*.toml"))
+        test_tomls = list(root.glob(glob))
         if not test_tomls:
             logging.error(f"No TOMLs found in {root}")
             return (1, [])
@@ -178,15 +177,10 @@ def expand_file_list(root: Path) -> tuple[int, List[Path]]:
     return (0, test_tomls)
 
 
-def handle_verify_systems(args: argparse.Namespace) -> int:
-    root: Path = args.system_configs
-    err, system_tomls = expand_file_list(root)
-    if err:
-        return err
-
+def verify_system_configs(system_tomls: List[Path]) -> int:
     nfailed = 0
     for test_toml in system_tomls:
-        logging.info(f"Verifying {test_toml}...")
+        logging.debug(f"Verifying System: {test_toml}...")
         try:
             Parser.parse_system(test_toml)
         except Exception:
@@ -200,19 +194,12 @@ def handle_verify_systems(args: argparse.Namespace) -> int:
     return nfailed
 
 
-def handle_verify_tests(args: argparse.Namespace) -> int:
-    root: Path = args.test_configs
-    err, test_tomls = expand_file_list(root)
-    if err:
-        return err
-
+def verify_test_configs(test_tomls: List[Path]) -> int:
     nfailed = 0
     for test_toml in test_tomls:
-        logging.info(f"Verifying {test_toml}...")
+        logging.debug(f"Verifying Test: {test_toml}...")
         try:
-            parser = TestParser(Path(), None)  # type: ignore
-            parser.current_file = test_toml
-            parser.load_test_definition(toml.load(test_toml))
+            Parser.parse_tests([test_toml], None)  # type: ignore
         except Exception:
             nfailed += 1
 
@@ -224,24 +211,78 @@ def handle_verify_tests(args: argparse.Namespace) -> int:
     return nfailed
 
 
-def handle_verify_test_scenarios(args: argparse.Namespace) -> int:
-    root: Path = args.test_scenarios
-    err, test_tomls = expand_file_list(root)
-    if err:
-        return err
+def verify_test_scenarios(
+    scenario_tomls: List[Path], test_tomls: list[Path], system_config: Optional[Path] = None
+) -> int:
+    system = Mock(spec=System)
+    if system_config:
+        system = Parser.parse_system(system_config)
+    else:
+        logging.warning("System configuration not provided, mocking it.")
 
     nfailed = 0
-    for test_toml in test_tomls:
-        logging.info(f"Verifying {test_toml}...")
+    for scenario_file in scenario_tomls:
+        logging.debug(f"Verifying Test Scenario: {scenario_file}...")
         try:
-            parser = Parser(args.system_config)
-            parser.parse(args.tests_dir, test_toml)
+            tests = Parser.parse_tests(test_tomls, system)
+            Parser.parse_test_scenario(scenario_file, {t.name: t for t in tests})
         except Exception:
             nfailed += 1
 
     if nfailed:
-        logging.error(f"{nfailed} out of {len(test_tomls)} test scenarios have issues.")
+        logging.error(f"{nfailed} out of {len(scenario_tomls)} test scenarios have issues.")
     else:
-        logging.info(f"Checked scenarios: {len(test_tomls)}, all passed")
+        logging.info(f"Checked scenarios: {len(scenario_tomls)}, all passed")
 
     return nfailed
+
+
+def handle_verify_all_configs(args: argparse.Namespace) -> int:
+    root: Path = args.configs_dir
+    err, tomls = expand_file_list(root, glob="**/*.toml")
+    if err:
+        return err
+
+    files = load_tomls_by_type(tomls)
+
+    test_tomls = files["test"]
+    if args.tests_dir:
+        test_tomls = list(args.tests_dir.glob("*.toml"))
+    elif files["scenario"]:
+        logging.warning(
+            "Test configuration directory not provided, using all found test TOMLs in the specified directory."
+        )
+
+    nfailed = 0
+    if files["system"]:
+        nfailed += verify_system_configs(files["system"])
+    if files["test"]:
+        nfailed += verify_test_configs(files["test"])
+    if files["scenario"]:
+        nfailed += verify_test_scenarios(files["scenario"], test_tomls, args.system_config)
+    if files["unknown"]:
+        logging.error(f"Unknown configuration files: {[str(f) for f in files['unknown']]}")
+        nfailed += len(files["unknown"])
+
+    if nfailed:
+        logging.error(f"{nfailed} out of {len(tomls)} configuration files have issues.")
+    else:
+        logging.info(f"Checked {len(tomls)} configuration files, all passed")
+
+    return nfailed
+
+
+def load_tomls_by_type(tomls: List[Path]) -> dict[str, List[Path]]:
+    files: dict[str, List[Path]] = {"system": [], "test": [], "scenario": [], "unknown": []}
+    for toml_file in tomls:
+        content = toml_file.read_text()
+        if "scheduler =" in content:
+            files["system"].append(toml_file)
+        elif "test_template_name =" in content:
+            files["test"].append(toml_file)
+        elif "[[Tests]]" in content:
+            files["scenario"].append(toml_file)
+        else:
+            files["unknown"].append(toml_file)
+
+    return files
