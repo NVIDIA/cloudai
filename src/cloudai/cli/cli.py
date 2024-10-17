@@ -23,9 +23,6 @@ from .handlers import (
     handle_generate_report,
     handle_install_and_uninstall,
     handle_verify_all_configs,
-    handle_verify_systems,
-    handle_verify_test_scenarios,
-    handle_verify_tests,
 )
 
 
@@ -39,9 +36,6 @@ class CloudAICLI:
             "install",
             "run",
             "uninstall",
-            "verify-systems",
-            "verify-tests",
-            "verify-test-scenarios",
             "verify-configs",
         }
 
@@ -100,30 +94,6 @@ class CloudAICLI:
                 test_scenario=True,
                 output_dir=True,
             )
-
-        if "verify-systems" in self.DEFAULT_MODES:
-            p = self.add_command(
-                "verify-systems",
-                "[DEPRECATED: use verify-configs] Verify the system configurations.",
-                handle_verify_systems,
-            )
-            p.add_argument("system_configs", help="Path to the system configuration file or directory.", type=Path)
-
-        if "verify-tests" in self.DEFAULT_MODES:
-            p = self.add_command(
-                "verify-tests", "[DEPRECATED: use verify-configs] Verify the test configurations.", handle_verify_tests
-            )
-            p.add_argument("test_configs", help="Path to the test configuration file or directory.", type=Path)
-
-        if "verify-test-scenarios" in self.DEFAULT_MODES:
-            p = self.add_command(
-                "verify-test-scenarios",
-                "[DEPRECATED: use verify-configs] Verify the test scenario configurations.",
-                handle_verify_test_scenarios,
-                system_config=False,
-                tests_dir=True,
-            )
-            p.add_argument("test_scenarios", help="Path to the test scenario file or directory.", type=Path)
 
         if "verify-configs" in self.DEFAULT_MODES:
             p = self.add_command(
