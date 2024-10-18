@@ -39,7 +39,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
             name="gpt",
             description="desc",
             test_template_name="gpt",
-            cmd_args=GPTCmdArgs(fdl_config="", docker_image_url=""),
+            cmd_args=GPTCmdArgs(fdl_config="", docker_image_url="http://fake_image_url"),
             extra_env_vars={"COMBINE_THRESHOLD": "1"},
         )
 

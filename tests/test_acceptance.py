@@ -15,16 +15,12 @@
 # limitations under the License.
 
 import argparse
-from concurrent.futures import Future
 from pathlib import Path
 from typing import Dict
-from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from cloudai import BaseInstaller, InstallStatusResult, NcclTest, Test, TestTemplate, UCCTest
-from cloudai.cli import handle_dry_run_and_run, identify_unique_test_templates, setup_logging
-from cloudai.systems import SlurmSystem, StandaloneSystem
-from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
+from cloudai.cli import setup_logging
+from cloudai.cli.handlers import handle_dry_run_and_run
 
 SLURM_TEST_SCENARIOS = [
     {"path": Path("conf/common/test_scenario/sleep.toml"), "expected_dirs_number": 4, "log_file": "sleep_debug.log"},
@@ -71,142 +67,3 @@ def test_slurm(tmp_path: Path, scenario: Dict):
         assert "Tests." in td.name, "Invalid test directory name"
 
     assert log_file_path.exists(), f"Log file {log_file_path} was not created"
-
-
-@pytest.fixture
-def test_template_success() -> TestTemplate:
-    template = MagicMock(spec=TestTemplate)
-    template.name = "test_template_success"
-    template.install.return_value = InstallStatusResult(success=True)
-    template.uninstall.return_value = InstallStatusResult(success=True)
-    return template
-
-
-@pytest.fixture
-def test_template_failure() -> TestTemplate:
-    template = MagicMock(spec=TestTemplate)
-    template.name = "test_template_failure"
-    template.install.return_value = InstallStatusResult(success=False, message="Installation failed")
-    template.uninstall.return_value = InstallStatusResult(success=False, message="Uninstallation failed")
-    return template
-
-
-def create_real_future(result):
-    future = Future()
-    future.set_result(result)
-    return future
-
-
-def extract_unique_test_templates(test_templates):
-    unique_test_templates = {}
-    for test_template in test_templates:
-        template_name = test_template.name
-        if template_name not in unique_test_templates:
-            unique_test_templates[template_name] = test_template
-    return list(unique_test_templates.values())
-
-
-@patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def test_install_success(mock_executor: Mock, slurm_system: SlurmSystem, test_template_success: Mock):
-    installer = BaseInstaller(slurm_system)
-    mock_future = create_real_future(test_template_success.install.return_value)
-    mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
-
-    result = installer.install([test_template_success])
-
-    assert result.success
-    assert result.message == "All test templates installed successfully."
-
-    # Check if the template is installed
-    assert installer.is_installed([test_template_success])
-
-
-@patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def test_install_failure(mock_executor: Mock, slurm_system: SlurmSystem, test_template_failure: Mock):
-    installer = BaseInstaller(slurm_system)
-    mock_future = create_real_future(test_template_failure.install.return_value)
-    mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
-
-    result = installer.install([test_template_failure])
-
-    assert not result.success
-    assert result.message == "Some test templates failed to install."
-
-
-@patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def test_uninstall_success(mock_executor: Mock, slurm_system: SlurmSystem, test_template_success: Mock):
-    installer = BaseInstaller(slurm_system)
-    mock_future = create_real_future(test_template_success.uninstall.return_value)
-    mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
-
-    result = installer.uninstall([test_template_success])
-
-    assert result.success
-    assert result.message == "All test templates uninstalled successfully."
-
-
-@patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def test_uninstall_failure(mock_executor: Mock, slurm_system: SlurmSystem, test_template_failure: Mock):
-    installer = BaseInstaller(slurm_system)
-    mock_future = create_real_future(test_template_failure.uninstall.return_value)
-    mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
-
-    result = installer.uninstall([test_template_failure])
-
-    assert not result.success
-    assert result.message == "Some test templates failed to uninstall."
-
-    # Check if the template is still installed
-    assert installer.is_installed([test_template_failure])
-
-
-class TestIdentifyUniqueTestTemplates:
-    @pytest.fixture
-    def system(self, tmp_path: Path) -> StandaloneSystem:
-        return StandaloneSystem(name="system", install_path=tmp_path, output_path=tmp_path)
-
-    @pytest.fixture
-    def test_def(self) -> NCCLTestDefinition:
-        return NCCLTestDefinition(name="nccl", description="", test_template_name="ttname", cmd_args=NCCLCmdArgs())
-
-    def test_single_input(self, system: StandaloneSystem, test_def: NCCLTestDefinition):
-        templ = NcclTest(system, "template_name")
-        test = Test(test_definition=test_def, test_template=templ)
-
-        res = identify_unique_test_templates([test])
-
-        assert len(res) == 1
-        assert res[0] == templ
-
-    def test_two_templates_with_different_names(self, system: StandaloneSystem, test_def: NCCLTestDefinition):
-        templ1 = NcclTest(system, "template_name1")
-        templ2 = NcclTest(system, "template_name2")
-        test1 = Test(test_definition=test_def, test_template=templ1)
-        test2 = Test(test_definition=test_def, test_template=templ2)
-
-        res = identify_unique_test_templates([test1, test2])
-
-        assert len(res) == 1
-        assert res[0] == templ1
-
-    def test_two_templates_with_same_name(self, system: StandaloneSystem, test_def: NCCLTestDefinition):
-        templ = NcclTest(system, "template_name")
-        test1 = Test(test_definition=test_def, test_template=templ)
-        test2 = Test(test_definition=test_def, test_template=templ)
-
-        res = identify_unique_test_templates([test1, test2])
-
-        assert len(res) == 1
-        assert res[0] == templ
-
-    def test_two_different_templates_with_same_name(self, system: StandaloneSystem, test_def: NCCLTestDefinition):
-        templ1 = NcclTest(system, "template_name")
-        templ2 = UCCTest(system, "template_name")
-        test1 = Test(test_definition=test_def, test_template=templ1)
-        test2 = Test(test_definition=test_def, test_template=templ2)
-
-        res = identify_unique_test_templates([test1, test2])
-
-        assert len(res) == 2
-        assert templ1 in res
-        assert templ2 in res
