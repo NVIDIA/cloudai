@@ -101,7 +101,6 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if "training.values" in self.final_cmd_args:
             self.final_cmd_args["training"] = self.final_cmd_args.pop("training.values")
 
-        self.final_cmd_args["cluster.partition"] = self.system.default_partition
         self._handle_reservation()
 
     def _handle_reservation(self) -> None:
@@ -193,6 +192,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         if nodes:
             nodes_str = ",".join(nodes)
+            cmd_arg_str_parts.append(f"cluster.partition={self.system.default_partition}")
             cmd_arg_str_parts.append(f"+cluster.nodelist=\\'{nodes_str}\\'\n")
 
         return " ".join(cmd_arg_str_parts + env_var_str_parts)
