@@ -211,10 +211,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             cmd_args[f"{self.test_name}.perf"]["XLA_FLAGS"]["xla_gpu_pgle_profile_file_or_directory_path"] = '""'
             env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
             run_script_content += self._script_content("perf", env_vars, cmd_args, extra_cmd_args)
-        print(env_vars["XLA_FLAGS"])
-        import sys
 
-        sys.exit()
         run_script_path = Path(cmd_args["output_path"]) / "run.sh"
         with open(run_script_path, "w") as run_file:
             run_file.write("\n".join(run_script_content))
