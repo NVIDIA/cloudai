@@ -99,7 +99,14 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
             "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD",
         ]
-        args: dict[str, str] = cmd_args.get(f"{self.test_name}.{stage}", {}).get("XLA_FLAGS", {})
+
+        prefix = f"{self.test_name}.{stage}.XLA_FLAGS"
+        args = {}
+
+        for key, value in cmd_args.items():
+            if key.startswith(prefix):
+                flag_name = key[len(prefix) + 1 :]
+                args[flag_name] = value
 
         for flag_name, value in args.items():
             if not flag_name.startswith("xla_"):
@@ -152,7 +159,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         commands = []
 
-        run_pre_test = cmd_args.get("pre_test", {}).get("enable", False)
+        run_pre_test = cmd_args.get("pre_test.enable", False)
+
         if run_pre_test:
             output_path = Path(cmd_args["output_path"]).resolve() / "output_pretest-%j-%n-%t.txt"
             error_path = Path(cmd_args["output_path"]).resolve() / "error_pretest-%j-%n-%t.txt"
@@ -191,6 +199,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         run_script_content = []
         do_pgle = cmd_args.get(f"{self.test_name}.enable_pgle", True)
+        print(do_pgle)
 
         if do_pgle:
             env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "profile")}"'
@@ -202,7 +211,10 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             cmd_args[f"{self.test_name}.perf"]["XLA_FLAGS"]["xla_gpu_pgle_profile_file_or_directory_path"] = '""'
             env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
             run_script_content += self._script_content("perf", env_vars, cmd_args, extra_cmd_args)
+        print(env_vars["XLA_FLAGS"])
+        import sys
 
+        sys.exit()
         run_script_path = Path(cmd_args["output_path"]) / "run.sh"
         with open(run_script_path, "w") as run_file:
             run_file.write("\n".join(run_script_content))
