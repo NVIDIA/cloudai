@@ -142,11 +142,14 @@ class SlurmSystem(BaseModel, System):
         groups: Dict[str, Dict[str, List[SlurmNode]]] = {}
         for part in self.partitions:
             groups[part.name] = {}
-            for group in part.groups:
-                node_names = set()
-                for group_nodes in group.nodes:
-                    node_names.update(set(parse_node_list(group_nodes)))
-                groups[part.name][group.name] = [node for node in part.slurm_nodes if node.name in node_names]
+            if part.groups:
+                for group in part.groups:
+                    node_names = set()
+                    for group_nodes in group.nodes:
+                        node_names.update(set(parse_node_list(group_nodes)))
+                    groups[part.name][group.name] = [node for node in part.slurm_nodes if node.name in node_names]
+            else:
+                groups[part.name][part.name] = [node for node in part.slurm_nodes]
 
         return groups
 
@@ -474,23 +477,14 @@ class SlurmSystem(BaseModel, System):
 
         grouped_nodes = self.group_nodes_by_state(partition_name, group_name)
 
-        try:
-            allocated_nodes = self.allocate_nodes(grouped_nodes, number_of_nodes, partition_name, group_name)
+        allocated_nodes = self.allocate_nodes(grouped_nodes, number_of_nodes, partition_name, group_name)
 
-            logging.info(
-                f"Allocated nodes from {group_print}partition '{partition_name}': "
-                f"{[node.name for node in allocated_nodes]}"
-            )
+        logging.info(
+            f"Allocated nodes from {group_print}partition '{partition_name}': "
+            f"{[node.name for node in allocated_nodes]}"
+        )
 
-            return allocated_nodes
-
-        except ValueError as e:
-            logging.error(
-                f"Error occurred while allocating nodes from group '{group_name}' in partition '{partition_name}': {e}",
-                exc_info=True,
-            )
-
-            return []
+        return allocated_nodes
 
     def validate_partition_and_group(self, partition_name: str, group_name: Optional[str] = None) -> None:
         """
@@ -538,12 +532,14 @@ class SlurmSystem(BaseModel, System):
                 SlurmNodeState.COMPLETING: [],
                 SlurmNodeState.ALLOCATED: [],
             }
+
         if group_name:
             nodes = self.groups[partition_name][group_name]
         else:
             nodes = []
             for group_name in self.groups[partition_name]:
                 nodes.extend(self.groups[partition_name][group_name])
+
         for node in nodes:
             if node.state in grouped_nodes and (not reserved_nodes or node.name in reserved_nodes):
                 grouped_nodes[node.state].append(node)
@@ -597,9 +593,9 @@ class SlurmSystem(BaseModel, System):
 
             if len(allocated_nodes) < number_of_nodes:
                 raise ValueError(
-                    f"CloudAI is requesting {number_of_nodes} nodes from the {group_or_partition}, but only "
-                    f"{len(allocated_nodes)} nodes are available. Please review the available nodes in the system "
-                    f"and ensure there are enough resources to meet the requested node count. Additionally, "
+                    f"CloudAI is requesting {number_of_nodes} nodes from the {group_or_partition}, but there are only "
+                    f"{len(allocated_nodes)} nodes in {group_or_partition}. Please review the available nodes in the "
+                    f"system and ensure there are enough resources to meet the requested node count. Additionally, "
                     f"verify that the system can accommodate the number of nodes required by the test scenario."
                 )
         else:
@@ -857,6 +853,7 @@ class SlurmSystem(BaseModel, System):
                 if len(parts) == 2:
                     partition_name, num_nodes_spec = parts
                     group_name = None
+                    self.default_partition = partition_name
                 elif len(parts) == 3:
                     partition_name, group_name, num_nodes_spec = parts
                 else:

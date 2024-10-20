@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import re
-from typing import Dict, List
+from typing import List
 from unittest.mock import patch
 
 import pytest
@@ -168,19 +168,6 @@ def grouped_nodes() -> dict[SlurmNodeState, list[SlurmNode]]:
     return grouped_nodes
 
 
-def test_get_available_nodes_exceeding_limit_no_callstack(
-    slurm_system: SlurmSystem, grouped_nodes: Dict[SlurmNodeState, List[SlurmNode]], caplog
-):
-    group_name = "group1"
-    partition_name = "main"
-    num_nodes = 5
-
-    slurm_system.get_available_nodes_from_group(num_nodes, partition_name, group_name)
-
-    log_message = "CloudAI is requesting 5 nodes from the group 'group1', but only 0 nodes are available."
-    assert log_message in caplog.text
-
-
 def test_allocate_nodes_max_avail(slurm_system: SlurmSystem, grouped_nodes: dict[SlurmNodeState, list[SlurmNode]]):
     partition_name = "main"
     group_name = "group_name"
@@ -218,16 +205,16 @@ def test_allocate_nodes_exceeding_limit(
     slurm_system: SlurmSystem, grouped_nodes: dict[SlurmNodeState, list[SlurmNode]]
 ):
     partition_name = "main"
-    group_name = "group_name"
+    group_name = "group1"
     num_nodes = 5
-    available_nodes = 4
+    total_nodes = 4
 
     with pytest.raises(
         ValueError,
         match=re.escape(
-            f"CloudAI is requesting {num_nodes} nodes from the group '{group_name}', but only "
-            f"{available_nodes} nodes are available. Please review the available nodes in the system "
-            f"and ensure there are enough resources to meet the requested node count. Additionally, "
+            f"CloudAI is requesting {num_nodes} nodes from the group '{group_name}', but there are only "
+            f"{total_nodes} nodes in group '{group_name}'. Please review the available nodes in the "
+            f"system and ensure there are enough resources to meet the requested node count. Additionally, "
             f"verify that the system can accommodate the number of nodes required by the test scenario."
         ),
     ):
