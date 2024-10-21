@@ -152,7 +152,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         commands = []
 
-        run_pre_test = cmd_args.get("pre_test", {}).get("enable", False)
+        run_pre_test = cmd_args.get("pre_test.enable", False)
         if run_pre_test:
             output_path = Path(cmd_args["output_path"]).resolve() / "output_pretest-%j-%n-%t.txt"
             error_path = Path(cmd_args["output_path"]).resolve() / "error_pretest-%j-%n-%t.txt"

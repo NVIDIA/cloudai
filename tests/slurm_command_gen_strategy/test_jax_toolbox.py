@@ -63,7 +63,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
         test_fixture,
     ) -> None:
         test_def = request.getfixturevalue(test_fixture)
-        test_def.cmd_args.pre_test = PreTest(enable=False)
+        test_def.cmd_args.pre_test = PreTest(enable=True)
 
         test = Test(test_definition=test_def, test_template=JaxToolbox(slurm_system, "name"))
         test_run = TestRun(
@@ -74,9 +74,13 @@ class TestJaxToolboxSlurmCommandGenStrategy:
             name="test-job",
         )
 
+        cmd_gen_strategy._generate_pre_test_command = MagicMock(return_value="pre_test_command")
         cmd = cmd_gen_strategy.gen_exec_command(test_run)
         assert cmd == f"sbatch {test_run.output_path}/cloudai_sbatch_script.sh"
         assert (test_run.output_path / "run.sh").exists()
+
+        content = Path(f"{test_run.output_path}/cloudai_sbatch_script.sh").read_text()
+        assert "pre_test_command" in content
 
     @pytest.mark.parametrize(
         "cmd_args, expected",
