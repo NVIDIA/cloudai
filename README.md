@@ -94,7 +94,7 @@ cloudai generate-report\
     --tests-dir conf/common/test\
     --results-dir /path/to/results_directory
 ```
-In the generate-report mode, use the --output-dir argument to specify a subdirectory under the result directory.
+In the generate-report mode, use the --results-dir argument to specify a subdirectory under the result directory.
 This subdirectory is usually named with a timestamp for unique identification.
 
 To uninstall test prerequisites, run CloudAI CLI in uninstall mode:
