@@ -28,21 +28,18 @@ class TestDependency:
 
     Attributes
         test_run (TestRun): TestRun object it depends on.
-        time (int): Time in seconds after which this dependency is met.
     """
 
     __test__ = False
 
-    def __init__(self, test_run: "TestRun", time: int) -> None:
+    def __init__(self, test_run: "TestRun") -> None:
         """
         Initialize a TestDependency instance.
 
         Args:
             test_run (TestRun): TestRun object it depends on.
-            time (int): Time in seconds to meet the dependency.
         """
         self.test_run = test_run
-        self.time = time
 
 
 @dataclass
@@ -120,10 +117,7 @@ class TestScenario:
             if tr.dependencies:
                 for dep_type, dependency in tr.dependencies.items():
                     if dependency:
-                        s += (
-                            f"  {dep_type.replace('_', ' ').title()}: {dependency.test_run.name}, "
-                            f"Time: {dependency.time} seconds"
-                        )
+                        s += f"  {dep_type.replace('_', ' ').title()}: {dependency.test_run.name}"
             else:
                 s += "  No dependencies"
         return s

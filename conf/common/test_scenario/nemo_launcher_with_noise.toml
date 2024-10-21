@@ -28,4 +28,3 @@ num_nodes = "16"
   [[Tests.dependencies]]
   type = "start_post_init"
   id = "Tests.1"
-  time = 450

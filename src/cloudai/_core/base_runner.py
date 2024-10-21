@@ -169,7 +169,7 @@ class BaseRunner(ABC):
             logging.error(e)
             exit(1)
 
-    async def delayed_submit_test(self, tr: TestRun, delay: int):
+    async def delayed_submit_test(self, tr: TestRun, delay: int = 0):
         """
         Delay the start of a test based on start_post_comp dependency.
 
@@ -218,7 +218,7 @@ class BaseRunner(ABC):
             if tr not in self.testrun_to_job_map:
                 for dep_type, dep in tr.dependencies.items():
                     if (dep_type == "start_post_init") and (dep.test_run == started_test_run):
-                        await self.delayed_submit_test(tr, dep.time)
+                        await self.delayed_submit_test(tr)
 
     def find_dependency_free_tests(self) -> List[TestRun]:
         """
@@ -372,7 +372,7 @@ class BaseRunner(ABC):
             if tr not in self.testrun_to_job_map:
                 for dep_type, dep in tr.dependencies.items():
                     if dep_type == "start_post_comp" and dep.test_run.test == completed_job.test_run.test:
-                        task = await self.delayed_submit_test(tr, dep.time)
+                        task = await self.delayed_submit_test(tr)
                         if task:
                             tasks.append(task)
 
@@ -380,7 +380,7 @@ class BaseRunner(ABC):
         for test, dependent_job in self.testrun_to_job_map.items():
             for dep_type, dep in test.dependencies.items():
                 if dep_type == "end_post_comp" and dep.test_run.test == completed_job.test_run.test:
-                    task = await self.delayed_kill_job(dependent_job, dep.time)
+                    task = await self.delayed_kill_job(dependent_job)
                     tasks.append(task)
 
         return tasks
