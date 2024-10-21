@@ -62,6 +62,7 @@ class CloudAICLI:
         tests_dir: Optional[bool] = None,
         test_scenario: Optional[bool] = None,
         output_dir: Optional[bool] = None,
+        result_dir: Optional[bool] = None,
     ) -> argparse.ArgumentParser:
         p = self.subparsers.add_parser(name, help=help_text)
         self.handlers[name] = handler
@@ -77,6 +78,8 @@ class CloudAICLI:
             p.add_argument("--test-scenario", help="Path to the test scenario file.", required=test_scenario, type=Path)
         if output_dir is not None:
             p.add_argument("--output-dir", help="Path to the output directory.", required=output_dir, type=Path)
+        if result_dir is not None:
+            p.add_argument("--result-dir", help="Path to the result directory.", required=result_dir, type=Path)
 
         return p
 
@@ -92,7 +95,7 @@ class CloudAICLI:
                 system_config=True,
                 tests_dir=True,
                 test_scenario=True,
-                output_dir=True,
+                result_dir=True,
             )
 
         if "verify-configs" in self.DEFAULT_MODES:

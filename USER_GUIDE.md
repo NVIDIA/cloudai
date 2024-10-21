@@ -173,10 +173,10 @@ cloudai generate-report \
    --test-scenario myconfig/scenario.toml \
    --system-config myconfig/system.toml \
    --tests-dir myconfig/tests/ \
-   --output-dir results/2024-06-18_17-40-13/
+   --result-dir results/2024-06-18_17-40-13/
 ```
 
-`--output-dir` accepts one scenario run results directory.
+`--result-dir` accepts one scenario run result directory.
 
 ## Describing a System in the System Schema
 In this section, we introduce the concept of the system schema, explain the meaning of each field, and describe how the fields should be used. The system schema is a TOML file that allows users to define a system's configuration.
