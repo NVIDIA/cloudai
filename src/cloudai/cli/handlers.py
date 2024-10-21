@@ -175,7 +175,7 @@ def handle_generate_report(args: argparse.Namespace) -> int:
     assert test_scenario is not None
 
     logging.info("Generating report based on system and test scenario")
-    generator = ReportGenerator(args.results_dir)
+    generator = ReportGenerator(args.result_dir)
     generator.generate_report(test_scenario)
 
     logging.info("Report generation completed.")
