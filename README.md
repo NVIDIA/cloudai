@@ -104,26 +104,17 @@ cloudai uninstall\
     --tests-dir conf/common/test
 ```
 
-Verify if system configs are valid:
+Verify TOML configs:
 ```bash
-cloudai verify-systems conf/common/system
-```
-An argument for `verify-systems` accepts a file or a directory to verify all configs in the directory.
+# verify all at once
+cloudai verify-configs conf
 
-Verify if test configs are valid:
-```bash
-cloudai verify-tests conf/common/test
-```
-`verify-tests` accepts a file or a directory to verify all configs in the directory.
+# verify a single file
+cloudai verify-configs conf/common/system/example_slurm_cluster.toml
 
-Verify if test scenarios are valid:
-```bash
-cloudai verify-test-scenarios\
-    --system-config conf/common/system/example_slurm_cluster.toml\
-    --tests-dir conf/common/test\
-    conf/common/test_scenario
+#  verify all scenarios using specific folder with Test TOMLs
+cloudai verify-configs --tests-dir conf/release/spcx/l40s/test conf/release/spcx/l40s/test_scenario
 ```
-Positional argumen (test scenario path) can be a file or a directory to verify all configs in the directory.
 
 ## Contributing
 Feel free to contribute to the CloudAI project. Your contributions are highly appreciated.
