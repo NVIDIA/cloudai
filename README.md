@@ -92,7 +92,7 @@ To generate reports, execute CloudAI CLI in generate-report mode:
 cloudai generate-report\
     --system-config conf/common/system/example_slurm_cluster.toml\
     --tests-dir conf/common/test\
-    --output-dir /path/to/output_directory
+    --results-dir /path/to/results_directory
 ```
 In the generate-report mode, use the --output-dir argument to specify a subdirectory under the result directory.
 This subdirectory is usually named with a timestamp for unique identification.

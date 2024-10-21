@@ -258,8 +258,8 @@ class TestCLIDefaultModes:
                 "tests_dir",
                 "--test-scenario",
                 "test_scenario",
-                "--output-dir",
-                "output_dir",
+                "--results-dir",
+                "results_dir",
             ]
         )
         assert args == argparse.Namespace(
@@ -267,7 +267,7 @@ class TestCLIDefaultModes:
             log_level="INFO",
             mode="generate-report",
             test_scenario=Path("test_scenario"),
-            output_dir=Path("output_dir"),
+            results_dir=Path("results_dir"),
             system_config=Path("system_config"),
             tests_dir=Path("tests_dir"),
         )

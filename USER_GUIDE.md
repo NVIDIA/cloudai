@@ -173,7 +173,7 @@ cloudai generate-report \
    --test-scenario myconfig/scenario.toml \
    --system-config myconfig/system.toml \
    --tests-dir myconfig/tests/ \
-   --output-dir results/2024-06-18_17-40-13/
+   --results-dir results/2024-06-18_17-40-13/
 ```
 
 `--output-dir` accepts one scenario run results directory.
