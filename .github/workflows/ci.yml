@@ -72,6 +72,9 @@ jobs:
           pytest --dead-fixtures
           pytest -vv --cov
 
+          # <100% coverage might indicate that some tests are not doing what they should
+          coverage report --include='tests/*' --precision=2 --fail-under=100.00
+
       - name: Test local installation
         run: |
           set -eE

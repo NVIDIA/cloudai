@@ -93,15 +93,16 @@ def test_parse_sinfo_output(slurm_system: SlurmSystem) -> None:
 
 @patch("cloudai.systems.SlurmSystem.get_squeue")
 @patch("cloudai.systems.SlurmSystem.get_sinfo")
-def test_update_node_states_with_mocked_outputs(mock_get_sinfo, mock_get_squeue, slurm_system):
-    mock_get_squeue.return_value = "node-115|user1"
-    mock_get_sinfo.return_value = "PARTITION AVAIL TIMELIMIT NODES STATE NODELIST\n" "main up infinite 1 idle node-115"
+def test_update_node_states_with_mocked_outputs(mock_get_sinfo, mock_get_squeue, slurm_system: SlurmSystem):
+    mock_get_squeue.return_value = "node-033|user1"
+    mock_get_sinfo.return_value = "PARTITION AVAIL TIMELIMIT NODES STATE NODELIST\n" "main up infinite 1 idle node-033"
 
     parts_by_name = {part.name: part for part in slurm_system.partitions}
 
     slurm_system.update_node_states()
+    assert "node-033" in {node.name for node in parts_by_name["main"].slurm_nodes}
     for node in parts_by_name["main"].slurm_nodes:
-        if node.name == "node-115":
+        if node.name == "node-033":
             assert node.state == SlurmNodeState.IDLE
             assert node.user == "user1"
 

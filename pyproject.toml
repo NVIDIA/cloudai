@@ -100,4 +100,3 @@ min_confidence = 100
 
 [tool.coverage.report]
 exclude_also = ["@abstractmethod"]
-omit = ["tests/*"]

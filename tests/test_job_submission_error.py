@@ -48,9 +48,6 @@ class MockTest(Test):
         self.section_name = "Tests.1"
         self.current_iteration = 0
 
-    def gen_exec_command(self, *_, **__):
-        return "sbatch mock_script.sh"
-
 
 @pytest.fixture
 def slurm_system(tmp_path: Path):
