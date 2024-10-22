@@ -146,7 +146,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return base_args
 
-    def generate_srun_command(
+    def _gen_srun_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, Any], extra_cmd_args: str
     ) -> str:
         self._create_run_script(env_vars, cmd_args, extra_cmd_args)
