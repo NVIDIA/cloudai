@@ -165,7 +165,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
             ),
         ],
     )
-    def test_generate_srun_command(
+    def test_gen_srun_command(
         self,
         cmd_gen_strategy: JaxToolboxSlurmCommandGenStrategy,
         slurm_args: Dict[str, str],
@@ -181,7 +181,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
         cmd_gen_strategy._generate_pre_test_command = MagicMock(return_value="pre_test_command")
         cmd_gen_strategy._generate_pre_test_check_command = MagicMock(return_value="pre_test_check_command")
 
-        result = cmd_gen_strategy.generate_srun_command(slurm_args, {}, cargs, "")
+        result = cmd_gen_strategy.gen_srun_command(slurm_args, {}, cargs, "")
 
         if expected_result["pre_test_command"]:
             assert "pre_test_command" in result
