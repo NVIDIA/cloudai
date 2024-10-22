@@ -57,22 +57,14 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         )
         self.docker_image_url = self.cmd_args.get("docker_image_url", "")
 
-    def _format_env_vars(self, env_vars: Dict[str, Any]) -> str:
-        """
-        Format environment variables for inclusion in a batch script.
-
-        Args:
-            env_vars (Dict[str, Any]): Environment variables to format.
-
-        Returns:
-            str: A string representation of the formatted environment variables.
-        """
-        formatted_vars = []
-        for key in sorted(env_vars.keys()):
-            value = env_vars[key]
-            formatted_value = str(value["default"]) if isinstance(value, dict) and "default" in value else str(value)
-            formatted_vars.append(f"export {key}={formatted_value}")
-        return "\n".join(formatted_vars)
+    def gen_exec_command(self, tr: TestRun) -> str:
+        env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
+        cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
+        slurm_args = self._parse_slurm_args(
+            tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr.num_nodes, tr.nodes
+        )
+        srun_command = self.generate_srun_command(slurm_args, env_vars, cmd_args, tr.test.extra_cmd_args)
+        return self._write_sbatch_script(slurm_args, env_vars, srun_command, tr.output_path)
 
     def _parse_slurm_args(
         self,
@@ -138,15 +130,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             srun_command_parts.append(self.system.extra_srun_args)
 
         return srun_command_parts
-
-    def gen_exec_command(self, tr: TestRun) -> str:
-        env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
-        cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
-        slurm_args = self._parse_slurm_args(
-            tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr.num_nodes, tr.nodes
-        )
-        srun_command = self.generate_srun_command(slurm_args, env_vars, cmd_args, tr.test.extra_cmd_args)
-        return self._write_sbatch_script(slurm_args, env_vars, srun_command, tr.output_path)
 
     def generate_test_command(
         self, env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
@@ -237,3 +220,20 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         batch_script_content.append(
             "\nexport SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)"
         )
+
+    def _format_env_vars(self, env_vars: Dict[str, Any]) -> str:
+        """
+        Format environment variables for inclusion in a batch script.
+
+        Args:
+            env_vars (Dict[str, Any]): Environment variables to format.
+
+        Returns:
+            str: A string representation of the formatted environment variables.
+        """
+        formatted_vars = []
+        for key in sorted(env_vars.keys()):
+            value = env_vars[key]
+            formatted_value = str(value["default"]) if isinstance(value, dict) and "default" in value else str(value)
+            formatted_vars.append(f"export {key}={formatted_value}")
+        return "\n".join(formatted_vars)
