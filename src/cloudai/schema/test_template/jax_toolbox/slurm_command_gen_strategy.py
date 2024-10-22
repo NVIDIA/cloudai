@@ -363,7 +363,13 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         Returns:
             str: The generated pre-test command.
         """
-        nccl_test = cmd_args.get("pre_test", {}).get("nccl_test", {})
+        nccl_test_prefix = "pre_test.nccl_test."
+        nccl_test = {}
+
+        for key, value in cmd_args.items():
+            if key.startswith(nccl_test_prefix):
+                flag_name = key[len(nccl_test_prefix) :]
+                nccl_test[flag_name] = value
         pre_test_command_parts = [
             "srun",
             "--mpi=pmix",
