@@ -56,7 +56,7 @@ def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, testrun_
     slurm_args = strategy_fixture._parse_slurm_args(
         job_name_prefix, env_vars, cmd_args, testrun_fixture.num_nodes, testrun_fixture.nodes
     )
-    srun_command = strategy_fixture.generate_srun_command(slurm_args, env_vars, cmd_args, "")
+    srun_command = strategy_fixture._gen_srun_command(slurm_args, env_vars, cmd_args, "")
 
     sbatch_command = strategy_fixture._write_sbatch_script(
         slurm_args, env_vars, srun_command, testrun_fixture.output_path
