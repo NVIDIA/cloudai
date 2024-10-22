@@ -15,6 +15,19 @@ CloudAI operates on four main schemas:
 These schemas enable CloudAI to be flexible and compatible with different systems and configurations.
 
 
+## Support matrix
+|Test|Slurm|Kubernetes (experimental)|Standalone|
+|---|---|---|---|
+|ChakraReplay|✅|❌|❌|
+|GPT|✅|❌|❌|
+|Grook|✅|❌|❌|
+|NCCL|✅|✅|❌|
+|NeMo Launcher|✅|❌|❌|
+|Nemotron|✅|❌|❌|
+|Sleep|✅|✅|✅|
+|UCC|✅|❌|❌|
+
+
 ## Set Up Access to the Private NGC Registry
 First, ensure you have access to the Docker repository. Follow these steps:
 
