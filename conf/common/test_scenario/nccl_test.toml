@@ -15,6 +15,10 @@
 # limitations under the License.
 
 name = "nccl-test"
+
+prologue = "nccl_test_prologue"
+epilogue = "nccl_test_epilogue"
+
 [[Tests]]
 id = "Tests.1"
 test_name = "nccl_test_all_reduce"
