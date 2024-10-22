@@ -30,7 +30,6 @@ class _TestDependencyTOML(BaseModel):
 
     type: Literal["end_post_comp", "start_post_init", "start_post_comp"]
     id: str
-    time: int = 0
 
 
 class _TestRunTOML(BaseModel):
@@ -144,8 +143,7 @@ class TestScenarioParser:
         for section, tr in testruns_by_id.items():
             test_info = tests_data[section]
             tr.dependencies = {
-                dep.type: TestDependency(time=dep.time, test_run=testruns_by_id[dep.id])
-                for dep in test_info.dependencies
+                dep.type: TestDependency(test_run=testruns_by_id[dep.id]) for dep in test_info.dependencies
             }
 
         return TestScenario(
