@@ -66,7 +66,7 @@ jobs:
 
       - name: Run pytest
         run: |
-          set -eE
+          set -eEx
           set -o pipefail
 
           pytest --dead-fixtures
