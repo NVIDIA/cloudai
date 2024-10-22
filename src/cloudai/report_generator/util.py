@@ -21,13 +21,24 @@ import pandas as pd
 
 bokeh_size_unit_js_tick_formatter = """
     function tick_formatter(tick) {
-        var units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB'];
-        var i = 0;
+        const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB'];
+        let i = 0;
+
+        // Handle negative ticks and large values safely
+        if (tick < 0) {
+            return '0B';  // Handle negative numbers by returning 0B as a fallback
+        }
+
+        // Loop through units until tick is smaller than 1024 or max unit is reached
         while (tick >= 1024 && i < units.length - 1) {
             tick /= 1024;
             i++;
         }
-        return tick.toFixed(1) + units[i];
+
+        // Use Number.isInteger() to check if tick is an integer (ES6 feature)
+        return Number.isInteger(tick)
+            ? `${Math.floor(tick)}${units[i]}`  // If integer, no decimal
+            : `${tick.toFixed(1)}${units[i]}`;  // Else, one decimal point
     }
     return tick_formatter(tick);
     """
@@ -62,9 +73,12 @@ def bytes_to_human_readable(num_bytes: float) -> str:
     """
     for unit in ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB"]:
         if abs(num_bytes) < 1024.0:
-            return f"{num_bytes:3.1f}{unit}"
+            if num_bytes == int(num_bytes):
+                return f"{int(num_bytes)}{unit}"
+            else:
+                return f"{num_bytes:3.1f}{unit}"
         num_bytes /= 1024.0
-    return f"{num_bytes:.1f}YB"
+    return f"{num_bytes}YB"
 
 
 def add_human_readable_sizes(

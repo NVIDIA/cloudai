@@ -27,7 +27,6 @@ num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
   id = "Tests.1"
-  time = 0
 
 
 [[Tests]]
@@ -37,7 +36,6 @@ num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
   id = "Tests.2"
-  time = 0
 
 
 [[Tests]]
@@ -47,7 +45,6 @@ num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
   id = "Tests.3"
-  time = 0
 
 
 [[Tests]]
@@ -58,7 +55,6 @@ time_limit = "00:30:00"
   [[Tests.dependencies]]
   type = "end_post_comp"
   id = "Tests.4"
-  time = 0
 
 
 [[Tests]]
@@ -68,7 +64,6 @@ num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
   id = "Tests.5"
-  time = 0
 
 
 [[Tests]]
@@ -78,7 +73,6 @@ num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
   id = "Tests.6"
-  time = 0
 
 
 [[Tests]]
@@ -88,7 +82,6 @@ num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
   id = "Tests.7"
-  time = 0
 
 
 [[Tests]]
@@ -98,7 +91,6 @@ num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
   id = "Tests.8"
-  time = 0
 
 
 [[Tests]]
@@ -108,7 +100,6 @@ num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
   id = "Tests.9"
-  time = 0
 
 
 [[Tests]]
@@ -118,7 +109,6 @@ num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
   id = "Tests.10"
-  time = 0
 
 
 [[Tests]]
@@ -128,7 +118,6 @@ num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
   id = "Tests.11"
-  time = 0
 
 
 [[Tests]]
@@ -138,7 +127,6 @@ num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
   id = "Tests.12"
-  time = 0
 
 
 [[Tests]]
@@ -148,7 +136,6 @@ num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
   id = "Tests.13"
-  time = 0
 
 
 [[Tests]]
@@ -158,7 +145,6 @@ num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
   id = "Tests.14"
-  time = 0
 
 
 [[Tests]]
@@ -168,7 +154,6 @@ num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
   id = "Tests.15"
-  time = 0
 
 
 [[Tests]]
@@ -178,4 +163,3 @@ num_nodes = "16"
   [[Tests.dependencies]]
   type = "end_post_comp"
   id = "Tests.16"
-  time = 0

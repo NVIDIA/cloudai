@@ -150,7 +150,6 @@ def test_two_dependent_cases(test: Test, test_scenario_parser: TestScenarioParse
     assert test_scenario.test_runs[0].test.name == t1.name
     assert "end_post_comp" in test_scenario.test_runs[0].dependencies
     assert isinstance(test_scenario.test_runs[0].dependencies["end_post_comp"].test_run, TestRun)
-    assert test_scenario.test_runs[0].dependencies["end_post_comp"].time == 0
 
     assert test_scenario.test_runs[1].test.name == t2.name
     assert test_scenario.test_runs[1].dependencies == {}
