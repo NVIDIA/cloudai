@@ -156,7 +156,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
                     "container_mounts": "/workspace/traces/:/workspace/traces/",
                     "container_name": "cont",
                 },
-                PreTest(enable=True),
+                PreTest(enable=True),  # Enable pre-test explicitly
                 {"pre_test_command": True, "pre_test_check_command": True},
             ),
             (
@@ -167,7 +167,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
                     "container_mounts": "/workspace/traces/:/workspace/traces/",
                     "container_name": "cont",
                 },
-                PreTest(enable=False),
+                PreTest(enable=False),  # Disable pre-test explicitly
                 {"pre_test_command": False, "pre_test_check_command": False},
             ),
         ],
@@ -267,16 +267,20 @@ class TestJaxToolboxSlurmCommandGenStrategy:
         ]
 
     def test_generate_pre_test_command(
-        self, cmd_gen_strategy: JaxToolboxSlurmCommandGenStrategy, gpt_test: GPTTestDefinition, tmp_path: Path
+        self, cmd_gen_strategy: JaxToolboxSlurmCommandGenStrategy, grok_test: GrokTestDefinition, tmp_path: Path
     ) -> None:
-        gpt_test.cmd_args.pre_test = PreTest(enable=True)
-        cargs = {"output_path": "/path/to/output", **gpt_test.cmd_args_dict}
+        grok_test.cmd_args.pre_test = PreTest(enable=True)
+
+        nccl_test = grok_test.cmd_args.pre_test.nccl_test
+        nccl_test.num_nodes = 2
+        nccl_test.minbytes = "32M"
+        nccl_test.blocking = 0
+
+        cargs = {"output_path": str(tmp_path), **grok_test.cmd_args_dict}
 
         pre_test_cli = cmd_gen_strategy._generate_pre_test_command(cargs, tmp_path, tmp_path).splitlines()
 
-        nccl_test = gpt_test.cmd_args.pre_test.nccl_test
-
-        assert pre_test_cli == [
+        expected_pre_test_cli = [
             "srun \\",
             "--mpi=pmix \\",
             f"-N {nccl_test.num_nodes} \\",
@@ -302,6 +306,12 @@ class TestJaxToolboxSlurmCommandGenStrategy:
             f"--cudagraph {nccl_test.cudagraph} \\",
             f"--stepfactor {nccl_test.stepfactor}",
         ]
+
+        assert pre_test_cli == expected_pre_test_cli, (
+            "The generated pre-test command did not match the expected command.\n"
+            f"Expected: {expected_pre_test_cli}\n"
+            f"Actual: {pre_test_cli}"
+        )
 
 
 def test_gpt_test_definition_cmd_args_dict():
