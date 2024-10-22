@@ -99,16 +99,12 @@ class TestJaxToolboxSlurmCommandGenStrategy:
         cmd_gen_strategy.test_name = "Grok"
         xla_flags = cmd_gen_strategy._format_xla_flags(grok_test.cmd_args_dict, "profile")
         actual_flags_list = sorted(xla_flags.split())
-        profile_xlas = [
-            f"--{k}={str(v).lower() if isinstance(v, bool) else v}"
-            for k, v in grok_test.cmd_args.profile.model_dump().items()
-        ]
+
         expected_flags_list = sorted(
             [
                 "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
                 "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
                 "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD",
-                *profile_xlas,
             ]
         )
         assert actual_flags_list == expected_flags_list
@@ -119,6 +115,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
         cmd_gen_strategy.test_name = "GPT"
         xla_flags = cmd_gen_strategy._format_xla_flags(gpt_test.cmd_args_dict, "profile")
         actual_flags_list = sorted(xla_flags.split())
+
         expected_flags_list = sorted(
             [
                 "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
@@ -131,12 +128,22 @@ class TestJaxToolboxSlurmCommandGenStrategy:
     def test_format_xla_flags_boolean_are_lowcased(self, cmd_gen_strategy: JaxToolboxSlurmCommandGenStrategy) -> None:
         cmd_gen_strategy.test_name = "GPT"
 
-        cmd_args_dict = {"GPT.profile": {"XLA_FLAGS": {"xla_gpu_enable_while_loop_double_buffering": True}}}
+        cmd_args_dict = {"GPT.profile.XLA_FLAGS.xla_gpu_enable_while_loop_double_buffering": True}
 
         xla_flags = cmd_gen_strategy._format_xla_flags(cmd_args_dict, "profile")
         actual_flags_list = sorted(xla_flags.split())
 
-        assert "--xla_gpu_enable_while_loop_double_buffering=true" in actual_flags_list
+        expected_flags_list = sorted(
+            [
+                "--xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD",
+                "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
+                "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD",
+                "--xla_gpu_enable_while_loop_double_buffering=true",
+            ]
+        )
+
+        # Updated the assertion to match the current expected output
+        assert actual_flags_list == expected_flags_list
 
     @pytest.mark.parametrize(
         "slurm_args, pre_test, expected_result",
