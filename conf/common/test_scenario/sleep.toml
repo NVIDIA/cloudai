@@ -26,7 +26,6 @@ test_name = "sleep_5"
   [[Tests.dependencies]]
   type = "start_post_init"
   id = "Tests.1"
-  time = 5
 
 [[Tests]]
 id = "Tests.3"
@@ -34,7 +33,6 @@ test_name = "sleep_5"
   [[Tests.dependencies]]
   type = "start_post_comp"
   id = "Tests.1"
-  time = 0
 
 [[Tests]]
 id = "Tests.4"
@@ -42,4 +40,3 @@ test_name = "sleep_20"
   [[Tests.dependencies]]
   type = "end_post_comp"
   id = "Tests.1"
-  time = 5

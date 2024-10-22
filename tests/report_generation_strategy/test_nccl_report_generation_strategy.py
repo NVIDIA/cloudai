@@ -86,13 +86,21 @@ def test_nccl_report_generation(setup_test_environment):
     df = pd.read_csv(csv_report_path)
     assert not df.empty, "CSV report is empty."
 
-    # Validate specific values if needed
+    # Validate data types
+    assert df["Size (B)"].dtype == int, "Size (B) is not an integer."
+    assert df["Time (us) Out-of-place"].dtype == float, "Time (us) Out-of-place is not a float."
+    assert df["Time (us) In-place"].dtype == float, "Time (us) In-place is not a float."
+
+    # Validate human-readable sizes
+    assert df.iloc[0]["Size Human-readable"] == "976.6KB", "First row Size Human-readable does not match."
+    assert df.iloc[-1]["Size Human-readable"] == "11.4MB", "Last row Size Human-readable does not match."
+
     # Example: Checking that the first entry matches the expected value
-    assert df.iloc[0]["Size (B)"] == 1000000.0, "First row Size (B) does not match."
+    assert df.iloc[0]["Size (B)"] == 1000000, "First row Size (B) does not match."
     assert df.iloc[0]["Algbw (GB/s) Out-of-place"] == 10.10, "First row Algbw (GB/s) Out-of-place does not match."
     assert df.iloc[0]["Busbw (GB/s) Out-of-place"] == 20.20, "First row Busbw (GB/s) Out-of-place does not match."
 
     # Checking that the last entry matches the expected value
-    assert df.iloc[-1]["Size (B)"] == 12000000.0, "Last row Size (B) does not match."
+    assert df.iloc[-1]["Size (B)"] == 12000000, "Last row Size (B) does not match."
     assert df.iloc[-1]["Algbw (GB/s) Out-of-place"] == 120.30, "Last row Algbw (GB/s) Out-of-place does not match."
     assert df.iloc[-1]["Busbw (GB/s) Out-of-place"] == 130.40, "Last row Busbw (GB/s) Out-of-place does not match."

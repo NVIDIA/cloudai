@@ -18,9 +18,9 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Union, cast
 
+import toml
 from pydantic import ValidationError
 
-from .base_multi_file_parser import BaseMultiFileParser
 from .command_gen_strategy import CommandGenStrategy
 from .exceptions import TestConfigParsingError, format_validation_error
 from .grading_strategy import GradingStrategy
@@ -36,7 +36,7 @@ from .test_template import TestTemplate
 from .test_template_strategy import TestTemplateStrategy
 
 
-class TestParser(BaseMultiFileParser):
+class TestParser:
     """
     Parser for Test objects.
 
@@ -46,16 +46,36 @@ class TestParser(BaseMultiFileParser):
 
     __test__ = False
 
-    def __init__(self, directory_path: Path, system: System) -> None:
+    def __init__(self, test_tomls: list[Path], system: System) -> None:
         """
         Initialize the TestParser instance.
 
         Args:
-            directory_path (str): Path to the directory containing test data.
+            test_tomls (list[Path]): List of paths to test TOML files.
             system (System): The system object.
         """
-        super().__init__(directory_path)
         self.system = system
+        self.test_tomls = test_tomls
+
+    def parse_all(self) -> List[Any]:
+        """
+        Parse all TOML files in the directory and returns a list of objects.
+
+        Returns
+            List[Any]: List of objects from the configuration files.
+        """
+        objects: List[Any] = []
+        for f in self.test_tomls:
+            self.current_file = f
+            logging.debug(f"Parsing file: {f}")
+            with f.open() as fh:
+                data: Dict[str, Any] = toml.load(fh)
+                parsed_object = self._parse_data(data)
+                obj_name: str = parsed_object.name
+                if obj_name in objects:
+                    raise ValueError(f"Duplicate name found: {obj_name}")
+                objects.append(parsed_object)
+        return objects
 
     def load_test_definition(self, data: dict) -> TestDefinition:
         test_template_name = data.get("test_template_name", "")
@@ -121,7 +141,7 @@ class TestParser(BaseMultiFileParser):
             else:
                 return strategy_type()
 
-        logging.warning(
+        logging.debug(
             f"No {strategy_interface.__name__} found for "
             f"{test_template_type.__name__} and "
             f"{type(self.system).__name__}"

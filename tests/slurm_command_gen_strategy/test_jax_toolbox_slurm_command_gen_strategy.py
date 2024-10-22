@@ -54,16 +54,19 @@ class TestJaxToolboxSlurmCommandGenStrategy:
             extra_env_vars={"COMBINE_THRESHOLD": "1"},
         )
 
+    @pytest.mark.parametrize("test_fixture", ["gpt_test", "grok_test"])
     def test_gen_exec_command(
         self,
         slurm_system,
         cmd_gen_strategy: JaxToolboxSlurmCommandGenStrategy,
         tmp_path: Path,
-        gpt_test: GPTTestDefinition,
+        request,
+        test_fixture,
     ) -> None:
-        gpt_test.cmd_args.pre_test = PreTest(enable=False)
+        test_def = request.getfixturevalue(test_fixture)
+        test_def.cmd_args.pre_test = PreTest(enable=False)
 
-        test = Test(test_definition=gpt_test, test_template=JaxToolbox(slurm_system, "name"))
+        test = Test(test_definition=test_def, test_template=JaxToolbox(slurm_system, "name"))
         test_run = TestRun(
             test=test,
             num_nodes=1,

@@ -91,7 +91,7 @@ class GrokTestDefinition(JaxToolboxTestDefinition):
             if k in {"profile", "perf"}:
                 res.setdefault(f"Grok.{k}", {})
                 res[f"Grok.{k}"]["XLA_FLAGS"] = v
-            elif k in {"pre_test", "docker_image_url", "load_container"}:
+            elif k in {"pre_test", "docker_image_url", "load_container", "output_path"}:
                 res[k] = v
             else:
                 res[f"Grok.{k}"] = v

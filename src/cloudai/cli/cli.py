@@ -22,9 +22,7 @@ from .handlers import (
     handle_dry_run_and_run,
     handle_generate_report,
     handle_install_and_uninstall,
-    handle_verify_systems,
-    handle_verify_test_scenarios,
-    handle_verify_tests,
+    handle_verify_all_configs,
 )
 
 
@@ -38,9 +36,7 @@ class CloudAICLI:
             "install",
             "run",
             "uninstall",
-            "verify-systems",
-            "verify-tests",
-            "verify-test-scenarios",
+            "verify-configs",
         }
 
         self.parser = argparse.ArgumentParser(description="Cloud AI")
@@ -66,6 +62,7 @@ class CloudAICLI:
         tests_dir: Optional[bool] = None,
         test_scenario: Optional[bool] = None,
         output_dir: Optional[bool] = None,
+        result_dir: Optional[bool] = None,
     ) -> argparse.ArgumentParser:
         p = self.subparsers.add_parser(name, help=help_text)
         self.handlers[name] = handler
@@ -81,6 +78,8 @@ class CloudAICLI:
             p.add_argument("--test-scenario", help="Path to the test scenario file.", required=test_scenario, type=Path)
         if output_dir is not None:
             p.add_argument("--output-dir", help="Path to the output directory.", required=output_dir, type=Path)
+        if result_dir is not None:
+            p.add_argument("--result-dir", help="Path to the result directory.", required=result_dir, type=Path)
 
         return p
 
@@ -96,26 +95,21 @@ class CloudAICLI:
                 system_config=True,
                 tests_dir=True,
                 test_scenario=True,
-                output_dir=True,
+                result_dir=True,
             )
 
-        if "verify-systems" in self.DEFAULT_MODES:
-            p = self.add_command("verify-systems", "Verify the system configurations.", handle_verify_systems)
-            p.add_argument("system_configs", help="Path to the system configuration file or directory.", type=Path)
-
-        if "verify-tests" in self.DEFAULT_MODES:
-            p = self.add_command("verify-tests", "Verify the test configurations.", handle_verify_tests)
-            p.add_argument("test_configs", help="Path to the test configuration file or directory.", type=Path)
-
-        if "verify-test-scenarios" in self.DEFAULT_MODES:
+        if "verify-configs" in self.DEFAULT_MODES:
             p = self.add_command(
-                "verify-test-scenarios",
-                "Verify the test scenario configurations.",
-                handle_verify_test_scenarios,
-                system_config=True,
-                tests_dir=True,
+                "verify-configs",
+                (
+                    "Verify all found TOML files in the given directory. Test Scenarios are verified against all found "
+                    "Test TOML files or all Test TOML files in the given directory."
+                ),
+                handle_verify_all_configs,
+                system_config=False,
+                tests_dir=False,
             )
-            p.add_argument("test_scenarios", help="Path to the test scenario file or directory.", type=Path)
+            p.add_argument("configs_dir", help="Path to a file or the directory containing the TOML files.", type=Path)
 
         return self.parser
 
