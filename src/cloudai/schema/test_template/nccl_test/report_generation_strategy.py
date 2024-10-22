@@ -69,12 +69,15 @@ class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
                     "#Wrong In-place",
                 ],
             )
-            df["Size (B)"] = df["Size (B)"].astype(float)
+            df["Size (B)"] = df["Size (B)"].astype(int)
+            df["Time (us) Out-of-place"] = df["Time (us) Out-of-place"].astype(float).round(1)
+            df["Time (us) In-place"] = df["Time (us) In-place"].astype(float).round(1)
             df["Algbw (GB/s) Out-of-place"] = df["Algbw (GB/s) Out-of-place"].astype(float)
             df["Busbw (GB/s) Out-of-place"] = df["Busbw (GB/s) Out-of-place"].astype(float)
             df["Algbw (GB/s) In-place"] = df["Algbw (GB/s) In-place"].astype(float)
             df["Busbw (GB/s) In-place"] = df["Busbw (GB/s) In-place"].astype(float)
             df = add_human_readable_sizes(df, "Size (B)", "Size Human-readable")
+
             self._generate_bokeh_report(test_name, df, directory_path, sol)
             self._generate_csv_report(df, directory_path)
 

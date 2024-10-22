@@ -135,7 +135,6 @@ time_limit = "00:20:00"
   [[Tests.dependencies]]
   type = "start_post_comp"
   id = "Tests.1"
-  time = 0
 ```
 
 Notes on the test scenario:
@@ -173,10 +172,10 @@ cloudai generate-report \
    --test-scenario myconfig/scenario.toml \
    --system-config myconfig/system.toml \
    --tests-dir myconfig/tests/ \
-   --output-dir results/2024-06-18_17-40-13/
+   --result-dir results/2024-06-18_17-40-13/
 ```
 
-`--output-dir` accepts one scenario run results directory.
+`--result-dir` accepts one scenario run result directory.
 
 ## Describing a System in the System Schema
 In this section, we introduce the concept of the system schema, explain the meaning of each field, and describe how the fields should be used. The system schema is a TOML file that allows users to define a system's configuration.
@@ -264,7 +263,6 @@ time_limit = "00:20:00"
   [[Tests.dependencies]]
   type = "start_post_comp"
   id = "Tests.1"
-  time = 0
 
 [[Tests]]
 id = "Tests.3"
@@ -274,7 +272,6 @@ time_limit = "00:20:00"
   [[Tests.dependencies]]
   type = "start_post_comp"
   id = "Tests.2"
-  time = 0
 ```
 
 The `name` field is the test scenario name, which can be any unique identifier for the scenario. Each test has a section name, following the convention `Tests.1`, `Tests.2`, etc., with an increasing index. The `name` of a test should be specified in this section and must correspond to an entry in the test schema. If a test in a test scenario is not present in the test schema, CloudAI will not be able to identify it.
@@ -283,7 +280,7 @@ There are two ways to specify nodes. The first is using the `num_nodes` field as
 
 You can optionally specify a time limit in the Slurm format. Tests can have dependencies. If no dependencies are specified, all tests will run in parallel. CloudAI supports three types of dependencies: `start_post_init`, `start_post_comp`, and `end_post_comp`.
 
-Dependencies of a test can be described as a subsection of the test. The dependency name should appear first, followed by a dictionary as its value. The dictionary has two fields: `name` and `time`. The `name` field specifies the test that the current test depends on, and the `time` field specifies the delay in seconds.
+Dependencies of a test can be described as a subsection of the test. It requires other tests' `id` and dependency `type`.
 
 - `start_post_init` means the test starts after the prior test begins, with a specified delay.
 - `start_post_comp` means the test starts after the prior test completes.
