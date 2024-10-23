@@ -261,7 +261,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
             f"Actual: {pre_test_cli}"
         )
 
-    def test_generate_srun_command(slurm_system, cmd_gen_strategy, grok_test):
+    def test_generate_srun_command(self, slurm_system, cmd_gen_strategy, grok_test):
         cmd_gen_strategy.test_name = grok_test.name
         Path("/tmp/output").mkdir(parents=True, exist_ok=True)
 

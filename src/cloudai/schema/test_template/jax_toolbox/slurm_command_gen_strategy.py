@@ -199,7 +199,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         run_script_content = []
         do_pgle = cmd_args.get(f"{self.test_name}.enable_pgle", True)
-        print(do_pgle)
 
         if do_pgle:
             env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "profile")}"'
