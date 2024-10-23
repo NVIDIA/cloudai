@@ -18,17 +18,20 @@ import argparse
 from concurrent.futures import Future
 from functools import partial
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from cloudai import BaseInstaller, InstallStatusResult, NcclTest, Test, TestRun, TestTemplate, UCCTest
 from cloudai.cli import handle_dry_run_and_run, identify_unique_test_templates, setup_logging
+from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
+from cloudai.schema.test_template.jax_toolbox.template import JaxToolbox
 from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from cloudai.schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from cloudai.schema.test_template.sleep.template import Sleep
 from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem, StandaloneSystem
+from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
 from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.test_definitions.sleep import SleepCmdArgs, SleepTestDefinition
 from cloudai.test_definitions.ucc import UCCCmdArgs, UCCTestDefinition
@@ -224,8 +227,8 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
     return partial(TestRun, num_nodes=1, nodes=[], output_path=slurm_system.output_path)
 
 
-@pytest.fixture(params=["ucc", "nccl", "sleep"])
-def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> tuple[TestRun, str]:
+@pytest.fixture(params=["ucc", "nccl", "sleep", "gpt"])
+def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> tuple[TestRun, str, Optional[str]]:
     if request.param == "ucc":
         tr = partial_tr(
             name="ucc",
@@ -241,7 +244,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         )
         tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
 
-        return (tr, "ucc.sbatch")
+        return (tr, "ucc.sbatch", None)
     elif request.param == "nccl":
         tr = partial_tr(
             name="nccl",
@@ -257,7 +260,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         )
         tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
 
-        return (tr, "nccl.sbatch")
+        return (tr, "nccl.sbatch", None)
     elif request.param == "sleep":
         tr = partial_tr(
             name="sleep",
@@ -273,7 +276,27 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         )
         tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
 
-        return (tr, "sleep.sbatch")
+        return (tr, "sleep.sbatch", None)
+    elif request.param == "gpt":
+        tr = partial_tr(
+            name="gpt",
+            test=Test(
+                test_definition=GPTTestDefinition(
+                    name="gpt",
+                    description="gpt",
+                    test_template_name="gpt",
+                    cmd_args=GPTCmdArgs(fdl_config="fdl/config", docker_image_url="https://docker/url"),
+                    extra_env_vars={"COMBINE_THRESHOLD": "1"},
+                ),
+                test_template=JaxToolbox(slurm_system, name="gpt"),
+            ),
+        )
+        tr.test.test_template.command_gen_strategy = JaxToolboxSlurmCommandGenStrategy(
+            slurm_system, tr.test.test_definition.cmd_args_dict
+        )
+        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+
+        return (tr, "gpt.sbatch", "gpt.run")
 
     raise ValueError(f"Unknown test: {request.param}")
 
@@ -290,3 +313,9 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
     ref = ref.replace("__OUTPUT_DIR__", str(slurm_system.output_path)).replace("__JOB_NAME__", "job_name")
 
     assert curr == ref
+
+    run_script = test_req[-1]
+    if run_script:
+        curr_run_script = Path(slurm_system.output_path / "run.sh").read_text()
+        ref_run_script = (Path(__file__).parent / "ref_data" / run_script).read_text()
+        assert curr_run_script == ref_run_script
