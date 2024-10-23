@@ -34,7 +34,7 @@ class Test_Parser:
     def test_no_tests_dir(self, parser: Parser):
         tests_dir = parser.system_config_path.parent / "tests"
         with pytest.raises(FileNotFoundError) as exc_info:
-            parser.parse(tests_dir, None)
+            parser.parse(tests_dir, None, None)
         assert "Test path" in str(exc_info.value)
 
     @patch("cloudai._core.test_parser.TestParser.parse_all")
@@ -50,19 +50,85 @@ class Test_Parser:
 
     @patch("cloudai._core.test_parser.TestParser.parse_all")
     @patch("cloudai._core.test_scenario_parser.TestScenarioParser.parse")
-    def test_scenario_filters_tests(self, test_scenario_parser: Mock, test_parser: Mock, parser: Parser):
+    def test_scenario_without_plugin(self, test_scenario_parser: Mock, test_parser: Mock, parser: Parser):
         tests_dir = parser.system_config_path.parent.parent / "test"
+
         fake_tests = []
         for i in range(3):
             fake_tests.append(Mock())
             fake_tests[-1].name = f"test-{i}"
         test_parser.return_value = fake_tests
+
         fake_scenario = Mock()
         fake_scenario.test_runs = [Mock()]
         fake_scenario.test_runs[0].test.name = "test-1"
         test_scenario_parser.return_value = fake_scenario
+
         _, tests, _ = parser.parse(tests_dir, Path())
+
         assert len(tests) == 1
+        assert tests[0].name == "test-1"
+
+    @patch("cloudai._core.test_parser.TestParser.parse_all")
+    @patch("cloudai._core.test_scenario_parser.TestScenarioParser.parse")
+    @patch("cloudai.parser.Parser.parse_plugins")
+    def test_scenario_with_plugin_common_tests(
+        self, parse_plugins: Mock, test_scenario_parser: Mock, test_parser: Mock, parser: Parser
+    ):
+        tests_dir = parser.system_config_path.parent.parent / "test"
+
+        fake_tests = []
+        for i in range(3):
+            fake_tests.append(Mock())
+            fake_tests[-1].name = f"test-{i}"
+        test_parser.return_value = fake_tests
+
+        fake_scenario = Mock()
+        fake_scenario.test_runs = [Mock()]
+        fake_scenario.test_runs[0].test.name = "test-1"
+        test_scenario_parser.return_value = fake_scenario
+
+        fake_plugin = Mock()
+        fake_plugin.test_runs = [Mock()]
+        fake_plugin.test_runs[0].test.name = "test-1"
+        parse_plugins.return_value = {"plugin-1": fake_plugin}
+
+        _, tests, _ = parser.parse(tests_dir, Path(), Path())
+
+        assert len(tests) == 1
+        assert tests[0].name == "test-1"
+
+    @patch("cloudai._core.test_parser.TestParser.parse_all")
+    @patch("cloudai._core.test_scenario_parser.TestScenarioParser.parse")
+    @patch("cloudai.parser.Parser.parse_plugins")
+    def test_scenario_with_plugin_exclusive_tests(
+        self, parse_plugins: Mock, test_scenario_parser: Mock, test_parser: Mock, parser: Parser
+    ):
+        tests_dir = parser.system_config_path.parent.parent / "test"
+
+        fake_tests = []
+        for i in range(4):
+            fake_tests.append(Mock())
+            fake_tests[-1].name = f"test-{i}"
+        test_parser.return_value = fake_tests
+
+        fake_scenario = Mock()
+        fake_scenario.test_runs = [Mock()]
+        fake_scenario.test_runs[0].test.name = "test-1"
+        test_scenario_parser.return_value = fake_scenario
+
+        fake_plugin = Mock()
+        fake_plugin.test_runs = [Mock()]
+        fake_plugin.test_runs[0].test.name = "test-2"
+        parse_plugins.return_value = {"plugin-1": fake_plugin}
+
+        _, tests, _ = parser.parse(tests_dir, Path(), Path())
+
+        assert len(tests) == 2
+        assert "test-1" in [t.name for t in tests]
+        assert "test-2" in [t.name for t in tests]
+        assert "test-0" not in [t.name for t in tests]
+        assert "test-3" not in [t.name for t in tests]
 
     def test_parse_system(self, parser: Parser):
         parser.system_config_path = Path("conf/common/system/example_slurm_cluster.toml")

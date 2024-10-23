@@ -60,6 +60,7 @@ def test_slurm(tmp_path: Path, scenario: Dict):
         system_config=Path("conf/common/system/example_slurm_cluster.toml"),
         test_templates_dir=Path("conf/common/test_template"),
         tests_dir=Path("conf/common/test"),
+        plugin_dir=Path("conf/common/plugin"),
         test_scenario=test_scenario_path,
         output_dir=tmp_path,
     )
