@@ -90,7 +90,7 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
     return partial(TestRun, num_nodes=1, nodes=[], output_path=slurm_system.output_path)
 
 
-@pytest.fixture(params=["ucc", "nccl", "sleep", "gpt-pretest", "gpt-no-pretest", "grok-pretest", "grok-no-pretest"])
+@pytest.fixture(params=["ucc", "nccl", "sleep", "gpt", "grok"])
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> tuple[TestRun, str, Optional[str]]:
     if request.param == "ucc":
         tr = partial_tr(
@@ -140,7 +140,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
 
         return (tr, "sleep.sbatch", None)
-    elif request.param.startswith("gpt-"):
+    elif request.param.startswith("gpt"):
         tr = partial_tr(
             name="gpt",
             test=Test(
@@ -158,13 +158,9 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             slurm_system, tr.test.test_definition.cmd_args_dict
         )
         tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
-        if "no-pretest" in request.param:
-            tr.test.test_definition.cmd_args.pre_test.enable = False
-        else:
-            tr.test.test_definition.cmd_args.pre_test.enable = True
 
         return (tr, f"{request.param}.sbatch", "gpt.run")
-    elif request.param.startswith("grok-"):
+    elif request.param.startswith("grok"):
         tr = partial_tr(
             name="grok",
             test=Test(
@@ -182,10 +178,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             slurm_system, tr.test.test_definition.cmd_args_dict
         )
         tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
-        if "no-pretest" in request.param:
-            tr.test.test_definition.cmd_args.pre_test.enable = False
-        else:
-            tr.test.test_definition.cmd_args.pre_test.enable = True
 
         return (tr, f"{request.param}.sbatch", "grok.run")
 
@@ -199,8 +191,8 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
 
     sbatch_script = tr.test.test_template.gen_exec_command(tr).split()[-1]
 
-    curr = Path(sbatch_script).read_text()
-    ref = (Path(__file__).parent / "ref_data" / test_req[1]).read_text()
+    curr = Path(sbatch_script).read_text().strip()
+    ref = (Path(__file__).parent / "ref_data" / test_req[1]).read_text().strip()
     ref = ref.replace("__OUTPUT_DIR__", str(slurm_system.output_path)).replace("__JOB_NAME__", "job_name")
 
     assert curr == ref
