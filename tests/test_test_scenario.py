@@ -26,7 +26,7 @@ from cloudai._core.test_scenario_parser import _TestScenarioTOML
 
 @pytest.fixture
 def test_scenario_parser(tmp_path: Path) -> TestScenarioParser:
-    tsp = TestScenarioParser("", {})
+    tsp = TestScenarioParser(Path(""), {})
     return tsp
 
 

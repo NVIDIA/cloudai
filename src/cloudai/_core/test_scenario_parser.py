@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import logging
+from pathlib import Path
 from typing import Any, Dict, Literal, Optional
 
 import toml
@@ -92,24 +93,24 @@ class TestScenarioParser:
     Parser for TestScenario objects.
 
     Attributes
-        file_path (str): Path to the TOML configuration file.
+        file_path (Path): Path to the TOML configuration file.
         test_mapping: Mapping of test names to Test objects.
     """
 
     __test__ = False
 
-    def __init__(self, file_path: str, test_mapping: Dict[str, Test]) -> None:
+    def __init__(self, file_path: Path, test_mapping: Dict[str, Test]) -> None:
         self.file_path = file_path
         self.test_mapping = test_mapping
 
     def parse(self) -> TestScenario:
         """
-        Parse the TOML file and returns a TestScenario object.
+        Parse the TOML file and return a TestScenario object.
 
         Returns
             TestScenario: The parsed TestScenario object.
         """
-        with open(self.file_path, "r") as file:
+        with self.file_path.open("r") as file:
             data: Dict[str, Any] = toml.load(file)
             return self._parse_data(data)
 
@@ -171,7 +172,7 @@ class TestScenarioParser:
                 f"Test '{test_info.test_name}' not found in the test schema directory. Please ensure that all "
                 f"tests referenced in the test scenario schema exist in the test schema directory. To resolve this "
                 f"issue, you can either add the corresponding test schema file for '{test_info.test_name}' in "
-                f"the directory or remove the testreference from the test scenario schema."
+                f"the directory or remove the test reference from the test scenario schema."
             )
             logging.error(f"Failed to parse Test Scenario definition: {self.file_path}")
             logging.error(msg)
