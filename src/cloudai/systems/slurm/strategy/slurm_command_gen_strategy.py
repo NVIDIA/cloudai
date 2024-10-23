@@ -63,7 +63,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         slurm_args = self._parse_slurm_args(
             tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr.num_nodes, tr.nodes
         )
-        srun_command = self.gen_srun_command(slurm_args, env_vars, cmd_args, tr.test.extra_cmd_args)
+        srun_command = self._gen_srun_command(slurm_args, env_vars, cmd_args, tr.test.extra_cmd_args)
         return self._write_sbatch_script(slurm_args, env_vars, srun_command, tr.output_path)
 
     def _parse_slurm_args(
@@ -112,7 +112,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             job_name = f"{self.system.account}-{job_name_prefix}.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         return job_name
 
-    def gen_srun_command(
+    def _gen_srun_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
     ) -> str:
         srun_command_parts = self.gen_srun_prefix(slurm_args)
