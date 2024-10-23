@@ -16,15 +16,19 @@
 
 import argparse
 from concurrent.futures import Future
+from functools import partial
 from pathlib import Path
 from typing import Dict
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from cloudai import BaseInstaller, InstallStatusResult, NcclTest, Test, TestTemplate, UCCTest
+from cloudai import BaseInstaller, InstallStatusResult, NcclTest, Test, TestRun, TestTemplate, UCCTest
 from cloudai.cli import handle_dry_run_and_run, identify_unique_test_templates, setup_logging
+from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
+from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem, StandaloneSystem
 from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
+from cloudai.test_definitions.ucc import UCCCmdArgs, UCCTestDefinition
 
 SLURM_TEST_SCENARIOS = [
     {"path": Path("conf/common/test_scenario/sleep.toml"), "expected_dirs_number": 4, "log_file": "sleep_debug.log"},
@@ -210,3 +214,60 @@ class TestIdentifyUniqueTestTemplates:
         assert len(res) == 2
         assert templ1 in res
         assert templ2 in res
+
+
+@pytest.fixture
+def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
+    return partial(TestRun, num_nodes=1, nodes=[], output_path=slurm_system.output_path)
+
+
+@pytest.fixture(params=["ucc", "nccl"])
+def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> tuple[TestRun, str]:
+    if request.param == "ucc":
+        tr = partial_tr(
+            name="ucc",
+            test=Test(
+                test_definition=UCCTestDefinition(
+                    name="ucc", description="ucc", test_template_name="ucc", cmd_args=UCCCmdArgs()
+                ),
+                test_template=UCCTest(slurm_system, name="ucc"),
+            ),
+        )
+        tr.test.test_template.command_gen_strategy = UCCTestSlurmCommandGenStrategy(
+            slurm_system, tr.test.test_definition.cmd_args_dict
+        )
+        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+
+        return (tr, "ucc.sbatch")
+    elif request.param == "nccl":
+        tr = partial_tr(
+            name="nccl",
+            test=Test(
+                test_definition=NCCLTestDefinition(
+                    name="nccl", description="nccl", test_template_name="nccl", cmd_args=NCCLCmdArgs()
+                ),
+                test_template=NcclTest(slurm_system, name="nccl"),
+            ),
+        )
+        tr.test.test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(
+            slurm_system, tr.test.test_definition.cmd_args_dict
+        )
+        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+
+        return (tr, "nccl.sbatch")
+
+    raise ValueError(f"Unknown test: {request.param}")
+
+
+def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, str]):
+    slurm_system.output_path.mkdir(parents=True, exist_ok=True)
+
+    tr = test_req[0]
+
+    sbatch_script = tr.test.test_template.gen_exec_command(tr).split()[-1]
+
+    curr = Path(sbatch_script).read_text()
+    ref = (Path(__file__).parent / "ref_data" / test_req[1]).read_text()
+    ref = ref.replace("__OUTPUT_DIR__", str(slurm_system.output_path)).replace("__JOB_NAME__", "job_name")
+
+    assert curr == ref
