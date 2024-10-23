@@ -17,6 +17,7 @@
 from pathlib import Path
 from typing import Any, Dict, List
 
+from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
 from .slurm_install_strategy import NcclTestSlurmInstallStrategy
@@ -83,3 +84,7 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             srun_command_parts.append(extra_cmd_args)
 
         return srun_command_parts
+
+    def gen_srun_success_check(self, tr: TestRun) -> str:
+        output_file = Path(tr.output_path) / "stdout.txt"
+        return f'grep -q "Avg bus bandwidth" {output_file} && echo 1 || echo 0'
