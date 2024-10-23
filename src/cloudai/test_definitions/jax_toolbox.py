@@ -14,12 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional
+from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, field_serializer
 
 from cloudai import CmdArgs, TestDefinition
-from cloudai.test_definitions.nccl import NCCLCmdArgs
 
 
 class JaxFdl(BaseModel):
@@ -52,35 +51,6 @@ class JaxFdl(BaseModel):
         elif value.startswith('"') and value.endswith('"'):
             return value.replace('"', '\\"')
         return f'\\"{value}\\"'
-
-
-class NCCLCmdAgrsPreTest(NCCLCmdArgs):
-    """NCCL pre-test command arguments."""
-
-    num_nodes: int = 8
-    stepfactor: int = 2
-    minbytes: str = "8M"
-    maxbytes: str = "16G"
-    blocking: int = 1
-
-    def model_post_init(self, _: Any) -> None:
-        self.subtest_name = "all_gather_perf_mpi"
-        self.docker_image_url = "nvcr.io/nvidia/pytorch:24.02-py3"
-
-
-class PreTest(BaseModel):
-    """Pre-test configuration."""
-
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
-    enable: bool = True
-    nccl_test: NCCLCmdAgrsPreTest = Field(default_factory=NCCLCmdAgrsPreTest)
-
-
-class NCCLPreTest(BaseModel):
-    """Pre-test configuration."""
-
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
-    nccl_test: Optional[NCCLCmdAgrsPreTest] = None
 
 
 class JaxToolboxCmdArgs(CmdArgs):
