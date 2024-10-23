@@ -55,30 +55,34 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         return NeMoLauncherSlurmCommandGenStrategy(slurm_system, {})
 
     @pytest.mark.parametrize(
-        "expected_content",
+        "expected_content, nodes",
         [
-            [
-                "TEST_VAR_1=value1",
-                "+env_vars.TEST_VAR_1=value1",
-                'stages=["training"]',
-                "cluster.gpus_per_node=null",
-                "cluster.partition=main",
-                "numa_mapping.enable=True",
-                "training.exp_manager.create_checkpoint_callback=False",
-                "training.model.data.data_impl=mock",
-                "training.model.data.data_prefix=[]",
-                "training.model.global_batch_size=128",
-                "training.model.micro_batch_size=2",
-                "training.model.pipeline_model_parallel_size=4",
-                "training.model.tensor_model_parallel_size=4",
-                "training.run.time_limit=3:00:00",
-                "training.trainer.enable_checkpointing=False",
-                "training.trainer.log_every_n_steps=1",
-                "training.trainer.max_steps=400",
-                "training.trainer.num_nodes=2",
-                "training.trainer.val_check_interval=100",
-                "training=gpt3/40b_improved",
-            ]
+            (
+                [
+                    "TEST_VAR_1=value1",
+                    "+env_vars.TEST_VAR_1=value1",
+                    'stages=["training"]',
+                    "cluster.gpus_per_node=null",
+                    "cluster.partition=main",
+                    "numa_mapping.enable=True",
+                    "training.exp_manager.create_checkpoint_callback=False",
+                    "training.model.data.data_impl=mock",
+                    "training.model.data.data_prefix=[]",
+                    "training.model.global_batch_size=128",
+                    "training.model.micro_batch_size=2",
+                    "training.model.pipeline_model_parallel_size=4",
+                    "training.model.tensor_model_parallel_size=4",
+                    "training.run.time_limit=3:00:00",
+                    "training.trainer.enable_checkpointing=False",
+                    "training.trainer.log_every_n_steps=1",
+                    "training.trainer.max_steps=400",
+                    "training.trainer.num_nodes=2",
+                    "training.trainer.val_check_interval=100",
+                    "training=gpt3/40b_improved",
+                    "+cluster.nodelist=\\'node1,node2\\'",
+                ],
+                ["node1", "node2"],
+            ),
         ],
     )
     def test_generate_exec_command(
@@ -86,8 +90,11 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy,
         test_run: TestRun,
         expected_content: List[str],
+        nodes: List[str],
     ) -> None:
+        test_run.nodes = nodes
         cmd = cmd_gen_strategy.gen_exec_command(test_run)
+
         for content in expected_content:
             assert any(content in part for part in cmd.split())
         assert "training.run.name=" in cmd
