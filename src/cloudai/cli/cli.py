@@ -60,6 +60,7 @@ class CloudAICLI:
         handler: Callable[[argparse.Namespace], int],
         system_config: Optional[bool] = None,
         tests_dir: Optional[bool] = None,
+        plugin_dir: Optional[bool] = None,
         test_scenario: Optional[bool] = None,
         output_dir: Optional[bool] = None,
         result_dir: Optional[bool] = None,
@@ -74,6 +75,8 @@ class CloudAICLI:
             p.add_argument(
                 "--tests-dir", help="Path to the test configuration directory.", required=tests_dir, type=Path
             )
+        if plugin_dir is not None:
+            p.add_argument("--plugin-dir", help="Path to the plugin directory.", required=plugin_dir, type=Path)
         if test_scenario is not None:
             p.add_argument("--test-scenario", help="Path to the test scenario file.", required=test_scenario, type=Path)
         if output_dir is not None:
@@ -127,6 +130,7 @@ class CloudAICLI:
                 handle_dry_run_and_run,
                 system_config=True,
                 tests_dir=True,
+                plugin_dir=False,
                 test_scenario=True,
                 output_dir=False,
             )

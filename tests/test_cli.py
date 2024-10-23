@@ -20,8 +20,8 @@ from unittest.mock import patch
 
 import pytest
 
-from cloudai.cli import CloudAICLI, handle_generate_report, handle_install_and_uninstall
-from cloudai.cli.handlers import handle_verify_all_configs
+from cloudai.cli import CloudAICLI
+from cloudai.cli.handlers import handle_generate_report, handle_install_and_uninstall, handle_verify_all_configs
 
 
 def test_help_message(capsys: pytest.CaptureFixture[str]) -> None:
@@ -108,6 +108,7 @@ def test_add_command_all_optional():
         lambda _: 0,
         system_config=False,
         tests_dir=False,
+        plugin_dir=False,
         test_scenario=False,
         output_dir=False,
     )
@@ -118,6 +119,7 @@ def test_add_command_all_optional():
         mode="test",
         system_config=None,
         tests_dir=None,
+        plugin_dir=None,
         test_scenario=None,
         output_dir=None,
     )
@@ -132,6 +134,7 @@ def test_add_command_all_required():
         lambda _: 0,
         system_config=True,
         tests_dir=True,
+        plugin_dir=True,
         test_scenario=True,
         output_dir=True,
     )
@@ -142,6 +145,8 @@ def test_add_command_all_required():
             "system_config",
             "--tests-dir",
             "tests_dir",
+            "--plugin-dir",
+            "plugin_dir",
             "--test-scenario",
             "test_scenario",
             "--output-dir",
@@ -154,9 +159,89 @@ def test_add_command_all_required():
         mode="test",
         system_config=Path("system_config"),
         tests_dir=Path("tests_dir"),
+        plugin_dir=Path("plugin_dir"),
         test_scenario=Path("test_scenario"),
         output_dir=Path("output_dir"),
     )
+
+
+@pytest.mark.parametrize(
+    "mode,args,expected_plugin_dir",
+    [
+        (
+            "run",
+            [
+                "run",
+                "--system-config",
+                "system_config",
+                "--tests-dir",
+                "tests_dir",
+                "--plugin-dir",
+                "plugin_dir",
+                "--test-scenario",
+                "test_scenario",
+            ],
+            Path("plugin_dir"),
+        ),
+        (
+            "run",
+            [
+                "run",
+                "--system-config",
+                "system_config",
+                "--tests-dir",
+                "tests_dir",
+                "--test-scenario",
+                "test_scenario",
+            ],
+            None,
+        ),
+        (
+            "dry-run",
+            [
+                "dry-run",
+                "--system-config",
+                "system_config",
+                "--tests-dir",
+                "tests_dir",
+                "--plugin-dir",
+                "plugin_dir",
+                "--test-scenario",
+                "test_scenario",
+            ],
+            Path("plugin_dir"),
+        ),
+        (
+            "dry-run",
+            [
+                "dry-run",
+                "--system-config",
+                "system_config",
+                "--tests-dir",
+                "tests_dir",
+                "--test-scenario",
+                "test_scenario",
+            ],
+            None,
+        ),
+    ],
+)
+def test_modes_with_or_without_plugin_dir(mode, args, expected_plugin_dir):
+    cli = CloudAICLI()
+
+    cli.add_command(
+        mode,
+        f"{mode} command",
+        lambda _: 0,
+        system_config=True,
+        tests_dir=True,
+        plugin_dir=False,
+        test_scenario=True,
+        output_dir=False,
+    )
+
+    parsed_args = cli.parser.parse_args(args)
+    assert parsed_args.plugin_dir == expected_plugin_dir
 
 
 def test_real_uninstall():
@@ -277,6 +362,8 @@ class TestCLIDefaultModes:
                     "tests_dir",
                     "--test-scenario",
                     "test_scenario",
+                    "--plugin-dir",
+                    "plugin_dir",
                 ]
             )
 
@@ -286,6 +373,7 @@ class TestCLIDefaultModes:
                 mode=mode,
                 system_config=Path("system_config"),
                 tests_dir=Path("tests_dir"),
+                plugin_dir=Path("plugin_dir"),
                 test_scenario=Path("test_scenario"),
                 output_dir=None,
             )
