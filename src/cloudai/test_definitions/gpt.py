@@ -16,7 +16,7 @@
 
 from pydantic import Field
 
-from .jax_toolbox import JaxFdl, JaxToolboxCmdArgs, JaxToolboxTestDefinition, PreTest, SetupFlags, XLAFlags
+from .jax_toolbox import JaxFdl, JaxToolboxCmdArgs, JaxToolboxTestDefinition, SetupFlags, XLAFlags
 
 
 class GPTFdl(JaxFdl):
@@ -43,7 +43,6 @@ class GPTCmdArgs(JaxToolboxCmdArgs):
 
     fdl_config: str
     fdl: GPTFdl = Field(default_factory=GPTFdl)
-    pre_test: PreTest = Field(default_factory=PreTest)
     xla_flags: GPTXLAFlags = Field(default_factory=GPTXLAFlags)
     setup_flags: GPTSetupFlags = Field(default_factory=GPTSetupFlags)
 
@@ -58,7 +57,7 @@ class GPTTestDefinition(JaxToolboxTestDefinition):
         d = self.cmd_args.model_dump()
         res = {}
         for k, v in d.items():
-            if k in {"pre_test", "docker_image_url", "load_container", "output_path"}:
+            if k in {"docker_image_url", "load_container", "output_path"}:
                 res[k] = v
             else:
                 if k == "xla_flags":

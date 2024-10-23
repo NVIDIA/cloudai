@@ -15,7 +15,6 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Any, Dict
 from unittest.mock import MagicMock
 
 import pytest
@@ -25,7 +24,7 @@ from cloudai.schema.test_template.jax_toolbox.template import JaxToolbox
 from cloudai.systems import SlurmSystem
 from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
 from cloudai.test_definitions.grok import GrokCmdArgs, GrokTestDefinition
-from cloudai.test_definitions.jax_toolbox import JaxFdl, PreTest
+from cloudai.test_definitions.jax_toolbox import JaxFdl
 
 
 class TestJaxToolboxSlurmCommandGenStrategy:
@@ -63,7 +62,6 @@ class TestJaxToolboxSlurmCommandGenStrategy:
         test_fixture,
     ) -> None:
         test_def = request.getfixturevalue(test_fixture)
-        test_def.cmd_args.pre_test = PreTest(enable=False)
 
         test = Test(test_definition=test_def, test_template=JaxToolbox(slurm_system, "name"))
         test_run = TestRun(
@@ -138,61 +136,6 @@ class TestJaxToolboxSlurmCommandGenStrategy:
 
         assert "--xla_gpu_enable_while_loop_double_buffering=true" in actual_flags_list
 
-    @pytest.mark.parametrize(
-        "slurm_args, pre_test, expected_result",
-        [
-            (
-                {
-                    "output": "/path/to/output.txt",
-                    "error": "/path/to/error.txt",
-                    "image_path": "fake_image_url",
-                    "container_mounts": "/workspace/traces/:/workspace/traces/",
-                    "container_name": "cont",
-                },
-                PreTest(enable=True),
-                {"pre_test_command": True, "pre_test_check_command": True},
-            ),
-            (
-                {
-                    "output": "/path/to/output.txt",
-                    "error": "/path/to/error.txt",
-                    "image_path": "fake_image_url",
-                    "container_mounts": "/workspace/traces/:/workspace/traces/",
-                    "container_name": "cont",
-                },
-                PreTest(enable=False),
-                {"pre_test_command": False, "pre_test_check_command": False},
-            ),
-        ],
-    )
-    def test__gen_srun_command(
-        self,
-        cmd_gen_strategy: JaxToolboxSlurmCommandGenStrategy,
-        slurm_args: Dict[str, str],
-        pre_test: PreTest,
-        expected_result: Dict[str, Any],
-        gpt_test: GPTTestDefinition,
-    ) -> None:
-        gpt_test.cmd_args.pre_test = pre_test
-        gpt_test.cmd_args.output_path = "/path/to/output"
-        cargs = {"output_path": "/path/to/output", **gpt_test.cmd_args_dict}
-
-        cmd_gen_strategy._create_run_script = MagicMock()
-        cmd_gen_strategy._generate_pre_test_command = MagicMock(return_value="pre_test_command")
-        cmd_gen_strategy._generate_pre_test_check_command = MagicMock(return_value="pre_test_check_command")
-
-        result = cmd_gen_strategy._gen_srun_command(slurm_args, {}, cargs, "")
-
-        if expected_result["pre_test_command"]:
-            assert "pre_test_command" in result
-        else:
-            assert "pre_test_command" not in result
-
-        if expected_result["pre_test_check_command"]:
-            assert "pre_test_check_command" in result
-        else:
-            assert "pre_test_check_command" not in result
-
     @pytest.mark.parametrize("enable_pgle,expected_ncalls", [(True, 2), (False, 1)])
     def test_create_run_script_pgle_control(
         self,
@@ -259,43 +202,6 @@ class TestJaxToolboxSlurmCommandGenStrategy:
             "fi",
         ]
 
-    def test_generate_pre_test_command(
-        self, cmd_gen_strategy: JaxToolboxSlurmCommandGenStrategy, gpt_test: GPTTestDefinition, tmp_path: Path
-    ) -> None:
-        gpt_test.cmd_args.pre_test = PreTest(enable=True)
-        cargs = {"output_path": "/path/to/output", **gpt_test.cmd_args_dict}
-
-        pre_test_cli = cmd_gen_strategy._generate_pre_test_command(cargs, tmp_path, tmp_path).splitlines()
-
-        nccl_test = gpt_test.cmd_args.pre_test.nccl_test
-
-        assert pre_test_cli == [
-            "srun \\",
-            "--mpi=pmix \\",
-            f"-N {nccl_test.num_nodes} \\",
-            f"-o {tmp_path} \\",
-            f"-e {tmp_path} \\",
-            f"--container-image={nccl_test.docker_image_url} \\",
-            f"/usr/local/bin/{nccl_test.subtest_name} \\",
-            f"--nthreads {nccl_test.nthreads} \\",
-            f"--ngpus {nccl_test.ngpus} \\",
-            f"--minbytes {nccl_test.minbytes} \\",
-            f"--maxbytes {nccl_test.maxbytes} \\",
-            f"--stepbytes {nccl_test.stepbytes} \\",
-            f"--op {nccl_test.op} \\",
-            f"--datatype {nccl_test.datatype} \\",
-            f"--root {nccl_test.root} \\",
-            f"--iters {nccl_test.iters} \\",
-            f"--warmup_iters {nccl_test.warmup_iters} \\",
-            f"--agg_iters {nccl_test.agg_iters} \\",
-            f"--average {nccl_test.average} \\",
-            f"--parallel_init {nccl_test.parallel_init} \\",
-            f"--check {nccl_test.check} \\",
-            f"--blocking {nccl_test.blocking} \\",
-            f"--cudagraph {nccl_test.cudagraph} \\",
-            f"--stepfactor {nccl_test.stepfactor}",
-        ]
-
 
 def test_gpt_test_definition_cmd_args_dict():
     gpt = GPTTestDefinition(
@@ -311,7 +217,7 @@ def test_gpt_test_definition_cmd_args_dict():
     assert "GPT.setup_flags" in cargs
     assert "GPT.XLA_FLAGS" in cargs
 
-    for k in {"pre_test", "docker_image_url", "load_container"}:
+    for k in {"docker_image_url", "load_container"}:
         assert k in cargs
         assert f"GPT.{k}" not in cargs
 
@@ -335,7 +241,7 @@ def test_grok_test_definition_cmd_args_dict():
     assert "Grok.perf" in cargs
     assert "XLA_FLAGS" in cargs["Grok.perf"]
 
-    for k in {"pre_test", "docker_image_url", "load_container"}:
+    for k in {"docker_image_url", "load_container"}:
         assert k in cargs
         assert f"Grok.{k}" not in cargs
 
