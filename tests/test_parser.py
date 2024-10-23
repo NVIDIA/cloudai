@@ -44,11 +44,8 @@ class Test_Parser:
             fake_tests.append(Mock())
             fake_tests[-1].name = f"test-{i}"
         test_parser.return_value = fake_tests
-        fake_scenario = Mock()
-        fake_scenario.tests = [Mock()]
-        fake_scenario.tests[0].name = "test-1"
         _, tests, _ = parser.parse(tests_dir, None)
-        assert len(tests) == 3
+        assert len(tests) == 0
 
     @patch("cloudai._core.test_parser.TestParser.parse_all")
     @patch("cloudai._core.test_scenario_parser.TestScenarioParser.parse")

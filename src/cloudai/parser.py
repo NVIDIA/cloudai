@@ -83,6 +83,8 @@ class Parser:
                 exit(1)  # exit right away to keep error message readable for users
             scenario_tests = set(tr.test.name for tr in test_scenario.test_runs)
             filtered_tests = [t for t in tests if t.name in scenario_tests]
+        else:
+            filtered_tests = []
 
         return system, filtered_tests, test_scenario
 
