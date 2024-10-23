@@ -18,7 +18,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-from cloudai import CommandGenStrategy, TestRun
+from cloudai import CommandGenStrategy, TestRun, TestScenario
 from cloudai.systems import SlurmSystem
 from cloudai.util.docker_image_cache_manager import DockerImageCacheManager
 
@@ -63,8 +63,22 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         slurm_args = self._parse_slurm_args(
             tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr.num_nodes, tr.nodes
         )
+
+        prologue_command = self.gen_prologue(tr.prologue, tr.output_path) if tr.prologue else ""
         srun_command = self._gen_srun_command(slurm_args, env_vars, cmd_args, tr.test.extra_cmd_args)
-        return self._write_sbatch_script(slurm_args, env_vars, srun_command, tr.output_path)
+        epilogue_command = self.gen_epilogue(tr.epilogue, tr.output_path) if tr.epilogue else ""
+
+        full_command = "\n".join([prologue_command, srun_command, epilogue_command]).strip()
+
+        return self._write_sbatch_script(slurm_args, env_vars, full_command, tr.output_path)
+
+    def gen_srun_command(self, tr: TestRun) -> str:
+        env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
+        cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
+        slurm_args = self._parse_slurm_args(
+            tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr.num_nodes, tr.nodes
+        )
+        return self._gen_srun_command(slurm_args, env_vars, cmd_args, tr.test.extra_cmd_args)
 
     def _parse_slurm_args(
         self,
@@ -111,6 +125,60 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         if self.system.account:
             job_name = f"{self.system.account}-{job_name_prefix}.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         return job_name
+
+    def gen_prologue(self, prologue: TestScenario, base_output_path: Path) -> str:
+        """
+        Generate the prologue command by running all tests defined in the prologue test scenario.
+
+        Args:
+            prologue (TestScenario): The prologue test scenario containing the tests to be run.
+            base_output_path (Path): The base output directory path for storing prologue outputs.
+
+        Returns:
+            str: A string with all the Slurm srun commands generated for the prologue.
+        """
+        if not prologue.test_runs:
+            return ""
+
+        prologue_output_dir = base_output_path / "prologue"
+        prologue_output_dir.mkdir(parents=True, exist_ok=True)
+
+        srun_commands = []
+        for tr in prologue.test_runs:
+            plugin_dir = prologue_output_dir / tr.test.name
+            plugin_dir.mkdir(parents=True, exist_ok=True)
+            tr.output_path = plugin_dir
+
+            srun_commands.append(tr.test.test_template.gen_srun_command(tr))
+
+        return "\n".join(srun_commands)
+
+    def gen_epilogue(self, epilogue: TestScenario, base_output_path: Path) -> str:
+        """
+        Generate the epilogue command by running all tests defined in the epilogue test scenario.
+
+        Args:
+            epilogue (TestScenario): The epilogue test scenario containing the tests to be run.
+            base_output_path (Path): The base output directory path for storing epilogue outputs.
+
+        Returns:
+            str: A string with all the Slurm srun commands generated for the epilogue.
+        """
+        if not epilogue.test_runs:
+            return ""
+
+        epilogue_output_dir = base_output_path / "epilogue"
+        epilogue_output_dir.mkdir(parents=True, exist_ok=True)
+
+        srun_commands = []
+        for tr in epilogue.test_runs:
+            plugin_dir = epilogue_output_dir / tr.test.name
+            plugin_dir.mkdir(parents=True, exist_ok=True)
+            tr.output_path = plugin_dir
+
+            srun_commands.append(tr.test.test_template.gen_srun_command(tr))
+
+        return "\n".join(srun_commands)
 
     def _gen_srun_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str

@@ -39,3 +39,16 @@ class CommandGenStrategy(TestTemplateStrategy):
             str: The generated execution command.
         """
         pass
+
+    @abstractmethod
+    def gen_srun_command(self, tr: TestRun) -> str:
+        """
+        Generate the Slurm srun command for a test based on the given parameters.
+
+        Args:
+            tr (TestRun): Contains the test and its run-specific configurations.
+
+        Returns:
+            str: The generated Slurm srun command.
+        """
+        pass
