@@ -25,9 +25,12 @@ import pytest
 from cloudai import BaseInstaller, InstallStatusResult, NcclTest, Test, TestRun, TestTemplate, UCCTest
 from cloudai.cli import handle_dry_run_and_run, identify_unique_test_templates, setup_logging
 from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
+from cloudai.schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
+from cloudai.schema.test_template.sleep.template import Sleep
 from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem, StandaloneSystem
 from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
+from cloudai.test_definitions.sleep import SleepCmdArgs, SleepTestDefinition
 from cloudai.test_definitions.ucc import UCCCmdArgs, UCCTestDefinition
 
 SLURM_TEST_SCENARIOS = [
@@ -221,7 +224,7 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
     return partial(TestRun, num_nodes=1, nodes=[], output_path=slurm_system.output_path)
 
 
-@pytest.fixture(params=["ucc", "nccl"])
+@pytest.fixture(params=["ucc", "nccl", "sleep"])
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> tuple[TestRun, str]:
     if request.param == "ucc":
         tr = partial_tr(
@@ -255,6 +258,22 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
 
         return (tr, "nccl.sbatch")
+    elif request.param == "sleep":
+        tr = partial_tr(
+            name="sleep",
+            test=Test(
+                test_definition=SleepTestDefinition(
+                    name="sleep", description="sleep", test_template_name="sleep", cmd_args=SleepCmdArgs()
+                ),
+                test_template=Sleep(slurm_system, name="sleep"),
+            ),
+        )
+        tr.test.test_template.command_gen_strategy = SleepSlurmCommandGenStrategy(
+            slurm_system, tr.test.test_definition.cmd_args_dict
+        )
+        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+
+        return (tr, "sleep.sbatch")
 
     raise ValueError(f"Unknown test: {request.param}")
 
