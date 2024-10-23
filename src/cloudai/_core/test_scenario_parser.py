@@ -101,9 +101,10 @@ class TestScenarioParser:
 
     __test__ = False
 
-    def __init__(self, file_path: Path, test_mapping: Dict[str, Test]) -> None:
+    def __init__(self, file_path: Path, test_mapping: Dict[str, Test], plugin_mapping: Dict[str, TestScenario]) -> None:
         self.file_path = file_path
         self.test_mapping = test_mapping
+        self.plugin_mapping = plugin_mapping
 
     def parse(self) -> TestScenario:
         """
@@ -138,8 +139,14 @@ class TestScenarioParser:
         total_weight = sum(tr.weight for tr in ts_model.tests)
         normalized_weight = 0 if total_weight == 0 else 100 / total_weight
 
+        prologue_name = data.get("prologue", "")
+        epilogue_name = data.get("epilogue", "")
+
+        prologue = self.plugin_mapping.get(prologue_name, None) if prologue_name else None
+        epilogue = self.plugin_mapping.get(epilogue_name, None) if epilogue_name else None
+
         testruns_by_id: dict[str, TestRun] = {
-            tr.id: self._create_section_test_run(tr, normalized_weight) for tr in ts_model.tests
+            tr.id: self._create_section_test_run(tr, normalized_weight, prologue, epilogue) for tr in ts_model.tests
         }
 
         tests_data: dict[str, _TestRunTOML] = {tr.id: tr for tr in ts_model.tests}
@@ -155,13 +162,21 @@ class TestScenarioParser:
             job_status_check=ts_model.job_status_check,
         )
 
-    def _create_section_test_run(self, test_info: _TestRunTOML, normalized_weight: float) -> TestRun:
+    def _create_section_test_run(
+        self,
+        test_info: _TestRunTOML,
+        normalized_weight: float,
+        prologue: Optional[TestScenario],
+        epilogue: Optional[TestScenario],
+    ) -> TestRun:
         """
         Create a section-specific Test object by copying from the test mapping.
 
         Args:
             test_info (Dict[str, Any]): Information of the test.
             normalized_weight (float): Normalized weight for the test.
+            prologue (Optional[TestScenario]): TestScenario object representing the prologue sequence.
+            epilogue (Optional[TestScenario]): TestScenario object representing the epilogue sequence.
 
         Returns:
             Test: Copied and updated Test object for the section.
@@ -194,5 +209,7 @@ class TestScenarioParser:
             sol=test_info.sol,
             weight=test_info.weight * normalized_weight,
             ideal_perf=test_info.ideal_perf,
+            prologue=prologue if prologue is not None else TestScenario(name="default_prologue", test_runs=[]),
+            epilogue=epilogue if epilogue is not None else TestScenario(name="default_epilogue", test_runs=[]),
         )
         return tr

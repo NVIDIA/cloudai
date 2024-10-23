@@ -16,7 +16,7 @@
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import toml
 from pydantic import ValidationError
@@ -49,7 +49,7 @@ class Parser:
         self.system_config_path = system_config_path
 
     def parse(
-        self, test_path: Path, test_scenario_path: Optional[Path] = None
+        self, test_path: Path, test_scenario_path: Optional[Path] = None, plugin_path: Optional[Path] = None
     ) -> Tuple[System, List[Test], Optional[TestScenario]]:
         """
         Parse configurations for system, test templates, and test scenarios.
@@ -74,21 +74,50 @@ class Parser:
         logging.debug(f"Parsed {len(tests)} tests: {[t.name for t in tests]}")
         test_mapping = {t.name: t for t in tests}
 
-        filtered_tests = tests
         test_scenario: Optional[TestScenario] = None
+        scenario_test_names: Set[str] = set()
         if test_scenario_path:
+            plugin_mapping: Dict[str, TestScenario] = {}
+            plugin_test_names: Set[str] = set()
+            if plugin_path and plugin_path.exists():
+                try:
+                    plugin_mapping = self.parse_plugins(list(plugin_path.glob("*.toml")), test_mapping)
+                    for plugin_scenario in plugin_mapping.values():
+                        plugin_test_names.update(tr.test.name for tr in plugin_scenario.test_runs)
+                except TestScenarioParsingError:
+                    exit(1)
+
             try:
-                test_scenario = self.parse_test_scenario(test_scenario_path, test_mapping)
+                test_scenario = self.parse_test_scenario(test_scenario_path, test_mapping, plugin_mapping)
+                scenario_test_names = set(tr.test.name for tr in test_scenario.test_runs)
             except TestScenarioParsingError:
-                exit(1)  # exit right away to keep error message readable for users
-            scenario_tests = set(tr.test.name for tr in test_scenario.test_runs)
-            filtered_tests = [t for t in tests if t.name in scenario_tests]
+                exit(1)
+
+            all_used_test_names = plugin_test_names.union(scenario_test_names)
+            filtered_tests = [t for t in tests if t.name in all_used_test_names]
+        else:
+            filtered_tests = tests
 
         return system, filtered_tests, test_scenario
 
     @staticmethod
-    def parse_test_scenario(test_scenario_path: Path, test_mapping: Dict[str, Test]) -> TestScenario:
-        test_scenario_parser = TestScenarioParser(test_scenario_path, test_mapping)
+    def parse_plugins(plugin_tomls: List[Path], test_mapping: Dict[str, Test]) -> Dict[str, TestScenario]:
+        plugin_mapping = {}
+        for plugin_path in plugin_tomls:
+            plugin_scenario = Parser.parse_test_scenario(plugin_path, test_mapping)
+            plugin_mapping[plugin_scenario.name] = plugin_scenario
+        return plugin_mapping
+
+    @staticmethod
+    def parse_test_scenario(
+        test_scenario_path: Path,
+        test_mapping: Dict[str, Test],
+        plugin_mapping: Optional[Dict[str, TestScenario]] = None,
+    ) -> TestScenario:
+        if plugin_mapping is None:
+            plugin_mapping = {}
+
+        test_scenario_parser = TestScenarioParser(test_scenario_path, test_mapping, plugin_mapping)
         test_scenario = test_scenario_parser.parse()
         return test_scenario
 
