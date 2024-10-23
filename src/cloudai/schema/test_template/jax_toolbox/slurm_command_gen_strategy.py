@@ -158,24 +158,10 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self._create_run_script(env_vars, cmd_args, extra_cmd_args)
 
         commands = []
-
-        run_pre_test = cmd_args.get("pre_test.enable", False)
-
-        if run_pre_test:
-            output_path = Path(cmd_args["output_path"]).resolve() / "output_pretest-%j-%n-%t.txt"
-            error_path = Path(cmd_args["output_path"]).resolve() / "error_pretest-%j-%n-%t.txt"
-            commands.append(self._generate_pre_test_command(cmd_args, output_path, error_path))
-            commands.append(self._generate_pre_test_check_command(cmd_args, output_path))
-            commands.append('if [ "$PRE_TEST_SUCCESS" = true ]; then')
-
         load_container = cmd_args.get("load_container", False)
         if load_container:
             commands += self._generate_container_load_command(slurm_args)
-
         commands += self._generate_run_command(slurm_args)
-
-        if run_pre_test:
-            commands.append("fi")
 
         return "\n".join(commands)
 
@@ -345,85 +331,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return "\n".join(
             ["", 'if [ "$SLURM_NODEID" -eq 0 ] && [ "$SLURM_PROCID" -eq 0 ]; then', f"    {command}", "fi"]
-        )
-
-    def _generate_pre_test_command(self, cmd_args: Dict[str, Any], output_path: Path, error_path: Path) -> str:
-        """
-        Generate the pre-test command for running a test.
-
-        This method constructs the pre-test command based on the command-line
-        arguments provided.
-
-        Args:
-            cmd_args (Dict[str, Any]): A dictionary containing command arguments.
-            output_path (Path): The path to the output file.
-            error_path (Path): The path to the error file.
-
-        Returns:
-            str: The generated pre-test command.
-        """
-        nccl_test_prefix = "pre_test.nccl_test."
-        nccl_test = {}
-
-        for key, value in cmd_args.items():
-            if key.startswith(nccl_test_prefix):
-                flag_name = key[len(nccl_test_prefix) :]
-                nccl_test[flag_name] = value
-        pre_test_command_parts = [
-            "srun",
-            "--mpi=pmix",
-            f"-N {nccl_test.get('num_nodes', 2)}",
-            f"-o {output_path}",
-            f"-e {error_path}",
-            f"--container-image={nccl_test.get('docker_image_url', 'nvcr.io/nvidia/pytorch:24.02-py3')}",
-            f"/usr/local/bin/{nccl_test.get('subtest_name', 'all_gather_perf_mpi')}",
-            f"--nthreads {nccl_test.get('nthreads', 1)}",
-            f"--ngpus {nccl_test.get('ngpus', 1)}",
-            f"--minbytes {nccl_test.get('minbytes', '32M')}",
-            f"--maxbytes {nccl_test.get('maxbytes', '16G')}",
-            f"--stepbytes {nccl_test.get('stepbytes', '1M')}",
-            f"--op {nccl_test.get('op', 'sum')}",
-            f"--datatype {nccl_test.get('datatype', 'float')}",
-            f"--root {nccl_test.get('root', 0)}",
-            f"--iters {nccl_test.get('iters', 20)}",
-            f"--warmup_iters {nccl_test.get('warmup_iters', 5)}",
-            f"--agg_iters {nccl_test.get('agg_iters', 1)}",
-            f"--average {nccl_test.get('average', 1)}",
-            f"--parallel_init {nccl_test.get('parallel_init', 0)}",
-            f"--check {nccl_test.get('check', 1)}",
-            f"--blocking {nccl_test.get('blocking', 0)}",
-            f"--cudagraph {nccl_test.get('cudagraph', 0)}",
-            f"--stepfactor {nccl_test.get('stepfactor', 2)}",
-        ]
-        return " \\\n".join(pre_test_command_parts)
-
-    def _generate_pre_test_check_command(self, cmd_args: Dict[str, str], output_path: Path) -> str:
-        """
-        Generate the command for pre-test check.
-
-        This method generates the command that checks the output of the pre-test to determine if the main test should
-        be run.
-
-        Args:
-            cmd_args (Dict[str, str]): Command-line arguments for the job.
-            output_path (str): The path to the output file.
-
-        Returns:
-            str: The generated command for pre-test check.
-        """
-        pretest_output_files = str(Path(output_path).parent / "output_pretest-*.txt")
-        keyword = cmd_args.get("keyword", "Avg bus bandwidth")
-
-        return "\n".join(
-            [
-                f'PRETEST_OUTPUT_FILES="{pretest_output_files}"',
-                f'keyword="{keyword}"',
-                "",
-                "# Use grep to search for the keyword in the files",
-                'if grep -q "$keyword" $PRETEST_OUTPUT_FILES; then',
-                "    PRE_TEST_SUCCESS=true",
-                "fi",
-            ]
         )
 
     def _generate_container_load_command(self, slurm_args: Dict[str, Any]) -> List[str]:
