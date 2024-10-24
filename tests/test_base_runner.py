@@ -16,6 +16,7 @@
 
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 from dataclasses import fields
 from functools import partial
 from pathlib import Path
@@ -74,7 +75,22 @@ class Runner(ABC):
     def kill_one(self, tr: TestRun) -> None: ...
 
 
-class StaticScenarioIter:
+class ScenarioIter(ABC, Iterator):
+    @property
+    @abstractmethod
+    def has_more_runs(self) -> bool: ...
+
+    @abstractmethod
+    def __iter__(self) -> Iterator: ...
+
+    @abstractmethod
+    def __next__(self) -> TestRun: ...
+
+    @abstractmethod
+    def on_completed(self, tr: TestRun, runner: Runner) -> None: ...
+
+
+class StaticScenarioIter(ScenarioIter):
     def __init__(self, test_scenario: TestScenario) -> None:
         self.test_scenario = test_scenario
         self.ready_for_run: list[TestRun] = []
@@ -90,7 +106,7 @@ class StaticScenarioIter:
     def has_more_runs(self) -> bool:
         return len(self.submitted) < len(self.test_runs)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator:
         not_submitted = [tr for tr in self.test_runs if tr.name not in self.submitted]
         for tr in not_submitted:
             if not tr.dependencies:
@@ -127,7 +143,7 @@ class StaticScenarioIter:
 
 
 class MyRunner(Runner):
-    def __init__(self, mode: str, system: MySystem, test_scenario_iter: StaticScenarioIter):
+    def __init__(self, mode: str, system: MySystem, test_scenario_iter: ScenarioIter):
         self.mode = mode
         self.system = system
         self.test_scenario_iter = test_scenario_iter
