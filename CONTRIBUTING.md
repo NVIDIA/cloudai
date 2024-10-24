@@ -24,7 +24,7 @@ Adhering to coding standards is crucial for maintaining the quality of the Cloud
   - Aim for multiple small commits rather than a large one for easier code reviews and rebasing.
 
 - **Linting and Testing:**
-  - Ensure your code passes all linters set up in `.gitlab-ci.yml`, including flake8, black, and isort. Linters run automatically when you push changes to the remote repository, but you can also run them locally.
+  - Ensure your code passes all linters set up in `.github/workflows/ci.yml`, including flake8, black, and isort. Linters run automatically when you push changes to the remote repository, but you can also run them locally.
   - Whenever you create a new Python file under the cloudai directory, you must create a mirror of the file in the tests directory with the prefix `test_`. Otherwise, linting will fail.
 
 - **Signing Your Work:**
@@ -64,9 +64,9 @@ Adhering to coding standards is crucial for maintaining the quality of the Cloud
     (d) I understand and agree that this project and the contribution are public and that a record of the contribution (including all personal information I submit with it, including my sign-off) is maintained indefinitely and may be redistributed consistent with this project or the open source license(s) involved.
   ```
 
-### Merge Request (MR) Creation
-- Create a merge request on GitLab for your changes. If your code has not been tested, mark the MR as a draft.
-- Follow the merge request template, which includes fields for summary and test plan. Ensure your MR has a readable and understandable subject, avoiding generic titles like "bugfix" or "feature1."
+### Pull Request (PR) Creation
+- Create a pull request on GitHub for your changes. If your code has not been tested, mark the PR as a draft.
+- Follow the pull request template, which includes fields for summary and test plan. Ensure your PR has a readable and understandable subject, avoiding generic titles like "bugfix" or "feature1."
 - Use bullet points in the summary to clearly outline your contributions. In the test plan section, detail the experiments and commands run, attaching stdout of your command to demonstrate the effectiveness of your code and to help other contributors understand how to validate and run your code.
 - Contributors are responsible for rebasing their branch if the main branch has been updated while they are working on their branch.
 - Ensure that all pipeline stages pass without any error. In case of failure, check the pipeline stage output and update your code accordingly.
