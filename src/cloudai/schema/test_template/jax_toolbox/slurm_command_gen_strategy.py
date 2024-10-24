@@ -99,7 +99,14 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD",
             "--xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD",
         ]
-        args: dict[str, str] = cmd_args.get(f"{self.test_name}.{stage}", {}).get("XLA_FLAGS", {})
+
+        prefix = f"{self.test_name}.{stage}.XLA_FLAGS"
+        args = {}
+
+        for key, value in cmd_args.items():
+            if key.startswith(prefix):
+                flag_name = key[len(prefix) + 1 :]
+                args[flag_name] = value
 
         for flag_name, value in args.items():
             if not flag_name.startswith("xla_"):
@@ -152,7 +159,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         commands = []
 
-        run_pre_test = cmd_args.get("pre_test", {}).get("enable", False)
+        run_pre_test = cmd_args.get("pre_test.enable", False)
+
         if run_pre_test:
             output_path = Path(cmd_args["output_path"]).resolve() / "output_pretest-%j-%n-%t.txt"
             error_path = Path(cmd_args["output_path"]).resolve() / "error_pretest-%j-%n-%t.txt"
@@ -354,7 +362,13 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         Returns:
             str: The generated pre-test command.
         """
-        nccl_test = cmd_args.get("pre_test", {}).get("nccl_test", {})
+        nccl_test_prefix = "pre_test.nccl_test."
+        nccl_test = {}
+
+        for key, value in cmd_args.items():
+            if key.startswith(nccl_test_prefix):
+                flag_name = key[len(nccl_test_prefix) :]
+                nccl_test[flag_name] = value
         pre_test_command_parts = [
             "srun",
             "--mpi=pmix",

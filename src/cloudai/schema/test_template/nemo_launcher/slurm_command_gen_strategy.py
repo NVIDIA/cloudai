@@ -193,7 +193,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         if nodes:
             nodes_str = ",".join(nodes)
-            cmd_arg_str_parts.append(f"+cluster.nodelist=\\'{nodes_str}\\'\n")
+            cmd_arg_str_parts.append(f"+cluster.nodelist=\\'{nodes_str}\\'")
 
         return " ".join(cmd_arg_str_parts + env_var_str_parts)
 

@@ -17,113 +17,13 @@
 from pathlib import Path
 
 from cloudai.schema.test_template.jax_toolbox.job_status_retrieval_strategy import JaxToolboxJobStatusRetrievalStrategy
-from cloudai.schema.test_template.nccl_test.job_status_retrieval_strategy import NcclTestJobStatusRetrievalStrategy
-
-
-class TestNcclTestJobStatusRetrievalStrategy:
-    """Tests for the NcclTestJobStatusRetrievalStrategy class."""
-
-    def setup_method(self) -> None:
-        """Setup method for initializing NcclTestJobStatusRetrievalStrategy."""
-        self.js = NcclTestJobStatusRetrievalStrategy()
-
-    def test_no_stdout_file(self, tmp_path: Path) -> None:
-        """Test that job status is False when no stdout.txt file is present."""
-        result = self.js.get_job_status(tmp_path)
-        assert not result.is_successful
-        assert result.error_message == (
-            f"stdout.txt file not found in the specified output directory {tmp_path}. "
-            "This file is expected to be created as a result of the NCCL test run. "
-            "Please ensure the NCCL test was executed properly and that stdout.txt is generated. "
-            "You can run the generated NCCL test command manually and verify the creation of "
-            f"{tmp_path / 'stdout.txt'}. If the issue persists, contact the system administrator."
-        )
-
-    def test_successful_job(self, tmp_path: Path) -> None:
-        """Test that job status is True when stdout.txt contains success indicators."""
-        stdout_file = tmp_path / "stdout.txt"
-        stdout_content = """
-        # Some initialization output
-        # More output
-        # Out of bounds values : 0 OK
-        # Avg bus bandwidth    : 100.00
-        # Some final output
-        """
-        stdout_file.write_text(stdout_content)
-        result = self.js.get_job_status(tmp_path)
-        assert result.is_successful
-        assert result.error_message == ""
-
-    def test_failed_job(self, tmp_path: Path) -> None:
-        """Test that job status is False when stdout.txt does not contain success indicators."""
-        stdout_file = tmp_path / "stdout.txt"
-        stdout_content = """
-        # Some initialization output
-        # More output
-        # Some final output without success indicators
-        """
-        stdout_file.write_text(stdout_content)
-        result = self.js.get_job_status(tmp_path)
-        assert not result.is_successful
-        assert result.error_message == (
-            f"Missing success indicators in {stdout_file}: '# Out of bounds values', '# Avg bus bandwidth'. "
-            "These keywords are expected to be present in stdout.txt, usually towards the end of the file. "
-            f"Please review the NCCL test output and errors in the file. "
-            "Ensure the NCCL test ran to completion. You can run the generated sbatch script manually "
-            f"and check if {stdout_file} is created and contains the expected keywords. "
-            "If the issue persists, contact the system administrator."
-        )
-
-    def test_nccl_failure_job(self, tmp_path: Path) -> None:
-        """Test that job status is False when stdout.txt contains NCCL failure indicators."""
-        stdout_file = tmp_path / "stdout.txt"
-        stdout_content = """
-        # Some initialization output
-        node: Test NCCL failure common.cu:303 'remote process exited or there was a network error / '
-        .. node pid: Test failure common.cu:401
-        .. node pid: Test failure common.cu:588
-        .. node pid: Test failure alltoall.cu:97
-        .. node pid: Test failure common.cu:615
-        .. node pid: Test failure common.cu:1019
-        .. node pid: Test failure common.cu:844
-        """
-        stdout_file.write_text(stdout_content)
-        result = self.js.get_job_status(tmp_path)
-        assert not result.is_successful
-        assert result.error_message == (
-            f"NCCL test failure detected in {stdout_file}. "
-            "Possible reasons include network errors or remote process exits. "
-            "Please review the NCCL test output and errors in the file first. "
-            "If the issue persists, contact the system administrator."
-        )
-
-    def test_generic_test_failure_job(self, tmp_path: Path) -> None:
-        """Test that job status is False when stdout.txt contains generic test failure indicators."""
-        stdout_file = tmp_path / "stdout.txt"
-        stdout_content = """
-        # Some initialization output
-        .. node pid: Test failure common.cu:401
-        """
-        stdout_file.write_text(stdout_content)
-        result = self.js.get_job_status(tmp_path)
-        assert not result.is_successful
-        assert result.error_message == (
-            f"Test failure detected in {stdout_file}. "
-            "Please review the specific test failure messages in the file. "
-            "Ensure that the NCCL test environment is correctly set up and configured. "
-            "If the issue persists, contact the system administrator."
-        )
 
 
 class TestJaxToolboxJobStatusRetrievalStrategy:
-    """Tests for the JaxToolboxJobStatusRetrievalStrategy class."""
-
     def setup_method(self) -> None:
-        """Setup method for initializing JaxToolboxJobStatusRetrievalStrategy."""
         self.js = JaxToolboxJobStatusRetrievalStrategy()
 
     def test_no_profile_stderr_file(self, tmp_path: Path) -> None:
-        """Test that job status is False when no profile_stderr.txt file is present."""
         result = self.js.get_job_status(tmp_path)
         assert not result.is_successful
         assert result.error_message == (
@@ -134,7 +34,6 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         )
 
     def test_missing_pax_status_keyword(self, tmp_path: Path) -> None:
-        """Test that job status is False when profile_stderr_*.txt does not contain the PAX STATUS keyword."""
         profile_stderr_file = tmp_path / "profile_stderr_1.txt"
         profile_stderr_content = "Some initialization output\nMore output\nFinal output without the expected keyword"
         profile_stderr_file.write_text(profile_stderr_content)
@@ -149,7 +48,6 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         )
 
     def test_no_error_files(self, tmp_path: Path) -> None:
-        """Test that job status is False when no error-*.txt files are present."""
         profile_stderr_file = tmp_path / "profile_stderr.txt"
         profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling"
         profile_stderr_file.write_text(profile_stderr_content)
@@ -163,7 +61,6 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         )
 
     def test_cuda_no_device_error_in_profile_stderr(self, tmp_path: Path) -> None:
-        """Test that job status is False when profile_stderr.txt contains CUDA_ERROR_NO_DEVICE."""
         profile_stderr_file = tmp_path / "profile_stderr_1.txt"
         profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling\n"
         profile_stderr_content += "CUDA_ERROR_NO_DEVICE: no CUDA-capable device is detected"
@@ -182,7 +79,6 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         )
 
     def test_missing_e2e_time_keyword(self, tmp_path: Path) -> None:
-        """Test that job status is False when error-*.txt files do not contain the E2E time keyword."""
         profile_stderr_file = tmp_path / "profile_stderr_1.txt"
         profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling"
         profile_stderr_file.write_text(profile_stderr_content)
@@ -200,7 +96,6 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         )
 
     def test_cuda_no_device_error_in_error_file(self, tmp_path: Path) -> None:
-        """Test that job status is False when error-*.txt contains CUDA_ERROR_NO_DEVICE."""
         profile_stderr_file = tmp_path / "profile_stderr_1.txt"
         profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling"
         profile_stderr_file.write_text(profile_stderr_content)
@@ -222,7 +117,6 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         )
 
     def test_successful_job(self, tmp_path: Path) -> None:
-        """Test that job status is True when profile_stderr.txt and error-*.txt files contain success indicators."""
         profile_stderr_file = tmp_path / "profile_stderr_1.txt"
         profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling"
         profile_stderr_file.write_text(profile_stderr_content)
@@ -236,7 +130,6 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         assert result.error_message == ""
 
     def test_nccl_group_end_error_in_profile_stderr(self, tmp_path: Path) -> None:
-        """Test that job status is False when profile_stderr.txt contains NCCL operation ncclGroupEnd() failed."""
         profile_stderr_file = tmp_path / "profile_stderr_1.txt"
         profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling\n"
         profile_stderr_content += "NCCL operation ncclGroupEnd() failed: unhandled system error"
@@ -250,7 +143,6 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         )
 
     def test_nccl_group_end_error_in_error_file(self, tmp_path: Path) -> None:
-        """Test that job status is False when error-*.txt contains NCCL operation ncclGroupEnd() failed."""
         profile_stderr_file = tmp_path / "profile_stderr_1.txt"
         profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling"
         profile_stderr_file.write_text(profile_stderr_content)
@@ -267,7 +159,6 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         )
 
     def test_heartbeat_error_in_profile_stderr(self, tmp_path: Path) -> None:
-        """Test that job status is False when profile_stderr.txt contains coordinator detected missing heartbeats."""
         profile_stderr_file = tmp_path / "profile_stderr_1.txt"
         profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling\n"
         profile_stderr_content += "Terminating process because the coordinator detected missing heartbeats"
@@ -283,7 +174,6 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         )
 
     def test_heartbeat_error_in_error_file(self, tmp_path: Path) -> None:
-        """Test that job status is False when error-*.txt contains coordinator detected missing heartbeats."""
         profile_stderr_file = tmp_path / "profile_stderr_1.txt"
         profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling"
         profile_stderr_file.write_text(profile_stderr_content)
@@ -302,7 +192,6 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         )
 
     def test_pyxis_mktemp_error_in_profile_stderr(self, tmp_path: Path) -> None:
-        """Test that job status is False when profile_stderr.txt contains pyxis and mktemp error."""
         profile_stderr_file = tmp_path / "profile_stderr_1.txt"
         profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling\n"
         profile_stderr_content += (
@@ -322,7 +211,6 @@ class TestJaxToolboxJobStatusRetrievalStrategy:
         )
 
     def test_pyxis_mktemp_error_in_error_file(self, tmp_path: Path) -> None:
-        """Test that job status is False when error-*.txt contains pyxis and mktemp error."""
         profile_stderr_file = tmp_path / "profile_stderr_1.txt"
         profile_stderr_content = "[PAX STATUS]: E2E time: Elapsed time for profiling"
         profile_stderr_file.write_text(profile_stderr_content)
