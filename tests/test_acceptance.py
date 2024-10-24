@@ -32,6 +32,7 @@ from cloudai.schema.test_template.sleep.template import Sleep
 from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem, StandaloneSystem
 from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
+from cloudai.test_definitions.grok import GrokCmdArgs, GrokTestDefinition
 from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.test_definitions.sleep import SleepCmdArgs, SleepTestDefinition
 from cloudai.test_definitions.ucc import UCCCmdArgs, UCCTestDefinition
@@ -227,7 +228,7 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
     return partial(TestRun, num_nodes=1, nodes=[], output_path=slurm_system.output_path)
 
 
-@pytest.fixture(params=["ucc", "nccl", "sleep", "gpt-pretest", "gpt-no-pretest"])
+@pytest.fixture(params=["ucc", "nccl", "sleep", "gpt-pretest", "gpt-no-pretest", "grok-pretest", "grok-no-pretest"])
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> tuple[TestRun, str, Optional[str]]:
     if request.param == "ucc":
         tr = partial_tr(
@@ -301,6 +302,30 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             tr.test.test_definition.cmd_args.pre_test.enable = True
 
         return (tr, f"{request.param}.sbatch", "gpt.run")
+    elif request.param.startswith("grok-"):
+        tr = partial_tr(
+            name="grok",
+            test=Test(
+                test_definition=GrokTestDefinition(
+                    name="grok",
+                    description="grok",
+                    test_template_name="grok",
+                    cmd_args=GrokCmdArgs(fdl_config="fdl/config", docker_image_url="https://docker/url"),
+                    extra_env_vars={"COMBINE_THRESHOLD": "1"},
+                ),
+                test_template=JaxToolbox(slurm_system, name="grok"),
+            ),
+        )
+        tr.test.test_template.command_gen_strategy = JaxToolboxSlurmCommandGenStrategy(
+            slurm_system, tr.test.test_definition.cmd_args_dict
+        )
+        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+        if "no-pretest" in request.param:
+            tr.test.test_definition.cmd_args.pre_test.enable = False
+        else:
+            tr.test.test_definition.cmd_args.pre_test.enable = True
+
+        return (tr, f"{request.param}.sbatch", "grok.run")
 
     raise ValueError(f"Unknown test: {request.param}")
 
