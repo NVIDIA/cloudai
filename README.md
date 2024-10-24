@@ -20,7 +20,7 @@ These schemas enable CloudAI to be flexible and compatible with different system
 |---|---|---|---|
 |ChakraReplay|✅|❌|❌|
 |GPT|✅|❌|❌|
-|Grook|✅|❌|❌|
+|Grok|✅|❌|❌|
 |NCCL|✅|✅|❌|
 |NeMo Launcher|✅|❌|❌|
 |Nemotron|✅|❌|❌|

@@ -88,7 +88,7 @@ class Parser:
 
     @staticmethod
     def parse_test_scenario(test_scenario_path: Path, test_mapping: Dict[str, Test]) -> TestScenario:
-        test_scenario_parser = TestScenarioParser(str(test_scenario_path), test_mapping)
+        test_scenario_parser = TestScenarioParser(test_scenario_path, test_mapping)
         test_scenario = test_scenario_parser.parse()
         return test_scenario
 
