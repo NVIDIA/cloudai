@@ -227,7 +227,7 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
     return partial(TestRun, num_nodes=1, nodes=[], output_path=slurm_system.output_path)
 
 
-@pytest.fixture(params=["ucc", "nccl", "sleep", "gpt"])
+@pytest.fixture(params=["ucc", "nccl", "sleep", "gpt-pretest", "gpt-no-pretest"])
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> tuple[TestRun, str, Optional[str]]:
     if request.param == "ucc":
         tr = partial_tr(
@@ -277,7 +277,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
 
         return (tr, "sleep.sbatch", None)
-    elif request.param == "gpt":
+    elif request.param.startswith("gpt-"):
         tr = partial_tr(
             name="gpt",
             test=Test(
@@ -295,8 +295,12 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             slurm_system, tr.test.test_definition.cmd_args_dict
         )
         tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+        if "no-pretest" in request.param:
+            tr.test.test_definition.cmd_args.pre_test.enable = False
+        else:
+            tr.test.test_definition.cmd_args.pre_test.enable = True
 
-        return (tr, "gpt.sbatch", "gpt.run")
+        return (tr, f"{request.param}.sbatch", "gpt.run")
 
     raise ValueError(f"Unknown test: {request.param}")
 
