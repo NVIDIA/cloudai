@@ -74,13 +74,17 @@ class Runner(ABC):
     def kill_one(self, tr: TestRun) -> None: ...
 
 
-class StaticScenario(TestScenario):
-    def __init__(self, name: str, test_runs: list[TestRun]):
-        super().__init__(name, test_runs)
+class StaticScenarioIter:
+    def __init__(self, test_scenario: TestScenario) -> None:
+        self.test_scenario = test_scenario
         self.ready_for_run: list[TestRun] = []
         self.submitted: set[str] = set()
         self.completed: set[str] = set()
         self.stop_on_completion: dict[str, list[TestRun]] = {}
+
+    @property
+    def test_runs(self) -> list[TestRun]:
+        return self.test_scenario.test_runs
 
     @property
     def has_more_runs(self) -> bool:
@@ -123,18 +127,18 @@ class StaticScenario(TestScenario):
 
 
 class MyRunner(Runner):
-    def __init__(self, mode: str, system: MySystem, test_scenario: StaticScenario):
+    def __init__(self, mode: str, system: MySystem, test_scenario_iter: StaticScenarioIter):
         self.mode = mode
         self.system = system
-        self.test_scenario = test_scenario
+        self.test_scenario_iter = test_scenario_iter
 
         self.active_jobs: dict[str, BaseJob] = {}
         self.completed_jobs: dict[str, BaseJob] = {}
 
     @final
     def run(self):
-        while self.test_scenario.has_more_runs:
-            for tr in self.test_scenario:
+        while self.test_scenario_iter.has_more_runs:
+            for tr in self.test_scenario_iter:
                 self.submit_one(tr)
 
             self.process_completed_jobs()
@@ -151,7 +155,7 @@ class MyRunner(Runner):
         for job in self.active_jobs.values():
             if job.is_completed():
                 self.completed_jobs[job.test_run.name] = job
-                self.test_scenario.on_completed(job.test_run, self)
+                self.test_scenario_iter.on_completed(job.test_run, self)
 
     def clean_active_jobs(self):
         in_common = set(self.active_jobs.keys()) & set(self.completed_jobs.keys())
@@ -195,12 +199,12 @@ def partial_tr(system: MySystem, test: Test) -> partial[TestRun]:
     return partial(TestRun, test=test, num_nodes=1, nodes=[], output_path=system.output_path)
 
 
-class TestStaticScenario:
+class TestStaticScenarioIter:
     def test_one_run(self, partial_tr: partial[TestRun]):
         tr = partial_tr(name="tr")
 
-        ts = StaticScenario(name="scenario", test_runs=[tr])
-        cases = [tr for tr in ts]
+        ssi = StaticScenarioIter(TestScenario(name="scenario", test_runs=[tr]))
+        cases = [tr for tr in ssi]
 
         assert len(cases) == 1
         assert cases[0].name == tr.name
@@ -208,8 +212,8 @@ class TestStaticScenario:
     def test_two_independent_runs(self, partial_tr: partial[TestRun]):
         tr1, tr2 = partial_tr(name="tr1"), partial_tr(name="tr2")
 
-        ts = StaticScenario(name="scenario", test_runs=[tr1, tr2])
-        cases = [tr for tr in ts]
+        ssi = StaticScenarioIter(TestScenario(name="scenario", test_runs=[tr1, tr2]))
+        cases = [tr for tr in ssi]
 
         assert len(cases) == 2
         assert cases[0].name == tr1.name
@@ -219,50 +223,50 @@ class TestStaticScenario:
         main_tr = partial_tr(name="tr-main")
         dep_tr = partial_tr(name="tr-dep", dependencies={"start_post_init": TestDependency(main_tr)})
 
-        ts = StaticScenario(name="scenario", test_runs=[dep_tr, main_tr])
+        ssi = StaticScenarioIter(TestScenario(name="scenario", test_runs=[dep_tr, main_tr]))
 
-        cases = [tr for tr in ts]
+        cases = [tr for tr in ssi]
         assert len(cases) == 2
         assert cases[0].name == main_tr.name
         assert cases[1].name == dep_tr.name
-        assert not ts.has_more_runs
+        assert not ssi.has_more_runs
 
     def test_depends_on_comp(self, partial_tr: partial[TestRun]):
         main_tr = partial_tr(name="tr-main")
         dep_tr = partial_tr(name="tr-dep", dependencies={"start_post_comp": TestDependency(main_tr)})
 
-        ts = StaticScenario(name="scenario", test_runs=[dep_tr, main_tr])
+        ssi = StaticScenarioIter(TestScenario(name="scenario", test_runs=[dep_tr, main_tr]))
 
         # cycle one, only independent runs
-        cases = [tr for tr in ts]
+        cases = [tr for tr in ssi]
         assert len(cases) == 1
         assert cases[0].name == main_tr.name
-        assert ts.has_more_runs
+        assert ssi.has_more_runs
 
         # cycle two, dependent run
-        cases = [tr for tr in ts]
+        cases = [tr for tr in ssi]
         assert len(cases) == 0
-        assert ts.has_more_runs
+        assert ssi.has_more_runs
 
         # cycle three, mark as competed to allow dependent run
-        ts.on_completed(main_tr, Mock())
-        cases = [tr for tr in ts]
+        ssi.on_completed(main_tr, Mock())
+        cases = [tr for tr in ssi]
         assert len(cases) == 1
-        assert not ts.has_more_runs
+        assert not ssi.has_more_runs
 
     def test_to_kill_on_comp(self, partial_tr: partial[TestRun]):
         main_tr = partial_tr(name="tr-main")
         dep_tr = partial_tr(name="tr-dep", dependencies={"end_post_comp": TestDependency(main_tr)})
 
-        ts = StaticScenario(name="scenario", test_runs=[dep_tr, main_tr])
+        ssi = StaticScenarioIter(TestScenario(name="scenario", test_runs=[dep_tr, main_tr]))
 
         # cycle one, both runs
-        cases = [tr for tr in ts]
+        cases = [tr for tr in ssi]
         assert len(cases) == 2
-        assert not ts.has_more_runs
+        assert not ssi.has_more_runs
 
         runner = Mock()
-        ts.on_completed(main_tr, runner)
+        ssi.on_completed(main_tr, runner)
         assert runner.kill.called_once_with(dep_tr)
 
 
@@ -270,8 +274,8 @@ class TestMyRunner:
     def test_two_independent_runs(self, partial_tr: partial[TestRun], system: MySystem):
         tr1, tr2 = partial_tr(name="tr1"), partial_tr(name="tr2")
 
-        ts = StaticScenario(name="scenario", test_runs=[tr1, tr2])
-        runner = MyRunner("run", system, ts)
+        ssi = StaticScenarioIter(TestScenario(name="scenario", test_runs=[tr1, tr2]))
+        runner = MyRunner("run", system, ssi)
         runner.run()
 
         assert len(runner.active_jobs) == 0
@@ -285,8 +289,8 @@ class TestMyRunner:
         main_tr = partial_tr(name="tr-main")
         dep_tr = partial_tr(name="tr-dep", dependencies={"start_post_comp": TestDependency(main_tr)})
 
-        ts = StaticScenario(name="scenario", test_runs=[dep_tr, main_tr])
-        runner = MyRunner("run", system, ts)
+        ssi = StaticScenarioIter(TestScenario(name="scenario", test_runs=[dep_tr, main_tr]))
+        runner = MyRunner("run", system, ssi)
         runner.run()
 
         assert len(runner.active_jobs) == 0
@@ -301,8 +305,8 @@ class TestMyRunner:
         post_comp_tr = partial_tr(name="tr-post_comp", dependencies={"start_post_comp": TestDependency(main_tr)})
         post_init_tr = partial_tr(name="tr-post_init", dependencies={"start_post_init": TestDependency(main_tr)})
 
-        ts = StaticScenario(name="scenario", test_runs=[post_comp_tr, post_init_tr, main_tr])
-        runner = MyRunner("run", system, ts)
+        ssi = StaticScenarioIter(TestScenario(name="scenario", test_runs=[post_comp_tr, post_init_tr, main_tr]))
+        runner = MyRunner("run", system, ssi)
         runner.run()
 
         assert len(runner.active_jobs) == 0
