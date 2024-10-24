@@ -14,11 +14,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from abc import ABC, abstractmethod
 from typing import Any, Dict
 
 from pydantic import BaseModel, ConfigDict
 
 from .test_template import TestTemplate
+
+
+class Installable(ABC):
+    """Installable object."""
+
+    @abstractmethod
+    def __eq__(self, other: object) -> bool: ...
+
+    @abstractmethod
+    def __hash__(self) -> int: ...
 
 
 class Test:
@@ -103,3 +114,8 @@ class TestDefinition(BaseModel):
         for k, v in self.extra_cmd_args.items():
             parts.append(f"{k}={v}" if v else k)
         return " ".join(parts)
+
+    @property
+    @abstractmethod
+    def installables(self) -> list[Installable]:
+        return []

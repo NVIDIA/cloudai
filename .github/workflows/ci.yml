@@ -65,7 +65,7 @@ jobs:
         run: pip install pytest -r requirements-dev.txt
 
       - name: Run pytest
-        run: pytest -vv --cov
+        run: python -m pytest -vv --cov
 
       - name: Test local installation
         run: |

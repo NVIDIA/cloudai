@@ -18,32 +18,10 @@ import argparse
 import asyncio
 import logging
 from pathlib import Path
-from typing import List, Optional, Set
+from typing import List, Optional
 from unittest.mock import Mock
 
-from cloudai import Parser, Registry, ReportGenerator, Runner, System, Test, TestTemplate
-
-
-def identify_unique_test_templates(tests: List[Test]) -> List[TestTemplate]:
-    """
-    Identify unique test templates from a list of tests.
-
-    Args:
-        tests (List[Test]): The list of test objects.
-
-    Returns:
-        List[TestTemplate]: The list of unique test templates.
-    """
-    unique_templates: List[TestTemplate] = []
-    seen_names: Set[str] = set()
-
-    for test in tests:
-        template_type = type(test.test_template).__name__
-        if template_type not in seen_names:
-            seen_names.add(template_type)
-            unique_templates.append(test.test_template)
-
-    return unique_templates
+from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, System
 
 
 def handle_install_and_uninstall(args: argparse.Namespace) -> int:
@@ -64,7 +42,10 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     logging.info(f"System Name: {system.name}")
     logging.info(f"Scheduler: {system.scheduler}")
 
-    unique_test_templates = identify_unique_test_templates(tests)
+    installables: list[Installable] = []
+    for test in tests:
+        logging.debug(f"{test.name} has {len(test.test_definition.installables)} installables.")
+        installables.extend(test.test_definition.installables)
 
     registry = Registry()
     installer_class = registry.installers_map.get(system.scheduler)
@@ -74,27 +55,22 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
 
     rc = 0
     if args.mode == "install":
-        all_installed = True
-        for template in unique_test_templates:
-            if not installer.is_installed([template]):
-                all_installed = False
-                logging.debug(f"Test template {template.name} is not installed.")
-                break
+        all_installed = installer.is_installed(installables)
 
         if all_installed:
             logging.info(f"CloudAI is already installed into '{system.install_path}'.")
         else:
             logging.info("Not all components are ready")
-            result = installer.install(list(unique_test_templates))
+            result = installer.install(installables)
             if result.success:
-                logging.info(f"CloudAI is successful installed into '{system.install_path}'.")
+                logging.info(f"CloudAI is successful installed into '{system.install_path.absolute()}'.")
             else:
                 logging.error(result.message)
                 rc = 1
 
     elif args.mode == "uninstall":
         logging.info("Uninstalling test templates.")
-        result = installer.uninstall(list(unique_test_templates))
+        result = installer.uninstall(installables)
         if result.success:
             logging.info("Uninstallation successful.")
         else:
@@ -129,7 +105,10 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     if args.mode == "run":
         logging.info("Checking if test templates are installed.")
 
-        unique_templates = identify_unique_test_templates(tests)
+        installables: list[Installable] = []
+        for test in tests:
+            logging.debug(f"{test.name} has {len(test.test_definition.installables)} installables.")
+            installables.extend(test.test_definition.installables)
 
         registry = Registry()
         installer_class = registry.installers_map.get(system.scheduler)
@@ -137,7 +116,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
             raise NotImplementedError(f"No installer available for scheduler: {system.scheduler}")
         installer = installer_class(system)
 
-        result = installer.is_installed(unique_templates)
+        result = installer.is_installed(installables)
 
         if not result.success:
             logging.error("CloudAI has not been installed. Please run install mode first.")

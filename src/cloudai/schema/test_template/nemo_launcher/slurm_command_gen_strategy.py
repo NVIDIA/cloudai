@@ -14,13 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
-
-from .slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
+from cloudai.test_definitions.nemo_launcher import NeMoLauncherTestDefinition
 
 
 class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -32,11 +32,8 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         nodes = self.system.parse_nodes(tr.nodes)
         self._set_node_config(nodes, tr.num_nodes)
 
-        self.final_cmd_args["container"] = self.docker_image_cache_manager.ensure_docker_image(
-            self.docker_image_url,
-            NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH,
-            NeMoLauncherSlurmInstallStrategy.DOCKER_IMAGE_FILENAME,
-        ).docker_image_path
+        tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, tr.test.test_definition)
+        self.final_cmd_args["container"] = str(tdef.docker_image.installed_path)
 
         for key in ("repository_url", "repository_commit_hash", "docker_image_url"):
             self.final_cmd_args.pop(key, None)
@@ -50,14 +47,32 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             )
         self.final_cmd_args["cluster.gpus_per_node"] = self.system.gpus_per_node or "null"
 
+        repo_path = tdef.python_executable.git_repo.installed_path
+        if not repo_path:
+            logging.warning(
+                f"Local clone of git repo {tdef.python_executable.git_repo} does not exist. "
+                "Please ensure to run installation before running the test."
+            )
+            repo_path = Path.cwd()  # dry-run compatibility
+        venv_path = tdef.python_executable.venv_path
+        if not venv_path:
+            logging.warning(
+                f"The virtual environment for git repo {tdef.python_executable.git_repo} does not exist. "
+                "Please ensure to run installation before running the test."
+            )
+            venv_path = repo_path  # dry-run compatibility
+        py_bin = (venv_path / "bin" / "python").absolute()
+        self.final_cmd_args.update(
+            {
+                "base_results_dir": str(tr.output_path.absolute()),
+                "launcher_scripts_path": str((repo_path / tdef.cmd_args.launcher_script).parent),
+            }
+        )
+
         self._validate_data_config()
 
         cmd_args_str = self._generate_cmd_args_str(self.final_cmd_args, nodes)
-
-        py_bin = (
-            self.system.install_path / NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH / "nemo-venv" / "bin" / "python"
-        ).absolute()
-        full_cmd = f"{py_bin} {self._launcher_scripts_path()}/launcher_scripts/main.py {cmd_args_str}"
+        full_cmd = f"{py_bin} {repo_path / tdef.cmd_args.launcher_script} {cmd_args_str}"
 
         if tr.test.extra_cmd_args:
             full_cmd = self._handle_extra_cmd_args(full_cmd, tr.test.extra_cmd_args)
@@ -81,19 +96,8 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         self.final_env_vars = self._override_env_vars(self.system.global_env_vars, extra_env_vars)
 
-        launcher_path = self._launcher_scripts_path()
-        output_path_abs = output_path.absolute()
         overriden_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
-        self.final_cmd_args = {
-            k: self._handle_special_keys(k, v, str(launcher_path), str(output_path_abs))
-            for k, v in overriden_cmd_args.items()
-        }
-        self.final_cmd_args.update(
-            {
-                "base_results_dir": str(output_path_abs),
-                "launcher_scripts_path": str(launcher_path / "launcher_scripts"),
-            }
-        )
+        self.final_cmd_args = {k: self._handle_special_keys(k, v) for k, v in overriden_cmd_args.items()}
 
         for key, value in self.final_env_vars.items():
             self.final_cmd_args[f"env_vars.{key}"] = value
@@ -110,19 +114,6 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if self.system.extra_srun_args and reservation_key in self.system.extra_srun_args:
             reservation = self.system.extra_srun_args.split(reservation_key, 1)[1].split(" ", 1)[0]
             self.final_cmd_args["+cluster.reservation"] = reservation
-
-    def _launcher_scripts_path(self) -> Path:
-        """
-        Return the launcher scripts path.
-
-        Returns
-            Path: Absolute path to the NeMo launcher scripts directory.
-        """
-        return (
-            self.system.install_path
-            / NeMoLauncherSlurmInstallStrategy.SUBDIR_PATH
-            / NeMoLauncherSlurmInstallStrategy.REPOSITORY_NAME
-        ).absolute()
 
     def _set_node_config(self, nodes: List[str], num_nodes: int) -> None:
         """
@@ -209,7 +200,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         with log_file.open("a") as f:
             f.write(f"{command_with_line_breaks}\n\n")
 
-    def _handle_special_keys(self, key: str, value: Any, launcher_path: str, output_path: str) -> Any:
+    def _handle_special_keys(self, key: str, value: Any) -> Any:
         """
         Handle special formatting for specific keys.
 

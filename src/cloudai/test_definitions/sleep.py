@@ -16,6 +16,7 @@
 
 
 from cloudai import CmdArgs, TestDefinition
+from cloudai.installer.installables import Installable
 
 
 class SleepCmdArgs(CmdArgs):
@@ -29,3 +30,7 @@ class SleepTestDefinition(TestDefinition):
     """Test object for Sleep."""
 
     cmd_args: SleepCmdArgs
+
+    @property
+    def installables(self) -> list[Installable]:
+        return []
