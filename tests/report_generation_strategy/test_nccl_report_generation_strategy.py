@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+
 from cloudai.schema.test_template.nccl_test.report_generation_strategy import NcclTestReportGenerationStrategy
 
 

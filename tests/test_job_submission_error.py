@@ -19,6 +19,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, Mock
 
 import pytest
+
 from cloudai import TestTemplate
 from cloudai._core.exceptions import JobIdRetrievalError
 from cloudai._core.test import Test
@@ -46,9 +47,6 @@ class MockTest(Test):
         self.env_vars = {}
         self.section_name = "Tests.1"
         self.current_iteration = 0
-
-    def gen_exec_command(self, *_, **__):
-        return "sbatch mock_script.sh"
 
 
 @pytest.fixture

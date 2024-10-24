@@ -19,9 +19,10 @@ from typing import cast
 from unittest.mock import Mock, patch
 
 import pytest
+from pydantic_core import ErrorDetails
+
 from cloudai import Parser, format_validation_error
 from cloudai.systems.slurm.slurm_system import SlurmSystem
-from pydantic_core import ErrorDetails
 
 
 class Test_Parser:

@@ -17,6 +17,7 @@
 from typing import Dict, List
 
 import pytest
+
 from cloudai.schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
 

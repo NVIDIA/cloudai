@@ -18,6 +18,7 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+
 from cloudai import Test, TestDefinition, TestRun, TestTemplate
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy

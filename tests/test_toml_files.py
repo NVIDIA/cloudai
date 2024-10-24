@@ -19,6 +19,7 @@ from unittest.mock import patch
 
 import pytest
 import toml
+
 from cloudai import Parser
 from cloudai._core.test_scenario_parser import _TestScenarioTOML
 

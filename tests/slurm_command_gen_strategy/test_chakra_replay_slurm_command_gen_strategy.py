@@ -17,6 +17,7 @@
 from typing import Any, Dict, List
 
 import pytest
+
 from cloudai.schema.test_template.chakra_replay.slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
 
