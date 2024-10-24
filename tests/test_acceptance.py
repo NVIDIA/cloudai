@@ -241,8 +241,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
 
         return (tr, f"{request.param}.sbatch", "grok.run")
 
-    raise ValueError(f"Unknown test: {request.param}")
-
 
 def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, str]):
     slurm_system.output_path.mkdir(parents=True, exist_ok=True)
