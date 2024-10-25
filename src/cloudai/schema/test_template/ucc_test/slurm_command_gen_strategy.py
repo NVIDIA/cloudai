@@ -34,9 +34,7 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return base_args
 
-    def generate_test_command(
-        self, env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
-    ) -> List[str]:
+    def generate_test_command(self, env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun) -> List[str]:
         srun_command_parts = ["/opt/hpcx/ucc/bin/ucc_perftest"]
 
         # Add collective, minimum bytes, and maximum bytes options if available
@@ -52,7 +50,7 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         srun_command_parts.append("-F")
 
         # Append any extra command-line arguments provided
-        if extra_cmd_args:
-            srun_command_parts.append(extra_cmd_args)
+        if tr.test.extra_cmd_args:
+            srun_command_parts.append(tr.test.extra_cmd_args)
 
         return srun_command_parts
