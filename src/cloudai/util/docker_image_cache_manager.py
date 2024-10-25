@@ -168,7 +168,7 @@ class DockerImageCacheManager:
 
         # Check if the cache file exists
         if not self.install_path.exists():
-            message = f"Install path {self.install_path} does not exist."
+            message = f"Install path {self.install_path.absolute()} does not exist."
             logging.debug(message)
             return DockerImageCacheResult(False, Path(), message)
 
@@ -201,7 +201,7 @@ class DockerImageCacheManager:
             return DockerImageCacheResult(True, docker_image_path.absolute(), success_message)
 
         if not self.install_path.exists():
-            error_message = f"Install path {self.install_path} does not exist."
+            error_message = f"Install path {self.install_path.absolute()} does not exist."
             logging.error(error_message)
             return DockerImageCacheResult(False, Path(), error_message)
 
