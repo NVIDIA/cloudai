@@ -15,14 +15,14 @@
 # limitations under the License.
 
 import argparse
-from concurrent.futures import Future
 from functools import partial
 from pathlib import Path
 from typing import Dict, Optional
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
-from cloudai import BaseInstaller, InstallStatusResult, NcclTest, Test, TestRun, TestTemplate, UCCTest
+
+from cloudai import NcclTest, Test, TestRun, UCCTest
 from cloudai.cli import handle_dry_run_and_run, identify_unique_test_templates, setup_logging
 from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
 from cloudai.schema.test_template.jax_toolbox.template import JaxToolbox
@@ -63,7 +63,8 @@ def test_slurm(tmp_path: Path, scenario: Dict):
         test_scenario=test_scenario_path,
         output_dir=tmp_path,
     )
-    handle_dry_run_and_run(args)
+    with patch("asyncio.sleep", return_value=None):
+        handle_dry_run_and_run(args)
 
     # Find the directory that was created for the test results
     results_output_dirs = [d for d in tmp_path.iterdir() if d.is_dir()]
@@ -82,93 +83,6 @@ def test_slurm(tmp_path: Path, scenario: Dict):
         assert "Tests." in td.name, "Invalid test directory name"
 
     assert log_file_path.exists(), f"Log file {log_file_path} was not created"
-
-
-@pytest.fixture
-def test_template_success() -> TestTemplate:
-    template = MagicMock(spec=TestTemplate)
-    template.name = "test_template_success"
-    template.install.return_value = InstallStatusResult(success=True)
-    template.uninstall.return_value = InstallStatusResult(success=True)
-    return template
-
-
-@pytest.fixture
-def test_template_failure() -> TestTemplate:
-    template = MagicMock(spec=TestTemplate)
-    template.name = "test_template_failure"
-    template.install.return_value = InstallStatusResult(success=False, message="Installation failed")
-    template.uninstall.return_value = InstallStatusResult(success=False, message="Uninstallation failed")
-    return template
-
-
-def create_real_future(result):
-    future = Future()
-    future.set_result(result)
-    return future
-
-
-def extract_unique_test_templates(test_templates):
-    unique_test_templates = {}
-    for test_template in test_templates:
-        template_name = test_template.name
-        if template_name not in unique_test_templates:
-            unique_test_templates[template_name] = test_template
-    return list(unique_test_templates.values())
-
-
-@patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def test_install_success(mock_executor: Mock, slurm_system: SlurmSystem, test_template_success: Mock):
-    installer = BaseInstaller(slurm_system)
-    mock_future = create_real_future(test_template_success.install.return_value)
-    mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
-
-    result = installer.install([test_template_success])
-
-    assert result.success
-    assert result.message == "All test templates installed successfully."
-
-    # Check if the template is installed
-    assert installer.is_installed([test_template_success])
-
-
-@patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def test_install_failure(mock_executor: Mock, slurm_system: SlurmSystem, test_template_failure: Mock):
-    installer = BaseInstaller(slurm_system)
-    mock_future = create_real_future(test_template_failure.install.return_value)
-    mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
-
-    result = installer.install([test_template_failure])
-
-    assert not result.success
-    assert result.message == "Some test templates failed to install."
-
-
-@patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def test_uninstall_success(mock_executor: Mock, slurm_system: SlurmSystem, test_template_success: Mock):
-    installer = BaseInstaller(slurm_system)
-    mock_future = create_real_future(test_template_success.uninstall.return_value)
-    mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
-
-    result = installer.uninstall([test_template_success])
-
-    assert result.success
-    assert result.message == "All test templates uninstalled successfully."
-
-
-@patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def test_uninstall_failure(mock_executor: Mock, slurm_system: SlurmSystem, test_template_failure: Mock):
-    installer = BaseInstaller(slurm_system)
-    mock_future = create_real_future(test_template_failure.uninstall.return_value)
-    mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
-
-    result = installer.uninstall([test_template_failure])
-
-    assert not result.success
-    assert result.message == "Some test templates failed to uninstall."
-
-    # Check if the template is still installed
-    assert installer.is_installed([test_template_failure])
 
 
 class TestIdentifyUniqueTestTemplates:

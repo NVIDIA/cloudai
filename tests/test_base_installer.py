@@ -18,6 +18,7 @@ from concurrent.futures import Future
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+
 from cloudai import InstallStatusResult, TestTemplate
 from cloudai._core.base_installer import BaseInstaller
 from cloudai._core.test import Test
