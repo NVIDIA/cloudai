@@ -30,7 +30,7 @@ from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import Nc
 from cloudai.schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from cloudai.schema.test_template.sleep.template import Sleep
 from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
-from cloudai.systems import SlurmSystem, StandaloneSystem
+from cloudai.systems import SlurmSystem
 from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
 from cloudai.test_definitions.grok import GrokCmdArgs, GrokTestDefinition
 from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition

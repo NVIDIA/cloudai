@@ -69,8 +69,9 @@ jobs:
           set -eEx
           set -o pipefail
 
-          pytest --dead-fixtures
-          pytest -vv --cov
+          python -m pytest -vv --cov
+
+          python -m pytest --dead-fixtures
 
           # <100% coverage might indicate that some tests are not doing what they should,
           # but realistically, it might too hard to reach, so lower it a bit

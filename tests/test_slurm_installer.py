@@ -18,6 +18,7 @@ from subprocess import CompletedProcess
 from unittest.mock import Mock, patch
 
 import pytest
+
 from cloudai import Installable, InstallStatusResult
 from cloudai.installer.installables import DockerImage, GitRepo, PythonExecutable
 from cloudai.installer.slurm_installer import SlurmInstaller
