@@ -18,6 +18,7 @@ from typing import Any, Dict, List
 from unittest.mock import Mock
 
 import pytest
+
 from cloudai import TestRun
 from cloudai.schema.test_template.chakra_replay.slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem

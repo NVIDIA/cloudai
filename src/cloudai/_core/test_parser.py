@@ -141,7 +141,9 @@ class TestParser:
                 return strategy_type()
 
         logging.debug(
-            f"No {strategy_interface.__name__} found for " f"{type(self).__name__} and " f"{type(self.system).__name__}"
+            f"No {strategy_interface.__name__} found for "
+            f"{test_template_type.__name__} and "
+            f"{type(self.system).__name__}"
         )
         return None
 

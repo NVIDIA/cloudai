@@ -19,9 +19,9 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+
 from cloudai import CmdArgs, Test, TestRun, TestScenarioParser, TestScenarioParsingError
 from cloudai._core.test_scenario_parser import _TestScenarioTOML
-
 from tests.conftest import MyTestDefinition
 
 

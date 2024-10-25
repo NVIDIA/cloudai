@@ -211,10 +211,7 @@ class KubernetesSystem(BaseModel, System):
                     return False
 
             # If the job has been created but is neither succeeded nor failed, it is considered running
-            if any(condition["type"] == "Created" and condition["status"] == "True" for condition in conditions):
-                return True
-
-            return False
+            return any(condition["type"] == "Created" and condition["status"] == "True" for condition in conditions)
 
         except ApiException as e:
             if e.status == 404:

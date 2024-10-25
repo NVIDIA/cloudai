@@ -19,6 +19,7 @@ from typing import Union
 
 import pytest
 import toml
+
 from cloudai import Parser, Registry
 from cloudai.test_definitions import ChakraReplayCmdArgs, NCCLCmdArgs, NCCLTestDefinition
 from cloudai.test_definitions.chakra_replay import ChakraReplayTestDefinition
@@ -27,7 +28,6 @@ from cloudai.test_definitions.grok import GrokCmdArgs, GrokTestDefinition
 from cloudai.test_definitions.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
 from cloudai.test_definitions.nemotron import NemotronCmdArgs, NemotronTestDefinition
 from cloudai.test_definitions.ucc import UCCCmdArgs, UCCTestDefinition
-
 from tests.conftest import MyTestDefinition
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))

@@ -17,10 +17,10 @@
 from typing import Any, Dict, List
 
 import pytest
+
 from cloudai._core.test_scenario import TestRun
 from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
-
 from tests.conftest import create_autospec_dataclass
 
 

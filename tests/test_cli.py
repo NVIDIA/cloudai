@@ -19,11 +19,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from cloudai.cli import (
-    CloudAICLI,
-    handle_generate_report,
-    handle_install_and_uninstall,
-)
+
+from cloudai.cli import CloudAICLI, handle_generate_report, handle_install_and_uninstall
 from cloudai.cli.handlers import handle_verify_all_configs
 
 
@@ -70,10 +67,7 @@ def test_can_add_and_use_command() -> None:
 def test_no_default_args() -> None:
     cli = CloudAICLI()
 
-    def handler(args):
-        return 0
-
-    cli.add_command("test", "Test command", handler)
+    cli.add_command("test", "Test command", lambda _: 0)
     args = cli.parser.parse_args(["test"])
     assert args == argparse.Namespace(log_file="debug.log", log_level="INFO", mode="test")
 
@@ -108,13 +102,10 @@ def test_disable_default_modes() -> None:
 def test_add_command_all_optional():
     cli = CloudAICLI()
 
-    def handler(args):
-        return 0
-
     cli.add_command(
         "test",
         "Test command",
-        handler,
+        lambda _: 0,
         system_config=False,
         tests_dir=False,
         test_scenario=False,

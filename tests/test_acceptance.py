@@ -15,12 +15,27 @@
 # limitations under the License.
 
 import argparse
+from functools import partial
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
+from unittest.mock import Mock, patch
 
 import pytest
-from cloudai.cli import setup_logging
-from cloudai.cli.handlers import handle_dry_run_and_run
+
+from cloudai import NcclTest, Test, TestRun, UCCTest
+from cloudai.cli import handle_dry_run_and_run, setup_logging
+from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
+from cloudai.schema.test_template.jax_toolbox.template import JaxToolbox
+from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
+from cloudai.schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
+from cloudai.schema.test_template.sleep.template import Sleep
+from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
+from cloudai.systems import SlurmSystem, StandaloneSystem
+from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
+from cloudai.test_definitions.grok import GrokCmdArgs, GrokTestDefinition
+from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
+from cloudai.test_definitions.sleep import SleepCmdArgs, SleepTestDefinition
+from cloudai.test_definitions.ucc import UCCCmdArgs, UCCTestDefinition
 
 SLURM_TEST_SCENARIOS = [
     {"path": Path("conf/common/test_scenario/sleep.toml"), "expected_dirs_number": 4, "log_file": "sleep_debug.log"},
@@ -48,7 +63,8 @@ def test_slurm(tmp_path: Path, scenario: Dict):
         test_scenario=test_scenario_path,
         output_dir=tmp_path,
     )
-    handle_dry_run_and_run(args)
+    with patch("asyncio.sleep", return_value=None):
+        handle_dry_run_and_run(args)
 
     # Find the directory that was created for the test results
     results_output_dirs = [d for d in tmp_path.iterdir() if d.is_dir()]
@@ -67,3 +83,130 @@ def test_slurm(tmp_path: Path, scenario: Dict):
         assert "Tests." in td.name, "Invalid test directory name"
 
     assert log_file_path.exists(), f"Log file {log_file_path} was not created"
+
+
+@pytest.fixture
+def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
+    return partial(TestRun, num_nodes=1, nodes=[], output_path=slurm_system.output_path)
+
+
+@pytest.fixture(params=["ucc", "nccl", "sleep", "gpt-pretest", "gpt-no-pretest", "grok-pretest", "grok-no-pretest"])
+def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> tuple[TestRun, str, Optional[str]]:
+    if request.param == "ucc":
+        tr = partial_tr(
+            name="ucc",
+            test=Test(
+                test_definition=UCCTestDefinition(
+                    name="ucc", description="ucc", test_template_name="ucc", cmd_args=UCCCmdArgs()
+                ),
+                test_template=UCCTest(slurm_system, name="ucc"),
+            ),
+        )
+        tr.test.test_template.command_gen_strategy = UCCTestSlurmCommandGenStrategy(
+            slurm_system, tr.test.test_definition.cmd_args_dict
+        )
+        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+
+        return (tr, "ucc.sbatch", None)
+    elif request.param == "nccl":
+        tr = partial_tr(
+            name="nccl",
+            test=Test(
+                test_definition=NCCLTestDefinition(
+                    name="nccl", description="nccl", test_template_name="nccl", cmd_args=NCCLCmdArgs()
+                ),
+                test_template=NcclTest(slurm_system, name="nccl"),
+            ),
+        )
+        tr.test.test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(
+            slurm_system, tr.test.test_definition.cmd_args_dict
+        )
+        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+
+        return (tr, "nccl.sbatch", None)
+    elif request.param == "sleep":
+        tr = partial_tr(
+            name="sleep",
+            test=Test(
+                test_definition=SleepTestDefinition(
+                    name="sleep", description="sleep", test_template_name="sleep", cmd_args=SleepCmdArgs()
+                ),
+                test_template=Sleep(slurm_system, name="sleep"),
+            ),
+        )
+        tr.test.test_template.command_gen_strategy = SleepSlurmCommandGenStrategy(
+            slurm_system, tr.test.test_definition.cmd_args_dict
+        )
+        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+
+        return (tr, "sleep.sbatch", None)
+    elif request.param.startswith("gpt-"):
+        tr = partial_tr(
+            name="gpt",
+            test=Test(
+                test_definition=GPTTestDefinition(
+                    name="gpt",
+                    description="gpt",
+                    test_template_name="gpt",
+                    cmd_args=GPTCmdArgs(fdl_config="fdl/config", docker_image_url="https://docker/url"),
+                    extra_env_vars={"COMBINE_THRESHOLD": "1"},
+                ),
+                test_template=JaxToolbox(slurm_system, name="gpt"),
+            ),
+        )
+        tr.test.test_template.command_gen_strategy = JaxToolboxSlurmCommandGenStrategy(
+            slurm_system, tr.test.test_definition.cmd_args_dict
+        )
+        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+        if "no-pretest" in request.param:
+            tr.test.test_definition.cmd_args.pre_test.enable = False
+        else:
+            tr.test.test_definition.cmd_args.pre_test.enable = True
+
+        return (tr, f"{request.param}.sbatch", "gpt.run")
+    elif request.param.startswith("grok-"):
+        tr = partial_tr(
+            name="grok",
+            test=Test(
+                test_definition=GrokTestDefinition(
+                    name="grok",
+                    description="grok",
+                    test_template_name="grok",
+                    cmd_args=GrokCmdArgs(fdl_config="fdl/config", docker_image_url="https://docker/url"),
+                    extra_env_vars={"COMBINE_THRESHOLD": "1"},
+                ),
+                test_template=JaxToolbox(slurm_system, name="grok"),
+            ),
+        )
+        tr.test.test_template.command_gen_strategy = JaxToolboxSlurmCommandGenStrategy(
+            slurm_system, tr.test.test_definition.cmd_args_dict
+        )
+        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+        if "no-pretest" in request.param:
+            tr.test.test_definition.cmd_args.pre_test.enable = False
+        else:
+            tr.test.test_definition.cmd_args.pre_test.enable = True
+
+        return (tr, f"{request.param}.sbatch", "grok.run")
+
+    raise ValueError(f"Unknown test: {request.param}")
+
+
+def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, str]):
+    slurm_system.output_path.mkdir(parents=True, exist_ok=True)
+
+    tr = test_req[0]
+
+    sbatch_script = tr.test.test_template.gen_exec_command(tr).split()[-1]
+
+    curr = Path(sbatch_script).read_text()
+    ref = (Path(__file__).parent / "ref_data" / test_req[1]).read_text()
+    ref = ref.replace("__OUTPUT_DIR__", str(slurm_system.output_path)).replace("__JOB_NAME__", "job_name")
+
+    assert curr == ref
+
+    run_script = test_req[-1]
+    if run_script:
+        curr_run_script = Path(slurm_system.output_path / "run.sh").read_text()
+        ref_run_script = (Path(__file__).parent / "ref_data" / run_script).read_text()
+        assert curr_run_script == ref_run_script

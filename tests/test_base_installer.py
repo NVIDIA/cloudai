@@ -18,6 +18,7 @@ from concurrent.futures import Future
 from unittest.mock import Mock, patch
 
 import pytest
+
 from cloudai import BaseInstaller, InstallStatusResult
 from cloudai.installer.installables import DockerImage, GitRepo, Installable
 from cloudai.systems import SlurmSystem
