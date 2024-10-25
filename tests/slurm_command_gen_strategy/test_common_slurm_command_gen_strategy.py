@@ -19,7 +19,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from cloudai import Test, TestDefinition, TestRun, TestTemplate
+from cloudai import Test, TestDefinition, TestRun, TestScenario, TestTemplate
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
@@ -120,3 +120,138 @@ def test_raises_if_no_default_partition(slurm_system: SlurmSystem):
         "system configuration. Please ensure that 'default_partition' is set correctly "
         "in the corresponding system configuration (e.g., system.toml)."
     ) in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "prologue,epilogue,expected_script_lines",
+    [
+        # No prologue, no epilogue
+        (None, None, ["srun"]),
+        # One prologue, no epilogue
+        (
+            [Mock(test=Mock(name="test1", test_template=Mock()))],
+            None,
+            [
+                "SUCCESS_0=$(grep -q 'Avg bus bandwidth' stdout.txt && echo 1 || echo 0)",
+                "PROLOGUE_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && echo 1 || echo 0 )",
+                "if [ $PROLOGUE_SUCCESS -eq 1 ]; then",
+                "    srun",
+                "fi",
+            ],
+        ),
+        # No prologue, one epilogue
+        (
+            None,
+            [Mock(test=Mock(name="test2", test_template=Mock()))],
+            [
+                "srun",
+                "epilogue",
+            ],
+        ),
+        # One prologue, one epilogue
+        (
+            [Mock(test=Mock(name="test1", test_template=Mock()))],
+            [Mock(test=Mock(name="test2", test_template=Mock()))],
+            [
+                "SUCCESS_0=$(grep -q 'Avg bus bandwidth' stdout.txt && echo 1 || echo 0)",
+                "PROLOGUE_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && echo 1 || echo 0 )",
+                "if [ $PROLOGUE_SUCCESS -eq 1 ]; then",
+                "    srun",
+                "    epilogue",
+                "fi",
+            ],
+        ),
+        # Multiple prologues, multiple epilogues
+        (
+            [Mock(test=Mock(name="test1", test_template=Mock())), Mock(test=Mock(name="test2", test_template=Mock()))],
+            [Mock(test=Mock(name="test3", test_template=Mock())), Mock(test=Mock(name="test4", test_template=Mock()))],
+            [
+                "SUCCESS_0=$(grep -q 'Avg bus bandwidth' stdout.txt && echo 1 || echo 0)",
+                "SUCCESS_1=$(grep -q 'Avg bus bandwidth' stdout.txt && echo 1 || echo 0)",
+                "PROLOGUE_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && [ $SUCCESS_1 -eq 1 ] && echo 1 || echo 0 )",
+                "if [ $PROLOGUE_SUCCESS -eq 1 ]; then",
+                "    srun",
+                "    epilogue",
+                "    epilogue",
+                "fi",
+            ],
+        ),
+        # Multiple prologues, no epilogue
+        (
+            [Mock(test=Mock(name="test1", test_template=Mock())), Mock(test=Mock(name="test2", test_template=Mock()))],
+            None,
+            [
+                "SUCCESS_0=$(grep -q 'Avg bus bandwidth' stdout.txt && echo 1 || echo 0)",
+                "SUCCESS_1=$(grep -q 'Avg bus bandwidth' stdout.txt && echo 1 || echo 0)",
+                "PROLOGUE_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && [ $SUCCESS_1 -eq 1 ] && echo 1 || echo 0 )",
+                "if [ $PROLOGUE_SUCCESS -eq 1 ]; then",
+                "    srun",
+                "fi",
+            ],
+        ),
+        # No prologue, multiple epilogues
+        (
+            None,
+            [Mock(test=Mock(name="test3", test_template=Mock())), Mock(test=Mock(name="test4", test_template=Mock()))],
+            [
+                "srun",
+                "epilogue",
+                "epilogue",
+            ],
+        ),
+        # Multiple prologues, single epilogue
+        (
+            [Mock(test=Mock(name="test1", test_template=Mock())), Mock(test=Mock(name="test2", test_template=Mock()))],
+            [Mock(test=Mock(name="test3", test_template=Mock()))],
+            [
+                "SUCCESS_0=$(grep -q 'Avg bus bandwidth' stdout.txt && echo 1 || echo 0)",
+                "SUCCESS_1=$(grep -q 'Avg bus bandwidth' stdout.txt && echo 1 || echo 0)",
+                "PROLOGUE_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && [ $SUCCESS_1 -eq 1 ] && echo 1 || echo 0 )",
+                "if [ $PROLOGUE_SUCCESS -eq 1 ]; then",
+                "    srun",
+                "    epilogue",
+                "fi",
+            ],
+        ),
+    ],
+)
+def test_prologue_epilogue_combinations(
+    strategy_fixture: SlurmCommandGenStrategy,
+    testrun_fixture: TestRun,
+    prologue,
+    epilogue,
+    expected_script_lines,
+    tmp_path,
+):
+    testrun_fixture.prologue = Mock(spec=TestScenario) if prologue else None
+    testrun_fixture.epilogue = Mock(spec=TestScenario) if epilogue else None
+
+    if prologue is not None:
+        testrun_fixture.prologue = Mock(spec=TestScenario)
+        testrun_fixture.prologue.test_runs = prologue
+        for idx, run in enumerate(prologue):
+            run.test.test_template.gen_srun_success_check.return_value = (
+                "grep -q 'Avg bus bandwidth' stdout.txt && echo 1 || echo 0"
+            )
+            run.test.test_template.gen_srun_command.return_value = "srun"
+            run.test.name = f"test{idx+1}"
+    else:
+        testrun_fixture.prologue = None
+
+    if epilogue is not None:
+        testrun_fixture.epilogue = Mock(spec=TestScenario)
+        testrun_fixture.epilogue.test_runs = epilogue
+        for idx, run in enumerate(epilogue):
+            run.test.test_template.gen_srun_command.return_value = "epilogue"
+            run.test.name = f"test{idx+1}"
+    else:
+        testrun_fixture.epilogue = None
+
+    sbatch_command = strategy_fixture.gen_exec_command(testrun_fixture)
+    script_file_path = sbatch_command.split()[-1]
+
+    with open(script_file_path, "r") as script_file:
+        script_content = script_file.read()
+
+    for expected_line in expected_script_lines:
+        assert expected_line in script_content, f"Expected '{expected_line}' in generated script but it was missing."
