@@ -8,23 +8,4 @@
 export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 
 
-srun \
---mpi=pmix \
---container-image=nvcr.io/nvidia/pytorch:24.02-py3 \
-/usr/local/bin/all_reduce_perf_mpi \
---nthreads 1 \
---ngpus 1 \
---minbytes 32M \
---maxbytes 32M \
---stepbytes 1M \
---op sum \
---datatype float \
---root 0 \
---iters 20 \
---warmup_iters 5 \
---agg_iters 1 \
---average 1 \
---parallel_init 0 \
---check 1 \
---blocking 0 \
---cudagraph 0
+srun --mpi=pmix --container-image=nvcr.io/nvidia/pytorch:24.02-py3 /usr/local/bin/all_reduce_perf_mpi --nthreads 1 --ngpus 1 --minbytes 32M --maxbytes 32M --stepbytes 1M --op sum --datatype float --root 0 --iters 20 --warmup_iters 5 --agg_iters 1 --average 1 --parallel_init 0 --check 1 --blocking 0 --cudagraph 0

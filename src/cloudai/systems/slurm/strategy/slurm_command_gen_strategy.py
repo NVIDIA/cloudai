@@ -18,7 +18,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-from cloudai import CommandGenStrategy, TestRun
+from cloudai import CommandGenStrategy, TestRun, TestScenario
 from cloudai.systems import SlurmSystem
 
 
@@ -55,8 +55,33 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
         cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
         slurm_args = self._parse_slurm_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
-        srun_command = self.generate_srun_command(slurm_args, env_vars, cmd_args, tr.test.extra_cmd_args)
-        return self._write_sbatch_script(slurm_args, env_vars, srun_command, tr.output_path)
+
+        if tr.prologue:
+            prologue_command = self.gen_prologue(tr.prologue, tr.output_path)
+            srun_command = self._gen_srun_command(slurm_args, env_vars, cmd_args, tr.test.extra_cmd_args)
+            command_list = [prologue_command, "if [ $PROLOGUE_SUCCESS -eq 1 ]; then", f"    {srun_command}"]
+
+            if tr.epilogue:
+                epilogue_command = self.gen_epilogue(tr.epilogue, tr.output_path)
+                command_list.append(f"    {epilogue_command}")
+
+            command_list.append("fi")
+        else:
+            srun_command = self._gen_srun_command(slurm_args, env_vars, cmd_args, tr.test.extra_cmd_args)
+            command_list = [srun_command]
+
+            if tr.epilogue:
+                epilogue_command = self.gen_epilogue(tr.epilogue, tr.output_path)
+                command_list.append(epilogue_command)
+
+        full_command = "\n".join(command_list).strip()
+        return self._write_sbatch_script(slurm_args, env_vars, full_command, tr.output_path)
+
+    def gen_srun_command(self, tr: TestRun) -> str:
+        env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
+        cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
+        slurm_args = self._parse_slurm_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
+        return self._gen_srun_command(slurm_args, env_vars, cmd_args, tr.test.extra_cmd_args)
 
     def _parse_slurm_args(
         self, job_name_prefix: str, env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun
@@ -98,12 +123,87 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             job_name = f"{self.system.account}-{job_name_prefix}.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         return job_name
 
+    def gen_prologue(self, prologue: TestScenario, base_output_path: Path) -> str:
+        """
+        Generate the prologue command by running all tests defined in the prologue test scenario.
+
+        Args:
+            prologue (TestScenario): The prologue test scenario containing the tests to be run.
+            base_output_path (Path): The base output directory path for storing prologue outputs.
+
+        Returns:
+            str: A string with all the Slurm srun commands generated for the prologue.
+        """
+        if not prologue.test_runs:
+            return "PROLOGUE_SUCCESS=1\n"
+
+        prologue_output_dir = base_output_path / "prologue"
+        prologue_output_dir.mkdir(parents=True, exist_ok=True)
+
+        prologue_commands = []
+        success_vars = []
+
+        for idx, tr in enumerate(prologue.test_runs):
+            plugin_dir = prologue_output_dir / tr.test.name
+            plugin_dir.mkdir(parents=True, exist_ok=True)
+            tr.output_path = plugin_dir
+
+            srun_command = tr.test.test_template.gen_srun_command(tr)
+            srun_command_with_output = srun_command.replace(
+                "srun ", f"srun --output={plugin_dir / 'stdout.txt'} --error={plugin_dir / 'stderr.txt'} "
+            )
+            prologue_commands.append(srun_command_with_output)
+
+            success_var = f"SUCCESS_{idx}"
+            success_vars.append(success_var)
+
+            success_check_command = tr.test.test_template.gen_srun_success_check(tr)
+            prologue_commands.append(f"{success_var}=$({success_check_command})")
+
+        combined_success_var = " && ".join([f"[ ${var} -eq 1 ]" for var in success_vars])
+
+        prologue_commands.append(f"PROLOGUE_SUCCESS=$( {combined_success_var} && echo 1 || echo 0 )")
+
+        return "\n".join(prologue_commands)
+
+    def gen_epilogue(self, epilogue: TestScenario, base_output_path: Path) -> str:
+        """
+        Generate the epilogue command by running all tests defined in the epilogue test scenario.
+
+        Args:
+            epilogue (TestScenario): The epilogue test scenario containing the tests to be run.
+            base_output_path (Path): The base output directory path for storing epilogue outputs.
+
+        Returns:
+            str: A string with all the Slurm srun commands generated for the epilogue.
+        """
+        if not epilogue.test_runs:
+            return ""
+
+        epilogue_output_dir = base_output_path / "epilogue"
+        epilogue_output_dir.mkdir(parents=True, exist_ok=True)
+
+        epilogue_commands = []
+
+        for tr in epilogue.test_runs:
+            plugin_dir = epilogue_output_dir / tr.test.name
+            plugin_dir.mkdir(parents=True, exist_ok=True)
+            tr.output_path = plugin_dir
+
+            srun_command = tr.test.test_template.gen_srun_command(tr)
+            srun_command_with_output = srun_command.replace(
+                "srun ", f"srun --output={plugin_dir / 'stdout.txt'} --error={plugin_dir / 'stderr.txt'} "
+            )
+            epilogue_commands.append(srun_command_with_output)
+
+        return "\n".join(epilogue_commands)
+
     def _gen_srun_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
     ) -> str:
         srun_command_parts = self.gen_srun_prefix(slurm_args)
         test_command_parts = self.generate_test_command(env_vars, cmd_args, extra_cmd_args)
-        return " \\\n".join(srun_command_parts + test_command_parts)
+        return " ".join(srun_command_parts + test_command_parts)
 
     def gen_srun_prefix(self, slurm_args: Dict[str, Any]) -> List[str]:
         srun_command_parts = ["srun", f"--mpi={self.system.mpi}"]
