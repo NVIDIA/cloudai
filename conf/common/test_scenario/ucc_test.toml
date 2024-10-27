@@ -28,6 +28,7 @@ num_nodes = "2"
   [[Tests.dependencies]]
   type = "start_post_comp"
   id = "Tests.1"
+  time = 0
 
 [[Tests]]
 id = "Tests.3"
@@ -36,6 +37,7 @@ num_nodes = "2"
   [[Tests.dependencies]]
   type = "start_post_comp"
   id = "Tests.2"
+  time = 0
 
 [[Tests]]
 id = "Tests.4"
@@ -44,6 +46,7 @@ num_nodes = "2"
   [[Tests.dependencies]]
   type = "start_post_comp"
   id = "Tests.3"
+  time = 0
 
 [[Tests]]
 id = "Tests.5"
@@ -52,3 +55,4 @@ num_nodes = "2"
   [[Tests.dependencies]]
   type = "start_post_comp"
   id = "Tests.4"
+  time = 0
