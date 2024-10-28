@@ -103,7 +103,7 @@ class Test_Parser:
     def test_scenario_with_plugin_exclusive_tests(self, test_scenario_parser: Mock, test_parser: Mock, parser: Parser):
         tests_dir = parser.system_config_path.parent.parent / "test"
         test_scenario_path = Path("/mock/test_scenario.toml")
-        plugin_test_scenario_path = Path("/mock/plugin_scenarios")
+        plugin_path = Path("/mock/plugin_scenarios")
 
         fake_tests = [Mock() for _ in range(4)]
         for i, test in enumerate(fake_tests):
@@ -119,7 +119,7 @@ class Test_Parser:
         fake_plugin_scenarios["plugin-1"].test_runs[0].test.name = "test-2"
 
         with patch.object(parser, "_load_plugin_scenarios", return_value=fake_plugin_scenarios):
-            _, filtered_tests, _ = parser.parse(tests_dir, test_scenario_path, tests_dir, plugin_test_scenario_path)
+            _, filtered_tests, _ = parser.parse(tests_dir, test_scenario_path, plugin_path)
 
         filtered_test_names = {t.name for t in filtered_tests}
         assert len(filtered_tests) == 2
