@@ -48,6 +48,10 @@ from cloudai.schema.test_template.nemo_launcher.slurm_job_id_retrieval_strategy 
     NeMoLauncherSlurmJobIdRetrievalStrategy,
 )
 from cloudai.schema.test_template.nemo_launcher.template import NeMoLauncher
+from cloudai.schema.test_template.nemo_run.grading_strategy import NeMoRunGradingStrategy
+from cloudai.schema.test_template.nemo_run.report_generation_strategy import NeMoRunReportGenerationStrategy
+from cloudai.schema.test_template.nemo_run.slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
+from cloudai.schema.test_template.nemo_run.template import NeMoRun
 from cloudai.schema.test_template.sleep.grading_strategy import SleepGradingStrategy
 from cloudai.schema.test_template.sleep.kubernetes_json_gen_strategy import SleepKubernetesJsonGenStrategy
 from cloudai.schema.test_template.sleep.report_generation_strategy import SleepReportGenerationStrategy
@@ -65,6 +69,7 @@ from cloudai.test_definitions import (
     ChakraReplayTestDefinition,
     NCCLTestDefinition,
     NeMoLauncherTestDefinition,
+    NeMoRunTestDefinition,
     SleepTestDefinition,
     UCCTestDefinition,
 )
@@ -93,6 +98,7 @@ def test_runners():
         ((CommandGenStrategy, SlurmSystem, JaxToolbox), JaxToolboxSlurmCommandGenStrategy),
         ((CommandGenStrategy, SlurmSystem, NcclTest), NcclTestSlurmCommandGenStrategy),
         ((CommandGenStrategy, SlurmSystem, NeMoLauncher), NeMoLauncherSlurmCommandGenStrategy),
+        ((CommandGenStrategy, SlurmSystem, NeMoRun), NeMoRunSlurmCommandGenStrategy),
         ((CommandGenStrategy, SlurmSystem, Sleep), SleepSlurmCommandGenStrategy),
         ((CommandGenStrategy, SlurmSystem, UCCTest), UCCTestSlurmCommandGenStrategy),
         ((CommandGenStrategy, StandaloneSystem, Sleep), SleepStandaloneCommandGenStrategy),
@@ -100,12 +106,14 @@ def test_runners():
         ((GradingStrategy, SlurmSystem, JaxToolbox), JaxToolboxGradingStrategy),
         ((GradingStrategy, SlurmSystem, NcclTest), NcclTestGradingStrategy),
         ((GradingStrategy, SlurmSystem, NeMoLauncher), NeMoLauncherGradingStrategy),
+        ((GradingStrategy, SlurmSystem, NeMoRun), NeMoRunGradingStrategy),
         ((GradingStrategy, SlurmSystem, Sleep), SleepGradingStrategy),
         ((GradingStrategy, SlurmSystem, UCCTest), UCCTestGradingStrategy),
         ((JobIdRetrievalStrategy, SlurmSystem, ChakraReplay), SlurmJobIdRetrievalStrategy),
         ((JobIdRetrievalStrategy, SlurmSystem, JaxToolbox), SlurmJobIdRetrievalStrategy),
         ((JobIdRetrievalStrategy, SlurmSystem, NcclTest), SlurmJobIdRetrievalStrategy),
         ((JobIdRetrievalStrategy, SlurmSystem, NeMoLauncher), NeMoLauncherSlurmJobIdRetrievalStrategy),
+        ((JobIdRetrievalStrategy, SlurmSystem, NeMoRun), SlurmJobIdRetrievalStrategy),
         ((JobIdRetrievalStrategy, SlurmSystem, UCCTest), SlurmJobIdRetrievalStrategy),
         ((JobIdRetrievalStrategy, StandaloneSystem, Sleep), StandaloneJobIdRetrievalStrategy),
         ((JsonGenStrategy, KubernetesSystem, NcclTest), NcclTestKubernetesJsonGenStrategy),
@@ -115,6 +123,7 @@ def test_runners():
         ((ReportGenerationStrategy, SlurmSystem, NcclTest), NcclTestReportGenerationStrategy),
         ((ReportGenerationStrategy, KubernetesSystem, NcclTest), NcclTestReportGenerationStrategy),
         ((ReportGenerationStrategy, SlurmSystem, NeMoLauncher), NeMoLauncherReportGenerationStrategy),
+        ((ReportGenerationStrategy, SlurmSystem, NeMoRun), NeMoRunReportGenerationStrategy),
         ((ReportGenerationStrategy, SlurmSystem, Sleep), SleepReportGenerationStrategy),
         ((ReportGenerationStrategy, SlurmSystem, UCCTest), UCCTestReportGenerationStrategy),
         ((ReportGenerationStrategy, StandaloneSystem, Sleep), SleepReportGenerationStrategy),
@@ -127,10 +136,11 @@ def test_strategies(key: tuple, value: type):
 
 def test_test_templates():
     test_templates = Registry().test_templates_map
-    assert len(test_templates) == 8
+    assert len(test_templates) == 9
     assert test_templates["ChakraReplay"] == ChakraReplay
     assert test_templates["NcclTest"] == NcclTest
     assert test_templates["NeMoLauncher"] == NeMoLauncher
+    assert test_templates["NeMoRun"] == NeMoRun
     assert test_templates["Sleep"] == Sleep
     assert test_templates["UCCTest"] == UCCTest
 
@@ -144,12 +154,13 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 8
+    assert len(test_defs) == 9
     assert test_defs["UCCTest"] == UCCTestDefinition
     assert test_defs["NcclTest"] == NCCLTestDefinition
     assert test_defs["ChakraReplay"] == ChakraReplayTestDefinition
     assert test_defs["Sleep"] == SleepTestDefinition
     assert test_defs["NeMoLauncher"] == NeMoLauncherTestDefinition
+    assert test_defs["NeMoRun"] == NeMoRunTestDefinition
 
 
 def test_definitions_matches_templates():

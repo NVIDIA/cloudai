@@ -20,6 +20,7 @@ from .grok import GrokCmdArgs, GrokTestDefinition
 from .jax_toolbox import JaxToolboxCmdArgs, JaxToolboxTestDefinition
 from .nccl import NCCLCmdArgs, NCCLTestDefinition
 from .nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
+from .nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
 from .nemotron import NemotronCmdArgs, NemotronTestDefinition
 from .sleep import SleepCmdArgs, SleepTestDefinition
 from .ucc import UCCCmdArgs, UCCTestDefinition
@@ -31,6 +32,8 @@ __all__ = [
     "NCCLTestDefinition",
     "NeMoLauncherCmdArgs",
     "NeMoLauncherTestDefinition",
+    "NeMoRunCmdArgs",
+    "NeMoRunTestDefinition",
     "SleepCmdArgs",
     "SleepTestDefinition",
     "UCCCmdArgs",
