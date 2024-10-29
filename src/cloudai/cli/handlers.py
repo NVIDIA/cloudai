@@ -90,7 +90,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
         args (argparse.Namespace): The parsed command-line arguments.
     """
     parser = Parser(args.system_config)
-    system, tests, test_scenario = parser.parse(args.tests_dir, args.test_scenario, Path("conf/common/plugin"))
+    system, tests, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
     assert test_scenario is not None
 
     if args.output_dir:
