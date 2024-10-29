@@ -139,11 +139,11 @@ class TestScenarioParser:
         total_weight = sum(tr.weight for tr in ts_model.tests)
         normalized_weight = 0 if total_weight == 0 else 100 / total_weight
 
-        prologue_name = data.get("prologue", "")
-        epilogue_name = data.get("epilogue", "")
-
-        prologue = self.plugin_mapping.get(prologue_name, None) if prologue_name else None
-        epilogue = self.plugin_mapping.get(epilogue_name, None) if epilogue_name else None
+        prologue, epilogue = None, None
+        if ts_model.prologue:
+            prologue = self.plugin_mapping.get(ts_model.prologue)
+        if ts_model.epilogue:
+            epilogue = self.plugin_mapping.get(ts_model.epilogue)
 
         testruns_by_id: dict[str, TestRun] = {
             tr.id: self._create_section_test_run(tr, normalized_weight, prologue, epilogue) for tr in ts_model.tests
