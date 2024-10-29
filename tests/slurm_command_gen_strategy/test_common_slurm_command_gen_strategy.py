@@ -221,7 +221,6 @@ def test_prologue_epilogue_combinations(
     prologue,
     epilogue,
     expected_script_lines,
-    tmp_path,
 ):
     testrun_fixture.prologue = Mock(spec=TestScenario) if prologue else None
     testrun_fixture.epilogue = Mock(spec=TestScenario) if epilogue else None
