@@ -24,7 +24,6 @@ from pydantic import ValidationError
 from .command_gen_strategy import CommandGenStrategy
 from .exceptions import TestConfigParsingError, format_validation_error
 from .grading_strategy import GradingStrategy
-from .install_strategy import InstallStrategy
 from .job_id_retrieval_strategy import JobIdRetrievalStrategy
 from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from .json_gen_strategy import JsonGenStrategy
@@ -166,9 +165,6 @@ class TestParser:
             raise ValueError(f"Unsupported test_template name: {name}")
 
         obj = test_template_class(system=self.system, name=name)
-        obj.install_strategy = cast(
-            InstallStrategy, self._fetch_strategy(InstallStrategy, type(obj.system), type(obj), cmd_args)
-        )
         obj.command_gen_strategy = cast(
             CommandGenStrategy,
             self._fetch_strategy(CommandGenStrategy, type(obj.system), type(obj), cmd_args),

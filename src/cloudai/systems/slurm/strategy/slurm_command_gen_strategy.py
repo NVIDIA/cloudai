@@ -20,7 +20,6 @@ from typing import Any, Dict, List
 
 from cloudai import CommandGenStrategy, TestRun, TestScenario
 from cloudai.systems import SlurmSystem
-from cloudai.util.docker_image_cache_manager import DockerImageCacheManager
 
 
 class SlurmCommandGenStrategy(CommandGenStrategy):
@@ -50,19 +49,12 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
                 "(e.g., system.toml)."
             )
 
-        self.docker_image_cache_manager = DockerImageCacheManager(
-            self.system.install_path,
-            self.system.cache_docker_images_locally,
-            self.system.default_partition,
-        )
         self.docker_image_url = self.cmd_args.get("docker_image_url", "")
 
     def gen_exec_command(self, tr: TestRun) -> str:
         env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
         cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
-        slurm_args = self._parse_slurm_args(
-            tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr.num_nodes, tr.nodes
-        )
+        slurm_args = self._parse_slurm_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
 
         if tr.prologue:
             prologue_command = self.gen_prologue(tr.prologue, tr.output_path)
@@ -88,18 +80,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     def gen_srun_command(self, tr: TestRun) -> str:
         env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
         cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
-        slurm_args = self._parse_slurm_args(
-            tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr.num_nodes, tr.nodes
-        )
+        slurm_args = self._parse_slurm_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
         return self._gen_srun_command(slurm_args, env_vars, cmd_args, tr.test.extra_cmd_args)
 
     def _parse_slurm_args(
-        self,
-        job_name_prefix: str,
-        env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
-        num_nodes: int,
-        nodes: List[str],
+        self, job_name_prefix: str, env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun
     ) -> Dict[str, Any]:
         """
         Parse command arguments to configure Slurm job settings.
@@ -108,8 +93,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             job_name_prefix (str): Prefix for the job name.
             env_vars (Dict[str, str]): Environment variables.
             cmd_args (Dict[str, str]): Command-line arguments.
-            num_nodes (int): The number of nodes to be used for the test execution.
-            nodes (List[str]): List of nodes for the job.
+            tr (TestRun): Test run object.
 
         Returns:
             Dict[str, Any]: Dictionary containing configuration for Slurm job.
@@ -119,8 +103,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         """
         job_name = self.job_name(job_name_prefix)
 
-        parsed_nodes = self.system.parse_nodes(nodes)
-        num_nodes = len(parsed_nodes) if parsed_nodes else num_nodes
+        parsed_nodes = self.system.parse_nodes(tr.nodes)
+        num_nodes = len(parsed_nodes) if parsed_nodes else tr.num_nodes
         node_list_str = ",".join(parsed_nodes) if parsed_nodes else ""
 
         slurm_args = {

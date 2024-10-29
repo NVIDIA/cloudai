@@ -17,12 +17,10 @@
 from .grading_strategy import ChakraReplayGradingStrategy
 from .report_generation_strategy import ChakraReplayReportGenerationStrategy
 from .slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
-from .slurm_install_strategy import ChakraReplaySlurmInstallStrategy
 from .template import ChakraReplay
 
 __all__ = [
     "ChakraReplay",
-    "ChakraReplaySlurmInstallStrategy",
     "ChakraReplaySlurmCommandGenStrategy",
     "ChakraReplayReportGenerationStrategy",
     "ChakraReplayGradingStrategy",

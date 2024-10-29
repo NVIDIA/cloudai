@@ -14,11 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import fields
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
+from cloudai import TestDefinition
 from cloudai.systems.slurm.slurm_system import SlurmGroup, SlurmPartition, SlurmSystem
+
+
+def create_autospec_dataclass(dataclass: type) -> Mock:
+    return Mock(spec=[field.name for field in fields(dataclass)])
 
 
 @pytest.fixture
@@ -27,6 +34,7 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
         name="test_system",
         install_path=tmp_path / "install",
         output_path=tmp_path / "output",
+        cache_docker_images_locally=True,
         default_partition="main",
         partitions=[
             SlurmPartition(
@@ -48,3 +56,9 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
         ],
     )
     return system
+
+
+class MyTestDefinition(TestDefinition):
+    @property
+    def installables(self):
+        return []

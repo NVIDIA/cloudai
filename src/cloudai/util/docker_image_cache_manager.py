@@ -119,45 +119,39 @@ class DockerImageCacheManager:
         self.cache_docker_images_locally = cache_docker_images_locally
         self.partition_name = partition_name
 
-    def ensure_docker_image(
-        self, docker_image_url: str, subdir_name: str, docker_image_filename: str
-    ) -> DockerImageCacheResult:
+    def ensure_docker_image(self, docker_image_url: str, docker_image_filename: str) -> DockerImageCacheResult:
         """
         Ensure the Docker image exists by checking and optionally caching it.
 
         Args:
             docker_image_url (str): URL or file path of the Docker image.
-            subdir_name (str): Subdirectory name within the installation path.
             docker_image_filename (str): Docker image filename.
 
         Returns:
             DockerImageCacheResult: Result of ensuring the Docker image exists.
         """
-        image_check_result = self.check_docker_image_exists(docker_image_url, subdir_name, docker_image_filename)
+        image_check_result = self.check_docker_image_exists(docker_image_url, docker_image_filename)
         if image_check_result.success:
             return image_check_result
 
         if self.cache_docker_images_locally:
-            return self.cache_docker_image(docker_image_url, subdir_name, docker_image_filename)
+            return self.cache_docker_image(docker_image_url, docker_image_filename)
 
         return image_check_result
 
-    def check_docker_image_exists(
-        self, docker_image_url: str, subdir_name: str, docker_image_filename: str
-    ) -> DockerImageCacheResult:
+    def check_docker_image_exists(self, docker_image_url: str, docker_image_filename: str) -> DockerImageCacheResult:
         """
         Check if the Docker image exists without caching it.
 
         Args:
             docker_image_url (str): URL or file path of the Docker image.
-            subdir_name (str): Subdirectory name within the installation path.
             docker_image_filename (str): Docker image filename.
 
         Returns:
             DockerImageCacheResult: Result of the Docker image existence check.
         """
         logging.debug(
-            f"Checking if Docker image exists: docker_image_url={docker_image_url}, subdir_name={subdir_name}, "
+            f"Checking if Docker image exists: docker_image_url={docker_image_url}, subdir_name={self.install_path}, "
             f"docker_image_filename={docker_image_filename}, "
             f"cache_docker_images_locally={self.cache_docker_images_locally}"
         )
@@ -174,17 +168,11 @@ class DockerImageCacheManager:
 
         # Check if the cache file exists
         if not self.install_path.exists():
-            message = f"Install path {self.install_path} does not exist."
+            message = f"Install path {self.install_path.absolute()} does not exist."
             logging.debug(message)
             return DockerImageCacheResult(False, Path(), message)
 
-        subdir_path = self.install_path / subdir_name
-        if not subdir_path.exists():
-            message = f"Subdirectory path {subdir_path} does not exist."
-            logging.debug(message)
-            return DockerImageCacheResult(False, Path(), message)
-
-        docker_image_path = subdir_path / docker_image_filename
+        docker_image_path = self.install_path / docker_image_filename
         if docker_image_path.is_file() and docker_image_path.exists():
             message = f"Cached Docker image already exists at {docker_image_path}."
             logging.debug(message)
@@ -194,50 +182,38 @@ class DockerImageCacheManager:
         logging.debug(message)
         return DockerImageCacheResult(False, Path(), message)
 
-    def cache_docker_image(
-        self, docker_image_url: str, subdir_name: str, docker_image_filename: str
-    ) -> DockerImageCacheResult:
+    def cache_docker_image(self, docker_image_url: str, docker_image_filename: str) -> DockerImageCacheResult:
         """
         Cache the Docker image locally using enroot import.
 
         Args:
             docker_image_url (str): URL of the Docker image.
-            subdir_name (str): Subdirectory name within the installation path.
             docker_image_filename (str): Docker image filename.
 
         Returns:
             DockerImageCacheResult: Result of the Docker image caching operation.
         """
-        subdir_path = self.install_path / subdir_name
-        docker_image_path = subdir_path / docker_image_filename
+        docker_image_path = self.install_path / docker_image_filename
 
         if docker_image_path.is_file():
             success_message = f"Cached Docker image already exists at {docker_image_path}."
             logging.info(success_message)
             return DockerImageCacheResult(True, docker_image_path.absolute(), success_message)
 
+        if not self.install_path.exists():
+            error_message = f"Install path {self.install_path.absolute()} does not exist."
+            logging.error(error_message)
+            return DockerImageCacheResult(False, Path(), error_message)
+
         prerequisite_check = self._check_prerequisites(docker_image_url)
         if not prerequisite_check:
             logging.error(f"Prerequisite check failed: {prerequisite_check.message}")
             return DockerImageCacheResult(False, Path(), prerequisite_check.message)
 
-        if not self.install_path.exists():
-            error_message = f"Install path {self.install_path} does not exist."
-            logging.error(error_message)
-            return DockerImageCacheResult(False, Path(), error_message)
-
         if not os.access(self.install_path, os.W_OK):
             error_message = f"No permission to write in install path {self.install_path}."
             logging.error(error_message)
             return DockerImageCacheResult(False, Path(), error_message)
-
-        if not subdir_path.exists():
-            try:
-                subdir_path.mkdir(parents=True)
-            except OSError as e:
-                error_message = f"Failed to create subdirectory {subdir_path}. Error: {e}"
-                logging.error(error_message)
-                return DockerImageCacheResult(False, Path(), error_message)
 
         enroot_import_cmd = (
             f"srun --export=ALL --partition={self.partition_name} "
@@ -324,8 +300,9 @@ class DockerImageCacheManager:
             process = subprocess.Popen(enroot_import_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             try:
                 while True:
-                    error_output = process.stderr.readline() if process.stderr else None
-                    error_output = error_output.decode() if error_output else ""
+                    error_output = ""
+                    if process.stderr:
+                        error_output = process.stderr.readline().decode().strip()
 
                     if error_output:
                         if (
@@ -374,49 +351,17 @@ class DockerImageCacheManager:
                     except OSError as e:
                         logging.error(f"Failed to remove temporary Docker image file {docker_image_path}. Error: {e}")
 
-    def uninstall_cached_image(self, subdir_name: str, docker_image_filename: str) -> DockerImageCacheResult:
-        """
-        Uninstall the cached Docker image and remove the subdirectory if empty.
-
-        Args:
-            subdir_name (str): Subdirectory name within the installation path.
-            docker_image_filename (str): Docker image filename.
-
-        Returns:
-            DockerImageCacheResult: Result of the uninstallation operation.
-        """
-        result = self.remove_cached_image(subdir_name, docker_image_filename)
-        if not result.success:
-            return result
-
-        subdir_path = self.install_path / subdir_name
-        if subdir_path.is_dir():
-            try:
-                if not any(subdir_path.iterdir()):
-                    subdir_path.rmdir()
-                    success_message = f"Subdirectory removed successfully: {subdir_path}."
-                    logging.info(success_message)
-                    return DockerImageCacheResult(True, subdir_path.absolute(), success_message)
-            except OSError as e:
-                error_message = f"Failed to remove subdirectory {subdir_path}. Error: {e}"
-                logging.error(error_message)
-                return DockerImageCacheResult(False, subdir_path, error_message)
-        success_message = f"Cached Docker image uninstalled successfully from {subdir_path}."
-        logging.info(success_message)
-        return DockerImageCacheResult(True, subdir_path.absolute(), success_message)
-
-    def remove_cached_image(self, subdir_name: str, docker_image_filename: str) -> DockerImageCacheResult:
+    def uninstall_cached_image(self, docker_image_filename: str) -> DockerImageCacheResult:
         """
         Remove an existing cached Docker image.
 
         Args:
-            subdir_name (str): Subdirectory name within the installation path.
             docker_image_filename (str): Docker image filename.
 
         Returns:
             DockerImageCacheResult: Result of the removal operation.
         """
-        docker_image_path = self.install_path / subdir_name / docker_image_filename
+        docker_image_path = self.install_path / docker_image_filename
         if docker_image_path.is_file():
             try:
                 docker_image_path.unlink()
@@ -428,5 +373,5 @@ class DockerImageCacheManager:
                 logging.error(error_message)
                 return DockerImageCacheResult(False, docker_image_path, error_message)
         success_message = f"No cached Docker image found to remove at {docker_image_path}."
-        logging.info(success_message)
+        logging.warning(success_message)
         return DockerImageCacheResult(True, docker_image_path.absolute(), success_message)

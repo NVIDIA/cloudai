@@ -20,9 +20,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from cloudai import Test, TestDefinition, TestRun, TestScenarioParser, TestScenarioParsingError
-from cloudai._core.test import CmdArgs
+from cloudai import CmdArgs, Test, TestRun, TestScenarioParser, TestScenarioParsingError
 from cloudai._core.test_scenario_parser import _TestScenarioTOML
+from tests.conftest import MyTestDefinition
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ def test_scenario_parser(tmp_path: Path) -> TestScenarioParser:
 @pytest.fixture
 def test() -> Test:
     return Test(
-        test_definition=TestDefinition(
+        test_definition=MyTestDefinition(
             name="t1",
             description="desc1",
             test_template_name="tt",
