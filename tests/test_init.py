@@ -15,10 +15,10 @@
 # limitations under the License.
 
 import pytest
+
 from cloudai import (
     CommandGenStrategy,
     GradingStrategy,
-    InstallStrategy,
     JobIdRetrievalStrategy,
     JsonGenStrategy,
     Registry,
@@ -29,25 +29,21 @@ from cloudai.installer.standalone_installer import StandaloneInstaller
 from cloudai.schema.test_template.chakra_replay.grading_strategy import ChakraReplayGradingStrategy
 from cloudai.schema.test_template.chakra_replay.report_generation_strategy import ChakraReplayReportGenerationStrategy
 from cloudai.schema.test_template.chakra_replay.slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
-from cloudai.schema.test_template.chakra_replay.slurm_install_strategy import ChakraReplaySlurmInstallStrategy
 from cloudai.schema.test_template.chakra_replay.template import ChakraReplay
 from cloudai.schema.test_template.common.slurm_job_id_retrieval_strategy import SlurmJobIdRetrievalStrategy
 from cloudai.schema.test_template.common.standalone_job_id_retrieval_strategy import StandaloneJobIdRetrievalStrategy
 from cloudai.schema.test_template.jax_toolbox.grading_strategy import JaxToolboxGradingStrategy
 from cloudai.schema.test_template.jax_toolbox.report_generation_strategy import JaxToolboxReportGenerationStrategy
 from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
-from cloudai.schema.test_template.jax_toolbox.slurm_install_strategy import JaxToolboxSlurmInstallStrategy
 from cloudai.schema.test_template.jax_toolbox.template import JaxToolbox
 from cloudai.schema.test_template.nccl_test.grading_strategy import NcclTestGradingStrategy
 from cloudai.schema.test_template.nccl_test.kubernetes_json_gen_strategy import NcclTestKubernetesJsonGenStrategy
 from cloudai.schema.test_template.nccl_test.report_generation_strategy import NcclTestReportGenerationStrategy
 from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
-from cloudai.schema.test_template.nccl_test.slurm_install_strategy import NcclTestSlurmInstallStrategy
 from cloudai.schema.test_template.nccl_test.template import NcclTest
 from cloudai.schema.test_template.nemo_launcher.grading_strategy import NeMoLauncherGradingStrategy
 from cloudai.schema.test_template.nemo_launcher.report_generation_strategy import NeMoLauncherReportGenerationStrategy
 from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import NeMoLauncherSlurmCommandGenStrategy
-from cloudai.schema.test_template.nemo_launcher.slurm_install_strategy import NeMoLauncherSlurmInstallStrategy
 from cloudai.schema.test_template.nemo_launcher.slurm_job_id_retrieval_strategy import (
     NeMoLauncherSlurmJobIdRetrievalStrategy,
 )
@@ -57,12 +53,10 @@ from cloudai.schema.test_template.sleep.kubernetes_json_gen_strategy import Slee
 from cloudai.schema.test_template.sleep.report_generation_strategy import SleepReportGenerationStrategy
 from cloudai.schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from cloudai.schema.test_template.sleep.standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
-from cloudai.schema.test_template.sleep.standalone_install_strategy import SleepStandaloneInstallStrategy
 from cloudai.schema.test_template.sleep.template import Sleep
 from cloudai.schema.test_template.ucc_test.grading_strategy import UCCTestGradingStrategy
 from cloudai.schema.test_template.ucc_test.report_generation_strategy import UCCTestReportGenerationStrategy
 from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
-from cloudai.schema.test_template.ucc_test.slurm_install_strategy import UCCTestSlurmInstallStrategy
 from cloudai.schema.test_template.ucc_test.template import UCCTest
 from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
 from cloudai.systems.slurm.slurm_system import SlurmSystem
@@ -108,13 +102,6 @@ def test_runners():
         ((GradingStrategy, SlurmSystem, NeMoLauncher), NeMoLauncherGradingStrategy),
         ((GradingStrategy, SlurmSystem, Sleep), SleepGradingStrategy),
         ((GradingStrategy, SlurmSystem, UCCTest), UCCTestGradingStrategy),
-        ((InstallStrategy, SlurmSystem, ChakraReplay), ChakraReplaySlurmInstallStrategy),
-        ((InstallStrategy, SlurmSystem, JaxToolbox), JaxToolboxSlurmInstallStrategy),
-        ((InstallStrategy, SlurmSystem, NcclTest), NcclTestSlurmInstallStrategy),
-        ((InstallStrategy, SlurmSystem, NeMoLauncher), NeMoLauncherSlurmInstallStrategy),
-        ((InstallStrategy, SlurmSystem, Sleep), SleepStandaloneInstallStrategy),
-        ((InstallStrategy, SlurmSystem, UCCTest), UCCTestSlurmInstallStrategy),
-        ((InstallStrategy, StandaloneSystem, Sleep), SleepStandaloneInstallStrategy),
         ((JobIdRetrievalStrategy, SlurmSystem, ChakraReplay), SlurmJobIdRetrievalStrategy),
         ((JobIdRetrievalStrategy, SlurmSystem, JaxToolbox), SlurmJobIdRetrievalStrategy),
         ((JobIdRetrievalStrategy, SlurmSystem, NcclTest), SlurmJobIdRetrievalStrategy),

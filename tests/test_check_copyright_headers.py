@@ -36,8 +36,9 @@ HEADER = """# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 
 HEADER_LINES = HEADER.count("\n") + 1
 
-PY_FILES = [p for p in Path().rglob("**/*.py") if "venv" not in str(p)]
-TOML_FILES = [p for p in Path().rglob("**/*.toml") if "venv" not in str(p) and ".pdm-build" not in str(p)]
+PY_FILES = [p for p in Path().glob("./src/**/*.py")]
+PY_FILES += [p for p in Path().glob("./tests/**/*.py")]
+TOML_FILES = [p for p in Path().glob("conf/**/*.toml")] + ["pyproject.toml", ".taplo.toml"]
 
 
 @pytest.mark.parametrize("py_file", PY_FILES, ids=[str(f) for f in PY_FILES])

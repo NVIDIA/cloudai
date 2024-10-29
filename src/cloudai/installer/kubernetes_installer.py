@@ -19,7 +19,7 @@ import logging
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
-from cloudai import BaseInstaller, InstallStatusResult
+from cloudai import BaseInstaller, Installable, InstallStatusResult
 
 
 class KubernetesInstaller(BaseInstaller):
@@ -121,3 +121,12 @@ class KubernetesInstaller(BaseInstaller):
             return InstallStatusResult(False, message)
 
         return InstallStatusResult(True)
+
+    def install_one(self, item: Installable) -> InstallStatusResult:
+        return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
+
+    def uninstall_one(self, item: Installable) -> InstallStatusResult:
+        return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
+
+    def is_installed_one(self, item: Installable) -> InstallStatusResult:
+        return InstallStatusResult(False, f"Unsupported item type: {type(item)}")

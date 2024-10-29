@@ -15,16 +15,27 @@
 # limitations under the License.
 
 import argparse
-from concurrent.futures import Future
+from functools import partial
 from pathlib import Path
-from typing import Dict
-from unittest.mock import MagicMock, Mock, patch
+from typing import Dict, Optional
+from unittest.mock import Mock, patch
 
 import pytest
-from cloudai import BaseInstaller, InstallStatusResult, NcclTest, Test, TestTemplate, UCCTest
-from cloudai.cli import handle_dry_run_and_run, identify_unique_test_templates, setup_logging
-from cloudai.systems import SlurmSystem, StandaloneSystem
+
+from cloudai import NcclTest, Test, TestRun, UCCTest
+from cloudai.cli import handle_dry_run_and_run, setup_logging
+from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
+from cloudai.schema.test_template.jax_toolbox.template import JaxToolbox
+from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
+from cloudai.schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
+from cloudai.schema.test_template.sleep.template import Sleep
+from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
+from cloudai.systems import SlurmSystem
+from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
+from cloudai.test_definitions.grok import GrokCmdArgs, GrokTestDefinition
 from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
+from cloudai.test_definitions.sleep import SleepCmdArgs, SleepTestDefinition
+from cloudai.test_definitions.ucc import UCCCmdArgs, UCCTestDefinition
 
 SLURM_TEST_SCENARIOS = [
     {"path": Path("conf/common/test_scenario/sleep.toml"), "expected_dirs_number": 4, "log_file": "sleep_debug.log"},
@@ -52,7 +63,8 @@ def test_slurm(tmp_path: Path, scenario: Dict):
         test_scenario=test_scenario_path,
         output_dir=tmp_path,
     )
-    handle_dry_run_and_run(args)
+    with patch("asyncio.sleep", return_value=None):
+        handle_dry_run_and_run(args)
 
     # Find the directory that was created for the test results
     results_output_dirs = [d for d in tmp_path.iterdir() if d.is_dir()]
@@ -74,139 +86,127 @@ def test_slurm(tmp_path: Path, scenario: Dict):
 
 
 @pytest.fixture
-def test_template_success() -> TestTemplate:
-    template = MagicMock(spec=TestTemplate)
-    template.name = "test_template_success"
-    template.install.return_value = InstallStatusResult(success=True)
-    template.uninstall.return_value = InstallStatusResult(success=True)
-    return template
+def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
+    return partial(TestRun, num_nodes=1, nodes=[], output_path=slurm_system.output_path)
 
 
-@pytest.fixture
-def test_template_failure() -> TestTemplate:
-    template = MagicMock(spec=TestTemplate)
-    template.name = "test_template_failure"
-    template.install.return_value = InstallStatusResult(success=False, message="Installation failed")
-    template.uninstall.return_value = InstallStatusResult(success=False, message="Uninstallation failed")
-    return template
+@pytest.fixture(params=["ucc", "nccl", "sleep", "gpt-pretest", "gpt-no-pretest", "grok-pretest", "grok-no-pretest"])
+def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> tuple[TestRun, str, Optional[str]]:
+    if request.param == "ucc":
+        tr = partial_tr(
+            name="ucc",
+            test=Test(
+                test_definition=UCCTestDefinition(
+                    name="ucc", description="ucc", test_template_name="ucc", cmd_args=UCCCmdArgs()
+                ),
+                test_template=UCCTest(slurm_system, name="ucc"),
+            ),
+        )
+        tr.test.test_template.command_gen_strategy = UCCTestSlurmCommandGenStrategy(
+            slurm_system, tr.test.test_definition.cmd_args_dict
+        )
+        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+
+        return (tr, "ucc.sbatch", None)
+    elif request.param == "nccl":
+        tr = partial_tr(
+            name="nccl",
+            test=Test(
+                test_definition=NCCLTestDefinition(
+                    name="nccl", description="nccl", test_template_name="nccl", cmd_args=NCCLCmdArgs()
+                ),
+                test_template=NcclTest(slurm_system, name="nccl"),
+            ),
+        )
+        tr.test.test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(
+            slurm_system, tr.test.test_definition.cmd_args_dict
+        )
+        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+
+        return (tr, "nccl.sbatch", None)
+    elif request.param == "sleep":
+        tr = partial_tr(
+            name="sleep",
+            test=Test(
+                test_definition=SleepTestDefinition(
+                    name="sleep", description="sleep", test_template_name="sleep", cmd_args=SleepCmdArgs()
+                ),
+                test_template=Sleep(slurm_system, name="sleep"),
+            ),
+        )
+        tr.test.test_template.command_gen_strategy = SleepSlurmCommandGenStrategy(
+            slurm_system, tr.test.test_definition.cmd_args_dict
+        )
+        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+
+        return (tr, "sleep.sbatch", None)
+    elif request.param.startswith("gpt-"):
+        tr = partial_tr(
+            name="gpt",
+            test=Test(
+                test_definition=GPTTestDefinition(
+                    name="gpt",
+                    description="gpt",
+                    test_template_name="gpt",
+                    cmd_args=GPTCmdArgs(fdl_config="fdl/config", docker_image_url="https://docker/url"),
+                    extra_env_vars={"COMBINE_THRESHOLD": "1"},
+                ),
+                test_template=JaxToolbox(slurm_system, name="gpt"),
+            ),
+        )
+        tr.test.test_template.command_gen_strategy = JaxToolboxSlurmCommandGenStrategy(
+            slurm_system, tr.test.test_definition.cmd_args_dict
+        )
+        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+        if "no-pretest" in request.param:
+            tr.test.test_definition.cmd_args.pre_test.enable = False
+        else:
+            tr.test.test_definition.cmd_args.pre_test.enable = True
+
+        return (tr, f"{request.param}.sbatch", "gpt.run")
+    elif request.param.startswith("grok-"):
+        tr = partial_tr(
+            name="grok",
+            test=Test(
+                test_definition=GrokTestDefinition(
+                    name="grok",
+                    description="grok",
+                    test_template_name="grok",
+                    cmd_args=GrokCmdArgs(fdl_config="fdl/config", docker_image_url="https://docker/url"),
+                    extra_env_vars={"COMBINE_THRESHOLD": "1"},
+                ),
+                test_template=JaxToolbox(slurm_system, name="grok"),
+            ),
+        )
+        tr.test.test_template.command_gen_strategy = JaxToolboxSlurmCommandGenStrategy(
+            slurm_system, tr.test.test_definition.cmd_args_dict
+        )
+        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+        if "no-pretest" in request.param:
+            tr.test.test_definition.cmd_args.pre_test.enable = False
+        else:
+            tr.test.test_definition.cmd_args.pre_test.enable = True
+
+        return (tr, f"{request.param}.sbatch", "grok.run")
+
+    raise ValueError(f"Unknown test: {request.param}")
 
 
-def create_real_future(result):
-    future = Future()
-    future.set_result(result)
-    return future
+def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, str]):
+    slurm_system.output_path.mkdir(parents=True, exist_ok=True)
 
+    tr = test_req[0]
 
-def extract_unique_test_templates(test_templates):
-    unique_test_templates = {}
-    for test_template in test_templates:
-        template_name = test_template.name
-        if template_name not in unique_test_templates:
-            unique_test_templates[template_name] = test_template
-    return list(unique_test_templates.values())
+    sbatch_script = tr.test.test_template.gen_exec_command(tr).split()[-1]
 
+    curr = Path(sbatch_script).read_text()
+    ref = (Path(__file__).parent / "ref_data" / test_req[1]).read_text()
+    ref = ref.replace("__OUTPUT_DIR__", str(slurm_system.output_path)).replace("__JOB_NAME__", "job_name")
 
-@patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def test_install_success(mock_executor: Mock, slurm_system: SlurmSystem, test_template_success: Mock):
-    installer = BaseInstaller(slurm_system)
-    mock_future = create_real_future(test_template_success.install.return_value)
-    mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
+    assert curr == ref
 
-    result = installer.install([test_template_success])
-
-    assert result.success
-    assert result.message == "All test templates installed successfully."
-
-    # Check if the template is installed
-    assert installer.is_installed([test_template_success])
-
-
-@patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def test_install_failure(mock_executor: Mock, slurm_system: SlurmSystem, test_template_failure: Mock):
-    installer = BaseInstaller(slurm_system)
-    mock_future = create_real_future(test_template_failure.install.return_value)
-    mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
-
-    result = installer.install([test_template_failure])
-
-    assert not result.success
-    assert result.message == "Some test templates failed to install."
-
-
-@patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def test_uninstall_success(mock_executor: Mock, slurm_system: SlurmSystem, test_template_success: Mock):
-    installer = BaseInstaller(slurm_system)
-    mock_future = create_real_future(test_template_success.uninstall.return_value)
-    mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
-
-    result = installer.uninstall([test_template_success])
-
-    assert result.success
-    assert result.message == "All test templates uninstalled successfully."
-
-
-@patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def test_uninstall_failure(mock_executor: Mock, slurm_system: SlurmSystem, test_template_failure: Mock):
-    installer = BaseInstaller(slurm_system)
-    mock_future = create_real_future(test_template_failure.uninstall.return_value)
-    mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
-
-    result = installer.uninstall([test_template_failure])
-
-    assert not result.success
-    assert result.message == "Some test templates failed to uninstall."
-
-    # Check if the template is still installed
-    assert installer.is_installed([test_template_failure])
-
-
-class TestIdentifyUniqueTestTemplates:
-    @pytest.fixture
-    def system(self, tmp_path: Path) -> StandaloneSystem:
-        return StandaloneSystem(name="system", install_path=tmp_path, output_path=tmp_path)
-
-    @pytest.fixture
-    def test_def(self) -> NCCLTestDefinition:
-        return NCCLTestDefinition(name="nccl", description="", test_template_name="ttname", cmd_args=NCCLCmdArgs())
-
-    def test_single_input(self, system: StandaloneSystem, test_def: NCCLTestDefinition):
-        templ = NcclTest(system, "template_name")
-        test = Test(test_definition=test_def, test_template=templ)
-
-        res = identify_unique_test_templates([test])
-
-        assert len(res) == 1
-        assert res[0] == templ
-
-    def test_two_templates_with_different_names(self, system: StandaloneSystem, test_def: NCCLTestDefinition):
-        templ1 = NcclTest(system, "template_name1")
-        templ2 = NcclTest(system, "template_name2")
-        test1 = Test(test_definition=test_def, test_template=templ1)
-        test2 = Test(test_definition=test_def, test_template=templ2)
-
-        res = identify_unique_test_templates([test1, test2])
-
-        assert len(res) == 1
-        assert res[0] == templ1
-
-    def test_two_templates_with_same_name(self, system: StandaloneSystem, test_def: NCCLTestDefinition):
-        templ = NcclTest(system, "template_name")
-        test1 = Test(test_definition=test_def, test_template=templ)
-        test2 = Test(test_definition=test_def, test_template=templ)
-
-        res = identify_unique_test_templates([test1, test2])
-
-        assert len(res) == 1
-        assert res[0] == templ
-
-    def test_two_different_templates_with_same_name(self, system: StandaloneSystem, test_def: NCCLTestDefinition):
-        templ1 = NcclTest(system, "template_name")
-        templ2 = UCCTest(system, "template_name")
-        test1 = Test(test_definition=test_def, test_template=templ1)
-        test2 = Test(test_definition=test_def, test_template=templ2)
-
-        res = identify_unique_test_templates([test1, test2])
-
-        assert len(res) == 2
-        assert templ1 in res
-        assert templ2 in res
+    run_script = test_req[-1]
+    if run_script:
+        curr_run_script = Path(slurm_system.output_path / "run.sh").read_text()
+        ref_run_script = (Path(__file__).parent / "ref_data" / run_script).read_text()
+        assert curr_run_script == ref_run_script

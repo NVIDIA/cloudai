@@ -15,8 +15,11 @@
 # limitations under the License.
 
 from typing import Any, Dict, List
+from unittest.mock import Mock
 
 import pytest
+
+from cloudai import TestRun
 from cloudai.schema.test_template.chakra_replay.slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
 
@@ -62,23 +65,24 @@ class TestChakraReplaySlurmCommandGenStrategy:
         num_nodes: int,
         nodes: List[str],
         expected_result: Dict[str, Any],
-        slurm_system: SlurmSystem,
     ) -> None:
-        slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
+        tr = Mock(spec=TestRun)
+        tr.num_nodes = num_nodes
+        tr.nodes = nodes
+        slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
         assert slurm_args["image_path"] == expected_result["image_path"]
         assert slurm_args["container_mounts"] == expected_result["container_mounts"]
 
-    def test_parse_slurm_args_invalid_cmd_args(
-        self, cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy, slurm_system: SlurmSystem
-    ) -> None:
+    def test_parse_slurm_args_invalid_cmd_args(self, cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy) -> None:
         job_name_prefix = "chakra_replay"
         env_vars = {"NCCL_DEBUG": "INFO"}
         cmd_args = {"trace_path": "/workspace/traces/"}  # Missing "docker_image_url"
-        num_nodes = 2
-        nodes = ["node1", "node2"]
+        tr = Mock(spec=TestRun)
+        tr.num_nodes = 2
+        tr.nodes = ["node1", "node2"]
 
         with pytest.raises(KeyError) as exc_info:
-            cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
+            cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
         assert str(exc_info.value) == "'docker_image_url'", "Expected missing docker_image_url key"
 

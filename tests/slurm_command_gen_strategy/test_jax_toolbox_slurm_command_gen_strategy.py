@@ -18,6 +18,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+
 from cloudai import Test, TestRun
 from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
 from cloudai.schema.test_template.jax_toolbox.template import JaxToolbox
@@ -38,7 +39,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
             name="gpt",
             description="desc",
             test_template_name="gpt",
-            cmd_args=GPTCmdArgs(fdl_config="", docker_image_url=""),
+            cmd_args=GPTCmdArgs(fdl_config="", docker_image_url="http://fake_image_url"),
             extra_env_vars={"COMBINE_THRESHOLD": "1"},
         )
 
@@ -48,7 +49,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
             name="grok",
             description="desc",
             test_template_name="grok",
-            cmd_args=GrokCmdArgs(docker_image_url=""),
+            cmd_args=GrokCmdArgs(docker_image_url="http://fake_image_url"),
             extra_env_vars={"COMBINE_THRESHOLD": "1"},
         )
 
