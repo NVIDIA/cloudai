@@ -237,8 +237,6 @@ def test_prologue_epilogue_combinations(
             )
             run.test.test_template.gen_srun_command.return_value = "srun"
             run.test.name = f"test{idx+1}"
-    else:
-        testrun_fixture.prologue = None
 
     if epilogue is not None:
         testrun_fixture.epilogue = Mock(spec=TestScenario)
@@ -246,8 +244,6 @@ def test_prologue_epilogue_combinations(
         for idx, run in enumerate(epilogue):
             run.test.test_template.gen_srun_command.return_value = "epilogue"
             run.test.name = f"test{idx+1}"
-    else:
-        testrun_fixture.epilogue = None
 
     sbatch_command = strategy_fixture.gen_exec_command(testrun_fixture)
     script_file_path = sbatch_command.split()[-1]
