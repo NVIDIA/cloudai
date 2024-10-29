@@ -22,7 +22,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai import NcclTest, Test, TestRun, UCCTest
+from cloudai import NcclTest, Test, TestRun, TestScenario, UCCTest
 from cloudai.cli import handle_dry_run_and_run, setup_logging
 from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
 from cloudai.schema.test_template.jax_toolbox.template import JaxToolbox
@@ -91,7 +91,7 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
     return partial(TestRun, num_nodes=1, nodes=[], output_path=slurm_system.output_path)
 
 
-@pytest.fixture(params=["ucc", "nccl", "sleep", "gpt", "grok"])
+@pytest.fixture(params=["ucc", "nccl", "sleep", "gpt-plugin", "gpt-no-plugin", "grok-plugin", "grok-no-plugin"])
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> tuple[TestRun, str, Optional[str]]:
     if request.param == "ucc":
         tr = partial_tr(
@@ -141,7 +141,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
 
         return (tr, "sleep.sbatch", None)
-    elif request.param.startswith("gpt"):
+    elif request.param.startswith("gpt-"):
         tr = partial_tr(
             name="gpt",
             test=Test(
@@ -159,9 +159,24 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             slurm_system, tr.test.test_definition.cmd_args_dict
         )
         tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+        if "no-plugin" not in request.param:
+            prologue_tr = partial_tr(
+                name="nccl",
+                test=Test(
+                    test_definition=NCCLTestDefinition(
+                        name="nccl", description="nccl", test_template_name="nccl", cmd_args=NCCLCmdArgs()
+                    ),
+                    test_template=NcclTest(slurm_system, name="nccl"),
+                ),
+            )
+            prologue_tr.test.test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(
+                slurm_system, prologue_tr.test.test_definition.cmd_args_dict
+            )
+            prologue_tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+            tr.prologue = TestScenario(name=f"{prologue_tr.name} NCCL Prologue", test_runs=[prologue_tr])
 
         return (tr, f"{request.param}.sbatch", "gpt.run")
-    elif request.param.startswith("grok"):
+    elif request.param.startswith("grok-"):
         tr = partial_tr(
             name="grok",
             test=Test(
@@ -179,6 +194,21 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             slurm_system, tr.test.test_definition.cmd_args_dict
         )
         tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+        if "no-plugin" not in request.param:
+            prologue_tr = partial_tr(
+                name="nccl",
+                test=Test(
+                    test_definition=NCCLTestDefinition(
+                        name="nccl", description="nccl", test_template_name="nccl", cmd_args=NCCLCmdArgs()
+                    ),
+                    test_template=NcclTest(slurm_system, name="nccl"),
+                ),
+            )
+            prologue_tr.test.test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(
+                slurm_system, prologue_tr.test.test_definition.cmd_args_dict
+            )
+            prologue_tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+            tr.prologue = TestScenario(name=f"{prologue_tr.name} NCCL Prologue", test_runs=[prologue_tr])
 
         return (tr, f"{request.param}.sbatch", "grok.run")
 
