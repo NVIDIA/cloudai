@@ -54,8 +54,8 @@ class _TestScenarioTOML(BaseModel):
     name: str
     job_status_check: bool = True
     tests: list[_TestRunTOML] = Field(alias="Tests", min_length=1)
-    prologue: str = ""
-    epilogue: str = ""
+    prologue: Optional[str] = None
+    epilogue: Optional[str] = None
 
     @model_validator(mode="after")
     def check_no_self_dependency(self):
