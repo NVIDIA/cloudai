@@ -166,8 +166,8 @@ class TestScenarioParser:
         self,
         test_info: _TestRunTOML,
         normalized_weight: float,
-        prologue: Optional[TestScenario],
-        epilogue: Optional[TestScenario],
+        prologue: Optional[TestScenario] = None,
+        epilogue: Optional[TestScenario] = None,
     ) -> TestRun:
         """
         Create a section-specific Test object by copying from the test mapping.
