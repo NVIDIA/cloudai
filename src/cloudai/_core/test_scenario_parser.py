@@ -54,8 +54,8 @@ class _TestScenarioTOML(BaseModel):
     name: str
     job_status_check: bool = True
     tests: list[_TestRunTOML] = Field(alias="Tests", min_length=1)
-    prologue: str = ""
-    epilogue: str = ""
+    prologue: Optional[str] = None
+    epilogue: Optional[str] = None
 
     @model_validator(mode="after")
     def check_no_self_dependency(self):
@@ -87,6 +87,20 @@ class _TestScenarioTOML(BaseModel):
                 if dep.id not in test_ids:
                     raise ValueError(f"Dependency section '{dep.id}' not found for test '{tr.id}'.")
 
+        return self
+
+    @model_validator(mode="after")
+    def check_prologue_not_empty(self):
+        """Ensure that prologue is not an empty string if provided."""
+        if self.prologue == "":
+            raise ValueError("The 'prologue' field should not be an empty string.")
+        return self
+
+    @model_validator(mode="after")
+    def check_epilogue_not_empty(self):
+        """Ensure that epilogue is not an empty string if provided."""
+        if self.epilogue == "":
+            raise ValueError("The 'epilogue' field should not be an empty string.")
         return self
 
 
