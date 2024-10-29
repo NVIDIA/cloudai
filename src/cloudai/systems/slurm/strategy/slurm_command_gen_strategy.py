@@ -56,23 +56,23 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
         slurm_args = self._parse_slurm_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
 
+        srun_command = self._gen_srun_command(slurm_args, env_vars, cmd_args, tr.test.extra_cmd_args)
+        command_list = []
+        indent = ""
+
         if tr.prologue:
             prologue_command = self.gen_prologue(tr.prologue, tr.output_path)
-            srun_command = self._gen_srun_command(slurm_args, env_vars, cmd_args, tr.test.extra_cmd_args)
-            command_list = [prologue_command, "if [ $PROLOGUE_SUCCESS -eq 1 ]; then", f"    {srun_command}"]
+            command_list = [prologue_command, "if [ $PROLOGUE_SUCCESS -eq 1 ]; then"]
+            indent = "    "
 
-            if tr.epilogue:
-                epilogue_command = self.gen_epilogue(tr.epilogue, tr.output_path)
-                command_list.append(f"    {epilogue_command}")
+        command_list.append(f"{indent}{srun_command}")
 
+        if tr.epilogue:
+            epilogue_command = self.gen_epilogue(tr.epilogue, tr.output_path)
+            command_list.append(f"{indent}{epilogue_command}")
+
+        if tr.prologue:
             command_list.append("fi")
-        else:
-            srun_command = self._gen_srun_command(slurm_args, env_vars, cmd_args, tr.test.extra_cmd_args)
-            command_list = [srun_command]
-
-            if tr.epilogue:
-                epilogue_command = self.gen_epilogue(tr.epilogue, tr.output_path)
-                command_list.append(epilogue_command)
 
         full_command = "\n".join(command_list).strip()
         return self._write_sbatch_script(slurm_args, env_vars, full_command, tr.output_path)
