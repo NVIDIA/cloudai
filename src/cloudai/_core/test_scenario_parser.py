@@ -136,24 +136,24 @@ class TestScenarioParser:
         total_weight = sum(tr.weight for tr in ts_model.tests)
         normalized_weight = 0 if total_weight == 0 else 100 / total_weight
 
-        testruns_by_id: dict[str, TestRun] = {
-            tr.id: self._create_section_test_run(tr, normalized_weight) for tr in ts_model.tests
+        test_runs_by_id: dict[str, TestRun] = {
+            tr.id: self._create_test_run(tr, normalized_weight) for tr in ts_model.tests
         }
 
         tests_data: dict[str, _TestRunTOML] = {tr.id: tr for tr in ts_model.tests}
-        for section, tr in testruns_by_id.items():
+        for section, tr in test_runs_by_id.items():
             test_info = tests_data[section]
             tr.dependencies = {
-                dep.type: TestDependency(test_run=testruns_by_id[dep.id]) for dep in test_info.dependencies
+                dep.type: TestDependency(test_run=test_runs_by_id[dep.id]) for dep in test_info.dependencies
             }
 
         return TestScenario(
             name=ts_model.name,
-            test_runs=list(testruns_by_id.values()),
+            test_runs=list(test_runs_by_id.values()),
             job_status_check=ts_model.job_status_check,
         )
 
-    def _create_section_test_run(self, test_info: _TestRunTOML, normalized_weight: float) -> TestRun:
+    def _create_test_run(self, test_info: _TestRunTOML, normalized_weight: float) -> TestRun:
         """
         Create a section-specific Test object by copying from the test mapping.
 
