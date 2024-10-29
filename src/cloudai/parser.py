@@ -71,12 +71,12 @@ class Parser:
         try:
             system = self.parse_system(self.system_config_path)
         except SystemConfigParsingError:
-            exit(1)
+            exit(1)  # exit right away to keep error message readable for users
 
         try:
             tests = self.parse_tests(list(test_path.glob("*.toml")), system)
         except TestConfigParsingError:
-            exit(1)
+            exit(1)  # exit right away to keep error message readable for users
 
         plugin_test_scenario_path = Path("conf/common/plugin")
         plugin_test_path = Path("conf/common/plugin/test")
