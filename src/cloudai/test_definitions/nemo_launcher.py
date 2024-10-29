@@ -14,11 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from cloudai import CmdArgs, TestDefinition
+from cloudai.installer.installables import DockerImage, GitRepo, Installable, PythonExecutable
 
 
 class NumaMapping(BaseModel):
@@ -95,6 +96,7 @@ class NeMoLauncherCmdArgs(CmdArgs):
 
     repository_url: str = "https://github.com/NVIDIA/NeMo-Framework-Launcher.git"
     repository_commit_hash: str = "599ecfcbbd64fd2de02f2cc093b1610d73854022"
+    launcher_script: str = "launcher_scripts/main.py"
     docker_image_url: str = "nvcr.io/nvidia/nemo:24.05.01"
     stages: str = '["training"]'
     numa_mapping: NumaMapping = Field(default_factory=NumaMapping)
@@ -106,3 +108,24 @@ class NeMoLauncherTestDefinition(TestDefinition):
     """Test object for NeMoLauncher."""
 
     cmd_args: NeMoLauncherCmdArgs
+    _docker_image: Optional[DockerImage] = None
+    _python_executable: Optional[PythonExecutable] = None
+
+    @property
+    def docker_image(self) -> DockerImage:
+        if not self._docker_image:
+            self._docker_image = DockerImage(url=self.cmd_args.docker_image_url)
+        return self._docker_image
+
+    @property
+    def python_executable(self) -> PythonExecutable:
+        if not self._python_executable:
+            self._python_executable = PythonExecutable(
+                GitRepo(git_url=self.cmd_args.repository_url, commit_hash=self.cmd_args.repository_commit_hash)
+            )
+        return self._python_executable
+
+    @property
+    def installables(self) -> list[Installable]:
+        """Get list of installable objects."""
+        return [self.docker_image, self.python_executable]

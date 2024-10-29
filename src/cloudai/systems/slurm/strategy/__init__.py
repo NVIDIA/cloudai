@@ -15,9 +15,7 @@
 # limitations under the License.
 
 from .slurm_command_gen_strategy import SlurmCommandGenStrategy
-from .slurm_install_strategy import SlurmInstallStrategy
 
 __all__ = [
     "SlurmCommandGenStrategy",
-    "SlurmInstallStrategy",
 ]

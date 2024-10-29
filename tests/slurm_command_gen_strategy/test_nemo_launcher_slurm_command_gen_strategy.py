@@ -38,10 +38,12 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
             extra_env_vars={"TEST_VAR_1": "value1"},
             extra_cmd_args={"extra_args": ""},
         )
-        test = Test(
-            test_definition=tdef,
-            test_template=Mock(),
-        )
+        (tmp_path / "repo").mkdir()
+        (tmp_path / "venv").mkdir()
+        tdef.python_executable.git_repo.installed_path = tmp_path / "repo"
+        tdef.python_executable.venv_path = tmp_path / "venv"
+
+        test = Test(test_definition=tdef, test_template=Mock())
         tr = TestRun(
             test=test,
             num_nodes=2,
@@ -49,6 +51,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
             output_path=tmp_path / "output",
             name="test-job",
         )
+
         return tr
 
     @pytest.fixture
@@ -102,6 +105,8 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         assert "extra_args" in cmd
         assert "base_results_dir=" in cmd
         assert "launcher_scripts_path=" in cmd
+        tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, test_run.test.test_definition)
+        assert f"container={tdef.docker_image.url}" in cmd
 
     def test_tokenizer_handling(
         self, cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy, test_run: TestRun, tmp_path: Path

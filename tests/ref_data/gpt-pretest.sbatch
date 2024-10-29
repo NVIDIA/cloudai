@@ -41,7 +41,7 @@ if grep -q "$keyword" $PRETEST_OUTPUT_FILES; then
 fi
 if [ "$PRE_TEST_SUCCESS" = true ]; then
     echo "Loading container with srun command"
-    srun --mpi=none --container-image=https:/docker/url --container-name=cont true
+    srun --mpi=none --container-image=https://docker/url --container-name=cont true
     echo "Running srun command"
     srun \
     --mpi=none \

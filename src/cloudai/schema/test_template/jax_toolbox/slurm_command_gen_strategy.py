@@ -15,13 +15,14 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union, cast
 
 from cloudai import TestRun
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
-
-from .slurm_install_strategy import JaxToolboxSlurmInstallStrategy
+from cloudai.test_definitions.gpt import GPTTestDefinition
+from cloudai.test_definitions.grok import GrokTestDefinition
+from cloudai.test_definitions.nemotron import NemotronTestDefinition
 
 
 class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -119,21 +120,11 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return " ".join(sorted(xla_flags))
 
     def _parse_slurm_args(
-        self,
-        job_name_prefix: str,
-        env_vars: Dict[str, str],
-        cmd_args: Dict[str, Any],
-        num_nodes: int,
-        nodes: List[str],
+        self, job_name_prefix: str, env_vars: Dict[str, str], cmd_args: Dict[str, Any], tr: TestRun
     ) -> Dict[str, Any]:
         key_prefix = f"{self.test_name}" if self.test_name in ["GPT", "Grok", "Nemotron"] else "common"
 
-        base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
-        image_path = self.docker_image_cache_manager.ensure_docker_image(
-            self.docker_image_url,
-            JaxToolboxSlurmInstallStrategy.SUBDIR_PATH,
-            JaxToolboxSlurmInstallStrategy.DOCKER_IMAGE_FILENAME,
-        ).docker_image_path
+        base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
         local_workspace_dir = Path(cmd_args["output_path"]).resolve()
         docker_workspace_dir = cmd_args[f"{key_prefix}.setup_flags.docker_workspace_dir"]
@@ -143,7 +134,10 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             profile_path = Path(cmd_args["pgo_nsys_converter.profile_path"]).resolve()
             container_mounts += f",{profile_path}:{profile_path}"
 
-        base_args.update({"image_path": image_path, "container_mounts": container_mounts})
+        tdef: Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition] = cast(
+            Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition], tr.test.test_definition
+        )
+        base_args.update({"image_path": tdef.docker_image.installed_path, "container_mounts": container_mounts})
 
         output_path = Path(cmd_args["output_path"]).resolve()
         output_suffix = "-%j.txt" if env_vars.get("UNIFIED_STDOUT_STDERR") == "1" else "-%j-%n-%t.txt"

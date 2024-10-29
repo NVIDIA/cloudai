@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, create_autospec
 
 import pytest
 
@@ -53,9 +53,7 @@ def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, testrun_
     job_name_prefix = "test_job"
     env_vars = {"TEST_VAR": "VALUE"}
     cmd_args = {"test_arg": "test_value"}
-    slurm_args = strategy_fixture._parse_slurm_args(
-        job_name_prefix, env_vars, cmd_args, testrun_fixture.num_nodes, testrun_fixture.nodes
-    )
+    slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, testrun_fixture)
     srun_command = strategy_fixture.generate_srun_command(slurm_args, env_vars, cmd_args, "")
 
     sbatch_command = strategy_fixture._write_sbatch_script(
@@ -78,36 +76,40 @@ def test_num_nodes_and_nodes(strategy_fixture: SlurmCommandGenStrategy):
     job_name_prefix = "test_job"
     env_vars = {"TEST_VAR": "VALUE"}
     cmd_args = {"test_arg": "test_value"}
-    nodes = ["node1", "node2"]
-    num_nodes = 3
+    tr = Mock(spec=TestRun)
+    tr.nodes = ["node1", "node2"]
+    tr.num_nodes = 3
 
-    slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
+    slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
-    assert slurm_args["num_nodes"] == len(nodes)
+    assert slurm_args["num_nodes"] == len(tr.nodes)
 
 
 def test_only_num_nodes(strategy_fixture: SlurmCommandGenStrategy):
     job_name_prefix = "test_job"
     env_vars = {"TEST_VAR": "VALUE"}
     cmd_args = {"test_arg": "test_value"}
-    nodes = []
-    num_nodes = 3
+    tr = create_autospec(TestRun)
+    tr.nodes = []
+    tr.num_nodes = 3
 
-    slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
+    slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
-    assert slurm_args["num_nodes"] == num_nodes
+    assert slurm_args["num_nodes"] == tr.num_nodes
 
 
 def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
     job_name_prefix = "test_job"
     env_vars = {"TEST_VAR": "VALUE"}
     cmd_args = {"test_arg": "test_value"}
-    nodes = ["node1", "node2"]
-    num_nodes = 0
+    # nodes =
+    tr = create_autospec(TestRun)
+    tr.num_nodes = 0
+    tr.nodes = ["node1", "node2"]
 
-    slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
+    slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
-    assert slurm_args["num_nodes"] == len(nodes)
+    assert slurm_args["num_nodes"] == len(tr.nodes)
 
 
 def test_raises_if_no_default_partition(slurm_system: SlurmSystem):

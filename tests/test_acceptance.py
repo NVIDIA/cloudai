@@ -23,14 +23,14 @@ from unittest.mock import Mock, patch
 import pytest
 
 from cloudai import NcclTest, Test, TestRun, UCCTest
-from cloudai.cli import handle_dry_run_and_run, identify_unique_test_templates, setup_logging
+from cloudai.cli import handle_dry_run_and_run, setup_logging
 from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
 from cloudai.schema.test_template.jax_toolbox.template import JaxToolbox
 from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from cloudai.schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from cloudai.schema.test_template.sleep.template import Sleep
 from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
-from cloudai.systems import SlurmSystem, StandaloneSystem
+from cloudai.systems import SlurmSystem
 from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
 from cloudai.test_definitions.grok import GrokCmdArgs, GrokTestDefinition
 from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
@@ -83,58 +83,6 @@ def test_slurm(tmp_path: Path, scenario: Dict):
         assert "Tests." in td.name, "Invalid test directory name"
 
     assert log_file_path.exists(), f"Log file {log_file_path} was not created"
-
-
-class TestIdentifyUniqueTestTemplates:
-    @pytest.fixture
-    def system(self, tmp_path: Path) -> StandaloneSystem:
-        return StandaloneSystem(name="system", install_path=tmp_path, output_path=tmp_path)
-
-    @pytest.fixture
-    def test_def(self) -> NCCLTestDefinition:
-        return NCCLTestDefinition(name="nccl", description="", test_template_name="ttname", cmd_args=NCCLCmdArgs())
-
-    def test_single_input(self, system: StandaloneSystem, test_def: NCCLTestDefinition):
-        templ = NcclTest(system, "template_name")
-        test = Test(test_definition=test_def, test_template=templ)
-
-        res = identify_unique_test_templates([test])
-
-        assert len(res) == 1
-        assert res[0] == templ
-
-    def test_two_templates_with_different_names(self, system: StandaloneSystem, test_def: NCCLTestDefinition):
-        templ1 = NcclTest(system, "template_name1")
-        templ2 = NcclTest(system, "template_name2")
-        test1 = Test(test_definition=test_def, test_template=templ1)
-        test2 = Test(test_definition=test_def, test_template=templ2)
-
-        res = identify_unique_test_templates([test1, test2])
-
-        assert len(res) == 1
-        assert res[0] == templ1
-
-    def test_two_templates_with_same_name(self, system: StandaloneSystem, test_def: NCCLTestDefinition):
-        templ = NcclTest(system, "template_name")
-        test1 = Test(test_definition=test_def, test_template=templ)
-        test2 = Test(test_definition=test_def, test_template=templ)
-
-        res = identify_unique_test_templates([test1, test2])
-
-        assert len(res) == 1
-        assert res[0] == templ
-
-    def test_two_different_templates_with_same_name(self, system: StandaloneSystem, test_def: NCCLTestDefinition):
-        templ1 = NcclTest(system, "template_name")
-        templ2 = UCCTest(system, "template_name")
-        test1 = Test(test_definition=test_def, test_template=templ1)
-        test2 = Test(test_definition=test_def, test_template=templ2)
-
-        res = identify_unique_test_templates([test1, test2])
-
-        assert len(res) == 2
-        assert templ1 in res
-        assert templ2 in res
 
 
 @pytest.fixture
