@@ -52,7 +52,6 @@ class Parser:
         self,
         test_path: Path,
         test_scenario_path: Optional[Path] = None,
-        plugin_path: Optional[Path] = None,
     ) -> Tuple[System, List[Test], Optional[TestScenario]]:
         """
         Parse configurations for system, test templates, and test scenarios.
@@ -61,7 +60,6 @@ class Parser:
             test_path (Path): The file path for tests.
             test_scenario_path (Optional[Path]): The file path for the main test scenario.
                 If None, all tests are included.
-            plugin_path (Optional[Path]): The base file path for plugin-specific tests and scenarios.
 
         Returns:
             Tuple[System, List[Test], Optional[TestScenario]]: A tuple containing the system object, a list of filtered
@@ -80,8 +78,8 @@ class Parser:
         except TestConfigParsingError:
             exit(1)  # exit right away to keep error message readable for users
 
-        plugin_test_scenario_path = plugin_path
-        plugin_test_path = plugin_path / "test" if plugin_path else None
+        plugin_test_scenario_path = Path("conf/common/plugin")
+        plugin_test_path = Path("conf/common/plugin/test")
 
         plugin_tests = (
             self.parse_tests(list(plugin_test_path.glob("*.toml")), system)
@@ -92,7 +90,7 @@ class Parser:
         if test_scenario_path:
             return self._parse_with_scenario(system, tests, test_scenario_path, plugin_tests, plugin_test_scenario_path)
 
-        return system, tests + plugin_tests, None
+        return system, list(set(tests + plugin_tests)), None
 
     def _parse_with_scenario(
         self,
