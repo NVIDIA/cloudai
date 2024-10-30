@@ -78,19 +78,20 @@ class Parser:
         except TestConfigParsingError:
             exit(1)  # exit right away to keep error message readable for users
 
-        plugin_test_scenario_path = Path("conf/plugin")
         plugin_test_path = Path("conf/plugin/test")
+        try:
+            plugin_tests = (
+                self.parse_tests(list(plugin_test_path.glob("*.toml")), system) if plugin_test_path.exists() else []
+            )
+        except TestConfigParsingError:
+            exit(1)  # exit right away to keep error message readable for users
 
-        plugin_tests = (
-            self.parse_tests(list(plugin_test_path.glob("*.toml")), system)
-            if plugin_test_path and plugin_test_path.exists()
-            else []
-        )
-
+        plugin_test_scenario_path = Path("conf/plugin")
         if test_scenario_path:
             return self._parse_with_scenario(system, tests, test_scenario_path, plugin_tests, plugin_test_scenario_path)
 
-        return system, list(set(tests + plugin_tests)), None
+        combined_tests = list(set(tests + plugin_tests))
+        return system, combined_tests, None
 
     def _parse_with_scenario(
         self,
