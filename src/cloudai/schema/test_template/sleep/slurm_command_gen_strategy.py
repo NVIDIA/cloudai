@@ -16,13 +16,12 @@
 
 from typing import Dict, List
 
+from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
 
 class SleepSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for Sleep on Slurm systems."""
 
-    def generate_test_command(
-        self, env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
-    ) -> List[str]:
+    def generate_test_command(self, env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun) -> List[str]:
         return [f'sleep {cmd_args["seconds"]}']

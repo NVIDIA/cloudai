@@ -22,6 +22,7 @@ import pytest
 from cloudai import TestRun
 from cloudai.schema.test_template.chakra_replay.slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
+from tests.conftest import create_autospec_dataclass
 
 
 class TestChakraReplaySlurmCommandGenStrategy:
@@ -123,16 +124,20 @@ class TestChakraReplaySlurmCommandGenStrategy:
         expected_result: List[str],
         slurm_system: SlurmSystem,
     ) -> None:
-        command = cmd_gen_strategy.generate_test_command({}, cmd_args, extra_cmd_args)
+        tr = create_autospec_dataclass(TestRun)
+        tr.test.extra_cmd_args = extra_cmd_args
+        command = cmd_gen_strategy.generate_test_command({}, cmd_args, tr)
         assert command == expected_result
 
     def test_generate_test_command_invalid_args(
         self, cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy, slurm_system: SlurmSystem
     ) -> None:
         cmd_args: Dict[str, str] = {"trace_type": "comms_trace", "backend": "nccl", "device": "gpu"}
-        extra_cmd_args: str = "--max-steps 100"
+
+        tr = create_autospec_dataclass(TestRun)
+        tr.test.extra_cmd_args = "--max-steps 100"
 
         with pytest.raises(KeyError) as exc_info:
-            cmd_gen_strategy.generate_test_command({}, cmd_args, extra_cmd_args)
+            cmd_gen_strategy.generate_test_command({}, cmd_args, tr)
 
         assert str(exc_info.value) == "'trace_path'", "Expected missing trace_path key"

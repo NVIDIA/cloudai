@@ -35,15 +35,13 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return base_args
 
-    def generate_test_command(
-        self, env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
-    ) -> List[str]:
+    def generate_test_command(self, env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun) -> List[str]:
         srun_command_parts = [
             "python /workspace/param/train/comms/pt/commsTraceReplay.py",
             f'--trace-type {cmd_args["trace_type"]}',
             f'--trace-path {cmd_args["trace_path"]}',
             f'--backend {cmd_args["backend"]}',
             f'--device {cmd_args["device"]}',
-            extra_cmd_args,
+            tr.test.extra_cmd_args,
         ]
         return srun_command_parts
