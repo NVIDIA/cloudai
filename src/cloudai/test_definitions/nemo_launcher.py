@@ -47,8 +47,8 @@ class Trainer(BaseModel):
     """Trainer configuration."""
 
     model_config = ConfigDict(extra="forbid")
-    max_steps: int = 400
-    val_check_interval: int = 100
+    max_steps: int = 20
+    val_check_interval: int = 10
     log_every_n_steps: Literal["1", "2"] = "1"
     enable_checkpointing: bool = False
 
