@@ -78,8 +78,8 @@ class Parser:
         except TestConfigParsingError:
             exit(1)  # exit right away to keep error message readable for users
 
-        plugin_test_scenario_path = Path("conf/common/plugin")
-        plugin_test_path = Path("conf/common/plugin/test")
+        plugin_test_scenario_path = Path("conf/plugin")
+        plugin_test_path = Path("conf/plugin/test")
 
         plugin_tests = (
             self.parse_tests(list(plugin_test_path.glob("*.toml")), system)
