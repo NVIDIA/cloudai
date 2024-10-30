@@ -134,9 +134,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         Returns:
             str: A string with all the Slurm srun commands generated for the prologue.
         """
-        if not prologue.test_runs:
-            return "PROLOGUE_SUCCESS=1\n"
-
         prologue_output_dir = base_output_path / "prologue"
         prologue_output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -177,9 +174,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         Returns:
             str: A string with all the Slurm srun commands generated for the epilogue.
         """
-        if not epilogue.test_runs:
-            return ""
-
         epilogue_output_dir = base_output_path / "epilogue"
         epilogue_output_dir.mkdir(parents=True, exist_ok=True)
 
