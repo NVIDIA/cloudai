@@ -132,7 +132,7 @@ def test_raises_if_no_default_partition(slurm_system: SlurmSystem):
             [Mock(test=Mock(name="test1", test_template=Mock()))],
             None,
             [
-                "SUCCESS_0=$(grep -q 'Avg bus bandwidth' stdout.txt && echo 1 || echo 0)",
+                "prologue",
                 "PROLOGUE_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && echo 1 || echo 0 )",
                 "if [ $PROLOGUE_SUCCESS -eq 1 ]; then",
                 "    srun",
@@ -153,7 +153,7 @@ def test_raises_if_no_default_partition(slurm_system: SlurmSystem):
             [Mock(test=Mock(name="test1", test_template=Mock()))],
             [Mock(test=Mock(name="test2", test_template=Mock()))],
             [
-                "SUCCESS_0=$(grep -q 'Avg bus bandwidth' stdout.txt && echo 1 || echo 0)",
+                "prologue",
                 "PROLOGUE_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && echo 1 || echo 0 )",
                 "if [ $PROLOGUE_SUCCESS -eq 1 ]; then",
                 "    srun",
@@ -166,8 +166,8 @@ def test_raises_if_no_default_partition(slurm_system: SlurmSystem):
             [Mock(test=Mock(name="test1", test_template=Mock())), Mock(test=Mock(name="test2", test_template=Mock()))],
             [Mock(test=Mock(name="test3", test_template=Mock())), Mock(test=Mock(name="test4", test_template=Mock()))],
             [
-                "SUCCESS_0=$(grep -q 'Avg bus bandwidth' stdout.txt && echo 1 || echo 0)",
-                "SUCCESS_1=$(grep -q 'Avg bus bandwidth' stdout.txt && echo 1 || echo 0)",
+                "prologue",
+                "prologue",
                 "PROLOGUE_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && [ $SUCCESS_1 -eq 1 ] && echo 1 || echo 0 )",
                 "if [ $PROLOGUE_SUCCESS -eq 1 ]; then",
                 "    srun",
@@ -181,8 +181,8 @@ def test_raises_if_no_default_partition(slurm_system: SlurmSystem):
             [Mock(test=Mock(name="test1", test_template=Mock())), Mock(test=Mock(name="test2", test_template=Mock()))],
             None,
             [
-                "SUCCESS_0=$(grep -q 'Avg bus bandwidth' stdout.txt && echo 1 || echo 0)",
-                "SUCCESS_1=$(grep -q 'Avg bus bandwidth' stdout.txt && echo 1 || echo 0)",
+                "prologue",
+                "prologue",
                 "PROLOGUE_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && [ $SUCCESS_1 -eq 1 ] && echo 1 || echo 0 )",
                 "if [ $PROLOGUE_SUCCESS -eq 1 ]; then",
                 "    srun",
@@ -204,8 +204,8 @@ def test_raises_if_no_default_partition(slurm_system: SlurmSystem):
             [Mock(test=Mock(name="test1", test_template=Mock())), Mock(test=Mock(name="test2", test_template=Mock()))],
             [Mock(test=Mock(name="test3", test_template=Mock()))],
             [
-                "SUCCESS_0=$(grep -q 'Avg bus bandwidth' stdout.txt && echo 1 || echo 0)",
-                "SUCCESS_1=$(grep -q 'Avg bus bandwidth' stdout.txt && echo 1 || echo 0)",
+                "prologue",
+                "prologue",
                 "PROLOGUE_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && [ $SUCCESS_1 -eq 1 ] && echo 1 || echo 0 )",
                 "if [ $PROLOGUE_SUCCESS -eq 1 ]; then",
                 "    srun",
@@ -229,9 +229,7 @@ def test_prologue_epilogue_combinations(
         testrun_fixture.prologue = Mock(spec=TestScenario)
         testrun_fixture.prologue.test_runs = prologue
         for idx, run in enumerate(prologue):
-            run.test.test_template.gen_srun_success_check.return_value = (
-                "grep -q 'Avg bus bandwidth' stdout.txt && echo 1 || echo 0"
-            )
+            run.test.test_template.gen_srun_success_check.return_value = "prologue"
             run.test.test_template.gen_srun_command.return_value = "srun"
             run.test.name = f"test{idx+1}"
 
