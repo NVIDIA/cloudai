@@ -54,11 +54,9 @@ def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, testrun_
     env_vars = {"TEST_VAR": "VALUE"}
     cmd_args = {"test_arg": "test_value"}
     slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, testrun_fixture)
-    srun_command = strategy_fixture._gen_srun_command(slurm_args, env_vars, cmd_args, "")
+    srun_command = strategy_fixture._gen_srun_command(slurm_args, env_vars, cmd_args, testrun_fixture)
 
-    sbatch_command = strategy_fixture._write_sbatch_script(
-        slurm_args, env_vars, srun_command, testrun_fixture.output_path
-    )
+    sbatch_command = strategy_fixture._write_sbatch_script(slurm_args, env_vars, srun_command, testrun_fixture)
     filepath_from_command = sbatch_command.split()[-1]
 
     assert testrun_fixture.output_path.joinpath("cloudai_sbatch_script.sh").exists()

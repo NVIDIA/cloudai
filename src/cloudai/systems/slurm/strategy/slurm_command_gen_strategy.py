@@ -56,7 +56,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
         slurm_args = self._parse_slurm_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
 
-        srun_command = self._gen_srun_command(slurm_args, env_vars, cmd_args, tr.test.extra_cmd_args)
+        srun_command = self._gen_srun_command(slurm_args, env_vars, cmd_args, tr)
         command_list = []
         indent = ""
 
@@ -75,13 +75,13 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             command_list.append("fi")
 
         full_command = "\n".join(command_list).strip()
-        return self._write_sbatch_script(slurm_args, env_vars, full_command, tr.output_path)
+        return self._write_sbatch_script(slurm_args, env_vars, full_command, tr)
 
     def gen_srun_command(self, tr: TestRun) -> str:
         env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
         cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
         slurm_args = self._parse_slurm_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
-        return self._gen_srun_command(slurm_args, env_vars, cmd_args, tr.test.extra_cmd_args)
+        return self._gen_srun_command(slurm_args, env_vars, cmd_args, tr)
 
     def _parse_slurm_args(
         self, job_name_prefix: str, env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun
@@ -199,10 +199,10 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return "\n".join(epilogue_commands)
 
     def _gen_srun_command(
-        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
+        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun
     ) -> str:
         srun_command_parts = self.gen_srun_prefix(slurm_args)
-        test_command_parts = self.generate_test_command(env_vars, cmd_args, extra_cmd_args)
+        test_command_parts = self.generate_test_command(env_vars, cmd_args, tr)
         return " ".join(srun_command_parts + test_command_parts)
 
     def gen_srun_prefix(self, slurm_args: Dict[str, Any]) -> List[str]:
@@ -217,9 +217,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         return srun_command_parts
 
-    def generate_test_command(
-        self, env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
-    ) -> List[str]:
+    def generate_test_command(self, env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun) -> List[str]:
         return []
 
     def _add_reservation(self, batch_script_content: List[str]):
@@ -240,7 +238,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return batch_script_content
 
     def _write_sbatch_script(
-        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], srun_command: str, output_path: Path
+        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], srun_command: str, tr: TestRun
     ) -> str:
         """
         Write the batch script for Slurm submission and return the sbatch command.
@@ -249,7 +247,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             slurm_args (Dict[str, Any]): Slurm-specific arguments.
             env_vars (env_vars: Dict[str, str]): Environment variables.
             srun_command (str): srun command.
-            output_path (Path): Output directory for script and logs.
+            tr (TestRun): Test run object.
 
         Returns:
             str: sbatch command to submit the job.
@@ -260,12 +258,12 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             f"#SBATCH -N {slurm_args['num_nodes']}",
         ]
 
-        self._append_sbatch_directives(batch_script_content, slurm_args, output_path)
+        self._append_sbatch_directives(batch_script_content, slurm_args, tr.output_path)
 
         env_vars_str = self._format_env_vars(env_vars)
         batch_script_content.extend([env_vars_str, "", srun_command])
 
-        batch_script_path = output_path / "cloudai_sbatch_script.sh"
+        batch_script_path = tr.output_path / "cloudai_sbatch_script.sh"
         with batch_script_path.open("w") as batch_file:
             batch_file.write("\n".join(batch_script_content))
 
