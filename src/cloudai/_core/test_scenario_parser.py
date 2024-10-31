@@ -142,8 +142,18 @@ class TestScenarioParser:
         prologue, epilogue = None, None
         if ts_model.prologue:
             prologue = self.plugin_mapping.get(ts_model.prologue)
+            if prologue is None:
+                logging.warning(
+                    f"Prologue '{ts_model.prologue}' not found in plugin mapping. "
+                    "Ensure that a proper plugin directory is set under the working directory."
+                )
         if ts_model.epilogue:
             epilogue = self.plugin_mapping.get(ts_model.epilogue)
+            if epilogue is None:
+                logging.warning(
+                    f"Epilogue '{ts_model.epilogue}' not found in plugin mapping. "
+                    "Ensure that a proper plugin directory is set under the working directory."
+                )
 
         test_runs_by_id: dict[str, TestRun] = {
             tr.id: self._create_test_run(tr, normalized_weight, prologue, epilogue) for tr in ts_model.tests
