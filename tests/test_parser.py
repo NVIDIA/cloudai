@@ -15,13 +15,13 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Dict, cast
+from typing import cast
 from unittest.mock import Mock, patch
 
 import pytest
 from pydantic_core import ErrorDetails
 
-from cloudai import Parser, TestScenario, format_validation_error
+from cloudai import Parser, format_validation_error
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 
 
@@ -53,11 +53,11 @@ class Test_Parser:
     def test_scenario_without_plugin(self, test_scenario_parser: Mock, test_parser: Mock, parser: Parser):
         tests_dir = parser.system_config_path.parent.parent / "test"
 
-        fake_tests = []
-        for i in range(3):
-            fake_tests.append(Mock())
-            fake_tests[-1].name = f"test-{i}"
-        test_parser.return_value = fake_tests
+        fake_tests = [Mock(name=f"test-{i}") for i in range(3)]
+        for i, test in enumerate(fake_tests):
+            test.name = f"test-{i}"
+
+        test_parser.side_effect = [fake_tests, []]
 
         fake_scenario = Mock()
         fake_scenario.test_runs = [Mock()]
@@ -77,11 +77,13 @@ class Test_Parser:
     ):
         tests_dir = parser.system_config_path.parent.parent / "test"
 
-        fake_tests = []
-        for i in range(3):
-            fake_tests.append(Mock())
-            fake_tests[-1].name = f"test-{i}"
-        test_parser.return_value = fake_tests
+        main_tests = [Mock() for _ in range(3)]
+        for i, test in enumerate(main_tests):
+            test.name = f"test-{i}"
+        plugin_tests = [Mock()]
+        plugin_tests[0].name = "test-1"
+
+        test_parser.side_effect = [main_tests, plugin_tests]
 
         fake_scenario = Mock()
         fake_scenario.test_runs = [Mock()]
@@ -95,57 +97,40 @@ class Test_Parser:
 
         _, tests, _ = parser.parse(tests_dir, Path())
 
+        filtered_test_names = {t.name for t in tests}
         assert len(tests) == 1
-        assert tests[0].name == "test-1"
+        assert "test-1" in filtered_test_names
 
     @patch("cloudai._core.test_parser.TestParser.parse_all")
     @patch("cloudai._core.test_scenario_parser.TestScenarioParser.parse")
-    def test_scenario_with_plugin_exclusive_tests(self, test_scenario_parser: Mock, test_parser: Mock, parser: Parser):
+    @patch("pathlib.Path.exists", return_value=True)
+    def test_scenario_with_plugin_exclusive_tests(
+        self, path_exists_mock: Mock, test_scenario_parser: Mock, test_parser: Mock, parser: Parser
+    ):
         tests_dir = parser.system_config_path.parent.parent / "test"
         test_scenario_path = Path("/mock/test_scenario.toml")
 
-        fake_tests = [Mock() for _ in range(4)]
-        for i, test in enumerate(fake_tests):
+        main_tests = [Mock() for _ in range(3)]
+        plugin_tests = [Mock()]
+        for i, test in enumerate(main_tests):
             test.name = f"test-{i}"
-        test_parser.return_value = fake_tests
+        plugin_tests[0].name = "plugin-test-1"
+
+        test_parser.side_effect = [main_tests, plugin_tests]
 
         fake_scenario = Mock()
         fake_scenario.test_runs = [Mock()]
         fake_scenario.test_runs[0].test.name = "test-1"
         test_scenario_parser.return_value = fake_scenario
 
-        fake_plugin_scenarios = {"plugin-1": Mock(test_runs=[Mock()])}
-        fake_plugin_scenarios["plugin-1"].test_runs[0].test.name = "test-2"
-
-        with patch.object(parser, "_load_plugin_scenarios", return_value=fake_plugin_scenarios):
-            _, filtered_tests, _ = parser.parse(tests_dir, test_scenario_path)
+        _, filtered_tests, _ = parser.parse(tests_dir, test_scenario_path)
 
         filtered_test_names = {t.name for t in filtered_tests}
         assert len(filtered_tests) == 2
         assert "test-1" in filtered_test_names
-        assert "test-2" in filtered_test_names
+        assert "plugin-test-1" in filtered_test_names
         assert "test-0" not in filtered_test_names
-        assert "test-3" not in filtered_test_names
-
-    def test_collect_used_test_names(self, parser: Parser):
-        fake_scenario = Mock()
-        fake_scenario.test_runs = [Mock()]
-        fake_scenario.test_runs[0].test.name = "test-1"
-
-        fake_plugin_scenario_1 = Mock(spec=TestScenario)
-        fake_plugin_scenario_1.test_runs = [Mock()]
-        fake_plugin_scenario_1.test_runs[0].test.name = "test-2"
-
-        fake_plugin_scenario_2 = Mock(spec=TestScenario)
-        fake_plugin_scenario_2.test_runs = [Mock()]
-        fake_plugin_scenario_2.test_runs[0].test.name = "test-3"
-
-        fake_plugin_scenarios = cast(
-            Dict[str, TestScenario], {"plugin-1": fake_plugin_scenario_1, "plugin-2": fake_plugin_scenario_2}
-        )
-
-        used_test_names = parser._collect_used_test_names(fake_plugin_scenarios, fake_scenario)
-        assert used_test_names == {"test-1", "test-2", "test-3"}
+        assert "test-2" not in filtered_test_names
 
     def test_parse_system(self, parser: Parser):
         parser.system_config_path = Path("conf/common/system/example_slurm_cluster.toml")

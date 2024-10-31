@@ -16,7 +16,7 @@
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import toml
 from pydantic import ValidationError
@@ -33,6 +33,9 @@ from cloudai import (
     TestScenarioParsingError,
     format_validation_error,
 )
+
+PLUGIN_ROOT = Path("conf/plugin")
+PLUGIN_TEST_ROOT = PLUGIN_ROOT / "test"
 
 
 class Parser:
@@ -78,74 +81,44 @@ class Parser:
         except TestConfigParsingError:
             exit(1)  # exit right away to keep error message readable for users
 
-        plugin_test_path = Path("conf/plugin/test")
         try:
             plugin_tests = (
-                self.parse_tests(list(plugin_test_path.glob("*.toml")), system) if plugin_test_path.exists() else []
+                self.parse_tests(list(PLUGIN_TEST_ROOT.glob("*.toml")), system) if PLUGIN_TEST_ROOT.exists() else []
             )
         except TestConfigParsingError:
             exit(1)  # exit right away to keep error message readable for users
 
-        plugin_test_scenario_path = Path("conf/plugin")
-        if test_scenario_path:
-            return self._parse_with_scenario(system, tests, test_scenario_path, plugin_tests, plugin_test_scenario_path)
+        if not test_scenario_path:
+            all_tests = list({test.name: test for test in tests + plugin_tests}.values())
+            return system, all_tests, None
 
-        combined_tests = list(set(tests + plugin_tests))
-        return system, combined_tests, None
-
-    def _parse_with_scenario(
-        self,
-        system: System,
-        tests: List[Test],
-        test_scenario_path: Path,
-        plugin_tests: List[Test],
-        plugin_test_scenario_path: Optional[Path],
-    ) -> Tuple[System, List[Test], Optional[TestScenario]]:
-        """Parse tests and scenarios with a main test scenario path specified."""
         test_mapping = {t.name: t for t in tests}
-        plugin_test_mapping = {t.name: t for t in plugin_tests}
+        plugin_test_scenario_mapping = {}
+        if PLUGIN_ROOT.exists() and list(PLUGIN_ROOT.glob("*.toml")):
+            try:
+                plugin_test_scenario_mapping = self.parse_plugins(
+                    list(PLUGIN_ROOT.glob("*.toml")), {t.name: t for t in plugin_tests}
+                )
+            except TestScenarioParsingError:
+                exit(1)  # exit right away to keep error message readable for users
 
-        plugin_test_scenario_mapping = self._load_plugin_scenarios(plugin_test_scenario_path, plugin_test_mapping)
-        test_scenario = self._load_main_scenario(test_scenario_path, test_mapping, plugin_test_scenario_mapping)
+        try:
+            test_scenario = self.parse_test_scenario(test_scenario_path, test_mapping, plugin_test_scenario_mapping)
+        except TestScenarioParsingError:
+            exit(1)  # exit right away to keep error message readable for users
 
-        all_used_test_names = self._collect_used_test_names(plugin_test_scenario_mapping, test_scenario)
-        filtered_tests = [t for t in tests if t.name in all_used_test_names]
+        scenario_tests = {tr.test.name for tr in test_scenario.test_runs}
+        plugin_scenario_tests = {
+            tr.test.name
+            for plugin_scenario in plugin_test_scenario_mapping.values()
+            for tr in plugin_scenario.test_runs
+        }
+
+        relevant_test_names = scenario_tests.union(plugin_scenario_tests)
+        filtered_tests = [t for t in tests if t.name in relevant_test_names] + plugin_tests
+        filtered_tests = list({test.name: test for test in filtered_tests}.values())
 
         return system, filtered_tests, test_scenario
-
-    def _load_plugin_scenarios(
-        self, plugin_test_scenario_path: Optional[Path], plugin_test_mapping: Dict[str, Test]
-    ) -> Dict[str, TestScenario]:
-        """Load plugin-specific test scenarios from the specified path."""
-        if plugin_test_scenario_path and plugin_test_scenario_path.exists():
-            try:
-                return self.parse_plugins(list(plugin_test_scenario_path.glob("*.toml")), plugin_test_mapping)
-            except TestScenarioParsingError:
-                exit(1)
-        return {}
-
-    def _load_main_scenario(
-        self,
-        test_scenario_path: Path,
-        test_mapping: Dict[str, Test],
-        plugin_test_scenario_mapping: Dict[str, TestScenario],
-    ) -> Optional[TestScenario]:
-        """Load the main test scenario using provided mappings."""
-        try:
-            return self.parse_test_scenario(test_scenario_path, test_mapping, plugin_test_scenario_mapping)
-        except TestScenarioParsingError:
-            exit(1)
-
-    def _collect_used_test_names(
-        self, plugin_test_scenario_mapping: Dict[str, TestScenario], test_scenario: Optional[TestScenario]
-    ) -> Set[str]:
-        """Collect test names used in both plugin and main test scenarios."""
-        # TODO: collect test names in the plugin test scenarios only
-        plugin_test_names = {
-            tr.test.name for scenario in plugin_test_scenario_mapping.values() for tr in scenario.test_runs
-        }
-        scenario_test_names = {tr.test.name for tr in test_scenario.test_runs} if test_scenario else set()
-        return plugin_test_names.union(scenario_test_names)
 
     @staticmethod
     def parse_plugins(plugin_tomls: List[Path], test_mapping: Dict[str, Test]) -> Dict[str, TestScenario]:
