@@ -103,10 +103,7 @@ class Test_Parser:
 
     @patch("cloudai._core.test_parser.TestParser.parse_all")
     @patch("cloudai._core.test_scenario_parser.TestScenarioParser.parse")
-    @patch("pathlib.Path.exists", return_value=True)
-    def test_scenario_with_plugin_exclusive_tests(
-        self, path_exists_mock: Mock, test_scenario_parser: Mock, test_parser: Mock, parser: Parser
-    ):
+    def test_scenario_with_plugin_exclusive_tests(self, test_scenario_parser: Mock, test_parser: Mock, parser: Parser):
         tests_dir = parser.system_config_path.parent.parent / "test"
         test_scenario_path = Path("/mock/test_scenario.toml")
 
