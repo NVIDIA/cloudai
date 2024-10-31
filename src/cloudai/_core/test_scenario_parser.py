@@ -209,7 +209,7 @@ class TestScenarioParser:
             sol=test_info.sol,
             weight=test_info.weight * normalized_weight,
             ideal_perf=test_info.ideal_perf,
-            prologue=prologue if prologue is not None else TestScenario(name="default_prologue", test_runs=[]),
-            epilogue=epilogue if epilogue is not None else TestScenario(name="default_epilogue", test_runs=[]),
+            prologue=prologue,
+            epilogue=epilogue,
         )
         return tr
