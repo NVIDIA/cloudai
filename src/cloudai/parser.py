@@ -95,10 +95,12 @@ class Parser:
         test_mapping = {t.name: t for t in tests}
         plugin_test_scenario_mapping = {}
         if PLUGIN_ROOT.exists() and list(PLUGIN_ROOT.glob("*.toml")):
+            logging.debug("PLUGIN_ROOT exists and contains .toml files. Proceeding with plugin test scenario parsing.")
             try:
                 plugin_test_scenario_mapping = self.parse_plugins(
                     list(PLUGIN_ROOT.glob("*.toml")), {t.name: t for t in plugin_tests}
                 )
+                logging.debug("Plugin test scenarios successfully parsed from PLUGIN_ROOT.")
             except TestScenarioParsingError:
                 exit(1)  # exit right away to keep error message readable for users
 
