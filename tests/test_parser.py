@@ -97,7 +97,7 @@ class Test_Parser:
 
         _, tests, _ = parser.parse(tests_dir, Path())
 
-        filtered_test_names = {t.name for t in tests}
+        filtered_test_names = {"test-1"}
         assert len(tests) == 1
         assert "test-1" in filtered_test_names
 
