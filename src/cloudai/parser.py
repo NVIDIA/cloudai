@@ -82,7 +82,7 @@ class Parser:
             exit(1)  # exit right away to keep error message readable for users
 
         if not PLUGIN_ROOT.exists():
-            logger.debug(f"PLUGIN_ROOT path '{PLUGIN_ROOT}' does not exist. Plugins will not be enabled.")
+            logging.debug(f"PLUGIN_ROOT path '{PLUGIN_ROOT}' does not exist. Plugins will not be enabled.")
 
         try:
             plugin_tests = (
