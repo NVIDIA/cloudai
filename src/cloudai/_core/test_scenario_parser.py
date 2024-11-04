@@ -143,17 +143,22 @@ class TestScenarioParser:
         if ts_model.pre_test:
             pre_test = self.hook_mapping.get(ts_model.pre_test)
             if pre_test is None:
-                logging.warning(
+                msg = (
                     f"Pre-test hook '{ts_model.pre_test}' not found in hook mapping. "
                     "Ensure that a proper hook directory is set under the working directory."
                 )
+                logging.error(msg)
+                raise TestScenarioParsingError(msg)
+
         if ts_model.post_test:
             post_test = self.hook_mapping.get(ts_model.post_test)
             if post_test is None:
-                logging.warning(
+                msg = (
                     f"Post-test hook '{ts_model.post_test}' not found in hook mapping. "
                     "Ensure that a proper hook directory is set under the working directory."
                 )
+                logging.error(msg)
+                raise TestScenarioParsingError(msg)
 
         test_runs_by_id: dict[str, TestRun] = {
             tr.id: self._create_test_run(tr, normalized_weight, pre_test, post_test) for tr in ts_model.tests
