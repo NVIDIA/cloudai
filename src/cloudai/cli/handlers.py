@@ -212,7 +212,11 @@ def verify_test_configs(test_tomls: List[Path]) -> int:
 
 
 def verify_test_scenarios(
-    scenario_tomls: List[Path], test_tomls: list[Path], system_config: Optional[Path] = None
+    scenario_tomls: List[Path],
+    test_tomls: list[Path],
+    hook_tomls: List[Path],
+    hook_test_tomls: list[Path],
+    system_config: Optional[Path] = None,
 ) -> int:
     system = Mock(spec=System)
     if system_config:
@@ -225,7 +229,9 @@ def verify_test_scenarios(
         logging.debug(f"Verifying Test Scenario: {scenario_file}...")
         try:
             tests = Parser.parse_tests(test_tomls, system)
-            Parser.parse_test_scenario(scenario_file, {t.name: t for t in tests})
+            hook_tests = Parser.parse_tests(hook_test_tomls, system)
+            hooks = Parser.parse_hooks(hook_tomls, {t.name: t for t in hook_tests})
+            Parser.parse_test_scenario(scenario_file, {t.name: t for t in tests}, hooks)
         except Exception:
             nfailed += 1
 
@@ -259,7 +265,9 @@ def handle_verify_all_configs(args: argparse.Namespace) -> int:
     if files["test"]:
         nfailed += verify_test_configs(files["test"])
     if files["scenario"]:
-        nfailed += verify_test_scenarios(files["scenario"], test_tomls, args.system_config)
+        nfailed += verify_test_scenarios(
+            files["scenario"], test_tomls, files["hook"], files["hook_test"], args.system_config
+        )
     if files["unknown"]:
         logging.error(f"Unknown configuration files: {[str(f) for f in files['unknown']]}")
         nfailed += len(files["unknown"])
@@ -273,10 +281,22 @@ def handle_verify_all_configs(args: argparse.Namespace) -> int:
 
 
 def load_tomls_by_type(tomls: List[Path]) -> dict[str, List[Path]]:
-    files: dict[str, List[Path]] = {"system": [], "test": [], "scenario": [], "unknown": []}
+    files: dict[str, List[Path]] = {
+        "system": [],
+        "test": [],
+        "scenario": [],
+        "hook_test": [],
+        "hook": [],
+        "unknown": [],
+    }
     for toml_file in tomls:
         content = toml_file.read_text()
-        if "scheduler =" in content:
+        if "conf" in toml_file.parts and "hook" in toml_file.parts:
+            if "test" in toml_file.parts:
+                files["hook_test"].append(toml_file)
+            else:
+                files["hook"].append(toml_file)
+        elif "scheduler =" in content:
             files["system"].append(toml_file)
         elif "test_template_name =" in content:
             files["test"].append(toml_file)
