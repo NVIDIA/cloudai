@@ -123,121 +123,121 @@ def test_raises_if_no_default_partition(slurm_system: SlurmSystem):
 
 
 @pytest.mark.parametrize(
-    "prologue,epilogue,expected_script_lines",
+    "pre_test,post_test,expected_script_lines",
     [
-        # No prologue, no epilogue
+        # No pre_test, no post_test
         (None, None, ["srun"]),
-        # One prologue, no epilogue
+        # One pre_test, no post_test
         (
             [Mock(test=Mock(name="test1", test_template=Mock()))],
             None,
             [
-                "prologue",
+                "pre_test",
                 "PROLOGUE_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && echo 1 || echo 0 )",
                 "if [ $PROLOGUE_SUCCESS -eq 1 ]; then",
                 "    srun",
                 "fi",
             ],
         ),
-        # No prologue, one epilogue
+        # No pre_test, one post_test
         (
             None,
             [Mock(test=Mock(name="test2", test_template=Mock()))],
             [
                 "srun",
-                "epilogue",
+                "post_test",
             ],
         ),
-        # One prologue, one epilogue
+        # One pre_test, one post_test
         (
             [Mock(test=Mock(name="test1", test_template=Mock()))],
             [Mock(test=Mock(name="test2", test_template=Mock()))],
             [
-                "prologue",
+                "pre_test",
                 "PROLOGUE_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && echo 1 || echo 0 )",
                 "if [ $PROLOGUE_SUCCESS -eq 1 ]; then",
                 "    srun",
-                "    epilogue",
+                "    post_test",
                 "fi",
             ],
         ),
-        # Multiple prologues, multiple epilogues
+        # Multiple pre_tests, multiple post_tests
         (
             [Mock(test=Mock(name="test1", test_template=Mock())), Mock(test=Mock(name="test2", test_template=Mock()))],
             [Mock(test=Mock(name="test3", test_template=Mock())), Mock(test=Mock(name="test4", test_template=Mock()))],
             [
-                "prologue",
-                "prologue",
+                "pre_test",
+                "pre_test",
                 "PROLOGUE_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && [ $SUCCESS_1 -eq 1 ] && echo 1 || echo 0 )",
                 "if [ $PROLOGUE_SUCCESS -eq 1 ]; then",
                 "    srun",
-                "    epilogue",
-                "    epilogue",
+                "    post_test",
+                "    post_test",
                 "fi",
             ],
         ),
-        # Multiple prologues, no epilogue
+        # Multiple pre_tests, no post_test
         (
             [Mock(test=Mock(name="test1", test_template=Mock())), Mock(test=Mock(name="test2", test_template=Mock()))],
             None,
             [
-                "prologue",
-                "prologue",
+                "pre_test",
+                "pre_test",
                 "PROLOGUE_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && [ $SUCCESS_1 -eq 1 ] && echo 1 || echo 0 )",
                 "if [ $PROLOGUE_SUCCESS -eq 1 ]; then",
                 "    srun",
                 "fi",
             ],
         ),
-        # No prologue, multiple epilogues
+        # No pre_test, multiple post_tests
         (
             None,
             [Mock(test=Mock(name="test3", test_template=Mock())), Mock(test=Mock(name="test4", test_template=Mock()))],
             [
                 "srun",
-                "epilogue",
-                "epilogue",
+                "post_test",
+                "post_test",
             ],
         ),
-        # Multiple prologues, single epilogue
+        # Multiple pre_tests, single post_test
         (
             [Mock(test=Mock(name="test1", test_template=Mock())), Mock(test=Mock(name="test2", test_template=Mock()))],
             [Mock(test=Mock(name="test3", test_template=Mock()))],
             [
-                "prologue",
-                "prologue",
+                "pre_test",
+                "pre_test",
                 "PROLOGUE_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && [ $SUCCESS_1 -eq 1 ] && echo 1 || echo 0 )",
                 "if [ $PROLOGUE_SUCCESS -eq 1 ]; then",
                 "    srun",
-                "    epilogue",
+                "    post_test",
                 "fi",
             ],
         ),
     ],
 )
-def test_prologue_epilogue_combinations(
+def test_pre_test_post_test_combinations(
     strategy_fixture: SlurmCommandGenStrategy,
     testrun_fixture: TestRun,
-    prologue,
-    epilogue,
+    pre_test,
+    post_test,
     expected_script_lines,
 ):
-    testrun_fixture.prologue = Mock(spec=TestScenario) if prologue else None
-    testrun_fixture.epilogue = Mock(spec=TestScenario) if epilogue else None
+    testrun_fixture.pre_test = Mock(spec=TestScenario) if pre_test else None
+    testrun_fixture.post_test = Mock(spec=TestScenario) if post_test else None
 
-    if prologue is not None:
-        testrun_fixture.prologue = Mock(spec=TestScenario)
-        testrun_fixture.prologue.test_runs = prologue
-        for idx, run in enumerate(prologue):
-            run.test.test_template.gen_srun_success_check.return_value = "prologue"
+    if pre_test is not None:
+        testrun_fixture.pre_test = Mock(spec=TestScenario)
+        testrun_fixture.pre_test.test_runs = pre_test
+        for idx, run in enumerate(pre_test):
+            run.test.test_template.gen_srun_success_check.return_value = "pre_test"
             run.test.test_template.gen_srun_command.return_value = "srun"
             run.test.name = f"test{idx+1}"
 
-    if epilogue is not None:
-        testrun_fixture.epilogue = Mock(spec=TestScenario)
-        testrun_fixture.epilogue.test_runs = epilogue
-        for idx, run in enumerate(epilogue):
-            run.test.test_template.gen_srun_command.return_value = "epilogue"
+    if post_test is not None:
+        testrun_fixture.post_test = Mock(spec=TestScenario)
+        testrun_fixture.post_test.test_runs = post_test
+        for idx, run in enumerate(post_test):
+            run.test.test_template.gen_srun_command.return_value = "post_test"
             run.test.name = f"test{idx+1}"
 
     sbatch_command = strategy_fixture.gen_exec_command(testrun_fixture)

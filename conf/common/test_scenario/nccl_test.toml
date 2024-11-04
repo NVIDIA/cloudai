@@ -16,8 +16,8 @@
 
 name = "nccl-test"
 
-prologue = "nccl_test_prologue"
-epilogue = "nccl_test_epilogue"
+pre_test = "nccl_test"
+post_test = "nccl_test"
 
 [[Tests]]
 id = "Tests.1"

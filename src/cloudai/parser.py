@@ -34,7 +34,7 @@ from cloudai import (
     format_validation_error,
 )
 
-PLUGIN_ROOT = Path("conf/plugin")
+PLUGIN_ROOT = Path("conf/hook")
 PLUGIN_TEST_ROOT = PLUGIN_ROOT / "test"
 
 
@@ -85,62 +85,60 @@ class Parser:
             logging.debug(f"PLUGIN_ROOT path '{PLUGIN_ROOT}' does not exist. Plugins will not be enabled.")
 
         try:
-            plugin_tests = (
+            hook_tests = (
                 self.parse_tests(list(PLUGIN_TEST_ROOT.glob("*.toml")), system) if PLUGIN_TEST_ROOT.exists() else []
             )
         except TestConfigParsingError:
             exit(1)  # exit right away to keep error message readable for users
 
         if not test_scenario_path:
-            all_tests = list({test.name: test for test in tests + plugin_tests}.values())
+            all_tests = list({test.name: test for test in tests + hook_tests}.values())
             return system, all_tests, None
 
         test_mapping = {t.name: t for t in tests}
-        plugin_test_scenario_mapping = {}
+        hook_test_scenario_mapping = {}
         if PLUGIN_ROOT.exists() and list(PLUGIN_ROOT.glob("*.toml")):
             try:
-                plugin_test_scenario_mapping = self.parse_plugins(
-                    list(PLUGIN_ROOT.glob("*.toml")), {t.name: t for t in plugin_tests}
+                hook_test_scenario_mapping = self.parse_hooks(
+                    list(PLUGIN_ROOT.glob("*.toml")), {t.name: t for t in hook_tests}
                 )
             except TestScenarioParsingError:
                 exit(1)  # exit right away to keep error message readable for users
 
         try:
-            test_scenario = self.parse_test_scenario(test_scenario_path, test_mapping, plugin_test_scenario_mapping)
+            test_scenario = self.parse_test_scenario(test_scenario_path, test_mapping, hook_test_scenario_mapping)
         except TestScenarioParsingError:
             exit(1)  # exit right away to keep error message readable for users
 
         scenario_tests = {tr.test.name for tr in test_scenario.test_runs}
-        plugin_scenario_tests = {
-            tr.test.name
-            for plugin_scenario in plugin_test_scenario_mapping.values()
-            for tr in plugin_scenario.test_runs
+        hook_scenario_tests = {
+            tr.test.name for hook_scenario in hook_test_scenario_mapping.values() for tr in hook_scenario.test_runs
         }
 
-        relevant_test_names = scenario_tests.union(plugin_scenario_tests)
-        filtered_tests = [t for t in tests if t.name in relevant_test_names] + plugin_tests
+        relevant_test_names = scenario_tests.union(hook_scenario_tests)
+        filtered_tests = [t for t in tests if t.name in relevant_test_names] + hook_tests
         filtered_tests = list({test.name: test for test in filtered_tests}.values())
 
         return system, filtered_tests, test_scenario
 
     @staticmethod
-    def parse_plugins(plugin_tomls: List[Path], test_mapping: Dict[str, Test]) -> Dict[str, TestScenario]:
-        plugin_mapping = {}
-        for plugin_test_scenario_path in plugin_tomls:
-            plugin_scenario = Parser.parse_test_scenario(plugin_test_scenario_path, test_mapping)
-            plugin_mapping[plugin_scenario.name] = plugin_scenario
-        return plugin_mapping
+    def parse_hooks(hook_tomls: List[Path], test_mapping: Dict[str, Test]) -> Dict[str, TestScenario]:
+        hook_mapping = {}
+        for hook_test_scenario_path in hook_tomls:
+            hook_scenario = Parser.parse_test_scenario(hook_test_scenario_path, test_mapping)
+            hook_mapping[hook_scenario.name] = hook_scenario
+        return hook_mapping
 
     @staticmethod
     def parse_test_scenario(
         test_scenario_path: Path,
         test_mapping: Dict[str, Test],
-        plugin_mapping: Optional[Dict[str, TestScenario]] = None,
+        hook_mapping: Optional[Dict[str, TestScenario]] = None,
     ) -> TestScenario:
-        if plugin_mapping is None:
-            plugin_mapping = {}
+        if hook_mapping is None:
+            hook_mapping = {}
 
-        test_scenario_parser = TestScenarioParser(test_scenario_path, test_mapping, plugin_mapping)
+        test_scenario_parser = TestScenarioParser(test_scenario_path, test_mapping, hook_mapping)
         test_scenario = test_scenario_parser.parse()
         return test_scenario
 

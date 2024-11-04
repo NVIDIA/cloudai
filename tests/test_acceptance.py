@@ -60,7 +60,7 @@ def test_slurm(tmp_path: Path, scenario: Dict):
         system_config=Path("conf/common/system/example_slurm_cluster.toml"),
         test_templates_dir=Path("conf/common/test_template"),
         tests_dir=Path("conf/common/test"),
-        plugin_dir=Path("conf/common/plugin"),
+        hook_dir=Path("conf/common/hook"),
         test_scenario=test_scenario_path,
         output_dir=tmp_path,
     )
@@ -91,7 +91,7 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
     return partial(TestRun, num_nodes=1, nodes=[], output_path=slurm_system.output_path)
 
 
-@pytest.fixture(params=["ucc", "nccl", "sleep", "gpt-prologue", "gpt-no-plugin", "grok-prologue", "grok-no-plugin"])
+@pytest.fixture(params=["ucc", "nccl", "sleep", "gpt-pre_test", "gpt-no-hook", "grok-pre_test", "grok-no-hook"])
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> tuple[TestRun, str, Optional[str]]:
     if request.param == "ucc":
         tr = partial_tr(
@@ -159,8 +159,8 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             slurm_system, tr.test.test_definition.cmd_args_dict
         )
         tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
-        if "prologue" in request.param:
-            prologue_tr = partial_tr(
+        if "pre_test" in request.param:
+            pre_test_tr = partial_tr(
                 name="nccl",
                 test=Test(
                     test_definition=NCCLTestDefinition(
@@ -169,11 +169,11 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     test_template=NcclTest(slurm_system, name="nccl"),
                 ),
             )
-            prologue_tr.test.test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(
-                slurm_system, prologue_tr.test.test_definition.cmd_args_dict
+            pre_test_tr.test.test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(
+                slurm_system, pre_test_tr.test.test_definition.cmd_args_dict
             )
-            prologue_tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
-            tr.prologue = TestScenario(name=f"{prologue_tr.name} NCCL Prologue", test_runs=[prologue_tr])
+            pre_test_tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+            tr.pre_test = TestScenario(name=f"{pre_test_tr.name} NCCL Prologue", test_runs=[pre_test_tr])
 
         return (tr, f"{request.param}.sbatch", "gpt.run")
     elif request.param.startswith("grok-"):
@@ -194,8 +194,8 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             slurm_system, tr.test.test_definition.cmd_args_dict
         )
         tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
-        if "prologue" in request.param:
-            prologue_tr = partial_tr(
+        if "pre_test" in request.param:
+            pre_test_tr = partial_tr(
                 name="nccl",
                 test=Test(
                     test_definition=NCCLTestDefinition(
@@ -204,11 +204,11 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     test_template=NcclTest(slurm_system, name="nccl"),
                 ),
             )
-            prologue_tr.test.test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(
-                slurm_system, prologue_tr.test.test_definition.cmd_args_dict
+            pre_test_tr.test.test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(
+                slurm_system, pre_test_tr.test.test_definition.cmd_args_dict
             )
-            prologue_tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
-            tr.prologue = TestScenario(name=f"{prologue_tr.name} NCCL Prologue", test_runs=[prologue_tr])
+            pre_test_tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+            tr.pre_test = TestScenario(name=f"{pre_test_tr.name} NCCL Prologue", test_runs=[pre_test_tr])
 
         return (tr, f"{request.param}.sbatch", "grok.run")
 

@@ -60,18 +60,18 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         command_list = []
         indent = ""
 
-        if tr.prologue:
-            prologue_command = self.gen_prologue(tr.prologue, tr.output_path)
-            command_list = [prologue_command, "if [ $PROLOGUE_SUCCESS -eq 1 ]; then"]
+        if tr.pre_test:
+            pre_test_command = self.gen_pre_test(tr.pre_test, tr.output_path)
+            command_list = [pre_test_command, "if [ $PROLOGUE_SUCCESS -eq 1 ]; then"]
             indent = "    "
 
         command_list.append(f"{indent}{srun_command}")
 
-        if tr.epilogue:
-            epilogue_command = self.gen_epilogue(tr.epilogue, tr.output_path)
-            command_list.append(f"{indent}{epilogue_command}")
+        if tr.post_test:
+            post_test_command = self.gen_post_test(tr.post_test, tr.output_path)
+            command_list.append(f"{indent}{post_test_command}")
 
-        if tr.prologue:
+        if tr.pre_test:
             command_list.append("fi")
 
         full_command = "\n".join(command_list).strip()
@@ -123,74 +123,74 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             job_name = f"{self.system.account}-{job_name_prefix}.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         return job_name
 
-    def gen_prologue(self, prologue: TestScenario, base_output_path: Path) -> str:
+    def gen_pre_test(self, pre_test: TestScenario, base_output_path: Path) -> str:
         """
-        Generate the prologue command by running all tests defined in the prologue test scenario.
+        Generate the pre_test command by running all tests defined in the pre_test test scenario.
 
         Args:
-            prologue (TestScenario): The prologue test scenario containing the tests to be run.
-            base_output_path (Path): The base output directory path for storing prologue outputs.
+            pre_test (TestScenario): The pre_test test scenario containing the tests to be run.
+            base_output_path (Path): The base output directory path for storing pre_test outputs.
 
         Returns:
-            str: A string with all the Slurm srun commands generated for the prologue.
+            str: A string with all the Slurm srun commands generated for the pre_test.
         """
-        prologue_output_dir = base_output_path / "prologue"
-        prologue_output_dir.mkdir(parents=True, exist_ok=True)
+        pre_test_output_dir = base_output_path / "pre_test"
+        pre_test_output_dir.mkdir(parents=True, exist_ok=True)
 
-        prologue_commands = []
+        pre_test_commands = []
         success_vars = []
 
-        for idx, tr in enumerate(prologue.test_runs):
-            plugin_dir = prologue_output_dir / tr.test.name
-            plugin_dir.mkdir(parents=True, exist_ok=True)
-            tr.output_path = plugin_dir
+        for idx, tr in enumerate(pre_test.test_runs):
+            hook_dir = pre_test_output_dir / tr.test.name
+            hook_dir.mkdir(parents=True, exist_ok=True)
+            tr.output_path = hook_dir
 
             srun_command = tr.test.test_template.gen_srun_command(tr)
             srun_command_with_output = srun_command.replace(
-                "srun ", f"srun --output={plugin_dir / 'stdout.txt'} --error={plugin_dir / 'stderr.txt'} "
+                "srun ", f"srun --output={hook_dir / 'stdout.txt'} --error={hook_dir / 'stderr.txt'} "
             )
-            prologue_commands.append(srun_command_with_output)
+            pre_test_commands.append(srun_command_with_output)
 
             success_var = f"SUCCESS_{idx}"
             success_vars.append(success_var)
 
             success_check_command = tr.test.test_template.gen_srun_success_check(tr)
-            prologue_commands.append(f"{success_var}=$({success_check_command})")
+            pre_test_commands.append(f"{success_var}=$({success_check_command})")
 
         combined_success_var = " && ".join([f"[ ${var} -eq 1 ]" for var in success_vars])
 
-        prologue_commands.append(f"PROLOGUE_SUCCESS=$( {combined_success_var} && echo 1 || echo 0 )")
+        pre_test_commands.append(f"PROLOGUE_SUCCESS=$( {combined_success_var} && echo 1 || echo 0 )")
 
-        return "\n".join(prologue_commands)
+        return "\n".join(pre_test_commands)
 
-    def gen_epilogue(self, epilogue: TestScenario, base_output_path: Path) -> str:
+    def gen_post_test(self, post_test: TestScenario, base_output_path: Path) -> str:
         """
-        Generate the epilogue command by running all tests defined in the epilogue test scenario.
+        Generate the post_test command by running all tests defined in the post_test test scenario.
 
         Args:
-            epilogue (TestScenario): The epilogue test scenario containing the tests to be run.
-            base_output_path (Path): The base output directory path for storing epilogue outputs.
+            post_test (TestScenario): The post_test test scenario containing the tests to be run.
+            base_output_path (Path): The base output directory path for storing post_test outputs.
 
         Returns:
-            str: A string with all the Slurm srun commands generated for the epilogue.
+            str: A string with all the Slurm srun commands generated for the post_test.
         """
-        epilogue_output_dir = base_output_path / "epilogue"
-        epilogue_output_dir.mkdir(parents=True, exist_ok=True)
+        post_test_output_dir = base_output_path / "post_test"
+        post_test_output_dir.mkdir(parents=True, exist_ok=True)
 
-        epilogue_commands = []
+        post_test_commands = []
 
-        for tr in epilogue.test_runs:
-            plugin_dir = epilogue_output_dir / tr.test.name
-            plugin_dir.mkdir(parents=True, exist_ok=True)
-            tr.output_path = plugin_dir
+        for tr in post_test.test_runs:
+            hook_dir = post_test_output_dir / tr.test.name
+            hook_dir.mkdir(parents=True, exist_ok=True)
+            tr.output_path = hook_dir
 
             srun_command = tr.test.test_template.gen_srun_command(tr)
             srun_command_with_output = srun_command.replace(
-                "srun ", f"srun --output={plugin_dir / 'stdout.txt'} --error={plugin_dir / 'stderr.txt'} "
+                "srun ", f"srun --output={hook_dir / 'stdout.txt'} --error={hook_dir / 'stderr.txt'} "
             )
-            epilogue_commands.append(srun_command_with_output)
+            post_test_commands.append(srun_command_with_output)
 
-        return "\n".join(epilogue_commands)
+        return "\n".join(post_test_commands)
 
     def _gen_srun_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun

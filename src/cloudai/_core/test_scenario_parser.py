@@ -54,8 +54,8 @@ class _TestScenarioTOML(BaseModel):
     name: str
     job_status_check: bool = True
     tests: list[_TestRunTOML] = Field(alias="Tests", min_length=1)
-    prologue: Optional[str] = None
-    epilogue: Optional[str] = None
+    pre_test: Optional[str] = None
+    post_test: Optional[str] = None
 
     @model_validator(mode="after")
     def check_no_self_dependency(self):
@@ -101,10 +101,10 @@ class TestScenarioParser:
 
     __test__ = False
 
-    def __init__(self, file_path: Path, test_mapping: Dict[str, Test], plugin_mapping: Dict[str, TestScenario]) -> None:
+    def __init__(self, file_path: Path, test_mapping: Dict[str, Test], hook_mapping: Dict[str, TestScenario]) -> None:
         self.file_path = file_path
         self.test_mapping = test_mapping
-        self.plugin_mapping = plugin_mapping
+        self.hook_mapping = hook_mapping
 
     def parse(self) -> TestScenario:
         """
@@ -139,24 +139,24 @@ class TestScenarioParser:
         total_weight = sum(tr.weight for tr in ts_model.tests)
         normalized_weight = 0 if total_weight == 0 else 100 / total_weight
 
-        prologue, epilogue = None, None
-        if ts_model.prologue:
-            prologue = self.plugin_mapping.get(ts_model.prologue)
-            if prologue is None:
+        pre_test, post_test = None, None
+        if ts_model.pre_test:
+            pre_test = self.hook_mapping.get(ts_model.pre_test)
+            if pre_test is None:
                 logging.warning(
-                    f"Prologue '{ts_model.prologue}' not found in plugin mapping. "
-                    "Ensure that a proper plugin directory is set under the working directory."
+                    f"Prologue '{ts_model.pre_test}' not found in hook mapping. "
+                    "Ensure that a proper hook directory is set under the working directory."
                 )
-        if ts_model.epilogue:
-            epilogue = self.plugin_mapping.get(ts_model.epilogue)
-            if epilogue is None:
+        if ts_model.post_test:
+            post_test = self.hook_mapping.get(ts_model.post_test)
+            if post_test is None:
                 logging.warning(
-                    f"Epilogue '{ts_model.epilogue}' not found in plugin mapping. "
-                    "Ensure that a proper plugin directory is set under the working directory."
+                    f"Epilogue '{ts_model.post_test}' not found in hook mapping. "
+                    "Ensure that a proper hook directory is set under the working directory."
                 )
 
         test_runs_by_id: dict[str, TestRun] = {
-            tr.id: self._create_test_run(tr, normalized_weight, prologue, epilogue) for tr in ts_model.tests
+            tr.id: self._create_test_run(tr, normalized_weight, pre_test, post_test) for tr in ts_model.tests
         }
 
         tests_data: dict[str, _TestRunTOML] = {tr.id: tr for tr in ts_model.tests}
@@ -176,8 +176,8 @@ class TestScenarioParser:
         self,
         test_info: _TestRunTOML,
         normalized_weight: float,
-        prologue: Optional[TestScenario] = None,
-        epilogue: Optional[TestScenario] = None,
+        pre_test: Optional[TestScenario] = None,
+        post_test: Optional[TestScenario] = None,
     ) -> TestRun:
         """
         Create a section-specific Test object by copying from the test mapping.
@@ -185,8 +185,8 @@ class TestScenarioParser:
         Args:
             test_info (Dict[str, Any]): Information of the test.
             normalized_weight (float): Normalized weight for the test.
-            prologue (Optional[TestScenario]): TestScenario object representing the prologue sequence.
-            epilogue (Optional[TestScenario]): TestScenario object representing the epilogue sequence.
+            pre_test (Optional[TestScenario]): TestScenario object representing the pre_test sequence.
+            post_test (Optional[TestScenario]): TestScenario object representing the post_test sequence.
 
         Returns:
             Test: Copied and updated Test object for the section.
@@ -219,7 +219,7 @@ class TestScenarioParser:
             sol=test_info.sol,
             weight=test_info.weight * normalized_weight,
             ideal_perf=test_info.ideal_perf,
-            prologue=prologue,
-            epilogue=epilogue,
+            pre_test=pre_test,
+            post_test=post_test,
         )
         return tr
