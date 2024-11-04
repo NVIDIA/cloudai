@@ -91,7 +91,7 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
     return partial(TestRun, num_nodes=1, nodes=[], output_path=slurm_system.output_path)
 
 
-@pytest.fixture(params=["ucc", "nccl", "sleep", "gpt-pre_test", "gpt-no-hook", "grok-pre_test", "grok-no-hook"])
+@pytest.fixture(params=["ucc", "nccl", "sleep", "gpt-pre-test", "gpt-no-hook", "grok-pre-test", "grok-no-hook"])
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> tuple[TestRun, str, Optional[str]]:
     if request.param == "ucc":
         tr = partial_tr(
@@ -159,7 +159,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             slurm_system, tr.test.test_definition.cmd_args_dict
         )
         tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
-        if "pre_test" in request.param:
+        if "pre-test" in request.param:
             pre_test_tr = partial_tr(
                 name="nccl",
                 test=Test(
@@ -194,7 +194,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             slurm_system, tr.test.test_definition.cmd_args_dict
         )
         tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
-        if "pre_test" in request.param:
+        if "pre-test" in request.param:
             pre_test_tr = partial_tr(
                 name="nccl",
                 test=Test(

@@ -144,14 +144,14 @@ class TestScenarioParser:
             pre_test = self.hook_mapping.get(ts_model.pre_test)
             if pre_test is None:
                 logging.warning(
-                    f"Prologue '{ts_model.pre_test}' not found in hook mapping. "
+                    f"Pre-test hook '{ts_model.pre_test}' not found in hook mapping. "
                     "Ensure that a proper hook directory is set under the working directory."
                 )
         if ts_model.post_test:
             post_test = self.hook_mapping.get(ts_model.post_test)
             if post_test is None:
                 logging.warning(
-                    f"Epilogue '{ts_model.post_test}' not found in hook mapping. "
+                    f"Post-test hook '{ts_model.post_test}' not found in hook mapping. "
                     "Ensure that a proper hook directory is set under the working directory."
                 )
 

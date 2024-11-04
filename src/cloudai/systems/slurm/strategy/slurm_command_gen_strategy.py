@@ -62,7 +62,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         if tr.pre_test:
             pre_test_command = self.gen_pre_test(tr.pre_test, tr.output_path)
-            command_list = [pre_test_command, "if [ $PROLOGUE_SUCCESS -eq 1 ]; then"]
+            command_list = [pre_test_command, "if [ $PRE_TEST_SUCCESS -eq 1 ]; then"]
             indent = "    "
 
         command_list.append(f"{indent}{srun_command}")
@@ -159,7 +159,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         combined_success_var = " && ".join([f"[ ${var} -eq 1 ]" for var in success_vars])
 
-        pre_test_commands.append(f"PROLOGUE_SUCCESS=$( {combined_success_var} && echo 1 || echo 0 )")
+        pre_test_commands.append(f"PRE_TEST_SUCCESS=$( {combined_success_var} && echo 1 || echo 0 )")
 
         return "\n".join(pre_test_commands)
 
