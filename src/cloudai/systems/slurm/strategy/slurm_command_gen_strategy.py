@@ -125,11 +125,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
     def gen_pre_test(self, pre_test: TestScenario, base_output_path: Path) -> str:
         """
-        Generate the pre_test command by running all tests defined in the pre_test test scenario.
+        Generate the pre-test command by running all tests defined in the pre-test test scenario.
 
         Args:
-            pre_test (TestScenario): The pre_test test scenario containing the tests to be run.
-            base_output_path (Path): The base output directory path for storing pre_test outputs.
+            pre_test (TestScenario): The pre-test test scenario containing the tests to be run.
+            base_output_path (Path): The base output directory path for storing pre-test outputs.
 
         Returns:
             str: A string with all the Slurm srun commands generated for the pre_test.
@@ -165,14 +165,14 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
     def gen_post_test(self, post_test: TestScenario, base_output_path: Path) -> str:
         """
-        Generate the post_test command by running all tests defined in the post_test test scenario.
+        Generate the post-test command by running all tests defined in the post-test test scenario.
 
         Args:
-            post_test (TestScenario): The post_test test scenario containing the tests to be run.
-            base_output_path (Path): The base output directory path for storing post_test outputs.
+            post_test (TestScenario): The post-test test scenario containing the tests to be run.
+            base_output_path (Path): The base output directory path for storing post-test outputs.
 
         Returns:
-            str: A string with all the Slurm srun commands generated for the post_test.
+            str: A string with all the Slurm srun commands generated for the post-test.
         """
         post_test_output_dir = base_output_path / "post_test"
         post_test_output_dir.mkdir(parents=True, exist_ok=True)

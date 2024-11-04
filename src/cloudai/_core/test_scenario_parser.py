@@ -185,8 +185,8 @@ class TestScenarioParser:
         Args:
             test_info (Dict[str, Any]): Information of the test.
             normalized_weight (float): Normalized weight for the test.
-            pre_test (Optional[TestScenario]): TestScenario object representing the pre_test sequence.
-            post_test (Optional[TestScenario]): TestScenario object representing the post_test sequence.
+            pre_test (Optional[TestScenario]): TestScenario object representing the pre-test sequence.
+            post_test (Optional[TestScenario]): TestScenario object representing the post-test sequence.
 
         Returns:
             Test: Copied and updated Test object for the section.
