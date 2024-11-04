@@ -173,7 +173,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 slurm_system, pre_test_tr.test.test_definition.cmd_args_dict
             )
             pre_test_tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
-            tr.pre_test = TestScenario(name=f"{pre_test_tr.name} NCCL Prologue", test_runs=[pre_test_tr])
+            tr.pre_test = TestScenario(name=f"{pre_test_tr.name} NCCL pre-test", test_runs=[pre_test_tr])
 
         return (tr, f"{request.param}.sbatch", "gpt.run")
     elif request.param.startswith("grok-"):
@@ -208,7 +208,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 slurm_system, pre_test_tr.test.test_definition.cmd_args_dict
             )
             pre_test_tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
-            tr.pre_test = TestScenario(name=f"{pre_test_tr.name} NCCL Prologue", test_runs=[pre_test_tr])
+            tr.pre_test = TestScenario(name=f"{pre_test_tr.name} NCCL pre-test", test_runs=[pre_test_tr])
 
         return (tr, f"{request.param}.sbatch", "grok.run")
 
