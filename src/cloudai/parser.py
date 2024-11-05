@@ -34,8 +34,8 @@ from cloudai import (
     format_validation_error,
 )
 
-PLUGIN_ROOT = Path("conf/hook")
-PLUGIN_TEST_ROOT = PLUGIN_ROOT / "test"
+HOOK_ROOT = Path("conf/hook")
+HOOK_TEST_ROOT = HOOK_ROOT / "test"
 
 
 class Parser:
@@ -81,12 +81,12 @@ class Parser:
         except TestConfigParsingError:
             exit(1)  # exit right away to keep error message readable for users
 
-        if not PLUGIN_ROOT.exists():
-            logging.debug(f"PLUGIN_ROOT path '{PLUGIN_ROOT}' does not exist.")
+        if not HOOK_ROOT.exists():
+            logging.debug(f"HOOK_ROOT path '{HOOK_ROOT}' does not exist.")
 
         try:
             hook_tests = (
-                self.parse_tests(list(PLUGIN_TEST_ROOT.glob("*.toml")), system) if PLUGIN_TEST_ROOT.exists() else []
+                self.parse_tests(list(HOOK_TEST_ROOT.glob("*.toml")), system) if HOOK_TEST_ROOT.exists() else []
             )
         except TestConfigParsingError:
             exit(1)  # exit right away to keep error message readable for users
@@ -97,10 +97,10 @@ class Parser:
 
         test_mapping = {t.name: t for t in tests}
         hook_test_scenario_mapping = {}
-        if PLUGIN_ROOT.exists() and list(PLUGIN_ROOT.glob("*.toml")):
+        if HOOK_ROOT.exists() and list(HOOK_ROOT.glob("*.toml")):
             try:
                 hook_test_scenario_mapping = self.parse_hooks(
-                    list(PLUGIN_ROOT.glob("*.toml")), {t.name: t for t in hook_tests}
+                    list(HOOK_ROOT.glob("*.toml")), {t.name: t for t in hook_tests}
                 )
             except TestScenarioParsingError:
                 exit(1)  # exit right away to keep error message readable for users
