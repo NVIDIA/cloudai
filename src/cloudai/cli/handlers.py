@@ -23,6 +23,8 @@ from unittest.mock import Mock
 
 from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, System
 
+from ..parser import HOOK_ROOT
+
 
 def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     """
@@ -248,6 +250,11 @@ def handle_verify_all_configs(args: argparse.Namespace) -> int:
     err, tomls = expand_file_list(root, glob="**/*.toml")
     if err:
         return err
+
+    err, hook_tomls = expand_file_list(HOOK_ROOT, glob="**/*.toml")
+    if err:
+        return err
+    tomls += hook_tomls
 
     files = load_tomls_by_type(tomls)
 
