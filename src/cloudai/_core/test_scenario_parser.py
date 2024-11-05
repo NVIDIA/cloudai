@@ -145,6 +145,7 @@ class TestScenarioParser:
             if pre_test is None:
                 msg = (
                     f"Pre-test hook '{ts_model.pre_test}' not found in hook mapping. "
+                    "A corresponding hook should exist under 'conf/hook'. "
                     "Ensure that a proper hook directory is set under the working directory."
                 )
                 logging.error(msg)
@@ -155,6 +156,7 @@ class TestScenarioParser:
             if post_test is None:
                 msg = (
                     f"Post-test hook '{ts_model.post_test}' not found in hook mapping. "
+                    "A corresponding hook should exist under 'conf/hook'. "
                     "Ensure that a proper hook directory is set under the working directory."
                 )
                 logging.error(msg)
