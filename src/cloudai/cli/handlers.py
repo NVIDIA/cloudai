@@ -252,8 +252,6 @@ def handle_verify_all_configs(args: argparse.Namespace) -> int:
         return err
 
     err, hook_tomls = expand_file_list(HOOK_ROOT, glob="**/*.toml")
-    if err:
-        return err
     tomls += hook_tomls
 
     files = load_tomls_by_type(tomls)
@@ -298,12 +296,22 @@ def load_tomls_by_type(tomls: List[Path]) -> dict[str, List[Path]]:
     }
     for toml_file in tomls:
         content = toml_file.read_text()
-        if "conf" in toml_file.parts and "hook" in toml_file.parts:
+
+        is_in_hook_root = False
+        try:
+            toml_file.relative_to(HOOK_ROOT)
+            is_in_hook_root = True
+        except ValueError:
+            pass
+
+        if is_in_hook_root:
             if "test" in toml_file.parts:
                 files["hook_test"].append(toml_file)
             else:
                 files["hook"].append(toml_file)
-        elif "scheduler =" in content:
+            continue
+
+        if "scheduler =" in content:
             files["system"].append(toml_file)
         elif "test_template_name =" in content:
             files["test"].append(toml_file)
