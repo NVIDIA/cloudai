@@ -91,26 +91,24 @@ class TestChakraReplaySlurmCommandGenStrategy:
         "cmd_args, extra_cmd_args, expected_result",
         [
             (
-                {"trace_type": "comms_trace", "trace_path": "/workspace/traces/", "backend": "nccl", "device": "gpu"},
+                {"trace_type": "comms_trace", "trace_path": "/workspace/traces/", "num_replays": 10},
                 "--max-steps 100",
                 [
-                    "python /workspace/param/train/comms/pt/commsTraceReplay.py",
+                    "comm_replay",
                     "--trace-type comms_trace",
                     "--trace-path /workspace/traces/",
-                    "--backend nccl",
-                    "--device gpu",
+                    "--num-replays 10",
                     "--max-steps 100",
                 ],
             ),
             (
-                {"trace_type": "comms_trace", "trace_path": "/workspace/traces/", "backend": "nccl", "device": "gpu"},
+                {"trace_type": "comms_trace", "trace_path": "/workspace/traces/", "num_replays": 5},
                 "",
                 [
-                    "python /workspace/param/train/comms/pt/commsTraceReplay.py",
+                    "comm_replay",
                     "--trace-type comms_trace",
                     "--trace-path /workspace/traces/",
-                    "--backend nccl",
-                    "--device gpu",
+                    "--num-replays 5",
                     "",
                 ],
             ),
@@ -132,7 +130,7 @@ class TestChakraReplaySlurmCommandGenStrategy:
     def test_generate_test_command_invalid_args(
         self, cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy, slurm_system: SlurmSystem
     ) -> None:
-        cmd_args: Dict[str, str] = {"trace_type": "comms_trace", "backend": "nccl", "device": "gpu"}
+        cmd_args: Dict[str, str] = {"trace_type": "comms_trace"}
 
         tr = create_autospec_dataclass(TestRun)
         tr.test.extra_cmd_args = "--max-steps 100"
