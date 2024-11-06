@@ -20,3 +20,17 @@ test_template_name = "GenericSlurmContainer"
 
 [cmd_args]
 docker_image_url = "gitlab-master.nvidia.com/dl/nemo/nemo-vfm:24.07.training.2"
+# docker_image_url = "gitlab-master.nvidia.com/dl/nemo/nemo-vfm:24.10"
+repository_url = "ssh://git@gitlab-master.nvidia.com:12051/dl/nemo/nemo-vfm.git"
+repository_commit_hash = "f7c546022acca7cf818ec88398f408f53b012586"
+
+[extra_cmd_args]
+"bash" = '-c "pwd ; whoami ; torchrun --help"'
+# "bash" = '-c "cd ${DIR} ; python -u nemo/collections/multimodal/vfm/train.py --yes $*"'
+
+[extra_env_vars]
+"WANDB_PROJECT" = "vfm"
+"WANDB_RESUME" = "allow"
+"NVTE_FUSED_ATTN" = "0 "
+"CUDA_DEVICE_MAX_CONNECTIONS" = "1"
+"PYTORCH_CUDA_ALLOC_CONF" = "expandable_segments:True"

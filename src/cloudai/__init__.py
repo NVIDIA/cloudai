@@ -133,7 +133,7 @@ Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [JaxToolbox], JaxTool
 Registry().add_strategy(
     JobIdRetrievalStrategy,
     [SlurmSystem],
-    [ChakraReplay, JaxToolbox, NcclTest, UCCTest, Sleep],
+    [ChakraReplay, JaxToolbox, NcclTest, UCCTest, Sleep, GenericSlurmContainerTT],
     SlurmJobIdRetrievalStrategy,
 )
 Registry().add_strategy(JobIdRetrievalStrategy, [StandaloneSystem], [Sleep], StandaloneJobIdRetrievalStrategy)
@@ -146,7 +146,7 @@ Registry().add_strategy(JobStatusRetrievalStrategy, [SlurmSystem], [JaxToolbox],
 Registry().add_strategy(
     JobStatusRetrievalStrategy,
     [SlurmSystem],
-    [ChakraReplay, UCCTest, NeMoLauncher, Sleep],
+    [ChakraReplay, UCCTest, NeMoLauncher, Sleep, GenericSlurmContainerTT],
     DefaultJobStatusRetrievalStrategy,
 )
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [UCCTest], UCCTestSlurmCommandGenStrategy)

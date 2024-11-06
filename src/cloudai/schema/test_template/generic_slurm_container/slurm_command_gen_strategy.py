@@ -14,8 +14,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Any, cast
+
+from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.test_definitions.generic_slurm_container import SlurmContainerTestDefinition
 
 
 class GenericSlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
-    pass
+    def generate_srun_prefix(self, slurm_args: dict[str, Any], tr: TestRun) -> list[str]:
+        tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
+        slurm_args["image_path"] = tdef.docker_image.installed_path
+        # slurm_args["container_mounts"] = ""   # TBD
+        cmd = super().generate_srun_prefix(slurm_args, tr)
+
+        # cmd = ["pip", "install", "-e", ".", "\n"] + cmd
+        return cmd
+
+    def generate_test_command(self, env_vars: dict[str, str], cmd_args: dict[str, str], tr: TestRun) -> list[str]:
+        srun_command_parts: list[str] = []
+        if tr.test.extra_cmd_args:
+            srun_command_parts.append(tr.test.extra_cmd_args)
+
+        return srun_command_parts

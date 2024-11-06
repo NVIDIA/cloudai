@@ -118,6 +118,8 @@ class SlurmInstaller(BaseInstaller):
         if isinstance(item, DockerImage):
             res = self._install_docker_image(item)
             return InstallStatusResult(res.success, res.message)
+        elif isinstance(item, GitRepo):
+            return self._install_one_git_repo(item)
         elif isinstance(item, PythonExecutable):
             return self._install_python_executable(item)
 
@@ -139,6 +141,8 @@ class SlurmInstaller(BaseInstaller):
             return InstallStatusResult(res.success, res.message)
         elif isinstance(item, PythonExecutable):
             return self._uninstall_python_executable(item)
+        elif isinstance(item, GitRepo):
+            return self._uninstall_git_repo(item)
 
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
@@ -148,6 +152,12 @@ class SlurmInstaller(BaseInstaller):
             if res.success and res.docker_image_path:
                 item.installed_path = res.docker_image_path
             return InstallStatusResult(res.success, res.message)
+        elif isinstance(item, GitRepo):
+            repo_path = item.installed_path if item.installed_path else self.system.install_path / item.repo_name
+            if repo_path.exists():
+                item.installed_path = repo_path
+                return InstallStatusResult(True)
+            return InstallStatusResult(False, f"Git repository {item.git_url} not cloned")
         elif isinstance(item, PythonExecutable):
             return self._is_python_executable_installed(item)
 
