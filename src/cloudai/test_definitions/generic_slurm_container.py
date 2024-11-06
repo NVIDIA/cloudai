@@ -25,11 +25,11 @@ class SlurmContainerTestDefinition(TestDefinition):
     @property
     def git_repo(self) -> GitRepo:
         if not self._git_repo:
-            self._python_executable = GitRepo(
+            self._git_repo = GitRepo(
                 git_url=self.cmd_args.repository_url, commit_hash=self.cmd_args.repository_commit_hash
             )
 
-        return self._python_executable
+        return self._git_repo
 
     @property
     def installables(self) -> list[Installable]:

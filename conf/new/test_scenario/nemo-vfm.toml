@@ -18,5 +18,5 @@ name = "nemo-vfm"
 
 [[Tests]]
 id = "Tests.1"
-test_name = "nemo-vfm"
-num_nodes = "2"
+test_name = "nemo-vfm-single"
+num_nodes = 1

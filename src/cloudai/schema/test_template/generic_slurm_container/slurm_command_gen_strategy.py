@@ -25,10 +25,9 @@ class GenericSlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
     def generate_srun_prefix(self, slurm_args: dict[str, Any], tr: TestRun) -> list[str]:
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
         slurm_args["image_path"] = tdef.docker_image.installed_path
-        # slurm_args["container_mounts"] = ""   # TBD
-        cmd = super().generate_srun_prefix(slurm_args, tr)
+        slurm_args["container_mounts"] = f"{tdef.git_repo.installed_path.absolute()}:/work"
 
-        # cmd = ["pip", "install", "-e", ".", "\n"] + cmd
+        cmd = super().generate_srun_prefix(slurm_args, tr)
         return cmd
 
     def generate_test_command(self, env_vars: dict[str, str], cmd_args: dict[str, str], tr: TestRun) -> list[str]:

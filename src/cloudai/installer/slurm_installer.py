@@ -153,7 +153,7 @@ class SlurmInstaller(BaseInstaller):
                 item.installed_path = res.docker_image_path
             return InstallStatusResult(res.success, res.message)
         elif isinstance(item, GitRepo):
-            repo_path = item.installed_path if item.installed_path else self.system.install_path / item.repo_name
+            repo_path = self.system.install_path / item.repo_name
             if repo_path.exists():
                 item.installed_path = repo_path
                 return InstallStatusResult(True)
