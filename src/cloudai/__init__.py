@@ -57,6 +57,7 @@ from .schema.test_template.chakra_replay.template import ChakraReplay
 from .schema.test_template.common.default_job_status_retrieval_strategy import DefaultJobStatusRetrievalStrategy
 from .schema.test_template.common.slurm_job_id_retrieval_strategy import SlurmJobIdRetrievalStrategy
 from .schema.test_template.common.standalone_job_id_retrieval_strategy import StandaloneJobIdRetrievalStrategy
+from .schema.test_template.generic_slurm_container.template import GenericSlurmContainerTT
 from .schema.test_template.jax_toolbox.grading_strategy import JaxToolboxGradingStrategy
 from .schema.test_template.jax_toolbox.job_status_retrieval_strategy import JaxToolboxJobStatusRetrievalStrategy
 from .schema.test_template.jax_toolbox.report_generation_strategy import JaxToolboxReportGenerationStrategy
@@ -98,6 +99,7 @@ from .test_definitions import (
     SleepTestDefinition,
     UCCTestDefinition,
 )
+from .test_definitions.generic_slurm_container import SlurmContainerTestDefinition
 
 Registry().add_runner("slurm", SlurmRunner)
 Registry().add_runner("kubernetes", KubernetesRunner)
@@ -165,6 +167,7 @@ Registry().add_test_definition("NeMoLauncher", NeMoLauncherTestDefinition)
 Registry().add_test_definition("JaxToolboxGPT", GPTTestDefinition)
 Registry().add_test_definition("JaxToolboxGrok", GrokTestDefinition)
 Registry().add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)
+Registry().add_test_definition("GenericSlurmContainer", SlurmContainerTestDefinition)
 
 Registry().add_test_template("ChakraReplay", ChakraReplay)
 Registry().add_test_template("NcclTest", NcclTest)
@@ -174,6 +177,7 @@ Registry().add_test_template("UCCTest", UCCTest)
 Registry().add_test_template("JaxToolboxGPT", JaxToolbox)
 Registry().add_test_template("JaxToolboxGrok", JaxToolbox)
 Registry().add_test_template("JaxToolboxNemotron", JaxToolbox)
+Registry().add_test_template("GenericSlurmContainer", GenericSlurmContainerTT)
 
 __all__ = [
     "BaseInstaller",
