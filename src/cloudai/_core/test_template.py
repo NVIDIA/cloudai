@@ -39,7 +39,6 @@ class TestTemplate:
         name (str): Unique name of the test template.
         cmd_args (Dict[str, Any]): Default command-line arguments.
         logger (logging.Logger): Logger for the test template.
-        install_strategy (InstallStrategy): Strategy for installing test prerequisites.
         command_gen_strategy (CommandGenStrategy): Strategy for generating execution commands.
         json_gen_strategy (JsonGenStrategy): Strategy for generating json string.
         job_id_retrieval_strategy (JobIdRetrievalStrategy): Strategy for retrieving job IDs.
