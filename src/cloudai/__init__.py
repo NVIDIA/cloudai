@@ -57,6 +57,9 @@ from .schema.test_template.chakra_replay.template import ChakraReplay
 from .schema.test_template.common.default_job_status_retrieval_strategy import DefaultJobStatusRetrievalStrategy
 from .schema.test_template.common.slurm_job_id_retrieval_strategy import SlurmJobIdRetrievalStrategy
 from .schema.test_template.common.standalone_job_id_retrieval_strategy import StandaloneJobIdRetrievalStrategy
+from .schema.test_template.generic_slurm_container.slurm_command_gen_strategy import (
+    GenericSlurmContainerCommandGenStrategy,
+)
 from .schema.test_template.generic_slurm_container.template import GenericSlurmContainerTT
 from .schema.test_template.jax_toolbox.grading_strategy import JaxToolboxGradingStrategy
 from .schema.test_template.jax_toolbox.job_status_retrieval_strategy import JaxToolboxJobStatusRetrievalStrategy
@@ -150,6 +153,9 @@ Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [UCCTest], UCCTestSlu
 Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [ChakraReplay], ChakraReplayReportGenerationStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [ChakraReplay], ChakraReplayGradingStrategy)
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [ChakraReplay], ChakraReplaySlurmCommandGenStrategy)
+Registry().add_strategy(
+    CommandGenStrategy, [SlurmSystem], [GenericSlurmContainerTT], GenericSlurmContainerCommandGenStrategy
+)
 
 Registry().add_installer("slurm", SlurmInstaller)
 Registry().add_installer("standalone", StandaloneInstaller)
