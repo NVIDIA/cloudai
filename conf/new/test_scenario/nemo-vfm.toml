@@ -20,8 +20,10 @@ name = "nemo-vfm"
 id = "Tests.1"
 test_name = "nemo-vfm-single"
 num_nodes = 1
+time_limit = "01:00:00"
 
-[[Tests]]
-id = "Tests.2"
-test_name = "nemo-vfm-single"
-num_nodes = 2
+# [[Tests]]
+# id = "Tests.2"
+# test_name = "nemo-vfm-single"
+# num_nodes = 2
+# time_limit = "01:00:00"

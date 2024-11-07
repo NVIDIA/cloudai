@@ -8,6 +8,8 @@ class SlurmContainerCmdArgs(CmdArgs):
     docker_image_url: str
     repository_url: str
     repository_commit_hash: str
+    mcore_vfm_repo: str
+    mcore_vfm_commit_hash: str
 
 
 class SlurmContainerTestDefinition(TestDefinition):
@@ -15,6 +17,7 @@ class SlurmContainerTestDefinition(TestDefinition):
 
     _docker_image: Optional[DockerImage] = None
     _git_repo: Optional[GitRepo] = None
+    _mcore_git_repo: Optional[GitRepo] = None
 
     @property
     def docker_image(self) -> DockerImage:
@@ -32,8 +35,17 @@ class SlurmContainerTestDefinition(TestDefinition):
         return self._git_repo
 
     @property
+    def mcore_vfm_git_repo(self) -> GitRepo:
+        if not self._mcore_git_repo:
+            self._mcore_git_repo = GitRepo(
+                git_url=self.cmd_args.mcore_vfm_repo, commit_hash=self.cmd_args.mcore_vfm_commit_hash
+            )
+
+        return self._mcore_git_repo
+
+    @property
     def installables(self) -> list[Installable]:
-        return [self.docker_image, self.git_repo]
+        return [self.docker_image, self.git_repo, self.mcore_vfm_git_repo]
 
     @property
     def extra_args_str(self) -> str:

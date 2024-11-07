@@ -19,12 +19,14 @@ description = "Nemo VFM for single node"
 test_template_name = "GenericSlurmContainer"
 
 [cmd_args]
-docker_image_url = "gitlab-master.nvidia.com/dl/nemo/nemo-vfm:24.10"
+docker_image_url = "gitlab-master.nvidia.com/dl/nemo/nemo-vfm:24.07.training.2"
 repository_url = "ssh://git@gitlab-master.nvidia.com:12051/dl/nemo/nemo-vfm.git"
-repository_commit_hash = "f7c546022acca7cf818ec88398f408f53b012586"
+repository_commit_hash = "98d67aaf64fa74811483a30abf354ba75b0ba416"               # benchmark branch
+mcore_vfm_repo = "ssh://git@gitlab-master.nvidia.com:12051/dl/nemo/mcore-vfm.git"
+mcore_vfm_commit_hash = "7e9490ad83439a2db96a4af557aed32a9ce72ef7"                # main branch
 
 [extra_cmd_args]
-"bash" = '-c "cd /work ; pwd ; ls -l ; pip install -e . ; torchrun --nproc-per-node=8 nemo/collections/diffusion/train.py --yes --factory train_mock trainer.strategy.tensor_model_parallel_size=1 trainer.strategy.context_parallel_size=1 trainer.strategy.sequence_parallel=False model.config.num_layers=1 data.global_batch_size=8 model.config.hidden_size=1024 data.seq_length=1024 data.task_encoder.seq_length=1024 model.config.num_layers=1 trainer.max_steps=500"'
+"bash" = '-c "cd /work ; pwd ; ls ; git log -1 ; python -u nemo/collections/multimodal/vfm/train.py --yes --factory mock_ditllama28b_8k trainer.strategy.tensor_model_parallel_size=1 trainer.strategy.sequence_parallel=False trainer.strategy.context_parallel_size=1 model.config.recompute_granularity=full model.config.recompute_method=uniform model.config.recompute_num_layers=1 data.micro_batch_size=1 data.global_batch_size=256 data.seq_length=65536 data.task_encoder.seq_length=65536"'
 
 [extra_env_vars]
 "WANDB_PROJECT" = "vfm"
