@@ -58,6 +58,8 @@ class TestRun:
     weight: float = 0.0
     ideal_perf: float = 1.0
     dependencies: dict[str, TestDependency] = field(default_factory=dict)
+    pre_test: Optional["TestScenario"] = None
+    post_test: Optional["TestScenario"] = None
 
     def __hash__(self) -> int:
         return hash(self.name + self.test.name + str(self.iterations) + str(self.current_iteration))

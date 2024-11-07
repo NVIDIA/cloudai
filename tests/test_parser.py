@@ -50,19 +50,84 @@ class Test_Parser:
 
     @patch("cloudai._core.test_parser.TestParser.parse_all")
     @patch("cloudai._core.test_scenario_parser.TestScenarioParser.parse")
-    def test_scenario_filters_tests(self, test_scenario_parser: Mock, test_parser: Mock, parser: Parser):
+    def test_scenario_without_hook(self, test_scenario_parser: Mock, test_parser: Mock, parser: Parser):
         tests_dir = parser.system_config_path.parent.parent / "test"
-        fake_tests = []
-        for i in range(3):
-            fake_tests.append(Mock())
-            fake_tests[-1].name = f"test-{i}"
-        test_parser.return_value = fake_tests
+
+        fake_tests = [Mock(name=f"test-{i}") for i in range(3)]
+        for i, test in enumerate(fake_tests):
+            test.name = f"test-{i}"
+
+        test_parser.side_effect = [fake_tests, []]
+
         fake_scenario = Mock()
         fake_scenario.test_runs = [Mock()]
         fake_scenario.test_runs[0].test.name = "test-1"
         test_scenario_parser.return_value = fake_scenario
+
         _, tests, _ = parser.parse(tests_dir, Path())
+
         assert len(tests) == 1
+        assert tests[0].name == "test-1"
+
+    @patch("cloudai._core.test_parser.TestParser.parse_all")
+    @patch("cloudai._core.test_scenario_parser.TestScenarioParser.parse")
+    @patch("cloudai.parser.Parser.parse_hooks")
+    def test_scenario_with_hook_common_tests(
+        self, parse_hooks: Mock, test_scenario_parser: Mock, test_parser: Mock, parser: Parser
+    ):
+        tests_dir = parser.system_config_path.parent.parent / "test"
+
+        main_tests = [Mock() for _ in range(3)]
+        for i, test in enumerate(main_tests):
+            test.name = f"test-{i}"
+        hook_tests = [Mock()]
+        hook_tests[0].name = "test-1"
+
+        test_parser.side_effect = [main_tests, hook_tests]
+
+        fake_scenario = Mock()
+        fake_scenario.test_runs = [Mock()]
+        fake_scenario.test_runs[0].test.name = "test-1"
+        test_scenario_parser.return_value = fake_scenario
+
+        fake_hook = Mock()
+        fake_hook.test_runs = [Mock()]
+        fake_hook.test_runs[0].test.name = "test-1"
+        parse_hooks.return_value = {"hook-1": fake_hook}
+
+        _, tests, _ = parser.parse(tests_dir, Path())
+
+        filtered_test_names = {"test-1"}
+        assert len(tests) == 1
+        assert "test-1" in filtered_test_names
+
+    @patch("cloudai._core.test_parser.TestParser.parse_all")
+    @patch("cloudai._core.test_scenario_parser.TestScenarioParser.parse")
+    def test_scenario_with_hook_exclusive_tests(self, test_scenario_parser: Mock, test_parser: Mock, parser: Parser):
+        tests_dir = parser.system_config_path.parent.parent / "test"
+        test_scenario_path = Path("/mock/test_scenario.toml")
+
+        main_tests = [Mock() for _ in range(3)]
+        hook_tests = [Mock()]
+        for i, test in enumerate(main_tests):
+            test.name = f"test-{i}"
+        hook_tests[0].name = "hook-test-1"
+
+        test_parser.side_effect = [main_tests, hook_tests]
+
+        fake_scenario = Mock()
+        fake_scenario.test_runs = [Mock()]
+        fake_scenario.test_runs[0].test.name = "test-1"
+        test_scenario_parser.return_value = fake_scenario
+
+        _, filtered_tests, _ = parser.parse(tests_dir, test_scenario_path)
+
+        filtered_test_names = {t.name for t in filtered_tests}
+        assert len(filtered_tests) == 2
+        assert "test-1" in filtered_test_names
+        assert "hook-test-1" in filtered_test_names
+        assert "test-0" not in filtered_test_names
+        assert "test-2" not in filtered_test_names
 
     def test_parse_system(self, parser: Parser):
         parser.system_config_path = Path("conf/common/system/example_slurm_cluster.toml")

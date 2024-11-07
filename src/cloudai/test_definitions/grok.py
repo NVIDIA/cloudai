@@ -21,7 +21,7 @@ from pydantic import ConfigDict, Field
 from cloudai import Installable
 from cloudai.installer.installables import DockerImage
 
-from .jax_toolbox import JaxFdl, JaxToolboxCmdArgs, JaxToolboxTestDefinition, PreTest, SetupFlags, XLAFlags
+from .jax_toolbox import JaxFdl, JaxToolboxCmdArgs, JaxToolboxTestDefinition, SetupFlags, XLAFlags
 
 
 class GrokFdl(JaxFdl):
@@ -77,7 +77,6 @@ class GrokCmdArgs(JaxToolboxCmdArgs):
     setup_flags: SetupFlags = Field(default_factory=SetupFlags)
     profile: GrokProfileXLAFlags = Field(default_factory=GrokProfileXLAFlags)
     perf: GrokPerfXLAFlags = Field(default_factory=GrokPerfXLAFlags)
-    pre_test: PreTest = Field(default_factory=PreTest)
 
 
 class GrokTestDefinition(JaxToolboxTestDefinition):
@@ -97,7 +96,7 @@ class GrokTestDefinition(JaxToolboxTestDefinition):
             if k in {"profile", "perf"}:
                 res.setdefault(f"Grok.{k}", {})
                 res[f"Grok.{k}"]["XLA_FLAGS"] = v
-            elif k in {"pre_test", "docker_image_url", "load_container", "output_path"}:
+            elif k in {"docker_image_url", "load_container", "output_path"}:
                 res[k] = v
             else:
                 res[f"Grok.{k}"] = v
