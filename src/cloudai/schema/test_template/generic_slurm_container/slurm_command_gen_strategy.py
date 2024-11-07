@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from typing import Any, cast
 
 from cloudai import TestRun
@@ -25,7 +26,8 @@ class GenericSlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
     def generate_srun_prefix(self, slurm_args: dict[str, Any], tr: TestRun) -> list[str]:
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
         slurm_args["image_path"] = tdef.docker_image.installed_path
-        slurm_args["container_mounts"] = f"{tdef.git_repo.installed_path.absolute()}:/work"
+        repo_path = tdef.git_repo.installed_path or Path.cwd()
+        slurm_args["container_mounts"] = f"{repo_path.absolute()}:/work"
 
         cmd = super().generate_srun_prefix(slurm_args, tr)
         return cmd

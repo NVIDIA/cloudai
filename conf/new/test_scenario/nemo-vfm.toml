@@ -20,3 +20,8 @@ name = "nemo-vfm"
 id = "Tests.1"
 test_name = "nemo-vfm-single"
 num_nodes = 1
+
+[[Tests]]
+id = "Tests.2"
+test_name = "nemo-vfm-single"
+num_nodes = 2
