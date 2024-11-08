@@ -18,12 +18,12 @@ name = "nemo-vfm"
 
 [[Tests]]
 id = "Tests.1"
-test_name = "nemo-vfm-single"
+test_name = "nemo-vfm-ditllama28b_8k"
 num_nodes = 1
 time_limit = "01:00:00"
 
-# [[Tests]]
-# id = "Tests.2"
-# test_name = "nemo-vfm-single"
-# num_nodes = 2
-# time_limit = "01:00:00"
+[[Tests]]
+id = "Tests.2"
+test_name = "nemo-vfm-ditllama28b_8k"
+num_nodes = 8
+time_limit = "01:00:00"
