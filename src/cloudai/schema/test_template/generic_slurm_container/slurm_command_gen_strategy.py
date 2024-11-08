@@ -28,7 +28,7 @@ class GenericSlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
         slurm_args["image_path"] = tdef.docker_image.installed_path
         repo_path = tdef.git_repo.installed_path or Path.cwd()
         mcore_vfm_path = tdef.mcore_vfm_git_repo.installed_path or Path.cwd()
-        slurm_args["container_mounts"] = f"{repo_path.absolute()}:/work,/lustre:/lustre/,{mcore_vfm_path.absolute()}:/opt/megatron-lm"
+        slurm_args["container_mounts"] = f"{repo_path.absolute()}:/work,{mcore_vfm_path.absolute()}:/opt/megatron-lm"
 
         cmd = super().generate_srun_prefix(slurm_args, tr)
         return cmd + ["--no-container-mount-home"]

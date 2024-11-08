@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "nemo-vfm-ditllama28b_8k"
+name = "nemo-vfm-mock_ditllama28b_8k"
 description = "Nemo VFM factory=mock_ditllama28b_8k"
 test_template_name = "GenericSlurmContainer"
 
