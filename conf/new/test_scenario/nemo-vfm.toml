@@ -17,13 +17,25 @@
 name = "nemo-vfm"
 
 [[Tests]]
-id = "Tests.1"
-test_name = "nemo-vfm-ditllama28b_8k"
-num_nodes = 1
+id = "Tests.mock.dit7b_8k"
+test_name = "nemo-vfm-mock_dit7b_8k"
+num_nodes = 8
 time_limit = "01:00:00"
 
 [[Tests]]
-id = "Tests.2"
-test_name = "nemo-vfm-ditllama28b_8k"
+id = "Tests.mock.dit7b_65k"
+test_name = "nemo-vfm-mock_dit7b_65k"
+num_nodes = 8
+time_limit = "01:00:00"
+
+[[Tests]]
+id = "Tests.mock.ditllama28b_8k"
+test_name = "nemo-vfm-mock_ditllama28b_8k"
+num_nodes = 8
+time_limit = "01:00:00"
+
+[[Tests]]
+id = "Tests.mock.ditllama28b_65k"
+test_name = "nemo-vfm-mock_ditllama28b_65k"
 num_nodes = 8
 time_limit = "01:00:00"
