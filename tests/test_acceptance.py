@@ -29,12 +29,15 @@ from cloudai.schema.test_template.jax_toolbox.template import JaxToolbox
 from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from cloudai.schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from cloudai.schema.test_template.sleep.template import Sleep
+from cloudai.schema.test_template.slurm_container.slurm_command_gen_strategy import SlurmContainerCommandGenStrategy
+from cloudai.schema.test_template.slurm_container.template import SlurmContainer
 from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
 from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
 from cloudai.test_definitions.grok import GrokCmdArgs, GrokTestDefinition
 from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.test_definitions.sleep import SleepCmdArgs, SleepTestDefinition
+from cloudai.test_definitions.slurm_container import SlurmContainerCmdArgs, SlurmContainerTestDefinition
 from cloudai.test_definitions.ucc import UCCCmdArgs, UCCTestDefinition
 
 SLURM_TEST_SCENARIOS = [
@@ -91,7 +94,9 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
     return partial(TestRun, num_nodes=1, nodes=[], output_path=slurm_system.output_path)
 
 
-@pytest.fixture(params=["ucc", "nccl", "sleep", "gpt-pre-test", "gpt-no-hook", "grok-pre-test", "grok-no-hook"])
+@pytest.fixture(
+    params=["ucc", "nccl", "sleep", "gpt-pre-test", "gpt-no-hook", "grok-pre-test", "grok-no-hook", "slurm_container"]
+)
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> tuple[TestRun, str, Optional[str]]:
     if request.param == "ucc":
         tr = partial_tr(
@@ -211,6 +216,32 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             tr.pre_test = TestScenario(name=f"{pre_test_tr.name} NCCL pre-test", test_runs=[pre_test_tr])
 
         return (tr, f"{request.param}.sbatch", "grok.run")
+    elif request.param == "slurm_container":
+        tr = partial_tr(
+            name="slurm_container",
+            test=Test(
+                test_definition=SlurmContainerTestDefinition(
+                    name="slurm_container",
+                    description="slurm_container",
+                    test_template_name="slurm_container",
+                    cmd_args=SlurmContainerCmdArgs(
+                        docker_image_url="https://docker/url",
+                        repository_url="https://repo/url",
+                        repository_commit_hash="commit_hash",
+                        mcore_vfm_repo="https://mcore_vfm/repo",
+                        mcore_vfm_commit_hash="mcore_vfm_commit_hash",
+                    ),
+                    extra_cmd_args={"bash": '-c "pwd ; ls"'},
+                ),
+                test_template=SlurmContainer(slurm_system, name="slurm_container"),
+            ),
+        )
+        tr.test.test_template.command_gen_strategy = SlurmContainerCommandGenStrategy(
+            slurm_system, tr.test.test_definition.cmd_args_dict
+        )
+        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+
+        return (tr, "slurm_container.sbatch", None)
 
     raise ValueError(f"Unknown test: {request.param}")
 

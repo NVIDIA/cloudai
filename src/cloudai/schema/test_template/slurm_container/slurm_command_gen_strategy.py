@@ -33,7 +33,7 @@ class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
         slurm_args["container_mounts"] = f"{repo_path.absolute()}:/work,{mcore_vfm_path.absolute()}:/opt/megatron-lm"
 
         cmd = super().gen_srun_prefix(slurm_args, tr)
-        return cmd + ["--no-container-mount-home "]
+        return cmd + ["--no-container-mount-home"]
 
     def generate_test_command(self, env_vars: dict[str, str], cmd_args: dict[str, str], tr: TestRun) -> list[str]:
         srun_command_parts: list[str] = []
