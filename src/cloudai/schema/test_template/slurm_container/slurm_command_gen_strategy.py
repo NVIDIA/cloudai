@@ -28,8 +28,10 @@ class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
     def gen_srun_prefix(self, slurm_args: dict[str, Any], tr: TestRun) -> list[str]:
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
         slurm_args["image_path"] = tdef.docker_image.installed_path
-        repo_path = tdef.git_repo.installed_path or Path.cwd()
-        mcore_vfm_path = tdef.mcore_vfm_git_repo.installed_path or Path.cwd()
+        repo_path = tdef.git_repo.installed_path or self.system.install_path / tdef.git_repo.repo_name
+        mcore_vfm_path = (
+            tdef.mcore_vfm_git_repo.installed_path or self.system.install_path / tdef.mcore_vfm_git_repo.repo_name
+        )
         slurm_args["container_mounts"] = f"{repo_path.absolute()}:/work,{mcore_vfm_path.absolute()}:/opt/megatron-lm"
 
         cmd = super().gen_srun_prefix(slurm_args, tr)

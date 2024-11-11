@@ -255,7 +255,7 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
 
     curr = Path(sbatch_script).read_text().strip()
     ref = (Path(__file__).parent / "ref_data" / test_req[1]).read_text().strip()
-    ref = ref.replace("__OUTPUT_DIR__", str(slurm_system.output_path)).replace("__JOB_NAME__", "job_name")
+    ref = ref.replace("__OUTPUT_DIR__", str(slurm_system.output_path.parent)).replace("__JOB_NAME__", "job_name")
 
     assert curr == ref
 
