@@ -55,7 +55,7 @@ class Registry(metaclass=Singleton):
                 ]
             ],
             Type[System],
-            Type[TestTemplate],
+            Type[TestDefinition],
         ],
         Type[
             Union[
@@ -114,7 +114,7 @@ class Registry(metaclass=Singleton):
             ]
         ],
         system_types: List[Type[System]],
-        template_types: List[Type[TestTemplate]],
+        definition_types: List[Type[TestDefinition]],
         strategy: Type[
             Union[
                 TestTemplateStrategy,
@@ -126,8 +126,8 @@ class Registry(metaclass=Singleton):
         ],
     ) -> None:
         for system_type in system_types:
-            for template_type in template_types:
-                key = (strategy_interface, system_type, template_type)
+            for def_type in definition_types:
+                key = (strategy_interface, system_type, def_type)
                 if key in self.strategies_map:
                     raise ValueError(f"Duplicating implementation for '{key}', use 'update()' for replacement.")
                 self.update_strategy(key, strategy)
@@ -145,7 +145,7 @@ class Registry(metaclass=Singleton):
                 ]
             ],
             Type[System],
-            Type[TestTemplate],
+            Type[TestDefinition],
         ],
         value: Type[
             Union[
@@ -171,8 +171,8 @@ class Registry(metaclass=Singleton):
             )
         if not issubclass(key[1], System):
             raise ValueError("Invalid system type, should be subclass of 'System'.")
-        if not issubclass(key[2], TestTemplate):
-            raise ValueError("Invalid test template type, should be subclass of 'TestTemplate'.")
+        if not issubclass(key[2], TestDefinition):
+            raise ValueError("Invalid test definition type, should be subclass of 'TestDefinition'.")
 
         if not (
             issubclass(value, TestTemplateStrategy)

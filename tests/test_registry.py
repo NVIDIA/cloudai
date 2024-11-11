@@ -113,34 +113,38 @@ class TestRegistry__StrategiesMap:
     """
 
     def test_add_strategy(self, registry: Registry):
-        registry.add_strategy(MyStrategy, [MySystem], [MyTestTemplate], MyStrategy)
-        registry.add_strategy(MyReportGenerationStrategy, [MySystem], [MyTestTemplate], MyReportGenerationStrategy)
-        registry.add_strategy(MyJobIdRetrievalStrategy, [MySystem], [MyTestTemplate], MyJobIdRetrievalStrategy)
-        registry.add_strategy(MyJobStatusRetrievalStrategy, [MySystem], [MyTestTemplate], MyJobStatusRetrievalStrategy)
+        registry.add_strategy(MyStrategy, [MySystem], [MyTestDefinition], MyStrategy)
+        registry.add_strategy(MyReportGenerationStrategy, [MySystem], [MyTestDefinition], MyReportGenerationStrategy)
+        registry.add_strategy(MyJobIdRetrievalStrategy, [MySystem], [MyTestDefinition], MyJobIdRetrievalStrategy)
+        registry.add_strategy(
+            MyJobStatusRetrievalStrategy, [MySystem], [MyTestDefinition], MyJobStatusRetrievalStrategy
+        )
 
-        assert registry.strategies_map[(MyStrategy, MySystem, MyTestTemplate)] == MyStrategy
+        assert registry.strategies_map[(MyStrategy, MySystem, MyTestDefinition)] == MyStrategy
         assert (
-            registry.strategies_map[(MyReportGenerationStrategy, MySystem, MyTestTemplate)]
+            registry.strategies_map[(MyReportGenerationStrategy, MySystem, MyTestDefinition)]
             == MyReportGenerationStrategy
         )
-        assert registry.strategies_map[(MyJobIdRetrievalStrategy, MySystem, MyTestTemplate)] == MyJobIdRetrievalStrategy
         assert (
-            registry.strategies_map[(MyJobStatusRetrievalStrategy, MySystem, MyTestTemplate)]
+            registry.strategies_map[(MyJobIdRetrievalStrategy, MySystem, MyTestDefinition)] == MyJobIdRetrievalStrategy
+        )
+        assert (
+            registry.strategies_map[(MyJobStatusRetrievalStrategy, MySystem, MyTestDefinition)]
             == MyJobStatusRetrievalStrategy
         )
 
     def test_add_strategy_duplicate(self, registry: Registry):
         with pytest.raises(ValueError) as exc_info:
-            registry.add_strategy(MyStrategy, [MySystem], [MyTestTemplate], MyStrategy)
+            registry.add_strategy(MyStrategy, [MySystem], [MyTestDefinition], MyStrategy)
         assert "Duplicating implementation for" in str(exc_info.value)
 
     def test_update_strategy(self, registry: Registry):
-        registry.update_strategy((MyStrategy, MySystem, MyTestTemplate), AnotherStrategy)
-        assert registry.strategies_map[(MyStrategy, MySystem, MyTestTemplate)] == AnotherStrategy
+        registry.update_strategy((MyStrategy, MySystem, MyTestDefinition), AnotherStrategy)
+        assert registry.strategies_map[(MyStrategy, MySystem, MyTestDefinition)] == AnotherStrategy
 
     def test_invalid_type__strategy_interface(self, registry: Registry):
         with pytest.raises(ValueError) as exc_info:
-            registry.update_strategy((str, MySystem, MyTestTemplate), MyStrategy)  # pyright: ignore
+            registry.update_strategy((str, MySystem, MyTestDefinition), MyStrategy)  # pyright: ignore
         err = (
             "Invalid strategy interface type, should be subclass of 'TestTemplateStrategy' or "
             "'ReportGenerationStrategy' or 'JobIdRetrievalStrategy' or 'JobStatusRetrievalStrategy' "
@@ -156,23 +160,25 @@ class TestRegistry__StrategiesMap:
     def test_invalid_type__template(self, registry: Registry):
         with pytest.raises(ValueError) as exc_info:
             registry.update_strategy((MyStrategy, MySystem, str), MyStrategy)  # pyright: ignore
-        assert "Invalid test template type, should be subclass of 'TestTemplate'." in str(exc_info.value)
+        assert "Invalid test definition type, should be subclass of 'TestDefinition'." in str(exc_info.value)
 
     def test_invalid_type__strategy(self, registry: Registry):
         with pytest.raises(ValueError) as exc_info:
-            registry.update_strategy((MyStrategy, MySystem, MyTestTemplate), str)  # pyright: ignore
+            registry.update_strategy((MyStrategy, MySystem, MyTestDefinition), str)  # pyright: ignore
         assert "Invalid strategy implementation " in str(exc_info.value)
         assert "should be subclass of 'TestTemplateStrategy'." in str(exc_info.value)
 
     def test_add_multiple_strategies(self, registry: Registry):
         registry.strategies_map = {}
 
-        registry.add_strategy(MyStrategy, [MySystem, AnotherSystem], [MyTestTemplate, AnotherTestTemplate], MyStrategy)
+        registry.add_strategy(
+            MyStrategy, [MySystem, AnotherSystem], [MyTestDefinition, AnotherTestDefinition], MyStrategy
+        )
         assert len(registry.strategies_map) == 4
-        assert registry.strategies_map[(MyStrategy, MySystem, MyTestTemplate)] == MyStrategy
-        assert registry.strategies_map[(MyStrategy, MySystem, AnotherTestTemplate)] == MyStrategy
-        assert registry.strategies_map[(MyStrategy, AnotherSystem, MyTestTemplate)] == MyStrategy
-        assert registry.strategies_map[(MyStrategy, AnotherSystem, AnotherTestTemplate)] == MyStrategy
+        assert registry.strategies_map[(MyStrategy, MySystem, MyTestDefinition)] == MyStrategy
+        assert registry.strategies_map[(MyStrategy, MySystem, AnotherTestDefinition)] == MyStrategy
+        assert registry.strategies_map[(MyStrategy, AnotherSystem, MyTestDefinition)] == MyStrategy
+        assert registry.strategies_map[(MyStrategy, AnotherSystem, AnotherTestDefinition)] == MyStrategy
 
 
 class TestRegistry__TestTemplatesMap:
