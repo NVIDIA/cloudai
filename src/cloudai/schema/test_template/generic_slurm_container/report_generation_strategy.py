@@ -22,6 +22,8 @@ from cloudai import ReportGenerationStrategy
 
 
 class GenericSlurmContainerReportGenerationStrategy(ReportGenerationStrategy):
+    """Report generation strategy for a generic Slurm container test."""
+
     def can_handle_directory(self, directory_path: Path) -> bool:
         stdout_path = directory_path / "stdout.txt"
         if stdout_path.exists():
@@ -39,8 +41,6 @@ class GenericSlurmContainerReportGenerationStrategy(ReportGenerationStrategy):
         if not stdout_path.is_file():
             return
 
-        # Training epoch 0, iteration 1/9 | lr: 0.0001 | global_batch_size: 256 | global_step: 1 | reduced_train_loss: 3.616 | train_step_timing in s: 112.7 | consumed_samples: 512
-        # parse data from stdout.txt and save into csv file
         with stdout_path.open("r") as file:
             lines = file.readlines()
             with open(directory_path / "report.csv", "w") as csv_file:

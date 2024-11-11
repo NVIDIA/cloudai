@@ -17,5 +17,7 @@
 from cloudai import TestTemplate
 
 
-class GenericSlurmContainerTT(TestTemplate):
+class GenericSlurmContainer(TestTemplate):
+    """Generic Slurm container test template."""
+
     pass

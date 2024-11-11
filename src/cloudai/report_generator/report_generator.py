@@ -75,7 +75,8 @@ class ReportGenerator:
                 continue
             if not tr.test.test_template.can_handle_directory(subdir):
                 logging.warning(
-                    f"Skipping '{subdir}', can't hande with strategy={tr.test.test_template.report_generation_strategy}."
+                    f"Skipping '{subdir}', can't hande with "
+                    f"strategy={tr.test.test_template.report_generation_strategy}."
                 )
                 continue
 

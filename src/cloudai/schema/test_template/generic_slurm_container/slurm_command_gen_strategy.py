@@ -23,6 +23,8 @@ from cloudai.test_definitions.generic_slurm_container import SlurmContainerTestD
 
 
 class GenericSlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
+    """Command generation strategy for generic Slurm container tests."""
+
     def generate_srun_prefix(self, slurm_args: dict[str, Any], tr: TestRun) -> list[str]:
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
         slurm_args["image_path"] = tdef.docker_image.installed_path
