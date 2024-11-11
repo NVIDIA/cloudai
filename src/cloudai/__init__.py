@@ -58,12 +58,12 @@ from .schema.test_template.common.default_job_status_retrieval_strategy import D
 from .schema.test_template.common.slurm_job_id_retrieval_strategy import SlurmJobIdRetrievalStrategy
 from .schema.test_template.common.standalone_job_id_retrieval_strategy import StandaloneJobIdRetrievalStrategy
 from .schema.test_template.generic_slurm_container.report_generation_strategy import (
-    GenericSlurmContainerReportGenerationStrategy,
+    SlurmContainerReportGenerationStrategy,
 )
 from .schema.test_template.generic_slurm_container.slurm_command_gen_strategy import (
-    GenericSlurmContainerCommandGenStrategy,
+    SlurmContainerCommandGenStrategy,
 )
-from .schema.test_template.generic_slurm_container.template import GenericSlurmContainer
+from .schema.test_template.generic_slurm_container.template import SlurmContainer
 from .schema.test_template.jax_toolbox.grading_strategy import JaxToolboxGradingStrategy
 from .schema.test_template.jax_toolbox.job_status_retrieval_strategy import JaxToolboxJobStatusRetrievalStrategy
 from .schema.test_template.jax_toolbox.report_generation_strategy import JaxToolboxReportGenerationStrategy
@@ -105,7 +105,7 @@ from .test_definitions import (
     SleepTestDefinition,
     UCCTestDefinition,
 )
-from .test_definitions.generic_slurm_container import SlurmContainerTestDefinition
+from .test_definitions.slurm_container import SlurmContainerTestDefinition
 
 Registry().add_runner("slurm", SlurmRunner)
 Registry().add_runner("kubernetes", KubernetesRunner)
@@ -132,8 +132,8 @@ Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [UCCTest], UCCT
 Registry().add_strategy(
     ReportGenerationStrategy,
     [SlurmSystem],
-    [GenericSlurmContainer],
-    GenericSlurmContainerReportGenerationStrategy,
+    [SlurmContainer],
+    SlurmContainerReportGenerationStrategy,
 )
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [NeMoLauncher], NeMoLauncherGradingStrategy)
 
@@ -143,7 +143,7 @@ Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [JaxToolbox], JaxTool
 Registry().add_strategy(
     JobIdRetrievalStrategy,
     [SlurmSystem],
-    [ChakraReplay, JaxToolbox, NcclTest, UCCTest, Sleep, GenericSlurmContainer],
+    [ChakraReplay, JaxToolbox, NcclTest, UCCTest, Sleep, SlurmContainer],
     SlurmJobIdRetrievalStrategy,
 )
 Registry().add_strategy(JobIdRetrievalStrategy, [StandaloneSystem], [Sleep], StandaloneJobIdRetrievalStrategy)
@@ -156,16 +156,14 @@ Registry().add_strategy(JobStatusRetrievalStrategy, [SlurmSystem], [JaxToolbox],
 Registry().add_strategy(
     JobStatusRetrievalStrategy,
     [SlurmSystem],
-    [ChakraReplay, UCCTest, NeMoLauncher, Sleep, GenericSlurmContainer],
+    [ChakraReplay, UCCTest, NeMoLauncher, Sleep, SlurmContainer],
     DefaultJobStatusRetrievalStrategy,
 )
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [UCCTest], UCCTestSlurmCommandGenStrategy)
 Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [ChakraReplay], ChakraReplayReportGenerationStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [ChakraReplay], ChakraReplayGradingStrategy)
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [ChakraReplay], ChakraReplaySlurmCommandGenStrategy)
-Registry().add_strategy(
-    CommandGenStrategy, [SlurmSystem], [GenericSlurmContainer], GenericSlurmContainerCommandGenStrategy
-)
+Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [SlurmContainer], SlurmContainerCommandGenStrategy)
 
 Registry().add_installer("slurm", SlurmInstaller)
 Registry().add_installer("standalone", StandaloneInstaller)
@@ -193,7 +191,7 @@ Registry().add_test_template("UCCTest", UCCTest)
 Registry().add_test_template("JaxToolboxGPT", JaxToolbox)
 Registry().add_test_template("JaxToolboxGrok", JaxToolbox)
 Registry().add_test_template("JaxToolboxNemotron", JaxToolbox)
-Registry().add_test_template("GenericSlurmContainer", GenericSlurmContainer)
+Registry().add_test_template("GenericSlurmContainer", SlurmContainer)
 
 __all__ = [
     "BaseInstaller",

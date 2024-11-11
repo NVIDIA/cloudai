@@ -18,12 +18,12 @@ import pytest
 
 from cloudai import (
     CommandGenStrategy,
-    GenericSlurmContainer,
     GradingStrategy,
     JobIdRetrievalStrategy,
     JsonGenStrategy,
     Registry,
     ReportGenerationStrategy,
+    SlurmContainer,
     SlurmContainerTestDefinition,
 )
 from cloudai.installer.slurm_installer import SlurmInstaller
@@ -135,7 +135,7 @@ def test_test_templates():
     assert test_templates["NeMoLauncher"] == NeMoLauncher
     assert test_templates["Sleep"] == Sleep
     assert test_templates["UCCTest"] == UCCTest
-    assert test_templates["GenericSlurmContainer"] == GenericSlurmContainer
+    assert test_templates["GenericSlurmContainer"] == SlurmContainer
 
 
 def test_installers():

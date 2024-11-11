@@ -19,10 +19,10 @@ from typing import Any, cast
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
-from cloudai.test_definitions.generic_slurm_container import SlurmContainerTestDefinition
+from cloudai.test_definitions.slurm_container import SlurmContainerTestDefinition
 
 
-class GenericSlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
+class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for generic Slurm container tests."""
 
     def generate_srun_prefix(self, slurm_args: dict[str, Any], tr: TestRun) -> list[str]:

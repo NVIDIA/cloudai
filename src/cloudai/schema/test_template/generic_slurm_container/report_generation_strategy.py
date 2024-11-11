@@ -21,7 +21,7 @@ from typing import Optional
 from cloudai import ReportGenerationStrategy
 
 
-class GenericSlurmContainerReportGenerationStrategy(ReportGenerationStrategy):
+class SlurmContainerReportGenerationStrategy(ReportGenerationStrategy):
     """Report generation strategy for a generic Slurm container test."""
 
     def can_handle_directory(self, directory_path: Path) -> bool:
