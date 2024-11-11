@@ -57,13 +57,6 @@ from .schema.test_template.chakra_replay.template import ChakraReplay
 from .schema.test_template.common.default_job_status_retrieval_strategy import DefaultJobStatusRetrievalStrategy
 from .schema.test_template.common.slurm_job_id_retrieval_strategy import SlurmJobIdRetrievalStrategy
 from .schema.test_template.common.standalone_job_id_retrieval_strategy import StandaloneJobIdRetrievalStrategy
-from .schema.test_template.generic_slurm_container.report_generation_strategy import (
-    SlurmContainerReportGenerationStrategy,
-)
-from .schema.test_template.generic_slurm_container.slurm_command_gen_strategy import (
-    SlurmContainerCommandGenStrategy,
-)
-from .schema.test_template.generic_slurm_container.template import SlurmContainer
 from .schema.test_template.jax_toolbox.grading_strategy import JaxToolboxGradingStrategy
 from .schema.test_template.jax_toolbox.job_status_retrieval_strategy import JaxToolboxJobStatusRetrievalStrategy
 from .schema.test_template.jax_toolbox.report_generation_strategy import JaxToolboxReportGenerationStrategy
@@ -88,6 +81,13 @@ from .schema.test_template.sleep.report_generation_strategy import SleepReportGe
 from .schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from .schema.test_template.sleep.standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
 from .schema.test_template.sleep.template import Sleep
+from .schema.test_template.slurm_container.report_generation_strategy import (
+    SlurmContainerReportGenerationStrategy,
+)
+from .schema.test_template.slurm_container.slurm_command_gen_strategy import (
+    SlurmContainerCommandGenStrategy,
+)
+from .schema.test_template.slurm_container.template import SlurmContainer
 from .schema.test_template.ucc_test.grading_strategy import UCCTestGradingStrategy
 from .schema.test_template.ucc_test.report_generation_strategy import UCCTestReportGenerationStrategy
 from .schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
@@ -181,7 +181,7 @@ Registry().add_test_definition("NeMoLauncher", NeMoLauncherTestDefinition)
 Registry().add_test_definition("JaxToolboxGPT", GPTTestDefinition)
 Registry().add_test_definition("JaxToolboxGrok", GrokTestDefinition)
 Registry().add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)
-Registry().add_test_definition("GenericSlurmContainer", SlurmContainerTestDefinition)
+Registry().add_test_definition("SlurmContainer", SlurmContainerTestDefinition)
 
 Registry().add_test_template("ChakraReplay", ChakraReplay)
 Registry().add_test_template("NcclTest", NcclTest)
@@ -191,7 +191,7 @@ Registry().add_test_template("UCCTest", UCCTest)
 Registry().add_test_template("JaxToolboxGPT", JaxToolbox)
 Registry().add_test_template("JaxToolboxGrok", JaxToolbox)
 Registry().add_test_template("JaxToolboxNemotron", JaxToolbox)
-Registry().add_test_template("GenericSlurmContainer", SlurmContainer)
+Registry().add_test_template("SlurmContainer", SlurmContainer)
 
 __all__ = [
     "BaseInstaller",

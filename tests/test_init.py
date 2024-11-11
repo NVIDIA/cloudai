@@ -135,7 +135,7 @@ def test_test_templates():
     assert test_templates["NeMoLauncher"] == NeMoLauncher
     assert test_templates["Sleep"] == Sleep
     assert test_templates["UCCTest"] == UCCTest
-    assert test_templates["GenericSlurmContainer"] == SlurmContainer
+    assert test_templates["SlurmContainer"] == SlurmContainer
 
 
 def test_installers():
@@ -153,7 +153,7 @@ def test_definitions():
     assert test_defs["ChakraReplay"] == ChakraReplayTestDefinition
     assert test_defs["Sleep"] == SleepTestDefinition
     assert test_defs["NeMoLauncher"] == NeMoLauncherTestDefinition
-    assert test_defs["GenericSlurmContainer"] == SlurmContainerTestDefinition
+    assert test_defs["SlurmContainer"] == SlurmContainerTestDefinition
 
 
 def test_definitions_matches_templates():

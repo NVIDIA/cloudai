@@ -25,15 +25,15 @@ from cloudai.test_definitions.slurm_container import SlurmContainerTestDefinitio
 class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for generic Slurm container tests."""
 
-    def generate_srun_prefix(self, slurm_args: dict[str, Any], tr: TestRun) -> list[str]:
+    def gen_srun_prefix(self, slurm_args: dict[str, Any], tr: TestRun) -> list[str]:
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
         slurm_args["image_path"] = tdef.docker_image.installed_path
         repo_path = tdef.git_repo.installed_path or Path.cwd()
         mcore_vfm_path = tdef.mcore_vfm_git_repo.installed_path or Path.cwd()
         slurm_args["container_mounts"] = f"{repo_path.absolute()}:/work,{mcore_vfm_path.absolute()}:/opt/megatron-lm"
 
-        cmd = super().generate_srun_prefix(slurm_args, tr)
-        return cmd + ["--no-container-mount-home"]
+        cmd = super().gen_srun_prefix(slurm_args, tr)
+        return cmd + ["--no-container-mount-home "]
 
     def generate_test_command(self, env_vars: dict[str, str], cmd_args: dict[str, str], tr: TestRun) -> list[str]:
         srun_command_parts: list[str] = []

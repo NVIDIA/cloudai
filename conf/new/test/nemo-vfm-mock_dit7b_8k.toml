@@ -16,7 +16,7 @@
 
 name = "nemo-vfm-mock_dit7b_8k"
 description = "Nemo VFM factory=mock_dit7b_8k"
-test_template_name = "GenericSlurmContainer"
+test_template_name = "SlurmContainer"
 
 [cmd_args]
 docker_image_url = "gitlab-master.nvidia.com/dl/nemo/nemo-vfm:24.10"
