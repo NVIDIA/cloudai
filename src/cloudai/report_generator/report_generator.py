@@ -70,7 +70,13 @@ class ReportGenerator:
             tr (TestRun): The test run object.
         """
         for subdir in directory_path.iterdir():
-            if subdir.is_dir() and tr.test.test_template.can_handle_directory(subdir):
-                tr.test.test_template.generate_report(tr.test.name, subdir, tr.sol)
-            else:
-                logging.warning(f"Skipping directory '{subdir}' for test '{tr.test.name}'")
+            if not subdir.is_dir():
+                logging.debug(f"Skipping file '{subdir}', not a directory.")
+                continue
+            if not tr.test.test_template.can_handle_directory(subdir):
+                logging.warning(
+                    f"Skipping '{subdir}', can't hande with strategy={tr.test.test_template.report_generation_strategy}."
+                )
+                continue
+
+            tr.test.test_template.generate_report(tr.test.name, subdir, tr.sol)

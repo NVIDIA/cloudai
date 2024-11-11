@@ -57,6 +57,9 @@ from .schema.test_template.chakra_replay.template import ChakraReplay
 from .schema.test_template.common.default_job_status_retrieval_strategy import DefaultJobStatusRetrievalStrategy
 from .schema.test_template.common.slurm_job_id_retrieval_strategy import SlurmJobIdRetrievalStrategy
 from .schema.test_template.common.standalone_job_id_retrieval_strategy import StandaloneJobIdRetrievalStrategy
+from .schema.test_template.generic_slurm_container.report_generation_strategy import (
+    GenericSlurmContainerReportGenerationStrategy,
+)
 from .schema.test_template.generic_slurm_container.slurm_command_gen_strategy import (
     GenericSlurmContainerCommandGenStrategy,
 )
@@ -126,7 +129,11 @@ Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [JaxToolbox], J
 Registry().add_strategy(JobIdRetrievalStrategy, [SlurmSystem], [NeMoLauncher], NeMoLauncherSlurmJobIdRetrievalStrategy)
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NeMoLauncher], NeMoLauncherSlurmCommandGenStrategy)
 Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [UCCTest], UCCTestReportGenerationStrategy)
+Registry().add_strategy(
+    ReportGenerationStrategy, [SlurmSystem], [GenericSlurmContainerTT], GenericSlurmContainerReportGenerationStrategy
+)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [NeMoLauncher], NeMoLauncherGradingStrategy)
+
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [JaxToolbox], JaxToolboxGradingStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [UCCTest], UCCTestGradingStrategy)
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [JaxToolbox], JaxToolboxSlurmCommandGenStrategy)
