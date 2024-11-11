@@ -27,8 +27,7 @@ class ChakraReplayCmdArgs(CmdArgs):
     mpi: str = "pmix"
     trace_type: str = "et"
     trace_path: Optional[str] = None
-    backend: str = "nccl"
-    device: str = "cuda"
+    num_replays: int = 1
 
 
 class ChakraReplayTestDefinition(TestDefinition):
