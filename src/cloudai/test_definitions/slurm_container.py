@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from typing import Optional
 
 from cloudai import CmdArgs, Installable, TestDefinition
@@ -62,6 +63,14 @@ class SlurmContainerTestDefinition(TestDefinition):
             )
 
         return self._mcore_git_repo
+
+    def container_mounts(self, root: Path) -> list[str]:
+        repo_path = self.git_repo.installed_path or root / self.git_repo.repo_name
+        mcore_vfm_path = self.mcore_vfm_git_repo.installed_path or root / self.mcore_vfm_git_repo.repo_name
+        return [
+            f"{repo_path.absolute()}:/work",
+            f"{mcore_vfm_path.absolute()}:/opt/megatron-lm",
+        ]
 
     @property
     def installables(self) -> list[Installable]:
