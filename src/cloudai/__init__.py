@@ -53,7 +53,6 @@ from .runner.standalone.standalone_runner import StandaloneRunner
 from .schema.test_template.chakra_replay.grading_strategy import ChakraReplayGradingStrategy
 from .schema.test_template.chakra_replay.report_generation_strategy import ChakraReplayReportGenerationStrategy
 from .schema.test_template.chakra_replay.slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
-from .schema.test_template.chakra_replay.template import ChakraReplay
 from .schema.test_template.common.default_job_status_retrieval_strategy import DefaultJobStatusRetrievalStrategy
 from .schema.test_template.common.slurm_job_id_retrieval_strategy import SlurmJobIdRetrievalStrategy
 from .schema.test_template.common.standalone_job_id_retrieval_strategy import StandaloneJobIdRetrievalStrategy
@@ -61,30 +60,25 @@ from .schema.test_template.jax_toolbox.grading_strategy import JaxToolboxGrading
 from .schema.test_template.jax_toolbox.job_status_retrieval_strategy import JaxToolboxJobStatusRetrievalStrategy
 from .schema.test_template.jax_toolbox.report_generation_strategy import JaxToolboxReportGenerationStrategy
 from .schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
-from .schema.test_template.jax_toolbox.template import JaxToolbox
 from .schema.test_template.nccl_test.grading_strategy import NcclTestGradingStrategy
 from .schema.test_template.nccl_test.job_status_retrieval_strategy import NcclTestJobStatusRetrievalStrategy
 from .schema.test_template.nccl_test.kubernetes_json_gen_strategy import NcclTestKubernetesJsonGenStrategy
 from .schema.test_template.nccl_test.report_generation_strategy import NcclTestReportGenerationStrategy
 from .schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
-from .schema.test_template.nccl_test.template import NcclTest
 from .schema.test_template.nemo_launcher.grading_strategy import NeMoLauncherGradingStrategy
 from .schema.test_template.nemo_launcher.report_generation_strategy import NeMoLauncherReportGenerationStrategy
 from .schema.test_template.nemo_launcher.slurm_command_gen_strategy import NeMoLauncherSlurmCommandGenStrategy
 from .schema.test_template.nemo_launcher.slurm_job_id_retrieval_strategy import (
     NeMoLauncherSlurmJobIdRetrievalStrategy,
 )
-from .schema.test_template.nemo_launcher.template import NeMoLauncher
 from .schema.test_template.sleep.grading_strategy import SleepGradingStrategy
 from .schema.test_template.sleep.kubernetes_json_gen_strategy import SleepKubernetesJsonGenStrategy
 from .schema.test_template.sleep.report_generation_strategy import SleepReportGenerationStrategy
 from .schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from .schema.test_template.sleep.standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
-from .schema.test_template.sleep.template import Sleep
 from .schema.test_template.ucc_test.grading_strategy import UCCTestGradingStrategy
 from .schema.test_template.ucc_test.report_generation_strategy import UCCTestReportGenerationStrategy
 from .schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
-from .schema.test_template.ucc_test.template import UCCTest
 from .systems.kubernetes.kubernetes_system import KubernetesSystem
 from .systems.slurm.slurm_system import SlurmSystem
 from .systems.standalone_system import StandaloneSystem
@@ -215,14 +209,6 @@ Registry().add_test_definition("JaxToolboxGPT", GPTTestDefinition)
 Registry().add_test_definition("JaxToolboxGrok", GrokTestDefinition)
 Registry().add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)
 
-Registry().add_test_template("ChakraReplay", ChakraReplay)
-Registry().add_test_template("NcclTest", NcclTest)
-Registry().add_test_template("NeMoLauncher", NeMoLauncher)
-Registry().add_test_template("Sleep", Sleep)
-Registry().add_test_template("UCCTest", UCCTest)
-Registry().add_test_template("JaxToolboxGPT", JaxToolbox)
-Registry().add_test_template("JaxToolboxGrok", JaxToolbox)
-Registry().add_test_template("JaxToolboxNemotron", JaxToolbox)
 
 __all__ = [
     "BaseInstaller",

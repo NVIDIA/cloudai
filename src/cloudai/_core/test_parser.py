@@ -158,15 +158,9 @@ class TestParser:
         Returns:
             Type[TestTemplate]: A subclass of TestTemplate corresponding to the given name.
         """
-        template_classes = Registry().test_templates_map
-
-        test_template_class = template_classes.get(name)
-        if not test_template_class:
-            raise ValueError(f"Unsupported test_template name: {name}")
-
         cmd_args = tdef.cmd_args_dict
 
-        obj = test_template_class(system=self.system, name=name)
+        obj = TestTemplate(system=self.system, name=name)
         obj.command_gen_strategy = cast(
             CommandGenStrategy,
             self._fetch_strategy(CommandGenStrategy, type(obj.system), type(tdef), cmd_args),

@@ -24,7 +24,6 @@ from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
 from .test import TestDefinition
-from .test_template import TestTemplate
 from .test_template_strategy import TestTemplateStrategy
 
 
@@ -67,7 +66,6 @@ class Registry(metaclass=Singleton):
             ]
         ],
     ] = {}
-    test_templates_map: Dict[str, Type[TestTemplate]] = {}
     installers_map: Dict[str, Type[BaseInstaller]] = {}
     systems_map: Dict[str, Type[System]] = {}
     test_definitions_map: Dict[str, Type[TestDefinition]] = {}
@@ -183,38 +181,6 @@ class Registry(metaclass=Singleton):
         ):
             raise ValueError(f"Invalid strategy implementation {value}, should be subclass of 'TestTemplateStrategy'.")
         self.strategies_map[key] = value
-
-    def add_test_template(self, name: str, value: Type[TestTemplate]) -> None:
-        """
-        Add a new test template implementation mapping.
-
-        Args:
-            name (str): The name of the test template.
-            value (Type[TestTemplate]): The test template implementation.
-
-        Raises:
-            ValueError: If the test template implementation already exists.
-        """
-        if name in self.test_templates_map:
-            raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
-        self.update_test_template(name, value)
-
-    def update_test_template(self, name: str, value: Type[TestTemplate]) -> None:
-        """
-        Create or replace test template implementation mapping.
-
-        Args:
-            name (str): The name of the test template.
-            value (Type[TestTemplate]): The test template implementation.
-
-        Raises:
-            ValueError: If value is not a subclass of TestTemplate.
-        """
-        if not issubclass(value, TestTemplate):
-            raise ValueError(
-                f"Invalid test template implementation for '{name}', should be subclass of 'TestTemplate'."
-            )
-        self.test_templates_map[name] = value
 
     def add_installer(self, name: str, value: Type[BaseInstaller]) -> None:
         """

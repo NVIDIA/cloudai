@@ -22,13 +22,11 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai import NcclTest, Test, TestRun, TestScenario, UCCTest
+from cloudai import Test, TestRun, TestScenario, TestTemplate
 from cloudai.cli import handle_dry_run_and_run, setup_logging
 from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
-from cloudai.schema.test_template.jax_toolbox.template import JaxToolbox
 from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from cloudai.schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
-from cloudai.schema.test_template.sleep.template import Sleep
 from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
 from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
@@ -100,7 +98,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 test_definition=UCCTestDefinition(
                     name="ucc", description="ucc", test_template_name="ucc", cmd_args=UCCCmdArgs()
                 ),
-                test_template=UCCTest(slurm_system, name="ucc"),
+                test_template=TestTemplate(slurm_system, name="ucc"),
             ),
         )
         tr.test.test_template.command_gen_strategy = UCCTestSlurmCommandGenStrategy(
@@ -116,7 +114,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 test_definition=NCCLTestDefinition(
                     name="nccl", description="nccl", test_template_name="nccl", cmd_args=NCCLCmdArgs()
                 ),
-                test_template=NcclTest(slurm_system, name="nccl"),
+                test_template=TestTemplate(slurm_system, name="nccl"),
             ),
         )
         tr.test.test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(
@@ -132,7 +130,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 test_definition=SleepTestDefinition(
                     name="sleep", description="sleep", test_template_name="sleep", cmd_args=SleepCmdArgs()
                 ),
-                test_template=Sleep(slurm_system, name="sleep"),
+                test_template=TestTemplate(slurm_system, name="sleep"),
             ),
         )
         tr.test.test_template.command_gen_strategy = SleepSlurmCommandGenStrategy(
@@ -152,7 +150,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     cmd_args=GPTCmdArgs(fdl_config="fdl/config", docker_image_url="https://docker/url"),
                     extra_env_vars={"COMBINE_THRESHOLD": "1"},
                 ),
-                test_template=JaxToolbox(slurm_system, name="gpt"),
+                test_template=TestTemplate(slurm_system, name="gpt"),
             ),
         )
         tr.test.test_template.command_gen_strategy = JaxToolboxSlurmCommandGenStrategy(
@@ -166,7 +164,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     test_definition=NCCLTestDefinition(
                         name="nccl", description="nccl", test_template_name="nccl", cmd_args=NCCLCmdArgs()
                     ),
-                    test_template=NcclTest(slurm_system, name="nccl"),
+                    test_template=TestTemplate(slurm_system, name="nccl"),
                 ),
             )
             pre_test_tr.test.test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(
@@ -187,7 +185,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     cmd_args=GrokCmdArgs(fdl_config="fdl/config", docker_image_url="https://docker/url"),
                     extra_env_vars={"COMBINE_THRESHOLD": "1"},
                 ),
-                test_template=JaxToolbox(slurm_system, name="grok"),
+                test_template=TestTemplate(slurm_system, name="grok"),
             ),
         )
         tr.test.test_template.command_gen_strategy = JaxToolboxSlurmCommandGenStrategy(
@@ -201,7 +199,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     test_definition=NCCLTestDefinition(
                         name="nccl", description="nccl", test_template_name="nccl", cmd_args=NCCLCmdArgs()
                     ),
-                    test_template=NcclTest(slurm_system, name="nccl"),
+                    test_template=TestTemplate(slurm_system, name="nccl"),
                 ),
             )
             pre_test_tr.test.test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(

@@ -17,11 +17,9 @@
 from .grading_strategy import JaxToolboxGradingStrategy
 from .report_generation_strategy import JaxToolboxReportGenerationStrategy
 from .slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
-from .template import JaxToolbox
 
 __all__ = [
     "JaxToolboxGradingStrategy",
     "JaxToolboxReportGenerationStrategy",
     "JaxToolboxSlurmCommandGenStrategy",
-    "JaxToolbox",
 ]
