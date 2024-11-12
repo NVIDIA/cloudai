@@ -15,8 +15,10 @@
 # limitations under the License.
 
 from typing import Dict, List
+from unittest.mock import Mock
 
 import pytest
+
 from cloudai.schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
 
@@ -40,6 +42,5 @@ class TestSleepSlurmCommandGenStrategy:
         expected_command: List[str],
     ) -> None:
         env_vars = {}
-        extra_cmd_args = ""
-        command = cmd_gen_strategy.generate_test_command(env_vars, cmd_args, extra_cmd_args)
+        command = cmd_gen_strategy.generate_test_command(env_vars, cmd_args, Mock())
         assert command == expected_command

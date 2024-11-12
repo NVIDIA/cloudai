@@ -18,13 +18,14 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+
 from cloudai import Test, TestRun
 from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
 from cloudai.schema.test_template.jax_toolbox.template import JaxToolbox
 from cloudai.systems import SlurmSystem
 from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
 from cloudai.test_definitions.grok import GrokCmdArgs, GrokTestDefinition
-from cloudai.test_definitions.jax_toolbox import JaxFdl, PreTest
+from cloudai.test_definitions.jax_toolbox import JaxFdl
 
 
 class TestJaxToolboxSlurmCommandGenStrategy:
@@ -38,7 +39,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
             name="gpt",
             description="desc",
             test_template_name="gpt",
-            cmd_args=GPTCmdArgs(fdl_config="", docker_image_url=""),
+            cmd_args=GPTCmdArgs(fdl_config="", docker_image_url="http://fake_image_url"),
             extra_env_vars={"COMBINE_THRESHOLD": "1"},
         )
 
@@ -48,7 +49,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
             name="grok",
             description="desc",
             test_template_name="grok",
-            cmd_args=GrokCmdArgs(docker_image_url=""),
+            cmd_args=GrokCmdArgs(docker_image_url="http://fake_image_url"),
             extra_env_vars={"COMBINE_THRESHOLD": "1"},
         )
 
@@ -62,7 +63,6 @@ class TestJaxToolboxSlurmCommandGenStrategy:
         test_fixture,
     ) -> None:
         test_def = request.getfixturevalue(test_fixture)
-        test_def.cmd_args.pre_test = PreTest(enable=True)
 
         test = Test(test_definition=test_def, test_template=JaxToolbox(slurm_system, "name"))
         test_run = TestRun(
@@ -73,13 +73,9 @@ class TestJaxToolboxSlurmCommandGenStrategy:
             name="test-job",
         )
 
-        cmd_gen_strategy._generate_pre_test_command = MagicMock(return_value="pre_test_command")
         cmd = cmd_gen_strategy.gen_exec_command(test_run)
         assert cmd == f"sbatch {test_run.output_path}/cloudai_sbatch_script.sh"
         assert (test_run.output_path / "run.sh").exists()
-
-        content = Path(f"{test_run.output_path}/cloudai_sbatch_script.sh").read_text()
-        assert "pre_test_command" in content
 
     @pytest.mark.parametrize(
         "cmd_args, expected",
@@ -214,100 +210,6 @@ class TestJaxToolboxSlurmCommandGenStrategy:
             "fi",
         ]
 
-    def test_generate_pre_test_command(
-        self, cmd_gen_strategy: JaxToolboxSlurmCommandGenStrategy, grok_test: GrokTestDefinition, tmp_path: Path
-    ) -> None:
-        grok_test.cmd_args.pre_test = PreTest(enable=True)
-
-        nccl_test = grok_test.cmd_args.pre_test.nccl_test
-        nccl_test.num_nodes = 2
-        nccl_test.minbytes = "32M"
-        nccl_test.blocking = 0
-
-        cargs = {"output_path": str(tmp_path), **grok_test.cmd_args_dict}
-
-        pre_test_cli = cmd_gen_strategy._generate_pre_test_command(cargs, tmp_path, tmp_path).splitlines()
-
-        expected_pre_test_cli = [
-            "srun \\",
-            "--mpi=pmix \\",
-            f"-N {nccl_test.num_nodes} \\",
-            f"-o {tmp_path} \\",
-            f"-e {tmp_path} \\",
-            f"--container-image={nccl_test.docker_image_url} \\",
-            f"/usr/local/bin/{nccl_test.subtest_name} \\",
-            f"--nthreads {nccl_test.nthreads} \\",
-            f"--ngpus {nccl_test.ngpus} \\",
-            f"--minbytes {nccl_test.minbytes} \\",
-            f"--maxbytes {nccl_test.maxbytes} \\",
-            f"--stepbytes {nccl_test.stepbytes} \\",
-            f"--op {nccl_test.op} \\",
-            f"--datatype {nccl_test.datatype} \\",
-            f"--root {nccl_test.root} \\",
-            f"--iters {nccl_test.iters} \\",
-            f"--warmup_iters {nccl_test.warmup_iters} \\",
-            f"--agg_iters {nccl_test.agg_iters} \\",
-            f"--average {nccl_test.average} \\",
-            f"--parallel_init {nccl_test.parallel_init} \\",
-            f"--check {nccl_test.check} \\",
-            f"--blocking {nccl_test.blocking} \\",
-            f"--cudagraph {nccl_test.cudagraph} \\",
-            f"--stepfactor {nccl_test.stepfactor}",
-        ]
-
-        assert pre_test_cli == expected_pre_test_cli, (
-            "The generated pre-test command did not match the expected command.\n"
-            f"Expected: {expected_pre_test_cli}\n"
-            f"Actual: {pre_test_cli}"
-        )
-
-    def test_generate_srun_command(self, slurm_system, cmd_gen_strategy, grok_test):
-        cmd_gen_strategy.test_name = grok_test.name
-        Path("/tmp/output").mkdir(parents=True, exist_ok=True)
-
-        output_path = Path("/tmp/output/output")
-        output_path.mkdir(parents=True, exist_ok=True)
-
-        # Use the existing setup for mocking internal methods
-        cmd_gen_strategy._generate_pre_test_command = MagicMock(return_value="srun --mpi=none pre_test_command")
-        cmd_gen_strategy._generate_run_command = MagicMock(return_value="srun --mpi=none run_command")
-        cmd_gen_strategy._generate_container_load_command = MagicMock(
-            return_value="srun --mpi=none container_load_command"
-        )
-
-        slurm_args = {
-            "output": "/tmp/output/output-%j.txt",
-            "error": "/tmp/output/error-%j.txt",
-            "image_path": "fake_image_url",
-            "container_mounts": "/tmp/output:/workspace",
-        }
-        cmd_args = {
-            "output_path": "/tmp/output",
-            "pre_test": {"enable": True},
-            f"{grok_test.name}.setup_flags.docker_workspace_dir": "/workspace/docker",
-            f"{grok_test.name}.setup_flags.tfds_data_dir": "/workspace/tfds",
-            f"{grok_test.name}.setup_flags.enable_checkpoint_saving": True,
-        }
-
-        pre_test_command = cmd_gen_strategy._generate_pre_test_command(
-            cmd_args, Path("/tmp/output"), Path("/tmp/output")
-        )
-        run_command = cmd_gen_strategy._generate_run_command(slurm_args)
-        container_load_command = cmd_gen_strategy._generate_container_load_command(slurm_args)
-
-        result_command = f"{pre_test_command}\n{container_load_command}\n{run_command}"
-
-        # Assert expected parts of the command are in the generated result
-        assert "pre_test_command" in result_command
-        assert "container_load_command" in result_command
-        assert "run_command" in result_command
-        assert "srun" in result_command
-        assert "--mpi=none" in result_command
-
-        cmd_gen_strategy._generate_pre_test_command.assert_called_once()
-        cmd_gen_strategy._generate_run_command.assert_called_once()
-        cmd_gen_strategy._generate_container_load_command.assert_called_once()
-
 
 def test_gpt_test_definition_cmd_args_dict():
     gpt = GPTTestDefinition(
@@ -323,7 +225,7 @@ def test_gpt_test_definition_cmd_args_dict():
     assert "GPT.setup_flags" in cargs
     assert "GPT.XLA_FLAGS" in cargs
 
-    for k in {"pre_test", "docker_image_url", "load_container"}:
+    for k in {"docker_image_url", "load_container"}:
         assert k in cargs
         assert f"GPT.{k}" not in cargs
 
@@ -347,7 +249,7 @@ def test_grok_test_definition_cmd_args_dict():
     assert "Grok.perf" in cargs
     assert "XLA_FLAGS" in cargs["Grok.perf"]
 
-    for k in {"pre_test", "docker_image_url", "load_container"}:
+    for k in {"docker_image_url", "load_container"}:
         assert k in cargs
         assert f"Grok.{k}" not in cargs
 

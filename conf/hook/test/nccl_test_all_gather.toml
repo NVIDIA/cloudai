@@ -14,17 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai import InstallStatusResult, InstallStrategy
+name = "nccl_test_all_gather"
+description = "all_gather"
+test_template_name = "NcclTest"
 
+[cmd_args]
+"subtest_name" = "all_gather_perf_mpi"
+"ngpus" = "1"
+"minbytes" = "128"
+"maxbytes" = "4G"
+"iters" = "100"
+"warmup_iters" = "50"
 
-class SleepKubernetesInstallStrategy(InstallStrategy):
-    """Installation strategy for the Sleep test on Kubernetes systems."""
+[extra_cmd_args]
+"--stepfactor" = "2"
 
-    def is_installed(self) -> InstallStatusResult:
-        return InstallStatusResult(success=True)
-
-    def install(self) -> InstallStatusResult:
-        return InstallStatusResult(success=True)
-
-    def uninstall(self) -> InstallStatusResult:
-        return InstallStatusResult(success=True)
+[extra_env_vars]
+"NCCL_TEST_SPLIT_MASK" = "0x7"

@@ -47,3 +47,52 @@ TBD
 
 ## Systems
 TBD
+
+## Cache
+Some prerequisites can we installed: docker images, git repos with executable scripts, etc. All such "installables" are kept under System's `install_path`.
+
+Installables are shared among all tests. So if any number of tests use the same installable, it is installed only once for a particular System TOML.
+
+```mermaid
+classDiagram
+    class Installable {
+        <<abstract>>
+        + __eq__(other: object)
+        + __hash__()
+    }
+
+    class DockerImage {
+        + url: str
+        + install_path: str | Path
+    }
+
+    class GitRepo {
+        + git_url: str
+        + commit_hash: str
+        + install_path: Path
+    }
+
+    class PythonExecutable {
+        + git_repo: GitRepo
+        + venv_path: Path
+    }
+
+    Installable <|-- DockerImage
+    Installable <|-- GitRepo
+    Installable <|-- PythonExecutable
+    PythonExecutable --> GitRepo
+
+    class BaseInstaller {
+        <<abstract>>
+        + install(items: Iterable[Installable])
+        + uninstall(items: Iterable[Installable])
+        + is_installed(items: Iterable[Installable]) -> bool
+
+        * install_one(item: Installable)
+        * uninstall_one(item: Installable)
+        * is_installed_one(item: Installable) -> bool
+    }
+
+    BaseInstaller <|-- SlurmInstaller
+    BaseInstaller <|-- StandaloneInstaller
+```

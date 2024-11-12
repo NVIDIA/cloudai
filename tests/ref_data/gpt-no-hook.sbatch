@@ -8,8 +8,8 @@ export COMBINE_THRESHOLD=1
 export PER_GPU_COMBINE_THRESHOLD=0
 export XLA_FLAGS="--xla_gpu_all_gather_combine_threshold_bytes=$COMBINE_THRESHOLD --xla_gpu_all_reduce_combine_threshold_bytes=$COMBINE_THRESHOLD --xla_gpu_reduce_scatter_combine_threshold_bytes=$PER_GPU_COMBINE_THRESHOLD"
 
-    echo "Loading container with srun command"
-    srun --mpi=none --container-image=https:/docker/url --container-name=cont true
+echo "Loading container with srun command"
+    srun --mpi=none --container-image=https://docker/url --container-name=cont true
     echo "Running srun command"
     srun \
     --mpi=none \

@@ -14,18 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai import InstallStatusResult
-from cloudai.systems.slurm.strategy import SlurmInstallStrategy
+name = "nccl_test"
 
-
-class ChakraReplaySlurmInstallStrategy(SlurmInstallStrategy):
-    """Installation strategy for CommsTraceReplay on Slurm systems."""
-
-    def is_installed(self) -> InstallStatusResult:
-        return InstallStatusResult(success=True)
-
-    def install(self) -> InstallStatusResult:
-        return self.is_installed()
-
-    def uninstall(self) -> InstallStatusResult:
-        return InstallStatusResult(success=True)
+[[Tests]]
+id = "Tests.1"
+test_name = "nccl_test_all_gather"
+time_limit = "00:20:00"

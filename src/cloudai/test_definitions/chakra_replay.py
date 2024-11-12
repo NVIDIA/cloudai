@@ -17,6 +17,7 @@
 from typing import Optional
 
 from cloudai import CmdArgs, TestDefinition
+from cloudai.installer.installables import DockerImage, Installable
 
 
 class ChakraReplayCmdArgs(CmdArgs):
@@ -26,11 +27,21 @@ class ChakraReplayCmdArgs(CmdArgs):
     mpi: str = "pmix"
     trace_type: str = "et"
     trace_path: Optional[str] = None
-    backend: str = "nccl"
-    device: str = "cuda"
+    num_replays: int = 1
 
 
 class ChakraReplayTestDefinition(TestDefinition):
     """Test object for ChakraReplay."""
 
     cmd_args: ChakraReplayCmdArgs
+    _docker_image: Optional[DockerImage] = None
+
+    @property
+    def docker_image(self) -> DockerImage:
+        if not self._docker_image:
+            self._docker_image = DockerImage(url=self.cmd_args.docker_image_url)
+        return self._docker_image
+
+    @property
+    def installables(self) -> list[Installable]:
+        return [self.docker_image]

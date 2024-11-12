@@ -15,31 +15,13 @@
 # limitations under the License.
 
 from concurrent.futures import Future
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
-from cloudai import InstallStatusResult, TestTemplate
-from cloudai._core.base_installer import BaseInstaller
-from cloudai._core.test import Test
+
+from cloudai import BaseInstaller, InstallStatusResult
+from cloudai.installer.installables import DockerImage, GitRepo, Installable
 from cloudai.systems import SlurmSystem
-
-
-@pytest.fixture
-def test_success() -> Test:
-    template = MagicMock(spec=TestTemplate)
-    template.name = "test_template_success"
-    template.install.return_value = InstallStatusResult(success=True)
-    template.uninstall.return_value = InstallStatusResult(success=True)
-    return template
-
-
-@pytest.fixture
-def test_failure() -> Test:
-    template = MagicMock(spec=TestTemplate)
-    template.name = "test_template_failure"
-    template.install.return_value = InstallStatusResult(success=False, message="Installation failed")
-    template.uninstall.return_value = InstallStatusResult(success=False, message="Uninstallation failed")
-    return template
 
 
 def create_real_future(result):
@@ -48,49 +30,102 @@ def create_real_future(result):
     return future
 
 
-@patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def test_install_success(mock_executor: Mock, slurm_system: SlurmSystem, test_success: Mock):
-    installer = BaseInstaller(slurm_system)
-    mock_future = create_real_future(test_success.install.return_value)
-    mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
+class MyInstaller(BaseInstaller):
+    def install_one(self, item: Installable) -> InstallStatusResult:
+        return InstallStatusResult(success=True)
 
-    result = installer.install([test_success])
+    def uninstall_one(self, item: Installable) -> InstallStatusResult:
+        return InstallStatusResult(success=True)
 
-    assert result.success
-    assert result.message == "All test templates installed successfully."
+    def is_installed_one(self, item: Installable) -> InstallStatusResult:
+        return InstallStatusResult(success=True)
 
 
-@patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def test_install_failure(mock_executor: Mock, slurm_system: SlurmSystem, test_failure: Mock):
-    installer = BaseInstaller(slurm_system)
-    mock_future = create_real_future(test_failure.install.return_value)
-    mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
-
-    result = installer.install([test_failure])
-
-    assert not result.success
-    assert result.message == "Some test templates failed to install."
+@pytest.fixture
+def docker_image() -> DockerImage:
+    return DockerImage("fake_url/img")
 
 
 @patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def test_uninstall_success(mock_executor: Mock, slurm_system: SlurmSystem, test_success: Mock):
-    installer = BaseInstaller(slurm_system)
-    mock_future = create_real_future(test_success.uninstall.return_value)
-    mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
+class TestBaseInstaller:
+    @pytest.fixture
+    def installer(self, slurm_system: SlurmSystem):
+        return MyInstaller(slurm_system)
 
-    result = installer.uninstall([test_success])
+    def test_install_success(self, mock_executor: Mock, installer: MyInstaller, docker_image: DockerImage):
+        mock_executor.return_value.__enter__.return_value.submit.return_value = create_real_future(
+            InstallStatusResult(success=True)
+        )
 
-    assert result.success
-    assert result.message == "All test templates uninstalled successfully."
+        result = installer.install([docker_image])
+
+        assert result.success
+        assert result.message == "All items installed successfully."
+
+    def test_install_failure(self, mock_executor: Mock, installer: MyInstaller, docker_image: DockerImage):
+        mock_executor.return_value.__enter__.return_value.submit.return_value = create_real_future(
+            InstallStatusResult(False)
+        )
+
+        result = installer.install([docker_image])
+
+        assert not result.success
+        assert result.message == "1 item(s) failed to install."
+
+    def test_uninstall_success(self, mock_executor: Mock, installer: MyInstaller, docker_image: DockerImage):
+        mock_executor.return_value.__enter__.return_value.submit.return_value = create_real_future(
+            InstallStatusResult(True)
+        )
+
+        result = installer.uninstall([docker_image])
+
+        assert result.success
+        assert result.message == "All items uninstalled successfully."
+
+    def test_uninstall_failure(self, mock_executor: Mock, installer: MyInstaller, docker_image: DockerImage):
+        mock_executor.return_value.__enter__.return_value.submit.return_value = create_real_future(
+            InstallStatusResult(False)
+        )
+
+        result = installer.uninstall([docker_image])
+
+        assert not result.success
+        assert result.message == "1 item(s) failed to uninstall."
+
+    def test_installs_only_uniq(self, mock_executor: Mock, installer: MyInstaller, docker_image: DockerImage):
+        mock_executor.return_value.__enter__.return_value.submit.return_value = create_real_future(0)
+
+        installer.install([docker_image, docker_image])
+
+        assert mock_executor.return_value.__enter__.return_value.submit.call_count == 1
+
+    def test_uninstalls_only_uniq(self, mock_executor: Mock, installer: MyInstaller, docker_image: DockerImage):
+        mock_executor.return_value.__enter__.return_value.submit.return_value = create_real_future(0)
+
+        installer.uninstall([docker_image, docker_image])
+
+        assert mock_executor.return_value.__enter__.return_value.submit.call_count == 1
 
 
-@patch("cloudai._core.base_installer.ThreadPoolExecutor", autospec=True)
-def test_uninstall_failure(mock_executor: Mock, slurm_system: SlurmSystem, test_failure: Mock):
-    installer = BaseInstaller(slurm_system)
-    mock_future = create_real_future(test_failure.uninstall.return_value)
-    mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        ("http://fake_url/img", "fake_url__img__notag.sqsh"),
+        ("nvcr.io/nvidia/pytorch:24.02-py3", "nvcr.io_nvidia__pytorch__24.02-py3.sqsh"),
+        ("/local/disk/file", "file__notag.sqsh"),
+    ],
+)
+def test_docker_cache_filename(url: str, expected: str):
+    assert DockerImage(url).cache_filename == expected, f"Input: {url}"
 
-    result = installer.uninstall([test_failure])
 
-    assert not result.success
-    assert result.message == "Some test templates failed to uninstall."
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        ("https://github.com/NVIDIA/cloudai.git", "cloudai__commit"),
+        ("git@github.com:NVIDIA/cloudai.git", "cloudai__commit"),
+        ("./cloudai", "cloudai__commit"),
+    ],
+)
+def test_git_repo_name(url: str, expected: str):
+    assert GitRepo(url, "commit").repo_name == expected

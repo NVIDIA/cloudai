@@ -14,9 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
+
 from pydantic import ConfigDict, Field
 
-from .jax_toolbox import JaxFdl, JaxToolboxCmdArgs, JaxToolboxTestDefinition, PreTest, SetupFlags, XLAFlags
+from cloudai import Installable
+from cloudai.installer.installables import DockerImage
+
+from .jax_toolbox import JaxFdl, JaxToolboxCmdArgs, JaxToolboxTestDefinition, SetupFlags, XLAFlags
 
 
 class GrokFdl(JaxFdl):
@@ -72,13 +77,13 @@ class GrokCmdArgs(JaxToolboxCmdArgs):
     setup_flags: SetupFlags = Field(default_factory=SetupFlags)
     profile: GrokProfileXLAFlags = Field(default_factory=GrokProfileXLAFlags)
     perf: GrokPerfXLAFlags = Field(default_factory=GrokPerfXLAFlags)
-    pre_test: PreTest = Field(default_factory=PreTest)
 
 
 class GrokTestDefinition(JaxToolboxTestDefinition):
     """Test object for Grok."""
 
     cmd_args: GrokCmdArgs
+    _docker_image: Optional[DockerImage] = None
 
     @property
     def cmd_args_dict(self):
@@ -91,8 +96,18 @@ class GrokTestDefinition(JaxToolboxTestDefinition):
             if k in {"profile", "perf"}:
                 res.setdefault(f"Grok.{k}", {})
                 res[f"Grok.{k}"]["XLA_FLAGS"] = v
-            elif k in {"pre_test", "docker_image_url", "load_container", "output_path"}:
+            elif k in {"docker_image_url", "load_container", "output_path"}:
                 res[k] = v
             else:
                 res[f"Grok.{k}"] = v
         return res
+
+    @property
+    def docker_image(self) -> DockerImage:
+        if not self._docker_image:
+            self._docker_image = DockerImage(url=self.cmd_args.docker_image_url)
+        return self._docker_image
+
+    @property
+    def installables(self) -> list[Installable]:
+        return [self.docker_image]

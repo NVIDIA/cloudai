@@ -14,9 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Literal
+from typing import Literal, Optional
 
 from cloudai import CmdArgs, TestDefinition
+from cloudai.installer.installables import DockerImage, Installable
 
 
 class UCCCmdArgs(CmdArgs):
@@ -50,3 +51,14 @@ class UCCTestDefinition(TestDefinition):
     """Test object for UCC."""
 
     cmd_args: UCCCmdArgs
+    _docker_image: Optional[DockerImage] = None
+
+    @property
+    def docker_image(self) -> DockerImage:
+        if not self._docker_image:
+            self._docker_image = DockerImage(url=self.cmd_args.docker_image_url)
+        return self._docker_image
+
+    @property
+    def installables(self) -> list[Installable]:
+        return [self.docker_image]

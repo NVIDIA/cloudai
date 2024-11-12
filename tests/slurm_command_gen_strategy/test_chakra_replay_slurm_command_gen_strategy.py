@@ -15,10 +15,14 @@
 # limitations under the License.
 
 from typing import Any, Dict, List
+from unittest.mock import Mock
 
 import pytest
+
+from cloudai import TestRun
 from cloudai.schema.test_template.chakra_replay.slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
+from tests.conftest import create_autospec_dataclass
 
 
 class TestChakraReplaySlurmCommandGenStrategy:
@@ -62,23 +66,24 @@ class TestChakraReplaySlurmCommandGenStrategy:
         num_nodes: int,
         nodes: List[str],
         expected_result: Dict[str, Any],
-        slurm_system: SlurmSystem,
     ) -> None:
-        slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
+        tr = Mock(spec=TestRun)
+        tr.num_nodes = num_nodes
+        tr.nodes = nodes
+        slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
         assert slurm_args["image_path"] == expected_result["image_path"]
         assert slurm_args["container_mounts"] == expected_result["container_mounts"]
 
-    def test_parse_slurm_args_invalid_cmd_args(
-        self, cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy, slurm_system: SlurmSystem
-    ) -> None:
+    def test_parse_slurm_args_invalid_cmd_args(self, cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy) -> None:
         job_name_prefix = "chakra_replay"
         env_vars = {"NCCL_DEBUG": "INFO"}
         cmd_args = {"trace_path": "/workspace/traces/"}  # Missing "docker_image_url"
-        num_nodes = 2
-        nodes = ["node1", "node2"]
+        tr = Mock(spec=TestRun)
+        tr.num_nodes = 2
+        tr.nodes = ["node1", "node2"]
 
         with pytest.raises(KeyError) as exc_info:
-            cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
+            cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
         assert str(exc_info.value) == "'docker_image_url'", "Expected missing docker_image_url key"
 
@@ -86,26 +91,24 @@ class TestChakraReplaySlurmCommandGenStrategy:
         "cmd_args, extra_cmd_args, expected_result",
         [
             (
-                {"trace_type": "comms_trace", "trace_path": "/workspace/traces/", "backend": "nccl", "device": "gpu"},
+                {"trace_type": "comms_trace", "trace_path": "/workspace/traces/", "num_replays": 10},
                 "--max-steps 100",
                 [
-                    "python /workspace/param/train/comms/pt/commsTraceReplay.py",
+                    "comm_replay",
                     "--trace-type comms_trace",
                     "--trace-path /workspace/traces/",
-                    "--backend nccl",
-                    "--device gpu",
+                    "--num-replays 10",
                     "--max-steps 100",
                 ],
             ),
             (
-                {"trace_type": "comms_trace", "trace_path": "/workspace/traces/", "backend": "nccl", "device": "gpu"},
+                {"trace_type": "comms_trace", "trace_path": "/workspace/traces/", "num_replays": 5},
                 "",
                 [
-                    "python /workspace/param/train/comms/pt/commsTraceReplay.py",
+                    "comm_replay",
                     "--trace-type comms_trace",
                     "--trace-path /workspace/traces/",
-                    "--backend nccl",
-                    "--device gpu",
+                    "--num-replays 5",
                     "",
                 ],
             ),
@@ -119,16 +122,20 @@ class TestChakraReplaySlurmCommandGenStrategy:
         expected_result: List[str],
         slurm_system: SlurmSystem,
     ) -> None:
-        command = cmd_gen_strategy.generate_test_command({}, cmd_args, extra_cmd_args)
+        tr = create_autospec_dataclass(TestRun)
+        tr.test.extra_cmd_args = extra_cmd_args
+        command = cmd_gen_strategy.generate_test_command({}, cmd_args, tr)
         assert command == expected_result
 
     def test_generate_test_command_invalid_args(
         self, cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy, slurm_system: SlurmSystem
     ) -> None:
-        cmd_args: Dict[str, str] = {"trace_type": "comms_trace", "backend": "nccl", "device": "gpu"}
-        extra_cmd_args: str = "--max-steps 100"
+        cmd_args: Dict[str, str] = {"trace_type": "comms_trace"}
+
+        tr = create_autospec_dataclass(TestRun)
+        tr.test.extra_cmd_args = "--max-steps 100"
 
         with pytest.raises(KeyError) as exc_info:
-            cmd_gen_strategy.generate_test_command({}, cmd_args, extra_cmd_args)
+            cmd_gen_strategy.generate_test_command({}, cmd_args, tr)
 
         assert str(exc_info.value) == "'trace_path'", "Expected missing trace_path key"

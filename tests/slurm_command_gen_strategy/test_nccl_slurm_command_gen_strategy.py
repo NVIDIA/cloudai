@@ -15,10 +15,14 @@
 # limitations under the License.
 
 from typing import Any, Dict, List
+from unittest.mock import Mock
 
 import pytest
+
+from cloudai._core.test_scenario import TestRun
 from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
+from tests.conftest import create_autospec_dataclass
 
 
 class TestNcclTestSlurmCommandGenStrategy:
@@ -61,7 +65,10 @@ class TestNcclTestSlurmCommandGenStrategy:
         nodes: List[str],
         expected_result: Dict[str, Any],
     ) -> None:
-        slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, cmd_args, num_nodes, nodes)
+        tr = create_autospec_dataclass(TestRun)
+        tr.nodes = nodes
+        tr.num_nodes = num_nodes
+        slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
         assert slurm_args["container_mounts"] == expected_result["container_mounts"]
 
     @pytest.mark.parametrize(
@@ -96,5 +103,7 @@ class TestNcclTestSlurmCommandGenStrategy:
         expected_command: List[str],
     ) -> None:
         env_vars = {}
-        command = cmd_gen_strategy.generate_test_command(env_vars, cmd_args, extra_cmd_args)
+        tr = Mock()
+        tr.test.extra_cmd_args = extra_cmd_args
+        command = cmd_gen_strategy.generate_test_command(env_vars, cmd_args, tr)
         assert command == expected_command

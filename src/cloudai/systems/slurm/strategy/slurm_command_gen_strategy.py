@@ -18,9 +18,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-from cloudai import CommandGenStrategy, TestRun
+from cloudai import CommandGenStrategy, TestRun, TestScenario
 from cloudai.systems import SlurmSystem
-from cloudai.util.docker_image_cache_manager import DockerImageCacheManager
 
 
 class SlurmCommandGenStrategy(CommandGenStrategy):
@@ -50,37 +49,42 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
                 "(e.g., system.toml)."
             )
 
-        self.docker_image_cache_manager = DockerImageCacheManager(
-            self.system.install_path,
-            self.system.cache_docker_images_locally,
-            self.system.default_partition,
-        )
         self.docker_image_url = self.cmd_args.get("docker_image_url", "")
 
-    def _format_env_vars(self, env_vars: Dict[str, Any]) -> str:
-        """
-        Format environment variables for inclusion in a batch script.
+    def gen_exec_command(self, tr: TestRun) -> str:
+        env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
+        cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
+        slurm_args = self._parse_slurm_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
 
-        Args:
-            env_vars (Dict[str, Any]): Environment variables to format.
+        srun_command = self._gen_srun_command(slurm_args, env_vars, cmd_args, tr)
+        command_list = []
+        indent = ""
 
-        Returns:
-            str: A string representation of the formatted environment variables.
-        """
-        formatted_vars = []
-        for key in sorted(env_vars.keys()):
-            value = env_vars[key]
-            formatted_value = str(value["default"]) if isinstance(value, dict) and "default" in value else str(value)
-            formatted_vars.append(f"export {key}={formatted_value}")
-        return "\n".join(formatted_vars)
+        if tr.pre_test:
+            pre_test_command = self.gen_pre_test(tr.pre_test, tr.output_path)
+            command_list = [pre_test_command, "if [ $PRE_TEST_SUCCESS -eq 1 ]; then"]
+            indent = "    "
+
+        command_list.append(f"{indent}{srun_command}")
+
+        if tr.post_test:
+            post_test_command = self.gen_post_test(tr.post_test, tr.output_path)
+            command_list.append(f"{indent}{post_test_command}")
+
+        if tr.pre_test:
+            command_list.append("fi")
+
+        full_command = "\n".join(command_list).strip()
+        return self._write_sbatch_script(slurm_args, env_vars, full_command, tr)
+
+    def gen_srun_command(self, tr: TestRun) -> str:
+        env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
+        cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
+        slurm_args = self._parse_slurm_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
+        return self._gen_srun_command(slurm_args, env_vars, cmd_args, tr)
 
     def _parse_slurm_args(
-        self,
-        job_name_prefix: str,
-        env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
-        num_nodes: int,
-        nodes: List[str],
+        self, job_name_prefix: str, env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun
     ) -> Dict[str, Any]:
         """
         Parse command arguments to configure Slurm job settings.
@@ -89,8 +93,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             job_name_prefix (str): Prefix for the job name.
             env_vars (Dict[str, str]): Environment variables.
             cmd_args (Dict[str, str]): Command-line arguments.
-            num_nodes (int): The number of nodes to be used for the test execution.
-            nodes (List[str]): List of nodes for the job.
+            tr (TestRun): Test run object.
 
         Returns:
             Dict[str, Any]: Dictionary containing configuration for Slurm job.
@@ -100,8 +103,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         """
         job_name = self.job_name(job_name_prefix)
 
-        parsed_nodes = self.system.parse_nodes(nodes)
-        num_nodes = len(parsed_nodes) if parsed_nodes else num_nodes
+        parsed_nodes = self.system.parse_nodes(tr.nodes)
+        num_nodes = len(parsed_nodes) if parsed_nodes else tr.num_nodes
         node_list_str = ",".join(parsed_nodes) if parsed_nodes else ""
 
         slurm_args = {
@@ -120,14 +123,83 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             job_name = f"{self.system.account}-{job_name_prefix}.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         return job_name
 
-    def generate_srun_command(
-        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
-    ) -> str:
-        srun_command_parts = self.generate_srun_prefix(slurm_args)
-        test_command_parts = self.generate_test_command(env_vars, cmd_args, extra_cmd_args)
-        return " \\\n".join(srun_command_parts + test_command_parts)
+    def gen_pre_test(self, pre_test: TestScenario, base_output_path: Path) -> str:
+        """
+        Generate the pre-test command by running all tests defined in the pre-test test scenario.
 
-    def generate_srun_prefix(self, slurm_args: Dict[str, Any]) -> List[str]:
+        Args:
+            pre_test (TestScenario): The pre-test test scenario containing the tests to be run.
+            base_output_path (Path): The base output directory path for storing pre-test outputs.
+
+        Returns:
+            str: A string with all the Slurm srun commands generated for the pre_test.
+        """
+        pre_test_output_dir = base_output_path / "pre_test"
+        pre_test_output_dir.mkdir(parents=True, exist_ok=True)
+
+        pre_test_commands = []
+        success_vars = []
+
+        for idx, tr in enumerate(pre_test.test_runs):
+            hook_dir = pre_test_output_dir / tr.test.name
+            hook_dir.mkdir(parents=True, exist_ok=True)
+            tr.output_path = hook_dir
+
+            srun_command = tr.test.test_template.gen_srun_command(tr)
+            srun_command_with_output = srun_command.replace(
+                "srun ", f"srun --output={hook_dir / 'stdout.txt'} --error={hook_dir / 'stderr.txt'} "
+            )
+            pre_test_commands.append(srun_command_with_output)
+
+            success_var = f"SUCCESS_{idx}"
+            success_vars.append(success_var)
+
+            success_check_command = tr.test.test_template.gen_srun_success_check(tr)
+            pre_test_commands.append(f"{success_var}=$({success_check_command})")
+
+        combined_success_var = " && ".join([f"[ ${var} -eq 1 ]" for var in success_vars])
+
+        pre_test_commands.append(f"PRE_TEST_SUCCESS=$( {combined_success_var} && echo 1 || echo 0 )")
+
+        return "\n".join(pre_test_commands)
+
+    def gen_post_test(self, post_test: TestScenario, base_output_path: Path) -> str:
+        """
+        Generate the post-test command by running all tests defined in the post-test test scenario.
+
+        Args:
+            post_test (TestScenario): The post-test test scenario containing the tests to be run.
+            base_output_path (Path): The base output directory path for storing post-test outputs.
+
+        Returns:
+            str: A string with all the Slurm srun commands generated for the post-test.
+        """
+        post_test_output_dir = base_output_path / "post_test"
+        post_test_output_dir.mkdir(parents=True, exist_ok=True)
+
+        post_test_commands = []
+
+        for tr in post_test.test_runs:
+            hook_dir = post_test_output_dir / tr.test.name
+            hook_dir.mkdir(parents=True, exist_ok=True)
+            tr.output_path = hook_dir
+
+            srun_command = tr.test.test_template.gen_srun_command(tr)
+            srun_command_with_output = srun_command.replace(
+                "srun ", f"srun --output={hook_dir / 'stdout.txt'} --error={hook_dir / 'stderr.txt'} "
+            )
+            post_test_commands.append(srun_command_with_output)
+
+        return "\n".join(post_test_commands)
+
+    def _gen_srun_command(
+        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun
+    ) -> str:
+        srun_command_parts = self.gen_srun_prefix(slurm_args)
+        test_command_parts = self.generate_test_command(env_vars, cmd_args, tr)
+        return " ".join(srun_command_parts + test_command_parts)
+
+    def gen_srun_prefix(self, slurm_args: Dict[str, Any]) -> List[str]:
         srun_command_parts = ["srun", f"--mpi={self.system.mpi}"]
         if slurm_args.get("image_path"):
             srun_command_parts.append(f'--container-image={slurm_args["image_path"]}')
@@ -139,18 +211,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         return srun_command_parts
 
-    def gen_exec_command(self, tr: TestRun) -> str:
-        env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
-        cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
-        slurm_args = self._parse_slurm_args(
-            tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr.num_nodes, tr.nodes
-        )
-        srun_command = self.generate_srun_command(slurm_args, env_vars, cmd_args, tr.test.extra_cmd_args)
-        return self._write_sbatch_script(slurm_args, env_vars, srun_command, tr.output_path)
-
-    def generate_test_command(
-        self, env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
-    ) -> List[str]:
+    def generate_test_command(self, env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun) -> List[str]:
         return []
 
     def _add_reservation(self, batch_script_content: List[str]):
@@ -171,7 +232,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return batch_script_content
 
     def _write_sbatch_script(
-        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], srun_command: str, output_path: Path
+        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], srun_command: str, tr: TestRun
     ) -> str:
         """
         Write the batch script for Slurm submission and return the sbatch command.
@@ -180,7 +241,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             slurm_args (Dict[str, Any]): Slurm-specific arguments.
             env_vars (env_vars: Dict[str, str]): Environment variables.
             srun_command (str): srun command.
-            output_path (Path): Output directory for script and logs.
+            tr (TestRun): Test run object.
 
         Returns:
             str: sbatch command to submit the job.
@@ -191,12 +252,12 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             f"#SBATCH -N {slurm_args['num_nodes']}",
         ]
 
-        self._append_sbatch_directives(batch_script_content, slurm_args, output_path)
+        self._append_sbatch_directives(batch_script_content, slurm_args, tr.output_path)
 
         env_vars_str = self._format_env_vars(env_vars)
         batch_script_content.extend([env_vars_str, "", srun_command])
 
-        batch_script_path = output_path / "cloudai_sbatch_script.sh"
+        batch_script_path = tr.output_path / "cloudai_sbatch_script.sh"
         with batch_script_path.open("w") as batch_file:
             batch_file.write("\n".join(batch_script_content))
 
@@ -237,3 +298,20 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         batch_script_content.append(
             "\nexport SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)"
         )
+
+    def _format_env_vars(self, env_vars: Dict[str, Any]) -> str:
+        """
+        Format environment variables for inclusion in a batch script.
+
+        Args:
+            env_vars (Dict[str, Any]): Environment variables to format.
+
+        Returns:
+            str: A string representation of the formatted environment variables.
+        """
+        formatted_vars = []
+        for key in sorted(env_vars.keys()):
+            value = env_vars[key]
+            formatted_value = str(value["default"]) if isinstance(value, dict) and "default" in value else str(value)
+            formatted_vars.append(f"export {key}={formatted_value}")
+        return "\n".join(formatted_vars)
