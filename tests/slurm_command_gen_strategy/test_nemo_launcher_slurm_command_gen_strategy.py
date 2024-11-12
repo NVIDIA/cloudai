@@ -212,6 +212,10 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         test_run.output_path = tmp_path / "output_dir"
         test_run.output_path.mkdir()
 
+        repo_path = (tmp_path / "repo").relative_to(tmp_path)
+        tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, test_run.test.test_definition)
+        tdef.python_executable.git_repo.installed_path = repo_path
+        tdef.python_executable.venv_path = repo_path.parent / f"{repo_path.name}-venv"
         cmd_gen_strategy.gen_exec_command(test_run)
 
         written_content = mock_file().write.call_args[0][0]
@@ -220,6 +224,11 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         assert "python" in written_content, "Logged command should start with 'python'"
         assert "TEST_VAR_1=value1" in written_content, "Logged command should contain environment variables"
         assert "training.trainer.num_nodes=2" in written_content, "Command should contain the number of nodes"
+
+        assert str((tdef.python_executable.venv_path / "bin" / "python").absolute()) in written_content
+        assert (
+            f"launcher_scripts_path={(repo_path / tdef.cmd_args.launcher_script).parent.absolute()} " in written_content
+        )
 
     def test_no_line_breaks_in_executed_command(
         self, cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy, test_run: TestRun, tmp_path: Path
