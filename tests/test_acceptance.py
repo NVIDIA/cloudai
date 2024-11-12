@@ -27,7 +27,6 @@ from cloudai.cli import handle_dry_run_and_run, setup_logging
 from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
 from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import NeMoLauncherSlurmCommandGenStrategy
-from cloudai.schema.test_template.nemo_launcher.template import NeMoLauncher
 from cloudai.schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
@@ -224,7 +223,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     test_template_name="nemo-launcher",
                     cmd_args=NeMoLauncherCmdArgs(),
                 ),
-                test_template=NeMoLauncher(slurm_system, name="nemo-launcher"),
+                test_template=TestTemplate(slurm_system, name="nemo-launcher"),
             ),
         )
         tr.test.test_template.command_gen_strategy = NeMoLauncherSlurmCommandGenStrategy(
