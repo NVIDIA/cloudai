@@ -53,14 +53,14 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 f"Local clone of git repo {tdef.python_executable.git_repo} does not exist. "
                 "Please ensure to run installation before running the test."
             )
-            repo_path = Path.cwd()  # dry-run compatibility
+            repo_path = self.system.install_path / tdef.python_executable.git_repo.repo_name  # dry-run compatibility
         venv_path = tdef.python_executable.venv_path
         if not venv_path:
             logging.warning(
                 f"The virtual environment for git repo {tdef.python_executable.git_repo} does not exist. "
                 "Please ensure to run installation before running the test."
             )
-            venv_path = repo_path  # dry-run compatibility
+            venv_path = self.system.install_path / tdef.python_executable.venv_name  # dry-run compatibility
         py_bin = (venv_path / "bin" / "python").absolute()
         self.final_cmd_args.update(
             {
@@ -97,7 +97,8 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self.final_env_vars = self._override_env_vars(self.system.global_env_vars, extra_env_vars)
 
         overriden_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
-        self.final_cmd_args = {k: self._handle_special_keys(k, v) for k, v in overriden_cmd_args.items()}
+        overriden_cmd_args.pop("launcher_script", None)
+        self.final_cmd_args = {k: self._handle_special_keys(k, v) for k, v in sorted(overriden_cmd_args.items())}
 
         for key, value in self.final_env_vars.items():
             self.final_cmd_args[f"env_vars.{key}"] = value
