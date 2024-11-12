@@ -24,6 +24,7 @@ from typing import Any, Dict, Optional, final
 from unittest.mock import Mock
 
 import pytest
+
 from cloudai import BaseJob, System, Test, TestRun, TestScenario
 from cloudai._core.job_status_result import JobStatusResult
 from cloudai._core.test_scenario import TestDependency
