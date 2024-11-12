@@ -39,7 +39,6 @@ class TestTemplate:
         name (str): Unique name of the test template.
         cmd_args (Dict[str, Any]): Default command-line arguments.
         logger (logging.Logger): Logger for the test template.
-        install_strategy (InstallStrategy): Strategy for installing test prerequisites.
         command_gen_strategy (CommandGenStrategy): Strategy for generating execution commands.
         json_gen_strategy (JsonGenStrategy): Strategy for generating json string.
         job_id_retrieval_strategy (JobIdRetrievalStrategy): Strategy for retrieving job IDs.
@@ -93,6 +92,40 @@ class TestTemplate:
                 "by calling the appropriate registration function for the system type."
             )
         return self.command_gen_strategy.gen_exec_command(tr)
+
+    def gen_srun_command(self, tr: TestRun) -> str:
+        """
+        Generate an Slurm srun command for a test using the provided command generation strategy.
+
+        Args:
+            tr (TestRun): Contains the test and its run-specific configurations.
+
+        Returns:
+            str: The generated Slurm srun command.
+        """
+        if self.command_gen_strategy is None:
+            raise ValueError(
+                "command_gen_strategy is missing. Ensure the strategy is registered in the Registry "
+                "by calling the appropriate registration function for the system type."
+            )
+        return self.command_gen_strategy.gen_srun_command(tr)
+
+    def gen_srun_success_check(self, tr: TestRun) -> str:
+        """
+        Generate a Slurm success check command for a test using the provided command generation strategy.
+
+        Args:
+            tr (TestRun): Contains the test and its run-specific configurations.
+
+        Returns:
+            str: The generated command to check the success of the test run.
+        """
+        if self.command_gen_strategy is None:
+            raise ValueError(
+                "command_gen_strategy is missing. Ensure the strategy is registered in the Registry "
+                "by calling the appropriate registration function for the system type."
+            )
+        return self.command_gen_strategy.gen_srun_success_check(tr)
 
     def gen_json(self, tr: TestRun) -> Dict[Any, Any]:
         """

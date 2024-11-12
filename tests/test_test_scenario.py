@@ -27,7 +27,7 @@ from tests.conftest import MyTestDefinition
 
 @pytest.fixture
 def test_scenario_parser(tmp_path: Path) -> TestScenarioParser:
-    tsp = TestScenarioParser(Path(""), {})
+    tsp = TestScenarioParser(Path(""), {}, {})
     return tsp
 
 

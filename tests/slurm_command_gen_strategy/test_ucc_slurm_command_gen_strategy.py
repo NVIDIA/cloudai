@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from typing import Dict, List
+from unittest.mock import Mock
 
 import pytest
 
@@ -64,5 +65,7 @@ class TestUCCTestSlurmCommandGenStrategy:
         expected_command: List[str],
     ) -> None:
         env_vars = {}
-        command = cmd_gen_strategy.generate_test_command(env_vars, cmd_args, extra_cmd_args)
+        tr = Mock()
+        tr.test.extra_cmd_args = extra_cmd_args
+        command = cmd_gen_strategy.generate_test_command(env_vars, cmd_args, tr)
         assert command == expected_command

@@ -19,7 +19,7 @@ from unittest.mock import Mock, create_autospec
 
 import pytest
 
-from cloudai import Test, TestDefinition, TestRun, TestTemplate
+from cloudai import Test, TestDefinition, TestRun, TestScenario, TestTemplate
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
@@ -54,11 +54,9 @@ def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, testrun_
     env_vars = {"TEST_VAR": "VALUE"}
     cmd_args = {"test_arg": "test_value"}
     slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, testrun_fixture)
-    srun_command = strategy_fixture.generate_srun_command(slurm_args, env_vars, cmd_args, "")
+    srun_command = strategy_fixture._gen_srun_command(slurm_args, env_vars, cmd_args, testrun_fixture)
 
-    sbatch_command = strategy_fixture._write_sbatch_script(
-        slurm_args, env_vars, srun_command, testrun_fixture.output_path
-    )
+    sbatch_command = strategy_fixture._write_sbatch_script(slurm_args, env_vars, srun_command, testrun_fixture)
     filepath_from_command = sbatch_command.split()[-1]
 
     assert testrun_fixture.output_path.joinpath("cloudai_sbatch_script.sh").exists()
@@ -122,3 +120,131 @@ def test_raises_if_no_default_partition(slurm_system: SlurmSystem):
         "system configuration. Please ensure that 'default_partition' is set correctly "
         "in the corresponding system configuration (e.g., system.toml)."
     ) in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "pre_test,post_test,expected_script_lines",
+    [
+        # No pre_test, no post_test
+        (None, None, ["srun"]),
+        # One pre_test, no post_test
+        (
+            [Mock(test=Mock(name="test1", test_template=Mock()))],
+            None,
+            [
+                "pre_test",
+                "PRE_TEST_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && echo 1 || echo 0 )",
+                "if [ $PRE_TEST_SUCCESS -eq 1 ]; then",
+                "    srun",
+                "fi",
+            ],
+        ),
+        # No pre_test, one post_test
+        (
+            None,
+            [Mock(test=Mock(name="test2", test_template=Mock()))],
+            [
+                "srun",
+                "post_test",
+            ],
+        ),
+        # One pre_test, one post_test
+        (
+            [Mock(test=Mock(name="test1", test_template=Mock()))],
+            [Mock(test=Mock(name="test2", test_template=Mock()))],
+            [
+                "pre_test",
+                "PRE_TEST_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && echo 1 || echo 0 )",
+                "if [ $PRE_TEST_SUCCESS -eq 1 ]; then",
+                "    srun",
+                "    post_test",
+                "fi",
+            ],
+        ),
+        # Multiple pre_tests, multiple post_tests
+        (
+            [Mock(test=Mock(name="test1", test_template=Mock())), Mock(test=Mock(name="test2", test_template=Mock()))],
+            [Mock(test=Mock(name="test3", test_template=Mock())), Mock(test=Mock(name="test4", test_template=Mock()))],
+            [
+                "pre_test",
+                "pre_test",
+                "PRE_TEST_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && [ $SUCCESS_1 -eq 1 ] && echo 1 || echo 0 )",
+                "if [ $PRE_TEST_SUCCESS -eq 1 ]; then",
+                "    srun",
+                "    post_test",
+                "    post_test",
+                "fi",
+            ],
+        ),
+        # Multiple pre_tests, no post_test
+        (
+            [Mock(test=Mock(name="test1", test_template=Mock())), Mock(test=Mock(name="test2", test_template=Mock()))],
+            None,
+            [
+                "pre_test",
+                "pre_test",
+                "PRE_TEST_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && [ $SUCCESS_1 -eq 1 ] && echo 1 || echo 0 )",
+                "if [ $PRE_TEST_SUCCESS -eq 1 ]; then",
+                "    srun",
+                "fi",
+            ],
+        ),
+        # No pre_test, multiple post_tests
+        (
+            None,
+            [Mock(test=Mock(name="test3", test_template=Mock())), Mock(test=Mock(name="test4", test_template=Mock()))],
+            [
+                "srun",
+                "post_test",
+                "post_test",
+            ],
+        ),
+        # Multiple pre_tests, single post_test
+        (
+            [Mock(test=Mock(name="test1", test_template=Mock())), Mock(test=Mock(name="test2", test_template=Mock()))],
+            [Mock(test=Mock(name="test3", test_template=Mock()))],
+            [
+                "pre_test",
+                "pre_test",
+                "PRE_TEST_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && [ $SUCCESS_1 -eq 1 ] && echo 1 || echo 0 )",
+                "if [ $PRE_TEST_SUCCESS -eq 1 ]; then",
+                "    srun",
+                "    post_test",
+                "fi",
+            ],
+        ),
+    ],
+)
+def test_pre_test_post_test_combinations(
+    strategy_fixture: SlurmCommandGenStrategy,
+    testrun_fixture: TestRun,
+    pre_test,
+    post_test,
+    expected_script_lines,
+):
+    testrun_fixture.pre_test = Mock(spec=TestScenario) if pre_test else None
+    testrun_fixture.post_test = Mock(spec=TestScenario) if post_test else None
+
+    if pre_test is not None:
+        testrun_fixture.pre_test = Mock(spec=TestScenario)
+        testrun_fixture.pre_test.test_runs = pre_test
+        for idx, run in enumerate(pre_test):
+            run.test.test_template.gen_srun_success_check.return_value = "pre_test"
+            run.test.test_template.gen_srun_command.return_value = "srun"
+            run.test.name = f"test{idx+1}"
+
+    if post_test is not None:
+        testrun_fixture.post_test = Mock(spec=TestScenario)
+        testrun_fixture.post_test.test_runs = post_test
+        for idx, run in enumerate(post_test):
+            run.test.test_template.gen_srun_command.return_value = "post_test"
+            run.test.name = f"test{idx+1}"
+
+    sbatch_command = strategy_fixture.gen_exec_command(testrun_fixture)
+    script_file_path = sbatch_command.split()[-1]
+
+    with open(script_file_path, "r") as script_file:
+        script_content = script_file.read()
+
+    for expected_line in expected_script_lines:
+        assert expected_line in script_content, f"Expected '{expected_line}' in generated script but it was missing."

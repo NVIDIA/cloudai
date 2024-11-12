@@ -22,11 +22,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai import NcclTest, Test, TestRun, UCCTest
+from cloudai import NcclTest, Test, TestRun, TestScenario, UCCTest
 from cloudai.cli import handle_dry_run_and_run, setup_logging
 from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
 from cloudai.schema.test_template.jax_toolbox.template import JaxToolbox
 from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
+from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import NeMoLauncherSlurmCommandGenStrategy
+from cloudai.schema.test_template.nemo_launcher.template import NeMoLauncher
 from cloudai.schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from cloudai.schema.test_template.sleep.template import Sleep
 from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
@@ -34,6 +36,7 @@ from cloudai.systems import SlurmSystem
 from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
 from cloudai.test_definitions.grok import GrokCmdArgs, GrokTestDefinition
 from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
+from cloudai.test_definitions.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
 from cloudai.test_definitions.sleep import SleepCmdArgs, SleepTestDefinition
 from cloudai.test_definitions.ucc import UCCCmdArgs, UCCTestDefinition
 
@@ -60,6 +63,7 @@ def test_slurm(tmp_path: Path, scenario: Dict):
         system_config=Path("conf/common/system/example_slurm_cluster.toml"),
         test_templates_dir=Path("conf/common/test_template"),
         tests_dir=Path("conf/common/test"),
+        hook_dir=Path("conf/common/hook"),
         test_scenario=test_scenario_path,
         output_dir=tmp_path,
     )
@@ -90,7 +94,9 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
     return partial(TestRun, num_nodes=1, nodes=[], output_path=slurm_system.output_path)
 
 
-@pytest.fixture(params=["ucc", "nccl", "sleep", "gpt-pretest", "gpt-no-pretest", "grok-pretest", "grok-no-pretest"])
+@pytest.fixture(
+    params=["ucc", "nccl", "sleep", "gpt-pre-test", "gpt-no-hook", "grok-pre-test", "grok-no-hook", "nemo-launcher"]
+)
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> tuple[TestRun, str, Optional[str]]:
     if request.param == "ucc":
         tr = partial_tr(
@@ -158,10 +164,21 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             slurm_system, tr.test.test_definition.cmd_args_dict
         )
         tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
-        if "no-pretest" in request.param:
-            tr.test.test_definition.cmd_args.pre_test.enable = False
-        else:
-            tr.test.test_definition.cmd_args.pre_test.enable = True
+        if "pre-test" in request.param:
+            pre_test_tr = partial_tr(
+                name="nccl",
+                test=Test(
+                    test_definition=NCCLTestDefinition(
+                        name="nccl", description="nccl", test_template_name="nccl", cmd_args=NCCLCmdArgs()
+                    ),
+                    test_template=NcclTest(slurm_system, name="nccl"),
+                ),
+            )
+            pre_test_tr.test.test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(
+                slurm_system, pre_test_tr.test.test_definition.cmd_args_dict
+            )
+            pre_test_tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+            tr.pre_test = TestScenario(name=f"{pre_test_tr.name} NCCL pre-test", test_runs=[pre_test_tr])
 
         return (tr, f"{request.param}.sbatch", "gpt.run")
     elif request.param.startswith("grok-"):
@@ -182,12 +199,42 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             slurm_system, tr.test.test_definition.cmd_args_dict
         )
         tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
-        if "no-pretest" in request.param:
-            tr.test.test_definition.cmd_args.pre_test.enable = False
-        else:
-            tr.test.test_definition.cmd_args.pre_test.enable = True
+        if "pre-test" in request.param:
+            pre_test_tr = partial_tr(
+                name="nccl",
+                test=Test(
+                    test_definition=NCCLTestDefinition(
+                        name="nccl", description="nccl", test_template_name="nccl", cmd_args=NCCLCmdArgs()
+                    ),
+                    test_template=NcclTest(slurm_system, name="nccl"),
+                ),
+            )
+            pre_test_tr.test.test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(
+                slurm_system, pre_test_tr.test.test_definition.cmd_args_dict
+            )
+            pre_test_tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+            tr.pre_test = TestScenario(name=f"{pre_test_tr.name} NCCL pre-test", test_runs=[pre_test_tr])
 
         return (tr, f"{request.param}.sbatch", "grok.run")
+    elif request.param == "nemo-launcher":
+        tr = partial_tr(
+            name="nemo-launcher",
+            test=Test(
+                test_definition=NeMoLauncherTestDefinition(
+                    name="nemo-launcher",
+                    description="nemo-launcher",
+                    test_template_name="nemo-launcher",
+                    cmd_args=NeMoLauncherCmdArgs(),
+                ),
+                test_template=NeMoLauncher(slurm_system, name="nemo-launcher"),
+            ),
+        )
+        tr.test.test_template.command_gen_strategy = NeMoLauncherSlurmCommandGenStrategy(
+            slurm_system, tr.test.test_definition.cmd_args_dict
+        )
+        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+
+        return (tr, "nemo-launcher.sbatch", None)
 
     raise ValueError(f"Unknown test: {request.param}")
 
@@ -198,10 +245,14 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
     tr = test_req[0]
 
     sbatch_script = tr.test.test_template.gen_exec_command(tr).split()[-1]
+    ref = (Path(__file__).parent / "ref_data" / test_req[1]).read_text().strip()
+    if "nemo-launcher" in test_req[1]:
+        sbatch_script = slurm_system.output_path / "generated_command.sh"
+        ref = ref.replace("__OUTPUT_DIR__", str(slurm_system.output_path.parent))
+    else:
+        ref = ref.replace("__OUTPUT_DIR__", str(slurm_system.output_path)).replace("__JOB_NAME__", "job_name")
 
-    curr = Path(sbatch_script).read_text()
-    ref = (Path(__file__).parent / "ref_data" / test_req[1]).read_text()
-    ref = ref.replace("__OUTPUT_DIR__", str(slurm_system.output_path)).replace("__JOB_NAME__", "job_name")
+    curr = Path(sbatch_script).read_text().strip()
 
     assert curr == ref
 

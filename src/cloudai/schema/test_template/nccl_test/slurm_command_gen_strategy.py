@@ -43,9 +43,7 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return base_args
 
-    def generate_test_command(
-        self, env_vars: Dict[str, str], cmd_args: Dict[str, str], extra_cmd_args: str
-    ) -> List[str]:
+    def generate_test_command(self, env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun) -> List[str]:
         srun_command_parts = [f"/usr/local/bin/{cmd_args['subtest_name']}"]
         nccl_test_args = [
             "nthreads",
@@ -69,7 +67,11 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             if arg in cmd_args:
                 srun_command_parts.append(f"--{arg} {cmd_args[arg]}")
 
-        if extra_cmd_args:
-            srun_command_parts.append(extra_cmd_args)
+        if tr.test.extra_cmd_args:
+            srun_command_parts.append(tr.test.extra_cmd_args)
 
         return srun_command_parts
+
+    def gen_srun_success_check(self, tr: TestRun) -> str:
+        output_file = Path(tr.output_path) / "stdout.txt"
+        return f'grep -q "Avg bus bandwidth" {output_file} && echo 1 || echo 0'

@@ -15,6 +15,10 @@
 # limitations under the License.
 
 name = "nccl-test"
+
+pre_test = "nccl_test"
+post_test = "nccl_test"
+
 [[Tests]]
 id = "Tests.1"
 test_name = "nccl_test_all_reduce"

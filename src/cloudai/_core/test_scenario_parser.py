@@ -54,6 +54,8 @@ class _TestScenarioTOML(BaseModel):
     name: str
     job_status_check: bool = True
     tests: list[_TestRunTOML] = Field(alias="Tests", min_length=1)
+    pre_test: Optional[str] = None
+    post_test: Optional[str] = None
 
     @model_validator(mode="after")
     def check_no_self_dependency(self):
@@ -99,9 +101,10 @@ class TestScenarioParser:
 
     __test__ = False
 
-    def __init__(self, file_path: Path, test_mapping: Dict[str, Test]) -> None:
+    def __init__(self, file_path: Path, test_mapping: Dict[str, Test], hook_mapping: Dict[str, TestScenario]) -> None:
         self.file_path = file_path
         self.test_mapping = test_mapping
+        self.hook_mapping = hook_mapping
 
     def parse(self) -> TestScenario:
         """
@@ -136,8 +139,31 @@ class TestScenarioParser:
         total_weight = sum(tr.weight for tr in ts_model.tests)
         normalized_weight = 0 if total_weight == 0 else 100 / total_weight
 
+        pre_test, post_test = None, None
+        if ts_model.pre_test:
+            pre_test = self.hook_mapping.get(ts_model.pre_test)
+            if pre_test is None:
+                msg = (
+                    f"Pre-test hook '{ts_model.pre_test}' not found in hook mapping. "
+                    "A corresponding hook should exist under 'conf/hook'. "
+                    "Ensure that a proper hook directory is set under the working directory."
+                )
+                logging.error(msg)
+                raise TestScenarioParsingError(msg)
+
+        if ts_model.post_test:
+            post_test = self.hook_mapping.get(ts_model.post_test)
+            if post_test is None:
+                msg = (
+                    f"Post-test hook '{ts_model.post_test}' not found in hook mapping. "
+                    "A corresponding hook should exist under 'conf/hook'. "
+                    "Ensure that a proper hook directory is set under the working directory."
+                )
+                logging.error(msg)
+                raise TestScenarioParsingError(msg)
+
         test_runs_by_id: dict[str, TestRun] = {
-            tr.id: self._create_test_run(tr, normalized_weight) for tr in ts_model.tests
+            tr.id: self._create_test_run(tr, normalized_weight, pre_test, post_test) for tr in ts_model.tests
         }
 
         tests_data: dict[str, _TestRunTOML] = {tr.id: tr for tr in ts_model.tests}
@@ -153,13 +179,21 @@ class TestScenarioParser:
             job_status_check=ts_model.job_status_check,
         )
 
-    def _create_test_run(self, test_info: _TestRunTOML, normalized_weight: float) -> TestRun:
+    def _create_test_run(
+        self,
+        test_info: _TestRunTOML,
+        normalized_weight: float,
+        pre_test: Optional[TestScenario] = None,
+        post_test: Optional[TestScenario] = None,
+    ) -> TestRun:
         """
         Create a section-specific Test object by copying from the test mapping.
 
         Args:
             test_info (Dict[str, Any]): Information of the test.
             normalized_weight (float): Normalized weight for the test.
+            pre_test (Optional[TestScenario]): TestScenario object representing the pre-test sequence.
+            post_test (Optional[TestScenario]): TestScenario object representing the post-test sequence.
 
         Returns:
             Test: Copied and updated Test object for the section.
@@ -192,5 +226,7 @@ class TestScenarioParser:
             sol=test_info.sol,
             weight=test_info.weight * normalized_weight,
             ideal_perf=test_info.ideal_perf,
+            pre_test=pre_test,
+            post_test=post_test,
         )
         return tr
