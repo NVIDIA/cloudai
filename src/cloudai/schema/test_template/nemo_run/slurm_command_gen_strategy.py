@@ -38,10 +38,10 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def generate_test_command(self, env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun) -> List[str]:
         command = ["nemo", "llm"]
 
-        task = cmd_args.get("task", "pretrain")
+        task = tr.test.cmd_args.get("task", "pretrain")
         command.append(task)
 
-        recipe_name = cmd_args.get("recipe_name", "llama3_8b")
+        recipe_name = tr.test.cmd_args.get("recipe_name", "llama3_8b")
         command.extend(["--factory", recipe_name])
 
         command.append("-y")
