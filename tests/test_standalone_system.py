@@ -62,7 +62,7 @@ def standalone_job(standalone_system, mock_test):
     Returns:
         StandaloneJob: A new instance of StandaloneJob for testing.
     """
-    return StandaloneJob("run", standalone_system, mock_test, 12345)
+    return StandaloneJob(mock_test, id=12345)
 
 
 @pytest.mark.parametrize(

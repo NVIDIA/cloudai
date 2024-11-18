@@ -47,7 +47,7 @@ class KubernetesRunner(BaseRunner):
             k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)
             job_name = k8s_system.create_job(job_spec)
 
-        return KubernetesJob(self.mode, self.system, tr, job_name, job_kind)
+        return KubernetesJob(tr, id=job_name, name=job_name, kind=job_kind)
 
     async def job_completion_callback(self, job: BaseJob) -> None:
         """
@@ -58,7 +58,7 @@ class KubernetesRunner(BaseRunner):
         """
         k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)
         k_job = cast(KubernetesJob, job)
-        k8s_system.store_logs_for_job(k_job.name, k_job.output_path)
+        k8s_system.store_logs_for_job(k_job.name, k_job.test_run.output_path)
         k8s_system.delete_job(k_job.name, k_job.kind)
 
     def kill_job(self, job: BaseJob) -> None:
@@ -70,5 +70,5 @@ class KubernetesRunner(BaseRunner):
         """
         k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)
         k_job = cast(KubernetesJob, job)
-        k8s_system.store_logs_for_job(k_job.name, k_job.output_path)
+        k8s_system.store_logs_for_job(k_job.name, k_job.test_run.output_path)
         k8s_system.delete_job(k_job.name, k_job.kind)

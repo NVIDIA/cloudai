@@ -14,13 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
-
-from cloudai import BaseJob
+from cloudai import TestTemplate
 
 
-@dataclass
-class StandaloneJob(BaseJob):
-    """A job class for standalone execution."""
+class SlurmContainer(TestTemplate):
+    """Generic Slurm container test template."""
 
     pass

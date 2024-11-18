@@ -33,6 +33,8 @@ from cloudai.schema.test_template.nemo_run.slurm_command_gen_strategy import NeM
 from cloudai.schema.test_template.nemo_run.template import NeMoRun
 from cloudai.schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from cloudai.schema.test_template.sleep.template import Sleep
+from cloudai.schema.test_template.slurm_container.slurm_command_gen_strategy import SlurmContainerCommandGenStrategy
+from cloudai.schema.test_template.slurm_container.template import SlurmContainer
 from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
 from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
@@ -41,6 +43,7 @@ from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.test_definitions.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
 from cloudai.test_definitions.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
 from cloudai.test_definitions.sleep import SleepCmdArgs, SleepTestDefinition
+from cloudai.test_definitions.slurm_container import SlurmContainerCmdArgs, SlurmContainerTestDefinition
 from cloudai.test_definitions.ucc import UCCCmdArgs, UCCTestDefinition
 
 SLURM_TEST_SCENARIOS = [
@@ -70,7 +73,11 @@ def test_slurm(tmp_path: Path, scenario: Dict):
         test_scenario=test_scenario_path,
         output_dir=tmp_path,
     )
-    with patch("asyncio.sleep", return_value=None):
+    with (
+        patch("asyncio.sleep", return_value=None),
+        patch("cloudai.systems.slurm.SlurmSystem.is_job_completed", return_value=True),
+        patch("cloudai.systems.slurm.SlurmSystem.is_job_running", return_value=True),
+    ):
         handle_dry_run_and_run(args)
 
     # Find the directory that was created for the test results
@@ -108,9 +115,10 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
         "grok-no-hook",
         "nemo-launcher",
         "nemo-run",
+        "slurm_container",
     ]
 )
-def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> tuple[TestRun, str, Optional[str]]:
+def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> tuple[TestRun, str, Optional[str]]:  # noqa
     if request.param == "ucc":
         tr = partial_tr(
             name="ucc",
@@ -267,6 +275,32 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
 
         return (tr, "nemo-run.sbatch", None)
+    elif request.param == "slurm_container":
+        tr = partial_tr(
+            name="slurm_container",
+            test=Test(
+                test_definition=SlurmContainerTestDefinition(
+                    name="slurm_container",
+                    description="slurm_container",
+                    test_template_name="slurm_container",
+                    cmd_args=SlurmContainerCmdArgs(
+                        docker_image_url="https://docker/url",
+                        repository_url="https://repo/url",
+                        repository_commit_hash="commit_hash",
+                        mcore_vfm_repo="https://mcore_vfm/repo",
+                        mcore_vfm_commit_hash="mcore_vfm_commit_hash",
+                    ),
+                    extra_cmd_args={"bash": '-c "pwd ; ls"'},
+                ),
+                test_template=SlurmContainer(slurm_system, name="slurm_container"),
+            ),
+        )
+        tr.test.test_template.command_gen_strategy = SlurmContainerCommandGenStrategy(
+            slurm_system, tr.test.test_definition.cmd_args_dict
+        )
+        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+
+        return (tr, "slurm_container.sbatch", None)
 
     raise ValueError(f"Unknown test: {request.param}")
 
@@ -276,14 +310,12 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
 
     tr = test_req[0]
 
-    sbatch_script = tr.test.test_template.gen_exec_command(tr).split()[-1]
     ref = (Path(__file__).parent / "ref_data" / test_req[1]).read_text().strip()
+    ref = ref.replace("__OUTPUT_DIR__", str(slurm_system.output_path.parent)).replace("__JOB_NAME__", "job_name")
+
+    sbatch_script = tr.test.test_template.gen_exec_command(tr).split()[-1]
     if "nemo-launcher" in test_req[1]:
         sbatch_script = slurm_system.output_path / "generated_command.sh"
-        ref = ref.replace("__OUTPUT_DIR__", str(slurm_system.output_path.parent))
-    else:
-        ref = ref.replace("__OUTPUT_DIR__", str(slurm_system.output_path)).replace("__JOB_NAME__", "job_name")
-
     curr = Path(sbatch_script).read_text().strip()
 
     assert curr == ref
