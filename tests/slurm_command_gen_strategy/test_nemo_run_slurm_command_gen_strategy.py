@@ -33,7 +33,9 @@ class TestNeMoRunSlurmCommandGenStrategy:
             name="t1",
             description="desc1",
             test_template_name="tt",
-            cmd_args=NeMoRunCmdArgs(),
+            cmd_args=NeMoRunCmdArgs(
+                docker_image_url="nvcr.io/nvidia/nemo:24.09", task="pretrain", recipe_name="llama_3b"
+            ),
             extra_env_vars={"TEST_VAR_1": "value1"},
             extra_cmd_args={"extra_args": ""},
         )

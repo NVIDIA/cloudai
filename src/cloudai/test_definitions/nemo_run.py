@@ -23,9 +23,9 @@ from cloudai.installer.installables import DockerImage, Installable
 class NeMoRunCmdArgs(CmdArgs):
     """NeMoRun test command arguments."""
 
-    docker_image_url: str = "nvcr.io/nvidia/nemo:24.09"
-    task: Optional[str] = None
-    recipe_name: Optional[str] = None
+    docker_image_url: str
+    task: str
+    recipe_name: str
 
 
 class NeMoRunTestDefinition(TestDefinition):

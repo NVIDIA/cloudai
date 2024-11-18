@@ -39,16 +39,8 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         command = ["nemo", "llm"]
 
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
-        task = tdef.cmd_args.task
-        if not task:
-            raise ValueError("Task name must be specified. Please set a valid 'task' in cmd_args.")
-        command.append(task)
-
-        recipe_name = tdef.cmd_args.recipe_name
-        if not recipe_name:
-            raise ValueError("Recipe name must be specified. Please set a valid 'recipe_name' in cmd_args.")
-        command.extend(["--factory", recipe_name])
-
+        command.append(tdef.cmd_args.task)
+        command.extend(["--factory", tdef.cmd_args.recipe_name])
         command.append("-y")
 
         if tr.nodes:
