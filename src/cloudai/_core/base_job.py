@@ -14,73 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
+from dataclasses import dataclass, field
 from typing import Union
 
-from .system import System
 from .test_scenario import TestRun
 
 
+@dataclass
 class BaseJob:
-    """
-    Base class for representing a job created by executing a test.
+    """Base class for representing a job created by executing a test."""
 
-    Attributes
-        id (Union[str, int]): The unique identifier of the job.
-        mode (str): The mode of the job (e.g., 'run', 'dry-run').
-        system (System): The system in which the job is running.
-        test_run (TestRun): The TestRun instance associated with this job.
-        output_path (Path): The path where the job's output is stored.
-        terminated_by_dependency (bool): Flag to indicate if the job was terminated due to a dependency.
-    """
-
-    def __init__(self, mode: str, system: System, test_run: TestRun):
-        """
-        Initialize a BaseJob instance.
-
-        Args:
-            mode (str): The mode of the job (e.g., 'run', 'dry-run').
-            system (System): The system in which the job is running.
-            test_run (TestRun): The TestRun instance associated with this job.
-        """
-        self.id: Union[str, int] = 0
-        self.mode: str = mode
-        self.system: System = system
-        self.test_run: TestRun = test_run
-        self.output_path: Path = test_run.output_path
-        self.terminated_by_dependency: bool = False
-
-    def is_running(self) -> bool:
-        """
-        Check if the specified job is currently running.
-
-        Returns
-            bool: True if the job is running, False otherwise.
-        """
-        if self.mode == "dry-run":
-            return True
-        return self.system.is_job_running(self)
-
-    def is_completed(self) -> bool:
-        """
-        Check if a job is completed.
-
-        Returns
-            bool: True if the job is completed, False otherwise.
-        """
-        if self.mode == "dry-run":
-            return True
-        return self.system.is_job_completed(self)
-
-    def increment_iteration(self):
-        """Increment the iteration count of the associated test."""
-        self.test_run.current_iteration += 1
-
-    def __repr__(self) -> str:
-        """
-        Return a string representation of the BaseJob instance.
-
-        Returns
-            str: String representation of the job.
-        """
-        return f"BaseJob(id={self.id}, mode={self.mode}, system={self.system.name}, test={self.test_run.test.name})"
+    test_run: TestRun
+    id: Union[str, int]
+    terminated_by_dependency: bool = field(default=False, init=False)

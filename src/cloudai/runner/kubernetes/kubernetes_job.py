@@ -15,42 +15,14 @@
 # limitations under the License.
 
 
-from cloudai import BaseJob, System, TestRun
+from dataclasses import dataclass
+
+from cloudai import BaseJob
 
 
+@dataclass
 class KubernetesJob(BaseJob):
-    """
-    A job class for execution on a Kubernetes system.
+    """A job class for execution on a Kubernetes system."""
 
-    Attributes
-        mode (str): The mode of the job (e.g., 'run', 'dry-run').
-        system (System): The system in which the job is running.
-        test_run (TestRun): The test instance associated with this job.
-        name (str): The name of the job.
-        kind (str): The kind of the job.
-    """
-
-    def __init__(self, mode: str, system: System, test_run: TestRun, name: str, kind: str):
-        """
-        Initialize a KubernetesJob instance.
-
-        Args:
-            mode (str): The mode of the job (e.g., 'run', 'dry-run').
-            system (System): The system in which the job is running.
-            test_run (TestRun): The test instance associated with this job.
-            name (str): The name of the job.
-            kind (str): The kind of the job.
-        """
-        super().__init__(mode, system, test_run)
-        self.id = name
-        self.name = name
-        self.kind = kind
-
-    def __repr__(self) -> str:
-        """
-        Return a string representation of the KubernetesJob instance.
-
-        Returns
-            str: String representation of the job.
-        """
-        return f"KubernetesJob(name={self.name}, test={self.test_run.test.name}, " f"kind={self.kind})"
+    kind: str
+    name: str

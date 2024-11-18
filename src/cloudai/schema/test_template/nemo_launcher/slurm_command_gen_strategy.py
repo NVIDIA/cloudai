@@ -69,7 +69,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self.final_cmd_args.update(
             {
                 "base_results_dir": str(tr.output_path.absolute()),
-                "launcher_scripts_path": str((repo_path / tdef.cmd_args.launcher_script).parent),
+                "launcher_scripts_path": str((repo_path / tdef.cmd_args.launcher_script).parent.absolute()),
             }
         )
 

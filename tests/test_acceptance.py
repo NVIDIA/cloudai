@@ -70,7 +70,11 @@ def test_slurm(tmp_path: Path, scenario: Dict):
         test_scenario=test_scenario_path,
         output_dir=tmp_path,
     )
-    with patch("asyncio.sleep", return_value=None):
+    with (
+        patch("asyncio.sleep", return_value=None),
+        patch("cloudai.systems.slurm.SlurmSystem.is_job_completed", return_value=True),
+        patch("cloudai.systems.slurm.SlurmSystem.is_job_running", return_value=True),
+    ):
         handle_dry_run_and_run(args)
 
     # Find the directory that was created for the test results
