@@ -56,11 +56,6 @@ class TestNeMoRunSlurmCommandGenStrategy:
     @pytest.mark.parametrize(
         "cmd_args, expected_cmd",
         [
-            ({}, ["nemo", "llm", "pretrain", "--factory", "llama3_8b", "-y", "trainer.num_nodes=2", "extra_args"]),
-            (
-                {"recipe_name": "llama7_13b"},
-                ["nemo", "llm", "pretrain", "--factory", "llama7_13b", "-y", "trainer.num_nodes=2", "extra_args"],
-            ),
             (
                 {"task": "fine_tune", "recipe_name": "llama7_13b"},
                 ["nemo", "llm", "fine_tune", "--factory", "llama7_13b", "-y", "trainer.num_nodes=2", "extra_args"],
@@ -74,5 +69,34 @@ class TestNeMoRunSlurmCommandGenStrategy:
         cmd_args: dict,
         expected_cmd: list,
     ) -> None:
-        cmd = cmd_gen_strategy.generate_test_command(test_run.test.test_definition.extra_env_vars, cmd_args, test_run)
+        test_run.test.test_definition.cmd_args = NeMoRunCmdArgs(**cmd_args)
+
+        cmd = cmd_gen_strategy.generate_test_command(
+            test_run.test.test_definition.extra_env_vars,
+            test_run.test.test_definition.cmd_args.model_dump(),
+            test_run,
+        )
         assert cmd == expected_cmd, f"Expected command {expected_cmd}, but got {cmd}"
+
+    @pytest.mark.parametrize(
+        "cmd_args, expected_exception",
+        [
+            ({"recipe_name": "llama7_13b"}, ValueError),
+            ({"task": "fine_tune"}, ValueError),
+        ],
+    )
+    def test_generate_test_command_exceptions(
+        self,
+        cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy,
+        test_run: TestRun,
+        cmd_args: dict,
+        expected_exception: type,
+    ) -> None:
+        test_run.test.test_definition.cmd_args = NeMoRunCmdArgs(**cmd_args)
+
+        with pytest.raises(expected_exception):
+            cmd_gen_strategy.generate_test_command(
+                test_run.test.test_definition.extra_env_vars,
+                test_run.test.test_definition.cmd_args.model_dump(),
+                test_run,
+            )

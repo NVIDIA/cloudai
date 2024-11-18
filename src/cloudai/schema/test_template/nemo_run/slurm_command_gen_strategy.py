@@ -38,10 +38,16 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def generate_test_command(self, env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun) -> List[str]:
         command = ["nemo", "llm"]
 
-        task = tr.test.cmd_args.get("task", "pretrain")
+        task = tr.test.cmd_args.get("task")
+        if not task:
+            raise ValueError("Task name must be specified. Please set a valid 'task' in cmd_args.")
+
         command.append(task)
 
-        recipe_name = tr.test.cmd_args.get("recipe_name", "llama3_8b")
+        recipe_name = tr.test.cmd_args.get("recipe_name")
+        if not recipe_name:
+            raise ValueError("Recipe name must be specified. Please set a valid 'recipe_name' in cmd_args.")
+
         command.extend(["--factory", recipe_name])
 
         command.append("-y")
