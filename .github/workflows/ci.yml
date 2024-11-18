@@ -23,13 +23,13 @@ jobs:
         run: pip install -r requirements-dev.txt
 
       - name: Run ruff linter
-        run: ruff check .
+        run: ruff check
 
       - name: Run ruff formatter
-        run: ruff format --check --diff .
+        run: ruff format --check --diff
 
       - name: Run pyright
-        run: pyright .
+        run: pyright
 
       - name: Run vulture check
         run: vulture src/ tests/

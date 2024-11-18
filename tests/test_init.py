@@ -23,6 +23,8 @@ from cloudai import (
     JsonGenStrategy,
     Registry,
     ReportGenerationStrategy,
+    SlurmContainer,
+    SlurmContainerTestDefinition,
 )
 from cloudai.installer.slurm_installer import SlurmInstaller
 from cloudai.installer.standalone_installer import StandaloneInstaller
@@ -127,12 +129,13 @@ def test_strategies(key: tuple, value: type):
 
 def test_test_templates():
     test_templates = Registry().test_templates_map
-    assert len(test_templates) == 8
+    assert len(test_templates) == 9
     assert test_templates["ChakraReplay"] == ChakraReplay
     assert test_templates["NcclTest"] == NcclTest
     assert test_templates["NeMoLauncher"] == NeMoLauncher
     assert test_templates["Sleep"] == Sleep
     assert test_templates["UCCTest"] == UCCTest
+    assert test_templates["SlurmContainer"] == SlurmContainer
 
 
 def test_installers():
@@ -144,12 +147,13 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 8
+    assert len(test_defs) == 9
     assert test_defs["UCCTest"] == UCCTestDefinition
     assert test_defs["NcclTest"] == NCCLTestDefinition
     assert test_defs["ChakraReplay"] == ChakraReplayTestDefinition
     assert test_defs["Sleep"] == SleepTestDefinition
     assert test_defs["NeMoLauncher"] == NeMoLauncherTestDefinition
+    assert test_defs["SlurmContainer"] == SlurmContainerTestDefinition
 
 
 def test_definitions_matches_templates():

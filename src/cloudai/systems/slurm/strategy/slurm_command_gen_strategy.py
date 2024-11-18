@@ -195,11 +195,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     def _gen_srun_command(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun
     ) -> str:
-        srun_command_parts = self.gen_srun_prefix(slurm_args)
+        srun_command_parts = self.gen_srun_prefix(slurm_args, tr)
         test_command_parts = self.generate_test_command(env_vars, cmd_args, tr)
         return " ".join(srun_command_parts + test_command_parts)
 
-    def gen_srun_prefix(self, slurm_args: Dict[str, Any]) -> List[str]:
+    def gen_srun_prefix(self, slurm_args: Dict[str, Any], tr: TestRun) -> List[str]:
         srun_command_parts = ["srun", f"--mpi={self.system.mpi}"]
         if slurm_args.get("image_path"):
             srun_command_parts.append(f'--container-image={slurm_args["image_path"]}')
