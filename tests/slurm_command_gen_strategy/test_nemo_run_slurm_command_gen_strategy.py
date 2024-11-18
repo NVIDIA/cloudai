@@ -59,7 +59,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
         "cmd_args, expected_cmd",
         [
             (
-                {"task": "fine_tune", "recipe_name": "llama7_13b"},
+                {"docker_image_url": "nvcr.io/nvidia/nemo:24.09", "task": "fine_tune", "recipe_name": "llama7_13b"},
                 ["nemo", "llm", "fine_tune", "--factory", "llama7_13b", "-y", "trainer.num_nodes=2", "extra_args"],
             ),
         ],
@@ -83,7 +83,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
     @pytest.mark.parametrize(
         "cmd_args, expected_exception",
         [
-            ({"recipe_name": "llama7_13b"}, ValueError),
+            ({"docker_image_url": "nvcr.io/nvidia/nemo:24.09", "recipe_name": "llama7_13b"}, ValueError),
             ({"task": "fine_tune"}, ValueError),
         ],
     )
