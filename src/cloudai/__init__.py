@@ -75,8 +75,6 @@ from .schema.test_template.nemo_launcher.slurm_job_id_retrieval_strategy import 
     NeMoLauncherSlurmJobIdRetrievalStrategy,
 )
 from .schema.test_template.nemo_launcher.template import NeMoLauncher
-from .schema.test_template.nemo_run.grading_strategy import NeMoRunGradingStrategy
-from .schema.test_template.nemo_run.report_generation_strategy import NeMoRunReportGenerationStrategy
 from .schema.test_template.nemo_run.slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
 from .schema.test_template.nemo_run.template import NeMoRun
 from .schema.test_template.sleep.grading_strategy import SleepGradingStrategy
@@ -120,7 +118,6 @@ Registry().add_strategy(
     ReportGenerationStrategy, [StandaloneSystem, SlurmSystem], [Sleep], SleepReportGenerationStrategy
 )
 Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [NeMoLauncher], NeMoLauncherReportGenerationStrategy)
-Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [NeMoRun], NeMoRunReportGenerationStrategy)
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NcclTest], NcclTestSlurmCommandGenStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [Sleep], SleepGradingStrategy)
 Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [JaxToolbox], JaxToolboxReportGenerationStrategy)
@@ -129,7 +126,6 @@ Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NeMoLauncher], NeMoL
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NeMoRun], NeMoRunSlurmCommandGenStrategy)
 Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [UCCTest], UCCTestReportGenerationStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [NeMoLauncher], NeMoLauncherGradingStrategy)
-Registry().add_strategy(GradingStrategy, [SlurmSystem], [NeMoRun], NeMoRunGradingStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [JaxToolbox], JaxToolboxGradingStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [UCCTest], UCCTestGradingStrategy)
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [JaxToolbox], JaxToolboxSlurmCommandGenStrategy)

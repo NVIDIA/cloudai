@@ -48,8 +48,6 @@ from cloudai.schema.test_template.nemo_launcher.slurm_job_id_retrieval_strategy 
     NeMoLauncherSlurmJobIdRetrievalStrategy,
 )
 from cloudai.schema.test_template.nemo_launcher.template import NeMoLauncher
-from cloudai.schema.test_template.nemo_run.grading_strategy import NeMoRunGradingStrategy
-from cloudai.schema.test_template.nemo_run.report_generation_strategy import NeMoRunReportGenerationStrategy
 from cloudai.schema.test_template.nemo_run.slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
 from cloudai.schema.test_template.nemo_run.template import NeMoRun
 from cloudai.schema.test_template.sleep.grading_strategy import SleepGradingStrategy
@@ -106,7 +104,6 @@ def test_runners():
         ((GradingStrategy, SlurmSystem, JaxToolbox), JaxToolboxGradingStrategy),
         ((GradingStrategy, SlurmSystem, NcclTest), NcclTestGradingStrategy),
         ((GradingStrategy, SlurmSystem, NeMoLauncher), NeMoLauncherGradingStrategy),
-        ((GradingStrategy, SlurmSystem, NeMoRun), NeMoRunGradingStrategy),
         ((GradingStrategy, SlurmSystem, Sleep), SleepGradingStrategy),
         ((GradingStrategy, SlurmSystem, UCCTest), UCCTestGradingStrategy),
         ((JobIdRetrievalStrategy, SlurmSystem, ChakraReplay), SlurmJobIdRetrievalStrategy),
@@ -123,7 +120,6 @@ def test_runners():
         ((ReportGenerationStrategy, SlurmSystem, NcclTest), NcclTestReportGenerationStrategy),
         ((ReportGenerationStrategy, KubernetesSystem, NcclTest), NcclTestReportGenerationStrategy),
         ((ReportGenerationStrategy, SlurmSystem, NeMoLauncher), NeMoLauncherReportGenerationStrategy),
-        ((ReportGenerationStrategy, SlurmSystem, NeMoRun), NeMoRunReportGenerationStrategy),
         ((ReportGenerationStrategy, SlurmSystem, Sleep), SleepReportGenerationStrategy),
         ((ReportGenerationStrategy, SlurmSystem, UCCTest), UCCTestReportGenerationStrategy),
         ((ReportGenerationStrategy, StandaloneSystem, Sleep), SleepReportGenerationStrategy),
