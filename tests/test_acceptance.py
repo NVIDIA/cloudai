@@ -37,6 +37,7 @@ from cloudai.schema.test_template.slurm_container.slurm_command_gen_strategy imp
 from cloudai.schema.test_template.slurm_container.template import SlurmContainer
 from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
+from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
 from cloudai.test_definitions.grok import GrokCmdArgs, GrokTestDefinition
 from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
@@ -118,189 +119,124 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
         "slurm_container",
     ]
 )
-def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> tuple[TestRun, str, Optional[str]]:  # noqa
-    if request.param == "ucc":
+def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> tuple[TestRun, str, Optional[str]]:
+    def create_test_run(name, test_definition, test_template, command_gen_strategy):
         tr = partial_tr(
-            name="ucc",
-            test=Test(
-                test_definition=UCCTestDefinition(
-                    name="ucc", description="ucc", test_template_name="ucc", cmd_args=UCCCmdArgs()
-                ),
-                test_template=UCCTest(slurm_system, name="ucc"),
-            ),
+            name=name,
+            test=Test(test_definition=test_definition, test_template=test_template(slurm_system, name=name)),
         )
-        tr.test.test_template.command_gen_strategy = UCCTestSlurmCommandGenStrategy(
+        tr.test.test_template.command_gen_strategy = command_gen_strategy(
             slurm_system, tr.test.test_definition.cmd_args_dict
         )
-        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+        if isinstance(tr.test.test_template.command_gen_strategy, SlurmCommandGenStrategy):
+            tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+        return tr
 
-        return (tr, "ucc.sbatch", None)
-    elif request.param == "nccl":
-        tr = partial_tr(
-            name="nccl",
-            test=Test(
-                test_definition=NCCLTestDefinition(
-                    name="nccl", description="nccl", test_template_name="nccl", cmd_args=NCCLCmdArgs()
-                ),
-                test_template=NcclTest(slurm_system, name="nccl"),
+    test_mapping = {
+        "ucc": lambda: create_test_run(
+            "ucc",
+            UCCTestDefinition(name="ucc", description="ucc", test_template_name="ucc", cmd_args=UCCCmdArgs()),
+            UCCTest,
+            UCCTestSlurmCommandGenStrategy,
+        ),
+        "nccl": lambda: create_test_run(
+            "nccl",
+            NCCLTestDefinition(name="nccl", description="nccl", test_template_name="nccl", cmd_args=NCCLCmdArgs()),
+            NcclTest,
+            NcclTestSlurmCommandGenStrategy,
+        ),
+        "sleep": lambda: create_test_run(
+            "sleep",
+            SleepTestDefinition(name="sleep", description="sleep", test_template_name="sleep", cmd_args=SleepCmdArgs()),
+            Sleep,
+            SleepSlurmCommandGenStrategy,
+        ),
+        "nemo-launcher": lambda: create_test_run(
+            "nemo-launcher",
+            NeMoLauncherTestDefinition(
+                name="nemo-launcher",
+                description="nemo-launcher",
+                test_template_name="nemo-launcher",
+                cmd_args=NeMoLauncherCmdArgs(),
             ),
-        )
-        tr.test.test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(
-            slurm_system, tr.test.test_definition.cmd_args_dict
-        )
-        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
-
-        return (tr, "nccl.sbatch", None)
-    elif request.param == "sleep":
-        tr = partial_tr(
-            name="sleep",
-            test=Test(
-                test_definition=SleepTestDefinition(
-                    name="sleep", description="sleep", test_template_name="sleep", cmd_args=SleepCmdArgs()
-                ),
-                test_template=Sleep(slurm_system, name="sleep"),
+            NeMoLauncher,
+            NeMoLauncherSlurmCommandGenStrategy,
+        ),
+        "nemo-run": lambda: create_test_run(
+            "nemo-run",
+            NeMoRunTestDefinition(
+                name="nemo-run",
+                description="nemo-run",
+                test_template_name="nemo-run",
+                cmd_args=NeMoRunCmdArgs(task="pretrain", recipe_name="llama_3b"),
             ),
-        )
-        tr.test.test_template.command_gen_strategy = SleepSlurmCommandGenStrategy(
-            slurm_system, tr.test.test_definition.cmd_args_dict
-        )
-        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+            NeMoRun,
+            NeMoRunSlurmCommandGenStrategy,
+        ),
+        "slurm_container": lambda: create_test_run(
+            "slurm_container",
+            SlurmContainerTestDefinition(
+                name="slurm_container",
+                description="slurm_container",
+                test_template_name="slurm_container",
+                cmd_args=SlurmContainerCmdArgs(
+                    docker_image_url="https://docker/url",
+                    repository_url="https://repo/url",
+                    repository_commit_hash="commit_hash",
+                    mcore_vfm_repo="https://mcore_vfm/repo",
+                    mcore_vfm_commit_hash="mcore_vfm_commit_hash",
+                ),
+                extra_cmd_args={"bash": '-c "pwd ; ls"'},
+            ),
+            SlurmContainer,
+            SlurmContainerCommandGenStrategy,
+        ),
+    }
 
-        return (tr, "sleep.sbatch", None)
-    elif request.param.startswith("gpt-"):
-        tr = partial_tr(
-            name="gpt",
-            test=Test(
-                test_definition=GPTTestDefinition(
-                    name="gpt",
-                    description="gpt",
-                    test_template_name="gpt",
+    # Special cases for gpt and grok
+    if request.param.startswith("gpt-") or request.param.startswith("grok-"):
+        if "gpt" in request.param:
+            test_type = "gpt"
+            tr = create_test_run(
+                test_type,
+                GPTTestDefinition(
+                    name=test_type,
+                    description=test_type,
+                    test_template_name=test_type,
                     cmd_args=GPTCmdArgs(fdl_config="fdl/config", docker_image_url="https://docker/url"),
                     extra_env_vars={"COMBINE_THRESHOLD": "1"},
                 ),
-                test_template=JaxToolbox(slurm_system, name="gpt"),
-            ),
-        )
-        tr.test.test_template.command_gen_strategy = JaxToolboxSlurmCommandGenStrategy(
-            slurm_system, tr.test.test_definition.cmd_args_dict
-        )
-        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
-        if "pre-test" in request.param:
-            pre_test_tr = partial_tr(
-                name="nccl",
-                test=Test(
-                    test_definition=NCCLTestDefinition(
-                        name="nccl", description="nccl", test_template_name="nccl", cmd_args=NCCLCmdArgs()
-                    ),
-                    test_template=NcclTest(slurm_system, name="nccl"),
-                ),
+                JaxToolbox,
+                JaxToolboxSlurmCommandGenStrategy,
             )
-            pre_test_tr.test.test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(
-                slurm_system, pre_test_tr.test.test_definition.cmd_args_dict
-            )
-            pre_test_tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
-            tr.pre_test = TestScenario(name=f"{pre_test_tr.name} NCCL pre-test", test_runs=[pre_test_tr])
-
-        return (tr, f"{request.param}.sbatch", "gpt.run")
-    elif request.param.startswith("grok-"):
-        tr = partial_tr(
-            name="grok",
-            test=Test(
-                test_definition=GrokTestDefinition(
-                    name="grok",
-                    description="grok",
-                    test_template_name="grok",
+        elif "grok" in request.param:
+            test_type = "grok"
+            tr = create_test_run(
+                test_type,
+                GrokTestDefinition(
+                    name=test_type,
+                    description=test_type,
+                    test_template_name=test_type,
                     cmd_args=GrokCmdArgs(fdl_config="fdl/config", docker_image_url="https://docker/url"),
                     extra_env_vars={"COMBINE_THRESHOLD": "1"},
                 ),
-                test_template=JaxToolbox(slurm_system, name="grok"),
-            ),
-        )
-        tr.test.test_template.command_gen_strategy = JaxToolboxSlurmCommandGenStrategy(
-            slurm_system, tr.test.test_definition.cmd_args_dict
-        )
-        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+                JaxToolbox,
+                JaxToolboxSlurmCommandGenStrategy,
+            )
+        else:
+            raise ValueError(f"Unknown test type: {request.param}")
+
+        # Handle pre-test case
         if "pre-test" in request.param:
-            pre_test_tr = partial_tr(
-                name="nccl",
-                test=Test(
-                    test_definition=NCCLTestDefinition(
-                        name="nccl", description="nccl", test_template_name="nccl", cmd_args=NCCLCmdArgs()
-                    ),
-                    test_template=NcclTest(slurm_system, name="nccl"),
-                ),
-            )
-            pre_test_tr.test.test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(
-                slurm_system, pre_test_tr.test.test_definition.cmd_args_dict
-            )
-            pre_test_tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+            pre_test_tr = test_mapping["nccl"]()
             tr.pre_test = TestScenario(name=f"{pre_test_tr.name} NCCL pre-test", test_runs=[pre_test_tr])
 
-        return (tr, f"{request.param}.sbatch", "grok.run")
-    elif request.param == "nemo-launcher":
-        tr = partial_tr(
-            name="nemo-launcher",
-            test=Test(
-                test_definition=NeMoLauncherTestDefinition(
-                    name="nemo-launcher",
-                    description="nemo-launcher",
-                    test_template_name="nemo-launcher",
-                    cmd_args=NeMoLauncherCmdArgs(),
-                ),
-                test_template=NeMoLauncher(slurm_system, name="nemo-launcher"),
-            ),
-        )
-        tr.test.test_template.command_gen_strategy = NeMoLauncherSlurmCommandGenStrategy(
-            slurm_system, tr.test.test_definition.cmd_args_dict
-        )
-        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+        return (tr, f"{request.param}.sbatch", f"{test_type}.run")
 
-        return (tr, "nemo-launcher.sbatch", None)
-    elif request.param == "nemo-run":
-        tr = partial_tr(
-            name="nemo-run",
-            test=Test(
-                test_definition=NeMoRunTestDefinition(
-                    name="nemo-run",
-                    description="nemo-run",
-                    test_template_name="nemo-run",
-                    cmd_args=NeMoRunCmdArgs(task="pretrain", recipe_name="llama_3b"),
-                ),
-                test_template=NeMoRun(slurm_system, name="nemo-run"),
-            ),
-        )
-        tr.test.test_template.command_gen_strategy = NeMoRunSlurmCommandGenStrategy(
-            slurm_system, tr.test.test_definition.cmd_args_dict
-        )
-        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
-
-        return (tr, "nemo-run.sbatch", None)
-    elif request.param == "slurm_container":
-        tr = partial_tr(
-            name="slurm_container",
-            test=Test(
-                test_definition=SlurmContainerTestDefinition(
-                    name="slurm_container",
-                    description="slurm_container",
-                    test_template_name="slurm_container",
-                    cmd_args=SlurmContainerCmdArgs(
-                        docker_image_url="https://docker/url",
-                        repository_url="https://repo/url",
-                        repository_commit_hash="commit_hash",
-                        mcore_vfm_repo="https://mcore_vfm/repo",
-                        mcore_vfm_commit_hash="mcore_vfm_commit_hash",
-                    ),
-                    extra_cmd_args={"bash": '-c "pwd ; ls"'},
-                ),
-                test_template=SlurmContainer(slurm_system, name="slurm_container"),
-            ),
-        )
-        tr.test.test_template.command_gen_strategy = SlurmContainerCommandGenStrategy(
-            slurm_system, tr.test.test_definition.cmd_args_dict
-        )
-        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
-
-        return (tr, "slurm_container.sbatch", None)
+    # Default handler for simple mappings
+    if request.param in test_mapping:
+        tr = test_mapping[request.param]()
+        return (tr, f"{request.param}.sbatch", None)
 
     raise ValueError(f"Unknown test: {request.param}")
 
