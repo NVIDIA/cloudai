@@ -29,6 +29,8 @@ from cloudai.schema.test_template.jax_toolbox.template import JaxToolbox
 from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import NeMoLauncherSlurmCommandGenStrategy
 from cloudai.schema.test_template.nemo_launcher.template import NeMoLauncher
+from cloudai.schema.test_template.nemo_run.slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
+from cloudai.schema.test_template.nemo_run.template import NeMoRun
 from cloudai.schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from cloudai.schema.test_template.sleep.template import Sleep
 from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
@@ -37,6 +39,7 @@ from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
 from cloudai.test_definitions.grok import GrokCmdArgs, GrokTestDefinition
 from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.test_definitions.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
+from cloudai.test_definitions.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
 from cloudai.test_definitions.sleep import SleepCmdArgs, SleepTestDefinition
 from cloudai.test_definitions.ucc import UCCCmdArgs, UCCTestDefinition
 
@@ -95,7 +98,17 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
 
 
 @pytest.fixture(
-    params=["ucc", "nccl", "sleep", "gpt-pre-test", "gpt-no-hook", "grok-pre-test", "grok-no-hook", "nemo-launcher"]
+    params=[
+        "ucc",
+        "nccl",
+        "sleep",
+        "gpt-pre-test",
+        "gpt-no-hook",
+        "grok-pre-test",
+        "grok-no-hook",
+        "nemo-launcher",
+        "nemo-run",
+    ]
 )
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> tuple[TestRun, str, Optional[str]]:
     if request.param == "ucc":
@@ -235,6 +248,25 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
 
         return (tr, "nemo-launcher.sbatch", None)
+    elif request.param == "nemo-run":
+        tr = partial_tr(
+            name="nemo-run",
+            test=Test(
+                test_definition=NeMoRunTestDefinition(
+                    name="nemo-run",
+                    description="nemo-run",
+                    test_template_name="nemo-run",
+                    cmd_args=NeMoRunCmdArgs(task="pretrain", recipe_name="llama_3b"),
+                ),
+                test_template=NeMoRun(slurm_system, name="nemo-run"),
+            ),
+        )
+        tr.test.test_template.command_gen_strategy = NeMoRunSlurmCommandGenStrategy(
+            slurm_system, tr.test.test_definition.cmd_args_dict
+        )
+        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+
+        return (tr, "nemo-run.sbatch", None)
 
     raise ValueError(f"Unknown test: {request.param}")
 
