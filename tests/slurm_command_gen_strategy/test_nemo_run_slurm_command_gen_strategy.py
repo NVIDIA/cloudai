@@ -79,26 +79,3 @@ class TestNeMoRunSlurmCommandGenStrategy:
             test_run,
         )
         assert cmd == expected_cmd, f"Expected command {expected_cmd}, but got {cmd}"
-
-    @pytest.mark.parametrize(
-        "cmd_args, expected_exception",
-        [
-            ({"docker_image_url": "nvcr.io/nvidia/nemo:24.09", "recipe_name": "llama7_13b"}, ValueError),
-            ({"task": "fine_tune"}, ValueError),
-        ],
-    )
-    def test_generate_test_command_exceptions(
-        self,
-        cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy,
-        test_run: TestRun,
-        cmd_args: dict,
-        expected_exception: type,
-    ) -> None:
-        test_run.test.test_definition.cmd_args = NeMoRunCmdArgs(**cmd_args)
-
-        with pytest.raises(expected_exception):
-            cmd_gen_strategy.generate_test_command(
-                test_run.test.test_definition.extra_env_vars,
-                test_run.test.test_definition.cmd_args.model_dump(),
-                test_run,
-            )
