@@ -130,6 +130,11 @@ def test_strategies(key: tuple, value: type):
     assert strategies[key] == value
 
 
+def test_num_strategies():
+    strategies = Registry().strategies_map
+    assert len(strategies) == 51
+
+
 def test_installers():
     installers = Registry().installers_map
     assert len(installers) == 3
