@@ -36,12 +36,9 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return base_args
 
     def generate_test_command(self, env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun) -> List[str]:
-        command = ["nemo", "llm"]
-
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
-        command.append(tdef.cmd_args.task)
-        command.extend(["--factory", tdef.cmd_args.recipe_name])
-        command.append("-y")
+
+        command = ["nemo", "llm", tdef.cmd_args.task, "--factory", tdef.cmd_args.recipe_name, "-y"]
 
         if tr.nodes:
             command.append(f"trainer.num_nodes={len(tr.nodes)}")
