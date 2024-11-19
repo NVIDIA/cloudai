@@ -76,6 +76,12 @@ from .schema.test_template.sleep.kubernetes_json_gen_strategy import SleepKubern
 from .schema.test_template.sleep.report_generation_strategy import SleepReportGenerationStrategy
 from .schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from .schema.test_template.sleep.standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
+from .schema.test_template.slurm_container.report_generation_strategy import (
+    SlurmContainerReportGenerationStrategy,
+)
+from .schema.test_template.slurm_container.slurm_command_gen_strategy import (
+    SlurmContainerCommandGenStrategy,
+)
 from .schema.test_template.ucc_test.grading_strategy import UCCTestGradingStrategy
 from .schema.test_template.ucc_test.report_generation_strategy import UCCTestReportGenerationStrategy
 from .schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
@@ -92,6 +98,7 @@ from .test_definitions import (
     SleepTestDefinition,
     UCCTestDefinition,
 )
+from .test_definitions.slurm_container import SlurmContainerTestDefinition
 
 Registry().add_runner("slurm", SlurmRunner)
 Registry().add_runner("kubernetes", KubernetesRunner)
@@ -128,6 +135,9 @@ Registry().add_strategy(
     CommandGenStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherSlurmCommandGenStrategy
 )
 Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [UCCTestDefinition], UCCTestReportGenerationStrategy)
+Registry().add_strategy(
+    ReportGenerationStrategy, [SlurmSystem], [SlurmContainerTestDefinition], SlurmContainerReportGenerationStrategy
+)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherGradingStrategy)
 Registry().add_strategy(
     GradingStrategy,
@@ -191,6 +201,9 @@ Registry().add_strategy(GradingStrategy, [SlurmSystem], [ChakraReplayTestDefinit
 Registry().add_strategy(
     CommandGenStrategy, [SlurmSystem], [ChakraReplayTestDefinition], ChakraReplaySlurmCommandGenStrategy
 )
+Registry().add_strategy(
+    CommandGenStrategy, [SlurmSystem], [SlurmContainerTestDefinition], SlurmContainerCommandGenStrategy
+)
 
 Registry().add_installer("slurm", SlurmInstaller)
 Registry().add_installer("standalone", StandaloneInstaller)
@@ -208,6 +221,7 @@ Registry().add_test_definition("NeMoLauncher", NeMoLauncherTestDefinition)
 Registry().add_test_definition("JaxToolboxGPT", GPTTestDefinition)
 Registry().add_test_definition("JaxToolboxGrok", GrokTestDefinition)
 Registry().add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)
+Registry().add_test_definition("SlurmContainer", SlurmContainerTestDefinition)
 
 
 __all__ = [

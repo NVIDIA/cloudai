@@ -47,7 +47,11 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             )
         self.final_cmd_args["cluster.gpus_per_node"] = self.system.gpus_per_node or "null"
 
-        repo_path = tdef.python_executable.git_repo.installed_path
+        repo_path = (
+            tdef.python_executable.git_repo.installed_path.absolute()
+            if tdef.python_executable.git_repo.installed_path is not None
+            else None
+        )
         if not repo_path:
             logging.warning(
                 f"Local clone of git repo {tdef.python_executable.git_repo} does not exist. "
@@ -65,7 +69,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self.final_cmd_args.update(
             {
                 "base_results_dir": str(tr.output_path.absolute()),
-                "launcher_scripts_path": str((repo_path / tdef.cmd_args.launcher_script).parent),
+                "launcher_scripts_path": str((repo_path / tdef.cmd_args.launcher_script).parent.absolute()),
             }
         )
 

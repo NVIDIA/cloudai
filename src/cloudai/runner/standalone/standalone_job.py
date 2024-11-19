@@ -14,28 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union
+from dataclasses import dataclass
 
-from cloudai import BaseJob, System, TestRun
+from cloudai import BaseJob
 
 
+@dataclass
 class StandaloneJob(BaseJob):
-    """
-    A job class for standalone execution.
+    """A job class for standalone execution."""
 
-    Attributes
-        id (Union[str, int]): The unique identifier of the job.
-    """
-
-    def __init__(self, mode: str, system: System, test_run: TestRun, job_id: Union[str, int]):
-        BaseJob.__init__(self, mode, system, test_run)
-        self.id = job_id
-
-    def __repr__(self) -> str:
-        """
-        Return a string representation of the StandaloneJob instance.
-
-        Returns
-            str: String representation of the job.
-        """
-        return f"StandaloneJob(id={self.id}, test={self.test_run.test.name})"
+    pass

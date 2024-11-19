@@ -68,4 +68,4 @@ class StandaloneRunner(BaseRunner):
                     stderr="",
                     message="Failed to retrieve job ID from command output.",
                 )
-        return StandaloneJob(self.mode, self.system, tr, job_id)
+        return StandaloneJob(tr, id=job_id)

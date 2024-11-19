@@ -139,7 +139,7 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 8
+    assert len(test_defs) == 9
     assert test_defs["UCCTest"] == UCCTestDefinition
     assert test_defs["NcclTest"] == NCCLTestDefinition
     assert test_defs["ChakraReplay"] == ChakraReplayTestDefinition

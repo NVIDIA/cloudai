@@ -15,8 +15,8 @@ echo "Loading container with srun command"
     --mpi=none \
      \
     --export=ALL \
-    -o __OUTPUT_DIR__/output-%j-%n-%t.txt \
-    -e __OUTPUT_DIR__/error-%j-%n-%t.txt \
+    -o __OUTPUT_DIR__/output/output-%j-%n-%t.txt \
+    -e __OUTPUT_DIR__/output/error-%j-%n-%t.txt \
     --container-name=cont \
-    --container-mounts=__OUTPUT_DIR__:/opt/paxml/workspace/ \
+    --container-mounts=__OUTPUT_DIR__/output:/opt/paxml/workspace/ \
     /opt/paxml/workspace/run.sh
