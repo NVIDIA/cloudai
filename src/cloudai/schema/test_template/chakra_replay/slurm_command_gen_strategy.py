@@ -14,10 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.test_definitions.chakra_replay import ChakraReplayTestDefinition
 
 
 class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -28,10 +29,13 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
     ) -> Dict[str, Any]:
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
-        image_path = cmd_args["docker_image_url"]
-        container_mounts = f"{cmd_args['trace_path']}:{cmd_args['trace_path']}"
-
-        base_args.update({"image_path": image_path, "container_mounts": container_mounts})
+        tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, tr.test.test_definition)
+        base_args.update(
+            {
+                "image_path": tdef.docker_image.installed_path,
+                "container_mounts": f"{tdef.cmd_args.trace_path}:{tdef.cmd_args.trace_path}",
+            }
+        )
 
         return base_args
 
