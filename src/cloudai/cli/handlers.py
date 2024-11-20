@@ -103,27 +103,25 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     logging.info(f"Scheduler: {system.scheduler}")
     logging.info(f"Test Scenario Name: {test_scenario.name}")
 
-    rc = 0
-    if args.mode == "run":
-        logging.info("Checking if test templates are installed.")
+    logging.info("Checking if test templates are installed.")
 
-        installables: list[Installable] = []
-        for test in tests:
-            logging.debug(f"{test.name} has {len(test.test_definition.installables)} installables.")
-            installables.extend(test.test_definition.installables)
+    installables: list[Installable] = []
+    for test in tests:
+        logging.debug(f"{test.name} has {len(test.test_definition.installables)} installables.")
+        installables.extend(test.test_definition.installables)
 
-        registry = Registry()
-        installer_class = registry.installers_map.get(system.scheduler)
-        if installer_class is None:
-            raise NotImplementedError(f"No installer available for scheduler: {system.scheduler}")
-        installer = installer_class(system)
+    registry = Registry()
+    installer_class = registry.installers_map.get(system.scheduler)
+    if installer_class is None:
+        raise NotImplementedError(f"No installer available for scheduler: {system.scheduler}")
+    installer = installer_class(system)
 
-        result = installer.is_installed(installables)
+    result = installer.is_installed(installables)
 
-        if not result.success:
-            logging.error("CloudAI has not been installed. Please run install mode first.")
-            logging.error(result.message)
-            return 1
+    if args.mode == "run" and not result.success:
+        logging.error("CloudAI has not been installed. Please run install mode first.")
+        logging.error(result.message)
+        return 1
 
     logging.info(test_scenario.pretty_print())
 
@@ -141,7 +139,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
             " identify any issues."
         )
 
-    return rc
+    return 0
 
 
 def handle_generate_report(args: argparse.Namespace) -> int:
