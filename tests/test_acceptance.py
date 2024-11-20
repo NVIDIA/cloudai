@@ -115,7 +115,8 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
         "grok-pre-test",
         "grok-no-hook",
         "nemo-launcher",
-        "nemo-run",
+        "nemo-run-pre-test",
+        "nemo-run-no-hook",
         "slurm_container",
     ]
 )
@@ -162,19 +163,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             NeMoLauncher,
             NeMoLauncherSlurmCommandGenStrategy,
         ),
-        "nemo-run": lambda: create_test_run(
-            "nemo-run",
-            NeMoRunTestDefinition(
-                name="nemo-run",
-                description="nemo-run",
-                test_template_name="nemo-run",
-                cmd_args=NeMoRunCmdArgs(
-                    docker_image_url="nvcr.io/nvidia/nemo:24.09", task="pretrain", recipe_name="llama_3b"
-                ),
-            ),
-            NeMoRun,
-            NeMoRunSlurmCommandGenStrategy,
-        ),
         "slurm_container": lambda: create_test_run(
             "slurm_container",
             SlurmContainerTestDefinition(
@@ -196,7 +184,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
     }
 
     # Special cases for gpt and grok
-    if request.param.startswith("gpt-") or request.param.startswith("grok-"):
+    if request.param.startswith("gpt-") or request.param.startswith("grok-") or request.param.startswith("nemo-run-"):
         if "gpt" in request.param:
             test_type = "gpt"
             tr = create_test_run(
@@ -211,6 +199,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 JaxToolbox,
                 JaxToolboxSlurmCommandGenStrategy,
             )
+
         elif "grok" in request.param:
             test_type = "grok"
             tr = create_test_run(
@@ -225,6 +214,21 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 JaxToolbox,
                 JaxToolboxSlurmCommandGenStrategy,
             )
+        elif "nemo-run" in request.param:
+            test_type = "nemo-run"
+            tr = create_test_run(
+                test_type,
+                NeMoRunTestDefinition(
+                    name=test_type,
+                    description=test_type,
+                    test_template_name=test_type,
+                    cmd_args=NeMoRunCmdArgs(
+                        docker_image_url="nvcr.io/nvidia/nemo:24.09", task="pretrain", recipe_name="llama_3b"
+                    ),
+                ),
+                NeMoRun,
+                NeMoRunSlurmCommandGenStrategy,
+            )
         else:
             raise ValueError(f"Unknown test type: {request.param}")
 
@@ -233,7 +237,10 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             pre_test_tr = test_mapping["nccl"]()
             tr.pre_test = TestScenario(name=f"{pre_test_tr.name} NCCL pre-test", test_runs=[pre_test_tr])
 
-        return (tr, f"{request.param}.sbatch", f"{test_type}.run")
+        if test_type == "nemo-run":
+            return (tr, f"{request.param}.sbatch", None)
+        else:
+            return (tr, f"{request.param}.sbatch", f"{test_type}.run")
 
     # Default handler for simple mappings
     if request.param in test_mapping:
