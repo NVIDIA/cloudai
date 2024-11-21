@@ -31,7 +31,7 @@ class TestChakraReplaySlurmCommandGenStrategy:
         return ChakraReplaySlurmCommandGenStrategy(slurm_system, {})
 
     @pytest.mark.parametrize(
-        "job_name_prefix, env_vars, cmd_args, num_nodes, nodes, expected_result",
+        "job_name_prefix, env_vars, cmd_args_attrs, num_nodes, nodes, expected_result",
         [
             (
                 "chakra_replay",
@@ -62,30 +62,24 @@ class TestChakraReplaySlurmCommandGenStrategy:
         cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy,
         job_name_prefix: str,
         env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
+        cmd_args_attrs: Dict[str, Any],
         num_nodes: int,
         nodes: List[str],
         expected_result: Dict[str, Any],
     ) -> None:
-        tr = Mock(spec=TestRun)
-        tr.num_nodes = num_nodes
-        tr.nodes = nodes
-        slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
+        mock_cmd_args = Mock(**cmd_args_attrs)
+        mock_docker_image = Mock(installed_path=cmd_args_attrs["docker_image_url"])
+        mock_test_definition = Mock(cmd_args=mock_cmd_args, docker_image=mock_docker_image)
+
+        mock_test_run = Mock(
+            num_nodes=num_nodes,
+            nodes=nodes,
+            test=Mock(test_definition=mock_test_definition),
+        )
+
+        slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, {}, mock_test_run)
         assert slurm_args["image_path"] == expected_result["image_path"]
         assert slurm_args["container_mounts"] == expected_result["container_mounts"]
-
-    def test_parse_slurm_args_invalid_cmd_args(self, cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy) -> None:
-        job_name_prefix = "chakra_replay"
-        env_vars = {"NCCL_DEBUG": "INFO"}
-        cmd_args = {"trace_path": "/workspace/traces/"}  # Missing "docker_image_url"
-        tr = Mock(spec=TestRun)
-        tr.num_nodes = 2
-        tr.nodes = ["node1", "node2"]
-
-        with pytest.raises(KeyError) as exc_info:
-            cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
-
-        assert str(exc_info.value) == "'docker_image_url'", "Expected missing docker_image_url key"
 
     @pytest.mark.parametrize(
         "cmd_args, extra_cmd_args, expected_result",

@@ -27,7 +27,9 @@ class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
     def gen_srun_prefix(self, slurm_args: dict[str, Any], tr: TestRun) -> list[str]:
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
         slurm_args["image_path"] = tdef.docker_image.installed_path
-        slurm_args["container_mounts"] = ",".join(tdef.container_mounts(self.system.install_path))
+        mounts = tdef.container_mounts(self.system.install_path)
+        mounts.append(f"{tr.output_path.absolute()}:/cloudai_run_results")
+        slurm_args["container_mounts"] = ",".join(mounts)
 
         cmd = super().gen_srun_prefix(slurm_args, tr)
         return cmd + ["--no-container-mount-home"]

@@ -71,6 +71,7 @@ from .schema.test_template.nemo_launcher.slurm_command_gen_strategy import NeMoL
 from .schema.test_template.nemo_launcher.slurm_job_id_retrieval_strategy import (
     NeMoLauncherSlurmJobIdRetrievalStrategy,
 )
+from .schema.test_template.nemo_run.slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
 from .schema.test_template.sleep.grading_strategy import SleepGradingStrategy
 from .schema.test_template.sleep.kubernetes_json_gen_strategy import SleepKubernetesJsonGenStrategy
 from .schema.test_template.sleep.report_generation_strategy import SleepReportGenerationStrategy
@@ -94,6 +95,7 @@ from .test_definitions import (
     GrokTestDefinition,
     NCCLTestDefinition,
     NeMoLauncherTestDefinition,
+    NeMoRunTestDefinition,
     NemotronTestDefinition,
     SleepTestDefinition,
     UCCTestDefinition,
@@ -134,6 +136,7 @@ Registry().add_strategy(
 Registry().add_strategy(
     CommandGenStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherSlurmCommandGenStrategy
 )
+Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NeMoRunTestDefinition], NeMoRunSlurmCommandGenStrategy)
 Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [UCCTestDefinition], UCCTestReportGenerationStrategy)
 Registry().add_strategy(
     ReportGenerationStrategy, [SlurmSystem], [SlurmContainerTestDefinition], SlurmContainerReportGenerationStrategy
@@ -163,6 +166,8 @@ Registry().add_strategy(
         NCCLTestDefinition,
         UCCTestDefinition,
         SleepTestDefinition,
+        NeMoRunTestDefinition,
+        SlurmContainerTestDefinition,
     ],
     SlurmJobIdRetrievalStrategy,
 )
@@ -170,16 +175,10 @@ Registry().add_strategy(
     JobIdRetrievalStrategy, [StandaloneSystem], [SleepTestDefinition], StandaloneJobIdRetrievalStrategy
 )
 Registry().add_strategy(
-    JobStatusRetrievalStrategy, [StandaloneSystem], [SleepTestDefinition], DefaultJobStatusRetrievalStrategy
-)
-Registry().add_strategy(
     JobStatusRetrievalStrategy,
     [KubernetesSystem],
     [SleepTestDefinition, NCCLTestDefinition],
     DefaultJobStatusRetrievalStrategy,
-)
-Registry().add_strategy(
-    JobStatusRetrievalStrategy, [SlurmSystem], [NCCLTestDefinition], NcclTestJobStatusRetrievalStrategy
 )
 Registry().add_strategy(
     JobStatusRetrievalStrategy,
@@ -190,8 +189,24 @@ Registry().add_strategy(
 Registry().add_strategy(
     JobStatusRetrievalStrategy,
     [SlurmSystem],
-    [ChakraReplayTestDefinition, UCCTestDefinition, NeMoLauncherTestDefinition, SleepTestDefinition],
+    [NCCLTestDefinition],
+    NcclTestJobStatusRetrievalStrategy,
+)
+Registry().add_strategy(
+    JobStatusRetrievalStrategy,
+    [SlurmSystem],
+    [
+        ChakraReplayTestDefinition,
+        UCCTestDefinition,
+        NeMoLauncherTestDefinition,
+        SleepTestDefinition,
+        NeMoRunTestDefinition,
+        SlurmContainerTestDefinition,
+    ],
     DefaultJobStatusRetrievalStrategy,
+)
+Registry().add_strategy(
+    JobStatusRetrievalStrategy, [StandaloneSystem], [SleepTestDefinition], DefaultJobStatusRetrievalStrategy
 )
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [UCCTestDefinition], UCCTestSlurmCommandGenStrategy)
 Registry().add_strategy(
@@ -218,6 +233,7 @@ Registry().add_test_definition("NcclTest", NCCLTestDefinition)
 Registry().add_test_definition("ChakraReplay", ChakraReplayTestDefinition)
 Registry().add_test_definition("Sleep", SleepTestDefinition)
 Registry().add_test_definition("NeMoLauncher", NeMoLauncherTestDefinition)
+Registry().add_test_definition("NeMoRun", NeMoRunTestDefinition)
 Registry().add_test_definition("JaxToolboxGPT", GPTTestDefinition)
 Registry().add_test_definition("JaxToolboxGrok", GrokTestDefinition)
 Registry().add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)

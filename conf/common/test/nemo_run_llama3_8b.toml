@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name = "nemo_run_llama3_8b"
+description = "nemo_run_llama3_8b"
+test_template_name = "NeMoRun"
+
+[cmd_args]
+"docker_image_url" = "nvcr.io/nvidia/nemo:24.09"
+"task" = "pretrain"
+"recipe_name" = "llama3_8b"
+
+[extra_cmd_args]
+"trainer.max_steps" = "5"
+"trainer.val_check_interval" = "1000"
+"log.ckpt.save_on_train_epoch_end" = "False"
+"log.ckpt.save_last" = "False"
