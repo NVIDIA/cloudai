@@ -169,7 +169,7 @@ class BaseRunner(ABC):
             logging.error(e)
             exit(1)
 
-    async def delayed_submit_test(self, tr: TestRun, delay: int = 0):
+    async def delayed_submit_test(self, tr: TestRun, delay: int = 5):
         """
         Delay the start of a test based on start_post_comp dependency.
 
