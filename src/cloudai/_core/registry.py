@@ -24,7 +24,6 @@ from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
 from .test import TestDefinition
-from .test_template import TestTemplate
 from .test_template_strategy import TestTemplateStrategy
 
 
@@ -55,7 +54,7 @@ class Registry(metaclass=Singleton):
                 ]
             ],
             Type[System],
-            Type[TestTemplate],
+            Type[TestDefinition],
         ],
         Type[
             Union[
@@ -67,7 +66,6 @@ class Registry(metaclass=Singleton):
             ]
         ],
     ] = {}
-    test_templates_map: Dict[str, Type[TestTemplate]] = {}
     installers_map: Dict[str, Type[BaseInstaller]] = {}
     systems_map: Dict[str, Type[System]] = {}
     test_definitions_map: Dict[str, Type[TestDefinition]] = {}
@@ -114,7 +112,7 @@ class Registry(metaclass=Singleton):
             ]
         ],
         system_types: List[Type[System]],
-        template_types: List[Type[TestTemplate]],
+        definition_types: List[Type[TestDefinition]],
         strategy: Type[
             Union[
                 TestTemplateStrategy,
@@ -126,8 +124,8 @@ class Registry(metaclass=Singleton):
         ],
     ) -> None:
         for system_type in system_types:
-            for template_type in template_types:
-                key = (strategy_interface, system_type, template_type)
+            for def_type in definition_types:
+                key = (strategy_interface, system_type, def_type)
                 if key in self.strategies_map:
                     raise ValueError(f"Duplicating implementation for '{key}', use 'update()' for replacement.")
                 self.update_strategy(key, strategy)
@@ -145,7 +143,7 @@ class Registry(metaclass=Singleton):
                 ]
             ],
             Type[System],
-            Type[TestTemplate],
+            Type[TestDefinition],
         ],
         value: Type[
             Union[
@@ -171,8 +169,8 @@ class Registry(metaclass=Singleton):
             )
         if not issubclass(key[1], System):
             raise ValueError("Invalid system type, should be subclass of 'System'.")
-        if not issubclass(key[2], TestTemplate):
-            raise ValueError("Invalid test template type, should be subclass of 'TestTemplate'.")
+        if not issubclass(key[2], TestDefinition):
+            raise ValueError("Invalid test definition type, should be subclass of 'TestDefinition'.")
 
         if not (
             issubclass(value, TestTemplateStrategy)
@@ -183,38 +181,6 @@ class Registry(metaclass=Singleton):
         ):
             raise ValueError(f"Invalid strategy implementation {value}, should be subclass of 'TestTemplateStrategy'.")
         self.strategies_map[key] = value
-
-    def add_test_template(self, name: str, value: Type[TestTemplate]) -> None:
-        """
-        Add a new test template implementation mapping.
-
-        Args:
-            name (str): The name of the test template.
-            value (Type[TestTemplate]): The test template implementation.
-
-        Raises:
-            ValueError: If the test template implementation already exists.
-        """
-        if name in self.test_templates_map:
-            raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
-        self.update_test_template(name, value)
-
-    def update_test_template(self, name: str, value: Type[TestTemplate]) -> None:
-        """
-        Create or replace test template implementation mapping.
-
-        Args:
-            name (str): The name of the test template.
-            value (Type[TestTemplate]): The test template implementation.
-
-        Raises:
-            ValueError: If value is not a subclass of TestTemplate.
-        """
-        if not issubclass(value, TestTemplate):
-            raise ValueError(
-                f"Invalid test template implementation for '{name}', should be subclass of 'TestTemplate'."
-            )
-        self.test_templates_map[name] = value
 
     def add_installer(self, name: str, value: Type[BaseInstaller]) -> None:
         """

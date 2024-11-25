@@ -22,19 +22,14 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai import NcclTest, Test, TestRun, TestScenario, UCCTest
+from cloudai import Test, TestRun, TestScenario, TestTemplate
 from cloudai.cli import handle_dry_run_and_run, setup_logging
 from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
-from cloudai.schema.test_template.jax_toolbox.template import JaxToolbox
 from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import NeMoLauncherSlurmCommandGenStrategy
-from cloudai.schema.test_template.nemo_launcher.template import NeMoLauncher
 from cloudai.schema.test_template.nemo_run.slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
-from cloudai.schema.test_template.nemo_run.template import NeMoRun
 from cloudai.schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
-from cloudai.schema.test_template.sleep.template import Sleep
 from cloudai.schema.test_template.slurm_container.slurm_command_gen_strategy import SlurmContainerCommandGenStrategy
-from cloudai.schema.test_template.slurm_container.template import SlurmContainer
 from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
@@ -121,10 +116,10 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
     ]
 )
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> tuple[TestRun, str, Optional[str]]:
-    def create_test_run(name, test_definition, test_template, command_gen_strategy):
+    def create_test_run(name, test_definition, command_gen_strategy):
         tr = partial_tr(
             name=name,
-            test=Test(test_definition=test_definition, test_template=test_template(slurm_system, name=name)),
+            test=Test(test_definition=test_definition, test_template=TestTemplate(slurm_system, name=name)),
         )
         tr.test.test_template.command_gen_strategy = command_gen_strategy(
             slurm_system, tr.test.test_definition.cmd_args_dict
@@ -137,19 +132,16 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         "ucc": lambda: create_test_run(
             "ucc",
             UCCTestDefinition(name="ucc", description="ucc", test_template_name="ucc", cmd_args=UCCCmdArgs()),
-            UCCTest,
             UCCTestSlurmCommandGenStrategy,
         ),
         "nccl": lambda: create_test_run(
             "nccl",
             NCCLTestDefinition(name="nccl", description="nccl", test_template_name="nccl", cmd_args=NCCLCmdArgs()),
-            NcclTest,
             NcclTestSlurmCommandGenStrategy,
         ),
         "sleep": lambda: create_test_run(
             "sleep",
             SleepTestDefinition(name="sleep", description="sleep", test_template_name="sleep", cmd_args=SleepCmdArgs()),
-            Sleep,
             SleepSlurmCommandGenStrategy,
         ),
         "nemo-launcher": lambda: create_test_run(
@@ -160,7 +152,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 test_template_name="nemo-launcher",
                 cmd_args=NeMoLauncherCmdArgs(),
             ),
-            NeMoLauncher,
             NeMoLauncherSlurmCommandGenStrategy,
         ),
         "slurm_container": lambda: create_test_run(
@@ -178,7 +169,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 ),
                 extra_cmd_args={"bash": '-c "pwd ; ls"'},
             ),
-            SlurmContainer,
             SlurmContainerCommandGenStrategy,
         ),
     }
@@ -196,7 +186,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     cmd_args=GPTCmdArgs(fdl_config="fdl/config", docker_image_url="https://docker/url"),
                     extra_env_vars={"COMBINE_THRESHOLD": "1"},
                 ),
-                JaxToolbox,
                 JaxToolboxSlurmCommandGenStrategy,
             )
 
@@ -211,7 +200,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     cmd_args=GrokCmdArgs(fdl_config="fdl/config", docker_image_url="https://docker/url"),
                     extra_env_vars={"COMBINE_THRESHOLD": "1"},
                 ),
-                JaxToolbox,
                 JaxToolboxSlurmCommandGenStrategy,
             )
         elif "nemo-run" in request.param:
@@ -226,7 +214,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                         docker_image_url="nvcr.io/nvidia/nemo:24.09", task="pretrain", recipe_name="llama_3b"
                     ),
                 ),
-                NeMoRun,
                 NeMoRunSlurmCommandGenStrategy,
             )
         else:

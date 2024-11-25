@@ -15,9 +15,7 @@
 # limitations under the License.
 
 from .slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
-from .template import NeMoRun
 
 __all__ = [
-    "NeMoRun",
     "NeMoRunSlurmCommandGenStrategy",
 ]
