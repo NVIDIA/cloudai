@@ -326,13 +326,14 @@ class BokehReportTool:
             p = self.add_single_point_plot(df, title, x_column, y_columns, x_axis_label, y_axis_label)
 
         else:
-            if df[x_column].duplicated().any():
+            x_min, x_max = self.find_min_max(df, x_column)
+
+            if df[x_column].duplicated().any() and x_min != x_max:
                 p = self.add_multiple_messages_multi_lines_plot(
                     df, title, x_column, y_columns, x_axis_label, y_axis_label
                 )
 
             else:
-                x_min, x_max = self.find_min_max(df, x_column)
                 y_max = 0
                 for y_column, _ in y_columns:
                     _, col_max = self.find_min_max(df, y_column, sol)
