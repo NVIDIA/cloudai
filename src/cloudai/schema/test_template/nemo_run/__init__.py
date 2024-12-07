@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai import TestTemplate
+from .slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
 
-
-class JaxToolbox(TestTemplate):
-    """Test template for the JAX Toolbox."""
+__all__ = [
+    "NeMoRunSlurmCommandGenStrategy",
+]

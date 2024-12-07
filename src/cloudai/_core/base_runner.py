@@ -169,7 +169,7 @@ class BaseRunner(ABC):
             logging.error(e)
             exit(1)
 
-    async def delayed_submit_test(self, tr: TestRun, delay: int = 0):
+    async def delayed_submit_test(self, tr: TestRun, delay: int = 5):
         """
         Delay the start of a test based on start_post_comp dependency.
 
@@ -204,7 +204,7 @@ class BaseRunner(ABC):
         items = list(self.testrun_to_job_map.items())
 
         for tr, job in items:
-            if job.is_running():
+            if self.mode == "dry-run" or self.system.is_job_running(job):
                 await self.check_and_schedule_start_post_init_dependent_tests(tr)
 
     async def check_and_schedule_start_post_init_dependent_tests(self, started_test_run: TestRun):
@@ -279,7 +279,7 @@ class BaseRunner(ABC):
         successful_jobs_count = 0
 
         for job in list(self.jobs):
-            if job.is_completed():
+            if self.mode == "dry-run" or self.system.is_job_completed(job):
                 await self.job_completion_callback(job)
 
                 if self.mode == "dry-run":
@@ -322,7 +322,7 @@ class BaseRunner(ABC):
         Returns:
             JobStatusResult: The result containing the job status and an optional error message.
         """
-        return job.test_run.test.test_template.get_job_status(job.output_path)
+        return job.test_run.test.test_template.get_job_status(job.test_run.output_path)
 
     async def handle_job_completion(self, completed_job: BaseJob):
         """
@@ -335,7 +335,7 @@ class BaseRunner(ABC):
 
         self.jobs.remove(completed_job)
         del self.testrun_to_job_map[completed_job.test_run]
-        completed_job.increment_iteration()
+        completed_job.test_run.current_iteration += 1
         if not completed_job.terminated_by_dependency and completed_job.test_run.has_more_iterations():
             msg = f"Re-running job for iteration {completed_job.test_run.current_iteration}"
             logging.info(msg)

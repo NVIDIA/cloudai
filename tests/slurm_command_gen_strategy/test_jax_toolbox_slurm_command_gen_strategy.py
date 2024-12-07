@@ -19,9 +19,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from cloudai import Test, TestRun
+from cloudai import Test, TestRun, TestTemplate
 from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
-from cloudai.schema.test_template.jax_toolbox.template import JaxToolbox
 from cloudai.systems import SlurmSystem
 from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
 from cloudai.test_definitions.grok import GrokCmdArgs, GrokTestDefinition
@@ -64,7 +63,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
     ) -> None:
         test_def = request.getfixturevalue(test_fixture)
 
-        test = Test(test_definition=test_def, test_template=JaxToolbox(slurm_system, "name"))
+        test = Test(test_definition=test_def, test_template=TestTemplate(slurm_system, "name"))
         test_run = TestRun(
             test=test,
             num_nodes=1,

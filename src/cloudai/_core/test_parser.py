@@ -106,7 +106,7 @@ class TestParser:
             ]
         ],
         system_type: Type[System],
-        test_template_type: Type[TestTemplate],
+        test_definition_type: Type[TestDefinition],
         cmd_args: Dict[str, Any],
     ) -> Optional[
         Union[
@@ -131,7 +131,7 @@ class TestParser:
         Returns:
             An instance of the requested strategy, or None.
         """
-        key = (strategy_interface, system_type, test_template_type)
+        key = (strategy_interface, system_type, test_definition_type)
         registry = Registry()
         strategy_type = registry.strategies_map.get(key)
         if strategy_type:
@@ -142,51 +142,47 @@ class TestParser:
 
         logging.debug(
             f"No {strategy_interface.__name__} found for "
-            f"{test_template_type.__name__} and "
+            f"{test_definition_type.__name__} and "
             f"{type(self.system).__name__}"
         )
         return None
 
-    def _get_test_template(self, name: str, cmd_args: Dict[str, Any]) -> TestTemplate:
+    def _get_test_template(self, name: str, tdef: TestDefinition) -> TestTemplate:
         """
         Dynamically retrieves the appropriate TestTemplate subclass based on the given name.
 
         Args:
             name (str): The name of the test template.
-            cmd_args (Dict[str, Any]): Command-line arguments.
+            tdef (TestDefinition): The test definition.
 
         Returns:
             Type[TestTemplate]: A subclass of TestTemplate corresponding to the given name.
         """
-        template_classes = Registry().test_templates_map
+        cmd_args = tdef.cmd_args_dict
 
-        test_template_class = template_classes.get(name)
-        if not test_template_class:
-            raise ValueError(f"Unsupported test_template name: {name}")
-
-        obj = test_template_class(system=self.system, name=name)
+        obj = TestTemplate(system=self.system, name=name)
         obj.command_gen_strategy = cast(
             CommandGenStrategy,
-            self._fetch_strategy(CommandGenStrategy, type(obj.system), type(obj), cmd_args),
+            self._fetch_strategy(CommandGenStrategy, type(obj.system), type(tdef), cmd_args),
         )
         obj.json_gen_strategy = cast(
             JsonGenStrategy,
-            self._fetch_strategy(JsonGenStrategy, type(obj.system), type(obj), cmd_args),
+            self._fetch_strategy(JsonGenStrategy, type(obj.system), type(tdef), cmd_args),
         )
         obj.job_id_retrieval_strategy = cast(
             JobIdRetrievalStrategy,
-            self._fetch_strategy(JobIdRetrievalStrategy, type(obj.system), type(obj), cmd_args),
+            self._fetch_strategy(JobIdRetrievalStrategy, type(obj.system), type(tdef), cmd_args),
         )
         obj.job_status_retrieval_strategy = cast(
             JobStatusRetrievalStrategy,
-            self._fetch_strategy(JobStatusRetrievalStrategy, type(obj.system), type(obj), cmd_args),
+            self._fetch_strategy(JobStatusRetrievalStrategy, type(obj.system), type(tdef), cmd_args),
         )
         obj.report_generation_strategy = cast(
             ReportGenerationStrategy,
-            self._fetch_strategy(ReportGenerationStrategy, type(obj.system), type(obj), cmd_args),
+            self._fetch_strategy(ReportGenerationStrategy, type(obj.system), type(tdef), cmd_args),
         )
         obj.grading_strategy = cast(
-            GradingStrategy, self._fetch_strategy(GradingStrategy, type(obj.system), type(obj), cmd_args)
+            GradingStrategy, self._fetch_strategy(GradingStrategy, type(obj.system), type(tdef), cmd_args)
         )
         return obj
 
@@ -202,25 +198,8 @@ class TestParser:
         """
         test_def = self.load_test_definition(data)
 
-        """
-        There are:
-        1. global_env_vars, used in System
-        2. extra_env_vars, used in Test
-        """
-        cmd_args = test_def.cmd_args_dict
-
         test_template_name = data.get("test_template_name", "")
-        test_template = self._get_test_template(test_template_name, cmd_args)
-
-        if not test_template:
-            test_name = data.get("name", "Unnamed Test")
-            raise ValueError(
-                f"Test template with name '{test_template_name}' not found for test '{test_name}'. Please ensure the "
-                f"test_template_name field in your test schema file matches one of the available test templates in "
-                f"the provided test template directory. To resolve this issue, you can either add a corresponding "
-                f"test template TOML file for '{test_template_name}' in the directory or remove the test schema file "
-                f"that references this non-existing test template."
-            )
+        test_template = self._get_test_template(test_template_name, test_def)
 
         return Test(test_definition=test_def, test_template=test_template)
 

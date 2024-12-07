@@ -23,13 +23,13 @@ jobs:
         run: pip install -r requirements-dev.txt
 
       - name: Run ruff linter
-        run: ruff check .
+        run: ruff check
 
       - name: Run ruff formatter
-        run: ruff format --check --diff .
+        run: ruff format --check --diff
 
       - name: Run pyright
-        run: pyright .
+        run: pyright
 
       - name: Run vulture check
         run: vulture src/ tests/
@@ -100,3 +100,7 @@ jobs:
           # this checks that all TOMLs are valid, Test Scenarios are checked agains _only_ the tests in the specified directory
           cloudai verify-configs --tests-dir conf/common/test conf/common
           cloudai verify-configs --tests-dir conf/release/spcx/l40s/test conf/release/spcx/l40s
+
+          cloudai dry-run --system-config conf/common/system/example_slurm_cluster.toml \
+            --tests-dir conf/common/test/ \
+            --test-scenario conf/common/test_scenario/ucc_test.toml

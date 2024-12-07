@@ -52,6 +52,7 @@ class _TestScenarioTOML(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str
+    sol_path: Optional[str] = None
     job_status_check: bool = True
     tests: list[_TestRunTOML] = Field(alias="Tests", min_length=1)
     pre_test: Optional[str] = None

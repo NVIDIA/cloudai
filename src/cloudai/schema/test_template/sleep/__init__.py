@@ -19,10 +19,8 @@ from .kubernetes_json_gen_strategy import SleepKubernetesJsonGenStrategy
 from .report_generation_strategy import SleepReportGenerationStrategy
 from .slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from .standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
-from .template import Sleep
 
 __all__ = [
-    "Sleep",
     "SleepStandaloneCommandGenStrategy",
     "SleepKubernetesJsonGenStrategy",
     "SleepSlurmCommandGenStrategy",

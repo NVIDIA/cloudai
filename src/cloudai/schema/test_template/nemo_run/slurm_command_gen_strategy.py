@@ -14,37 +14,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 from typing import Any, Dict, List, cast
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
-from cloudai.test_definitions.chakra_replay import ChakraReplayTestDefinition
+from cloudai.test_definitions.nemo_run import NeMoRunTestDefinition
 
 
-class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
-    """Command generation strategy for ChakraReplay on Slurm systems."""
+class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
+    """Command generation strategy for NeMo 2.0 on Slurm systems."""
 
     def _parse_slurm_args(
         self, job_name_prefix: str, env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun
     ) -> Dict[str, Any]:
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
-        tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, tr.test.test_definition)
-        base_args.update(
-            {
-                "image_path": tdef.docker_image.installed_path,
-                "container_mounts": f"{tdef.cmd_args.trace_path}:{tdef.cmd_args.trace_path}",
-            }
-        )
+        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
+        base_args.update({"image_path": tdef.docker_image.installed_path})
 
         return base_args
 
     def generate_test_command(self, env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun) -> List[str]:
-        srun_command_parts = [
-            "comm_replay",
-            f'--trace-type {cmd_args["trace_type"]}',
-            f'--trace-path {cmd_args["trace_path"]}',
-            f'--num-replays {cmd_args["num_replays"]}',
-            tr.test.extra_cmd_args,
-        ]
-        return srun_command_parts
+        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
+
+        command = ["nemo", "llm", tdef.cmd_args.task, "--factory", tdef.cmd_args.recipe_name, "-y"]
+
+        if tr.nodes:
+            command.append(f"trainer.num_nodes={len(tr.nodes)}")
+        elif tr.num_nodes > 0:
+            command.append(f"trainer.num_nodes={tr.num_nodes}")
+
+        if tr.test.extra_cmd_args:
+            command.append(tr.test.extra_cmd_args)
+
+        return command
