@@ -32,10 +32,6 @@ from cloudai._core.test_template import TestTemplate
 from cloudai.test_definitions.sleep import SleepCmdArgs, SleepTestDefinition
 
 
-def create_autospec_dataclass(dataclass: type) -> TestRun:
-    return Mock(spec=[field.name for field in fields(dataclass)])
-
-
 class MySystem(System):
     def __init__(
         self,
