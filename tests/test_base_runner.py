@@ -170,7 +170,7 @@ class MyRunner(Runner):
 
     def process_completed_jobs(self):
         for job in self.active_jobs.values():
-            if job.is_completed():
+            if self.system.is_job_completed(job):
                 self.completed_jobs[job.test_run.name] = job
                 self.test_scenario_iter.on_completed(job.test_run, self)
 
@@ -180,8 +180,7 @@ class MyRunner(Runner):
             del self.active_jobs[name]
 
     def submit_one(self, tr: TestRun) -> None:
-        job = BaseJob(self.mode, self.system, tr)
-        job.id = self.system.job_id_counter
+        job = BaseJob(tr, self.system.job_id_counter)
         self.active_jobs[tr.name] = job
 
     def kill_one(self, tr: TestRun) -> None:
