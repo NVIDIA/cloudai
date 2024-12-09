@@ -17,7 +17,6 @@
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
-from dataclasses import fields
 from functools import partial
 from pathlib import Path
 from typing import Any, Dict, Optional, final
@@ -139,7 +138,13 @@ class StaticScenarioIter(ScenarioIter):
             runner.kill_one(tr_to_stop)
 
 
-class MyRunner(Runner):
+class SlurmSbatchRunner(Runner):
+    """Runner that submits jobs to Slurm using sbatch.
+
+    This class gets all available tasks from scenario iterator and submits it into the system. Jobs are monitored and
+    when new jobs are available, they are submitted to the system too. Each job is an sbatch run.
+    """
+
     def __init__(self, mode: str, system: MySystem, test_scenario_iter: ScenarioIter):
         self.mode = mode
         self.system = system
@@ -287,7 +292,7 @@ class TestMyRunner:
         tr1, tr2 = partial_tr(name="tr1"), partial_tr(name="tr2")
 
         ssi = StaticScenarioIter(TestScenario(name="scenario", test_runs=[tr1, tr2]))
-        runner = MyRunner("run", system, ssi)
+        runner = SlurmSbatchRunner("run", system, ssi)
         runner.run()
 
         assert len(runner.active_jobs) == 0
@@ -302,7 +307,7 @@ class TestMyRunner:
         dep_tr = partial_tr(name="tr-dep", dependencies={"start_post_comp": TestDependency(main_tr)})
 
         ssi = StaticScenarioIter(TestScenario(name="scenario", test_runs=[dep_tr, main_tr]))
-        runner = MyRunner("run", system, ssi)
+        runner = SlurmSbatchRunner("run", system, ssi)
         runner.run()
 
         assert len(runner.active_jobs) == 0
@@ -318,7 +323,7 @@ class TestMyRunner:
         post_init_tr = partial_tr(name="tr-post_init", dependencies={"start_post_init": TestDependency(main_tr)})
 
         ssi = StaticScenarioIter(TestScenario(name="scenario", test_runs=[post_comp_tr, post_init_tr, main_tr]))
-        runner = MyRunner("run", system, ssi)
+        runner = SlurmSbatchRunner("run", system, ssi)
         runner.run()
 
         assert len(runner.active_jobs) == 0
