@@ -18,6 +18,7 @@ from ._core.base_installer import BaseInstaller, InstallStatusResult
 from ._core.base_job import BaseJob
 from ._core.base_runner import BaseRunner
 from ._core.base_system_parser import BaseSystemParser
+from ._core.cloudai_gym import CloudAIGym
 from ._core.command_gen_strategy import CommandGenStrategy
 from ._core.exceptions import (
     JobIdRetrievalError,
@@ -42,6 +43,7 @@ from ._core.test_scenario import TestRun, TestScenario
 from ._core.test_scenario_parser import TestScenarioParser
 from ._core.test_template import TestTemplate
 from ._core.test_template_strategy import TestTemplateStrategy
+from .environment.example_environment import ExampleEnv
 from .installer.kubernetes_installer import KubernetesInstaller
 from .installer.slurm_installer import SlurmInstaller
 from .installer.standalone_installer import StandaloneInstaller
@@ -239,6 +241,7 @@ Registry().add_test_definition("JaxToolboxGrok", GrokTestDefinition)
 Registry().add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)
 Registry().add_test_definition("SlurmContainer", SlurmContainerTestDefinition)
 
+Registry().add_gym("example_gym", CloudAIGym)
 
 __all__ = [
     "BaseInstaller",
@@ -272,4 +275,6 @@ __all__ = [
     "TestScenarioParsingError",
     "TestTemplate",
     "TestTemplateStrategy",
+    "ExampleEnv",
+    "CloudAIGym",
 ]
