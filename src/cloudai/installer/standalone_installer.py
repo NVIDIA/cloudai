@@ -47,4 +47,4 @@ class StandaloneInstaller(BaseInstaller):
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
     def is_installed_one(self, item: Installable) -> InstallStatusResult:
-        return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
+        return InstallStatusResult(True, f"Unsupported item type: {type(item)}")

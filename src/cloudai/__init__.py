@@ -49,7 +49,7 @@ from .parser import Parser
 from .report_generator import ReportGenerator
 from .runner.kubernetes.kubernetes_runner import KubernetesRunner
 from .runner.slurm.slurm_runner import SlurmRunner
-from .runner.standalone.standalone_runner import StandaloneRunner
+from .runner.standalone.standalone_runner import NewStandaloneRunner, StandaloneRunner
 from .schema.test_template.chakra_replay.grading_strategy import ChakraReplayGradingStrategy
 from .schema.test_template.chakra_replay.report_generation_strategy import ChakraReplayReportGenerationStrategy
 from .schema.test_template.chakra_replay.slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
@@ -104,7 +104,7 @@ from .test_definitions.slurm_container import SlurmContainerTestDefinition
 
 Registry().add_runner("slurm", SlurmRunner)
 Registry().add_runner("kubernetes", KubernetesRunner)
-Registry().add_runner("standalone", StandaloneRunner)
+Registry().add_runner("standalone", NewStandaloneRunner)
 
 Registry().add_strategy(
     ReportGenerationStrategy, [SlurmSystem, KubernetesSystem], [NCCLTestDefinition], NcclTestReportGenerationStrategy

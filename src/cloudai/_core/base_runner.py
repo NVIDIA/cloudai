@@ -18,12 +18,14 @@ import asyncio
 import logging
 import signal
 import sys
+import time
 from abc import ABC, abstractmethod
 from asyncio import Task
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 from types import FrameType
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, final
 
 from .base_job import BaseJob
 from .exceptions import JobFailureError, JobSubmissionError
@@ -397,3 +399,126 @@ class BaseRunner(ABC):
         await asyncio.sleep(delay)
         job.terminated_by_dependency = True
         self.system.kill(job)
+
+
+class NewBaseRunner(ABC):
+    def __init__(self, mode: str, system: System, test_scenario: TestScenario):
+        self.mode = mode
+        self.system = system
+        self.test_scenario = test_scenario
+        self.test_scenario_iter = StaticScenarioIter(test_scenario)
+
+        self.active_jobs: dict[str, BaseJob] = {}
+        self.completed_jobs: dict[str, BaseJob] = {}
+
+        current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        self.output_path = self.system.output_path / f"{self.test_scenario.name}_{current_time}"
+
+    @abstractmethod
+    def submit_one(self, tr: TestRun) -> None: ...
+
+    @abstractmethod
+    def kill_one(self, tr: TestRun) -> None: ...
+
+    @abstractmethod
+    def process_completed_jobs(self): ...
+
+    @abstractmethod
+    def clean_active_jobs(self): ...
+
+    def create_job_output_path(self, tr: TestRun) -> Path:
+        job_output_path = self.output_path / tr.name / str(tr.current_iteration)
+
+        try:
+            job_output_path.mkdir(parents=True)
+        except PermissionError as e:
+            raise PermissionError(f"Cannot create directory {job_output_path}: {e}") from e
+
+        return job_output_path
+
+    @final
+    def arun(self):
+        while self.test_scenario_iter.has_more_runs:
+            for tr in self.test_scenario_iter:
+                tr.output_path = self.create_job_output_path(tr)
+                self.submit_one(tr)
+
+            self.process_completed_jobs()
+            self.clean_active_jobs()
+
+            time.sleep(self.system.monitor_interval)
+
+        while self.active_jobs:
+            self.process_completed_jobs()
+            self.clean_active_jobs()
+            time.sleep(self.system.monitor_interval)
+
+    async def run(self):
+        return self.arun()
+
+
+class ScenarioIter(ABC, Iterator):
+    @property
+    @abstractmethod
+    def has_more_runs(self) -> bool: ...
+
+    @abstractmethod
+    def __iter__(self) -> Iterator: ...
+
+    @abstractmethod
+    def __next__(self) -> TestRun: ...
+
+    @abstractmethod
+    def on_completed(self, tr: TestRun, runner: NewBaseRunner) -> None: ...
+
+
+class StaticScenarioIter(ScenarioIter):
+    def __init__(self, test_scenario: TestScenario) -> None:
+        self.test_scenario = test_scenario
+        self.ready_for_run: list[TestRun] = []
+        self.submitted: set[str] = set()
+        self.completed: set[str] = set()
+        self.stop_on_completion: dict[str, list[TestRun]] = {}
+
+    @property
+    def test_runs(self) -> list[TestRun]:
+        return self.test_scenario.test_runs
+
+    @property
+    def has_more_runs(self) -> bool:
+        return len(self.submitted) < len(self.test_runs)
+
+    def __iter__(self) -> Iterator:
+        not_submitted = [tr for tr in self.test_runs if tr.name not in self.submitted]
+        for tr in not_submitted:
+            if not tr.dependencies:
+                self.ready_for_run.append(tr)
+            elif tr.dependencies:
+                if "start_post_comp" in tr.dependencies:
+                    dep = tr.dependencies["start_post_comp"]
+                    if dep.test_run.name in self.completed:
+                        self.ready_for_run.append(tr)
+                elif "end_post_comp" in tr.dependencies:
+                    self.ready_for_run.append(tr)
+                    dep = tr.dependencies["end_post_comp"]
+                    self.stop_on_completion.setdefault(dep.test_run.name, []).append(tr)
+
+        for tr in not_submitted:  # submit post_init dependencies right after main
+            if tr.dependencies and "start_post_init" in tr.dependencies:
+                dep = tr.dependencies["start_post_init"]
+                if dep.test_run.name in {t.name for t in self.ready_for_run}:
+                    self.ready_for_run.append(tr)
+
+        return self
+
+    def __next__(self) -> TestRun:
+        if not self.ready_for_run:
+            raise StopIteration
+
+        self.submitted.add(self.ready_for_run[0].name)
+        return self.ready_for_run.pop(0)
+
+    def on_completed(self, tr: TestRun, runner: NewBaseRunner) -> None:
+        self.completed.add(tr.name)
+        for tr_to_stop in self.stop_on_completion.get(tr.name, []):
+            runner.kill_one(tr_to_stop)

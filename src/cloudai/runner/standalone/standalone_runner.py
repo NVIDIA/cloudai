@@ -15,8 +15,13 @@
 # limitations under the License.
 
 import logging
+import subprocess
+import time
+from typing import cast, final
 
 from cloudai import BaseRunner, JobIdRetrievalError, System, TestRun, TestScenario
+from cloudai._core.base_runner import NewBaseRunner, ScenarioIter, StaticScenarioIter
+from cloudai.systems.standalone_system import StandaloneSystem
 from cloudai.util import CommandShell
 
 from .standalone_job import StandaloneJob
@@ -69,3 +74,51 @@ class StandaloneRunner(BaseRunner):
                     message="Failed to retrieve job ID from command output.",
                 )
         return StandaloneJob(tr, id=job_id)
+
+
+class NewStandaloneRunner(NewBaseRunner):
+    """Standalone Runner."""
+
+    def __init__(self, mode: str, system: StandaloneSystem, test_scenario: TestScenario):
+        super().__init__(mode, system, test_scenario)
+        self.system = cast(StandaloneSystem, system)
+        self.test_scenario_iter = StaticScenarioIter(test_scenario)
+
+        self.active_jobs: dict[str, StandaloneJob] = {}
+        self.completed_jobs: dict[str, StandaloneJob] = {}
+
+        self.running_procs: dict[int, subprocess.Popen] = {}
+
+    def process_completed_jobs(self):
+        for job in self.active_jobs.values():
+            completed = job.id not in self.running_procs
+            if job.id in self.running_procs:
+                p = self.running_procs[job.id]
+                if p.poll() is not None:
+                    completed = True
+                    del self.running_procs[job.id]
+            if completed:
+                logging.info(f"Job {job.id} completed, see {job.test_run.output_path}")
+                self.completed_jobs[job.test_run.name] = job
+                self.test_scenario_iter.on_completed(job.test_run, self)
+
+    def clean_active_jobs(self):
+        in_common = set(self.active_jobs.keys()) & set(self.completed_jobs.keys())
+        for name in in_common:
+            del self.active_jobs[name]
+
+    def submit_one(self, tr: TestRun) -> None:
+        command = tr.test.test_template.gen_exec_command(tr)
+        p = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        self.running_procs[p.pid] = p
+        logging.info(f"Running test {tr.name} as Job.id={p.pid}")
+        job = StandaloneJob(tr, p.pid)
+        self.active_jobs[tr.name] = job
+
+    def kill_one(self, tr: TestRun) -> None:
+        logging.info(f"Killing job {tr.name}")
+        job = self.active_jobs.get(tr.name)
+        if job and job.id in self.running_procs:
+            p = self.running_procs[job.id]
+            p.kill()
+            del self.running_procs[job.id]
