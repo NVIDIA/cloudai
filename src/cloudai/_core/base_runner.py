@@ -406,7 +406,7 @@ class NewBaseRunner(ABC):
         self.mode = mode
         self.system = system
         self.test_scenario = test_scenario
-        self.test_scenario_iter = StaticCasesListIter(test_scenario)
+        self.cases_iter = StaticCasesListIter(test_scenario)
 
         self.active_jobs: dict[str, BaseJob] = {}
         self.completed_jobs: dict[str, BaseJob] = {}
@@ -438,8 +438,8 @@ class NewBaseRunner(ABC):
 
     @final
     def arun(self):
-        while self.test_scenario_iter.has_more_runs:
-            for tr in self.test_scenario_iter:
+        while self.cases_iter.has_more_runs:
+            for tr in self.cases_iter:
                 tr.output_path = self.create_job_output_path(tr)
                 self.submit_one(tr)
 
