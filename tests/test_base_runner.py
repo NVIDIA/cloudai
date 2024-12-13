@@ -79,7 +79,7 @@ class SlurmSbatchRunner(NewBaseRunner):
 
     @final
     def run(self):
-        while self.test_scenario_iter.has_more_runs:
+        while self.test_scenario_iter.has_more_cases:
             for tr in self.test_scenario_iter:
                 self.submit_one(tr)
 
@@ -170,7 +170,7 @@ class TestStaticScenarioIter:
         assert len(cases) == 2
         assert cases[0].name == main_tr.name
         assert cases[1].name == dep_tr.name
-        assert not ssi.has_more_runs
+        assert not ssi.has_more_cases
 
     def test_depends_on_comp(self, partial_tr: partial[TestRun]):
         main_tr = partial_tr(name="tr-main")
@@ -182,18 +182,18 @@ class TestStaticScenarioIter:
         cases = [tr for tr in ssi]
         assert len(cases) == 1
         assert cases[0].name == main_tr.name
-        assert ssi.has_more_runs
+        assert ssi.has_more_cases
 
         # cycle two, dependent run
         cases = [tr for tr in ssi]
         assert len(cases) == 0
-        assert ssi.has_more_runs
+        assert ssi.has_more_cases
 
         # cycle three, mark as competed to allow dependent run
         ssi.on_completed(main_tr, Mock())
         cases = [tr for tr in ssi]
         assert len(cases) == 1
-        assert not ssi.has_more_runs
+        assert not ssi.has_more_cases
 
     def test_to_kill_on_comp(self, partial_tr: partial[TestRun]):
         main_tr = partial_tr(name="tr-main")
@@ -204,7 +204,7 @@ class TestStaticScenarioIter:
         # cycle one, both runs
         cases = [tr for tr in ssi]
         assert len(cases) == 2
-        assert not ssi.has_more_runs
+        assert not ssi.has_more_cases
 
         runner = Mock()
         ssi.on_completed(main_tr, runner)

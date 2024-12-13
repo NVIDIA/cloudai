@@ -438,7 +438,7 @@ class NewBaseRunner(ABC):
 
     @final
     def arun(self):
-        while self.cases_iter.has_more_runs:
+        while self.cases_iter.has_more_cases:
             for tr in self.cases_iter:
                 tr.output_path = self.create_job_output_path(tr)
                 self.submit_one(tr)
@@ -460,7 +460,7 @@ class NewBaseRunner(ABC):
 class CasesIter(ABC, Iterator):
     @property
     @abstractmethod
-    def has_more_runs(self) -> bool: ...
+    def has_more_cases(self) -> bool: ...
 
     @abstractmethod
     def __iter__(self) -> Iterator: ...
@@ -485,7 +485,7 @@ class StaticCasesListIter(CasesIter):
         return self.test_scenario.test_runs
 
     @property
-    def has_more_runs(self) -> bool:
+    def has_more_cases(self) -> bool:
         return len(self.submitted) < len(self.test_runs)
 
     def __iter__(self) -> Iterator:
