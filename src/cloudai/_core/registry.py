@@ -18,6 +18,7 @@ from typing import Dict, List, Tuple, Type, Union
 
 from .base_installer import BaseInstaller
 from .base_runner import BaseRunner
+from .cloudai_gym import CloudAIGym
 from .grading_strategy import GradingStrategy
 from .job_id_retrieval_strategy import JobIdRetrievalStrategy
 from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
@@ -69,6 +70,7 @@ class Registry(metaclass=Singleton):
     installers_map: Dict[str, Type[BaseInstaller]] = {}
     systems_map: Dict[str, Type[System]] = {}
     test_definitions_map: Dict[str, Type[TestDefinition]] = {}
+    gyms_map: Dict[str, Type[CloudAIGym]] = {}  # Add this line
 
     def add_runner(self, name: str, value: Type[BaseRunner]) -> None:
         """
@@ -99,6 +101,36 @@ class Registry(metaclass=Singleton):
         if not issubclass(value, BaseRunner):
             raise ValueError(f"Invalid runner implementation for '{name}', should be subclass of 'BaseRunner'.")
         self.runners_map[name] = value
+
+    def add_gym(self, name: str, value: Type[CloudAIGym]) -> None:  # Add this method
+        """
+        Add a new gym implementation mapping.
+
+        Args:
+            name (str): The name of the gym.
+            value (Type[CloudAIGym]): The gym implementation.
+
+        Raises:
+            ValueError: If the gym implementation already exists.
+        """
+        if name in self.gyms_map:
+            raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
+        self.update_gym(name, value)
+
+    def update_gym(self, name: str, value: Type[CloudAIGym]) -> None:  # Add this method
+        """
+        Create or replace gym implementation mapping.
+
+        Args:
+            name (str): The name of the gym.
+            value (Type[CloudAIGym]): The gym implementation.
+
+        Raises:
+            ValueError: If value is not a subclass of CloudAIGym.
+        """
+        if not issubclass(value, CloudAIGym):
+            raise ValueError(f"Invalid gym implementation for '{name}', should be subclass of 'CloudAIGym'.")
+        self.gyms_map[name] = value
 
     def add_strategy(
         self,
