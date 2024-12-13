@@ -20,7 +20,7 @@ import time
 from typing import cast, final
 
 from cloudai import BaseRunner, JobIdRetrievalError, System, TestRun, TestScenario
-from cloudai._core.base_runner import NewBaseRunner, ScenarioIter, StaticScenarioIter
+from cloudai._core.base_runner import CasesIter, NewBaseRunner, StaticCasesListIter
 from cloudai.systems.standalone_system import StandaloneSystem
 from cloudai.util import CommandShell
 
@@ -82,7 +82,7 @@ class NewStandaloneRunner(NewBaseRunner):
     def __init__(self, mode: str, system: StandaloneSystem, test_scenario: TestScenario):
         super().__init__(mode, system, test_scenario)
         self.system = cast(StandaloneSystem, system)
-        self.test_scenario_iter = StaticScenarioIter(test_scenario)
+        self.test_scenario_iter = StaticCasesListIter(test_scenario)
 
         self.active_jobs: dict[str, StandaloneJob] = {}
         self.completed_jobs: dict[str, StandaloneJob] = {}

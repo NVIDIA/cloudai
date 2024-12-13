@@ -23,7 +23,7 @@ from unittest.mock import Mock
 import pytest
 
 from cloudai import BaseJob, System, Test, TestRun, TestScenario
-from cloudai._core.base_runner import NewBaseRunner, ScenarioIter, StaticScenarioIter
+from cloudai._core.base_runner import CasesIter, NewBaseRunner, StaticCasesListIter
 from cloudai._core.job_status_result import JobStatusResult
 from cloudai._core.test_scenario import TestDependency
 from cloudai._core.test_template import TestTemplate
@@ -69,7 +69,7 @@ class SlurmSbatchRunner(NewBaseRunner):
     when new jobs are available, they are submitted to the system too. Each job is an sbatch run.
     """
 
-    def __init__(self, mode: str, system: MySystem, test_scenario_iter: ScenarioIter):
+    def __init__(self, mode: str, system: MySystem, test_scenario_iter: CasesIter):
         self.mode = mode
         self.system = system
         self.test_scenario_iter = test_scenario_iter
@@ -144,7 +144,7 @@ class TestStaticScenarioIter:
     def test_one_run(self, partial_tr: partial[TestRun]):
         tr = partial_tr(name="tr")
 
-        ssi = StaticScenarioIter(TestScenario(name="scenario", test_runs=[tr]))
+        ssi = StaticCasesListIter(TestScenario(name="scenario", test_runs=[tr]))
         cases = [tr for tr in ssi]
 
         assert len(cases) == 1
@@ -153,7 +153,7 @@ class TestStaticScenarioIter:
     def test_two_independent_runs(self, partial_tr: partial[TestRun]):
         tr1, tr2 = partial_tr(name="tr1"), partial_tr(name="tr2")
 
-        ssi = StaticScenarioIter(TestScenario(name="scenario", test_runs=[tr1, tr2]))
+        ssi = StaticCasesListIter(TestScenario(name="scenario", test_runs=[tr1, tr2]))
         cases = [tr for tr in ssi]
 
         assert len(cases) == 2
@@ -164,7 +164,7 @@ class TestStaticScenarioIter:
         main_tr = partial_tr(name="tr-main")
         dep_tr = partial_tr(name="tr-dep", dependencies={"start_post_init": TestDependency(main_tr)})
 
-        ssi = StaticScenarioIter(TestScenario(name="scenario", test_runs=[dep_tr, main_tr]))
+        ssi = StaticCasesListIter(TestScenario(name="scenario", test_runs=[dep_tr, main_tr]))
 
         cases = [tr for tr in ssi]
         assert len(cases) == 2
@@ -176,7 +176,7 @@ class TestStaticScenarioIter:
         main_tr = partial_tr(name="tr-main")
         dep_tr = partial_tr(name="tr-dep", dependencies={"start_post_comp": TestDependency(main_tr)})
 
-        ssi = StaticScenarioIter(TestScenario(name="scenario", test_runs=[dep_tr, main_tr]))
+        ssi = StaticCasesListIter(TestScenario(name="scenario", test_runs=[dep_tr, main_tr]))
 
         # cycle one, only independent runs
         cases = [tr for tr in ssi]
@@ -199,7 +199,7 @@ class TestStaticScenarioIter:
         main_tr = partial_tr(name="tr-main")
         dep_tr = partial_tr(name="tr-dep", dependencies={"end_post_comp": TestDependency(main_tr)})
 
-        ssi = StaticScenarioIter(TestScenario(name="scenario", test_runs=[dep_tr, main_tr]))
+        ssi = StaticCasesListIter(TestScenario(name="scenario", test_runs=[dep_tr, main_tr]))
 
         # cycle one, both runs
         cases = [tr for tr in ssi]
@@ -215,7 +215,7 @@ class TestMyRunner:
     def test_two_independent_runs(self, partial_tr: partial[TestRun], system: MySystem):
         tr1, tr2 = partial_tr(name="tr1"), partial_tr(name="tr2")
 
-        ssi = StaticScenarioIter(TestScenario(name="scenario", test_runs=[tr1, tr2]))
+        ssi = StaticCasesListIter(TestScenario(name="scenario", test_runs=[tr1, tr2]))
         runner = SlurmSbatchRunner("run", system, ssi)
         runner.run()
 
@@ -230,7 +230,7 @@ class TestMyRunner:
         main_tr = partial_tr(name="tr-main")
         dep_tr = partial_tr(name="tr-dep", dependencies={"start_post_comp": TestDependency(main_tr)})
 
-        ssi = StaticScenarioIter(TestScenario(name="scenario", test_runs=[dep_tr, main_tr]))
+        ssi = StaticCasesListIter(TestScenario(name="scenario", test_runs=[dep_tr, main_tr]))
         runner = SlurmSbatchRunner("run", system, ssi)
         runner.run()
 
@@ -246,7 +246,7 @@ class TestMyRunner:
         post_comp_tr = partial_tr(name="tr-post_comp", dependencies={"start_post_comp": TestDependency(main_tr)})
         post_init_tr = partial_tr(name="tr-post_init", dependencies={"start_post_init": TestDependency(main_tr)})
 
-        ssi = StaticScenarioIter(TestScenario(name="scenario", test_runs=[post_comp_tr, post_init_tr, main_tr]))
+        ssi = StaticCasesListIter(TestScenario(name="scenario", test_runs=[post_comp_tr, post_init_tr, main_tr]))
         runner = SlurmSbatchRunner("run", system, ssi)
         runner.run()
 

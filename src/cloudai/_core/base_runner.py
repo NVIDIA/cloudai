@@ -406,7 +406,7 @@ class NewBaseRunner(ABC):
         self.mode = mode
         self.system = system
         self.test_scenario = test_scenario
-        self.test_scenario_iter = StaticScenarioIter(test_scenario)
+        self.test_scenario_iter = StaticCasesListIter(test_scenario)
 
         self.active_jobs: dict[str, BaseJob] = {}
         self.completed_jobs: dict[str, BaseJob] = {}
@@ -457,7 +457,7 @@ class NewBaseRunner(ABC):
         return self.arun()
 
 
-class ScenarioIter(ABC, Iterator):
+class CasesIter(ABC, Iterator):
     @property
     @abstractmethod
     def has_more_runs(self) -> bool: ...
@@ -472,7 +472,7 @@ class ScenarioIter(ABC, Iterator):
     def on_completed(self, tr: TestRun, runner: NewBaseRunner) -> None: ...
 
 
-class StaticScenarioIter(ScenarioIter):
+class StaticCasesListIter(CasesIter):
     def __init__(self, test_scenario: TestScenario) -> None:
         self.test_scenario = test_scenario
         self.ready_for_run: list[TestRun] = []
