@@ -18,12 +18,15 @@ import asyncio
 import logging
 import signal
 import sys
+import time
 from abc import ABC, abstractmethod
 from asyncio import Task
 from datetime import datetime
 from pathlib import Path
 from types import FrameType
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, final
+
+from cloudai._core.cases_iter import StaticCasesListIter
 
 from .base_job import BaseJob
 from .exceptions import JobFailureError, JobSubmissionError
@@ -397,3 +400,59 @@ class BaseRunner(ABC):
         await asyncio.sleep(delay)
         job.terminated_by_dependency = True
         self.system.kill(job)
+
+
+class NewBaseRunner(ABC):
+    def __init__(self, mode: str, system: System, test_scenario: TestScenario):
+        self.mode = mode
+        self.system = system
+        self.test_scenario = test_scenario
+        self.cases_iter = StaticCasesListIter(test_scenario)
+
+        self.active_jobs: dict[str, BaseJob] = {}
+        self.completed_jobs: dict[str, BaseJob] = {}
+
+        current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        self.output_path = self.system.output_path / f"{self.test_scenario.name}_{current_time}"
+
+    @abstractmethod
+    def submit_one(self, tr: TestRun) -> None: ...
+
+    @abstractmethod
+    def kill_one(self, tr: TestRun) -> None: ...
+
+    @abstractmethod
+    def process_completed_jobs(self): ...
+
+    @abstractmethod
+    def clean_active_jobs(self): ...
+
+    def create_job_output_path(self, tr: TestRun) -> Path:
+        job_output_path = self.output_path / tr.name / str(tr.current_iteration)
+
+        try:
+            job_output_path.mkdir(parents=True)
+        except PermissionError as e:
+            raise PermissionError(f"Cannot create directory {job_output_path}: {e}") from e
+
+        return job_output_path
+
+    @final
+    def arun(self):
+        while self.cases_iter.has_more_cases:
+            for tr in self.cases_iter:
+                tr.output_path = self.create_job_output_path(tr)
+                self.submit_one(tr)
+
+            self.process_completed_jobs()
+            self.clean_active_jobs()
+
+            time.sleep(self.system.monitor_interval)
+
+        while self.active_jobs:
+            self.process_completed_jobs()
+            self.clean_active_jobs()
+            time.sleep(self.system.monitor_interval)
+
+    async def run(self):
+        return self.arun()

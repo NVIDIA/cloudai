@@ -17,7 +17,7 @@
 from typing import Dict, List, Tuple, Type, Union
 
 from .base_installer import BaseInstaller
-from .base_runner import BaseRunner
+from .base_runner import BaseRunner, NewBaseRunner
 from .grading_strategy import GradingStrategy
 from .job_id_retrieval_strategy import JobIdRetrievalStrategy
 from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
@@ -41,7 +41,7 @@ class Singleton(type):
 class Registry(metaclass=Singleton):
     """Registry for implementations mappings."""
 
-    runners_map: Dict[str, Type[BaseRunner]] = {}
+    runners_map: Dict[str, Union[Type[BaseRunner], Type[NewBaseRunner]]] = {}
     strategies_map: Dict[
         Tuple[
             Type[
@@ -70,7 +70,7 @@ class Registry(metaclass=Singleton):
     systems_map: Dict[str, Type[System]] = {}
     test_definitions_map: Dict[str, Type[TestDefinition]] = {}
 
-    def add_runner(self, name: str, value: Type[BaseRunner]) -> None:
+    def add_runner(self, name: str, value: Union[Type[BaseRunner], Type[NewBaseRunner]]) -> None:
         """
         Add a new runner implementation mapping.
 
@@ -85,7 +85,7 @@ class Registry(metaclass=Singleton):
             raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
         self.update_runner(name, value)
 
-    def update_runner(self, name: str, value: Type[BaseRunner]) -> None:
+    def update_runner(self, name: str, value: Union[Type[BaseRunner], Type[NewBaseRunner]]) -> None:
         """
         Create or replace runner implementation mapping.
 
@@ -96,7 +96,7 @@ class Registry(metaclass=Singleton):
         Raises:
             ValueError: If value is not a subclass of BaseRunner.
         """
-        if not issubclass(value, BaseRunner):
+        if not issubclass(value, (BaseRunner, NewBaseRunner)):
             raise ValueError(f"Invalid runner implementation for '{name}', should be subclass of 'BaseRunner'.")
         self.runners_map[name] = value
 

@@ -28,4 +28,5 @@ class SleepStandaloneCommandGenStrategy(CommandGenStrategy):
     def gen_exec_command(self, tr: TestRun) -> str:
         self.final_cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
         sec = self.final_cmd_args["seconds"]
+        (tr.output_path / "executed").touch()
         return f"sleep {sec}"

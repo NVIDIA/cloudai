@@ -15,8 +15,9 @@
 # limitations under the License.
 
 import logging
+from typing import Union
 
-from .base_runner import BaseRunner
+from .base_runner import BaseRunner, NewBaseRunner
 from .registry import Registry
 from .system import System
 from .test_scenario import TestScenario
@@ -46,7 +47,7 @@ class Runner:
         logging.info(f"Initializing Runner [{mode.upper()}] mode")
         self.runner = self.create_runner(mode, system, test_scenario)
 
-    def create_runner(self, mode: str, system: System, test_scenario: TestScenario) -> BaseRunner:
+    def create_runner(self, mode: str, system: System, test_scenario: TestScenario) -> Union[BaseRunner, NewBaseRunner]:
         """
         Dynamically create a runner instance based on the system's scheduler type.
 
