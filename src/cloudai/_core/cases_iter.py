@@ -89,3 +89,37 @@ class StaticCasesListIter(CasesIter):
         self.completed.add(tr.name)
         for tr_to_stop in self.stop_on_completion.get(tr.name, []):
             runner.kill_one(tr_to_stop)
+
+
+class SequentialCasesIter(CasesIter):
+    def __init__(self, test_scenario: TestScenario) -> None:
+        self.test_scenario = test_scenario
+        self.test_runs = test_scenario.test_runs
+        self.ready_for_run: list[TestRun] = []
+        self.running: set[str] = set()
+        self.completed: set[str] = set()
+
+    @property
+    def has_more_cases(self) -> bool:
+        return len(self.completed) < len(self.test_runs)
+
+    def __iter__(self) -> Iterator:
+        self.ready_for_run = []
+        for tr in self.test_runs:
+            if self.running:
+                break
+            if tr.name not in self.completed:
+                self.ready_for_run.append(tr)
+                break
+        return self
+
+    def __next__(self) -> TestRun:
+        if not self.has_more_cases or not self.ready_for_run:
+            raise StopIteration
+
+        self.running.add(self.ready_for_run[0].name)
+        return self.ready_for_run.pop(0)
+
+    def on_completed(self, tr: TestRun, runner: "NewBaseRunner") -> None:
+        self.completed.add(tr.name)
+        self.running.remove(tr.name)
