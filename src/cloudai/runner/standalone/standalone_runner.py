@@ -16,11 +16,11 @@
 
 import logging
 import subprocess
-import time
-from typing import cast, final
+from typing import cast
 
 from cloudai import BaseRunner, JobIdRetrievalError, System, TestRun, TestScenario
-from cloudai._core.base_runner import CasesIter, NewBaseRunner, StaticCasesListIter
+from cloudai._core.base_runner import NewBaseRunner
+from cloudai._core.cases_iter import StaticCasesListIter
 from cloudai.systems.standalone_system import StandaloneSystem
 from cloudai.util import CommandShell
 

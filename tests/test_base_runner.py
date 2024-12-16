@@ -23,7 +23,8 @@ from unittest.mock import Mock
 import pytest
 
 from cloudai import BaseJob, System, Test, TestRun, TestScenario
-from cloudai._core.base_runner import CasesIter, NewBaseRunner, StaticCasesListIter
+from cloudai._core.base_runner import NewBaseRunner
+from cloudai._core.cases_iter import CasesIter, StaticCasesListIter
 from cloudai._core.job_status_result import JobStatusResult
 from cloudai._core.test_scenario import TestDependency
 from cloudai._core.test_template import TestTemplate

@@ -49,7 +49,7 @@ from .parser import Parser
 from .report_generator import ReportGenerator
 from .runner.kubernetes.kubernetes_runner import KubernetesRunner
 from .runner.slurm.slurm_runner import SlurmRunner
-from .runner.standalone.standalone_runner import NewStandaloneRunner, StandaloneRunner
+from .runner.standalone.standalone_runner import NewStandaloneRunner
 from .schema.test_template.chakra_replay.grading_strategy import ChakraReplayGradingStrategy
 from .schema.test_template.chakra_replay.report_generation_strategy import ChakraReplayReportGenerationStrategy
 from .schema.test_template.chakra_replay.slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy

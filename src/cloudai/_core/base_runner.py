@@ -21,11 +21,12 @@ import sys
 import time
 from abc import ABC, abstractmethod
 from asyncio import Task
-from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 from types import FrameType
 from typing import Dict, List, Optional, final
+
+from cloudai._core.cases_iter import StaticCasesListIter
 
 from .base_job import BaseJob
 from .exceptions import JobFailureError, JobSubmissionError
@@ -455,70 +456,3 @@ class NewBaseRunner(ABC):
 
     async def run(self):
         return self.arun()
-
-
-class CasesIter(ABC, Iterator):
-    @property
-    @abstractmethod
-    def has_more_cases(self) -> bool: ...
-
-    @abstractmethod
-    def __iter__(self) -> Iterator: ...
-
-    @abstractmethod
-    def __next__(self) -> TestRun: ...
-
-    @abstractmethod
-    def on_completed(self, tr: TestRun, runner: NewBaseRunner) -> None: ...
-
-
-class StaticCasesListIter(CasesIter):
-    def __init__(self, test_scenario: TestScenario) -> None:
-        self.test_scenario = test_scenario
-        self.ready_for_run: list[TestRun] = []
-        self.submitted: set[str] = set()
-        self.completed: set[str] = set()
-        self.stop_on_completion: dict[str, list[TestRun]] = {}
-
-    @property
-    def test_runs(self) -> list[TestRun]:
-        return self.test_scenario.test_runs
-
-    @property
-    def has_more_cases(self) -> bool:
-        return len(self.submitted) < len(self.test_runs)
-
-    def __iter__(self) -> Iterator:
-        not_submitted = [tr for tr in self.test_runs if tr.name not in self.submitted]
-        for tr in not_submitted:
-            if not tr.dependencies:
-                self.ready_for_run.append(tr)
-            elif tr.dependencies:
-                if "start_post_comp" in tr.dependencies:
-                    dep = tr.dependencies["start_post_comp"]
-                    if dep.test_run.name in self.completed:
-                        self.ready_for_run.append(tr)
-                elif "end_post_comp" in tr.dependencies:
-                    self.ready_for_run.append(tr)
-                    dep = tr.dependencies["end_post_comp"]
-                    self.stop_on_completion.setdefault(dep.test_run.name, []).append(tr)
-
-        for tr in not_submitted:  # submit post_init dependencies right after main
-            if tr.dependencies and "start_post_init" in tr.dependencies:
-                dep = tr.dependencies["start_post_init"]
-                if dep.test_run.name in {t.name for t in self.ready_for_run}:
-                    self.ready_for_run.append(tr)
-
-        return self
-
-    def __next__(self) -> TestRun:
-        if not self.ready_for_run:
-            raise StopIteration
-
-        self.submitted.add(self.ready_for_run[0].name)
-        return self.ready_for_run.pop(0)
-
-    def on_completed(self, tr: TestRun, runner: NewBaseRunner) -> None:
-        self.completed.add(tr.name)
-        for tr_to_stop in self.stop_on_completion.get(tr.name, []):
-            runner.kill_one(tr_to_stop)
