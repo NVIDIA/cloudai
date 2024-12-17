@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
+from typing import Optional
 from unittest.mock import Mock, create_autospec
 
 import pytest
@@ -22,6 +23,7 @@ import pytest
 from cloudai import Test, TestDefinition, TestRun, TestScenario, TestTemplate
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from tests.conftest import create_autospec_dataclass
 
 
 @pytest.fixture
@@ -100,7 +102,6 @@ def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
     job_name_prefix = "test_job"
     env_vars = {"TEST_VAR": "VALUE"}
     cmd_args = {"test_arg": "test_value"}
-    # nodes =
     tr = create_autospec(TestRun)
     tr.num_nodes = 0
     tr.nodes = ["node1", "node2"]
@@ -108,6 +109,20 @@ def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
     slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
     assert slurm_args["num_nodes"] == len(tr.nodes)
+
+
+@pytest.mark.parametrize("time_limit", [None, "1:00:00"])
+def test_time_limit(time_limit: Optional[str], strategy_fixture: SlurmCommandGenStrategy):
+    tr = create_autospec_dataclass(TestRun)
+    tr.nodes = []
+    tr.time_limit = time_limit
+
+    slurm_args = strategy_fixture._parse_slurm_args("prefix", {}, {}, tr)
+
+    if time_limit is not None:
+        assert slurm_args["time_limit"] == time_limit
+    else:
+        assert "time_limit" not in slurm_args
 
 
 def test_raises_if_no_default_partition(slurm_system: SlurmSystem):
