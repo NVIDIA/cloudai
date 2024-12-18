@@ -15,14 +15,16 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 from unittest.mock import Mock, patch
 
 import pytest
+from pydantic import ValidationError
 from pydantic_core import ErrorDetails
 
 from cloudai import Parser, format_validation_error
 from cloudai.systems.slurm.slurm_system import SlurmSystem
+from cloudai.test_definitions.gpt import DSEValuesRange, GPTTestDefinition
 
 
 class Test_Parser:
@@ -176,3 +178,82 @@ class Test_Parser:
     def test_log_validation_errors_with_required_field_error(self, error: ErrorDetails, expected_msg: str):
         err_msg = format_validation_error(error)
         assert err_msg == expected_msg
+
+
+GPT_TEST_DEFINITION = {
+    "name": "n",
+    "description": "d",
+    "test_template_name": "ttn",
+    "cmd_args": {
+        "docker_image_url": "docker://url",
+        "fdl_config": "/path",
+    },
+}
+
+
+@pytest.mark.parametrize(
+    "dse_field,value",
+    [("fdl_config", ["/p1"]), ("fdl.num_groups", [1, 2])],
+)
+def test_dse_valid(dse_field: str, value: Any):
+    data = GPT_TEST_DEFINITION.copy()
+    data["dse"] = {dse_field: value}
+    gpt = GPTTestDefinition(**data)
+
+    assert isinstance(gpt, GPTTestDefinition)
+    assert gpt.dse[dse_field] == value
+
+
+@pytest.mark.parametrize("value", [1, "1", 1.0, 1j, None])
+def test_dse_invalid_field_top_type(value: Any):
+    data = GPT_TEST_DEFINITION.copy()
+    data["dse"] = {"fdl_config": value}
+
+    with pytest.raises(ValidationError) as exc_info:
+        GPTTestDefinition(**data)
+
+    errors = [err["msg"] for err in exc_info.value.errors(include_url=False)]
+    assert len(errors) == 2
+    assert "Input should be a valid dictionary or instance of DSEValuesRange" in errors
+    assert "Input should be a valid list" in errors
+
+
+@pytest.mark.parametrize("field", ["fdl_configA", "fdl.num_groupsA"])
+def test_dse_raises_on_unknown_field(field: str):
+    data = GPT_TEST_DEFINITION.copy()
+    data["dse"] = {field: [1]}
+
+    with pytest.raises(ValidationError) as exc_info:
+        GPTTestDefinition(**data)
+
+    errors = [err["msg"] for err in exc_info.value.errors(include_url=False)]
+    assert len(errors) == 1
+    assert errors[0] == f"Value error, 'GPTCmdArgs' doesn't have field '{field}'"
+
+
+def test_dse_invalid_field_value_type():
+    data = GPT_TEST_DEFINITION.copy()
+    data["dse"] = {"fdl_config": ["/p", 1]}
+
+    with pytest.raises(ValidationError) as exc_info:
+        GPTTestDefinition(**data)
+
+    errors = [err["msg"] for err in exc_info.value.errors(include_url=False)]
+    assert len(errors) == 1
+    assert "Invalid type of value=1 ('int')" in errors[0]
+
+
+@pytest.mark.parametrize(
+    "input,output",
+    [
+        ({"start": 1, "end": 2}, DSEValuesRange(start=1, end=2)),
+        ({"start": 1, "end": 2, "step": 0.5}, DSEValuesRange(start=1, end=2, step=0.5)),
+    ],
+)
+def test_dse_range(input: dict, output: DSEValuesRange):
+    data = GPT_TEST_DEFINITION.copy()
+    data["dse"] = {"fdl.num_gpus": input}
+
+    gpt = GPTTestDefinition(**data)
+
+    assert gpt.dse["fdl.num_gpus"] == output
