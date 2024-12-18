@@ -14,7 +14,33 @@ GPT_TEST_DEFINITION = {
         "docker_image_url": "docker://url",
         "fdl_config": "/path",
     },
+    "dse": {},
 }
+
+
+def test_dse_is_optional():
+    data = GPT_TEST_DEFINITION.copy()
+    data.pop("dse")
+    gpt = GPTTestDefinition(**data)
+
+    assert isinstance(gpt, GPTTestDefinition)
+    assert not gpt.dse
+
+
+def test_dse_must_have_parameters():
+    data = GPT_TEST_DEFINITION.copy()
+    data["dse"] = {}
+
+    with pytest.raises(ValidationError) as exc_info:
+        GPTTestDefinition(**data)
+
+    errors = exc_info.value.errors(include_url=False)
+    assert len(errors) == 1
+    assert errors[0]["msg"] == "Field required"
+    assert errors[0]["loc"] == (
+        "dse",
+        "parameters",
+    )
 
 
 @pytest.mark.parametrize(
@@ -23,17 +49,18 @@ GPT_TEST_DEFINITION = {
 )
 def test_dse_valid(dse_field: str, value: Any):
     data = GPT_TEST_DEFINITION.copy()
-    data["dse"] = {dse_field: value}
+    data["dse"]["parameters"] = {dse_field: value}
     gpt = GPTTestDefinition(**data)
 
     assert isinstance(gpt, GPTTestDefinition)
-    assert gpt.dse[dse_field] == value
+    assert gpt.dse
+    assert gpt.dse.parameters[dse_field] == value
 
 
 @pytest.mark.parametrize("value", [1, "1", 1.0, 1j, None])
 def test_dse_invalid_field_top_type(value: Any):
     data = GPT_TEST_DEFINITION.copy()
-    data["dse"] = {"fdl_config": value}
+    data["dse"]["parameters"] = {"fdl_config": value}
 
     with pytest.raises(ValidationError) as exc_info:
         GPTTestDefinition(**data)
@@ -47,7 +74,7 @@ def test_dse_invalid_field_top_type(value: Any):
 @pytest.mark.parametrize("field", ["fdl_configA", "fdl.num_groupsA"])
 def test_dse_raises_on_unknown_field(field: str):
     data = GPT_TEST_DEFINITION.copy()
-    data["dse"] = {field: [1]}
+    data["dse"]["parameters"] = {field: [1]}
 
     with pytest.raises(ValidationError) as exc_info:
         GPTTestDefinition(**data)
@@ -59,7 +86,7 @@ def test_dse_raises_on_unknown_field(field: str):
 
 def test_dse_invalid_field_value_type():
     data = GPT_TEST_DEFINITION.copy()
-    data["dse"] = {"fdl_config": ["/p", 1]}
+    data["dse"]["parameters"] = {"fdl_config": ["/p", 1]}
 
     with pytest.raises(ValidationError) as exc_info:
         GPTTestDefinition(**data)
@@ -78,10 +105,11 @@ def test_dse_invalid_field_value_type():
 )
 def test_dse_range(input: dict, output: DSEValuesRange):
     data = GPT_TEST_DEFINITION.copy()
-    data["dse"] = {"fdl.num_gpus": input}
+    data["dse"]["parameters"] = {"fdl.num_gpus": input}
 
     gpt = GPTTestDefinition(**data)
 
-    assert isinstance(gpt.dse["fdl.num_gpus"], DSEValuesRange)
-    assert gpt.dse["fdl.num_gpus"] == output
-    assert gpt.dse["fdl.num_gpus"].step
+    assert gpt.dse
+    assert isinstance(gpt.dse.parameters["fdl.num_gpus"], DSEValuesRange)
+    assert gpt.dse.parameters["fdl.num_gpus"] == output
+    assert gpt.dse.parameters["fdl.num_gpus"].step

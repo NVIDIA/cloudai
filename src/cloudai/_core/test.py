@@ -15,9 +15,9 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Union
+from typing import Any, Dict, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from .test_template import TestTemplate
 
@@ -90,6 +90,14 @@ class CmdArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class DSEConfig(BaseModel):
+    """DSE configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    parameters: dict[str, Union["DSEValuesRange", list]]
+
+
 class DSEValuesRange(BaseModel):
     """DSE values range."""
 
@@ -111,7 +119,7 @@ class TestDefinition(BaseModel):
     description: str
     test_template_name: str
     cmd_args: Any
-    dse: dict[str, Union[DSEValuesRange, list]] = Field(default_factory=dict)
+    dse: Optional[DSEConfig] = None
     extra_env_vars: dict[str, str] = {}
     extra_cmd_args: dict[str, str] = {}
 
@@ -139,7 +147,7 @@ class TestDefinition(BaseModel):
         if not data.dse:
             return data
 
-        for field_str, value in data.dse.items():
+        for field_str, value in data.dse.parameters.items():
             subs = field_str.split(".")
             obj = data.cmd_args
             try:
