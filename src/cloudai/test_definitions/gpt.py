@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional, Union
+from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import Field
 
 from cloudai import Installable
 from cloudai.installer.installables import DockerImage
@@ -52,48 +52,11 @@ class GPTCmdArgs(JaxToolboxCmdArgs):
     setup_flags: GPTSetupFlags = Field(default_factory=GPTSetupFlags)
 
 
-class DSEValuesRange(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    start: float
-    end: float
-    step: float = 1.0
-
-
 class GPTTestDefinition(JaxToolboxTestDefinition):
     """Test object for GPT."""
 
     cmd_args: GPTCmdArgs
-    dse: dict[str, Union[DSEValuesRange, list]] = Field(default_factory=dict)
     _docker_image: Optional[DockerImage] = None
-
-    @model_validator(mode="after")
-    def validate_dse(cls, data: Any) -> Any:
-        if not isinstance(data, GPTTestDefinition):
-            raise ValueError(f"Invalid model, expected {GPTTestDefinition.__name__}, got {type(data).__name__}")
-
-        if not data.dse:
-            return data
-
-        for field_str, value in data.dse.items():
-            subs = field_str.split(".")
-            obj = data.cmd_args
-            try:
-                for sub in subs:
-                    obj = getattr(obj, sub)
-            except AttributeError:
-                raise ValueError(f"'{type(data.cmd_args).__name__}' doesn't have field '{field_str}'") from None
-
-            ftype = type(obj)
-            if not isinstance(value, list):
-                continue
-
-            for v in value:
-                if not isinstance(v, ftype):
-                    raise ValueError(
-                        f"Invalid type of value={v} ('{type(v).__name__}') for '{field_str} = {value}', "
-                        f"{field_str} has type '{ftype.__name__}'"
-                    )
 
     @property
     def cmd_args_dict(self):

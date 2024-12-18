@@ -15,9 +15,9 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .test_template import TestTemplate
 
@@ -90,6 +90,16 @@ class CmdArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class DSEValuesRange(BaseModel):
+    """DSE values range."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    start: float
+    end: float
+    step: float = 1.0
+
+
 class TestDefinition(BaseModel):
     """Base Test object."""
 
@@ -101,6 +111,7 @@ class TestDefinition(BaseModel):
     description: str
     test_template_name: str
     cmd_args: Any
+    dse: dict[str, Union[DSEValuesRange, list]] = Field(default_factory=dict)
     extra_env_vars: dict[str, str] = {}
     extra_cmd_args: dict[str, str] = {}
 
@@ -119,3 +130,31 @@ class TestDefinition(BaseModel):
     @abstractmethod
     def installables(self) -> list[Installable]:
         return []
+
+    @model_validator(mode="after")
+    def validate_dse(cls, data: Any) -> Any:
+        if not isinstance(data, TestDefinition):
+            raise ValueError(f"Invalid model, expected {TestDefinition.__name__}, got {type(data).__name__}")
+
+        if not data.dse:
+            return data
+
+        for field_str, value in data.dse.items():
+            subs = field_str.split(".")
+            obj = data.cmd_args
+            try:
+                for sub in subs:
+                    obj = getattr(obj, sub)
+            except AttributeError:
+                raise ValueError(f"'{type(data.cmd_args).__name__}' doesn't have field '{field_str}'") from None
+
+            ftype = type(obj)
+            if not isinstance(value, list):
+                continue
+
+            for v in value:
+                if not isinstance(v, ftype):
+                    raise ValueError(
+                        f"Invalid type of value={v} ('{type(v).__name__}') for '{field_str} = {value}', "
+                        f"{field_str} has type '{ftype.__name__}'"
+                    )
