@@ -112,8 +112,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             "num_nodes": num_nodes,
             "node_list_str": node_list_str,
         }
-        if "time_limit" in cmd_args:
-            slurm_args["time_limit"] = cmd_args["time_limit"]
+        if tr.time_limit:
+            slurm_args["time_limit"] = tr.time_limit
 
         return slurm_args
 
