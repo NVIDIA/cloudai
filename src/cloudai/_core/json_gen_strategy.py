@@ -15,14 +15,14 @@
 # limitations under the License.
 
 import re
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from typing import Any, Dict
 
 from .test_scenario import TestRun
 from .test_template_strategy import TestTemplateStrategy
 
 
-class JsonGenStrategy(TestTemplateStrategy):
+class JsonGenStrategy(TestTemplateStrategy, ABC):
     """
     Abstract base class for generating Kubernetes job specifications based on system and test parameters.
 
