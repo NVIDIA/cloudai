@@ -19,6 +19,7 @@ from typing import Dict, List
 from unittest.mock import Mock, patch
 
 import pytest
+
 from cloudai import BaseJob
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm import SlurmNode, SlurmNodeState
