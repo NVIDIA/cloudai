@@ -19,7 +19,7 @@ from .report_generation_strategy import UCCTestReportGenerationStrategy
 from .slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 
 __all__ = [
-    "UCCTestSlurmCommandGenStrategy",
-    "UCCTestReportGenerationStrategy",
     "UCCTestGradingStrategy",
+    "UCCTestReportGenerationStrategy",
+    "UCCTestSlurmCommandGenStrategy",
 ]

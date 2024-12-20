@@ -320,7 +320,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "--post_process",
             f"--pgle_output_path /opt/paxml/workspace/pgle_output_{stage}.pbtxt",
         ]
-        command = " \\\n    ".join([base_command] + args)
+        command = " \\\n    ".join([base_command, *args])
         command += " > /dev/null 2>&1"
 
         return "\n".join(

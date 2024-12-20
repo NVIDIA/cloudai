@@ -247,11 +247,10 @@ __all__ = [
     "BaseSystemParser",
     "CmdArgs",
     "CommandGenStrategy",
-    "format_validation_error",
     "Grader",
     "GradingStrategy",
-    "Installable",
     "InstallStatusResult",
+    "Installable",
     "JobIdRetrievalError",
     "JobStatusResult",
     "JsonGenStrategy",
@@ -272,4 +271,5 @@ __all__ = [
     "TestScenarioParsingError",
     "TestTemplate",
     "TestTemplateStrategy",
+    "format_validation_error",
 ]

@@ -51,8 +51,7 @@ class KubernetesInstaller(BaseInstaller):
         except Exception as e:
             message = (
                 f"Installation failed during prerequisite checking stage because Kubernetes configuration could not "
-                f"be loaded. Please ensure that your Kubernetes configuration is properly set up. Original error: "
-                f"{str(e)}"
+                f"be loaded. Please ensure that your Kubernetes configuration is properly set up. Original error: {e!r}"
             )
             logging.error(message)
             return InstallStatusResult(False, message)
@@ -91,7 +90,7 @@ class KubernetesInstaller(BaseInstaller):
             else:
                 message = (
                     f"Installation failed during prerequisite checking stage due to an error while checking for MPIJob "
-                    f"CRD. Original error: {str(e)}. Please ensure that the Kubernetes cluster is accessible and the "
+                    f"CRD. Original error: {e!r}. Please ensure that the Kubernetes cluster is accessible and the "
                     f"MPI Operator is correctly installed."
                 )
                 logging.error(message)
@@ -104,7 +103,7 @@ class KubernetesInstaller(BaseInstaller):
         except ApiException as e:
             message = (
                 f"Installation failed during prerequisite checking stage due to an error while checking for MPIJob "
-                f"kind support. Original error: {str(e)}. Please ensure that the Kubernetes cluster is accessible and "
+                f"kind support. Original error: {e!r}. Please ensure that the Kubernetes cluster is accessible and "
                 f"the MPI Operator is correctly installed."
             )
             logging.error(message)

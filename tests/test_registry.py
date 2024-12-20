@@ -160,7 +160,7 @@ class TestRegistry__StrategiesMap:
         assert "should be subclass of 'TestTemplateStrategy'." in str(exc_info.value)
 
     def test_add_multiple_strategies(self, registry: Registry):
-        registry.strategies_map = {}
+        registry.strategies_map.clear()
 
         registry.add_strategy(
             MyStrategy, [MySystem, AnotherSystem], [MyTestDefinition, AnotherTestDefinition], MyStrategy
