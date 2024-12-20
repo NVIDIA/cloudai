@@ -16,10 +16,10 @@
 
 import re
 from typing import Dict, List
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
-
+from cloudai import BaseJob
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm import SlurmNode, SlurmNodeState
 from cloudai.systems.slurm.slurm_system import parse_node_list
@@ -229,3 +229,84 @@ def test_allocate_nodes_exceeding_limit(
         ),
     ):
         slurm_system.allocate_nodes(grouped_nodes, num_nodes, group_name)
+
+
+@pytest.mark.parametrize(
+    "stdout,stderr,is_completed",
+    [
+        ("COMPLETED", "", True),
+        ("FAILED", "", True),
+        ("CANCELLED", "", True),
+        ("TIMEOUT", "", True),
+        ("RUNNING", "", False),
+        ("PENDING", "", False),
+        ("", "error", False),
+    ],
+)
+def test_is_job_completed(stdout: str, stderr: str, is_completed: bool, slurm_system: SlurmSystem):
+    job = BaseJob(test_run=Mock(), id=1)
+    pp = Mock()
+    pp.communicate = Mock(return_value=(stdout, stderr))
+    slurm_system.cmd_shell.execute = Mock(return_value=pp)
+
+    if stderr:
+        with pytest.raises(RuntimeError):
+            slurm_system.is_job_completed(job)
+    else:
+        assert slurm_system.is_job_completed(job) is is_completed
+
+
+@pytest.mark.parametrize(
+    "stdout,stderr,is_running",
+    [
+        ("RUNNING", "", True),
+        ("PENDING", "", True),
+        ("COMPLETED", "", False),
+        ("FAILED", "", False),
+        ("CANCELLED", "", False),
+        ("TIMEOUT", "", False),
+        ("", "error", False),
+    ],
+)
+def test_is_job_running(stdout: str, stderr: str, is_running: bool, slurm_system: SlurmSystem):
+    job = BaseJob(test_run=Mock(), id=1)
+    pp = Mock()
+    pp.communicate = Mock(return_value=(stdout, stderr))
+    slurm_system.cmd_shell.execute = Mock(return_value=pp)
+
+    if stderr:
+        with pytest.raises(RuntimeError):
+            slurm_system.is_job_running(job)
+    else:
+        assert slurm_system.is_job_running(job) is is_running
+
+
+def test_is_job_running_with_retries(slurm_system: SlurmSystem):
+    job = BaseJob(test_run=Mock(), id=1)
+    command = f"sacct -j {job.id} --format=State --noheader"
+
+    # Mock the command shell to simulate transient errors
+    pp = Mock()
+    pp.communicate = Mock(side_effect=[("", "Socket timed out"), ("", "slurm_load_jobs error"), ("RUNNING", "")])
+    slurm_system.cmd_shell.execute = Mock(return_value=pp)
+
+    # Call the method and check if it retries the correct number of times
+    assert slurm_system.is_job_running(job, retry_threshold=3) is True
+    assert slurm_system.cmd_shell.execute.call_count == 3
+    slurm_system.cmd_shell.execute.assert_called_with(command)
+
+
+def test_is_job_running_exceeds_retries(slurm_system: SlurmSystem):
+    job = BaseJob(test_run=Mock(), id=1)
+    command = f"sacct -j {job.id} --format=State --noheader"
+
+    # Mock the command shell to always return a transient error
+    pp = Mock()
+    pp.communicate = Mock(return_value=("", "Socket timed out"))
+    slurm_system.cmd_shell.execute = Mock(return_value=pp)
+
+    # Call the method and check if it raises an error after exceeding retries
+    with pytest.raises(RuntimeError):
+        slurm_system.is_job_running(job, retry_threshold=3)
+    assert slurm_system.cmd_shell.execute.call_count == 3
+    slurm_system.cmd_shell.execute.assert_called_with(command)
