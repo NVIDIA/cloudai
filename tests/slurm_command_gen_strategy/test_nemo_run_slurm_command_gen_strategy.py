@@ -79,3 +79,14 @@ class TestNeMoRunSlurmCommandGenStrategy:
             test_run,
         )
         assert cmd == expected_cmd, f"Expected command {expected_cmd}, but got {cmd}"
+
+    def test_num_nodes(self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy, test_run: TestRun) -> None:
+        test_run.nodes = ["node[1-3]"]
+        cmd = cmd_gen_strategy.generate_test_command(
+            test_run.test.test_definition.extra_env_vars,
+            test_run.test.test_definition.cmd_args.model_dump(),
+            test_run,
+        )
+
+        num_nodes_param = [p for p in cmd if "trainer.num_nodes" in p][0]
+        assert num_nodes_param == "trainer.num_nodes=3"
