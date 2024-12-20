@@ -38,8 +38,8 @@ class SlurmInstaller(BaseInstaller):
             not require it.
     """
 
-    PREREQUISITES = ["git", "sbatch", "sinfo", "squeue", "srun", "scancel", "sacct"]
-    REQUIRED_SRUN_OPTIONS = [
+    PREREQUISITES = ("git", "sbatch", "sinfo", "squeue", "srun", "scancel", "sacct")
+    REQUIRED_SRUN_OPTIONS = (
         "--mpi",
         "--gpus-per-node",
         "--ntasks-per-node",
