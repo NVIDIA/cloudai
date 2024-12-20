@@ -88,5 +88,5 @@ class TestNeMoRunSlurmCommandGenStrategy:
             test_run,
         )
 
-        num_nodes_param = [p for p in cmd if "trainer.num_nodes" in p][0]
+        num_nodes_param = next(p for p in cmd if "trainer.num_nodes" in p)
         assert num_nodes_param == "trainer.num_nodes=3"
