@@ -41,7 +41,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         command = ["nemo", "llm", tdef.cmd_args.task, "--factory", tdef.cmd_args.recipe_name, "-y"]
 
         if tr.nodes:
-            command.append(f"trainer.num_nodes={len(tr.nodes)}")
+            command.append(f"trainer.num_nodes={len(self.system.parse_nodes(tr.nodes))}")
         elif tr.num_nodes > 0:
             command.append(f"trainer.num_nodes={tr.num_nodes}")
 
