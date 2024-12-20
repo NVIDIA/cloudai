@@ -286,12 +286,10 @@ def test_is_job_running_with_retries(slurm_system: SlurmSystem):
     job = BaseJob(test_run=Mock(), id=1)
     command = f"sacct -j {job.id} --format=State --noheader"
 
-    # Mock the command shell to simulate transient errors
     pp = Mock()
     pp.communicate = Mock(side_effect=[("", "Socket timed out"), ("", "slurm_load_jobs error"), ("RUNNING", "")])
     slurm_system.cmd_shell.execute = Mock(return_value=pp)
 
-    # Call the method and check if it retries the correct number of times
     assert slurm_system.is_job_running(job, retry_threshold=3) is True
     assert slurm_system.cmd_shell.execute.call_count == 3
     slurm_system.cmd_shell.execute.assert_called_with(command)
@@ -301,12 +299,10 @@ def test_is_job_running_exceeds_retries(slurm_system: SlurmSystem):
     job = BaseJob(test_run=Mock(), id=1)
     command = f"sacct -j {job.id} --format=State --noheader"
 
-    # Mock the command shell to always return a transient error
     pp = Mock()
     pp.communicate = Mock(return_value=("", "Socket timed out"))
     slurm_system.cmd_shell.execute = Mock(return_value=pp)
 
-    # Call the method and check if it raises an error after exceeding retries
     with pytest.raises(RuntimeError):
         slurm_system.is_job_running(job, retry_threshold=3)
     assert slurm_system.cmd_shell.execute.call_count == 3
