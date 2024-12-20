@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Tuple, Type, Union
+from typing import ClassVar, List, Tuple, Type, Union
 
 from .base_installer import BaseInstaller
 from .base_runner import BaseRunner
@@ -41,9 +41,22 @@ class Singleton(type):
 class Registry(metaclass=Singleton):
     """Registry for implementations mappings."""
 
-    runners_map: Dict[str, Type[BaseRunner]] = {}
-    strategies_map: Dict[
-        Tuple[
+    runners_map: ClassVar[dict[str, Type[BaseRunner]]] = {}
+    strategies_map: ClassVar[
+        dict[
+            Tuple[
+                Type[
+                    Union[
+                        TestTemplateStrategy,
+                        ReportGenerationStrategy,
+                        JobIdRetrievalStrategy,
+                        JobStatusRetrievalStrategy,
+                        GradingStrategy,
+                    ]
+                ],
+                Type[System],
+                Type[TestDefinition],
+            ],
             Type[
                 Union[
                     TestTemplateStrategy,
@@ -53,22 +66,11 @@ class Registry(metaclass=Singleton):
                     GradingStrategy,
                 ]
             ],
-            Type[System],
-            Type[TestDefinition],
-        ],
-        Type[
-            Union[
-                TestTemplateStrategy,
-                ReportGenerationStrategy,
-                JobIdRetrievalStrategy,
-                JobStatusRetrievalStrategy,
-                GradingStrategy,
-            ]
-        ],
+        ]
     ] = {}
-    installers_map: Dict[str, Type[BaseInstaller]] = {}
-    systems_map: Dict[str, Type[System]] = {}
-    test_definitions_map: Dict[str, Type[TestDefinition]] = {}
+    installers_map: ClassVar[dict[str, Type[BaseInstaller]]] = {}
+    systems_map: ClassVar[dict[str, Type[System]]] = {}
+    test_definitions_map: ClassVar[dict[str, Type[TestDefinition]]] = {}
 
     def add_runner(self, name: str, value: Type[BaseRunner]) -> None:
         """

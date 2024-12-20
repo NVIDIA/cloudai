@@ -122,7 +122,11 @@ class BaseRunner(ABC):
         """
         self.shutting_down = True
         logging.info(f"Signal {signum} received, shutting down...")
-        asyncio.create_task(self.shutdown())
+
+        # the below code might look exsessive, this is to address https://docs.astral.sh/ruff/rules/asyncio-dangling-task/
+        task = asyncio.create_task(self.shutdown())
+        tasks = {task}
+        task.add_done_callback(tasks.discard)
 
     async def shutdown(self):
         """Gracefully shut down the runner, terminating all outstanding jobs."""

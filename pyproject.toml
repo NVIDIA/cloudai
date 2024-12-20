@@ -43,7 +43,7 @@ line-length = 120
   indent-style = "space"
 
   [tool.ruff.lint]
-  select = ["I", "B", "E", "D", "F", "SIM", "W", "C90", "EXE", "ERA"]
+  select = ["I", "B", "E", "D", "F", "SIM", "W", "C90", "EXE", "ERA", "RUF"]
   ignore = [
     "D407", # Missing dashed underline after section
     "D203", # conflicts with D211

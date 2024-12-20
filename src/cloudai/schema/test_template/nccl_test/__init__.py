@@ -20,8 +20,8 @@ from .report_generation_strategy import NcclTestReportGenerationStrategy
 from .slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 
 __all__ = [
-    "NcclTestSlurmCommandGenStrategy",
+    "NcclTestGradingStrategy",
     "NcclTestKubernetesJsonGenStrategy",
     "NcclTestReportGenerationStrategy",
-    "NcclTestGradingStrategy",
+    "NcclTestSlurmCommandGenStrategy",
 ]

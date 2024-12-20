@@ -21,9 +21,9 @@ from .slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from .standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
 
 __all__ = [
-    "SleepStandaloneCommandGenStrategy",
-    "SleepKubernetesJsonGenStrategy",
-    "SleepSlurmCommandGenStrategy",
-    "SleepReportGenerationStrategy",
     "SleepGradingStrategy",
+    "SleepKubernetesJsonGenStrategy",
+    "SleepReportGenerationStrategy",
+    "SleepSlurmCommandGenStrategy",
+    "SleepStandaloneCommandGenStrategy",
 ]

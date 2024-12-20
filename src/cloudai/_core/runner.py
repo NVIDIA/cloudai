@@ -40,8 +40,6 @@ class Runner:
         test_scenario (TestScenario): The test scenario to be executed.
     """
 
-    _runners = {}
-
     def __init__(self, mode: str, system: System, test_scenario: TestScenario):
         logging.info(f"Initializing Runner [{mode.upper()}] mode")
         self.runner = self.create_runner(mode, system, test_scenario)

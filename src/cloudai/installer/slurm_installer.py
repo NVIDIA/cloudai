@@ -38,14 +38,14 @@ class SlurmInstaller(BaseInstaller):
             not require it.
     """
 
-    PREREQUISITES = ["git", "sbatch", "sinfo", "squeue", "srun", "scancel"]
-    REQUIRED_SRUN_OPTIONS = [
+    PREREQUISITES = ("git", "sbatch", "sinfo", "squeue", "srun", "scancel")
+    REQUIRED_SRUN_OPTIONS = (
         "--mpi",
         "--gpus-per-node",
         "--ntasks-per-node",
         "--container-image",
         "--container-mounts",
-    ]
+    )
 
     def __init__(self, system: SlurmSystem):
         """

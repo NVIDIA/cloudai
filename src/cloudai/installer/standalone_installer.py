@@ -24,7 +24,7 @@ class StandaloneInstaller(BaseInstaller):
     Handles the installation of benchmarks or test templates for standalone systems.
     """
 
-    PREREQUISITES = ["ps", "kill"]
+    PREREQUISITES = ("ps", "kill")
 
     def _check_prerequisites(self) -> InstallStatusResult:
         """Check for the presence of required binaries, returning an error status if any are missing."""

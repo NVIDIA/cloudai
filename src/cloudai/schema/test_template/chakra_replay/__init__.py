@@ -19,7 +19,7 @@ from .report_generation_strategy import ChakraReplayReportGenerationStrategy
 from .slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
 
 __all__ = [
-    "ChakraReplaySlurmCommandGenStrategy",
-    "ChakraReplayReportGenerationStrategy",
     "ChakraReplayGradingStrategy",
+    "ChakraReplayReportGenerationStrategy",
+    "ChakraReplaySlurmCommandGenStrategy",
 ]

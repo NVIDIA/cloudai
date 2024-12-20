@@ -18,6 +18,6 @@ from ..standalone.standalone_job import StandaloneJob
 from ..standalone.standalone_runner import StandaloneRunner
 
 __all__ = [
-    "StandaloneRunner",
     "StandaloneJob",
+    "StandaloneRunner",
 ]

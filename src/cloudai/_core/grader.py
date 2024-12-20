@@ -59,7 +59,7 @@ class Grader:
             test_output_dir = self.output_path / section_name
             perfs = self._get_perfs_from_subdirs(test_output_dir, tr)
             avg_perf = sum(perfs) / len(perfs) if perfs else 0
-            test_perfs[tr.test.name] = perfs + [avg_perf]
+            test_perfs[tr.test.name] = [*perfs, avg_perf]
             weighted_avg = (avg_perf * tr.weight / total_weight) if total_weight else 0
             weighted_perfs.append(weighted_avg)
 
