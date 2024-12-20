@@ -164,8 +164,8 @@ class SlurmSystem(BaseModel, System):
         """
         Determine if a specified Slurm job is currently running by checking its presence and state in the job queue.
 
-        This method queries the Slurm job queue using 'squeue' to identify if the job with the specified ID is running.
-        It handles transient network or system errors by retrying the query a limited number of times.
+        This method queries the Slurm job accounting using 'sacct' to identify if the job with the specified ID is
+        running. It handles transient network or system errors by retrying the query a limited number of times.
 
         Args:
             job (BaseJob): The job to check.
@@ -176,10 +176,10 @@ class SlurmSystem(BaseModel, System):
 
         Raises:
             RuntimeError: If an error occurs that prevents determination of the job's running status, or if the status
-                         cannot be determined after the specified number of retries.
+                        cannot be determined after the specified number of retries.
         """
         retry_count = 0
-        command = f"squeue -j {job.id} --noheader --format=%T"
+        command = f"sacct -j {job.id} --format=State --noheader"
 
         while retry_count < retry_threshold:
             logging.debug(f"Executing command to check job status: {command}")
@@ -188,11 +188,7 @@ class SlurmSystem(BaseModel, System):
             if "Socket timed out" in stderr or "slurm_load_jobs error" in stderr:
                 retry_count += 1
                 logging.warning(
-                    f"An error occurred while querying the job status. Retrying... ({retry_count}/{retry_threshold}). "
-                    "CloudAI uses Slurm commands by default to check the job status. The Slurm daemon can become "
-                    "overloaded and unresponsive, causing this error message. CloudAI retries the command multiple "
-                    f"times, with a maximum of {retry_threshold} attempts. Please ensure that the Slurm daemon is "
-                    "running and responsive."
+                    f"An error occurred while querying the job status. Retrying... ({retry_count}/{retry_threshold})."
                 )
                 continue
 
@@ -202,7 +198,7 @@ class SlurmSystem(BaseModel, System):
                 raise RuntimeError(error_message)
 
             job_state = stdout.strip()
-            if job_state == "RUNNING":
+            if job_state in ["RUNNING", "PENDING"]:
                 return True
 
             break
@@ -231,12 +227,13 @@ class SlurmSystem(BaseModel, System):
             RuntimeError: If unable to determine job status after retries, or if a non-retryable error is encountered.
         """
         retry_count = 0
+        command = f"sacct -j {job.id} --format=State --noheader"
+
         while retry_count < retry_threshold:
-            command = f"squeue -j {job.id}"
             logging.debug(f"Checking job status with command: {command}")
             stdout, stderr = self.cmd_shell.execute(command).communicate()
 
-            if "Socket timed out" in stderr:
+            if "Socket timed out" in stderr or "slurm_load_jobs error" in stderr:
                 retry_count += 1
                 logging.warning(f"Retrying job status check (attempt {retry_count}/{retry_threshold})")
                 continue
@@ -246,11 +243,18 @@ class SlurmSystem(BaseModel, System):
                 logging.error(error_message)
                 raise RuntimeError(error_message)
 
-            return str(job.id) not in stdout
+            job_states = stdout.strip().split()
+            if any(state in ["COMPLETED", "FAILED", "CANCELLED", "TIMEOUT"] for state in job_states):
+                return True
 
-        error_message = f"Failed to confirm job completion status after {retry_threshold} attempts."
-        logging.error(error_message)
-        raise RuntimeError(error_message)
+            break
+
+        if retry_count == retry_threshold:
+            error_message = f"Failed to confirm job completion status after {retry_threshold} attempts."
+            logging.error(error_message)
+            raise RuntimeError(error_message)
+
+        return False
 
     def kill(self, job: BaseJob) -> None:
         """
