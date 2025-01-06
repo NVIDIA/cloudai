@@ -46,11 +46,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         self.install_path = self.slurm_system.install_path
         self.default_env_vars.update(self.slurm_system.global_env_vars)
 
-        self.docker_image_cache_manager = DockerImageCacheManager(
-            self.slurm_system.install_path,
-            self.slurm_system.cache_docker_images_locally,
-            self.slurm_system.default_partition,
-        )
+        self.docker_image_cache_manager = DockerImageCacheManager(self.slurm_system)
         docker_image_url_info = self.cmd_args.get("docker_image_url")
         if docker_image_url_info is not None:
             self.docker_image_url = docker_image_url_info.get("default")

@@ -41,11 +41,7 @@ class SlurmInstallStrategy(InstallStrategy):
         super().__init__(system, env_vars, cmd_args)
         self.slurm_system = cast(SlurmSystem, self.system)
         self.install_path = self.slurm_system.install_path
-        self.docker_image_cache_manager = DockerImageCacheManager(
-            self.slurm_system.install_path,
-            self.slurm_system.cache_docker_images_locally,
-            self.slurm_system.default_partition,
-        )
+        self.docker_image_cache_manager = DockerImageCacheManager(self.slurm_system)
         docker_image_url_info = self.cmd_args.get("docker_image_url")
         if docker_image_url_info is not None:
             self.docker_image_url = docker_image_url_info.get("default")

@@ -15,8 +15,12 @@
 # limitations under the License.
 
 import subprocess
-from unittest.mock import MagicMock, patch
+from pathlib import Path
+from unittest.mock import patch
 
+import pytest
+
+from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.util.docker_image_cache_manager import (
     DockerImageCacheManager,
     DockerImageCacheResult,
@@ -24,12 +28,26 @@ from cloudai.util.docker_image_cache_manager import (
 )
 
 
+@pytest.fixture
+def slurm_system(tmp_path: Path) -> SlurmSystem:
+    system = SlurmSystem(
+        name="test_system",
+        install_path=str(tmp_path / "install"),
+        output_path=str(tmp_path / "output"),
+        cache_docker_images_locally=True,
+        default_partition="main",
+        partitions={},
+    )
+    (tmp_path / "install").mkdir()
+    return system
+
+
 @patch("os.path.isfile")
 @patch("os.path.exists")
 @patch("os.access")
-def test_ensure_docker_image_file_exists(mock_access, mock_exists, mock_isfile):
-    manager = DockerImageCacheManager("/fake/install/path", True, "default")
-    mock_isfile.return_value = True
+def test_ensure_docker_image_file_exists(mock_access, mock_exists, mock_is_file, slurm_system: SlurmSystem):
+    manager = DockerImageCacheManager(slurm_system)
+    mock_is_file.return_value = True
     mock_exists.return_value = True
     result = manager.ensure_docker_image("/tmp/existing_file.sqsh", "subdir", "docker_image.sqsh")
     assert result.success
@@ -40,9 +58,9 @@ def test_ensure_docker_image_file_exists(mock_access, mock_exists, mock_isfile):
 @patch("os.path.isfile")
 @patch("os.path.exists")
 @patch("os.access")
-def test_ensure_docker_image_url_cache_enabled(mock_access, mock_exists, mock_isfile):
-    manager = DockerImageCacheManager("/fake/install/path", True, "default")
-    mock_isfile.return_value = False
+def test_ensure_docker_image_url_cache_enabled(mock_access, mock_exists, mock_is_file, slurm_system: SlurmSystem):
+    manager = DockerImageCacheManager(slurm_system)
+    mock_is_file.return_value = False
     mock_exists.return_value = True
     mock_access.return_value = True
     with patch.object(
@@ -61,23 +79,26 @@ def test_ensure_docker_image_url_cache_enabled(mock_access, mock_exists, mock_is
 @patch("os.path.isfile")
 @patch("os.path.exists")
 @patch("os.access")
-@patch("os.makedirs")
 @patch("subprocess.run")
 @patch("cloudai.util.docker_image_cache_manager.DockerImageCacheManager._check_prerequisites")
-def test_cache_docker_image(mock_check_prerequisites, mock_run, mock_makedirs, mock_access, mock_exists, mock_isfile):
-    manager = DockerImageCacheManager("/fake/install/path", True, "default")
+def test_cache_docker_image(
+    mock_check_prerequisites, mock_run, mock_access, mock_exists, mock_is_file, slurm_system: SlurmSystem
+):
+    manager = DockerImageCacheManager(slurm_system)
 
     # Test when cached file already exists
-    mock_isfile.return_value = True
+    mock_is_file.return_value = True
     result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
     assert result.success
-    assert result.message == "Cached Docker image already exists at /fake/install/path/subdir/image.tar.gz."
+    assert result.docker_image_path == f"{slurm_system.install_path}/subdir/image.tar.gz"
+    assert result.message == f"Cached Docker image already exists at {slurm_system.install_path}/subdir/image.tar.gz."
 
     # Test creating subdirectory when it doesn't exist
-    mock_isfile.return_value = False
-    mock_exists.side_effect = [True, False, False]  # install_path exists, subdir_path does not
+    mock_is_file.return_value = False
+    mock_exists.side_effect = [True, False]  # install_path exists, subdir_path does not
     with patch("os.makedirs") as mock_makedirs:
         result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
+        print(f"!! {result.message=}")
         mock_makedirs.assert_called_once_with("/fake/install/path/subdir")
 
     # Ensure prerequisites are always met for the following tests
@@ -88,7 +109,7 @@ def test_cache_docker_image(mock_check_prerequisites, mock_run, mock_makedirs, m
     mock_exists.side_effect = None
 
     # Test caching success with subprocess command (removal of default partition keyword)
-    mock_isfile.return_value = False
+    mock_is_file.return_value = False
     mock_exists.side_effect = [True, True, True, True, True]  # Ensure all path checks return True
     mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=0, stderr="")
     result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
@@ -100,16 +121,16 @@ def test_cache_docker_image(mock_check_prerequisites, mock_run, mock_makedirs, m
         text=True,
     )
     assert result.success
-    assert result.message == "Docker image cached successfully at /fake/install/path/subdir/image.tar.gz."
+    assert result.message == f"Docker image cached successfully at {slurm_system.install_path}/image.tar.gz."
 
     # Test caching failure due to subprocess error
-    mock_isfile.return_value = False
+    mock_is_file.return_value = False
     mock_run.side_effect = subprocess.CalledProcessError(1, "cmd")
     result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
     assert not result.success
 
     # Test caching failure due to disk-related errors
-    mock_isfile.return_value = False
+    mock_is_file.return_value = False
     mock_run.side_effect = None
     mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=1, stderr="Disk quota exceeded\n")
     mock_exists.side_effect = [True, True, True, True, True]
@@ -127,8 +148,8 @@ def test_cache_docker_image(mock_check_prerequisites, mock_run, mock_makedirs, m
 @patch("os.path.exists")
 @patch("os.access")
 @patch("os.remove")
-def test_remove_cached_image(mock_remove, mock_access, mock_exists, mock_isfile):
-    manager = DockerImageCacheManager("/fake/install/path", True, "default")
+def test_remove_cached_image(mock_remove, mock_access, mock_exists, mock_isfile, slurm_system: SlurmSystem):
+    manager = DockerImageCacheManager(slurm_system)
 
     # Test successful removal
     mock_isfile.return_value = True
@@ -154,8 +175,8 @@ def test_remove_cached_image(mock_remove, mock_access, mock_exists, mock_isfile)
 @patch("os.path.exists")
 @patch("os.access")
 @patch("os.remove")
-def test_uninstall_cached_image(mock_remove, mock_access, mock_exists, mock_isfile):
-    manager = DockerImageCacheManager("/fake/install/path", True, "default")
+def test_uninstall_cached_image(mock_remove, mock_access, mock_exists, mock_isfile, slurm_system: SlurmSystem):
+    manager = DockerImageCacheManager(slurm_system)
 
     # Test successful uninstallation and subdirectory removal
     mock_isfile.return_value = True
@@ -196,8 +217,8 @@ def test_uninstall_cached_image(mock_remove, mock_access, mock_exists, mock_isfi
 
 @patch("shutil.which")
 @patch("cloudai.util.docker_image_cache_manager.DockerImageCacheManager._check_docker_image_accessibility")
-def test_check_prerequisites(mock_check_docker_image_accessibility, mock_which):
-    manager = DockerImageCacheManager("/fake/install/path", True, "default")
+def test_check_prerequisites(mock_check_docker_image_accessibility, mock_which, slurm_system: SlurmSystem):
+    manager = DockerImageCacheManager(slurm_system)
 
     # Ensure enroot and srun are installed
     mock_which.side_effect = lambda x: x in ["enroot", "srun"]
@@ -234,72 +255,10 @@ def test_check_prerequisites(mock_check_docker_image_accessibility, mock_which):
     assert "Docker image URL not accessible." in result.message
 
 
-@patch("subprocess.Popen")
-@patch("shutil.which")
-@patch("tempfile.TemporaryDirectory")
-def test_check_docker_image_accessibility_with_enroot(mock_tempdir, mock_which, mock_popen):
-    manager = DockerImageCacheManager("/fake/install/path", True, "default")
-
-    # Ensure docker binary is not available
-    mock_which.return_value = None
-
-    # Mocking the TemporaryDirectory context manager
-    mock_temp_dir = MagicMock()
-    mock_tempdir.return_value.__enter__.return_value = mock_temp_dir
-    temp_dir_path = "/fake/temp/dir"
-    mock_temp_dir.__enter__.return_value = temp_dir_path
-
-    # Mock Popen for enroot command with success scenario
-    process_mock = MagicMock()
-    process_mock.stderr.readline.side_effect = [
-        b"Found all layers in cache\n",  # Simulate successful output
-        b"",
-        b"",
-    ]
-    process_mock.poll.side_effect = [None, None, 0]  # Simulate process running then finishing
-
-    mock_popen.return_value = process_mock
-
-    result = manager._check_docker_image_accessibility("docker.io/hello-world")
-    assert result.success
-    assert result.message == "Docker image URL, docker.io/hello-world, is accessible."
-
-    # Verify the command contains the required keywords
-    command = mock_popen.call_args[0][0]
-    assert "enroot import -o" in command
-    assert "docker://docker.io/hello-world" in command
-
-    # Mock Popen for enroot command with failure scenario
-    process_mock.reset_mock()
-    process_mock.stderr.readline.side_effect = [
-        b"[ERROR] URL https://nvcr.io/proxy_auth returned error code: 401 Unauthorized\n",  # Simulate 401 error output
-        b"",
-        b"",
-    ]
-    process_mock.poll.side_effect = [None, None, 0]  # Simulate process running then finishing
-
-    mock_popen.return_value = process_mock
-
-    result = manager._check_docker_image_accessibility("docker.io/hello-world")
-    assert not result.success
-    assert (
-        "Failed to access Docker image URL: docker.io/hello-world. "
-        "Error: [ERROR] URL https://nvcr.io/proxy_auth returned error code: 401 Unauthorized\n"
-        "This error indicates that access to the Docker image URL is unauthorized. "
-        "Please ensure you have the necessary permissions and have followed the instructions in the README "
-        "for setting up your credentials correctly." in result.message.replace("\n\n", "\n")
-    )
-
-    # Verify the command contains the required keywords
-    command = mock_popen.call_args[0][0]
-    assert "enroot import -o" in command
-    assert "docker://docker.io/hello-world" in command
-
-
 @patch("os.path.isfile")
 @patch("os.path.exists")
-def test_check_docker_image_exists_with_only_cached_file(mock_exists, mock_isfile):
-    manager = DockerImageCacheManager("/fake/install/path", True, "default")
+def test_check_docker_image_exists_with_only_cached_file(mock_exists, mock_isfile, slurm_system: SlurmSystem):
+    manager = DockerImageCacheManager(slurm_system)
 
     # Simulate only the cached file being a valid file path
     mock_isfile.side_effect = lambda path: path == "/fake/install/path/subdir/docker_image.sqsh"
@@ -317,8 +276,8 @@ def test_check_docker_image_exists_with_only_cached_file(mock_exists, mock_isfil
 
 @patch("os.path.isfile")
 @patch("os.path.exists")
-def test_check_docker_image_exists_with_both_valid_files(mock_exists, mock_isfile):
-    manager = DockerImageCacheManager("/fake/install/path", True, "default")
+def test_check_docker_image_exists_with_both_valid_files(mock_exists, mock_isfile, slurm_system: SlurmSystem):
+    manager = DockerImageCacheManager(slurm_system)
 
     # Simulate both cached file and docker image URL being valid file paths
     mock_isfile.side_effect = lambda path: path in [

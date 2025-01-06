@@ -20,6 +20,8 @@ import shutil
 import subprocess
 import tempfile
 
+from cloudai.systems import SlurmSystem
+
 
 class PrerequisiteCheckResult:
     """
@@ -107,15 +109,11 @@ class DockerImageCacheManager:
     Manages the caching of Docker images for installation strategies.
 
     Attributes
-        install_path (str): The base installation path.
-        cache_docker_images_locally (bool): Whether to cache Docker image files locally.
-        partition_name (str): The partition name to use in the srun command.
+        system (SlurmSystem): The Slurm system configuration.
     """
 
-    def __init__(self, install_path: str, cache_docker_images_locally: bool, partition_name: str) -> None:
-        self.install_path = install_path
-        self.cache_docker_images_locally = cache_docker_images_locally
-        self.partition_name = partition_name
+    def __init__(self, system: SlurmSystem) -> None:
+        self.system = system
 
     def ensure_docker_image(
         self, docker_image_url: str, subdir_name: str, docker_image_filename: str
@@ -135,7 +133,7 @@ class DockerImageCacheManager:
         if image_check_result.success:
             return image_check_result
 
-        if self.cache_docker_images_locally:
+        if self.system.cache_docker_images_locally:
             return self.cache_docker_image(docker_image_url, subdir_name, docker_image_filename)
 
         return image_check_result
@@ -155,13 +153,14 @@ class DockerImageCacheManager:
             DockerImageCacheResult: Result of the Docker image existence check.
         """
         logging.debug(
-            f"Checking if Docker image exists: docker_image_url={docker_image_url}, subdir_name={subdir_name}, "
+            f"Checking if Docker image exists: docker_image_url={docker_image_url}, "
+            f"subdir_name={subdir_name}, "
             f"docker_image_filename={docker_image_filename}, "
-            f"cache_docker_images_locally={self.cache_docker_images_locally}"
+            f"cache_docker_images_locally={self.system.cache_docker_images_locally}"
         )
 
         # If not caching locally, return True. Defer checking URL accessibility to srun.
-        if not self.cache_docker_images_locally:
+        if not self.system.cache_docker_images_locally:
             return DockerImageCacheResult(True, docker_image_url, "")
 
         # Check if docker_image_url is a file path and exists
@@ -171,12 +170,12 @@ class DockerImageCacheManager:
             )
 
         # Check if the cache file exists
-        if not os.path.exists(self.install_path):
-            message = f"Install path {self.install_path} does not exist."
+        if not os.path.exists(self.system.install_path):
+            message = f"Install path {self.system.install_path} does not exist."
             logging.debug(message)
             return DockerImageCacheResult(False, "", message)
 
-        subdir_path = os.path.join(self.install_path, subdir_name)
+        subdir_path = os.path.join(self.system.install_path, subdir_name)
         if not os.path.exists(subdir_path):
             message = f"Subdirectory path {subdir_path} does not exist."
             logging.debug(message)
@@ -206,7 +205,7 @@ class DockerImageCacheManager:
         Returns:
             DockerImageCacheResult: Result of the Docker image caching operation.
         """
-        subdir_path = os.path.join(self.install_path, subdir_name)
+        subdir_path = os.path.join(self.system.install_path, subdir_name)
         docker_image_path = os.path.join(subdir_path, docker_image_filename)
 
         if os.path.isfile(docker_image_path):
@@ -219,13 +218,13 @@ class DockerImageCacheManager:
             logging.error(f"Prerequisite check failed: {prerequisite_check.message}")
             return DockerImageCacheResult(False, "", prerequisite_check.message)
 
-        if not os.path.exists(self.install_path):
-            error_message = f"Install path {self.install_path} does not exist."
+        if not os.path.exists(self.system.install_path):
+            error_message = f"Install path {self.system.install_path} does not exist."
             logging.error(error_message)
             return DockerImageCacheResult(False, "", error_message)
 
-        if not os.access(self.install_path, os.W_OK):
-            error_message = f"No permission to write in install path {self.install_path}."
+        if not os.access(self.system.install_path, os.W_OK):
+            error_message = f"No permission to write in install path {self.system.install_path}."
             logging.error(error_message)
             return DockerImageCacheResult(False, "", error_message)
 
@@ -238,7 +237,7 @@ class DockerImageCacheManager:
                 return DockerImageCacheResult(False, "", error_message)
 
         enroot_import_cmd = (
-            f"srun --export=ALL --partition={self.partition_name} --account=coreai_dlalgo_ci "
+            f"srun --export=ALL --partition={self.system.default_partition} "
             f"enroot import -o {docker_image_path} docker://{docker_image_url}"
         )
         logging.debug(f"Importing Docker image: {enroot_import_cmd}")
@@ -387,7 +386,7 @@ class DockerImageCacheManager:
         if not result.success:
             return result
 
-        subdir_path = os.path.join(self.install_path, subdir_name)
+        subdir_path = os.path.join(self.system.install_path, subdir_name)
         if os.path.isdir(subdir_path):
             try:
                 if not os.listdir(subdir_path):
@@ -414,7 +413,7 @@ class DockerImageCacheManager:
         Returns:
             DockerImageCacheResult: Result of the removal operation.
         """
-        docker_image_path = os.path.join(self.install_path, subdir_name, docker_image_filename)
+        docker_image_path = os.path.join(self.system.install_path, subdir_name, docker_image_filename)
         if os.path.isfile(docker_image_path):
             try:
                 os.remove(docker_image_path)
