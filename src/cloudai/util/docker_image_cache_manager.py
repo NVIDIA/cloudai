@@ -18,7 +18,6 @@ import logging
 import os
 import shutil
 import subprocess
-import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -163,7 +162,9 @@ class DockerImageCacheManager:
         docker_image_path = Path(docker_image_url)
         if docker_image_path.is_file() and docker_image_path.exists():
             return DockerImageCacheResult(
-                True, docker_image_path.absolute(), f"Docker image file path is valid: {docker_image_url}."
+                True,
+                docker_image_path.absolute(),
+                f"Docker image file path is valid: {docker_image_url}.",
             )
 
         # Check if the cache file exists
@@ -205,7 +206,7 @@ class DockerImageCacheManager:
             logging.error(error_message)
             return DockerImageCacheResult(False, Path(), error_message)
 
-        prerequisite_check = self._check_prerequisites(docker_image_url)
+        prerequisite_check = self._check_prerequisites()
         if not prerequisite_check:
             logging.error(f"Prerequisite check failed: {prerequisite_check.message}")
             return DockerImageCacheResult(False, Path(), prerequisite_check.message)
@@ -240,26 +241,14 @@ class DockerImageCacheManager:
             return DockerImageCacheResult(True, docker_image_path.absolute(), success_message)
         except subprocess.CalledProcessError as e:
             error_message = (
-                f"Failed to import Docker image from {docker_image_url}. Command: {enroot_import_cmd}. Error: {e}"
+                f"Failed to import Docker image {docker_image_url}. Command: {enroot_import_cmd}. Error: {e.stderr}"
             )
             logging.error(error_message)
-            return DockerImageCacheResult(
-                False,
-                Path(),
-                (
-                    f"Failed to import Docker image from {docker_image_url}. "
-                    f"Command: {enroot_import_cmd}. "
-                    f"Error: {e}. Please check the Docker image URL and ensure that it is accessible and set up with "
-                    f"valid credentials."
-                ),
-            )
+            return DockerImageCacheResult(False, message=error_message)
 
-    def _check_prerequisites(self, docker_image_url: str) -> PrerequisiteCheckResult:
+    def _check_prerequisites(self) -> PrerequisiteCheckResult:
         """
         Check prerequisites for caching Docker image.
-
-        Args:
-            docker_image_url (str): URL of the Docker image.
 
         Returns:
             PrerequisiteCheckResult: Result of the prerequisite check.
@@ -271,85 +260,11 @@ class DockerImageCacheManager:
             missing_binaries_str = ", ".join(missing_binaries)
             logging.error(f"{missing_binaries_str} are required for caching Docker images but are not installed.")
             return PrerequisiteCheckResult(
-                False, f"{missing_binaries_str} are required for caching Docker images but are not installed."
+                False,
+                f"{missing_binaries_str} are required for caching Docker images but are not installed.",
             )
 
-        docker_accessible = self._check_docker_image_accessibility(docker_image_url)
-        if not docker_accessible.success:
-            logging.error(f"Docker image URL {docker_image_url} is not accessible. Error: {docker_accessible.message}")
-            return docker_accessible
-
         return PrerequisiteCheckResult(True, "All prerequisites are met.")
-
-    def _check_docker_image_accessibility(self, docker_image_url: str) -> PrerequisiteCheckResult:
-        """
-        Check if the Docker image URL is accessible.
-
-        Args:
-            docker_image_url (str): URL of the Docker image.
-
-        Returns:
-            PrerequisiteCheckResult: Result of the Docker image accessibility check.
-        """
-        with tempfile.TemporaryDirectory() as temp_dir:
-            docker_image_path = Path(temp_dir) / "docker_image.sqsh"
-            enroot_import_cmd = f"enroot import -o {docker_image_path} docker://{docker_image_url}"
-
-            logging.debug(f"Checking Docker image accessibility: {enroot_import_cmd}")
-
-            process = subprocess.Popen(enroot_import_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            try:
-                while True:
-                    error_output = ""
-                    if process.stderr:
-                        error_output = process.stderr.readline().decode().strip()
-
-                    if error_output:
-                        if (
-                            "Downloading" in error_output
-                            or "Found all layers in cache" in error_output
-                            or "Fetching image manifest list" in error_output
-                        ):
-                            logging.debug(
-                                f"Docker image URL, {docker_image_url}, is accessible. "
-                                f"Command used: {enroot_import_cmd}. Found keyword: {error_output.strip()}"
-                            )
-                            process.terminate()
-                            return PrerequisiteCheckResult(
-                                True, f"Docker image URL, {docker_image_url}, is accessible."
-                            )
-                        if "[ERROR]" in error_output:
-                            logging.error(
-                                f"Failed to access Docker image URL, {docker_image_url}. "
-                                f"Command used: {enroot_import_cmd}. Error: {error_output}"
-                            )
-                            process.terminate()
-                            if "401 Unauthorized" in error_output:
-                                detailed_message = (
-                                    f"Failed to access Docker image URL: {docker_image_url}. Error: {error_output}\n"
-                                    "This error indicates that access to the Docker image URL is unauthorized. "
-                                    "Please ensure you have the necessary permissions and have followed the "
-                                    "instructions in the README for setting up your credentials correctly."
-                                )
-                                return PrerequisiteCheckResult(False, detailed_message)
-                            return PrerequisiteCheckResult(
-                                False, f"Failed to access Docker image URL: {docker_image_url}. Error: {error_output}"
-                            )
-                    if process.poll() is not None:
-                        break
-
-                logging.debug(f"Failed to access Docker image URL: {docker_image_url}. Unknown error.")
-                return PrerequisiteCheckResult(
-                    False, f"Failed to access Docker image URL: {docker_image_url}. Unknown error."
-                )
-            finally:
-                # Ensure the temporary docker image file is removed
-                if docker_image_path.exists():
-                    try:
-                        docker_image_path.unlink()
-                        logging.debug(f"Temporary Docker image file removed: {docker_image_path}")
-                    except OSError as e:
-                        logging.error(f"Failed to remove temporary Docker image file {docker_image_path}. Error: {e}")
 
     def uninstall_cached_image(self, docker_image_filename: str) -> DockerImageCacheResult:
         """
