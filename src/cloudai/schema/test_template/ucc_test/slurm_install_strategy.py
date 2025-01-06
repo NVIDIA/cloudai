@@ -39,9 +39,9 @@ class UCCTestSlurmInstallStrategy(SlurmInstallStrategy):
         if docker_image_result.success:
             return InstallStatusResult(success=True)
         else:
-            if self.docker_image_cache_manager.cache_docker_images_locally:
+            if self.docker_image_cache_manager.system.cache_docker_images_locally:
                 expected_docker_image_path = os.path.join(
-                    self.docker_image_cache_manager.install_path, self.SUBDIR_PATH, self.DOCKER_IMAGE_FILENAME
+                    self.docker_image_cache_manager.system.install_path, self.SUBDIR_PATH, self.DOCKER_IMAGE_FILENAME
                 )
                 return InstallStatusResult(
                     success=False,

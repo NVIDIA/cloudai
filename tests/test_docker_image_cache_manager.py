@@ -291,5 +291,30 @@ def test_check_docker_image_exists_with_both_valid_files(mock_exists, mock_isfil
 
     result = manager.check_docker_image_exists("/tmp/existing_file.sqsh", "subdir", "docker_image.sqsh")
     assert result.success
-    assert result.docker_image_path == "/tmp/existing_file.sqsh"
-    assert result.message == "Docker image file path is valid: /tmp/existing_file.sqsh."
+    assert result.docker_image_path is not None
+    assert str(result.docker_image_path) == "docker.io/hello-world"
+    assert not Path(result.docker_image_path).is_absolute()
+    assert result.message == ""
+
+
+def test_system_with_account(slurm_system: SlurmSystem):
+    slurm_system.account = "test_account"
+    Path(slurm_system.install_path).mkdir(parents=True, exist_ok=True)
+
+    manager = DockerImageCacheManager(slurm_system)
+    manager._check_prerequisites = lambda docker_image_url: PrerequisiteCheckResult(True, "All prerequisites are met.")
+
+    with patch("subprocess.run") as mock_run:
+        res = manager.cache_docker_image("docker.io/hello-world", "subdir", "docker_image.sqsh")
+        assert res.success
+
+    mock_run.assert_called_once_with(
+        (
+            f"srun --export=ALL --partition={slurm_system.default_partition} --account={slurm_system.account} "
+            f"enroot import -o {slurm_system.install_path}/docker_image.sqsh docker://docker.io/hello-world"
+        ),
+        shell=True,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
