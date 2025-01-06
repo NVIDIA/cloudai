@@ -215,10 +215,10 @@ class DockerImageCacheManager:
             logging.error(error_message)
             return DockerImageCacheResult(False, Path(), error_message)
 
-        enroot_import_cmd = (
-            f"srun --export=ALL --partition={self.system.default_partition} "
-            f"enroot import -o {docker_image_path} docker://{docker_image_url}"
-        )
+        srun_prefix = f"srun --export=ALL --partition={self.system.default_partition}"
+        if self.system.account:
+            srun_prefix += f" --account={self.system.account}"
+        enroot_import_cmd = f"{srun_prefix} enroot import -o {docker_image_path} docker://{docker_image_url}"
         logging.debug(f"Importing Docker image: {enroot_import_cmd}")
 
         try:
