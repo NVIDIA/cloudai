@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict
+from typing import Any, Dict, List, Union
 
 from .system import System
 
@@ -28,19 +28,19 @@ class TestTemplateStrategy:
 
     Attributes
         system (System): The system schema object.
-        cmd_args (Dict[str, Any]): Default command-line arguments.
-        default_cmd_args (Dict[str, str]): Constructed default command-line arguments.
+        cmd_args (Dict[str, Union[str, List[str]]]): Default command-line arguments with possible ranges.
+        default_cmd_args (Dict[str, str]): Constructed default command-line arguments with ranges flattened.
     """
 
     __test__ = False
 
-    def __init__(self, system: System, cmd_args: Dict[str, Any]) -> None:
+    def __init__(self, system: System, cmd_args: Dict[str, Union[str, List[str]]]) -> None:
         """
         Initialize a TestTemplateStrategy instance with system configuration, env variables, and command-line arguments.
 
         Args:
             system (System): The system configuration for the test.
-            cmd_args (Dict[str, Any]): Default command-line arguments.
+            cmd_args (Dict[str, Union[str, List[str]]]): Default command-line arguments with possible ranges.
         """
         self.system = system
         self.cmd_args = cmd_args
@@ -48,21 +48,21 @@ class TestTemplateStrategy:
 
     def _construct_default_cmd_args(self) -> Dict[str, str]:
         """
-        Construct the default arguments for the test template recursively.
+        Construct the default arguments for the test template recursively, flattening ranges.
 
         Returns
-            Dict[str, Any]: A dictionary containing the combined default arguments.
+            Dict[str, str]: A dictionary containing the combined default arguments with ranges flattened.
         """
 
-        def construct_args(cmd_args: Dict[str, Any], parent_key: str = "") -> Dict[str, Any]:
-            args = {}
+        def construct_args(cmd_args: Dict[str, Union[str, List[str]]], parent_key: str = "") -> Dict[str, str]:
+            args: Dict[str, str] = {}
             for key, value in cmd_args.items():
                 full_key = f"{parent_key}.{key}" if parent_key else key
 
                 if isinstance(value, dict):
                     # If 'default' is present, add it to the arguments
                     if "default" in value:
-                        args[full_key] = value["default"]
+                        args[full_key] = value.get("default", "")
 
                     # Recursively process nested dictionaries
                     nested_args = construct_args(
@@ -70,8 +70,11 @@ class TestTemplateStrategy:
                         full_key,
                     )
                     args.update(nested_args)
+                elif isinstance(value, list):
+                    # Flatten ranges into comma-separated strings
+                    args[full_key] = ",".join(map(str, value))
                 else:
-                    args[full_key] = value
+                    args[full_key] = str(value)
             return args
 
         return construct_args(self.cmd_args)
@@ -119,22 +122,24 @@ class TestTemplateStrategy:
     def _override_cmd_args(
         self,
         default_cmd_args: Dict[str, str],
-        provided_cmd_args: Dict[str, str],
+        provided_cmd_args: Dict[str, Union[str, List[str]]],
     ) -> Dict[str, str]:
         """
         Override the default command-line arguments with provided values.
 
         Args:
             default_cmd_args (Dict[str, str]): The default command-line arguments.
-            provided_cmd_args (Dict[str, str]): The provided command-line arguments to override defaults.
+            provided_cmd_args (Dict[str, Union[str, List[str]]]): The provided command-line arguments
+            to override defaults.
 
         Returns:
-            Dict[str, str]: A dictionary of command-line arguments with overrides applied.
+            Dict[str, str]: A dictionary of command-line arguments with overrides applied and ranges flattened.
         """
         final_cmd_args = default_cmd_args.copy()
         flattened_args = self._flatten_dict(provided_cmd_args)
 
         for key, value in flattened_args.items():
-            final_cmd_args[key] = value
+            # Flatten ranges into comma-separated strings if value is a list
+            final_cmd_args[key] = ",".join(map(str, value)) if isinstance(value, list) else str(value)
 
         return final_cmd_args
