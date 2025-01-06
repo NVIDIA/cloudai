@@ -263,17 +263,8 @@ class DockerImageCacheManager:
             error_message = (
                 f"Failed to import Docker image from {docker_image_url}. Command: {enroot_import_cmd}. Error: {e}"
             )
-            logging.error(error_message)
-            return DockerImageCacheResult(
-                False,
-                "",
-                (
-                    f"Failed to import Docker image from {docker_image_url}. "
-                    f"Command: {enroot_import_cmd}. "
-                    f"Error: {e}. Please check the Docker image URL and ensure that it is accessible and set up with "
-                    f"valid credentials."
-                ),
-            )
+            logging.debug(error_message)
+            return DockerImageCacheResult(False, message=error_message)
 
     def _check_prerequisites(self, docker_image_url: str) -> PrerequisiteCheckResult:
         """
