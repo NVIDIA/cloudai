@@ -122,10 +122,16 @@ class BaseInstaller:
                     else:
                         install_results[test_template.name] = result.message
                     done += 1
-                    logging.info(
-                        f"{done}/{total} Installation for {test_template.name} finished with status: "
+                    msg = (
+                        f"{done}/{total} Installation of {test_template.name}: "
                         f"{result.message if result.message else 'OK'}"
                     )
+                    if result.success:
+                        install_results[test_template.name] = "Success"
+                        logging.info(msg)
+                    else:
+                        install_results[test_template.name] = result.message
+                        logging.error(msg)
                 except Exception as e:
                     done += 1
                     logging.error(f"{done}/{total} Installation failed for {test_template.name}: {e}")

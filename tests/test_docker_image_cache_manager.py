@@ -19,7 +19,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.util.docker_image_cache_manager import (
     DockerImageCacheManager,
