@@ -242,7 +242,7 @@ class DockerImageCacheManager:
             error_message = (
                 f"Failed to import Docker image {docker_image_url}. Command: {enroot_import_cmd}. Error: {e.stderr}"
             )
-            logging.error(error_message)
+            logging.debug(error_message)
             return DockerImageCacheResult(False, message=error_message)
 
     def _check_prerequisites(self) -> PrerequisiteCheckResult:
