@@ -238,7 +238,7 @@ class DockerImageCacheManager:
                 return DockerImageCacheResult(False, "", error_message)
 
         enroot_import_cmd = (
-            f"srun --export=ALL --partition={self.partition_name} "
+            f"srun --export=ALL --partition={self.partition_name} --account=coreai_dlalgo_ci "
             f"enroot import -o {docker_image_path} docker://{docker_image_url}"
         )
         logging.debug(f"Importing Docker image: {enroot_import_cmd}")
@@ -286,7 +286,7 @@ class DockerImageCacheManager:
         Returns:
             PrerequisiteCheckResult: Result of the prerequisite check.
         """
-        required_binaries = ["enroot", "srun"]
+        required_binaries = ["srun"]
         missing_binaries = [binary for binary in required_binaries if not shutil.which(binary)]
 
         if missing_binaries:
