@@ -19,10 +19,11 @@ from pathlib import Path
 from typing import Dict, List, Union
 
 import pytest
+from pydantic import ValidationError
+
 from cloudai._core.base_job import BaseJob
 from cloudai._core.system import System
 from cloudai._core.test import Test, TestDefinition, TestTemplate
-from pydantic import ValidationError
 
 
 class MockSystem(System):
