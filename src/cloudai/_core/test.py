@@ -90,7 +90,7 @@ class CmdArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class TestDefinition(BaseModel):
+class TestDefinition(BaseModel, ABC):
     """Base Test object."""
 
     __test__ = False

@@ -14,13 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 
 from .test_scenario import TestRun
 from .test_template_strategy import TestTemplateStrategy
 
 
-class CommandGenStrategy(TestTemplateStrategy):
+class CommandGenStrategy(TestTemplateStrategy, ABC):
     """
     Abstract base class defining the interface for command generation strategies across different system environments.
 
@@ -53,7 +53,6 @@ class CommandGenStrategy(TestTemplateStrategy):
         """
         pass
 
-    @abstractmethod
     def gen_srun_success_check(self, tr: TestRun) -> str:
         """
         Generate the Slurm success check command to verify if a test run was successful.
@@ -64,4 +63,4 @@ class CommandGenStrategy(TestTemplateStrategy):
         Returns:
             str: The generated command to check the success of the test run.
         """
-        pass
+        return ""
