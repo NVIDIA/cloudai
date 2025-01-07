@@ -60,18 +60,15 @@ class TestTemplateStrategy:
                 full_key = f"{parent_key}.{key}" if parent_key else key
 
                 if isinstance(value, dict):
-                    # If 'default' is present, add it to the arguments
                     if "default" in value:
                         args[full_key] = value.get("default", "")
 
-                    # Recursively process nested dictionaries
                     nested_args = construct_args(
                         {k: v for k, v in value.items() if k not in ["type", "default", "values"]},
                         full_key,
                     )
                     args.update(nested_args)
                 elif isinstance(value, list):
-                    # Flatten ranges into comma-separated strings
                     args[full_key] = ",".join(map(str, value))
                 else:
                     args[full_key] = str(value)
@@ -139,7 +136,6 @@ class TestTemplateStrategy:
         flattened_args = self._flatten_dict(provided_cmd_args)
 
         for key, value in flattened_args.items():
-            # Flatten ranges into comma-separated strings if value is a list
             final_cmd_args[key] = ",".join(map(str, value)) if isinstance(value, list) else str(value)
 
         return final_cmd_args

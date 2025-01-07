@@ -27,10 +27,6 @@ from cloudai._core.test import Test, TestDefinition, TestTemplate
 
 
 class MockSystem(System):
-    """
-    Mock subclass of System for testing purposes.
-    """
-
     def update(self) -> None:
         pass
 
@@ -45,26 +41,16 @@ class MockSystem(System):
 
 
 class MockTestTemplate(TestTemplate):
-    """
-    Mock subclass of TestTemplate for testing purposes.
-    """
-
     pass
 
 
 class ConcreteTestDefinition(TestDefinition):
-    """
-    Concrete subclass of TestDefinition for testing purposes.
-    """
-
     @property
     def installables(self):
         return []
 
 
-# Mock generate commands that will be handled within the agent later
 def generate_commands(cmd_args: Dict[str, Union[str, List[str]]]) -> List[str]:
-    # Handle empty cmd_args
     if not cmd_args:
         return []
 
@@ -78,7 +64,6 @@ def generate_commands(cmd_args: Dict[str, Union[str, List[str]]]) -> List[str]:
 
 
 def test_cmd_args_with_ranges():
-    """Test that cmd_args with ranges is correctly parsed and retains lists."""
     data = {
         "name": "example DSE",
         "description": "Example DSE",
@@ -100,10 +85,8 @@ def test_cmd_args_with_ranges():
         },
     }
 
-    # Create ConcreteTestDefinition
     test_def = ConcreteTestDefinition(**data)
 
-    # Assert cmd_args retain ranges
     assert test_def.cmd_args_dict == {
         "a": [1, 16],
         "b": [1, 2, 4, 8],
@@ -121,16 +104,13 @@ def test_cmd_args_with_ranges():
         install_path=Path("/mock/install/path"),
         output_path=Path("/mock/output/path"),
     )
-    # Create a Test instance
     test_template = MockTestTemplate(system=mock_system, name="example_template")
     test = Test(test_definition=test_def, test_template=test_template)
 
-    # Assert cmd_args are the same as raw_cmd_args since we are retaining lists
     assert test.cmd_args == test_def.cmd_args_dict
 
 
 def test_cmd_args_with_static_values():
-    """Test that cmd_args with static values is correctly parsed."""
     data = {
         "name": "example DSE",
         "description": "Example DSE",
@@ -152,10 +132,8 @@ def test_cmd_args_with_static_values():
         },
     }
 
-    # Create ConcreteTestDefinition
     test_def = ConcreteTestDefinition(**data)
 
-    # Assert cmd_args retain static values
     assert test_def.cmd_args_dict == {
         "a": "1",
         "b": "4",
@@ -173,16 +151,13 @@ def test_cmd_args_with_static_values():
         install_path=Path("/mock/install/path"),
         output_path=Path("/mock/output/path"),
     )
-    # Create a Test instance
     test_template = MockTestTemplate(system=mock_system, name="example_template")
     test = Test(test_definition=test_def, test_template=test_template)
 
-    # Assert cmd_args are the same as raw_cmd_args since they are static values
     assert test.cmd_args == test_def.cmd_args_dict
 
 
 def test_generate_commands_with_ranges():
-    """Test command generation when cmd_args contain ranges."""
     cmd_args = {
         "a": [1, 16],
         "b": [1, 2],
@@ -192,7 +167,6 @@ def test_generate_commands_with_ranges():
 
     commands = generate_commands(cmd_args)
 
-    # This is a subset of the expected commands for all combinations
     expected_commands = [
         "--a=1 --b=1 --flag=true --layers=4",
         "--a=1 --b=2 --flag=true --layers=4",
@@ -204,7 +178,6 @@ def test_generate_commands_with_ranges():
 
 
 def test_generate_commands_with_static_values():
-    """Test command generation when cmd_args contain only static values."""
     cmd_args = {
         "a": ["1"],
         "b": ["4"],
@@ -214,7 +187,6 @@ def test_generate_commands_with_static_values():
 
     commands = generate_commands(cmd_args)
 
-    # Expected single command
     expected_commands = [
         "--a=1 --b=4 --flag=false --layers=2",
     ]
@@ -223,18 +195,14 @@ def test_generate_commands_with_static_values():
 
 
 def test_generate_commands_with_empty_cmd_args():
-    """Test command generation with empty cmd_args."""
     cmd_args = {}
 
     commands = generate_commands(cmd_args)
 
-    # No commands should be generated
     assert commands == []
 
 
 def test_invalid_toml_parsing_missing_fields():
-    """Test that TestParser raises an error for TOML data missing required fields."""
-    # Invalid data: missing required 'name' field
     invalid_toml_data = {
         "description": "Example invalid TOML",
         "test_template_name": "ExampleEnv",
@@ -243,14 +211,11 @@ def test_invalid_toml_parsing_missing_fields():
         },
     }
 
-    # Simulate TestDefinition validation
     with pytest.raises(ValidationError, match="name\n  Field required"):
         ConcreteTestDefinition(**invalid_toml_data)
 
 
 def test_invalid_toml_parsing_unexpected_field():
-    """Test that TestDefinition raises an error for unexpected fields in TOML."""
-    # Invalid data: includes an unexpected field
     invalid_toml_data = {
         "name": "example DSE",
         "description": "Example invalid TOML",
@@ -258,9 +223,8 @@ def test_invalid_toml_parsing_unexpected_field():
         "cmd_args": {
             "a": "1",
         },
-        "unexpected_field": "unexpected_value",  # Unexpected field
+        "unexpected_field": "unexpected_value",
     }
 
-    # Validate that a ValidationError is raised for extra fields
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         ConcreteTestDefinition(**invalid_toml_data)
