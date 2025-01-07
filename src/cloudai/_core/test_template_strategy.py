@@ -71,6 +71,8 @@ class TestTemplateStrategy:
                 elif isinstance(value, list):
                     args[full_key] = ",".join(map(str, value))
                 else:
+                    if "XLA_FLAGS" in full_key and isinstance(value, bool):
+                        value = str(value).lower()
                     args[full_key] = str(value)
             return args
 
@@ -136,6 +138,8 @@ class TestTemplateStrategy:
         flattened_args = self._flatten_dict(provided_cmd_args)
 
         for key, value in flattened_args.items():
+            if "XLA_FLAGS" in key and isinstance(value, bool):
+                value = str(value).lower()
             final_cmd_args[key] = ",".join(map(str, value)) if isinstance(value, list) else str(value)
 
         return final_cmd_args

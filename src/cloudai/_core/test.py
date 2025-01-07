@@ -109,10 +109,7 @@ class TestDefinition(BaseModel):
         if isinstance(self.cmd_args, CmdArgs):
             return self.cmd_args.model_dump()
         if isinstance(self.cmd_args, dict):
-            return {
-                k: v if isinstance(v, list) else str(v)  # Preserve lists, convert others to strings
-                for k, v in self.cmd_args.items()
-            }
+            return {k: v if isinstance(v, list) else str(v) for k, v in self.cmd_args.items()}
         return {}
 
     @property
