@@ -56,9 +56,7 @@ class SlurmInstaller(BaseInstaller):
         """
         super().__init__(system)
         self.system = system
-        self.docker_image_cache_manager = DockerImageCacheManager(
-            self.system.install_path, self.system.cache_docker_images_locally, self.system.default_partition
-        )
+        self.docker_image_cache_manager = DockerImageCacheManager(system)
 
     def _check_prerequisites(self) -> InstallStatusResult:
         """
