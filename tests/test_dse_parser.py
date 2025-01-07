@@ -228,3 +228,97 @@ def test_invalid_toml_parsing_unexpected_field():
 
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         ConcreteTestDefinition(**invalid_toml_data)
+
+
+def test_cmd_args_with_non_numeric_values():
+    data = {
+        "name": "example DSE",
+        "description": "Example DSE",
+        "test_template_name": "ExampleEnv",
+        "cmd_args": {
+            "a": ["true", "false"],
+            "b": ["yes", "no"],
+            "c": ["on", "off"],
+            "d": ["enabled", "disabled"],
+            "e": ["high", "low"],
+            "f": ["start", "stop"],
+            "num_layers": "four",
+            "use_fp8": "one",
+        },
+        "extra_env_vars": {
+            "ENV1": "zero",
+            "ENV2": "one",
+            "ENV3": "three_two_two_one_two_two_five_four_seven_two",
+        },
+    }
+
+    test_def = ConcreteTestDefinition(**data)
+
+    assert test_def.cmd_args_dict == {
+        "a": ["true", "false"],
+        "b": ["yes", "no"],
+        "c": ["on", "off"],
+        "d": ["enabled", "disabled"],
+        "e": ["high", "low"],
+        "f": ["start", "stop"],
+        "num_layers": "four",
+        "use_fp8": "one",
+    }
+
+    mock_system = MockSystem(
+        name="mock_system",
+        scheduler="mock_scheduler",
+        install_path=Path("/mock/install/path"),
+        output_path=Path("/mock/output/path"),
+    )
+    test_template = MockTestTemplate(system=mock_system, name="example_template")
+    test = Test(test_definition=test_def, test_template=test_template)
+
+    assert test.cmd_args == test_def.cmd_args_dict
+
+
+def test_cmd_args_with_mixed_values():
+    data = {
+        "name": "example DSE",
+        "description": "Example DSE",
+        "test_template_name": "ExampleEnv",
+        "cmd_args": {
+            "a": ["true", "false"],
+            "b": [1, 2, 4, 8],
+            "c": ["on", "off"],
+            "d": [10, 20],
+            "e": ["high", "low"],
+            "f": [100, 200],
+            "num_layers": "4",
+            "use_fp8": "1",
+        },
+        "extra_env_vars": {
+            "ENV1": "0",
+            "ENV2": "1",
+            "ENV3": "3221225472",
+        },
+    }
+
+    test_def = ConcreteTestDefinition(**data)
+
+    assert test_def.cmd_args_dict == {
+        "a": ["true", "false"],
+        "b": [1, 2, 4, 8],
+        "c": ["on", "off"],
+        "d": [10, 20],
+        "e": ["high", "low"],
+        "f": [100, 200],
+        "num_layers": "4",
+        "use_fp8": "1",
+    }
+
+    mock_system = MockSystem(
+        name="mock_system",
+        scheduler="mock_scheduler",
+        install_path=Path("/mock/install/path"),
+        output_path=Path("/mock/output/path"),
+    )
+    test_template = MockTestTemplate(system=mock_system, name="example_template")
+    test = Test(test_definition=test_def, test_template=test_template)
+
+    assert test.cmd_args == test_def.cmd_args_dict
