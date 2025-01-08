@@ -202,21 +202,3 @@ class TestParser:
         test_template = self._get_test_template(test_template_name, test_def)
 
         return Test(test_definition=test_def, test_template=test_template)
-
-    def _parse_cmd_args(self, cmd_args: Dict[str, Any]) -> Dict[str, Union[str, List[str]]]:
-        """
-        Parse command-line arguments and handle lists.
-
-        Args:
-            cmd_args (Dict[str, Any]): Command-line arguments.
-
-        Returns:
-            Dict[str, Union[str, List[str]]]: Parsed arguments, where some may be lists.
-        """
-        parsed_args: Dict[str, Union[str, List[str]]] = {}
-        for key, value in cmd_args.items():
-            if isinstance(value, list):
-                parsed_args[key] = [str(v) for v in value]
-            else:
-                parsed_args[key] = str(value)
-        return parsed_args
