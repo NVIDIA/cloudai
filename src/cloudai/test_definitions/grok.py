@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+from typing import Optional, Union
 
 from pydantic import ConfigDict, Field
 
@@ -52,7 +52,7 @@ class GrokFdl(JaxFdl):
 class GrokPerfXLAFlags(XLAFlags):
     """Grok performance XLA flags."""
 
-    combine_threshold_bytes: int = 301989888
+    combine_threshold_bytes: Union[int, list[int]] = 301989888
     xla_gpu_run_post_layout_collective_pipeliner: bool = False
     xla_gpu_use_memcpy_local_p2p: bool = False
     xla_gpu_pgle_profile_file_or_directory_path: str = "/opt/paxml/workspace/pgle_output_profile.pbtxt"
