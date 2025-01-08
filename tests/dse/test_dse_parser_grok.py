@@ -16,6 +16,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from cloudai._core.base_job import BaseJob
 from cloudai._core.system import System
 from cloudai._core.test import Test, TestTemplate
@@ -437,3 +439,65 @@ def test_grok_cmd_args_with_xla_flags_as_lists():
     test = Test(test_definition=test_def, test_template=test_template)
 
     assert test.cmd_args == test_def.cmd_args_dict
+
+
+@pytest.mark.parametrize(
+    "v1,v2",
+    [
+        (1, False),
+        ([1, 2], [False, True]),
+    ],
+)
+def test_grok_cmd_args_with_various_types(v1, v2):
+    data = {
+        "name": "example Grok",
+        "description": "Example Grok",
+        "test_template_name": "ExampleEnv",
+        "cmd_args": {
+            "fdl": GrokFdl(
+                checkpoint_policy="save_iteration_input",
+                combine_qkv=False,
+                dcn_mesh_shape="'[1, 8, 1, 1]'",
+                dims_per_head=128,
+                hidden_dims=32768,
+                ici_mesh_shape="'[1, 1, 8, 1]'",
+                max_seq_len=8192,
+                model_dims=6144,
+                num_experts=8,
+                num_groups=64,
+                num_heads=48,
+                num_kv_heads=8,
+                num_layers=64,
+                percore_batch_size=1.0,
+                use_expert_parallel=True,
+                use_fp8=1,
+                use_te_dpa=True,
+                vocab_size=131072,
+            ),
+            "fdl_config": "paxml.tasks.lm.params.nvidia.Grok_Proxy",
+            "enable_pgle": True,
+            "setup_flags": {},
+            "profile": GrokProfileXLAFlags(
+                xla_gpu_disable_async_collectives="ALLREDUCE,ALLGATHER,REDUCESCATTER,COLLECTIVEBROADCAST,ALLTOALL,COLLECTIVEPERMUTE",
+                xla_gpu_run_post_layout_collective_pipeliner=False,
+                xla_gpu_enable_latency_hiding_scheduler=False,
+            ),
+            "perf": GrokPerfXLAFlags(
+                combine_threshold_bytes=v1,
+                xla_gpu_run_post_layout_collective_pipeliner=v2,
+                xla_gpu_use_memcpy_local_p2p=False,
+                xla_gpu_pgle_profile_file_or_directory_path="/opt/paxml/workspace/pgle_output_profile.pbtxt",
+            ),
+            "docker_image_url": "docker://example_image",
+            "output_path": "/path/to/output",
+        },
+        "extra_env_vars": {
+            "ENV1": "0",
+            "ENV2": "1",
+            "ENV3": "3221225472",
+        },
+    }
+
+    test_def = GrokTestDefinitionWrapper(**data)
+    assert test_def.cmd_args_dict["perf"].combine_threshold_bytes == v1
+    assert test_def.cmd_args_dict["perf"].xla_gpu_run_post_layout_collective_pipeliner == v2
