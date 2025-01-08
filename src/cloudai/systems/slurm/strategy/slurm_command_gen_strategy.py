@@ -194,7 +194,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
     def _gen_srun_command(
         self,
-        slurm_args: Dict[str, Union[str, List[str]]],
+        slurm_args: Dict[str, Any],
         env_vars: Dict[str, str],
         cmd_args: Dict[str, Union[str, List[str]]],
         tr: TestRun,
