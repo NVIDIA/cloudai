@@ -107,9 +107,7 @@ class TestDefinition(BaseModel, ABC):
 
     @property
     def cmd_args_dict(self) -> Dict[str, Union[str, List[str]]]:
-        if isinstance(self.cmd_args, CmdArgs):
-            return self.cmd_args.model_dump()
-        return {}
+        return self.cmd_args.model_dump()
 
     @property
     def extra_args_str(self) -> str:
