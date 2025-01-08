@@ -45,6 +45,14 @@ class MockTestTemplate(TestTemplate):
 
 
 class ConcreteTestDefinition(TestDefinition):
+    def __init__(self, **data):
+        super().__init__(**data)
+        self._cmd_args_dict = data.get("cmd_args", {})
+
+    @property
+    def cmd_args_dict(self):
+        return self._cmd_args_dict
+
     @property
     def installables(self):
         return []
