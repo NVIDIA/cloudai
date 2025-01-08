@@ -60,9 +60,6 @@ class TestTemplateStrategy:
                 full_key = f"{parent_key}.{key}" if parent_key else key
 
                 if isinstance(value, dict):
-                    if "default" in value:
-                        args[full_key] = value.get("default", "")
-
                     nested_args = construct_args(
                         {k: v for k, v in value.items() if k not in ["type", "default", "values"]},
                         full_key,
