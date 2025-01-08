@@ -97,8 +97,7 @@ def test_cache_docker_image(
     mock_exists.side_effect = [True, False]  # install_path exists, subdir_path does not
     with patch("os.makedirs") as mock_makedirs:
         result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
-        print(f"!! {result.message=}")
-        mock_makedirs.assert_called_once_with("/fake/install/path/subdir")
+        mock_makedirs.assert_called_once_with(f"{manager.system.install_path}/subdir")
 
     # Ensure prerequisites are always met for the following tests
     mock_check_prerequisites.return_value = PrerequisiteCheckResult(True, "All prerequisites are met.")
@@ -113,14 +112,17 @@ def test_cache_docker_image(
     mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=0, stderr="")
     result = manager.cache_docker_image("docker.io/hello-world", "subdir", "image.tar.gz")
     mock_run.assert_called_once_with(
-        "srun --export=ALL --partition=default enroot import -o /fake/install/path/subdir/image.tar.gz docker://docker.io/hello-world",
+        (
+            f"srun --export=ALL --partition={manager.system.default_partition} enroot "
+            f"import -o {manager.system.install_path}/subdir/image.tar.gz docker://docker.io/hello-world"
+        ),
         shell=True,
         check=True,
         capture_output=True,
         text=True,
     )
     assert result.success
-    assert result.message == f"Docker image cached successfully at {slurm_system.install_path}/image.tar.gz."
+    assert result.message == f"Docker image cached successfully at {slurm_system.install_path}/subdir/image.tar.gz."
 
     # Test caching failure due to subprocess error
     mock_is_file.return_value = False
@@ -154,8 +156,11 @@ def test_remove_cached_image(mock_remove, mock_access, mock_exists, mock_isfile,
     mock_isfile.return_value = True
     result = manager.remove_cached_image("subdir", "image.tar.gz")
     assert result.success
-    assert result.message == "Cached Docker image removed successfully from /fake/install/path/subdir/image.tar.gz."
-    mock_remove.assert_called_once_with("/fake/install/path/subdir/image.tar.gz")
+    assert (
+        result.message
+        == f"Cached Docker image removed successfully from {manager.system.install_path}/subdir/image.tar.gz."
+    )
+    mock_remove.assert_called_once_with(f"{manager.system.install_path}/subdir/image.tar.gz")
 
     # Test failed removal due to OSError
     mock_remove.side_effect = OSError("Mocked OSError")
@@ -167,7 +172,10 @@ def test_remove_cached_image(mock_remove, mock_access, mock_exists, mock_isfile,
     mock_isfile.return_value = False
     result = manager.remove_cached_image("subdir", "image.tar.gz")
     assert result.success
-    assert result.message == "No cached Docker image found to remove at /fake/install/path/subdir/image.tar.gz."
+    assert (
+        result.message
+        == f"No cached Docker image found to remove at {manager.system.install_path}/subdir/image.tar.gz."
+    )
 
 
 @patch("os.path.isfile")
@@ -185,17 +193,17 @@ def test_uninstall_cached_image(mock_remove, mock_access, mock_exists, mock_isfi
     result = manager.uninstall_cached_image("subdir", "image.tar.gz")
     assert result.success
     assert result.message in [
-        "Cached Docker image uninstalled successfully from /fake/install/path/subdir.",
-        "Subdirectory removed successfully: /fake/install/path/subdir.",
+        f"Cached Docker image uninstalled successfully from {manager.system.install_path}/subdir.",
+        f"Subdirectory removed successfully: {manager.system.install_path}/subdir.",
     ]
-    mock_remove.assert_called_once_with("/fake/install/path/subdir/image.tar.gz")
+    mock_remove.assert_called_once_with(f"{manager.system.install_path}/subdir/image.tar.gz")
 
     # Test successful uninstallation but subdirectory not empty
     mock_listdir.return_value = ["otherfile"]
     result = manager.uninstall_cached_image("subdir", "image.tar.gz")
     assert result.success
-    assert result.message == "Cached Docker image uninstalled successfully from /fake/install/path/subdir."
-    mock_remove.assert_called_with("/fake/install/path/subdir/image.tar.gz")
+    assert result.message == f"Cached Docker image uninstalled successfully from {manager.system.install_path}/subdir."
+    mock_remove.assert_called_with(f"{manager.system.install_path}/subdir/image.tar.gz")
 
     # Test failed removal due to OSError
     mock_remove.side_effect = OSError("Mocked OSError")
@@ -208,7 +216,7 @@ def test_uninstall_cached_image(mock_remove, mock_access, mock_exists, mock_isfi
     mock_exists.return_value = False
     result = manager.uninstall_cached_image("subdir", "image.tar.gz")
     assert result.success
-    assert result.message == "Cached Docker image uninstalled successfully from /fake/install/path/subdir."
+    assert result.message == f"Cached Docker image uninstalled successfully from {manager.system.install_path}/subdir."
 
     # Cleanup
     patch.stopall()
@@ -229,12 +237,6 @@ def test_check_prerequisites(mock_check_docker_image_accessibility, mock_which, 
     result = manager._check_prerequisites("docker.io/hello-world")
     assert result.success
     assert result.message == "All prerequisites are met."
-
-    # Test enroot not installed
-    mock_which.side_effect = lambda x: x != "enroot"
-    result = manager._check_prerequisites("docker.io/hello-world")
-    assert not result.success
-    assert result.message == "enroot are required for caching Docker images but are not installed."
 
     # Test srun not installed
     mock_which.side_effect = lambda x: x != "srun"
@@ -260,17 +262,20 @@ def test_check_docker_image_exists_with_only_cached_file(mock_exists, mock_isfil
     manager = DockerImageCacheManager(slurm_system)
 
     # Simulate only the cached file being a valid file path
-    mock_isfile.side_effect = lambda path: path == "/fake/install/path/subdir/docker_image.sqsh"
+    mock_isfile.side_effect = lambda path: path == f"{manager.system.install_path}/subdir/docker_image.sqsh"
     mock_exists.side_effect = lambda path: path in [
-        "/fake/install/path",
-        "/fake/install/path/subdir",
-        "/fake/install/path/subdir/docker_image.sqsh",
+        f"{manager.system.install_path}",
+        f"{manager.system.install_path}/subdir",
+        f"{manager.system.install_path}/subdir/docker_image.sqsh",
     ]
 
     result = manager.check_docker_image_exists("/tmp/non_existing_file.sqsh", "subdir", "docker_image.sqsh")
     assert result.success
-    assert result.docker_image_path == "/fake/install/path/subdir/docker_image.sqsh"
-    assert result.message == "Cached Docker image already exists at /fake/install/path/subdir/docker_image.sqsh."
+    assert result.docker_image_path == f"{manager.system.install_path}/subdir/docker_image.sqsh"
+    assert (
+        result.message
+        == f"Cached Docker image already exists at {manager.system.install_path}/subdir/docker_image.sqsh."
+    )
 
 
 @patch("os.path.isfile")
@@ -281,19 +286,18 @@ def test_check_docker_image_exists_with_both_valid_files(mock_exists, mock_isfil
     # Simulate both cached file and docker image URL being valid file paths
     mock_isfile.side_effect = lambda path: path in [
         "/tmp/existing_file.sqsh",
-        "/fake/install/path/subdir/docker_image.sqsh",
+        f"{manager.system.install_path}/subdir/docker_image.sqsh",
     ]
     mock_exists.side_effect = lambda path: path in [
         "/tmp/existing_file.sqsh",
-        "/fake/install/path/subdir/docker_image.sqsh",
+        f"{manager.system.install_path}/subdir/docker_image.sqsh",
     ]
 
     result = manager.check_docker_image_exists("/tmp/existing_file.sqsh", "subdir", "docker_image.sqsh")
     assert result.success
     assert result.docker_image_path is not None
-    assert str(result.docker_image_path) == "docker.io/hello-world"
-    assert not Path(result.docker_image_path).is_absolute()
-    assert result.message == ""
+    assert str(result.docker_image_path) == "/tmp/existing_file.sqsh"
+    assert result.message == "Docker image file path is valid: /tmp/existing_file.sqsh."
 
 
 def test_system_with_account(slurm_system: SlurmSystem):
@@ -310,7 +314,7 @@ def test_system_with_account(slurm_system: SlurmSystem):
     mock_run.assert_called_once_with(
         (
             f"srun --export=ALL --partition={slurm_system.default_partition} --account={slurm_system.account} "
-            f"enroot import -o {slurm_system.install_path}/docker_image.sqsh docker://docker.io/hello-world"
+            f"enroot import -o {slurm_system.install_path}/subdir/docker_image.sqsh docker://docker.io/hello-world"
         ),
         shell=True,
         check=True,

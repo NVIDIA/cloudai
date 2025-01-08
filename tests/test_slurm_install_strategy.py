@@ -37,6 +37,7 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
         install_path=str(tmp_path / "install"),
         output_path=str(tmp_path / "output"),
         default_partition="main",
+        cache_docker_images_locally=True,
         partitions={
             "main": [
                 SlurmNode(name="node1", partition="main", state=SlurmNodeState.IDLE),
@@ -66,8 +67,7 @@ def test_install_path_attribute(slurm_install_strategy: SlurmInstallStrategy, sl
 @pytest.fixture
 def mock_docker_image_cache_manager(slurm_system: SlurmSystem):
     mock = MagicMock()
-    mock.cache_docker_images_locally = True
-    mock.install_path = slurm_system.install_path
+    mock.system = slurm_system
     mock.check_docker_image_exists.return_value = InstallStatusResult(success=False, message="Docker image not found")
     mock.ensure_docker_image.return_value = InstallStatusResult(success=True)
     mock.uninstall_cached_image.return_value = InstallStatusResult(success=True)
