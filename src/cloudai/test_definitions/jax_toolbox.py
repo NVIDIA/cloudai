@@ -72,19 +72,19 @@ class XLAFlags(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    xla_disable_hlo_passes: str = "rematerialization"
-    xla_dump_hlo_pass_re: str = ".*"
-    xla_gpu_enable_all_gather_combine_by_dim: bool = False
-    xla_gpu_enable_highest_priority_async_stream: bool = True
-    xla_gpu_enable_latency_hiding_scheduler: bool = True
-    xla_gpu_enable_pipelined_all_gather: bool = True
-    xla_gpu_enable_pipelined_all_reduce: bool = True
-    xla_gpu_enable_pipelined_reduce_scatter: bool = True
-    xla_gpu_enable_reduce_scatter_combine_by_dim: bool = False
-    xla_gpu_enable_triton_gemm: bool = False
-    xla_gpu_enable_triton_softmax_fusion: bool = False
-    xla_gpu_enable_while_loop_double_buffering: bool = True
-    xla_gpu_graph_level: int = 0
+    xla_disable_hlo_passes: Union[str, list[str]] = "rematerialization"
+    xla_dump_hlo_pass_re: Union[str, list[str]] = ".*"
+    xla_gpu_enable_all_gather_combine_by_dim: Union[bool, list[bool]] = False
+    xla_gpu_enable_highest_priority_async_stream: Union[bool, list[bool]] = True
+    xla_gpu_enable_latency_hiding_scheduler: Union[bool, list[bool]] = True
+    xla_gpu_enable_pipelined_all_gather: Union[bool, list[bool]] = True
+    xla_gpu_enable_pipelined_all_reduce: Union[bool, list[bool]] = True
+    xla_gpu_enable_pipelined_reduce_scatter: Union[bool, list[bool]] = True
+    xla_gpu_enable_reduce_scatter_combine_by_dim: Union[bool, list[bool]] = False
+    xla_gpu_enable_triton_gemm: Union[bool, list[bool]] = False
+    xla_gpu_enable_triton_softmax_fusion: Union[bool, list[bool]] = False
+    xla_gpu_enable_while_loop_double_buffering: Union[bool, list[bool]] = True
+    xla_gpu_graph_level: Union[int, list[int]] = 0
 
 
 class SetupFlags(BaseModel):
