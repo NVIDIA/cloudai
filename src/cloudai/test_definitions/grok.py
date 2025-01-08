@@ -29,24 +29,24 @@ class GrokFdl(JaxFdl):
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
-    checkpoint_policy: str = '"save_iteration_input"'
-    combine_qkv: bool = False
-    dcn_mesh_shape: str = "'[1, 8, 1, 1]'"
-    dims_per_head: int = 128
-    hidden_dims: int = 32768
-    ici_mesh_shape: str = "'[1, 1, 8, 1]'"
-    max_seq_len: int = 8192
-    model_dims: int = 6144
-    num_experts: int = 8
-    num_groups: int = 64
-    num_heads: int = 48
-    num_kv_heads: int = 8
-    num_layers: int = 64
-    percore_batch_size: float = 1.0
-    use_expert_parallel: bool = True
-    use_fp8: int = 1
-    use_te_dpa: bool = True
-    vocab_size: int = 131072
+    checkpoint_policy: Union[str, list[str]] = '"save_iteration_input"'
+    combine_qkv: Union[bool, list[bool]] = False
+    dcn_mesh_shape: Union[str, list[str]] = "'[1, 8, 1, 1]'"
+    dims_per_head: Union[int, list[int]] = 128
+    hidden_dims: Union[int, list[int]] = 32768
+    ici_mesh_shape: Union[str, list[str]] = "'[1, 1, 8, 1]'"
+    max_seq_len: Union[int, list[int]] = 8192
+    model_dims: Union[int, list[int]] = 6144
+    num_experts: Union[int, list[int]] = 8
+    num_groups: Union[int, list[int]] = 64
+    num_heads: Union[int, list[int]] = 48
+    num_kv_heads: Union[int, list[int]] = 8
+    num_layers: Union[int, list[int]] = 64
+    percore_batch_size: Union[float, list[float]] = 1.0
+    use_expert_parallel: Union[bool, list[bool]] = True
+    use_fp8: Union[int, list[int]] = 1
+    use_te_dpa: Union[bool, list[bool]] = True
+    vocab_size: Union[int, list[int]] = 131072
 
 
 class GrokPerfXLAFlags(XLAFlags):
