@@ -88,6 +88,7 @@ class CmdArgs(BaseModel):
     """Test command arguments."""
 
     model_config = ConfigDict(extra="forbid")
+    cmd_args = dict[str, Union[str, List[str]]]
 
 
 class TestDefinition(BaseModel, ABC):
@@ -108,9 +109,6 @@ class TestDefinition(BaseModel, ABC):
     def cmd_args_dict(self) -> Dict[str, Union[str, List[str]]]:
         if isinstance(self.cmd_args, CmdArgs):
             return self.cmd_args.model_dump()
-        if isinstance(self.cmd_args, dict):
-            return {k: v if isinstance(v, list) else str(v) for k, v in self.cmd_args.items()}
-        return {}
 
     @property
     def extra_args_str(self) -> str:
