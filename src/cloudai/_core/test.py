@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Union
+from typing import Any, ClassVar, Dict, List, Union
 
 from pydantic import BaseModel, ConfigDict
 
@@ -88,7 +88,7 @@ class CmdArgs(BaseModel):
     """Test command arguments."""
 
     model_config = ConfigDict(extra="forbid")
-    cmd_args = dict[str, Union[str, List[str]]]
+    cmd_args: ClassVar[Dict[str, Union[str, List[str]]]] = {}
 
 
 class TestDefinition(BaseModel, ABC):
