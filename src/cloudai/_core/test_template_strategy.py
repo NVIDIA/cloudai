@@ -66,11 +66,9 @@ class TestTemplateStrategy:
                     )
                     args.update(nested_args)
                 elif isinstance(value, list):
-                    args[full_key] = ",".join(map(str, value))
+                    args[full_key] = value
                 else:
-                    if "XLA_FLAGS" in full_key and isinstance(value, bool):
-                        value = str(value).lower()
-                    args[full_key] = str(value)
+                    args[full_key] = value
             return args
 
         return construct_args(self.cmd_args)
@@ -117,7 +115,7 @@ class TestTemplateStrategy:
 
     def _override_cmd_args(
         self,
-        default_cmd_args: Dict[str, str],
+        default_cmd_args: Dict[str, Union[str, List[str]]],
         provided_cmd_args: Dict[str, Union[str, List[str]]],
     ) -> Dict[str, str]:
         """
@@ -135,8 +133,6 @@ class TestTemplateStrategy:
         flattened_args = self._flatten_dict(provided_cmd_args)
 
         for key, value in flattened_args.items():
-            if "XLA_FLAGS" in key and isinstance(value, bool):
-                value = str(value).lower()
-            final_cmd_args[key] = ",".join(map(str, value)) if isinstance(value, list) else str(value)
-
+            final_cmd_args[key] = value
+            
         return final_cmd_args
