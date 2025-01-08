@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional, Union
 from unittest.mock import Mock, create_autospec
 
 import pytest
@@ -28,7 +28,7 @@ from tests.conftest import create_autospec_dataclass
 
 @pytest.fixture
 def strategy_fixture(slurm_system: SlurmSystem) -> SlurmCommandGenStrategy:
-    cmd_args = {"test_arg": "test_value"}
+    cmd_args: Dict[str, Union[str, List[str]]] = {"test_arg": "test_value"}
     strategy = SlurmCommandGenStrategy(slurm_system, cmd_args)
     return strategy
 
@@ -54,7 +54,8 @@ def testrun_fixture(tmp_path: Path) -> TestRun:
 def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun):
     job_name_prefix = "test_job"
     env_vars = {"TEST_VAR": "VALUE"}
-    cmd_args = {"test_arg": "test_value"}
+    cmd_args: Dict[str, Union[str, List[str]]] = {"test_arg": "test_value"}
+
     slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, testrun_fixture)
     srun_command = strategy_fixture._gen_srun_command(slurm_args, env_vars, cmd_args, testrun_fixture)
 
@@ -75,7 +76,7 @@ def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, testrun_
 def test_num_nodes_and_nodes(strategy_fixture: SlurmCommandGenStrategy):
     job_name_prefix = "test_job"
     env_vars = {"TEST_VAR": "VALUE"}
-    cmd_args = {"test_arg": "test_value"}
+    cmd_args: Dict[str, Union[str, List[str]]] = {"test_arg": "test_value"}
     tr = Mock(spec=TestRun)
     tr.nodes = ["node1", "node2"]
     tr.num_nodes = 3
@@ -88,7 +89,7 @@ def test_num_nodes_and_nodes(strategy_fixture: SlurmCommandGenStrategy):
 def test_only_num_nodes(strategy_fixture: SlurmCommandGenStrategy):
     job_name_prefix = "test_job"
     env_vars = {"TEST_VAR": "VALUE"}
-    cmd_args = {"test_arg": "test_value"}
+    cmd_args: Dict[str, Union[str, List[str]]] = {"test_arg": "test_value"}
     tr = create_autospec(TestRun)
     tr.nodes = []
     tr.num_nodes = 3
@@ -101,7 +102,7 @@ def test_only_num_nodes(strategy_fixture: SlurmCommandGenStrategy):
 def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
     job_name_prefix = "test_job"
     env_vars = {"TEST_VAR": "VALUE"}
-    cmd_args = {"test_arg": "test_value"}
+    cmd_args: Dict[str, Union[str, List[str]]] = {"test_arg": "test_value"}
     tr = create_autospec(TestRun)
     tr.num_nodes = 0
     tr.nodes = ["node1", "node2"]

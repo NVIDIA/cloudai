@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 
 from cloudai import JsonGenStrategy, TestRun
 
@@ -52,7 +52,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
         final_num_nodes: int,
         nodes: List[str],
         env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
+        cmd_args: Dict[str, Union[str, List[str]]],
         extra_cmd_args: str,
     ) -> Dict[Any, Any]:
         """
@@ -152,7 +152,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
         final_num_nodes: int,
         nodes: List[str],
         env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
+        cmd_args: Dict[str, Union[str, List[str]]],
         extra_cmd_args: str,
     ) -> str:
         """
