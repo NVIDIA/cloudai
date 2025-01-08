@@ -46,16 +46,19 @@ class TestTemplateStrategy:
         self.cmd_args = cmd_args
         self.default_cmd_args = self._construct_default_cmd_args()
 
-    def _construct_default_cmd_args(self) -> Dict[str, str]:
+    def _construct_default_cmd_args(self) -> Dict[str, Union[str, List[str]]]:
         """
         Construct the default arguments for the test template recursively, flattening ranges.
 
-        Returns
-            Dict[str, str]: A dictionary containing the combined default arguments with ranges flattened.
+        Returns:
+            Dict[str, Union[str, List[str]]]: A dictionary containing the combined default arguments
+            with ranges flattened.
         """
 
-        def construct_args(cmd_args: Dict[str, Union[str, List[str]]], parent_key: str = "") -> Dict[str, str]:
-            args: Dict[str, str] = {}
+        def construct_args(
+            cmd_args: Dict[str, Union[str, List[str]]], parent_key: str = ""
+        ) -> Dict[str, Union[str, List[str]]]:
+            args: Dict[str, Union[str, List[str]]] = {}
             for key, value in cmd_args.items():
                 full_key = f"{parent_key}.{key}" if parent_key else key
 
@@ -65,8 +68,6 @@ class TestTemplateStrategy:
                         full_key,
                     )
                     args.update(nested_args)
-                elif isinstance(value, list):
-                    args[full_key] = value
                 else:
                     args[full_key] = value
             return args
@@ -117,7 +118,7 @@ class TestTemplateStrategy:
         self,
         default_cmd_args: Dict[str, Union[str, List[str]]],
         provided_cmd_args: Dict[str, Union[str, List[str]]],
-    ) -> Dict[str, str]:
+    ) -> Dict[str, Union[str, List[str]]]:
         """
         Override the default command-line arguments with provided values.
 
@@ -134,5 +135,5 @@ class TestTemplateStrategy:
 
         for key, value in flattened_args.items():
             final_cmd_args[key] = value
-            
+
         return final_cmd_args

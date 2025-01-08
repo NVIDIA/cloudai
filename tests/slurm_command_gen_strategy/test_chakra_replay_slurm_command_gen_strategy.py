@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 from unittest.mock import Mock
 
 import pytest
@@ -111,7 +111,7 @@ class TestChakraReplaySlurmCommandGenStrategy:
     def test_generate_test_command(
         self,
         cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy,
-        cmd_args: Dict[str, str],
+        cmd_args: Dict[str, Union[str, List[str]]],
         extra_cmd_args: str,
         expected_result: List[str],
         slurm_system: SlurmSystem,
@@ -124,7 +124,7 @@ class TestChakraReplaySlurmCommandGenStrategy:
     def test_generate_test_command_invalid_args(
         self, cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy, slurm_system: SlurmSystem
     ) -> None:
-        cmd_args: Dict[str, str] = {"trace_type": "comms_trace"}
+        cmd_args: Dict[str, Union[str, List[str]]] = {"trace_type": "comms_trace"}
 
         tr = create_autospec_dataclass(TestRun)
         tr.test.extra_cmd_args = "--max-steps 100"

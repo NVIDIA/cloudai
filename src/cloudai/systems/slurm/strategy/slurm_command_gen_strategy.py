@@ -16,7 +16,7 @@
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 
 from cloudai import CommandGenStrategy, TestRun, TestScenario
 from cloudai.systems import SlurmSystem
@@ -84,7 +84,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return self._gen_srun_command(slurm_args, env_vars, cmd_args, tr)
 
     def _parse_slurm_args(
-        self, job_name_prefix: str, env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun
+        self, job_name_prefix: str, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> Dict[str, Any]:
         """
         Parse command arguments to configure Slurm job settings.
@@ -193,7 +193,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return "\n".join(post_test_commands)
 
     def _gen_srun_command(
-        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun
+        self,
+        slurm_args: Dict[str, Union[str, List[str]]],
+        env_vars: Dict[str, str],
+        cmd_args: Dict[str, Union[str, List[str]]],
+        tr: TestRun,
     ) -> str:
         srun_command_parts = self.gen_srun_prefix(slurm_args, tr)
         test_command_parts = self.generate_test_command(env_vars, cmd_args, tr)
@@ -211,7 +215,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         return srun_command_parts
 
-    def generate_test_command(self, env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun) -> List[str]:
+    def generate_test_command(
+        self, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
+    ) -> List[str]:
         return []
 
     def _add_reservation(self, batch_script_content: List[str]):

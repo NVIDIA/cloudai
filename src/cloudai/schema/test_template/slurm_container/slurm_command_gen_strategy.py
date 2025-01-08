@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, cast
+from typing import Any, Dict, List, Union, cast
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
@@ -34,7 +34,9 @@ class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
         cmd = super().gen_srun_prefix(slurm_args, tr)
         return [*cmd, "--no-container-mount-home"]
 
-    def generate_test_command(self, env_vars: dict[str, str], cmd_args: dict[str, str], tr: TestRun) -> list[str]:
+    def generate_test_command(
+        self, env_vars: dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
+    ) -> list[str]:
         srun_command_parts: list[str] = []
         if tr.test.extra_cmd_args:
             srun_command_parts.append(tr.test.extra_cmd_args)

@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List, Union, cast
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
@@ -25,7 +25,7 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for UCC tests on Slurm systems."""
 
     def _parse_slurm_args(
-        self, job_name_prefix: str, env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun
+        self, job_name_prefix: str, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> Dict[str, Any]:
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
@@ -34,7 +34,9 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return base_args
 
-    def generate_test_command(self, env_vars: Dict[str, str], cmd_args: Dict[str, str], tr: TestRun) -> List[str]:
+    def generate_test_command(
+        self, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
+    ) -> List[str]:
         srun_command_parts = ["/opt/hpcx/ucc/bin/ucc_perftest"]
 
         # Add collective, minimum bytes, and maximum bytes options if available
