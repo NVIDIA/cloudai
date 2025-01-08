@@ -223,37 +223,22 @@ def test_uninstall_cached_image(mock_remove, mock_access, mock_exists, mock_isfi
 
 
 @patch("shutil.which")
-@patch("cloudai.util.docker_image_cache_manager.DockerImageCacheManager._check_docker_image_accessibility")
-def test_check_prerequisites(mock_check_docker_image_accessibility, mock_which, slurm_system: SlurmSystem):
+def test_check_prerequisites(mock_which, slurm_system: SlurmSystem):
     manager = DockerImageCacheManager(slurm_system)
 
-    # Ensure enroot and srun are installed
-    mock_which.side_effect = lambda x: x in ["enroot", "srun"]
+    # Ensure srun is installed
+    mock_which.side_effect = lambda x: x in ["srun"]
 
     # Test all prerequisites met
-    mock_check_docker_image_accessibility.return_value = PrerequisiteCheckResult(
-        True, "Docker image URL is accessible."
-    )
-    result = manager._check_prerequisites("docker.io/hello-world")
+    result = manager._check_prerequisites()
     assert result.success
     assert result.message == "All prerequisites are met."
 
     # Test srun not installed
     mock_which.side_effect = lambda x: x != "srun"
-    result = manager._check_prerequisites("docker.io/hello-world")
+    result = manager._check_prerequisites()
     assert not result.success
     assert result.message == "srun are required for caching Docker images but are not installed."
-
-    # Ensure enroot and srun are installed again
-    mock_which.side_effect = lambda x: x in ["enroot", "srun"]
-
-    # Test Docker image URL not accessible
-    mock_check_docker_image_accessibility.return_value = PrerequisiteCheckResult(
-        False, "Docker image URL not accessible."
-    )
-    result = manager._check_prerequisites("docker.io/hello-world")
-    assert not result.success
-    assert "Docker image URL not accessible." in result.message
 
 
 @patch("os.path.isfile")
@@ -305,7 +290,7 @@ def test_system_with_account(slurm_system: SlurmSystem):
     Path(slurm_system.install_path).mkdir(parents=True, exist_ok=True)
 
     manager = DockerImageCacheManager(slurm_system)
-    manager._check_prerequisites = lambda docker_image_url: PrerequisiteCheckResult(True, "All prerequisites are met.")
+    manager._check_prerequisites = lambda: PrerequisiteCheckResult(True, "All prerequisites are met.")
 
     with patch("subprocess.run") as mock_run:
         res = manager.cache_docker_image("docker.io/hello-world", "subdir", "docker_image.sqsh")
