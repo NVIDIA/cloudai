@@ -225,3 +225,112 @@ def test_grok_cmd_args_with_list_values():
     test = Test(test_definition=test_def, test_template=test_template)
 
     assert test.cmd_args == test_def.cmd_args_dict
+
+
+def test_grok_cmd_args_with_xla_flags_as_lists():
+    data = {
+        "name": "example Grok",
+        "description": "Example Grok",
+        "test_template_name": "ExampleEnv",
+        "cmd_args": {
+            "fdl": GrokFdl(
+                checkpoint_policy="save_iteration_input",
+                combine_qkv=False,
+                dcn_mesh_shape="'[1, 8, 1, 1]'",
+                dims_per_head=128,
+                hidden_dims=32768,
+                ici_mesh_shape="'[1, 1, 8, 1]'",
+                max_seq_len=8192,
+                model_dims=6144,
+                num_experts=8,
+                num_groups=64,
+                num_heads=48,
+                num_kv_heads=8,
+                num_layers=64,
+                percore_batch_size=1.0,
+                use_expert_parallel=True,
+                use_fp8=1,
+                use_te_dpa=True,
+                vocab_size=131072,
+            ),
+            "fdl_config": "paxml.tasks.lm.params.nvidia.Grok_Proxy",
+            "enable_pgle": True,
+            "setup_flags": {},
+            "profile": GrokProfileXLAFlags(
+                xla_gpu_disable_async_collectives=[
+                    "ALLREDUCE,ALLGATHER,REDUCESCATTER,COLLECTIVEBROADCAST,ALLTOALL,COLLECTIVEPERMUTE",
+                    "ALLREDUCE,ALLGATHER",
+                ],
+                xla_gpu_run_post_layout_collective_pipeliner=[False, True],
+                xla_gpu_enable_latency_hiding_scheduler=[False, True],
+            ),
+            "perf": GrokPerfXLAFlags(
+                combine_threshold_bytes=[301989888, 401989888, 501989888],
+                xla_gpu_run_post_layout_collective_pipeliner=[False, True],
+                xla_gpu_use_memcpy_local_p2p=[False, True],
+                xla_gpu_pgle_profile_file_or_directory_path="/opt/paxml/workspace/pgle_output_profile.pbtxt",
+            ),
+            "docker_image_url": "docker://example_image",
+            "output_path": "/path/to/output",
+        },
+        "extra_env_vars": {
+            "ENV1": "0",
+            "ENV2": "1",
+            "ENV3": "3221225472",
+        },
+    }
+
+    test_def = GrokTestDefinitionWrapper(**data)
+
+    assert test_def.cmd_args_dict == {
+        "fdl": GrokFdl(
+            checkpoint_policy="save_iteration_input",
+            combine_qkv=False,
+            dcn_mesh_shape="'[1, 8, 1, 1]'",
+            dims_per_head=128,
+            hidden_dims=32768,
+            ici_mesh_shape="'[1, 1, 8, 1]'",
+            max_seq_len=8192,
+            model_dims=6144,
+            num_experts=8,
+            num_groups=64,
+            num_heads=48,
+            num_kv_heads=8,
+            num_layers=64,
+            percore_batch_size=1.0,
+            use_expert_parallel=True,
+            use_fp8=1,
+            use_te_dpa=True,
+            vocab_size=131072,
+        ),
+        "fdl_config": "paxml.tasks.lm.params.nvidia.Grok_Proxy",
+        "enable_pgle": True,
+        "setup_flags": {},
+        "profile": GrokProfileXLAFlags(
+            xla_gpu_disable_async_collectives=[
+                "ALLREDUCE,ALLGATHER,REDUCESCATTER,COLLECTIVEBROADCAST,ALLTOALL,COLLECTIVEPERMUTE",
+                "ALLREDUCE,ALLGATHER",
+            ],
+            xla_gpu_run_post_layout_collective_pipeliner=[False, True],
+            xla_gpu_enable_latency_hiding_scheduler=[False, True],
+        ),
+        "perf": GrokPerfXLAFlags(
+            combine_threshold_bytes=[301989888, 401989888, 501989888],
+            xla_gpu_run_post_layout_collective_pipeliner=[False, True],
+            xla_gpu_use_memcpy_local_p2p=[False, True],
+            xla_gpu_pgle_profile_file_or_directory_path="/opt/paxml/workspace/pgle_output_profile.pbtxt",
+        ),
+        "docker_image_url": "docker://example_image",
+        "output_path": "/path/to/output",
+    }
+
+    mock_system = MockSystem(
+        name="mock_system",
+        scheduler="mock_scheduler",
+        install_path=Path("/mock/install/path"),
+        output_path=Path("/mock/output/path"),
+    )
+    test_template = MockTestTemplate(system=mock_system, name="example_template")
+    test = Test(test_definition=test_def, test_template=test_template)
+
+    assert test.cmd_args == test_def.cmd_args_dict

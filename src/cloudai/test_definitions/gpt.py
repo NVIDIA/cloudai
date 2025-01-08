@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+from typing import Optional, Union
 
 from pydantic import Field
 
@@ -33,8 +33,8 @@ class GPTFdl(JaxFdl):
 class GPTXLAFlags(XLAFlags):
     """GPT XLA flags."""
 
-    xla_gpu_all_reduce_combine_threshold_bytes: int = 447741952
-    xla_gpu_enable_while_loop_double_buffering: bool = False
+    xla_gpu_all_reduce_combine_threshold_bytes: Union[int, list[int]] = 447741952
+    xla_gpu_enable_while_loop_double_buffering: Union[bool, list[bool]] = False
 
 
 class GPTSetupFlags(SetupFlags):
