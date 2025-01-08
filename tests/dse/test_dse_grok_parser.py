@@ -14,13 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 from pathlib import Path
-from pydantic import ValidationError
 
+from cloudai._core.base_job import BaseJob
 from cloudai._core.system import System
 from cloudai._core.test import Test, TestTemplate
-from cloudai.test_definitions.grok import GrokTestDefinition, GrokCmdArgs, GrokFdl, GrokProfileXLAFlags, GrokPerfXLAFlags
+from cloudai.test_definitions.grok import (
+    GrokFdl,
+    GrokPerfXLAFlags,
+    GrokProfileXLAFlags,
+    GrokTestDefinition,
+)
 
 
 class MockSystem(System):
