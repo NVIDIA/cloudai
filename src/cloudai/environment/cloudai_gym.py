@@ -18,6 +18,7 @@ from typing import Optional, Tuple
 
 import gymnasium as gym
 import numpy as np
+from gymnasium import spaces
 
 from cloudai._core.test_scenario import TestRun, TestScenario
 from cloudai.runner.slurm.slurm_runner import SlurmRunner
@@ -61,12 +62,12 @@ class CloudAIGymEnv(gym.Env):
         action_space = {}
         for key, value in cmd_args.items():
             if isinstance(value, list):
-                action_space[key] = gym.spaces.Discrete(len(value))
+                action_space[key] = spaces.Discrete(len(value))
             elif isinstance(value, dict):
                 for sub_key, sub_value in value.items():
                     if isinstance(sub_value, list):
-                        action_space[f"{key}.{sub_key}"] = gym.spaces.Discrete(len(sub_value))
-        return gym.spaces.Dict(action_space)
+                        action_space[f"{key}.{sub_key}"] = spaces.Discrete(len(sub_value))
+        return spaces.Dict(action_space)
 
     def define_observation_space(self) -> gym.spaces.Space:
         """
@@ -93,7 +94,7 @@ class CloudAIGymEnv(gym.Env):
         super().reset(seed=seed, options=options)
         self.test_run.current_iteration = 0
         observation = self.get_observation(self.test_run)
-        info = {}  # Add any additional info if needed
+        info = {}
         return observation, info
 
     def step(self, action: np.ndarray) -> tuple:
@@ -112,7 +113,7 @@ class CloudAIGymEnv(gym.Env):
         """
         self.test_run.update_parameters(action)
 
-        self.runner.run()  # This executes the actual Slurm job
+        self.runner.run()
 
         reward = self.compute_reward()
         observation = self.get_observation()
