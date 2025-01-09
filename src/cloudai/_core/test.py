@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, List, Union
 
 from pydantic import BaseModel, ConfigDict
 
@@ -72,7 +72,7 @@ class Test:
         return self.test_definition.description
 
     @property
-    def cmd_args(self) -> Dict[str, str]:
+    def cmd_args(self) -> Dict[str, Union[str, List[str]]]:
         return self.test_definition.cmd_args_dict
 
     @property
@@ -105,7 +105,7 @@ class TestDefinition(BaseModel, ABC):
     extra_cmd_args: dict[str, str] = {}
 
     @property
-    def cmd_args_dict(self) -> Dict[str, str]:
+    def cmd_args_dict(self) -> Dict[str, Union[str, List[str]]]:
         return self.cmd_args.model_dump()
 
     @property

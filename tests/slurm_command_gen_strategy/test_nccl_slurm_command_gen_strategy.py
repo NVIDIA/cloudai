@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 from unittest.mock import Mock
 
 import pytest
@@ -60,7 +60,7 @@ class TestNcclTestSlurmCommandGenStrategy:
         cmd_gen_strategy: NcclTestSlurmCommandGenStrategy,
         job_name_prefix: str,
         env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
+        cmd_args: Dict[str, Union[str, List[str]]],
         num_nodes: int,
         nodes: List[str],
         expected_result: Dict[str, Any],
@@ -98,7 +98,7 @@ class TestNcclTestSlurmCommandGenStrategy:
     def test_generate_test_command(
         self,
         cmd_gen_strategy: NcclTestSlurmCommandGenStrategy,
-        cmd_args: Dict[str, str],
+        cmd_args: Dict[str, Union[str, List[str]]],
         extra_cmd_args: str,
         expected_command: List[str],
     ) -> None:

@@ -16,7 +16,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List, Union, cast
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
@@ -89,12 +89,14 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return full_cmd.strip()
 
-    def _prepare_environment(self, cmd_args: Dict[str, str], extra_env_vars: Dict[str, str], output_path: Path) -> None:
+    def _prepare_environment(
+        self, cmd_args: Dict[str, Union[str, List[str]]], extra_env_vars: Dict[str, str], output_path: Path
+    ) -> None:
         """
         Prepare the environment variables and command arguments.
 
         Args:
-            cmd_args (Dict[str, str]): Command-line arguments for the launcher.
+            cmd_args (Dict[str, Union[str, List[str]]]): Command-line arguments for the launcher.
             extra_env_vars (Dict[str, str]): Additional environment variables.
             output_path (Path): Path to the output directory.
         """
@@ -165,12 +167,12 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             full_cmd += f" container_mounts=[{tokenizer_path}:{tokenizer_path}]"
         return full_cmd
 
-    def _generate_cmd_args_str(self, args: Dict[str, str], nodes: List[str]) -> str:
+    def _generate_cmd_args_str(self, args: Dict[str, Union[str, List[str]]], nodes: List[str]) -> str:
         """
         Generate a string of command-line arguments.
 
         Args:
-            args (Dict[str, str]): The command-line arguments.
+            args (Dict[str, Union[str, List[str]]]): The command-line arguments.
             nodes (List[str]): A list of nodes where the test will be executed.
 
         Returns:
@@ -185,6 +187,8 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     value = f"\\'{value}\\'"
                 env_var_str_parts.append(f"+{key}={value}")
             else:
+                if isinstance(value, list):
+                    value = ",".join(map(str, value))
                 cmd_arg_str_parts.append(f"{key}={value}")
 
         if nodes:
@@ -212,8 +216,6 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         Args:
             key (str): The argument key.
             value (Any): The argument value.
-            launcher_path (str): The base path for NeMo Megatron launcher.
-            output_path (str): Path to the output directory.
 
         Returns:
             Any: The specially formatted value, if applicable.

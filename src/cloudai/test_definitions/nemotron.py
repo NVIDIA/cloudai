@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+from typing import Optional, Union
 
 from pydantic import Field
 
@@ -28,11 +28,11 @@ from .jax_toolbox import JaxFdl, SetupFlags, XLAFlags
 class NemotronFdl(JaxFdl):
     """NemotronFdl."""
 
-    num_layers: int = 2
-    checkpoint_policy: str = '"save_dot_except_logits_ffn1"'
-    num_gpus: int = 8
-    percore_batch_size: float = 0.25  # type: ignore
-    use_repeated_layer: bool = True
+    num_layers: Union[int, list[int]] = 2
+    checkpoint_policy: Union[str, list[str]] = "save_dot_except_logits_ffn1"
+    num_gpus: Union[int, list[int]] = 8
+    percore_batch_size: Union[float, list[float]] = 0.25  # type: ignore
+    use_repeated_layer: Union[bool, list[bool]] = True
 
 
 class NemotrolXLAFlags(XLAFlags):

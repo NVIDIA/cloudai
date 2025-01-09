@@ -202,15 +202,3 @@ class TestParser:
         test_template = self._get_test_template(test_template_name, test_def)
 
         return Test(test_definition=test_def, test_template=test_template)
-
-    def _parse_cmd_args(self, cmd_args_str: str) -> List[str]:
-        """
-        Parse a string of command-line arguments into a list.
-
-        Args:
-            cmd_args_str (str): Command-line arguments as a single string.
-
-        Returns:
-            List[str]: List of command-line arguments.
-        """
-        return cmd_args_str.split() if cmd_args_str else []

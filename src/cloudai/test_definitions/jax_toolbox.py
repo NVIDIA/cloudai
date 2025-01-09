@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+from typing import Optional, Union
 
 from pydantic import BaseModel, ConfigDict, field_serializer
 
@@ -26,17 +26,17 @@ class JaxFdl(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    checkpoint_policy: str = "save_nothing"
-    dcn_mesh_shape: str = "'[1, 1, 1]'"
-    fprop_dtype: str = "bfloat16"
-    ici_mesh_shape: str = "'[1, 8, 1]'"
-    max_steps: int = 20
-    num_gpus: int = 64
-    num_microbatches: int = 1
-    num_stages: int = 1
-    percore_batch_size: float = 4
-    use_fp8: int = 1
-    use_repeated_layer: bool = False
+    checkpoint_policy: Union[str, list[str]] = "save_nothing"
+    dcn_mesh_shape: Union[str, list[str]] = "'[1, 1, 1]'"
+    fprop_dtype: Union[str, list[str]] = "bfloat16"
+    ici_mesh_shape: Union[str, list[str]] = "'[1, 8, 1]'"
+    max_steps: Union[int, list[int]] = 20
+    num_gpus: Union[int, list[int]] = 64
+    num_microbatches: Union[int, list[int]] = 1
+    num_stages: Union[int, list[int]] = 1
+    percore_batch_size: Union[float, list[float]] = 4
+    use_fp8: Union[int, list[int]] = 1
+    use_repeated_layer: Union[bool, list[bool]] = False
 
     @field_serializer("fprop_dtype")
     def fprop_dtype_serializer(self, value: str) -> str:
@@ -72,19 +72,19 @@ class XLAFlags(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    xla_disable_hlo_passes: str = "rematerialization"
-    xla_dump_hlo_pass_re: str = ".*"
-    xla_gpu_enable_all_gather_combine_by_dim: bool = False
-    xla_gpu_enable_highest_priority_async_stream: bool = True
-    xla_gpu_enable_latency_hiding_scheduler: bool = True
-    xla_gpu_enable_pipelined_all_gather: bool = True
-    xla_gpu_enable_pipelined_all_reduce: bool = True
-    xla_gpu_enable_pipelined_reduce_scatter: bool = True
-    xla_gpu_enable_reduce_scatter_combine_by_dim: bool = False
-    xla_gpu_enable_triton_gemm: bool = False
-    xla_gpu_enable_triton_softmax_fusion: bool = False
-    xla_gpu_enable_while_loop_double_buffering: bool = True
-    xla_gpu_graph_level: int = 0
+    xla_disable_hlo_passes: Union[str, list[str]] = "rematerialization"
+    xla_dump_hlo_pass_re: Union[str, list[str]] = ".*"
+    xla_gpu_enable_all_gather_combine_by_dim: Union[bool, list[bool]] = False
+    xla_gpu_enable_highest_priority_async_stream: Union[bool, list[bool]] = True
+    xla_gpu_enable_latency_hiding_scheduler: Union[bool, list[bool]] = True
+    xla_gpu_enable_pipelined_all_gather: Union[bool, list[bool]] = True
+    xla_gpu_enable_pipelined_all_reduce: Union[bool, list[bool]] = True
+    xla_gpu_enable_pipelined_reduce_scatter: Union[bool, list[bool]] = True
+    xla_gpu_enable_reduce_scatter_combine_by_dim: Union[bool, list[bool]] = False
+    xla_gpu_enable_triton_gemm: Union[bool, list[bool]] = False
+    xla_gpu_enable_triton_softmax_fusion: Union[bool, list[bool]] = False
+    xla_gpu_enable_while_loop_double_buffering: Union[bool, list[bool]] = True
+    xla_gpu_graph_level: Union[int, list[int]] = 0
 
 
 class SetupFlags(BaseModel):
