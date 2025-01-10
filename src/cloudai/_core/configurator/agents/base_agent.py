@@ -14,12 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from abc import ABC, abstractmethod
 from typing import Any, Dict
 
 from cloudai._core.test_scenario import TestRun
 
 
-class BaseAgent:
+class BaseAgent(ABC):
     """
     Base class for all agents in the CloudAI framework.
 
@@ -72,6 +73,7 @@ class BaseAgent:
         else:
             action_space[key] = {"type": "categorical", "categories": value}
 
+    @abstractmethod
     def configure(self, config: Dict[str, Any]) -> None:
         """
         Configure the agent with additional settings.
@@ -79,8 +81,9 @@ class BaseAgent:
         Args:
             config (Dict[str, Any]): Configuration settings for the agent.
         """
-        raise NotImplementedError("Subclasses must implement `configure`.")
+        pass
 
+    @abstractmethod
     def select_action(self) -> Dict[str, Any]:
         """
         Select an action from the action space.
@@ -88,13 +91,14 @@ class BaseAgent:
         Returns:
             Dict[str, Any]: A dictionary mapping action keys to selected values.
         """
-        raise NotImplementedError("Subclasses must implement `select_action`.")
+        pass
 
-    def update_policy(self, feedback: Dict[str, Any]) -> None:
+    @abstractmethod
+    def update_policy(self, feedback: Dict[str, Any]) -> None: # noqa: F841
         """
         Update the agent state based on feedback from the environment.
 
         Args:
             feedback (Dict[str, Any]): Feedback information from the environment.
         """
-        raise NotImplementedError("Subclasses must implement `update`.")
+        pass
