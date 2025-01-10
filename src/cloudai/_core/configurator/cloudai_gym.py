@@ -95,7 +95,7 @@ class CloudAIGymEnv(gym.Env):
         """
         super().reset(seed=seed, options=options)
         self.test_run.current_iteration = 0
-        observation = self.get_observation()
+        observation = np.array([0.0], dtype=np.float32)
         info = {}
         return observation, info
 
@@ -139,11 +139,12 @@ class CloudAIGymEnv(gym.Env):
         """
         return 0.0
 
-    def get_observation(self) -> np.ndarray:
+    def get_observation(self, action) -> np.ndarray:
         """
         Get the observation from the TestRun object.
 
         Returns:
             np.ndarray: A scalar value representing the observation.
         """
-        return np.array([0.5], dtype=np.float32)
+        obs = action * 0.5
+        return np.array([obs], dtype=np.float32)
