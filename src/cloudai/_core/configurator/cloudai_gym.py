@@ -114,7 +114,7 @@ class CloudAIGymEnv(gym.Env):
                 - info (dict): Additional info for debugging.
         """
         # Placeholder logic for. Future PR will implement the actual logic
-        observation = self.get_observation()
+        observation = self.get_observation(action)
         reward = 0.0
         done = False
         info = {}
