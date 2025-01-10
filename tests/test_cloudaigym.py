@@ -27,12 +27,10 @@ from cloudai.systems import SlurmSystem
 
 @pytest.fixture
 def setup_env():
-    # Mocking the TestRun, SlurmSystem, and TestScenario
     test_run = MagicMock(spec=TestRun)
     system = MagicMock(spec=SlurmSystem)
     test_scenario = MagicMock(spec=TestScenario)
 
-    # Setting up the necessary attributes for the test_run
     test_run.test = MagicMock()
     test_run.test.cmd_args = {
         "docker_image_url": "https://docker/url",
