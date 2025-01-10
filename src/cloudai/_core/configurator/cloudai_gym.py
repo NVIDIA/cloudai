@@ -1,25 +1,10 @@
-# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: Apache-2.0
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 from typing import Optional, Tuple
 
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
+from cloudai._core.command_gen_strategy import CommandGenStrategy
 from cloudai._core.test_scenario import TestRun, TestScenario
 from cloudai.runner.slurm.slurm_runner import SlurmRunner
 from cloudai.systems import SlurmSystem
@@ -93,7 +78,7 @@ class CloudAIGymEnv(gym.Env):
         """
         super().reset(seed=seed, options=options)
         self.test_run.current_iteration = 0
-        observation = self.get_observation(self.test_run)
+        observation = self.get_observation()
         info = {}
         return observation, info
 
@@ -111,10 +96,14 @@ class CloudAIGymEnv(gym.Env):
                 - done (bool): Whether the episode is done.
                 - info (dict): Additional info for debugging.
         """
-        self.test_run.update_parameters(action)
+        # Use a command generation strategy to update cmd_args
+        command_strategy = CommandGenStrategy()
+        self.test_run.test.cmd_args = command_strategy.generate(self.test_run.test.cmd_args, action)
 
+        # Execute the updated configuration
         self.runner.run()
 
+        # Compute reward and get the next observation
         reward = self.compute_reward()
         observation = self.get_observation()
         done = not self.test_run.has_more_iterations()
@@ -130,7 +119,7 @@ class CloudAIGymEnv(gym.Env):
         Args:
             mode (str): The mode to render with. Default is "human".
         """
-        print(f"Step {self.test_run.current_iteration}: Parameters {self.test_run.parameters}")
+        print(f"Step {self.test_run.current_iteration}: Parameters {self.test_run.test.cmd_args}")
 
     def compute_reward(self) -> float:
         """
@@ -142,14 +131,12 @@ class CloudAIGymEnv(gym.Env):
         runtime = self.test_run.result.get("runtime", 1)
         return 1 / runtime if runtime else 0
 
-    def get_observation(self, test_run: TestRun) -> float:
+    def get_observation(self) -> np.ndarray:
         """
-        Get the observation from the test_run object.
-
-        Args:
-            test_run (TestRun): The test run object.
+        Get the observation from the TestRun object.
 
         Returns:
-            float: A scalar value representing the observation.
+            np.ndarray: A scalar value representing the observation.
         """
-        pass
+        # Placeholder logic; to be implemented based on the actual observation requirements
+        return np.array([0.5], dtype=np.float32)
