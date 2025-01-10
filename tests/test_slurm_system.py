@@ -299,11 +299,18 @@ def test_is_job_running_exceeds_retries(slurm_system: SlurmSystem):
     job = BaseJob(test_run=Mock(), id=1)
     command = f"sacct -j {job.id} --format=State --noheader"
 
+    # test known error in srderr
     pp = Mock()
     pp.communicate = Mock(return_value=("", "Socket timed out"))
     slurm_system.cmd_shell.execute = Mock(return_value=pp)
-
     with pytest.raises(RuntimeError):
-        slurm_system.is_job_running(job, retry_threshold=3)
+        slurm_system.is_job_running(job)
     assert slurm_system.cmd_shell.execute.call_count == 3
     slurm_system.cmd_shell.execute.assert_called_with(command)
+
+    # test unknown error in stderr
+    pp.communicate = Mock(return_value=("", "FAILED"))
+    slurm_system.cmd_shell.execute = Mock(return_value=pp)
+    with pytest.raises(RuntimeError):
+        slurm_system.is_job_running(job, retry_threshold=3)
+    assert slurm_system.cmd_shell.execute.call_count == 1
