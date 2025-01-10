@@ -1,12 +1,26 @@
-from typing import Optional, Tuple
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from typing import Any, Optional, Tuple
 
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
-from cloudai._core.command_gen_strategy import CommandGenStrategy
 from cloudai._core.test_scenario import TestRun, TestScenario
-from cloudai.runner.slurm.slurm_runner import SlurmRunner
 from cloudai.systems import SlurmSystem
 
 
@@ -28,13 +42,11 @@ class CloudAIGymEnv(gym.Env):
         """
         super(CloudAIGymEnv, self).__init__()
         self.test_run = test_run
-        self.runner = SlurmRunner(mode="run", system=system, test_scenario=test_scenario)
 
-        # Extract action space from cmd_args
         self.action_space = self.extract_action_space(self.test_run.test.cmd_args)
         self.observation_space = self.define_observation_space()
 
-    def extract_action_space(self, cmd_args: dict) -> gym.spaces.Dict:
+    def extract_action_space(self, cmd_args: dict) -> spaces.Dict:
         """
         Extract the action space from the cmd_args dictionary.
 
@@ -42,7 +54,7 @@ class CloudAIGymEnv(gym.Env):
             cmd_args (dict): The command arguments dictionary from the TestRun object.
 
         Returns:
-            gym.spaces.Dict: A dictionary containing the action space variables and their feasible values.
+            spaces.Dict: A dictionary containing the action space variables and their feasible values.
         """
         action_space = {}
         for key, value in cmd_args.items():
@@ -54,16 +66,21 @@ class CloudAIGymEnv(gym.Env):
                         action_space[f"{key}.{sub_key}"] = spaces.Discrete(len(sub_value))
         return spaces.Dict(action_space)
 
-    def define_observation_space(self) -> gym.spaces.Space:
+    def define_observation_space(self) -> spaces.Space:
         """
         Define the observation space for the environment.
 
         Returns:
-            gym.spaces.Space: The observation space.
+            spaces.Space: The observation space.
         """
-        return gym.spaces.Box(low=0, high=1, shape=(1,), dtype=np.float32)
+        return spaces.Box(low=0, high=1, shape=(1,), dtype=np.float32)
 
-    def reset(self, seed: Optional[int] = None, options: Optional[dict] = None) -> Tuple[np.ndarray, dict]:
+    def reset(
+        self,
+        *,
+        seed: Optional[int] = None,
+        options: Optional[dict[str, Any]] = None,
+    ) -> Tuple[np.ndarray, dict[str, Any]]:
         """
         Reset the environment and reinitialize the TestRun.
 
@@ -96,21 +113,13 @@ class CloudAIGymEnv(gym.Env):
                 - done (bool): Whether the episode is done.
                 - info (dict): Additional info for debugging.
         """
-        # Use a command generation strategy to update cmd_args
-        command_strategy = CommandGenStrategy()
-        self.test_run.test.cmd_args = command_strategy.generate(self.test_run.test.cmd_args, action)
-
-        # Execute the updated configuration
-        self.runner.run()
-
-        # Compute reward and get the next observation
-        reward = self.compute_reward()
+        # Placeholder logic for. Future PR will implement the actual logic
         observation = self.get_observation()
-        done = not self.test_run.has_more_iterations()
+        reward = 0.0
+        done = False
+        info = {}
 
-        self.test_run.current_iteration += 1
-
-        return observation, reward, done, {}
+        return observation, reward, done, info
 
     def render(self, mode="human"):
         """
@@ -128,8 +137,7 @@ class CloudAIGymEnv(gym.Env):
         Returns:
             float: Reward value.
         """
-        runtime = self.test_run.result.get("runtime", 1)
-        return 1 / runtime if runtime else 0
+        return 0.0
 
     def get_observation(self) -> np.ndarray:
         """
@@ -138,5 +146,4 @@ class CloudAIGymEnv(gym.Env):
         Returns:
             np.ndarray: A scalar value representing the observation.
         """
-        # Placeholder logic; to be implemented based on the actual observation requirements
         return np.array([0.5], dtype=np.float32)
