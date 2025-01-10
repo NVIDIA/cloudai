@@ -58,8 +58,6 @@ class BaseAgent(ABC):
     def _process_value(self, action_space: Dict[str, Any], key: str, value: Any) -> None:
         if isinstance(value, list):
             self._process_list(action_space, key, value)
-        elif isinstance(value, (int, float)):
-            action_space[key] = {"type": "fixed", "value": value}
         elif isinstance(value, dict):
             for sub_key, sub_value in value.items():
                 full_key = f"{key}.{sub_key}"
