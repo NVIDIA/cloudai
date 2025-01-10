@@ -1,3 +1,4 @@
+git+https://github.com/Farama-Foundation/Gymnasium/@v1.0.0a2
 bokeh==3.4.1
 pandas==2.2.1
 tbparse==0.0.8
