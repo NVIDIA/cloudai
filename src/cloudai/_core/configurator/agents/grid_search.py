@@ -88,7 +88,7 @@ class GridSearchAgent(BaseAgent):
         self.index += 1
         return action
 
-    def update_policy(self, feedback: Dict[str, Any]) -> None: # noqa: F841
+    def update_policy(self, _feedback: Dict[str, Any]) -> None:
         """
         Update the agent based on feedback (not used in grid search).
 

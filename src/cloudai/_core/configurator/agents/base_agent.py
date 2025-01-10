@@ -94,7 +94,7 @@ class BaseAgent(ABC):
         pass
 
     @abstractmethod
-    def update_policy(self, feedback: Dict[str, Any]) -> None: # noqa: F841
+    def update_policy(self, _feedback: Dict[str, Any]) -> None:
         """
         Update the agent state based on feedback from the environment.
 
