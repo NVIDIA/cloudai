@@ -113,7 +113,6 @@ class CloudAIGymEnv(gym.Env):
                 - done (bool): Whether the episode is done.
                 - info (dict): Additional info for debugging.
         """
-        # Placeholder logic for. Future PR will implement the actual logic
         observation = self.get_observation(action)
         reward = 0.0
         done = False
