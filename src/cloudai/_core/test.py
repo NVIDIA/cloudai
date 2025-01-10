@@ -75,10 +75,6 @@ class Test:
     def cmd_args(self) -> Dict[str, Union[str, List[str]]]:
         return self.test_definition.cmd_args_dict
 
-    @cmd_args.setter
-    def cmd_args(self, value: Dict[str, Union[str, List[str]]]) -> None:
-        self._cmd_args = value
-
     @property
     def extra_cmd_args(self) -> str:
         return self.test_definition.extra_args_str
