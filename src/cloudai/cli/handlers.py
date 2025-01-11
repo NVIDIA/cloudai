@@ -138,7 +138,8 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
 
     agent.configure(env.action_space)
 
-    for action in agent.get_all_combinations():
+    for dse_iteration, action in enumerate(agent.get_all_combinations(), start=1):
+        tr.dse_iteration = dse_iteration
         for key, value in action.items():
             update_nested_attr(tr.test.test_definition.cmd_args, key, value)
         runner = Runner(args.mode, system, test_scenario)
