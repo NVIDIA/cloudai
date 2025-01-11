@@ -19,9 +19,31 @@ from typing import Any, Dict, Optional, Tuple
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
+from gymnasium.spaces import Space
 
 from cloudai._core.test_scenario import TestRun, TestScenario
 from cloudai.systems import SlurmSystem
+
+
+class DictSpace(Space):
+    """
+    A custom space that wraps a dictionary of spaces.
+
+    Args:
+        space_dict (Dict[str, Any]): A dictionary of spaces.
+    """
+
+    def __init__(self, space_dict: Dict[str, Any]):
+        self.space_dict = space_dict
+        super().__init__((), None)
+
+    def sample(self, mask: Optional[np.ndarray] = None):
+        # Implement sampling logic if needed
+        pass
+
+    def contains(self, x) -> bool:
+        # Implement containment logic if needed
+        return True
 
 
 class CloudAIGymEnv(gym.Env):
@@ -46,7 +68,7 @@ class CloudAIGymEnv(gym.Env):
         self.action_space = self.extract_action_space(self.test_run.test.cmd_args)
         self.observation_space = self.define_observation_space()
 
-    def extract_action_space(self, cmd_args: dict) -> Dict[str, Any]:
+    def extract_action_space(self, cmd_args: dict):
         """
         Extract the action space from the cmd_args dictionary.
 

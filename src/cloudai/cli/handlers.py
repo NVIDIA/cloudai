@@ -24,7 +24,6 @@ from unittest.mock import Mock
 from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, System
 from cloudai._core.configurator.agents.grid_search import GridSearchAgent
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
-from cloudai.systems.slurm.slurm_system import SlurmSystem
 
 from ..parser import HOOK_ROOT
 
@@ -132,9 +131,12 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     tr = test_scenario.test_runs[0]
 
     agent = GridSearchAgent(tr)
-    env = CloudAIGymEnv(test_run=tr, system=SlurmSystem(system), test_scenario=test_scenario)
+    env = CloudAIGymEnv(test_run=tr, system=system, test_scenario=test_scenario)
 
-    agent.configure(env.action_space)
+    # Convert env.action_space to a dictionary
+    action_space_dict = {key: space for key, space in env.action_space.spaces.items()}
+
+    agent.configure(action_space_dict)
 
     for action in agent.get_all_combinations():
         for key, value in action.items():
