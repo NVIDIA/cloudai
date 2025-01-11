@@ -128,7 +128,10 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
 
     logging.info(test_scenario.pretty_print())
 
-    tr = test_scenario.test_runs[0]
+    tr = next(iter(test_scenario.test_runs), None)
+    if tr is None:
+        logging.error("No test runs found in the test scenario.")
+        return 1
 
     agent = GridSearchAgent(tr)
     env = CloudAIGymEnv(test_run=tr, system=system, test_scenario=test_scenario)
