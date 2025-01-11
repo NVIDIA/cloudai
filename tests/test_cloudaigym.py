@@ -1,24 +1,6 @@
-# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: Apache-2.0
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 from unittest.mock import MagicMock
 
-import numpy as np
 import pytest
-from gymnasium.spaces import Box, Dict, Discrete
 
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
 from cloudai._core.test_scenario import TestRun, TestScenario
@@ -48,32 +30,25 @@ def setup_env():
 def test_action_space_nccl(setup_env):
     test_run, system, test_scenario = setup_env
     env = CloudAIGymEnv(test_run=test_run, system=system, test_scenario=test_scenario)
-    assert isinstance(env.action_space, Dict)
+    action_space = env.define_action_space()
 
-    expected_action_space = Dict(
-        {
-            "iters": Discrete(2),
-            "maxbytes": Discrete(2),
-            "minbytes": Discrete(4),
-            "ngpus": Discrete(1),
-        }
-    )
+    expected_action_space = {
+        "iters": 2,
+        "maxbytes": 2,
+        "minbytes": 4,
+        "ngpus": 1,
+    }
 
-    assert env.action_space.spaces.keys() == expected_action_space.spaces.keys()
-    for key in expected_action_space.spaces:
-        assert isinstance(env.action_space.spaces[key], Discrete)
-        assert isinstance(expected_action_space.spaces[key], Discrete)
-        assert env.action_space.spaces[key].__dict__ == expected_action_space.spaces[key].__dict__
+    assert action_space.keys() == expected_action_space.keys()
+    for key in expected_action_space:
+        assert action_space[key] == expected_action_space[key]
 
 
 def test_observation_space(setup_env):
     test_run, system, test_scenario = setup_env
     env = CloudAIGymEnv(test_run=test_run, system=system, test_scenario=test_scenario)
-    assert isinstance(env.observation_space, Box)
+    observation_space = env.define_observation_space()
 
-    expected_observation_space = Box(low=0.0, high=1.0, shape=(1,), dtype=np.float32)
+    expected_observation_space = [0.0]
 
-    assert env.observation_space.shape == expected_observation_space.shape
-    assert env.observation_space.dtype == expected_observation_space.dtype
-    assert np.all(env.observation_space.low == expected_observation_space.low)
-    assert np.all(env.observation_space.high == expected_observation_space.high)
+    assert observation_space == expected_observation_space
