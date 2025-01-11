@@ -140,7 +140,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
 
     for action in agent.get_all_combinations():
         for key, value in action.items():
-            tr.test.test_definition.cmd_args_dict[key] = value
+            update_nested_attr(tr.test.test_definition.cmd_args, key, value)
         runner = Runner(args.mode, system, test_scenario)
         asyncio.run(runner.run())
 
@@ -156,6 +156,21 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
             )
 
     return 0
+
+
+def update_nested_attr(obj, attr_path, value):
+    """Update a nested attribute of an object."""
+    attrs = attr_path.split(".")
+    # hot fix. Will be removed after the issue is fixed in the codebase
+    prefix = "Grok"
+    if attrs[0] == prefix:
+        attrs = attrs[1:]
+    for attr in attrs[:-1]:
+        if hasattr(obj, attr):
+            obj = getattr(obj, attr)
+        else:
+            raise AttributeError(f"{type(obj).__name__!r} object has no attribute {attr!r}")
+    setattr(obj, attrs[-1], value)
 
 
 def handle_generate_report(args: argparse.Namespace) -> int:
