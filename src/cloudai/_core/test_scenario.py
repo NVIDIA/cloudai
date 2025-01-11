@@ -53,6 +53,7 @@ class TestRun:
     output_path: Path = Path("")
     iterations: int = 1
     current_iteration: int = 0
+    dse_iteration: int = 0
     time_limit: Optional[str] = None
     sol: Optional[float] = None
     weight: float = 0.0
