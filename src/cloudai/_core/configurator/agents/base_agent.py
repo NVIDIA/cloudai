@@ -65,9 +65,9 @@ class BaseAgent(ABC):
 
     def _process_list(self, action_space: Dict[str, Any], key: str, value: list) -> None:
         if all(isinstance(v, int) for v in value):
-            action_space[key] = {"type": "int", "range": (min(value), max(value))}
+            action_space[key] = {"type": "int", "values": value}
         elif all(isinstance(v, float) for v in value):
-            action_space[key] = {"type": "float", "range": (min(value), max(value))}
+            action_space[key] = {"type": "float", "values": value}
         else:
             action_space[key] = {"type": "categorical", "categories": value}
 

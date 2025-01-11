@@ -48,16 +48,8 @@ class GridSearchAgent(BaseAgent):
         """
         parameter_values = []
         for _key, param in self.action_space.items():
-            if param["type"] == "int":
-                parameter_values.append(range(param["range"][0], param["range"][1] + 1))
-            elif param["type"] == "float":
-                step = config.get("float_step", 0.1)
-                parameter_values.append(
-                    [
-                        param["range"][0] + i * step
-                        for i in range(int((param["range"][1] - param["range"][0]) / step) + 1)
-                    ]
-                )
+            if param["type"] == "int" or param["type"] == "float":
+                parameter_values.append(param["values"])
             elif param["type"] == "categorical":
                 parameter_values.append(param["categories"])
 
