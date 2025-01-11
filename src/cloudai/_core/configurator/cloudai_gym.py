@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import gymnasium as gym
 import numpy as np
@@ -46,7 +46,7 @@ class CloudAIGymEnv(gym.Env):
         self.action_space = self.extract_action_space(self.test_run.test.cmd_args)
         self.observation_space = self.define_observation_space()
 
-    def extract_action_space(self, cmd_args: dict) -> spaces.Dict:
+    def extract_action_space(self, cmd_args: dict) -> Dict[str, Any]:
         """
         Extract the action space from the cmd_args dictionary.
 

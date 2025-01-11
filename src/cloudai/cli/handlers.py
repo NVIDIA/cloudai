@@ -22,6 +22,9 @@ from typing import List, Optional
 from unittest.mock import Mock
 
 from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, System
+from cloudai._core.configurator.agents.grid_search import GridSearchAgent
+from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
+from cloudai.systems.slurm.slurm_system import SlurmSystem
 
 from ..parser import HOOK_ROOT
 
@@ -93,6 +96,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     """
     parser = Parser(args.system_config)
     system, tests, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
+
     assert test_scenario is not None
 
     if args.output_dir:
@@ -125,19 +129,29 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
 
     logging.info(test_scenario.pretty_print())
 
-    runner = Runner(args.mode, system, test_scenario)
-    asyncio.run(runner.run())
+    tr = test_scenario.test_runs[0]
 
-    logging.info(f"All test scenario results stored at: {runner.runner.output_path}")
+    agent = GridSearchAgent(tr)
+    env = CloudAIGymEnv(test_run=tr, system=SlurmSystem(system), test_scenario=test_scenario)
 
-    if args.mode == "run":
-        generator = ReportGenerator(runner.runner.output_path)
-        generator.generate_report(test_scenario)
-        logging.info(
-            "All test scenario execution attempts are complete. Please review"
-            f" the '{args.log_file}' file to confirm successful completion or to"
-            " identify any issues."
-        )
+    agent.configure(env.action_space)
+
+    for action in agent.get_all_combinations():
+        for key, value in action.items():
+            tr.test.test_definition.cmd_args_dict[key] = value
+        runner = Runner(args.mode, system, test_scenario)
+        asyncio.run(runner.run())
+
+        logging.info(f"All test scenario results stored at: {runner.runner.output_path}")
+
+        if args.mode == "run":
+            generator = ReportGenerator(runner.runner.output_path)
+            generator.generate_report(test_scenario)
+            logging.info(
+                "All test scenario execution attempts are complete. Please review"
+                f" the '{args.log_file}' file to confirm successful completion or to"
+                " identify any issues."
+            )
 
     return 0
 
