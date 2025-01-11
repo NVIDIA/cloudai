@@ -48,7 +48,7 @@ class BaseGym(ABC):
 
     @abstractmethod
     def reset(
-        self, seed: Optional[int] = None, options: Optional[dict[str, Any]] = None
+        self, seed: Optional[int] = None, _options: Optional[dict[str, Any]] = None
     ) -> Tuple[list, dict[str, Any]]:
         """
         Reset the environment.
