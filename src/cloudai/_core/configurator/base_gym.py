@@ -14,36 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Tuple
 
-import numpy as np
 
-from cloudai import System
-from cloudai._core.configurator.base_gym import BaseGym
-from cloudai._core.test_scenario import TestRun, TestScenario
+class BaseGym(ABC):
+    """Base class for CloudAI Gym environments."""
 
+    def __init__(self):
+        """Initialize the CloudAIGym environment."""
+        self.action_space = self.define_action_space()
+        self.observation_space = self.define_observation_space()
 
-class CloudAIGymEnv(BaseGym):
-    """
-    Custom Gym environment for CloudAI integration.
-
-    Uses the TestRun object and actual runner methods to execute jobs.
-    """
-
-    def __init__(self, test_run: TestRun, system: System, test_scenario: TestScenario):
-        """
-        Initialize the Gym environment using the TestRun object.
-
-        Args:
-            test_run (TestRun): A test run object that encapsulates cmd_args, extra_cmd_args, etc.
-            system (SlurmSystem): The system configuration for running the tests.
-            test_scenario (TestScenario): The test scenario configuration.
-        """
-        self.test_run = test_run
-        self.system = system
-        self.test_scenario = test_scenario
-        super().__init__()
-
+    @abstractmethod
     def define_action_space(self) -> Dict[str, Any]:
         """
         Define the action space for the environment.
@@ -51,16 +34,9 @@ class CloudAIGymEnv(BaseGym):
         Returns:
             Dict[str, Any]: The action space.
         """
-        action_space = {}
-        for key, value in self.test_run.test.cmd_args.items():
-            if isinstance(value, list):
-                action_space[key] = len(value)
-            elif isinstance(value, dict):
-                for sub_key, sub_value in value.items():
-                    if isinstance(sub_value, list):
-                        action_space[f"{key}.{sub_key}"] = len(sub_value)
-        return action_space
+        pass
 
+    @abstractmethod
     def define_observation_space(self) -> list:
         """
         Define the observation space for the environment.
@@ -68,13 +44,14 @@ class CloudAIGymEnv(BaseGym):
         Returns:
             list: The observation space.
         """
-        return [0.0]
+        pass
 
+    @abstractmethod
     def reset(
         self, seed: Optional[int] = None, options: Optional[dict[str, Any]] = None
     ) -> Tuple[list, dict[str, Any]]:
         """
-        Reset the environment and reinitialize the TestRun.
+        Reset the environment.
 
         Args:
             seed (Optional[int]): Seed for the environment's random number generator.
@@ -85,13 +62,9 @@ class CloudAIGymEnv(BaseGym):
                 - observation (list): Initial observation.
                 - info (dict): Additional info for debugging.
         """
-        if seed is not None:
-            np.random.seed(seed)
-        self.test_run.current_iteration = 0
-        observation = [0.0]
-        info = {}
-        return observation, info
+        pass
 
+    @abstractmethod
     def step(self, action: Any) -> Tuple[list, float, bool, dict]:
         """
         Execute one step in the environment.
@@ -106,21 +79,19 @@ class CloudAIGymEnv(BaseGym):
                 - done (bool): Whether the episode is done.
                 - info (dict): Additional info for debugging.
         """
-        observation = self.get_observation(action)
-        reward = self.compute_reward()
-        done = False
-        info = {}
-        return observation, reward, done, info
+        pass
 
+    @abstractmethod
     def render(self, mode: str = "human"):
         """
-        Render the current state of the TestRun.
+        Render the current state of the environment.
 
         Args:
             mode (str): The mode to render with. Default is "human".
         """
-        print(f"Step {self.test_run.current_iteration}: Parameters {self.test_run.test.cmd_args}")
+        pass
 
+    @abstractmethod
     def seed(self, seed: Optional[int] = None):
         """
         Set the seed for the environment's random number generator.
@@ -128,27 +99,4 @@ class CloudAIGymEnv(BaseGym):
         Args:
             seed (Optional[int]): Seed for the environment's random number generator.
         """
-        if seed is not None:
-            np.random.seed(seed)
-
-    def compute_reward(self) -> float:
-        """
-        Compute a reward based on the TestRun result.
-
-        Returns:
-            float: Reward value.
-        """
-        return 0.0
-
-    def get_observation(self, action: Any) -> list:
-        """
-        Get the observation from the TestRun object.
-
-        Args:
-            action (Any): Action taken by the agent.
-
-        Returns:
-            list: The observation.
-        """
-        obs = action * 0.5
-        return [obs]
+        pass

@@ -133,10 +133,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     agent = GridSearchAgent(tr)
     env = CloudAIGymEnv(test_run=tr, system=system, test_scenario=test_scenario)
 
-    # Convert env.action_space to a dictionary
-    action_space_dict = {key: space for key, space in env.action_space.spaces.items()}
-
-    agent.configure(action_space_dict)
+    agent.configure(env.action_space)
 
     for action in agent.get_all_combinations():
         for key, value in action.items():
