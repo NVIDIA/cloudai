@@ -16,7 +16,6 @@
 
 from cloudai.cli.handlers import is_dse_job
 
-
 mock_toml_dse = {
     "test": {
         "cmd_args": {
