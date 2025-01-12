@@ -84,6 +84,63 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     return rc
 
 
+def is_dse_job(cmd_args):
+    """
+    Recursively check if any value in cmd_args is a list.
+
+    Args:
+        cmd_args (dict): The command arguments to check.
+
+    Returns:
+        bool: True if any value is a list, False otherwise.
+    """
+    if isinstance(cmd_args, dict):
+        for _key, value in cmd_args.items():
+            if isinstance(value, list) or (isinstance(value, dict) and is_dse_job(value)):
+                return True
+    return False
+
+
+def handle_dse_job(tr, system, test_scenario, args):
+    agent = GridSearchAgent(tr)
+    env = CloudAIGymEnv(test_run=tr, system=system, test_scenario=test_scenario)
+    agent.configure(env.action_space)
+
+    for dse_iteration, action in enumerate(agent.get_all_combinations(), start=1):
+        tr.dse_iteration = dse_iteration
+        for key, value in action.items():
+            update_nested_attr(tr.test.test_definition.cmd_args, key, value)
+        runner = Runner(args.mode, system, test_scenario)
+        asyncio.run(runner.run())
+
+        logging.info(f"All test scenario results stored at: {runner.runner.output_path}")
+
+        if args.mode == "run":
+            generator = ReportGenerator(runner.runner.output_path)
+            generator.generate_report(test_scenario)
+            logging.info(
+                "All test scenario execution attempts are complete. Please review"
+                f" the '{args.log_file}' file to confirm successful completion or to"
+                " identify any issues."
+            )
+
+
+def handle_non_dse_job(tr, system, test_scenario, args):
+    runner = Runner(args.mode, system, test_scenario)
+    asyncio.run(runner.run())
+
+    logging.info(f"All test scenario results stored at: {runner.runner.output_path}")
+
+    if args.mode == "run":
+        generator = ReportGenerator(runner.runner.output_path)
+        generator.generate_report(test_scenario)
+        logging.info(
+            "All test scenario execution attempts are complete. Please review"
+            f" the '{args.log_file}' file to confirm successful completion or to"
+            " identify any issues."
+        )
+
+
 def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     """
     Execute the dry-run or run modes for CloudAI.
@@ -133,28 +190,10 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
         logging.error("No test runs found in the test scenario.")
         return 1
 
-    agent = GridSearchAgent(tr)
-    env = CloudAIGymEnv(test_run=tr, system=system, test_scenario=test_scenario)
-
-    agent.configure(env.action_space)
-
-    for dse_iteration, action in enumerate(agent.get_all_combinations(), start=1):
-        tr.dse_iteration = dse_iteration
-        for key, value in action.items():
-            update_nested_attr(tr.test.test_definition.cmd_args, key, value)
-        runner = Runner(args.mode, system, test_scenario)
-        asyncio.run(runner.run())
-
-        logging.info(f"All test scenario results stored at: {runner.runner.output_path}")
-
-        if args.mode == "run":
-            generator = ReportGenerator(runner.runner.output_path)
-            generator.generate_report(test_scenario)
-            logging.info(
-                "All test scenario execution attempts are complete. Please review"
-                f" the '{args.log_file}' file to confirm successful completion or to"
-                " identify any issues."
-            )
+    if is_dse_job(tr.test.cmd_args):
+        handle_dse_job(tr, system, test_scenario, args)
+    else:
+        handle_non_dse_job(tr, system, test_scenario, args)
 
     return 0
 
