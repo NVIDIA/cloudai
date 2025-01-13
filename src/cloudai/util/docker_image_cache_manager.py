@@ -182,7 +182,9 @@ class DockerImageCacheManager:
         logging.debug(message)
         return DockerImageCacheResult(False, Path(), message)
 
-    def _import_docker_image(self, srun_prefix: str, docker_image_path: str, docker_image_url: str, retry: bool = False) -> DockerImageCacheResult:
+    def _import_docker_image(
+        self, srun_prefix: str, docker_image_path: str, docker_image_url: str, retry: bool = False
+    ) -> DockerImageCacheResult:
         enroot_import_cmd = f"{srun_prefix} enroot import -o {docker_image_path} docker://{docker_image_url}"
         logging.debug(f"Importing Docker image: {enroot_import_cmd}")
         try:
