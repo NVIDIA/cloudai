@@ -182,6 +182,37 @@ class DockerImageCacheManager:
         logging.debug(message)
         return DockerImageCacheResult(False, Path(), message)
 
+    def _import_docker_image(self, srun_prefix: str, docker_image_path: str, docker_image_url: str, retry: bool = False) -> DockerImageCacheResult:
+        enroot_import_cmd = f"{srun_prefix} enroot import -o {docker_image_path} docker://{docker_image_url}"
+        logging.debug(f"Importing Docker image: {enroot_import_cmd}")
+        try:
+            p = subprocess.run(enroot_import_cmd, shell=True, check=True, capture_output=True, text=True)
+
+            if "Disk quota exceeded" in p.stderr or "Write error" in p.stderr:
+                error_message = (
+                    f"Failed to cache Docker image {docker_image_url}. Command: {enroot_import_cmd}. "
+                    f"Error: '{p.stderr}'\n\n"
+                    "This error indicates a disk-related issue. Please check if the disk is full or not usable. "
+                    "If the disk is full, consider using a different disk or removing unnecessary files."
+                )
+                logging.error(error_message)
+                return DockerImageCacheResult(False, Path(), error_message)
+
+            success_message = f"Docker image cached successfully at {docker_image_path}."
+            logging.debug(success_message)
+            logging.debug(f"Command used: {enroot_import_cmd}, stdout: {p.stdout}, stderr: {p.stderr}")
+            return DockerImageCacheResult(True, docker_image_path.absolute(), success_message)
+        except subprocess.CalledProcessError as e:
+            # Retry enroot by adding `--gpus=1`` if cluster requires specifing GPU resource
+            if retry is False and "Cannot find GPU specification" in e.stderr:
+                srun_prefix += " --gpus=1"
+                return self._import_docker_image(srun_prefix, docker_image_path, docker_image_url, True)
+            error_message = (
+                f"Failed to import Docker image {docker_image_url}. Command: {enroot_import_cmd}. Error: {e.stderr}"
+            )
+            logging.debug(error_message)
+            return DockerImageCacheResult(False, message=error_message)
+
     def cache_docker_image(self, docker_image_url: str, docker_image_filename: str) -> DockerImageCacheResult:
         """
         Cache the Docker image locally using enroot import.
@@ -218,32 +249,8 @@ class DockerImageCacheManager:
         srun_prefix = f"srun --export=ALL --partition={self.system.default_partition}"
         if self.system.account:
             srun_prefix += f" --account={self.system.account}"
-        enroot_import_cmd = f"{srun_prefix} enroot import -o {docker_image_path} docker://{docker_image_url}"
-        logging.debug(f"Importing Docker image: {enroot_import_cmd}")
 
-        try:
-            p = subprocess.run(enroot_import_cmd, shell=True, check=True, capture_output=True, text=True)
-
-            if "Disk quota exceeded" in p.stderr or "Write error" in p.stderr:
-                error_message = (
-                    f"Failed to cache Docker image {docker_image_url}. Command: {enroot_import_cmd}. "
-                    f"Error: '{p.stderr}'\n\n"
-                    "This error indicates a disk-related issue. Please check if the disk is full or not usable. "
-                    "If the disk is full, consider using a different disk or removing unnecessary files."
-                )
-                logging.error(error_message)
-                return DockerImageCacheResult(False, Path(), error_message)
-
-            success_message = f"Docker image cached successfully at {docker_image_path}."
-            logging.debug(success_message)
-            logging.debug(f"Command used: {enroot_import_cmd}, stdout: {p.stdout}, stderr: {p.stderr}")
-            return DockerImageCacheResult(True, docker_image_path.absolute(), success_message)
-        except subprocess.CalledProcessError as e:
-            error_message = (
-                f"Failed to import Docker image {docker_image_url}. Command: {enroot_import_cmd}. Error: {e.stderr}"
-            )
-            logging.debug(error_message)
-            return DockerImageCacheResult(False, message=error_message)
+        return self._import_docker_image(srun_prefix, docker_image_path, docker_image_url)
 
     def _check_prerequisites(self) -> PrerequisiteCheckResult:
         """
