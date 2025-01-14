@@ -103,5 +103,5 @@ jobs:
 
           cloudai dry-run --system-config conf/common/system/example_slurm_cluster.toml \
             --tests-dir conf/common/test/ \
-            --test-scenario conf/common/test_scenario/ucc_test.toml
+            --test-scenario conf/common/test_scenario/ucc_test.toml \
             --output-dir ./results
