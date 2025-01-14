@@ -28,7 +28,7 @@ from .test import Installable
 
 
 def is_dir_writable(path: Path) -> bool:
-    return not os.access(path, os.W_OK) or not path.is_dir()
+    return os.access(path, os.W_OK) and path.is_dir()
 
 
 class BaseInstaller(ABC):
@@ -90,7 +90,7 @@ class BaseInstaller(ABC):
         Returns:
             InstallStatusResult: Result containing the installation status and error message if not installed.
         """
-        if is_dir_writable(self.system.install_path):
+        if not is_dir_writable(self.system.install_path):
             return InstallStatusResult(
                 False, f"The installation path {self.system.install_path} is not a writable directory."
             )
@@ -131,7 +131,7 @@ class BaseInstaller(ABC):
                 False, f"Failed to create installation directory at {self.system.install_path}: {e}"
             )
 
-        if is_dir_writable(self.system.install_path):
+        if not is_dir_writable(self.system.install_path):
             return InstallStatusResult(
                 False, f"The installation path {self.system.install_path} is not a writable directory."
             )
