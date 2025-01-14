@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, field_serializer
 
@@ -45,7 +45,12 @@ class JaxFdl(BaseModel):
         return f'\\"{value}\\"'
 
     @field_serializer("checkpoint_policy")
-    def checkpoint_policy_serializer(self, value: str) -> str:
+    def checkpoint_policy_serializer(self, value: Union[str, List[str]]) -> Union[str, List[str]]:
+        if isinstance(value, list):
+            return [self._serialize_single_policy(v) for v in value]
+        return self._serialize_single_policy(value)
+
+    def _serialize_single_policy(self, value: str) -> str:
         if value.startswith('\\"') and value.endswith('\\"'):
             return value
         elif value.startswith('"') and value.endswith('"'):
