@@ -70,10 +70,10 @@ empty_parameter_set_mark = "fail_at_collect"
 root_package = "cloudai"
 
   [[tool.importlinter.contracts]]
-  name = "_core does not depends on higher level layers"
+  name = "_core does not depends on higher level layers (but util)"
   type = "layers"
   layers = [
-    "installer : parser : report_generator : runner : schema : util : test_definitions : cli",
+    "installer : parser : report_generator : runner : schema : test_definitions : cli",
     "_core",
   ]
   containers = ["cloudai"]

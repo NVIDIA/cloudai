@@ -15,20 +15,16 @@
 # limitations under the License.
 
 import logging
-import os
 import shutil
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
 from typing import Iterable, final
+
+from cloudai.util import is_dir_writable
 
 from .install_status_result import InstallStatusResult
 from .system import System
 from .test import Installable
-
-
-def is_dir_writable(path: Path) -> bool:
-    return os.access(path, os.W_OK) and path.is_dir()
 
 
 class BaseInstaller(ABC):

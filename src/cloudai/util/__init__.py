@@ -14,8 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+from pathlib import Path
+
 from .command_shell import CommandShell
+
+
+def is_dir_writable(path: Path) -> bool:
+    return os.access(path, os.W_OK) and path.is_dir()
+
 
 __all__ = [
     "CommandShell",
+    "is_dir_writable",
 ]

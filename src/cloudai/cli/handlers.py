@@ -22,6 +22,7 @@ from typing import List, Optional
 from unittest.mock import Mock
 
 from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, System
+from cloudai.util import is_dir_writable
 
 from ..parser import HOOK_ROOT
 
@@ -97,6 +98,9 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
 
     if args.output_dir:
         system.output_path = args.output_dir.absolute()
+    if not is_dir_writable(system.output_path):
+        logging.error(f"Output path {system.output_path} is not a writable directory.")
+        return 1
     system.update()
 
     logging.info(f"System Name: {system.name}")
