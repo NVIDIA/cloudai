@@ -18,7 +18,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from cloudai._core.configurator.agents.grid_search import GridSearchAgent
+from cloudai._core.configurator.grid_search import GridSearchAgent
 from cloudai._core.test_scenario import TestRun
 
 

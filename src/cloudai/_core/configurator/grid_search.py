@@ -17,7 +17,7 @@
 import itertools
 from typing import Any, Dict, List
 
-from cloudai._core.configurator.agents.base_agent import BaseAgent
+from cloudai._core.configurator.base_agent import BaseAgent
 from cloudai._core.test_scenario import TestRun
 
 
