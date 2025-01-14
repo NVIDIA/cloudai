@@ -35,12 +35,12 @@ class TestNcclTestSlurmCommandGenStrategy:
         [
             (
                 "nccl_test",
-                {"NCCL_TOPO_FILE": "/path/to/topo", "DOCKER_NCCL_TOPO_FILE": "/docker/topo"},
+                {"NCCL_TOPO_FILE": "/path/to/topo"},
                 {"subtest_name": "all_reduce_perf", "docker_image_url": "fake_image_url"},
                 2,
                 ["node1", "node2"],
                 {
-                    "container_mounts": "/path/to/topo:/docker/topo",
+                    "container_mounts": "/path/to/topo:/path/to/topo",
                 },
             ),
             (
@@ -50,7 +50,7 @@ class TestNcclTestSlurmCommandGenStrategy:
                 1,
                 ["node1"],
                 {
-                    "container_mounts": "",
+                    "container_mounts": "/path/to/topo:/path/to/topo",
                 },
             ),
         ],
