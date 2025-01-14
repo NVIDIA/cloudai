@@ -133,9 +133,8 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
         logging.error("No test runs found in the test scenario.")
         return 1
 
-    agent = GridSearchAgent(tr)
     env = CloudAIGymEnv(test_run=tr, system=system, test_scenario=test_scenario)
-
+    agent = GridSearchAgent(env)
     agent.configure(env.action_space)
 
     for action in agent.get_all_combinations():
