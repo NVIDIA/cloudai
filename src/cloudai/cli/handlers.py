@@ -22,8 +22,8 @@ from typing import List, Optional
 from unittest.mock import Mock
 
 from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, System
-from cloudai._core.configurator.agents.grid_search import GridSearchAgent
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
+from cloudai._core.configurator.grid_search import GridSearchAgent
 
 from ..parser import HOOK_ROOT
 
