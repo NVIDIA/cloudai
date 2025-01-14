@@ -85,6 +85,11 @@ class BaseInstaller(ABC):
         Returns:
             InstallStatusResult: Result containing the installation status and error message if not installed.
         """
+        if not os.access(self.system.install_path, os.W_OK) or not self.system.install_path.is_dir():
+            return InstallStatusResult(
+                False, f"The installation path {self.system.install_path} is not a writable directory."
+            )
+
         not_installed = {}
         for item in items:
             logging.debug(f"Installation check for {item}")
