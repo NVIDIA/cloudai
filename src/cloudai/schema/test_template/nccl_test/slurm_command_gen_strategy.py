@@ -31,10 +31,9 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
         container_mounts = ""
-        if "NCCL_TOPO_FILE" in env_vars and "DOCKER_NCCL_TOPO_FILE" in env_vars:
-            nccl_graph_path = Path(env_vars["NCCL_TOPO_FILE"]).resolve()
-            nccl_graph_file = env_vars["DOCKER_NCCL_TOPO_FILE"]
-            container_mounts = f"{nccl_graph_path}:{nccl_graph_file}"
+        if "NCCL_TOPO_FILE" in env_vars:
+            nccl_topo_file = Path(env_vars["NCCL_TOPO_FILE"]).resolve()
+            container_mounts = f"{nccl_topo_file}:{nccl_topo_file}"
         elif "NCCL_TOPO_FILE" in env_vars:
             del env_vars["NCCL_TOPO_FILE"]
 
