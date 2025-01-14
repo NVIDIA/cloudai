@@ -239,3 +239,14 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         cmd = cmd_gen_strategy.gen_exec_command(test_run)
 
         assert "\n" not in cmd, "Executed command should not contain line breaks"
+
+    def test_container_mounts_with_nccl_topo_file(
+        self, cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy, test_run: TestRun
+    ) -> None:
+        nccl_topo_file_path = "/opt/topo.toml"
+        test_run.test.test_definition.extra_env_vars["NCCL_TOPO_FILE"] = nccl_topo_file_path
+
+        cmd = cmd_gen_strategy.gen_exec_command(test_run)
+
+        expected_mount = f'container_mounts=["{nccl_topo_file_path}:{nccl_topo_file_path}"]'
+        assert expected_mount in cmd
