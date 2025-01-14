@@ -29,7 +29,7 @@ class NeMoRunCmdArgs(CmdArgs):
 
 
 class NeMoRunTestDefinition(TestDefinition):
-    """Test object for NeMoLauncher."""
+    """Test object for NeMoRun."""
 
     cmd_args: NeMoRunCmdArgs
     _docker_image: Optional[DockerImage] = None

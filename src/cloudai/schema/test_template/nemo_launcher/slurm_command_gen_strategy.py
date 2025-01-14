@@ -73,6 +73,10 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             }
         )
 
+        nccl_topo_file = self.final_env_vars.get("NCCL_TOPO_FILE")
+        if nccl_topo_file:
+            self.final_cmd_args["container_mounts"] = f'["{nccl_topo_file}:{nccl_topo_file}"]'
+
         self._validate_data_config()
 
         cmd_args_str = self._generate_cmd_args_str(self.final_cmd_args, nodes)
