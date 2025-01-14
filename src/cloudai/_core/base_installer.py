@@ -15,11 +15,12 @@
 # limitations under the License.
 
 import logging
-import os
 import shutil
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Iterable, final
+
+from cloudai.util import is_dir_writable
 
 from .install_status_result import InstallStatusResult
 from .system import System
@@ -85,6 +86,11 @@ class BaseInstaller(ABC):
         Returns:
             InstallStatusResult: Result containing the installation status and error message if not installed.
         """
+        if not is_dir_writable(self.system.install_path):
+            return InstallStatusResult(
+                False, f"The installation path {self.system.install_path} is not a writable directory."
+            )
+
         not_installed = {}
         for item in items:
             logging.debug(f"Installation check for {item}")
@@ -121,8 +127,10 @@ class BaseInstaller(ABC):
                 False, f"Failed to create installation directory at {self.system.install_path}: {e}"
             )
 
-        if not self.system.install_path.is_dir() or not os.access(self.system.install_path, os.W_OK):
-            return InstallStatusResult(False, f"The installation path {self.system.install_path} is not writable.")
+        if not is_dir_writable(self.system.install_path):
+            return InstallStatusResult(
+                False, f"The installation path {self.system.install_path} is not a writable directory."
+            )
 
         logging.debug(f"Going to install {len(set(items))} uniq item(s) (total is {len(list(items))})")
         logging.info(f"Going to install {len(set(items))} item(s)")
