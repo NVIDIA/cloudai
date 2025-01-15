@@ -183,7 +183,7 @@ class DockerImageCacheManager:
         return DockerImageCacheResult(False, Path(), message)
 
     def _import_docker_image(
-        self, srun_prefix: str, docker_image_url: str, docker_image_path: Path, retry: bool = False
+        self, srun_prefix: str, docker_image_url: str, docker_image_path: Path
     ) -> DockerImageCacheResult:
         enroot_import_cmd = f"{srun_prefix} enroot import -o {docker_image_path} docker://{docker_image_url}"
         logging.debug(f"Importing Docker image: {enroot_import_cmd}")
@@ -205,10 +205,6 @@ class DockerImageCacheManager:
             logging.debug(f"Command used: {enroot_import_cmd}, stdout: {p.stdout}, stderr: {p.stderr}")
             return DockerImageCacheResult(True, docker_image_path.absolute(), success_message)
         except subprocess.CalledProcessError as e:
-            # Retry enroot by adding `--gpus=1`` if cluster requires specifing GPU resource
-            if not retry and e.stderr and "Cannot find GPU specification" in e.stderr:
-                srun_prefix += " --gpus=1"
-                return self._import_docker_image(srun_prefix, docker_image_url, docker_image_path, True)
             error_message = (
                 f"Failed to import Docker image {docker_image_url}. Command: {enroot_import_cmd}. Error: {e.stderr}"
             )
@@ -251,6 +247,8 @@ class DockerImageCacheManager:
         srun_prefix = f"srun --export=ALL --partition={self.system.default_partition}"
         if self.system.account:
             srun_prefix += f" --account={self.system.account}"
+        if self.system.gpus_per_node:
+            srun_prefix += " --gres=gpu:1"
 
         return self._import_docker_image(srun_prefix, docker_image_url, docker_image_path)
 
