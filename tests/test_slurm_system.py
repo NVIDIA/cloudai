@@ -241,6 +241,9 @@ def test_allocate_nodes_exceeding_limit(
         ("TIMEOUT", "", True),
         ("RUNNING", "", False),
         ("PENDING", "", False),
+        ("COMPLETED RUNNING", "", False),
+        ("RUNNING COMPLETED", "", False),
+        ("COMPLETED COMPLETED", "", True),
         ("", "error", False),
     ],
 )

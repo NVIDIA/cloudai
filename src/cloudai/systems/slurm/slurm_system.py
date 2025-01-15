@@ -244,6 +244,9 @@ class SlurmSystem(BaseModel, System):
                 raise RuntimeError(error_message)
 
             job_states = stdout.strip().split()
+            if "RUNNING" in job_states:
+                return False
+
             if any(state in ["COMPLETED", "FAILED", "CANCELLED", "TIMEOUT"] for state in job_states):
                 return True
 
