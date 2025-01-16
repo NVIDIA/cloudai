@@ -134,7 +134,7 @@ class SlurmSystem(BaseModel, System):
     global_env_vars: Dict[str, Any] = {}
     scheduler: str = "standalone"
     monitor_interval: int = 1
-    cmd_shell: CommandShell = Field(CommandShell(), exclude=True)
+    cmd_shell: CommandShell = Field(default=CommandShell(), exclude=True)
     extra_srun_args: Optional[str] = None
 
     @property
