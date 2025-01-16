@@ -18,6 +18,8 @@ import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.util.docker_image_cache_manager import (
     DockerImageCacheManager,
@@ -198,8 +200,12 @@ def test_ensure_docker_image_no_local_cache(slurm_system: SlurmSystem):
     assert result.message == ""
 
 
-def test_system_with_account(slurm_system: SlurmSystem):
-    slurm_system.account = "test_account"
+@pytest.mark.parametrize(
+    "account, gpus_per_node", [(None, None), ("test_account", None), (None, 8), ("test_account", 8)]
+)
+def test_docker_import_with_extra_system_config(slurm_system: SlurmSystem, account, gpus_per_node):
+    slurm_system.account = account
+    slurm_system.gpus_per_node = gpus_per_node
     slurm_system.install_path.mkdir(parents=True, exist_ok=True)
 
     manager = DockerImageCacheManager(slurm_system)
@@ -209,11 +215,15 @@ def test_system_with_account(slurm_system: SlurmSystem):
         res = manager.cache_docker_image("docker.io/hello-world", "docker_image.sqsh")
         assert res.success
 
+    command = f"srun --export=ALL --partition={slurm_system.default_partition}"
+    if slurm_system.account:
+        command += f" --account={slurm_system.account}"
+    if slurm_system.gpus_per_node:
+        command += " --gres=gpu:1"
+    command += f" enroot import -o {slurm_system.install_path}/docker_image.sqsh docker://docker.io/hello-world"
+
     mock_run.assert_called_once_with(
-        (
-            f"srun --export=ALL --partition={slurm_system.default_partition} --account={slurm_system.account} "
-            f"enroot import -o {slurm_system.install_path}/docker_image.sqsh docker://docker.io/hello-world"
-        ),
+        command,
         shell=True,
         check=True,
         capture_output=True,
