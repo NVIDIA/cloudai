@@ -14,17 +14,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 from pathlib import Path
+from typing import Optional
 
 from .command_shell import CommandShell
 
 
-def is_dir_writable(path: Path) -> bool:
-    return os.access(path, os.W_OK) and path.is_dir()
+def prepare_output_dir(path: Path) -> Optional[Path]:
+    exists = False
+    try:
+        exists = path.exists()
+    except PermissionError as e:
+        logging.error(f"Output path {path} is not accessible: {e}")
+        return None
+    if exists:
+        if not os.access(path, os.W_OK):
+            logging.error(f"Output path {path} exists but is not writable.")
+            return None
+        if not path.is_dir():
+            logging.error(f"Output path {path} exists and is not a directory.")
+            return None
+        return path
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 __all__ = [
     "CommandShell",
-    "is_dir_writable",
+    "prepare_output_dir",
 ]

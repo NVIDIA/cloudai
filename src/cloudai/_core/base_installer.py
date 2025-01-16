@@ -20,7 +20,7 @@ from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Iterable, final
 
-from cloudai.util import is_dir_writable
+from cloudai.util import prepare_output_dir
 
 from .install_status_result import InstallStatusResult
 from .system import System
@@ -86,7 +86,7 @@ class BaseInstaller(ABC):
         Returns:
             InstallStatusResult: Result containing the installation status and error message if not installed.
         """
-        if not is_dir_writable(self.system.install_path):
+        if not prepare_output_dir(self.system.install_path):
             return InstallStatusResult(
                 False, f"The installation path {self.system.install_path} is not a writable directory."
             )
@@ -120,17 +120,8 @@ class BaseInstaller(ABC):
         if not prerequisites_result.success:
             return prerequisites_result
 
-        try:
-            self.system.install_path.mkdir(parents=True, exist_ok=True)
-        except OSError as e:
-            return InstallStatusResult(
-                False, f"Failed to create installation directory at {self.system.install_path}: {e}"
-            )
-
-        if not is_dir_writable(self.system.install_path):
-            return InstallStatusResult(
-                False, f"The installation path {self.system.install_path} is not a writable directory."
-            )
+        if not prepare_output_dir(self.system.install_path):
+            return InstallStatusResult(False, f"Error preparing install dir: {self.system.install_path}")
 
         logging.debug(f"Going to install {len(set(items))} uniq item(s) (total is {len(list(items))})")
         logging.info(f"Going to install {len(set(items))} item(s)")
