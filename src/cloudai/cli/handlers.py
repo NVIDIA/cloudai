@@ -102,8 +102,9 @@ def is_dse_job(cmd_args):
 
 
 def handle_dse_job(tr, system, test_scenario, args):
-    agent = GridSearchAgent(tr)
     env = CloudAIGymEnv(test_run=tr, system=system, test_scenario=test_scenario)
+    agent = GridSearchAgent(env)
+
     agent.configure(env.action_space)
 
     for dse_iteration, action in enumerate(agent.get_all_combinations(), start=1):

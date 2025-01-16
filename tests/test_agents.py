@@ -13,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -28,10 +29,10 @@ def mock_env():
     """
     env = MagicMock(spec=CloudAIGymEnv)
     env.define_action_space.return_value = {
-        "iters": {"type": "int", "values": [10, 100]},
-        "maxbytes": {"type": "int", "values": [1024, 2048]},
-        "minbytes": {"type": "int", "values": [512, 1024, 2048, 4096]},
-        "ngpus": {"type": "int", "values": [4]},
+        "iters": [10, 100],
+        "maxbytes": [1024, 2048],
+        "minbytes": [512, 1024, 2048, 4096],
+        "ngpus": [4],
     }
     return env
 
@@ -41,7 +42,7 @@ def test_grid_search_agent(mock_env):
     Test the GridSearchAgent's ability to traverse the action space.
     """
     agent = GridSearchAgent(mock_env)
-    agent.configure(config={})
+    agent.configure(config=mock_env.define_action_space.return_value)
 
     combinations = agent.get_all_combinations()
 

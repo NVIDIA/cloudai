@@ -46,14 +46,11 @@ class GridSearchAgent(BaseAgent):
         Configure the grid search by precomputing all parameter combinations.
 
         Args:
-            config (Dict[str, Any]): Additional configuration settings (optional).
+            config (Dict[str, Any]): The action space to configure.
         """
         parameter_values = []
-        for _key, param in self.action_space.items():
-            if param["type"] == "int" or param["type"] == "float":
-                parameter_values.append(param["values"])
-            elif param["type"] == "categorical":
-                parameter_values.append(param["categories"])
+        for _, values in config.items():
+            parameter_values.append(values)
 
         self.action_combinations = list(itertools.product(*parameter_values))
         self.index = 0

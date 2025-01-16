@@ -56,7 +56,7 @@ def test_action_space_nccl(setup_env):
 
     assert action_space.keys() == expected_action_space.keys()
     for key in expected_action_space:
-        assert action_space[key] == expected_action_space[key]
+        assert len(action_space[key]) == expected_action_space[key]
 
 
 def test_observation_space(setup_env):

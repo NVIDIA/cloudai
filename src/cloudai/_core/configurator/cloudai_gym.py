@@ -54,11 +54,11 @@ class CloudAIGymEnv(BaseGym):
         action_space = {}
         for key, value in self.test_run.test.cmd_args.items():
             if isinstance(value, list):
-                action_space[key] = len(value)
+                action_space[key] = value
             elif isinstance(value, dict):
                 for sub_key, sub_value in value.items():
                     if isinstance(sub_value, list):
-                        action_space[f"{key}.{sub_key}"] = len(sub_value)
+                        action_space[f"{key}.{sub_key}"] = sub_value
         return action_space
 
     def define_observation_space(self) -> list:
