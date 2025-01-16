@@ -154,13 +154,13 @@ class TestPrepareOutputDir:
         p = tmp_path / "file"
         p.touch()
         assert prepare_output_dir(p) is None
-        assert f"Output path {p} exists and is not a directory." in caplog.text
+        assert f"Output path '{p.absolute()}' exists but is not a directory." in caplog.text
 
     def test_not_writable(self, no_access_dir: Path, caplog: pytest.LogCaptureFixture):
         assert prepare_output_dir(no_access_dir) is None
-        assert f"Output path {no_access_dir} exists but is not writable." in caplog.text
+        assert f"Output path '{no_access_dir.absolute()}' exists but is not writable." in caplog.text
 
     def test_parent_wo_access(self, no_access_dir: Path, caplog: pytest.LogCaptureFixture):
         subdir = no_access_dir / "subdir"
         assert prepare_output_dir(subdir) is None
-        assert f"Output path {subdir} is not accessible:" in caplog.text
+        assert f"Output path '{subdir.absolute()}' is not accessible:" in caplog.text

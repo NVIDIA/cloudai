@@ -27,17 +27,19 @@ def prepare_output_dir(path: Path) -> Optional[Path]:
     try:
         exists = path.exists()
     except PermissionError as e:
-        logging.error(f"Output path {path} is not accessible: {e}")
+        logging.error(f"Output path '{path.absolute()}' is not accessible: {e}")
         return None
+
     if exists:
         if not os.access(path, os.W_OK):
-            logging.error(f"Output path {path} exists but is not writable.")
+            logging.error(f"Output path '{path.absolute()}' exists but is not writable.")
             return None
         if not path.is_dir():
-            logging.error(f"Output path {path} exists and is not a directory.")
+            logging.error(f"Output path '{path.absolute()}' exists but is not a directory.")
             return None
         return path
-    path.mkdir(parents=True, exist_ok=True)
+
+    path.mkdir(parents=True)
     return path
 
 

@@ -87,9 +87,7 @@ class BaseInstaller(ABC):
             InstallStatusResult: Result containing the installation status and error message if not installed.
         """
         if not prepare_output_dir(self.system.install_path):
-            return InstallStatusResult(
-                False, f"The installation path {self.system.install_path} is not a writable directory."
-            )
+            return InstallStatusResult(False, f"Error preparing install dir '{self.system.install_path.absolute()}'")
 
         not_installed = {}
         for item in items:
@@ -121,7 +119,7 @@ class BaseInstaller(ABC):
             return prerequisites_result
 
         if not prepare_output_dir(self.system.install_path):
-            return InstallStatusResult(False, f"Error preparing install dir: {self.system.install_path}")
+            return InstallStatusResult(False, f"Error preparing install dir '{self.system.install_path.absolute()}'")
 
         logging.debug(f"Going to install {len(set(items))} uniq item(s) (total is {len(list(items))})")
         logging.info(f"Going to install {len(set(items))} item(s)")
