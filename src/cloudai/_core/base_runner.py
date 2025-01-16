@@ -74,19 +74,20 @@ class BaseRunner(ABC):
 
     def setup_output_directory(self, base_output_path: Path) -> Path:
         """
-        Set up and return the base output directory path for the runner instance.
+        Set up and return the output directory path for the runner instance.
 
         Args:
             base_output_path (Path): The base output directory.
 
         Returns:
-            Path: The path to the base output directory.
+            Path: The path to the output directory.
         """
-        base_output__path_with_name = base_output_path / self.test_scenario.name
-        if not base_output__path_with_name.exists():
-            base_output__path_with_name = base_output__path_with_name
-            base_output__path_with_name.mkdir(parents=True, exist_ok=True)
-        return base_output__path_with_name
+        if not base_output_path.exists():
+            base_output_path.mkdir()
+        current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        output_subpath = base_output_path / f"{self.test_scenario.name}_{current_time}"
+        output_subpath.mkdir()
+        return output_subpath
 
     def register_signal_handlers(self):
         """Register signal handlers for handling termination-related signals."""
@@ -263,12 +264,10 @@ class BaseRunner(ABC):
         job_output_path = Path()  # avoid reportPossiblyUnboundVariable from pyright
 
         try:
-            iteration_path = self.output_path / f"iteration_{tr.dse_iteration}"
-            iteration_path.mkdir(parents=True, exist_ok=True)
-            test_output_path = iteration_path / f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}" / tr.name
-            test_output_path.mkdir(parents=True, exist_ok=True)
+            test_output_path = self.output_path / tr.name
+            test_output_path.mkdir()
             job_output_path = test_output_path / str(tr.current_iteration)
-            job_output_path.mkdir(parents=True, exist_ok=True)
+            job_output_path.mkdir()
         except PermissionError as e:
             raise PermissionError(f"Cannot create directory {job_output_path}: {e}") from e
 
