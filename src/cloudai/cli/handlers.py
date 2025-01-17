@@ -22,8 +22,10 @@ from typing import List, Optional
 from unittest.mock import Mock
 
 from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, System
+
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
 from cloudai._core.configurator.grid_search import GridSearchAgent
+from cloudai.util import prepare_output_dir
 
 from ..parser import HOOK_ROOT
 
@@ -171,6 +173,9 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
 
     if args.output_dir:
         system.output_path = args.output_dir.absolute()
+
+    if not prepare_output_dir(system.output_path):
+        return 1
     system.update()
 
     logging.info(f"System Name: {system.name}")

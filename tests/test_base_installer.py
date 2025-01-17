@@ -24,6 +24,7 @@ import pytest
 from cloudai import BaseInstaller, InstallStatusResult
 from cloudai.installer.installables import DockerImage, GitRepo, Installable
 from cloudai.systems import SlurmSystem
+from cloudai.util import prepare_output_dir
 
 
 def create_real_future(result):
@@ -142,23 +143,24 @@ def no_access_dir(tmp_path: Path) -> Generator[Path, None, None]:
     d.chmod(0o777)  # restore access so it can be deleted
 
 
-@pytest.mark.parametrize("with_subdir", [False, True])
-def test_is_installed_checks_access(with_subdir: bool, slurm_system: SlurmSystem, no_access_dir: Path):
-    slurm_system.install_path = no_access_dir
-    if with_subdir:
-        slurm_system.install_path = no_access_dir / "subdir"
-    installer = MyInstaller(slurm_system)
-    res = installer.is_installed([])
-    assert res.success is False
+class TestPrepareOutputDir:
+    def test_already_exists(self, tmp_path: Path):
+        assert prepare_output_dir(tmp_path) == tmp_path
 
+    def test_not_exists(self, tmp_path: Path):
+        assert prepare_output_dir(tmp_path / "new-dir") == tmp_path / "new-dir"
 
-def test_is_installed__file_as_install_dir(slurm_system: SlurmSystem, tmp_path: Path):
-    file_as_install_dir = tmp_path / "file-as-install-dir"
-    file_as_install_dir.touch()
-    slurm_system.install_path = file_as_install_dir
+    def test_exists_but_file(self, tmp_path: Path, caplog: pytest.LogCaptureFixture):
+        p = tmp_path / "file"
+        p.touch()
+        assert prepare_output_dir(p) is None
+        assert f"Output path '{p.absolute()}' exists but is not a directory." in caplog.text
 
-    installer = MyInstaller(slurm_system)
+    def test_not_writable(self, no_access_dir: Path, caplog: pytest.LogCaptureFixture):
+        assert prepare_output_dir(no_access_dir) is None
+        assert f"Output path '{no_access_dir.absolute()}' exists but is not writable." in caplog.text
 
-    res = installer.is_installed([])
-
-    assert res.success is False
+    def test_parent_wo_access(self, no_access_dir: Path, caplog: pytest.LogCaptureFixture):
+        subdir = no_access_dir / "subdir"
+        assert prepare_output_dir(subdir) is None
+        assert f"Output path '{subdir.absolute()}' is not accessible:" in caplog.text
