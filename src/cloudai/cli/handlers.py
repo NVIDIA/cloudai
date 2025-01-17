@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import List, Optional
 from unittest.mock import Mock
 
-from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, System
+from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, System, TestRun, TestScenario
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
 from cloudai._core.configurator.grid_search import GridSearchAgent
 from cloudai.util import prepare_output_dir
@@ -85,7 +85,7 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     return rc
 
 
-def is_dse_job(cmd_args):
+def is_dse_job(cmd_args: dict) -> bool:
     """
     Recursively check if any value in cmd_args is a list.
 
@@ -102,7 +102,7 @@ def is_dse_job(cmd_args):
     return False
 
 
-def handle_dse_job(tr, system, test_scenario, args):
+def handle_dse_job(tr: TestRun, system: System, test_scenario: TestScenario, args: argparse.Namespace) -> None:
     def update_nested_attr(obj, attr_path, value):
         """Update a nested attribute of an object."""
         attrs = attr_path.split(".")
@@ -140,7 +140,7 @@ def handle_dse_job(tr, system, test_scenario, args):
             )
 
 
-def handle_non_dse_job(tr, system, test_scenario, args):
+def handle_non_dse_job(system: System, test_scenario: TestScenario, args: argparse.Namespace) -> None:
     runner = Runner(args.mode, system, test_scenario)
     asyncio.run(runner.run())
 
@@ -208,7 +208,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     if is_dse_job(tr.test.cmd_args):
         handle_dse_job(tr, system, test_scenario, args)
     else:
-        handle_non_dse_job(tr, system, test_scenario, args)
+        handle_non_dse_job(system, test_scenario, args)
 
     return 0
 
