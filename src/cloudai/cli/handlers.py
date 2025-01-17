@@ -103,42 +103,15 @@ def is_dse_job(cmd_args):
 
 
 def handle_dse_job(tr, system, test_scenario, args):
-    def update_nested_attr(obj, attr_path, value):
-        """Update a nested attribute of an object."""
-        attrs = attr_path.split(".")
-        prefix = "Grok"
-        if attrs[0] == prefix:
-            attrs = attrs[1:]
-        for attr in attrs[:-1]:
-            if hasattr(obj, attr):
-                obj = getattr(obj, attr)
-            else:
-                raise AttributeError(f"{type(obj).__name__!r} object has no attribute {attr!r}")
-        setattr(obj, attrs[-1], value)
-
-    env = CloudAIGymEnv(test_run=tr, system=system, test_scenario=test_scenario)
+    env = CloudAIGymEnv(test_run=tr, system=system, test_scenario=test_scenario, mode=args.mode)
     agent = GridSearchAgent(env)
 
     agent.configure(env.action_space)
 
     for step, action in enumerate(agent.get_all_combinations(), start=1):
         tr.step = step
-        for key, value in action.items():
-            update_nested_attr(tr.test.test_definition.cmd_args, key, value)
-        runner = Runner(args.mode, system, test_scenario)
-        asyncio.run(runner.run())
-
-        logging.info(f"All test scenario results stored at: {runner.runner.output_path}")
-
-        if args.mode == "run":
-            generator = ReportGenerator(runner.runner.output_path)
-            generator.generate_report(test_scenario)
-            logging.info(
-                "All test scenario execution attempts are complete. Please review"
-                f" the '{args.log_file}' file to confirm successful completion or to"
-                " identify any issues."
-            )
-
+        observation, reward, done, info = env.step(action)
+        logging.info(f"Step {step}: Observation: {observation}, Reward: {reward}")
 
 def handle_non_dse_job(tr, system, test_scenario, args):
     runner = Runner(args.mode, system, test_scenario)

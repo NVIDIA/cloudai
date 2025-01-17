@@ -15,13 +15,13 @@
 # limitations under the License.
 
 from typing import Any, Dict, Optional, Tuple
-
+import asyncio
 import numpy as np
 
 from cloudai import System
 from cloudai._core.configurator.base_gym import BaseGym
 from cloudai._core.test_scenario import TestRun, TestScenario
-
+from cloudai._core.base_runner import Runner
 
 class CloudAIGymEnv(BaseGym):
     """
@@ -30,18 +30,21 @@ class CloudAIGymEnv(BaseGym):
     Uses the TestRun object and actual runner methods to execute jobs.
     """
 
-    def __init__(self, test_run: TestRun, system: System, test_scenario: TestScenario):
+    def __init__(self, test_run: TestRun, system: System, test_scenario: TestScenario, mode: str):
         """
         Initialize the Gym environment using the TestRun object.
 
         Args:
             test_run (TestRun): A test run object that encapsulates cmd_args, extra_cmd_args, etc.
-            system (SlurmSystem): The system configuration for running the tests.
+            system (System): The system configuration for running the tests.
             test_scenario (TestScenario): The test scenario configuration.
+            mode (str): The operation mode ('dry-run', 'run').
         """
         self.test_run = test_run
         self.system = system
         self.test_scenario = test_scenario
+        self.mode = mode
+        self.runner = Runner(mode, system, test_scenario)
         super().__init__()
 
     def define_action_space(self) -> Dict[str, Any]:
@@ -108,10 +111,16 @@ class CloudAIGymEnv(BaseGym):
                 - done (bool): Whether the episode is done.
                 - info (dict): Additional info for debugging.
         """
+        for key, value in action.items():
+            self.update_nested_attr(self.test_run.test.test_definition.cmd_args, key, value)
+
+        asyncio.run(self.runner.run())
+
         observation = self.get_observation(action)
         reward = self.compute_reward()
         done = False
         info = {}
+
         return observation, reward, done, info
 
     def render(self, mode: str = "human"):
@@ -154,3 +163,16 @@ class CloudAIGymEnv(BaseGym):
         """
         obs = action * 0.5
         return [obs]
+
+    def update_nested_attr(self, obj, attr_path, value):
+        """Update a nested attribute of an object."""
+        attrs = attr_path.split(".")
+        prefix = "Grok"
+        if attrs[0] == prefix:
+            attrs = attrs[1:]
+        for attr in attrs[:-1]:
+            if hasattr(obj, attr):
+                obj = getattr(obj, attr)
+            else:
+                raise AttributeError(f"{type(obj).__name__!r} object has no attribute {attr!r}")
+        setattr(obj, attrs[-1], value)
