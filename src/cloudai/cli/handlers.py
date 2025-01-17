@@ -138,6 +138,7 @@ def handle_dse_job(tr, system, test_scenario, args):
                 " identify any issues."
             )
 
+
 def handle_non_dse_job(tr, system, test_scenario, args):
     runner = Runner(args.mode, system, test_scenario)
     asyncio.run(runner.run())
@@ -198,7 +199,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
 
     logging.info(test_scenario.pretty_print())
 
-    tr = next(iter(test_scenario.test_runs), None)
+    tr = next(iter(test_scenario.test_runs))
     if tr is None:
         logging.error("No test runs found in the test scenario.")
         return 1
@@ -209,7 +210,6 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
         handle_non_dse_job(tr, system, test_scenario, args)
 
     return 0
-
 
 
 def handle_generate_report(args: argparse.Namespace) -> int:
