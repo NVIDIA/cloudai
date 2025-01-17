@@ -263,8 +263,12 @@ class BaseRunner(ABC):
         job_output_path = Path()  # avoid reportPossiblyUnboundVariable from pyright
 
         try:
-            base_path = self.system.output_path / self.test_scenario.name if tr.step > 0 else self.output_path
-            job_output_path = base_path / tr.name / str(tr.current_iteration) / (str(tr.step) if tr.step > 0 else "")
+            if tr.step > 0:
+                base_path = self.system.output_path / self.test_scenario.name
+                job_output_path = base_path / tr.name / str(tr.current_iteration) / str(tr.step)
+            else:
+                base_path = self.output_path
+                job_output_path = base_path / tr.name / str(tr.current_iteration)
 
             if not job_output_path.exists():
                 job_output_path.mkdir(parents=True, exist_ok=True)
