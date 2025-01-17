@@ -17,14 +17,14 @@
 import asyncio
 import random
 from typing import Any, Dict, Optional, Tuple
-
+import asyncio
 import numpy as np
 
 from cloudai import System
 from cloudai._core.configurator.base_gym import BaseGym
 from cloudai._core.runner import Runner
 from cloudai._core.test_scenario import TestRun, TestScenario
-
+from cloudai._core.base_runner import Runner
 
 class CloudAIGymEnv(BaseGym):
     """
@@ -42,10 +42,13 @@ class CloudAIGymEnv(BaseGym):
             system (System): The system configuration for running the tests.
             test_scenario (TestScenario): The test scenario configuration.
             mode (str): The operation mode ('dry-run', 'run').
+            mode (str): The operation mode ('dry-run', 'run').
         """
         self.test_run = test_run
         self.system = system
         self.test_scenario = test_scenario
+        self.mode = mode
+        self.runner = Runner(mode, system, test_scenario)
         self.mode = mode
         self.runner = Runner(mode, system, test_scenario)
         super().__init__()
@@ -114,6 +117,11 @@ class CloudAIGymEnv(BaseGym):
                 - done (bool): Whether the episode is done.
                 - info (dict): Additional info for debugging.
         """
+        for key, value in action.items():
+            self.update_nested_attr(self.test_run.test.test_definition.cmd_args, key, value)
+
+        asyncio.run(self.runner.run())
+
         for key, value in action.items():
             self.update_nested_attr(self.test_run.test.test_definition.cmd_args, key, value)
 
