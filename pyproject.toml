@@ -15,7 +15,7 @@
 # limitations under the License.
 
 [project]
-name = "cloudai"
+name = "CloudAI"
 dynamic = ["version"]
 dependencies = [
   "bokeh==3.4.1",
@@ -27,8 +27,21 @@ dependencies = [
   "jinja2==3.1.6",
   "websockets==15.0.1",
 ]
-  [project.scripts]
-  cloudai = "cloudai.__main__:main"
+scripts = { cloudai = "cloudai.__main__:main" }
+
+  [project.optional-dependencies]
+  dev = [
+    "ruff==0.8.4",
+    "pandas-stubs==2.2.*",
+    "pyright==1.1.386",
+    "build==1.2.*",
+    "vulture==2.13",
+    "pytest==8.3.*",
+    "pytest-cov==5.0.*",
+    "pytest-asyncio==0.23.*",
+    "import-linter==2.0.*",
+    "pytest-deadfixtures==2.2.*",
+  ]
 
 [build-system]
 requires = ["pdm-backend"]
