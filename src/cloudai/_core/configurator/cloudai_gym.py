@@ -71,7 +71,9 @@ class CloudAIGymEnv(BaseGym):
         return [0.0]
 
     def reset(
-        self, seed: Optional[int] = None, options: Optional[dict[str, Any]] = None # noqa: Vulture
+        self,
+        seed: Optional[int] = None,
+        options: Optional[dict[str, Any]] = None,  # noqa: Vulture
     ) -> Tuple[list, dict[str, Any]]:
         """
         Reset the environment and reinitialize the TestRun.
