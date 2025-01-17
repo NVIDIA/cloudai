@@ -84,7 +84,7 @@ class BaseRunner(ABC):
         """
         if not base_output_path.exists():
             base_output_path.mkdir()
-        current_time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         output_subpath = base_output_path / f"{self.test_scenario.name}_{current_time}"
         return output_subpath
 
