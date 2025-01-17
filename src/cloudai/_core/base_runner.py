@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import asyncio
+import datetime
 import logging
 import signal
 import sys
@@ -83,9 +84,8 @@ class BaseRunner(ABC):
         """
         if not base_output_path.exists():
             base_output_path.mkdir()
-        output_subpath = base_output_path / f"{self.test_scenario.name}"
-        if not output_subpath.exists():
-            output_subpath.mkdir()
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        output_subpath = base_output_path / f"{self.test_scenario.name}_{current_time}"
         return output_subpath
 
     def register_signal_handlers(self):
@@ -243,8 +243,8 @@ class BaseRunner(ABC):
         """
         Generate and ensure the existence of the output directory for a given test.
 
-        It constructs the path based on the test's section name and current iteration, creating the directories if they
-        do not exist.
+        It constructs the path based on the test's section name and current iteration,
+        creating the directories if they do not exist.
 
         Args:
             tr (TestRun): The test run object.
@@ -257,20 +257,17 @@ class BaseRunner(ABC):
             FileNotFoundError: If the base output directory does not exist.
             PermissionError: If there is a permission issue creating the directories.
         """
-        if not self.output_path.exists():
-            raise FileNotFoundError(f"Output directory {self.output_path} does not exist")
+        if tr.step < 0 and not self.output_path.exists():
+            self.output_path.mkdir()
 
         job_output_path = Path()  # avoid reportPossiblyUnboundVariable from pyright
 
         try:
-            test_output_path = self.output_path / tr.name
-            if not test_output_path.exists():
-                test_output_path.mkdir()
-            job_output_path = test_output_path.joinpath(
-                str(tr.current_iteration), *(str(tr.step),) if tr.step > 0 else ()
-            )
+            base_path = self.system.output_path / self.test_scenario.name if tr.step > 0 else self.output_path
+            job_output_path = base_path / tr.name / str(tr.current_iteration) / (str(tr.step) if tr.step > 0 else "")
+
             if not job_output_path.exists():
-                job_output_path.mkdir(parents=True)
+                job_output_path.mkdir(parents=True, exist_ok=True)
         except PermissionError as e:
             raise PermissionError(f"Cannot create directory {job_output_path}: {e}") from e
 
