@@ -14,14 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, Optional, Tuple
 import asyncio
+from typing import Any, Dict, Optional, Tuple
+
 import numpy as np
 
 from cloudai import System
+from cloudai._core.base_runner import Runner
 from cloudai._core.configurator.base_gym import BaseGym
 from cloudai._core.test_scenario import TestRun, TestScenario
-from cloudai._core.base_runner import Runner
+
 
 class CloudAIGymEnv(BaseGym):
     """
