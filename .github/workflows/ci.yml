@@ -101,6 +101,7 @@ jobs:
           cloudai verify-configs --tests-dir conf/common/test conf/common
           cloudai verify-configs --tests-dir conf/release/spcx/l40s/test conf/release/spcx/l40s
 
+          mkdir ./results
           cloudai dry-run --system-config conf/common/system/example_slurm_cluster.toml \
             --tests-dir conf/common/test/ \
             --test-scenario conf/common/test_scenario/ucc_test.toml \
