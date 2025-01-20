@@ -3,9 +3,9 @@ This is a CloudAI user guide to help users use CloudAI, covering topics such as 
 
 #### Step 1: Create a Docker Image
 1. **Set Up the GitLab Repository**
-   Start by setting up a repository on GitLab to host your docker image. For this example, use `gitlab-url.com/cloudai/nccl-test`.
+  Start by setting up a repository on GitLab to host your docker image. For this example, use `gitlab-url.com/cloudai/nccl-test`.
 
-2. **Writing the Dockerfile**
+2. **Write the Dockerfile**
    The Dockerfile needs to specify the base image and detail the steps:
    ```dockerfile
    FROM nvcr.io/nvidia/pytorch:24.02-py3
