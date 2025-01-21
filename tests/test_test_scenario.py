@@ -15,13 +15,14 @@
 # limitations under the License.
 
 
+from datetime import timedelta
 from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
 
 from cloudai import CmdArgs, Test, TestRun, TestScenarioParser, TestScenarioParsingError
-from cloudai._core.test_scenario_parser import _TestScenarioTOML
+from cloudai._core.test_scenario_parser import _TestScenarioTOML, calculate_total_time_limit, parse_time_limit
 from tests.conftest import MyTestDefinition
 
 
@@ -202,3 +203,72 @@ def test_test_id_must_contain_at_least_one_letter() -> None:
     with pytest.raises(ValueError) as exc_info:
         _TestScenarioTOML.model_validate({"name": "name", "Tests": [{"id": "", "test_name": "nccl"}]})
     assert exc_info.match("_TestScenarioTOML\nTests.0.id\n  String should have at least 1 character")
+
+
+@pytest.mark.parametrize(
+    "time_str, expected",
+    [
+        ("10m", timedelta(minutes=10)),
+        ("1h", timedelta(hours=1)),
+        ("2d", timedelta(days=2)),
+        ("1w", timedelta(weeks=1)),
+        ("30s", timedelta(seconds=30)),
+    ],
+)
+def test_parse_time_limit_with_abbreviated_formats(time_str, expected):
+    assert parse_time_limit(time_str) == expected
+
+
+@pytest.mark.parametrize(
+    "time_str, expected",
+    [
+        ("1-12:30:45", timedelta(days=1, hours=12, minutes=30, seconds=45)),
+    ],
+)
+def test_parse_time_limit_with_dashed_format(time_str, expected):
+    assert parse_time_limit(time_str) == expected
+
+
+@pytest.mark.parametrize(
+    "time_str, expected",
+    [
+        ("12:30:45", timedelta(hours=12, minutes=30, seconds=45)),
+        ("12:30", timedelta(hours=12, minutes=30)),
+    ],
+)
+def test_parse_time_limit_with_colon_formats(time_str, expected):
+    assert parse_time_limit(time_str) == expected
+
+
+@pytest.mark.parametrize(
+    "time_str, expected",
+    [
+        ("1h", "01:00:00"),
+        ("1-12:00:00", "1-12:00:00"),
+    ],
+)
+def test_calculate_total_time_limit_with_main_time_only(time_str, expected):
+    assert calculate_total_time_limit(time_limit=time_str) == expected
+
+
+def test_create_test_run_with_hooks(test: Test, test_scenario_parser: TestScenarioParser):
+    pre_test = Mock(
+        test_runs=[TestRun(name="pre1", test=test, num_nodes=1, nodes=[], time_limit="00:30:00", iterations=1)]
+    )
+    post_test = Mock(
+        test_runs=[TestRun(name="post1", test=test, num_nodes=1, nodes=[], time_limit="00:20:00", iterations=1)]
+    )
+
+    test_info = Mock(id="main1", test_name="test1", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1)
+    test_scenario_parser.test_mapping = {"test1": test}
+
+    test_run = test_scenario_parser._create_test_run(
+        test_info=test_info, normalized_weight=1.0, pre_test=pre_test, post_test=post_test
+    )
+
+    assert test_run.time_limit == "01:50:00"  # Main + pre + post hooks
+
+
+def test_total_time_limit_with_empty_hooks():
+    result = calculate_total_time_limit("01:00:00", test_hooks=[])
+    assert result == "01:00:00"
