@@ -91,7 +91,7 @@ def test_with_time_limit(test: Test, test_scenario_parser: TestScenarioParser) -
     test_scenario = test_scenario_parser._parse_data(
         {"name": "nccl-test", "Tests": [{"id": "1", "test_name": "nccl", "time_limit": "10m"}]}
     )
-    assert test_scenario.test_runs[0].time_limit == "10m"
+    assert test_scenario.test_runs[0].time_limit == "00:10:00"
 
 
 def test_two_independent_cases(test: Test, test_scenario_parser: TestScenarioParser) -> None:
