@@ -46,7 +46,7 @@ machine nvcr.io login $oauthtoken password <api-key>
 Replace `<api-key>` with your respective credentials. Keep `$oauthtoken` as is.
 
 
-## Quick Start
+## Get Started
 1. Clone the CloudAI repository to your local machine:
     ```bash
     git clone git@github.com:NVIDIA/cloudai.git
