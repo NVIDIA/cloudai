@@ -21,7 +21,9 @@ from pathlib import Path
 from typing import List, Optional
 from unittest.mock import Mock
 
-from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, System
+from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, System, TestRun, TestScenario
+from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
+from cloudai._core.configurator.grid_search import GridSearchAgent
 from cloudai.util import prepare_output_dir
 
 from ..parser import HOOK_ROOT
@@ -83,6 +85,77 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     return rc
 
 
+def is_dse_job(cmd_args: dict) -> bool:
+    """
+    Recursively check if any value in cmd_args is a list.
+
+    Args:
+        cmd_args (dict): The command arguments to check.
+
+    Returns:
+        bool: True if any value is a list, False otherwise.
+    """
+    if isinstance(cmd_args, dict):
+        for _key, value in cmd_args.items():
+            if isinstance(value, list) or (isinstance(value, dict) and is_dse_job(value)):
+                return True
+    return False
+
+
+def handle_dse_job(tr: TestRun, system: System, test_scenario: TestScenario, args: argparse.Namespace) -> None:
+    def update_nested_attr(obj, attr_path, value):
+        """Update a nested attribute of an object."""
+        attrs = attr_path.split(".")
+        prefix = "Grok"
+        if attrs[0] == prefix:
+            attrs = attrs[1:]
+        for attr in attrs[:-1]:
+            if hasattr(obj, attr):
+                obj = getattr(obj, attr)
+            else:
+                raise AttributeError(f"{type(obj).__name__!r} object has no attribute {attr!r}")
+        setattr(obj, attrs[-1], value)
+
+    env = CloudAIGymEnv(test_run=tr, system=system, test_scenario=test_scenario)
+    agent = GridSearchAgent(env)
+
+    agent.configure(env.action_space)
+
+    for step, action in enumerate(agent.get_all_combinations(), start=1):
+        tr.step = step
+        for key, value in action.items():
+            update_nested_attr(tr.test.test_definition.cmd_args, key, value)
+        runner = Runner(args.mode, system, test_scenario)
+        asyncio.run(runner.run())
+
+        logging.info(f"All test scenario results stored at: {runner.runner.output_path}")
+
+        if args.mode == "run":
+            generator = ReportGenerator(runner.runner.output_path)
+            generator.generate_report(test_scenario)
+            logging.info(
+                "All test scenario execution attempts are complete. Please review"
+                f" the '{args.log_file}' file to confirm successful completion or to"
+                " identify any issues."
+            )
+
+
+def handle_non_dse_job(system: System, test_scenario: TestScenario, args: argparse.Namespace) -> None:
+    runner = Runner(args.mode, system, test_scenario)
+    asyncio.run(runner.run())
+
+    logging.info(f"All test scenario results stored at: {runner.runner.output_path}")
+
+    if args.mode == "run":
+        generator = ReportGenerator(runner.runner.output_path)
+        generator.generate_report(test_scenario)
+        logging.info(
+            "All test scenario execution attempts are complete. Please review"
+            f" the '{args.log_file}' file to confirm successful completion or to"
+            " identify any issues."
+        )
+
+
 def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     """
     Execute the dry-run or run modes for CloudAI.
@@ -94,10 +167,12 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     """
     parser = Parser(args.system_config)
     system, tests, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
+
     assert test_scenario is not None
 
     if args.output_dir:
         system.output_path = args.output_dir.absolute()
+
     if not prepare_output_dir(system.output_path):
         return 1
     system.update()
@@ -128,19 +203,12 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
 
     logging.info(test_scenario.pretty_print())
 
-    runner = Runner(args.mode, system, test_scenario)
-    asyncio.run(runner.run())
+    tr = next(iter(test_scenario.test_runs))
 
-    logging.info(f"All test scenario results stored at: {runner.runner.output_path}")
-
-    if args.mode == "run":
-        generator = ReportGenerator(runner.runner.output_path)
-        generator.generate_report(test_scenario)
-        logging.info(
-            "All test scenario execution attempts are complete. Please review"
-            f" the '{args.log_file}' file to confirm successful completion or to"
-            " identify any issues."
-        )
+    if is_dse_job(tr.test.cmd_args):
+        handle_dse_job(tr, system, test_scenario, args)
+    else:
+        handle_non_dse_job(system, test_scenario, args)
 
     return 0
 
