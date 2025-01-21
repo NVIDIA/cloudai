@@ -15,13 +15,14 @@
 # limitations under the License.
 
 import asyncio
+import random
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
 from cloudai import System
-from cloudai._core.base_runner import Runner
 from cloudai._core.configurator.base_gym import BaseGym
+from cloudai._core.runner import Runner
 from cloudai._core.test_scenario import TestRun, TestScenario
 
 
@@ -163,7 +164,7 @@ class CloudAIGymEnv(BaseGym):
         Returns:
             list: The observation.
         """
-        obs = action * 0.5
+        obs = random.random() * 0.5 if "Grok.fdl.checkpoint_policy" in action else 0.0
         return [obs]
 
     def update_nested_attr(self, obj, attr_path, value):

@@ -13,6 +13,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import tempfile
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -39,12 +41,17 @@ def setup_env():
         "warmup_iters": 5,
     }
 
+    system.scheduler = "slurm"
+
+    temp_dir = tempfile.TemporaryDirectory()
+    system.output_path = Path(temp_dir.name)
+
     return test_run, system, test_scenario
 
 
 def test_action_space_nccl(setup_env):
     test_run, system, test_scenario = setup_env
-    env = CloudAIGymEnv(test_run=test_run, system=system, test_scenario=test_scenario)
+    env = CloudAIGymEnv(test_run=test_run, system=system, test_scenario=test_scenario, mode="run")
     action_space = env.define_action_space()
 
     expected_action_space = {
@@ -61,7 +68,7 @@ def test_action_space_nccl(setup_env):
 
 def test_observation_space(setup_env):
     test_run, system, test_scenario = setup_env
-    env = CloudAIGymEnv(test_run=test_run, system=system, test_scenario=test_scenario)
+    env = CloudAIGymEnv(test_run=test_run, system=system, test_scenario=test_scenario, mode="run")
     observation_space = env.define_observation_space()
 
     expected_observation_space = [0.0]
