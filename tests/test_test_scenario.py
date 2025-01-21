@@ -15,14 +15,13 @@
 # limitations under the License.
 
 
-from datetime import timedelta
 from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
 
 from cloudai import CmdArgs, Test, TestRun, TestScenarioParser, TestScenarioParsingError
-from cloudai._core.test_scenario_parser import _TestScenarioTOML, calculate_total_time_limit, parse_time_limit
+from cloudai._core.test_scenario_parser import _TestScenarioTOML, calculate_total_time_limit
 from tests.conftest import MyTestDefinition
 
 
@@ -208,46 +207,17 @@ def test_test_id_must_contain_at_least_one_letter() -> None:
 @pytest.mark.parametrize(
     "time_str, expected",
     [
-        ("10m", timedelta(minutes=10)),
-        ("1h", timedelta(hours=1)),
-        ("2d", timedelta(days=2)),
-        ("1w", timedelta(weeks=1)),
-        ("30s", timedelta(seconds=30)),
-    ],
-)
-def test_parse_time_limit_with_abbreviated_formats(time_str, expected):
-    assert parse_time_limit(time_str) == expected
-
-
-@pytest.mark.parametrize(
-    "time_str, expected",
-    [
-        ("1-12:30:45", timedelta(days=1, hours=12, minutes=30, seconds=45)),
-    ],
-)
-def test_parse_time_limit_with_dashed_format(time_str, expected):
-    assert parse_time_limit(time_str) == expected
-
-
-@pytest.mark.parametrize(
-    "time_str, expected",
-    [
-        ("12:30:45", timedelta(hours=12, minutes=30, seconds=45)),
-        ("12:30", timedelta(hours=12, minutes=30)),
-    ],
-)
-def test_parse_time_limit_with_colon_formats(time_str, expected):
-    assert parse_time_limit(time_str) == expected
-
-
-@pytest.mark.parametrize(
-    "time_str, expected",
-    [
+        ("10m", "00:10:00"),
         ("1h", "01:00:00"),
-        ("1-12:00:00", "1-12:00:00"),
+        ("2d", "2-00:00:00"),
+        ("1w", "7-00:00:00"),
+        ("30s", "00:00:30"),
+        ("1-12:30:45", "1-12:30:45"),
+        ("12:30:45", "12:30:45"),
+        ("12:30", "12:30:00"),
     ],
 )
-def test_calculate_total_time_limit_with_main_time_only(time_str, expected):
+def test_calculate_total_time_limit(time_str, expected):
     assert calculate_total_time_limit(time_limit=time_str) == expected
 
 
