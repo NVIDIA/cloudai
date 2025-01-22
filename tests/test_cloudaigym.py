@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import tempfile
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -40,7 +38,7 @@ def setup_env(slurm_system: SlurmSystem):
         "subtest_name": "nccl_test",
         "warmup_iters": 5,
     }
-    
+
     test_run.name = "mock_test_run"
     test_scenario.name = "mock_test_scenario"
 
