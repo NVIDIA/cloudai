@@ -13,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -42,6 +43,11 @@ def setup_env():
     }
 
     system.scheduler = "slurm"
+    system.name = "mock_system"
+    system.monitor_interval = 10 
+
+    test_run.name = "mock_test_run"
+    test_scenario.name = "mock_test_scenario"
 
     temp_dir = tempfile.TemporaryDirectory()
     system.output_path = Path(temp_dir.name)
