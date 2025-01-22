@@ -21,7 +21,7 @@ from unittest.mock import Mock
 import pytest
 
 from cloudai import CmdArgs, Test, TestRun, TestScenarioParser, TestScenarioParsingError
-from cloudai._core.test_scenario_parser import _TestScenarioTOML
+from cloudai._core.test_scenario_parser import _TestScenarioTOML, calculate_total_time_limit
 from tests.conftest import MyTestDefinition
 
 
@@ -91,7 +91,7 @@ def test_with_time_limit(test: Test, test_scenario_parser: TestScenarioParser) -
     test_scenario = test_scenario_parser._parse_data(
         {"name": "nccl-test", "Tests": [{"id": "1", "test_name": "nccl", "time_limit": "10m"}]}
     )
-    assert test_scenario.test_runs[0].time_limit == "10m"
+    assert test_scenario.test_runs[0].time_limit == "00:10:00"
 
 
 def test_two_independent_cases(test: Test, test_scenario_parser: TestScenarioParser) -> None:
@@ -202,3 +202,43 @@ def test_test_id_must_contain_at_least_one_letter() -> None:
     with pytest.raises(ValueError) as exc_info:
         _TestScenarioTOML.model_validate({"name": "name", "Tests": [{"id": "", "test_name": "nccl"}]})
     assert exc_info.match("_TestScenarioTOML\nTests.0.id\n  String should have at least 1 character")
+
+
+@pytest.mark.parametrize(
+    "time_str, expected",
+    [
+        ("10m", "00:10:00"),
+        ("1h", "01:00:00"),
+        ("2d", "2-00:00:00"),
+        ("1w", "7-00:00:00"),
+        ("30s", "00:00:30"),
+        ("1-12:30:45", "1-12:30:45"),
+        ("12:30:45", "12:30:45"),
+        ("12:30", "12:30:00"),
+    ],
+)
+def test_calculate_total_time_limit(time_str, expected):
+    assert calculate_total_time_limit(time_limit=time_str) == expected
+
+
+def test_create_test_run_with_hooks(test: Test, test_scenario_parser: TestScenarioParser):
+    pre_test = Mock(
+        test_runs=[TestRun(name="pre1", test=test, num_nodes=1, nodes=[], time_limit="00:30:00", iterations=1)]
+    )
+    post_test = Mock(
+        test_runs=[TestRun(name="post1", test=test, num_nodes=1, nodes=[], time_limit="00:20:00", iterations=1)]
+    )
+
+    test_info = Mock(id="main1", test_name="test1", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1)
+    test_scenario_parser.test_mapping = {"test1": test}
+
+    test_run = test_scenario_parser._create_test_run(
+        test_info=test_info, normalized_weight=1.0, pre_test=pre_test, post_test=post_test
+    )
+
+    assert test_run.time_limit == "01:50:00"  # Main + pre + post hooks
+
+
+def test_total_time_limit_with_empty_hooks():
+    result = calculate_total_time_limit("01:00:00", test_hooks=[])
+    assert result == "01:00:00"
