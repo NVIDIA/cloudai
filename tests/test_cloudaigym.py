@@ -44,7 +44,7 @@ def setup_env():
 
     system.scheduler = "slurm"
     system.name = "mock_system"
-    system.monitor_interval = 10 
+    system.monitor_interval = 10
 
     test_run.name = "mock_test_run"
     test_scenario.name = "mock_test_scenario"
