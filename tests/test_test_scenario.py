@@ -218,7 +218,7 @@ def test_test_id_must_contain_at_least_one_letter() -> None:
     ],
 )
 def test_calculate_total_time_limit(time_str, expected):
-    assert calculate_total_time_limit(time_limit=time_str) == expected
+    assert calculate_total_time_limit([], time_limit=time_str) == expected
 
 
 def test_create_test_run_with_hooks(test: Test, test_scenario_parser: TestScenarioParser):
@@ -240,5 +240,5 @@ def test_create_test_run_with_hooks(test: Test, test_scenario_parser: TestScenar
 
 
 def test_total_time_limit_with_empty_hooks():
-    result = calculate_total_time_limit("01:00:00", test_hooks=[])
+    result = calculate_total_time_limit([], "01:00:00")
     assert result == "01:00:00"
