@@ -113,6 +113,7 @@ def handle_dse_job(tr, system, test_scenario, args):
         observation, reward, done, info = env.step(action)
         logging.info(f"Step {step}: Observation: {observation}, Reward: {reward}")
 
+
 def handle_non_dse_job(system: System, test_scenario: TestScenario, args: argparse.Namespace) -> None:
     runner = Runner(args.mode, system, test_scenario)
     asyncio.run(runner.run())
