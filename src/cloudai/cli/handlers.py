@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import List, Optional
 from unittest.mock import Mock
 
-from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, System, TestRun, TestScenario
+from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, System, TestScenario
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
 from cloudai._core.configurator.grid_search import GridSearchAgent
 from cloudai.util import prepare_output_dir
@@ -100,7 +100,6 @@ def is_dse_job(cmd_args: dict) -> bool:
             if isinstance(value, list) or (isinstance(value, dict) and is_dse_job(value)):
                 return True
     return False
-
 
 
 def handle_dse_job(tr, system, test_scenario, args):
