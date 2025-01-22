@@ -77,20 +77,21 @@ def format_time_limit(total_time: timedelta) -> str:
     return f"{hours:02}:{minutes:02}:{seconds:02}"
 
 
-def calculate_total_time_limit(
-    time_limit: Optional[str] = None, test_hooks: Optional[List[TestScenario]] = None
-) -> str:
+def calculate_total_time_limit(test_hooks: List[TestScenario], time_limit: Optional[str] = None) -> str:
     total_time = timedelta()
 
     if time_limit:
         total_time += parse_time_limit(time_limit)
 
-    if test_hooks:
-        for hook in test_hooks:
-            if hook:
-                for test_run in hook.test_runs:
-                    if test_run.time_limit:
-                        total_time += parse_time_limit(test_run.time_limit)
+    total_time += sum(
+        (
+            parse_time_limit(test_run.time_limit)
+            for hook in test_hooks
+            for test_run in hook.test_runs
+            if test_run.time_limit
+        ),
+        timedelta(),
+    )
 
     return format_time_limit(total_time)
 
@@ -287,7 +288,7 @@ class TestScenarioParser:
         test = Test(test_definition=original_test.test_definition, test_template=original_test.test_template)
 
         hooks = [hook for hook in [pre_test, post_test] if hook is not None]
-        total_time_limit = calculate_total_time_limit(time_limit=test_info.time_limit, test_hooks=hooks)
+        total_time_limit = calculate_total_time_limit(test_hooks=hooks, time_limit=test_info.time_limit)
 
         tr = TestRun(
             test_info.id,
