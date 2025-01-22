@@ -19,7 +19,7 @@ description = "DSE JaxToolbox Grok"
 test_template_name = "JaxToolboxGrok"
 
 [cmd_args]
-docker_image_url = "https://docker/url"
+docker_image_url = "ghcr.io/nvidia/jax:pax-2025-01-09"
   [cmd_args.fdl]
   num_gpus = [1, 8, 16]
   checkpoint_policy = ["save_iteration_input", "save_none"]
