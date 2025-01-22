@@ -19,6 +19,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
+from cloudai._core.runner import Runner
 from cloudai._core.test_scenario import TestRun, TestScenario
 from cloudai.systems import SlurmSystem
 
@@ -42,12 +43,14 @@ def setup_env(slurm_system: SlurmSystem):
     test_run.name = "mock_test_run"
     test_scenario.name = "mock_test_scenario"
 
-    return test_run, slurm_system, test_scenario
+    runner = Runner(mode="run", system=slurm_system, test_scenario=test_scenario)
+
+    return test_run, runner
 
 
 def test_action_space_nccl(setup_env):
-    test_run, system, test_scenario = setup_env
-    env = CloudAIGymEnv(test_run=test_run, system=system, test_scenario=test_scenario, mode="run")
+    test_run, runner = setup_env
+    env = CloudAIGymEnv(test_run=test_run, runner=runner, mode="run")
     action_space = env.define_action_space()
 
     expected_action_space = {
@@ -63,8 +66,8 @@ def test_action_space_nccl(setup_env):
 
 
 def test_observation_space(setup_env):
-    test_run, system, test_scenario = setup_env
-    env = CloudAIGymEnv(test_run=test_run, system=system, test_scenario=test_scenario, mode="run")
+    test_run, runner = setup_env
+    env = CloudAIGymEnv(test_run=test_run, runner=runner, mode="run")
     observation_space = env.define_observation_space()
 
     expected_observation_space = [0.0]

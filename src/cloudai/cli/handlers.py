@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import List, Optional
 from unittest.mock import Mock
 
-from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, System, TestScenario
+from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, System, TestRun, TestScenario
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
 from cloudai._core.configurator.grid_search import GridSearchAgent
 from cloudai.util import prepare_output_dir
@@ -102,14 +102,14 @@ def is_dse_job(cmd_args: dict) -> bool:
     return False
 
 
-def handle_dse_job(tr, system, test_scenario, args):
-    env = CloudAIGymEnv(test_run=tr, system=system, test_scenario=test_scenario, mode=args.mode)
+def handle_dse_job(test_run: TestRun, runner: Runner, args: argparse.Namespace):
+    env = CloudAIGymEnv(test_run=test_run, runner=runner, mode=args.mode)
     agent = GridSearchAgent(env)
 
     agent.configure(env.action_space)
 
     for step, action in enumerate(agent.get_all_combinations(), start=1):
-        tr.step = step
+        test_run.step = step
         observation, reward, done, info = env.step(action)
         logging.info(f"Step {step}: Observation: {observation}, Reward: {reward}")
 
@@ -131,14 +131,6 @@ def handle_non_dse_job(system: System, test_scenario: TestScenario, args: argpar
 
 
 def handle_dry_run_and_run(args: argparse.Namespace) -> int:
-    """
-    Execute the dry-run or run modes for CloudAI.
-
-    Includes parsing configurations, verifying installations, and executing test scenarios.
-
-    Args:
-        args (argparse.Namespace): The parsed command-line arguments.
-    """
     parser = Parser(args.system_config)
     system, tests, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
 
@@ -177,10 +169,11 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
 
     logging.info(test_scenario.pretty_print())
 
+    runner = Runner(args.mode, system, test_scenario)
     tr = next(iter(test_scenario.test_runs))
 
     if is_dse_job(tr.test.cmd_args):
-        handle_dse_job(tr, system, test_scenario, args)
+        handle_dse_job(tr, runner, args)
     else:
         handle_non_dse_job(system, test_scenario, args)
 

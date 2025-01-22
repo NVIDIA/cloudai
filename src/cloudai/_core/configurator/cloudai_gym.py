@@ -20,10 +20,9 @@ from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
-from cloudai import System
 from cloudai._core.configurator.base_gym import BaseGym
 from cloudai._core.runner import Runner
-from cloudai._core.test_scenario import TestRun, TestScenario
+from cloudai._core.test_scenario import TestRun
 
 
 class CloudAIGymEnv(BaseGym):
@@ -33,24 +32,20 @@ class CloudAIGymEnv(BaseGym):
     Uses the TestRun object and actual runner methods to execute jobs.
     """
 
-    def __init__(self, test_run: TestRun, system: System, test_scenario: TestScenario, mode: str):
+    def __init__(self, test_run: TestRun, runner: Runner, mode: str):
         """
         Initialize the Gym environment using the TestRun object.
 
         Args:
             test_run (TestRun): A test run object that encapsulates cmd_args, extra_cmd_args, etc.
-            system (System): The system configuration for running the tests.
-            test_scenario (TestScenario): The test scenario configuration.
-            mode (str): The operation mode ('dry-run', 'run').
+            runner (Runner): The runner object to execute jobs.
             mode (str): The operation mode ('dry-run', 'run').
         """
         self.test_run = test_run
-        self.system = system
-        self.test_scenario = test_scenario
+        self.runner = runner
         self.mode = mode
-        self.runner = Runner(mode, system, test_scenario)
-        self.mode = mode
-        self.runner = Runner(mode, system, test_scenario)
+        self.system = runner.runner.system
+        self.test_scenario = runner.runner.test_scenario
         super().__init__()
 
     def define_action_space(self) -> Dict[str, Any]:
