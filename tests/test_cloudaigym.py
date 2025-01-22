@@ -26,9 +26,8 @@ from cloudai.systems import SlurmSystem
 
 
 @pytest.fixture
-def setup_env():
+def setup_env(slurm_system: SlurmSystem):
     test_run = MagicMock(spec=TestRun)
-    system = MagicMock(spec=SlurmSystem)
     test_scenario = MagicMock(spec=TestScenario)
 
     test_run.test = MagicMock()
@@ -41,18 +40,11 @@ def setup_env():
         "subtest_name": "nccl_test",
         "warmup_iters": 5,
     }
-
-    system.scheduler = "slurm"
-    system.name = "mock_system"
-    system.monitor_interval = 10
-
+    
     test_run.name = "mock_test_run"
     test_scenario.name = "mock_test_scenario"
 
-    temp_dir = tempfile.TemporaryDirectory()
-    system.output_path = Path(temp_dir.name)
-
-    return test_run, system, test_scenario
+    return test_run, slurm_system, test_scenario
 
 
 def test_action_space_nccl(setup_env):
