@@ -117,11 +117,6 @@ class CloudAIGymEnv(BaseGym):
 
         asyncio.run(self.runner.run())
 
-        for key, value in action.items():
-            self.update_nested_attr(self.test_run.test.test_definition.cmd_args, key, value)
-
-        asyncio.run(self.runner.run())
-
         observation = self.get_observation(action)
         reward = self.compute_reward()
         done = False
