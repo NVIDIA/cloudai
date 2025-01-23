@@ -14,13 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+import random
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
-from cloudai import System
 from cloudai._core.configurator.base_gym import BaseGym
-from cloudai._core.test_scenario import TestRun, TestScenario
+from cloudai._core.runner import Runner
+from cloudai._core.test_scenario import TestRun
 
 
 class CloudAIGymEnv(BaseGym):
@@ -30,18 +32,16 @@ class CloudAIGymEnv(BaseGym):
     Uses the TestRun object and actual runner methods to execute jobs.
     """
 
-    def __init__(self, test_run: TestRun, system: System, test_scenario: TestScenario):
+    def __init__(self, test_run: TestRun, runner: Runner):
         """
         Initialize the Gym environment using the TestRun object.
 
         Args:
             test_run (TestRun): A test run object that encapsulates cmd_args, extra_cmd_args, etc.
-            system (SlurmSystem): The system configuration for running the tests.
-            test_scenario (TestScenario): The test scenario configuration.
+            runner (Runner): The runner object to execute jobs.
         """
         self.test_run = test_run
-        self.system = system
-        self.test_scenario = test_scenario
+        self.runner = runner
         super().__init__()
 
     def define_action_space(self) -> Dict[str, Any]:
@@ -108,10 +108,16 @@ class CloudAIGymEnv(BaseGym):
                 - done (bool): Whether the episode is done.
                 - info (dict): Additional info for debugging.
         """
+        for key, value in action.items():
+            self.update_nested_attr(self.test_run.test.test_definition.cmd_args, key, value)
+
+        asyncio.run(self.runner.run())
+
         observation = self.get_observation(action)
         reward = self.compute_reward()
         done = False
         info = {}
+
         return observation, reward, done, info
 
     def render(self, mode: str = "human"):
@@ -152,5 +158,18 @@ class CloudAIGymEnv(BaseGym):
         Returns:
             list: The observation.
         """
-        obs = action * 0.5
+        obs = random.random() * 0.5 if "Grok.fdl.checkpoint_policy" in action else 0.0
         return [obs]
+
+    def update_nested_attr(self, obj, attr_path, value):
+        """Update a nested attribute of an object."""
+        attrs = attr_path.split(".")
+        prefix = "Grok"
+        if attrs[0] == prefix:
+            attrs = attrs[1:]
+        for attr in attrs[:-1]:
+            if hasattr(obj, attr):
+                obj = getattr(obj, attr)
+            else:
+                raise AttributeError(f"{type(obj).__name__!r} object has no attribute {attr!r}")
+        setattr(obj, attrs[-1], value)
