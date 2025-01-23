@@ -39,7 +39,6 @@ class CloudAIGymEnv(BaseGym):
         Args:
             test_run (TestRun): A test run object that encapsulates cmd_args, extra_cmd_args, etc.
             runner (Runner): The runner object to execute jobs.
-            mode (str): The operation mode ('dry-run', 'run').
         """
         self.test_run = test_run
         self.runner = runner
