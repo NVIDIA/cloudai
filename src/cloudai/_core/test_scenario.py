@@ -72,6 +72,7 @@ class TestRun:
         Returns
             bool: True if more iterations are pending, False otherwise.
         """
+        print(f"Current iteration: {self.current_iteration}, Total iterations: {self.iterations}")
         return self.current_iteration < self.iterations
 
 

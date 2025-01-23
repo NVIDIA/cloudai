@@ -344,9 +344,7 @@ class BaseRunner(ABC):
         self.jobs.remove(completed_job)
         del self.testrun_to_job_map[completed_job.test_run]
 
-        completed_job.test_run.current_iteration = (
-            completed_job.test_run.current_iteration + 1 if completed_job.test_run.step < 1 else 0
-        )
+        completed_job.test_run.current_iteration += 1
 
         if not completed_job.terminated_by_dependency and completed_job.test_run.has_more_iterations():
             msg = f"Re-running job for iteration {completed_job.test_run.current_iteration}"
