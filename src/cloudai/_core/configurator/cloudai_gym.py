@@ -16,10 +16,12 @@
 
 import asyncio
 import random
+from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
+from cloudai import ReportGenerator
 from cloudai._core.configurator.base_gym import BaseGym
 from cloudai._core.runner import Runner
 from cloudai._core.test_scenario import TestRun
@@ -117,11 +119,6 @@ class CloudAIGymEnv(BaseGym):
 
         asyncio.run(self.runner.run())
 
-        for key, value in action.items():
-            self.update_nested_attr(self.test_run.test.test_definition.cmd_args, key, value)
-
-        asyncio.run(self.runner.run())
-
         observation = self.get_observation(action)
         reward = self.compute_reward()
         done = False
@@ -167,8 +164,24 @@ class CloudAIGymEnv(BaseGym):
         Returns:
             list: The observation.
         """
-        obs = random.random() * 0.5 if "Grok.fdl.checkpoint_policy" in action else 0.0
-        return [obs]
+        generator = ReportGenerator(self.runner.runner.output_path)
+        generator.generate_report(self.test_scenario)
+
+        observation = self.parse_report(self.runner.runner.output_path)
+        return observation
+
+    def parse_report(self, output_path: Path) -> list:
+        """
+        Parse the generated report to extract the observation.
+
+        Args:
+            output_path (str): The path to the runner's output.
+
+        Returns:
+            list: The extracted observation.
+        """
+        observation = [random.random()]
+        return observation
 
     def update_nested_attr(self, obj, attr_path, value):
         """Update a nested attribute of an object."""
