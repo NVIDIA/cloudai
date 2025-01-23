@@ -50,7 +50,7 @@ def setup_env(slurm_system: SlurmSystem):
 
 def test_action_space_nccl(setup_env):
     test_run, runner = setup_env
-    env = CloudAIGymEnv(test_run=test_run, runner=runner, mode="run")
+    env = CloudAIGymEnv(test_run=test_run, runner=runner)
     action_space = env.define_action_space()
 
     expected_action_space = {
@@ -67,7 +67,7 @@ def test_action_space_nccl(setup_env):
 
 def test_observation_space(setup_env):
     test_run, runner = setup_env
-    env = CloudAIGymEnv(test_run=test_run, runner=runner, mode="run")
+    env = CloudAIGymEnv(test_run=test_run, runner=runner)
     observation_space = env.define_observation_space()
 
     expected_observation_space = [0.0]

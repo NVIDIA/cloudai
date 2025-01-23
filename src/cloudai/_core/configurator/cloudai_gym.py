@@ -32,7 +32,7 @@ class CloudAIGymEnv(BaseGym):
     Uses the TestRun object and actual runner methods to execute jobs.
     """
 
-    def __init__(self, test_run: TestRun, runner: Runner, mode: str):
+    def __init__(self, test_run: TestRun, runner: Runner):
         """
         Initialize the Gym environment using the TestRun object.
 
