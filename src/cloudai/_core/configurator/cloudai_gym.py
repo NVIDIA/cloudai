@@ -44,8 +44,6 @@ class CloudAIGymEnv(BaseGym):
         self.test_run = test_run
         self.runner = runner
         self.mode = mode
-        self.system = runner.runner.system
-        self.test_scenario = runner.runner.test_scenario
         super().__init__()
 
     def define_action_space(self) -> Dict[str, Any]:
