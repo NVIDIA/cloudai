@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -42,6 +42,7 @@ def setup_env(slurm_system: SlurmSystem):
 
     test_run.name = "mock_test_run"
     test_scenario.name = "mock_test_scenario"
+    test_scenario.test_runs = [test_run]
 
     runner = Runner(mode="run", system=slurm_system, test_scenario=test_scenario)
 
@@ -73,3 +74,51 @@ def test_observation_space(setup_env):
     expected_observation_space = [0.0]
 
     assert observation_space == expected_observation_space
+
+
+def test_get_observation(tmp_path, setup_env):
+    test_run, runner = setup_env
+    env = CloudAIGymEnv(test_run=test_run, runner=runner)
+
+    output_path = tmp_path / "output" / "mock_test_scenario"
+    output_path.mkdir(parents=True, exist_ok=True)
+    subdir = output_path / "0"
+    subdir.mkdir(parents=True, exist_ok=True)
+    report_file_path = subdir / "0" / "report.txt"
+    report_file_path.parent.mkdir(parents=True, exist_ok=True)
+    report_file_path.write_text("Average: 0.34827126874999986\n")
+
+    with patch.object(env, "parse_report", return_value=[0.34827126874999986]):
+        observation = env.get_observation(action={})
+        assert observation == [0.34827126874999986]
+
+
+def test_parse_report(tmp_path):
+    report_content = """Min: 0.342734
+Max: 0.355174
+Average: 0.34827126874999986
+Median: 0.347785
+Stdev: 0.0031025735345648264
+"""
+    report_file = tmp_path / "report.txt"
+    report_file.write_text(report_content)
+
+    env = CloudAIGymEnv(test_run=MagicMock(), runner=MagicMock())
+    observation = env.parse_report(tmp_path)
+    assert observation == [0.34827126874999986]
+
+
+def test_compute_reward():
+    env = CloudAIGymEnv(test_run=MagicMock(), runner=MagicMock())
+
+    observation = [0.34827126874999986]
+    reward = env.compute_reward(observation)
+    assert reward == pytest.approx(2.871, 0.001)
+
+    observation = [0.0]
+    reward = env.compute_reward(observation)
+    assert reward == 0.0
+
+    observation = []
+    reward = env.compute_reward(observation)
+    assert reward == 0.0

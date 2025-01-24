@@ -19,13 +19,15 @@ description = "DSE JaxToolbox Grok"
 test_template_name = "JaxToolboxGrok"
 
 [cmd_args]
-docker_image_url = "ghcr.io/nvidia/jax:pax-2025-01-09"
+docker_image_url = "/lustre/fsw/portfolios/coreai/users/srivatsank/workspace/dev/cloudaix/install/jax-toolbox/jax_toolbox.sqsh"
   [cmd_args.fdl]
-  num_gpus = [1, 8, 16]
-  checkpoint_policy = ["save_iteration_input", "save_none"]
+  num_gpus = 8
   num_groups = "16"
   use_fp8 = "1"
-  use_repeated_layer = "True"
+  use_repeated_layer = ["True", "False"]
+  ici_mesh_shape = "'[1, 1, 8, 1]'"
+  dcn_mesh_shape = "'[1, 1, 1, 1]'"
+  num_layers = "2"
 
 [extra_env_vars]
 "ENABLE_TE" = "0"
