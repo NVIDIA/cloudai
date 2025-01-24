@@ -73,6 +73,8 @@ class ReportGenerator:
             if not subdir.is_dir():
                 logging.debug(f"Skipping file '{subdir}', not a directory.")
                 continue
+            if tr.step > 0:
+                subdir = subdir / f"{tr.step}"
             if not tr.test.test_template.can_handle_directory(subdir):
                 logging.warning(
                     f"Skipping '{subdir}', can't handle with "
