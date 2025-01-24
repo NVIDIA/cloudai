@@ -186,6 +186,9 @@ class CloudAIGymEnv(BaseGym):
             list: The extracted observation.
         """
         report_file_path = output_path / "report.txt"
+        if not report_file_path.exists():
+            return [-1.0]
+
         with open(report_file_path, "r") as file:
             lines = file.readlines()
             for line in lines:
