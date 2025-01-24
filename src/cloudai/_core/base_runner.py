@@ -350,8 +350,8 @@ class BaseRunner(ABC):
                 msg = f"Re-running job for iteration {completed_job.test_run.current_iteration}"
                 logging.info(msg)
                 await self.submit_test(completed_job.test_run)
-        else:
-            await self.handle_dependencies(completed_job)
+            else:
+                await self.handle_dependencies(completed_job)
 
     async def job_completion_callback(self, job: BaseJob) -> None:  # noqa: B027
         """
