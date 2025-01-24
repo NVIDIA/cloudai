@@ -34,14 +34,13 @@ class CloudAIGymEnv(BaseGym):
     Uses the TestRun object and actual runner methods to execute jobs.
     """
 
-    def __init__(self, test_run: TestRun, runner: Runner, mode: str):
+    def __init__(self, test_run: TestRun, runner: Runner):
         """
         Initialize the Gym environment using the TestRun object.
 
         Args:
             test_run (TestRun): A test run object that encapsulates cmd_args, extra_cmd_args, etc.
             runner (Runner): The runner object to execute jobs.
-            mode (str): The operation mode ('dry-run', 'run').
         """
         self.test_run = test_run
         self.runner = runner

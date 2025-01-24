@@ -103,7 +103,7 @@ def is_dse_job(cmd_args: dict) -> bool:
 
 
 def handle_dse_job(test_run: TestRun, runner: Runner, args: argparse.Namespace):
-    env = CloudAIGymEnv(test_run=test_run, runner=runner, mode=args.mode)
+    env = CloudAIGymEnv(test_run=test_run, runner=runner)
     agent = GridSearchAgent(env)
 
     agent.configure(env.action_space)
