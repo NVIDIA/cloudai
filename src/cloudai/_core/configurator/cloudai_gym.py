@@ -162,7 +162,9 @@ class CloudAIGymEnv(BaseGym):
         Returns:
             list: The observation.
         """
-        generator = ReportGenerator(self.runner.runner.output_path)
+        output_path = self.runner.runner.system.output_path / self.runner.runner.test_scenario.name
+
+        generator = ReportGenerator(output_path)
         generator.generate_report(self.test_scenario)
 
         observation = self.parse_report(self.runner.runner.output_path)
