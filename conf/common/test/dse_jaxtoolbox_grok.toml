@@ -19,7 +19,7 @@ description = "DSE JaxToolbox Grok"
 test_template_name = "JaxToolboxGrok"
 
 [cmd_args]
-docker_image_url = "/lustre/fsw/portfolios/coreai/users/srivatsank/workspace/dev/cloudaix/install/jax-toolbox/jax_toolbox.sqsh"
+docker_image_url = "ghcr.io/nvidia/jax:pax-2025-01-09"
   [cmd_args.fdl]
   num_gpus = 8
   num_groups = "16"
