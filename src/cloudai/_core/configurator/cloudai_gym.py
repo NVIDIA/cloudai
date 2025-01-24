@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import asyncio
-import random
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -117,10 +116,9 @@ class CloudAIGymEnv(BaseGym):
         asyncio.run(self.runner.run())
 
         observation = self.get_observation(action)
-        reward = self.compute_reward()
+        reward = self.compute_reward(observation)
         done = False
         info = {}
-
         return observation, reward, done, info
 
     def render(self, mode: str = "human"):
@@ -142,13 +140,18 @@ class CloudAIGymEnv(BaseGym):
         if seed is not None:
             np.random.seed(seed)
 
-    def compute_reward(self) -> float:
+    def compute_reward(self, observation: list) -> float:
         """
         Compute a reward based on the TestRun result.
+
+        Args:
+            observation (list): The observation list containing the average value.
 
         Returns:
             float: Reward value.
         """
+        if observation and observation[0] != 0:
+            return 1.0 / observation[0]
         return 0.0
 
     def get_observation(self, action: Any) -> list:
@@ -166,7 +169,10 @@ class CloudAIGymEnv(BaseGym):
         generator = ReportGenerator(output_path)
         generator.generate_report(self.test_scenario)
 
-        observation = self.parse_report(self.runner.runner.output_path)
+        subdir = next(output_path.iterdir())
+        report_file_path = subdir / f"{self.test_run.current_iteration}" / f"{self.test_run.step}"
+
+        observation = self.parse_report(report_file_path)
         return observation
 
     def parse_report(self, output_path: Path) -> list:
@@ -174,13 +180,19 @@ class CloudAIGymEnv(BaseGym):
         Parse the generated report to extract the observation.
 
         Args:
-            output_path (str): The path to the runner's output.
+            output_path (Path): The path to the runner's output.
 
         Returns:
             list: The extracted observation.
         """
-        observation = [random.random()]
-        return observation
+        report_file_path = output_path / "report.txt"
+        with open(report_file_path, "r") as file:
+            lines = file.readlines()
+            for line in lines:
+                if line.startswith("Average:"):
+                    average_value = float(line.split(":")[1].strip())
+                    return [average_value]
+        return [-1.0]
 
     def update_nested_attr(self, obj, attr_path, value):
         """Update a nested attribute of an object."""
