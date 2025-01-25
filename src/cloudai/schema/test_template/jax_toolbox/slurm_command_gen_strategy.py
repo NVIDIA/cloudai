@@ -272,6 +272,9 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 fdl_key = cmd_arg.replace(f"{self.test_name}.fdl.", "")
                 fdl_args[fdl_key] = cmd_args[cmd_arg]
 
+        fake_flags = {"ep", "tp", "fsdp", "dp"}
+        fdl_args = {key: value for key, value in fdl_args.items() if key.lower() not in fake_flags}
+
         for key, value in sorted(fdl_args.items()):
             parts.append(f"--fdl.{key.upper()}={value}")
         if extra_cmd_args:

@@ -33,8 +33,8 @@ from cloudai.schema.test_template.slurm_container.slurm_command_gen_strategy imp
 from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
-from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
-from cloudai.test_definitions.grok import GrokCmdArgs, GrokTestDefinition
+from cloudai.test_definitions.gpt import GPTCmdArgs, GPTFdl, GPTTestDefinition
+from cloudai.test_definitions.grok import GrokCmdArgs, GrokFdl, GrokTestDefinition
 from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.test_definitions.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
 from cloudai.test_definitions.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
@@ -183,7 +183,11 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     name=test_type,
                     description=test_type,
                     test_template_name=test_type,
-                    cmd_args=GPTCmdArgs(fdl_config="fdl/config", docker_image_url="https://docker/url"),
+                    cmd_args=GPTCmdArgs(
+                        fdl_config="fdl/config",
+                        docker_image_url="https://docker/url",
+                        fdl=GPTFdl(ici_mesh_shape="'[1, 8, 1]'", dcn_mesh_shape="'[1, 1, 1]'"),
+                    ),
                     extra_env_vars={"COMBINE_THRESHOLD": "1"},
                 ),
                 JaxToolboxSlurmCommandGenStrategy,
@@ -197,7 +201,11 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     name=test_type,
                     description=test_type,
                     test_template_name=test_type,
-                    cmd_args=GrokCmdArgs(fdl_config="fdl/config", docker_image_url="https://docker/url"),
+                    cmd_args=GrokCmdArgs(
+                        fdl_config="fdl/config",
+                        docker_image_url="https://docker/url",
+                        fdl=GrokFdl(ici_mesh_shape="'[1, 1, 8, 1]'", dcn_mesh_shape="'[1, 8, 1, 1]'"),
+                    ),
                     extra_env_vars={"COMBINE_THRESHOLD": "1"},
                 ),
                 JaxToolboxSlurmCommandGenStrategy,

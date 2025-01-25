@@ -13,7 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -22,8 +21,8 @@ import pytest
 from cloudai import Test, TestRun, TestTemplate
 from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
-from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
-from cloudai.test_definitions.grok import GrokCmdArgs, GrokTestDefinition
+from cloudai.test_definitions.gpt import GPTCmdArgs, GPTFdl, GPTTestDefinition
+from cloudai.test_definitions.grok import GrokCmdArgs, GrokFdl, GrokTestDefinition
 from cloudai.test_definitions.jax_toolbox import JaxFdl
 
 
@@ -38,7 +37,11 @@ class TestJaxToolboxSlurmCommandGenStrategy:
             name="gpt",
             description="desc",
             test_template_name="gpt",
-            cmd_args=GPTCmdArgs(fdl_config="", docker_image_url="http://fake_image_url"),
+            cmd_args=GPTCmdArgs(
+                fdl_config="",
+                docker_image_url="http://fake_image_url",
+                fdl=GPTFdl(ici_mesh_shape="[1, 1, 1, 1]", dcn_mesh_shape="[1, 1, 1, 1]"),
+            ),
             extra_env_vars={"COMBINE_THRESHOLD": "1"},
         )
 
@@ -48,7 +51,10 @@ class TestJaxToolboxSlurmCommandGenStrategy:
             name="grok",
             description="desc",
             test_template_name="grok",
-            cmd_args=GrokCmdArgs(docker_image_url="http://fake_image_url"),
+            cmd_args=GrokCmdArgs(
+                docker_image_url="http://fake_image_url",
+                fdl=GrokFdl(ici_mesh_shape="[1, 1, 1, 1]", dcn_mesh_shape="[1, 1, 1, 1]"),
+            ),
             extra_env_vars={"COMBINE_THRESHOLD": "1"},
         )
 
@@ -177,6 +183,10 @@ class TestJaxToolboxSlurmCommandGenStrategy:
         python_cli = cmd_gen_strategy._generate_python_command(stage, cargs, "").splitlines()
 
         fdl_args = gpt_test.cmd_args.fdl.model_dump()
+
+        fake_flags = {"ep", "tp", "fsdp", "dp"}
+        fdl_args = {key: value for key, value in fdl_args.items() if key.lower() not in fake_flags}
+
         fdl_args_list = [f"    --fdl.{k.upper()}={v} \\" for k, v in sorted(fdl_args.items())]
         fdl_args_list[-1] = fdl_args_list[-1].replace(" \\", "")
 
@@ -215,9 +225,12 @@ def test_gpt_test_definition_cmd_args_dict():
         name="gpt",
         description="gpt",
         test_template_name="gpt",
-        cmd_args=GPTCmdArgs(fdl_config="", docker_image_url=""),
+        cmd_args=GPTCmdArgs(
+            fdl_config="",
+            docker_image_url="",
+            fdl=GPTFdl(ici_mesh_shape="[1, 1, 1, 1]", dcn_mesh_shape="[1, 1, 1, 1]"),
+        ),
     )
-
     cargs = gpt.cmd_args_dict
 
     assert "GPT.fdl" in cargs
@@ -234,7 +247,10 @@ def test_grok_test_definition_cmd_args_dict():
         name="grok",
         description="grok",
         test_template_name="grok",
-        cmd_args=GrokCmdArgs(docker_image_url=""),
+        cmd_args=GrokCmdArgs(
+            docker_image_url="",
+            fdl=GrokFdl(ici_mesh_shape="[1, 1, 1, 1]", dcn_mesh_shape="[1, 1, 1, 1]"),
+        ),
     )
 
     cargs = grok.cmd_args_dict
@@ -255,7 +271,10 @@ def test_grok_test_definition_cmd_args_dict():
 
 @pytest.mark.parametrize("prop", ["fprop_dtype", "checkpoint_policy"])
 def test_jax_props_is_escaped(prop: str):
-    fdl = JaxFdl()
+    fdl = JaxFdl(
+        ici_mesh_shape="[1, 1, 1]",
+        dcn_mesh_shape="[1, 1, 1]",
+    )
     d = fdl.model_dump()
     assert d[prop] == f'\\"{getattr(fdl, prop)}\\"'
 

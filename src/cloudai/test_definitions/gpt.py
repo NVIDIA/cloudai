@@ -28,8 +28,8 @@ class GPTFdl(JaxFdl):
     """GPT FDL configuration."""
 
     num_groups: int = 64
-    ici_mesh_shape: Union[str, list[str]] = "'[1, 1, 8, 1]'"
-    dcn_mesh_shape: Union[str, list[str]] = "'[1, 8, 1, 1]'"
+    ici_mesh_shape: Union[str, list[str]] = "'[1, 8, 1]'"
+    dcn_mesh_shape: Union[str, list[str]] = "'[1, 1, 1]'"
 
 
 class GPTXLAFlags(XLAFlags):

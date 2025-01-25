@@ -33,8 +33,8 @@ class NemotronFdl(JaxFdl):
     num_gpus: Union[int, list[int]] = 8
     percore_batch_size: Union[float, list[float]] = 0.25  # type: ignore
     use_repeated_layer: Union[bool, list[bool]] = True
-    ici_mesh_shape: Union[str, list[str]] = "[1, 1, 1, 1]"
-    dcn_mesh_shape: Union[str, list[str]] = "[1, 1, 1, 1]"
+    ici_mesh_shape: Union[str, list[str]] = "[1, 8, 1]"
+    dcn_mesh_shape: Union[str, list[str]] = "[1, 1, 1]"
 
 
 class NemotrolXLAFlags(XLAFlags):
