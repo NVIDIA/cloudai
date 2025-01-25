@@ -56,7 +56,7 @@ class NemotronCmdArgs(GrokCmdArgs):
 
     xla_flags: NemotrolXLAFlags = Field(default_factory=NemotrolXLAFlags)
     setup_flags: NemotronSetupFlags = Field(default_factory=NemotronSetupFlags)  # type: ignore
-    fdl: NemotronFdl = Field(default_factory=NemotronFdl)
+    fdl: NemotronFdl = Field(default_factory=NemotronFdl)  # type: ignore
 
 
 class NemotronTestDefinition(GrokTestDefinition):
