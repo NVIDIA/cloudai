@@ -23,10 +23,10 @@ import toml
 from cloudai import Parser, Registry
 from cloudai.test_definitions import ChakraReplayCmdArgs, NCCLCmdArgs, NCCLTestDefinition
 from cloudai.test_definitions.chakra_replay import ChakraReplayTestDefinition
-from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
-from cloudai.test_definitions.grok import GrokCmdArgs, GrokTestDefinition
+from cloudai.test_definitions.gpt import GPTCmdArgs, GPTFdl, GPTTestDefinition
+from cloudai.test_definitions.grok import GrokCmdArgs, GrokFdl, GrokTestDefinition
 from cloudai.test_definitions.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
-from cloudai.test_definitions.nemotron import NemotronCmdArgs, NemotronTestDefinition
+from cloudai.test_definitions.nemotron import NemotronCmdArgs, NemotronFdl, NemotronTestDefinition
 from cloudai.test_definitions.ucc import UCCCmdArgs, UCCTestDefinition
 from tests.conftest import MyTestDefinition
 
@@ -92,19 +92,31 @@ def test_chakra_docker_image_is_required():
             name="gpt",
             description="desc",
             test_template_name="gpt",
-            cmd_args=GPTCmdArgs(fdl_config="", docker_image_url="fake://url/gpt"),
+            cmd_args=GPTCmdArgs(
+                fdl_config="",
+                docker_image_url="fake://url/gpt",
+                fdl=GPTFdl(ici_mesh_shape="[1, 1, 1, 1]", dcn_mesh_shape="[1, 1, 1, 1]"),
+            ),
         ),
         GrokTestDefinition(
             name="grok",
             description="desc",
             test_template_name="grok",
-            cmd_args=GrokCmdArgs(docker_image_url="fake://url/grok"),
+            cmd_args=GrokCmdArgs(
+                docker_image_url="fake://url/grok",
+                fdl_config="",
+                fdl=GrokFdl(ici_mesh_shape="[1, 1, 1, 1]", dcn_mesh_shape="[1, 1, 1, 1]"),
+            ),
         ),
         NemotronTestDefinition(
             name="nemotron",
             description="desc",
             test_template_name="nemotron",
-            cmd_args=NemotronCmdArgs(docker_image_url="fake://url/nemotron"),
+            cmd_args=NemotronCmdArgs(
+                docker_image_url="fake://url/nemotron",
+                fdl_config="",
+                fdl=NemotronFdl(ici_mesh_shape="[1, 1, 1, 1]", dcn_mesh_shape="[1, 1, 1, 1]"),
+            ),
         ),
         NeMoLauncherTestDefinition(
             name="nemo", description="desc", test_template_name="nemo", cmd_args=NeMoLauncherCmdArgs()

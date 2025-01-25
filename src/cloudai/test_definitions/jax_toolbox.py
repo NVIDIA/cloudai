@@ -16,7 +16,7 @@
 
 from typing import List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, field_serializer
+from pydantic import BaseModel, ConfigDict, field_serializer, root_validator
 
 from cloudai import CmdArgs, TestDefinition
 
@@ -29,6 +29,10 @@ class JaxFdl(BaseModel):
     checkpoint_policy: Union[str, list[str]] = "save_nothing"
     dcn_mesh_shape: Union[str, list[str]] = "'[1, 1, 1]'"
     fprop_dtype: Union[str, list[str]] = "bfloat16"
+    ep: Union[int, list[int]] = 1
+    tp: Union[int, list[int]] = 1
+    fsdp: Union[int, list[int]] = 1
+    dp: Union[int, list[int]] = 1
     ici_mesh_shape: Union[str, list[str]] = "'[1, 8, 1]'"
     max_steps: Union[int, list[int]] = 20
     num_gpus: Union[int, list[int]] = 64
@@ -56,6 +60,29 @@ class JaxFdl(BaseModel):
         elif value.startswith('"') and value.endswith('"'):
             return value.replace('"', '\\"')
         return f'\\"{value}\\"'
+
+    @root_validator(pre=True)
+    def check_mesh_and_parallelism(cls, values):
+        ep = values.get("ep")
+        tp = values.get("tp")
+        fsdp = values.get("fsdp")
+        dp = values.get("dp")
+        ici_mesh_shape = values.get("ici_mesh_shape")
+        dcn_mesh_shape = values.get("dcn_mesh_shape")
+
+        parallelism_defined = ep is not None or tp is not None or fsdp is not None or dp is not None
+        mesh_defined = ici_mesh_shape is not None or dcn_mesh_shape is not None
+
+        if parallelism_defined and mesh_defined:
+            raise ValueError(
+                "Cannot define both parallelism (ep, tp, fsdp, dp) and mesh shapes (ici_mesh_shape, dcn_mesh_shape)."
+            )
+        elif not parallelism_defined and not mesh_defined:
+            raise ValueError(
+                "Must define either parallelism (ep, tp, fsdp, dp) or mesh shapes (ici_mesh_shape, dcn_mesh_shape)."
+            )
+
+        return values
 
 
 class JaxToolboxCmdArgs(CmdArgs):
