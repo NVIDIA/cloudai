@@ -19,6 +19,8 @@ from typing import Any, Dict, List, Union
 
 from pydantic import BaseModel, ConfigDict
 
+from cloudai._core.configurator.constraint_checker import ConstraintChecker
+
 from .test_template import TestTemplate
 
 
@@ -119,3 +121,8 @@ class TestDefinition(BaseModel, ABC):
     @abstractmethod
     def installables(self) -> list[Installable]:
         return []
+
+    @property
+    @abstractmethod
+    def constraint_checker(self) -> ConstraintChecker:
+        pass

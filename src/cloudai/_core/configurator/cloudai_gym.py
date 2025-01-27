@@ -110,6 +110,11 @@ class CloudAIGymEnv(BaseGym):
                 - done (bool): Whether the episode is done.
                 - info (dict): Additional info for debugging.
         """
+        is_valid, ICI_mesh, DCN_mesh = self.test_run.test.test_definition.constraint_checker.validate(action)
+
+        if not is_valid:
+            return [0.0], -1.0, True, {"error": "Invalid action"}
+
         for key, value in action.items():
             self.update_nested_attr(self.test_run.test.test_definition.cmd_args, key, value)
 
