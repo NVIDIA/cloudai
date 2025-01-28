@@ -70,8 +70,8 @@ class JaxFdl(BaseModel):
         ici_mesh_shape = values.ici_mesh_shape
         dcn_mesh_shape = values.dcn_mesh_shape
 
-        parallelism_defined = ep is not None or tp is not None or fsdp is not None or dp is not None
-        mesh_defined = ici_mesh_shape is not None or dcn_mesh_shape is not None
+        parallelism_defined = ep is not None and tp is not None and fsdp is not None and dp is not None
+        mesh_defined = ici_mesh_shape is not None and dcn_mesh_shape is not None
 
         if parallelism_defined and mesh_defined:
             raise ValueError(
@@ -79,7 +79,8 @@ class JaxFdl(BaseModel):
             )
         elif not parallelism_defined and not mesh_defined:
             raise ValueError(
-                "Must define either parallelism (ep, tp, fsdp, dp) or mesh shapes (ici_mesh_shape, dcn_mesh_shape)."
+                "Must define either both mesh shapes (ici_mesh_shape, dcn_mesh_shape) "
+                "or all parallelism parameters (ep, tp, fsdp, dp)."
             )
 
         return values
