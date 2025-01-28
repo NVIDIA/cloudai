@@ -82,10 +82,6 @@ class JaxFdl(BaseModel):
                 "Must define either both mesh shapes (ici_mesh_shape, dcn_mesh_shape) "
                 "or all parallelism parameters (ep, tp, fsdp, dp)."
             )
-        elif not parallelism_defined:
-            raise ValueError(
-                "All parallelism parameters (ep, tp, fsdp, dp) must be defined."
-            )
 
         return values
 
