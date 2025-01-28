@@ -31,10 +31,8 @@ class GrokFdl(JaxFdl):
 
     checkpoint_policy: Union[str, list[str]] = '"save_iteration_input"'
     combine_qkv: Union[bool, list[bool]] = False
-    dcn_mesh_shape: Union[str, list[str]] = "'[1, 1, 1]'"
     dims_per_head: Union[int, list[int]] = 128
     hidden_dims: Union[int, list[int]] = 32768
-    ici_mesh_shape: Union[str, list[str]] = "'[1, 8, 1]'"
     max_seq_len: Union[int, list[int]] = 8192
     model_dims: Union[int, list[int]] = 6144
     num_experts: Union[int, list[int]] = 8

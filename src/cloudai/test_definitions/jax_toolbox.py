@@ -16,7 +16,7 @@
 
 from typing import List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, field_serializer, root_validator
+from pydantic import BaseModel, ConfigDict, field_serializer, model_validator
 
 from cloudai import CmdArgs, TestDefinition
 
@@ -27,13 +27,13 @@ class JaxFdl(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     checkpoint_policy: Union[str, list[str]] = "save_nothing"
-    dcn_mesh_shape: Union[str, list[str]] = "'[1, 1, 1]'"
+    dcn_mesh_shape: Optional[Union[str, list[str]]] = "'[1, 1, 1]'"
     fprop_dtype: Union[str, list[str]] = "bfloat16"
-    ep: Union[int, list[int]] = 1
-    tp: Union[int, list[int]] = 1
-    fsdp: Union[int, list[int]] = 1
-    dp: Union[int, list[int]] = 1
-    ici_mesh_shape: Union[str, list[str]] = "'[1, 8, 1]'"
+    ep: Optional[Union[int, list[int]]] = None
+    tp: Optional[Union[int, list[int]]] = None
+    fsdp: Optional[Union[int, list[int]]] = None
+    dp: Optional[Union[int, list[int]]] = None
+    ici_mesh_shape: Optional[Union[str, list[str]]] = "'[1, 8, 1]'"
     max_steps: Union[int, list[int]] = 20
     num_gpus: Union[int, list[int]] = 64
     num_microbatches: Union[int, list[int]] = 1
@@ -61,14 +61,14 @@ class JaxFdl(BaseModel):
             return value.replace('"', '\\"')
         return f'\\"{value}\\"'
 
-    @root_validator(pre=True)
+    @model_validator(mode="after")
     def check_mesh_and_parallelism(cls, values):
-        ep = values.get("ep")
-        tp = values.get("tp")
-        fsdp = values.get("fsdp")
-        dp = values.get("dp")
-        ici_mesh_shape = values.get("ici_mesh_shape")
-        dcn_mesh_shape = values.get("dcn_mesh_shape")
+        ep = values.ep
+        tp = values.tp
+        fsdp = values.fsdp
+        dp = values.dp
+        ici_mesh_shape = values.ici_mesh_shape
+        dcn_mesh_shape = values.dcn_mesh_shape
 
         parallelism_defined = ep is not None or tp is not None or fsdp is not None or dp is not None
         mesh_defined = ici_mesh_shape is not None or dcn_mesh_shape is not None

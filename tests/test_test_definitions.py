@@ -23,7 +23,7 @@ import toml
 from cloudai import Parser, Registry
 from cloudai.test_definitions import ChakraReplayCmdArgs, NCCLCmdArgs, NCCLTestDefinition
 from cloudai.test_definitions.chakra_replay import ChakraReplayTestDefinition
-from cloudai.test_definitions.gpt import GPTCmdArgs, GPTFdl, GPTTestDefinition
+from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
 from cloudai.test_definitions.grok import GrokCmdArgs, GrokFdl, GrokTestDefinition
 from cloudai.test_definitions.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
 from cloudai.test_definitions.nemotron import NemotronCmdArgs, NemotronFdl, NemotronTestDefinition
@@ -95,7 +95,6 @@ def test_chakra_docker_image_is_required():
             cmd_args=GPTCmdArgs(
                 fdl_config="",
                 docker_image_url="fake://url/gpt",
-                fdl=GPTFdl(ici_mesh_shape="[1, 1, 1, 1]", dcn_mesh_shape="[1, 1, 1, 1]"),
             ),
         ),
         GrokTestDefinition(
