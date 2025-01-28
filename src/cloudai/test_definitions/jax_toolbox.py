@@ -27,13 +27,13 @@ class JaxFdl(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     checkpoint_policy: Union[str, list[str]] = "save_nothing"
-    dcn_mesh_shape: Optional[Union[str, list[str]]] = "'[1, 1, 1]'"
+    dcn_mesh_shape: Optional[Union[str, list[str]]] = None
     fprop_dtype: Union[str, list[str]] = "bfloat16"
     ep: Optional[Union[int, list[int]]] = None
     tp: Optional[Union[int, list[int]]] = None
     fsdp: Optional[Union[int, list[int]]] = None
     dp: Optional[Union[int, list[int]]] = None
-    ici_mesh_shape: Optional[Union[str, list[str]]] = "'[1, 8, 1]'"
+    ici_mesh_shape: Optional[Union[str, list[str]]] = None
     max_steps: Union[int, list[int]] = 20
     num_gpus: Union[int, list[int]] = 64
     num_microbatches: Union[int, list[int]] = 1
@@ -81,6 +81,10 @@ class JaxFdl(BaseModel):
             raise ValueError(
                 "Must define either both mesh shapes (ici_mesh_shape, dcn_mesh_shape) "
                 "or all parallelism parameters (ep, tp, fsdp, dp)."
+            )
+        elif not parallelism_defined:
+            raise ValueError(
+                "All parallelism parameters (ep, tp, fsdp, dp) must be defined."
             )
 
         return values
