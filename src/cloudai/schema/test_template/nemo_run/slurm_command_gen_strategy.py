@@ -67,12 +67,10 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         if hasattr(tdef.cmd_args, "log"):
             flattened_log = self.flatten_dict(tdef.cmd_args.log.__dict__)
-            print(f"Flattened log: {flattened_log}")  # Debugging statement
             for key, value in flattened_log.items():
                 command.append(f"log.{key}={value}")
 
         if tr.test.extra_cmd_args:
             command.append(tr.test.extra_cmd_args)
 
-        print(f"Generated command: {command}")  # Debugging statement
         return command
