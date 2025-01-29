@@ -47,6 +47,14 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         elif tr.num_nodes > 0:
             command.append(f"trainer.num_nodes={tr.num_nodes}")
 
+        if hasattr(tdef.cmd_args, "trainer"):
+            for key, value in tdef.cmd_args.trainer.__dict__.items():
+                command.append(f"trainer.{key}={value}")
+
+        if hasattr(tdef.cmd_args, "log"):
+            for key, value in tdef.cmd_args.log.__dict__.items():
+                command.append(f"log.{key}={value}")
+
         if tr.test.extra_cmd_args:
             command.append(tr.test.extra_cmd_args)
 

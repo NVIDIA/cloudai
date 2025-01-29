@@ -16,8 +16,25 @@
 
 from typing import Optional
 
+from pydantic import BaseModel, Field
+
 from cloudai import CmdArgs, TestDefinition
 from cloudai.installer.installables import DockerImage, Installable
+
+
+class Trainer(BaseModel):
+    """Trainer configuration for NeMoRun."""
+
+    max_steps: int = Field(default=5)
+    val_check_interval: int = Field(default=1000)
+
+
+class LogCkpt(BaseModel):
+    """Logging checkpoint configuration for NeMoRun."""
+
+    save_on_train_epoch_end: bool = Field(default=False)
+    save_last: bool = Field(default=False)
+    ckpt: Optional[dict] = Field(default_factory=dict)
 
 
 class NeMoRunCmdArgs(CmdArgs):
@@ -26,6 +43,13 @@ class NeMoRunCmdArgs(CmdArgs):
     docker_image_url: str
     task: str
     recipe_name: str
+    trainer: Trainer = Field(default_factory=Trainer)
+    log: LogCkpt = Field(default_factory=LogCkpt)
+
+    class Config:
+        """Configuration for NeMoRunCmdArgs."""
+
+        extra = "allow"
 
 
 class NeMoRunTestDefinition(TestDefinition):
