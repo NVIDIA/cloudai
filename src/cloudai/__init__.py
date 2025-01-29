@@ -71,6 +71,7 @@ from .schema.test_template.nemo_launcher.slurm_command_gen_strategy import NeMoL
 from .schema.test_template.nemo_launcher.slurm_job_id_retrieval_strategy import (
     NeMoLauncherSlurmJobIdRetrievalStrategy,
 )
+from .schema.test_template.nemo_run.report_generation_stratergy import NeMoRunReportGenerationStrategy
 from .schema.test_template.nemo_run.slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
 from .schema.test_template.sleep.grading_strategy import SleepGradingStrategy
 from .schema.test_template.sleep.kubernetes_json_gen_strategy import SleepKubernetesJsonGenStrategy
@@ -122,6 +123,7 @@ Registry().add_strategy(
 Registry().add_strategy(
     ReportGenerationStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherReportGenerationStrategy
 )
+
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NCCLTestDefinition], NcclTestSlurmCommandGenStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [SleepTestDefinition], SleepGradingStrategy)
 Registry().add_strategy(
@@ -129,6 +131,9 @@ Registry().add_strategy(
     [SlurmSystem],
     [GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition],
     JaxToolboxReportGenerationStrategy,
+)
+Registry().add_strategy(
+    ReportGenerationStrategy, [SlurmSystem], [NeMoRunTestDefinition], NeMoRunReportGenerationStrategy
 )
 Registry().add_strategy(
     JobIdRetrievalStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherSlurmJobIdRetrievalStrategy
