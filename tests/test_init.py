@@ -47,6 +47,7 @@ from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy impor
 from cloudai.schema.test_template.nemo_launcher.slurm_job_id_retrieval_strategy import (
     NeMoLauncherSlurmJobIdRetrievalStrategy,
 )
+from cloudai.schema.test_template.nemo_run.report_generation_stratergy import NeMoRunReportGenerationStrategy
 from cloudai.schema.test_template.nemo_run.slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
 from cloudai.schema.test_template.sleep.grading_strategy import SleepGradingStrategy
 from cloudai.schema.test_template.sleep.kubernetes_json_gen_strategy import SleepKubernetesJsonGenStrategy
@@ -145,6 +146,7 @@ ALL_STRATEGIES = {
     (ReportGenerationStrategy, SlurmSystem, GrokTestDefinition): JaxToolboxReportGenerationStrategy,
     (ReportGenerationStrategy, SlurmSystem, NCCLTestDefinition): NcclTestReportGenerationStrategy,
     (ReportGenerationStrategy, SlurmSystem, NeMoLauncherTestDefinition): NeMoLauncherReportGenerationStrategy,
+    (ReportGenerationStrategy, SlurmSystem, NeMoRunTestDefinition): NeMoRunReportGenerationStrategy,
     (ReportGenerationStrategy, SlurmSystem, NemotronTestDefinition): JaxToolboxReportGenerationStrategy,
     (ReportGenerationStrategy, SlurmSystem, SleepTestDefinition): SleepReportGenerationStrategy,
     (ReportGenerationStrategy, SlurmSystem, SlurmContainerTestDefinition): SlurmContainerReportGenerationStrategy,
