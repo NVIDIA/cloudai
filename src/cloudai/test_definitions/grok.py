@@ -53,7 +53,6 @@ class GrokPerfXLAFlags(XLAFlags):
     """Grok performance XLA flags."""
 
     combine_threshold_bytes: Union[int, list[int]] = 301989888
-    xla_gpu_run_post_layout_collective_pipeliner: Union[bool, list[bool]] = False
     xla_gpu_use_memcpy_local_p2p: Union[bool, list[bool]] = False
     xla_gpu_pgle_profile_file_or_directory_path: str = "/opt/paxml/workspace/pgle_output_profile.pbtxt"
 
@@ -64,7 +63,6 @@ class GrokProfileXLAFlags(XLAFlags):
     xla_gpu_disable_async_collectives: Union[str, list[str]] = (
         "ALLREDUCE,ALLGATHER,REDUCESCATTER,COLLECTIVEBROADCAST,ALLTOALL,COLLECTIVEPERMUTE"
     )
-    xla_gpu_run_post_layout_collective_pipeliner: Union[bool, list[bool]] = False
     xla_gpu_enable_latency_hiding_scheduler: Union[bool, list[bool]] = False
 
 
