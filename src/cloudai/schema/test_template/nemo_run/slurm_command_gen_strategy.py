@@ -17,6 +17,8 @@
 
 from typing import Any, Dict, List, Union, cast
 
+from pydantic import BaseModel
+
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 from cloudai.test_definitions.nemo_run import NeMoRunTestDefinition
@@ -35,6 +37,18 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return base_args
 
+    def flatten_dict(self, d, parent_key="", sep="."):
+        items = []
+        for k, v in d.items():
+            new_key = f"{parent_key}{sep}{k}" if parent_key else k
+            if isinstance(v, dict):
+                items.extend(self.flatten_dict(v, new_key, sep=sep).items())
+            elif isinstance(v, BaseModel):
+                items.extend(self.flatten_dict(v.model_dump(), new_key, sep=sep).items())
+            else:
+                items.append((new_key, v))
+        return dict(items)
+
     def generate_test_command(
         self, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> List[str]:
@@ -52,10 +66,13 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 command.append(f"trainer.{key}={value}")
 
         if hasattr(tdef.cmd_args, "log"):
-            for key, value in tdef.cmd_args.log.__dict__.items():
+            flattened_log = self.flatten_dict(tdef.cmd_args.log.__dict__)
+            print(f"Flattened log: {flattened_log}")  # Debugging statement
+            for key, value in flattened_log.items():
                 command.append(f"log.{key}={value}")
 
         if tr.test.extra_cmd_args:
             command.append(tr.test.extra_cmd_args)
 
+        print(f"Generated command: {command}")  # Debugging statement
         return command

@@ -60,7 +60,20 @@ class TestNeMoRunSlurmCommandGenStrategy:
         [
             (
                 {"docker_image_url": "nvcr.io/nvidia/nemo:24.09", "task": "fine_tune", "recipe_name": "llama7_13b"},
-                ["nemo", "llm", "fine_tune", "--factory", "llama7_13b", "-y", "trainer.num_nodes=2", "extra_args"],
+                [
+                    "nemo",
+                    "llm",
+                    "fine_tune",
+                    "--factory",
+                    "llama7_13b",
+                    "-y",
+                    "trainer.num_nodes=2",
+                    "trainer.max_steps=5",
+                    "trainer.val_check_interval=1000",
+                    "log.ckpt.save_on_train_epoch_end=False",
+                    "log.ckpt.save_last=False",
+                    "extra_args",
+                ],
             ),
         ],
     )
@@ -72,7 +85,6 @@ class TestNeMoRunSlurmCommandGenStrategy:
         expected_cmd: list,
     ) -> None:
         test_run.test.test_definition.cmd_args = NeMoRunCmdArgs(**cmd_args)
-
         cmd = cmd_gen_strategy.generate_test_command(
             test_run.test.test_definition.extra_env_vars,
             test_run.test.test_definition.cmd_args.model_dump(),

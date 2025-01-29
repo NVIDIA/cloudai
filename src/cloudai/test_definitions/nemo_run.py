@@ -34,7 +34,12 @@ class LogCkpt(BaseModel):
 
     save_on_train_epoch_end: bool = Field(default=False)
     save_last: bool = Field(default=False)
-    ckpt: Optional[dict] = Field(default_factory=dict)
+
+
+class Log(BaseModel):
+    """Base logging configuration for NeMoRun."""
+
+    ckpt: LogCkpt = Field(default_factory=LogCkpt)
 
 
 class NeMoRunCmdArgs(CmdArgs):
@@ -44,16 +49,11 @@ class NeMoRunCmdArgs(CmdArgs):
     task: str
     recipe_name: str
     trainer: Trainer = Field(default_factory=Trainer)
-    log: LogCkpt = Field(default_factory=LogCkpt)
-
-    class Config:
-        """Configuration for NeMoRunCmdArgs."""
-
-        extra = "allow"
+    log: Log = Field(default_factory=Log)
 
 
 class NeMoRunTestDefinition(TestDefinition):
-    """Test object for NeMoRun."""
+    """NeMoRun test definition."""
 
     cmd_args: NeMoRunCmdArgs
     _docker_image: Optional[DockerImage] = None
