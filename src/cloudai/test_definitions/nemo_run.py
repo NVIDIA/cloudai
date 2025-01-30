@@ -25,8 +25,14 @@ from cloudai.installer.installables import DockerImage, Installable
 class Trainer(BaseModel):
     """Trainer configuration for NeMoRun."""
 
-    max_steps: int = Field(default=5)
-    val_check_interval: int = Field(default=1000)
+    max_steps: int = 1168251
+    val_check_interval: int = 1000
+    tensor_parallelism: int = 1
+    pipeline_parallelism: int = 1
+    context_parallelism: int = 2
+    sequence_parallelism: bool = False
+    num_nodes: int = 1
+    num_gpus_per_node: int = 8
 
 
 class LogCkpt(BaseModel):
