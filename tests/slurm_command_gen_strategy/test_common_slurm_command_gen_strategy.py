@@ -269,3 +269,9 @@ def test_pre_test_post_test_combinations(
 
     for expected_line in expected_script_lines:
         assert expected_line in script_content, f"Expected '{expected_line}' in generated script but it was missing."
+
+
+def test_default_container_mounts(strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun):
+    mounts = strategy_fixture.container_mounts(testrun_fixture)
+    assert len(mounts) == 1
+    assert mounts[0] == f"{testrun_fixture.output_path.absolute()}:/cloudai_run_results"
