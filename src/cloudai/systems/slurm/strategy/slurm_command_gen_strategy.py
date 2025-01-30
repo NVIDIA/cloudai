@@ -65,7 +65,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         Function returns CommandGenStrategy specific container mounts as well as default ones
         that should always be used.
         """
-        return [f"{tr.output_path}:/cloudai_run_results", *self._container_mounts(tr)]
+        return [f"{tr.output_path.absolute()}:/cloudai_run_results", *self._container_mounts(tr)]
 
     def gen_exec_command(self, tr: TestRun) -> str:
         env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)

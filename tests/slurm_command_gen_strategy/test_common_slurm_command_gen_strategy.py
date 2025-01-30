@@ -272,6 +272,7 @@ def test_pre_test_post_test_combinations(
 
 
 def test_default_container_mounts(strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun):
+    testrun_fixture.output_path = Path("./")
     mounts = strategy_fixture.container_mounts(testrun_fixture)
     assert len(mounts) == 1
     assert mounts[0] == f"{testrun_fixture.output_path.absolute()}:/cloudai_run_results"
