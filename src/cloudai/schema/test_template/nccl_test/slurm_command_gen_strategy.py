@@ -25,20 +25,21 @@ from cloudai.test_definitions.nccl import NCCLTestDefinition
 class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for NCCL tests on Slurm systems."""
 
+    def _container_mounts(self, tr: TestRun) -> list[str]:
+        mounts: list[str] = []
+        env = tr.test.extra_env_vars | self.system.global_env_vars
+        if "NCCL_TOPO_FILE" in env:
+            nccl_topo_file = Path(env["NCCL_TOPO_FILE"]).resolve()
+            mounts.append(f"{nccl_topo_file}:{nccl_topo_file}")
+        return mounts
+
     def _parse_slurm_args(
         self, job_name_prefix: str, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> Dict[str, Any]:
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
-        container_mounts = ""
-        if "NCCL_TOPO_FILE" in env_vars:
-            nccl_topo_file = Path(env_vars["NCCL_TOPO_FILE"]).resolve()
-            container_mounts = f"{nccl_topo_file}:{nccl_topo_file}"
-        elif "NCCL_TOPO_FILE" in env_vars:
-            del env_vars["NCCL_TOPO_FILE"]
-
         tdef: NCCLTestDefinition = cast(NCCLTestDefinition, tr.test.test_definition)
-        base_args.update({"image_path": tdef.docker_image.installed_path, "container_mounts": container_mounts})
+        base_args.update({"image_path": tdef.docker_image.installed_path})
 
         return base_args
 

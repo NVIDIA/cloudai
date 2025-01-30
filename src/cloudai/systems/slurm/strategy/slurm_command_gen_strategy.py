@@ -14,9 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from abc import abstractmethod
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Union, final
 
 from cloudai import CommandGenStrategy, TestRun, TestScenario
 from cloudai.systems import SlurmSystem
@@ -50,6 +51,21 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             )
 
         self.docker_image_url = self.cmd_args.get("docker_image_url", "")
+
+    @abstractmethod
+    def _container_mounts(self, tr: TestRun) -> list[str]:
+        """Return CommandGenStrategy specific container mounts for the test run."""
+        ...
+
+    @final
+    def container_mounts(self, tr: TestRun) -> list[str]:
+        """
+        Return the container mounts for the test run.
+
+        Function returns CommandGenStrategy specific container mounts as well as default ones
+        that should always be used.
+        """
+        return [f"{tr.output_path}:/cloudai_run_results", *self._container_mounts(tr)]
 
     def gen_exec_command(self, tr: TestRun) -> str:
         env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
@@ -207,8 +223,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         srun_command_parts = ["srun", f"--mpi={self.system.mpi}"]
         if slurm_args.get("image_path"):
             srun_command_parts.append(f'--container-image={slurm_args["image_path"]}')
-            if slurm_args.get("container_mounts"):
-                srun_command_parts.append(f'--container-mounts={slurm_args["container_mounts"]}')
+            mounts = self.container_mounts(tr)
+            if mounts:
+                srun_command_parts.append(f'--container-mounts={",".join(mounts)}')
 
         if self.system.extra_srun_args:
             srun_command_parts.append(self.system.extra_srun_args)

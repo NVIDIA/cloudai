@@ -19,9 +19,11 @@ from unittest.mock import Mock
 
 import pytest
 
+from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestRun
 from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
+from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
 from tests.conftest import create_autospec_dataclass
 
 
@@ -65,11 +67,12 @@ class TestNcclTestSlurmCommandGenStrategy:
         nodes: List[str],
         expected_result: Dict[str, Any],
     ) -> None:
-        tr = create_autospec_dataclass(TestRun)
-        tr.nodes = nodes
-        tr.num_nodes = num_nodes
-        slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
-        assert slurm_args["container_mounts"] == expected_result["container_mounts"]
+        nccl = NCCLTestDefinition(
+            name="name", description="desc", test_template_name="tt", cmd_args=NCCLCmdArgs(), extra_env_vars=env_vars
+        )
+        t = Test(test_definition=nccl, test_template=Mock())
+        tr = TestRun(name="t1", test=t, nodes=nodes, num_nodes=num_nodes)
+        assert expected_result["container_mounts"] in cmd_gen_strategy.container_mounts(tr)
 
     @pytest.mark.parametrize(
         "cmd_args, extra_cmd_args, expected_command",

@@ -32,6 +32,17 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         super().__init__(system, cmd_args)
         self.test_name = ""
 
+    def _container_mounts(self, tr: TestRun) -> list[str]:
+        mounts: list[str] = []
+
+        tdef: Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition] = cast(
+            Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition], tr.test.test_definition
+        )
+        docker_workspace_dir = tdef.cmd_args.setup_flags.docker_workspace_dir
+        mounts.append(f"{tr.output_path.resolve()}:{docker_workspace_dir}")
+
+        return mounts
+
     def gen_exec_command(self, tr: TestRun) -> str:
         self.test_name = self._extract_test_name(tr.test.cmd_args)
         self._update_env_vars(tr)
@@ -122,22 +133,12 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _parse_slurm_args(
         self, job_name_prefix: str, env_vars: Dict[str, str], cmd_args: Dict[str, Any], tr: TestRun
     ) -> Dict[str, Any]:
-        key_prefix = f"{self.test_name}" if self.test_name in ["GPT", "Grok", "Nemotron"] else "common"
-
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
-
-        local_workspace_dir = Path(cmd_args["output_path"]).resolve()
-        docker_workspace_dir = cmd_args[f"{key_prefix}.setup_flags.docker_workspace_dir"]
-        container_mounts = f"{local_workspace_dir}:{docker_workspace_dir}"
-
-        if "pgo_nsys_converter.profile_path" in cmd_args:
-            profile_path = Path(cmd_args["pgo_nsys_converter.profile_path"]).resolve()
-            container_mounts += f",{profile_path}:{profile_path}"
 
         tdef: Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition] = cast(
             Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition], tr.test.test_definition
         )
-        base_args.update({"image_path": tdef.docker_image.installed_path, "container_mounts": container_mounts})
+        base_args.update({"image_path": tdef.docker_image.installed_path})
 
         output_path = Path(cmd_args["output_path"]).resolve()
         output_suffix = "-%j.txt" if env_vars.get("UNIFIED_STDOUT_STDERR") == "1" else "-%j-%n-%t.txt"
@@ -155,7 +156,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         load_container = cmd_args.get("load_container", False)
         if load_container:
             commands += self._generate_container_load_command(slurm_args)
-        commands += self._generate_run_command(slurm_args)
+        commands += self._generate_run_command(slurm_args, tr)
 
         return "\n".join(commands)
 
@@ -338,7 +339,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f"    srun --mpi=none --container-image={container_image} --container-name=cont true",
         ]
 
-    def _generate_run_command(self, slurm_args: Dict[str, Any]) -> List[str]:
+    def _generate_run_command(self, slurm_args: Dict[str, Any], tr: TestRun) -> List[str]:
         """Generate the srun command for executing the test."""
         return [
             '    echo "Running srun command"',
@@ -349,6 +350,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f'    -o {slurm_args["output"]} \\',
             f'    -e {slurm_args["error"]} \\',
             "    --container-name=cont \\",
-            f'    --container-mounts={slurm_args["container_mounts"]} \\',
+            f'    --container-mounts={",".join(self.container_mounts(tr))} \\',
             "    /opt/paxml/workspace/run.sh",
         ]
