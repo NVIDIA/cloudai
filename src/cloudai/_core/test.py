@@ -103,6 +103,7 @@ class TestDefinition(BaseModel, ABC):
     cmd_args: Any
     extra_env_vars: dict[str, str] = {}
     extra_cmd_args: dict[str, str] = {}
+    extra_container_mounts: list[str] = []
 
     @property
     def cmd_args_dict(self) -> Dict[str, Union[str, List[str]]]:

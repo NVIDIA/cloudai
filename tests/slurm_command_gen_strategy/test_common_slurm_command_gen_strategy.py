@@ -23,6 +23,7 @@ import pytest
 from cloudai import Test, TestDefinition, TestRun, TestScenario, TestTemplate
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
 from tests.conftest import create_autospec_dataclass
 
 
@@ -276,3 +277,19 @@ def test_default_container_mounts(strategy_fixture: SlurmCommandGenStrategy, tes
     mounts = strategy_fixture.container_mounts(testrun_fixture)
     assert len(mounts) == 1
     assert mounts[0] == f"{testrun_fixture.output_path.absolute()}:/cloudai_run_results"
+
+
+def test_default_container_mounts_with_extra_mounts(strategy_fixture: SlurmCommandGenStrategy):
+    nccl = NCCLTestDefinition(
+        name="name",
+        description="desc",
+        test_template_name="tt",
+        cmd_args=NCCLCmdArgs(),
+        extra_container_mounts=["/host:/container"],
+    )
+    t = Test(test_definition=nccl, test_template=Mock())
+    tr = TestRun(name="t1", test=t, num_nodes=1, nodes=[], output_path=Path("./"))
+    mounts = strategy_fixture.container_mounts(tr)
+    assert len(mounts) == 2
+    assert mounts[0] == f"{tr.output_path.absolute()}:/cloudai_run_results"
+    assert mounts[1] == "/host:/container"
