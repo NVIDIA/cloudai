@@ -17,8 +17,6 @@
 
 from typing import Any, Dict, List, Union, cast
 
-from pydantic import BaseModel
-
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 from cloudai.test_definitions.nemo_run import NeMoRunTestDefinition
@@ -46,11 +44,14 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             new_key = f"{parent_key}{sep}{k}" if parent_key else k
             if isinstance(v, dict):
                 items.extend(self.flatten_dict(v, new_key, sep=sep).items())
-            elif isinstance(v, BaseModel):
-                items.extend(self.flatten_dict(v.model_dump(), new_key, sep=sep).items())
             else:
                 items.append((new_key, v))
         return dict(items)
+
+    def append_flattened_dict(self, prefix: str, d: Dict[str, Any], command: List[str]):
+        flattened = self.flatten_dict(d)
+        for key, value in flattened.items():
+            command.append(f"{prefix}.{key}={value}")
 
     def generate_test_command(
         self, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
@@ -64,19 +65,8 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         elif tr.num_nodes > 0:
             command.append(f"trainer.num_nodes={tr.num_nodes}")
 
-        def append_flattened_dict(prefix: str, d: Dict[str, Any]):
-            flattened = self.flatten_dict(d)
-            for key, value in flattened.items():
-                command.append(f"{prefix}.{key}={value}")
-
-        if hasattr(tdef.cmd_args, "data"):
-            append_flattened_dict("data", tdef.cmd_args.data.__dict__)
-
-        if hasattr(tdef.cmd_args, "trainer"):
-            append_flattened_dict("trainer", tdef.cmd_args.trainer.__dict__)
-
-        if hasattr(tdef.cmd_args, "log"):
-            append_flattened_dict("log", tdef.cmd_args.log.__dict__)
+        cmd_args_dict = tdef.cmd_args.model_dump()
+        self.append_flattened_dict("", cmd_args_dict, command)
 
         if tr.test.extra_cmd_args:
             command.append(tr.test.extra_cmd_args)
