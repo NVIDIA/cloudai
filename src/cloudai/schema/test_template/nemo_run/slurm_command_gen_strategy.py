@@ -61,14 +61,19 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         elif tr.num_nodes > 0:
             command.append(f"trainer.num_nodes={tr.num_nodes}")
 
+        def append_flattened_dict(prefix: str, d: Dict[str, Any]):
+            flattened = self.flatten_dict(d)
+            for key, value in flattened.items():
+                command.append(f"{prefix}.{key}={value}")
+
+        if hasattr(tdef.cmd_args, "data"):
+            append_flattened_dict("data", tdef.cmd_args.data.__dict__)
+
         if hasattr(tdef.cmd_args, "trainer"):
-            for key, value in tdef.cmd_args.trainer.__dict__.items():
-                command.append(f"trainer.{key}={value}")
+            append_flattened_dict("trainer", tdef.cmd_args.trainer.__dict__)
 
         if hasattr(tdef.cmd_args, "log"):
-            flattened_log = self.flatten_dict(tdef.cmd_args.log.__dict__)
-            for key, value in flattened_log.items():
-                command.append(f"log.{key}={value}")
+            append_flattened_dict("log", tdef.cmd_args.log.__dict__)
 
         if tr.test.extra_cmd_args:
             command.append(tr.test.extra_cmd_args)
