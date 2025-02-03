@@ -24,6 +24,9 @@ from cloudai.test_definitions.ucc import UCCTestDefinition
 class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for UCC tests on Slurm systems."""
 
+    def _container_mounts(self, tr: TestRun) -> List[str]:
+        return []
+
     def _parse_slurm_args(
         self, job_name_prefix: str, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> Dict[str, Any]:

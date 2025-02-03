@@ -393,6 +393,16 @@ test_name = "nccl_test_all_reduce"
 time_limit = "00:20:00"
 ```
 
+## Slurm specifics
+
+### Container mounts
+CloudAI runs all slurm jobs using containers. To simplify file system related tasks, CloudAI mounts the following directories into the container:
+1. Test output directory (`<output_path>/<scenario_name_with_timestamp>/<test_name>/<iteration>`, like `results/scenario_2024-06-18_17-40-13/Tests.1/0`) is mounted as `/cloudai_run_results`.
+2. Test specific mounts can be mounted in-code.
+
+#### Dev details
+`SlurmCommandGenStrategy` defines abstract method `_container_mounts(tr: TestRun)` that must be implemented by every subclass. This method is used in `SlurmCommandGenStrategy.container_mounts(tr: TestRun)` (defined as `@final`) where mounts like `/cloudai_run_results` and test specific mounts are added.
+
 ## Troubleshooting
 In this section, we will guide you through identifying the root cause of issues, determining whether they stem from system infrastructure or a bug in CloudAI. Users should closely follow the USER_GUIDE.md and README.md for installation, tests, and test scenarios.
 
