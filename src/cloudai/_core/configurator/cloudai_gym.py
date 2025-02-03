@@ -54,18 +54,18 @@ class CloudAIGymEnv(BaseGym):
             Dict[str, Any]: The action space.
         """
         action_space = {}
-
-        def populate_action_space(prefix, d):
-            for key, value in d.items():
-                if isinstance(value, list):
-                    action_space[f"{prefix}{key}"] = value
-                elif isinstance(value, dict):
-                    populate_action_space(f"{prefix}{key}.", value)
-                else:
-                    action_space[f"{prefix}{key}"] = [value]
-
-        populate_action_space("", self.test_run.test.cmd_args)
+        cmd_args_dict = self.test_run.test.test_definition.cmd_args.model_dump()
+        self.populate_action_space("", cmd_args_dict, action_space)
         return action_space
+
+    def populate_action_space(self, prefix: str, d: dict, action_space: dict):
+        for key, value in d.items():
+            if isinstance(value, list):
+                action_space[f"{prefix}{key}"] = value
+            elif isinstance(value, dict):
+                self.populate_action_space(f"{prefix}{key}.", value, action_space)
+            else:
+                action_space[f"{prefix}{key}"] = [value]
 
     def define_observation_space(self) -> list:
         """

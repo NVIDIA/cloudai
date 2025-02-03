@@ -22,6 +22,7 @@ from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
 from cloudai._core.runner import Runner
 from cloudai._core.test_scenario import TestRun, TestScenario
 from cloudai.systems import SlurmSystem
+from cloudai.test_definitions.nemo_run import Data, NeMoRunCmdArgs, NeMoRunTestDefinition, Trainer, TrainerStrategy
 
 
 @pytest.fixture
@@ -29,16 +30,31 @@ def setup_env(slurm_system: SlurmSystem):
     test_run = MagicMock(spec=TestRun)
     test_scenario = MagicMock(spec=TestScenario)
 
+    cmd_args = NeMoRunCmdArgs(
+        docker_image_url="https://docker/url",
+        task="some_task",
+        recipe_name="some_recipe",
+        trainer=Trainer(
+            max_steps=[1000, 2000],
+            val_check_interval=[100, 200],
+            num_nodes=[1, 2],
+            strategy=TrainerStrategy(
+                tensor_model_parallel_size=[1, 2],
+                pipeline_model_parallel_size=[1, 2],
+                context_parallel_size=[2, 4],
+            ),
+        ),
+        data=Data(
+            micro_batch_size=[1, 2],
+        ),
+    )
+
+    test_definition = NeMoRunTestDefinition(
+        name="NemoModel", description="Nemo Model", test_template_name="nemo_template", cmd_args=cmd_args
+    )
+
     test_run.test = MagicMock()
-    test_run.test.cmd_args = {
-        "docker_image_url": "https://docker/url",
-        "iters": [10, 100],
-        "maxbytes": [1024, 2048],
-        "minbytes": [512, 1024, 2048, 4096],
-        "ngpus": [4],
-        "subtest_name": "nccl_test",
-        "warmup_iters": 5,
-    }
+    test_run.test.test_definition = test_definition
 
     test_run.name = "mock_test_run"
     test_scenario.name = "mock_test_scenario"
@@ -49,16 +65,20 @@ def setup_env(slurm_system: SlurmSystem):
     return test_run, runner
 
 
-def test_action_space_nccl(setup_env):
+def test_action_space_nemo(setup_env):
     test_run, runner = setup_env
     env = CloudAIGymEnv(test_run=test_run, runner=runner)
     action_space = env.define_action_space()
 
     expected_action_space = {
-        "iters": 2,
-        "maxbytes": 2,
-        "minbytes": 4,
-        "ngpus": 1,
+        "trainer.max_steps": 2,
+        "trainer.val_check_interval": 2,
+        "trainer.num_nodes": 2,
+        "trainer.strategy.tensor_model_parallel_size": 2,
+        "trainer.strategy.pipeline_model_parallel_size": 2,
+        "trainer.strategy.context_parallel_size": 2,
+        "trainer.strategy.virtual_pipeline_model_parallel_size": 1,
+        "data.micro_batch_size": 2,
     }
 
     relevant_action_space = {key: action_space[key] for key in expected_action_space}
@@ -123,3 +143,45 @@ def test_compute_reward():
     observation = []
     reward = env.compute_reward(observation)
     assert reward == 0.0
+
+
+def test_populate_action_space():
+    env = CloudAIGymEnv(test_run=MagicMock(), runner=MagicMock())
+    action_space = {}
+    cmd_args = NeMoRunCmdArgs(
+        docker_image_url="https://docker/url",
+        task="some_task",
+        recipe_name="some_recipe",
+        trainer=Trainer(
+            max_steps=[1000, 2000],
+            val_check_interval=[100, 200],
+            num_nodes=[1, 2],
+            strategy=TrainerStrategy(
+                tensor_model_parallel_size=[1, 2],
+                pipeline_model_parallel_size=[1, 2],
+                context_parallel_size=[2, 4],
+            ),
+        ),
+        data=Data(
+            micro_batch_size=[1, 2],
+        ),
+    )
+    env.populate_action_space("", cmd_args.model_dump(), action_space)
+
+    expected_action_space = {
+        "docker_image_url": ["https://docker/url"],
+        "task": ["some_task"],
+        "recipe_name": ["some_recipe"],
+        "trainer.max_steps": [1000, 2000],
+        "trainer.val_check_interval": [100, 200],
+        "trainer.num_nodes": [1, 2],
+        "trainer.strategy.tensor_model_parallel_size": [1, 2],
+        "trainer.strategy.pipeline_model_parallel_size": [1, 2],
+        "trainer.strategy.context_parallel_size": [2, 4],
+        "trainer.strategy.virtual_pipeline_model_parallel_size": [None],
+        "data.micro_batch_size": [1, 2],
+        "log.ckpt.save_on_train_epoch_end": [False],
+        "log.ckpt.save_last": [False],
+    }
+
+    assert action_space == expected_action_space
