@@ -192,6 +192,13 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         return "\n".join(post_test_commands)
 
+    def gen_nsys_command(self, tr: TestRun) -> list[str]:
+        nsys = tr.test.test_definition.nsys
+        if not nsys or not nsys.enable:
+            return []
+
+        return nsys.cmd_args
+
     def _gen_srun_command(
         self,
         slurm_args: Dict[str, Any],
@@ -200,8 +207,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         tr: TestRun,
     ) -> str:
         srun_command_parts = self.gen_srun_prefix(slurm_args, tr)
+        nsys_command_parts = self.gen_nsys_command(tr)
         test_command_parts = self.generate_test_command(env_vars, cmd_args, tr)
-        return " ".join(srun_command_parts + test_command_parts)
+        return " ".join(srun_command_parts + nsys_command_parts + test_command_parts)
 
     def gen_srun_prefix(self, slurm_args: Dict[str, Any], tr: TestRun) -> List[str]:
         srun_command_parts = ["srun", f"--mpi={self.system.mpi}"]
