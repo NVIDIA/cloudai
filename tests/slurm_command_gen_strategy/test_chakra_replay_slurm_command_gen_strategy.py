@@ -20,8 +20,10 @@ from unittest.mock import Mock
 import pytest
 
 from cloudai import TestRun
+from cloudai._core.test import Test
 from cloudai.schema.test_template.chakra_replay.slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
+from cloudai.test_definitions.chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
 from tests.conftest import create_autospec_dataclass
 
 
@@ -67,19 +69,20 @@ class TestChakraReplaySlurmCommandGenStrategy:
         nodes: List[str],
         expected_result: Dict[str, Any],
     ) -> None:
-        mock_cmd_args = Mock(**cmd_args_attrs)
-        mock_docker_image = Mock(installed_path=cmd_args_attrs["docker_image_url"])
-        mock_test_definition = Mock(cmd_args=mock_cmd_args, docker_image=mock_docker_image)
-
-        mock_test_run = Mock(
-            num_nodes=num_nodes,
-            nodes=nodes,
-            test=Mock(test_definition=mock_test_definition),
+        chakra = ChakraReplayTestDefinition(
+            name="name",
+            description="desc",
+            test_template_name="tt",
+            cmd_args=ChakraReplayCmdArgs(
+                docker_image_url=cmd_args_attrs["docker_image_url"], trace_path=cmd_args_attrs["trace_path"]
+            ),
         )
+        t = Test(test_definition=chakra, test_template=Mock())
+        tr = TestRun(name="t1", test=t, nodes=nodes, num_nodes=num_nodes)
 
-        slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, {}, mock_test_run)
+        slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, {}, tr)
         assert slurm_args["image_path"] == expected_result["image_path"]
-        assert slurm_args["container_mounts"] == expected_result["container_mounts"]
+        assert expected_result["container_mounts"] in cmd_gen_strategy.container_mounts(tr)
 
     @pytest.mark.parametrize(
         "cmd_args, extra_cmd_args, expected_result",

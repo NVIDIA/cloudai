@@ -26,10 +26,15 @@ from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 from tests.conftest import create_autospec_dataclass
 
 
+class MySlurmCommandGenStrategy(SlurmCommandGenStrategy):
+    def _container_mounts(self, tr: TestRun) -> List[str]:
+        return []
+
+
 @pytest.fixture
 def strategy_fixture(slurm_system: SlurmSystem) -> SlurmCommandGenStrategy:
     cmd_args: Dict[str, Union[str, List[str]]] = {"test_arg": "test_value"}
-    strategy = SlurmCommandGenStrategy(slurm_system, cmd_args)
+    strategy = MySlurmCommandGenStrategy(slurm_system, cmd_args)
     return strategy
 
 
@@ -129,7 +134,7 @@ def test_time_limit(time_limit: Optional[str], strategy_fixture: SlurmCommandGen
 def test_raises_if_no_default_partition(slurm_system: SlurmSystem):
     slurm_system.default_partition = ""
     with pytest.raises(ValueError) as exc_info:
-        SlurmCommandGenStrategy(slurm_system, {})
+        MySlurmCommandGenStrategy(slurm_system, {})
     assert (
         "Default partition not set in the Slurm system object. "
         "The 'default_partition' attribute should be properly defined in the Slurm "
@@ -264,3 +269,10 @@ def test_pre_test_post_test_combinations(
 
     for expected_line in expected_script_lines:
         assert expected_line in script_content, f"Expected '{expected_line}' in generated script but it was missing."
+
+
+def test_default_container_mounts(strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun):
+    testrun_fixture.output_path = Path("./")
+    mounts = strategy_fixture.container_mounts(testrun_fixture)
+    assert len(mounts) == 1
+    assert mounts[0] == f"{testrun_fixture.output_path.absolute()}:/cloudai_run_results"
