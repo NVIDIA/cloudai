@@ -23,6 +23,9 @@ from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 class SleepSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for Sleep on Slurm systems."""
 
+    def _container_mounts(self, tr: TestRun) -> list[str]:
+        return []
+
     def generate_test_command(
         self, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> List[str]:

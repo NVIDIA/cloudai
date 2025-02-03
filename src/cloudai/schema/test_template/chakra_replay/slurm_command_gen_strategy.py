@@ -24,18 +24,19 @@ from cloudai.test_definitions.chakra_replay import ChakraReplayTestDefinition
 class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for ChakraReplay on Slurm systems."""
 
+    def _container_mounts(self, tr: TestRun) -> list[str]:
+        tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, tr.test.test_definition)
+        if tdef.cmd_args.trace_path:
+            return [f"{tdef.cmd_args.trace_path}:{tdef.cmd_args.trace_path}"]
+        return []
+
     def _parse_slurm_args(
         self, job_name_prefix: str, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> Dict[str, Any]:
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
         tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, tr.test.test_definition)
-        base_args.update(
-            {
-                "image_path": tdef.docker_image.installed_path,
-                "container_mounts": f"{tdef.cmd_args.trace_path}:{tdef.cmd_args.trace_path}",
-            }
-        )
+        base_args.update({"image_path": tdef.docker_image.installed_path})
 
         return base_args
 

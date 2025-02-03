@@ -26,6 +26,10 @@ from cloudai.test_definitions.nemo_launcher import NeMoLauncherTestDefinition
 class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for NeMo Megatron Launcher on Slurm systems."""
 
+    def _container_mounts(self, tr: TestRun) -> list[str]:
+        # this strategy handles container mounts in a different way, so it is OK to return an empty list
+        return []
+
     def gen_exec_command(self, tr: TestRun) -> str:
         self._prepare_environment(tr.test.cmd_args, tr.test.extra_env_vars, tr.output_path)
 
