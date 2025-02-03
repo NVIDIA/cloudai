@@ -17,6 +17,8 @@
 
 from typing import Any, Dict, List, Union, cast
 
+from pydantic import BaseModel
+
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 from cloudai.test_definitions.nemo_run import NeMoRunTestDefinition
@@ -24,9 +26,6 @@ from cloudai.test_definitions.nemo_run import NeMoRunTestDefinition
 
 class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for NeMo 2.0 on Slurm systems."""
-
-    def _container_mounts(self, tr: TestRun) -> list[str]:
-        return []
 
     def _parse_slurm_args(
         self, job_name_prefix: str, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
@@ -38,12 +37,17 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return base_args
 
+    def _container_mounts(self, tr: TestRun) -> List[str]:
+        return []
+
     def flatten_dict(self, d, parent_key="", sep="."):
         items = []
         for k, v in d.items():
             new_key = f"{parent_key}{sep}{k}" if parent_key else k
             if isinstance(v, dict):
                 items.extend(self.flatten_dict(v, new_key, sep=sep).items())
+            elif isinstance(v, BaseModel):
+                items.extend(self.flatten_dict(v.model_dump(), new_key, sep=sep).items())
             else:
                 items.append((new_key, v))
         return dict(items)
@@ -51,21 +55,34 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def append_flattened_dict(self, prefix: str, d: Dict[str, Any], command: List[str]):
         flattened = self.flatten_dict(d)
         for key, value in flattened.items():
-            command.append(f"{prefix}.{key}={value}")
+            if prefix:
+                command.append(f"{prefix}.{key}={value}")
+            else:
+                command.append(f"{key}={value}")
 
     def generate_test_command(
         self, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> List[str]:
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
 
-        command = ["nemo", "llm", tdef.cmd_args.task, "--factory", tdef.cmd_args.recipe_name, "-y"]
+        cmd_args_dict = tdef.cmd_args.model_dump()
+
+        cmd_args_dict.pop("docker_image_url")
+
+        command = [
+            "nemo",
+            "llm",
+            cmd_args_dict.pop("task"),
+            "--factory",
+            cmd_args_dict.pop("recipe_name"),
+            "-y",
+        ]
 
         if tr.nodes:
             command.append(f"trainer.num_nodes={len(self.system.parse_nodes(tr.nodes))}")
         elif tr.num_nodes > 0:
             command.append(f"trainer.num_nodes={tr.num_nodes}")
 
-        cmd_args_dict = tdef.cmd_args.model_dump()
         self.append_flattened_dict("", cmd_args_dict, command)
 
         if tr.test.extra_cmd_args:

@@ -23,7 +23,15 @@ from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestRun
 from cloudai.schema.test_template.nemo_run.slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
-from cloudai.test_definitions.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
+from cloudai.test_definitions.nemo_run import (
+    Data,
+    Log,
+    LogCkpt,
+    NeMoRunCmdArgs,
+    NeMoRunTestDefinition,
+    Trainer,
+    TrainerStrategy,
+)
 
 
 class TestNeMoRunSlurmCommandGenStrategy:
@@ -34,7 +42,29 @@ class TestNeMoRunSlurmCommandGenStrategy:
             description="desc1",
             test_template_name="tt",
             cmd_args=NeMoRunCmdArgs(
-                docker_image_url="nvcr.io/nvidia/nemo:24.09", task="pretrain", recipe_name="llama_3b"
+                docker_image_url="nvcr.io/nvidia/nemo:24.09",
+                task="pretrain",
+                recipe_name="llama_3b",
+                trainer=Trainer(
+                    max_steps=1168251,
+                    val_check_interval=1000,
+                    num_nodes=1,
+                    strategy=TrainerStrategy(
+                        tensor_model_parallel_size=1,
+                        pipeline_model_parallel_size=1,
+                        context_parallel_size=2,
+                        virtual_pipeline_model_parallel_size=None,
+                    ),
+                ),
+                data=Data(
+                    micro_batch_size=1,
+                ),
+                log=Log(
+                    ckpt=LogCkpt(
+                        save_on_train_epoch_end=False,
+                        save_last=False,
+                    )
+                ),
             ),
             extra_env_vars={"TEST_VAR_1": "value1"},
             extra_cmd_args={"extra_args": ""},
@@ -59,7 +89,31 @@ class TestNeMoRunSlurmCommandGenStrategy:
         "cmd_args, expected_cmd",
         [
             (
-                {"docker_image_url": "nvcr.io/nvidia/nemo:24.09", "task": "fine_tune", "recipe_name": "llama7_13b"},
+                NeMoRunCmdArgs(
+                    docker_image_url="nvcr.io/nvidia/nemo:24.09",
+                    task="fine_tune",
+                    recipe_name="llama7_13b",
+                    trainer=Trainer(
+                        max_steps=1168251,
+                        val_check_interval=1000,
+                        num_nodes=1,
+                        strategy=TrainerStrategy(
+                            tensor_model_parallel_size=1,
+                            pipeline_model_parallel_size=1,
+                            context_parallel_size=2,
+                            virtual_pipeline_model_parallel_size=None,
+                        ),
+                    ),
+                    data=Data(
+                        micro_batch_size=1,
+                    ),
+                    log=Log(
+                        ckpt=LogCkpt(
+                            save_on_train_epoch_end=False,
+                            save_last=False,
+                        )
+                    ),
+                ),
                 [
                     "nemo",
                     "llm",
@@ -68,7 +122,6 @@ class TestNeMoRunSlurmCommandGenStrategy:
                     "llama7_13b",
                     "-y",
                     "trainer.num_nodes=2",
-                    "data.micro_batch_size=1",
                     "trainer.max_steps=1168251",
                     "trainer.val_check_interval=1000",
                     "trainer.num_nodes=1",
@@ -78,6 +131,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
                     "trainer.strategy.virtual_pipeline_model_parallel_size=None",
                     "log.ckpt.save_on_train_epoch_end=False",
                     "log.ckpt.save_last=False",
+                    "data.micro_batch_size=1",
                     "extra_args",
                 ],
             ),
@@ -87,10 +141,10 @@ class TestNeMoRunSlurmCommandGenStrategy:
         self,
         cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy,
         test_run: TestRun,
-        cmd_args: dict,
+        cmd_args: NeMoRunCmdArgs,
         expected_cmd: list,
     ) -> None:
-        test_run.test.test_definition.cmd_args = NeMoRunCmdArgs(**cmd_args)
+        test_run.test.test_definition.cmd_args = cmd_args
         cmd = cmd_gen_strategy.generate_test_command(
             test_run.test.test_definition.extra_env_vars,
             test_run.test.test_definition.cmd_args.model_dump(),
