@@ -20,7 +20,7 @@ from unittest.mock import Mock, create_autospec
 
 import pytest
 
-from cloudai import CmdArgs, Installable, Test, TestDefinition, TestRun, TestScenario, TestTemplate
+from cloudai import Test, TestRun, TestScenario, TestTemplate
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
@@ -29,12 +29,6 @@ from tests.conftest import create_autospec_dataclass
 
 class MySlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _container_mounts(self, tr: TestRun) -> List[str]:
-        return []
-
-
-class MyTestDefinition(TestDefinition):
-    @property
-    def installables(self) -> list[Installable]:
         return []
 
 
@@ -47,11 +41,11 @@ def strategy_fixture(slurm_system: SlurmSystem) -> SlurmCommandGenStrategy:
 
 @pytest.fixture
 def testrun_fixture(tmp_path: Path) -> TestRun:
-    tdef = MyTestDefinition(
+    tdef = NCCLTestDefinition(
         name="test_job",
         description="Test description",
         test_template_name="d",
-        cmd_args=CmdArgs(),
+        cmd_args=NCCLCmdArgs(),
         extra_env_vars={"TEST_VAR": "VALUE"},
     )
     mock_test_template = Mock(spec=TestTemplate)
