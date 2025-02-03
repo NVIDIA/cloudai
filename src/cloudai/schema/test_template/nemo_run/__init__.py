@@ -14,7 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .report_generation_stratergy import NeMoRunReportGenerationStrategy
+
+from .report_generation_strategy import NeMoRunReportGenerationStrategy
 from .slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
 
 __all__ = [
