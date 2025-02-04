@@ -15,12 +15,12 @@
 # limitations under the License.
 
 import asyncio
+import datetime
 import logging
 import signal
 import sys
 from abc import ABC, abstractmethod
 from asyncio import Task
-from datetime import datetime
 from pathlib import Path
 from types import FrameType
 from typing import Dict, List, Optional
@@ -84,9 +84,8 @@ class BaseRunner(ABC):
         """
         if not base_output_path.exists():
             base_output_path.mkdir()
-        current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         output_subpath = base_output_path / f"{self.test_scenario.name}_{current_time}"
-        output_subpath.mkdir()
         return output_subpath
 
     def register_signal_handlers(self):
@@ -244,8 +243,8 @@ class BaseRunner(ABC):
         """
         Generate and ensure the existence of the output directory for a given test.
 
-        It constructs the path based on the test's section name and current iteration, creating the directories if they
-        do not exist.
+        It constructs the path based on the test's section name and current iteration,
+        creating the directories if they do not exist.
 
         Args:
             tr (TestRun): The test run object.
@@ -258,16 +257,21 @@ class BaseRunner(ABC):
             FileNotFoundError: If the base output directory does not exist.
             PermissionError: If there is a permission issue creating the directories.
         """
-        if not self.output_path.exists():
-            raise FileNotFoundError(f"Output directory {self.output_path} does not exist")
+        if tr.step < 0 and not self.output_path.exists():
+            self.output_path.mkdir()
 
         job_output_path = Path()  # avoid reportPossiblyUnboundVariable from pyright
 
         try:
-            test_output_path = self.output_path / tr.name
-            test_output_path.mkdir()
-            job_output_path = test_output_path / str(tr.current_iteration)
-            job_output_path.mkdir()
+            if tr.step > 0:
+                base_path = self.system.output_path / self.test_scenario.name
+                job_output_path = base_path / tr.name / str(tr.current_iteration) / str(tr.step)
+            else:
+                base_path = self.output_path
+                job_output_path = base_path / tr.name / str(tr.current_iteration)
+
+            if not job_output_path.exists():
+                job_output_path.mkdir(parents=True, exist_ok=True)
         except PermissionError as e:
             raise PermissionError(f"Cannot create directory {job_output_path}: {e}") from e
 
@@ -339,13 +343,15 @@ class BaseRunner(ABC):
 
         self.jobs.remove(completed_job)
         del self.testrun_to_job_map[completed_job.test_run]
-        completed_job.test_run.current_iteration += 1
-        if not completed_job.terminated_by_dependency and completed_job.test_run.has_more_iterations():
-            msg = f"Re-running job for iteration {completed_job.test_run.current_iteration}"
-            logging.info(msg)
-            await self.submit_test(completed_job.test_run)
-        else:
-            await self.handle_dependencies(completed_job)
+
+        if completed_job.test_run.step <= 0:
+            completed_job.test_run.current_iteration += 1
+            if not completed_job.terminated_by_dependency and completed_job.test_run.has_more_iterations():
+                msg = f"Re-running job for iteration {completed_job.test_run.current_iteration}"
+                logging.info(msg)
+                await self.submit_test(completed_job.test_run)
+            else:
+                await self.handle_dependencies(completed_job)
 
     async def job_completion_callback(self, job: BaseJob) -> None:  # noqa: B027
         """

@@ -14,21 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
-import numpy as np
 import pytest
-from gymnasium.spaces import Box, Dict, Discrete
 
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
+from cloudai._core.runner import Runner
 from cloudai._core.test_scenario import TestRun, TestScenario
 from cloudai.systems import SlurmSystem
 
 
 @pytest.fixture
-def setup_env():
+def setup_env(slurm_system: SlurmSystem):
     test_run = MagicMock(spec=TestRun)
-    system = MagicMock(spec=SlurmSystem)
     test_scenario = MagicMock(spec=TestScenario)
 
     test_run.test = MagicMock()
@@ -42,38 +40,85 @@ def setup_env():
         "warmup_iters": 5,
     }
 
-    return test_run, system, test_scenario
+    test_run.name = "mock_test_run"
+    test_scenario.name = "mock_test_scenario"
+    test_scenario.test_runs = [test_run]
+
+    runner = Runner(mode="run", system=slurm_system, test_scenario=test_scenario)
+
+    return test_run, runner
 
 
 def test_action_space_nccl(setup_env):
-    test_run, system, test_scenario = setup_env
-    env = CloudAIGymEnv(test_run=test_run, system=system, test_scenario=test_scenario)
-    assert isinstance(env.action_space, Dict)
+    test_run, runner = setup_env
+    env = CloudAIGymEnv(test_run=test_run, runner=runner)
+    action_space = env.define_action_space()
 
-    expected_action_space = Dict(
-        {
-            "iters": Discrete(2),
-            "maxbytes": Discrete(2),
-            "minbytes": Discrete(4),
-            "ngpus": Discrete(1),
-        }
-    )
+    expected_action_space = {
+        "iters": 2,
+        "maxbytes": 2,
+        "minbytes": 4,
+        "ngpus": 1,
+    }
 
-    assert env.action_space.spaces.keys() == expected_action_space.spaces.keys()
-    for key in expected_action_space.spaces:
-        assert isinstance(env.action_space.spaces[key], Discrete)
-        assert isinstance(expected_action_space.spaces[key], Discrete)
-        assert env.action_space.spaces[key].__dict__ == expected_action_space.spaces[key].__dict__
+    assert action_space.keys() == expected_action_space.keys()
+    for key in expected_action_space:
+        assert len(action_space[key]) == expected_action_space[key]
 
 
 def test_observation_space(setup_env):
-    test_run, system, test_scenario = setup_env
-    env = CloudAIGymEnv(test_run=test_run, system=system, test_scenario=test_scenario)
-    assert isinstance(env.observation_space, Box)
+    test_run, runner = setup_env
+    env = CloudAIGymEnv(test_run=test_run, runner=runner)
+    observation_space = env.define_observation_space()
 
-    expected_observation_space = Box(low=0.0, high=1.0, shape=(1,), dtype=np.float32)
+    expected_observation_space = [0.0]
 
-    assert env.observation_space.shape == expected_observation_space.shape
-    assert env.observation_space.dtype == expected_observation_space.dtype
-    assert np.all(env.observation_space.low == expected_observation_space.low)
-    assert np.all(env.observation_space.high == expected_observation_space.high)
+    assert observation_space == expected_observation_space
+
+
+def test_get_observation(tmp_path, setup_env):
+    test_run, runner = setup_env
+    env = CloudAIGymEnv(test_run=test_run, runner=runner)
+
+    output_path = tmp_path / "output" / "mock_test_scenario"
+    output_path.mkdir(parents=True, exist_ok=True)
+    subdir = output_path / "0"
+    subdir.mkdir(parents=True, exist_ok=True)
+    report_file_path = subdir / "0" / "report.txt"
+    report_file_path.parent.mkdir(parents=True, exist_ok=True)
+    report_file_path.write_text("Average: 0.34827126874999986\n")
+
+    with patch.object(env, "parse_report", return_value=[0.34827126874999986]):
+        observation = env.get_observation(action={})
+        assert observation == [0.34827126874999986]
+
+
+def test_parse_report(tmp_path):
+    report_content = """Min: 0.342734
+Max: 0.355174
+Average: 0.34827126874999986
+Median: 0.347785
+Stdev: 0.0031025735345648264
+"""
+    report_file = tmp_path / "report.txt"
+    report_file.write_text(report_content)
+
+    env = CloudAIGymEnv(test_run=MagicMock(), runner=MagicMock())
+    observation = env.parse_report(tmp_path)
+    assert observation == [0.34827126874999986]
+
+
+def test_compute_reward():
+    env = CloudAIGymEnv(test_run=MagicMock(), runner=MagicMock())
+
+    observation = [0.34827126874999986]
+    reward = env.compute_reward(observation)
+    assert reward == pytest.approx(2.871, 0.001)
+
+    observation = [0.0]
+    reward = env.compute_reward(observation)
+    assert reward == 0.0
+
+    observation = []
+    reward = env.compute_reward(observation)
+    assert reward == 0.0

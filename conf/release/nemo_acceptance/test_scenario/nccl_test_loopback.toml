@@ -14,10 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .report_generation_strategy import NeMoRunReportGenerationStrategy
-from .slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
+name = "nccl-loopback-test"
 
-__all__ = [
-    "NeMoRunReportGenerationStrategy",
-    "NeMoRunSlurmCommandGenStrategy",
-]
+[[Tests]]
+id = "Tests.1"
+test_name = "nccl_test_all_reduce_loopback"
+num_nodes = "2"
+time_limit = "00:20:00"

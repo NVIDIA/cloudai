@@ -21,8 +21,10 @@ from pathlib import Path
 from typing import List, Optional
 from unittest.mock import Mock
 
-from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, System
-from cloudai.util import is_dir_writable
+from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, System, TestRun, TestScenario
+from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
+from cloudai._core.configurator.grid_search import GridSearchAgent
+from cloudai.util import prepare_output_dir
 
 from ..parser import HOOK_ROOT
 
@@ -83,23 +85,61 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     return rc
 
 
-def handle_dry_run_and_run(args: argparse.Namespace) -> int:
+def is_dse_job(cmd_args: dict) -> bool:
     """
-    Execute the dry-run or run modes for CloudAI.
-
-    Includes parsing configurations, verifying installations, and executing test scenarios.
+    Recursively check if any value in cmd_args is a list.
 
     Args:
-        args (argparse.Namespace): The parsed command-line arguments.
+        cmd_args (dict): The command arguments to check.
+
+    Returns:
+        bool: True if any value is a list, False otherwise.
     """
+    if isinstance(cmd_args, dict):
+        for _key, value in cmd_args.items():
+            if isinstance(value, list) or (isinstance(value, dict) and is_dse_job(value)):
+                return True
+    return False
+
+
+def handle_dse_job(test_run: TestRun, runner: Runner, args: argparse.Namespace):
+    env = CloudAIGymEnv(test_run=test_run, runner=runner)
+    agent = GridSearchAgent(env)
+
+    agent.configure(env.action_space)
+
+    for step, action in enumerate(agent.get_all_combinations(), start=1):
+        test_run.step = step
+        observation, reward, done, info = env.step(action)
+        logging.info(f"Step {step}: Observation: {observation}, Reward: {reward}")
+
+
+def handle_non_dse_job(system: System, test_scenario: TestScenario, args: argparse.Namespace) -> None:
+    runner = Runner(args.mode, system, test_scenario)
+    asyncio.run(runner.run())
+
+    logging.info(f"All test scenario results stored at: {runner.runner.output_path}")
+
+    if args.mode == "run":
+        generator = ReportGenerator(runner.runner.output_path)
+        generator.generate_report(test_scenario)
+        logging.info(
+            "All test scenario execution attempts are complete. Please review"
+            f" the '{args.log_file}' file to confirm successful completion or to"
+            " identify any issues."
+        )
+
+
+def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     parser = Parser(args.system_config)
     system, tests, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
+
     assert test_scenario is not None
 
     if args.output_dir:
         system.output_path = args.output_dir.absolute()
-    if not is_dir_writable(system.output_path):
-        logging.error(f"Output path {system.output_path} is not a writable directory.")
+
+    if not prepare_output_dir(system.output_path):
         return 1
     system.update()
 
@@ -130,18 +170,12 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     logging.info(test_scenario.pretty_print())
 
     runner = Runner(args.mode, system, test_scenario)
-    asyncio.run(runner.run())
+    tr = next(iter(test_scenario.test_runs))
 
-    logging.info(f"All test scenario results stored at: {runner.runner.output_path}")
-
-    if args.mode == "run":
-        generator = ReportGenerator(runner.runner.output_path)
-        generator.generate_report(test_scenario)
-        logging.info(
-            "All test scenario execution attempts are complete. Please review"
-            f" the '{args.log_file}' file to confirm successful completion or to"
-            " identify any issues."
-        )
+    if is_dse_job(tr.test.cmd_args):
+        handle_dse_job(tr, runner, args)
+    else:
+        handle_non_dse_job(system, test_scenario, args)
 
     return 0
 

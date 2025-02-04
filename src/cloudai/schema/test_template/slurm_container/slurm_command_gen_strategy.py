@@ -24,13 +24,20 @@ from cloudai.test_definitions.slurm_container import SlurmContainerTestDefinitio
 class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for generic Slurm container tests."""
 
+    def _container_mounts(self, tr: TestRun) -> list[str]:
+        tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
+        repo_path = tdef.git_repo.installed_path or self.system.install_path / tdef.git_repo.repo_name
+        mcore_vfm_path = (
+            tdef.mcore_vfm_git_repo.installed_path or self.system.install_path / tdef.mcore_vfm_git_repo.repo_name
+        )
+        return [
+            f"{repo_path.absolute()}:/work",
+            f"{mcore_vfm_path.absolute()}:/opt/megatron-lm",
+        ]
+
     def gen_srun_prefix(self, slurm_args: dict[str, Any], tr: TestRun) -> list[str]:
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
         slurm_args["image_path"] = tdef.docker_image.installed_path
-        mounts = tdef.container_mounts(self.system.install_path)
-        mounts.append(f"{tr.output_path.absolute()}:/cloudai_run_results")
-        slurm_args["container_mounts"] = ",".join(mounts)
-
         cmd = super().gen_srun_prefix(slurm_args, tr)
         return [*cmd, "--no-container-mount-home"]
 

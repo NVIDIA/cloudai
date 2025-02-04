@@ -14,10 +14,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .report_generation_strategy import NeMoRunReportGenerationStrategy
-from .slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
+name = "nccl_test_all_reduce_loopback"
+description = "all_reduce"
+test_template_name = "NcclTest"
 
-__all__ = [
-    "NeMoRunReportGenerationStrategy",
-    "NeMoRunSlurmCommandGenStrategy",
-]
+[extra_env_vars]
+NCCL_P2P_DISABLE = "1"
+NCCL_SHM_DISABLE = "1"
+
+[cmd_args]
+"subtest_name" = "all_reduce_perf_mpi"
+"ngpus" = "1"
+"minbytes" = "8M"
+"maxbytes" = "16G"
+"iters" = "5"
+"warmup_iters" = "3"
+
+[extra_cmd_args]
+"--stepfactor" = "2"

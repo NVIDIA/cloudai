@@ -14,10 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .report_generation_strategy import NeMoRunReportGenerationStrategy
-from .slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
+name = "gpt3_126m_pile"
 
-__all__ = [
-    "NeMoRunReportGenerationStrategy",
-    "NeMoRunSlurmCommandGenStrategy",
-]
+[[Tests]]
+id = "Tests.1"
+test_name = "gpt3_126m_pile"

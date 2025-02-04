@@ -15,8 +15,10 @@
 # limitations under the License.
 
 import logging
+import re
+from datetime import timedelta
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 import toml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -24,6 +26,74 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from .exceptions import TestScenarioParsingError, format_validation_error
 from .test import Test
 from .test_scenario import TestDependency, TestRun, TestScenario
+
+
+def parse_time_limit(limit: str) -> timedelta:
+    try:
+        if re.match(r"^\d+[smhdw]$", limit, re.IGNORECASE):
+            return parse_abbreviated_time(limit)
+        if "-" in limit:
+            return parse_dashed_time(limit)
+        if len(limit.split(":")) == 3:
+            hours, minutes, seconds = map(int, limit.split(":"))
+            return timedelta(hours=hours, minutes=minutes, seconds=seconds)
+        if len(limit.split(":")) == 2:
+            hours, minutes = map(int, limit.split(":"))
+            return timedelta(hours=hours, minutes=minutes)
+    except ValueError as err:
+        raise ValueError(f"Invalid time limit format: {limit}. Refer to SLURM time format documentation.") from err
+
+    raise ValueError(f"Unsupported time limit format: {limit}. Refer to SLURM time format documentation.")
+
+
+def parse_abbreviated_time(limit: str) -> timedelta:
+    value, unit = int(limit[:-1]), limit[-1].lower()
+    if unit == "s":
+        return timedelta(seconds=value)
+    if unit == "m":
+        return timedelta(minutes=value)
+    if unit == "h":
+        return timedelta(hours=value)
+    if unit == "d":
+        return timedelta(days=value)
+    if unit == "w":
+        return timedelta(weeks=value)
+    raise ValueError(f"Invalid abbreviated time format: {limit}")
+
+
+def parse_dashed_time(limit: str) -> timedelta:
+    days, time_part = limit.split("-", 1)
+    hours, minutes, seconds = map(int, time_part.split(":"))
+    return timedelta(days=int(days), hours=hours, minutes=minutes, seconds=seconds)
+
+
+def format_time_limit(total_time: timedelta) -> str:
+    total_seconds = int(total_time.total_seconds())
+    days, remainder = divmod(total_seconds, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if days > 0:
+        return f"{days}-{hours:02}:{minutes:02}:{seconds:02}"
+    return f"{hours:02}:{minutes:02}:{seconds:02}"
+
+
+def calculate_total_time_limit(test_hooks: List[TestScenario], time_limit: Optional[str] = None) -> str:
+    total_time = timedelta()
+
+    if time_limit:
+        total_time += parse_time_limit(time_limit)
+
+    total_time += sum(
+        (
+            parse_time_limit(test_run.time_limit)
+            for hook in test_hooks
+            for test_run in hook.test_runs
+            if test_run.time_limit
+        ),
+        timedelta(),
+    )
+
+    return format_time_limit(total_time)
 
 
 class _TestDependencyTOML(BaseModel):
@@ -217,13 +287,16 @@ class TestScenarioParser:
 
         test = Test(test_definition=original_test.test_definition, test_template=original_test.test_template)
 
+        hooks = [hook for hook in [pre_test, post_test] if hook is not None]
+        total_time_limit = calculate_total_time_limit(test_hooks=hooks, time_limit=test_info.time_limit)
+
         tr = TestRun(
             test_info.id,
             test,
             num_nodes=test_info.num_nodes or 1,
             iterations=test_info.iterations,
             nodes=test_info.nodes,
-            time_limit=test_info.time_limit,
+            time_limit=total_time_limit,
             sol=test_info.sol,
             weight=test_info.weight * normalized_weight,
             ideal_perf=test_info.ideal_perf,

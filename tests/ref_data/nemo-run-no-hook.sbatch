@@ -8,4 +8,4 @@
 export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 
 
-srun --mpi=pmix --container-image=nvcr.io/nvidia/nemo:24.09 nemo llm pretrain --factory llama_3b -y trainer.num_nodes=1
+srun --mpi=pmix --container-image=nvcr.io/nvidia/nemo:24.09 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results nemo llm pretrain --factory llama_3b -y trainer.num_nodes=1
