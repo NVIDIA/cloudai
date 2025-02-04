@@ -40,14 +40,12 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _container_mounts(self, tr: TestRun) -> List[str]:
         return []
 
-    def flatten_dict(self, d, parent_key="", sep="."):
+    def flatten_dict(self, d: dict[str, str], parent_key: str = "", sep: str = "."):
         items = []
         for k, v in d.items():
             new_key = f"{parent_key}{sep}{k}" if parent_key else k
             if isinstance(v, dict):
                 items.extend(self.flatten_dict(v, new_key, sep=sep).items())
-            elif isinstance(v, BaseModel):
-                items.extend(self.flatten_dict(v.model_dump(), new_key, sep=sep).items())
             else:
                 items.append((new_key, v))
         return dict(items)
@@ -69,14 +67,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         cmd_args_dict.pop("docker_image_url")
 
-        command = [
-            "nemo",
-            "llm",
-            cmd_args_dict.pop("task"),
-            "--factory",
-            cmd_args_dict.pop("recipe_name"),
-            "-y",
-        ]
+        command = ["nemo", "llm", cmd_args_dict.pop("task"), "--factory", cmd_args_dict.pop("recipe_name"), "-y"]
 
         if tr.nodes:
             command.append(f"trainer.num_nodes={len(self.system.parse_nodes(tr.nodes))}")

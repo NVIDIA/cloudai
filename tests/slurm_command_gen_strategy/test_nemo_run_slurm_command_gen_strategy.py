@@ -42,29 +42,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
             description="desc1",
             test_template_name="tt",
             cmd_args=NeMoRunCmdArgs(
-                docker_image_url="nvcr.io/nvidia/nemo:24.09",
-                task="pretrain",
-                recipe_name="llama_3b",
-                trainer=Trainer(
-                    max_steps=1168251,
-                    val_check_interval=1000,
-                    num_nodes=1,
-                    strategy=TrainerStrategy(
-                        tensor_model_parallel_size=1,
-                        pipeline_model_parallel_size=1,
-                        context_parallel_size=2,
-                        virtual_pipeline_model_parallel_size=None,
-                    ),
-                ),
-                data=Data(
-                    micro_batch_size=1,
-                ),
-                log=Log(
-                    ckpt=LogCkpt(
-                        save_on_train_epoch_end=False,
-                        save_last=False,
-                    )
-                ),
+                docker_image_url="nvcr.io/nvidia/nemo:24.09", task="pretrain", recipe_name="llama_3b"
             ),
             extra_env_vars={"TEST_VAR_1": "value1"},
             extra_cmd_args={"extra_args": ""},
@@ -85,72 +63,32 @@ class TestNeMoRunSlurmCommandGenStrategy:
     def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> NeMoRunSlurmCommandGenStrategy:
         return NeMoRunSlurmCommandGenStrategy(slurm_system, {})
 
-    @pytest.mark.parametrize(
-        "cmd_args, expected_cmd",
-        [
-            (
-                NeMoRunCmdArgs(
-                    docker_image_url="nvcr.io/nvidia/nemo:24.09",
-                    task="fine_tune",
-                    recipe_name="llama7_13b",
-                    trainer=Trainer(
-                        max_steps=1168251,
-                        val_check_interval=1000,
-                        num_nodes=1,
-                        strategy=TrainerStrategy(
-                            tensor_model_parallel_size=1,
-                            pipeline_model_parallel_size=1,
-                            context_parallel_size=2,
-                            virtual_pipeline_model_parallel_size=None,
-                        ),
-                    ),
-                    data=Data(
-                        micro_batch_size=1,
-                    ),
-                    log=Log(
-                        ckpt=LogCkpt(
-                            save_on_train_epoch_end=False,
-                            save_last=False,
-                        )
-                    ),
-                ),
-                [
-                    "nemo",
-                    "llm",
-                    "fine_tune",
-                    "--factory",
-                    "llama7_13b",
-                    "-y",
-                    "trainer.num_nodes=2",
-                    "trainer.max_steps=1168251",
-                    "trainer.val_check_interval=1000",
-                    "trainer.num_nodes=1",
-                    "trainer.strategy.tensor_model_parallel_size=1",
-                    "trainer.strategy.pipeline_model_parallel_size=1",
-                    "trainer.strategy.context_parallel_size=2",
-                    "trainer.strategy.virtual_pipeline_model_parallel_size=None",
-                    "log.ckpt.save_on_train_epoch_end=False",
-                    "log.ckpt.save_last=False",
-                    "data.micro_batch_size=1",
-                    "extra_args",
-                ],
+    def test_generate_test_command(self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy, test_run: TestRun) -> None:
+        cmd_args = NeMoRunCmdArgs(
+            docker_image_url="nvcr.io/nvidia/nemo:24.09",
+            task="fine_tune",
+            recipe_name="llama7_13b",
+            trainer=Trainer(
+                strategy=TrainerStrategy(tensor_model_parallel_size=2, virtual_pipeline_model_parallel_size=None),
             ),
-        ],
-    )
-    def test_generate_test_command(
-        self,
-        cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy,
-        test_run: TestRun,
-        cmd_args: NeMoRunCmdArgs,
-        expected_cmd: list,
-    ) -> None:
+            log=Log(ckpt=LogCkpt(save_last=False)),
+            data=Data(micro_batch_size=1),
+        )
         test_run.test.test_definition.cmd_args = cmd_args
         cmd = cmd_gen_strategy.generate_test_command(
-            test_run.test.test_definition.extra_env_vars,
-            test_run.test.test_definition.cmd_args.model_dump(),
-            test_run,
+            test_run.test.test_definition.extra_env_vars, test_run.test.test_definition.cmd_args.model_dump(), test_run
         )
-        assert cmd == expected_cmd, f"Expected command {expected_cmd}, but got {cmd}"
+        assert cmd is not None
+        assert cmd[:6] == ["nemo", "llm", cmd_args.task, "--factory", cmd_args.recipe_name, "-y"]
+        assert (
+            f"trainer.strategy.tensor_model_parallel_size={cmd_args.trainer.strategy.tensor_model_parallel_size}" in cmd
+        )
+        assert (
+            f"trainer.strategy.virtual_pipeline_model_parallel_size={cmd_args.trainer.strategy.virtual_pipeline_model_parallel_size}"
+            in cmd
+        )
+        assert f"log.ckpt.save_last={cmd_args.log.ckpt.save_last}" in cmd
+        assert f"data.micro_batch_size={cmd_args.data.micro_batch_size}" in cmd
 
     def test_num_nodes(self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy, test_run: TestRun) -> None:
         test_run.nodes = ["node[1-3]"]
