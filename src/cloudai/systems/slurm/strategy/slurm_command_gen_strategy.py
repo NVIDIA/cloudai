@@ -318,6 +318,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         if "time_limit" in args:
             batch_script_content.append(f"#SBATCH --time={args['time_limit']}")
 
+        for arg in self.system.extra_sbatch_args:
+            batch_script_content.append(f"#SBATCH {arg}")
+
         batch_script_content.append(
             "\nexport SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)"
         )

@@ -395,6 +395,33 @@ time_limit = "00:20:00"
 
 ## Slurm specifics
 
+### Extra srun and sbatch arguments
+CloudAI forms sbatch script and srun commands following internal rules. Users can affect the generation but setting special arguments in System TOML file.
+
+For example (in a System TOML file):,
+```toml
+extra_sbatch_args = [
+  "--section=4",
+  "--other-arg val"
+]
+```
+will result in sbatch file content like this:
+```bash
+... # CloudAI set sbatch arguments
+#SBATCH --section=4
+#SBATCH --other-arg val
+...
+```
+
+Another example (in a System TOML file):
+```toml
+extra_srun_args = "--arg=val --other-arg=other-val"
+```
+will result in srun command inside sbatch script like this:
+```bash
+srun ... --arg=val --other-arg=other-val ...
+```
+
 ### Container mounts
 CloudAI runs all slurm jobs using containers. To simplify file system related tasks, CloudAI mounts the following directories into the container:
 1. Test output directory (`<output_path>/<scenario_name_with_timestamp>/<test_name>/<iteration>`, like `results/scenario_2024-06-18_17-40-13/Tests.1/0`) is mounted as `/cloudai_run_results`.

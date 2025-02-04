@@ -136,6 +136,7 @@ class SlurmSystem(BaseModel, System):
     monitor_interval: int = 1
     cmd_shell: CommandShell = CommandShell()
     extra_srun_args: Optional[str] = None
+    extra_sbatch_args: list[str] = []
 
     @property
     def groups(self) -> Dict[str, Dict[str, List[SlurmNode]]]:
