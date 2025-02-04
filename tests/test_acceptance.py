@@ -250,20 +250,10 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
         sbatch_script = slurm_system.output_path / "generated_command.sh"
     curr = Path(sbatch_script).read_text().strip()
 
-    # Normalize whitespace and remove extra newlines for comparison
-    ref_normalized = "\n".join(line.strip() for line in ref.splitlines() if line.strip())
-    curr_normalized = "\n".join(line.strip() for line in curr.splitlines() if line.strip())
-
-    assert (
-        curr_normalized == ref_normalized
-    ), f"Generated sbatch script does not match reference. Diff:\n{curr}\n\nExpected:\n{ref}"
+    assert curr == ref
 
     run_script = test_req[-1]
     if run_script:
-        curr_run_script = Path(slurm_system.output_path / "run.sh").read_text().strip()
-        ref_run_script = (Path(__file__).parent / "ref_data" / run_script).read_text().strip()
-        ref_run_script_normalized = "\n".join(line.strip() for line in ref_run_script.splitlines() if line.strip())
-        curr_run_script_normalized = "\n".join(line.strip() for line in curr_run_script.splitlines() if line.strip())
-        assert (
-            curr_run_script_normalized == ref_run_script_normalized
-        ), f"Generated run script does not match reference. Diff:\n{curr_run_script}\n\nExpected:\n{ref_run_script}"
+        curr_run_script = Path(slurm_system.output_path / "run.sh").read_text()
+        ref_run_script = (Path(__file__).parent / "ref_data" / run_script).read_text()
+        assert curr_run_script == ref_run_script
