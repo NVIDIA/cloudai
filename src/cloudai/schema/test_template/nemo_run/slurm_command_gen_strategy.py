@@ -17,8 +17,6 @@
 
 from typing import Any, Dict, List, Union, cast
 
-from pydantic import BaseModel
-
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 from cloudai.test_definitions.nemo_run import NeMoRunTestDefinition
