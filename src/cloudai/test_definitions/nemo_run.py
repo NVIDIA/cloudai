@@ -26,6 +26,9 @@ class Data(BaseModel):
     """Data configuration for NeMoRun."""
 
     micro_batch_size: Union[int, List[int]] = 1
+    global_batch_size: Union[int, List[int]] = 1
+    num_train_samples: Union[int, List[int]] = 1
+    tokenizer: Optional[str] = None
 
 
 class TrainerStrategy(BaseModel):
@@ -40,7 +43,7 @@ class TrainerStrategy(BaseModel):
 class Trainer(BaseModel):
     """Trainer configuration for NeMoRun."""
 
-    max_steps: Union[int, List[int]] = 1168251
+    max_steps: Union[int, List[int]] = 100
     val_check_interval: Union[int, List[int]] = 1000
     num_nodes: Union[int, List[int]] = 1
     strategy: TrainerStrategy = Field(default_factory=TrainerStrategy)
