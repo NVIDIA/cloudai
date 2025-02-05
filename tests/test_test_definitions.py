@@ -162,8 +162,7 @@ class TestNsysConfiguration:
     @pytest.mark.parametrize("value", [True, False])
     def test_force_overwrite(self, value: bool):
         nsys = NsysConfiguration(force_overwrite=value)
-        val_str = str(value).lower()
-        assert nsys.cmd_args == ["nsys", "profile", f"--force-overwrite {val_str}"]
+        assert nsys.cmd_args == ["nsys", "profile", f"--force-overwrite={'true' if value else 'false'}"]
 
     def test_extra_args(self):
         nsys = NsysConfiguration(extra_args=["--extra", "args"])
