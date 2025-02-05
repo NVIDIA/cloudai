@@ -19,7 +19,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 from cloudai import BaseJob, System
 from cloudai.util import CommandShell
@@ -134,7 +134,7 @@ class SlurmSystem(BaseModel, System):
     global_env_vars: Dict[str, Any] = {}
     scheduler: str = "standalone"
     monitor_interval: int = 1
-    cmd_shell: CommandShell = CommandShell()
+    cmd_shell: CommandShell = Field(default=CommandShell(), exclude=True)
     extra_srun_args: Optional[str] = None
     extra_sbatch_args: list[str] = []
 
@@ -150,6 +150,10 @@ class SlurmSystem(BaseModel, System):
                 groups[part.name][group.name] = [node for node in part.slurm_nodes if node.name in node_names]
 
         return groups
+
+    @field_serializer("install_path", "output_path")
+    def _path_serializer(cls, v: Path) -> str:
+        return str(v)
 
     def update(self) -> None:
         """

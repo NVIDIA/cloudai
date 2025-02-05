@@ -20,9 +20,10 @@ from unittest.mock import Mock, create_autospec
 
 import pytest
 
-from cloudai import Test, TestDefinition, TestRun, TestScenario, TestTemplate
+from cloudai import Test, TestRun, TestScenario, TestTemplate
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
 from tests.conftest import create_autospec_dataclass
 
 
@@ -40,18 +41,17 @@ def strategy_fixture(slurm_system: SlurmSystem) -> SlurmCommandGenStrategy:
 
 @pytest.fixture
 def testrun_fixture(tmp_path: Path) -> TestRun:
-    mock_test_definition = Mock(spec=TestDefinition)
+    tdef = NCCLTestDefinition(
+        name="test_job",
+        description="Test description",
+        test_template_name="d",
+        cmd_args=NCCLCmdArgs(),
+        extra_env_vars={"TEST_VAR": "VALUE"},
+    )
     mock_test_template = Mock(spec=TestTemplate)
-
-    mock_test_definition.name = "test_job"
-    mock_test_definition.description = "Test description"
-    mock_test_definition.cmd_args_dict = {"test_arg": "test_value"}
-    mock_test_definition.extra_args_str = "extra_arg"
-    mock_test_definition.extra_env_vars = {"TEST_VAR": "VALUE"}
-
     mock_test_template.name = "test_template"
 
-    test = Test(test_definition=mock_test_definition, test_template=mock_test_template)
+    test = Test(test_definition=tdef, test_template=mock_test_template)
 
     return TestRun(name="test_job", test=test, output_path=tmp_path, num_nodes=2, nodes=["node1", "node2"])
 
@@ -286,3 +286,19 @@ def test_append_sbatch_directives(strategy_fixture: SlurmCommandGenStrategy, tmp
     assert f"#SBATCH --partition={strategy_fixture.system.default_partition}" in content
     for arg in strategy_fixture.system.extra_sbatch_args:
         assert f"#SBATCH {arg}" in content
+
+
+def test_default_container_mounts_with_extra_mounts(strategy_fixture: SlurmCommandGenStrategy):
+    nccl = NCCLTestDefinition(
+        name="name",
+        description="desc",
+        test_template_name="tt",
+        cmd_args=NCCLCmdArgs(),
+        extra_container_mounts=["/host:/container"],
+    )
+    t = Test(test_definition=nccl, test_template=Mock())
+    tr = TestRun(name="t1", test=t, num_nodes=1, nodes=[], output_path=Path("./"))
+    mounts = strategy_fixture.container_mounts(tr)
+    assert len(mounts) == 2
+    assert mounts[0] == f"{tr.output_path.absolute()}:/cloudai_run_results"
+    assert mounts[1] == "/host:/container"
