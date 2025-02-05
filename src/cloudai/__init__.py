@@ -123,9 +123,8 @@ Registry().add_strategy(
 Registry().add_strategy(
     ReportGenerationStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherReportGenerationStrategy
 )
-Registry().add_strategy(
-    ReportGenerationStrategy, [SlurmSystem], [NeMoRunTestDefinition], NeMoRunReportGenerationStrategy
-)
+
+
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NCCLTestDefinition], NcclTestSlurmCommandGenStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [SleepTestDefinition], SleepGradingStrategy)
 Registry().add_strategy(
@@ -133,6 +132,9 @@ Registry().add_strategy(
     [SlurmSystem],
     [GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition],
     JaxToolboxReportGenerationStrategy,
+)
+Registry().add_strategy(
+    ReportGenerationStrategy, [SlurmSystem], [NeMoRunTestDefinition], NeMoRunReportGenerationStrategy
 )
 Registry().add_strategy(
     JobIdRetrievalStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherSlurmJobIdRetrievalStrategy

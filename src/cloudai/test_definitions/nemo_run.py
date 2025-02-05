@@ -14,10 +14,49 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+from typing import List, Optional, Union
+
+from pydantic import BaseModel, Field
 
 from cloudai import CmdArgs, TestDefinition
 from cloudai.installer.installables import DockerImage, Installable
+
+
+class Data(BaseModel):
+    """Data configuration for NeMoRun."""
+
+    micro_batch_size: Union[int, List[int]] = 1
+
+
+class TrainerStrategy(BaseModel):
+    """Trainer strategy configuration for NeMoRun."""
+
+    tensor_model_parallel_size: Union[int, List[int]] = 1
+    pipeline_model_parallel_size: Union[int, List[int]] = 1
+    context_parallel_size: Union[int, List[int]] = 2
+    virtual_pipeline_model_parallel_size: Optional[Union[int, List[int]]] = None
+
+
+class Trainer(BaseModel):
+    """Trainer configuration for NeMoRun."""
+
+    max_steps: Union[int, List[int]] = 1168251
+    val_check_interval: Union[int, List[int]] = 1000
+    num_nodes: Union[int, List[int]] = 1
+    strategy: TrainerStrategy = Field(default_factory=TrainerStrategy)
+
+
+class LogCkpt(BaseModel):
+    """Logging checkpoint configuration for NeMoRun."""
+
+    save_on_train_epoch_end: bool = Field(default=False)
+    save_last: bool = Field(default=False)
+
+
+class Log(BaseModel):
+    """Base logging configuration for NeMoRun."""
+
+    ckpt: LogCkpt = Field(default_factory=LogCkpt)
 
 
 class NeMoRunCmdArgs(CmdArgs):
@@ -26,10 +65,13 @@ class NeMoRunCmdArgs(CmdArgs):
     docker_image_url: str
     task: str
     recipe_name: str
+    trainer: Trainer = Field(default_factory=Trainer)
+    log: Log = Field(default_factory=Log)
+    data: Data = Field(default_factory=Data)
 
 
 class NeMoRunTestDefinition(TestDefinition):
-    """Test object for NeMoRun."""
+    """NeMoRun test definition."""
 
     cmd_args: NeMoRunCmdArgs
     _docker_image: Optional[DockerImage] = None

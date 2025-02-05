@@ -54,14 +54,18 @@ class CloudAIGymEnv(BaseGym):
             Dict[str, Any]: The action space.
         """
         action_space = {}
-        for key, value in self.test_run.test.cmd_args.items():
-            if isinstance(value, list):
-                action_space[key] = value
-            elif isinstance(value, dict):
-                for sub_key, sub_value in value.items():
-                    if isinstance(sub_value, list):
-                        action_space[f"{key}.{sub_key}"] = sub_value
+        cmd_args_dict = self.test_run.test.test_definition.cmd_args.model_dump()
+        self.populate_action_space("", cmd_args_dict, action_space)
         return action_space
+
+    def populate_action_space(self, prefix: str, d: dict, action_space: dict):
+        for key, value in d.items():
+            if isinstance(value, list):
+                action_space[f"{prefix}{key}"] = value
+            elif isinstance(value, dict):
+                self.populate_action_space(f"{prefix}{key}.", value, action_space)
+            else:
+                action_space[f"{prefix}{key}"] = [value]
 
     def define_observation_space(self) -> list:
         """
@@ -112,7 +116,6 @@ class CloudAIGymEnv(BaseGym):
         """
         for key, value in action.items():
             self.update_nested_attr(self.test_run.test.test_definition.cmd_args, key, value)
-
         asyncio.run(self.runner.run())
 
         observation = self.get_observation(action)
@@ -200,9 +203,6 @@ class CloudAIGymEnv(BaseGym):
     def update_nested_attr(self, obj, attr_path, value):
         """Update a nested attribute of an object."""
         attrs = attr_path.split(".")
-        prefix = "Grok"
-        if attrs[0] == prefix:
-            attrs = attrs[1:]
         for attr in attrs[:-1]:
             if hasattr(obj, attr):
                 obj = getattr(obj, attr)
