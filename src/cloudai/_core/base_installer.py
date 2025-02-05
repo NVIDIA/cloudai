@@ -133,7 +133,7 @@ class BaseInstaller(ABC):
                 try:
                     result = future.result()
                     done += 1
-                    msg = f"{done}/{total} Installation of {item}: {result.message if result.message else 'OK'}"
+                    msg = f"{done}/{total} Installation of {item!r}: {result.message if result.message else 'OK'}"
                     if result.success:
                         install_results[item] = "Success"
                         logging.info(msg)
