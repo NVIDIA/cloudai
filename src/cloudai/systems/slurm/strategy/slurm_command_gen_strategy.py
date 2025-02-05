@@ -66,9 +66,16 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         that should always be used.
         """
         tdef = tr.test.test_definition
+
+        repo_mounts = []
+        for repo in tdef.git_repos:
+            path = repo.installed_path.absolute() if repo.installed_path else self.system.install_path / repo.repo_name
+            repo_mounts.append(f"{path}:{repo.container_mount}")
+
         return [
             f"{tr.output_path.absolute()}:/cloudai_run_results",
             *tdef.extra_container_mounts,
+            *repo_mounts,
             *self._container_mounts(tr),
         ]
 

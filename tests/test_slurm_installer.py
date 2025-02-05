@@ -318,3 +318,11 @@ def test_check_supported(slurm_system: SlurmSystem):
         res = func(unsupported)
         assert not res.success
         assert res.message == f"Unsupported item type: {type(unsupported)}"
+
+
+def test_git_repo():
+    git = GitRepo(url="./git_url", commit="commit_hash")
+    assert git.container_mount == f"/git/{git.repo_name}"
+
+    git.mount_as = "/my_mount"
+    assert git.container_mount == git.mount_as
