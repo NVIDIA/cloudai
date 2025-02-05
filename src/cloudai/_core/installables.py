@@ -89,7 +89,7 @@ class GitRepo(Installable, BaseModel):
     url: str
     commit: str
     installed_path: Optional[Path] = Field(default=None, repr=False)
-    mount_as: Optional[str] = None
+    mount_as: Optional[str] = Field(default=None, repr=False)
 
     def __eq__(self, other: object) -> bool:
         """Check if two installable objects are equal."""
