@@ -93,8 +93,6 @@ class Training(BaseModel):
 class NeMoLauncherCmdArgs(CmdArgs):
     """NeMoLauncher test command arguments."""
 
-    repository_url: str = "https://github.com/NVIDIA/NeMo-Framework-Launcher.git"
-    repository_commit_hash: str = "599ecfcbbd64fd2de02f2cc093b1610d73854022"
     launcher_script: str = "launcher_scripts/main.py"
     docker_image_url: str = "nvcr.io/nvidia/nemo:24.05.01"
     stages: str = '["training"]'
@@ -107,6 +105,9 @@ class NeMoLauncherTestDefinition(TestDefinition):
     """Test object for NeMoLauncher."""
 
     cmd_args: NeMoLauncherCmdArgs
+    launcher_repo: GitRepo = GitRepo(
+        url="https://github.com/NVIDIA/NeMo-Framework-Launcher.git", commit="599ecfcbbd64fd2de02f2cc093b1610d73854022"
+    )
     _docker_image: Optional[DockerImage] = None
     _python_executable: Optional[PythonExecutable] = None
 
@@ -120,7 +121,7 @@ class NeMoLauncherTestDefinition(TestDefinition):
     def python_executable(self) -> PythonExecutable:
         if not self._python_executable:
             self._python_executable = PythonExecutable(
-                GitRepo(url=self.cmd_args.repository_url, commit=self.cmd_args.repository_commit_hash)
+                GitRepo(url=self.launcher_repo.url, commit=self.launcher_repo.commit)
             )
         return self._python_executable
 
