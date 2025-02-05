@@ -20,8 +20,7 @@ from typing import Union
 import pytest
 import toml
 
-from cloudai import Parser, Registry
-from cloudai._core.test import NsysConfiguration
+from cloudai import NsysConfiguration, Parser, Registry
 from cloudai.test_definitions import ChakraReplayCmdArgs, NCCLCmdArgs, NCCLTestDefinition
 from cloudai.test_definitions.chakra_replay import ChakraReplayTestDefinition
 from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition

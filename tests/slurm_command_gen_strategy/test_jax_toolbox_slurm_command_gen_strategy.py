@@ -196,13 +196,14 @@ class TestJaxToolboxSlurmCommandGenStrategy:
 
         assert python_cli == [
             'if [ "$SLURM_NODEID" -eq 0 ] && [ "$SLURM_PROCID" -eq 0 ]; then',
-            "    nsys profile \\",
+            "    nsys \\",
+            "    profile \\",
             "    -s none \\",
             f"    -o /opt/paxml/workspace/nsys_profile_{stage} \\",
-            "    --force-overwrite true \\",
+            "    --force-overwrite=true \\",
             "    --capture-range=cudaProfilerApi \\",
             "    --capture-range-end=stop \\",
-            "    --cuda-graph-trace=node \\",
+            "    --cuda-graph-trace=node\\",
             *expected_py_cmd,
             "else",
             *expected_py_cmd,

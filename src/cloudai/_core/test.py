@@ -111,22 +111,22 @@ class NsysConfiguration(BaseModel):
     @property
     def cmd_args(self) -> list[str]:
         parts = [f"{self.nsys_binary}", f"{self.task}"]
-        if self.output:
-            parts.append(f"-o {self.output}")
         if self.sample:
             parts.append(f"-s {self.sample}")
+        if self.output:
+            parts.append(f"-o {self.output}")
         if self.trace:
             parts.append(f"-t {self.trace}")
         if self.force_overwrite is not None:
-            parts.append(f"--force-overwrite {str(self.force_overwrite).lower()}")
+            parts.append(f"--force-overwrite={str(self.force_overwrite).lower()}")
         if self.capture_range:
-            parts.append(f"--capture-range {self.capture_range}")
+            parts.append(f"--capture-range={self.capture_range}")
         if self.capture_range_end:
-            parts.append(f"--capture-range-end {self.capture_range_end}")
+            parts.append(f"--capture-range-end={self.capture_range_end}")
         if self.cuda_graph_trace:
-            parts.append(f"--cuda-graph-trace {self.cuda_graph_trace}")
+            parts.append(f"--cuda-graph-trace={self.cuda_graph_trace}")
         if self.gpu_metrics_devices:
-            parts.append(f"--gpu-metrics-devices {self.gpu_metrics_devices}")
+            parts.append(f"--gpu-metrics-devices={self.gpu_metrics_devices}")
         parts.extend(self.extra_args)
 
         return parts

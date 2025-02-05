@@ -17,7 +17,7 @@
 from pathlib import Path
 from typing import Any, Dict, List, Union, cast
 
-from cloudai import TestRun
+from cloudai import NsysConfiguration, TestRun
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 from cloudai.test_definitions.gpt import GPTTestDefinition
@@ -42,6 +42,10 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         mounts.append(f"{tr.output_path.resolve()}:{docker_workspace_dir}")
 
         return mounts
+
+    def gen_nsys_command(self, tr: TestRun) -> list[str]:
+        """NSYS profiling is in the run.sh script and disabled for srun level."""
+        return []
 
     def gen_exec_command(self, tr: TestRun) -> str:
         self.test_name = self._extract_test_name(tr.test.cmd_args)
@@ -282,19 +286,22 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if stage == "profile":
             python_command += " >> /opt/paxml/workspace/profile_stderr_${SLURM_PROCID}.txt 2>&1"
 
-        nsys_command = (
-            "nsys profile \\\n"
-            "    -s none \\\n"
-            f"    -o /opt/paxml/workspace/nsys_profile_{stage} \\\n"
-            "    --force-overwrite true \\\n"
-            "    --capture-range=cudaProfilerApi \\\n"
-            "    --capture-range-end=stop \\\n"
-            "    --cuda-graph-trace=node \\\n"
+        nsys = NsysConfiguration(
+            enable=True,
+            nsys_binary="nsys",
+            task="profile",
+            sample="none",
+            output=f"/opt/paxml/workspace/nsys_profile_{stage}",
+            force_overwrite=True,
+            capture_range="cudaProfilerApi",
+            capture_range_end="stop",
+            cuda_graph_trace="node",
         )
+        nsys_command = " \\\n    ".join(nsys.cmd_args)
 
         slurm_check = (
             'if [ "$SLURM_NODEID" -eq 0 ] && [ "$SLURM_PROCID" -eq 0 ]; then\n'
-            f"    {nsys_command}    {python_command}\n"
+            f"    {nsys_command}\\\n    {python_command}\n"
             "else\n"
             f"    {python_command}\n"
             "fi"
