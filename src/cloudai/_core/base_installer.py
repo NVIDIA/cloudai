@@ -91,9 +91,9 @@ class BaseInstaller(ABC):
 
         not_installed = {}
         for item in items:
-            logging.debug(f"Installation check for {item}")
+            logging.debug(f"Installation check for {item!r}")
             result = self.is_installed_one(item)
-            logging.debug(f"Installation check for {item}: {result.success}, {result.message}")
+            logging.debug(f"Installation check for {item!r}: {result.success}, {result.message}")
             if not result.success:
                 not_installed[item] = result.message
 
@@ -142,7 +142,7 @@ class BaseInstaller(ABC):
                         logging.error(msg)
                 except Exception as e:
                     done += 1
-                    logging.error(f"{done}/{total} Installation failed for {item}: {e}")
+                    logging.error(f"{done}/{total} Installation failed for {item!r}: {e}")
                     install_results[item] = str(e)
 
         all_success = all(result == "Success" for result in install_results.values())
@@ -177,7 +177,7 @@ class BaseInstaller(ABC):
                     else:
                         uninstall_results[item] = result.message
                 except Exception as e:
-                    logging.error(f"Uninstallation failed for {item}: {e}")
+                    logging.error(f"Uninstallation failed for {item!r}: {e}")
                     uninstall_results[item] = str(e)
 
         all_success = all(result == "Success" for result in uninstall_results.values())

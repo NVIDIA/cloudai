@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Union
 
@@ -37,7 +37,7 @@ class DockerImage(Installable):
     """Docker image object."""
 
     url: str
-    _installed_path: Optional[Union[str, Path]] = None
+    _installed_path: Optional[Union[str, Path]] = field(default=None, repr=False)
 
     def __eq__(self, other: object) -> bool:
         """Check if two installable objects are equal."""
