@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 
 class Installable(ABC):
@@ -88,8 +88,11 @@ class GitRepo(Installable, BaseModel):
 
     url: str
     commit: str
-    installed_path: Optional[Path] = Field(default=None, repr=False)
-    mount_as: Optional[str] = Field(default=None, repr=False)
+    installed_path: Optional[Path] = None
+    mount_as: Optional[str] = None
+
+    def __repr__(self) -> str:
+        return f"GitRepo(url={self.url}, commit={self.commit})"
 
     def __eq__(self, other: object) -> bool:
         """Check if two installable objects are equal."""
