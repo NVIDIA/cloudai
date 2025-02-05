@@ -22,7 +22,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from cloudai import BaseInstaller, InstallStatusResult
-from cloudai.installer.installables import DockerImage, GitRepo, Installable
+from cloudai._core.installables import DockerImage, GitRepo, Installable
 from cloudai.systems import SlurmSystem
 from cloudai.util import prepare_output_dir
 
@@ -131,7 +131,7 @@ def test_docker_cache_filename(url: str, expected: str):
     ],
 )
 def test_git_repo_name(url: str, expected: str):
-    assert GitRepo(url, "commit").repo_name == expected
+    assert GitRepo(url=url, commit="commit").repo_name == expected
 
 
 @pytest.fixture

@@ -16,8 +16,7 @@
 
 from typing import Optional
 
-from cloudai import CmdArgs, Installable, TestDefinition
-from cloudai.installer.installables import DockerImage, GitRepo
+from cloudai import CmdArgs, DockerImage, GitRepo, Installable, TestDefinition
 
 
 class SlurmContainerCmdArgs(CmdArgs):
@@ -48,18 +47,14 @@ class SlurmContainerTestDefinition(TestDefinition):
     @property
     def git_repo(self) -> GitRepo:
         if not self._git_repo:
-            self._git_repo = GitRepo(
-                git_url=self.cmd_args.repository_url, commit_hash=self.cmd_args.repository_commit_hash
-            )
+            self._git_repo = GitRepo(url=self.cmd_args.repository_url, commit=self.cmd_args.repository_commit_hash)
 
         return self._git_repo
 
     @property
     def mcore_vfm_git_repo(self) -> GitRepo:
         if not self._mcore_git_repo:
-            self._mcore_git_repo = GitRepo(
-                git_url=self.cmd_args.mcore_vfm_repo, commit_hash=self.cmd_args.mcore_vfm_commit_hash
-            )
+            self._mcore_git_repo = GitRepo(url=self.cmd_args.mcore_vfm_repo, commit=self.cmd_args.mcore_vfm_commit_hash)
 
         return self._mcore_git_repo
 

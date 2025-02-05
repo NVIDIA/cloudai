@@ -28,6 +28,7 @@ from ._core.exceptions import (
 )
 from ._core.grader import Grader
 from ._core.grading_strategy import GradingStrategy
+from ._core.installables import DockerImage, GitRepo, Installable, PythonExecutable
 from ._core.job_id_retrieval_strategy import JobIdRetrievalStrategy
 from ._core.job_status_result import JobStatusResult
 from ._core.job_status_retrieval_strategy import JobStatusRetrievalStrategy
@@ -36,7 +37,7 @@ from ._core.registry import Registry
 from ._core.report_generation_strategy import ReportGenerationStrategy
 from ._core.runner import Runner
 from ._core.system import System
-from ._core.test import CmdArgs, Installable, Test, TestDefinition
+from ._core.test import CmdArgs, Test, TestDefinition
 from ._core.test_parser import TestParser
 from ._core.test_scenario import TestRun, TestScenario
 from ._core.test_scenario_parser import TestScenarioParser
@@ -251,6 +252,8 @@ __all__ = [
     "BaseSystemParser",
     "CmdArgs",
     "CommandGenStrategy",
+    "DockerImage",
+    "GitRepo",
     "Grader",
     "GradingStrategy",
     "InstallStatusResult",
@@ -259,6 +262,7 @@ __all__ = [
     "JobStatusResult",
     "JsonGenStrategy",
     "Parser",
+    "PythonExecutable",
     "ReportGenerationStrategy",
     "ReportGenerator",
     "Runner",

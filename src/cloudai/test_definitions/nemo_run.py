@@ -16,8 +16,7 @@
 
 from typing import Optional
 
-from cloudai import CmdArgs, TestDefinition
-from cloudai.installer.installables import DockerImage, Installable
+from cloudai import CmdArgs, DockerImage, Installable, TestDefinition
 
 
 class NeMoRunCmdArgs(CmdArgs):

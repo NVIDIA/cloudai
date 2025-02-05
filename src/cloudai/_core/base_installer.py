@@ -23,8 +23,8 @@ from typing import Iterable, final
 from cloudai.util import prepare_output_dir
 
 from .install_status_result import InstallStatusResult
+from .installables import Installable
 from .system import System
-from .test import Installable
 
 
 class BaseInstaller(ABC):

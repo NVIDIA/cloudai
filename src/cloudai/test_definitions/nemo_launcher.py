@@ -18,8 +18,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cloudai import CmdArgs, TestDefinition
-from cloudai.installer.installables import DockerImage, GitRepo, Installable, PythonExecutable
+from cloudai import CmdArgs, DockerImage, GitRepo, Installable, PythonExecutable, TestDefinition
 
 
 class NumaMapping(BaseModel):
@@ -121,7 +120,7 @@ class NeMoLauncherTestDefinition(TestDefinition):
     def python_executable(self) -> PythonExecutable:
         if not self._python_executable:
             self._python_executable = PythonExecutable(
-                GitRepo(git_url=self.cmd_args.repository_url, commit_hash=self.cmd_args.repository_commit_hash)
+                GitRepo(url=self.cmd_args.repository_url, commit=self.cmd_args.repository_commit_hash)
             )
         return self._python_executable
 

@@ -19,17 +19,8 @@ from typing import Any, Dict, List, Union
 
 from pydantic import BaseModel, ConfigDict
 
+from .installables import GitRepo, Installable
 from .test_template import TestTemplate
-
-
-class Installable(ABC):
-    """Installable object."""
-
-    @abstractmethod
-    def __eq__(self, other: object) -> bool: ...
-
-    @abstractmethod
-    def __hash__(self) -> int: ...
 
 
 class Test:
