@@ -278,6 +278,16 @@ def test_default_container_mounts(strategy_fixture: SlurmCommandGenStrategy, tes
     assert mounts[0] == f"{testrun_fixture.output_path.absolute()}:/cloudai_run_results"
 
 
+def test_append_sbatch_directives(strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path):
+    content: list[str] = []
+    strategy_fixture.system.extra_sbatch_args = ["--section=4", "--other-arg 1"]
+    strategy_fixture._append_sbatch_directives(content, {"node_list_str": ""}, tmp_path)
+
+    assert f"#SBATCH --partition={strategy_fixture.system.default_partition}" in content
+    for arg in strategy_fixture.system.extra_sbatch_args:
+        assert f"#SBATCH {arg}" in content
+
+
 def test_default_container_mounts_with_extra_mounts(strategy_fixture: SlurmCommandGenStrategy):
     nccl = NCCLTestDefinition(
         name="name",
