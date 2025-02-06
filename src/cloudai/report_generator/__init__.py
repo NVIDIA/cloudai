@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .report_generator import ReportGenerator
+from .report_generator import Reporter
 
 __all__ = [
-    "ReportGenerator",
+    "Reporter",
 ]

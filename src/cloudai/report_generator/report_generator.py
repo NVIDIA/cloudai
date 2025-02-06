@@ -16,11 +16,12 @@
 
 import logging
 from pathlib import Path
+from typing import Type, cast
 
-from cloudai import TestRun, TestScenario
+from cloudai import Registry, ReportGenerationStrategy, System, TestRun, TestScenario
 
 
-class ReportGenerator:
+class Reporter:
     """
     Generates reports for each test in a TestScenario.
 
@@ -28,16 +29,12 @@ class ReportGenerator:
     based on subdirectories.
     """
 
-    def __init__(self, output_path: Path) -> None:
-        """
-        Initialize the ReportGenerator with the path for output.
+    def __init__(self, system: System, test_scenario: TestScenario, results_root: Path) -> None:
+        self.system = system
+        self.test_scenario = test_scenario
+        self.results_root = results_root
 
-        Args:
-            output_path (Path): Output directory path.
-        """
-        self.output_path = output_path
-
-    def generate_report(self, test_scenario: TestScenario) -> None:
+    def generate_report(self) -> None:
         """
         Iterate over tests in the given test scenario.
 
@@ -47,13 +44,9 @@ class ReportGenerator:
         Args:
             test_scenario (TestScenario): The scenario containing tests.
         """
-        for tr in test_scenario.test_runs:
-            section_name = tr.name
-            if not section_name:
-                logging.warning(f"Missing section name for test {tr.test.name}")
-                continue
-            test_output_dir = self.output_path / section_name
-            if not test_output_dir.exists():
+        for tr in self.test_scenario.test_runs:
+            test_output_dir = self.results_root / tr.name
+            if not test_output_dir.exists() or not test_output_dir.is_dir():
                 logging.warning(f"Directory '{test_output_dir}' not found.")
                 continue
 
@@ -69,17 +62,24 @@ class ReportGenerator:
             directory_path (Path): Directory for the test's section.
             tr (TestRun): The test run object.
         """
+        key = (ReportGenerationStrategy, type(self.system), type(tr.test.test_definition))
+        registry = Registry()
+        rgs_type = cast(Type[ReportGenerationStrategy], registry.strategies_map.get(key))
+        if not rgs_type:
+            logging.warning(
+                f"No ReportGenerationStrategy found for system type={type(self.system)} and "
+                f"test definition type={type(tr.test.test_definition)}, report generation skipped."
+            )
+            return
+
         for subdir in directory_path.iterdir():
-            if not subdir.is_dir():
-                logging.debug(f"Skipping file '{subdir}', not a directory.")
-                continue
             if tr.step > 0:
                 subdir = subdir / f"{tr.step}"
-            if not tr.test.test_template.can_handle_directory(subdir):
-                logging.warning(
-                    f"Skipping '{subdir}', can't handle with "
-                    f"strategy={tr.test.test_template.report_generation_strategy}."
-                )
+            tr.output_path = subdir
+
+            rgs = rgs_type(tr)
+            if not rgs.can_handle_directory():
+                logging.warning(f"Skipping '{tr.output_path}', can't handle with " f"strategy={rgs_type}.")
                 continue
 
-            tr.test.test_template.generate_report(tr.test.name, subdir, tr.sol)
+            rgs.generate_report()

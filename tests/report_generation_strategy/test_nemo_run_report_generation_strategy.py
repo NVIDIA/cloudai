@@ -15,16 +15,27 @@
 # limitations under the License.
 
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
+from cloudai import Test, TestRun
 from cloudai.schema.test_template.nemo_run.report_generation_strategy import NeMoRunReportGenerationStrategy
+from cloudai.test_definitions.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
 
 
 @pytest.fixture
-def nemo_test_environment(tmp_path: Path) -> Path:
-    test_dir = tmp_path / "test_nemo_env"
-    test_dir.mkdir()
+def nemo_tr(tmp_path: Path) -> TestRun:
+    test = Test(
+        test_definition=NeMoRunTestDefinition(
+            name="nemo",
+            description="desc",
+            test_template_name="t",
+            cmd_args=NeMoRunCmdArgs(docker_image_url="docker://url", task="task", recipe_name="recipe"),
+        ),
+        test_template=Mock(),
+    )
+    tr = TestRun(name="nemo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
 
     stdout_content = (
         "[NeMo I 2024-11-15 10:22:04 utils:259] Setting up optimizer with config "
@@ -46,21 +57,21 @@ def nemo_test_environment(tmp_path: Path) -> Path:
         "train_step_timing in s: 53.16\n"
     )
 
-    (test_dir / "stdout.txt").write_text(stdout_content)
+    (tr.output_path / "stdout.txt").write_text(stdout_content)
 
-    return test_dir
-
-
-def test_nemo_can_handle_directory(nemo_test_environment: Path) -> None:
-    strategy = NeMoRunReportGenerationStrategy()
-    assert strategy.can_handle_directory(nemo_test_environment)
+    return tr
 
 
-def test_nemo_generate_report(nemo_test_environment: Path) -> None:
-    strategy = NeMoRunReportGenerationStrategy()
-    strategy.generate_report("nemo_test", nemo_test_environment)
+def test_nemo_can_handle_directory(nemo_tr: TestRun) -> None:
+    strategy = NeMoRunReportGenerationStrategy(nemo_tr)
+    assert strategy.can_handle_directory()
 
-    summary_file = nemo_test_environment / "summary.txt"
+
+def test_nemo_generate_report(nemo_tr: TestRun) -> None:
+    strategy = NeMoRunReportGenerationStrategy(nemo_tr)
+    strategy.generate_report()
+
+    summary_file = nemo_tr.output_path / "summary.txt"
     assert summary_file.is_file(), "Summary report was not generated."
 
     summary_values = summary_file.read_text().strip().split(",")

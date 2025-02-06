@@ -33,8 +33,8 @@ class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
     Visualizing bus bandwidth changes over epochs using interactive Bokeh plots.
     """
 
-    def can_handle_directory(self, directory_path: Path) -> bool:
-        stdout_path = directory_path / "stdout.txt"
+    def can_handle_directory(self) -> bool:
+        stdout_path = self.test_run.output_path / "stdout.txt"
         if stdout_path.exists():
             with stdout_path.open("r") as file:
                 content = file.read()
@@ -48,8 +48,8 @@ class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
                     return True
         return False
 
-    def generate_report(self, test_name: str, directory_path: Path, sol: Optional[float] = None) -> None:
-        report_data, _ = self._parse_output(directory_path)
+    def generate_report(self) -> None:
+        report_data, _ = self._parse_output()
         if report_data:
             df = pd.DataFrame(
                 report_data,
@@ -78,20 +78,17 @@ class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
             df["Busbw (GB/s) In-place"] = df["Busbw (GB/s) In-place"].astype(float)
             df = add_human_readable_sizes(df, "Size (B)", "Size Human-readable")
 
-            self._generate_bokeh_report(test_name, df, directory_path, sol)
-            self._generate_csv_report(df, directory_path)
+            self._generate_bokeh_report(self.test_run.name, df)
+            self._generate_csv_report(df)
 
-    def _parse_output(self, directory_path: Path) -> Tuple[List[List[str]], Optional[float]]:
+    def _parse_output(self) -> Tuple[List[List[str]], Optional[float]]:
         """
         Extract data from 'stdout.txt' for report generation.
-
-        Args:
-            directory_path (Path): Directory containing 'stdout.txt'.
 
         Returns:
             Tuple[List[List[str]], Optional[float]]: Parsed data and optional average bus bandwidth.
         """
-        stdout_path = directory_path / "stdout.txt"
+        stdout_path = self.test_run.output_path / "stdout.txt"
         avg_bus_bw = None
         data = []
         if stdout_path.is_file():
@@ -105,19 +102,15 @@ class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
                 avg_bus_bw = float(avg_bus_bw_match.group(1)) if avg_bus_bw_match else None
         return data, avg_bus_bw
 
-    def _generate_bokeh_report(
-        self, test_name: str, df: pd.DataFrame, directory_path: Path, sol: Optional[float]
-    ) -> None:
+    def _generate_bokeh_report(self, test_name: str, df: pd.DataFrame) -> None:
         """
         Create and saves plots to visualize NCCL test metrics.
 
         Args:
             test_name (str): The name of the test.
             df (pd.DataFrame): DataFrame containing the NCCL test data.
-            directory_path (Path): Output directory path for saving the plots.
-            sol (Optional[float]): Speed-of-light performance for reference.
         """
-        report_tool = BokehReportTool(directory_path)
+        report_tool = BokehReportTool(self.test_run.output_path)
         line_plots = [
             ("Busbw (GB/s) Out-of-place", "blue", "Out-of-place Bus Bandwidth"),
             ("Busbw (GB/s) In-place", "green", "In-place Bus Bandwidth"),
@@ -130,7 +123,7 @@ class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
                 x_axis_label="Message Size",
                 y_axis_label="Bandwidth (GB/s)",
                 df=df,
-                sol=sol,
+                sol=self.test_run.sol,
             )
 
         combined_columns = [("Busbw (GB/s) Out-of-place", "blue"), ("Busbw (GB/s) In-place", "green")]
@@ -141,19 +134,18 @@ class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
             x_axis_label="Message Size",
             y_axis_label="Bandwidth (GB/s)",
             df=df,
-            sol=sol,
+            sol=self.test_run.sol,
         )
 
         report_tool.finalize_report(Path("cloudai_nccl_test_bokeh_report.html"))
 
-    def _generate_csv_report(self, df: pd.DataFrame, directory_path: Path) -> None:
+    def _generate_csv_report(self, df: pd.DataFrame) -> None:
         """
         Generate a CSV report from the DataFrame.
 
         Args:
             df (pd.DataFrame): DataFrame containing the NCCL test data.
-            directory_path (Path): Output directory path for saving the CSV report.
         """
-        csv_report_tool = CSVReportTool(directory_path)
+        csv_report_tool = CSVReportTool(self.test_run.output_path)
         csv_report_tool.set_dataframe(df)
         csv_report_tool.finalize_report(Path("cloudai_nccl_test_csv_report.csv"))

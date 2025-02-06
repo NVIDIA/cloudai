@@ -15,39 +15,18 @@
 # limitations under the License.
 
 from abc import abstractmethod
-from pathlib import Path
-from typing import Optional
+
+from .test_scenario import TestRun
 
 
 class ReportGenerationStrategy:
-    """
-    Abstract class for generating reports from directories.
+    """Abstract class for generating reports from TestRun objects."""
 
-    This class defines a strategy for checking if a strategy can handle a
-    specific directory and for generating a report from that directory.
-    """
+    def __init__(self, tr: TestRun) -> None:
+        self.test_run = tr
 
     @abstractmethod
-    def can_handle_directory(self, directory_path: Path) -> bool:
-        """
-        Determine if the strategy can handle the directory.
-
-        Args:
-            directory_path (Path): Path to the directory.
-
-        Returns:
-            bool: True if can handle, False otherwise.
-        """
-        pass
+    def can_handle_directory(self) -> bool: ...
 
     @abstractmethod
-    def generate_report(self, test_name: str, directory_path: Path, sol: Optional[float] = None) -> None:
-        """
-        Generate a report from the directory.
-
-        Args:
-            test_name (str): The name of the test.
-            directory_path (Path): Path to the directory.
-            sol (Optional[float]): Speed-of-light performance for reference.
-        """
-        pass
+    def generate_report(self) -> None: ...

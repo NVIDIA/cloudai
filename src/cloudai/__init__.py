@@ -46,7 +46,7 @@ from .installer.kubernetes_installer import KubernetesInstaller
 from .installer.slurm_installer import SlurmInstaller
 from .installer.standalone_installer import StandaloneInstaller
 from .parser import Parser
-from .report_generator import ReportGenerator
+from .report_generator import Reporter
 from .runner.kubernetes.kubernetes_runner import KubernetesRunner
 from .runner.slurm.slurm_runner import SlurmRunner
 from .runner.standalone.standalone_runner import StandaloneRunner
@@ -260,7 +260,7 @@ __all__ = [
     "JsonGenStrategy",
     "Parser",
     "ReportGenerationStrategy",
-    "ReportGenerator",
+    "Reporter",
     "Runner",
     "System",
     "SystemConfigParsingError",
