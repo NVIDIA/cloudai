@@ -27,8 +27,6 @@ class Data(BaseModel):
 
     micro_batch_size: Union[int, List[int]] = 1
     global_batch_size: Union[int, List[int]] = 1
-    num_train_samples: Union[int, List[int]] = 1
-    tokenizer: Optional[str] = None
 
 
 class TrainerStrategy(BaseModel):

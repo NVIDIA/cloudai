@@ -170,7 +170,6 @@ def test_populate_action_space():
         ),
         data=Data(
             micro_batch_size=[1, 2],
-            tokenizer=None,
         ),
         log=Log(
             ckpt=LogCkpt(
