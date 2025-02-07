@@ -25,15 +25,7 @@ class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for generic Slurm container tests."""
 
     def _container_mounts(self, tr: TestRun) -> list[str]:
-        tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
-        repo_path = tdef.git_repo.installed_path or self.system.install_path / tdef.git_repo.repo_name
-        mcore_vfm_path = (
-            tdef.mcore_vfm_git_repo.installed_path or self.system.install_path / tdef.mcore_vfm_git_repo.repo_name
-        )
-        return [
-            f"{repo_path.absolute()}:/work",
-            f"{mcore_vfm_path.absolute()}:/opt/megatron-lm",
-        ]
+        return []
 
     def gen_srun_prefix(self, slurm_args: dict[str, Any], tr: TestRun) -> list[str]:
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)

@@ -14,11 +14,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Union
 
-from cloudai import Installable
+from pydantic import BaseModel, ConfigDict
+
+
+class Installable(ABC):
+    """Installable object."""
+
+    @abstractmethod
+    def __eq__(self, other: object) -> bool: ...
+
+    @abstractmethod
+    def __hash__(self) -> int: ...
 
 
 @dataclass
@@ -26,7 +37,7 @@ class DockerImage(Installable):
     """Docker image object."""
 
     url: str
-    _installed_path: Optional[Union[str, Path]] = None
+    _installed_path: Optional[Union[str, Path]] = field(default=None, repr=False)
 
     def __eq__(self, other: object) -> bool:
         """Check if two installable objects are equal."""
@@ -70,26 +81,35 @@ class DockerImage(Installable):
         self._installed_path = value
 
 
-@dataclass
-class GitRepo(Installable):
+class GitRepo(Installable, BaseModel):
     """Git repository object."""
 
-    git_url: str
-    commit_hash: str
-    installed_path: Optional[Path] = field(default=None, repr=False)
+    model_config = ConfigDict(extra="forbid")
+
+    url: str
+    commit: str
+    installed_path: Optional[Path] = None
+    mount_as: Optional[str] = None
+
+    def __repr__(self) -> str:
+        return f"GitRepo(url={self.url}, commit={self.commit})"
 
     def __eq__(self, other: object) -> bool:
         """Check if two installable objects are equal."""
-        return isinstance(other, GitRepo) and other.git_url == self.git_url and other.commit_hash == self.commit_hash
+        return isinstance(other, GitRepo) and other.url == self.url and other.commit == self.commit
 
     def __hash__(self) -> int:
         """Hash the installable object."""
-        return hash((self.git_url, self.commit_hash))
+        return hash((self.url, self.commit))
 
     @property
     def repo_name(self) -> str:
-        repo_name = self.git_url.rsplit("/", maxsplit=1)[1].replace(".git", "")
-        return f"{repo_name}__{self.commit_hash}"
+        repo_name = self.url.rsplit("/", maxsplit=1)[1].replace(".git", "")
+        return f"{repo_name}__{self.commit}"
+
+    @property
+    def container_mount(self) -> str:
+        return self.mount_as or f"/git/{self.repo_name}"
 
 
 @dataclass
@@ -103,8 +123,8 @@ class PythonExecutable(Installable):
         """Check if two installable objects are equal."""
         return (
             isinstance(other, PythonExecutable)
-            and other.git_repo.git_url == self.git_repo.git_url
-            and other.git_repo.commit_hash == self.git_repo.commit_hash
+            and other.git_repo.url == self.git_repo.url
+            and other.git_repo.commit == self.git_repo.commit
         )
 
     def __hash__(self) -> int:
@@ -113,7 +133,7 @@ class PythonExecutable(Installable):
 
     def __str__(self) -> str:
         """Return the string representation of the python executable."""
-        return f"PythonExecutable(git_url={self.git_repo.git_url}, commit_hash={self.git_repo.commit_hash})"
+        return f"PythonExecutable(git_url={self.git_repo.url}, commit_hash={self.git_repo.commit})"
 
     @property
     def venv_name(self) -> str:

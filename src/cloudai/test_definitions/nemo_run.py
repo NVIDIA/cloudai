@@ -18,8 +18,7 @@ from typing import List, Optional, Union
 
 from pydantic import BaseModel, Field
 
-from cloudai import CmdArgs, TestDefinition
-from cloudai.installer.installables import DockerImage, Installable
+from cloudai import CmdArgs, DockerImage, Installable, TestDefinition
 
 
 class Data(BaseModel):

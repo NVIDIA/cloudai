@@ -19,8 +19,7 @@ import subprocess
 from pathlib import Path
 from shutil import rmtree
 
-from cloudai import BaseInstaller, InstallStatusResult
-from cloudai.installer.installables import DockerImage, GitRepo, Installable, PythonExecutable
+from cloudai import BaseInstaller, DockerImage, GitRepo, Installable, InstallStatusResult, PythonExecutable
 from cloudai.systems import SlurmSystem
 from cloudai.util.docker_image_cache_manager import DockerImageCacheManager, DockerImageCacheResult
 
@@ -155,7 +154,7 @@ class SlurmInstaller(BaseInstaller):
             if repo_path.exists():
                 item.installed_path = repo_path
                 return InstallStatusResult(True)
-            return InstallStatusResult(False, f"Git repository {item.git_url} not cloned")
+            return InstallStatusResult(False, f"Git repository {item.url} not cloned")
         elif isinstance(item, PythonExecutable):
             return self._is_python_executable_installed(item)
 
@@ -181,11 +180,11 @@ class SlurmInstaller(BaseInstaller):
             logging.warning(msg)
             return InstallStatusResult(True, msg)
 
-        res = self._clone_repository(item.git_url, repo_path)
+        res = self._clone_repository(item.url, repo_path)
         if not res.success:
             return res
 
-        res = self._checkout_commit(item.commit_hash, repo_path)
+        res = self._checkout_commit(item.commit, repo_path)
         if not res.success:
             return res
 
@@ -257,7 +256,7 @@ class SlurmInstaller(BaseInstaller):
     def _uninstall_git_repo(self, item: GitRepo) -> InstallStatusResult:
         repo_path = item.installed_path if item.installed_path else self.system.install_path / item.repo_name
         if not repo_path.exists():
-            msg = f"Repository {item.git_url} is not cloned."
+            msg = f"Repository {item.url} is not cloned."
             logging.warning(msg)
             return InstallStatusResult(True, msg)
 
@@ -289,12 +288,12 @@ class SlurmInstaller(BaseInstaller):
             else self.system.install_path / item.git_repo.repo_name
         )
         if not repo_path.exists():
-            return InstallStatusResult(False, f"Git repository {item.git_repo.git_url} not cloned")
+            return InstallStatusResult(False, f"Git repository {item.git_repo.url} not cloned")
         item.git_repo.installed_path = repo_path
 
         venv_path = item.venv_path if item.venv_path else self.system.install_path / item.venv_name
         if not venv_path.exists():
-            return InstallStatusResult(False, f"Virtual environment not created for {item.git_repo.git_url}")
+            return InstallStatusResult(False, f"Virtual environment not created for {item.git_repo.url}")
         item.venv_path = venv_path
 
         return InstallStatusResult(True, "Python executable installed")
