@@ -15,18 +15,9 @@
 # limitations under the License.
 
 name = "nemo_run_llama3_8b"
-description = "nemo_run_llama3_8b"
-test_template_name = "NeMoRun"
 
-[cmd_args]
-docker_image_url = "nvcr.io/nvidia/nemo:24.09"
-task = "pretrain"
-recipe_name = "llama3_8b"
-
-  [cmd_args.trainer]
-  max_steps = 5
-  val_check_interval = 1000
-
-  [cmd_args.log.ckpt]
-  save_on_train_epoch_end = false
-  save_last = false
+[[Tests]]
+id = "dse_nemo_run_llama3_8b_1"
+test_name = "dse_nemo_run_llama3_8b"
+num_nodes = "1"
+time_limit = "00:30:00"
