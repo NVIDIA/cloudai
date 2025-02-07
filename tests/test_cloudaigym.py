@@ -182,6 +182,9 @@ def test_populate_action_space():
         "data.micro_batch_size": [1, 2],
         "log.ckpt.save_on_train_epoch_end": [False],
         "log.ckpt.save_last": [False],
+        "custom_recipe_path": [
+            None,
+        ],
     }
 
     assert action_space == expected_action_space

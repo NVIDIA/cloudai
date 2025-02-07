@@ -36,6 +36,11 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return base_args
 
     def _container_mounts(self, tr: TestRun) -> List[str]:
+        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
+
+        if tdef.cmd_args.task == "custom" and tdef.cmd_args.custom_recipe_path:
+            return [f"{tdef.cmd_args.custom_recipe_path}:{tdef.cmd_args.custom_recipe_path}"]
+
         return []
 
     def flatten_dict(self, d: dict[str, str], parent_key: str = "", sep: str = "."):
@@ -62,10 +67,21 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
 
         cmd_args_dict = tdef.cmd_args.model_dump()
-
         cmd_args_dict.pop("docker_image_url")
 
-        command = ["nemo", "llm", cmd_args_dict.pop("task"), "--factory", cmd_args_dict.pop("recipe_name"), "-y"]
+        task = cmd_args_dict.pop("task")
+
+        if task != "custom":
+            return self._generate_standard_task_command(task, env_vars, cmd_args_dict, tr)
+        else:
+            return self._generate_custom_task_command(env_vars, cmd_args_dict, tr)
+
+    def _generate_standard_task_command(
+        self, task: str, env_vars: Dict[str, str], cmd_args_dict: Dict[str, Any], tr: TestRun
+    ) -> List[str]:
+        cmd_args_dict.pop("custom_recipe_path", None)
+
+        command = ["nemo", "llm", task, "--factory", cmd_args_dict.pop("recipe_name"), "-y"]
 
         if tr.nodes:
             command.append(f"trainer.num_nodes={len(self.system.parse_nodes(tr.nodes))}")
@@ -73,6 +89,21 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             command.append(f"trainer.num_nodes={tr.num_nodes}")
 
         self.append_flattened_dict("", cmd_args_dict, command)
+
+        if tr.test.extra_cmd_args:
+            command.append(tr.test.extra_cmd_args)
+
+        return command
+
+    def _generate_custom_task_command(
+        self, env_vars: Dict[str, str], cmd_args_dict: Dict[str, Any], tr: TestRun
+    ) -> List[str]:
+        custom_recipe_path = cmd_args_dict.pop("custom_recipe_path", None)
+
+        if not custom_recipe_path:
+            raise ValueError("Missing required 'custom_recipe_path' for custom task mode.")
+
+        command = ["python", custom_recipe_path]
 
         if tr.test.extra_cmd_args:
             command.append(tr.test.extra_cmd_args)

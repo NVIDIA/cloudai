@@ -64,6 +64,7 @@ class NeMoRunCmdArgs(CmdArgs):
     docker_image_url: str
     task: str
     recipe_name: str
+    custom_recipe_path: Optional[str] = None
     trainer: Trainer = Field(default_factory=Trainer)
     log: Log = Field(default_factory=Log)
     data: Data = Field(default_factory=Data)
