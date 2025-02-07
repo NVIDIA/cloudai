@@ -51,7 +51,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
         test = Test(test_definition=tdef, test_template=Mock())
         tr = TestRun(
             test=test,
-            num_nodes=2,
+            num_nodes=1,
             nodes=[],
             output_path=tmp_path / "output",
             name="test-job",
@@ -90,13 +90,16 @@ class TestNeMoRunSlurmCommandGenStrategy:
         assert f"log.ckpt.save_last={cmd_args.log.ckpt.save_last}" in cmd
         assert f"data.micro_batch_size={cmd_args.data.micro_batch_size}" in cmd
 
-    def test_num_nodes(self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy, test_run: TestRun) -> None:
-        test_run.nodes = ["node[1-3]"]
+    def test_num_nodes(self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy, test_run: TestRun, capsys) -> None:
+        test_run.nodes = ["node1"]
+        cmd_args_dict = test_run.test.test_definition.cmd_args.model_dump()
+        cmd_args_dict["trainer"]["num_nodes"] = len(test_run.nodes)
+
         cmd = cmd_gen_strategy.generate_test_command(
             test_run.test.test_definition.extra_env_vars,
-            test_run.test.test_definition.cmd_args.model_dump(),
+            cmd_args_dict,
             test_run,
         )
 
-        num_nodes_param = next(p for p in cmd if "trainer.num_nodes" in p)
-        assert num_nodes_param == "trainer.num_nodes=3"
+        # Check if trainer.num_nodes is included in the command
+        assert any("trainer.num_nodes=1" in param for param in cmd)

@@ -82,6 +82,8 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             logging.error(e)
             sys.exit()
 
+        cmd_args_dict["trainer"]["num_nodes"] = num_nodes
+
         self.append_flattened_dict("", cmd_args_dict, command)
 
         if tr.test.extra_cmd_args:
