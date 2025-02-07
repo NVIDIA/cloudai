@@ -22,6 +22,17 @@ from cloudai import CmdArgs, TestDefinition
 from cloudai.installer.installables import DockerImage, Installable
 
 
+class Plugin(BaseModel):
+    """Plugin configuration for NeMoRun."""
+
+    fp8: Optional[str] = "hybrid"
+    fp8_margin: Optional[int] = 0
+    fp8_amax_history_len: Optional[int] = 1
+    fp8_amax_compute_algo: Optional[str] = "most_recent"
+    fp8_wgrad: Optional[bool] = True
+    fp8_params: Optional[bool] = True
+
+
 class Data(BaseModel):
     """Data configuration for NeMoRun."""
 
@@ -45,6 +56,7 @@ class Trainer(BaseModel):
     val_check_interval: Union[int, List[int]] = 1000
     num_nodes: Union[int, List[int]] = 1
     strategy: TrainerStrategy = Field(default_factory=TrainerStrategy)
+    plugins: Plugin = Field(default_factory=Plugin)
 
 
 class LogCkpt(BaseModel):
