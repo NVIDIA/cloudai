@@ -23,6 +23,7 @@ from cloudai import Test, TestRun
 from cloudai.schema.test_template.jax_toolbox.report_generation_strategy import (
     JaxToolboxReportGenerationStrategy,
 )
+from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
 
 
@@ -44,8 +45,8 @@ class TestJaxExtractTime:
     """Tests for the JaxToolboxReportGenerationStrategy class."""
 
     @pytest.fixture
-    def js(self, jax_tr: TestRun) -> JaxToolboxReportGenerationStrategy:
-        return JaxToolboxReportGenerationStrategy(jax_tr)
+    def js(self, slurm_system: SlurmSystem, jax_tr: TestRun) -> JaxToolboxReportGenerationStrategy:
+        return JaxToolboxReportGenerationStrategy(slurm_system, jax_tr)
 
     def test_no_files(self, js: JaxToolboxReportGenerationStrategy) -> None:
         """Test that no times are extracted when no files are present."""

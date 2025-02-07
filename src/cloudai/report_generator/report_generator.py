@@ -77,7 +77,7 @@ class Reporter:
                 subdir = subdir / f"{tr.step}"
             tr.output_path = subdir
 
-            rgs = rgs_type(tr)
+            rgs = rgs_type(self.system, tr)
             if not rgs.can_handle_directory():
                 logging.warning(f"Skipping '{tr.output_path}', can't handle with " f"strategy={rgs_type}.")
                 continue

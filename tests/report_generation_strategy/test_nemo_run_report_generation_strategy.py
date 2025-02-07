@@ -21,6 +21,7 @@ import pytest
 
 from cloudai import Test, TestRun
 from cloudai.schema.test_template.nemo_run.report_generation_strategy import NeMoRunReportGenerationStrategy
+from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.test_definitions.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
 
 
@@ -62,13 +63,13 @@ def nemo_tr(tmp_path: Path) -> TestRun:
     return tr
 
 
-def test_nemo_can_handle_directory(nemo_tr: TestRun) -> None:
-    strategy = NeMoRunReportGenerationStrategy(nemo_tr)
+def test_nemo_can_handle_directory(slurm_system: SlurmSystem, nemo_tr: TestRun) -> None:
+    strategy = NeMoRunReportGenerationStrategy(slurm_system, nemo_tr)
     assert strategy.can_handle_directory()
 
 
-def test_nemo_generate_report(nemo_tr: TestRun) -> None:
-    strategy = NeMoRunReportGenerationStrategy(nemo_tr)
+def test_nemo_generate_report(slurm_system: SlurmSystem, nemo_tr: TestRun) -> None:
+    strategy = NeMoRunReportGenerationStrategy(slurm_system, nemo_tr)
     strategy.generate_report()
 
     summary_file = nemo_tr.output_path / "report.txt"

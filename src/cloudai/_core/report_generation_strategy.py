@@ -16,13 +16,15 @@
 
 from abc import abstractmethod
 
+from .system import System
 from .test_scenario import TestRun
 
 
 class ReportGenerationStrategy:
     """Abstract class for generating reports from TestRun objects."""
 
-    def __init__(self, tr: TestRun) -> None:
+    def __init__(self, system: System, tr: TestRun) -> None:
+        self.system = system
         self.test_run = tr
 
     @abstractmethod

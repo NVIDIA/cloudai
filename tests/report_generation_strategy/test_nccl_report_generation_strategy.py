@@ -22,6 +22,7 @@ import pytest
 
 from cloudai import Test, TestRun
 from cloudai.schema.test_template.nccl_test.report_generation_strategy import NcclTestReportGenerationStrategy
+from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
 
 
@@ -74,11 +75,11 @@ def nccl_tr(tmp_path: Path) -> TestRun:
     return tr
 
 
-def test_nccl_report_generation(nccl_tr: TestRun) -> None:
+def test_nccl_report_generation(slurm_system: SlurmSystem, nccl_tr: TestRun) -> None:
     test_dir = nccl_tr.output_path
 
     # Instantiate the strategy
-    strategy = NcclTestReportGenerationStrategy(nccl_tr)
+    strategy = NcclTestReportGenerationStrategy(slurm_system, nccl_tr)
 
     # Validate the directory can be handled
     assert strategy.can_handle_directory() is True
