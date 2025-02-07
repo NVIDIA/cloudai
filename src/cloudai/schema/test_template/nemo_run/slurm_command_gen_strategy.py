@@ -15,6 +15,8 @@
 # limitations under the License.
 
 
+import logging
+import sys
 from typing import Any, Dict, List, Union, cast
 
 from cloudai import TestRun
@@ -67,10 +69,18 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         command = ["nemo", "llm", cmd_args_dict.pop("task"), "--factory", cmd_args_dict.pop("recipe_name"), "-y"]
 
-        if tr.nodes:
-            command.append(f"trainer.num_nodes={len(self.system.parse_nodes(tr.nodes))}")
-        elif tr.num_nodes > 0:
-            command.append(f"trainer.num_nodes={tr.num_nodes}")
+        num_nodes = len(self.system.parse_nodes(tr.nodes)) if tr.nodes else tr.num_nodes
+
+        try:
+            if cmd_args_dict["trainer"]["num_nodes"] != num_nodes:
+                raise ValueError(
+                    f"Mismatch in num_nodes: {num_nodes} vs {cmd_args_dict['trainer']['num_nodes']}. "
+                    "Please check your test scenario and test toml file and ensure the num_nodes matches "
+                    "in both these files."
+                )
+        except ValueError as e:
+            logging.error(e)
+            sys.exit()
 
         self.append_flattened_dict("", cmd_args_dict, command)
 
