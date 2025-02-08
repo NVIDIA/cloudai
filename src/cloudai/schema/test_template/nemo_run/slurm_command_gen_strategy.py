@@ -53,10 +53,11 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def append_flattened_dict(self, prefix: str, d: Dict[str, Any], command: List[str]):
         flattened = self.flatten_dict(d)
         for key, value in flattened.items():
-            if prefix:
-                command.append(f"{prefix}.{key}={value}")
-            else:
-                command.append(f"{key}={value}")
+            if value is not None:
+                if prefix:
+                    command.append(f"{prefix}.{key}={value}")
+                else:
+                    command.append(f"{key}={value}")
 
     def generate_test_command(
         self, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
@@ -66,6 +67,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd_args_dict = tdef.cmd_args.model_dump()
 
         cmd_args_dict.pop("docker_image_url")
+        cmd_args_dict.pop("num_layers")
 
         command = ["nemo", "llm", cmd_args_dict.pop("task"), "--factory", cmd_args_dict.pop("recipe_name"), "-y"]
 
