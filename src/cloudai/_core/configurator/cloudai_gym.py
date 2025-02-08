@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import asyncio
+import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -116,6 +117,12 @@ class CloudAIGymEnv(BaseGym):
         """
         for key, value in action.items():
             self.update_nested_attr(self.test_run.test.test_definition.cmd_args, key, value)
+
+        constraint_check = getattr(self.test_run.test, "constraint_check", None)
+        if constraint_check is not None and not constraint_check:
+            logging.info("Constraint check failed. Skipping step.")
+            return [-1.0], -1.0, True, {}
+
         asyncio.run(self.runner.run())
 
         observation = self.get_observation(action)

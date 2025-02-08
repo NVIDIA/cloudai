@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional, Union
+from typing import List, Optional, Union, cast
 
 from pydantic import BaseModel, Field
 
@@ -78,6 +78,7 @@ class NeMoRunCmdArgs(CmdArgs):
     docker_image_url: str
     task: str
     recipe_name: str
+    num_layers: Optional[int] = None
     trainer: Trainer = Field(default_factory=Trainer)
     log: Log = Field(default_factory=Log)
     data: Data = Field(default_factory=Data)
@@ -99,3 +100,19 @@ class NeMoRunTestDefinition(TestDefinition):
     def installables(self) -> list[Installable]:
         """Get list of installable objects."""
         return [self.docker_image]
+
+    @property
+    def constraint_check(self) -> bool:
+        """Check constraints for NeMoRun."""
+        tp = cast(int, self.cmd_args.trainer.strategy.tensor_model_parallel_size)
+        pp = cast(int, self.cmd_args.trainer.strategy.pipeline_model_parallel_size)
+        cp = cast(int, self.cmd_args.trainer.strategy.context_parallel_size)
+        vp = cast(Optional[int], self.cmd_args.trainer.strategy.virtual_pipeline_model_parallel_size)
+        num_nodes = cast(int, self.cmd_args.trainer.num_nodes)
+        num_gpus = num_nodes * 8
+        num_layers = cast(int, self.cmd_args.num_layers)
+
+        constraint1 = num_gpus % (tp * pp * cp) == 0
+        constraint2 = True if vp is None else (num_layers // pp) % vp == 0
+
+        return constraint1 and constraint2

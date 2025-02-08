@@ -22,6 +22,7 @@ test_template_name = "NeMoRun"
 docker_image_url = "nvcr.io/nvidia/nemo:24.12.rc3"
 task = "pretrain"
 recipe_name = "llama3_8b"
+num_layers = 32
 
   [cmd_args.data]
   micro_batch_size = [1]
@@ -33,9 +34,9 @@ recipe_name = "llama3_8b"
   num_nodes = 1
 
     [cmd_args.trainer.strategy]
-    tensor_model_parallel_size = [1]
-    pipeline_model_parallel_size = [1]
-    context_parallel_size = [2]
+    tensor_model_parallel_size = [1, 2, 4]
+    pipeline_model_parallel_size = [1, 2, 4]
+    context_parallel_size = [1, 2]
 
     [cmd_args.trainer.plugins]
     fp8 = "hybrid"
