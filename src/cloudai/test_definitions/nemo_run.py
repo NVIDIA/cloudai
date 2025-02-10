@@ -60,7 +60,7 @@ class Trainer(BaseModel):
 
     max_steps: Union[int, List[int]] = 100
     val_check_interval: Union[int, List[int]] = 1000
-    num_nodes: Union[int, List[int]] = 1
+    num_nodes: Optional[Union[int, List[int]]] = None
     strategy: TrainerStrategy = Field(default_factory=TrainerStrategy)
     plugins: Optional[Plugin] = None
 

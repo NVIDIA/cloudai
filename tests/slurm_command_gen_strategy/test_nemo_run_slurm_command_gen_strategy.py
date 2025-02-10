@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -97,5 +98,28 @@ class TestNeMoRunSlurmCommandGenStrategy:
             test_run,
         )
 
-        # Check if trainer.num_nodes is included in the command
+        assert any("trainer.num_nodes=1" in param for param in cmd)
+
+    def test_trainer_num_nodes_greater_than_num_nodes(
+        self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy, test_run: TestRun, caplog
+    ) -> None:
+        test_run.num_nodes = 1
+        cmd_args = NeMoRunCmdArgs(
+            docker_image_url="nvcr.io/nvidia/nemo:24.09",
+            task="fine_tune",
+            recipe_name="llama7_13b",
+            trainer=Trainer(
+                num_nodes=4,
+            ),
+        )
+        test_run.test.test_definition.cmd_args = cmd_args
+
+        with caplog.at_level(logging.WARNING):
+            cmd = cmd_gen_strategy.generate_test_command(
+                test_run.test.test_definition.extra_env_vars,
+                test_run.test.test_definition.cmd_args.model_dump(),
+                test_run,
+            )
+
+        assert "Mismatch in num_nodes" in caplog.text
         assert any("trainer.num_nodes=1" in param for param in cmd)
