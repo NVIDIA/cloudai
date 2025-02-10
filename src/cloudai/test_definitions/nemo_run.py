@@ -31,6 +31,7 @@ class Plugin(BaseModel):
     fp8_amax_compute_algo: Optional[str] = None
     fp8_wgrad: Optional[bool] = None
     fp8_params: Optional[bool] = None
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -39,6 +40,7 @@ class Data(BaseModel):
 
     micro_batch_size: Union[int, List[int]] = 1
     global_batch_size: Union[int, List[int]] = 1
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -49,6 +51,7 @@ class TrainerStrategy(BaseModel):
     pipeline_model_parallel_size: Union[int, List[int]] = 1
     context_parallel_size: Union[int, List[int]] = 2
     virtual_pipeline_model_parallel_size: Optional[Union[int, List[int]]] = None
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -60,6 +63,7 @@ class Trainer(BaseModel):
     num_nodes: Union[int, List[int]] = 1
     strategy: TrainerStrategy = Field(default_factory=TrainerStrategy)
     plugins: Optional[Plugin] = None
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -68,6 +72,7 @@ class LogCkpt(BaseModel):
 
     save_on_train_epoch_end: bool = Field(default=False)
     save_last: bool = Field(default=False)
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -75,6 +80,7 @@ class Log(BaseModel):
     """Base logging configuration for NeMoRun."""
 
     ckpt: LogCkpt = Field(default_factory=LogCkpt)
+
     model_config = ConfigDict(extra="forbid")
 
 
