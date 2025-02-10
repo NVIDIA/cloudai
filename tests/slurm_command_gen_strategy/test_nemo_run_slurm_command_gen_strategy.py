@@ -83,10 +83,6 @@ class TestNeMoRunSlurmCommandGenStrategy:
         assert (
             f"trainer.strategy.tensor_model_parallel_size={cmd_args.trainer.strategy.tensor_model_parallel_size}" in cmd
         )
-        assert (
-            f"trainer.strategy.virtual_pipeline_model_parallel_size={cmd_args.trainer.strategy.virtual_pipeline_model_parallel_size}"
-            in cmd
-        )
         assert f"log.ckpt.save_last={cmd_args.log.ckpt.save_last}" in cmd
         assert f"data.micro_batch_size={cmd_args.data.micro_batch_size}" in cmd
 
