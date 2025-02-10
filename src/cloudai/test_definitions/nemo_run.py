@@ -30,7 +30,7 @@ class Plugin(BaseModel):
     fp8_amax_compute_algo: Optional[str] = None
     fp8_wgrad: Optional[bool] = None
     fp8_params: Optional[bool] = None
-    grad_reduce_in_fp32 : Optional[bool] = None
+    grad_reduce_in_fp32: Optional[bool] = None
 
     model_config = ConfigDict(extra="forbid")
 
