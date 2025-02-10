@@ -32,7 +32,7 @@ def test_help_message(capsys: pytest.CaptureFixture[str]) -> None:
         assert e.value.code == 0
 
     captured = capsys.readouterr()
-    assert "Cloud AI" in captured.out
+    assert "CloudAI" in captured.out
 
 
 def test_command_is_mandatory(capsys: pytest.CaptureFixture[str]) -> None:
