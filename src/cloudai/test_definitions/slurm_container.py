@@ -16,18 +16,13 @@
 
 from typing import Optional
 
-from cloudai import CmdArgs, Installable, TestDefinition
-from cloudai.installer.installables import DockerImage, GitRepo
+from cloudai import CmdArgs, DockerImage, GitRepo, Installable, TestDefinition
 
 
 class SlurmContainerCmdArgs(CmdArgs):
     """Command line arguments for a generic Slurm container test."""
 
     docker_image_url: str
-    repository_url: str
-    repository_commit_hash: str
-    mcore_vfm_repo: str
-    mcore_vfm_commit_hash: str
 
 
 class SlurmContainerTestDefinition(TestDefinition):
@@ -46,26 +41,8 @@ class SlurmContainerTestDefinition(TestDefinition):
         return self._docker_image
 
     @property
-    def git_repo(self) -> GitRepo:
-        if not self._git_repo:
-            self._git_repo = GitRepo(
-                git_url=self.cmd_args.repository_url, commit_hash=self.cmd_args.repository_commit_hash
-            )
-
-        return self._git_repo
-
-    @property
-    def mcore_vfm_git_repo(self) -> GitRepo:
-        if not self._mcore_git_repo:
-            self._mcore_git_repo = GitRepo(
-                git_url=self.cmd_args.mcore_vfm_repo, commit_hash=self.cmd_args.mcore_vfm_commit_hash
-            )
-
-        return self._mcore_git_repo
-
-    @property
     def installables(self) -> list[Installable]:
-        return [self.docker_image, self.git_repo, self.mcore_vfm_git_repo]
+        return [self.docker_image, *self.git_repos]
 
     @property
     def extra_args_str(self) -> str:
