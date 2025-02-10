@@ -44,6 +44,7 @@ num_layers = 32
     fp8_amax_history_len = 1024
     fp8_amax_compute_algo = "max"
     fp8_params = true
+    grad_reduce_in_fp32 = true
 
   [cmd_args.log.ckpt]
   save_on_train_epoch_end = false
