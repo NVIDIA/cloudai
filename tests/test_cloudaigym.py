@@ -24,8 +24,6 @@ from cloudai._core.test_scenario import TestRun, TestScenario
 from cloudai.systems import SlurmSystem
 from cloudai.test_definitions.nemo_run import (
     Data,
-    Log,
-    LogCkpt,
     NeMoRunCmdArgs,
     NeMoRunTestDefinition,
     Trainer,
@@ -161,8 +159,6 @@ def test_populate_action_space():
         task="some_task",
         recipe_name="some_recipe",
         trainer=Trainer(
-            max_steps=[1000, 2000],
-            val_check_interval=[100, 200],
             num_nodes=[1, 2],
             strategy=TrainerStrategy(
                 tensor_model_parallel_size=[1, 2],
@@ -171,17 +167,9 @@ def test_populate_action_space():
         data=Data(
             micro_batch_size=[1, 2],
         ),
-        log=Log(
-            ckpt=LogCkpt(
-                save_on_train_epoch_end=False,
-            )
-        ),
     )
     env.populate_action_space("", cmd_args.model_dump(), action_space)
 
-    assert action_space["trainer.max_steps"] == [1000, 2000]
-    assert action_space["trainer.val_check_interval"] == [100, 200]
     assert action_space["trainer.num_nodes"] == [1, 2]
     assert action_space["trainer.strategy.tensor_model_parallel_size"] == [1, 2]
     assert action_space["data.micro_batch_size"] == [1, 2]
-    assert action_space["log.ckpt.save_on_train_epoch_end"] == [False]
