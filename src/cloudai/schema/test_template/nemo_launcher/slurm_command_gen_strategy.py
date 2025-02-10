@@ -39,8 +39,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, tr.test.test_definition)
         self.final_cmd_args["container"] = str(tdef.docker_image.installed_path)
 
-        for key in ("repository_url", "repository_commit_hash", "docker_image_url"):
-            self.final_cmd_args.pop(key, None)
+        self.final_cmd_args.pop("docker_image_url", None)
 
         if self.system.account:
             self.final_cmd_args.update(
