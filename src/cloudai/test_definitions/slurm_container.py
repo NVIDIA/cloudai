@@ -23,6 +23,7 @@ class SlurmContainerCmdArgs(CmdArgs):
     """Command line arguments for a generic Slurm container test."""
 
     docker_image_url: str
+    cmd: str
 
 
 class SlurmContainerTestDefinition(TestDefinition):
@@ -31,8 +32,6 @@ class SlurmContainerTestDefinition(TestDefinition):
     cmd_args: SlurmContainerCmdArgs
 
     _docker_image: Optional[DockerImage] = None
-    _git_repo: Optional[GitRepo] = None
-    _mcore_git_repo: Optional[GitRepo] = None
 
     @property
     def docker_image(self) -> DockerImage:
