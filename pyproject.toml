@@ -87,6 +87,7 @@ root_package = "cloudai"
     "cloudai.installer",
     "cloudai.parser",
     "cloudai.report_generator",
+    "cloudai.report_generator.tool",
     "cloudai.runner",
     "cloudai.schema",
     "cloudai.test_definitions",
