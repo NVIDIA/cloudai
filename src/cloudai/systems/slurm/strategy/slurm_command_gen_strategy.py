@@ -65,7 +65,19 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         Function returns CommandGenStrategy specific container mounts as well as default ones
         that should always be used.
         """
-        return [f"{tr.output_path.absolute()}:/cloudai_run_results", *self._container_mounts(tr)]
+        tdef = tr.test.test_definition
+
+        repo_mounts = []
+        for repo in tdef.git_repos:
+            path = repo.installed_path.absolute() if repo.installed_path else self.system.install_path / repo.repo_name
+            repo_mounts.append(f"{path}:{repo.container_mount}")
+
+        return [
+            f"{tr.output_path.absolute()}:/cloudai_run_results",
+            *tdef.extra_container_mounts,
+            *repo_mounts,
+            *self._container_mounts(tr),
+        ]
 
     def gen_exec_command(self, tr: TestRun) -> str:
         env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
@@ -325,6 +337,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             batch_script_content.append(f"#SBATCH --ntasks-per-node={self.system.ntasks_per_node}")
         if "time_limit" in args:
             batch_script_content.append(f"#SBATCH --time={args['time_limit']}")
+
+        for arg in self.system.extra_sbatch_args:
+            batch_script_content.append(f"#SBATCH {arg}")
 
         batch_script_content.append(
             "\nexport SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)"

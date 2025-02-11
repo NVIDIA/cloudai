@@ -317,3 +317,12 @@ def test_is_job_running_exceeds_retries(slurm_system: SlurmSystem):
     with pytest.raises(RuntimeError):
         slurm_system.is_job_running(job, retry_threshold=3)
     assert slurm_system.cmd_shell.execute.call_count == 1
+
+
+def test_model_dump(slurm_system: SlurmSystem):
+    sys_dict = slurm_system.model_dump()
+    assert type(sys_dict["install_path"]) is str
+    assert type(sys_dict["output_path"]) is str
+    assert "cmd_shell" not in sys_dict
+    recreated = SlurmSystem.model_validate(sys_dict)
+    assert recreated.model_dump() == sys_dict

@@ -19,17 +19,8 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict
 
+from .installables import GitRepo, Installable
 from .test_template import TestTemplate
-
-
-class Installable(ABC):
-    """Installable object."""
-
-    @abstractmethod
-    def __eq__(self, other: object) -> bool: ...
-
-    @abstractmethod
-    def __hash__(self) -> int: ...
 
 
 class Test:
@@ -145,6 +136,8 @@ class TestDefinition(BaseModel, ABC):
     cmd_args: Any
     extra_env_vars: dict[str, str] = {}
     extra_cmd_args: dict[str, str] = {}
+    extra_container_mounts: list[str] = []
+    git_repos: list[GitRepo] = []
     nsys: Optional[NsysConfiguration] = None
 
     @property

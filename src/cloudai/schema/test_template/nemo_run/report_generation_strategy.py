@@ -62,6 +62,9 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             "max": np.max(train_step_timings),
         }
 
-        summary_file = directory_path / "summary.txt"
+        summary_file = directory_path / "report.txt"
         with open(summary_file, "w") as f:
-            f.write(f"{stats['avg']},{stats['median']},{stats['min']},{stats['max']}\n")
+            f.write("Average: {avg}\n".format(avg=stats["avg"]))
+            f.write("Median: {median}\n".format(median=stats["median"]))
+            f.write("Min: {min}\n".format(min=stats["min"]))
+            f.write("Max: {max}\n".format(max=stats["max"]))

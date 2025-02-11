@@ -28,6 +28,7 @@ from ._core.exceptions import (
 )
 from ._core.grader import Grader
 from ._core.grading_strategy import GradingStrategy
+from ._core.installables import DockerImage, GitRepo, Installable, PythonExecutable
 from ._core.job_id_retrieval_strategy import JobIdRetrievalStrategy
 from ._core.job_status_result import JobStatusResult
 from ._core.job_status_retrieval_strategy import JobStatusRetrievalStrategy
@@ -123,9 +124,8 @@ Registry().add_strategy(
 Registry().add_strategy(
     ReportGenerationStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherReportGenerationStrategy
 )
-Registry().add_strategy(
-    ReportGenerationStrategy, [SlurmSystem], [NeMoRunTestDefinition], NeMoRunReportGenerationStrategy
-)
+
+
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NCCLTestDefinition], NcclTestSlurmCommandGenStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [SleepTestDefinition], SleepGradingStrategy)
 Registry().add_strategy(
@@ -133,6 +133,9 @@ Registry().add_strategy(
     [SlurmSystem],
     [GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition],
     JaxToolboxReportGenerationStrategy,
+)
+Registry().add_strategy(
+    ReportGenerationStrategy, [SlurmSystem], [NeMoRunTestDefinition], NeMoRunReportGenerationStrategy
 )
 Registry().add_strategy(
     JobIdRetrievalStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherSlurmJobIdRetrievalStrategy
@@ -251,15 +254,19 @@ __all__ = [
     "BaseSystemParser",
     "CmdArgs",
     "CommandGenStrategy",
+    "DockerImage",
+    "GitRepo",
     "Grader",
     "GradingStrategy",
     "InstallStatusResult",
+    "Installable",
     "Installable",
     "JobIdRetrievalError",
     "JobStatusResult",
     "JsonGenStrategy",
     "NsysConfiguration",
     "Parser",
+    "PythonExecutable",
     "ReportGenerationStrategy",
     "ReportGenerator",
     "Runner",

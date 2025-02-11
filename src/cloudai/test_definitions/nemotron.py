@@ -18,8 +18,7 @@ from typing import Optional, Union
 
 from pydantic import Field
 
-from cloudai import Installable
-from cloudai.installer.installables import DockerImage
+from cloudai import DockerImage, Installable
 
 from .grok import GrokCmdArgs, GrokTestDefinition
 from .jax_toolbox import JaxFdl, SetupFlags, XLAFlags

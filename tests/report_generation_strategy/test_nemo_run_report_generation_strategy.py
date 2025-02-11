@@ -60,16 +60,19 @@ def test_nemo_generate_report(nemo_test_environment: Path) -> None:
     strategy = NeMoRunReportGenerationStrategy()
     strategy.generate_report("nemo_test", nemo_test_environment)
 
-    summary_file = nemo_test_environment / "summary.txt"
+    summary_file = nemo_test_environment / "report.txt"
     assert summary_file.is_file(), "Summary report was not generated."
 
-    summary_values = summary_file.read_text().strip().split(",")
-    assert len(summary_values) == 4, "Summary file should contain four values (avg, median, min, max)."
+    summary_content = summary_file.read_text().strip().split("\n")
+    assert len(summary_content) == 4, "Summary file should contain four lines (avg, median, min, max)."
 
-    expected_values = [54.752, 53.16, 52.45, 61.94]
-    actual_values = [float(value) for value in summary_values]
+    expected_values = {
+        "Average": 54.752,
+        "Median": 53.16,
+        "Min": 52.45,
+        "Max": 61.94,
+    }
 
-    assert pytest.approx(actual_values[0], 0.01) == expected_values[0], "Average value mismatch."
-    assert pytest.approx(actual_values[1], 0.01) == expected_values[1], "Median value mismatch."
-    assert pytest.approx(actual_values[2], 0.01) == expected_values[2], "Min value mismatch."
-    assert pytest.approx(actual_values[3], 0.01) == expected_values[3], "Max value mismatch."
+    for line in summary_content:
+        key, value = line.split(": ")
+        assert pytest.approx(float(value), 0.01) == expected_values[key], f"{key} value mismatch."
