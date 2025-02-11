@@ -187,7 +187,6 @@ class SlurmSystem(BaseModel, System):
         command = f"sacct -j {job.id} --format=State --noheader"
 
         while retry_count < retry_threshold:
-            logging.debug(f"Executing command to check job status: {command}")
             stdout, stderr = self.cmd_shell.execute(command).communicate()
 
             if "Socket timed out" in stderr or "slurm_load_jobs error" in stderr:
@@ -235,7 +234,6 @@ class SlurmSystem(BaseModel, System):
         command = f"sacct -j {job.id} --format=State --noheader"
 
         while retry_count < retry_threshold:
-            logging.debug(f"Checking job status with command: {command}")
             stdout, stderr = self.cmd_shell.execute(command).communicate()
 
             if "Socket timed out" in stderr or "slurm_load_jobs error" in stderr:
