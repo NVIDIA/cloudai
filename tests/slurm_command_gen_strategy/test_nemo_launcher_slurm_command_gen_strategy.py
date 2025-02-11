@@ -20,8 +20,7 @@ from unittest.mock import Mock, mock_open, patch
 
 import pytest
 
-from cloudai._core.test import Test
-from cloudai._core.test_scenario import TestRun
+from cloudai import Test, TestRun
 from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import NeMoLauncherSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
 from cloudai.test_definitions.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition

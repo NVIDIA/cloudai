@@ -20,7 +20,7 @@ from unittest.mock import Mock, create_autospec
 
 import pytest
 
-from cloudai import Test, TestRun, TestScenario, TestTemplate
+from cloudai import GitRepo, Test, TestRun, TestScenario, TestTemplate
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
@@ -302,3 +302,22 @@ def test_default_container_mounts_with_extra_mounts(strategy_fixture: SlurmComma
     assert len(mounts) == 2
     assert mounts[0] == f"{tr.output_path.absolute()}:/cloudai_run_results"
     assert mounts[1] == "/host:/container"
+
+
+def test_default_container_mounts_with_git_repos(strategy_fixture: SlurmCommandGenStrategy):
+    repo1 = GitRepo(url="./git_repo", commit="commit", mount_as="/git/r1", installed_path=Path.cwd())
+    repo2 = GitRepo(url="./git_repo2", commit="commit", mount_as="/git/r2", installed_path=Path.cwd())
+    nccl = NCCLTestDefinition(
+        name="name",
+        description="desc",
+        test_template_name="tt",
+        cmd_args=NCCLCmdArgs(),
+        git_repos=[repo1, repo2],
+    )
+    t = Test(test_definition=nccl, test_template=Mock())
+    tr = TestRun(name="t1", test=t, num_nodes=1, nodes=[], output_path=Path("./"))
+    mounts = strategy_fixture.container_mounts(tr)
+    assert len(mounts) == 3
+    assert mounts[0] == f"{tr.output_path.absolute()}:/cloudai_run_results"
+    assert mounts[1] == f"{repo1.installed_path}:{repo1.container_mount}"
+    assert mounts[2] == f"{repo2.installed_path}:{repo2.container_mount}"
