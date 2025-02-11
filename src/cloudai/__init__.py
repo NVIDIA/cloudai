@@ -35,6 +35,7 @@ from ._core.job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from ._core.json_gen_strategy import JsonGenStrategy
 from ._core.registry import Registry
 from ._core.report_generation_strategy import ReportGenerationStrategy
+from ._core.reporter import Reporter
 from ._core.runner import Runner
 from ._core.system import System
 from ._core.test import CmdArgs, Test, TestDefinition
@@ -47,7 +48,6 @@ from .installer.kubernetes_installer import KubernetesInstaller
 from .installer.slurm_installer import SlurmInstaller
 from .installer.standalone_installer import StandaloneInstaller
 from .parser import Parser
-from .report_generator import Reporter
 from .runner.kubernetes.kubernetes_runner import KubernetesRunner
 from .runner.slurm.slurm_runner import SlurmRunner
 from .runner.standalone.standalone_runner import StandaloneRunner

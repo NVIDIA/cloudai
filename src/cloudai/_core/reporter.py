@@ -18,7 +18,10 @@ import logging
 from pathlib import Path
 from typing import Type, cast
 
-from cloudai import Registry, ReportGenerationStrategy, System, TestRun, TestScenario
+from .registry import Registry
+from .report_generation_strategy import ReportGenerationStrategy
+from .system import System
+from .test_scenario import TestRun, TestScenario
 
 
 class Reporter:
