@@ -87,7 +87,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
         assert f"log.ckpt.save_last={cmd_args.log.ckpt.save_last}" in cmd
         assert f"data.micro_batch_size={cmd_args.data.micro_batch_size}" in cmd
 
-    def test_num_nodes(self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy, test_run: TestRun, capsys) -> None:
+    def test_num_nodes(self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy, test_run: TestRun) -> None:
         test_run.nodes = ["node1"]
         cmd_args_dict = test_run.test.test_definition.cmd_args.model_dump()
         cmd_args_dict["trainer"]["num_nodes"] = len(test_run.nodes)
