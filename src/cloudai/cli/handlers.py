@@ -121,8 +121,8 @@ def handle_non_dse_job(system: System, test_scenario: TestScenario, args: argpar
     logging.info(f"All test scenario results stored at: {runner.runner.output_path}")
 
     if args.mode == "run":
-        generator = Reporter(system, test_scenario, runner.runner.output_path)
-        generator.generate_report()
+        reporter = Reporter(system, test_scenario, runner.runner.output_path)
+        reporter.generate()
         logging.info(
             "All test scenario execution attempts are complete. Please review"
             f" the '{args.log_file}' file to confirm successful completion or to"
@@ -192,8 +192,8 @@ def handle_generate_report(args: argparse.Namespace) -> int:
     assert test_scenario is not None
 
     logging.info("Generating report based on system and test scenario")
-    generator = Reporter(system, test_scenario, args.result_dir)
-    generator.generate_report()
+    reporter = Reporter(system, test_scenario, args.result_dir)
+    reporter.generate()
 
     logging.info("Report generation completed.")
 

@@ -169,8 +169,8 @@ class CloudAIGymEnv(BaseGym):
         """
         output_path = self.runner.runner.system.output_path / self.runner.runner.test_scenario.name
 
-        generator = Reporter(self.runner.runner.system, self.test_scenario, output_path)
-        generator.generate_report()
+        reporter = Reporter(self.runner.runner.system, self.test_scenario, output_path)
+        reporter.generate()
 
         subdir = next(output_path.iterdir())
         report_file_path = subdir / f"{self.test_run.current_iteration}" / f"{self.test_run.step}"

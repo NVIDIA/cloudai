@@ -37,7 +37,7 @@ class Reporter:
         self.test_scenario = test_scenario
         self.results_root = results_root
 
-    def generate_report(self) -> None:
+    def generate(self) -> None:
         """
         Iterate over tests in the given test scenario.
 
