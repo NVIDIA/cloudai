@@ -16,6 +16,7 @@
 
 
 import logging
+import sys
 from typing import Any, Dict, List, Union, cast
 
 from cloudai import TestRun
@@ -72,16 +73,15 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         num_nodes = len(self.system.parse_nodes(tr.nodes)) if tr.nodes else tr.num_nodes
 
-        try:
-            if cmd_args_dict["trainer"]["num_nodes"] and cmd_args_dict["trainer"]["num_nodes"] > num_nodes:
-                raise ValueError(
-                    f"Mismatch in num_nodes: {num_nodes} vs {cmd_args_dict['trainer']['num_nodes']}. "
-                    "trainer.num_nodes should be less than or equal to the number of nodes specified "
-                    "in the test scenario."
-                )
-        except ValueError as e:
-            logging.warning(e)
-            logging.warning("trainer.num_nodes is set to %s", num_nodes)
+        if cmd_args_dict["trainer"]["num_nodes"] and cmd_args_dict["trainer"]["num_nodes"] > num_nodes:
+            err = (
+                f"Mismatch in num_nodes: {num_nodes} vs {cmd_args_dict['trainer']['num_nodes']}. "
+                "trainer.num_nodes should be less than or equal to the number of nodes specified "
+                "in the test scenario."
+            )
+
+            logging.warning(err)
+            sys.exit(1)
 
         cmd_args_dict["trainer"]["num_nodes"] = num_nodes
 

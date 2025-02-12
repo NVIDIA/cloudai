@@ -114,12 +114,11 @@ class TestNeMoRunSlurmCommandGenStrategy:
         )
         test_run.test.test_definition.cmd_args = cmd_args
 
-        with caplog.at_level(logging.WARNING):
-            cmd = cmd_gen_strategy.generate_test_command(
+        with caplog.at_level(logging.WARNING), pytest.raises(SystemExit) as excinfo:
+            cmd_gen_strategy.generate_test_command(
                 test_run.test.test_definition.extra_env_vars,
                 test_run.test.test_definition.cmd_args.model_dump(),
                 test_run,
             )
-
+        assert excinfo.value.code == 1
         assert "Mismatch in num_nodes" in caplog.text
-        assert any("trainer.num_nodes=1" in param for param in cmd)
