@@ -80,7 +80,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 "in the test scenario."
             )
 
-            logging.warning(err)
+            logging.error(err)
             sys.exit(1)
 
         cmd_args_dict["trainer"]["num_nodes"] = num_nodes
