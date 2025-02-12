@@ -20,7 +20,7 @@ from unittest.mock import Mock, create_autospec
 
 import pytest
 
-from cloudai import GitRepo, Installable, Test, TestDefinition, TestRun, TestScenario, TestTemplate
+from cloudai import GitRepo, Test, TestRun, TestScenario, TestTemplate
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
@@ -29,12 +29,6 @@ from tests.conftest import create_autospec_dataclass
 
 class MySlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _container_mounts(self, tr: TestRun) -> List[str]:
-        return []
-
-
-class MyTestDefinition(TestDefinition):
-    @property
-    def installables(self) -> list[Installable]:
         return []
 
 
