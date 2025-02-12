@@ -114,5 +114,5 @@ class TestDefinition(BaseModel, ABC):
         return []
 
     @property
-    def constraint_checker(self) -> bool:
+    def constraint_check(self) -> bool:
         return True
