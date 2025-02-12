@@ -12,7 +12,7 @@ if [ "$SLURM_NODEID" -eq 0 ] && [ "$SLURM_PROCID" -eq 0 ]; then
     --force-overwrite=true \
     --capture-range=cudaProfilerApi \
     --capture-range-end=stop \
-    --cuda-graph-trace=node\
+    --cuda-graph-trace=node \
     python3 -u -m paxml.main \
     --num_hosts=$SLURM_NTASKS \
     --server_addr=$SLURM_JOB_MASTER_NODE:12345 \
@@ -80,7 +80,7 @@ if [ "$SLURM_NODEID" -eq 0 ] && [ "$SLURM_PROCID" -eq 0 ]; then
     --force-overwrite=true \
     --capture-range=cudaProfilerApi \
     --capture-range-end=stop \
-    --cuda-graph-trace=node\
+    --cuda-graph-trace=node \
     python3 -u -m paxml.main \
     --num_hosts=$SLURM_NTASKS \
     --server_addr=$SLURM_JOB_MASTER_NODE:12345 \

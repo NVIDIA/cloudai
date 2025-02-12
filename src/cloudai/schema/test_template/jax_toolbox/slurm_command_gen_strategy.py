@@ -297,7 +297,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             capture_range_end="stop",
             cuda_graph_trace="node",
         )
-        nsys_command = " \\\n    ".join(nsys.cmd_args)
+        nsys_command = " \\\n    ".join(nsys.cmd_args) + " "
 
         slurm_check = (
             'if [ "$SLURM_NODEID" -eq 0 ] && [ "$SLURM_PROCID" -eq 0 ]; then\n'

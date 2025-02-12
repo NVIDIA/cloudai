@@ -203,7 +203,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
             "    --force-overwrite=true \\",
             "    --capture-range=cudaProfilerApi \\",
             "    --capture-range-end=stop \\",
-            "    --cuda-graph-trace=node\\",
+            "    --cuda-graph-trace=node \\",
             *expected_py_cmd,
             "else",
             *expected_py_cmd,
