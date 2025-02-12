@@ -22,7 +22,7 @@ test_template_name = "NeMoRun"
 docker_image_url = "nvcr.io/nvidia/nemo:24.12.rc3"
 task = "pretrain"
 recipe_name = "llama3_70b"
-num_layers = 32
+num_layers = 80
 
   [cmd_args.data]
   micro_batch_size = [1]
