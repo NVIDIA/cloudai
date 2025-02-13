@@ -39,25 +39,33 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             return
 
         train_step_timings = []
+        step_timings = []
 
         with open(stdout_file, "r") as f:
             for line in f:
                 if "train_step_timing in s:" in line:
                     try:
-                        timing = float(line.strip().split(":")[-1])
+                        timing = float(line.split("train_step_timing in s:")[1].strip().split()[0])
                         train_step_timings.append(timing)
-                    except ValueError:
+                        if "global_step:" in line:
+                            global_step = int(line.split("global_step:")[1].split("|")[0].strip())
+                            if 80 <= global_step <= 100:
+                                step_timings.append(timing)
+                    except (ValueError, IndexError):
                         continue
 
         if not train_step_timings:
             logging.error(f"No train_step_timing found in {stdout_file}")
             return
 
+        if len(step_timings) < 20:
+            step_timings = train_step_timings[1:]
+
         stats = {
-            "avg": np.mean(train_step_timings),
-            "median": np.median(train_step_timings),
-            "min": np.min(train_step_timings),
-            "max": np.max(train_step_timings),
+            "avg": np.mean(step_timings),
+            "median": np.median(step_timings),
+            "min": np.min(step_timings),
+            "max": np.max(step_timings),
         }
 
         summary_file = self.test_run.output_path / "report.txt"

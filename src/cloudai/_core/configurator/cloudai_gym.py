@@ -15,6 +15,8 @@
 # limitations under the License.
 
 import asyncio
+import csv
+import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -116,12 +118,20 @@ class CloudAIGymEnv(BaseGym):
         """
         for key, value in action.items():
             self.update_nested_attr(self.test_run.test.test_definition.cmd_args, key, value)
+
+        if not self.test_run.test.test_definition.constraint_check:
+            logging.info("Constraint check failed. Skipping step.")
+            return [-1.0], -1.0, True, {}
+        logging.info(f"Running step {self.test_run.current_iteration} with action {action}")
         asyncio.run(self.runner.run())
 
         observation = self.get_observation(action)
         reward = self.compute_reward(observation)
         done = False
         info = {}
+
+        self.write_trajectory(self.test_run.current_iteration, action, reward, observation)
+
         return observation, reward, done, info
 
     def render(self, mode: str = "human"):
@@ -209,3 +219,25 @@ class CloudAIGymEnv(BaseGym):
             else:
                 raise AttributeError(f"{type(obj).__name__!r} object has no attribute {attr!r}")
         setattr(obj, attrs[-1], value)
+
+    def write_trajectory(self, step: int, action: Any, reward: float, observation: list):
+        """
+        Write the trajectory to a CSV file.
+
+        Args:
+            step (int): The current step number.
+            action (Any): The action taken by the agent.
+            reward (float): The reward received for the action.
+            observation (list): The observation after taking the action.
+        """
+        output_path = self.runner.runner.system.output_path / self.runner.runner.test_scenario.name
+        subdir = next(output_path.iterdir())
+        trajectory_file_path = subdir / f"{self.test_run.current_iteration}" / "trajectory.csv"
+
+        file_exists = trajectory_file_path.exists()
+
+        with open(trajectory_file_path, mode="a", newline="") as file:
+            writer = csv.writer(file)
+            if not file_exists:
+                writer.writerow(["step", "action", "reward", "observation"])
+            writer.writerow([step, action, reward, observation])

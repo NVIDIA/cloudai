@@ -39,23 +39,30 @@ def nemo_tr(tmp_path: Path) -> TestRun:
     tr = TestRun(name="nemo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
 
     stdout_content = (
-        "[NeMo I 2024-11-15 10:22:04 utils:259] Setting up optimizer with config "
-        "OptimizerConfig(optimizer='adam', lr=0.0003)\n"
-        "Training epoch 0, iteration 0/4 | lr: 1.499e-07 | consumed_samples: 512 | "
-        "global_batch_size: 512 | global_step: 0 | reduced_train_loss: 11.03 | "
-        "train_step_timing in s: 61.94\n"
-        "Training epoch 0, iteration 1/4 | lr: 2.999e-07 | consumed_samples: 1024 | "
-        "global_batch_size: 512 | global_step: 1 | reduced_train_loss: 11.03 | "
-        "train_step_timing in s: 53.67\n"
-        "Training epoch 0, iteration 2/4 | lr: 4.498e-07 | consumed_samples: 1536 | "
-        "global_batch_size: 512 | global_step: 2 | reduced_train_loss: 11.03 | "
-        "train_step_timing in s: 52.45\n"
-        "Training epoch 0, iteration 3/4 | lr: 5.997e-07 | consumed_samples: 2048 | "
-        "global_batch_size: 512 | global_step: 3 | reduced_train_loss: 11.03 | "
-        "train_step_timing in s: 52.54\n"
-        "Training epoch 0, iteration 4/4 | lr: 7.496e-07 | consumed_samples: 2560 | "
-        "global_batch_size: 512 | global_step: 4 | reduced_train_loss: 11.03 | "
-        "train_step_timing in s: 53.16\n"
+        "Training epoch 0, iteration 17/99 | lr: 2.699e-06 | global_batch_size: 128 | global_step: 17 | "
+        "reduced_train_loss: 11.03 | train_step_timing in s: 12.64 | consumed_samples: 2304\n"
+        "Training epoch 0, iteration 18/99 | lr: 2.849e-06 | global_batch_size: 128 | global_step: 18 | "
+        "reduced_train_loss: 11.03 | train_step_timing in s: 12.64 | consumed_samples: 2432\n"
+        "Training epoch 0, iteration 19/99 | lr: 2.999e-06 | global_batch_size: 128 | global_step: 19 | "
+        "reduced_train_loss: 11.03 | train_step_timing in s: 12.64 | consumed_samples: 2560\n"
+        "Training epoch 0, iteration 20/99 | lr: 3.148e-06 | global_batch_size: 128 | global_step: 20 | "
+        "reduced_train_loss: 11.03 | train_step_timing in s: 12.65 | consumed_samples: 2688\n"
+        "Training epoch 0, iteration 21/99 | lr: 3.298e-06 | global_batch_size: 128 | global_step: 21 | "
+        "reduced_train_loss: 11.03 | train_step_timing in s: 12.87 | consumed_samples: 2816\n"
+        "Training epoch 0, iteration 22/99 | lr: 3.448e-06 | global_batch_size: 128 | global_step: 22 | "
+        "reduced_train_loss: 11.03 | train_step_timing in s: 12.87 | consumed_samples: 2944\n"
+        "Training epoch 0, iteration 23/99 | lr: 3.598e-06 | global_batch_size: 128 | global_step: 23 | "
+        "reduced_train_loss: 11.03 | train_step_timing in s: 12.63 | consumed_samples: 3072\n"
+        "Training epoch 0, iteration 24/99 | lr: 3.748e-06 | global_batch_size: 128 | global_step: 24 | "
+        "reduced_train_loss: 11.03 | train_step_timing in s: 13.04 | consumed_samples: 3200\n"
+        "Training epoch 0, iteration 25/99 | lr: 3.898e-06 | global_batch_size: 128 | global_step: 25 | "
+        "reduced_train_loss: 11.03 | train_step_timing in s: 12.64 | consumed_samples: 3328\n"
+        "Training epoch 0, iteration 26/99 | lr: 4.048e-06 | global_batch_size: 128 | global_step: 26 | "
+        "reduced_train_loss: 11.03 | train_step_timing in s: 12.65 | consumed_samples: 3456\n"
+        "Training epoch 0, iteration 27/99 | lr: 4.198e-06 | global_batch_size: 128 | global_step: 27 | "
+        "reduced_train_loss: 11.03 | train_step_timing in s: 12.65 | consumed_samples: 3584\n"
+        "Training epoch 0, iteration 28/99 | lr: 4.348e-06 | global_batch_size: 128 | global_step: 28 | "
+        "reduced_train_loss: 11.03 | train_step_timing in s: 12.65 | consumed_samples: 3712\n"
     )
 
     (tr.output_path / "stdout.txt").write_text(stdout_content)
@@ -79,10 +86,10 @@ def test_nemo_generate_report(slurm_system: SlurmSystem, nemo_tr: TestRun) -> No
     assert len(summary_content) == 4, "Summary file should contain four lines (avg, median, min, max)."
 
     expected_values = {
-        "Average": 54.752,
-        "Median": 53.16,
-        "Min": 52.45,
-        "Max": 61.94,
+        "Average": 12.74,
+        "Median": 12.65,
+        "Min": 12.63,
+        "Max": 13.04,
     }
 
     for line in summary_content:
