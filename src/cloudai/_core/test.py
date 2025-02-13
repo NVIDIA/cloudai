@@ -155,3 +155,7 @@ class TestDefinition(BaseModel, ABC):
     @abstractmethod
     def installables(self) -> list[Installable]:
         return []
+
+    @property
+    def constraint_check(self) -> bool:
+        return True

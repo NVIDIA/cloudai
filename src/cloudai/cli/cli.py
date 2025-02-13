@@ -27,7 +27,7 @@ from .handlers import (
 
 
 class CloudAICLI:
-    """Command-line argument parser for Cloud AI and derivatives."""
+    """Command-line argument parser for CloudAI and derivatives."""
 
     def __init__(self):
         self.DEFAULT_MODES = {
@@ -39,7 +39,7 @@ class CloudAICLI:
             "verify-configs",
         }
 
-        self.parser = argparse.ArgumentParser(description="Cloud AI")
+        self.parser = argparse.ArgumentParser(description="CloudAI")
         self.parser.add_argument(
             "--log-file", default="debug.log", help="The name of the log file (default: %(default)s)."
         )

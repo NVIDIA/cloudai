@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import List, Optional
 from unittest.mock import Mock
 
-from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, System, TestRun, TestScenario
+from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, System
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
 from cloudai._core.configurator.grid_search import GridSearchAgent
 from cloudai.util import prepare_output_dir
@@ -102,7 +102,8 @@ def is_dse_job(cmd_args: dict) -> bool:
     return False
 
 
-def handle_dse_job(test_run: TestRun, runner: Runner, args: argparse.Namespace):
+def handle_dse_job(runner: Runner, args: argparse.Namespace):
+    test_run = next(iter(runner.runner.test_scenario.test_runs))
     env = CloudAIGymEnv(test_run=test_run, runner=runner)
     agent = GridSearchAgent(env)
 
@@ -114,15 +115,14 @@ def handle_dse_job(test_run: TestRun, runner: Runner, args: argparse.Namespace):
         logging.info(f"Step {step}: Observation: {observation}, Reward: {reward}")
 
 
-def handle_non_dse_job(system: System, test_scenario: TestScenario, args: argparse.Namespace) -> None:
-    runner = Runner(args.mode, system, test_scenario)
+def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> None:
     asyncio.run(runner.run())
 
     logging.info(f"All test scenario results stored at: {runner.runner.output_path}")
 
     if args.mode == "run":
         generator = ReportGenerator(runner.runner.output_path)
-        generator.generate_report(test_scenario)
+        generator.generate_report(runner.runner.test_scenario)
         logging.info(
             "All test scenario execution attempts are complete. Please review"
             f" the '{args.log_file}' file to confirm successful completion or to"
@@ -170,12 +170,10 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     logging.info(test_scenario.pretty_print())
 
     runner = Runner(args.mode, system, test_scenario)
-    tr = next(iter(test_scenario.test_runs))
-
-    if is_dse_job(tr.test.cmd_args):
-        handle_dse_job(tr, runner, args)
+    if any(is_dse_job(tr.test.cmd_args) for tr in test_scenario.test_runs):
+        handle_dse_job(runner, args)
     else:
-        handle_non_dse_job(system, test_scenario, args)
+        handle_non_dse_job(runner, args)
 
     return 0
 

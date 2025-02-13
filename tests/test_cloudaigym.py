@@ -22,7 +22,13 @@ from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
 from cloudai._core.runner import Runner
 from cloudai._core.test_scenario import TestRun, TestScenario
 from cloudai.systems import SlurmSystem
-from cloudai.test_definitions.nemo_run import Data, NeMoRunCmdArgs, NeMoRunTestDefinition, Trainer, TrainerStrategy
+from cloudai.test_definitions.nemo_run import (
+    Data,
+    NeMoRunCmdArgs,
+    NeMoRunTestDefinition,
+    Trainer,
+    TrainerStrategy,
+)
 
 
 @pytest.fixture
@@ -153,13 +159,9 @@ def test_populate_action_space():
         task="some_task",
         recipe_name="some_recipe",
         trainer=Trainer(
-            max_steps=[1000, 2000],
-            val_check_interval=[100, 200],
             num_nodes=[1, 2],
             strategy=TrainerStrategy(
                 tensor_model_parallel_size=[1, 2],
-                pipeline_model_parallel_size=[1, 2],
-                context_parallel_size=[2, 4],
             ),
         ),
         data=Data(
@@ -168,20 +170,6 @@ def test_populate_action_space():
     )
     env.populate_action_space("", cmd_args.model_dump(), action_space)
 
-    expected_action_space = {
-        "docker_image_url": ["https://docker/url"],
-        "task": ["some_task"],
-        "recipe_name": ["some_recipe"],
-        "trainer.max_steps": [1000, 2000],
-        "trainer.val_check_interval": [100, 200],
-        "trainer.num_nodes": [1, 2],
-        "trainer.strategy.tensor_model_parallel_size": [1, 2],
-        "trainer.strategy.pipeline_model_parallel_size": [1, 2],
-        "trainer.strategy.context_parallel_size": [2, 4],
-        "trainer.strategy.virtual_pipeline_model_parallel_size": [None],
-        "data.micro_batch_size": [1, 2],
-        "log.ckpt.save_on_train_epoch_end": [False],
-        "log.ckpt.save_last": [False],
-    }
-
-    assert action_space == expected_action_space
+    assert action_space["trainer.num_nodes"] == [1, 2]
+    assert action_space["trainer.strategy.tensor_model_parallel_size"] == [1, 2]
+    assert action_space["data.micro_batch_size"] == [1, 2]

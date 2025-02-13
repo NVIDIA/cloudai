@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "dse_nemo_run_llama3_8b"
+name = "dse_nemo_run_llama3_8b_fp8"
 description = "dse_nemo_run_llama3_8b"
 test_template_name = "NeMoRun"
 
@@ -22,6 +22,7 @@ test_template_name = "NeMoRun"
 docker_image_url = "nvcr.io/nvidia/nemo:24.12.rc3"
 task = "pretrain"
 recipe_name = "llama3_8b"
+num_layers = 32
 
   [cmd_args.data]
   micro_batch_size = [1]
@@ -36,6 +37,14 @@ recipe_name = "llama3_8b"
     tensor_model_parallel_size = [1, 2, 4]
     pipeline_model_parallel_size = [1, 2, 4]
     context_parallel_size = [1, 2]
+
+    [cmd_args.trainer.plugins]
+    fp8 = "hybrid"
+    fp8_margin = 0
+    fp8_amax_history_len = 1024
+    fp8_amax_compute_algo = "max"
+    fp8_params = true
+    grad_reduce_in_fp32 = true
 
   [cmd_args.log.ckpt]
   save_on_train_epoch_end = false
