@@ -36,8 +36,9 @@ class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
     def generate_test_command(
         self, env_vars: dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> list[str]:
-        srun_command_parts: list[str] = []
+        tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
+        srun_command_parts: list[str] = [tdef.cmd_args.cmd]
         if tr.test.extra_cmd_args:
             srun_command_parts.append(tr.test.extra_cmd_args)
 
-        return srun_command_parts
+        return ["bash", "-c", f'"{" ".join(srun_command_parts)}"']
