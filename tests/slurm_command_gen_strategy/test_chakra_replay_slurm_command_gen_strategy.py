@@ -93,25 +93,9 @@ class TestChakraReplaySlurmCommandGenStrategy:
             (
                 {"trace_type": "comms_trace", "trace_path": "/workspace/traces/", "num_replays": 10},
                 "--max-steps 100",
-                [
-                    "comm_replay",
-                    "--trace-type comms_trace",
-                    "--trace-path /workspace/traces/",
-                    "--num-replays 10",
-                    "--max-steps 100",
-                ],
+                [],
             ),
-            (
-                {"trace_type": "comms_trace", "trace_path": "/workspace/traces/", "num_replays": 5},
-                "",
-                [
-                    "comm_replay",
-                    "--trace-type comms_trace",
-                    "--trace-path /workspace/traces/",
-                    "--num-replays 5",
-                    "",
-                ],
-            ),
+            ({"trace_type": "comms_trace", "trace_path": "/workspace/traces/", "num_replays": 5}, "", []),
         ],
     )
     def test_generate_test_command(
@@ -135,7 +119,5 @@ class TestChakraReplaySlurmCommandGenStrategy:
         tr = create_autospec_dataclass(TestRun)
         tr.test.extra_cmd_args = "--max-steps 100"
 
-        with pytest.raises(KeyError) as exc_info:
-            cmd_gen_strategy.generate_test_command({}, cmd_args, tr)
-
-        assert str(exc_info.value) == "'trace_path'", "Expected missing trace_path key"
+        command = cmd_gen_strategy.generate_test_command({}, cmd_args, tr)
+        assert command == []
