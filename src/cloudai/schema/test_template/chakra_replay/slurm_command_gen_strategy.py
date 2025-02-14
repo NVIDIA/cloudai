@@ -40,14 +40,30 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return base_args
 
-    def generate_test_command(
-        self, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
-    ) -> List[str]:
-        srun_command_parts = [
-            "comm_replay",
-            f'--trace-type {cmd_args["trace_type"]}',
-            f'--trace-path {cmd_args["trace_path"]}',
-            f'--num-replays {cmd_args["num_replays"]}',
-            tr.test.extra_cmd_args,
-        ]
-        return srun_command_parts
+    def _gen_srun_command(
+        self,
+        slurm_args: Dict[str, Any],
+        env_vars: Dict[str, str],
+        cmd_args: Dict[str, Union[str, List[str]]],
+        tr: TestRun,
+    ) -> str:
+        if "container_name" not in slurm_args:
+            slurm_args["container_name"] = "chakra_replay"
+
+        srun_prefix = " ".join(self.gen_srun_prefix(slurm_args, tr))
+
+        setup_command = (
+            f"srun --ntasks-per-node=1 {srun_prefix} bash -c \"pip install pydot ; "
+            "git clone https://github.com/TaekyungHeo/param.git -b theo/report ; "
+            "cd param/et_replay ; "
+            "pip install .\""
+        )
+
+        replay_command = (
+            f"{srun_prefix} bash -c \"comm_replay --trace-type {cmd_args['trace_type']} "
+            f"--trace-path {cmd_args['trace_path']} "
+            f"--num-replays {cmd_args['num_replays']} "
+            f"{tr.test.extra_cmd_args}\""
+        )
+
+        return f"{setup_command}\n{replay_command}"

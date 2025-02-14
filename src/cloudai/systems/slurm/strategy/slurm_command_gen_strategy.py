@@ -235,6 +235,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         srun_command_parts = ["srun", f"--mpi={self.system.mpi}"]
         if slurm_args.get("image_path"):
             srun_command_parts.append(f'--container-image={slurm_args["image_path"]}')
+            if "container_name" in slurm_args:
+                srun_command_parts.append(f'--container-name={slurm_args["container_name"]}')
             mounts = self.container_mounts(tr)
             if mounts:
                 srun_command_parts.append(f'--container-mounts={",".join(mounts)}')
