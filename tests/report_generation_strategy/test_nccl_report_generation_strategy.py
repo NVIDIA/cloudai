@@ -15,20 +15,30 @@
 # limitations under the License.
 
 from pathlib import Path
+from unittest.mock import Mock
 
 import pandas as pd
 import pytest
 
+from cloudai import Test, TestRun
 from cloudai.schema.test_template.nccl_test.report_generation_strategy import NcclTestReportGenerationStrategy
+from cloudai.systems.slurm.slurm_system import SlurmSystem
+from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
 
 
 @pytest.fixture
-def setup_test_environment(tmp_path: Path):
-    # Create a temporary directory for the test
-    test_dir = tmp_path / "test_env"
-    test_dir.mkdir()
+def nccl_tr(tmp_path: Path) -> TestRun:
+    test = Test(
+        test_definition=NCCLTestDefinition(
+            name="nccl",
+            description="desc",
+            test_template_name="t",
+            cmd_args=NCCLCmdArgs(),
+        ),
+        test_template=Mock(),
+    )
+    tr = TestRun(name="nemo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
 
-    # Create the mock stdout.txt file
     stdout_content = """
     # Using devices
     #  Rank  0 Group  0 Pid 111111 on    server001 device  0 [0xaa] NVIDIA H200 64GB HBM3
@@ -60,23 +70,22 @@ def setup_test_environment(tmp_path: Path):
     # Avg bus bandwidth    : 111.111
     #
     """
-    stdout_path = test_dir / "stdout.txt"
-    stdout_path.write_text(stdout_content)
+    (tr.output_path / "stdout.txt").write_text(stdout_content)
 
-    return test_dir
+    return tr
 
 
-def test_nccl_report_generation(setup_test_environment):
-    test_dir = setup_test_environment
+def test_nccl_report_generation(slurm_system: SlurmSystem, nccl_tr: TestRun) -> None:
+    test_dir = nccl_tr.output_path
 
     # Instantiate the strategy
-    strategy = NcclTestReportGenerationStrategy()
+    strategy = NcclTestReportGenerationStrategy(slurm_system, nccl_tr)
 
     # Validate the directory can be handled
-    assert strategy.can_handle_directory(test_dir) is True
+    assert strategy.can_handle_directory() is True
 
     # Generate the report
-    strategy.generate_report("nccl_test", test_dir)
+    strategy.generate_report()
 
     # Verify the CSV report
     csv_report_path = test_dir / "cloudai_nccl_test_csv_report.csv"

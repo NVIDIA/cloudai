@@ -15,8 +15,6 @@
 # limitations under the License.
 
 import re
-from pathlib import Path
-from typing import Optional
 
 from cloudai import ReportGenerationStrategy
 
@@ -24,8 +22,8 @@ from cloudai import ReportGenerationStrategy
 class SlurmContainerReportGenerationStrategy(ReportGenerationStrategy):
     """Report generation strategy for a generic Slurm container test."""
 
-    def can_handle_directory(self, directory_path: Path) -> bool:
-        stdout_path = directory_path / "stdout.txt"
+    def can_handle_directory(self) -> bool:
+        stdout_path = self.test_run.output_path / "stdout.txt"
         if stdout_path.exists():
             with stdout_path.open("r") as file:
                 if re.search(
@@ -36,14 +34,14 @@ class SlurmContainerReportGenerationStrategy(ReportGenerationStrategy):
                     return True
         return False
 
-    def generate_report(self, test_name: str, directory_path: Path, sol: Optional[float] = None) -> None:
-        stdout_path = directory_path / "stdout.txt"
+    def generate_report(self) -> None:
+        stdout_path = self.test_run.output_path / "stdout.txt"
         if not stdout_path.is_file():
             return
 
         with stdout_path.open("r") as file:
             lines = file.readlines()
-            with open(directory_path / "report.csv", "w") as csv_file:
+            with open(self.test_run.output_path / "report.csv", "w") as csv_file:
                 csv_file.write(
                     "epoch,iteration,lr,global_batch_size,global_step,reduced_train_loss,train_step_timing,consumed_samples\n"
                 )

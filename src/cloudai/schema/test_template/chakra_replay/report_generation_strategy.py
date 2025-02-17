@@ -17,7 +17,7 @@
 import re
 from math import pi
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict
 
 import pandas as pd
 from bokeh.layouts import column
@@ -37,16 +37,16 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
     tensor sizes from stdout files, and generate a report using Bokeh.
     """
 
-    def can_handle_directory(self, directory_path: Path) -> bool:
-        stdout_path = directory_path / "stdout.txt"
+    def can_handle_directory(self) -> bool:
+        stdout_path = self.test_run.output_path / "stdout.txt"
         if stdout_path.exists():
             with stdout_path.open("r") as file:
                 if re.search(r"Hello from Rank \d+: \[Rank\s+\d+\]", file.read()):
                     return True
         return False
 
-    def generate_report(self, test_name: str, directory_path: Path, sol: Optional[float] = None) -> None:
-        stdout_path = directory_path / "stdout.txt"
+    def generate_report(self) -> None:
+        stdout_path = self.test_run.output_path / "stdout.txt"
         if not stdout_path.is_file():
             return
 
@@ -54,7 +54,7 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
         latency_tables = self._extract_latency_tables(stdout_path)
         tensor_sizes = self._extract_tensor_sizes(stdout_path)
 
-        self._generate_bokeh_content(comms_data, latency_tables, tensor_sizes, directory_path)
+        self._generate_bokeh_content(comms_data, latency_tables, tensor_sizes)
 
     def _extract_comms_data(self, file_path: Path) -> Dict[str, int]:
         """
@@ -197,7 +197,6 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
         comms_data: Dict[str, int],
         latency_tables: Dict[str, pd.DataFrame],
         tensor_sizes: Dict[str, Dict[str, pd.DataFrame]],
-        directory_path: Path,
     ) -> None:
         """
         Generate Bokeh visualizations for the report.
@@ -213,7 +212,6 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
             tensor_sizes: A dictionary with operation names as keys and another
                           dictionary as values, containing DataFrames for input
                           and output tensor sizes.
-            directory_path: The directory path to save the report.
         """
         # Generate and configure pie chart for communications data
         data = pd.Series(comms_data).reset_index(name="value").rename(columns={"index": "comm"})
@@ -289,7 +287,7 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
         layout_final = column(layout, table_title_div, data_table)  # Combine layouts
 
         # Generate and save the report
-        output_filepath = directory_path / "chakra_replay_report.html"
+        output_filepath = self.test_run.output_path / "chakra_replay_report.html"
         if output_filepath.exists():
             output_filepath.unlink()
         output_file(output_filepath)

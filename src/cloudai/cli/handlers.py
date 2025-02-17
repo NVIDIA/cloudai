@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import List, Optional
 from unittest.mock import Mock
 
-from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, System
+from cloudai import Installable, Parser, Registry, Reporter, Runner, System
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
 from cloudai._core.configurator.grid_search import GridSearchAgent
 from cloudai.util import prepare_output_dir
@@ -121,8 +121,8 @@ def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> None:
     logging.info(f"All test scenario results stored at: {runner.runner.output_path}")
 
     if args.mode == "run":
-        generator = ReportGenerator(runner.runner.output_path)
-        generator.generate_report(runner.runner.test_scenario)
+        reporter = Reporter(runner.runner.system, runner.runner.test_scenario, runner.runner.output_path)
+        reporter.generate()
         logging.info(
             "All test scenario execution attempts are complete. Please review"
             f" the '{args.log_file}' file to confirm successful completion or to"
@@ -186,12 +186,12 @@ def handle_generate_report(args: argparse.Namespace) -> int:
         args (argparse.Namespace): The parsed command-line arguments.
     """
     parser = Parser(args.system_config)
-    _, _, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
+    system, _, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
     assert test_scenario is not None
 
     logging.info("Generating report based on system and test scenario")
-    generator = ReportGenerator(args.result_dir)
-    generator.generate_report(test_scenario)
+    reporter = Reporter(system, test_scenario, args.result_dir)
+    reporter.generate()
 
     logging.info("Report generation completed.")
 

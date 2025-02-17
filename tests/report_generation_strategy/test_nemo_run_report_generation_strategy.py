@@ -15,16 +15,28 @@
 # limitations under the License.
 
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
+from cloudai import Test, TestRun
 from cloudai.schema.test_template.nemo_run.report_generation_strategy import NeMoRunReportGenerationStrategy
+from cloudai.systems.slurm.slurm_system import SlurmSystem
+from cloudai.test_definitions.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
 
 
 @pytest.fixture
-def nemo_test_environment(tmp_path: Path) -> Path:
-    test_dir = tmp_path / "test_nemo_env"
-    test_dir.mkdir()
+def nemo_tr(tmp_path: Path) -> TestRun:
+    test = Test(
+        test_definition=NeMoRunTestDefinition(
+            name="nemo",
+            description="desc",
+            test_template_name="t",
+            cmd_args=NeMoRunCmdArgs(docker_image_url="docker://url", task="task", recipe_name="recipe"),
+        ),
+        test_template=Mock(),
+    )
+    tr = TestRun(name="nemo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
 
     stdout_content = (
         "Training epoch 0, iteration 17/99 | lr: 2.699e-06 | global_batch_size: 128 | global_step: 17 | "
@@ -53,21 +65,21 @@ def nemo_test_environment(tmp_path: Path) -> Path:
         "reduced_train_loss: 11.03 | train_step_timing in s: 12.65 | consumed_samples: 3712\n"
     )
 
-    (test_dir / "stdout.txt").write_text(stdout_content)
+    (tr.output_path / "stdout.txt").write_text(stdout_content)
 
-    return test_dir
-
-
-def test_nemo_can_handle_directory(nemo_test_environment: Path) -> None:
-    strategy = NeMoRunReportGenerationStrategy()
-    assert strategy.can_handle_directory(nemo_test_environment)
+    return tr
 
 
-def test_nemo_generate_report(nemo_test_environment: Path) -> None:
-    strategy = NeMoRunReportGenerationStrategy()
-    strategy.generate_report("nemo_test", nemo_test_environment)
+def test_nemo_can_handle_directory(slurm_system: SlurmSystem, nemo_tr: TestRun) -> None:
+    strategy = NeMoRunReportGenerationStrategy(slurm_system, nemo_tr)
+    assert strategy.can_handle_directory()
 
-    summary_file = nemo_test_environment / "report.txt"
+
+def test_nemo_generate_report(slurm_system: SlurmSystem, nemo_tr: TestRun) -> None:
+    strategy = NeMoRunReportGenerationStrategy(slurm_system, nemo_tr)
+    strategy.generate_report()
+
+    summary_file = nemo_tr.output_path / "report.txt"
     assert summary_file.is_file(), "Summary report was not generated."
 
     summary_content = summary_file.read_text().strip().split("\n")

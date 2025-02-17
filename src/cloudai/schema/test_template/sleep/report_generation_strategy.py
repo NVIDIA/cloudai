@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
-from typing import Optional
 
 from cloudai import ReportGenerationStrategy
 
@@ -23,8 +21,8 @@ from cloudai import ReportGenerationStrategy
 class SleepReportGenerationStrategy(ReportGenerationStrategy):
     """Strategy for generating reports from sleep directories."""
 
-    def can_handle_directory(self, directory_path: Path) -> bool:
+    def can_handle_directory(self) -> bool:
         return False
 
-    def generate_report(self, test_name: str, directory_path: Path, sol: Optional[float] = None) -> None:
+    def generate_report(self) -> None:
         pass
