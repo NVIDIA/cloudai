@@ -15,17 +15,27 @@
 # limitations under the License.
 
 name = "nemo_run_llama3_8b"
-description = "nemo_run_llama3_8b"
+description = "dse_nemo_run_llama3_8b"
 test_template_name = "NeMoRun"
 
 [cmd_args]
-docker_image_url = "nvcr.io/nvidia/nemo:24.09"
+docker_image_url = "nvcr.io/nvidia/nemo:24.12.rc3"
 task = "pretrain"
 recipe_name = "llama3_8b"
 
+  [cmd_args.data]
+  micro_batch_size = 1
+  global_batch_size = 128
+
   [cmd_args.trainer]
-  max_steps = 5
+  max_steps = 100
   val_check_interval = 1000
+  num_nodes = 1
+
+    [cmd_args.trainer.strategy]
+    tensor_model_parallel_size = 1
+    pipeline_model_parallel_size = 1
+    context_parallel_size = 2
 
   [cmd_args.log.ckpt]
   save_on_train_epoch_end = false
