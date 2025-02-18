@@ -187,6 +187,23 @@ class BaseInstaller(ABC):
         nfailed = len([result for result in uninstall_results.values() if result != "Success"])
         return InstallStatusResult(False, f"{nfailed} item(s) failed to uninstall.", uninstall_results)
 
+    @final
+    def mark_as_installed(self, items: Iterable[Installable]) -> InstallStatusResult:
+        """
+        Mark the installable items as installed.
+
+        Args:
+            items (Iterable[Installable]): Items to mark as installed.
+
+        Returns:
+            InstallStatusResult: Result containing the status and error message if any.
+        """
+        install_results = {}
+        for item in items:
+            self.mark_as_installed_one(item)
+
+        return InstallStatusResult(True, "All items marked as installed successfully.", install_results)
+
     @abstractmethod
     def install_one(self, item: Installable) -> InstallStatusResult: ...
 
@@ -195,3 +212,6 @@ class BaseInstaller(ABC):
 
     @abstractmethod
     def is_installed_one(self, item: Installable) -> InstallStatusResult: ...
+
+    @abstractmethod
+    def mark_as_installed_one(self, item: Installable) -> InstallStatusResult: ...

@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from subprocess import CompletedProcess
+from typing import cast
 from unittest.mock import Mock, patch
 
 import pytest
@@ -23,6 +24,7 @@ from cloudai import InstallStatusResult
 from cloudai._core.installables import DockerImage, GitRepo, Installable, PythonExecutable
 from cloudai.installer.slurm_installer import SlurmInstaller
 from cloudai.systems.slurm.slurm_system import SlurmSystem
+from cloudai.test_definitions.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
 from cloudai.util.docker_image_cache_manager import DockerImageCacheResult
 
 
@@ -294,7 +296,7 @@ def test_check_supported(slurm_system: SlurmSystem):
     installer._is_python_executable_installed = lambda item: InstallStatusResult(True)
     installer.docker_image_cache_manager.check_docker_image_exists = Mock(return_value=DockerImageCacheResult(True))
 
-    git = GitRepo(url="git_url", commit="commit_hash")
+    git = GitRepo(url="./git_url", commit="commit_hash")
     items = [DockerImage("fake_url/img"), PythonExecutable(git)]
     for item in items:
         res = installer.install_one(item)
@@ -306,6 +308,9 @@ def test_check_supported(slurm_system: SlurmSystem):
         res = installer.is_installed_one(item)
         assert res.success
 
+        res = installer.mark_as_installed_one(item)
+        assert res.success
+
     class MyInstallable(Installable):
         def __eq__(self, other: object) -> bool:
             return True
@@ -314,7 +319,12 @@ def test_check_supported(slurm_system: SlurmSystem):
             return hash("MyInstallable")
 
     unsupported = MyInstallable()
-    for func in [installer.install_one, installer.uninstall_one, installer.is_installed_one]:
+    for func in [
+        installer.install_one,
+        installer.uninstall_one,
+        installer.is_installed_one,
+        installer.mark_as_installed_one,
+    ]:
         res = func(unsupported)
         assert not res.success
         assert res.message == f"Unsupported item type: {type(unsupported)}"
@@ -326,3 +336,18 @@ def test_git_repo():
 
     git.mount_as = "/my_mount"
     assert git.container_mount == git.mount_as
+
+
+def test_mark_as_installed(slurm_system: SlurmSystem):
+    tdef = NeMoLauncherTestDefinition(
+        name="name", description="desc", test_template_name="tt", cmd_args=NeMoLauncherCmdArgs()
+    )
+    docker = cast(DockerImage, tdef.installables[0])
+    py_script = cast(PythonExecutable, tdef.installables[1])
+
+    installer = SlurmInstaller(slurm_system)
+    res = installer.mark_as_installed(tdef.installables)
+
+    assert res.success
+    assert docker.installed_path == slurm_system.install_path / docker.cache_filename
+    assert py_script.git_repo.installed_path == slurm_system.install_path / py_script.git_repo.repo_name

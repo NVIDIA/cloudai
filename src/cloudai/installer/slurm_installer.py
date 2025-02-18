@@ -160,6 +160,20 @@ class SlurmInstaller(BaseInstaller):
 
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
+    def mark_as_installed_one(self, item: Installable) -> InstallStatusResult:
+        if isinstance(item, DockerImage):
+            item.installed_path = self.system.install_path / item.cache_filename
+            return InstallStatusResult(True)
+        elif isinstance(item, GitRepo):
+            item.installed_path = self.system.install_path / item.repo_name
+            return InstallStatusResult(True)
+        elif isinstance(item, PythonExecutable):
+            item.git_repo.installed_path = self.system.install_path / item.git_repo.repo_name
+            item.venv_path = self.system.install_path / item.venv_name
+            return InstallStatusResult(True)
+
+        return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
+
     def _install_docker_image(self, item: DockerImage) -> DockerImageCacheResult:
         res = self.docker_image_cache_manager.ensure_docker_image(item.url, item.cache_filename)
         if res.success and res.docker_image_path:

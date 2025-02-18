@@ -68,6 +68,7 @@ def test_slurm(tmp_path: Path, scenario: Dict):
         hook_dir=Path("conf/common/hook"),
         test_scenario=test_scenario_path,
         output_dir=tmp_path,
+        enable_cache_without_check=False,
     )
     with (
         patch("asyncio.sleep", return_value=None),

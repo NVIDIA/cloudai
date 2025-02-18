@@ -160,7 +160,10 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
         raise NotImplementedError(f"No installer available for scheduler: {system.scheduler}")
     installer = installer_class(system)
 
-    result = installer.is_installed(installables)
+    if args.enable_cache_without_check:
+        result = installer.mark_as_installed(installables)
+    else:
+        result = installer.is_installed(installables)
 
     if args.mode == "run" and not result.success:
         logging.error("CloudAI has not been installed. Please run install mode first.")

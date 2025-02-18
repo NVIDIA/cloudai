@@ -43,6 +43,9 @@ class MyInstaller(BaseInstaller):
     def is_installed_one(self, item: Installable) -> InstallStatusResult:
         return InstallStatusResult(success=True)
 
+    def mark_as_installed_one(self, item: Installable) -> InstallStatusResult:
+        return InstallStatusResult(success=True)
+
 
 @pytest.fixture
 def docker_image() -> DockerImage:
