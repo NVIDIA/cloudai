@@ -27,6 +27,10 @@ class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
     def _container_mounts(self, tr: TestRun) -> list[str]:
         return []
 
+    def gen_nsys_command(self, tr: TestRun) -> list[str]:
+        """NSYS command is generated as part of the test command and disabled here."""
+        return []
+
     def gen_srun_prefix(self, slurm_args: dict[str, Any], tr: TestRun) -> list[str]:
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
         slurm_args["image_path"] = tdef.docker_image.installed_path
@@ -37,7 +41,7 @@ class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
         self, env_vars: dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> list[str]:
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
-        srun_command_parts: list[str] = [tdef.cmd_args.cmd]
+        srun_command_parts: list[str] = [*super().gen_nsys_command(tr), tdef.cmd_args.cmd]
         if tr.test.extra_cmd_args:
             srun_command_parts.append(tr.test.extra_cmd_args)
 

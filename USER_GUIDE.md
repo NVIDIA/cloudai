@@ -441,6 +441,26 @@ CloudAI runs all slurm jobs using containers. To simplify file system related ta
 #### Dev details
 `SlurmCommandGenStrategy` defines abstract method `_container_mounts(tr: TestRun)` that must be implemented by every subclass. This method is used in `SlurmCommandGenStrategy.container_mounts(tr: TestRun)` (defined as `@final`) where mounts like `/cloudai_run_results` (default mount), `TestDefinition.extra_container_mounts` (from Test TOML) and test specific mounts (defined in-code) are added.
 
+### Nsys tracing
+Users can enable Nsys tracing for any workload when running via Slurm. Note, that `nsys` should be available on the compute nodes, CloudAI doesn't manage it.
+
+Configuration fields are:
+```py
+enable: bool = True
+nsys_binary: str = "nsys"
+task: str = "profile"
+output: Optional[str] = None
+sample: Optional[str] = None
+trace: Optional[str] = None
+force_overwrite: Optional[bool] = None
+capture_range: Optional[str] = None
+capture_range_end: Optional[str] = None
+cuda_graph_trace: Optional[str] = None
+gpu_metrics_devices: Optional[str] = None
+extra_args: list[str] = []
+```
+Fields with `None` value are not passed to `nsys` command.
+
 ## Troubleshooting
 In this section, we will guide you through identifying the root cause of issues, determining whether they stem from system infrastructure or a bug in CloudAI. Users should closely follow the USER_GUIDE.md and README.md for installation, tests, and test scenarios.
 
