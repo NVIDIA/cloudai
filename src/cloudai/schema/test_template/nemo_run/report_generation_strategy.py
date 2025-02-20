@@ -16,8 +16,6 @@
 
 import logging
 import os
-from pathlib import Path
-from typing import Optional
 
 import numpy as np
 
@@ -27,15 +25,15 @@ from cloudai import ReportGenerationStrategy
 class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
     """Strategy for generating reports from NeMoRun directories."""
 
-    def can_handle_directory(self, directory_path: Path) -> bool:
-        for _, __, files in os.walk(directory_path):
+    def can_handle_directory(self) -> bool:
+        for _, __, files in os.walk(self.test_run.output_path):
             for file in files:
                 if file.startswith("stdout.txt"):
                     return True
         return False
 
-    def generate_report(self, test_name: str, directory_path: Path, sol: Optional[float] = None) -> None:
-        stdout_file = directory_path / "stdout.txt"
+    def generate_report(self) -> None:
+        stdout_file = self.test_run.output_path / "stdout.txt"
         if not stdout_file.exists():
             logging.error(f"{stdout_file} not found")
             return
@@ -70,7 +68,7 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             "max": np.max(step_timings),
         }
 
-        summary_file = directory_path / "report.txt"
+        summary_file = self.test_run.output_path / "report.txt"
         with open(summary_file, "w") as f:
             f.write("Average: {avg}\n".format(avg=stats["avg"]))
             f.write("Median: {median}\n".format(median=stats["median"]))

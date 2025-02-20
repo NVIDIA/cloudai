@@ -99,7 +99,6 @@ class TestParser:
         strategy_interface: Type[
             Union[
                 TestTemplateStrategy,
-                ReportGenerationStrategy,
                 JobIdRetrievalStrategy,
                 JobStatusRetrievalStrategy,
                 GradingStrategy,
@@ -111,7 +110,6 @@ class TestParser:
     ) -> Optional[
         Union[
             TestTemplateStrategy,
-            ReportGenerationStrategy,
             JobIdRetrievalStrategy,
             JobStatusRetrievalStrategy,
             GradingStrategy,
@@ -137,7 +135,7 @@ class TestParser:
         if strategy_type:
             if issubclass(strategy_type, TestTemplateStrategy):
                 return strategy_type(self.system, cmd_args)
-            else:
+            elif not issubclass(strategy_type, ReportGenerationStrategy):
                 return strategy_type()
 
         logging.debug(
@@ -176,10 +174,6 @@ class TestParser:
         obj.job_status_retrieval_strategy = cast(
             JobStatusRetrievalStrategy,
             self._fetch_strategy(JobStatusRetrievalStrategy, type(obj.system), type(tdef), cmd_args),
-        )
-        obj.report_generation_strategy = cast(
-            ReportGenerationStrategy,
-            self._fetch_strategy(ReportGenerationStrategy, type(obj.system), type(tdef), cmd_args),
         )
         obj.grading_strategy = cast(
             GradingStrategy, self._fetch_strategy(GradingStrategy, type(obj.system), type(tdef), cmd_args)
