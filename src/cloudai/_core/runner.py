@@ -14,7 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import logging
+from types import FrameType
+from typing import Optional
 
 from .base_runner import BaseRunner
 from .registry import Registry
@@ -72,3 +75,15 @@ class Runner:
     async def run(self):
         """Run the test scenario using the instantiated runner."""
         await self.runner.run()
+
+    def cancel_on_signal(
+        self,
+        signum: int,
+        frame: Optional[FrameType],  # noqa: Vulture
+    ):
+        logging.info(f"Signal {signum} received, shutting down...")
+
+        # the below code might look excessive, this is to address https://docs.astral.sh/ruff/rules/asyncio-dangling-task/
+        task = asyncio.create_task(self.runner.shutdown())
+        tasks = {task}
+        task.add_done_callback(tasks.discard)

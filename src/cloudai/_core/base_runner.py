@@ -17,13 +17,11 @@
 import asyncio
 import datetime
 import logging
-import signal
 import sys
 from abc import ABC, abstractmethod
 from asyncio import Task
 from pathlib import Path
-from types import FrameType
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from .base_job import BaseJob
 from .exceptions import JobFailureError, JobSubmissionError
@@ -69,8 +67,7 @@ class BaseRunner(ABC):
         self.jobs: List[BaseJob] = []
         self.testrun_to_job_map: Dict[TestRun, BaseJob] = {}
         logging.debug(f"{self.__class__.__name__} initialized")
-        self.shutting_down = False
-        self.register_signal_handlers()
+        self._shutting_down = False
 
     def setup_output_directory(self, base_output_path: Path) -> Path:
         """
@@ -88,51 +85,12 @@ class BaseRunner(ABC):
         output_subpath = base_output_path / f"{self.test_scenario.name}_{current_time}"
         return output_subpath
 
-    def register_signal_handlers(self):
-        """Register signal handlers for handling termination-related signals."""
-        signals = [
-            signal.SIGINT,
-            signal.SIGTERM,
-            signal.SIGHUP,
-            signal.SIGQUIT,
-        ]
-        for sig in signals:
-            signal.signal(sig, self.signal_handler)
-
-    def signal_handler(
-        self,
-        signum: int,
-        frame: Optional[FrameType],  # noqa: Vulture
-    ) -> None:
-        """
-        Respond to termination-related signals (e.g., SIGINT) by initiating a graceful shutdown of the application.
-
-        This method logs the received signal and then triggers the asynchronous shutdown process, which involves
-        terminating all outstanding jobs in a controlled manner.
-
-        Args:
-            signum (int): The signal number indicating the type of signal received.
-            frame (Optional[FrameType]): The current stack frame when the signal was received, or None if not
-                applicable. This parameter is typically not used directly but is necessary for signal handler
-                functions.
-
-        Returns:
-            None
-        """
-        self.shutting_down = True
-        logging.info(f"Signal {signum} received, shutting down...")
-
-        # the below code might look exsessive, this is to address https://docs.astral.sh/ruff/rules/asyncio-dangling-task/
-        task = asyncio.create_task(self.shutdown())
-        tasks = {task}
-        task.add_done_callback(tasks.discard)
-
     async def shutdown(self):
         """Gracefully shut down the runner, terminating all outstanding jobs."""
-        if not self.jobs:
-            return
+        self._shutting_down = True
         logging.info("Terminating all jobs...")
         for job in self.jobs:
+            logging.info(f"Terminating job {job.id} for test {job.test_run.name}")
             self.system.kill(job)
         logging.info("All jobs have been killed.")
 
@@ -140,7 +98,7 @@ class BaseRunner(ABC):
 
     async def run(self):
         """Asynchronously run the test scenario."""
-        if self.shutting_down:
+        if self._shutting_down:
             return
 
         logging.info("Starting test scenario execution.")
