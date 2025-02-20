@@ -37,7 +37,7 @@ num_layers = 32
     tensor_model_parallel_size = [4]
     pipeline_model_parallel_size = [1]
     context_parallel_size = [1]
-    
+
     [cmd_args.trainer.plugins]
     fp8 = "hybrid"
     fp8_margin = 0
