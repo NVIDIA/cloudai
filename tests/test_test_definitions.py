@@ -20,7 +20,7 @@ from typing import Union
 import pytest
 import toml
 
-from cloudai import Parser, Registry
+from cloudai import NsysConfiguration, Parser, Registry
 from cloudai.test_definitions import ChakraReplayCmdArgs, NCCLCmdArgs, NCCLTestDefinition
 from cloudai.test_definitions.chakra_replay import ChakraReplayTestDefinition
 from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
@@ -146,3 +146,24 @@ def test_python_executable_installable_persists(test: NeMoLauncherTestDefinition
     test.python_executable.venv_path = tmp_path
     assert test.python_executable.git_repo.installed_path == tmp_path
     assert test.python_executable.venv_path == tmp_path
+
+
+class TestNsysConfiguration:
+    def test_default(self):
+        nsys = NsysConfiguration()
+        assert nsys.enable is True
+        assert nsys.nsys_binary == "nsys"
+        assert nsys.task == "profile"
+
+    def test_cmd_args(self):
+        nsys = NsysConfiguration()
+        assert nsys.cmd_args == ["nsys", "profile"]
+
+    @pytest.mark.parametrize("value", [True, False])
+    def test_force_overwrite(self, value: bool):
+        nsys = NsysConfiguration(force_overwrite=value)
+        assert nsys.cmd_args == ["nsys", "profile", f"--force-overwrite={'true' if value else 'false'}"]
+
+    def test_extra_args(self):
+        nsys = NsysConfiguration(extra_args=["--extra", "args"])
+        assert nsys.cmd_args == ["nsys", "profile", "--extra", "args"]
