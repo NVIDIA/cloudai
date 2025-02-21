@@ -27,6 +27,6 @@ id = "nemo_run_llama3_8b_2"
 test_name = "nemo_run_llama3_8b"
 num_nodes = "2"
 time_limit = "00:30:00"
-  [[Tests.dependencies]]
-  type = "start_post_comp"
-  id = "nemo_run_llama3_8b_1"
+  # [[Tests.dependencies]]
+  # type = "start_post_comp"
+  # id = "nemo_run_llama3_8b_1"
