@@ -16,7 +16,6 @@
 
 
 import logging
-import shutil
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Union, cast
@@ -75,7 +74,13 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         for non_cmd_arg in {"docker_image_url", "num_layers", "task", "recipe_name"}:
             cmd_args_dict.pop(non_cmd_arg)
 
-        command = [f"python /cloudai_workspace/{self._run_script.name}", "--factory", tdef.cmd_args.recipe_name, "-y"]
+        command = [
+            "python",
+            f"/cloudai_workspace/{self._run_script.name}",
+            "--factory",
+            tdef.cmd_args.recipe_name,
+            "-y",
+        ]
 
         num_nodes = len(self.system.parse_nodes(tr.nodes)) if tr.nodes else tr.num_nodes
 

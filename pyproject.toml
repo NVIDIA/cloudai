@@ -27,7 +27,6 @@ dependencies = [
 ]
   [project.scripts]
   cloudai = "cloudai.__main__:main"
-  cloudai-nemorun = "scripts.cloudai_nemorun:main"
 
 [build-system]
 requires = ["pdm-backend"]
