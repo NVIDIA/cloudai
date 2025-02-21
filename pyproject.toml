@@ -104,3 +104,4 @@ exclude_also = ["@abstractmethod"]
 
 [tool.pyright]
 include = ["src", "tests"]
+exclude = ["src/cloudai/schema/test_template/nemo_run/cloudai_nemorun.py"]
