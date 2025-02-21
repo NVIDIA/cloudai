@@ -76,14 +76,27 @@ class Runner:
         """Run the test scenario using the instantiated runner."""
         await self.runner.run()
 
+    def _cancel_all(self):
+        # the below code might look excessive, this is to address https://docs.astral.sh/ruff/rules/asyncio-dangling-task/
+        shutdown_task = asyncio.create_task(self.runner.shutdown())
+        tasks = {shutdown_task}
+        shutdown_task.add_done_callback(tasks.discard)
+
+        for task in asyncio.all_tasks():
+            if task == shutdown_task:
+                continue
+
+            logging.debug(f"Cancelling task: {task}")
+            try:
+                task.cancel()
+            except asyncio.CancelledError as exc:
+                logging.debug(f"Error cancelling task: {task}, {exc}", exc_info=True)
+                pass
+
     def cancel_on_signal(
         self,
         signum: int,
         frame: Optional[FrameType],  # noqa: Vulture
     ):
         logging.info(f"Signal {signum} received, shutting down...")
-
-        # the below code might look excessive, this is to address https://docs.astral.sh/ruff/rules/asyncio-dangling-task/
-        task = asyncio.create_task(self.runner.shutdown())
-        tasks = {task}
-        task.add_done_callback(tasks.discard)
+        asyncio.get_running_loop().call_soon_threadsafe(self._cancel_all)
