@@ -28,7 +28,7 @@ from ._core.exceptions import (
 )
 from ._core.grader import Grader
 from ._core.grading_strategy import GradingStrategy
-from ._core.installables import DockerImage, GitRepo, Installable, PythonExecutable
+from ._core.installables import DockerImage, File, GitRepo, Installable, PythonExecutable
 from ._core.job_id_retrieval_strategy import JobIdRetrievalStrategy
 from ._core.job_status_result import JobStatusResult
 from ._core.job_status_retrieval_strategy import JobStatusRetrievalStrategy
@@ -255,6 +255,7 @@ __all__ = [
     "CmdArgs",
     "CommandGenStrategy",
     "DockerImage",
+    "File",
     "GitRepo",
     "Grader",
     "GradingStrategy",

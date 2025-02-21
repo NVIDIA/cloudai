@@ -16,10 +16,10 @@
 
 import os
 
-import lightning.pytorch as pl
+import lightning.pytorch as pl  # pyright: ignore[reportMissingImports]
 import nemo_run as run  # pyright: ignore[reportMissingImports]
-import torch
-from lightning.pytorch.loggers import WandbLogger
+import torch  # pyright: ignore[reportMissingImports]
+from lightning.pytorch.loggers import WandbLogger  # pyright: ignore[reportMissingImports]
 from megatron.core.distributed import DistributedDataParallelConfig  # pyright: ignore[reportMissingImports]
 from megatron.core.optimizer import OptimizerConfig  # pyright: ignore[reportMissingImports]
 from nemo import lightning as nl  # pyright: ignore[reportMissingImports]

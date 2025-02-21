@@ -14,13 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from subprocess import CompletedProcess
 from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai import InstallStatusResult
-from cloudai._core.installables import DockerImage, GitRepo, Installable, PythonExecutable
+from cloudai import DockerImage, File, GitRepo, Installable, InstallStatusResult, PythonExecutable
 from cloudai.installer.slurm_installer import SlurmInstaller
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.util.docker_image_cache_manager import DockerImageCacheResult
@@ -285,7 +285,28 @@ class TestInstallOnePythonExecutable:
         assert not py.venv_path
 
 
+class TestInstallOneFile:
+    @pytest.fixture
+    def f(self) -> File:
+        return File(Path(__file__))
+
+    def test_no_dst(self, installer: SlurmInstaller, f: File):
+        res = installer.install_one(f)
+        assert res.success
+        assert f.installed_path == installer.system.install_path / f.src.name
+        assert f.installed_path.exists()
+        assert f.installed_path.read_bytes() == f.src.read_bytes()
+
+    def test_file_exists_but_overriden(self, installer: SlurmInstaller, f: File):
+        f.installed_path = installer.system.install_path / f.src.name
+        f.installed_path.touch()
+        res = installer.install_one(f)
+        assert res.success
+        assert f.src.read_bytes() == f.installed_path.read_bytes()
+
+
 def test_check_supported(slurm_system: SlurmSystem):
+    slurm_system.install_path.mkdir()
     installer = SlurmInstaller(slurm_system)
     installer._install_docker_image = lambda item: DockerImageCacheResult(True)
     installer._install_python_executable = lambda item: InstallStatusResult(True)
@@ -295,15 +316,15 @@ def test_check_supported(slurm_system: SlurmSystem):
     installer.docker_image_cache_manager.check_docker_image_exists = Mock(return_value=DockerImageCacheResult(True))
 
     git = GitRepo(url="git_url", commit="commit_hash")
-    items = [DockerImage("fake_url/img"), PythonExecutable(git)]
+    items = [DockerImage("fake_url/img"), PythonExecutable(git), File(Path(__file__))]
     for item in items:
         res = installer.install_one(item)
         assert res.success
 
-        res = installer.uninstall_one(item)
+        res = installer.is_installed_one(item)
         assert res.success
 
-        res = installer.is_installed_one(item)
+        res = installer.uninstall_one(item)
         assert res.success
 
     class MyInstallable(Installable):

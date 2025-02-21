@@ -38,12 +38,12 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return base_args
 
-    @property
-    def _run_script(self) -> Path:
-        return Path(__file__).parent / "cloudai_nemorun.py"
+    def _run_script(self, tr: TestRun) -> Path:
+        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
+        return tdef.script.installed_path
 
     def _container_mounts(self, tr: TestRun) -> List[str]:
-        return [f"{self._run_script.parent.absolute()}:/cloudai_workspace"]
+        return [f"{self._run_script(tr).parent.absolute()}:/cloudai_workspace"]
 
     def flatten_dict(self, d: dict[str, str], parent_key: str = "", sep: str = "."):
         items = []
@@ -76,7 +76,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         command = [
             "python",
-            f"/cloudai_workspace/{self._run_script.name}",
+            f"/cloudai_workspace/{self._run_script(tr).name}",
             "--factory",
             tdef.cmd_args.recipe_name,
             "-y",

@@ -82,7 +82,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
         assert cmd is not None
         assert cmd[:5] == [
             "python",
-            f"/cloudai_workspace/{cmd_gen_strategy._run_script.name}",
+            f"/cloudai_workspace/{cmd_gen_strategy._run_script(test_run).name}",
             "--factory",
             cmd_args.recipe_name,
             "-y",
