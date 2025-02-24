@@ -21,9 +21,12 @@ from pathlib import Path
 from typing import List, Optional
 from unittest.mock import Mock
 
+import toml
+
 from cloudai import Installable, Parser, Registry, Reporter, Runner, System
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
 from cloudai._core.configurator.grid_search import GridSearchAgent
+from cloudai._core.test_parser import TestParser
 from cloudai.util import prepare_output_dir
 
 from ..parser import HOOK_ROOT
@@ -230,12 +233,16 @@ def verify_system_configs(system_tomls: List[Path]) -> int:
     return nfailed
 
 
-def verify_test_configs(test_tomls: List[Path]) -> int:
+def verify_test_configs(test_tomls: List[Path], strict: bool) -> int:
     nfailed = 0
+    tp = TestParser([], None)  # type: ignore
+    logging.info(f"Strict test verification: {strict}")
     for test_toml in test_tomls:
         logging.debug(f"Verifying Test: {test_toml}...")
         try:
-            Parser.parse_tests([test_toml], None)  # type: ignore
+            with test_toml.open() as fh:
+                tp.current_file = test_toml
+                tp.load_test_definition(toml.load(fh), strict)
         except Exception:
             nfailed += 1
 
@@ -302,7 +309,7 @@ def handle_verify_all_configs(args: argparse.Namespace) -> int:
     if files["system"]:
         nfailed += verify_system_configs(files["system"])
     if files["test"]:
-        nfailed += verify_test_configs(files["test"])
+        nfailed += verify_test_configs(files["test"], args.strict)
     if files["scenario"]:
         nfailed += verify_test_scenarios(
             files["scenario"], test_tomls, files["hook"], files["hook_test"], args.system_config

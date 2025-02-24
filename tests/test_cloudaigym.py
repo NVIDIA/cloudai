@@ -162,6 +162,7 @@ def test_populate_action_space():
             num_nodes=[1, 2],
             strategy=TrainerStrategy(
                 tensor_model_parallel_size=[1, 2],
+                unknown_nested=[1, 2],  # type: ignore
             ),
         ),
         data=Data(
@@ -172,4 +173,5 @@ def test_populate_action_space():
 
     assert action_space["trainer.num_nodes"] == [1, 2]
     assert action_space["trainer.strategy.tensor_model_parallel_size"] == [1, 2]
+    assert action_space["trainer.strategy.unknown_nested"] == [1, 2]
     assert action_space["data.micro_batch_size"] == [1, 2]
