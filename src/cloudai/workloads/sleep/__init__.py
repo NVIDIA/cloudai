@@ -14,12 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .grading_strategy import ChakraReplayGradingStrategy
-from .report_generation_strategy import ChakraReplayReportGenerationStrategy
-from .slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
+from .grading_strategy import SleepGradingStrategy
+from .kubernetes_json_gen_strategy import SleepKubernetesJsonGenStrategy
+from .report_generation_strategy import SleepReportGenerationStrategy
+from .sleep import SleepCmdArgs, SleepTestDefinition
+from .slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
+from .standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
 
 __all__ = [
-    "ChakraReplayGradingStrategy",
-    "ChakraReplayReportGenerationStrategy",
-    "ChakraReplaySlurmCommandGenStrategy",
+    "SleepCmdArgs",
+    "SleepGradingStrategy",
+    "SleepKubernetesJsonGenStrategy",
+    "SleepReportGenerationStrategy",
+    "SleepSlurmCommandGenStrategy",
+    "SleepStandaloneCommandGenStrategy",
+    "SleepTestDefinition",
 ]

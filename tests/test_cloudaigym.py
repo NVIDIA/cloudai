@@ -22,7 +22,7 @@ from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
 from cloudai._core.runner import Runner
 from cloudai._core.test_scenario import TestRun, TestScenario
 from cloudai.systems import SlurmSystem
-from cloudai.test_definitions.nemo_run import (
+from cloudai.workloads.nemo_run import (
     Data,
     NeMoRunCmdArgs,
     NeMoRunTestDefinition,

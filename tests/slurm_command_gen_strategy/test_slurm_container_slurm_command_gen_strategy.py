@@ -21,9 +21,12 @@ import pytest
 from cloudai import TestRun
 from cloudai._core.test import NsysConfiguration, Test
 from cloudai._core.test_template import TestTemplate
-from cloudai.schema.test_template.slurm_container.slurm_command_gen_strategy import SlurmContainerCommandGenStrategy
 from cloudai.systems import SlurmSystem
-from cloudai.test_definitions.slurm_container import SlurmContainerCmdArgs, SlurmContainerTestDefinition
+from cloudai.workloads.slurm_container import (
+    SlurmContainerCmdArgs,
+    SlurmContainerCommandGenStrategy,
+    SlurmContainerTestDefinition,
+)
 
 
 @pytest.fixture
