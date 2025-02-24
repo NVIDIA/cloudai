@@ -23,10 +23,9 @@ from unittest.mock import Mock
 
 import toml
 
-from cloudai import Installable, Parser, Registry, Reporter, Runner, System
+from cloudai import Installable, Parser, Registry, Reporter, Runner, System, TestParser
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
 from cloudai._core.configurator.grid_search import GridSearchAgent
-from cloudai._core.test_parser import TestParser
 from cloudai.util import prepare_output_dir
 
 from ..parser import HOOK_ROOT
