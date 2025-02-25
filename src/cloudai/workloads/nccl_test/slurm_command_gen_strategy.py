@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Union, cast
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
-from cloudai.test_definitions.nccl import NCCLTestDefinition
+from cloudai.workloads.nccl_test import NCCLTestDefinition
 
 
 class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):

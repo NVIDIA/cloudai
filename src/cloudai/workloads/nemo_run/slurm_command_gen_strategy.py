@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Union, cast
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
-from cloudai.test_definitions.nemo_run import NeMoRunTestDefinition
+from cloudai.workloads.nemo_run import NeMoRunTestDefinition
 
 
 class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -43,7 +43,9 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return tdef.script.installed_path
 
     def _container_mounts(self, tr: TestRun) -> List[str]:
-        return [f"{self._run_script(tr).parent.absolute()}:/cloudai_workspace"]
+        nemorun_ws = tr.output_path / "nemorun-workspace"
+        nemorun_ws.mkdir(exist_ok=True)
+        return [f"{self._run_script(tr).parent.absolute()}:/cloudai_workspace", f"{nemorun_ws.absolute()}:/workspace"]
 
     def flatten_dict(self, d: dict[str, str], parent_key: str = "", sep: str = "."):
         items = []

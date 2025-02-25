@@ -22,13 +22,13 @@ import pytest
 
 from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestRun
-from cloudai.schema.test_template.nemo_run.slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
-from cloudai.test_definitions.nemo_run import (
+from cloudai.workloads.nemo_run import (
     Data,
     Log,
     LogCkpt,
     NeMoRunCmdArgs,
+    NeMoRunSlurmCommandGenStrategy,
     NeMoRunTestDefinition,
     Trainer,
     TrainerStrategy,

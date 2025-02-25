@@ -14,36 +14,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
 from .gpt import GPTCmdArgs, GPTTestDefinition
+from .grading_strategy import JaxToolboxGradingStrategy
 from .grok import GrokCmdArgs, GrokTestDefinition
-from .jax_toolbox import JaxToolboxCmdArgs, JaxToolboxTestDefinition
-from .nccl import NCCLCmdArgs, NCCLTestDefinition
-from .nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
-from .nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
+from .jax_toolbox import JaxFdl, JaxToolboxCmdArgs, JaxToolboxTestDefinition
+from .job_status_retrieval_strategy import JaxToolboxJobStatusRetrievalStrategy
 from .nemotron import NemotronCmdArgs, NemotronTestDefinition
-from .sleep import SleepCmdArgs, SleepTestDefinition
-from .ucc import UCCCmdArgs, UCCTestDefinition
+from .report_generation_strategy import JaxToolboxReportGenerationStrategy
+from .slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
 
 __all__ = [
-    "ChakraReplayCmdArgs",
-    "ChakraReplayTestDefinition",
     "GPTCmdArgs",
     "GPTTestDefinition",
     "GrokCmdArgs",
     "GrokTestDefinition",
+    "JaxFdl",
     "JaxToolboxCmdArgs",
+    "JaxToolboxGradingStrategy",
+    "JaxToolboxJobStatusRetrievalStrategy",
+    "JaxToolboxReportGenerationStrategy",
+    "JaxToolboxSlurmCommandGenStrategy",
     "JaxToolboxTestDefinition",
-    "NCCLCmdArgs",
-    "NCCLTestDefinition",
-    "NeMoLauncherCmdArgs",
-    "NeMoLauncherTestDefinition",
-    "NeMoRunCmdArgs",
-    "NeMoRunTestDefinition",
     "NemotronCmdArgs",
     "NemotronTestDefinition",
-    "SleepCmdArgs",
-    "SleepTestDefinition",
-    "UCCCmdArgs",
-    "UCCTestDefinition",
 ]

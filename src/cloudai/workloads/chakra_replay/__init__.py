@@ -14,12 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .grading_strategy import JaxToolboxGradingStrategy
-from .report_generation_strategy import JaxToolboxReportGenerationStrategy
-from .slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
+from .chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
+from .grading_strategy import ChakraReplayGradingStrategy
+from .report_generation_strategy import ChakraReplayReportGenerationStrategy
+from .slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
 
 __all__ = [
-    "JaxToolboxGradingStrategy",
-    "JaxToolboxReportGenerationStrategy",
-    "JaxToolboxSlurmCommandGenStrategy",
+    "ChakraReplayCmdArgs",
+    "ChakraReplayGradingStrategy",
+    "ChakraReplayReportGenerationStrategy",
+    "ChakraReplaySlurmCommandGenStrategy",
+    "ChakraReplayTestDefinition",
 ]
