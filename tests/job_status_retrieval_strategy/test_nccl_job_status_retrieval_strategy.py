@@ -16,7 +16,7 @@
 
 from pathlib import Path
 
-from cloudai.schema.test_template.nccl_test.job_status_retrieval_strategy import NcclTestJobStatusRetrievalStrategy
+from cloudai.workloads.nccl_test import NcclTestJobStatusRetrievalStrategy
 
 
 class TestNcclTestJobStatusRetrievalStrategy:

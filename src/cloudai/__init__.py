@@ -51,58 +51,64 @@ from .parser import Parser
 from .runner.kubernetes.kubernetes_runner import KubernetesRunner
 from .runner.slurm.slurm_runner import SlurmRunner
 from .runner.standalone.standalone_runner import StandaloneRunner
-from .schema.test_template.chakra_replay.grading_strategy import ChakraReplayGradingStrategy
-from .schema.test_template.chakra_replay.report_generation_strategy import ChakraReplayReportGenerationStrategy
-from .schema.test_template.chakra_replay.slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
-from .schema.test_template.common.default_job_status_retrieval_strategy import DefaultJobStatusRetrievalStrategy
-from .schema.test_template.common.slurm_job_id_retrieval_strategy import SlurmJobIdRetrievalStrategy
-from .schema.test_template.common.standalone_job_id_retrieval_strategy import StandaloneJobIdRetrievalStrategy
-from .schema.test_template.jax_toolbox.grading_strategy import JaxToolboxGradingStrategy
-from .schema.test_template.jax_toolbox.job_status_retrieval_strategy import JaxToolboxJobStatusRetrievalStrategy
-from .schema.test_template.jax_toolbox.report_generation_strategy import JaxToolboxReportGenerationStrategy
-from .schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
-from .schema.test_template.nccl_test.grading_strategy import NcclTestGradingStrategy
-from .schema.test_template.nccl_test.job_status_retrieval_strategy import NcclTestJobStatusRetrievalStrategy
-from .schema.test_template.nccl_test.kubernetes_json_gen_strategy import NcclTestKubernetesJsonGenStrategy
-from .schema.test_template.nccl_test.report_generation_strategy import NcclTestReportGenerationStrategy
-from .schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
-from .schema.test_template.nemo_launcher.grading_strategy import NeMoLauncherGradingStrategy
-from .schema.test_template.nemo_launcher.report_generation_strategy import NeMoLauncherReportGenerationStrategy
-from .schema.test_template.nemo_launcher.slurm_command_gen_strategy import NeMoLauncherSlurmCommandGenStrategy
-from .schema.test_template.nemo_launcher.slurm_job_id_retrieval_strategy import (
-    NeMoLauncherSlurmJobIdRetrievalStrategy,
-)
-from .schema.test_template.nemo_run.report_generation_strategy import NeMoRunReportGenerationStrategy
-from .schema.test_template.nemo_run.slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
-from .schema.test_template.sleep.grading_strategy import SleepGradingStrategy
-from .schema.test_template.sleep.kubernetes_json_gen_strategy import SleepKubernetesJsonGenStrategy
-from .schema.test_template.sleep.report_generation_strategy import SleepReportGenerationStrategy
-from .schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
-from .schema.test_template.sleep.standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
-from .schema.test_template.slurm_container.report_generation_strategy import (
-    SlurmContainerReportGenerationStrategy,
-)
-from .schema.test_template.slurm_container.slurm_command_gen_strategy import (
-    SlurmContainerCommandGenStrategy,
-)
-from .schema.test_template.ucc_test.grading_strategy import UCCTestGradingStrategy
-from .schema.test_template.ucc_test.report_generation_strategy import UCCTestReportGenerationStrategy
-from .schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 from .systems.kubernetes.kubernetes_system import KubernetesSystem
 from .systems.slurm.slurm_system import SlurmSystem
 from .systems.standalone_system import StandaloneSystem
-from .test_definitions import (
+from .workloads.chakra_replay import (
+    ChakraReplayGradingStrategy,
+    ChakraReplayReportGenerationStrategy,
+    ChakraReplaySlurmCommandGenStrategy,
     ChakraReplayTestDefinition,
+)
+from .workloads.common import (
+    DefaultJobStatusRetrievalStrategy,
+    SlurmJobIdRetrievalStrategy,
+    StandaloneJobIdRetrievalStrategy,
+)
+from .workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
-    NCCLTestDefinition,
-    NeMoLauncherTestDefinition,
-    NeMoRunTestDefinition,
+    JaxToolboxGradingStrategy,
+    JaxToolboxJobStatusRetrievalStrategy,
+    JaxToolboxReportGenerationStrategy,
+    JaxToolboxSlurmCommandGenStrategy,
     NemotronTestDefinition,
-    SleepTestDefinition,
-    UCCTestDefinition,
 )
-from .test_definitions.slurm_container import SlurmContainerTestDefinition
+from .workloads.nccl_test import (
+    NCCLTestDefinition,
+    NcclTestGradingStrategy,
+    NcclTestJobStatusRetrievalStrategy,
+    NcclTestKubernetesJsonGenStrategy,
+    NcclTestReportGenerationStrategy,
+    NcclTestSlurmCommandGenStrategy,
+)
+from .workloads.nemo_launcher import (
+    NeMoLauncherGradingStrategy,
+    NeMoLauncherReportGenerationStrategy,
+    NeMoLauncherSlurmCommandGenStrategy,
+    NeMoLauncherSlurmJobIdRetrievalStrategy,
+    NeMoLauncherTestDefinition,
+)
+from .workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunSlurmCommandGenStrategy, NeMoRunTestDefinition
+from .workloads.sleep import (
+    SleepGradingStrategy,
+    SleepKubernetesJsonGenStrategy,
+    SleepReportGenerationStrategy,
+    SleepSlurmCommandGenStrategy,
+    SleepStandaloneCommandGenStrategy,
+    SleepTestDefinition,
+)
+from .workloads.slurm_container import (
+    SlurmContainerCommandGenStrategy,
+    SlurmContainerReportGenerationStrategy,
+    SlurmContainerTestDefinition,
+)
+from .workloads.ucc_test import (
+    UCCTestDefinition,
+    UCCTestGradingStrategy,
+    UCCTestReportGenerationStrategy,
+    UCCTestSlurmCommandGenStrategy,
+)
 
 Registry().add_runner("slurm", SlurmRunner)
 Registry().add_runner("kubernetes", KubernetesRunner)

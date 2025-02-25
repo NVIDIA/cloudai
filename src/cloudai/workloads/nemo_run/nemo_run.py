@@ -102,7 +102,7 @@ class NeMoRunTestDefinition(TestDefinition):
 
     cmd_args: NeMoRunCmdArgs
     _docker_image: Optional[DockerImage] = None
-    script: File = File(Path(__file__).parent.parent / "schema/test_template/nemo_run/cloudai_nemorun.py")
+    script: File = File(Path(__file__).parent.parent / "nemo_run/cloudai_nemorun.py")
 
     @property
     def docker_image(self) -> DockerImage:

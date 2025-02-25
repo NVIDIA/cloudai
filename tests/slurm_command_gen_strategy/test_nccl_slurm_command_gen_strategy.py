@@ -21,9 +21,8 @@ import pytest
 
 from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestRun
-from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
-from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
+from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestSlurmCommandGenStrategy
 
 
 class TestNcclTestSlurmCommandGenStrategy:

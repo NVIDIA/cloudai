@@ -73,7 +73,7 @@ root_package = "cloudai"
   name = "_core does not depends on higher level layers (but util)"
   type = "layers"
   layers = [
-    "installer : parser : report_generator : runner : schema : test_definitions : cli",
+    "installer : parser : report_generator : runner : workloads : cli",
     "_core",
   ]
   containers = ["cloudai"]
@@ -89,8 +89,7 @@ root_package = "cloudai"
     "cloudai.report_generator",
     "cloudai.report_generator.tool",
     "cloudai.runner",
-    "cloudai.schema",
-    "cloudai.test_definitions",
+    "cloudai.workloads",
     "cloudai.util",
     "cloudai.cli",
   ]

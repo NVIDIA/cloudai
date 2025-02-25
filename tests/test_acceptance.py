@@ -24,23 +24,30 @@ import pytest
 
 from cloudai import Test, TestRun, TestScenario, TestTemplate
 from cloudai.cli import handle_dry_run_and_run, setup_logging
-from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
-from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
-from cloudai.schema.test_template.nemo_launcher.slurm_command_gen_strategy import NeMoLauncherSlurmCommandGenStrategy
-from cloudai.schema.test_template.nemo_run.slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
-from cloudai.schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
-from cloudai.schema.test_template.slurm_container.slurm_command_gen_strategy import SlurmContainerCommandGenStrategy
-from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
-from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
-from cloudai.test_definitions.grok import GrokCmdArgs, GrokTestDefinition
-from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
-from cloudai.test_definitions.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
-from cloudai.test_definitions.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
-from cloudai.test_definitions.sleep import SleepCmdArgs, SleepTestDefinition
-from cloudai.test_definitions.slurm_container import SlurmContainerCmdArgs, SlurmContainerTestDefinition
-from cloudai.test_definitions.ucc import UCCCmdArgs, UCCTestDefinition
+from cloudai.workloads.jax_toolbox import (
+    GPTCmdArgs,
+    GPTTestDefinition,
+    GrokCmdArgs,
+    GrokTestDefinition,
+    JaxToolboxSlurmCommandGenStrategy,
+)
+from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestSlurmCommandGenStrategy
+from cloudai.workloads.nemo_launcher import (
+    NeMoLauncherCmdArgs,
+    NeMoLauncherSlurmCommandGenStrategy,
+    NeMoLauncherTestDefinition,
+)
+from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunSlurmCommandGenStrategy, NeMoRunTestDefinition
+from cloudai.workloads.sleep import SleepCmdArgs, SleepSlurmCommandGenStrategy, SleepTestDefinition
+from cloudai.workloads.slurm_container import (
+    SlurmContainerCmdArgs,
+    SlurmContainerCommandGenStrategy,
+    SlurmContainerTestDefinition,
+)
+from cloudai.workloads.ucc_test import UCCTestSlurmCommandGenStrategy
+from cloudai.workloads.ucc_test.ucc import UCCCmdArgs, UCCTestDefinition
 
 SLURM_TEST_SCENARIOS = [
     {"path": Path("conf/common/test_scenario/sleep.toml"), "expected_dirs_number": 4, "log_file": "sleep_debug.log"},

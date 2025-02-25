@@ -14,16 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .grading_strategy import SleepGradingStrategy
-from .kubernetes_json_gen_strategy import SleepKubernetesJsonGenStrategy
-from .report_generation_strategy import SleepReportGenerationStrategy
-from .slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
-from .standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
+from .grading_strategy import NcclTestGradingStrategy
+from .job_status_retrieval_strategy import NcclTestJobStatusRetrievalStrategy
+from .kubernetes_json_gen_strategy import NcclTestKubernetesJsonGenStrategy
+from .nccl import NCCLCmdArgs, NCCLTestDefinition
+from .report_generation_strategy import NcclTestReportGenerationStrategy
+from .slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 
 __all__ = [
-    "SleepGradingStrategy",
-    "SleepKubernetesJsonGenStrategy",
-    "SleepReportGenerationStrategy",
-    "SleepSlurmCommandGenStrategy",
-    "SleepStandaloneCommandGenStrategy",
+    "NCCLCmdArgs",
+    "NCCLTestDefinition",
+    "NcclTestGradingStrategy",
+    "NcclTestJobStatusRetrievalStrategy",
+    "NcclTestKubernetesJsonGenStrategy",
+    "NcclTestReportGenerationStrategy",
+    "NcclTestSlurmCommandGenStrategy",
 ]
