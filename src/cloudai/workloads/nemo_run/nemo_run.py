@@ -14,11 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from typing import List, Optional, Union, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cloudai import CmdArgs, DockerImage, Installable, TestDefinition
+from cloudai import CmdArgs, DockerImage, File, Installable, TestDefinition
 
 
 class Plugin(BaseModel):
@@ -63,6 +64,7 @@ class Trainer(BaseModel):
     num_nodes: Optional[Union[int, List[int]]] = None
     strategy: TrainerStrategy = Field(default_factory=TrainerStrategy)
     plugins: Optional[Plugin] = None
+    callbacks: Optional[Union[str, list[str]]] = None
 
     model_config = ConfigDict(extra="forbid")
 
@@ -101,6 +103,7 @@ class NeMoRunTestDefinition(TestDefinition):
 
     cmd_args: NeMoRunCmdArgs
     _docker_image: Optional[DockerImage] = None
+    script: File = File(Path(__file__).parent.parent / "nemo_run/cloudai_nemorun.py")
 
     @property
     def docker_image(self) -> DockerImage:
@@ -111,7 +114,7 @@ class NeMoRunTestDefinition(TestDefinition):
     @property
     def installables(self) -> list[Installable]:
         """Get list of installable objects."""
-        return [self.docker_image]
+        return [self.docker_image, self.script]
 
     @property
     def constraint_check(self) -> bool:

@@ -80,7 +80,13 @@ class TestNeMoRunSlurmCommandGenStrategy:
             test_run.test.test_definition.extra_env_vars, test_run.test.test_definition.cmd_args.model_dump(), test_run
         )
         assert cmd is not None
-        assert cmd[:6] == ["nemo", "llm", cmd_args.task, "--factory", cmd_args.recipe_name, "-y"]
+        assert cmd[:5] == [
+            "python",
+            f"/cloudai_workspace/{cmd_gen_strategy._run_script(test_run).name}",
+            "--factory",
+            cmd_args.recipe_name,
+            "-y",
+        ]
         assert (
             f"trainer.strategy.tensor_model_parallel_size={cmd_args.trainer.strategy.tensor_model_parallel_size}" in cmd
         )
