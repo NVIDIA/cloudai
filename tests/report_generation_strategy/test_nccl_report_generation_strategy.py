@@ -21,9 +21,8 @@ import pandas as pd
 import pytest
 
 from cloudai import Test, TestRun
-from cloudai.schema.test_template.nccl_test.report_generation_strategy import NcclTestReportGenerationStrategy
 from cloudai.systems.slurm.slurm_system import SlurmSystem
-from cloudai.test_definitions.nccl import NCCLCmdArgs, NCCLTestDefinition
+from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestReportGenerationStrategy
 
 
 @pytest.fixture

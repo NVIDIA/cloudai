@@ -18,7 +18,8 @@ from typing import Any, Dict, List, Union, cast
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
-from cloudai.test_definitions.slurm_container import SlurmContainerTestDefinition
+
+from .slurm_container import SlurmContainerTestDefinition
 
 
 class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):

@@ -14,12 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .grading_strategy import UCCTestGradingStrategy
-from .report_generation_strategy import UCCTestReportGenerationStrategy
-from .slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
+from .grading_strategy import NeMoLauncherGradingStrategy
+from .nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
+from .report_generation_strategy import NeMoLauncherReportGenerationStrategy
+from .slurm_command_gen_strategy import NeMoLauncherSlurmCommandGenStrategy
+from .slurm_job_id_retrieval_strategy import NeMoLauncherSlurmJobIdRetrievalStrategy
 
 __all__ = [
-    "UCCTestGradingStrategy",
-    "UCCTestReportGenerationStrategy",
-    "UCCTestSlurmCommandGenStrategy",
+    "NeMoLauncherCmdArgs",
+    "NeMoLauncherGradingStrategy",
+    "NeMoLauncherReportGenerationStrategy",
+    "NeMoLauncherSlurmCommandGenStrategy",
+    "NeMoLauncherSlurmJobIdRetrievalStrategy",
+    "NeMoLauncherTestDefinition",
 ]
