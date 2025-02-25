@@ -64,6 +64,7 @@ class Trainer(BaseModel):
     num_nodes: Optional[Union[int, List[int]]] = None
     strategy: TrainerStrategy = Field(default_factory=TrainerStrategy)
     plugins: Optional[Plugin] = None
+    callbacks: Optional[Union[str, list[str]]] = None
 
     model_config = ConfigDict(extra="forbid")
 
