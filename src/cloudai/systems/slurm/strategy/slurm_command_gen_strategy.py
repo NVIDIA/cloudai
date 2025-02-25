@@ -359,5 +359,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         for key in sorted(env_vars.keys()):
             value = env_vars[key]
             formatted_value = str(value["default"]) if isinstance(value, dict) and "default" in value else str(value)
+            if " " in formatted_value:
+                formatted_value = f'"{formatted_value}"'
             formatted_vars.append(f"export {key}={formatted_value}")
         return "\n".join(formatted_vars)
