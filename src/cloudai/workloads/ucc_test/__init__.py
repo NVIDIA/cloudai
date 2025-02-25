@@ -14,14 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .grading_strategy import NcclTestGradingStrategy
-from .kubernetes_json_gen_strategy import NcclTestKubernetesJsonGenStrategy
-from .report_generation_strategy import NcclTestReportGenerationStrategy
-from .slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
+from .grading_strategy import UCCTestGradingStrategy
+from .report_generation_strategy import UCCTestReportGenerationStrategy
+from .slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
+from .ucc import UCCCmdArgs, UCCTestDefinition
 
 __all__ = [
-    "NcclTestGradingStrategy",
-    "NcclTestKubernetesJsonGenStrategy",
-    "NcclTestReportGenerationStrategy",
-    "NcclTestSlurmCommandGenStrategy",
+    "UCCCmdArgs",
+    "UCCTestDefinition",
+    "UCCTestGradingStrategy",
+    "UCCTestReportGenerationStrategy",
+    "UCCTestSlurmCommandGenStrategy",
 ]

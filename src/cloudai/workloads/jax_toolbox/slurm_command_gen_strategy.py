@@ -20,9 +20,7 @@ from typing import Any, Dict, List, Union, cast
 from cloudai import TestRun
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
-from cloudai.test_definitions.gpt import GPTTestDefinition
-from cloudai.test_definitions.grok import GrokTestDefinition
-from cloudai.test_definitions.nemotron import NemotronTestDefinition
+from cloudai.workloads.jax_toolbox import GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition
 
 
 class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):

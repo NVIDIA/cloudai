@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Union, cast
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
-from cloudai.test_definitions.nemo_run import NeMoRunTestDefinition
+from cloudai.workloads.nemo_run import NeMoRunTestDefinition
 
 
 class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
