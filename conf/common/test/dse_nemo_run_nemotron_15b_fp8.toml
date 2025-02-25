@@ -19,7 +19,7 @@ description = "dse_nemo_run_nemotron_15b_fp8"
 test_template_name = "NeMoRun"
 
 [cmd_args]
-docker_image_url = "/lustre/fsw/portfolios/coreai/users/srivatsank/workspace/sri_cloudai/cloudai/install/nvcr.io_nvidia__nemo__24.12.rc3.sqsh"
+docker_image_url = "nvcr.io/nvidia/nemo:24.12.rc3"
 task = "pretrain"
 recipe_name = "nemotron4_15b"
 num_layers = 32
