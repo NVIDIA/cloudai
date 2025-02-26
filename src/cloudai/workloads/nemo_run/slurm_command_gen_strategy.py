@@ -17,6 +17,7 @@
 
 import logging
 import sys
+from pathlib import Path
 from typing import Any, Dict, List, Union, cast
 
 from cloudai import TestRun
@@ -37,8 +38,14 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return base_args
 
+    def _run_script(self, tr: TestRun) -> Path:
+        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
+        return tdef.script.installed_path
+
     def _container_mounts(self, tr: TestRun) -> List[str]:
-        return []
+        nemorun_ws = tr.output_path / "nemorun-workspace"
+        nemorun_ws.mkdir(exist_ok=True)
+        return [f"{self._run_script(tr).parent.absolute()}:/cloudai_workspace", f"{nemorun_ws.absolute()}:/workspace"]
 
     def flatten_dict(self, d: dict[str, str], parent_key: str = "", sep: str = "."):
         items = []
@@ -66,10 +73,16 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         cmd_args_dict = tdef.cmd_args.model_dump()
 
-        cmd_args_dict.pop("docker_image_url")
-        cmd_args_dict.pop("num_layers")
+        for non_cmd_arg in {"docker_image_url", "num_layers", "task", "recipe_name"}:
+            cmd_args_dict.pop(non_cmd_arg)
 
-        command = ["nemo", "llm", cmd_args_dict.pop("task"), "--factory", cmd_args_dict.pop("recipe_name"), "-y"]
+        command = [
+            "python",
+            f"/cloudai_workspace/{self._run_script(tr).name}",
+            "--factory",
+            tdef.cmd_args.recipe_name,
+            "-y",
+        ]
 
         num_nodes = len(self.system.parse_nodes(tr.nodes)) if tr.nodes else tr.num_nodes
 

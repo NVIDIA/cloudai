@@ -243,7 +243,11 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
     tr = test_req[0]
 
     ref = (Path(__file__).parent / "ref_data" / test_req[1]).read_text().strip()
-    ref = ref.replace("__OUTPUT_DIR__", str(slurm_system.output_path.parent)).replace("__JOB_NAME__", "job_name")
+    ref = (
+        ref.replace("__OUTPUT_DIR__", str(slurm_system.output_path.parent))
+        .replace("__JOB_NAME__", "job_name")
+        .replace("__CLOUDAI_DIR__", str(Path(__file__).parent.parent))
+    )
 
     sbatch_script = tr.test.test_template.gen_exec_command(tr).split()[-1]
     if "nemo-launcher" in test_req[1]:

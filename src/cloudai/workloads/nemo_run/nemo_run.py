@@ -14,15 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from typing import List, Optional, Union, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cloudai import CmdArgs, DockerImage, Installable, TestDefinition
+from cloudai import CmdArgs, DockerImage, File, Installable, TestDefinition
 
 
 class Plugin(BaseModel):
     """Plugin configuration for NeMoRun."""
+
+    model_config = ConfigDict(extra="allow")
 
     fp8: Optional[str] = None
     fp8_margin: Optional[int] = None
@@ -32,48 +35,47 @@ class Plugin(BaseModel):
     fp8_params: Optional[bool] = None
     grad_reduce_in_fp32: Optional[bool] = None
 
-    model_config = ConfigDict(extra="forbid")
-
 
 class Data(BaseModel):
     """Data configuration for NeMoRun."""
 
+    model_config = ConfigDict(extra="allow")
+
     micro_batch_size: Union[int, List[int]] = 1
     global_batch_size: Union[int, List[int]] = 1
-
-    model_config = ConfigDict(extra="forbid")
 
 
 class TrainerStrategy(BaseModel):
     """Trainer strategy configuration for NeMoRun."""
+
+    model_config = ConfigDict(extra="allow")
 
     tensor_model_parallel_size: Union[int, List[int]] = 1
     pipeline_model_parallel_size: Union[int, List[int]] = 1
     context_parallel_size: Union[int, List[int]] = 2
     virtual_pipeline_model_parallel_size: Optional[Union[int, List[int]]] = None
 
-    model_config = ConfigDict(extra="forbid")
-
 
 class Trainer(BaseModel):
     """Trainer configuration for NeMoRun."""
+
+    model_config = ConfigDict(extra="allow")
 
     max_steps: Union[int, List[int]] = 100
     val_check_interval: Union[int, List[int]] = 1000
     num_nodes: Optional[Union[int, List[int]]] = None
     strategy: TrainerStrategy = Field(default_factory=TrainerStrategy)
     plugins: Optional[Plugin] = None
-
-    model_config = ConfigDict(extra="forbid")
+    callbacks: Optional[Union[str, list[str]]] = None
 
 
 class LogCkpt(BaseModel):
     """Logging checkpoint configuration for NeMoRun."""
 
+    model_config = ConfigDict(extra="allow")
+
     save_on_train_epoch_end: bool = Field(default=False)
     save_last: bool = Field(default=False)
-
-    model_config = ConfigDict(extra="forbid")
 
 
 class Log(BaseModel):
@@ -81,7 +83,7 @@ class Log(BaseModel):
 
     ckpt: LogCkpt = Field(default_factory=LogCkpt)
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
 
 
 class NeMoRunCmdArgs(CmdArgs):
@@ -101,6 +103,7 @@ class NeMoRunTestDefinition(TestDefinition):
 
     cmd_args: NeMoRunCmdArgs
     _docker_image: Optional[DockerImage] = None
+    script: File = File(Path(__file__).parent.parent / "nemo_run/cloudai_nemorun.py")
 
     @property
     def docker_image(self) -> DockerImage:
@@ -111,7 +114,7 @@ class NeMoRunTestDefinition(TestDefinition):
     @property
     def installables(self) -> list[Installable]:
         """Get list of installable objects."""
-        return [self.docker_image]
+        return [self.docker_image, self.script]
 
     @property
     def constraint_check(self) -> bool:

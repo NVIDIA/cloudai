@@ -223,6 +223,7 @@ class TestCLIDefaultModes:
             mode="verify-configs",
             system_config=Path("system_config"),
             tests_dir=Path("tests_dir"),
+            strict=False,
             **{"configs_dir": Path("configs_dir")},
         )
 
@@ -233,6 +234,7 @@ class TestCLIDefaultModes:
             mode="verify-configs",
             system_config=None,
             tests_dir=None,
+            strict=False,
             **{"configs_dir": Path("configs_dir")},
         )
 
