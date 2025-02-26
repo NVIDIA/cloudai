@@ -54,7 +54,7 @@ class NCCLCmdArgs(CmdArgs):
     maxbytes: str = "32M"
     stepbytes: str = "1M"
     op: Literal["sum", "prod", "min", "max", "avg", "all"] = "sum"
-    datatype: str = "float"
+    datatype: Literal["uint8", "float"] = "float"
     root: int = 0
     iters: int = 20
     warmup_iters: int = 5
