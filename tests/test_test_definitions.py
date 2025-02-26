@@ -15,12 +15,12 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Union
+from typing import Union, cast
 
 import pytest
 import toml
 
-from cloudai import NsysConfiguration, Parser, Registry
+from cloudai import NsysConfiguration, Parser, Registry, TestConfigParsingError, TestParser
 from cloudai.workloads.chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
@@ -32,6 +32,7 @@ from cloudai.workloads.jax_toolbox import (
 )
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.workloads.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
+from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
 from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition
 from tests.conftest import MyTestDefinition
 
@@ -172,3 +173,44 @@ class TestNsysConfiguration:
     def test_extra_args(self):
         nsys = NsysConfiguration(extra_args=["--extra", "args"])
         assert nsys.cmd_args == ["nsys", "profile", "--extra", "args"]
+
+
+class TestLoadTestDefinition:
+    @pytest.fixture
+    def test_parser(self) -> TestParser:
+        tp = TestParser([], None)  # type: ignore
+        tp.current_file = Path(__file__)
+        return tp
+
+    @pytest.fixture
+    def nemorun_with_unknown_field(self) -> dict:
+        return {
+            "name": "n",
+            "description": "d",
+            "test_template_name": "NeMoRun",
+            "cmd_args": {
+                **NeMoRunCmdArgs(docker_image_url="fake://url/nemo", task="task", recipe_name="recipe").model_dump(),
+                "unknown": {"sub": "sub"},
+                "trainer": {"strategy": {"nested_unknown": "nested_unknown"}},
+            },
+        }
+
+    def test_load_test_definition(self, test_parser: TestParser, nemorun_with_unknown_field: dict):
+        test_def: NeMoRunTestDefinition = cast(
+            NeMoRunTestDefinition, test_parser.load_test_definition(data=nemorun_with_unknown_field)
+        )
+        assert test_def.docker_image.url == "fake://url/nemo"
+        assert test_def.cmd_args.task == "task"
+        assert test_def.cmd_args.recipe_name == "recipe"
+        assert test_def.cmd_args.unknown["sub"] == "sub"  # type: ignore
+        assert test_def.cmd_args.trainer.strategy.nested_unknown == "nested_unknown"  # type: ignore
+
+    def test_load_test_definition_strict(self, test_parser: TestParser, nemorun_with_unknown_field: dict):
+        with pytest.raises(TestConfigParsingError) as exc_info:
+            test_parser.load_test_definition(data=nemorun_with_unknown_field, strict=True)
+        assert "Failed to parse test spec using strict mode" in str(exc_info.value)
+
+    def test_load_test_definition_unknown_test(self, test_parser: TestParser):
+        with pytest.raises(NotImplementedError) as exc_info:
+            test_parser.load_test_definition(data={"test_template_name": "unknown"})
+        assert "TestTemplate with name 'unknown' not supported." in str(exc_info.value)

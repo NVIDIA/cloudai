@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Union, cast
 
 import toml
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from .command_gen_strategy import CommandGenStrategy
 from .exceptions import TestConfigParsingError, format_validation_error
@@ -76,7 +76,18 @@ class TestParser:
                 objects.append(parsed_object)
         return objects
 
-    def load_test_definition(self, data: dict) -> TestDefinition:
+    @staticmethod
+    def model_extras(m: BaseModel, prefix="cmd_args") -> set[str]:
+        if m.model_extra is None:
+            return set()
+
+        extras = set()
+        for field in m.model_fields:
+            if isinstance(m.__dict__[field], BaseModel):
+                extras |= TestParser.model_extras(m.__dict__[field], prefix=f"{prefix}.{field}")
+        return extras | set([f"{prefix}.{k}" for k in m.model_extra])
+
+    def load_test_definition(self, data: dict, strict: bool = False) -> TestDefinition:
         test_template_name = data.get("test_template_name", "")
         registry = Registry()
         if test_template_name not in registry.test_definitions_map:
@@ -91,6 +102,12 @@ class TestParser:
                 err_msg = format_validation_error(err)
                 logging.error(err_msg)
             raise TestConfigParsingError("Failed to parse test spec") from e
+
+        if strict and self.model_extras(test_def.cmd_args):
+            logging.error(f"Strict check failed for test spec: '{self.current_file}'")
+            for field in self.model_extras(test_def.cmd_args):
+                logging.error(f"Unexpected field '{field}' in test spec.")
+            raise TestConfigParsingError("Failed to parse test spec using strict mode")
 
         return test_def
 

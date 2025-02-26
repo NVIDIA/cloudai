@@ -78,7 +78,7 @@ class Test:
 class CmdArgs(BaseModel):
     """Test command arguments."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
 
 
 class NsysConfiguration(BaseModel):

@@ -25,6 +25,8 @@ from cloudai import CmdArgs, DockerImage, File, Installable, TestDefinition
 class Plugin(BaseModel):
     """Plugin configuration for NeMoRun."""
 
+    model_config = ConfigDict(extra="allow")
+
     fp8: Optional[str] = None
     fp8_margin: Optional[int] = None
     fp8_amax_history_len: Optional[int] = None
@@ -33,31 +35,31 @@ class Plugin(BaseModel):
     fp8_params: Optional[bool] = None
     grad_reduce_in_fp32: Optional[bool] = None
 
-    model_config = ConfigDict(extra="forbid")
-
 
 class Data(BaseModel):
     """Data configuration for NeMoRun."""
 
+    model_config = ConfigDict(extra="allow")
+
     micro_batch_size: Union[int, List[int]] = 1
     global_batch_size: Union[int, List[int]] = 1
-
-    model_config = ConfigDict(extra="forbid")
 
 
 class TrainerStrategy(BaseModel):
     """Trainer strategy configuration for NeMoRun."""
+
+    model_config = ConfigDict(extra="allow")
 
     tensor_model_parallel_size: Union[int, List[int]] = 1
     pipeline_model_parallel_size: Union[int, List[int]] = 1
     context_parallel_size: Union[int, List[int]] = 2
     virtual_pipeline_model_parallel_size: Optional[Union[int, List[int]]] = None
 
-    model_config = ConfigDict(extra="forbid")
-
 
 class Trainer(BaseModel):
     """Trainer configuration for NeMoRun."""
+
+    model_config = ConfigDict(extra="allow")
 
     max_steps: Union[int, List[int]] = 100
     val_check_interval: Union[int, List[int]] = 1000
@@ -66,16 +68,14 @@ class Trainer(BaseModel):
     plugins: Optional[Plugin] = None
     callbacks: Optional[Union[str, list[str]]] = None
 
-    model_config = ConfigDict(extra="forbid")
-
 
 class LogCkpt(BaseModel):
     """Logging checkpoint configuration for NeMoRun."""
 
+    model_config = ConfigDict(extra="allow")
+
     save_on_train_epoch_end: bool = Field(default=False)
     save_last: bool = Field(default=False)
-
-    model_config = ConfigDict(extra="forbid")
 
 
 class Log(BaseModel):
@@ -83,7 +83,7 @@ class Log(BaseModel):
 
     ckpt: LogCkpt = Field(default_factory=LogCkpt)
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
 
 
 class NeMoRunCmdArgs(CmdArgs):
