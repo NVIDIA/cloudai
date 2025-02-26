@@ -27,8 +27,10 @@ test_template_name = "NeMoLauncher"
     [cmd_args.training.trainer]
     max_steps = "30"
     [cmd_args.training.model]
-    tensor_model_parallel_size = "4"
-    pipeline_model_parallel_size = "1"
+    global_batch_size = 32
+    micro_batch_size = 2
+    tensor_model_parallel_size = 4
+    pipeline_model_parallel_size = 1
 
 [extra_cmd_args]
 "training.exp_manager.create_wandb_logger" = "false"
