@@ -46,6 +46,11 @@ from cloudai.workloads.jax_toolbox import (
     JaxToolboxSlurmCommandGenStrategy,
     NemotronTestDefinition,
 )
+from cloudai.workloads.megatron_run import (
+    MegatronRunCmdArgs,
+    MegatronRunSlurmCommandGenStrategy,
+    MegatronRunTestDefinition,
+)
 from cloudai.workloads.nccl_test import (
     NCCLTestDefinition,
     NcclTestGradingStrategy,
@@ -114,6 +119,7 @@ ALL_STRATEGIES = {
     (CommandGenStrategy, SlurmSystem, SleepTestDefinition): SleepSlurmCommandGenStrategy,
     (CommandGenStrategy, SlurmSystem, SlurmContainerTestDefinition): SlurmContainerCommandGenStrategy,
     (CommandGenStrategy, SlurmSystem, UCCTestDefinition): UCCTestSlurmCommandGenStrategy,
+    (CommandGenStrategy, SlurmSystem, MegatronRunTestDefinition): MegatronRunSlurmCommandGenStrategy,
     (CommandGenStrategy, StandaloneSystem, SleepTestDefinition): SleepStandaloneCommandGenStrategy,
     (GradingStrategy, SlurmSystem, ChakraReplayTestDefinition): ChakraReplayGradingStrategy,
     (GradingStrategy, SlurmSystem, GPTTestDefinition): JaxToolboxGradingStrategy,
@@ -188,7 +194,7 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 10
+    assert len(test_defs) == 11
     for tdef in [
         ("UCCTest", UCCTestDefinition),
         ("NcclTest", NCCLTestDefinition),
@@ -200,5 +206,6 @@ def test_definitions():
         ("JaxToolboxGrok", GrokTestDefinition),
         ("JaxToolboxNemotron", NemotronTestDefinition),
         ("SlurmContainer", SlurmContainerTestDefinition),
+        ("MegatronRun", MegatronRunTestDefinition),
     ]:
         assert test_defs[tdef[0]] == tdef[1]

@@ -19,6 +19,7 @@ from typing import Union, cast
 
 import pytest
 import toml
+from pydantic import ValidationError
 
 from cloudai import NsysConfiguration, Parser, Registry, TestConfigParsingError, TestParser
 from cloudai.workloads.chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
@@ -30,6 +31,7 @@ from cloudai.workloads.jax_toolbox import (
     NemotronCmdArgs,
     NemotronTestDefinition,
 )
+from cloudai.workloads.megatron_run import MegatronRunCmdArgs, MegatronRunTestDefinition
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.workloads.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
 from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
@@ -214,3 +216,79 @@ class TestLoadTestDefinition:
         with pytest.raises(NotImplementedError) as exc_info:
             test_parser.load_test_definition(data={"test_template_name": "unknown"})
         assert "TestTemplate with name 'unknown' not supported." in str(exc_info.value)
+
+
+class TestMegatronRun:
+    @pytest.fixture
+    def megatron_run(self) -> MegatronRunTestDefinition:
+        return MegatronRunTestDefinition(
+            name="mr",
+            description="desc",
+            test_template_name="mr",
+            cmd_args=MegatronRunCmdArgs(docker_image_url="fake://url/mr", run_script=Path(__file__)),
+        )
+
+    def test_default(self, megatron_run: MegatronRunTestDefinition):
+        cmd = " ".join([f"{k} {v}" for k, v in megatron_run.cmd_args_dict.items()])
+        assert "--global-batch-size 16" in cmd
+        assert "--hidden-size 4096" in cmd
+        assert "--max-position-embeddings 4096" in cmd
+        assert "--num-attention-heads 32" in cmd
+        assert "--num-layers 32" in cmd
+        assert "--pipeline-model-parallel-size 1" in cmd
+        assert "--recompute-activations " in cmd
+        assert "--seq-length 4096" in cmd
+        assert "--tensor-model-parallel-size 2" in cmd
+
+    def test_nones_are_dropped(self, megatron_run: MegatronRunTestDefinition):
+        to_be_none = {
+            "hidden_size": None,
+            "max_position_embeddings": None,
+            "num_attention_heads": None,
+            "num_layers": None,
+            "pipeline_model_parallel_size": None,
+            "recompute_activations": None,
+            "seq_length": None,
+            "tensor_model_parallel_size": None,
+        }
+        megatron_run.cmd_args = MegatronRunCmdArgs.model_validate(
+            {"docker_image_url": "fake://url/mr", "run_script": "/path/to/script", **to_be_none}
+        )
+
+        cmd = " ".join([f"{k} {v}" for k, v in megatron_run.cmd_args_dict.items()])
+        for arg in to_be_none:
+            assert f"--{arg.replace('_', '-')}" not in cmd
+
+    def test_unknowns_are_handled(self, megatron_run: MegatronRunTestDefinition):
+        megatron_run.cmd_args = MegatronRunCmdArgs.model_validate(
+            {
+                "docker_image_url": "fake://url/mr",
+                "run_script": "/path/to/script",
+                "unknown": "1",
+                "with_underscore": "2.5",
+            }
+        )
+
+        cmd = " ".join([f"{k} {v}" for k, v in megatron_run.cmd_args_dict.items()])
+        assert "--unknown 1" in cmd
+        assert "--with-underscore 2.5" in cmd
+
+    def test_dashed_args(self):
+        with pytest.raises(ValidationError):
+            MegatronRunCmdArgs.model_validate({"docker_image_url": "fake://url/mr", "with-dash": "value"})
+
+    def test_tokenizer_model(self, megatron_run: MegatronRunTestDefinition):
+        megatron_run.cmd_args = MegatronRunCmdArgs.model_validate(
+            {
+                "docker_image_url": "fake://url/mr",
+                "run_script": "/path/to/script",
+                "tokenizer_model": "/path/to/tokenizer",
+            }
+        )
+        assert megatron_run.cmd_args_dict["--tokenizer-model"] == Path("/path/to/tokenizer")
+        assert megatron_run.cmd_args.tokenizer_model == Path("/path/to/tokenizer")
+
+    def test_auxiliary_fields_not_in_model_dump(self, megatron_run: MegatronRunTestDefinition):
+        d = megatron_run.cmd_args.model_dump()
+        assert "docker_image_url" not in d
+        assert "run_script" not in d

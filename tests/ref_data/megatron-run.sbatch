@@ -1,0 +1,11 @@
+#!/bin/bash
+#SBATCH --job-name=__JOB_NAME__
+#SBATCH -N 1
+#SBATCH --output=__OUTPUT_DIR__/output/stdout.txt
+#SBATCH --error=__OUTPUT_DIR__/output/stderr.txt
+#SBATCH --partition=main
+
+export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
+
+
+srun --mpi=pmix --container-image=nvcr.io/nvidia/megatron:24.09 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__CLOUDAI_DIR__,__CLOUDAI_DIR__/save,__CLOUDAI_DIR__/load,__CLOUDAI_DIR__ python __CLOUDAI_DIR__/run.py --global-batch-size 16 --hidden-size 4096 --max-position-embeddings 4096 --num-attention-heads 32 --num-layers 32 --pipeline-model-parallel-size 1 --recompute-activations  --seq-length 4096 --tensor-model-parallel-size 2 --save __CLOUDAI_DIR__/save --load __CLOUDAI_DIR__/load --tokenizer-model __CLOUDAI_DIR__/model.m
