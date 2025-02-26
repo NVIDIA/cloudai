@@ -83,7 +83,8 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self._validate_data_config()
 
         cmd_args_str = self._generate_cmd_args_str(self.final_cmd_args, nodes)
-        full_cmd = f"{py_bin} {repo_path / tdef.cmd_args.launcher_script} {cmd_args_str}"
+        full_cmd = self._ranks_mapping_cmd({}, tr) + "\n\n"
+        full_cmd += f"{py_bin} {repo_path / tdef.cmd_args.launcher_script} {cmd_args_str}"
 
         if tr.test.extra_cmd_args:
             full_cmd = self._handle_extra_cmd_args(full_cmd, tr.test.extra_cmd_args)

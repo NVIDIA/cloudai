@@ -1,3 +1,15 @@
+srun \
+ --mpi=pmix \
+ --output=__OUTPUT_DIR__/output/mapping-stdout.txt \
+ --error=__OUTPUT_DIR__/output/mapping-stderr.txt \
+ bash \
+ -c \
+ "echo \
+ \$(date): \
+ \$(hostname):node \
+ \${SLURM_NODEID}:rank \
+ \${SLURM_PROCID}."
+
 __OUTPUT_DIR__/install/NeMo-Framework-Launcher__599ecfcbbd64fd2de02f2cc093b1610d73854022-venv/bin/python \
  __OUTPUT_DIR__/install/NeMo-Framework-Launcher__599ecfcbbd64fd2de02f2cc093b1610d73854022/launcher_scripts/main.py \
  cluster.gpus_per_node=null \
