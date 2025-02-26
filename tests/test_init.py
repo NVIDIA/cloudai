@@ -47,7 +47,6 @@ from cloudai.workloads.jax_toolbox import (
     NemotronTestDefinition,
 )
 from cloudai.workloads.megatron_run import (
-    MegatronRunCmdArgs,
     MegatronRunSlurmCommandGenStrategy,
     MegatronRunTestDefinition,
 )
