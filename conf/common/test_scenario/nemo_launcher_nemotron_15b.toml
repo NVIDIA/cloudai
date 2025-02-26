@@ -19,4 +19,4 @@ name = "nemo_launcher_nemotron_15b"
 [[Tests]]
 id = "Tests.1"
 test_name = "nemo_launcher_nemotron_15b"
-num_nodes = "1"
+num_nodes = "2"
