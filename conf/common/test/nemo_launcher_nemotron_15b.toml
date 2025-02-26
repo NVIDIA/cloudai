@@ -23,7 +23,7 @@ test_template_name = "NeMoLauncher"
   [cmd_args.training]
   values = "nemotron/nemotron_15b"
     [cmd_args.training.run]
-    time_limit = "00:30:00"
+    time_limit = "00:45:00"
     [cmd_args.training.trainer]
     max_steps = "30"
     [cmd_args.training.model]
