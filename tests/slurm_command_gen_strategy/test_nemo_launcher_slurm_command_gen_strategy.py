@@ -147,7 +147,9 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         self, cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy, test_run: TestRun
     ) -> None:
         invalid_tokenizer_path = Path("/invalid/path/to/tokenizer")
-        test_run.test.extra_cmd_args = f"training.model.tokenizer.model={invalid_tokenizer_path}"
+        test_run.test.test_definition.extra_cmd_args = {
+            f"training.model.tokenizer.model={invalid_tokenizer_path}": "",
+        }
 
         with pytest.raises(ValueError, match=r"The provided tokenizer path '/invalid/path/to/tokenizer' is not valid"):
             cmd_gen_strategy.gen_exec_command(test_run)
