@@ -47,6 +47,7 @@ from cloudai.workloads.jax_toolbox import (
     NemotronTestDefinition,
 )
 from cloudai.workloads.megatron_run import (
+    CheckpointTimingReportGenerationStrategy,
     MegatronRunSlurmCommandGenStrategy,
     MegatronRunTestDefinition,
 )
@@ -167,6 +168,7 @@ ALL_STRATEGIES = {
     (ReportGenerationStrategy, SlurmSystem, SleepTestDefinition): SleepReportGenerationStrategy,
     (ReportGenerationStrategy, SlurmSystem, SlurmContainerTestDefinition): SlurmContainerReportGenerationStrategy,
     (ReportGenerationStrategy, SlurmSystem, UCCTestDefinition): UCCTestReportGenerationStrategy,
+    (ReportGenerationStrategy, SlurmSystem, MegatronRunTestDefinition): CheckpointTimingReportGenerationStrategy,
     (ReportGenerationStrategy, StandaloneSystem, SleepTestDefinition): SleepReportGenerationStrategy,
 }
 

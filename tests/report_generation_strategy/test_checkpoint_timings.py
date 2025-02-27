@@ -30,7 +30,7 @@ from cloudai.workloads.megatron_run import (
 
 
 @pytest.fixture
-def nccl_tr(tmp_path: Path) -> TestRun:
+def megatron_tr(tmp_path: Path) -> TestRun:
     test = Test(
         test_definition=MegatronRunTestDefinition(
             name="megatron_run",
@@ -52,10 +52,10 @@ def nccl_tr(tmp_path: Path) -> TestRun:
     return tr
 
 
-def test_checkpoint_timings_reporter(slurm_system: SlurmSystem, nccl_tr: TestRun) -> None:
-    test_dir = nccl_tr.output_path
+def test_checkpoint_timings_reporter(slurm_system: SlurmSystem, megatron_tr: TestRun) -> None:
+    test_dir = megatron_tr.output_path
 
-    strategy = CheckpointTimingReportGenerationStrategy(slurm_system, nccl_tr)
+    strategy = CheckpointTimingReportGenerationStrategy(slurm_system, megatron_tr)
     assert strategy.can_handle_directory() is True
 
     strategy.generate_report()
