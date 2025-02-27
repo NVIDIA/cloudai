@@ -45,3 +45,6 @@ test_template_name = "NeMoLauncher"
 "training.trainer.limit_val_batches" = "1"
 "training.trainer.precision" = "bf16"
 "training.trainer.val_check_interval" = "30"
+
+[extra_env_vars]
+"NVTE_FUSED_ATTN" = "1"
