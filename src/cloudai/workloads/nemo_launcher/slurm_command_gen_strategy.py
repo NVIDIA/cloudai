@@ -85,6 +85,8 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd_args_str = self._generate_cmd_args_str(self.final_cmd_args, nodes)
         full_cmd = f"{py_bin} {repo_path / tdef.cmd_args.launcher_script} {cmd_args_str}"
         full_cmd = self._update_container_mounts_with_tokenizer_path(full_cmd)
+        if tr.test.extra_cmd_args:
+            full_cmd += f" {tr.test.extra_cmd_args}"
 
         env_vars_str = " ".join(f"{key}={value}" for key, value in self.final_env_vars.items())
         full_cmd = f"{env_vars_str} {full_cmd}" if env_vars_str else full_cmd
