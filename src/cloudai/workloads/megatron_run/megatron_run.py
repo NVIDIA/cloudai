@@ -78,4 +78,4 @@ class MegatronRunTestDefinition(TestDefinition):
 
     @property
     def installables(self) -> list[Installable]:
-        return [self.docker_image]
+        return [self.docker_image, *self.git_repos]

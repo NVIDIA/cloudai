@@ -184,6 +184,7 @@ Registry().add_strategy(
         SleepTestDefinition,
         NeMoRunTestDefinition,
         SlurmContainerTestDefinition,
+        MegatronRunTestDefinition,
     ],
     SlurmJobIdRetrievalStrategy,
 )
@@ -218,6 +219,7 @@ Registry().add_strategy(
         SleepTestDefinition,
         NeMoRunTestDefinition,
         SlurmContainerTestDefinition,
+        MegatronRunTestDefinition,
     ],
     DefaultJobStatusRetrievalStrategy,
 )

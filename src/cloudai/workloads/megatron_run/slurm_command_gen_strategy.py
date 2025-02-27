@@ -15,7 +15,7 @@
 # limitations under the License.
 
 
-from typing import Any, Dict, List, Union, cast
+from typing import Any, Union, cast
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
@@ -27,8 +27,8 @@ class MegatronRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for MegatronRun on Slurm systems."""
 
     def _parse_slurm_args(
-        self, job_name_prefix: str, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
-    ) -> Dict[str, Any]:
+        self, job_name_prefix: str, env_vars: dict[str, str], cmd_args: dict[str, Union[str, list[str]]], tr: TestRun
+    ) -> dict[str, Any]:
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
         tdef: MegatronRunTestDefinition = cast(MegatronRunTestDefinition, tr.test.test_definition)
@@ -36,23 +36,12 @@ class MegatronRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return base_args
 
-    def _container_mounts(self, tr: TestRun) -> List[str]:
-        tdef: MegatronRunTestDefinition = cast(MegatronRunTestDefinition, tr.test.test_definition)
-        mounts: list[str] = [f"{tdef.cmd_args.run_script.parent}"]
-
-        if tdef.cmd_args.save:
-            mounts.append(f"{tdef.cmd_args.save}")
-        if tdef.cmd_args.load and str(tdef.cmd_args.load) not in mounts:
-            mounts.append(f"{tdef.cmd_args.load}")
-
-        if tdef.cmd_args.tokenizer_model:
-            mounts.append(f"{tdef.cmd_args.tokenizer_model.parent}")
-
-        return mounts
+    def _container_mounts(self, tr: TestRun) -> list[str]:
+        return []
 
     def generate_test_command(
-        self, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
-    ) -> List[str]:
+        self, env_vars: dict[str, str], cmd_args: dict[str, Union[str, list[str]]], tr: TestRun
+    ) -> list[str]:
         tdef: MegatronRunTestDefinition = cast(MegatronRunTestDefinition, tr.test.test_definition)
 
         command = [
