@@ -119,7 +119,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         test_run.test.test_definition.extra_cmd_args = {f"training.model.tokenizer.model={tokenizer_path}": ""}
         cmd = cmd_gen_strategy.gen_exec_command(test_run)
 
-        assert f"container_mounts=[\"{tokenizer_path}:{tokenizer_path}\"]" in cmd
+        assert f'container_mounts=["{tokenizer_path}:{tokenizer_path}"]' in cmd
 
     @pytest.mark.parametrize(
         "extra_srun_args, expected_reservation",
