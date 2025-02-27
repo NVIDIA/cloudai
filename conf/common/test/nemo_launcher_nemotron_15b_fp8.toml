@@ -53,3 +53,4 @@ test_template_name = "NeMoLauncher"
 
 [extra_cmd_args]
 "env_vars.NVTE_FUSED_ATTN" = "1"
+"+training.model.fp8_params" = "True"
