@@ -132,7 +132,7 @@ class SlurmSystem(BaseModel, System):
     ntasks_per_node: Optional[int] = None
     cache_docker_images_locally: bool = False
     global_env_vars: Dict[str, Any] = {}
-    scheduler: str = "standalone"
+    scheduler: str = "slurm"
     monitor_interval: int = 60
     cmd_shell: CommandShell = Field(default=CommandShell(), exclude=True)
     extra_srun_args: Optional[str] = None
@@ -348,111 +348,6 @@ class SlurmSystem(BaseModel, System):
             formatted_ranges.append(f"{prefix}{range_str}")
 
         return ", ".join(formatted_ranges)
-
-    def __repr__(self) -> str:
-        """
-        Provide a structured string representation of the system.
-
-        Including the system name, scheduler type, and a simplified view similar to the `sinfo` command output,
-        focusing on the partition, state, and nodelist.
-        """
-        header = f"System Name: {self.name}\nScheduler Type: {self.scheduler}"
-        parts = [header, "\tPARTITION  STATE    NODELIST"]
-        for partition in self.partitions:
-            state_count = {}
-            for node in partition.slurm_nodes:
-                state_count.setdefault(node.state, []).append(node.name)
-            for state, names in state_count.items():
-                node_list_str = self.format_node_list(names)
-                parts.append(f"\t{partition.name:<10} {state.name:<7} {node_list_str}")
-        return "\n".join(parts)
-
-    def get_partition_names(self) -> List[str]:
-        """Return a list of all partition names."""
-        return [partition.name for partition in self.partitions]
-
-    def get_partition_nodes(self, partition_name: str) -> List[SlurmNode]:
-        """
-        Return a list of SlurmNode objects in the specified partition.
-
-        Args:
-            partition_name (str): The name of the partition.
-
-        Returns:
-            List[SlurmNode]: Nodes belonging to the specified partition.
-
-        Raises:
-            ValueError: If the partition does not exist.
-        """
-        for partition in self.partitions:
-            if partition.name == partition_name:
-                return partition.slurm_nodes
-        raise ValueError(f"Partition '{partition_name}' not found.")
-
-    def get_partition_node_names(self, partition_name: str) -> List[str]:
-        """
-        Return the names of all nodes within a specified partition.
-
-        Args:
-            partition_name (str): The name of the partition.
-
-        Returns:
-            List[str]: Names of nodes within the specified partition.
-        """
-        return [node.name for node in self.get_partition_nodes(partition_name)]
-
-    def get_group_names(self, partition_name: str) -> List[str]:
-        """
-        Retrieve names of all groups within a specified partition.
-
-        Args:
-            partition_name (str): The partition to query.
-
-        Returns:
-            List[str]: A list of group names within the specified partition.
-
-        Raises:
-            ValueError: If the partition is not found.
-        """
-        if partition_name not in self.groups:
-            raise ValueError(f"Partition '{partition_name}' not found.")
-        return list(self.groups[partition_name].keys())
-
-    def get_group_nodes(self, partition_name: str, group_name: str) -> List[SlurmNode]:
-        """
-        Return a list of SlurmNode objects in the specified group within a partition.
-
-        Args:
-            partition_name (str): The name of the partition.
-            group_name (str): The name of the group.
-
-        Returns:
-            List[SlurmNode]: Nodes belonging to the specified group within the partition.
-
-        Raises:
-            ValueError: If the partition or group does not exist.
-        """
-        if partition_name not in self.groups:
-            raise ValueError(f"Partition '{partition_name}' not found.")
-        if group_name not in self.groups[partition_name]:
-            raise ValueError(f"Group '{group_name}' not found in partition '{partition_name}'.")
-        return self.groups[partition_name][group_name]
-
-    def get_group_node_names(self, partition_name: str, group_name: str) -> List[str]:
-        """
-        Return the names of all nodes within a specified group and partition.
-
-        Args:
-            partition_name (str): The name of the partition.
-            group_name (str): The name of the group.
-
-        Returns:
-            List[str]: Names of nodes within the specified group and partition.
-
-        Raises:
-            ValueError: If the partition or group does not exist.
-        """
-        return [node.name for node in self.get_group_nodes(partition_name, group_name)]
 
     def get_available_nodes_from_group(
         self, partition_name: str, group_name: str, number_of_nodes: Union[int, str]
