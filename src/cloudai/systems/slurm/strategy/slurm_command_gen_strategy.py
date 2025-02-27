@@ -274,6 +274,18 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         return batch_script_content
 
+    def _ranks_mapping_cmd(self, slurm_args: dict[str, Any], tr: TestRun) -> str:
+        return " ".join(
+            [
+                *self.gen_srun_prefix(slurm_args, tr),
+                f"--output={tr.output_path.absolute() / 'mapping-stdout.txt'}",
+                f"--error={tr.output_path.absolute() / 'mapping-stderr.txt'}",
+                "bash",
+                "-c",
+                r'"echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."',
+            ]
+        )
+
     def _write_sbatch_script(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], srun_command: str, tr: TestRun
     ) -> str:
@@ -297,8 +309,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         self._append_sbatch_directives(batch_script_content, slurm_args, tr.output_path)
 
-        env_vars_str = self._format_env_vars(env_vars)
-        batch_script_content.extend([env_vars_str, "", srun_command])
+        batch_script_content.extend([self._format_env_vars(env_vars)])
+
+        batch_script_content.extend([self._ranks_mapping_cmd(slurm_args, tr), ""])
+
+        batch_script_content.append(srun_command)
 
         batch_script_path = tr.output_path / "cloudai_sbatch_script.sh"
         with batch_script_path.open("w") as batch_file:
