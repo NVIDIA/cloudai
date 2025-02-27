@@ -24,28 +24,28 @@ from cloudai import CmdArgs, DockerImage, GitRepo, Installable, PythonExecutable
 class NumaMapping(BaseModel):
     """NUMA mapping configuration."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
     enable: bool = True
 
 
 class Cluster(BaseModel):
     """Cluster configuration."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
     gpus_per_node: int = 8
 
 
 class ExpManager(BaseModel):
     """Experiment manager configuration."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
     create_checkpoint_callback: bool = False
 
 
 class Trainer(BaseModel):
     """Trainer configuration."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
     max_steps: int = 20
     val_check_interval: int = 10
     log_every_n_steps: Literal["1", "2"] = "1"
@@ -55,7 +55,7 @@ class Trainer(BaseModel):
 class TrainingModelData(BaseModel):
     """Training model data configuration."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
     data_prefix: str = "[]"
     data_impl: str = "mock"
 
@@ -63,7 +63,7 @@ class TrainingModelData(BaseModel):
 class TrainingModel(BaseModel):
     """Training model configuration."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
     global_batch_size: int = 128
     micro_batch_size: int = 2
     tensor_model_parallel_size: int = 4
@@ -74,7 +74,7 @@ class TrainingModel(BaseModel):
 class TrainingRun(BaseModel):
     """Training run configuration."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
     time_limit: str = "3:00:00"
     name: str = "run"
 
@@ -82,7 +82,7 @@ class TrainingRun(BaseModel):
 class Training(BaseModel):
     """Training configuration."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
     values: str = "gpt3/40b_improved"
     exp_manager: ExpManager = Field(default_factory=ExpManager)
     trainer: Trainer = Field(default_factory=Trainer)
