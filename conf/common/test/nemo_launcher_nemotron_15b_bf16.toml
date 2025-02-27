@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "nemo_launcher_nemotron_15b"
-description = "nemo_launcher_nemotron_15b"
+name = "nemo_launcher_nemotron_15b_bf16"
+description = "nemo_launcher_nemotron_15b_bf16"
 test_template_name = "NeMoLauncher"
 
 
@@ -25,7 +25,7 @@ test_template_name = "NeMoLauncher"
     [cmd_args.training.run]
     time_limit = "00:45:00"
     [cmd_args.training.trainer]
-    max_steps = "100"
+    max_steps = "30"
     [cmd_args.training.model]
     global_batch_size = 64
     micro_batch_size = 4
@@ -35,6 +35,13 @@ test_template_name = "NeMoLauncher"
 [extra_cmd_args]
 "training.exp_manager.create_wandb_logger" = "false"
 "training.model.bias_activation_fusion" = "false"
+"training.model.fp8_hybrid" = "True"
+"training.model.mcore_gpt" = "True"
+"training.model.sequence_parallel" = "True"
 "training.model.tokenizer.model" = "/path/to/nemotron_2_256k.model"
+"training.model.transformer_engine" = "True"
+"training.model.ub_tp_comm_overlap" = "True"
+"training.model.virtual_pipeline_model_parallel_size" = "null"
+"training.trainer.limit_val_batches" = "1"
 "training.trainer.precision" = "bf16"
-"training.trainer.val_check_interval" = "100"
+"training.trainer.val_check_interval" = "30"

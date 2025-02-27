@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "nemo_launcher_nemotron_15b"
+name = "nemo_launcher_nemotron_15b_bf16"
 
 [[Tests]]
 id = "Tests.1"
-test_name = "nemo_launcher_nemotron_15b"
+test_name = "nemo_launcher_nemotron_15b_bf16"
 num_nodes = "2"
