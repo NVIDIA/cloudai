@@ -84,9 +84,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         cmd_args_str = self._generate_cmd_args_str(self.final_cmd_args, nodes)
         full_cmd = f"{py_bin} {repo_path / tdef.cmd_args.launcher_script} {cmd_args_str}"
-
-        if tr.test.extra_cmd_args:
-            full_cmd = self._handle_extra_cmd_args(full_cmd, tr.test.extra_cmd_args)
+        full_cmd = self._update_container_mounts_with_tokenizer_path(full_cmd)
 
         env_vars_str = " ".join(f"{key}={value}" for key, value in self.final_env_vars.items())
         full_cmd = f"{env_vars_str} {full_cmd}" if env_vars_str else full_cmd
@@ -149,21 +147,10 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     "Please update the test schema TOML file with a valid prefix for the training datasets."
                 )
 
-    def _handle_extra_cmd_args(self, full_cmd: str, extra_cmd_args: str) -> str:
-        """
-        Handle additional command arguments such as the tokenizer path.
-
-        Args:
-            full_cmd (str): The full command string generated so far.
-            extra_cmd_args (str): Additional command-line arguments to append.
-
-        Returns:
-            str: Updated command string with the additional arguments.
-        """
-        full_cmd += f" {extra_cmd_args}"
+    def _update_container_mounts_with_tokenizer_path(self, full_cmd: str) -> str:
         tokenizer_key = "training.model.tokenizer.model="
-        if tokenizer_key in extra_cmd_args:
-            tokenizer_path = extra_cmd_args.split(tokenizer_key, 1)[1].split(" ", 1)[0]
+        if tokenizer_key in full_cmd:
+            tokenizer_path = full_cmd.split(tokenizer_key, 1)[1].split(" ", 1)[0]
             if not Path(tokenizer_path).is_file():
                 raise ValueError(
                     f"The provided tokenizer path '{tokenizer_path}' is not valid. "
@@ -171,7 +158,13 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     "If it contains a placeholder value, refer to USER_GUIDE.md to download the tokenizer "
                     "and update the schema file accordingly."
                 )
-            full_cmd += f" container_mounts=[{tokenizer_path}:{tokenizer_path}]"
+
+            container_mounts_entry = f'"{tokenizer_path}:{tokenizer_path}"'
+            if "container_mounts=" in full_cmd:
+                full_cmd = full_cmd.replace("container_mounts=[", f"container_mounts=[{container_mounts_entry}, ")
+            else:
+                full_cmd += f" container_mounts=[{container_mounts_entry}]"
+
         return full_cmd
 
     def _generate_cmd_args_str(self, args: Dict[str, Union[str, List[str]]], nodes: List[str]) -> str:
