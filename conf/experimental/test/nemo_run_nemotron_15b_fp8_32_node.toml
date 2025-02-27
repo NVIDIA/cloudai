@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "dse_nemo_run_nemotron_15b_fp8"
-description = "dse_nemo_run_nemotron_15b_fp8"
+name = "nemo_run_nemotron_15b_fp8_32_node"
+description = "nemo_run_nemotron_15b_fp8_32_node"
 test_template_name = "NeMoRun"
 
 [cmd_args]
@@ -25,21 +25,21 @@ recipe_name = "nemotron4_15b"
 num_layers = 32
 
   [cmd_args.data]
-  micro_batch_size = [4]
-  global_batch_size = [64]
+  micro_batch_size = 4
+  global_batch_size = 1024
 
   [cmd_args.trainer]
   max_steps = 100
   val_check_interval = 500
-  num_nodes = 2
+  num_nodes = 32
   callbacks = "comms_overlap_callback"
-  accumulate_grad_batches = 4
+  accumulate_grad_batches = 1
 
     [cmd_args.trainer.strategy]
-    tensor_model_parallel_size = [4]
-    pipeline_model_parallel_size = [1]
-    context_parallel_size = [1]
-    sequence_parallel = [true]
+    tensor_model_parallel_size = 4
+    pipeline_model_parallel_size = 1
+    context_parallel_size = 1
+    sequence_parallel = true
 
     [cmd_args.trainer.plugins]
     fp8 = "hybrid"
