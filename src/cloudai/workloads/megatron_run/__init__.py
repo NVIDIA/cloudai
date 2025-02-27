@@ -15,9 +15,11 @@
 # limitations under the License.
 
 from .megatron_run import MegatronRunCmdArgs, MegatronRunTestDefinition
+from .report_generation_strategy import CheckpointTimingReportGenerationStrategy
 from .slurm_command_gen_strategy import MegatronRunSlurmCommandGenStrategy
 
 __all__ = [
+    "CheckpointTimingReportGenerationStrategy",
     "MegatronRunCmdArgs",
     "MegatronRunSlurmCommandGenStrategy",
     "MegatronRunTestDefinition",

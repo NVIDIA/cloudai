@@ -74,7 +74,11 @@ from .workloads.jax_toolbox import (
     JaxToolboxSlurmCommandGenStrategy,
     NemotronTestDefinition,
 )
-from .workloads.megatron_run import MegatronRunSlurmCommandGenStrategy, MegatronRunTestDefinition
+from .workloads.megatron_run import (
+    CheckpointTimingReportGenerationStrategy,
+    MegatronRunSlurmCommandGenStrategy,
+    MegatronRunTestDefinition,
+)
 from .workloads.nccl_test import (
     NCCLTestDefinition,
     NcclTestGradingStrategy,
@@ -156,6 +160,9 @@ Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NeMoRunTestDefinitio
 Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [UCCTestDefinition], UCCTestReportGenerationStrategy)
 Registry().add_strategy(
     ReportGenerationStrategy, [SlurmSystem], [SlurmContainerTestDefinition], SlurmContainerReportGenerationStrategy
+)
+Registry().add_strategy(
+    ReportGenerationStrategy, [SlurmSystem], [MegatronRunTestDefinition], CheckpointTimingReportGenerationStrategy
 )
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherGradingStrategy)
 Registry().add_strategy(
