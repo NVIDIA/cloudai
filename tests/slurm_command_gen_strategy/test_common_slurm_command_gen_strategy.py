@@ -321,3 +321,18 @@ def test_default_container_mounts_with_git_repos(strategy_fixture: SlurmCommandG
     assert mounts[0] == f"{tr.output_path.absolute()}:/cloudai_run_results"
     assert mounts[1] == f"{repo1.installed_path}:{repo1.container_mount}"
     assert mounts[2] == f"{repo2.installed_path}:{repo2.container_mount}"
+
+
+def test_ranks_mapping_cmd(strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun):
+    slurm_args = {"job_name": "test_job", "num_nodes": 2, "node_list_str": "node1,node2"}
+
+    expected_command = (
+        f"srun --mpi={strategy_fixture.system.mpi} "
+        f"--output={testrun_fixture.output_path.absolute()}/mapping-stdout.txt "
+        f"--error={testrun_fixture.output_path.absolute()}/mapping-stderr.txt "
+        "bash -c "
+        r'"echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."'
+    )
+
+    result = strategy_fixture._ranks_mapping_cmd(slurm_args, testrun_fixture)
+    assert result == expected_command
