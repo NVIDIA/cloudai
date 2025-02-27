@@ -18,31 +18,38 @@ name = "nemo_launcher_nemotron_15b_fp8"
 description = "nemo_launcher_nemotron_15b_fp8"
 test_template_name = "NeMoLauncher"
 
-
 [cmd_args]
   [cmd_args.training]
   values = "nemotron/nemotron_15b"
+
     [cmd_args.training.run]
     time_limit = "00:45:00"
+
     [cmd_args.training.trainer]
+    limit_val_batches = "1"
     max_steps = "30"
+    precision = "bf16"
+    val_check_interval = "30"
+
     [cmd_args.training.model]
+    bias_activation_fusion = "false"
+    fp8 = "True"
+    fp8_hybrid = "True"
     global_batch_size = 64
+    mcore_gpt = "True"
     micro_batch_size = 4
-    tensor_model_parallel_size = 4
     pipeline_model_parallel_size = 1
+    sequence_parallel = "True"
+    tensor_model_parallel_size = 4
+    transformer_engine = "True"
+    ub_tp_comm_overlap = "True"
+    virtual_pipeline_model_parallel_size = "null"
+
+      [cmd_args.training.model.tokenizer]
+      model = "/path/to/nemotron_2_256k.model"
+
+    [cmd_args.training.exp_manager]
+    create_wandb_logger = "false"
 
 [extra_cmd_args]
-"training.exp_manager.create_wandb_logger" = "false"
-"training.model.bias_activation_fusion" = "false"
-"training.model.fp8" = "True"
-"training.model.fp8_hybrid" = "True"
-"training.model.mcore_gpt" = "True"
-"training.model.sequence_parallel" = "True"
-"training.model.tokenizer.model" = "/path/to/nemotron_2_256k.model"
-"training.model.ub_tp_comm_overlap" = "True"
-"training.model.virtual_pipeline_model_parallel_size" = "null"
-"training.trainer.limit_val_batches" = "1"
-"training.trainer.precision" = "bf16"
-"training.trainer.val_check_interval" = "30"
 "env_vars.NVTE_FUSED_ATTN" = "1"
