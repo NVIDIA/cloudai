@@ -23,7 +23,6 @@ from .job_id_retrieval_strategy import JobIdRetrievalStrategy
 from .job_status_result import JobStatusResult
 from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from .json_gen_strategy import JsonGenStrategy
-from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
 from .test_scenario import TestRun
 
@@ -64,7 +63,6 @@ class TestTemplate:
         self.json_gen_strategy: Optional[JsonGenStrategy] = None
         self.job_id_retrieval_strategy: Optional[JobIdRetrievalStrategy] = None
         self.job_status_retrieval_strategy: Optional[JobStatusRetrievalStrategy] = None
-        self.report_generation_strategy: Optional[ReportGenerationStrategy] = None
         self.grading_strategy: Optional[GradingStrategy] = None
 
     def __repr__(self) -> str:
@@ -178,33 +176,6 @@ class TestTemplate:
                 "the Registry by calling the appropriate registration function for the system type."
             )
         return self.job_status_retrieval_strategy.get_job_status(output_path)
-
-    def can_handle_directory(self, directory_path: Path) -> bool:
-        """
-        Determine if the strategy can handle the directory.
-
-        Args:
-            directory_path (Path): Path to the directory.
-
-        Returns:
-            bool: True if can handle, False otherwise.
-        """
-        if self.report_generation_strategy is not None:
-            return self.report_generation_strategy.can_handle_directory(directory_path)
-        else:
-            return False
-
-    def generate_report(self, test_name: str, directory_path: Path, sol: Optional[float] = None) -> None:
-        """
-        Generate a report from the directory.
-
-        Args:
-            test_name (str): The name of the test.
-            directory_path (Path): Path to the directory.
-            sol (Optional[float]): Speed-of-light performance for reference.
-        """
-        if self.report_generation_strategy is not None:
-            return self.report_generation_strategy.generate_report(test_name, directory_path, sol)
 
     def grade(self, directory_path: Path, ideal_perf: float) -> Optional[float]:
         """

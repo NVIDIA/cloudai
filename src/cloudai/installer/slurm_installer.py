@@ -15,11 +15,12 @@
 # limitations under the License.
 
 import logging
+import shutil
 import subprocess
 from pathlib import Path
 from shutil import rmtree
 
-from cloudai import BaseInstaller, DockerImage, GitRepo, Installable, InstallStatusResult, PythonExecutable
+from cloudai import BaseInstaller, DockerImage, File, GitRepo, Installable, InstallStatusResult, PythonExecutable
 from cloudai.systems import SlurmSystem
 from cloudai.util.docker_image_cache_manager import DockerImageCacheManager, DockerImageCacheResult
 
@@ -119,6 +120,10 @@ class SlurmInstaller(BaseInstaller):
             return self._install_one_git_repo(item)
         elif isinstance(item, PythonExecutable):
             return self._install_python_executable(item)
+        elif isinstance(item, File):
+            item.installed_path = self.system.install_path / item.src.name
+            shutil.copyfile(item.src, item.installed_path, follow_symlinks=False)
+            return InstallStatusResult(True)
 
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
@@ -140,6 +145,13 @@ class SlurmInstaller(BaseInstaller):
             return self._uninstall_python_executable(item)
         elif isinstance(item, GitRepo):
             return self._uninstall_git_repo(item)
+        elif isinstance(item, File):
+            if item.installed_path != item.src:
+                item.installed_path.unlink()
+                item._installed_path = None
+                return InstallStatusResult(True)
+            logging.debug(f"File {item.installed_path} does not exist.")
+            return InstallStatusResult(True)
 
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
@@ -157,6 +169,11 @@ class SlurmInstaller(BaseInstaller):
             return InstallStatusResult(False, f"Git repository {item.url} not cloned")
         elif isinstance(item, PythonExecutable):
             return self._is_python_executable_installed(item)
+        elif isinstance(item, File):
+            if (self.system.install_path / item.src.name).exists():
+                item.installed_path = self.system.install_path / item.src.name
+                return InstallStatusResult(True)
+            return InstallStatusResult(False, f"File {item.installed_path} does not exist")
 
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 

@@ -22,7 +22,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
-from cloudai import ReportGenerator
+from cloudai import Reporter
 from cloudai._core.configurator.base_gym import BaseGym
 from cloudai._core.runner import Runner
 from cloudai._core.test_scenario import TestRun
@@ -179,8 +179,8 @@ class CloudAIGymEnv(BaseGym):
         """
         output_path = self.runner.runner.system.output_path / self.runner.runner.test_scenario.name
 
-        generator = ReportGenerator(output_path)
-        generator.generate_report(self.test_scenario)
+        reporter = Reporter(self.runner.runner.system, self.test_scenario, output_path)
+        reporter.generate()
 
         subdir = next(output_path.iterdir())
         report_file_path = subdir / f"{self.test_run.current_iteration}" / f"{self.test_run.step}"

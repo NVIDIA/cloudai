@@ -21,9 +21,12 @@ import pytest
 
 from cloudai import TestRun
 from cloudai._core.test import Test
-from cloudai.schema.test_template.chakra_replay.slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
-from cloudai.test_definitions.chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
+from cloudai.workloads.chakra_replay import (
+    ChakraReplayCmdArgs,
+    ChakraReplaySlurmCommandGenStrategy,
+    ChakraReplayTestDefinition,
+)
 from tests.conftest import create_autospec_dataclass
 
 
