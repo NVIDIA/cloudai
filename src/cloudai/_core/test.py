@@ -14,12 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABC, abstractmethod
+import sys
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict
 
-from .installables import GitRepo, Installable
+from .job_status_result import JobStatusResult
 from .test_template import TestTemplate
 
 
@@ -28,16 +29,55 @@ class Test:
 
     __test__ = False
 
-    def __init__(self, test_definition: "TestDefinition", test_template: TestTemplate) -> None:
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        test_template: TestTemplate,
+        env_vars: Dict[str, str],
+        cmd_args: Dict[str, str],
+        extra_env_vars: Dict[str, str],
+        extra_cmd_args: str,
+        section_name: str = "",
+        dependencies: Optional[Dict[str, "TestDependency"]] = None,
+        iterations: Union[int, str] = 1,
+        sol: Optional[float] = None,
+        weight: float = 0.0,
+        ideal_perf: float = 1.0,
+    ) -> None:
         """
         Initialize a Test instance.
 
         Args:
-            test_definition (TestDefinition): The test definition object.
-            test_template (TestTemplate): The test template object
+            name (str): Name of the test.
+            description (str): Description of the test.
+            test_template (TestTemplate): Test template object.
+            env_vars (Dict[str, str]): Environment variables for the test.
+            cmd_args (Dict[str, str]): Command-line arguments for the test.
+            extra_env_vars (Dict[str, str]): Extra environment variables.
+            extra_cmd_args (str): Extra command-line arguments.
+            section_name (str): The section name of the test in the configuration.
+            dependencies (Optional[Dict[str, TestDependency]]): Test dependencies.
+            iterations (Union[int, str]): Total number of iterations to run the test. Can be an integer or 'infinite'
+                for endless iterations.
+            sol (Optional[float]): Speed-of-light performance for reference.
+            weight (float): The weight of this test in a test scenario, indicating its relative importance or priority.
+            ideal_perf (float): The ideal performance value for comparison.
         """
+        self.name = name
+        self.description = description
         self.test_template = test_template
-        self.test_definition = test_definition
+        self.env_vars = env_vars
+        self.cmd_args = cmd_args
+        self.extra_env_vars = extra_env_vars
+        self.extra_cmd_args = extra_cmd_args
+        self.section_name = section_name
+        self.dependencies = dependencies or {}
+        self.iterations = iterations if isinstance(iterations, int) else sys.maxsize
+        self.current_iteration = 0
+        self.sol = sol
+        self.weight = weight
+        self.ideal_perf = ideal_perf
 
     def __repr__(self) -> str:
         """
@@ -49,81 +89,147 @@ class Test:
         return (
             f"Test(name={self.name}, description={self.description}, "
             f"test_template={self.test_template.name}, "
+            f"env_vars={self.env_vars}, "
             f"cmd_args={self.cmd_args}, "
             f"extra_env_vars={self.extra_env_vars}, "
-            f"extra_cmd_args={self.extra_cmd_args}"
+            f"extra_cmd_args={self.extra_cmd_args}, "
+            f"section_name={self.section_name}, "
+            f"dependencies={self.dependencies}, iterations={self.iterations}, "
         )
 
-    @property
-    def name(self) -> str:
-        return self.test_definition.name
+    def gen_exec_command(
+        self, output_path: Path, time_limit: Optional[str] = None, num_nodes: int = 1, nodes: Optional[List[str]] = None
+    ) -> str:
+        """
+        Generate the command to run this specific test.
 
-    @property
-    def description(self) -> str:
-        return self.test_definition.description
+        Args:
+            output_path (Path): Path to the output directory where logs and results will be stored.
+            time_limit (Optional[str]): Time limit for the test execution.
+            num_nodes (Optional[int]): Number of nodes to be used for the test execution.
+            nodes (Optional[List[str]]): List of nodes involved in the test.
 
-    @property
-    def cmd_args(self) -> Dict[str, Union[str, List[str]]]:
-        return self.test_definition.cmd_args_dict
+        Returns:
+            str: The command string.
+        """
+        if time_limit is not None:
+            self.cmd_args["time_limit"] = time_limit
+        if not nodes:
+            nodes = []
 
-    @property
-    def extra_cmd_args(self) -> str:
-        return self.test_definition.extra_args_str
+        return self.test_template.gen_exec_command(
+            self.env_vars,
+            self.cmd_args,
+            self.extra_env_vars,
+            self.extra_cmd_args,
+            output_path,
+            num_nodes,
+            nodes,
+        )
 
-    @property
-    def extra_env_vars(self) -> Dict[str, str]:
-        return self.test_definition.extra_env_vars
+    def gen_json(
+        self,
+        output_path: Path,
+        job_name: str,
+        time_limit: Optional[str] = None,
+        num_nodes: int = 1,
+        nodes: Optional[List[str]] = None,
+    ) -> Dict[Any, Any]:
+        """
+        Generate a JSON dictionary representing the Kubernetes job specification for this test.
+
+        Args:
+            output_path (Path): Path to the output directory where logs and results will be stored.
+            job_name (str): The name assigned to the Kubernetes job.
+            time_limit (Optional[str]): Time limit for the test execution.
+            num_nodes (Optional[int]): Number of nodes to be used for the test execution.
+            nodes (Optional[List[str]]): List of nodes involved in the test.
+
+        Returns:
+            Dict[Any, Any]: A dictionary representing the Kubernetes job specification.
+        """
+        if time_limit is not None:
+            self.cmd_args["time_limit"] = time_limit
+        if not nodes:
+            nodes = []
+
+        return self.test_template.gen_json(
+            self.env_vars,
+            self.cmd_args,
+            self.extra_env_vars,
+            self.extra_cmd_args,
+            output_path,
+            job_name,
+            num_nodes,
+            nodes,
+        )
+
+    def get_job_id(self, stdout: str, stderr: str) -> Optional[int]:
+        """
+        Retrieve the job ID using the test template's method.
+
+        Args:
+            stdout (str): Standard output from the command execution.
+            stderr (str): Standard error from the command execution.
+
+        Returns:
+            Optional[int]: The retrieved job ID, or None if not found.
+        """
+        return self.test_template.get_job_id(stdout, stderr)
+
+    def get_job_status(self, output_path: Path) -> JobStatusResult:
+        """
+        Determine the status of a job based on the outputs located in the given output directory.
+
+        Args:
+            output_path (Path): Path to the output directory.
+
+        Returns:
+            JobStatusResult: The result containing the job status and an optional error message.
+        """
+        return self.test_template.get_job_status(output_path)
+
+    def has_more_iterations(self) -> bool:
+        """
+        Check if the test has more iterations to run.
+
+        Returns
+            bool: True if more iterations are pending, False otherwise.
+        """
+        return self.current_iteration < self.iterations
+
+
+class TestDependency:
+    """
+    Represents a dependency for a test.
+
+    Attributes
+        test (Test): The test object it depends on.
+        time (int): Time in seconds after which this dependency is met.
+    """
+
+    __test__ = False
+
+    def __init__(self, test: Test, time: int) -> None:
+        """
+        Initialize a TestDependency instance.
+
+        Args:
+            test (Test): The test object it depends on.
+            time (int): Time in seconds to meet the dependency.
+        """
+        self.test = test
+        self.time = time
 
 
 class CmdArgs(BaseModel):
     """Test command arguments."""
 
-    model_config = ConfigDict(extra="allow")
-
-
-class NsysConfiguration(BaseModel):
-    """NSYS configuration."""
-
     model_config = ConfigDict(extra="forbid")
-
-    enable: bool = True
-    nsys_binary: str = "nsys"
-    task: str = "profile"
-    output: Optional[str] = None
-    sample: Optional[str] = None
-    trace: Optional[str] = None
-    force_overwrite: Optional[bool] = None
-    capture_range: Optional[str] = None
-    capture_range_end: Optional[str] = None
-    cuda_graph_trace: Optional[str] = None
-    gpu_metrics_devices: Optional[str] = None
-    extra_args: list[str] = []
-
-    @property
-    def cmd_args(self) -> list[str]:
-        parts = [f"{self.nsys_binary}", f"{self.task}"]
-        if self.sample:
-            parts.append(f"-s {self.sample}")
-        if self.output:
-            parts.append(f"-o {self.output}")
-        if self.trace:
-            parts.append(f"-t {self.trace}")
-        if self.force_overwrite is not None:
-            parts.append(f"--force-overwrite={str(self.force_overwrite).lower()}")
-        if self.capture_range:
-            parts.append(f"--capture-range={self.capture_range}")
-        if self.capture_range_end:
-            parts.append(f"--capture-range-end={self.capture_range_end}")
-        if self.cuda_graph_trace:
-            parts.append(f"--cuda-graph-trace={self.cuda_graph_trace}")
-        if self.gpu_metrics_devices:
-            parts.append(f"--gpu-metrics-devices={self.gpu_metrics_devices}")
-        parts.extend(self.extra_args)
-
-        return parts
+    agent: Optional[str] = None
 
 
-class TestDefinition(BaseModel, ABC):
+class TestDefinition(BaseModel):
     """Base Test object."""
 
     __test__ = False
@@ -136,13 +242,9 @@ class TestDefinition(BaseModel, ABC):
     cmd_args: Any
     extra_env_vars: dict[str, str] = {}
     extra_cmd_args: dict[str, str] = {}
-    extra_container_mounts: list[str] = []
-    git_repos: list[GitRepo] = []
-    nsys: Optional[NsysConfiguration] = None
-    agent: Optional[str] = None
 
     @property
-    def cmd_args_dict(self) -> Dict[str, Union[str, List[str]]]:
+    def cmd_args_dict(self) -> Dict[str, str]:
         return self.cmd_args.model_dump()
 
     @property
@@ -153,10 +255,9 @@ class TestDefinition(BaseModel, ABC):
         return " ".join(parts)
 
     @property
-    @abstractmethod
-    def installables(self) -> list[Installable]:
-        return []
+    def constraint_checker(self) -> bool:
+        return True
 
     @property
-    def constraint_check(self) -> bool:
-        return True
+    def is_dse_job(self) -> bool:
+        return False

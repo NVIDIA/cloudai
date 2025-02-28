@@ -108,7 +108,9 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
     env = CloudAIGymEnv(test_run=test_run, runner=runner)
 
     registry = Registry()
-    agent_type = test_run.test.agent
+
+    agent_type = test_run.test.cmd_args.get("agent")
+
     agent_class = registry.agents_map.get(agent_type)
     if agent_class is None:
         logging.error(f"No agent available for type: {agent_type}")
