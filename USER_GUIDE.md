@@ -24,7 +24,7 @@ This is a CloudAI user guide to help users use CloudAI, covering topics such as 
    srun \
       --mpi=pmix \
       --container-image=gitlab-url.com/cloudai/nccl-test \
-      /usr/local/bin/all_reduce_perf_mpi \
+      all_reduce_perf_mpi \
       --nthreads 1 \
       --ngpus 1 \
       --minbytes 128 \
