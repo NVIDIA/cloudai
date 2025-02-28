@@ -156,6 +156,8 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
 
     if not prepare_output_dir(system.output_path):
         return 1
+    if args.mode == "dry-run":
+        system.monitor_interval = 1
     system.update()
 
     logging.info(f"System Name: {system.name}")

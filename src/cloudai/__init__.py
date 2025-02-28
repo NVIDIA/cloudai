@@ -75,6 +75,11 @@ from .workloads.jax_toolbox import (
     JaxToolboxSlurmCommandGenStrategy,
     NemotronTestDefinition,
 )
+from .workloads.megatron_run import (
+    CheckpointTimingReportGenerationStrategy,
+    MegatronRunSlurmCommandGenStrategy,
+    MegatronRunTestDefinition,
+)
 from .workloads.nccl_test import (
     NCCLTestDefinition,
     NcclTestGradingStrategy,
@@ -132,7 +137,9 @@ Registry().add_strategy(
     ReportGenerationStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherReportGenerationStrategy
 )
 
-
+Registry().add_strategy(
+    CommandGenStrategy, [SlurmSystem], [MegatronRunTestDefinition], MegatronRunSlurmCommandGenStrategy
+)
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NCCLTestDefinition], NcclTestSlurmCommandGenStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [SleepTestDefinition], SleepGradingStrategy)
 Registry().add_strategy(
@@ -154,6 +161,9 @@ Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NeMoRunTestDefinitio
 Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [UCCTestDefinition], UCCTestReportGenerationStrategy)
 Registry().add_strategy(
     ReportGenerationStrategy, [SlurmSystem], [SlurmContainerTestDefinition], SlurmContainerReportGenerationStrategy
+)
+Registry().add_strategy(
+    ReportGenerationStrategy, [SlurmSystem], [MegatronRunTestDefinition], CheckpointTimingReportGenerationStrategy
 )
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherGradingStrategy)
 Registry().add_strategy(
@@ -182,6 +192,7 @@ Registry().add_strategy(
         SleepTestDefinition,
         NeMoRunTestDefinition,
         SlurmContainerTestDefinition,
+        MegatronRunTestDefinition,
     ],
     SlurmJobIdRetrievalStrategy,
 )
@@ -216,6 +227,7 @@ Registry().add_strategy(
         SleepTestDefinition,
         NeMoRunTestDefinition,
         SlurmContainerTestDefinition,
+        MegatronRunTestDefinition,
     ],
     DefaultJobStatusRetrievalStrategy,
 )
@@ -252,6 +264,7 @@ Registry().add_test_definition("JaxToolboxGPT", GPTTestDefinition)
 Registry().add_test_definition("JaxToolboxGrok", GrokTestDefinition)
 Registry().add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)
 Registry().add_test_definition("SlurmContainer", SlurmContainerTestDefinition)
+Registry().add_test_definition("MegatronRun", MegatronRunTestDefinition)
 
 Registry().add_agent("grid_search", GridSearchAgent)
 

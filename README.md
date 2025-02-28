@@ -23,9 +23,12 @@ These schemas enable CloudAI to be flexible and compatible with different system
 |Grok|✅|❌|❌|
 |NCCL|✅|✅|❌|
 |NeMo Launcher|✅|❌|❌|
+|NeMo Run|✅|❌|❌|
 |Nemotron|✅|❌|❌|
 |Sleep|✅|✅|✅|
 |UCC|✅|❌|❌|
+|SlurmContainer|✅|❌|❌|
+|MegatronRun (experimental)|✅|❌|❌|
 
 
 ## Set Up Access to the Private NGC Registry
