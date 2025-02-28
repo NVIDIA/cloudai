@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import re
+from pathlib import Path
 from typing import Dict, List
 from unittest.mock import Mock, patch
 
@@ -92,27 +93,28 @@ def test_parse_sinfo_output(slurm_system: SlurmSystem) -> None:
         assert node.state == SlurmNodeState.IDLE
 
 
-@patch("cloudai.systems.SlurmSystem.get_squeue")
-@patch("cloudai.systems.SlurmSystem.get_sinfo")
-def test_update_node_states_with_mocked_outputs(mock_get_sinfo, mock_get_squeue, slurm_system: SlurmSystem):
-    mock_get_squeue.return_value = "node-033|user1"
-    mock_get_sinfo.return_value = "PARTITION AVAIL TIMELIMIT NODES STATE NODELIST\n" "main up infinite 1 idle node-033"
+@patch("cloudai.systems.SlurmSystem.fetch_command_output")
+def test_update_with_mocked_outputs(mock_fetch_command_output: Mock, slurm_system: SlurmSystem):
+    mock_fetch_command_output.side_effect = [
+        ("node-033|user1", ""),
+        ("PARTITION AVAIL TIMELIMIT NODES STATE NODELIST\n" "main up infinite 1 idle node-033", ""),
+    ]
 
     parts_by_name = {part.name: part for part in slurm_system.partitions}
 
-    slurm_system.update_node_states()
+    slurm_system.update()
     assert "node-033" in {node.name for node in parts_by_name["main"].slurm_nodes}
     for node in parts_by_name["main"].slurm_nodes:
         if node.name == "node-033":
             assert node.state == SlurmNodeState.IDLE
             assert node.user == "user1"
 
-    mock_get_squeue.return_value = "node01|root"
-    mock_get_sinfo.return_value = (
-        "PARTITION AVAIL TIMELIMIT NODES STATE NODELIST\n" "backup up infinite 1 allocated node01"
-    )
+    mock_fetch_command_output.side_effect = [
+        ("node01|root", ""),
+        ("PARTITION AVAIL TIMELIMIT NODES STATE NODELIST\n" "backup up infinite 1 allocated node01", ""),
+    ]
 
-    slurm_system.update_node_states()
+    slurm_system.update()
     for node in parts_by_name["backup"].slurm_nodes:
         if node.name == "node01":
             assert node.state == SlurmNodeState.ALLOCATED
@@ -326,3 +328,8 @@ def test_model_dump(slurm_system: SlurmSystem):
     assert "cmd_shell" not in sys_dict
     recreated = SlurmSystem.model_validate(sys_dict)
     assert recreated.model_dump() == sys_dict
+
+
+def test_default_partition_is_required():
+    with pytest.raises(ValueError):
+        SlurmSystem(name="", install_path=Path.cwd(), output_path=Path.cwd(), partitions=[])  # type: ignore

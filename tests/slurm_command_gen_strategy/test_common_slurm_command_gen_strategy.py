@@ -131,18 +131,6 @@ def test_time_limit(time_limit: Optional[str], strategy_fixture: SlurmCommandGen
         assert "time_limit" not in slurm_args
 
 
-def test_raises_if_no_default_partition(slurm_system: SlurmSystem):
-    slurm_system.default_partition = ""
-    with pytest.raises(ValueError) as exc_info:
-        MySlurmCommandGenStrategy(slurm_system, {})
-    assert (
-        "Default partition not set in the Slurm system object. "
-        "The 'default_partition' attribute should be properly defined in the Slurm "
-        "system configuration. Please ensure that 'default_partition' is set correctly "
-        "in the corresponding system configuration (e.g., system.toml)."
-    ) in str(exc_info.value)
-
-
 @pytest.mark.parametrize(
     "pre_test,post_test,expected_script_lines",
     [
