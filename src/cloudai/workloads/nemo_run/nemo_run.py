@@ -91,7 +91,6 @@ class NeMoRunCmdArgs(CmdArgs):
 
     docker_image_url: str
     task: str
-    agent: str = "grid_search"
     recipe_name: str
     num_layers: Optional[int] = None
     trainer: Trainer = Field(default_factory=Trainer)
@@ -105,6 +104,7 @@ class NeMoRunTestDefinition(TestDefinition):
     cmd_args: NeMoRunCmdArgs
     _docker_image: Optional[DockerImage] = None
     script: File = File(Path(__file__).parent.parent / "nemo_run/cloudai_nemorun.py")
+    agent: str = "grid_search"
 
     @property
     def docker_image(self) -> DockerImage:
