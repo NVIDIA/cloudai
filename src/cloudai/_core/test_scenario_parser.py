@@ -18,14 +18,42 @@ import logging
 import re
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Set, Type
 
 import toml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
+from cloudai.workloads.jax_toolbox import (
+    GPTTestDefinition,
+    GrokTestDefinition,
+    JaxToolboxReportGenerationStrategy,
+    NemotronTestDefinition,
+)
+from cloudai.workloads.nccl_test import NCCLTestDefinition, NcclTestReportGenerationStrategy
+from cloudai.workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy, NeMoLauncherTestDefinition
+from cloudai.workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
+from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
+from cloudai.workloads.slurm_container import SlurmContainerReportGenerationStrategy, SlurmContainerTestDefinition
+from cloudai.workloads.ucc_test import UCCTestDefinition, UCCTestReportGenerationStrategy
+
 from .exceptions import TestScenarioParsingError, format_validation_error
-from .test import Test
+from .report_generation_strategy import ReportGenerationStrategy
+from .test import Test, TestDefinition
 from .test_scenario import TestDependency, TestRun, TestScenario
+
+DEFAULT_REPORTERS: dict[Type[TestDefinition], Set[Type[ReportGenerationStrategy]]] = {
+    ChakraReplayTestDefinition: {ChakraReplayReportGenerationStrategy},
+    GPTTestDefinition: {JaxToolboxReportGenerationStrategy},
+    GrokTestDefinition: {JaxToolboxReportGenerationStrategy},
+    NCCLTestDefinition: {NcclTestReportGenerationStrategy},
+    NeMoLauncherTestDefinition: {NeMoLauncherReportGenerationStrategy},
+    NeMoRunTestDefinition: {NeMoRunReportGenerationStrategy},
+    NemotronTestDefinition: {JaxToolboxReportGenerationStrategy},
+    SleepTestDefinition: {SleepReportGenerationStrategy},
+    SlurmContainerTestDefinition: {SlurmContainerReportGenerationStrategy},
+    UCCTestDefinition: {UCCTestReportGenerationStrategy},
+}
 
 
 def parse_time_limit(limit: str) -> timedelta:
@@ -96,6 +124,21 @@ def calculate_total_time_limit(test_hooks: List[TestScenario], time_limit: Optio
     return format_time_limit(total_time)
 
 
+def get_reporters(test_info: "_TestRunTOML", tdef: TestDefinition) -> Set[Type[ReportGenerationStrategy]]:
+    reporters: Set[Type[ReportGenerationStrategy]] = set()
+    user_defined_reporters = set(test_info.reporters)
+    if "default" in user_defined_reporters or "defaults" in user_defined_reporters:
+        reporters |= DEFAULT_REPORTERS.get(type(tdef), set())
+
+    for reporter in user_defined_reporters:
+        if reporter == "default" or reporter == "defaults":
+            continue
+
+        # TODO: get classes from string
+
+    return reporters
+
+
 class _TestDependencyTOML(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -116,6 +159,7 @@ class _TestRunTOML(BaseModel):
     ideal_perf: float = 1.0
     time_limit: Optional[str] = None
     dependencies: list[_TestDependencyTOML] = Field(default_factory=list)
+    reporters: list[str] = ["default"]
 
 
 class _TestScenarioTOML(BaseModel):
@@ -302,5 +346,6 @@ class TestScenarioParser:
             ideal_perf=test_info.ideal_perf,
             pre_test=pre_test,
             post_test=post_test,
+            reporters=get_reporters(test_info, test.test_definition),
         )
         return tr

@@ -28,7 +28,6 @@ from .job_id_retrieval_strategy import JobIdRetrievalStrategy
 from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from .json_gen_strategy import JsonGenStrategy
 from .registry import Registry
-from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
 from .test import Test, TestDefinition
 from .test_template import TestTemplate
@@ -136,7 +135,7 @@ class TestParser:
         Fetch a strategy from the registry based on system and template.
 
         Args:
-            strategy_interface (Type[Union[TestTemplateStrategy, ReportGenerationStrategy,
+            strategy_interface (Type[Union[TestTemplateStrategy,
                 JobIdRetrievalStrategy, JobStatusRetrievalStrategy]]):
                 The strategy interface to fetch.
             system_type (Type[System]): The system type.
@@ -152,7 +151,7 @@ class TestParser:
         if strategy_type:
             if issubclass(strategy_type, TestTemplateStrategy):
                 return strategy_type(self.system, cmd_args)
-            elif not issubclass(strategy_type, ReportGenerationStrategy):
+            else:
                 return strategy_type()
 
         logging.debug(
