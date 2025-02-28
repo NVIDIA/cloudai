@@ -117,7 +117,12 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
     agent = agent_class(env)
     agent.configure(env.action_space)
 
-    for step, action in enumerate(agent.get_all_combinations(), start=1):
+    for step in range(agent.max_steps):
+        result = agent.select_action()
+        if result is None:
+            break
+
+        step, action = result
         test_run.step = step
         observation, reward, done, info = env.step(action)
         logging.info(f"Step {step}: Observation: {observation}, Reward: {reward}")
