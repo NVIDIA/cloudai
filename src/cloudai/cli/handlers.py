@@ -25,7 +25,6 @@ import toml
 
 from cloudai import Installable, Parser, Registry, Reporter, Runner, System, TestParser
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
-from cloudai._core.configurator.grid_search import GridSearchAgent
 from cloudai.util import prepare_output_dir
 
 from ..parser import HOOK_ROOT
@@ -107,8 +106,15 @@ def is_dse_job(cmd_args: dict) -> bool:
 def handle_dse_job(runner: Runner, args: argparse.Namespace):
     test_run = next(iter(runner.runner.test_scenario.test_runs))
     env = CloudAIGymEnv(test_run=test_run, runner=runner)
-    agent = GridSearchAgent(env)
 
+    registry = Registry()
+    agent_type = test_run.test.agent
+    agent_class = registry.agents_map.get(agent_type)
+    if agent_class is None:
+        logging.error(f"No agent available for type: {agent_type}")
+        exit(1)
+
+    agent = agent_class(env)
     agent.configure(env.action_space)
 
     for step, action in enumerate(agent.get_all_combinations(), start=1):

@@ -19,6 +19,7 @@ from ._core.base_job import BaseJob
 from ._core.base_runner import BaseRunner
 from ._core.base_system_parser import BaseSystemParser
 from ._core.command_gen_strategy import CommandGenStrategy
+from ._core.configurator.grid_search import GridSearchAgent
 from ._core.exceptions import (
     JobIdRetrievalError,
     SystemConfigParsingError,
@@ -252,6 +253,7 @@ Registry().add_test_definition("JaxToolboxGrok", GrokTestDefinition)
 Registry().add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)
 Registry().add_test_definition("SlurmContainer", SlurmContainerTestDefinition)
 
+Registry().add_agent("grid_search", GridSearchAgent)
 
 __all__ = [
     "BaseInstaller",
