@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import itertools
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from cloudai._core.configurator.base_agent import BaseAgent
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
@@ -39,7 +39,8 @@ class GridSearchAgent(BaseAgent):
         super().__init__(self.action_space)
         self.env = env
         self.action_combinations = []
-        self.index = 0
+        self.index = 1
+        self.max_steps = 0
 
     def configure(self, config: Dict[str, Any]) -> None:
         """
@@ -54,6 +55,7 @@ class GridSearchAgent(BaseAgent):
 
         self.action_combinations = list(itertools.product(*parameter_values))
         self.index = 0
+        self.max_steps = len(self.action_combinations)
 
     def get_all_combinations(self) -> List[Dict[str, Any]]:
         """
@@ -65,19 +67,21 @@ class GridSearchAgent(BaseAgent):
         keys = list(self.action_space.keys())
         return [dict(zip(keys, combination)) for combination in self.action_combinations]
 
-    def select_action(self) -> Dict[str, Any]:
+    def select_action(self) -> Tuple[int, Dict[str, Any]]:
         """
         Select the next action from the grid.
 
         Returns:
-            Dict[str, Any]: A dictionary mapping action keys to selected values.
+            Tuple[int, Dict[str, Any]]: The current step and a dictionary mapping action keys to selected
+            values.
         """
-        if self.index >= len(self.action_combinations):
-            raise StopIteration("Grid search completed.")
+        if self.index >= self.max_steps:
+            return self.index, {}
 
         action = dict(zip(self.action_space.keys(), self.action_combinations[self.index]))
+        step = self.index
         self.index += 1
-        return action
+        return step, action
 
     def update_policy(self, _feedback: Dict[str, Any]) -> None:
         """
