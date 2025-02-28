@@ -26,6 +26,8 @@ from cloudai._core.configurator.base_gym import BaseGym
 from cloudai._core.runner import Runner
 from cloudai._core.test_scenario import TestRun
 
+from ..reporter import Reporter
+
 
 class CloudAIGymEnv(BaseGym):
     """
@@ -176,8 +178,6 @@ class CloudAIGymEnv(BaseGym):
         Returns:
             list: The observation.
         """
-        from cloudai import Reporter  # Local import to avoid circular dependency
-
         output_path = self.runner.runner.system.output_path / self.runner.runner.test_scenario.name
 
         reporter = Reporter(self.runner.runner.system, self.test_scenario, output_path)

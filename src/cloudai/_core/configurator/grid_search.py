@@ -39,7 +39,7 @@ class GridSearchAgent(BaseAgent):
         super().__init__(self.action_space)
         self.env = env
         self.action_combinations = []
-        self.index = 0
+        self.index = 1
         self.max_steps = 0
 
     def configure(self, config: Dict[str, Any]) -> None:
