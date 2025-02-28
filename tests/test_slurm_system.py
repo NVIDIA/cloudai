@@ -333,3 +333,26 @@ def test_model_dump(slurm_system: SlurmSystem):
 def test_default_partition_is_required():
     with pytest.raises(ValueError):
         SlurmSystem(name="", install_path=Path.cwd(), output_path=Path.cwd(), partitions=[])  # type: ignore
+
+
+class TestParseNodes:
+    def test_single_node(self, slurm_system: SlurmSystem):
+        nodes = slurm_system.parse_nodes(["node01"])
+        assert nodes == ["node01"]
+
+    def test_two_nodes(self, slurm_system: SlurmSystem):
+        nodes = slurm_system.parse_nodes(["node01", "node02"])
+        assert nodes == ["node01", "node02"]
+
+    def test_range(self, slurm_system: SlurmSystem):
+        nodes = slurm_system.parse_nodes(["node0[1-3]"])
+        assert nodes == ["node01", "node02", "node03"]
+
+    def test_with_commas(self, slurm_system: SlurmSystem):
+        nodes = slurm_system.parse_nodes(["node01,node02,node03"])
+        assert nodes == ["node01", "node02", "node03"]
+
+    @pytest.mark.parametrize("spec", ["part:", "part:group", "unknown:grp:1", "main:unknown:1"])
+    def test_colon_invalid_syntax(self, slurm_system: SlurmSystem, spec: str):
+        with pytest.raises(ValueError):
+            slurm_system.parse_nodes([spec])

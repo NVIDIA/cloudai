@@ -76,25 +76,8 @@ class SlurmPartition(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     name: str
-    nodes: List[str]
     groups: List[SlurmGroup] = []
-
-    _slurm_nodes: List[SlurmNode] = []
-
-    @property
-    def slurm_nodes(self) -> List[SlurmNode]:
-        if self._slurm_nodes:
-            return self._slurm_nodes
-
-        node_names = set()
-        for nodes_list in self.nodes:
-            node_names.update(set(parse_node_list(nodes_list)))
-
-        self._slurm_nodes = [
-            SlurmNode(name=node_name, partition=self.name, state=SlurmNodeState.UNKNOWN_STATE)
-            for node_name in node_names
-        ]
-        return self._slurm_nodes
+    slurm_nodes: list[SlurmNode] = Field(default_factory=list[SlurmNode], exclude=True)
 
 
 class SlurmSystem(BaseModel, System):
@@ -147,7 +130,10 @@ class SlurmSystem(BaseModel, System):
                 node_names = set()
                 for group_nodes in group.nodes:
                     node_names.update(set(parse_node_list(group_nodes)))
-                groups[part.name][group.name] = [node for node in part.slurm_nodes if node.name in node_names]
+                groups[part.name][group.name] = [
+                    SlurmNode(name=node_name, partition=self.name, state=SlurmNodeState.UNKNOWN_STATE)
+                    for node_name in node_names
+                ]
 
         return groups
 
@@ -493,18 +479,6 @@ class SlurmSystem(BaseModel, System):
 
         return allocated_nodes
 
-    def is_node_in_system(self, node_name: str) -> bool:
-        """
-        Check if a given node is part of the Slurm system.
-
-        Args:
-            node_name (str): The name of the node to check.
-
-        Returns:
-            True if the node is part of the system, otherwise False.
-        """
-        return any(any(node.name == node_name for node in part.slurm_nodes) for part in self.partitions)
-
     def scancel(self, job_id: int) -> None:
         """
         Terminates a specified Slurm job by sending a cancellation command.
@@ -584,11 +558,24 @@ class SlurmSystem(BaseModel, System):
                 for part in self.partitions:
                     if part.name != partition:
                         continue
+
+                    found = False
                     for node in part.slurm_nodes:
                         if node.name == node_name:
+                            found = True
                             node.state = state_enum
                             node.user = node_user_map.get(node_name, "N/A")
                             break
+
+                    if not found:
+                        part.slurm_nodes.append(
+                            SlurmNode(
+                                name=node_name,
+                                partition=partition,
+                                state=state_enum,
+                                user=node_user_map.get(node_name, "N/A"),
+                            )
+                        )
 
     def convert_state_to_enum(self, state_str: str) -> SlurmNodeState:
         """
@@ -679,12 +666,8 @@ class SlurmSystem(BaseModel, System):
                 group_nodes = self.get_available_nodes_from_group(partition_name, group_name, num_nodes)
                 parsed_nodes += [node.name for node in group_nodes]
             else:
-                # Handle both individual node names and ranges
-                if self.is_node_in_system(node_spec) or "[" in node_spec:
-                    expanded_nodes = parse_node_list(node_spec)
-                    parsed_nodes += expanded_nodes
-                else:
-                    raise ValueError(f"Node '{node_spec}' not found.")
+                expanded_nodes = parse_node_list(node_spec)
+                parsed_nodes += expanded_nodes
 
         # Remove duplicates while preserving order
         parsed_nodes = list(dict.fromkeys(parsed_nodes))

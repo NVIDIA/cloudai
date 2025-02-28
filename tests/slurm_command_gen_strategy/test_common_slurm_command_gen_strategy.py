@@ -75,7 +75,7 @@ def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, testrun_
     assert "test_job" in file_contents
     assert "node1,node2" in file_contents
     assert "srun" in file_contents
-    assert "--mpi=fake-mpi" in file_contents
+    assert f"--mpi={strategy_fixture.system.mpi}" in file_contents
 
 
 def test_num_nodes_and_nodes(strategy_fixture: SlurmCommandGenStrategy):

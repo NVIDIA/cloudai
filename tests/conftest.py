@@ -39,7 +39,6 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
         partitions=[
             SlurmPartition(
                 name="main",
-                nodes=["node-[033-064]"],
                 groups=[
                     SlurmGroup(name="group1", nodes=["node-[033-048]"]),
                     SlurmGroup(name="group2", nodes=["node-[049-064]"]),
@@ -47,7 +46,6 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
             ),
             SlurmPartition(
                 name="backup",
-                nodes=["node0[1-8]"],
                 groups=[
                     SlurmGroup(name="group1", nodes=["node0[1-4]"]),
                     SlurmGroup(name="group2", nodes=["node0[5-8]"]),
