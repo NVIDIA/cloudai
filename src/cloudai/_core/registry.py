@@ -221,7 +221,7 @@ class Registry(metaclass=Singleton):
         Add a new system implementation mapping.
 
         Args:
-            name (str): The name of the system.
+            name (Optional[str]): The name of the system.
             value (Type[System]): The system implementation.
 
         Raises:

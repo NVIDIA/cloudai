@@ -56,7 +56,7 @@ class CloudAIGymEnv(BaseGym):
         Returns:
             Dict[str, Any]: The action space.
         """
-        action_space = {}
+        action_space: Dict[str, Any] = {}
         cmd_args_dict = self.test_run.test.test_definition.cmd_args.model_dump()
         self.populate_action_space("", cmd_args_dict, action_space)
         return action_space

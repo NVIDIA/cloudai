@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 
 
 class BaseAgent(ABC):
@@ -34,6 +34,7 @@ class BaseAgent(ABC):
             action_space (Dict[str, Any]): The action space for the agent.
         """
         self.action_space = action_space
+        self.max_steps = 0
 
     @abstractmethod
     def configure(self, config: Dict[str, Any]) -> None:
@@ -46,12 +47,12 @@ class BaseAgent(ABC):
         pass
 
     @abstractmethod
-    def select_action(self) -> Dict[str, Any]:
+    def select_action(self) -> Tuple[int, Dict[str, Any]]:
         """
         Select an action from the action space.
 
         Returns:
-            Dict[str, Any]: A dictionary mapping action keys to selected values.
+            Tuple[int, Dict[str, Any]]: The current step index and a dictionary mapping action keys to selected values.
         """
         pass
 

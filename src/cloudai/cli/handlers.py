@@ -116,8 +116,8 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
         logging.error(f"No agent available for type: {agent_type}")
         exit(1)
 
-    agent = agent_class(env)
-    agent.configure(env.action_space)
+    action_space = env.define_action_space()
+    agent = agent_class(action_space)
 
     for step in range(agent.max_steps):
         result = agent.select_action()

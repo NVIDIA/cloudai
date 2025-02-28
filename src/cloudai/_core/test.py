@@ -139,7 +139,7 @@ class TestDefinition(BaseModel, ABC):
     extra_container_mounts: list[str] = []
     git_repos: list[GitRepo] = []
     nsys: Optional[NsysConfiguration] = None
-    agent: Optional[str] = None
+    agent: str = "grid_search"
 
     @property
     def cmd_args_dict(self) -> Dict[str, Union[str, List[str]]]:

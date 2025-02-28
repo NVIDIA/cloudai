@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import itertools
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 from cloudai._core.configurator.base_agent import BaseAgent
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
@@ -67,16 +67,16 @@ class GridSearchAgent(BaseAgent):
         keys = list(self.action_space.keys())
         return [dict(zip(keys, combination)) for combination in self.action_combinations]
 
-    def select_action(self) -> Optional[Tuple[int, Dict[str, Any]]]:
+    def select_action(self) -> Tuple[int, Dict[str, Any]]:
         """
         Select the next action from the grid.
 
         Returns:
-            Optional[Tuple[int, Dict[str, Any]]]: The current step and a dictionary mapping action keys to selected
-            values, or None if there are no more actions.
+            Tuple[int, Dict[str, Any]]: The current step and a dictionary mapping action keys to selected
+            values.
         """
         if self.index >= self.max_steps:
-            return None
+            return self.index, {}
 
         action = dict(zip(self.action_space.keys(), self.action_combinations[self.index]))
         step = self.index
