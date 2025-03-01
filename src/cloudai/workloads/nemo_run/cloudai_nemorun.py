@@ -53,39 +53,54 @@ def timing_callback() -> run.Config[TimingCallback]:
 
 @run.cli.factory
 @run.autoconvert
-def garbage_collection_callback() -> run.Config[GarbageCollectionCallback]:
-    return run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100)
+def garbage_collection_callbacks() -> list[pl.Callback]:
+    return [timing_callback(), run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100)]
 
 
 @run.cli.factory
 @run.autoconvert
-def nsys_callbacks() -> run.Config[NsysCallback]:
+def nsys_callbacks() -> list[pl.Callback]:
     start_step = 5
     end_step = 10
-    return run.Config(
-        NsysCallback,
-        start_step=start_step,
-        end_step=end_step,
-    )
+    return [
+        timing_callback(),
+        run.Config(
+            NsysCallback,
+            start_step=start_step,
+            end_step=end_step,
+        ),
+    ]
 
 
 @run.cli.factory
 @run.autoconvert
-def comms_overlap_callback() -> run.Config[MegatronCommOverlapCallback]:
-    return run.Config(
-        MegatronCommOverlapCallback,
-        overlap_param_gather_with_optimizer_step=False,
-    )
+def comms_overlap_callbacks() -> list[pl.Callback]:
+    return [
+        timing_callback(),
+        run.Config(
+            MegatronCommOverlapCallback,
+            overlap_param_gather_with_optimizer_step=False,
+        ),
+    ]
 
 
 @run.cli.factory
 @run.autoconvert
 def combined_callbacks() -> list[pl.Callback]:
+    start_step = 5
+    end_step = 10
     return [
-        nsys_callbacks(),
         timing_callback(),
-        comms_overlap_callback(),
-        garbage_collection_callback(),
+        run.Config(
+            MegatronCommOverlapCallback,
+            overlap_param_gather_with_optimizer_step=False,
+        ),
+        run.Config(
+            NsysCallback,
+            start_step=start_step,
+            end_step=end_step,
+        ),
+        run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100),
     ]
 
 
