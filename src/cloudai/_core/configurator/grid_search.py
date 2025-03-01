@@ -36,11 +36,10 @@ class GridSearchAgent(BaseAgent):
              env (CloudAIGymEnv): The environment instance to query the action space from.
         """
         self.action_space = env.define_action_space()
-        super().__init__(self.action_space)
         self.env = env
         self.action_combinations = []
-        self.index = 1
-        self.max_steps = 0
+        self.index = 0
+        self.configure(self.action_space)
 
     def configure(self, config: Dict[str, Any]) -> None:
         """
@@ -54,7 +53,6 @@ class GridSearchAgent(BaseAgent):
             parameter_values.append(values)
 
         self.action_combinations = list(itertools.product(*parameter_values))
-        self.index = 0
         self.max_steps = len(self.action_combinations)
 
     def get_all_combinations(self) -> List[Dict[str, Any]]:
@@ -75,12 +73,9 @@ class GridSearchAgent(BaseAgent):
             Tuple[int, Dict[str, Any]]: The current step and a dictionary mapping action keys to selected
             values.
         """
-        if self.index >= self.max_steps:
-            return self.index, {}
-
         action = dict(zip(self.action_space.keys(), self.action_combinations[self.index]))
-        step = self.index
         self.index += 1
+        step = self.index
         return step, action
 
     def update_policy(self, _feedback: Dict[str, Any]) -> None:

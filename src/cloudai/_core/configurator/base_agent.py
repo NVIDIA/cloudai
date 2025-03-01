@@ -17,6 +17,8 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Tuple
 
+from .base_gym import BaseGym
+
 
 class BaseAgent(ABC):
     """
@@ -26,14 +28,14 @@ class BaseAgent(ABC):
     Automatically infers parameter types from TestRun's cmd_args.
     """
 
-    def __init__(self, action_space: Dict[str, Any]):
+    def __init__(self, env: BaseGym):
         """
         Initialize the agent with the TestRun object.
 
         Args:
-            action_space (Dict[str, Any]): The action space for the agent.
+            env (Dict[str, Any]): The action space for the agent.
         """
-        self.action_space = action_space
+        self.action_space = {}
         self.max_steps = 0
 
     @abstractmethod

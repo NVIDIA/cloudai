@@ -106,7 +106,6 @@ def is_dse_job(cmd_args: dict) -> bool:
 def handle_dse_job(runner: Runner, args: argparse.Namespace):
     test_run = next(iter(runner.runner.test_scenario.test_runs))
     env = CloudAIGymEnv(test_run=test_run, runner=runner)
-
     registry = Registry()
 
     agent_type = test_run.test.test_definition.agent
@@ -116,14 +115,12 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
         logging.error(f"No agent available for type: {agent_type}")
         exit(1)
 
-    action_space = env.define_action_space()
-    agent = agent_class(action_space)
+    agent = agent_class(env)
 
     for step in range(agent.max_steps):
         result = agent.select_action()
         if result is None:
             break
-
         step, action = result
         test_run.step = step
         observation, reward, done, info = env.step(action)
