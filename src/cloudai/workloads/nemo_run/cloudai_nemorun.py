@@ -53,7 +53,7 @@ def timing_callback() -> run.Config[TimingCallback]:
 
 @run.cli.factory
 @run.autoconvert
-def garbage_collection_callback() -> list[pl.Callback]:
+def garbage_collection_callbacks() -> list[pl.Callback]:
     return [timing_callback(), run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100)]
 
 
@@ -74,7 +74,7 @@ def nsys_callbacks() -> list[pl.Callback]:
 
 @run.cli.factory
 @run.autoconvert
-def comms_overlap_callback() -> list[pl.Callback]:
+def comms_overlap_callbacks() -> list[pl.Callback]:
     return [
         timing_callback(),
         run.Config(
