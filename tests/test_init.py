@@ -43,6 +43,7 @@ from cloudai.workloads.jax_toolbox import (
     JaxToolboxSlurmCommandGenStrategy,
     NemotronTestDefinition,
 )
+from cloudai.workloads.megatron_run import MegatronRunSlurmCommandGenStrategy, MegatronRunTestDefinition
 from cloudai.workloads.nccl_test import (
     NCCLTestDefinition,
     NcclTestGradingStrategy,
@@ -56,10 +57,7 @@ from cloudai.workloads.nemo_launcher import (
     NeMoLauncherSlurmJobIdRetrievalStrategy,
     NeMoLauncherTestDefinition,
 )
-from cloudai.workloads.nemo_run import (
-    NeMoRunSlurmCommandGenStrategy,
-    NeMoRunTestDefinition,
-)
+from cloudai.workloads.nemo_run import NeMoRunSlurmCommandGenStrategy, NeMoRunTestDefinition
 from cloudai.workloads.sleep import (
     SleepGradingStrategy,
     SleepKubernetesJsonGenStrategy,
@@ -67,10 +65,7 @@ from cloudai.workloads.sleep import (
     SleepStandaloneCommandGenStrategy,
     SleepTestDefinition,
 )
-from cloudai.workloads.slurm_container import (
-    SlurmContainerCommandGenStrategy,
-    SlurmContainerTestDefinition,
-)
+from cloudai.workloads.slurm_container import SlurmContainerCommandGenStrategy, SlurmContainerTestDefinition
 from cloudai.workloads.ucc_test import (
     UCCTestDefinition,
     UCCTestGradingStrategy,
@@ -105,6 +100,7 @@ ALL_STRATEGIES = {
     (CommandGenStrategy, SlurmSystem, SleepTestDefinition): SleepSlurmCommandGenStrategy,
     (CommandGenStrategy, SlurmSystem, SlurmContainerTestDefinition): SlurmContainerCommandGenStrategy,
     (CommandGenStrategy, SlurmSystem, UCCTestDefinition): UCCTestSlurmCommandGenStrategy,
+    (CommandGenStrategy, SlurmSystem, MegatronRunTestDefinition): MegatronRunSlurmCommandGenStrategy,
     (CommandGenStrategy, StandaloneSystem, SleepTestDefinition): SleepStandaloneCommandGenStrategy,
     (GradingStrategy, SlurmSystem, ChakraReplayTestDefinition): ChakraReplayGradingStrategy,
     (GradingStrategy, SlurmSystem, GPTTestDefinition): JaxToolboxGradingStrategy,
@@ -124,6 +120,7 @@ ALL_STRATEGIES = {
     (JobIdRetrievalStrategy, SlurmSystem, SleepTestDefinition): SlurmJobIdRetrievalStrategy,
     (JobIdRetrievalStrategy, SlurmSystem, SlurmContainerTestDefinition): SlurmJobIdRetrievalStrategy,
     (JobIdRetrievalStrategy, SlurmSystem, UCCTestDefinition): SlurmJobIdRetrievalStrategy,
+    (JobIdRetrievalStrategy, SlurmSystem, MegatronRunTestDefinition): SlurmJobIdRetrievalStrategy,
     (JobIdRetrievalStrategy, StandaloneSystem, SleepTestDefinition): StandaloneJobIdRetrievalStrategy,
     (JobStatusRetrievalStrategy, KubernetesSystem, NCCLTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, KubernetesSystem, SleepTestDefinition): DefaultJobStatusRetrievalStrategy,
@@ -137,6 +134,7 @@ ALL_STRATEGIES = {
     (JobStatusRetrievalStrategy, SlurmSystem, SleepTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, SlurmSystem, SlurmContainerTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, SlurmSystem, UCCTestDefinition): DefaultJobStatusRetrievalStrategy,
+    (JobStatusRetrievalStrategy, SlurmSystem, MegatronRunTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, StandaloneSystem, SleepTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JsonGenStrategy, KubernetesSystem, NCCLTestDefinition): NcclTestKubernetesJsonGenStrategy,
     (JsonGenStrategy, KubernetesSystem, SleepTestDefinition): SleepKubernetesJsonGenStrategy,
@@ -167,7 +165,7 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 10
+    assert len(test_defs) == 11
     for tdef in [
         ("UCCTest", UCCTestDefinition),
         ("NcclTest", NCCLTestDefinition),
@@ -179,5 +177,6 @@ def test_definitions():
         ("JaxToolboxGrok", GrokTestDefinition),
         ("JaxToolboxNemotron", NemotronTestDefinition),
         ("SlurmContainer", SlurmContainerTestDefinition),
+        ("MegatronRun", MegatronRunTestDefinition),
     ]:
         assert test_defs[tdef[0]] == tdef[1]

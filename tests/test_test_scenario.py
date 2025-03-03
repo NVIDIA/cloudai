@@ -31,23 +31,20 @@ from cloudai._core.test_scenario_parser import (
     calculate_total_time_limit,
     get_reporters,
 )
-from cloudai.workloads.chakra_replay.chakra_replay import ChakraReplayTestDefinition
-from cloudai.workloads.chakra_replay.report_generation_strategy import ChakraReplayReportGenerationStrategy
-from cloudai.workloads.jax_toolbox.gpt import GPTTestDefinition
-from cloudai.workloads.jax_toolbox.grok import GrokTestDefinition
-from cloudai.workloads.jax_toolbox.nemotron import NemotronTestDefinition
-from cloudai.workloads.jax_toolbox.report_generation_strategy import JaxToolboxReportGenerationStrategy
+from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
+from cloudai.workloads.jax_toolbox import (
+    GPTTestDefinition,
+    GrokTestDefinition,
+    JaxToolboxReportGenerationStrategy,
+    NemotronTestDefinition,
+)
+from cloudai.workloads.megatron_run import CheckpointTimingReportGenerationStrategy, MegatronRunTestDefinition
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestReportGenerationStrategy
-from cloudai.workloads.nemo_launcher.nemo_launcher import NeMoLauncherTestDefinition
-from cloudai.workloads.nemo_launcher.report_generation_strategy import NeMoLauncherReportGenerationStrategy
-from cloudai.workloads.nemo_run.nemo_run import NeMoRunTestDefinition
-from cloudai.workloads.nemo_run.report_generation_strategy import NeMoRunReportGenerationStrategy
-from cloudai.workloads.sleep.report_generation_strategy import SleepReportGenerationStrategy
-from cloudai.workloads.sleep.sleep import SleepTestDefinition
-from cloudai.workloads.slurm_container.report_generation_strategy import SlurmContainerReportGenerationStrategy
-from cloudai.workloads.slurm_container.slurm_container import SlurmContainerTestDefinition
-from cloudai.workloads.ucc_test.report_generation_strategy import UCCTestReportGenerationStrategy
-from cloudai.workloads.ucc_test.ucc import UCCTestDefinition
+from cloudai.workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy, NeMoLauncherTestDefinition
+from cloudai.workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
+from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
+from cloudai.workloads.slurm_container import SlurmContainerReportGenerationStrategy, SlurmContainerTestDefinition
+from cloudai.workloads.ucc_test import UCCTestDefinition, UCCTestReportGenerationStrategy
 from tests.conftest import MyTestDefinition
 
 
@@ -281,7 +278,7 @@ class TestReporters:
         assert len(reporters) == 0
 
     def test_default_reporters_size(self):
-        assert len(DEFAULT_REPORTERS) == 10
+        assert len(DEFAULT_REPORTERS) == 11
 
     @pytest.mark.parametrize(
         "tdef,expected_reporters",
@@ -289,6 +286,7 @@ class TestReporters:
             (ChakraReplayTestDefinition, {ChakraReplayReportGenerationStrategy}),
             (GPTTestDefinition, {JaxToolboxReportGenerationStrategy}),
             (GrokTestDefinition, {JaxToolboxReportGenerationStrategy}),
+            (MegatronRunTestDefinition, {CheckpointTimingReportGenerationStrategy}),
             (NCCLTestDefinition, {NcclTestReportGenerationStrategy}),
             (NeMoLauncherTestDefinition, {NeMoLauncherReportGenerationStrategy}),
             (NeMoRunTestDefinition, {NeMoRunReportGenerationStrategy}),

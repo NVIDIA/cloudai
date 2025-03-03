@@ -72,6 +72,7 @@ from .workloads.jax_toolbox import (
     JaxToolboxSlurmCommandGenStrategy,
     NemotronTestDefinition,
 )
+from .workloads.megatron_run import MegatronRunSlurmCommandGenStrategy, MegatronRunTestDefinition
 from .workloads.nccl_test import (
     NCCLTestDefinition,
     NcclTestGradingStrategy,
@@ -93,10 +94,7 @@ from .workloads.sleep import (
     SleepStandaloneCommandGenStrategy,
     SleepTestDefinition,
 )
-from .workloads.slurm_container import (
-    SlurmContainerCommandGenStrategy,
-    SlurmContainerTestDefinition,
-)
+from .workloads.slurm_container import SlurmContainerCommandGenStrategy, SlurmContainerTestDefinition
 from .workloads.ucc_test import (
     UCCTestDefinition,
     UCCTestGradingStrategy,
@@ -115,6 +113,9 @@ Registry().add_strategy(JsonGenStrategy, [KubernetesSystem], [SleepTestDefinitio
 Registry().add_strategy(JsonGenStrategy, [KubernetesSystem], [NCCLTestDefinition], NcclTestKubernetesJsonGenStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [NCCLTestDefinition], NcclTestGradingStrategy)
 
+Registry().add_strategy(
+    CommandGenStrategy, [SlurmSystem], [MegatronRunTestDefinition], MegatronRunSlurmCommandGenStrategy
+)
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NCCLTestDefinition], NcclTestSlurmCommandGenStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [SleepTestDefinition], SleepGradingStrategy)
 
@@ -153,6 +154,7 @@ Registry().add_strategy(
         SleepTestDefinition,
         NeMoRunTestDefinition,
         SlurmContainerTestDefinition,
+        MegatronRunTestDefinition,
     ],
     SlurmJobIdRetrievalStrategy,
 )
@@ -187,6 +189,7 @@ Registry().add_strategy(
         SleepTestDefinition,
         NeMoRunTestDefinition,
         SlurmContainerTestDefinition,
+        MegatronRunTestDefinition,
     ],
     DefaultJobStatusRetrievalStrategy,
 )
@@ -221,6 +224,7 @@ Registry().add_test_definition("JaxToolboxGPT", GPTTestDefinition)
 Registry().add_test_definition("JaxToolboxGrok", GrokTestDefinition)
 Registry().add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)
 Registry().add_test_definition("SlurmContainer", SlurmContainerTestDefinition)
+Registry().add_test_definition("MegatronRun", MegatronRunTestDefinition)
 
 
 __all__ = [
