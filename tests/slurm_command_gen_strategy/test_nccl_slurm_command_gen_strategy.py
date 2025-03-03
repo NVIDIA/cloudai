@@ -79,7 +79,7 @@ class TestNcclTestSlurmCommandGenStrategy:
                 {"subtest_name": "all_reduce_perf", "nthreads": "4", "ngpus": "2"},
                 "--max-steps 100",
                 [
-                    "/usr/local/bin/all_reduce_perf",
+                    "all_reduce_perf",
                     "--nthreads 4",
                     "--ngpus 2",
                     "--max-steps 100",
@@ -89,7 +89,7 @@ class TestNcclTestSlurmCommandGenStrategy:
                 {"subtest_name": "all_reduce_perf", "op": "sum", "datatype": "float"},
                 "",
                 [
-                    "/usr/local/bin/all_reduce_perf",
+                    "all_reduce_perf",
                     "--op sum",
                     "--datatype float",
                 ],
