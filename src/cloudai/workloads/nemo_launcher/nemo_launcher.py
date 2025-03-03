@@ -94,7 +94,7 @@ class NeMoLauncherCmdArgs(CmdArgs):
     """NeMoLauncher test command arguments."""
 
     launcher_script: str = "launcher_scripts/main.py"
-    docker_image_url: str = "nvcr.io/nvidia/nemo:24.05.01"
+    docker_image_url: str = "nvcr.io/nvidia/nemo:24.12.01"
     stages: str = '["training"]'
     numa_mapping: NumaMapping = Field(default_factory=NumaMapping)
     cluster: Cluster = Field(default_factory=Cluster)

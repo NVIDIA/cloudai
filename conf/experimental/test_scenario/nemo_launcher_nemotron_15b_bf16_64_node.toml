@@ -14,10 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "nemo_run_nemotron15b_fp8_512gpus"
+name = "nemo_launcher_nemotron_15b_bf16_64_node"
 
 [[Tests]]
-id = "nemo_run_nemotron_15b_fp8"
-test_name = "nemo_run_nemotron_15b_fp8_64_node"
+id = "nemo_launcher_nemotron_15b_bf16_64_node"
+test_name = "nemo_launcher_nemotron_15b_bf16_64_node"
 num_nodes = "64"
-time_limit = "00:30:00"

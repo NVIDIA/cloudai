@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "dse_nemo_run_nemotron_15b_bf16_4_node"
+name = "nemo_run_nemotron_15b_bf16_4_node"
 description = "nemo_run_nemotron_15b_bf16_4_node"
 test_template_name = "NeMoRun"
 
@@ -30,9 +30,9 @@ num_layers = 32
 
   [cmd_args.trainer]
   max_steps = 100
-  val_check_interval = 500
+  val_check_interval = 50
   num_nodes = 4
-  callbacks = "comms_overlap_callback"
+  callbacks = "comms_overlap_callbacks"
   accumulate_grad_batches = 1
 
     [cmd_args.trainer.strategy]
