@@ -14,32 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "nemo_launcher_nemotron_15b_fp8"
-
-[[Tests]]
-id = "nemo_launcher_nemotron_15b_fp8_2_node"
-test_name = "nemo_launcher_nemotron_15b_fp8_2_node"
-num_nodes = "2"
-
-[[Tests]]
-id = "nemo_launcher_nemotron_15b_fp8_4_node"
-test_name = "nemo_launcher_nemotron_15b_fp8_4_node"
-num_nodes = "4"
-
-[[Tests]]
-id = "nemo_launcher_nemotron_15b_fp8_8_node"
-test_name = "nemo_launcher_nemotron_15b_fp8_8_node"
-num_nodes = "8"
-
-[[Tests]]
-id = "nemo_launcher_nemotron_15b_fp8_16_node"
-test_name = "nemo_launcher_nemotron_15b_fp8_16_node"
-num_nodes = "16"
-
-[[Tests]]
-id = "nemo_launcher_nemotron_15b_fp8_32_node"
-test_name = "nemo_launcher_nemotron_15b_fp8_32_node"
-num_nodes = "32"
+name = "nemo_launcher_nemotron_15b_fp8_64_node"
 
 [[Tests]]
 id = "nemo_launcher_nemotron_15b_fp8_64_node"
