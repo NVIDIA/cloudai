@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Union, cast
 
@@ -41,13 +42,13 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         self.final_cmd_args.pop("docker_image_url", None)
 
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
         if self.system.account:
-            self.final_cmd_args.update(
-                {
-                    "cluster.account": self.system.account,
-                    "cluster.job_name_prefix": f"{self.system.account}-cloudai.nemo:",
-                }
-            )
+            self.final_cmd_args["cluster.account"] = self.system.account
+            self.final_cmd_args["cluster.job_name_prefix"] = f"{self.system.account}-cloudai.nemo_{timestamp}:"
+        else:
+            self.final_cmd_args["cluster.job_name_prefix"] = f"{timestamp}:"
         self.final_cmd_args["cluster.gpus_per_node"] = self.system.gpus_per_node or "null"
 
         repo_path = (

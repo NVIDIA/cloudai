@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from pathlib import Path
 from typing import List, cast
 from unittest.mock import Mock, mock_open, patch
@@ -155,10 +156,10 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
             cmd_gen_strategy.gen_exec_command(test_run)
 
     @pytest.mark.parametrize(
-        "account, expected_prefix",
+        "account, expected_prefix_pattern",
         [
-            ("test_account", "test_account-cloudai.nemo:"),
-            (None, None),
+            ("test_account", r"test_account-cloudai\.nemo_\d{8}_\d{6}:"),
+            (None, r"\d{8}_\d{6}:"),
         ],
     )
     def test_account_in_command(
@@ -166,17 +167,19 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy,
         test_run: TestRun,
         account: str,
-        expected_prefix: str,
+        expected_prefix_pattern: str,
     ) -> None:
         cmd_gen_strategy.system.account = account
         cmd = cmd_gen_strategy.gen_exec_command(test_run)
 
-        if expected_prefix:
+        if account:
             assert f"cluster.account={account}" in cmd
-            assert f"cluster.job_name_prefix={expected_prefix}" in cmd
-        else:
-            assert "cluster.account" not in cmd
-            assert "cluster.job_name_prefix" not in cmd
+
+        match = re.search(r"cluster.job_name_prefix=([\w\-\._:]+)", cmd)
+        assert match, f"Expected cluster.job_name_prefix in command, but not found. Command: {cmd}"
+
+        job_name_prefix = match.group(1)
+        assert re.match(expected_prefix_pattern, job_name_prefix), f"Unexpected job_name_prefix: {job_name_prefix}"
 
     @pytest.mark.parametrize(
         "gpus_per_node, expected_gpus",
