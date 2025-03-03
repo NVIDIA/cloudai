@@ -14,10 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "nemo_run_nemotron15b_bf16"
+name = "nemo_run_nemotron15b_bf16_512gpus"
 
 [[Tests]]
 id = "nemo_run_nemotron_15b_bf16"
-test_name = "nemo_run_nemotron_15b_bf16_2_node"
-num_nodes = "2"
+test_name = "nemo_run_nemotron_15b_bf16_64_node"
+num_nodes = "64"
 time_limit = "00:30:00"
