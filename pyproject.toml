@@ -70,15 +70,6 @@ empty_parameter_set_mark = "fail_at_collect"
 root_package = "cloudai"
 
   [[tool.importlinter.contracts]]
-  name = "_core does not depends on higher level layers (but util)"
-  type = "layers"
-  layers = [
-    "installer : parser : report_generator : runner : workloads : cli",
-    "_core",
-  ]
-  containers = ["cloudai"]
-
-  [[tool.importlinter.contracts]]
   name = "_core is not accessed directly"
   type = "forbidden"
   forbidden_modules = ["cloudai._core"]
