@@ -47,6 +47,7 @@ class CloudAIGymEnv(BaseGym):
         self.test_run = test_run
         self.runner = runner
         self.test_scenario = runner.runner.test_scenario
+        self.max_steps = test_run.test.test_definition.agent_steps
         super().__init__()
 
     def define_action_space(self) -> Dict[str, Any]:
