@@ -285,6 +285,39 @@ class TestInstallOnePythonExecutable:
         assert not py.venv_path
 
 
+class TestGitRepo:
+    @pytest.fixture
+    def git(self):
+        return GitRepo(url="./git_url", commit="commit_hash")
+
+    def test_git_repo(self, git: GitRepo):
+        assert git.container_mount == f"/git/{git.repo_name}"
+
+        git.mount_as = "/my_mount"
+        assert git.container_mount == git.mount_as
+
+    def test_uninstall_no_repo(self, installer: SlurmInstaller, git: GitRepo):
+        res = installer._uninstall_git_repo(git)
+        assert res.success
+        assert res.message == f"Repository {git.url} is not cloned."
+
+    def test_uninstall_no_installed_path(self, installer: SlurmInstaller, git: GitRepo):
+        git.installed_path = None
+        (installer.system.install_path / git.repo_name).mkdir(parents=True)
+        res = installer._uninstall_git_repo(git)
+        assert res.success
+        assert not git.installed_path
+        assert not (installer.system.install_path / git.repo_name).exists()
+
+    def test_uninstall_with_installed_path(self, installer: SlurmInstaller, git: GitRepo):
+        git.installed_path = installer.system.install_path / git.repo_name
+        git.installed_path.mkdir(parents=True)
+        res = installer._uninstall_git_repo(git)
+        assert res.success
+        assert not (installer.system.install_path / git.repo_name).exists()
+        assert not git.installed_path
+
+
 class TestInstallOneFile:
     @pytest.fixture
     def f(self) -> File:
@@ -339,11 +372,3 @@ def test_check_supported(slurm_system: SlurmSystem):
         res = func(unsupported)
         assert not res.success
         assert res.message == f"Unsupported item type: {type(unsupported)}"
-
-
-def test_git_repo():
-    git = GitRepo(url="./git_url", commit="commit_hash")
-    assert git.container_mount == f"/git/{git.repo_name}"
-
-    git.mount_as = "/my_mount"
-    assert git.container_mount == git.mount_as
