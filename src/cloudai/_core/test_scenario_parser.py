@@ -24,7 +24,7 @@ import toml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from .exceptions import TestScenarioParsingError, format_validation_error
-from .test import Test
+from .test import CmdArgs, Test
 from .test_scenario import TestDependency, TestRun, TestScenario
 
 
@@ -96,6 +96,19 @@ def calculate_total_time_limit(test_hooks: List[TestScenario], time_limit: Optio
     return format_time_limit(total_time)
 
 
+class _TestSpecTOML(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: Optional[str] = None
+    description: Optional[str] = None
+    test_template_name: Optional[str] = None
+    cmd_args: Optional[CmdArgs] = None
+    extra_env_vars: dict[str, str] = {}
+    extra_container_mounts: list[str] = []
+    # git_repos: list[GitRepo] = []
+    # nsys: Optional[NsysConfiguration] = None
+
+
 class _TestDependencyTOML(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -116,6 +129,7 @@ class _TestRunTOML(BaseModel):
     ideal_perf: float = 1.0
     time_limit: Optional[str] = None
     dependencies: list[_TestDependencyTOML] = Field(default_factory=list)
+    test_spec: Optional[_TestSpecTOML] = None
 
 
 class _TestScenarioTOML(BaseModel):
@@ -284,8 +298,13 @@ class TestScenarioParser:
             raise TestScenarioParsingError(msg)
 
         original_test = self.test_mapping[test_info.test_name]
+        tdef = original_test.test_definition
+        if test_info.test_spec:
+            data = original_test.test_definition.model_dump()
+            data.update(test_info.test_spec.model_dump(exclude_none=True, exclude_defaults=True))
+            tdef = original_test.test_definition.model_validate(data)
 
-        test = Test(test_definition=original_test.test_definition, test_template=original_test.test_template)
+        test = Test(test_definition=tdef, test_template=original_test.test_template)
 
         hooks = [hook for hook in [pre_test, post_test] if hook is not None]
         total_time_limit = calculate_total_time_limit(test_hooks=hooks, time_limit=test_info.time_limit)

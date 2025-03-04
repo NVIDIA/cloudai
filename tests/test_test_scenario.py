@@ -19,9 +19,13 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+import toml
 
 from cloudai import CmdArgs, Test, TestRun, TestScenarioParser, TestScenarioParsingError
 from cloudai._core.test_scenario_parser import _TestScenarioTOML, calculate_total_time_limit
+from cloudai._core.test_template import TestTemplate
+from cloudai.systems.slurm.slurm_system import SlurmSystem
+from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from tests.conftest import MyTestDefinition
 
 
@@ -242,3 +246,32 @@ def test_create_test_run_with_hooks(test: Test, test_scenario_parser: TestScenar
 def test_total_time_limit_with_empty_hooks():
     result = calculate_total_time_limit([], "01:00:00")
     assert result == "01:00:00"
+
+
+class TestSpec:
+    def test_spec(self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem):
+        test_scenario_parser.test_mapping = {
+            "nccl": Test(
+                test_definition=NCCLTestDefinition(
+                    name="nccl", description="desc", test_template_name="tt", cmd_args=NCCLCmdArgs()
+                ),
+                test_template=TestTemplate(system=slurm_system, name="nccl"),
+            )
+        }
+        model = _TestScenarioTOML.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "nccl"
+
+              [Tests.test_spec.cmd_args]
+              nthreads = 42
+            """
+            )
+        )
+        tr = test_scenario_parser._create_test_run(test_info=model.tests[0], normalized_weight=1.0)
+
+        assert tr.test.test_definition.cmd_args.nthreads == 42
