@@ -62,7 +62,7 @@ class TestRun:
     dependencies: dict[str, TestDependency] = field(default_factory=dict)
     pre_test: Optional["TestScenario"] = None
     post_test: Optional["TestScenario"] = None
-    reporters: Set[Type["ReportGenerationStrategy"]] = field(default_factory=set)
+    reports: Set[Type["ReportGenerationStrategy"]] = field(default_factory=set)
 
     def __hash__(self) -> int:
         return hash(self.name + self.test.name + str(self.iterations) + str(self.current_iteration))

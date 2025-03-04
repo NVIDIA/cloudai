@@ -62,7 +62,7 @@ class Reporter:
             directory_path (Path): Directory for the test's section.
             tr (TestRun): The test run object.
         """
-        for reporter in tr.reporters:
+        for reporter in tr.reports:
             rgs = reporter(self.system, tr)
 
             for subdir in directory_path.iterdir():

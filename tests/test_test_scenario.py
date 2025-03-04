@@ -301,13 +301,13 @@ class TestReporters:
 
     def test_default_disabled(self):
         reporters = get_reporters(
-            _TestRunTOML(id="id", test_name="tn", reporters=[]),
+            _TestRunTOML(id="id", test_name="tn", reports=[]),
             NCCLTestDefinition(name="test", description="desc", test_template_name="tt", cmd_args=NCCLCmdArgs()),
         )
         assert len(reporters) == 0
 
         reporters = get_reporters(
-            _TestRunTOML.model_validate({"id": "id", "test_name": "tn", "reporters": ["unknown"]}),
+            _TestRunTOML.model_validate({"id": "id", "test_name": "tn", "reports": ["unknown"]}),
             NCCLTestDefinition(name="test", description="desc", test_template_name="tt", cmd_args=NCCLCmdArgs()),
         )
         assert len(reporters) == 0
