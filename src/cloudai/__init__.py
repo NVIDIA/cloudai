@@ -38,7 +38,7 @@ from ._core.report_generation_strategy import ReportGenerationStrategy
 from ._core.reporter import Reporter
 from ._core.runner import Runner
 from ._core.system import System
-from ._core.test import CmdArgs, NsysConfiguration, Test, TestDefinition
+from ._core.test import Test
 from ._core.test_parser import TestParser
 from ._core.test_scenario import TestRun, TestScenario
 from ._core.test_scenario_parser import TestScenarioParser
@@ -47,6 +47,7 @@ from ._core.test_template_strategy import TestTemplateStrategy
 from .installer.kubernetes_installer import KubernetesInstaller
 from .installer.slurm_installer import SlurmInstaller
 from .installer.standalone_installer import StandaloneInstaller
+from .models.workload import CmdArgs, NsysConfiguration, TestDefinition
 from .parser import Parser
 from .runner.kubernetes.kubernetes_runner import KubernetesRunner
 from .runner.slurm.slurm_runner import SlurmRunner

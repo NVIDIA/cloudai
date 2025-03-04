@@ -21,7 +21,7 @@ import pytest
 import toml
 
 from cloudai import Parser
-from cloudai.models import TestScenarioModel
+from cloudai.models.scenario import TestScenarioModel
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
 

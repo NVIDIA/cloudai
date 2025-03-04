@@ -24,9 +24,9 @@ from cloudai import (
     Registry,
     ReportGenerationStrategy,
     System,
-    TestDefinition,
     TestTemplateStrategy,
 )
+from cloudai.models.workload import TestDefinition
 
 
 @pytest.fixture

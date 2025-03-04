@@ -18,7 +18,7 @@ from typing import List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, field_serializer
 
-from cloudai import CmdArgs, TestDefinition
+from ...models.workload import CmdArgs, TestDefinition
 
 
 class JaxFdl(BaseModel):

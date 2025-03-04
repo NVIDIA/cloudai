@@ -16,6 +16,7 @@
 
 from typing import ClassVar, List, Tuple, Type, Union
 
+from ..models.workload import TestDefinition
 from .base_installer import BaseInstaller
 from .base_runner import BaseRunner
 from .grading_strategy import GradingStrategy
@@ -23,7 +24,6 @@ from .job_id_retrieval_strategy import JobIdRetrievalStrategy
 from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
-from .test import TestDefinition
 from .test_template_strategy import TestTemplateStrategy
 
 

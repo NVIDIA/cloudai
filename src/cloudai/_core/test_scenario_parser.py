@@ -23,11 +23,11 @@ from typing import Any, Dict, List, Optional, Tuple
 import toml
 from pydantic import ValidationError
 
-from cloudai.models import TestRunModel, TestScenarioModel
-
+from ..models.scenario import TestRunModel, TestScenarioModel
+from ..models.workload import TestDefinition
 from .exceptions import TestScenarioParsingError, format_validation_error
 from .system import System
-from .test import Test, TestDefinition
+from .test import Test
 from .test_parser import TestParser
 from .test_scenario import TestDependency, TestRun, TestScenario
 

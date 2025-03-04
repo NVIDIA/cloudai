@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional, Type, Union, cast
 import toml
 from pydantic import BaseModel, ValidationError
 
+from ..models.workload import TestDefinition
 from .command_gen_strategy import CommandGenStrategy
 from .exceptions import TestConfigParsingError, format_validation_error
 from .grading_strategy import GradingStrategy
@@ -30,7 +31,7 @@ from .json_gen_strategy import JsonGenStrategy
 from .registry import Registry
 from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
-from .test import Test, TestDefinition
+from .test import Test
 from .test_template import TestTemplate
 from .test_template_strategy import TestTemplateStrategy
 

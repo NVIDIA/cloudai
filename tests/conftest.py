@@ -20,7 +20,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from cloudai import TestDefinition
+from cloudai.models.workload import TestDefinition
 from cloudai.systems.slurm.slurm_system import SlurmGroup, SlurmPartition, SlurmSystem
 
 

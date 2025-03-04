@@ -21,7 +21,8 @@ import pytest
 import toml
 from pydantic import ValidationError
 
-from cloudai import NsysConfiguration, Parser, Registry, TestConfigParsingError, TestParser
+from cloudai import Parser, Registry, TestConfigParsingError, TestParser
+from cloudai.models.workload import NsysConfiguration
 from cloudai.workloads.chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,

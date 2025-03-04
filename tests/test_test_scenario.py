@@ -21,13 +21,14 @@ from unittest.mock import Mock
 import pytest
 import toml
 
-from cloudai import CmdArgs, Test, TestRun, TestScenarioParser
+from cloudai import Test, TestRun, TestScenarioParser
 from cloudai._core.test_scenario import TestScenario
 from cloudai._core.test_scenario_parser import (
     calculate_total_time_limit,
 )
 from cloudai._core.test_template import TestTemplate
-from cloudai.models import TestRunModel, TestScenarioModel, TestSpecModel
+from cloudai.models.scenario import TestRunModel, TestScenarioModel, TestSpecModel
+from cloudai.models.workload import CmdArgs
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from tests.conftest import MyTestDefinition
