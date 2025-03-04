@@ -20,12 +20,17 @@ from pathlib import Path
 from typing import Any, Dict, List, Union, cast
 
 from cloudai import TestRun
+from cloudai.systems.slurm import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 from cloudai.workloads.nemo_launcher import NeMoLauncherTestDefinition
 
 
 class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for NeMo Megatron Launcher on Slurm systems."""
+
+    def __init__(self, system: SlurmSystem, cmd_args: Dict[str, Any]) -> None:
+        super().__init__(system, cmd_args)
+        self.job_prefix = None
 
     def _container_mounts(self, tr: TestRun) -> list[str]:
         # this strategy handles container mounts in a different way, so it is OK to return an empty list
@@ -38,17 +43,20 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self._set_node_config(nodes, tr.num_nodes)
 
         tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, tr.test.test_definition)
-        self.final_cmd_args["container"] = str(tdef.docker_image.installed_path)
-
-        self.final_cmd_args.pop("docker_image_url", None)
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
         if self.system.account:
             self.final_cmd_args["cluster.account"] = self.system.account
-            self.final_cmd_args["cluster.job_name_prefix"] = f"{self.system.account}-cloudai.nemo_{timestamp}:"
-        else:
-            self.final_cmd_args["cluster.job_name_prefix"] = f"{timestamp}:"
+
+        self.final_cmd_args["container"] = str(tdef.docker_image.installed_path)
+        self.final_cmd_args.pop("docker_image_url", None)
+
+        if self.job_prefix is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            if self.system.account:
+                self.job_prefix = f"{self.system.account}-cloudai.nemo_{timestamp}"
+            else:
+                self.job_prefix = timestamp
+
         self.final_cmd_args["cluster.gpus_per_node"] = self.system.gpus_per_node or "null"
 
         repo_path = (

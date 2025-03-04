@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import argparse
-import re
 from functools import partial
 from pathlib import Path
 from typing import Dict, Optional
@@ -259,14 +258,13 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
     raise ValueError(f"Unknown test: {request.param}")
 
 
-def normalize_script(text: str) -> str:
-    return "\n".join(line.strip() for line in text.splitlines())
-
-
 def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, str]):
     slurm_system.output_path.mkdir(parents=True, exist_ok=True)
 
     tr = test_req[0]
+
+    if isinstance(tr.test.test_template.command_gen_strategy, NeMoLauncherSlurmCommandGenStrategy):
+        tr.test.test_template.command_gen_strategy.job_prefix = "test_account-cloudai.nemo_fixed"
 
     ref = (Path(__file__).parent / "ref_data" / test_req[1]).read_text().strip()
     ref = (
@@ -280,15 +278,10 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
         sbatch_script = slurm_system.output_path / "generated_command.sh"
     curr = Path(sbatch_script).read_text().strip()
 
-    if "nemo-launcher" in test_req[1]:
-        curr = re.sub(r"cluster\.job_name_prefix=\d{8}_\d{6}:\s*\\?\n?", "", curr, flags=re.MULTILINE)
-        ref = re.sub(r"cluster\.job_name_prefix=\d{8}_\d{6}:\s*\\?\n?", "", ref, flags=re.MULTILINE)
-    curr_norm = normalize_script(curr)
-    ref_norm = normalize_script(ref)
-    assert curr_norm == ref_norm, f"Mismatch:\nExpected:\n{ref_norm}\n\nActual:\n{curr_norm}"
+    assert curr == ref
 
     run_script = test_req[-1]
     if run_script:
-        curr_run_script = Path(slurm_system.output_path / "run.sh").read_text()
-        ref_run_script = (Path(__file__).parent / "ref_data" / run_script).read_text()
+        curr_run_script = Path(slurm_system.output_path / "run.sh").read_text().strip()
+        ref_run_script = (Path(__file__).parent / "ref_data" / run_script).read_text().strip()
         assert curr_run_script == ref_run_script
