@@ -188,6 +188,9 @@ class SlurmInstaller(BaseInstaller):
             item.git_repo.installed_path = self.system.install_path / item.git_repo.repo_name
             item.venv_path = self.system.install_path / item.venv_name
             return InstallStatusResult(True)
+        elif isinstance(item, File):
+            item.installed_path = self.system.install_path / item.src.name
+            return InstallStatusResult(True)
 
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 

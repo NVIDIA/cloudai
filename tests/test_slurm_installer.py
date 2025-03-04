@@ -24,8 +24,8 @@ import pytest
 from cloudai import DockerImage, File, GitRepo, Installable, InstallStatusResult, PythonExecutable
 from cloudai.installer.slurm_installer import SlurmInstaller
 from cloudai.systems.slurm.slurm_system import SlurmSystem
-from cloudai.test_definitions.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
 from cloudai.util.docker_image_cache_manager import DockerImageCacheResult
+from cloudai.workloads.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
 
 
 @pytest.fixture
