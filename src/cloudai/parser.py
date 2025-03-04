@@ -53,14 +53,14 @@ class Parser:
 
     def parse(
         self,
-        test_path: Path,
+        test_path: Optional[Path] = None,
         test_scenario_path: Optional[Path] = None,
     ) -> Tuple[System, List[Test], Optional[TestScenario]]:
         """
         Parse configurations for system, test templates, and test scenarios.
 
         Args:
-            test_path (Path): The file path for tests.
+            test_path (Optional[Path]): The file path for tests.
             test_scenario_path (Optional[Path]): The file path for the main test scenario.
                 If None, all tests are included.
 
@@ -68,18 +68,20 @@ class Parser:
             Tuple[System, List[Test], Optional[TestScenario]]: A tuple containing the system object, a list of filtered
                 test template objects, and the main test scenario object if provided.
         """
-        if not test_path.exists():
-            raise FileNotFoundError(f"Test path '{test_path}' not found.")
-
         try:
             system = self.parse_system(self.system_config_path)
         except SystemConfigParsingError:
             exit(1)  # exit right away to keep error message readable for users
 
-        try:
-            tests = self.parse_tests(list(test_path.glob("*.toml")), system)
-        except TestConfigParsingError:
-            exit(1)  # exit right away to keep error message readable for users
+        tests: list[Test] = []
+        if test_path:
+            if not test_path.exists():
+                raise FileNotFoundError(f"Test path '{test_path}' not found.")
+
+            try:
+                tests = self.parse_tests(list(test_path.glob("*.toml")), system)
+            except TestConfigParsingError:
+                exit(1)  # exit right away to keep error message readable for users
 
         if not HOOK_ROOT.exists():
             logging.debug(f"HOOK_ROOT path '{HOOK_ROOT}' does not exist.")

@@ -218,7 +218,7 @@ class TestScenarioParser:
         system: System,
         test_mapping: Dict[str, Test],
         hook_mapping: Dict[str, TestScenario],
-        strict: bool,
+        strict: bool = False,
     ) -> None:
         self.file_path = file_path
         self.system = system
@@ -349,7 +349,7 @@ class TestScenarioParser:
 
         if test_info.test_name:
             if test_info.test_name not in self.test_mapping:
-                raise ValueError(f"Test '{test_info.test_name}' not found in the test schema directory")
+                raise ValueError(f"Test '{test_info.test_name}' is not defined. Was tests directory correctly set?")
             test = self.test_mapping[test_info.test_name]
         elif test_info.test_spec and test_info.test_spec.test_template_name:
             test = tp._parse_data(test_info.test_spec.model_dump(), self.strict)

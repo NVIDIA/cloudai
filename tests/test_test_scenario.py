@@ -259,7 +259,7 @@ class TestSpec:
     def test_name_is_not_in_mapping(self, test_scenario_parser: TestScenarioParser):
         with pytest.raises(ValueError) as exc_info:
             test_scenario_parser._prepare_tdef(_TestRunTOML(id="1", test_name="nccl"))
-        assert exc_info.match("Test 'nccl' not found in the test schema directory")
+        assert exc_info.match("Test 'nccl' is not defined. Was tests directory correctly set?")
 
     def test_spec_without_test_type(self):
         with pytest.raises(ValueError) as exc_info:
@@ -302,7 +302,7 @@ class TestSpec:
         test_scenario_parser.test_mapping = {
             "nccl": Test(
                 test_definition=NCCLTestDefinition(
-                    name="nccl", description="desc", test_template_name="tt", cmd_args=NCCLCmdArgs()
+                    name="nccl", description="desc", test_template_name="NcclTest", cmd_args=NCCLCmdArgs()
                 ),
                 test_template=TestTemplate(system=slurm_system, name="nccl"),
             )

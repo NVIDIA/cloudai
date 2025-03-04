@@ -37,7 +37,11 @@ from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition
 from tests.conftest import MyTestDefinition
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
-ALL_TESTS = [t for t in TOML_FILES if "test_template_name" in t.read_text()]
+ALL_TESTS = []
+for t in TOML_FILES:
+    content = t.read_text()
+    if "test_template_name" in content and "[[Tests]]" not in content:
+        ALL_TESTS.append(t)
 
 
 @pytest.mark.parametrize(
