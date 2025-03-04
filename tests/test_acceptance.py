@@ -33,6 +33,11 @@ from cloudai.workloads.jax_toolbox import (
     GrokTestDefinition,
     JaxToolboxSlurmCommandGenStrategy,
 )
+from cloudai.workloads.megatron_run import (
+    MegatronRunCmdArgs,
+    MegatronRunSlurmCommandGenStrategy,
+    MegatronRunTestDefinition,
+)
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestSlurmCommandGenStrategy
 from cloudai.workloads.nemo_launcher import (
     NeMoLauncherCmdArgs,
@@ -46,8 +51,7 @@ from cloudai.workloads.slurm_container import (
     SlurmContainerCommandGenStrategy,
     SlurmContainerTestDefinition,
 )
-from cloudai.workloads.ucc_test import UCCTestSlurmCommandGenStrategy
-from cloudai.workloads.ucc_test.ucc import UCCCmdArgs, UCCTestDefinition
+from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition, UCCTestSlurmCommandGenStrategy
 
 SLURM_TEST_SCENARIOS = [
     {"path": Path("conf/common/test_scenario/sleep.toml"), "expected_dirs_number": 4, "log_file": "sleep_debug.log"},
@@ -120,6 +124,7 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
         "nemo-run-pre-test",
         "nemo-run-no-hook",
         "slurm_container",
+        "megatron-run",
     ]
 )
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> tuple[TestRun, str, Optional[str]]:
@@ -170,6 +175,22 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 cmd_args=SlurmContainerCmdArgs(docker_image_url="https://docker/url", cmd="pwd ; ls"),
             ),
             SlurmContainerCommandGenStrategy,
+        ),
+        "megatron-run": lambda: create_test_run(
+            "megatron-run",
+            MegatronRunTestDefinition(
+                name="megatron-run",
+                description="megatron-run",
+                test_template_name="megatron-run",
+                cmd_args=MegatronRunCmdArgs(
+                    docker_image_url="nvcr.io/nvidia/megatron:24.09",
+                    run_script=Path.cwd() / "run.py",
+                    save=Path.cwd() / "save",
+                    load=Path.cwd() / "load",
+                    tokenizer_model=Path.cwd() / "model.m",
+                ),
+            ),
+            MegatronRunSlurmCommandGenStrategy,
         ),
     }
 
