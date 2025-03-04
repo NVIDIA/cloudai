@@ -259,6 +259,7 @@ def verify_test_scenarios(
     hook_tomls: List[Path],
     hook_test_tomls: list[Path],
     system_config: Optional[Path] = None,
+    strict: bool = False,
 ) -> int:
     system = Mock(spec=System)
     if system_config:
@@ -273,7 +274,7 @@ def verify_test_scenarios(
             tests = Parser.parse_tests(test_tomls, system)
             hook_tests = Parser.parse_tests(hook_test_tomls, system)
             hooks = Parser.parse_hooks(hook_tomls, system, {t.name: t for t in hook_tests})
-            Parser.parse_test_scenario(scenario_file, system, {t.name: t for t in tests}, hooks)
+            Parser.parse_test_scenario(scenario_file, system, {t.name: t for t in tests}, hooks, strict)
         except Exception:
             nfailed += 1
 
@@ -293,6 +294,7 @@ def handle_verify_all_configs(args: argparse.Namespace) -> int:
 
     err, hook_tomls = expand_file_list(HOOK_ROOT, glob="**/*.toml")
     tomls += hook_tomls
+    logging.info(f"Found {len(hook_tomls)} hook TOMLs (always verified)")
 
     files = load_tomls_by_type(tomls)
 
@@ -311,7 +313,7 @@ def handle_verify_all_configs(args: argparse.Namespace) -> int:
         nfailed += verify_test_configs(files["test"], args.strict)
     if files["scenario"]:
         nfailed += verify_test_scenarios(
-            files["scenario"], test_tomls, files["hook"], files["hook_test"], args.system_config
+            files["scenario"], test_tomls, files["hook"], files["hook_test"], args.system_config, args.strict
         )
     if files["unknown"]:
         logging.error(f"Unknown configuration files: {[str(f) for f in files['unknown']]}")
@@ -353,7 +355,7 @@ def load_tomls_by_type(tomls: List[Path]) -> dict[str, List[Path]]:
 
         if "scheduler =" in content:
             files["system"].append(toml_file)
-        elif "test_template_name =" in content:
+        elif "test_template_name =" in content and "[[Tests]]" not in content:
             files["test"].append(toml_file)
         elif "[[Tests]]" in content:
             files["scenario"].append(toml_file)

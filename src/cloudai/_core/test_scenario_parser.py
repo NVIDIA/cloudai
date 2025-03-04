@@ -28,8 +28,8 @@ from .installables import GitRepo
 from .registry import Registry
 from .system import System
 from .test import CmdArgs, NsysConfiguration, Test, TestDefinition
+from .test_parser import TestParser
 from .test_scenario import TestDependency, TestRun, TestScenario
-from .test_template import TestTemplate
 
 
 def parse_time_limit(limit: str) -> timedelta:
@@ -213,12 +213,18 @@ class TestScenarioParser:
     __test__ = False
 
     def __init__(
-        self, file_path: Path, system: System, test_mapping: Dict[str, Test], hook_mapping: Dict[str, TestScenario]
+        self,
+        file_path: Path,
+        system: System,
+        test_mapping: Dict[str, Test],
+        hook_mapping: Dict[str, TestScenario],
+        strict: bool,
     ) -> None:
         self.file_path = file_path
         self.system = system
         self.test_mapping = test_mapping
         self.hook_mapping = hook_mapping
+        self.strict = strict
 
     def parse(self) -> TestScenario:
         """
@@ -338,15 +344,15 @@ class TestScenarioParser:
         return tr
 
     def _prepare_tdef(self, test_info: _TestRunTOML) -> Tuple[Test, TestDefinition]:
-        registry = Registry()
-        if test_info.test_name and test_info.test_name in self.test_mapping:
+        tp = TestParser([self.file_path], self.system)
+        tp.current_file = self.file_path
+
+        if test_info.test_name:
+            if test_info.test_name not in self.test_mapping:
+                raise ValueError(f"Test '{test_info.test_name}' not found in the test schema directory")
             test = self.test_mapping[test_info.test_name]
         elif test_info.test_spec and test_info.test_spec.test_template_name:
-            tdef_cls = registry.test_definitions_map[test_info.test_spec.test_template_name]
-            test = Test(
-                test_definition=tdef_cls.model_validate(test_info.test_spec.model_dump()),
-                test_template=TestTemplate(system=self.system, name=test_info.id),
-            )
+            test = tp._parse_data(test_info.test_spec.model_dump(), self.strict)
         else:
             # this should never happen, because we check for this in the modelvalidator
             raise ValueError(f"Cannot configure test case '{test_info.id}' with both 'test_name' and 'test_spec'.")
@@ -355,6 +361,6 @@ class TestScenarioParser:
         if test_info.test_spec:
             data = test.test_definition.model_dump()
             data.update(test_info.test_spec.model_dump(exclude_none=True, exclude_defaults=True))
-            tdef = test.test_definition.model_validate(data)
+            tdef = tp.load_test_definition(data, self.strict)
 
         return test, tdef

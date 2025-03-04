@@ -256,6 +256,11 @@ class TestSpec:
             _TestRunTOML(id="1")
         assert exc_info.match("Either 'test_name' or 'test_spec' must be set.")
 
+    def test_name_is_not_in_mapping(self, test_scenario_parser: TestScenarioParser):
+        with pytest.raises(ValueError) as exc_info:
+            test_scenario_parser._prepare_tdef(_TestRunTOML(id="1", test_name="nccl"))
+        assert exc_info.match("Test 'nccl' not found in the test schema directory")
+
     def test_spec_without_test_type(self):
         with pytest.raises(ValueError) as exc_info:
             _TestRunTOML(id="1", test_spec=_TestSpecTOML(test_template_name=None))
