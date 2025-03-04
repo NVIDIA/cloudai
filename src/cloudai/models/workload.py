@@ -102,7 +102,7 @@ class TestDefinition(BaseModel, ABC):
 
     @property
     def installables(self) -> list[Installable]:
-        return []
+        return [*self.git_repos]
 
     @property
     def constraint_check(self) -> bool:
