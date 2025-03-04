@@ -265,7 +265,7 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
     tr = test_req[0]
 
     if isinstance(tr.test.test_template.command_gen_strategy, NeMoLauncherSlurmCommandGenStrategy):
-        tr.test.test_template.command_gen_strategy.job_prefix = "test_account-cloudai.nemo_fixed"
+        tr.test.test_template.command_gen_strategy.job_prefix = "test_account-cloudai.nemo"
 
     ref = (Path(__file__).parent / "ref_data" / test_req[1]).read_text().strip()
     ref = (
