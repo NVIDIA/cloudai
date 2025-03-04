@@ -30,9 +30,9 @@ time_limit = "00:20:00"
     subtest_name = "all_reduce_perf_mpi"
     ngpus = 1
     minbytes = "128"
-    maxbytes = "16G"
-    iters = 100
-    warmup_iters = 50
+    maxbytes = "512"
+    iters = 50
+    warmup_iters = 10
 
 [[Tests]]
 id = "nccl.all_gather"
@@ -48,6 +48,6 @@ time_limit = "00:20:00"
     subtest_name = "all_reduce_perf_mpi"
     ngpus = 1
     minbytes = "128"
-    maxbytes = "16G"
-    iters = 100
-    warmup_iters = 50
+    maxbytes = "512"
+    iters = 50
+    warmup_iters = 10

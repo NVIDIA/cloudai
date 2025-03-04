@@ -103,7 +103,6 @@ def calculate_total_time_limit(test_hooks: List[TestScenario], time_limit: Optio
 class _TestSpecTOML(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    test_template_name: Optional[str] = None
     name: Optional[str] = None
     description: Optional[str] = None
     test_template_name: Optional[str] = None
