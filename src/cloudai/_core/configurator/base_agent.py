@@ -30,10 +30,10 @@ class BaseAgent(ABC):
 
     def __init__(self, env: BaseGym):
         """
-        Initialize the agent with the TestRun object.
+        Initialize the agent with the environment.
 
         Args:
-            env (Dict[str, Any]): The action space for the agent.
+            env (BaseGym): The environment instance for the agent.
         """
         self.action_space = {}
         self.max_steps = 0

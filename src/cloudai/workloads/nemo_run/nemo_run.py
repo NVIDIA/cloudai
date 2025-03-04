@@ -104,8 +104,6 @@ class NeMoRunTestDefinition(TestDefinition):
     cmd_args: NeMoRunCmdArgs
     _docker_image: Optional[DockerImage] = None
     script: File = File(Path(__file__).parent.parent / "nemo_run/cloudai_nemorun.py")
-    agent: str = "grid_search"
-    agent_steps: int = 1
 
     @property
     def docker_image(self) -> DockerImage:

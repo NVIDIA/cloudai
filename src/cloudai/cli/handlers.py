@@ -112,7 +112,10 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
 
     agent_class = registry.agents_map.get(agent_type)
     if agent_class is None:
-        logging.error(f"No agent available for type: {agent_type}")
+        logging.error(
+            f"No agent available for type: {agent_type}. Please make sure {agent_type} "
+            f"is a valid agent type. Available agents: {registry.agents_map.keys()}"
+        )
         exit(1)
 
     agent = agent_class(env)
