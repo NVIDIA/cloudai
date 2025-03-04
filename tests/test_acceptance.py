@@ -17,12 +17,12 @@
 import argparse
 from functools import partial
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional, Tuple, Type
 from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai import Test, TestRun, TestScenario, TestTemplate
+from cloudai import CommandGenStrategy, Test, TestDefinition, TestRun, TestScenario, TestTemplate
 from cloudai.cli import handle_dry_run_and_run, setup_logging
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
@@ -111,6 +111,104 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
     return partial(TestRun, num_nodes=1, nodes=[], output_path=slurm_system.output_path)
 
 
+def create_test_run(
+    partial_tr: partial[TestRun],
+    slurm_system: SlurmSystem,
+    name: str,
+    test_definition: TestDefinition,
+    command_gen_strategy: Type[CommandGenStrategy],
+) -> TestRun:
+    tr = partial_tr(
+        name=name,
+        test=Test(test_definition=test_definition, test_template=TestTemplate(slurm_system, name=name)),
+    )
+    tr.test.test_template.command_gen_strategy = command_gen_strategy(
+        slurm_system, tr.test.test_definition.cmd_args_dict
+    )
+    if isinstance(tr.test.test_template.command_gen_strategy, SlurmCommandGenStrategy):
+        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
+    return tr
+
+
+def build_special_test_run(
+    partial_tr: partial[TestRun],
+    slurm_system: SlurmSystem,
+    param: str,
+    test_mapping: Dict[str, Callable[[], TestRun]],
+) -> Tuple[TestRun, str, Optional[str]]:
+    if "gpt" in param:
+        test_type = "gpt"
+        tr = create_test_run(
+            partial_tr,
+            slurm_system,
+            test_type,
+            GPTTestDefinition(
+                name=test_type,
+                description=test_type,
+                test_template_name=test_type,
+                cmd_args=GPTCmdArgs(fdl_config="fdl/config", docker_image_url="https://docker/url"),
+                extra_env_vars={"COMBINE_THRESHOLD": "1"},
+            ),
+            JaxToolboxSlurmCommandGenStrategy,
+        )
+    elif "grok" in param:
+        test_type = "grok"
+        tr = create_test_run(
+            partial_tr,
+            slurm_system,
+            test_type,
+            GrokTestDefinition(
+                name=test_type,
+                description=test_type,
+                test_template_name=test_type,
+                cmd_args=GrokCmdArgs(fdl_config="fdl/config", docker_image_url="https://docker/url"),
+                extra_env_vars={"COMBINE_THRESHOLD": "1"},
+            ),
+            JaxToolboxSlurmCommandGenStrategy,
+        )
+    elif "nemo-run" in param:
+        test_type = "nemo-run"
+        tr = create_test_run(
+            partial_tr,
+            slurm_system,
+            test_type,
+            NeMoRunTestDefinition(
+                name=test_type,
+                description=test_type,
+                test_template_name=test_type,
+                cmd_args=NeMoRunCmdArgs(
+                    docker_image_url="nvcr.io/nvidia/nemo:24.09", task="pretrain", recipe_name="llama_3b"
+                ),
+            ),
+            NeMoRunSlurmCommandGenStrategy,
+        )
+    elif "nemo-launcher" in param:
+        test_type = "nemo-launcher"
+        tr = create_test_run(
+            partial_tr,
+            slurm_system,
+            test_type,
+            NeMoLauncherTestDefinition(
+                name="nemo-launcher",
+                description="nemo-launcher",
+                test_template_name="nemo-launcher",
+                cmd_args=NeMoLauncherCmdArgs(),
+            ),
+            NeMoLauncherSlurmCommandGenStrategy,
+        )
+        assert isinstance(tr.test.test_template.command_gen_strategy, NeMoLauncherSlurmCommandGenStrategy)
+        tr.test.test_template.command_gen_strategy.job_prefix = "test_account-cloudai.nemo"
+    else:
+        raise ValueError(f"Unknown test type: {param}")
+
+    if "pre-test" in param:
+        pre_test_tr = test_mapping["nccl"]()
+        tr.pre_test = TestScenario(name=f"{pre_test_tr.name} NCCL pre-test", test_runs=[pre_test_tr])
+    if test_type in ("nemo-run", "nemo-launcher"):
+        return tr, f"{param}.sbatch", None
+    return tr, f"{param}.sbatch", f"{test_type}.run"
+
+
 @pytest.fixture(
     params=[
         "ucc",
@@ -127,46 +225,32 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
         "megatron-run",
     ]
 )
-def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> tuple[TestRun, str, Optional[str]]:
-    def create_test_run(name, test_definition, command_gen_strategy):
-        tr = partial_tr(
-            name=name,
-            test=Test(test_definition=test_definition, test_template=TestTemplate(slurm_system, name=name)),
-        )
-        tr.test.test_template.command_gen_strategy = command_gen_strategy(
-            slurm_system, tr.test.test_definition.cmd_args_dict
-        )
-        if isinstance(tr.test.test_template.command_gen_strategy, SlurmCommandGenStrategy):
-            tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
-        return tr
-
-    test_mapping = {
+def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> Tuple[TestRun, str, Optional[str]]:
+    test_mapping: Dict[str, Callable[[], TestRun]] = {
         "ucc": lambda: create_test_run(
+            partial_tr,
+            slurm_system,
             "ucc",
             UCCTestDefinition(name="ucc", description="ucc", test_template_name="ucc", cmd_args=UCCCmdArgs()),
             UCCTestSlurmCommandGenStrategy,
         ),
         "nccl": lambda: create_test_run(
+            partial_tr,
+            slurm_system,
             "nccl",
             NCCLTestDefinition(name="nccl", description="nccl", test_template_name="nccl", cmd_args=NCCLCmdArgs()),
             NcclTestSlurmCommandGenStrategy,
         ),
         "sleep": lambda: create_test_run(
+            partial_tr,
+            slurm_system,
             "sleep",
             SleepTestDefinition(name="sleep", description="sleep", test_template_name="sleep", cmd_args=SleepCmdArgs()),
             SleepSlurmCommandGenStrategy,
         ),
-        "nemo-launcher": lambda: create_test_run(
-            "nemo-launcher",
-            NeMoLauncherTestDefinition(
-                name="nemo-launcher",
-                description="nemo-launcher",
-                test_template_name="nemo-launcher",
-                cmd_args=NeMoLauncherCmdArgs(),
-            ),
-            NeMoLauncherSlurmCommandGenStrategy,
-        ),
         "slurm_container": lambda: create_test_run(
+            partial_tr,
+            slurm_system,
             "slurm_container",
             SlurmContainerTestDefinition(
                 name="slurm_container",
@@ -177,6 +261,8 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             SlurmContainerCommandGenStrategy,
         ),
         "megatron-run": lambda: create_test_run(
+            partial_tr,
+            slurm_system,
             "megatron-run",
             MegatronRunTestDefinition(
                 name="megatron-run",
@@ -194,67 +280,11 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         ),
     }
 
-    # Special cases for gpt and grok
-    if request.param.startswith("gpt-") or request.param.startswith("grok-") or request.param.startswith("nemo-run-"):
-        if "gpt" in request.param:
-            test_type = "gpt"
-            tr = create_test_run(
-                test_type,
-                GPTTestDefinition(
-                    name=test_type,
-                    description=test_type,
-                    test_template_name=test_type,
-                    cmd_args=GPTCmdArgs(fdl_config="fdl/config", docker_image_url="https://docker/url"),
-                    extra_env_vars={"COMBINE_THRESHOLD": "1"},
-                ),
-                JaxToolboxSlurmCommandGenStrategy,
-            )
-
-        elif "grok" in request.param:
-            test_type = "grok"
-            tr = create_test_run(
-                test_type,
-                GrokTestDefinition(
-                    name=test_type,
-                    description=test_type,
-                    test_template_name=test_type,
-                    cmd_args=GrokCmdArgs(fdl_config="fdl/config", docker_image_url="https://docker/url"),
-                    extra_env_vars={"COMBINE_THRESHOLD": "1"},
-                ),
-                JaxToolboxSlurmCommandGenStrategy,
-            )
-        elif "nemo-run" in request.param:
-            test_type = "nemo-run"
-            tr = create_test_run(
-                test_type,
-                NeMoRunTestDefinition(
-                    name=test_type,
-                    description=test_type,
-                    test_template_name=test_type,
-                    cmd_args=NeMoRunCmdArgs(
-                        docker_image_url="nvcr.io/nvidia/nemo:24.09", task="pretrain", recipe_name="llama_3b"
-                    ),
-                ),
-                NeMoRunSlurmCommandGenStrategy,
-            )
-        else:
-            raise ValueError(f"Unknown test type: {request.param}")
-
-        # Handle pre-test case
-        if "pre-test" in request.param:
-            pre_test_tr = test_mapping["nccl"]()
-            tr.pre_test = TestScenario(name=f"{pre_test_tr.name} NCCL pre-test", test_runs=[pre_test_tr])
-
-        if test_type == "nemo-run":
-            return (tr, f"{request.param}.sbatch", None)
-        else:
-            return (tr, f"{request.param}.sbatch", f"{test_type}.run")
-
-    # Default handler for simple mappings
+    if request.param.startswith(("gpt-", "grok-", "nemo-run-", "nemo-launcher")):
+        return build_special_test_run(partial_tr, slurm_system, request.param, test_mapping)
     if request.param in test_mapping:
         tr = test_mapping[request.param]()
-        return (tr, f"{request.param}.sbatch", None)
-
+        return tr, f"{request.param}.sbatch", None
     raise ValueError(f"Unknown test: {request.param}")
 
 
