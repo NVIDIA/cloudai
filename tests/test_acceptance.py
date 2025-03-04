@@ -17,12 +17,12 @@
 import argparse
 from functools import partial
 from pathlib import Path
-from typing import Callable, Dict, Optional, Tuple
+from typing import Callable, Dict, Optional, Tuple, Type
 from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai import Test, TestRun, TestScenario, TestTemplate
+from cloudai import CommandGenStrategy, Test, TestDefinition, TestRun, TestScenario, TestTemplate
 from cloudai.cli import handle_dry_run_and_run, setup_logging
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
@@ -115,8 +115,8 @@ def create_test_run(
     partial_tr: partial[TestRun],
     slurm_system: SlurmSystem,
     name: str,
-    test_definition,
-    command_gen_strategy,
+    test_definition: TestDefinition,
+    command_gen_strategy: Type[CommandGenStrategy],
 ) -> TestRun:
     tr = partial_tr(
         name=name,
