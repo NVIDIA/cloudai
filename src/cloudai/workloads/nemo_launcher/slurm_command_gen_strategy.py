@@ -17,10 +17,9 @@
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Union, cast
+from typing import Any, Dict, List, Optional, Union, cast
 
 from cloudai import TestRun
-from cloudai.systems.slurm import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 from cloudai.workloads.nemo_launcher import NeMoLauncherTestDefinition
 
@@ -28,9 +27,7 @@ from cloudai.workloads.nemo_launcher import NeMoLauncherTestDefinition
 class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for NeMo Megatron Launcher on Slurm systems."""
 
-    def __init__(self, system: SlurmSystem, cmd_args: Dict[str, Any]) -> None:
-        super().__init__(system, cmd_args)
-        self.job_prefix = None
+    job_prefix: Optional[str] = None
 
     def _container_mounts(self, tr: TestRun) -> list[str]:
         # this strategy handles container mounts in a different way, so it is OK to return an empty list
