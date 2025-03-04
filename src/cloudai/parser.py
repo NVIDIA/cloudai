@@ -51,6 +51,13 @@ class Parser:
         logging.debug(f"Initializing parser with: {system_config_path=}")
         self.system_config_path = system_config_path
 
+    @property
+    def system(self) -> System:
+        try:
+            return self.parse_system(self.system_config_path)
+        except SystemConfigParsingError:
+            exit(1)  # exit right away to keep error message readable for users
+
     def parse(
         self,
         test_path: Optional[Path] = None,
@@ -68,18 +75,13 @@ class Parser:
             Tuple[System, List[Test], Optional[TestScenario]]: A tuple containing the system object, a list of filtered
                 test template objects, and the main test scenario object if provided.
         """
-        try:
-            system = self.parse_system(self.system_config_path)
-        except SystemConfigParsingError:
-            exit(1)  # exit right away to keep error message readable for users
-
         tests: list[Test] = []
         if test_path:
             if not test_path.exists():
                 raise FileNotFoundError(f"Test path '{test_path}' not found.")
 
             try:
-                tests = self.parse_tests(list(test_path.glob("*.toml")), system)
+                tests = self.parse_tests(list(test_path.glob("*.toml")), self.system)
             except TestConfigParsingError:
                 exit(1)  # exit right away to keep error message readable for users
 
@@ -88,28 +90,28 @@ class Parser:
 
         try:
             hook_tests = (
-                self.parse_tests(list(HOOK_TEST_ROOT.glob("*.toml")), system) if HOOK_TEST_ROOT.exists() else []
+                self.parse_tests(list(HOOK_TEST_ROOT.glob("*.toml")), self.system) if HOOK_TEST_ROOT.exists() else []
             )
         except TestConfigParsingError:
             exit(1)  # exit right away to keep error message readable for users
 
         if not test_scenario_path:
             all_tests = list({test.name: test for test in tests + hook_tests}.values())
-            return system, all_tests, None
+            return self.system, all_tests, None
 
         test_mapping = {t.name: t for t in tests}
         hook_test_scenario_mapping = {}
         if HOOK_ROOT.exists() and list(HOOK_ROOT.glob("*.toml")):
             try:
                 hook_test_scenario_mapping = self.parse_hooks(
-                    list(HOOK_ROOT.glob("*.toml")), system, {t.name: t for t in hook_tests}
+                    list(HOOK_ROOT.glob("*.toml")), self.system, {t.name: t for t in hook_tests}
                 )
             except TestScenarioParsingError:
                 exit(1)  # exit right away to keep error message readable for users
 
         try:
             test_scenario = self.parse_test_scenario(
-                test_scenario_path, system, test_mapping, hook_test_scenario_mapping
+                test_scenario_path, self.system, test_mapping, hook_test_scenario_mapping
             )
         except TestScenarioParsingError:
             exit(1)  # exit right away to keep error message readable for users
@@ -123,7 +125,7 @@ class Parser:
         filtered_tests = [t for t in tests if t.name in relevant_test_names] + hook_tests
         filtered_tests = list({test.name: test for test in filtered_tests}.values())
 
-        return system, filtered_tests, test_scenario
+        return self.system, filtered_tests, test_scenario
 
     @staticmethod
     def parse_hooks(hook_tomls: List[Path], system: System, test_mapping: Dict[str, Test]) -> Dict[str, TestScenario]:

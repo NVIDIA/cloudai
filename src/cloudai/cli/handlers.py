@@ -24,8 +24,11 @@ from unittest.mock import Mock
 import toml
 
 from cloudai import Installable, Parser, Registry, Reporter, Runner, System, TestParser
+from cloudai._core.base_installer import BaseInstaller
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
 from cloudai._core.configurator.grid_search import GridSearchAgent
+from cloudai._core.test import Test
+from cloudai._core.test_scenario import TestScenario
 from cloudai.util import prepare_output_dir
 
 from ..parser import HOOK_ROOT
@@ -41,7 +44,7 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
         args (argparse.Namespace): The parsed command-line arguments.
     """
     parser = Parser(args.system_config)
-    system, tests, _ = parser.parse(args.tests_dir, args.test_scenario)
+    system, tests, scenario = parser.parse(args.tests_dir, args.test_scenario)
 
     if args.output_dir:
         system.output_path = args.output_dir.absolute()
@@ -49,16 +52,7 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     logging.info(f"System Name: {system.name}")
     logging.info(f"Scheduler: {system.scheduler}")
 
-    installables: list[Installable] = []
-    for test in tests:
-        logging.debug(f"{test.name} has {len(test.test_definition.installables)} installables.")
-        installables.extend(test.test_definition.installables)
-
-    registry = Registry()
-    installer_class = registry.installers_map.get(system.scheduler)
-    if installer_class is None:
-        raise NotImplementedError(f"No installer available for scheduler: {system.scheduler}")
-    installer = installer_class(system)
+    installables, installer = prepare_installation(system, tests, scenario)
 
     rc = 0
     if args.mode == "install":
@@ -85,6 +79,28 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
             rc = 1
 
     return rc
+
+
+def prepare_installation(
+    system: System, tests: list[Test], scenario: Optional[TestScenario]
+) -> tuple[list[Installable], BaseInstaller]:
+    installables: list[Installable] = []
+    if scenario:
+        for test in scenario.test_runs:
+            logging.debug(f"{test.test.name} has {len(test.test.test_definition.installables)} installables.")
+            installables.extend(test.test.test_definition.installables)
+    else:
+        for test in tests:
+            logging.debug(f"{test.name} has {len(test.test_definition.installables)} installables.")
+            installables.extend(test.test_definition.installables)
+
+    registry = Registry()
+    installer_class = registry.installers_map.get(system.scheduler)
+    if installer_class is None:
+        raise NotImplementedError(f"No installer available for scheduler: {system.scheduler}")
+    installer = installer_class(system)
+
+    return installables, installer
 
 
 def is_dse_job(cmd_args: dict) -> bool:
@@ -151,17 +167,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
 
     logging.info("Checking if test templates are installed.")
 
-    installables: list[Installable] = []
-    for test in tests:
-        logging.debug(f"{test.name} has {len(test.test_definition.installables)} installables.")
-        installables.extend(test.test_definition.installables)
-
-    registry = Registry()
-    installer_class = registry.installers_map.get(system.scheduler)
-    if installer_class is None:
-        raise NotImplementedError(f"No installer available for scheduler: {system.scheduler}")
-    installer = installer_class(system)
-
+    installables, installer = prepare_installation(system, tests, test_scenario)
     result = installer.is_installed(installables)
 
     if args.mode == "run" and not result.success:
