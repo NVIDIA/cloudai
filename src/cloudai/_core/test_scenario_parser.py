@@ -18,14 +18,18 @@ import logging
 import re
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import toml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from .exceptions import TestScenarioParsingError, format_validation_error
-from .test import CmdArgs, Test
+from .installables import GitRepo
+from .registry import Registry
+from .system import System
+from .test import CmdArgs, NsysConfiguration, Test, TestDefinition
 from .test_scenario import TestDependency, TestRun, TestScenario
+from .test_template import TestTemplate
 
 
 def parse_time_limit(limit: str) -> timedelta:
@@ -99,14 +103,15 @@ def calculate_total_time_limit(test_hooks: List[TestScenario], time_limit: Optio
 class _TestSpecTOML(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    test_template_name: Optional[str] = None
     name: Optional[str] = None
     description: Optional[str] = None
     test_template_name: Optional[str] = None
     cmd_args: Optional[CmdArgs] = None
     extra_env_vars: dict[str, str] = {}
     extra_container_mounts: list[str] = []
-    # git_repos: list[GitRepo] = []
-    # nsys: Optional[NsysConfiguration] = None
+    git_repos: list[GitRepo] = []
+    nsys: Optional[NsysConfiguration] = None
 
 
 class _TestDependencyTOML(BaseModel):
@@ -120,7 +125,7 @@ class _TestRunTOML(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1)
-    test_name: str
+    test_name: Optional[str] = None
     num_nodes: Optional[int] = None
     nodes: list[str] = Field(default_factory=list)
     weight: int = 0
@@ -130,6 +135,27 @@ class _TestRunTOML(BaseModel):
     time_limit: Optional[str] = None
     dependencies: list[_TestDependencyTOML] = Field(default_factory=list)
     test_spec: Optional[_TestSpecTOML] = None
+
+    @model_validator(mode="after")
+    def check_test_name_or_type_is_set(self):
+        if self.test_name is None and self.test_spec is None:
+            raise ValueError("Either 'test_name' or 'test_spec' must be set.")
+
+        if not self.test_name:
+            if self.test_spec and not self.test_spec.test_template_name:
+                raise ValueError("'test_spec.test_template_name' must be set if 'test_name' is not set.")
+
+            registry = Registry()
+            if self.test_spec and self.test_spec.test_template_name not in registry.test_definitions_map:
+                raise ValueError(
+                    f"Test type '{self.test_spec.test_template_name}' not found in the test definitions. "
+                    f"Possible values are: {', '.join(registry.test_definitions_map.keys())}"
+                )
+        else:
+            if self.test_spec and self.test_spec.test_template_name:
+                raise ValueError("'test_spec.test_template_name' must not be set if 'test_name' is set.")
+
+        return self
 
 
 class _TestScenarioTOML(BaseModel):
@@ -186,8 +212,11 @@ class TestScenarioParser:
 
     __test__ = False
 
-    def __init__(self, file_path: Path, test_mapping: Dict[str, Test], hook_mapping: Dict[str, TestScenario]) -> None:
+    def __init__(
+        self, file_path: Path, system: System, test_mapping: Dict[str, Test], hook_mapping: Dict[str, TestScenario]
+    ) -> None:
         self.file_path = file_path
+        self.system = system
         self.test_mapping = test_mapping
         self.hook_mapping = hook_mapping
 
@@ -286,23 +315,7 @@ class TestScenarioParser:
         Raises:
             ValueError: If the test or nodes are not found within the system.
         """
-        if test_info.test_name not in self.test_mapping:
-            msg = (
-                f"Test '{test_info.test_name}' not found in the test schema directory. Please ensure that all "
-                f"tests referenced in the test scenario schema exist in the test schema directory. To resolve this "
-                f"issue, you can either add the corresponding test schema file for '{test_info.test_name}' in "
-                f"the directory or remove the test reference from the test scenario schema."
-            )
-            logging.error(f"Failed to parse Test Scenario definition: {self.file_path}")
-            logging.error(msg)
-            raise TestScenarioParsingError(msg)
-
-        original_test = self.test_mapping[test_info.test_name]
-        tdef = original_test.test_definition
-        if test_info.test_spec:
-            data = original_test.test_definition.model_dump()
-            data.update(test_info.test_spec.model_dump(exclude_none=True, exclude_defaults=True))
-            tdef = original_test.test_definition.model_validate(data)
+        original_test, tdef = self._prepare_tdef(test_info)
 
         test = Test(test_definition=tdef, test_template=original_test.test_template)
 
@@ -323,3 +336,25 @@ class TestScenarioParser:
             post_test=post_test,
         )
         return tr
+
+    def _prepare_tdef(self, test_info: _TestRunTOML) -> Tuple[Test, TestDefinition]:
+        registry = Registry()
+        if test_info.test_name and test_info.test_name in self.test_mapping:
+            test = self.test_mapping[test_info.test_name]
+        elif test_info.test_spec and test_info.test_spec.test_template_name:
+            tdef_cls = registry.test_definitions_map[test_info.test_spec.test_template_name]
+            test = Test(
+                test_definition=tdef_cls.model_validate(test_info.test_spec.model_dump()),
+                test_template=TestTemplate(system=self.system, name=test_info.id),
+            )
+        else:
+            # this should never happen, because we check for this in the modelvalidator
+            raise ValueError(f"Cannot configure test case '{test_info.id}' with both 'test_name' and 'test_spec'.")
+
+        tdef = test.test_definition
+        if test_info.test_spec:
+            data = test.test_definition.model_dump()
+            data.update(test_info.test_spec.model_dump(exclude_none=True, exclude_defaults=True))
+            tdef = test.test_definition.model_validate(data)
+
+        return test, tdef

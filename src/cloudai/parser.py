@@ -100,13 +100,15 @@ class Parser:
         if HOOK_ROOT.exists() and list(HOOK_ROOT.glob("*.toml")):
             try:
                 hook_test_scenario_mapping = self.parse_hooks(
-                    list(HOOK_ROOT.glob("*.toml")), {t.name: t for t in hook_tests}
+                    list(HOOK_ROOT.glob("*.toml")), system, {t.name: t for t in hook_tests}
                 )
             except TestScenarioParsingError:
                 exit(1)  # exit right away to keep error message readable for users
 
         try:
-            test_scenario = self.parse_test_scenario(test_scenario_path, test_mapping, hook_test_scenario_mapping)
+            test_scenario = self.parse_test_scenario(
+                test_scenario_path, system, test_mapping, hook_test_scenario_mapping
+            )
         except TestScenarioParsingError:
             exit(1)  # exit right away to keep error message readable for users
 
@@ -122,23 +124,24 @@ class Parser:
         return system, filtered_tests, test_scenario
 
     @staticmethod
-    def parse_hooks(hook_tomls: List[Path], test_mapping: Dict[str, Test]) -> Dict[str, TestScenario]:
+    def parse_hooks(hook_tomls: List[Path], system: System, test_mapping: Dict[str, Test]) -> Dict[str, TestScenario]:
         hook_mapping = {}
         for hook_test_scenario_path in hook_tomls:
-            hook_scenario = Parser.parse_test_scenario(hook_test_scenario_path, test_mapping)
+            hook_scenario = Parser.parse_test_scenario(hook_test_scenario_path, system, test_mapping)
             hook_mapping[hook_scenario.name] = hook_scenario
         return hook_mapping
 
     @staticmethod
     def parse_test_scenario(
         test_scenario_path: Path,
+        system: System,
         test_mapping: Dict[str, Test],
         hook_mapping: Optional[Dict[str, TestScenario]] = None,
     ) -> TestScenario:
         if hook_mapping is None:
             hook_mapping = {}
 
-        test_scenario_parser = TestScenarioParser(test_scenario_path, test_mapping, hook_mapping)
+        test_scenario_parser = TestScenarioParser(test_scenario_path, system, test_mapping, hook_mapping)
         test_scenario = test_scenario_parser.parse()
         return test_scenario
 

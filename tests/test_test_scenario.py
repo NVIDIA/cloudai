@@ -21,8 +21,14 @@ from unittest.mock import Mock
 import pytest
 import toml
 
-from cloudai import CmdArgs, Test, TestRun, TestScenarioParser, TestScenarioParsingError
-from cloudai._core.test_scenario_parser import _TestScenarioTOML, calculate_total_time_limit
+from cloudai import CmdArgs, Test, TestRun, TestScenarioParser
+from cloudai._core.test_scenario import TestScenario
+from cloudai._core.test_scenario_parser import (
+    _TestRunTOML,
+    _TestScenarioTOML,
+    _TestSpecTOML,
+    calculate_total_time_limit,
+)
 from cloudai._core.test_template import TestTemplate
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
@@ -30,8 +36,8 @@ from tests.conftest import MyTestDefinition
 
 
 @pytest.fixture
-def test_scenario_parser(tmp_path: Path) -> TestScenarioParser:
-    tsp = TestScenarioParser(Path(""), {}, {})
+def test_scenario_parser(slurm_system: SlurmSystem) -> TestScenarioParser:
+    tsp = TestScenarioParser(Path(""), slurm_system, {}, {})
     return tsp
 
 
@@ -112,12 +118,6 @@ def test_two_independent_cases(test: Test, test_scenario_parser: TestScenarioPar
 
     assert test_scenario.test_runs[1].test.name == t2.name
     assert test_scenario.test_runs[1].dependencies == {}
-
-
-def test_raises_on_missing_mapping(test_scenario_parser: TestScenarioParser):
-    with pytest.raises(TestScenarioParsingError) as exc_info:
-        test_scenario_parser._parse_data({"name": "nccl-test", "Tests": [{"id": "1", "test_name": "nccl1"}]})
-    assert exc_info.match("Test 'nccl1' not found in the test schema directory")
 
 
 def test_cant_depends_on_itself() -> None:
@@ -226,14 +226,16 @@ def test_calculate_total_time_limit(time_str, expected):
 
 
 def test_create_test_run_with_hooks(test: Test, test_scenario_parser: TestScenarioParser):
-    pre_test = Mock(
-        test_runs=[TestRun(name="pre1", test=test, num_nodes=1, nodes=[], time_limit="00:30:00", iterations=1)]
+    pre_test = TestScenario(
+        name="pre",
+        test_runs=[TestRun(name="pre1", test=test, num_nodes=1, nodes=[], time_limit="00:30:00", iterations=1)],
     )
-    post_test = Mock(
-        test_runs=[TestRun(name="post1", test=test, num_nodes=1, nodes=[], time_limit="00:20:00", iterations=1)]
+    post_test = TestScenario(
+        name="post",
+        test_runs=[TestRun(name="post1", test=test, num_nodes=1, nodes=[], time_limit="00:20:00", iterations=1)],
     )
 
-    test_info = Mock(id="main1", test_name="test1", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1)
+    test_info = _TestRunTOML(id="main1", test_name="test1", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1)
     test_scenario_parser.test_mapping = {"test1": test}
 
     test_run = test_scenario_parser._create_test_run(
@@ -249,7 +251,49 @@ def test_total_time_limit_with_empty_hooks():
 
 
 class TestSpec:
-    def test_spec(self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem):
+    def test_spec_without_test_name_and_type(self):
+        with pytest.raises(ValueError) as exc_info:
+            _TestRunTOML(id="1")
+        assert exc_info.match("Either 'test_name' or 'test_spec' must be set.")
+
+    def test_spec_without_test_type(self):
+        with pytest.raises(ValueError) as exc_info:
+            _TestRunTOML(id="1", test_spec=_TestSpecTOML(test_template_name=None))
+        assert exc_info.match("'test_spec.test_template_name' must be set if 'test_name' is not set.")
+
+    def test_spec_with_unknown_test_type(self):
+        with pytest.raises(ValueError) as exc_info:
+            _TestRunTOML(id="1", test_spec=_TestSpecTOML(test_template_name="unknown"))
+        assert exc_info.match("Test type 'unknown' not found in the test definitions. Possible values are:")
+
+    def test_type_is_not_allowed_when_name_is_set(self):
+        with pytest.raises(ValueError) as exc_info:
+            _TestRunTOML(id="1", test_name="nccl", test_spec=_TestSpecTOML(test_template_name="NcclTest"))
+        assert exc_info.match("'test_spec.test_template_name' must not be set if 'test_name' is set.")
+
+    def test_spec_without_test(self, test_scenario_parser: TestScenarioParser):
+        model = _TestScenarioTOML.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+
+              [Tests.test_spec]
+              name = "nccl"
+              description = "desc"
+              test_template_name = "NcclTest"
+
+                [Tests.test_spec.cmd_args]
+            """
+            )
+        )
+        test, tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        assert isinstance(tdef, NCCLTestDefinition)
+        assert isinstance(test, Test)
+
+    def test_spec_has_priority(self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem):
         test_scenario_parser.test_mapping = {
             "nccl": Test(
                 test_definition=NCCLTestDefinition(

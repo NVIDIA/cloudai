@@ -272,8 +272,8 @@ def verify_test_scenarios(
         try:
             tests = Parser.parse_tests(test_tomls, system)
             hook_tests = Parser.parse_tests(hook_test_tomls, system)
-            hooks = Parser.parse_hooks(hook_tomls, {t.name: t for t in hook_tests})
-            Parser.parse_test_scenario(scenario_file, {t.name: t for t in tests}, hooks)
+            hooks = Parser.parse_hooks(hook_tomls, system, {t.name: t for t in hook_tests})
+            Parser.parse_test_scenario(scenario_file, system, {t.name: t for t in tests}, hooks)
         except Exception:
             nfailed += 1
 
