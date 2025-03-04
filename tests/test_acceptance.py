@@ -287,3 +287,9 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
         ref = "\n".join(line for line in ref.splitlines() if line.strip())
 
     assert curr == ref
+
+    run_script = test_req[-1]
+    if run_script:
+        curr_run_script = Path(slurm_system.output_path / "run.sh").read_text()
+        ref_run_script = (Path(__file__).parent / "ref_data" / run_script).read_text()
+        assert curr_run_script == ref_run_script
