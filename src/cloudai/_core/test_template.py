@@ -35,44 +35,30 @@ class TestTemplate:
     based on system configurations and test parameters.
 
     Attributes
-        name (str): Unique name of the test template.
         cmd_args (Dict[str, Any]): Default command-line arguments.
         logger (logging.Logger): Logger for the test template.
         command_gen_strategy (CommandGenStrategy): Strategy for generating execution commands.
         json_gen_strategy (JsonGenStrategy): Strategy for generating json string.
         job_id_retrieval_strategy (JobIdRetrievalStrategy): Strategy for retrieving job IDs.
-        report_generation_strategy (ReportGenerationStrategy): Strategy for generating reports.
         grading_strategy (GradingStrategy): Strategy for grading performance based on test outcomes.
         job_status_retrieval_strategy (JobStatusRetrievalStrategy): Strategy for determining job statuses.
     """
 
     __test__ = False
 
-    def __init__(self, system: System, name: str) -> None:
+    def __init__(self, system: System) -> None:
         """
         Initialize a TestTemplate instance.
 
         Args:
             system (System): System configuration for the test template.
-            name (str): Name of the test template.
-            cmd_args (Dict[str, Any]): Command-line arguments.
         """
         self.system = system
-        self.name = name
         self.command_gen_strategy: Optional[CommandGenStrategy] = None
         self.json_gen_strategy: Optional[JsonGenStrategy] = None
         self.job_id_retrieval_strategy: Optional[JobIdRetrievalStrategy] = None
         self.job_status_retrieval_strategy: Optional[JobStatusRetrievalStrategy] = None
         self.grading_strategy: Optional[GradingStrategy] = None
-
-    def __repr__(self) -> str:
-        """
-        Return a string representation of the TestTemplate instance.
-
-        Returns
-            str: String representation of the test template.
-        """
-        return f"TestTemplate(name={self.name})"
 
     def gen_exec_command(self, tr: TestRun) -> str:
         """

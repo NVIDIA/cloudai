@@ -36,21 +36,6 @@ class Test:
         self.test_template = test_template
         self.test_definition = test_definition
 
-    def __repr__(self) -> str:
-        """
-        Return a string representation of the Test instance.
-
-        Returns
-            str: String representation of the test.
-        """
-        return (
-            f"Test(name={self.name}, description={self.description}, "
-            f"test_template={self.test_template.name}, "
-            f"cmd_args={self.cmd_args}, "
-            f"extra_env_vars={self.extra_env_vars}, "
-            f"extra_cmd_args={self.extra_cmd_args}"
-        )
-
     @property
     def name(self) -> str:
         return self.test_definition.name

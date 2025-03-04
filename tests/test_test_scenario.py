@@ -303,7 +303,7 @@ class TestSpec:
                 test_definition=NCCLTestDefinition(
                     name="nccl", description="desc", test_template_name="NcclTest", cmd_args=NCCLCmdArgs()
                 ),
-                test_template=TestTemplate(system=slurm_system, name="nccl"),
+                test_template=TestTemplate(system=slurm_system),
             )
         }
         model = TestScenarioModel.model_validate(

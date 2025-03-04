@@ -38,7 +38,7 @@ def test_run(slurm_system: SlurmSystem) -> TestRun:
         test_template_name="tt",
         cmd_args=SlurmContainerCmdArgs(docker_image_url="docker://url", cmd="cmd"),
     )
-    t = Test(test_definition=tdef, test_template=TestTemplate(name="tt", system=slurm_system))
+    t = Test(test_definition=tdef, test_template=TestTemplate(system=slurm_system))
     tr = TestRun(name="name", test=t, num_nodes=1, nodes=[])
     return tr
 

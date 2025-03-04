@@ -177,7 +177,7 @@ class TestParser:
         """
         cmd_args = tdef.cmd_args_dict
 
-        obj = TestTemplate(system=self.system, name=name)
+        obj = TestTemplate(system=self.system)
         obj.command_gen_strategy = cast(
             CommandGenStrategy,
             self._fetch_strategy(CommandGenStrategy, type(obj.system), type(tdef), cmd_args),

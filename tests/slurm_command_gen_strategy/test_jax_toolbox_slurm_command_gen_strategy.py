@@ -67,7 +67,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
     ) -> None:
         test_def = request.getfixturevalue(test_fixture)
 
-        test = Test(test_definition=test_def, test_template=TestTemplate(slurm_system, "name"))
+        test = Test(test_definition=test_def, test_template=TestTemplate(slurm_system))
         test_run = TestRun(
             test=test,
             num_nodes=1,
