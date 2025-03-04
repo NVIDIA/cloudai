@@ -276,7 +276,6 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
     sbatch_script = tr.test.test_template.gen_exec_command(tr).split()[-1]
     if "nemo-launcher" in test_req[1]:
         sbatch_script = slurm_system.output_path / "generated_command.sh"
-
     curr = Path(sbatch_script).read_text().strip()
 
     assert curr == ref
