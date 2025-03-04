@@ -21,7 +21,7 @@ import pytest
 import toml
 
 from cloudai import Parser
-from cloudai._core.test_scenario_parser import _TestScenarioTOML
+from cloudai.models import TestScenarioModel
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
 
@@ -69,4 +69,4 @@ def test_test_scenarios(test_scenario_file: Path):
     """
     with test_scenario_file.open("r") as f:
         d = toml.load(f)
-        _TestScenarioTOML.model_validate(d)
+        TestScenarioModel.model_validate(d)

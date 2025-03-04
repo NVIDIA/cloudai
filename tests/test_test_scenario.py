@@ -24,12 +24,10 @@ import toml
 from cloudai import CmdArgs, Test, TestRun, TestScenarioParser
 from cloudai._core.test_scenario import TestScenario
 from cloudai._core.test_scenario_parser import (
-    _TestRunTOML,
-    _TestScenarioTOML,
-    _TestSpecTOML,
     calculate_total_time_limit,
 )
 from cloudai._core.test_template import TestTemplate
+from cloudai.models import TestRunModel, TestScenarioModel, TestSpecModel
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from tests.conftest import MyTestDefinition
@@ -122,7 +120,7 @@ def test_two_independent_cases(test: Test, test_scenario_parser: TestScenarioPar
 
 def test_cant_depends_on_itself() -> None:
     with pytest.raises(ValueError) as exc_info:
-        _TestScenarioTOML.model_validate(
+        TestScenarioModel.model_validate(
             {
                 "name": "nccl-test",
                 "Tests": [
@@ -162,7 +160,7 @@ def test_two_dependent_cases(test: Test, test_scenario_parser: TestScenarioParse
 
 def test_ids_must_be_unique() -> None:
     with pytest.raises(ValueError) as exc_info:
-        _TestScenarioTOML.model_validate(
+        TestScenarioModel.model_validate(
             {
                 "name": "test",
                 "Tests": [
@@ -176,7 +174,7 @@ def test_ids_must_be_unique() -> None:
 
 def test_raises_on_unknown_dependency() -> None:
     with pytest.raises(ValueError) as exc_info:
-        _TestScenarioTOML.model_validate(
+        TestScenarioModel.model_validate(
             {
                 "name": "test",
                 "Tests": [
@@ -194,18 +192,18 @@ def test_raises_on_unknown_dependency() -> None:
 
 def test_list_of_tests_must_not_be_empty() -> None:
     with pytest.raises(ValueError) as exc_info:
-        _TestScenarioTOML.model_validate({"name": "name"})
-    assert exc_info.match("_TestScenarioTOML\nTests\n  Field required")
+        TestScenarioModel.model_validate({"name": "name"})
+    assert exc_info.match("TestScenarioModel\nTests\n  Field required")
 
     with pytest.raises(ValueError) as exc_info:
-        _TestScenarioTOML.model_validate({"name": "name", "Tests": []})
-    assert exc_info.match("_TestScenarioTOML\nTests\n  List should have at least 1 item after validation")
+        TestScenarioModel.model_validate({"name": "name", "Tests": []})
+    assert exc_info.match("TestScenarioModel\nTests\n  List should have at least 1 item after validation")
 
 
 def test_test_id_must_contain_at_least_one_letter() -> None:
     with pytest.raises(ValueError) as exc_info:
-        _TestScenarioTOML.model_validate({"name": "name", "Tests": [{"id": "", "test_name": "nccl"}]})
-    assert exc_info.match("_TestScenarioTOML\nTests.0.id\n  String should have at least 1 character")
+        TestScenarioModel.model_validate({"name": "name", "Tests": [{"id": "", "test_name": "nccl"}]})
+    assert exc_info.match("TestScenarioModel\nTests.0.id\n  String should have at least 1 character")
 
 
 @pytest.mark.parametrize(
@@ -235,7 +233,7 @@ def test_create_test_run_with_hooks(test: Test, test_scenario_parser: TestScenar
         test_runs=[TestRun(name="post1", test=test, num_nodes=1, nodes=[], time_limit="00:20:00", iterations=1)],
     )
 
-    test_info = _TestRunTOML(id="main1", test_name="test1", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1)
+    test_info = TestRunModel(id="main1", test_name="test1", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1)
     test_scenario_parser.test_mapping = {"test1": test}
 
     test_run = test_scenario_parser._create_test_run(
@@ -253,31 +251,31 @@ def test_total_time_limit_with_empty_hooks():
 class TestSpec:
     def test_spec_without_test_name_and_type(self):
         with pytest.raises(ValueError) as exc_info:
-            _TestRunTOML(id="1")
+            TestRunModel(id="1")
         assert exc_info.match("Either 'test_name' or 'test_spec' must be set.")
 
     def test_name_is_not_in_mapping(self, test_scenario_parser: TestScenarioParser):
         with pytest.raises(ValueError) as exc_info:
-            test_scenario_parser._prepare_tdef(_TestRunTOML(id="1", test_name="nccl"))
+            test_scenario_parser._prepare_tdef(TestRunModel(id="1", test_name="nccl"))
         assert exc_info.match("Test 'nccl' is not defined. Was tests directory correctly set?")
 
     def test_spec_without_test_type(self):
         with pytest.raises(ValueError) as exc_info:
-            _TestRunTOML(id="1", test_spec=_TestSpecTOML(test_template_name=None))
+            TestRunModel(id="1", test_spec=TestSpecModel(test_template_name=None))
         assert exc_info.match("'test_spec.test_template_name' must be set if 'test_name' is not set.")
 
     def test_spec_with_unknown_test_type(self):
         with pytest.raises(ValueError) as exc_info:
-            _TestRunTOML(id="1", test_spec=_TestSpecTOML(test_template_name="unknown"))
+            TestRunModel(id="1", test_spec=TestSpecModel(test_template_name="unknown"))
         assert exc_info.match("Test type 'unknown' not found in the test definitions. Possible values are:")
 
     def test_type_is_not_allowed_when_name_is_set(self):
         with pytest.raises(ValueError) as exc_info:
-            _TestRunTOML(id="1", test_name="nccl", test_spec=_TestSpecTOML(test_template_name="NcclTest"))
+            TestRunModel(id="1", test_name="nccl", test_spec=TestSpecModel(test_template_name="NcclTest"))
         assert exc_info.match("'test_spec.test_template_name' must not be set if 'test_name' is set.")
 
     def test_spec_without_test(self, test_scenario_parser: TestScenarioParser):
-        model = _TestScenarioTOML.model_validate(
+        model = TestScenarioModel.model_validate(
             toml.loads(
                 """
             name = "test"
@@ -307,7 +305,7 @@ class TestSpec:
                 test_template=TestTemplate(system=slurm_system, name="nccl"),
             )
         }
-        model = _TestScenarioTOML.model_validate(
+        model = TestScenarioModel.model_validate(
             toml.loads(
                 """
             name = "test"
