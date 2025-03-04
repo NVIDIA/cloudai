@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Union, cast
 
 import toml
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from .command_gen_strategy import CommandGenStrategy
 from .exceptions import TestConfigParsingError, format_validation_error
@@ -76,7 +76,18 @@ class TestParser:
                 objects.append(parsed_object)
         return objects
 
-    def load_test_definition(self, data: dict) -> TestDefinition:
+    @staticmethod
+    def model_extras(m: BaseModel, prefix="cmd_args") -> set[str]:
+        if m.model_extra is None:
+            return set()
+
+        extras = set()
+        for field in m.model_fields:
+            if isinstance(m.__dict__[field], BaseModel):
+                extras |= TestParser.model_extras(m.__dict__[field], prefix=f"{prefix}.{field}")
+        return extras | set([f"{prefix}.{k}" for k in m.model_extra])
+
+    def load_test_definition(self, data: dict, strict: bool = False) -> TestDefinition:
         test_template_name = data.get("test_template_name", "")
         registry = Registry()
         if test_template_name not in registry.test_definitions_map:
@@ -92,6 +103,12 @@ class TestParser:
                 logging.error(err_msg)
             raise TestConfigParsingError("Failed to parse test spec") from e
 
+        if strict and self.model_extras(test_def.cmd_args):
+            logging.error(f"Strict check failed for test spec: '{self.current_file}'")
+            for field in self.model_extras(test_def.cmd_args):
+                logging.error(f"Unexpected field '{field}' in test spec.")
+            raise TestConfigParsingError("Failed to parse test spec using strict mode")
+
         return test_def
 
     def _fetch_strategy(  # noqa: D417
@@ -99,7 +116,6 @@ class TestParser:
         strategy_interface: Type[
             Union[
                 TestTemplateStrategy,
-                ReportGenerationStrategy,
                 JobIdRetrievalStrategy,
                 JobStatusRetrievalStrategy,
                 GradingStrategy,
@@ -111,7 +127,6 @@ class TestParser:
     ) -> Optional[
         Union[
             TestTemplateStrategy,
-            ReportGenerationStrategy,
             JobIdRetrievalStrategy,
             JobStatusRetrievalStrategy,
             GradingStrategy,
@@ -137,7 +152,7 @@ class TestParser:
         if strategy_type:
             if issubclass(strategy_type, TestTemplateStrategy):
                 return strategy_type(self.system, cmd_args)
-            else:
+            elif not issubclass(strategy_type, ReportGenerationStrategy):
                 return strategy_type()
 
         logging.debug(
@@ -176,10 +191,6 @@ class TestParser:
         obj.job_status_retrieval_strategy = cast(
             JobStatusRetrievalStrategy,
             self._fetch_strategy(JobStatusRetrievalStrategy, type(obj.system), type(tdef), cmd_args),
-        )
-        obj.report_generation_strategy = cast(
-            ReportGenerationStrategy,
-            self._fetch_strategy(ReportGenerationStrategy, type(obj.system), type(tdef), cmd_args),
         )
         obj.grading_strategy = cast(
             GradingStrategy, self._fetch_strategy(GradingStrategy, type(obj.system), type(tdef), cmd_args)

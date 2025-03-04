@@ -94,12 +94,12 @@ jobs:
 
           cloudai --help
 
-          # this checks that all TOMLs are valid, Test Scenarios are checked agains _all_ tests
+          # this checks that all TOMLs are valid, Test Scenarios are checked for _all_ tests
           cloudai verify-configs conf/
 
-          # this checks that all TOMLs are valid, Test Scenarios are checked agains _only_ the tests in the specified directory
+          # this checks that all TOMLs are valid, Test Scenarios are checked _only_ the tests in the specified directory
           cloudai verify-configs --tests-dir conf/common/test conf/common
-          cloudai verify-configs --tests-dir conf/release/spcx/l40s/test conf/release/spcx/l40s
+          cloudai verify-configs --strict --tests-dir conf/release/spcx/l40s/test conf/release/spcx/l40s
 
           cloudai dry-run --system-config conf/common/system/example_slurm_cluster.toml \
             --tests-dir conf/common/test/ \

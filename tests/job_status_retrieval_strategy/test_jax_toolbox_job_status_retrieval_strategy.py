@@ -16,7 +16,7 @@
 
 from pathlib import Path
 
-from cloudai.schema.test_template.jax_toolbox.job_status_retrieval_strategy import JaxToolboxJobStatusRetrievalStrategy
+from cloudai.workloads.jax_toolbox import JaxToolboxJobStatusRetrievalStrategy
 
 
 class TestJaxToolboxJobStatusRetrievalStrategy:

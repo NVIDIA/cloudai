@@ -110,6 +110,9 @@ class CloudAICLI:
                 tests_dir=False,
             )
             p.add_argument("configs_dir", help="Path to a file or the directory containing the TOML files.", type=Path)
+            p.add_argument(
+                "--strict", help="Warn about unknown keys in Test TOML files.", action="store_true", default=False
+            )
 
         return self.parser
 

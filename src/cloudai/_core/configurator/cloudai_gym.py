@@ -22,10 +22,11 @@ from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
-from cloudai import ReportGenerator
 from cloudai._core.configurator.base_gym import BaseGym
 from cloudai._core.runner import Runner
 from cloudai._core.test_scenario import TestRun
+
+from ..reporter import Reporter
 
 
 class CloudAIGymEnv(BaseGym):
@@ -46,6 +47,7 @@ class CloudAIGymEnv(BaseGym):
         self.test_run = test_run
         self.runner = runner
         self.test_scenario = runner.runner.test_scenario
+        self.max_steps = test_run.test.test_definition.agent_steps
         super().__init__()
 
     def define_action_space(self) -> Dict[str, Any]:
@@ -55,7 +57,7 @@ class CloudAIGymEnv(BaseGym):
         Returns:
             Dict[str, Any]: The action space.
         """
-        action_space = {}
+        action_space: Dict[str, Any] = {}
         cmd_args_dict = self.test_run.test.test_definition.cmd_args.model_dump()
         self.populate_action_space("", cmd_args_dict, action_space)
         return action_space
@@ -179,8 +181,8 @@ class CloudAIGymEnv(BaseGym):
         """
         output_path = self.runner.runner.system.output_path / self.runner.runner.test_scenario.name
 
-        generator = ReportGenerator(output_path)
-        generator.generate_report(self.test_scenario)
+        reporter = Reporter(self.runner.runner.system, self.test_scenario, output_path)
+        reporter.generate()
 
         subdir = next(output_path.iterdir())
         report_file_path = subdir / f"{self.test_run.current_iteration}" / f"{self.test_run.step}"

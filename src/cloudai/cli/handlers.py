@@ -21,9 +21,10 @@ from pathlib import Path
 from typing import List, Optional
 from unittest.mock import Mock
 
-from cloudai import Installable, Parser, Registry, ReportGenerator, Runner, System
+import toml
+
+from cloudai import Installable, Parser, Registry, Reporter, Runner, System, TestParser
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
-from cloudai._core.configurator.grid_search import GridSearchAgent
 from cloudai.util import prepare_output_dir
 
 from ..parser import HOOK_ROOT
@@ -105,11 +106,25 @@ def is_dse_job(cmd_args: dict) -> bool:
 def handle_dse_job(runner: Runner, args: argparse.Namespace):
     test_run = next(iter(runner.runner.test_scenario.test_runs))
     env = CloudAIGymEnv(test_run=test_run, runner=runner)
-    agent = GridSearchAgent(env)
+    registry = Registry()
 
-    agent.configure(env.action_space)
+    agent_type = test_run.test.test_definition.agent
 
-    for step, action in enumerate(agent.get_all_combinations(), start=1):
+    agent_class = registry.agents_map.get(agent_type)
+    if agent_class is None:
+        logging.error(
+            f"No agent available for type: {agent_type}. Please make sure {agent_type} "
+            f"is a valid agent type. Available agents: {registry.agents_map.keys()}"
+        )
+        exit(1)
+
+    agent = agent_class(env)
+
+    for step in range(agent.max_steps):
+        result = agent.select_action()
+        if result is None:
+            break
+        step, action = result
         test_run.step = step
         observation, reward, done, info = env.step(action)
         logging.info(f"Step {step}: Observation: {observation}, Reward: {reward}")
@@ -121,8 +136,8 @@ def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> None:
     logging.info(f"All test scenario results stored at: {runner.runner.output_path}")
 
     if args.mode == "run":
-        generator = ReportGenerator(runner.runner.output_path)
-        generator.generate_report(runner.runner.test_scenario)
+        reporter = Reporter(runner.runner.system, runner.runner.test_scenario, runner.runner.output_path)
+        reporter.generate()
         logging.info(
             "All test scenario execution attempts are complete. Please review"
             f" the '{args.log_file}' file to confirm successful completion or to"
@@ -141,6 +156,8 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
 
     if not prepare_output_dir(system.output_path):
         return 1
+    if args.mode == "dry-run":
+        system.monitor_interval = 1
     system.update()
 
     logging.info(f"System Name: {system.name}")
@@ -189,12 +206,12 @@ def handle_generate_report(args: argparse.Namespace) -> int:
         args (argparse.Namespace): The parsed command-line arguments.
     """
     parser = Parser(args.system_config)
-    _, _, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
+    system, _, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
     assert test_scenario is not None
 
     logging.info("Generating report based on system and test scenario")
-    generator = ReportGenerator(args.result_dir)
-    generator.generate_report(test_scenario)
+    reporter = Reporter(system, test_scenario, args.result_dir)
+    reporter.generate()
 
     logging.info("Report generation completed.")
 
@@ -233,12 +250,16 @@ def verify_system_configs(system_tomls: List[Path]) -> int:
     return nfailed
 
 
-def verify_test_configs(test_tomls: List[Path]) -> int:
+def verify_test_configs(test_tomls: List[Path], strict: bool) -> int:
     nfailed = 0
+    tp = TestParser([], None)  # type: ignore
+    logging.info(f"Strict test verification: {strict}")
     for test_toml in test_tomls:
         logging.debug(f"Verifying Test: {test_toml}...")
         try:
-            Parser.parse_tests([test_toml], None)  # type: ignore
+            with test_toml.open() as fh:
+                tp.current_file = test_toml
+                tp.load_test_definition(toml.load(fh), strict)
         except Exception:
             nfailed += 1
 
@@ -305,7 +326,7 @@ def handle_verify_all_configs(args: argparse.Namespace) -> int:
     if files["system"]:
         nfailed += verify_system_configs(files["system"])
     if files["test"]:
-        nfailed += verify_test_configs(files["test"])
+        nfailed += verify_test_configs(files["test"], args.strict)
     if files["scenario"]:
         nfailed += verify_test_scenarios(
             files["scenario"], test_tomls, files["hook"], files["hook_test"], args.system_config
