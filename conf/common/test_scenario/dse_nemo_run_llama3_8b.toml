@@ -17,7 +17,34 @@
 name = "nemo_run_llama3_8b"
 
 [[Tests]]
-id = "dse_nemo_run_llama3_8b_1"
-test_name = "dse_nemo_run_llama3_8b"
-num_nodes = "1"
+id = "dse.llama3_8b"
+num_nodes = 1
 time_limit = "00:30:00"
+
+  [Tests.test_spec]
+  name = "llama3_8b"
+  description = "dse llama3_8b"
+  test_template_name = "NeMoRun"
+
+    [Tests.test_spec.cmd_args]
+    docker_image_url = "nvcr.io/nvidia/nemo:24.12.rc3"
+    task = "pretrain"
+    recipe_name = "llama3_8b"
+
+      [Tests.test_spec.cmd_args.data]
+      micro_batch_size = [1]
+      global_batch_size = [128, 256, 512]
+
+      [Tests.test_spec.cmd_args.trainer]
+      max_steps = 100
+      val_check_interval = 1000
+      num_nodes = 1
+
+        [Tests.test_spec.cmd_args.trainer.strategy]
+        tensor_model_parallel_size = [1, 2, 4]
+        pipeline_model_parallel_size = [1, 2, 4]
+        context_parallel_size = [1, 2]
+
+      [Tests.test_spec.cmd_args.log.ckpt]
+      save_on_train_epoch_end = false
+      save_last = false
