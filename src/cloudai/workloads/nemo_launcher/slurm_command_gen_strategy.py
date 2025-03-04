@@ -50,9 +50,11 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if self.job_prefix is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             if self.system.account:
-                self.final_cmd_args["cluster.job_name_prefix"] = f"{self.system.account}-cloudai.nemo_{timestamp}:"
+                self.job_prefix = f"{self.system.account}-cloudai.nemo_{timestamp}"
             else:
-                self.final_cmd_args["cluster.job_name_prefix"] = f"{timestamp}:"
+                self.job_prefix = timestamp
+
+        self.final_cmd_args["cluster.job_name_prefix"] = f"{self.job_prefix}:"
 
         self.final_cmd_args["cluster.gpus_per_node"] = self.system.gpus_per_node or "null"
 

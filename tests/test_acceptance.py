@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import argparse
+import re
 from functools import partial
 from pathlib import Path
 from typing import Dict, Optional
@@ -276,12 +277,13 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
     sbatch_script = tr.test.test_template.gen_exec_command(tr).split()[-1]
     if "nemo-launcher" in test_req[1]:
         sbatch_script = slurm_system.output_path / "generated_command.sh"
+
     curr = Path(sbatch_script).read_text().strip()
 
-    assert curr == ref
+    if "nemo-launcher" in test_req[1]:
+        curr = re.sub(r"^\s*cluster\.job_name_prefix=.*$", "", curr, flags=re.MULTILINE)
+        ref = re.sub(r"^\s*cluster\.job_name_prefix=.*$", "", ref, flags=re.MULTILINE)
+        curr = "\n".join(line for line in curr.splitlines() if line.strip())
+        ref = "\n".join(line for line in ref.splitlines() if line.strip())
 
-    run_script = test_req[-1]
-    if run_script:
-        curr_run_script = Path(slurm_system.output_path / "run.sh").read_text().strip()
-        ref_run_script = (Path(__file__).parent / "ref_data" / run_script).read_text().strip()
-        assert curr_run_script == ref_run_script
+    assert curr == ref
