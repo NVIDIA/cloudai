@@ -20,5 +20,6 @@ __OUTPUT_DIR__/install/NeMo-Framework-Launcher__599ecfcbbd64fd2de02f2cc093b1610d
  cluster.partition=main \
  training.trainer.num_nodes=1 \
  container=nvcr.io/nvidia/nemo:24.12.01 \
+ cluster.job_name_prefix=test_account-cloudai.nemo: \
  base_results_dir=__OUTPUT_DIR__/output \
  launcher_scripts_path=__OUTPUT_DIR__/install/NeMo-Framework-Launcher__599ecfcbbd64fd2de02f2cc093b1610d73854022/launcher_scripts
