@@ -19,6 +19,7 @@ from typing import ClassVar, List, Tuple, Type, Union
 from ..models.workload import TestDefinition
 from .base_installer import BaseInstaller
 from .base_runner import BaseRunner
+from .configurator.base_agent import BaseAgent
 from .grading_strategy import GradingStrategy
 from .job_id_retrieval_strategy import JobIdRetrievalStrategy
 from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
@@ -71,6 +72,7 @@ class Registry(metaclass=Singleton):
     installers_map: ClassVar[dict[str, Type[BaseInstaller]]] = {}
     systems_map: ClassVar[dict[str, Type[System]]] = {}
     test_definitions_map: ClassVar[dict[str, Type[TestDefinition]]] = {}
+    agents_map: ClassVar[dict[str, Type[BaseAgent]]] = {}
 
     def add_runner(self, name: str, value: Type[BaseRunner]) -> None:
         """
@@ -275,3 +277,33 @@ class Registry(metaclass=Singleton):
                 f"Invalid test definition implementation for '{name}', should be subclass of 'TestDefinition'."
             )
         self.test_definitions_map[name] = value
+
+    def add_agent(self, name: str, value: Type[BaseAgent]) -> None:
+        """
+        Add a new agent implementation mapping.
+
+        Args:
+            name (str): The name of the agent.
+            value (Type[BaseAgent]): The agent implementation.
+
+        Raises:
+            ValueError: If the agent implementation already exists.
+        """
+        if name in self.agents_map:
+            raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
+        self.update_agent(name, value)
+
+    def update_agent(self, name: str, value: Type[BaseAgent]) -> None:
+        """
+        Create or replace agent implementation mapping.
+
+        Args:
+            name (str): The name of the agent.
+            value (Type[BaseAgent]): The agent implementation.
+
+        Raises:
+            ValueError: If value is not a subclass of BaseAgent.
+        """
+        if not issubclass(value, BaseAgent):
+            raise ValueError(f"Invalid agent implementation for '{name}', should be subclass of 'BaseAgent'.")
+        self.agents_map[name] = value
