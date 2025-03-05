@@ -119,7 +119,6 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
         exit(1)
 
     agent = agent_class(env)
-
     for step in range(agent.max_steps):
         result = agent.select_action()
         if result is None:
@@ -127,6 +126,8 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
         step, action = result
         test_run.step = step
         observation, reward, done, info = env.step(action)
+        feedback = {"trial_index": step, "value": reward}
+        agent.update_policy(feedback)
         logging.info(f"Step {step}: Observation: {observation}, Reward: {reward}")
 
 
