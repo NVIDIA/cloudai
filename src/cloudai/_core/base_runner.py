@@ -67,7 +67,7 @@ class BaseRunner(ABC):
         self.jobs: List[BaseJob] = []
         self.testrun_to_job_map: Dict[TestRun, BaseJob] = {}
         logging.debug(f"{self.__class__.__name__} initialized")
-        self._shutting_down = False
+        self.shutting_down = False
 
     def setup_output_directory(self, base_output_path: Path) -> Path:
         """
@@ -87,7 +87,7 @@ class BaseRunner(ABC):
 
     async def shutdown(self):
         """Gracefully shut down the runner, terminating all outstanding jobs."""
-        self._shutting_down = True
+        self.shutting_down = True
         logging.info("Terminating all jobs...")
         for job in self.jobs:
             logging.info(f"Terminating job {job.id} for test {job.test_run.name}")
@@ -98,7 +98,7 @@ class BaseRunner(ABC):
 
     async def run(self):
         """Asynchronously run the test scenario."""
-        if self._shutting_down:
+        if self.shutting_down:
             return
 
         logging.info("Starting test scenario execution.")

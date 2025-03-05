@@ -172,8 +172,6 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     if args.mode == "dry-run":
         system.monitor_interval = 1
     system.update()
-    if args.mode == "dry-run":
-        system.monitor_interval = 0
 
     logging.info(f"System Name: {system.name}")
     logging.info(f"Scheduler: {system.scheduler}")
