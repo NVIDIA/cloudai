@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "nemo_run_llama3_8b"
+name = "dse.nemo_run.llama3_8b"
 
 [[Tests]]
 id = "dse.llama3_8b"
