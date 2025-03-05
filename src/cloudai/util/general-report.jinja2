@@ -1,0 +1,22 @@
+<html>
+    <head>
+        <title>{{ test_scenario.name }}</title>
+    </head>
+    <body>
+        <h1>{{ test_scenario.name }}</h1>
+    </body>
+    <table>
+        <tr>
+            <th>Test</th>
+            <th>Status</th>
+        </tr>
+        {% for tr in test_scenario.test_runs %}
+        {% for iter in range(tr.iterations) %}
+        <tr>
+            <td><a href="{{ tr.name }}/{{ iter }}">{{ tr.name }}.{{ iter }}</a></td>
+            <td>TBD</td>
+        </tr>
+        {% endfor %}
+        {% endfor %}
+    </table>
+</html>
