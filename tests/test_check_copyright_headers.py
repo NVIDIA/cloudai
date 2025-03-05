@@ -54,14 +54,16 @@ def prepare_copyright_with_year(file: Path, line: str) -> str:
     changed_years = res.stdout.splitlines()
     last_modified_year_real = int(changed_years[0])
 
+    after_year_str = "NVIDIA CORPORATION & AFFILIATES. All rights reserved."
+
     if spec_is_range:
         created_year = int(curr_year_spec.split("-")[0])
-        return f"# Copyright (c) {created_year}-{last_modified_year_real} NVIDIA CORPORATION & AFFILIATES. All rights reserved."
+        return f"# Copyright (c) {created_year}-{last_modified_year_real} {after_year_str}"
 
     if int(curr_year_spec) < last_modified_year_real:
-        return f"# Copyright (c) {curr_year_spec}-{last_modified_year_real} NVIDIA CORPORATION & AFFILIATES. All rights reserved."
+        return f"# Copyright (c) {curr_year_spec}-{last_modified_year_real} {after_year_str}"
 
-    return f"# Copyright (c) {last_modified_year_real} NVIDIA CORPORATION & AFFILIATES. All rights reserved."
+    return f"# Copyright (c) {last_modified_year_real} {after_year_str}"
 
 
 @pytest.mark.parametrize("py_file", PY_FILES, ids=[str(f) for f in PY_FILES])
