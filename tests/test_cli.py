@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -223,6 +223,7 @@ class TestCLIDefaultModes:
             mode="verify-configs",
             system_config=Path("system_config"),
             tests_dir=Path("tests_dir"),
+            strict=False,
             **{"configs_dir": Path("configs_dir")},
         )
 
@@ -233,6 +234,7 @@ class TestCLIDefaultModes:
             mode="verify-configs",
             system_config=None,
             tests_dir=None,
+            strict=False,
             **{"configs_dir": Path("configs_dir")},
         )
 

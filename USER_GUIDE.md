@@ -24,7 +24,7 @@ This is a CloudAI user guide to help users use CloudAI, covering topics such as 
    srun \
       --mpi=pmix \
       --container-image=gitlab-url.com/cloudai/nccl-test \
-      /usr/local/bin/all_reduce_perf_mpi \
+      all_reduce_perf_mpi \
       --nthreads 1 \
       --ngpus 1 \
       --minbytes 128 \
@@ -277,16 +277,16 @@ time_limit = "00:20:00"
 The `name` field is the test scenario name, which can be any unique identifier for the scenario. Each test has a section name, following the convention `Tests.1`, `Tests.2`, etc., with an increasing index. The `name` of a test should be specified in this section and must correspond to an entry in the test schema. If a test in a test scenario is not present in the test schema, CloudAI will not be able to identify it.
 
 There are two ways to specify nodes:
--  Using the `num_nodes` field as shown in the example. 
+-  Using the `num_nodes` field as shown in the example.
 -  Specifying nodes explicitly like `nodes = ["node-001", "node-002"]`
 
  Alternatively, you can utilize the groups feature in the system schema to specify nodes like `nodes = ['PARTITION_NAME:GROUP_NAME:NUM_NODES']`, which allocates `num_nodes` from the group name in the specified partition. You can also use `nodes = ['PARTITION_NAME:GROUP_NAME:max_avail']`, which allocates all the available nodes from the group name in the specified partition.
 
-You can optionally specify a time limit in the Slurm format. Tests can have dependencies. If no dependencies are specified, all tests will run in parallel. 
+You can optionally specify a time limit in the Slurm format. Tests can have dependencies. If no dependencies are specified, all tests will run in parallel.
 
-CloudAI supports three types of dependencies: 
+CloudAI supports three types of dependencies:
 - `start_post_init`
-- `start_post_comp` 
+- `start_post_comp`
 - `end_post_comp`
 
 Dependencies of a test can be described as a subsection of the test. It requires other tests' `id` and dependency `type`.
@@ -297,12 +297,12 @@ Dependencies of a test can be described as a subsection of the test. It requires
 
 
 ## Downloading and Installing the NeMo Dataset (The Pile Dataset)
-This section describes how you can download the NeMo datasets on your server. The install mode of CloudAI handles the installation of all test prerequisites, but downloading and installing datasets is not the responsibility of the install mode. This is because any large datasets should be installed globally by the administrator and shared with multiple users, even if a user does not use CloudAI. 
+This section describes how you can download the NeMo datasets on your server. The install mode of CloudAI handles the installation of all test prerequisites, but downloading and installing datasets is not the responsibility of the install mode. This is because any large datasets should be installed globally by the administrator and shared with multiple users, even if a user does not use CloudAI.
 
 For CloudAI users, we provide a detailed guide about downloading and installing the NeMo datasets in this section. By default, the NeMo launcher uses mock datasets for testing purposes. If you want to run tests using real datasets, you must download the datasets and update the test `.toml` files accordingly to locate the datasets and provide appropriate prefixes.
 
- To understand the datasets available in the NeMo framework, you can refer to the Data Preparation section of [the document](https://docs.nvidia.com/nemo-framework/user-guide/latest/llms/baichuan2/dataprep.html). According to the document, you can download and use the Pile dataset. The document also provides detailed instructions on how to download these datasets for various platforms.
- 
+ To understand the datasets available in the NeMo framework, you can refer to the Data Preparation section of [the document](https://docs.nvidia.com/launchpad/ai/base-command-nemo/latest/bc-nemo-step-02.html#use-bignlp-to-download-and-prepare-the-pile-dataset). According to the document, you can download and use the Pile dataset. The document also provides detailed instructions on how to download these datasets for various platforms.
+
   Let’s assume that we have a Slurm cluster.
 
 You can download the datasets with the following command:
@@ -440,6 +440,26 @@ CloudAI runs all slurm jobs using containers. To simplify file system related ta
 
 #### Dev details
 `SlurmCommandGenStrategy` defines abstract method `_container_mounts(tr: TestRun)` that must be implemented by every subclass. This method is used in `SlurmCommandGenStrategy.container_mounts(tr: TestRun)` (defined as `@final`) where mounts like `/cloudai_run_results` (default mount), `TestDefinition.extra_container_mounts` (from Test TOML) and test specific mounts (defined in-code) are added.
+
+### Nsys tracing
+Users can enable Nsys tracing for any workload when running via Slurm. Note, that `nsys` should be available on the compute nodes, CloudAI doesn't manage it.
+
+Configuration fields are:
+```py
+enable: bool = True
+nsys_binary: str = "nsys"
+task: str = "profile"
+output: Optional[str] = None
+sample: Optional[str] = None
+trace: Optional[str] = None
+force_overwrite: Optional[bool] = None
+capture_range: Optional[str] = None
+capture_range_end: Optional[str] = None
+cuda_graph_trace: Optional[str] = None
+gpu_metrics_devices: Optional[str] = None
+extra_args: list[str] = []
+```
+Fields with `None` value are not passed to `nsys` command.
 
 ## Troubleshooting
 In this section, we will guide you through identifying the root cause of issues, determining whether they stem from system infrastructure or a bug in CloudAI. Users should closely follow the USER_GUIDE.md and README.md for installation, tests, and test scenarios.

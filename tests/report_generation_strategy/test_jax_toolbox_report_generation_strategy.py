@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,11 +20,12 @@ from unittest.mock import Mock
 import pytest
 
 from cloudai import Test, TestRun
-from cloudai.schema.test_template.jax_toolbox.report_generation_strategy import (
+from cloudai.systems.slurm.slurm_system import SlurmSystem
+from cloudai.workloads.jax_toolbox import (
+    GPTCmdArgs,
+    GPTTestDefinition,
     JaxToolboxReportGenerationStrategy,
 )
-from cloudai.systems.slurm.slurm_system import SlurmSystem
-from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
 
 
 @pytest.fixture

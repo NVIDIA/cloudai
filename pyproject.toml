@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -73,7 +73,7 @@ root_package = "cloudai"
   name = "_core does not depends on higher level layers (but util)"
   type = "layers"
   layers = [
-    "installer : parser : report_generator : runner : schema : test_definitions : cli",
+    "installer : parser : report_generator : runner : workloads : cli",
     "_core",
   ]
   containers = ["cloudai"]
@@ -89,8 +89,7 @@ root_package = "cloudai"
     "cloudai.report_generator",
     "cloudai.report_generator.tool",
     "cloudai.runner",
-    "cloudai.schema",
-    "cloudai.test_definitions",
+    "cloudai.workloads",
     "cloudai.util",
     "cloudai.cli",
   ]
@@ -104,3 +103,4 @@ exclude_also = ["@abstractmethod"]
 
 [tool.pyright]
 include = ["src", "tests"]
+exclude = ["src/cloudai/workloads/nemo_run/cloudai_nemorun.py"]

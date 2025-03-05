@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,11 +20,15 @@ from unittest.mock import MagicMock
 import pytest
 
 from cloudai import Test, TestRun, TestTemplate
-from cloudai.schema.test_template.jax_toolbox.slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
 from cloudai.systems import SlurmSystem
-from cloudai.test_definitions.gpt import GPTCmdArgs, GPTTestDefinition
-from cloudai.test_definitions.grok import GrokCmdArgs, GrokTestDefinition
-from cloudai.test_definitions.jax_toolbox import JaxFdl
+from cloudai.workloads.jax_toolbox import (
+    GPTCmdArgs,
+    GPTTestDefinition,
+    GrokCmdArgs,
+    GrokTestDefinition,
+    JaxFdl,
+    JaxToolboxSlurmCommandGenStrategy,
+)
 
 
 class TestJaxToolboxSlurmCommandGenStrategy:

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -138,3 +138,25 @@ class PythonExecutable(Installable):
     @property
     def venv_name(self) -> str:
         return f"{self.git_repo.repo_name}-venv"
+
+
+@dataclass
+class File(Installable):
+    """File object."""
+
+    src: Path
+    _installed_path: Optional[Path] = field(default=None, repr=False)
+
+    @property
+    def installed_path(self) -> Path:
+        return self._installed_path or self.src
+
+    @installed_path.setter
+    def installed_path(self, value: Path) -> None:
+        self._installed_path = value
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, File) and other.src == self.src
+
+    def __hash__(self) -> int:
+        return hash(self.src)

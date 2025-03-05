@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +22,7 @@ from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
 from cloudai._core.runner import Runner
 from cloudai._core.test_scenario import TestRun, TestScenario
 from cloudai.systems import SlurmSystem
-from cloudai.test_definitions.nemo_run import (
+from cloudai.workloads.nemo_run import (
     Data,
     NeMoRunCmdArgs,
     NeMoRunTestDefinition,
@@ -162,6 +162,7 @@ def test_populate_action_space():
             num_nodes=[1, 2],
             strategy=TrainerStrategy(
                 tensor_model_parallel_size=[1, 2],
+                unknown_nested=[1, 2],  # type: ignore
             ),
         ),
         data=Data(
@@ -172,4 +173,5 @@ def test_populate_action_space():
 
     assert action_space["trainer.num_nodes"] == [1, 2]
     assert action_space["trainer.strategy.tensor_model_parallel_size"] == [1, 2]
+    assert action_space["trainer.strategy.unknown_nested"] == [1, 2]
     assert action_space["data.micro_batch_size"] == [1, 2]

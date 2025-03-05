@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -110,6 +110,9 @@ class CloudAICLI:
                 tests_dir=False,
             )
             p.add_argument("configs_dir", help="Path to a file or the directory containing the TOML files.", type=Path)
+            p.add_argument(
+                "--strict", help="Warn about unknown keys in Test TOML files.", action="store_true", default=False
+            )
 
         return self.parser
 
