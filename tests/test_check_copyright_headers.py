@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -42,18 +42,26 @@ PY_FILES += [p for p in Path().glob("./tests/**/*.py")]
 TOML_FILES = [p for p in Path().glob("conf/**/*.toml")] + ["pyproject.toml", ".taplo.toml"]
 
 
-def prepare_copyright_with_year(file: Path) -> str:
+def prepare_copyright_with_year(file: Path, line: str) -> str:
     res = subprocess.run(
-        ["git", "log", "--format=%ad", "--date=format:%Y", "--follow", file],
+        ["git", "log", "--format=%ad", "--date=format:%Y", "--follow", "-1", file],
         capture_output=True,
         text=True,
     )
-    changed_years = res.stdout.splitlines()
-    created_year, last_modified_year = int(changed_years[-1]), int(changed_years[0])
-    if created_year == last_modified_year:
-        return f"# Copyright (c) {created_year} NVIDIA CORPORATION & AFFILIATES. All rights reserved."
+    curr_year_spec = line.split(" ")[3]
+    spec_is_range = "-" in curr_year_spec
 
-    return f"# Copyright (c) {created_year}-{last_modified_year} NVIDIA CORPORATION & AFFILIATES. All rights reserved."
+    changed_years = res.stdout.splitlines()
+    last_modified_year_real = int(changed_years[0])
+
+    if spec_is_range:
+        created_year = int(curr_year_spec.split("-")[0])
+        return f"# Copyright (c) {created_year}-{last_modified_year_real} NVIDIA CORPORATION & AFFILIATES. All rights reserved."
+
+    if int(curr_year_spec) < last_modified_year_real:
+        return f"# Copyright (c) {curr_year_spec}-{last_modified_year_real} NVIDIA CORPORATION & AFFILIATES. All rights reserved."
+
+    return f"# Copyright (c) {last_modified_year_real} NVIDIA CORPORATION & AFFILIATES. All rights reserved."
 
 
 @pytest.mark.parametrize("py_file", PY_FILES, ids=[str(f) for f in PY_FILES])
@@ -64,7 +72,7 @@ def test_src_copyright_header(py_file: Path):
     assert (
         first_lines[0] == "# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES"
     ), "SPDX-FileCopyrightText is not valid"
-    assert first_lines[1] == prepare_copyright_with_year(py_file), "Copyright year is not valid"
+    assert first_lines[1] == prepare_copyright_with_year(py_file, first_lines[1]), "Copyright year is not valid"
     assert "\n".join(first_lines[2:]) == "\n".join(HEADER.splitlines()[2:]), f"Header mismatch in {py_file}"
 
 
@@ -74,5 +82,5 @@ def test_toml_copyright_header(toml_file):
         first_lines = [next(file).strip() for _ in range(HEADER_LINES)]
 
     assert first_lines[0] == "# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES"
-    assert first_lines[1] == prepare_copyright_with_year(toml_file)
+    assert first_lines[1] == prepare_copyright_with_year(toml_file, first_lines[1])
     assert "\n".join(first_lines[2:]) == "\n".join(HEADER.splitlines()[2:]), f"Header mismatch in {toml_file}"
