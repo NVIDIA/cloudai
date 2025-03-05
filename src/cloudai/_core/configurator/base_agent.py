@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,9 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
+
+from .base_gym import BaseGym
 
 
 class BaseAgent(ABC):
@@ -26,14 +28,15 @@ class BaseAgent(ABC):
     Automatically infers parameter types from TestRun's cmd_args.
     """
 
-    def __init__(self, action_space: Dict[str, Any]):
+    def __init__(self, env: BaseGym):
         """
-        Initialize the agent with the TestRun object.
+        Initialize the agent with the environment.
 
         Args:
-            action_space (Dict[str, Any]): The action space for the agent.
+            env (BaseGym): The environment instance for the agent.
         """
-        self.action_space = action_space
+        self.action_space = {}
+        self.max_steps = 0
 
     @abstractmethod
     def configure(self, config: Dict[str, Any]) -> None:
@@ -46,12 +49,12 @@ class BaseAgent(ABC):
         pass
 
     @abstractmethod
-    def select_action(self) -> Dict[str, Any]:
+    def select_action(self) -> Tuple[int, Dict[str, Any]]:
         """
         Select an action from the action space.
 
         Returns:
-            Dict[str, Any]: A dictionary mapping action keys to selected values.
+            Tuple[int, Dict[str, Any]]: The current step index and a dictionary mapping action keys to selected values.
         """
         pass
 

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -139,6 +139,8 @@ class TestDefinition(BaseModel, ABC):
     extra_container_mounts: list[str] = []
     git_repos: list[GitRepo] = []
     nsys: Optional[NsysConfiguration] = None
+    agent: str = "grid_search"
+    agent_steps: int = 1
 
     @property
     def cmd_args_dict(self) -> Dict[str, Union[str, List[str]]]:

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,7 @@ description = "nemo_launcher_nemotron_15b_fp8_16_node"
 test_template_name = "NeMoLauncher"
 
 [cmd_args]
+docker_image_url = "nvcr.io/nvidia/nemo:24.12.rc3"
   [cmd_args.training]
   values = "nemotron/nemotron_15b"
 

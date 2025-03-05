@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,8 @@ from ._core.base_job import BaseJob
 from ._core.base_runner import BaseRunner
 from ._core.base_system_parser import BaseSystemParser
 from ._core.command_gen_strategy import CommandGenStrategy
+from ._core.configurator.base_agent import BaseAgent
+from ._core.configurator.grid_search import GridSearchAgent
 from ._core.exceptions import (
     JobIdRetrievalError,
     SystemConfigParsingError,
@@ -226,8 +228,10 @@ Registry().add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)
 Registry().add_test_definition("SlurmContainer", SlurmContainerTestDefinition)
 Registry().add_test_definition("MegatronRun", MegatronRunTestDefinition)
 
+Registry().add_agent("grid_search", GridSearchAgent)
 
 __all__ = [
+    "BaseAgent",
     "BaseInstaller",
     "BaseJob",
     "BaseRunner",

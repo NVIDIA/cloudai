@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -94,7 +94,7 @@ class NeMoLauncherCmdArgs(CmdArgs):
     """NeMoLauncher test command arguments."""
 
     launcher_script: str = "launcher_scripts/main.py"
-    docker_image_url: str = "nvcr.io/nvidia/nemo:24.05.01"
+    docker_image_url: str = "nvcr.io/nvidia/nemo:24.12.01"
     stages: str = '["training"]'
     numa_mapping: NumaMapping = Field(default_factory=NumaMapping)
     cluster: Cluster = Field(default_factory=Cluster)

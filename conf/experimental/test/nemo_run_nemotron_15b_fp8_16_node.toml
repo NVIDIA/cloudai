@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,9 +30,9 @@ num_layers = 32
 
   [cmd_args.trainer]
   max_steps = 100
-  val_check_interval = 500
+  val_check_interval = 10
   num_nodes = 16
-  callbacks = "comms_overlap_callback"
+  callbacks = "comms_overlap_callbacks"
   accumulate_grad_batches = 1
 
     [cmd_args.trainer.strategy]

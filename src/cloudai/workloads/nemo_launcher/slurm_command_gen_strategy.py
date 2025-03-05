@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,8 +15,9 @@
 # limitations under the License.
 
 import logging
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Union, cast
+from typing import Any, Dict, List, Optional, Union, cast
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
@@ -25,6 +26,8 @@ from cloudai.workloads.nemo_launcher import NeMoLauncherTestDefinition
 
 class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for NeMo Megatron Launcher on Slurm systems."""
+
+    job_prefix: Optional[str] = None
 
     def _container_mounts(self, tr: TestRun) -> list[str]:
         # this strategy handles container mounts in a different way, so it is OK to return an empty list
@@ -37,17 +40,22 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self._set_node_config(nodes, tr.num_nodes)
 
         tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, tr.test.test_definition)
-        self.final_cmd_args["container"] = str(tdef.docker_image.installed_path)
-
-        self.final_cmd_args.pop("docker_image_url", None)
 
         if self.system.account:
-            self.final_cmd_args.update(
-                {
-                    "cluster.account": self.system.account,
-                    "cluster.job_name_prefix": f"{self.system.account}-cloudai.nemo:",
-                }
-            )
+            self.final_cmd_args["cluster.account"] = self.system.account
+
+        self.final_cmd_args["container"] = str(tdef.docker_image.installed_path)
+        self.final_cmd_args.pop("docker_image_url", None)
+
+        if self.job_prefix is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            if self.system.account:
+                self.job_prefix = f"{self.system.account}-cloudai.nemo_{timestamp}"
+            else:
+                self.job_prefix = timestamp
+
+        self.final_cmd_args["cluster.job_name_prefix"] = f"{self.job_prefix}:"
+
         self.final_cmd_args["cluster.gpus_per_node"] = self.system.gpus_per_node or "null"
 
         repo_path = (

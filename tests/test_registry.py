@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +17,7 @@
 import pytest
 
 from cloudai import (
+    BaseAgent,
     BaseInstaller,
     BaseRunner,
     JobIdRetrievalStrategy,
@@ -228,3 +229,37 @@ class TestRegistry__TestDefinitions:
         with pytest.raises(ValueError) as exc_info:
             registry.update_test_definition("TestDefinition", str)  # pyright: ignore
         assert "Invalid test definition implementation for 'TestDefinition'" in str(exc_info.value)
+
+
+class MyAgent(BaseAgent):
+    pass
+
+
+class AnotherAgent(BaseAgent):
+    pass
+
+
+class TestRegistry__AgentsMap:
+    """This test verifies Registry class functionality.
+
+    Since Registry is a Singleton, the order of cases is important.
+    Only covers the agents_map attribute.
+    """
+
+    def test_add_agent(self, registry: Registry):
+        registry.add_agent("agent", MyAgent)
+        assert registry.agents_map["agent"] == MyAgent
+
+    def test_add_agent_duplicate(self, registry: Registry):
+        with pytest.raises(ValueError) as exc_info:
+            registry.add_agent("agent", MyAgent)
+        assert "Duplicating implementation for 'agent'" in str(exc_info.value)
+
+    def test_update_agent(self, registry: Registry):
+        registry.update_agent("agent", AnotherAgent)
+        assert registry.agents_map["agent"] == AnotherAgent
+
+    def test_invalid_type(self, registry: Registry):
+        with pytest.raises(ValueError) as exc_info:
+            registry.update_agent("TestAgent", str)  # pyright: ignore
+        assert "Invalid agent implementation for 'TestAgent'" in str(exc_info.value)

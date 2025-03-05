@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -137,7 +137,7 @@ class SlurmInstaller(BaseInstaller):
         Returns:
             InstallStatusResult: Result containing the uninstallation status and error message if any.
         """
-        logging.debug(f"Attempt to uninstall {item}")
+        logging.debug(f"Attempt to uninstall {item!r}")
         if isinstance(item, DockerImage):
             res = self._uninstall_docker_image(item)
             return InstallStatusResult(res.success, res.message)
@@ -271,12 +271,13 @@ class SlurmInstaller(BaseInstaller):
         return InstallStatusResult(True)
 
     def _uninstall_git_repo(self, item: GitRepo) -> InstallStatusResult:
+        logging.debug(f"Uninstalling git repository at {item.installed_path=}")
         repo_path = item.installed_path if item.installed_path else self.system.install_path / item.repo_name
         if not repo_path.exists():
             msg = f"Repository {item.url} is not cloned."
-            logging.warning(msg)
             return InstallStatusResult(True, msg)
 
+        logging.debug(f"Removing folder {repo_path}")
         rmtree(repo_path)
         item.installed_path = None
 
@@ -287,12 +288,13 @@ class SlurmInstaller(BaseInstaller):
         if not res.success:
             return res
 
+        logging.debug(f"Uninstalling virtual environment at {item.venv_path=}")
         venv_path = item.venv_path if item.venv_path else self.system.install_path / item.venv_name
         if not venv_path.exists():
             msg = f"Virtual environment {item.venv_name} is not created."
-            logging.warning(msg)
             return InstallStatusResult(True, msg)
 
+        logging.debug(f"Removing folder {venv_path}")
         rmtree(venv_path)
         item.venv_path = None
 

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -46,7 +46,7 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def generate_test_command(
         self, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> List[str]:
-        srun_command_parts = [f"/usr/local/bin/{cmd_args['subtest_name']}"]
+        srun_command_parts = [f"{cmd_args['subtest_name']}"]
         nccl_test_args = [
             "nthreads",
             "ngpus",
