@@ -39,7 +39,7 @@ from cloudai.workloads.jax_toolbox import (
     NemotronTestDefinition,
 )
 from cloudai.workloads.megatron_run import CheckpointTimingReportGenerationStrategy, MegatronRunTestDefinition
-from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestReportGenerationStrategy
+from cloudai.workloads.nccl_test import NCCLTestDefinition, NcclTestReportGenerationStrategy
 from cloudai.workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy, NeMoLauncherTestDefinition
 from cloudai.workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
 from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
@@ -298,16 +298,3 @@ class TestReporters:
     )
     def test_custom_reporters(self, tdef: Type[TestDefinition], expected_reporters: Set[ReportGenerationStrategy]):
         assert DEFAULT_REPORTERS[tdef] == expected_reporters
-
-    def test_default_disabled(self):
-        reporters = get_reporters(
-            _TestRunTOML(id="id", test_name="tn", reports=[]),
-            NCCLTestDefinition(name="test", description="desc", test_template_name="tt", cmd_args=NCCLCmdArgs()),
-        )
-        assert len(reporters) == 0
-
-        reporters = get_reporters(
-            _TestRunTOML.model_validate({"id": "id", "test_name": "tn", "reports": ["unknown"]}),
-            NCCLTestDefinition(name="test", description="desc", test_template_name="tt", cmd_args=NCCLCmdArgs()),
-        )
-        assert len(reporters) == 0

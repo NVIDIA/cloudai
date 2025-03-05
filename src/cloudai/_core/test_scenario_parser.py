@@ -161,7 +161,10 @@ class _TestRunTOML(BaseModel):
     ideal_perf: float = 1.0
     time_limit: Optional[str] = None
     dependencies: list[_TestDependencyTOML] = Field(default_factory=list)
-    reports: list[str] = ["default"]
+
+    @property
+    def reports(self) -> list[str]:
+        return ["default"]
 
 
 class _TestScenarioTOML(BaseModel):
