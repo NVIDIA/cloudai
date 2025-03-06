@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +23,6 @@ from cloudai import (
     JobIdRetrievalStrategy,
     JobStatusRetrievalStrategy,
     Registry,
-    ReportGenerationStrategy,
     System,
     TestTemplateStrategy,
 )
@@ -85,10 +84,6 @@ class AnotherStrategy(TestTemplateStrategy):
     pass
 
 
-class MyReportGenerationStrategy(ReportGenerationStrategy):
-    pass
-
-
 class MyJobIdRetrievalStrategy(JobIdRetrievalStrategy):
     pass
 
@@ -106,17 +101,12 @@ class TestRegistry__StrategiesMap:
 
     def test_add_strategy(self, registry: Registry):
         registry.add_strategy(MyStrategy, [MySystem], [MyTestDefinition], MyStrategy)
-        registry.add_strategy(MyReportGenerationStrategy, [MySystem], [MyTestDefinition], MyReportGenerationStrategy)
         registry.add_strategy(MyJobIdRetrievalStrategy, [MySystem], [MyTestDefinition], MyJobIdRetrievalStrategy)
         registry.add_strategy(
             MyJobStatusRetrievalStrategy, [MySystem], [MyTestDefinition], MyJobStatusRetrievalStrategy
         )
 
         assert registry.strategies_map[(MyStrategy, MySystem, MyTestDefinition)] == MyStrategy
-        assert (
-            registry.strategies_map[(MyReportGenerationStrategy, MySystem, MyTestDefinition)]
-            == MyReportGenerationStrategy
-        )
         assert (
             registry.strategies_map[(MyJobIdRetrievalStrategy, MySystem, MyTestDefinition)] == MyJobIdRetrievalStrategy
         )
@@ -139,7 +129,7 @@ class TestRegistry__StrategiesMap:
             registry.update_strategy((str, MySystem, MyTestDefinition), MyStrategy)  # pyright: ignore
         err = (
             "Invalid strategy interface type, should be subclass of 'TestTemplateStrategy' or "
-            "'ReportGenerationStrategy' or 'JobIdRetrievalStrategy' or 'JobStatusRetrievalStrategy' "
+            "'JobIdRetrievalStrategy' or 'JobStatusRetrievalStrategy' "
             "or 'GradingStrategy'."
         )
         assert err in str(exc_info.value)

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -59,7 +59,6 @@ from .systems.slurm.slurm_system import SlurmSystem
 from .systems.standalone_system import StandaloneSystem
 from .workloads.chakra_replay import (
     ChakraReplayGradingStrategy,
-    ChakraReplayReportGenerationStrategy,
     ChakraReplaySlurmCommandGenStrategy,
     ChakraReplayTestDefinition,
 )
@@ -73,48 +72,35 @@ from .workloads.jax_toolbox import (
     GrokTestDefinition,
     JaxToolboxGradingStrategy,
     JaxToolboxJobStatusRetrievalStrategy,
-    JaxToolboxReportGenerationStrategy,
     JaxToolboxSlurmCommandGenStrategy,
     NemotronTestDefinition,
 )
-from .workloads.megatron_run import (
-    CheckpointTimingReportGenerationStrategy,
-    MegatronRunSlurmCommandGenStrategy,
-    MegatronRunTestDefinition,
-)
+from .workloads.megatron_run import MegatronRunSlurmCommandGenStrategy, MegatronRunTestDefinition
 from .workloads.nccl_test import (
     NCCLTestDefinition,
     NcclTestGradingStrategy,
     NcclTestJobStatusRetrievalStrategy,
     NcclTestKubernetesJsonGenStrategy,
-    NcclTestReportGenerationStrategy,
     NcclTestSlurmCommandGenStrategy,
 )
 from .workloads.nemo_launcher import (
     NeMoLauncherGradingStrategy,
-    NeMoLauncherReportGenerationStrategy,
     NeMoLauncherSlurmCommandGenStrategy,
     NeMoLauncherSlurmJobIdRetrievalStrategy,
     NeMoLauncherTestDefinition,
 )
-from .workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunSlurmCommandGenStrategy, NeMoRunTestDefinition
+from .workloads.nemo_run import NeMoRunSlurmCommandGenStrategy, NeMoRunTestDefinition
 from .workloads.sleep import (
     SleepGradingStrategy,
     SleepKubernetesJsonGenStrategy,
-    SleepReportGenerationStrategy,
     SleepSlurmCommandGenStrategy,
     SleepStandaloneCommandGenStrategy,
     SleepTestDefinition,
 )
-from .workloads.slurm_container import (
-    SlurmContainerCommandGenStrategy,
-    SlurmContainerReportGenerationStrategy,
-    SlurmContainerTestDefinition,
-)
+from .workloads.slurm_container import SlurmContainerCommandGenStrategy, SlurmContainerTestDefinition
 from .workloads.ucc_test import (
     UCCTestDefinition,
     UCCTestGradingStrategy,
-    UCCTestReportGenerationStrategy,
     UCCTestSlurmCommandGenStrategy,
 )
 
@@ -123,36 +109,19 @@ Registry().add_runner("kubernetes", KubernetesRunner)
 Registry().add_runner("standalone", StandaloneRunner)
 
 Registry().add_strategy(
-    ReportGenerationStrategy, [SlurmSystem, KubernetesSystem], [NCCLTestDefinition], NcclTestReportGenerationStrategy
-)
-Registry().add_strategy(
     CommandGenStrategy, [StandaloneSystem], [SleepTestDefinition], SleepStandaloneCommandGenStrategy
 )
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [SleepTestDefinition], SleepSlurmCommandGenStrategy)
 Registry().add_strategy(JsonGenStrategy, [KubernetesSystem], [SleepTestDefinition], SleepKubernetesJsonGenStrategy)
 Registry().add_strategy(JsonGenStrategy, [KubernetesSystem], [NCCLTestDefinition], NcclTestKubernetesJsonGenStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [NCCLTestDefinition], NcclTestGradingStrategy)
-Registry().add_strategy(
-    ReportGenerationStrategy, [StandaloneSystem, SlurmSystem], [SleepTestDefinition], SleepReportGenerationStrategy
-)
-Registry().add_strategy(
-    ReportGenerationStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherReportGenerationStrategy
-)
 
 Registry().add_strategy(
     CommandGenStrategy, [SlurmSystem], [MegatronRunTestDefinition], MegatronRunSlurmCommandGenStrategy
 )
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NCCLTestDefinition], NcclTestSlurmCommandGenStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [SleepTestDefinition], SleepGradingStrategy)
-Registry().add_strategy(
-    ReportGenerationStrategy,
-    [SlurmSystem],
-    [GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition],
-    JaxToolboxReportGenerationStrategy,
-)
-Registry().add_strategy(
-    ReportGenerationStrategy, [SlurmSystem], [NeMoRunTestDefinition], NeMoRunReportGenerationStrategy
-)
+
 Registry().add_strategy(
     JobIdRetrievalStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherSlurmJobIdRetrievalStrategy
 )
@@ -160,13 +129,7 @@ Registry().add_strategy(
     CommandGenStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherSlurmCommandGenStrategy
 )
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NeMoRunTestDefinition], NeMoRunSlurmCommandGenStrategy)
-Registry().add_strategy(ReportGenerationStrategy, [SlurmSystem], [UCCTestDefinition], UCCTestReportGenerationStrategy)
-Registry().add_strategy(
-    ReportGenerationStrategy, [SlurmSystem], [SlurmContainerTestDefinition], SlurmContainerReportGenerationStrategy
-)
-Registry().add_strategy(
-    ReportGenerationStrategy, [SlurmSystem], [MegatronRunTestDefinition], CheckpointTimingReportGenerationStrategy
-)
+
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherGradingStrategy)
 Registry().add_strategy(
     GradingStrategy,
@@ -237,9 +200,7 @@ Registry().add_strategy(
     JobStatusRetrievalStrategy, [StandaloneSystem], [SleepTestDefinition], DefaultJobStatusRetrievalStrategy
 )
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [UCCTestDefinition], UCCTestSlurmCommandGenStrategy)
-Registry().add_strategy(
-    ReportGenerationStrategy, [SlurmSystem], [ChakraReplayTestDefinition], ChakraReplayReportGenerationStrategy
-)
+
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [ChakraReplayTestDefinition], ChakraReplayGradingStrategy)
 Registry().add_strategy(
     CommandGenStrategy, [SlurmSystem], [ChakraReplayTestDefinition], ChakraReplaySlurmCommandGenStrategy

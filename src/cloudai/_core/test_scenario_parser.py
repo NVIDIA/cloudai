@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,18 +18,51 @@ import logging
 import re
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, Type
 
 import toml
 from pydantic import ValidationError
 
 from ..models.scenario import TestRunModel, TestScenarioModel
 from ..models.workload import TestDefinition
+from ..workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
+from ..workloads.jax_toolbox import (
+    GPTTestDefinition,
+    GrokTestDefinition,
+    JaxToolboxReportGenerationStrategy,
+    NemotronTestDefinition,
+)
+from ..workloads.megatron_run import CheckpointTimingReportGenerationStrategy, MegatronRunTestDefinition
+from ..workloads.nccl_test import NCCLTestDefinition, NcclTestReportGenerationStrategy
+from ..workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy, NeMoLauncherTestDefinition
+from ..workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
+from ..workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
+from ..workloads.slurm_container import SlurmContainerReportGenerationStrategy, SlurmContainerTestDefinition
+from ..workloads.ucc_test import UCCTestDefinition, UCCTestReportGenerationStrategy
 from .exceptions import TestScenarioParsingError, format_validation_error
+from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
 from .test import Test
 from .test_parser import TestParser
 from .test_scenario import TestDependency, TestRun, TestScenario
+
+DEFAULT_REPORTERS: dict[Type[TestDefinition], Set[Type[ReportGenerationStrategy]]] = {
+    ChakraReplayTestDefinition: {ChakraReplayReportGenerationStrategy},
+    GPTTestDefinition: {JaxToolboxReportGenerationStrategy},
+    GrokTestDefinition: {JaxToolboxReportGenerationStrategy},
+    MegatronRunTestDefinition: {CheckpointTimingReportGenerationStrategy},
+    NCCLTestDefinition: {NcclTestReportGenerationStrategy},
+    NeMoLauncherTestDefinition: {NeMoLauncherReportGenerationStrategy},
+    NeMoRunTestDefinition: {NeMoRunReportGenerationStrategy},
+    NemotronTestDefinition: {JaxToolboxReportGenerationStrategy},
+    SleepTestDefinition: {SleepReportGenerationStrategy},
+    SlurmContainerTestDefinition: {SlurmContainerReportGenerationStrategy},
+    UCCTestDefinition: {UCCTestReportGenerationStrategy},
+}
+
+
+def get_reporters(test_info: TestRunModel, tdef: TestDefinition) -> Set[Type[ReportGenerationStrategy]]:
+    return DEFAULT_REPORTERS.get(type(tdef), set())
 
 
 def parse_time_limit(limit: str) -> timedelta:
@@ -239,6 +272,7 @@ class TestScenarioParser:
             ideal_perf=test_info.ideal_perf,
             pre_test=pre_test,
             post_test=post_test,
+            reports=get_reporters(test_info, test.test_definition),
         )
         return tr
 

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,21 +16,33 @@
 
 
 from pathlib import Path
+from typing import Set, Type
 from unittest.mock import Mock
 
 import pytest
 import toml
 
-from cloudai import Test, TestRun, TestScenarioParser
-from cloudai._core.test_scenario import TestScenario
-from cloudai._core.test_scenario_parser import (
-    calculate_total_time_limit,
-)
+from cloudai import CmdArgs, Test, TestRun, TestScenario, TestScenarioParser
+from cloudai._core.report_generation_strategy import ReportGenerationStrategy
+from cloudai._core.test import TestDefinition
+from cloudai._core.test_scenario_parser import DEFAULT_REPORTERS, calculate_total_time_limit, get_reporters
 from cloudai._core.test_template import TestTemplate
 from cloudai.models.scenario import TestRunModel, TestScenarioModel, TestSpecModel
-from cloudai.models.workload import CmdArgs
 from cloudai.systems.slurm.slurm_system import SlurmSystem
-from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
+from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
+from cloudai.workloads.jax_toolbox import (
+    GPTTestDefinition,
+    GrokTestDefinition,
+    JaxToolboxReportGenerationStrategy,
+    NemotronTestDefinition,
+)
+from cloudai.workloads.megatron_run import CheckpointTimingReportGenerationStrategy, MegatronRunTestDefinition
+from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestReportGenerationStrategy
+from cloudai.workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy, NeMoLauncherTestDefinition
+from cloudai.workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
+from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
+from cloudai.workloads.slurm_container import SlurmContainerReportGenerationStrategy, SlurmContainerTestDefinition
+from cloudai.workloads.ucc_test import UCCTestDefinition, UCCTestReportGenerationStrategy
 from tests.conftest import MyTestDefinition
 
 
@@ -323,3 +335,34 @@ class TestSpec:
         tr = test_scenario_parser._create_test_run(test_info=model.tests[0], normalized_weight=1.0)
 
         assert tr.test.test_definition.cmd_args.nthreads == 42
+
+
+class TestReporters:
+    def test_default(self):
+        reporters = get_reporters(
+            TestRunModel(id="id", test_name="tn"),
+            MyTestDefinition(name="test", description="desc", test_template_name="tt", cmd_args=CmdArgs()),
+        )
+        assert len(reporters) == 0
+
+    def test_default_reporters_size(self):
+        assert len(DEFAULT_REPORTERS) == 11
+
+    @pytest.mark.parametrize(
+        "tdef,expected_reporters",
+        [
+            (ChakraReplayTestDefinition, {ChakraReplayReportGenerationStrategy}),
+            (GPTTestDefinition, {JaxToolboxReportGenerationStrategy}),
+            (GrokTestDefinition, {JaxToolboxReportGenerationStrategy}),
+            (MegatronRunTestDefinition, {CheckpointTimingReportGenerationStrategy}),
+            (NCCLTestDefinition, {NcclTestReportGenerationStrategy}),
+            (NeMoLauncherTestDefinition, {NeMoLauncherReportGenerationStrategy}),
+            (NeMoRunTestDefinition, {NeMoRunReportGenerationStrategy}),
+            (NemotronTestDefinition, {JaxToolboxReportGenerationStrategy}),
+            (SleepTestDefinition, {SleepReportGenerationStrategy}),
+            (SlurmContainerTestDefinition, {SlurmContainerReportGenerationStrategy}),
+            (UCCTestDefinition, {UCCTestReportGenerationStrategy}),
+        ],
+    )
+    def test_custom_reporters(self, tdef: Type[TestDefinition], expected_reporters: Set[ReportGenerationStrategy]):
+        assert DEFAULT_REPORTERS[tdef] == expected_reporters

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,10 +16,7 @@
 
 import logging
 from pathlib import Path
-from typing import Type, cast
 
-from .registry import Registry
-from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
 from .test_scenario import TestRun, TestScenario
 
@@ -65,24 +62,16 @@ class Reporter:
             directory_path (Path): Directory for the test's section.
             tr (TestRun): The test run object.
         """
-        key = (ReportGenerationStrategy, type(self.system), type(tr.test.test_definition))
-        registry = Registry()
-        rgs_type = cast(Type[ReportGenerationStrategy], registry.strategies_map.get(key))
-        if not rgs_type:
-            logging.warning(
-                f"No ReportGenerationStrategy found for system type={type(self.system)} and "
-                f"test definition type={type(tr.test.test_definition)}, report generation skipped."
-            )
-            return
+        for reporter in tr.reports:
+            rgs = reporter(self.system, tr)
 
-        for subdir in directory_path.iterdir():
-            if tr.step > 0:
-                subdir = subdir / f"{tr.step}"
-            tr.output_path = subdir
+            for subdir in directory_path.iterdir():
+                if tr.step > 0:
+                    subdir = subdir / f"{tr.step}"
+                tr.output_path = subdir
 
-            rgs = rgs_type(self.system, tr)
-            if not rgs.can_handle_directory():
-                logging.warning(f"Skipping '{tr.output_path}', can't handle with " f"strategy={rgs_type}.")
-                continue
+                if not rgs.can_handle_directory():
+                    logging.warning(f"Skipping '{tr.output_path}', can't handle with " f"strategy={reporter}.")
+                    continue
 
-            rgs.generate_report()
+                rgs.generate_report()

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +23,6 @@ from .configurator.base_agent import BaseAgent
 from .grading_strategy import GradingStrategy
 from .job_id_retrieval_strategy import JobIdRetrievalStrategy
 from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
-from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
 from .test_template_strategy import TestTemplateStrategy
 
@@ -49,7 +48,6 @@ class Registry(metaclass=Singleton):
                 Type[
                     Union[
                         TestTemplateStrategy,
-                        ReportGenerationStrategy,
                         JobIdRetrievalStrategy,
                         JobStatusRetrievalStrategy,
                         GradingStrategy,
@@ -61,7 +59,6 @@ class Registry(metaclass=Singleton):
             Type[
                 Union[
                     TestTemplateStrategy,
-                    ReportGenerationStrategy,
                     JobIdRetrievalStrategy,
                     JobStatusRetrievalStrategy,
                     GradingStrategy,
@@ -109,7 +106,6 @@ class Registry(metaclass=Singleton):
         strategy_interface: Type[
             Union[
                 TestTemplateStrategy,
-                ReportGenerationStrategy,
                 JobIdRetrievalStrategy,
                 JobStatusRetrievalStrategy,
                 GradingStrategy,
@@ -120,7 +116,6 @@ class Registry(metaclass=Singleton):
         strategy: Type[
             Union[
                 TestTemplateStrategy,
-                ReportGenerationStrategy,
                 JobIdRetrievalStrategy,
                 JobStatusRetrievalStrategy,
                 GradingStrategy,
@@ -140,7 +135,6 @@ class Registry(metaclass=Singleton):
             Type[
                 Union[
                     TestTemplateStrategy,
-                    ReportGenerationStrategy,
                     JobIdRetrievalStrategy,
                     JobStatusRetrievalStrategy,
                     GradingStrategy,
@@ -152,7 +146,6 @@ class Registry(metaclass=Singleton):
         value: Type[
             Union[
                 TestTemplateStrategy,
-                ReportGenerationStrategy,
                 JobIdRetrievalStrategy,
                 JobStatusRetrievalStrategy,
                 GradingStrategy,
@@ -161,14 +154,13 @@ class Registry(metaclass=Singleton):
     ) -> None:
         if not (
             issubclass(key[0], TestTemplateStrategy)
-            or issubclass(key[0], ReportGenerationStrategy)
             or issubclass(key[0], JobIdRetrievalStrategy)
             or issubclass(key[0], JobStatusRetrievalStrategy)
             or issubclass(key[0], GradingStrategy)
         ):
             raise ValueError(
                 "Invalid strategy interface type, should be subclass of 'TestTemplateStrategy' or "
-                "'ReportGenerationStrategy' or 'JobIdRetrievalStrategy' or 'JobStatusRetrievalStrategy' or "
+                "'JobIdRetrievalStrategy' or 'JobStatusRetrievalStrategy' or "
                 "'GradingStrategy'."
             )
         if not issubclass(key[1], System):
@@ -178,7 +170,6 @@ class Registry(metaclass=Singleton):
 
         if not (
             issubclass(value, TestTemplateStrategy)
-            or issubclass(value, ReportGenerationStrategy)
             or issubclass(value, JobIdRetrievalStrategy)
             or issubclass(value, JobStatusRetrievalStrategy)
             or issubclass(value, GradingStrategy)
