@@ -41,7 +41,6 @@ class TestTemplate:
         command_gen_strategy (CommandGenStrategy): Strategy for generating execution commands.
         json_gen_strategy (JsonGenStrategy): Strategy for generating json string.
         job_id_retrieval_strategy (JobIdRetrievalStrategy): Strategy for retrieving job IDs.
-        report_generation_strategy (ReportGenerationStrategy): Strategy for generating reports.
         grading_strategy (GradingStrategy): Strategy for grading performance based on test outcomes.
         job_status_retrieval_strategy (JobStatusRetrievalStrategy): Strategy for determining job statuses.
     """
