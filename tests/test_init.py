@@ -22,7 +22,6 @@ from cloudai import (
     JobStatusRetrievalStrategy,
     JsonGenStrategy,
     Registry,
-    ReportGenerationStrategy,
 )
 from cloudai.installer.slurm_installer import SlurmInstaller
 from cloudai.installer.standalone_installer import StandaloneInstaller
@@ -31,7 +30,6 @@ from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.standalone_system import StandaloneSystem
 from cloudai.workloads.chakra_replay import (
     ChakraReplayGradingStrategy,
-    ChakraReplayReportGenerationStrategy,
     ChakraReplaySlurmCommandGenStrategy,
     ChakraReplayTestDefinition,
 )
@@ -42,52 +40,35 @@ from cloudai.workloads.jax_toolbox import (
     GrokTestDefinition,
     JaxToolboxGradingStrategy,
     JaxToolboxJobStatusRetrievalStrategy,
-    JaxToolboxReportGenerationStrategy,
     JaxToolboxSlurmCommandGenStrategy,
     NemotronTestDefinition,
 )
-from cloudai.workloads.megatron_run import (
-    CheckpointTimingReportGenerationStrategy,
-    MegatronRunSlurmCommandGenStrategy,
-    MegatronRunTestDefinition,
-)
+from cloudai.workloads.megatron_run import MegatronRunSlurmCommandGenStrategy, MegatronRunTestDefinition
 from cloudai.workloads.nccl_test import (
     NCCLTestDefinition,
     NcclTestGradingStrategy,
     NcclTestJobStatusRetrievalStrategy,
     NcclTestKubernetesJsonGenStrategy,
-    NcclTestReportGenerationStrategy,
     NcclTestSlurmCommandGenStrategy,
 )
 from cloudai.workloads.nemo_launcher import (
     NeMoLauncherGradingStrategy,
-    NeMoLauncherReportGenerationStrategy,
     NeMoLauncherSlurmCommandGenStrategy,
     NeMoLauncherSlurmJobIdRetrievalStrategy,
     NeMoLauncherTestDefinition,
 )
-from cloudai.workloads.nemo_run import (
-    NeMoRunReportGenerationStrategy,
-    NeMoRunSlurmCommandGenStrategy,
-    NeMoRunTestDefinition,
-)
+from cloudai.workloads.nemo_run import NeMoRunSlurmCommandGenStrategy, NeMoRunTestDefinition
 from cloudai.workloads.sleep import (
     SleepGradingStrategy,
     SleepKubernetesJsonGenStrategy,
-    SleepReportGenerationStrategy,
     SleepSlurmCommandGenStrategy,
     SleepStandaloneCommandGenStrategy,
     SleepTestDefinition,
 )
-from cloudai.workloads.slurm_container import (
-    SlurmContainerCommandGenStrategy,
-    SlurmContainerReportGenerationStrategy,
-    SlurmContainerTestDefinition,
-)
+from cloudai.workloads.slurm_container import SlurmContainerCommandGenStrategy, SlurmContainerTestDefinition
 from cloudai.workloads.ucc_test import (
     UCCTestDefinition,
     UCCTestGradingStrategy,
-    UCCTestReportGenerationStrategy,
     UCCTestSlurmCommandGenStrategy,
 )
 
@@ -157,19 +138,6 @@ ALL_STRATEGIES = {
     (JobStatusRetrievalStrategy, StandaloneSystem, SleepTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JsonGenStrategy, KubernetesSystem, NCCLTestDefinition): NcclTestKubernetesJsonGenStrategy,
     (JsonGenStrategy, KubernetesSystem, SleepTestDefinition): SleepKubernetesJsonGenStrategy,
-    (ReportGenerationStrategy, KubernetesSystem, NCCLTestDefinition): NcclTestReportGenerationStrategy,
-    (ReportGenerationStrategy, SlurmSystem, ChakraReplayTestDefinition): ChakraReplayReportGenerationStrategy,
-    (ReportGenerationStrategy, SlurmSystem, GPTTestDefinition): JaxToolboxReportGenerationStrategy,
-    (ReportGenerationStrategy, SlurmSystem, GrokTestDefinition): JaxToolboxReportGenerationStrategy,
-    (ReportGenerationStrategy, SlurmSystem, NCCLTestDefinition): NcclTestReportGenerationStrategy,
-    (ReportGenerationStrategy, SlurmSystem, NeMoLauncherTestDefinition): NeMoLauncherReportGenerationStrategy,
-    (ReportGenerationStrategy, SlurmSystem, NeMoRunTestDefinition): NeMoRunReportGenerationStrategy,
-    (ReportGenerationStrategy, SlurmSystem, NemotronTestDefinition): JaxToolboxReportGenerationStrategy,
-    (ReportGenerationStrategy, SlurmSystem, SleepTestDefinition): SleepReportGenerationStrategy,
-    (ReportGenerationStrategy, SlurmSystem, SlurmContainerTestDefinition): SlurmContainerReportGenerationStrategy,
-    (ReportGenerationStrategy, SlurmSystem, UCCTestDefinition): UCCTestReportGenerationStrategy,
-    (ReportGenerationStrategy, SlurmSystem, MegatronRunTestDefinition): CheckpointTimingReportGenerationStrategy,
-    (ReportGenerationStrategy, StandaloneSystem, SleepTestDefinition): SleepReportGenerationStrategy,
 }
 
 
