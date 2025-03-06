@@ -46,7 +46,7 @@ docker_image_url = "nvcr.io/nvidia/nemo:24.12.rc3"
     virtual_pipeline_model_parallel_size = "null"
 
       [cmd_args.training.model.tokenizer]
-      model = "/path/to/nemotron_2_256k.model"
+      model = "/Users/andreyma/workspace/nvidia/cloudai/src/cloudai/workloads/nemo_launcher/slurm_command_gen_strategy.py"
 
     [cmd_args.training.exp_manager]
     create_wandb_logger = "false"
