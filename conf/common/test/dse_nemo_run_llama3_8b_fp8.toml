@@ -15,7 +15,7 @@
 # limitations under the License.
 
 name = "dse_nemo_run_llama3_8b_fp8"
-description = "dse_nemo_run_llama3_8b_fp8"
+description = "dse_nemo_run_llama3_8b"
 test_template_name = "NeMoRun"
 
 [cmd_args]
