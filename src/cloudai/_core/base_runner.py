@@ -17,7 +17,6 @@
 import asyncio
 import datetime
 import logging
-import sys
 from abc import ABC, abstractmethod
 from asyncio import Task
 from pathlib import Path
