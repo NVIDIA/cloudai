@@ -57,12 +57,23 @@ class Reporter:
             self.generate_per_case_reports(test_output_dir, tr)
 
     def generate_scenario_report(self) -> None:
-        report = (
-            jinja2.Environment(loader=jinja2.FileSystemLoader("src/cloudai/util"))
-            .get_template("general-report.jinja2")
-            .render(test_scenario=self.test_scenario)
+        template = jinja2.Environment(loader=jinja2.FileSystemLoader("src/cloudai/util")).get_template(
+            "general-report.jinja2"
         )
 
+        results = {}
+        for tr in self.test_scenario.test_runs:
+            for iter in range(tr.iterations):
+                run_dir = self.results_root / tr.name / f"{iter}"
+                if run_dir.exists():
+                    results.setdefault(
+                        tr.name + f"{iter}", {"logs_path": f"./{run_dir.relative_to(self.results_root)}"}
+                    )
+
+        report = template.render(
+            test_scenario=self.test_scenario,
+            tr_results=results,
+        )
         report_path = self.results_root / f"{self.test_scenario.name}.html"
         with report_path.open("w") as f:
             f.write(report)

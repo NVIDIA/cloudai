@@ -94,14 +94,11 @@ class BaseRunner(ABC):
             self.system.kill(job)
         logging.info("All jobs have been killed.")
 
-        sys.exit(0)
-
     async def run(self):
         """Asynchronously run the test scenario."""
         if self.shutting_down:
             return
 
-        logging.info("Starting test scenario execution.")
         total_tests = len(self.test_scenario.test_runs)
         completed_jobs_count = 0
 
