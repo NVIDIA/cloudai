@@ -24,14 +24,22 @@ from unittest.mock import Mock
 
 import toml
 
-from cloudai import Installable, Parser, Registry, Reporter, Runner, System, TestParser
-from cloudai._core.base_installer import BaseInstaller
-from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
-from cloudai._core.test import Test
-from cloudai._core.test_scenario import TestScenario
-from cloudai.util import prepare_output_dir
+from cloudai import (
+    BaseInstaller,
+    CloudAIGymEnv,
+    Installable,
+    Parser,
+    Registry,
+    Reporter,
+    Runner,
+    System,
+    Test,
+    TestParser,
+    TestScenario,
+)
 
 from ..parser import HOOK_ROOT
+from ..util import prepare_output_dir
 
 
 def handle_install_and_uninstall(args: argparse.Namespace) -> int:
