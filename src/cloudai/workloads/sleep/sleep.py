@@ -15,7 +15,9 @@
 # limitations under the License.
 
 
-from cloudai import CmdArgs, Installable, TestDefinition
+from cloudai import Installable
+
+from ...models.workload import CmdArgs, TestDefinition
 
 
 class SleepCmdArgs(CmdArgs):
