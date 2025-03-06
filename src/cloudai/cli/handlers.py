@@ -17,8 +17,9 @@
 import argparse
 import asyncio
 import logging
+import signal
 from pathlib import Path
-from typing import List, Optional
+from typing import Callable, List, Optional
 from unittest.mock import Mock
 
 import toml
@@ -119,7 +120,6 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
         exit(1)
 
     agent = agent_class(env)
-
     for step in range(agent.max_steps):
         result = agent.select_action()
         if result is None:
@@ -127,6 +127,8 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
         step, action = result
         test_run.step = step
         observation, reward, done, info = env.step(action)
+        feedback = {"trial_index": step, "value": reward}
+        agent.update_policy(feedback)
         logging.info(f"Step {step}: Observation: {observation}, Reward: {reward}")
 
 
@@ -143,6 +145,18 @@ def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> None:
             f" the '{args.log_file}' file to confirm successful completion or to"
             " identify any issues."
         )
+
+
+def register_signal_handlers(signal_handler: Callable) -> None:
+    """Register signal handlers for handling termination-related signals."""
+    signals = [
+        signal.SIGINT,
+        signal.SIGTERM,
+        signal.SIGHUP,
+        signal.SIGQUIT,
+    ]
+    for sig in signals:
+        signal.signal(sig, signal_handler)
 
 
 def handle_dry_run_and_run(args: argparse.Namespace) -> int:
@@ -187,6 +201,8 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     logging.info(test_scenario.pretty_print())
 
     runner = Runner(args.mode, system, test_scenario)
+    register_signal_handlers(runner.cancel_on_signal)
+
     if any(is_dse_job(tr.test.cmd_args) for tr in test_scenario.test_runs):
         handle_dse_job(runner, args)
     else:

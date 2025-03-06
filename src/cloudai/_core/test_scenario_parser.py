@@ -127,18 +127,7 @@ def calculate_total_time_limit(test_hooks: List[TestScenario], time_limit: Optio
 
 
 def get_reporters(test_info: "_TestRunTOML", tdef: TestDefinition) -> Set[Type[ReportGenerationStrategy]]:
-    reporters: Set[Type[ReportGenerationStrategy]] = set()
-    user_defined_reporters = set(test_info.reports)
-    if "default" in user_defined_reporters or "defaults" in user_defined_reporters:
-        reporters |= DEFAULT_REPORTERS.get(type(tdef), set())
-
-    for reporter in user_defined_reporters:
-        if reporter == "default" or reporter == "defaults":
-            continue
-
-        # TODO: get classes from string
-
-    return reporters
+    return DEFAULT_REPORTERS.get(type(tdef), set())
 
 
 class _TestDependencyTOML(BaseModel):
@@ -161,7 +150,6 @@ class _TestRunTOML(BaseModel):
     ideal_perf: float = 1.0
     time_limit: Optional[str] = None
     dependencies: list[_TestDependencyTOML] = Field(default_factory=list)
-    reports: list[str] = ["default"]
 
 
 class _TestScenarioTOML(BaseModel):
