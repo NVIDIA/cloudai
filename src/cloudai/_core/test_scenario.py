@@ -16,9 +16,10 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List, Optional, Set, Type
 
 if TYPE_CHECKING:
+    from .report_generation_strategy import ReportGenerationStrategy
     from .test import Test
 
 
@@ -61,6 +62,7 @@ class TestRun:
     dependencies: dict[str, TestDependency] = field(default_factory=dict)
     pre_test: Optional["TestScenario"] = None
     post_test: Optional["TestScenario"] = None
+    reports: Set[Type["ReportGenerationStrategy"]] = field(default_factory=set)
 
     def __hash__(self) -> int:
         return hash(self.name + self.test.name + str(self.iterations) + str(self.current_iteration))

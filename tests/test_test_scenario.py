@@ -16,12 +16,35 @@
 
 
 from pathlib import Path
+from typing import Set, Type
 from unittest.mock import Mock
 
 import pytest
 
-from cloudai import CmdArgs, Test, TestRun, TestScenarioParser, TestScenarioParsingError
-from cloudai._core.test_scenario_parser import _TestScenarioTOML, calculate_total_time_limit
+from cloudai import CmdArgs, Test, TestRun, TestScenario, TestScenarioParser, TestScenarioParsingError
+from cloudai._core.report_generation_strategy import ReportGenerationStrategy
+from cloudai._core.test import TestDefinition
+from cloudai._core.test_scenario_parser import (
+    DEFAULT_REPORTERS,
+    _TestRunTOML,
+    _TestScenarioTOML,
+    calculate_total_time_limit,
+    get_reporters,
+)
+from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
+from cloudai.workloads.jax_toolbox import (
+    GPTTestDefinition,
+    GrokTestDefinition,
+    JaxToolboxReportGenerationStrategy,
+    NemotronTestDefinition,
+)
+from cloudai.workloads.megatron_run import CheckpointTimingReportGenerationStrategy, MegatronRunTestDefinition
+from cloudai.workloads.nccl_test import NCCLTestDefinition, NcclTestReportGenerationStrategy
+from cloudai.workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy, NeMoLauncherTestDefinition
+from cloudai.workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
+from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
+from cloudai.workloads.slurm_container import SlurmContainerReportGenerationStrategy, SlurmContainerTestDefinition
+from cloudai.workloads.ucc_test import UCCTestDefinition, UCCTestReportGenerationStrategy
 from tests.conftest import MyTestDefinition
 
 
@@ -222,14 +245,16 @@ def test_calculate_total_time_limit(time_str, expected):
 
 
 def test_create_test_run_with_hooks(test: Test, test_scenario_parser: TestScenarioParser):
-    pre_test = Mock(
-        test_runs=[TestRun(name="pre1", test=test, num_nodes=1, nodes=[], time_limit="00:30:00", iterations=1)]
+    pre_test = TestScenario(
+        name="pre",
+        test_runs=[TestRun(name="pre1", test=test, num_nodes=1, nodes=[], time_limit="00:30:00", iterations=1)],
     )
-    post_test = Mock(
-        test_runs=[TestRun(name="post1", test=test, num_nodes=1, nodes=[], time_limit="00:20:00", iterations=1)]
+    post_test = TestScenario(
+        name="post",
+        test_runs=[TestRun(name="post1", test=test, num_nodes=1, nodes=[], time_limit="00:20:00", iterations=1)],
     )
 
-    test_info = Mock(id="main1", test_name="test1", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1)
+    test_info = _TestRunTOML(id="main1", test_name="test1", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1)
     test_scenario_parser.test_mapping = {"test1": test}
 
     test_run = test_scenario_parser._create_test_run(
@@ -242,3 +267,34 @@ def test_create_test_run_with_hooks(test: Test, test_scenario_parser: TestScenar
 def test_total_time_limit_with_empty_hooks():
     result = calculate_total_time_limit([], "01:00:00")
     assert result == "01:00:00"
+
+
+class TestReporters:
+    def test_default(self):
+        reporters = get_reporters(
+            _TestRunTOML(id="id", test_name="tn"),
+            MyTestDefinition(name="test", description="desc", test_template_name="tt", cmd_args=CmdArgs()),
+        )
+        assert len(reporters) == 0
+
+    def test_default_reporters_size(self):
+        assert len(DEFAULT_REPORTERS) == 11
+
+    @pytest.mark.parametrize(
+        "tdef,expected_reporters",
+        [
+            (ChakraReplayTestDefinition, {ChakraReplayReportGenerationStrategy}),
+            (GPTTestDefinition, {JaxToolboxReportGenerationStrategy}),
+            (GrokTestDefinition, {JaxToolboxReportGenerationStrategy}),
+            (MegatronRunTestDefinition, {CheckpointTimingReportGenerationStrategy}),
+            (NCCLTestDefinition, {NcclTestReportGenerationStrategy}),
+            (NeMoLauncherTestDefinition, {NeMoLauncherReportGenerationStrategy}),
+            (NeMoRunTestDefinition, {NeMoRunReportGenerationStrategy}),
+            (NemotronTestDefinition, {JaxToolboxReportGenerationStrategy}),
+            (SleepTestDefinition, {SleepReportGenerationStrategy}),
+            (SlurmContainerTestDefinition, {SlurmContainerReportGenerationStrategy}),
+            (UCCTestDefinition, {UCCTestReportGenerationStrategy}),
+        ],
+    )
+    def test_custom_reporters(self, tdef: Type[TestDefinition], expected_reporters: Set[ReportGenerationStrategy]):
+        assert DEFAULT_REPORTERS[tdef] == expected_reporters

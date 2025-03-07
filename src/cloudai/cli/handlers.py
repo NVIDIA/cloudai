@@ -17,8 +17,9 @@
 import argparse
 import asyncio
 import logging
+import signal
 from pathlib import Path
-from typing import List, Optional
+from typing import Callable, List, Optional
 from unittest.mock import Mock
 
 import toml
@@ -146,6 +147,18 @@ def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> None:
         )
 
 
+def register_signal_handlers(signal_handler: Callable) -> None:
+    """Register signal handlers for handling termination-related signals."""
+    signals = [
+        signal.SIGINT,
+        signal.SIGTERM,
+        signal.SIGHUP,
+        signal.SIGQUIT,
+    ]
+    for sig in signals:
+        signal.signal(sig, signal_handler)
+
+
 def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     parser = Parser(args.system_config)
     system, tests, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
@@ -178,7 +191,10 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
         raise NotImplementedError(f"No installer available for scheduler: {system.scheduler}")
     installer = installer_class(system)
 
-    result = installer.is_installed(installables)
+    if args.enable_cache_without_check:
+        result = installer.mark_as_installed(installables)
+    else:
+        result = installer.is_installed(installables)
 
     if args.mode == "run" and not result.success:
         logging.error("CloudAI has not been installed. Please run install mode first.")
@@ -188,6 +204,8 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     logging.info(test_scenario.pretty_print())
 
     runner = Runner(args.mode, system, test_scenario)
+    register_signal_handlers(runner.cancel_on_signal)
+
     if any(is_dse_job(tr.test.cmd_args) for tr in test_scenario.test_runs):
         handle_dse_job(runner, args)
     else:

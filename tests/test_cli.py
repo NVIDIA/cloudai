@@ -290,6 +290,7 @@ class TestCLIDefaultModes:
                 tests_dir=Path("tests_dir"),
                 test_scenario=Path("test_scenario"),
                 output_dir=None,
+                enable_cache_without_check=False,
             )
 
     @pytest.mark.parametrize(
