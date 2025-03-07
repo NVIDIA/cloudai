@@ -438,6 +438,14 @@ CloudAI runs all slurm jobs using containers. To simplify file system related ta
     These mounts are not verified for validity and do not override default mounts.
 1. Test specific mounts can be mounted in-code.
 
+### Head node without shared storage available on compute nodes
+When compute nodes don't share file system with head node, `--enable-cache-without-check` for `run` and `dry-run` skips real check for cache existence, but still builds all paths correctly. The flow is like this:
+
+1. _[on the head node]_ run `cloudai install`
+1. _[on the head node]_ copy cache to compute nodes
+1. Modify system.toml to set compute nodes' installation root
+1. Run `cloudai run --enable-cache-without-check ...`
+
 #### Dev details
 `SlurmCommandGenStrategy` defines abstract method `_container_mounts(tr: TestRun)` that must be implemented by every subclass. This method is used in `SlurmCommandGenStrategy.container_mounts(tr: TestRun)` (defined as `@final`) where mounts like `/cloudai_run_results` (default mount), `TestDefinition.extra_container_mounts` (from Test TOML) and test specific mounts (defined in-code) are added.
 

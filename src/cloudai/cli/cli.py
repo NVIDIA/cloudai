@@ -124,7 +124,7 @@ class CloudAICLI:
             desc = "Execute the test scenarios."
             if mode == "dry-run":
                 desc = "Perform a dry-run of the test scenarios without executing them."
-            self.add_command(
+            p = self.add_command(
                 mode,
                 desc,
                 handle_dry_run_and_run,
@@ -132,6 +132,12 @@ class CloudAICLI:
                 tests_dir=True,
                 test_scenario=True,
                 output_dir=False,
+            )
+            p.add_argument(
+                "--enable-cache-without-check",
+                action="store_true",
+                help="Enable cache without checking.",
+                default=False,
             )
 
     def add_install_and_uninstall(self):
