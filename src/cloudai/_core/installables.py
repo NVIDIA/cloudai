@@ -118,6 +118,7 @@ class PythonExecutable(Installable):
 
     git_repo: GitRepo
     venv_path: Optional[Path] = None
+    project_subpath: Optional[Path] = None
 
     def __eq__(self, other: object) -> bool:
         """Check if two installable objects are equal."""
