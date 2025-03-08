@@ -42,14 +42,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         """
         super().__init__(system, cmd_args)
         self.system = system
-        if not self.system.default_partition:
-            raise ValueError(
-                "Default partition not set in the Slurm system object. "
-                "The 'default_partition' attribute should be properly defined in the Slurm system configuration. "
-                "Please ensure that 'default_partition' is set correctly in the corresponding system configuration "
-                "(e.g., system.toml)."
-            )
-
         self.docker_image_url = self.cmd_args.get("docker_image_url", "")
 
     @abstractmethod
@@ -130,15 +122,12 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             KeyError: If partition or essential node settings are missing.
         """
         job_name = self.job_name(job_name_prefix)
-
-        parsed_nodes = self.system.parse_nodes(tr.nodes)
-        num_nodes = len(parsed_nodes) if parsed_nodes else tr.num_nodes
-        node_list_str = ",".join(parsed_nodes) if parsed_nodes else ""
+        num_nodes, node_list = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
 
         slurm_args = {
             "job_name": job_name,
             "num_nodes": num_nodes,
-            "node_list_str": node_list_str,
+            "node_list_str": ",".join(node_list),
         }
         if tr.time_limit:
             slurm_args["time_limit"] = tr.time_limit

@@ -84,7 +84,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "-y",
         ]
 
-        num_nodes = len(self.system.parse_nodes(tr.nodes)) if tr.nodes else tr.num_nodes
+        num_nodes, _ = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
 
         if cmd_args_dict["trainer"]["num_nodes"] and cmd_args_dict["trainer"]["num_nodes"] > num_nodes:
             err = (
