@@ -242,17 +242,13 @@ class SlurmInstaller(BaseInstaller):
             project_dir = project_dir / item.project_subpath
 
         requirements_txt = project_dir / "requirements.txt"
-        pyproject_toml = project_dir / "pyproject.toml"
+        res = self._install_requirements(venv_path, requirements_txt)
+        if not res.success:
+            return res
 
-        if requirements_txt.is_file():
-            res = self._install_requirements(venv_path, requirements_txt)
-            if not res.success:
-                return res
-
-        if pyproject_toml.is_file():
-            res = self._install_pyproject(venv_path, project_dir)
-            if not res.success:
-                return res
+        res = self._install_pyproject(venv_path, project_dir)
+        if not res.success:
+            return res
 
         item.venv_path = venv_path
         return InstallStatusResult(True)

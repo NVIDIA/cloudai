@@ -231,6 +231,7 @@ class TestInstallOnePythonExecutable:
         installer._checkout_commit = Mock(return_value=InstallStatusResult(True))
         installer._create_venv = Mock(return_value=InstallStatusResult(True))
         installer._install_requirements = Mock(return_value=InstallStatusResult(True))
+        installer._install_pyproject = Mock(return_value=InstallStatusResult(True))
         res = installer._install_python_executable(py)
         assert res.success
         assert py.git_repo.installed_path == installer.system.install_path / py.git_repo.repo_name
@@ -286,18 +287,21 @@ class TestInstallOnePythonExecutable:
         assert not (installer.system.install_path / py.venv_name).exists()
         assert not py.venv_path
 
-    def test_install_python_executable_with_project_subpath(self, installer: SlurmInstaller, git: GitRepo):
+    def test_install_python_executable_with_dependencies(self, installer: SlurmInstaller, git: GitRepo):
         repo_dir = installer.system.install_path / git.repo_name
         repo_dir.mkdir(parents=True)
         subdir = repo_dir / "subdir"
         subdir.mkdir()
+
         (subdir / "requirements.txt").write_text("package==1.0")
+        (subdir / "pyproject.toml").write_text("[tool.poetry]\nname = 'project'")
 
         py = PythonExecutable(git, project_subpath=Path("subdir"))
 
         installer._install_one_git_repo = Mock(return_value=InstallStatusResult(True))
         installer._create_venv = Mock(return_value=InstallStatusResult(True))
         installer._install_requirements = Mock(return_value=InstallStatusResult(True))
+        installer._install_pyproject = Mock(return_value=InstallStatusResult(True))
 
         py.git_repo.installed_path = repo_dir
 
@@ -307,26 +311,6 @@ class TestInstallOnePythonExecutable:
         installer._install_requirements.assert_called_once_with(
             installer.system.install_path / py.venv_name, subdir / "requirements.txt"
         )
-        assert py.venv_path == installer.system.install_path / py.venv_name
-
-    def test_install_python_executable_with_pyproject(self, installer: SlurmInstaller, git: GitRepo):
-        repo_dir = installer.system.install_path / git.repo_name
-        repo_dir.mkdir(parents=True)
-        subdir = repo_dir / "subdir"
-        subdir.mkdir()
-        (subdir / "pyproject.toml").write_text("[tool.poetry]\nname = 'project'")
-
-        py = PythonExecutable(git, project_subpath=Path("subdir"))
-
-        installer._install_one_git_repo = Mock(return_value=InstallStatusResult(True))
-        installer._create_venv = Mock(return_value=InstallStatusResult(True))
-        installer._install_pyproject = Mock(return_value=InstallStatusResult(True))
-
-        py.git_repo.installed_path = repo_dir
-
-        res = installer._install_python_executable(py)
-
-        assert res.success
         installer._install_pyproject.assert_called_once_with(installer.system.install_path / py.venv_name, subdir)
         assert py.venv_path == installer.system.install_path / py.venv_name
 
