@@ -15,11 +15,12 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict
 
-from .installables import GitRepo, Installable
+from .installables import GitRepo, Installable, PythonExecutable
 from .test_template import TestTemplate
 
 
@@ -123,6 +124,16 @@ class NsysConfiguration(BaseModel):
         return parts
 
 
+class PredictorConfig(BaseModel):
+    """Predictor configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    repo: GitRepo
+    sub_path: str
+    bin_name: str
+
+
 class TestDefinition(BaseModel, ABC):
     """Base Test object."""
 
@@ -139,6 +150,8 @@ class TestDefinition(BaseModel, ABC):
     extra_container_mounts: list[str] = []
     git_repos: list[GitRepo] = []
     nsys: Optional[NsysConfiguration] = None
+    predictor: Optional[PredictorConfig] = None
+    _predictor_executable: Optional[PythonExecutable] = None
     agent: str = "grid_search"
     agent_steps: int = 1
 
@@ -152,6 +165,14 @@ class TestDefinition(BaseModel, ABC):
         for k, v in self.extra_cmd_args.items():
             parts.append(f"{k}={v}" if v else k)
         return " ".join(parts)
+
+    @property
+    def predictor_executable(self) -> Optional[PythonExecutable]:
+        if self.predictor and self._predictor_executable is None:
+            self._predictor_executable = PythonExecutable(
+                git_repo=self.predictor.repo, project_subpath=Path(self.predictor.sub_path)
+            )
+        return self._predictor_executable
 
     @property
     @abstractmethod

@@ -87,4 +87,4 @@ class NCCLTestDefinition(TestDefinition):
 
     @property
     def installables(self) -> list[Installable]:
-        return [self.docker_image]
+        return [self.docker_image, self.predictor_executable] if self.predictor_executable else [self.docker_image]
