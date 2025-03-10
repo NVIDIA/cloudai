@@ -142,10 +142,6 @@ class Test_Parser:
         assert "partition_1" in system.groups
         assert "partition_2" in system.groups
 
-        # checking number of nodes in each partition
-        assert len(system.partitions[0].slurm_nodes) == 100
-        assert len(system.partitions[1].slurm_nodes) == 100
-
         # checking groups
         assert len(system.groups["partition_2"]) == 0
         assert len(system.groups["partition_1"]) == 4

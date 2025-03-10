@@ -56,7 +56,7 @@ def slurm_system(tmp_path: Path):
         install_path=tmp_path,
         output_path=tmp_path,
         default_partition="main",
-        partitions=[SlurmPartition(name="main", nodes=["nodeA001", "nodeB001"])],
+        partitions=[SlurmPartition(name="main")],
     )
     return system
 
