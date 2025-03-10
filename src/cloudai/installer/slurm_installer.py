@@ -299,8 +299,6 @@ class SlurmInstaller(BaseInstaller):
 
     def _install_pyproject(self, venv_dir: Path, project_dir: Path) -> InstallStatusResult:
         pyproject_toml = project_dir / "pyproject.toml"
-        if not pyproject_toml.is_file():
-            return InstallStatusResult(False, f"pyproject.toml not found in {project_dir}")
 
         try:
             (venv_dir / "bin" / "python").resolve(strict=True)
