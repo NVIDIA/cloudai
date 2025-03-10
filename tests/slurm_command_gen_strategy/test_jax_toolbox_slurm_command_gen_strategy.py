@@ -59,13 +59,14 @@ class TestJaxToolboxSlurmCommandGenStrategy:
     @pytest.mark.parametrize("test_fixture", ["gpt_test", "grok_test"])
     def test_gen_exec_command(
         self,
-        slurm_system,
+        slurm_system: SlurmSystem,
         cmd_gen_strategy: JaxToolboxSlurmCommandGenStrategy,
         tmp_path: Path,
         request,
         test_fixture,
     ) -> None:
         test_def = request.getfixturevalue(test_fixture)
+        slurm_system.output_path.mkdir(parents=True, exist_ok=True)
 
         test = Test(test_definition=test_def, test_template=TestTemplate(slurm_system))
         test_run = TestRun(

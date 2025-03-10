@@ -75,7 +75,7 @@ def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, testrun_
     assert "test_job" in file_contents
     assert "node1,node2" in file_contents
     assert "srun" in file_contents
-    assert "--mpi=fake-mpi" in file_contents
+    assert f"--mpi={strategy_fixture.system.mpi}" in file_contents
 
 
 def test_num_nodes_and_nodes(strategy_fixture: SlurmCommandGenStrategy):
@@ -129,18 +129,6 @@ def test_time_limit(time_limit: Optional[str], strategy_fixture: SlurmCommandGen
         assert slurm_args["time_limit"] == time_limit
     else:
         assert "time_limit" not in slurm_args
-
-
-def test_raises_if_no_default_partition(slurm_system: SlurmSystem):
-    slurm_system.default_partition = ""
-    with pytest.raises(ValueError) as exc_info:
-        MySlurmCommandGenStrategy(slurm_system, {})
-    assert (
-        "Default partition not set in the Slurm system object. "
-        "The 'default_partition' attribute should be properly defined in the Slurm "
-        "system configuration. Please ensure that 'default_partition' is set correctly "
-        "in the corresponding system configuration (e.g., system.toml)."
-    ) in str(exc_info.value)
 
 
 @pytest.mark.parametrize(

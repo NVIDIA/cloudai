@@ -76,25 +76,8 @@ class SlurmPartition(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     name: str
-    nodes: List[str]
     groups: List[SlurmGroup] = []
-
-    _slurm_nodes: List[SlurmNode] = []
-
-    @property
-    def slurm_nodes(self) -> List[SlurmNode]:
-        if self._slurm_nodes:
-            return self._slurm_nodes
-
-        node_names = set()
-        for nodes_list in self.nodes:
-            node_names.update(set(parse_node_list(nodes_list)))
-
-        self._slurm_nodes = [
-            SlurmNode(name=node_name, partition=self.name, state=SlurmNodeState.UNKNOWN_STATE)
-            for node_name in node_names
-        ]
-        return self._slurm_nodes
+    slurm_nodes: list[SlurmNode] = Field(default_factory=list[SlurmNode], exclude=True)
 
 
 class SlurmSystem(BaseModel, System):
@@ -147,7 +130,10 @@ class SlurmSystem(BaseModel, System):
                 node_names = set()
                 for group_nodes in group.nodes:
                     node_names.update(set(parse_node_list(group_nodes)))
-                groups[part.name][group.name] = [node for node in part.slurm_nodes if node.name in node_names]
+                groups[part.name][group.name] = [
+                    SlurmNode(name=node_name, partition=self.name, state=SlurmNodeState.UNKNOWN_STATE)
+                    for node_name in node_names
+                ]
 
         return groups
 
@@ -163,7 +149,10 @@ class SlurmSystem(BaseModel, System):
         commands, and correlating this information to determine the state of each node and the user running jobs on
         each node.
         """
-        self.update_node_states()
+        squeue_output, _ = self.fetch_command_output("squeue -o '%N|%u' --noheader")
+        sinfo_output, _ = self.fetch_command_output("sinfo")
+        node_user_map = self.parse_squeue_output(squeue_output)
+        self.parse_sinfo_output(sinfo_output, node_user_map)
 
     def is_job_running(self, job: BaseJob, retry_threshold: int = 3) -> bool:
         """
@@ -373,7 +362,7 @@ class SlurmSystem(BaseModel, System):
         """
         self.validate_partition_and_group(partition_name, group_name)
 
-        self.update_node_states()
+        self.update()
 
         grouped_nodes = self.group_nodes_by_state(partition_name, group_name)
 
@@ -490,18 +479,6 @@ class SlurmSystem(BaseModel, System):
 
         return allocated_nodes
 
-    def is_node_in_system(self, node_name: str) -> bool:
-        """
-        Check if a given node is part of the Slurm system.
-
-        Args:
-            node_name (str): The name of the node to check.
-
-        Returns:
-            True if the node is part of the system, otherwise False.
-        """
-        return any(any(node.name == node_name for node in part.slurm_nodes) for part in self.partitions)
-
     def scancel(self, job_id: int) -> None:
         """
         Terminates a specified Slurm job by sending a cancellation command.
@@ -510,39 +487,6 @@ class SlurmSystem(BaseModel, System):
             job_id (int): The ID of the job to cancel.
         """
         self.cmd_shell.execute(f"scancel {job_id}")
-
-    def update_node_states(self) -> None:
-        """
-        Update the states of nodes in the Slurm system.
-
-        By querying the current state of each node using the 'sinfo' command, and correlates this with 'squeue' to
-        determine which user is running jobs on each node. This method parses the output of these commands, identifies
-        the state of nodes and the users, and updates the corresponding SlurmNode instances in the system.
-        """
-        squeue_output = self.get_squeue()
-        sinfo_output = self.get_sinfo()
-        node_user_map = self.parse_squeue_output(squeue_output)
-        self.parse_sinfo_output(sinfo_output, node_user_map)
-
-    def get_squeue(self) -> str:
-        """
-        Fetch the output from the 'squeue' command.
-
-        Returns
-            str: The stdout from the 'squeue' command execution.
-        """
-        squeue_output, _ = self.fetch_command_output("squeue -o '%N|%u' --noheader")
-        return squeue_output
-
-    def get_sinfo(self) -> str:
-        """
-        Fetch the output from the 'sinfo' command.
-
-        Returns
-            str: The stdout from the 'sinfo' command execution.
-        """
-        sinfo_output, _ = self.fetch_command_output("sinfo")
-        return sinfo_output
 
     def fetch_command_output(self, command: str) -> Tuple[str, str]:
         """
@@ -614,11 +558,24 @@ class SlurmSystem(BaseModel, System):
                 for part in self.partitions:
                     if part.name != partition:
                         continue
+
+                    found = False
                     for node in part.slurm_nodes:
                         if node.name == node_name:
+                            found = True
                             node.state = state_enum
                             node.user = node_user_map.get(node_name, "N/A")
                             break
+
+                    if not found:
+                        part.slurm_nodes.append(
+                            SlurmNode(
+                                name=node_name,
+                                partition=partition,
+                                state=state_enum,
+                                user=node_user_map.get(node_name, "N/A"),
+                            )
+                        )
 
     def convert_state_to_enum(self, state_str: str) -> SlurmNodeState:
         """
@@ -709,13 +666,30 @@ class SlurmSystem(BaseModel, System):
                 group_nodes = self.get_available_nodes_from_group(partition_name, group_name, num_nodes)
                 parsed_nodes += [node.name for node in group_nodes]
             else:
-                # Handle both individual node names and ranges
-                if self.is_node_in_system(node_spec) or "[" in node_spec:
-                    expanded_nodes = parse_node_list(node_spec)
-                    parsed_nodes += expanded_nodes
-                else:
-                    raise ValueError(f"Node '{node_spec}' not found.")
+                expanded_nodes = parse_node_list(node_spec)
+                parsed_nodes += expanded_nodes
 
         # Remove duplicates while preserving order
         parsed_nodes = list(dict.fromkeys(parsed_nodes))
         return parsed_nodes
+
+    def get_nodes_by_spec(self, num_nodes: int, nodes: list[str]) -> Tuple[int, list[str]]:
+        """
+        Retrieve a list of node names based on specifications.
+
+        When nodes is empty, returns `(num_nodes, [])`, otherwise parses the node specifications and returns the number
+        of nodes and a list of node names.
+
+        Args:
+            num_nodes (int): The number of nodes, can't be `0`.
+            nodes (list[str]): A list of node names specifications, slurm format or `PARTITION:GROUP:NUM_NODES`.
+
+        Returns:
+            Tuple[int, list[str]]: The number of nodes and a list of node names.
+        """
+        num_nodes, node_list = num_nodes, []
+        parsed_nodes = self.parse_nodes(nodes)
+        if parsed_nodes:
+            num_nodes = len(parsed_nodes)
+            node_list = parsed_nodes
+        return num_nodes, node_list
