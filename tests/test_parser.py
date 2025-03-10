@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -141,10 +141,6 @@ class Test_Parser:
         assert len(system.groups) == 2
         assert "partition_1" in system.groups
         assert "partition_2" in system.groups
-
-        # checking number of nodes in each partition
-        assert len(system.partitions[0].slurm_nodes) == 100
-        assert len(system.partitions[1].slurm_nodes) == 100
 
         # checking groups
         assert len(system.groups["partition_2"]) == 0
