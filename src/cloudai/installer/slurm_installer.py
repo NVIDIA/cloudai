@@ -298,32 +298,15 @@ class SlurmInstaller(BaseInstaller):
         return InstallStatusResult(True)
 
     def _install_pyproject(self, venv_dir: Path, project_dir: Path) -> InstallStatusResult:
-        pyproject_toml = project_dir / "pyproject.toml"
-
-        try:
-            (venv_dir / "bin" / "python").resolve(strict=True)
-        except FileNotFoundError:
+        python_bin = venv_dir / "bin" / "python"
+        if not python_bin.exists():
             return InstallStatusResult(False, f"Python binary not found in virtual environment: {venv_dir}")
 
-        try:
-            activate_script = (venv_dir / "bin" / "activate").resolve(strict=True)
-        except FileNotFoundError:
-            return InstallStatusResult(False, f"Activate script not found in virtual environment: {venv_dir}")
-
-        try:
-            project_dir = project_dir.resolve(strict=True)
-        except FileNotFoundError:
+        if not project_dir.exists():
             return InstallStatusResult(False, f"Project directory not found: {project_dir}")
 
-        install_cmd = f"source {activate_script} && pip install {project_dir}"
-
-        result = subprocess.run(
-            install_cmd,
-            shell=True,
-            executable="/bin/bash",
-            capture_output=True,
-            text=True,
-        )
+        install_cmd = [str(python_bin), "-m", "pip", "install", str(project_dir)]
+        result = subprocess.run(install_cmd, capture_output=True, text=True)
 
         if result.returncode != 0:
             return InstallStatusResult(False, f"Failed to install {project_dir} using pip: {result.stderr}")
