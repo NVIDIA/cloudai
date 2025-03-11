@@ -244,7 +244,12 @@ class SlurmInstaller(BaseInstaller):
         pyproject_toml = project_dir / "pyproject.toml"
         requirements_txt = project_dir / "requirements.txt"
 
-        if pyproject_toml.exists():
+        if pyproject_toml.exists() and requirements_txt.exists():
+            if item.dependencies_from_pyproject:
+                res = self._install_pyproject(venv_path, project_dir)
+            else:
+                res = self._install_requirements(venv_path, requirements_txt)
+        elif pyproject_toml.exists():
             res = self._install_pyproject(venv_path, project_dir)
         elif requirements_txt.exists():
             res = self._install_requirements(venv_path, requirements_txt)
