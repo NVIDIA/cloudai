@@ -303,7 +303,7 @@ class TestInstallOnePythonExecutable:
         pyproject_file.write_text("[tool.poetry]\nname = 'project'")
         requirements_file.write_text("package==1.0")
 
-        py = PythonExecutable(git, project_subpath=Path("subdir"))
+        py = PythonExecutable(git, project_subpath=Path("subdir"), dependencies_from_pyproject=True)
 
         installer._install_one_git_repo = Mock(return_value=InstallStatusResult(True))
         installer._create_venv = Mock(return_value=InstallStatusResult(True))
@@ -317,6 +317,36 @@ class TestInstallOnePythonExecutable:
         assert res.success
         installer._install_pyproject.assert_called_once_with(installer.system.install_path / py.venv_name, subdir)
         installer._install_requirements.assert_not_called()
+        assert py.venv_path == installer.system.install_path / py.venv_name
+
+    def test_install_python_executable_prefers_requirements_txt(self, installer: SlurmInstaller, git: GitRepo):
+        repo_dir = installer.system.install_path / git.repo_name
+        repo_dir.mkdir(parents=True)
+        subdir = repo_dir / "subdir"
+        subdir.mkdir()
+
+        pyproject_file = subdir / "pyproject.toml"
+        requirements_file = subdir / "requirements.txt"
+
+        pyproject_file.write_text("[tool.poetry]\nname = 'project'")
+        requirements_file.write_text("package==1.0")
+
+        py = PythonExecutable(git, project_subpath=Path("subdir"), dependencies_from_pyproject=False)
+
+        installer._install_one_git_repo = Mock(return_value=InstallStatusResult(True))
+        installer._create_venv = Mock(return_value=InstallStatusResult(True))
+        installer._install_requirements = Mock(return_value=InstallStatusResult(True))
+        installer._install_pyproject = Mock(return_value=InstallStatusResult(True))
+
+        py.git_repo.installed_path = repo_dir
+
+        res = installer._install_python_executable(py)
+
+        assert res.success
+        installer._install_requirements.assert_called_once_with(
+            installer.system.install_path / py.venv_name, requirements_file
+        )
+        installer._install_pyproject.assert_not_called()
         assert py.venv_path == installer.system.install_path / py.venv_name
 
 
