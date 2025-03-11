@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,7 +27,6 @@ ntasks_per_node = 8
 
 [[partitions]]
 name = "partition_1"
-nodes = ["node-[001-100]"]
 
   [[partitions.groups]]
   name = "group_1"
@@ -47,7 +46,6 @@ nodes = ["node-[001-100]"]
 
 [[partitions]]
 name = "partition_2"
-nodes = ["node-[101-200]"]
 
 [global_env_vars]
 # NCCL Specific Configurations
