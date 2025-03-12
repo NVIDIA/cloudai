@@ -154,6 +154,9 @@ class NcclTestPredictionReportGenerator:
             "INFO",
         ]
 
+        if input_csv.exists():
+            input_csv.unlink()
+
         logging.debug(f"Running predictor with command: {' '.join(command)}")
 
         try:
