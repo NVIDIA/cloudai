@@ -166,6 +166,9 @@ class NcclTestPredictionReportGenerator:
         if input_csv.exists():
             input_csv.unlink()
 
+        if output_csv.exists():
+            output_csv.unlink()
+
         if not output_csv.exists():
             logging.warning(f"Expected output CSV {output_csv} not found after inference.")
             return pd.DataFrame()
