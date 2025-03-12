@@ -169,9 +169,7 @@ def test_populate_action_space():
             micro_batch_size=[1, 2],
         ),
     )
-    extra_env_args = {
-        "extra_param_1": [10, 20]
-    }
+    extra_env_args = {"extra_param_1": [10, 20]}
     combined_dict = {**cmd_args.model_dump(), **extra_env_args}
     env.populate_action_space("", combined_dict, action_space)
 
@@ -180,6 +178,7 @@ def test_populate_action_space():
     assert action_space["trainer.strategy.unknown_nested"] == [1, 2]
     assert action_space["data.micro_batch_size"] == [1, 2]
     assert action_space["extra_param_1"] == [10, 20]
+
 
 def test_populate_action_space_cmd_args_list():
     env = CloudAIGymEnv(test_run=MagicMock(), runner=MagicMock())
@@ -209,6 +208,7 @@ def test_populate_action_space_cmd_args_list():
     assert action_space["data.micro_batch_size"] == [1, 2]
     assert action_space["extra_param_1"] == [10]
 
+
 def test_populate_action_space_extra_env_args_list():
     env = CloudAIGymEnv(test_run=MagicMock(), runner=MagicMock())
     action_space = {}
@@ -233,5 +233,3 @@ def test_populate_action_space_extra_env_args_list():
     env.populate_action_space("", combined_dict, action_space)
 
     assert action_space["extra_param_1"] == [10, 20]
-
-
