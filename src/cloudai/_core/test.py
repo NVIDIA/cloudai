@@ -16,7 +16,6 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict
@@ -149,7 +148,6 @@ class TestDefinition(BaseModel, ABC):
     git_repos: list[GitRepo] = []
     nsys: Optional[NsysConfiguration] = None
     predictor: Optional[PredictorConfig] = None
-    _predictor_executable: Optional[PythonExecutable] = None
     agent: str = "grid_search"
     agent_steps: int = 1
 
@@ -163,15 +161,6 @@ class TestDefinition(BaseModel, ABC):
         for k, v in self.extra_cmd_args.items():
             parts.append(f"{k}={v}" if v else k)
         return " ".join(parts)
-
-    @property
-    def predictor_executable(self) -> Optional[PythonExecutable]:
-        if self.predictor and self._predictor_executable is None:
-            assert self.predictor.project_subpath is not None
-            self._predictor_executable = PythonExecutable(
-                git_repo=self.predictor.git_repo, project_subpath=Path(self.predictor.project_subpath)
-            )
-        return self._predictor_executable
 
     @property
     @abstractmethod

@@ -34,13 +34,13 @@ class NcclTestPredictionReportGenerator:
         self.output_path = output_path
         self.stdout_path = output_path / "stdout.txt"
         self.test_definition = test_definition
-        self.predictor_executable = test_definition.predictor_executable
+        self.predictor = test_definition.predictor
 
-        if not self.predictor_executable:
+        if not self.predictor:
             logging.warning("Predictor is not installed. Skipping NCCL prediction reports.")
 
     def generate(self) -> None:
-        if not self.predictor_executable:
+        if not self.predictor:
             logging.warning("Skipping report generation. Predictor is not installed.")
             return
 
@@ -110,11 +110,11 @@ class NcclTestPredictionReportGenerator:
         logging.debug(f"Stored intermediate predictor input data at {csv_path}")
 
     def _run_predictor(self, gpu_type: str) -> pd.DataFrame:
-        if not self.predictor_executable or not self.test_definition.predictor:
+        if not self.predictor or not self.test_definition.predictor:
             logging.warning("Skipping predictor execution. Predictor is not installed.")
             return pd.DataFrame()
 
-        installed_path = self.predictor_executable.git_repo.installed_path
+        installed_path = self.predictor.git_repo.installed_path
         if installed_path is None:
             logging.warning("Predictor repository is not installed. Skipping prediction.")
             return pd.DataFrame()
@@ -133,7 +133,7 @@ class NcclTestPredictionReportGenerator:
                 logging.warning(f"Missing required file: {file}. Ensure predictor configuration and model files.")
             return pd.DataFrame()
 
-        venv_path = self.predictor_executable.venv_path
+        venv_path = self.predictor.venv_path
         if venv_path is None:
             logging.warning("Predictor virtual environment is not set up. Skipping prediction.")
             return pd.DataFrame()
