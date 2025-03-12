@@ -18,7 +18,7 @@ name = "test_scenario_example"
 
 [[Tests]]
 id = "Tests.1"
-test_name = "sleep_5"
+test_name = "sleep_10"
 
 [[Tests]]
 id = "Tests.2"
