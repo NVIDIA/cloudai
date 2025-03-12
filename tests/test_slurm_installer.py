@@ -155,6 +155,22 @@ class TestInstallOnePythonExecutable:
     def git(self):
         return GitRepo(url="./git_url", commit="commit_hash")
 
+    @pytest.fixture
+    def setup_repo(self, installer: SlurmInstaller, git: GitRepo):
+        repo_dir = installer.system.install_path / git.repo_name
+        subdir = repo_dir / "subdir"
+
+        repo_dir.mkdir(parents=True, exist_ok=True)
+        subdir.mkdir(parents=True, exist_ok=True)
+
+        pyproject_file = subdir / "pyproject.toml"
+        requirements_file = subdir / "requirements.txt"
+
+        pyproject_file.touch()
+        requirements_file.touch()
+
+        return repo_dir, subdir, pyproject_file, requirements_file
+
     def test_venv_created(self, installer: SlurmInstaller, git: GitRepo):
         py = PythonExecutable(git)
         venv_path = installer.system.install_path / py.venv_name
@@ -184,10 +200,14 @@ class TestInstallOnePythonExecutable:
         assert res.success
         assert res.message == f"Virtual environment already exists at {venv_path}."
 
-    def test_requiretements_no_file(self, installer: SlurmInstaller):
-        res = installer._install_requirements(
-            installer.system.install_path, installer.system.install_path / "requirements.txt"
-        )
+    def test_requirements_no_file(self, installer: SlurmInstaller, git: GitRepo):
+        py = PythonExecutable(git)
+        venv_path = installer.system.install_path / py.venv_name
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = CompletedProcess(args=[], returncode=0)
+            res = installer._create_venv(venv_path)
+        assert res.success
+        res = installer._install_requirements(venv_path, installer.system.install_path / "requirements.txt")
         assert not res.success
         assert (
             res.message
@@ -196,20 +216,14 @@ class TestInstallOnePythonExecutable:
 
     def test_requirements_installed(self, installer: SlurmInstaller):
         requirements_file = installer.system.install_path / "requirements.txt"
+        venv_path = installer.system.install_path / "venv"
         requirements_file.touch()
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = CompletedProcess(args=[], returncode=0)
-            res = installer._install_requirements(installer.system.install_path, requirements_file)
+            res = installer._install_requirements(venv_path, requirements_file)
         assert res.success
         mock_run.assert_called_once_with(
-            [
-                installer.system.install_path / "bin" / "python",
-                "-m",
-                "pip",
-                "install",
-                "-r",
-                str(requirements_file),
-            ],
+            [str(venv_path / "bin" / "python"), "-m", "pip", "install", "-r", str(requirements_file)],
             capture_output=True,
             text=True,
         )
@@ -221,15 +235,22 @@ class TestInstallOnePythonExecutable:
             mock_run.return_value = CompletedProcess(args=[], returncode=1, stderr="err")
             res = installer._install_requirements(installer.system.install_path, requirements_file)
         assert not res.success
-        assert res.message == "Failed to install requirements: err"
+        assert res.message == "Failed to install dependencies from requirements.txt: err"
 
     def test_all_good_flow(self, installer: SlurmInstaller, git: GitRepo):
         py = PythonExecutable(git)
         py.git_repo.installed_path = installer.system.install_path / py.git_repo.repo_name
+
+        repo_dir = py.git_repo.installed_path
+        repo_dir.mkdir(parents=True, exist_ok=True)
+        pyproject_file = repo_dir / "pyproject.toml"
+        pyproject_file.write_text("[tool.poetry]\nname = 'dummy_project'")
+
         installer._install_one_git_repo = Mock(return_value=InstallStatusResult(True))
         installer._clone_repository = Mock(return_value=InstallStatusResult(True))
         installer._checkout_commit = Mock(return_value=InstallStatusResult(True))
         installer._create_venv = Mock(return_value=InstallStatusResult(True))
+        installer._install_pyproject = Mock(return_value=InstallStatusResult(True))
         installer._install_requirements = Mock(return_value=InstallStatusResult(True))
         res = installer._install_python_executable(py)
         assert res.success
@@ -285,6 +306,50 @@ class TestInstallOnePythonExecutable:
         assert res.success
         assert not (installer.system.install_path / py.venv_name).exists()
         assert not py.venv_path
+
+    def test_install_python_executable_prefers_pyproject_toml(
+        self, installer: SlurmInstaller, git: GitRepo, setup_repo
+    ):
+        repo_dir, subdir, _, _ = setup_repo
+
+        py = PythonExecutable(git, project_subpath=Path("subdir"), dependencies_from_pyproject=True)
+
+        installer._install_one_git_repo = Mock(return_value=InstallStatusResult(True))
+        installer._create_venv = Mock(return_value=InstallStatusResult(True))
+        installer._install_requirements = Mock(return_value=InstallStatusResult(True))
+        installer._install_pyproject = Mock(return_value=InstallStatusResult(True))
+
+        py.git_repo.installed_path = repo_dir
+
+        res = installer._install_python_executable(py)
+
+        assert res.success
+        installer._install_pyproject.assert_called_once_with(installer.system.install_path / py.venv_name, subdir)
+        installer._install_requirements.assert_not_called()
+        assert py.venv_path == installer.system.install_path / py.venv_name
+
+    def test_install_python_executable_prefers_requirements_txt(
+        self, installer: SlurmInstaller, git: GitRepo, setup_repo
+    ):
+        repo_dir, subdir, _, requirements_file = setup_repo
+
+        py = PythonExecutable(git, project_subpath=Path("subdir"), dependencies_from_pyproject=False)
+
+        installer._install_one_git_repo = Mock(return_value=InstallStatusResult(True))
+        installer._create_venv = Mock(return_value=InstallStatusResult(True))
+        installer._install_requirements = Mock(return_value=InstallStatusResult(True))
+        installer._install_pyproject = Mock(return_value=InstallStatusResult(True))
+
+        py.git_repo.installed_path = repo_dir
+
+        res = installer._install_python_executable(py)
+
+        assert res.success
+        installer._install_requirements.assert_called_once_with(
+            installer.system.install_path / py.venv_name, requirements_file
+        )
+        installer._install_pyproject.assert_not_called()
+        assert py.venv_path == installer.system.install_path / py.venv_name
 
 
 class TestGitRepo:
