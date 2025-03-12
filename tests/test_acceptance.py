@@ -274,7 +274,9 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 name="slurm_ray_container",
                 description="slurm_ray_container",
                 test_template_name="slurm_ray_container",
-                cmd_args=SlurmRayContainerCmdArgs(docker_image_url="https://docker/url", cmd="pwd ; ls", conda_env="test"),
+                cmd_args=SlurmRayContainerCmdArgs(
+                    docker_image_url="https://docker/url", cmd="pwd ; ls", conda_env="test"
+                ),
             ),
             SlurmRayContainerCommandGenStrategy,
         ),

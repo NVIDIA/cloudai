@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
 from pathlib import Path
 from typing import Any, Dict, List, Union, cast
 
@@ -28,9 +27,8 @@ from .slurm_ray_container import SlurmRayContainerTestDefinition
 
 class SlurmRayContainerCommandGenStrategy(SlurmContainerCommandGenStrategy):
     """Command generation strategy for generic Slurm container tests."""
-    def _get_sbatch_directives(
-        self, args: Dict[str, Any], output_path: Path
-    ) -> Dict[str, str]:
+
+    def _get_sbatch_directives(self, args: Dict[str, Any], output_path: Path) -> Dict[str, str]:
         sbatch_directives = super()._get_sbatch_directives(args, output_path)
         # TODO(Amey): We probably need to figure out what to do with cpus-per-task, mem-per-cpu
         # override tasks per node
@@ -53,10 +51,8 @@ class SlurmRayContainerCommandGenStrategy(SlurmContainerCommandGenStrategy):
         template = Template(template_path.read_text())
 
         # render the template
-        rendered_template = template.render({
-            "conda_env": tdef.cmd_args.conda_env,
-            "command": " ".join(srun_command_parts)
-        })
+        rendered_template = template.render(
+            {"conda_env": tdef.cmd_args.conda_env, "command": " ".join(srun_command_parts)}
+        )
 
         return [rendered_template]
-

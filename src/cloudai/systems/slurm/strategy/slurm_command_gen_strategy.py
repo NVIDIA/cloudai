@@ -310,9 +310,17 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         return f"sbatch {batch_script_path}"
 
-    def _get_sbatch_directives(
-        self, args: Dict[str, Any], output_path: Path
-    ) -> Dict[str, str]:
+    def _get_sbatch_directives(self, args: Dict[str, Any], output_path: Path) -> Dict[str, str]:
+        """
+        Get the Slurm batch script directives.
+
+        Args:
+            args (Dict[str, Any]): Slurm-specific arguments.
+            output_path (Path): Output directory for script and logs.
+
+        Returns:
+            Dict[str, str]: Dictionary of Slurm batch script directives.
+        """
         sbatch_directives: Dict[str, str] = {}
 
         if "output" not in args:
@@ -336,18 +344,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         if "time_limit" in args:
             sbatch_directives["time_limit"] = args["time_limit"]
 
-        for arg in self.system.extra_sbatch_args:
-            arg = arg.strip()
-            # remove -- from the start of the string if present
-            if arg.startswith("--"):
-                arg = arg[2:]
-            # split the string into key and value
-            arg_split = arg.split("=")
-            if len(arg_split) == 2:
-                sbatch_directives[arg_split[0]] = arg_split[1].join("=")
-            else:
-                sbatch_directives[arg] = ""
-
         return sbatch_directives
 
     def _append_sbatch_directives(
@@ -369,6 +365,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
                 batch_script_content.append(f"#SBATCH --{key}={value}")
             else:
                 batch_script_content.append(f"#SBATCH --{key}")
+
+        for arg in self.system.extra_sbatch_args:
+            batch_script_content.append(f"#SBATCH {arg}")
 
         batch_script_content.append(
             "\nexport SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)"
