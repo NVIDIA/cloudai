@@ -130,6 +130,9 @@ class PredictorConfig(PythonExecutable):
 
     bin_name: str = ""
 
+    def __hash__(self) -> int:
+        return self.git_repo.__hash__()
+
 
 class TestDefinition(BaseModel, ABC):
     """Base Test object."""
