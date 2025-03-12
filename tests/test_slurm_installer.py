@@ -300,8 +300,8 @@ class TestInstallOnePythonExecutable:
         pyproject_file = subdir / "pyproject.toml"
         requirements_file = subdir / "requirements.txt"
 
-        pyproject_file.write_text("[tool.poetry]\nname = 'project'")
-        requirements_file.write_text("package==1.0")
+        pyproject_file.touch()
+        requirements_file.touch()
 
         py = PythonExecutable(git, project_subpath=Path("subdir"), dependencies_from_pyproject=True)
 
@@ -328,8 +328,8 @@ class TestInstallOnePythonExecutable:
         pyproject_file = subdir / "pyproject.toml"
         requirements_file = subdir / "requirements.txt"
 
-        pyproject_file.write_text("[tool.poetry]\nname = 'project'")
-        requirements_file.write_text("package==1.0")
+        pyproject_file.touch()
+        requirements_file.touch()
 
         py = PythonExecutable(git, project_subpath=Path("subdir"), dependencies_from_pyproject=False)
 
