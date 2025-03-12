@@ -51,6 +51,11 @@ from cloudai.workloads.slurm_container import (
     SlurmContainerCommandGenStrategy,
     SlurmContainerTestDefinition,
 )
+from cloudai.workloads.slurm_ray_container import (
+    SlurmRayContainerCmdArgs,
+    SlurmRayContainerCommandGenStrategy,
+    SlurmRayContainerTestDefinition,
+)
 from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition, UCCTestSlurmCommandGenStrategy
 
 SLURM_TEST_SCENARIOS = [
@@ -260,6 +265,18 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 cmd_args=SlurmContainerCmdArgs(docker_image_url="https://docker/url", cmd="pwd ; ls"),
             ),
             SlurmContainerCommandGenStrategy,
+        ),
+        "slurm_ray_container": lambda: create_test_run(
+            partial_tr,
+            slurm_system,
+            "slurm_ray_container",
+            SlurmRayContainerTestDefinition(
+                name="slurm_ray_container",
+                description="slurm_ray_container",
+                test_template_name="slurm_ray_container",
+                cmd_args=SlurmRayContainerCmdArgs(docker_image_url="https://docker/url", cmd="pwd ; ls", conda_env="test"),
+            ),
+            SlurmRayContainerCommandGenStrategy,
         ),
         "megatron-run": lambda: create_test_run(
             partial_tr,

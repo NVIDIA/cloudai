@@ -44,6 +44,7 @@ from cloudai.workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy
 from cloudai.workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
 from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
 from cloudai.workloads.slurm_container import SlurmContainerReportGenerationStrategy, SlurmContainerTestDefinition
+from cloudai.workloads.slurm_ray_container import SlurmRayContainerReportGenerationStrategy, SlurmRayContainerTestDefinition
 from cloudai.workloads.ucc_test import UCCTestDefinition, UCCTestReportGenerationStrategy
 from tests.conftest import MyTestDefinition
 
@@ -293,6 +294,7 @@ class TestReporters:
             (NemotronTestDefinition, {JaxToolboxReportGenerationStrategy}),
             (SleepTestDefinition, {SleepReportGenerationStrategy}),
             (SlurmContainerTestDefinition, {SlurmContainerReportGenerationStrategy}),
+            (SlurmRayContainerTestDefinition, {SlurmRayContainerReportGenerationStrategy}),
             (UCCTestDefinition, {UCCTestReportGenerationStrategy}),
         ],
     )

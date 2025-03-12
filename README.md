@@ -28,6 +28,7 @@ These schemas enable CloudAI to be flexible and compatible with different system
 |Sleep|✅|✅|✅|
 |UCC|✅|❌|❌|
 |SlurmContainer|✅|❌|❌|
+|SlurmRayContainer|✅|❌|❌|
 |MegatronRun (experimental)|✅|❌|❌|
 
 
