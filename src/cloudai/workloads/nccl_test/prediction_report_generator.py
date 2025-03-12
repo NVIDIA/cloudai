@@ -154,9 +154,6 @@ class NcclTestPredictionReportGenerator:
             "INFO",
         ]
 
-        if input_csv.exists():
-            input_csv.unlink()
-
         logging.debug(f"Running predictor with command: {' '.join(command)}")
 
         try:
@@ -165,6 +162,9 @@ class NcclTestPredictionReportGenerator:
         except subprocess.CalledProcessError as e:
             logging.warning(f"Predictor execution failed. Error:\n{e.stderr}")
             return pd.DataFrame()
+
+        if input_csv.exists():
+            input_csv.unlink()
 
         if not output_csv.exists():
             logging.warning(f"Expected output CSV {output_csv} not found after inference.")
