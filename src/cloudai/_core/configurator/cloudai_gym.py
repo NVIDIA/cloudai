@@ -228,7 +228,6 @@ class CloudAIGymEnv(BaseGym):
     def update_nested_attr(self, obj, attr_path, value):
         """Update a nested attribute of an object."""
         attrs = attr_path.split(".")
-        # extra_env_vars is currently a dict (will remove this comment!)
         for attr in attrs[:-1]:
             if isinstance(obj, dict):
                 if attr in obj:
