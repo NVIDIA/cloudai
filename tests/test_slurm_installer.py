@@ -155,6 +155,22 @@ class TestInstallOnePythonExecutable:
     def git(self):
         return GitRepo(url="./git_url", commit="commit_hash")
 
+    @pytest.fixture
+    def setup_repo(self, installer: SlurmInstaller, git: GitRepo):
+        repo_dir = installer.system.install_path / git.repo_name
+        subdir = repo_dir / "subdir"
+
+        repo_dir.mkdir(parents=True, exist_ok=True)
+        subdir.mkdir(parents=True, exist_ok=True)
+
+        pyproject_file = subdir / "pyproject.toml"
+        requirements_file = subdir / "requirements.txt"
+
+        pyproject_file.touch()
+        requirements_file.touch()
+
+        return repo_dir, subdir, pyproject_file, requirements_file
+
     def test_venv_created(self, installer: SlurmInstaller, git: GitRepo):
         py = PythonExecutable(git)
         venv_path = installer.system.install_path / py.venv_name
@@ -291,17 +307,10 @@ class TestInstallOnePythonExecutable:
         assert not (installer.system.install_path / py.venv_name).exists()
         assert not py.venv_path
 
-    def test_install_python_executable_prefers_pyproject_toml(self, installer: SlurmInstaller, git: GitRepo):
-        repo_dir = installer.system.install_path / git.repo_name
-        repo_dir.mkdir(parents=True)
-        subdir = repo_dir / "subdir"
-        subdir.mkdir()
-
-        pyproject_file = subdir / "pyproject.toml"
-        requirements_file = subdir / "requirements.txt"
-
-        pyproject_file.touch()
-        requirements_file.touch()
+    def test_install_python_executable_prefers_pyproject_toml(
+        self, installer: SlurmInstaller, git: GitRepo, setup_repo
+    ):
+        repo_dir, subdir, _, _ = setup_repo
 
         py = PythonExecutable(git, project_subpath=Path("subdir"), dependencies_from_pyproject=True)
 
@@ -319,17 +328,10 @@ class TestInstallOnePythonExecutable:
         installer._install_requirements.assert_not_called()
         assert py.venv_path == installer.system.install_path / py.venv_name
 
-    def test_install_python_executable_prefers_requirements_txt(self, installer: SlurmInstaller, git: GitRepo):
-        repo_dir = installer.system.install_path / git.repo_name
-        repo_dir.mkdir(parents=True)
-        subdir = repo_dir / "subdir"
-        subdir.mkdir()
-
-        pyproject_file = subdir / "pyproject.toml"
-        requirements_file = subdir / "requirements.txt"
-
-        pyproject_file.touch()
-        requirements_file.touch()
+    def test_install_python_executable_prefers_requirements_txt(
+        self, installer: SlurmInstaller, git: GitRepo, setup_repo
+    ):
+        repo_dir, subdir, _, requirements_file = setup_repo
 
         py = PythonExecutable(git, project_subpath=Path("subdir"), dependencies_from_pyproject=False)
 
