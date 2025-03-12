@@ -119,7 +119,8 @@ class NcclTestPredictionReportGenerator:
             logging.warning("Predictor repository is not installed. Skipping prediction.")
             return pd.DataFrame()
 
-        predictor_sub_path = installed_path / self.test_definition.predictor.sub_path
+        assert self.test_definition.predictor.project_subpath is not None
+        predictor_sub_path = installed_path / self.test_definition.predictor.project_subpath
 
         config_path = predictor_sub_path / f"conf/{gpu_type}/{self.collective_type}.toml"
         model_path = predictor_sub_path / f"weights/{gpu_type}/{self.collective_type}.pkl"

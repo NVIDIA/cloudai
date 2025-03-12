@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -124,12 +125,11 @@ class NsysConfiguration(BaseModel):
         return parts
 
 
+@dataclass
 class PredictorConfig(PythonExecutable):
     """Predictor configuration."""
 
-    model_config = ConfigDict(extra="forbid")
-
-    bin_name: str
+    bin_name: str = ""
 
 
 class TestDefinition(BaseModel, ABC):
@@ -167,8 +167,9 @@ class TestDefinition(BaseModel, ABC):
     @property
     def predictor_executable(self) -> Optional[PythonExecutable]:
         if self.predictor and self._predictor_executable is None:
+            assert self.predictor.project_subpath is not None
             self._predictor_executable = PythonExecutable(
-                git_repo=self.predictor.repo, project_subpath=Path(self.predictor.sub_path)
+                git_repo=self.predictor.git_repo, project_subpath=Path(self.predictor.project_subpath)
             )
         return self._predictor_executable
 
