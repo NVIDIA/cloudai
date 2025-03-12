@@ -124,13 +124,11 @@ class NsysConfiguration(BaseModel):
         return parts
 
 
-class PredictorConfig(BaseModel):
+class PredictorConfig(PythonExecutable):
     """Predictor configuration."""
 
     model_config = ConfigDict(extra="forbid")
 
-    repo: GitRepo
-    sub_path: str
     bin_name: str
 
 
