@@ -14,29 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "test_scenario_example"
+from .report_generation_strategy import SlurmRayContainerReportGenerationStrategy
+from .slurm_command_gen_strategy import SlurmRayContainerCommandGenStrategy
+from .slurm_ray_container import SlurmRayContainerCmdArgs, SlurmRayContainerTestDefinition
 
-[[Tests]]
-id = "Tests.1"
-test_name = "sleep_10"
-
-[[Tests]]
-id = "Tests.2"
-test_name = "sleep_5"
-  [[Tests.dependencies]]
-  type = "start_post_init"
-  id = "Tests.1"
-
-[[Tests]]
-id = "Tests.3"
-test_name = "sleep_5"
-  [[Tests.dependencies]]
-  type = "start_post_comp"
-  id = "Tests.1"
-
-[[Tests]]
-id = "Tests.4"
-test_name = "sleep_20"
-  [[Tests.dependencies]]
-  type = "end_post_comp"
-  id = "Tests.1"
+__all__ = [
+    "SlurmRayContainerCmdArgs",
+    "SlurmRayContainerCommandGenStrategy",
+    "SlurmRayContainerReportGenerationStrategy",
+    "SlurmRayContainerTestDefinition",
+]

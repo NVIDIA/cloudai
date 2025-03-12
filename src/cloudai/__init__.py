@@ -97,6 +97,7 @@ from .workloads.sleep import (
     SleepTestDefinition,
 )
 from .workloads.slurm_container import SlurmContainerCommandGenStrategy, SlurmContainerTestDefinition
+from .workloads.slurm_ray_container import SlurmRayContainerCommandGenStrategy, SlurmRayContainerTestDefinition
 from .workloads.ucc_test import (
     UCCTestDefinition,
     UCCTestGradingStrategy,
@@ -156,6 +157,7 @@ Registry().add_strategy(
         SleepTestDefinition,
         NeMoRunTestDefinition,
         SlurmContainerTestDefinition,
+        SlurmRayContainerTestDefinition,
         MegatronRunTestDefinition,
     ],
     SlurmJobIdRetrievalStrategy,
@@ -191,6 +193,7 @@ Registry().add_strategy(
         SleepTestDefinition,
         NeMoRunTestDefinition,
         SlurmContainerTestDefinition,
+        SlurmRayContainerTestDefinition,
         MegatronRunTestDefinition,
     ],
     DefaultJobStatusRetrievalStrategy,
@@ -206,6 +209,9 @@ Registry().add_strategy(
 )
 Registry().add_strategy(
     CommandGenStrategy, [SlurmSystem], [SlurmContainerTestDefinition], SlurmContainerCommandGenStrategy
+)
+Registry().add_strategy(
+    CommandGenStrategy, [SlurmSystem], [SlurmRayContainerTestDefinition], SlurmRayContainerCommandGenStrategy
 )
 
 Registry().add_installer("slurm", SlurmInstaller)
@@ -226,6 +232,7 @@ Registry().add_test_definition("JaxToolboxGPT", GPTTestDefinition)
 Registry().add_test_definition("JaxToolboxGrok", GrokTestDefinition)
 Registry().add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)
 Registry().add_test_definition("SlurmContainer", SlurmContainerTestDefinition)
+Registry().add_test_definition("SlurmRayContainer", SlurmRayContainerTestDefinition)
 Registry().add_test_definition("MegatronRun", MegatronRunTestDefinition)
 
 Registry().add_agent("grid_search", GridSearchAgent)

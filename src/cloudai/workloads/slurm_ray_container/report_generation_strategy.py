@@ -14,29 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "test_scenario_example"
 
-[[Tests]]
-id = "Tests.1"
-test_name = "sleep_10"
+from cloudai import ReportGenerationStrategy
 
-[[Tests]]
-id = "Tests.2"
-test_name = "sleep_5"
-  [[Tests.dependencies]]
-  type = "start_post_init"
-  id = "Tests.1"
 
-[[Tests]]
-id = "Tests.3"
-test_name = "sleep_5"
-  [[Tests.dependencies]]
-  type = "start_post_comp"
-  id = "Tests.1"
+class SlurmRayContainerReportGenerationStrategy(ReportGenerationStrategy):
+    """Report generation strategy for a generic Slurm ray container test."""
 
-[[Tests]]
-id = "Tests.4"
-test_name = "sleep_20"
-  [[Tests.dependencies]]
-  type = "end_post_comp"
-  id = "Tests.1"
+    def can_handle_directory(self) -> bool:
+        return False
+
+    def generate_report(self) -> None:
+        pass

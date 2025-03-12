@@ -89,3 +89,6 @@ Thumbs.db
 install/
 results/
 .*
+
+# conda
+env/

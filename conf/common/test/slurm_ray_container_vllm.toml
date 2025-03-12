@@ -14,29 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "test_scenario_example"
+name = "slurm_ray_container_vllm"
+description = "Run example script with vLLM"
+test_template_name = "SlurmRayContainer"
 
-[[Tests]]
-id = "Tests.1"
-test_name = "sleep_10"
-
-[[Tests]]
-id = "Tests.2"
-test_name = "sleep_5"
-  [[Tests.dependencies]]
-  type = "start_post_init"
-  id = "Tests.1"
-
-[[Tests]]
-id = "Tests.3"
-test_name = "sleep_5"
-  [[Tests.dependencies]]
-  type = "start_post_comp"
-  id = "Tests.1"
-
-[[Tests]]
-id = "Tests.4"
-test_name = "sleep_20"
-  [[Tests.dependencies]]
-  type = "end_post_comp"
-  id = "Tests.1"
+[cmd_args]
+docker_image_url = "vllm/vllm-openai:latest"
+cmd = "python3 examples/offline_inference/llm_engine_example.py -tp 8 -pp 2"
