@@ -128,11 +128,11 @@ class CloudAIGymEnv(BaseGym):
         """
         for key, value in action.items():
             if key.startswith("extra_env_vars."):
-                self.update_nested_attr(
+                self.update_test_run_obj(
                     self.test_run.test.test_definition.extra_env_vars, key[len("extra_env_vars.") :], value
                 )
             else:
-                self.update_nested_attr(self.test_run.test.test_definition.cmd_args, key, value)
+                self.update_test_run_obj(self.test_run.test.test_definition.cmd_args, key, value)
 
         if not self.test_run.test.test_definition.constraint_check:
             logging.info("Constraint check failed. Skipping step.")
@@ -225,7 +225,7 @@ class CloudAIGymEnv(BaseGym):
                     return [average_value]
         return [-1.0]
 
-    def update_nested_attr(self, obj, attr_path, value):
+    def update_test_run_obj(self, obj, attr_path, value):
         """Update a nested attribute of an object."""
         attrs = attr_path.split(".")
         for attr in attrs[:-1]:
