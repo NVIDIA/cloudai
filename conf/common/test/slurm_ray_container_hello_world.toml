@@ -14,29 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "test_scenario_example"
+name = "slurm_ray_container_hello_world"
+description = "Hello World"
+test_template_name = "SlurmRayContainer"
 
-[[Tests]]
-id = "Tests.1"
-test_name = "sleep_5"
+[cmd_args]
+docker_image_url = "nvcr.io/nvidia/nemo:24.12.rc3"
+conda_env = "nemo"
+cmd = "bash -c 'echo Hello World'"
 
-[[Tests]]
-id = "Tests.2"
-test_name = "sleep_5"
-  [[Tests.dependencies]]
-  type = "start_post_init"
-  id = "Tests.1"
 
-[[Tests]]
-id = "Tests.3"
-test_name = "sleep_5"
-  [[Tests.dependencies]]
-  type = "start_post_comp"
-  id = "Tests.1"
-
-[[Tests]]
-id = "Tests.4"
-test_name = "sleep_20"
-  [[Tests.dependencies]]
-  type = "end_post_comp"
-  id = "Tests.1"
