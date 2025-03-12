@@ -37,13 +37,27 @@ class SlurmRayContainerCommandGenStrategy(SlurmContainerCommandGenStrategy):
 
         return sbatch_directives
 
+    def _gen_srun_command(
+        self,
+        slurm_args: Dict[str, Any],
+        env_vars: Dict[str, str],
+        cmd_args: Dict[str, Union[str, List[str]]],
+        tr: TestRun,
+    ) -> str:
+        srun_command_parts = self.gen_srun_prefix(slurm_args, tr)
+        nsys_command_parts = super().gen_nsys_command(tr)
+        cmd_args["srun_command_prefix"] = " ".join(srun_command_parts + nsys_command_parts)
+        test_command_parts = self.generate_test_command(env_vars, cmd_args, tr)
+        return " ".join(test_command_parts)
+
     def generate_test_command(
         self, env_vars: dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> list[str]:
         tdef: SlurmRayContainerTestDefinition = cast(SlurmRayContainerTestDefinition, tr.test.test_definition)
-        srun_command_parts: list[str] = [*super().gen_nsys_command(tr), tdef.cmd_args.cmd]
+
+        command_parts: list[str] = [tdef.cmd_args.cmd]
         if tr.test.extra_cmd_args:
-            srun_command_parts.append(tr.test.extra_cmd_args)
+            command_parts.append(tr.test.extra_cmd_args)
 
         # load the jinja template file which is placed at the same directory as this file
         script_dir = Path(__file__).parent
@@ -52,7 +66,11 @@ class SlurmRayContainerCommandGenStrategy(SlurmContainerCommandGenStrategy):
 
         # render the template
         rendered_template = template.render(
-            {"conda_env": tdef.cmd_args.conda_env, "command": " ".join(srun_command_parts)}
+            {
+                "conda_env": tdef.cmd_args.conda_env,
+                "command": " ".join(command_parts),
+                "srun_command_prefix": cmd_args["srun_command_prefix"],
+            }
         )
 
         return [rendered_template]
