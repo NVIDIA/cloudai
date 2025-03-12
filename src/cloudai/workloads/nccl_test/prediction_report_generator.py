@@ -109,37 +109,51 @@ class NcclTestPredictionReportGenerator:
         df.to_csv(csv_path, index=False)
         logging.debug(f"Stored intermediate predictor input data at {csv_path}")
 
-    def _run_predictor(self, gpu_type: str) -> pd.DataFrame:
-        if not self.predictor or not self.test_definition.predictor:
-            logging.warning("Skipping predictor execution. Predictor is not installed.")
-            return pd.DataFrame()
+    def _validate_predictor_files(self, gpu_type: str) -> Tuple[bool, Path, Path, Path, Path, Path]:
+        if not self.predictor or not self.predictor.git_repo:
+            logging.warning("Predictor repository is not installed. Skipping prediction.")
+            return False, Path(), Path(), Path(), Path(), Path()
 
         installed_path = self.predictor.git_repo.installed_path
         if installed_path is None:
             logging.warning("Predictor repository is not installed. Skipping prediction.")
-            return pd.DataFrame()
+            return False, Path(), Path(), Path(), Path(), Path()
 
-        assert self.test_definition.predictor.project_subpath is not None
+        if not self.test_definition.predictor or not self.test_definition.predictor.project_subpath:
+            logging.warning("Predictor configuration is incomplete. Skipping prediction.")
+            return False, Path(), Path(), Path(), Path(), Path()
+
         predictor_sub_path = installed_path / self.test_definition.predictor.project_subpath
-
         config_path = predictor_sub_path / f"conf/{gpu_type}/{self.collective_type}.toml"
         model_path = predictor_sub_path / f"weights/{gpu_type}/{self.collective_type}.pkl"
         input_csv = self.output_path / "cloudai_nccl_test_prediction_input.csv"
         output_csv = self.output_path / "cloudai_nccl_test_prediction_output.csv"
 
-        missing_files = [path for path in [config_path, model_path, input_csv] if not path.exists()]
+        missing_files = [p for p in [config_path, model_path, input_csv] if not p.exists()]
         if missing_files:
             for file in missing_files:
                 logging.warning(f"Missing required file: {file}. Ensure predictor configuration and model files.")
+            return False, Path(), Path(), Path(), Path(), Path()
+
+        return True, config_path, model_path, input_csv, output_csv, predictor_sub_path
+
+    def _run_predictor(self, gpu_type: str) -> pd.DataFrame:
+        valid, config_path, model_path, input_csv, output_csv, predictor_sub_path = self._validate_predictor_files(
+            gpu_type
+        )
+        if not valid:
             return pd.DataFrame()
 
-        venv_path = self.predictor.venv_path
-        if venv_path is None:
+        if not self.predictor or not self.predictor.venv_path:
             logging.warning("Predictor virtual environment is not set up. Skipping prediction.")
             return pd.DataFrame()
 
-        predictor_path = venv_path / "bin" / self.test_definition.predictor.bin_name
+        if not self.test_definition.predictor or not self.test_definition.predictor.bin_name:
+            logging.warning("Predictor binary is not properly configured. Skipping prediction.")
+            return pd.DataFrame()
 
+        venv_path = self.predictor.venv_path
+        predictor_path = venv_path / "bin" / self.test_definition.predictor.bin_name
         command = [
             str(predictor_path),
             "--config",
@@ -163,24 +177,25 @@ class NcclTestPredictionReportGenerator:
             logging.warning(f"Predictor execution failed. Error:\n{e.stderr}")
             return pd.DataFrame()
 
-        if input_csv.exists():
-            input_csv.unlink()
-
-        if output_csv.exists():
-            output_csv.unlink()
-
         if not output_csv.exists():
             logging.warning(f"Expected output CSV {output_csv} not found after inference.")
             return pd.DataFrame()
 
         predictions = pd.read_csv(output_csv)
         required_columns = {"num_devices_per_node", "num_ranks", "message_size", "dur"}
-        if missing_columns := required_columns - set(predictions.columns):
+        missing_columns = required_columns - set(predictions.columns)
+
+        if missing_columns:
             logging.warning(f"Missing required columns in prediction output: {', '.join(missing_columns)}")
             return pd.DataFrame()
 
         predictions.rename(columns={"dur": "predicted_dur"}, inplace=True)
         predictions["predicted_dur"] = predictions["predicted_dur"].round(2)
+
+        if input_csv.exists():
+            input_csv.unlink()
+        if output_csv.exists():
+            output_csv.unlink()
 
         return predictions[["num_devices_per_node", "num_ranks", "message_size", "predicted_dur"]]
 
