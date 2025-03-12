@@ -25,5 +25,7 @@ for ((i = 1; i <= worker_num; i++)); do
     sleep 5
 done
 
-{{ command }}
-
+{{ srun_command_prefix }} --nodes=1 --ntasks=1 \
+  -w "$head_node" --gpus-per-node=0 \
+  conda activate {{ conda_env }} && \
+  {{ command }}

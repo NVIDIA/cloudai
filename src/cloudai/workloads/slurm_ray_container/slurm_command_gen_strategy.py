@@ -32,7 +32,7 @@ class SlurmRayContainerCommandGenStrategy(SlurmContainerCommandGenStrategy):
         sbatch_directives = super()._get_sbatch_directives(args, output_path)
         # TODO(Amey): We probably need to figure out what to do with cpus-per-task, mem-per-cpu
         # override tasks per node
-        sbatch_directives["tasks-per-node"] = "1"
+        sbatch_directives["tasks-per-node"] = "2"
         sbatch_directives["exclusive"] = ""
 
         return sbatch_directives
