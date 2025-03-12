@@ -64,10 +64,7 @@ class SlurmRayContainerCommandGenStrategy(SlurmContainerCommandGenStrategy):
         template_path = script_dir / "slurm_ray_container_template.sh.jinja"
         template = Template(template_path.read_text())
 
-        if tdef.cmd_args.conda_env:
-            conda_activate_command = f"conda activate {tdef.cmd_args.conda_env} && "
-        else:
-            conda_activate_command = ""
+        conda_activate_command = f"conda activate {tdef.cmd_args.conda_env} && " if tdef.cmd_args.conda_env else ""
 
         # render the template
         rendered_template = template.render(
