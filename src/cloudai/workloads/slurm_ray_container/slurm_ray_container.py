@@ -23,8 +23,8 @@ class SlurmRayContainerCmdArgs(CmdArgs):
     """Command line arguments for a generic Slurm container test."""
 
     docker_image_url: str
-    conda_env: str
     cmd: str
+    conda_env: Optional[str] = None
 
 
 class SlurmRayContainerTestDefinition(TestDefinition):

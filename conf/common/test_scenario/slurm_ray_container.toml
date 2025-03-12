@@ -18,5 +18,5 @@ name = "slurm_ray_container_example"
 
 [[Tests]]
 id = "Tests.1"
-test_name = "slurm_ray_container_hello_world"
+test_name = "slurm_ray_container_vllm"
 num_nodes = "2"

@@ -5,7 +5,7 @@ echo "IP Head: $ip_head"
 
 echo "Starting HEAD at $head_node"
 {{ srun_command_prefix }} --nodes=1 --ntasks=1 -w "$head_node" \
-    conda activate {{ conda_env }} && \
+    {{ conda_activate_command }} \
     ray start --head --node-ip-address="$head_node_ip" --port=$port \
     --num-cpus "${SLURM_CPUS_PER_TASK}" --num-gpus "${SLURM_GPUS_PER_TASK}" --block &
 
@@ -19,7 +19,7 @@ for ((i = 1; i <= worker_num; i++)); do
     node_i=${nodes_array[$i]}
     echo "Starting WORKER $i at $node_i"
     {{ srun_command_prefix }} --nodes=1 --ntasks=1 -w "$node_i" \
-        conda activate {{ conda_env }} && \
+        {{ conda_activate_command }} \
         ray start --address "$ip_head" \
         --num-cpus "${SLURM_CPUS_PER_TASK}" --num-gpus "${SLURM_GPUS_PER_TASK}" --block &
     sleep 5
@@ -27,5 +27,5 @@ done
 
 {{ srun_command_prefix }} --nodes=1 --ntasks=1 \
   -w "$head_node" --gpus-per-node=0 \
-  conda activate {{ conda_env }} && \
+  {{ conda_activate_command }} \
   {{ command }}

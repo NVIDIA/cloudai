@@ -14,13 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "slurm_ray_container_hello_world"
-description = "Hello World"
+name = "slurm_ray_container_vllm"
+description = "Run example script with vLLM"
 test_template_name = "SlurmRayContainer"
 
 [cmd_args]
-docker_image_url = "nvcr.io/nvidia/nemo:24.12.rc3"
-conda_env = "nemo"
-cmd = "bash -c 'echo Hello World'"
-
-
+docker_image_url = "vllm/vllm-openai:latest"
+cmd = "python3 examples/offline_inference/llm_engine_example.py -tp 8 -pp 2"
