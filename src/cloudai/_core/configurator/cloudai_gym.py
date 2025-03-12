@@ -60,8 +60,13 @@ class CloudAIGymEnv(BaseGym):
         action_space: Dict[str, Any] = {}
         cmd_args_dict = self.test_run.test.test_definition.cmd_args.model_dump()
         extra_env_vars_dict = self.test_run.test.test_definition.extra_env_vars
-        self.populate_action_space("", cmd_args_dict, action_space)
-        self.populate_action_space("extra_env_vars.", extra_env_vars_dict, action_space)
+
+        combined_dict = {
+            **{f"{key}": value for key, value in cmd_args_dict.items()},
+            **{f"extra_env_vars.{key}": value for key, value in extra_env_vars_dict.items()},
+        }
+
+        self.populate_action_space("", combined_dict, action_space)
 
         return action_space
 
