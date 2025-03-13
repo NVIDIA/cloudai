@@ -177,6 +177,23 @@ class SlurmInstaller(BaseInstaller):
 
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
+    def mark_as_installed_one(self, item: Installable) -> InstallStatusResult:
+        if isinstance(item, DockerImage):
+            item.installed_path = self.system.install_path / item.cache_filename
+            return InstallStatusResult(True)
+        elif isinstance(item, GitRepo):
+            item.installed_path = self.system.install_path / item.repo_name
+            return InstallStatusResult(True)
+        elif isinstance(item, PythonExecutable):
+            item.git_repo.installed_path = self.system.install_path / item.git_repo.repo_name
+            item.venv_path = self.system.install_path / item.venv_name
+            return InstallStatusResult(True)
+        elif isinstance(item, File):
+            item.installed_path = self.system.install_path / item.src.name
+            return InstallStatusResult(True)
+
+        return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
+
     def _install_docker_image(self, item: DockerImage) -> DockerImageCacheResult:
         res = self.docker_image_cache_manager.ensure_docker_image(item.url, item.cache_filename)
         if res.success and res.docker_image_path:
@@ -219,13 +236,30 @@ class SlurmInstaller(BaseInstaller):
             return res
 
         assert item.git_repo.installed_path, "Git repository must be installed before creating virtual environment."
-        requirements_txt = item.git_repo.installed_path / "requirements.txt"
-        res = self._install_requirements(venv_path, requirements_txt)
+
+        project_dir = item.git_repo.installed_path
+        if item.project_subpath:
+            project_dir = project_dir / item.project_subpath
+
+        pyproject_toml = project_dir / "pyproject.toml"
+        requirements_txt = project_dir / "requirements.txt"
+
+        if pyproject_toml.exists() and requirements_txt.exists():
+            if item.dependencies_from_pyproject:
+                res = self._install_pyproject(venv_path, project_dir)
+            else:
+                res = self._install_requirements(venv_path, requirements_txt)
+        elif pyproject_toml.exists():
+            res = self._install_pyproject(venv_path, project_dir)
+        elif requirements_txt.exists():
+            res = self._install_requirements(venv_path, requirements_txt)
+        else:
+            return InstallStatusResult(False, "No pyproject.toml or requirements.txt found for installation.")
+
         if not res.success:
             return res
 
         item.venv_path = venv_path
-
         return InstallStatusResult(True)
 
     def _clone_repository(self, git_url: str, path: Path) -> InstallStatusResult:
@@ -256,17 +290,24 @@ class SlurmInstaller(BaseInstaller):
             return InstallStatusResult(False, f"Failed to create venv: {result.stderr}")
         return InstallStatusResult(True)
 
-    def _install_requirements(self, venv_dir: Path, requirements_txt: Path) -> InstallStatusResult:
-        if not requirements_txt.is_file() or not requirements_txt.exists():
-            msg = f"Requirements file is invalid or does not exist: {requirements_txt}"
-            logging.warning(msg)
-            return InstallStatusResult(False, msg)
-
-        install_cmd = [(venv_dir / "bin" / "python"), "-m", "pip", "install", "-r", str(requirements_txt)]
-        logging.debug(f"Installing requirements from {requirements_txt} using command: {install_cmd}")
+    def _install_pyproject(self, venv_dir: Path, project_dir: Path) -> InstallStatusResult:
+        install_cmd = [str(venv_dir / "bin" / "python"), "-m", "pip", "install", str(project_dir)]
         result = subprocess.run(install_cmd, capture_output=True, text=True)
+
         if result.returncode != 0:
-            return InstallStatusResult(False, f"Failed to install requirements: {result.stderr}")
+            return InstallStatusResult(False, f"Failed to install {project_dir} using pip: {result.stderr}")
+
+        return InstallStatusResult(True)
+
+    def _install_requirements(self, venv_dir: Path, requirements_txt: Path) -> InstallStatusResult:
+        if not requirements_txt.is_file():
+            return InstallStatusResult(False, f"Requirements file is invalid or does not exist: {requirements_txt}")
+
+        install_cmd = [str(venv_dir / "bin" / "python"), "-m", "pip", "install", "-r", str(requirements_txt)]
+        result = subprocess.run(install_cmd, capture_output=True, text=True)
+
+        if result.returncode != 0:
+            return InstallStatusResult(False, f"Failed to install dependencies from requirements.txt: {result.stderr}")
 
         return InstallStatusResult(True)
 
