@@ -146,4 +146,3 @@ def test_nemo_generate_report_encoded(slurm_system: SlurmSystem, nemo_tr_encoded
     for line in summary_content:
         key, value = line.split(": ")
         assert pytest.approx(float(value), 0.01) == expected_values[key], f"{key} value mismatch."
-
