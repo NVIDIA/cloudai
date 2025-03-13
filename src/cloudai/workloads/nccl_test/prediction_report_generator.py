@@ -219,9 +219,9 @@ class NcclTestPredictionReportGenerator:
         df = df.merge(predictions, on="message_size", how="left", suffixes=("", "_p"))
         df["error_ratio"] = ((df["measured_dur"] - df["predicted_dur"]).abs() / df["measured_dur"]).round(2)
 
-        size_to_metrics = df.set_index("message_size")[
-            ["num_devices_per_node", "num_ranks", "gpu_type", "predicted_dur", "measured_dur", "error_ratio"]
-        ].to_dict(orient="index")
+        size_to_metrics = df.set_index("message_size")[["num_devices_per_node", "num_ranks", "gpu_type"]].to_dict(
+            orient="index"
+        )
 
         for col in ["num_devices_per_node", "num_ranks", "gpu_type", "predicted_dur", "measured_dur", "error_ratio"]:
             if col not in existing_report.columns:
