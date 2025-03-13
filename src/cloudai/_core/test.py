@@ -128,7 +128,7 @@ class NsysConfiguration(BaseModel):
 class PredictorConfig(PythonExecutable):
     """Predictor configuration."""
 
-    bin_name: str = ""
+    bin_name: Optional[str] = None
 
     def __hash__(self) -> int:
         return self.git_repo.__hash__()
