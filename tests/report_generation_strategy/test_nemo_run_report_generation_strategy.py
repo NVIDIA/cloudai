@@ -69,6 +69,31 @@ def nemo_tr(tmp_path: Path) -> TestRun:
     return tr
 
 
+@pytest.fixture
+def nemo_tr_encoded(tmp_path: Path) -> TestRun:
+    test = Test(
+        test_definition=NeMoRunTestDefinition(
+            name="nemo",
+            description="desc",
+            test_template_name="t",
+            cmd_args=NeMoRunCmdArgs(docker_image_url="docker://url", task="task", recipe_name="recipe"),
+        ),
+        test_template=Mock(),
+    )
+    tr = TestRun(name="nemo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
+
+    stdout_content = (
+        "┏━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
+        "┃[1;35m [0m[1;35mArgument Name   [0m[1;35m [0m┃[1;35m [0m[1;35mResolved Value"
+        "┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩\n"
+        "│[2m [0m[2mdata            [0m[2m [0m│ [1;35mMockDataModule[0m[1m([0m[33mseq_length["
+    )
+
+    (tr.output_path / "stdout.txt").write_text(stdout_content)
+
+    return tr
+
+
 def test_nemo_can_handle_directory(slurm_system: SlurmSystem, nemo_tr: TestRun) -> None:
     strategy = NeMoRunReportGenerationStrategy(slurm_system, nemo_tr)
     assert strategy.can_handle_directory()

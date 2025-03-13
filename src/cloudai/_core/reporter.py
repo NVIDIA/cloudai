@@ -101,5 +101,9 @@ class Reporter:
                 if not rgs.can_handle_directory():
                     logging.warning(f"Skipping '{tr.output_path}', can't handle with " f"strategy={reporter.__name__}.")
                     continue
-
-                rgs.generate_report()
+                try:
+                    rgs.generate_report()
+                except Exception as e:
+                    logging.error(
+                        f"Error generating report for '{tr.output_path}' with strategy={reporter.__name__}: {e}"
+                    )
