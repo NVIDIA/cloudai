@@ -18,7 +18,8 @@ from .grading_strategy import NcclTestGradingStrategy
 from .job_status_retrieval_strategy import NcclTestJobStatusRetrievalStrategy
 from .kubernetes_json_gen_strategy import NcclTestKubernetesJsonGenStrategy
 from .nccl import NCCLCmdArgs, NCCLTestDefinition
-from .report_generation_strategy import NcclTestReportGenerationStrategy
+from .performance_report_generation_strategy import NcclTestPerformanceReportGenerationStrategy
+from .prediction_report_generation_strategy import NcclTestPredictionReportGenerationStrategy
 from .slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 
 __all__ = [
@@ -27,6 +28,7 @@ __all__ = [
     "NcclTestGradingStrategy",
     "NcclTestJobStatusRetrievalStrategy",
     "NcclTestKubernetesJsonGenStrategy",
-    "NcclTestReportGenerationStrategy",
+    "NcclTestPerformanceReportGenerationStrategy",
+    "NcclTestPredictionReportGenerationStrategy",
     "NcclTestSlurmCommandGenStrategy",
 ]

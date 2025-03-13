@@ -15,26 +15,37 @@
 # limitations under the License.
 
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
+from cloudai import GitRepo, PredictorConfig
 from cloudai.workloads.nccl_test import NCCLTestDefinition
 from cloudai.workloads.nccl_test.prediction_report_generator import NcclTestPredictionReportGenerator
+from tests.conftest import MyTestDefinition
 
 
 @pytest.fixture
-def test_definition() -> NCCLTestDefinition:
-    mock_test_def = MagicMock(spec=NCCLTestDefinition)
+def test_definition(tmp_path: Path) -> MyTestDefinition:
+    repo = GitRepo(
+        url="https://github.com/mock/repo.git",
+        commit="mock_commit",
+        installed_path=tmp_path / "mock/repo",
+    )
 
-    mock_executable = MagicMock()
-    mock_executable.venv_path = Path("/mock/venv")
-    mock_executable.git_repo = MagicMock()
-    mock_executable.git_repo.installed_path = Path("/mock/repo")
+    predictor = PredictorConfig(
+        git_repo=repo,
+        venv_path=tmp_path / "mock/venv",
+        project_subpath=None,
+        dependencies_from_pyproject=True,
+    )
 
-    mock_test_def.predictor = mock_executable
-
-    return mock_test_def
+    return MyTestDefinition(
+        name="mock_test",
+        description="A mock test definition",
+        test_template_name="mock_template",
+        cmd_args={},
+        predictor=predictor,
+    )
 
 
 @pytest.fixture

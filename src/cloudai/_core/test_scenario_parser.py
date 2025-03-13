@@ -31,7 +31,11 @@ from cloudai.workloads.jax_toolbox import (
     NemotronTestDefinition,
 )
 from cloudai.workloads.megatron_run import CheckpointTimingReportGenerationStrategy, MegatronRunTestDefinition
-from cloudai.workloads.nccl_test import NCCLTestDefinition, NcclTestReportGenerationStrategy
+from cloudai.workloads.nccl_test import (
+    NCCLTestDefinition,
+    NcclTestPerformanceReportGenerationStrategy,
+    NcclTestPredictionReportGenerationStrategy,
+)
 from cloudai.workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy, NeMoLauncherTestDefinition
 from cloudai.workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
 from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
@@ -48,7 +52,7 @@ DEFAULT_REPORTERS: dict[Type[TestDefinition], Set[Type[ReportGenerationStrategy]
     GPTTestDefinition: {JaxToolboxReportGenerationStrategy},
     GrokTestDefinition: {JaxToolboxReportGenerationStrategy},
     MegatronRunTestDefinition: {CheckpointTimingReportGenerationStrategy},
-    NCCLTestDefinition: {NcclTestReportGenerationStrategy},
+    NCCLTestDefinition: {NcclTestPerformanceReportGenerationStrategy, NcclTestPredictionReportGenerationStrategy},
     NeMoLauncherTestDefinition: {NeMoLauncherReportGenerationStrategy},
     NeMoRunTestDefinition: {NeMoRunReportGenerationStrategy},
     NemotronTestDefinition: {JaxToolboxReportGenerationStrategy},
