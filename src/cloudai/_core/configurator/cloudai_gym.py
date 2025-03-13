@@ -225,7 +225,7 @@ class CloudAIGymEnv(BaseGym):
                     return [average_value]
         return [-1.0]
 
-    def update_test_run_obj(self, obj, attr_path, value):
+    def update_test_run_obj(self, obj: Any, attr_path: str, value: Any) -> None:
         """Update a nested attribute of an object."""
         attrs = attr_path.split(".")
         for attr in attrs[:-1]:
