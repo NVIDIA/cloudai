@@ -51,7 +51,8 @@ class NcclTestPredictionReportGenerator:
             logging.warning("No valid NCCL performance data extracted. Ensure the test ran successfully.")
             return
 
-        self._store_intermediate_data(df.drop(columns=["gpu_type", "measured_dur"]))
+        intermediate_df = df.copy()
+        self._store_intermediate_data(intermediate_df.drop(columns=["gpu_type", "measured_dur"]))
         predictions = self._run_predictor(gpu_type)
 
         if predictions.empty:
