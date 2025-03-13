@@ -51,8 +51,7 @@ class NcclTestPredictionReportGenerator:
             logging.warning("No valid NCCL performance data extracted. Ensure the test ran successfully.")
             return
 
-        intermediate_df = df.copy()
-        self._store_intermediate_data(intermediate_df.drop(columns=["gpu_type", "measured_dur"]))
+        self._store_intermediate_data(df.drop(columns=["gpu_type", "measured_dur"]))
         predictions = self._run_predictor(gpu_type)
 
         if predictions.empty:
@@ -217,7 +216,7 @@ class NcclTestPredictionReportGenerator:
         predictions["message_size"] = predictions["message_size"].astype(int)
         df["message_size"] = df["message_size"].astype(int)
 
-        df = df.merge(predictions, on="message_size", how="left")
+        df = df.merge(predictions, on="message_size", how="left", suffixes=("", "_p"))
         df["error_ratio"] = ((df["measured_dur"] - df["predicted_dur"]).abs() / df["measured_dur"]).round(2)
 
         size_to_metrics = df.set_index("message_size")[
@@ -240,7 +239,6 @@ class NcclTestPredictionReportGenerator:
             return row
 
         updated_report = existing_report.apply(update_row, axis=1, result_type="expand")
-
         updated_report.to_csv(report_path, index=False)
         logging.debug(f"Updated performance report saved to {report_path}")
 
