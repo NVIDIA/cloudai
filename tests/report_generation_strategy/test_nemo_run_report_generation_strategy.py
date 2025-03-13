@@ -87,6 +87,11 @@ def nemo_tr_encoded(tmp_path: Path) -> TestRun:
         "┃[1;35m [0m[1;35mArgument Name   [0m[1;35m [0m┃[1;35m [0m[1;35mResolved Value"
         "┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩\n"
         "│[2m [0m[2mdata            [0m[2m [0m│ [1;35mMockDataModule[0m[1m([0m[33mseq_length["
+        "Training epoch 0, iteration 17/99 | lr: 2.699e-06 | global_batch_size: 128 | global_step: 17 | "
+        "reduced_train_loss: 11.03 | train_step_timing in s: 12.64 | consumed_samples: 2304\n"
+        "Training epoch 0, iteration 18/99 | lr: 2.849e-06 | global_batch_size: 128 | global_step: 18 | "
+        "reduced_train_loss: 11.03 | train_step_timing in s: 12.64 | consumed_samples: 2432\n"
+        "Training epoch 0, iteration 19/99 | lr: 2.999e-06 | global_batch_size: 128 | global_step: 19 | "
     )
 
     (tr.output_path / "stdout.txt").write_text(stdout_content)
@@ -119,3 +124,26 @@ def test_nemo_generate_report(slurm_system: SlurmSystem, nemo_tr: TestRun) -> No
     for line in summary_content:
         key, value = line.split(": ")
         assert pytest.approx(float(value), 0.01) == expected_values[key], f"{key} value mismatch."
+
+
+def test_nemo_generate_report_encoded(slurm_system: SlurmSystem, nemo_tr_encoded: TestRun) -> None:
+    strategy = NeMoRunReportGenerationStrategy(slurm_system, nemo_tr_encoded)
+    strategy.generate_report()
+
+    summary_file = nemo_tr_encoded.output_path / "report.txt"
+    assert summary_file.is_file(), "Summary report was not generated."
+
+    summary_content = summary_file.read_text(encoding="utf-8", errors="ignore").strip().split("\n")
+    assert len(summary_content) == 4, "Summary file should contain four lines (avg, median, min, max)."
+
+    expected_values = {
+        "Average": 12.74,
+        "Median": 12.65,
+        "Min": 12.63,
+        "Max": 12.64,
+    }
+
+    for line in summary_content:
+        key, value = line.split(": ")
+        assert pytest.approx(float(value), 0.01) == expected_values[key], f"{key} value mismatch."
+
