@@ -58,6 +58,7 @@ class NcclTestPredictionReportGenerator:
             logging.warning("Prediction output is empty. Skipping report generation.")
             return
 
+        self._update_performance_report(df, predictions)
         self._generate_prediction_report(df, predictions)
 
     def _extract_device_info(self) -> Tuple[str, int, int]:
@@ -198,6 +199,43 @@ class NcclTestPredictionReportGenerator:
             output_csv.unlink()
 
         return predictions[["num_devices_per_node", "num_ranks", "message_size", "predicted_dur"]]
+
+    def _update_performance_report(self, df: pd.DataFrame, predictions: pd.DataFrame) -> None:
+        report_path = self.output_path / "cloudai_nccl_test_csv_report.csv"
+
+        if not report_path.exists():
+            logging.warning(f"Performance report {report_path} not found. Skipping update.")
+            return
+
+        existing_report = pd.read_csv(report_path)
+
+        if "Size (B)" not in existing_report.columns:
+            logging.warning("Missing 'Size (B)' column in existing report. Skipping update.")
+            return
+
+        predictions["message_size"] = predictions["message_size"].astype(int)
+        df["message_size"] = df["message_size"].astype(int)
+
+        df = df.merge(predictions, on="message_size", how="left")
+        df["error_ratio"] = ((df["measured_dur"] - df["predicted_dur"]).abs() / df["measured_dur"]).round(2)
+
+        size_to_metrics = df.set_index("message_size")[["predicted_dur", "measured_dur", "error_ratio"]].to_dict(
+            orient="index"
+        )
+
+        for col in ["predicted_dur", "measured_dur", "error_ratio"]:
+            if col not in existing_report.columns:
+                existing_report[col] = None
+
+        updated_report = existing_report.apply(
+            lambda row: row.assign(**size_to_metrics.get(row["Size (B)"], {}))
+            if row["Size (B)"] in size_to_metrics
+            else row,
+            axis=1,
+        )
+
+        updated_report.to_csv(report_path, index=False)
+        logging.debug(f"Updated performance report saved to {report_path}")
 
     def _generate_prediction_report(self, df: pd.DataFrame, predictions: pd.DataFrame) -> None:
         df = df.merge(predictions, on="message_size", how="left")
