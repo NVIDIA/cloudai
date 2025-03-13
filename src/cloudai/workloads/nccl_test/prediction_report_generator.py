@@ -233,9 +233,6 @@ class NcclTestPredictionReportGenerator:
                 row["num_devices_per_node"] = size_to_metrics[size]["num_devices_per_node"]
                 row["num_ranks"] = size_to_metrics[size]["num_ranks"]
                 row["gpu_type"] = size_to_metrics[size]["gpu_type"]
-                row["predicted_dur"] = size_to_metrics[size]["predicted_dur"]
-                row["measured_dur"] = size_to_metrics[size]["measured_dur"]
-                row["error_ratio"] = size_to_metrics[size]["error_ratio"]
             return row
 
         updated_report = existing_report.apply(update_row, axis=1, result_type="expand")
