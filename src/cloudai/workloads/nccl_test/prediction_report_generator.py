@@ -227,12 +227,15 @@ class NcclTestPredictionReportGenerator:
             if col not in existing_report.columns:
                 existing_report[col] = None
 
-        updated_report = existing_report.apply(
-            lambda row: row.assign(**size_to_metrics.get(row["Size (B)"], {}))
-            if row["Size (B)"] in size_to_metrics
-            else row,
-            axis=1,
-        )
+        def update_row(row):
+            size = row["Size (B)"]
+            if size in size_to_metrics:
+                row["predicted_dur"] = size_to_metrics[size]["predicted_dur"]
+                row["measured_dur"] = size_to_metrics[size]["measured_dur"]
+                row["error_ratio"] = size_to_metrics[size]["error_ratio"]
+            return row
+
+        updated_report = existing_report.apply(update_row, axis=1, result_type="expand")
 
         updated_report.to_csv(report_path, index=False)
         logging.debug(f"Updated performance report saved to {report_path}")
