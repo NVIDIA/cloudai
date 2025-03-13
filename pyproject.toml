@@ -24,6 +24,7 @@ dependencies = [
   "toml==0.10.2",
   "kubernetes==30.1.0",
   "pydantic==2.8.2",
+  "jinja2==3.1.5",
 ]
   [project.scripts]
   cloudai = "cloudai.__main__:main"
