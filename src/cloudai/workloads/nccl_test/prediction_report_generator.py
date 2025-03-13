@@ -223,7 +223,7 @@ class NcclTestPredictionReportGenerator:
             orient="index"
         )
 
-        for col in ["num_devices_per_node", "num_ranks", "gpu_type", "predicted_dur", "measured_dur", "error_ratio"]:
+        for col in ["num_devices_per_node", "num_ranks", "gpu_type"]:
             if col not in existing_report.columns:
                 existing_report[col] = None
 
