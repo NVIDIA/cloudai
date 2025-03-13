@@ -17,6 +17,8 @@
 import logging
 from pathlib import Path
 
+import jinja2
+
 from .system import System
 from .test_scenario import TestRun, TestScenario
 
@@ -44,15 +46,41 @@ class Reporter:
         Args:
             test_scenario (TestScenario): The scenario containing tests.
         """
+        self.generate_scenario_report()
+
         for tr in self.test_scenario.test_runs:
             test_output_dir = self.results_root / tr.name
             if not test_output_dir.exists() or not test_output_dir.is_dir():
                 logging.warning(f"Directory '{test_output_dir}' not found.")
                 continue
 
-            self._generate_test_report(test_output_dir, tr)
+            self.generate_per_case_reports(test_output_dir, tr)
 
-    def _generate_test_report(self, directory_path: Path, tr: TestRun) -> None:
+    def generate_scenario_report(self) -> None:
+        template = jinja2.Environment(loader=jinja2.FileSystemLoader("src/cloudai/util")).get_template(
+            "general-report.jinja2"
+        )
+
+        results = {}
+        for tr in self.test_scenario.test_runs:
+            for iter in range(tr.iterations):
+                run_dir = self.results_root / tr.name / f"{iter}"
+                if run_dir.exists():
+                    results.setdefault(
+                        tr.name + f"{iter}", {"logs_path": f"./{run_dir.relative_to(self.results_root)}"}
+                    )
+
+        report = template.render(
+            test_scenario=self.test_scenario,
+            tr_results=results,
+        )
+        report_path = self.results_root / f"{self.test_scenario.name}.html"
+        with report_path.open("w") as f:
+            f.write(report)
+
+        logging.info(f"Generated scenario report at {report_path}")
+
+    def generate_per_case_reports(self, directory_path: Path, tr: TestRun) -> None:
         """
         Generate reports for a test by iterating through subdirectories within the directory path.
 
@@ -71,7 +99,7 @@ class Reporter:
                 tr.output_path = subdir
 
                 if not rgs.can_handle_directory():
-                    logging.warning(f"Skipping '{tr.output_path}', can't handle with " f"strategy={reporter}.")
+                    logging.warning(f"Skipping '{tr.output_path}', can't handle with " f"strategy={reporter.__name__}.")
                     continue
 
                 rgs.generate_report()
