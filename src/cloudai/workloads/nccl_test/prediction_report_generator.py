@@ -36,9 +36,6 @@ class NcclTestPredictionReportGenerator:
         self.test_definition = test_definition
         self.predictor = test_definition.predictor
 
-        if not self.predictor:
-            logging.warning("Predictor is not installed. Skipping NCCL prediction reports.")
-
     def generate(self) -> None:
         if not self.predictor:
             logging.warning("Skipping report generation. Predictor is not installed.")
