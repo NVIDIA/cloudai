@@ -18,7 +18,7 @@ import logging
 import re
 import subprocess
 from pathlib import Path
-from typing import Tuple
+from typing import Optional, Tuple
 
 import pandas as pd
 
@@ -107,40 +107,36 @@ class NcclTestPredictionReportGenerator:
         df.to_csv(csv_path, index=False)
         logging.debug(f"Stored intermediate predictor input data at {csv_path}")
 
-    def _check_predictor_files_exist(self, gpu_type: str) -> Tuple[bool, Path, Path, Path, Path, Path]:
-        if not self.predictor or not self.predictor.git_repo:
-            logging.warning("Predictor repository is not installed. Skipping prediction.")
-            return False, Path(), Path(), Path(), Path(), Path()
+    def _get_predictor_paths(self, gpu_type: str) -> Optional[Tuple[Path, Path, Path, Path, Path]]:
+        if not self.predictor or not self.predictor.git_repo or not self.test_definition.predictor:
+            logging.warning("Predictor setup is incomplete. Skipping path retrieval.")
+            return None
 
         installed_path = self.predictor.git_repo.installed_path
-        if installed_path is None:
-            logging.warning("Predictor repository is not installed. Skipping prediction.")
-            return False, Path(), Path(), Path(), Path(), Path()
+        project_subpath = self.test_definition.predictor.project_subpath
 
-        if not self.test_definition.predictor or not self.test_definition.predictor.project_subpath:
-            logging.warning("Predictor configuration is incomplete. Skipping prediction.")
-            return False, Path(), Path(), Path(), Path(), Path()
+        if installed_path is None or project_subpath is None:
+            logging.warning("Predictor repository path is missing. Skipping path retrieval.")
+            return None
 
-        predictor_sub_path = installed_path / self.test_definition.predictor.project_subpath
+        predictor_sub_path = installed_path / project_subpath
         config_path = predictor_sub_path / f"conf/{gpu_type}/{self.collective_type}.toml"
         model_path = predictor_sub_path / f"weights/{gpu_type}/{self.collective_type}.pkl"
         input_csv = self.output_path / "cloudai_nccl_test_prediction_input.csv"
         output_csv = self.output_path / "cloudai_nccl_test_prediction_output.csv"
 
-        missing_files = [p for p in [config_path, model_path, input_csv] if not p.exists()]
-        if missing_files:
-            for file in missing_files:
-                logging.warning(f"Missing required file: {file}. Ensure predictor configuration and model files.")
-            return False, Path(), Path(), Path(), Path(), Path()
-
-        return True, config_path, model_path, input_csv, output_csv, predictor_sub_path
+        return config_path, model_path, input_csv, output_csv, predictor_sub_path
 
     def _run_predictor(self, gpu_type: str) -> pd.DataFrame:
-        valid, config_path, model_path, input_csv, output_csv, predictor_sub_path = self._check_predictor_files_exist(
-            gpu_type
-        )
-        if not valid:
+        if not self.predictor or not self.predictor.venv_path or not self.test_definition.predictor:
+            logging.warning("Predictor setup is incomplete. Skipping prediction.")
             return pd.DataFrame()
+
+        predictor_paths = self._get_predictor_paths(gpu_type)
+        if predictor_paths is None:
+            return pd.DataFrame()
+
+        config_path, model_path, input_csv, output_csv, predictor_sub_path = predictor_paths
 
         if not self.predictor or not self.predictor.venv_path:
             logging.warning("Predictor virtual environment is not set up. Skipping prediction.")
