@@ -27,6 +27,6 @@ class SleepSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return []
 
     def generate_test_command(
-        self, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
+        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> List[str]:
         return [f'sleep {cmd_args["seconds"]}']
