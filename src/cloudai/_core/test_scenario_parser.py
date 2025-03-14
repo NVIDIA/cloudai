@@ -31,7 +31,11 @@ from cloudai.workloads.jax_toolbox import (
     NemotronTestDefinition,
 )
 from cloudai.workloads.megatron_run import CheckpointTimingReportGenerationStrategy, MegatronRunTestDefinition
-from cloudai.workloads.nccl_test import NCCLTestDefinition, NcclTestReportGenerationStrategy
+from cloudai.workloads.nccl_test import (
+    NCCLTestDefinition,
+    NcclTestPerformanceReportGenerationStrategy,
+    NcclTestPredictionReportGenerationStrategy,
+)
 from cloudai.workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy, NeMoLauncherTestDefinition
 from cloudai.workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
 from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
@@ -48,7 +52,7 @@ DEFAULT_REPORTERS: dict[Type[TestDefinition], Set[Type[ReportGenerationStrategy]
     GPTTestDefinition: {JaxToolboxReportGenerationStrategy},
     GrokTestDefinition: {JaxToolboxReportGenerationStrategy},
     MegatronRunTestDefinition: {CheckpointTimingReportGenerationStrategy},
-    NCCLTestDefinition: {NcclTestReportGenerationStrategy},
+    NCCLTestDefinition: {NcclTestPerformanceReportGenerationStrategy},
     NeMoLauncherTestDefinition: {NeMoLauncherReportGenerationStrategy},
     NeMoRunTestDefinition: {NeMoRunReportGenerationStrategy},
     NemotronTestDefinition: {JaxToolboxReportGenerationStrategy},
@@ -127,7 +131,12 @@ def calculate_total_time_limit(test_hooks: List[TestScenario], time_limit: Optio
 
 
 def get_reporters(test_info: "_TestRunTOML", tdef: TestDefinition) -> Set[Type[ReportGenerationStrategy]]:
-    return DEFAULT_REPORTERS.get(type(tdef), set())
+    reporters = DEFAULT_REPORTERS.get(type(tdef), set())
+
+    if isinstance(tdef, NCCLTestDefinition) and tdef.predictor is not None:
+        reporters.add(NcclTestPredictionReportGenerationStrategy)
+
+    return reporters
 
 
 class _TestDependencyTOML(BaseModel):

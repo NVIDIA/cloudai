@@ -22,8 +22,7 @@ import pytest
 
 from cloudai import Test, TestRun
 from cloudai.systems.slurm.slurm_system import SlurmSystem
-from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
-from cloudai.workloads.nccl_test.report_generation_strategy import NcclTestReportGenerationStrategy
+from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestPerformanceReportGenerationStrategy
 
 
 @pytest.fixture
@@ -69,15 +68,17 @@ def nccl_tr(tmp_path: Path) -> TestRun:
 
 
 @pytest.fixture
-def report_strategy(slurm_system: SlurmSystem, nccl_tr: TestRun) -> NcclTestReportGenerationStrategy:
-    return NcclTestReportGenerationStrategy(slurm_system, nccl_tr)
+def report_strategy(slurm_system: SlurmSystem, nccl_tr: TestRun) -> NcclTestPerformanceReportGenerationStrategy:
+    return NcclTestPerformanceReportGenerationStrategy(slurm_system, nccl_tr)
 
 
-def test_can_handle_directory(report_strategy: NcclTestReportGenerationStrategy) -> None:
+def test_can_handle_directory(report_strategy: NcclTestPerformanceReportGenerationStrategy) -> None:
     assert report_strategy.can_handle_directory() is True
 
 
-def test_generate_performance_report(report_strategy: NcclTestReportGenerationStrategy, nccl_tr: TestRun) -> None:
+def test_generate_performance_report(
+    report_strategy: NcclTestPerformanceReportGenerationStrategy, nccl_tr: TestRun
+) -> None:
     report_strategy.performance_report.generate()
 
     csv_report_path = nccl_tr.output_path / "cloudai_nccl_test_csv_report.csv"
