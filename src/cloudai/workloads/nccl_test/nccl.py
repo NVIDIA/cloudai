@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 
 from cloudai import CmdArgs, DockerImage, Installable, TestDefinition
 
@@ -23,47 +23,78 @@ class NCCLCmdArgs(CmdArgs):
     """NCCL test command arguments."""
 
     docker_image_url: str = "nvcr.io/nvidia/pytorch:24.02-py3"
-    subtest_name: Literal[
-        "all_reduce_perf_mpi",
-        "all_gather_perf_mpi",
-        "alltoall_perf_mpi",
-        "broadcast_perf_mpi",
-        "gather_perf_mpi",
-        "hypercube_perf_mpi",
-        "reduce_perf_mpi",
-        "reduce_scatter_perf_mpi",
-        "scatter_perf_mpi",
-        "sendrecv_perf_mpi",
-        "bisection_perf_mpi",
-        # K8s tests
-        "all_reduce_perf",
-        "all_gather_perf",
-        "alltoall_perf",
-        "broadcast_perf",
-        "gather_perf",
-        "hypercube_perf",
-        "reduce_perf",
-        "reduce_scatter_perf",
-        "scatter_perf",
-        "sendrecv_perf",
-        "bisection_perf",
+    subtest_name: Union[
+        Literal[
+            "all_reduce_perf_mpi",
+            "all_gather_perf_mpi",
+            "alltoall_perf_mpi",
+            "broadcast_perf_mpi",
+            "gather_perf_mpi",
+            "hypercube_perf_mpi",
+            "reduce_perf_mpi",
+            "reduce_scatter_perf_mpi",
+            "scatter_perf_mpi",
+            "sendrecv_perf_mpi",
+            "bisection_perf_mpi",
+            # K8s tests
+            "all_reduce_perf",
+            "all_gather_perf",
+            "alltoall_perf",
+            "broadcast_perf",
+            "gather_perf",
+            "hypercube_perf",
+            "reduce_perf",
+            "reduce_scatter_perf",
+            "scatter_perf",
+            "sendrecv_perf",
+            "bisection_perf",
+        ],
+        list[
+            Literal[
+                "all_reduce_perf_mpi",
+                "all_gather_perf_mpi",
+                "alltoall_perf_mpi",
+                "broadcast_perf_mpi",
+                "gather_perf_mpi",
+                "hypercube_perf_mpi",
+                "reduce_perf_mpi",
+                "reduce_scatter_perf_mpi",
+                "scatter_perf_mpi",
+                "sendrecv_perf_mpi",
+                "bisection_perf_mpi",
+                # K8s tests
+                "all_reduce_perf",
+                "all_gather_perf",
+                "alltoall_perf",
+                "broadcast_perf",
+                "gather_perf",
+                "hypercube_perf",
+                "reduce_perf",
+                "reduce_scatter_perf",
+                "scatter_perf",
+                "sendrecv_perf",
+                "bisection_perf",
+            ]
+        ],
     ] = "all_reduce_perf_mpi"
-    nthreads: int = 1
-    ngpus: int = 1
-    minbytes: str = "32M"
-    maxbytes: str = "32M"
-    stepbytes: str = "1M"
-    op: Literal["sum", "prod", "min", "max", "avg", "all"] = "sum"
-    datatype: Literal["uint8", "float"] = "float"
-    root: int = 0
-    iters: int = 20
-    warmup_iters: int = 5
-    agg_iters: int = 1
-    average: int = 1
-    parallel_init: int = 0
-    check: int = 1
-    blocking: int = 0
-    cudagraph: int = 0
+    nthreads: Union[int, list[int]] = 1
+    ngpus: Union[int, list[int]] = 1
+    minbytes: Union[str, list[str]] = "32M"
+    maxbytes: Union[str, list[str]] = "32M"
+    stepbytes: Union[str, list[str]] = "1M"
+    op: Union[
+        Literal["sum", "prod", "min", "max", "avg", "all"], list[Literal["sum", "prod", "min", "max", "avg", "all"]]
+    ] = "sum"
+    datatype: Union[Literal["uint8", "float"], list[Literal["uint8", "float"]]] = "float"
+    root: Union[int, list[int]] = 0
+    iters: Union[int, list[int]] = 20
+    warmup_iters: Union[int, list[int]] = 5
+    agg_iters: Union[int, list[int]] = 1
+    average: Union[int, list[int]] = 1
+    parallel_init: Union[int, list[int]] = 0
+    check: Union[int, list[int]] = 1
+    blocking: Union[int, list[int]] = 0
+    cudagraph: Union[int, list[int]] = 0
 
 
 class NCCLTestDefinition(TestDefinition):
