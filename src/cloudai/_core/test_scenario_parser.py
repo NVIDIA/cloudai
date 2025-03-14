@@ -52,7 +52,7 @@ DEFAULT_REPORTERS: dict[Type[TestDefinition], Set[Type[ReportGenerationStrategy]
     GPTTestDefinition: {JaxToolboxReportGenerationStrategy},
     GrokTestDefinition: {JaxToolboxReportGenerationStrategy},
     MegatronRunTestDefinition: {CheckpointTimingReportGenerationStrategy},
-    NCCLTestDefinition: {NcclTestPerformanceReportGenerationStrategy, NcclTestPredictionReportGenerationStrategy},
+    NCCLTestDefinition: {NcclTestPerformanceReportGenerationStrategy},
     NeMoLauncherTestDefinition: {NeMoLauncherReportGenerationStrategy},
     NeMoRunTestDefinition: {NeMoRunReportGenerationStrategy},
     NemotronTestDefinition: {JaxToolboxReportGenerationStrategy},
@@ -131,7 +131,12 @@ def calculate_total_time_limit(test_hooks: List[TestScenario], time_limit: Optio
 
 
 def get_reporters(test_info: "_TestRunTOML", tdef: TestDefinition) -> Set[Type[ReportGenerationStrategy]]:
-    return DEFAULT_REPORTERS.get(type(tdef), set())
+    reporters = DEFAULT_REPORTERS.get(type(tdef), set())
+
+    if isinstance(tdef, NCCLTestDefinition) and tdef.predictor is not None:
+        reporters.add(NcclTestPredictionReportGenerationStrategy)
+
+    return reporters
 
 
 class _TestDependencyTOML(BaseModel):
