@@ -75,7 +75,36 @@ class NcclTestPerformanceReportGenerator:
         df["Busbw (GB/s) In-place"] = df["Busbw (GB/s) In-place"].astype(float)
 
         df = add_human_readable_sizes(df, "Size (B)", "Size Human-readable")
+
+        gpu_type, num_devices_per_node, num_ranks = self._extract_device_info()
+
+        df["gpu_type"] = gpu_type
+        df["num_devices_per_node"] = num_devices_per_node
+        df["num_ranks"] = num_ranks
+
         return df, avg_bus_bw
+
+    def _extract_device_info(self) -> Tuple[str, int, int]:
+        gpu_type, num_ranks = "Unknown", 0
+        device_indices = {}
+
+        if not self.stdout_path.is_file():
+            return gpu_type, 0, 0
+
+        with self.stdout_path.open(encoding="utf-8") as file:
+            for line in file:
+                if "Rank" in line and "device" in line and "NVIDIA" in line:
+                    num_ranks += 1
+
+                    if match := re.search(r"on\s+([\w\d\-.]+)\s+device\s+(\d+)", line):
+                        host, device_index = match.groups()
+                        device_indices[host] = max(device_indices.get(host, -1), int(device_index))
+
+                    if match := re.search(r"NVIDIA\s+([A-Z0-9]+)", line):
+                        gpu_type = match.group(1).strip()
+
+        num_devices = max(device_indices.values(), default=-1) + 1 if device_indices else 0
+        return gpu_type, num_devices, num_ranks
 
     def _parse_stdout(self) -> Tuple[List[List[str]], Optional[float]]:
         data = []

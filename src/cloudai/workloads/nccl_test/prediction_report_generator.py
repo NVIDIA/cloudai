@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import logging
-import re
 import subprocess
 from pathlib import Path
 from typing import Optional, Tuple
@@ -41,66 +40,41 @@ class NcclTestPredictionReportGenerator:
             logging.warning("Skipping report generation. Predictor is not installed.")
             return
 
-        gpu_type, num_devices, num_ranks = self._extract_device_info()
-        df = self._extract_performance_data(gpu_type, num_devices, num_ranks)
-
+        df = self._extract_performance_data()
         if df.empty:
             logging.warning("No valid NCCL performance data extracted. Ensure the test ran successfully.")
             return
 
         self._store_intermediate_data(df.drop(columns=["gpu_type", "measured_dur"]))
-        predictions = self._run_predictor(gpu_type)
+        predictions = self._run_predictor(df["gpu_type"].iloc[0])
 
         if predictions.empty:
             logging.warning("Prediction output is empty. Skipping report generation.")
             return
 
-        self._update_performance_report(df, predictions)
         self._generate_prediction_report(df, predictions)
 
-    def _extract_device_info(self) -> Tuple[str, int, int]:
-        gpu_type, num_ranks = "Unknown", 0
-        device_indices = {}
+    def _extract_performance_data(self) -> pd.DataFrame:
+        csv_report_path = self.output_path / "cloudai_nccl_test_csv_report.csv"
 
-        if not self.stdout_path.is_file():
-            logging.warning(f"stdout file {self.stdout_path} not found. Ensure NCCL test execution before report.")
-            return gpu_type, 0, 0
-
-        with self.stdout_path.open(encoding="utf-8") as file:
-            for line in file:
-                if "Rank" in line and "device" in line and "NVIDIA" in line:
-                    num_ranks += 1
-
-                    if match := re.search(r"on\s+([\w\d\-.]+)\s+device\s+(\d+)", line):
-                        host, device_index = match.groups()
-                        device_indices[host] = max(device_indices.get(host, -1), int(device_index))
-
-                    if match := re.search(r"NVIDIA\s+([A-Z0-9]+)", line):
-                        gpu_type = match.group(1).strip()
-
-        num_devices = max(device_indices.values(), default=-1) + 1 if device_indices else 0
-        logging.debug(f"Extracted GPU Type: {gpu_type}, Devices per Node: {num_devices}, Ranks: {num_ranks}")
-        return gpu_type, num_devices, num_ranks
-
-    def _extract_performance_data(self, gpu_type: str, num_devices: int, num_ranks: int) -> pd.DataFrame:
-        if not self.stdout_path.is_file():
+        if not csv_report_path.is_file():
+            logging.warning(f"Performance CSV {csv_report_path} not found.")
             return pd.DataFrame()
 
-        extracted_data = [
-            [gpu_type, num_devices, num_ranks, float(match.group(1)), round(float(match.group(2)), 2)]
-            for line in self.stdout_path.open(encoding="utf-8")
-            if (
-                match := re.match(r"^\s*(\d+)\s+\d+\s+\S+\s+\S+\s+[-\d]+\s+\S+\s+\S+\s+\S+\s+\d+\s+(\S+)", line.strip())
-            )
-        ]
+        df = pd.read_csv(csv_report_path)
 
-        if not extracted_data:
-            logging.debug("No valid NCCL performance data found in stdout.")
+        required_columns = {"gpu_type", "num_devices_per_node", "num_ranks", "Size (B)", "Time (us) Out-of-place"}
+        missing_columns = required_columns - set(df.columns)
+
+        if missing_columns:
+            logging.warning(f"Missing required columns in performance CSV: {', '.join(missing_columns)}")
             return pd.DataFrame()
 
-        return pd.DataFrame(
-            extracted_data, columns=["gpu_type", "num_devices_per_node", "num_ranks", "message_size", "measured_dur"]
-        )
+        df.rename(columns={"Size (B)": "message_size", "Time (us) Out-of-place": "measured_dur"}, inplace=True)
+
+        df = df[["gpu_type", "num_devices_per_node", "num_ranks", "message_size", "measured_dur"]]
+
+        return df
 
     def _store_intermediate_data(self, df: pd.DataFrame) -> None:
         csv_path = self.output_path / "cloudai_nccl_test_prediction_input.csv"
@@ -192,45 +166,6 @@ class NcclTestPredictionReportGenerator:
             output_csv.unlink()
 
         return predictions[["num_devices_per_node", "num_ranks", "message_size", "predicted_dur"]]
-
-    def _update_performance_report(self, df: pd.DataFrame, predictions: pd.DataFrame) -> None:
-        report_path = self.output_path / "cloudai_nccl_test_csv_report.csv"
-
-        if not report_path.exists():
-            logging.warning(f"Performance report {report_path} not found. Skipping update.")
-            return
-
-        existing_report = pd.read_csv(report_path)
-
-        if "Size (B)" not in existing_report.columns:
-            logging.warning("Missing 'Size (B)' column in existing report. Skipping update.")
-            return
-
-        predictions["message_size"] = predictions["message_size"].astype(int)
-        df["message_size"] = df["message_size"].astype(int)
-
-        df = df.merge(predictions, on="message_size", how="left", suffixes=("", "_p"))
-        df["error_ratio"] = ((df["measured_dur"] - df["predicted_dur"]).abs() / df["measured_dur"]).round(2)
-
-        size_to_metrics = df.set_index("message_size")[["num_devices_per_node", "num_ranks", "gpu_type"]].to_dict(
-            orient="index"
-        )
-
-        for col in ["num_devices_per_node", "num_ranks", "gpu_type"]:
-            if col not in existing_report.columns:
-                existing_report[col] = None
-
-        def update_row(row):
-            size = row["Size (B)"]
-            if size in size_to_metrics:
-                row["num_devices_per_node"] = size_to_metrics[size]["num_devices_per_node"]
-                row["num_ranks"] = size_to_metrics[size]["num_ranks"]
-                row["gpu_type"] = size_to_metrics[size]["gpu_type"]
-            return row
-
-        updated_report = existing_report.apply(update_row, axis=1, result_type="expand")
-        updated_report.to_csv(report_path, index=False)
-        logging.debug(f"Updated performance report saved to {report_path}")
 
     def _generate_prediction_report(self, df: pd.DataFrame, predictions: pd.DataFrame) -> None:
         df = df.merge(predictions, on="message_size", how="left")
