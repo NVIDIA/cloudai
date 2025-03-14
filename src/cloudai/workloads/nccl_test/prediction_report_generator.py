@@ -107,7 +107,7 @@ class NcclTestPredictionReportGenerator:
         df.to_csv(csv_path, index=False)
         logging.debug(f"Stored intermediate predictor input data at {csv_path}")
 
-    def _validate_predictor_files(self, gpu_type: str) -> Tuple[bool, Path, Path, Path, Path, Path]:
+    def _check_predictor_files_exist(self, gpu_type: str) -> Tuple[bool, Path, Path, Path, Path, Path]:
         if not self.predictor or not self.predictor.git_repo:
             logging.warning("Predictor repository is not installed. Skipping prediction.")
             return False, Path(), Path(), Path(), Path(), Path()
@@ -136,7 +136,7 @@ class NcclTestPredictionReportGenerator:
         return True, config_path, model_path, input_csv, output_csv, predictor_sub_path
 
     def _run_predictor(self, gpu_type: str) -> pd.DataFrame:
-        valid, config_path, model_path, input_csv, output_csv, predictor_sub_path = self._validate_predictor_files(
+        valid, config_path, model_path, input_csv, output_csv, predictor_sub_path = self._check_predictor_files_exist(
             gpu_type
         )
         if not valid:
