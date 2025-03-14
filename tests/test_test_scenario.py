@@ -42,7 +42,6 @@ from cloudai.workloads.megatron_run import CheckpointTimingReportGenerationStrat
 from cloudai.workloads.nccl_test import (
     NCCLTestDefinition,
     NcclTestPerformanceReportGenerationStrategy,
-    NcclTestPredictionReportGenerationStrategy,
 )
 from cloudai.workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy, NeMoLauncherTestDefinition
 from cloudai.workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
@@ -291,10 +290,7 @@ class TestReporters:
             (GPTTestDefinition, {JaxToolboxReportGenerationStrategy}),
             (GrokTestDefinition, {JaxToolboxReportGenerationStrategy}),
             (MegatronRunTestDefinition, {CheckpointTimingReportGenerationStrategy}),
-            (
-                NCCLTestDefinition,
-                {NcclTestPerformanceReportGenerationStrategy, NcclTestPredictionReportGenerationStrategy},
-            ),
+            (NCCLTestDefinition, {NcclTestPerformanceReportGenerationStrategy}),
             (NeMoLauncherTestDefinition, {NeMoLauncherReportGenerationStrategy}),
             (NeMoRunTestDefinition, {NeMoRunReportGenerationStrategy}),
             (NemotronTestDefinition, {JaxToolboxReportGenerationStrategy}),
