@@ -63,7 +63,7 @@ class GridSearchAgent(BaseAgent):
             List[Dict[str, Any]]: A list of dictionaries, each representing a unique combination of parameters.
         """
         keys = list(self.action_space.keys())
-        return [dict(zip(keys, combination, strict=False)) for combination in self.action_combinations]
+        return [dict(zip(keys, combination)) for combination in self.action_combinations]
 
     def select_action(self) -> Tuple[int, Dict[str, Any]]:
         """
