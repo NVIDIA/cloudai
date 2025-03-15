@@ -17,6 +17,7 @@
 import asyncio
 import csv
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -27,6 +28,32 @@ from cloudai._core.runner import Runner
 from cloudai._core.test_scenario import TestRun
 
 from ..reporter import Reporter
+
+
+@dataclass
+class ActionSpace:
+    """
+    A class to encapsulate command arguments and environment variables for actions.
+
+    Attributes:
+        cmd_args (Dict[str, Any]): Command arguments for the action.
+        env_vars (Dict[str, Any]): Environment variables for the action.
+    """
+
+    cmd_args: Dict[str, Any]
+    env_vars: Dict[str, Any]
+
+    def items(self):
+        """
+        Yield key-value pairs from cmd_args and env_vars.
+
+        Yields:
+            Tuple[str, Any]: Key-value pairs from cmd_args and env_vars.
+        """
+        for key, value in self.cmd_args.items():
+            yield key, value
+        for key, value in self.env_vars.items():
+            yield f"extra_env_vars.{key}", value
 
 
 class CloudAIGymEnv(BaseGym):
@@ -50,24 +77,32 @@ class CloudAIGymEnv(BaseGym):
         self.max_steps = test_run.test.test_definition.agent_steps
         super().__init__()
 
-    def define_action_space(self) -> Dict[str, Any]:
+    def define_action_space(self) -> ActionSpace:
         """
         Define the action space for the environment.
 
         Returns:
-            Dict[str, Any]: The action space.
+            ActionSpace: The action space.
         """
-        action_space: Dict[str, Any] = {}
         cmd_args_dict = self.test_run.test.test_definition.cmd_args.model_dump()
-        self.populate_action_space("", cmd_args_dict, action_space)
-        return action_space
+        extra_env_vars_dict = self.test_run.test.test_definition.extra_env_vars
 
-    def populate_action_space(self, prefix: str, d: dict, action_space: dict):
-        for key, value in d.items():
+        return ActionSpace(cmd_args=cmd_args_dict, env_vars=extra_env_vars_dict)
+
+    def populate_action_space(self, prefix: str, action_space_obj: ActionSpace, action_space: dict):
+        """
+        Populate the action space dictionary with the values from the ActionSpace object.
+
+        Args:
+            prefix (str): The prefix for the keys in the action space dictionary.
+            action_space_obj (ActionSpace): The ActionSpace object containing the action values.
+            action_space (dict): The dictionary to populate with the action values.
+        """
+        for key, value in action_space_obj.items():
             if isinstance(value, list):
                 action_space[f"{prefix}{key}"] = value
             elif isinstance(value, dict):
-                self.populate_action_space(f"{prefix}{key}.", value, action_space)
+                self.populate_action_space(f"{prefix}{key}.", ActionSpace(cmd_args=value, env_vars={}), action_space)
             else:
                 action_space[f"{prefix}{key}"] = [value]
 
@@ -104,12 +139,12 @@ class CloudAIGymEnv(BaseGym):
         info = {}
         return observation, info
 
-    def step(self, action: Any) -> Tuple[list, float, bool, dict]:
+    def step(self, action: ActionSpace) -> Tuple[list, float, bool, dict]:
         """
         Execute one step in the environment.
 
         Args:
-            action (Any): Action chosen by the agent.
+            action (ActionSpace): Action chosen by the agent.
 
         Returns:
             Tuple: A tuple containing:
@@ -118,8 +153,11 @@ class CloudAIGymEnv(BaseGym):
                 - done (bool): Whether the episode is done.
                 - info (dict): Additional info for debugging.
         """
-        for key, value in action.items():
-            self.update_nested_attr(self.test_run.test.test_definition.cmd_args, key, value)
+        for key, value in action.cmd_args.items():
+            self.update_test_run_obj(self.test_run.test.test_definition.cmd_args, key, value)
+
+        for key, value in action.env_vars.items():
+            self.update_test_run_obj(self.test_run.test.test_definition.extra_env_vars, key, value)
 
         if not self.test_run.test.test_definition.constraint_check:
             logging.info("Constraint check failed. Skipping step.")
@@ -212,15 +250,23 @@ class CloudAIGymEnv(BaseGym):
                     return [average_value]
         return [-1.0]
 
-    def update_nested_attr(self, obj, attr_path, value):
+    def update_test_run_obj(self, obj: Any, attr_path: str, value: Any) -> None:
         """Update a nested attribute of an object."""
         attrs = attr_path.split(".")
         for attr in attrs[:-1]:
-            if hasattr(obj, attr):
+            if isinstance(obj, dict):
+                if attr in obj:
+                    obj = obj[attr]
+                else:
+                    raise AttributeError(f"dict object has no key {attr!r}")
+            elif hasattr(obj, attr):
                 obj = getattr(obj, attr)
             else:
                 raise AttributeError(f"{type(obj).__name__!r} object has no attribute {attr!r}")
-        setattr(obj, attrs[-1], value)
+        if isinstance(obj, dict):
+            obj[attrs[-1]] = value
+        else:
+            setattr(obj, attrs[-1], value)
 
     def write_trajectory(self, step: int, action: Any, reward: float, observation: list):
         """

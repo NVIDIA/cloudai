@@ -58,7 +58,7 @@ def testrun_fixture(tmp_path: Path) -> TestRun:
 
 def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun):
     job_name_prefix = "test_job"
-    env_vars = {"TEST_VAR": "VALUE"}
+    env_vars: Dict[str, Union[str, List[str]]] = {"TEST_VAR": "VALUE"}
     cmd_args: Dict[str, Union[str, List[str]]] = {"test_arg": "test_value"}
 
     slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, testrun_fixture)
@@ -80,7 +80,7 @@ def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, testrun_
 
 def test_num_nodes_and_nodes(strategy_fixture: SlurmCommandGenStrategy):
     job_name_prefix = "test_job"
-    env_vars = {"TEST_VAR": "VALUE"}
+    env_vars: Dict[str, Union[str, List[str]]] = {"TEST_VAR": "VALUE"}
     cmd_args: Dict[str, Union[str, List[str]]] = {"test_arg": "test_value"}
     tr = Mock(spec=TestRun)
     tr.nodes = ["node1", "node2"]
@@ -93,7 +93,7 @@ def test_num_nodes_and_nodes(strategy_fixture: SlurmCommandGenStrategy):
 
 def test_only_num_nodes(strategy_fixture: SlurmCommandGenStrategy):
     job_name_prefix = "test_job"
-    env_vars = {"TEST_VAR": "VALUE"}
+    env_vars: Dict[str, Union[str, List[str]]] = {"TEST_VAR": "VALUE"}
     cmd_args: Dict[str, Union[str, List[str]]] = {"test_arg": "test_value"}
     tr = create_autospec(TestRun)
     tr.nodes = []
@@ -106,7 +106,7 @@ def test_only_num_nodes(strategy_fixture: SlurmCommandGenStrategy):
 
 def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
     job_name_prefix = "test_job"
-    env_vars = {"TEST_VAR": "VALUE"}
+    env_vars: Dict[str, Union[str, List[str]]] = {"TEST_VAR": "VALUE"}
     cmd_args: Dict[str, Union[str, List[str]]] = {"test_arg": "test_value"}
     tr = create_autospec(TestRun)
     tr.num_nodes = 0

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,19 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Union
+name = "dse-nccl-test"
 
-from cloudai import TestRun
-from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+pre_test = "nccl_test"
+post_test = "nccl_test"
 
-
-class SleepSlurmCommandGenStrategy(SlurmCommandGenStrategy):
-    """Command generation strategy for Sleep on Slurm systems."""
-
-    def _container_mounts(self, tr: TestRun) -> list[str]:
-        return []
-
-    def generate_test_command(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
-    ) -> List[str]:
-        return [f'sleep {cmd_args["seconds"]}']
+[[Tests]]
+id = "Tests.1"
+test_name = "dse_nccl_all_gather"
+num_nodes = "2"
+time_limit = "00:20:00"
