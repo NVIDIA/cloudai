@@ -104,6 +104,6 @@ class Reporter:
                 try:
                     rgs.generate_report()
                 except Exception as e:
-                    logging.error(
+                    logging.warning(
                         f"Error generating report for '{tr.output_path}' with strategy={reporter.__name__}: {e}"
                     )
