@@ -14,12 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Union
+from pathlib import Path
+from typing import Any, Dict
 from unittest.mock import Mock
 
 import pytest
+import toml
 
-from cloudai import TestRun
+from cloudai import GitRepo, TestRun
 from cloudai._core.test import Test
 from cloudai.systems import SlurmSystem
 from cloudai.workloads.chakra_replay import (
@@ -27,115 +29,170 @@ from cloudai.workloads.chakra_replay import (
     ChakraReplaySlurmCommandGenStrategy,
     ChakraReplayTestDefinition,
 )
-from tests.conftest import create_autospec_dataclass
 
 
-class TestChakraReplaySlurmCommandGenStrategy:
-    @pytest.fixture
-    def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> ChakraReplaySlurmCommandGenStrategy:
-        return ChakraReplaySlurmCommandGenStrategy(slurm_system, {})
+@pytest.fixture
+def cmd_gen_strategy(slurm_system: SlurmSystem) -> ChakraReplaySlurmCommandGenStrategy:
+    return ChakraReplaySlurmCommandGenStrategy(slurm_system, {})
 
-    @pytest.mark.parametrize(
-        "job_name_prefix, env_vars, cmd_args_attrs, num_nodes, nodes, expected_result",
-        [
-            (
-                "chakra_replay",
-                {"NCCL_DEBUG": "INFO"},
-                {"docker_image_url": "fake_image_url", "trace_path": "/workspace/traces/"},
-                2,
-                ["node1", "node2"],
-                {
-                    "image_path": "fake_image_url",
-                    "container_mounts": "/workspace/traces/:/workspace/traces/",
-                },
-            ),
-            (
-                "chakra_replay",
-                {"NCCL_DEBUG": "INFO"},
-                {"docker_image_url": "another_image_url", "trace_path": "/another/trace_path/"},
-                1,
-                ["node1"],
-                {
-                    "image_path": "another_image_url",
-                    "container_mounts": "/another/trace_path/:/another/trace_path/",
-                },
-            ),
-        ],
+
+@pytest.fixture
+def test_run(cmd_args: Dict[str, Any]) -> TestRun:
+    chakra = ChakraReplayTestDefinition(
+        name="name",
+        description="desc",
+        test_template_name="template",
+        cmd_args=ChakraReplayCmdArgs(
+            docker_image_url=cmd_args.get("docker_image_url", ""),
+            trace_dir=cmd_args.get("trace_dir", ""),
+            git_repo=GitRepo(url="./git_repo", commit="commit"),
+            warmup_iters=cmd_args.get("warmup_iters", 0),
+            iters=cmd_args.get("iters", 10),
+        ),
     )
-    def test_parse_slurm_args(
-        self,
-        cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy,
-        job_name_prefix: str,
-        env_vars: Dict[str, str],
-        cmd_args_attrs: Dict[str, Any],
-        num_nodes: int,
-        nodes: List[str],
-        expected_result: Dict[str, Any],
-    ) -> None:
-        chakra = ChakraReplayTestDefinition(
-            name="name",
-            description="desc",
-            test_template_name="tt",
-            cmd_args=ChakraReplayCmdArgs(
-                docker_image_url=cmd_args_attrs["docker_image_url"], trace_path=cmd_args_attrs["trace_path"]
-            ),
-        )
-        t = Test(test_definition=chakra, test_template=Mock())
-        tr = TestRun(name="t1", test=t, nodes=nodes, num_nodes=num_nodes)
+    test = Test(test_definition=chakra, test_template=Mock())
+    return TestRun(name="test_run", test=test, nodes=["node1"], num_nodes=1)
 
-        slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, {}, tr)
-        assert slurm_args["image_path"] == expected_result["image_path"]
-        assert expected_result["container_mounts"] in cmd_gen_strategy.container_mounts(tr)
 
-    @pytest.mark.parametrize(
-        "cmd_args, extra_cmd_args, expected_result",
-        [
-            (
-                {"trace_type": "comms_trace", "trace_path": "/workspace/traces/", "num_replays": 10},
-                "--max-steps 100",
-                [
-                    "comm_replay",
-                    "--trace-type comms_trace",
-                    "--trace-path /workspace/traces/",
-                    "--num-replays 10",
-                    "--max-steps 100",
-                ],
-            ),
-            (
-                {"trace_type": "comms_trace", "trace_path": "/workspace/traces/", "num_replays": 5},
-                "",
-                [
-                    "comm_replay",
-                    "--trace-type comms_trace",
-                    "--trace-path /workspace/traces/",
-                    "--num-replays 5",
-                    "",
-                ],
-            ),
-        ],
-    )
-    def test_generate_test_command(
-        self,
-        cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy,
-        cmd_args: Dict[str, Union[str, List[str]]],
-        extra_cmd_args: str,
-        expected_result: List[str],
-        slurm_system: SlurmSystem,
-    ) -> None:
-        tr = create_autospec_dataclass(TestRun)
-        tr.test.extra_cmd_args = extra_cmd_args
-        command = cmd_gen_strategy.generate_test_command({}, cmd_args, tr)
-        assert command == expected_result
+@pytest.mark.parametrize(
+    "job_name_prefix, env_vars, cmd_args, expected_result",
+    [
+        (
+            "chakra_replay",
+            {"NCCL_DEBUG": "INFO"},
+            {"docker_image_url": "fake_image_url", "trace_dir": "/output/traces/"},
+            {"image_path": "fake_image_url", "container_mounts": ["/output/traces/:/output/traces/"]},
+        ),
+        (
+            "chakra_replay",
+            {"NCCL_DEBUG": "INFO"},
+            {"docker_image_url": "another_image_url", "trace_dir": "/another/trace_dir/"},
+            {"image_path": "another_image_url", "container_mounts": ["/another/trace_dir/:/another/trace_dir/"]},
+        ),
+    ],
+)
+def test_parse_slurm_args(
+    cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy,
+    job_name_prefix: str,
+    env_vars: Dict[str, str],
+    cmd_args: Dict[str, Any],
+    expected_result: Dict[str, Any],
+    test_run: TestRun,
+) -> None:
+    slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, cmd_args, test_run)
+    assert slurm_args["image_path"] == expected_result["image_path"]
+    assert cmd_gen_strategy._container_mounts(test_run) == expected_result["container_mounts"]
 
-    def test_generate_test_command_invalid_args(
-        self, cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy, slurm_system: SlurmSystem
-    ) -> None:
-        cmd_args: Dict[str, Union[str, List[str]]] = {"trace_type": "comms_trace"}
 
-        tr = create_autospec_dataclass(TestRun)
-        tr.test.extra_cmd_args = "--max-steps 100"
+@pytest.mark.parametrize(
+    "cmd_args, expected_config",
+    [
+        (
+            {"trace_dir": "/output/traces/", "warmup_iters": 5, "iters": 10},
+            {
+                "trace": {"directory": "/output/traces/"},
+                "run": {"warmup_iters": 5, "iters": 10},
+            },
+        ),
+        (
+            {"trace_dir": "/another/path/", "warmup_iters": 2, "iters": 20},
+            {
+                "trace": {"directory": "/another/path/"},
+                "run": {"warmup_iters": 2, "iters": 20},
+            },
+        ),
+        (
+            {
+                "trace_dir": "/data/traces/",
+                "warmup_iters": 0,
+                "iters": 50,
+                "profiler.enabled": True,
+                "backend.name": "custom_backend",
+                "logging.level": "DEBUG",
+                "git_repo.url": "https://example.com/repo.git",
+                "git_repo.commit": "abc123",
+            },
+            {
+                "trace": {"directory": "/data/traces/"},
+                "run": {"warmup_iters": 0, "iters": 50},
+                "profiler": {"enabled": True},
+                "comm": {"backend": {"name": "custom_backend"}},
+                "logging": {"level": "DEBUG"},
+                "git_repo": {"url": "https://example.com/repo.git", "commit": "abc123"},
+            },
+        ),
+        (
+            {
+                "trace_dir": "/minimal/path/",
+            },
+            {
+                "trace": {"directory": "/minimal/path/"},
+            },
+        ),
+        (
+            {
+                "trace_dir": "/nested/config/",
+                "profiler.enabled": False,
+                "backend.name": "default",
+                "logging.level": "INFO",
+            },
+            {
+                "trace": {"directory": "/nested/config/"},
+                "profiler": {"enabled": False},
+                "comm": {"backend": {"name": "default"}},
+                "logging": {"level": "INFO"},
+            },
+        ),
+        (
+            {
+                "trace_dir": "/complex/params/",
+                "warmup_iters": 3,
+                "iters": 15,
+                "backend.name": "advanced_backend",
+                "git_repo.url": "https://git.com/another_repo.git",
+                "git_repo.commit": "def456",
+            },
+            {
+                "trace": {"directory": "/complex/params/"},
+                "run": {"warmup_iters": 3, "iters": 15},
+                "comm": {"backend": {"name": "advanced_backend"}},
+                "git_repo": {"url": "https://git.com/another_repo.git", "commit": "def456"},
+            },
+        ),
+    ],
+)
+def test_write_toml_config(
+    cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy,
+    cmd_args: Dict[str, Any],
+    expected_config: Dict[str, Any],
+    test_run: TestRun,
+) -> None:
+    config_path = Path(cmd_gen_strategy._write_toml_config(cmd_args, test_run))
 
-        with pytest.raises(KeyError) as exc_info:
-            cmd_gen_strategy.generate_test_command({}, cmd_args, tr)
+    with config_path.open("r") as toml_file:
+        config_data = toml.load(toml_file)
 
-        assert str(exc_info.value) == "'trace_path'", "Expected missing trace_path key"
+    assert config_data == expected_config
+
+
+@pytest.mark.parametrize(
+    "cmd_args, expected_command",
+    [
+        (
+            {"trace_dir": "/output/traces/", "warmup_iters": 5, "iters": 10},
+            ["comm_replay", "--config /output/config.toml"],
+        ),
+        (
+            {"trace_dir": "/another/path/"},
+            ["comm_replay", "--config /output/config.toml"],
+        ),
+    ],
+)
+def test_generate_test_command(
+    cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy,
+    cmd_args: Dict[str, Any],
+    test_run: TestRun,
+    expected_command: list,
+) -> None:
+    command = cmd_gen_strategy.generate_test_command({}, cmd_args, test_run)
+    assert command == expected_command

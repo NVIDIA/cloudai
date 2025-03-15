@@ -16,6 +16,8 @@
 
 from typing import Any, Dict, List, Union, cast
 
+import toml
+
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 from cloudai.workloads.chakra_replay import ChakraReplayTestDefinition
@@ -26,8 +28,8 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _container_mounts(self, tr: TestRun) -> list[str]:
         tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, tr.test.test_definition)
-        if tdef.cmd_args.trace_path:
-            return [f"{tdef.cmd_args.trace_path}:{tdef.cmd_args.trace_path}"]
+        if tdef.cmd_args.trace_dir:
+            return [f"{tdef.cmd_args.trace_dir}:{tdef.cmd_args.trace_dir}"]
         return []
 
     def _parse_slurm_args(
@@ -40,14 +42,76 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return base_args
 
+    def _filter_config_data(self, cmd_args: Dict[str, Union[str, List[str]]]) -> Dict[str, Any]:
+        config_data = {}
+
+        self._add_git_repo_config(config_data, cmd_args)
+        self._add_run_config(config_data, cmd_args)
+        self._add_trace_config(config_data, cmd_args)
+        self._add_tensor_allocator_config(config_data, cmd_args)
+        self._add_comm_config(config_data, cmd_args)
+        self._add_profiler_config(config_data, cmd_args)
+        self._add_logging_config(config_data, cmd_args)
+
+        return config_data
+
+    def _add_git_repo_config(self, config_data: Dict[str, Any], cmd_args: Dict[str, Any]) -> None:
+        if "git_repo.url" in cmd_args or "git_repo.commit" in cmd_args:
+            config_data["git_repo"] = {}
+            if "git_repo.url" in cmd_args:
+                config_data["git_repo"]["url"] = cmd_args["git_repo.url"]
+            if "git_repo.commit" in cmd_args:
+                config_data["git_repo"]["commit"] = cmd_args["git_repo.commit"]
+
+    def _add_run_config(self, config_data: Dict[str, Any], cmd_args: Dict[str, Any]) -> None:
+        if "warmup_iters" in cmd_args or "iters" in cmd_args:
+            config_data["run"] = {}
+            if "warmup_iters" in cmd_args:
+                config_data["run"]["warmup_iters"] = cmd_args["warmup_iters"]
+            if "iters" in cmd_args:
+                config_data["run"]["iters"] = cmd_args["iters"]
+
+    def _add_trace_config(self, config_data: Dict[str, Any], cmd_args: Dict[str, Any]) -> None:
+        if "trace_dir" in cmd_args:
+            config_data["trace"] = {"directory": cmd_args["trace_dir"]}
+
+    def _add_tensor_allocator_config(self, config_data: Dict[str, Any], cmd_args: Dict[str, Any]) -> None:
+        if "reuse_tensors" in cmd_args:
+            config_data["tensor_allocator"] = {"reuse_tensors": cmd_args["reuse_tensors"]}
+
+    def _add_comm_config(self, config_data: Dict[str, Any], cmd_args: Dict[str, Any]) -> None:
+        if "backend.name" in cmd_args or "async_comm" in cmd_args:
+            config_data["comm"] = {}
+            if "backend.name" in cmd_args:
+                config_data["comm"]["backend"] = {"name": cmd_args["backend.name"]}
+            if "async_comm" in cmd_args:
+                config_data["comm"]["async_comm"] = cmd_args["async_comm"]
+
+    def _add_profiler_config(self, config_data: Dict[str, Any], cmd_args: Dict[str, Any]) -> None:
+        profiler_keys = [key for key in cmd_args if key.startswith("profiler.")]
+        if profiler_keys:
+            config_data["profiler"] = {}
+            for key in profiler_keys:
+                short_key = key.split(".")[-1]
+                config_data["profiler"][short_key] = cmd_args[key]
+
+    def _add_logging_config(self, config_data: Dict[str, Any], cmd_args: Dict[str, Any]) -> None:
+        logging_keys = [key for key in cmd_args if key.startswith("logging.")]
+        if logging_keys:
+            config_data["logging"] = {}
+            for key in logging_keys:
+                short_key = key.split(".")[-1]
+                config_data["logging"][short_key] = cmd_args[key]
+
+    def _write_toml_config(self, cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun) -> str:
+        config_path = tr.output_path / "config.toml"
+        config_data = self._filter_config_data(cmd_args)
+        with config_path.open("w") as toml_file:
+            toml.dump(config_data, toml_file)
+        return str(config_path)
+
     def generate_test_command(
         self, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> List[str]:
-        srun_command_parts = [
-            "comm_replay",
-            f'--trace-type {cmd_args["trace_type"]}',
-            f'--trace-path {cmd_args["trace_path"]}',
-            f'--num-replays {cmd_args["num_replays"]}',
-            tr.test.extra_cmd_args,
-        ]
-        return srun_command_parts
+        self._write_toml_config(cmd_args, tr)
+        return ["comm_replay", "--config /output/config.toml"]

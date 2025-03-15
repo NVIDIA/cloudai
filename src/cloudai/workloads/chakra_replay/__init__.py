@@ -14,13 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
+from .chakra_replay import ChakraReplayCmdArgs, ChakraReplayExecutable, ChakraReplayTestDefinition
 from .grading_strategy import ChakraReplayGradingStrategy
 from .report_generation_strategy import ChakraReplayReportGenerationStrategy
 from .slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
 
 __all__ = [
     "ChakraReplayCmdArgs",
+    "ChakraReplayExecutable",
     "ChakraReplayGradingStrategy",
     "ChakraReplayReportGenerationStrategy",
     "ChakraReplaySlurmCommandGenStrategy",
