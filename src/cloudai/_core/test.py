@@ -145,8 +145,8 @@ class TestDefinition(BaseModel, ABC):
     description: str
     test_template_name: str
     cmd_args: Any
-    extra_env_vars: dict[str, str] = {}
-    extra_cmd_args: dict[str, str] = {}
+    extra_env_vars: Any = {}
+    extra_cmd_args: Dict[str, Union[str, List[str]]] = {}
     extra_container_mounts: list[str] = []
     git_repos: list[GitRepo] = []
     nsys: Optional[NsysConfiguration] = None

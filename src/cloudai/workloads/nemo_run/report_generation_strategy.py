@@ -41,7 +41,7 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
         train_step_timings = []
         step_timings = []
 
-        with open(stdout_file, "r") as f:
+        with open(stdout_file, "r", encoding="utf-8", errors="ignore") as f:
             for line in f:
                 if "train_step_timing in s:" in line:
                     try:
@@ -74,3 +74,5 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             f.write("Median: {median}\n".format(median=stats["median"]))
             f.write("Min: {min}\n".format(min=stats["min"]))
             f.write("Max: {max}\n".format(max=stats["max"]))
+
+        logging.info(f"Report generated at {summary_file}")

@@ -59,7 +59,15 @@ class CloudAIGymEnv(BaseGym):
         """
         action_space: Dict[str, Any] = {}
         cmd_args_dict = self.test_run.test.test_definition.cmd_args.model_dump()
-        self.populate_action_space("", cmd_args_dict, action_space)
+        extra_env_vars_dict = self.test_run.test.test_definition.extra_env_vars
+
+        combined_dict = {
+            **{f"{key}": value for key, value in cmd_args_dict.items()},
+            **{f"extra_env_vars.{key}": value for key, value in extra_env_vars_dict.items()},
+        }
+
+        self.populate_action_space("", combined_dict, action_space)
+
         return action_space
 
     def populate_action_space(self, prefix: str, d: dict, action_space: dict):
@@ -119,7 +127,12 @@ class CloudAIGymEnv(BaseGym):
                 - info (dict): Additional info for debugging.
         """
         for key, value in action.items():
-            self.update_nested_attr(self.test_run.test.test_definition.cmd_args, key, value)
+            if key.startswith("extra_env_vars."):
+                self.update_test_run_obj(
+                    self.test_run.test.test_definition.extra_env_vars, key[len("extra_env_vars.") :], value
+                )
+            else:
+                self.update_test_run_obj(self.test_run.test.test_definition.cmd_args, key, value)
 
         if not self.test_run.test.test_definition.constraint_check:
             logging.info("Constraint check failed. Skipping step.")
@@ -212,15 +225,23 @@ class CloudAIGymEnv(BaseGym):
                     return [average_value]
         return [-1.0]
 
-    def update_nested_attr(self, obj, attr_path, value):
+    def update_test_run_obj(self, obj: Any, attr_path: str, value: Any) -> None:
         """Update a nested attribute of an object."""
         attrs = attr_path.split(".")
         for attr in attrs[:-1]:
-            if hasattr(obj, attr):
+            if isinstance(obj, dict):
+                if attr in obj:
+                    obj = obj[attr]
+                else:
+                    raise AttributeError(f"dict object has no key {attr!r}")
+            elif hasattr(obj, attr):
                 obj = getattr(obj, attr)
             else:
                 raise AttributeError(f"{type(obj).__name__!r} object has no attribute {attr!r}")
-        setattr(obj, attrs[-1], value)
+        if isinstance(obj, dict):
+            obj[attrs[-1]] = value
+        else:
+            setattr(obj, attrs[-1], value)
 
     def write_trajectory(self, step: int, action: Any, reward: float, observation: list):
         """
