@@ -24,7 +24,7 @@ test_template_name = "NcclTest"
 "minbytes" = "128"
 "maxbytes" = "4G"
 "iters" = "100"
-"warmup_iters" = "50"
+"warmup_iters" = ["5","50"]
 
 [extra_cmd_args]
 "--stepfactor" = "2"
