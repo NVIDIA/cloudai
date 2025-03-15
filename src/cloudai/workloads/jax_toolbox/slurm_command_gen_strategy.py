@@ -78,14 +78,17 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         tr.test.test_definition.extra_env_vars.update(env_vars)
 
-    def _update_per_gpu_combine_threshold(self, env_vars: Dict[str, str], cmd_args: Dict[str, Any], num_nodes: int):
-        combine_threshold_bytes = int(env_vars["COMBINE_THRESHOLD"])
+    def _update_per_gpu_combine_threshold(
+        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Any], num_nodes: int
+    ):
+        combine_threshold = env_vars["COMBINE_THRESHOLD"]
+        combine_threshold_bytes = int(combine_threshold)  # pyright: ignore [reportArgumentType]
         per_gpu_combine_threshold = int(
             combine_threshold_bytes / (int(cmd_args[f"{self.test_name}.setup_flags"]["gpus_per_node"]) * num_nodes)
         )
         env_vars["PER_GPU_COMBINE_THRESHOLD"] = str(per_gpu_combine_threshold)
 
-    def _update_xla_flags(self, env_vars: Dict[str, str], cmd_args: Dict[str, Any]):
+    def _update_xla_flags(self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Any]):
         env_vars["XLA_FLAGS"] = self._format_xla_flags(cmd_args, "perf")
 
     def _format_xla_flags(self, cmd_args: Dict[str, Any], stage: str) -> str:
@@ -129,7 +132,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return " ".join(sorted(xla_flags))
 
     def _parse_slurm_args(
-        self, job_name_prefix: str, env_vars: Dict[str, str], cmd_args: Dict[str, Any], tr: TestRun
+        self, job_name_prefix: str, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Any], tr: TestRun
     ) -> Dict[str, Any]:
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
@@ -146,7 +149,11 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return base_args
 
     def _gen_srun_command(
-        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], cmd_args: Dict[str, Any], tr: TestRun
+        self,
+        slurm_args: Dict[str, Any],
+        env_vars: Dict[str, Union[str, List[str]]],
+        cmd_args: Dict[str, Any],
+        tr: TestRun,
     ) -> str:
         self._create_run_script(env_vars, cmd_args, tr.test.extra_cmd_args)
 
@@ -160,7 +167,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _create_run_script(
         self,
-        env_vars: Dict[str, str],
+        env_vars: Dict[str, Union[str, List[str]]],
         cmd_args: Dict[str, Any],
         extra_cmd_args: str,
     ) -> Path:
@@ -168,7 +175,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         Generate and write the run.sh script to the specified output directory.
 
         Args:
-            env_vars (Dict[str, str]): Environment variables.
+            env_vars (Dict[str, Union[str, List[str]]]): Environment variables.
             cmd_args (Dict[str, str]): Command-line arguments.
             extra_cmd_args (str): Additional command-line arguments to be included
                                   in the srun command.
@@ -199,7 +206,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _script_content(
         self,
         stage: str,
-        env_vars: Dict[str, str],
+        env_vars: Dict[str, Union[str, List[str]]],
         cmd_args: Dict[str, str],
         extra_cmd_args: str,
     ) -> list:
@@ -210,7 +217,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         Args:
             stage (str): The stage of the process ('profile' or 'perf').
-            env_vars (Dict[str, str]): Environment variables for the job.
+            env_vars (Dict[str, Union[str, List[str]]]): Environment variables for the job.
             cmd_args (Dict[str, str]): Command-line arguments.
             extra_cmd_args (str): Additional command-line arguments.
 

@@ -66,7 +66,7 @@ class TestChakraReplaySlurmCommandGenStrategy:
         self,
         cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy,
         job_name_prefix: str,
-        env_vars: Dict[str, str],
+        env_vars: Dict[str, Union[str, List[str]]],
         cmd_args_attrs: Dict[str, Any],
         num_nodes: int,
         nodes: List[str],

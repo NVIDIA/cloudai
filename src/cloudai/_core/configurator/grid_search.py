@@ -73,7 +73,7 @@ class GridSearchAgent(BaseAgent):
             Tuple[int, Dict[str, Any]]: The current step and a dictionary mapping action keys to selected
             values.
         """
-        action = dict(zip(self.action_space.keys(), self.action_combinations[self.index]))
+        action = dict(zip(self.action_space.keys(), self.action_combinations[self.index], strict=False))
         self.index += 1
         step = self.index
         return step, action

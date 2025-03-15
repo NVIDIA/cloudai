@@ -51,7 +51,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
         job_name: str,
         final_num_nodes: int,
         nodes: List[str],
-        env_vars: Dict[str, str],
+        env_vars: Dict[str, Union[str, List[str]]],
         cmd_args: Dict[str, Union[str, List[str]]],
         extra_cmd_args: str,
     ) -> Dict[Any, Any]:
@@ -62,8 +62,8 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
             job_name (str): The name of the Kubernetes job.
             final_num_nodes (int): The final number of nodes determined.
             nodes (List[str]): A list of specific nodes to run the job on.
-            env_vars (Dict[str, str]): A dictionary of environment variables for the job.
-            cmd_args (Dict[str, str]): A dictionary of command-line arguments for the NCCL test.
+            env_vars (Dict[str, Union[str, List[str]]]): A dictionary of environment variables for the job.
+            cmd_args (Dict[str, Union[str, List[str]]]): A dictionary of command-line arguments for the NCCL test.
             extra_cmd_args (str): Additional command-line arguments for the NCCL test.
 
         Returns:
@@ -131,12 +131,12 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
             },
         }
 
-    def _generate_env_list(self, env_vars: Dict[str, str]) -> List[Dict[str, str]]:
+    def _generate_env_list(self, env_vars: Dict[str, Union[str, List[str]]]) -> List[Dict[str, str]]:
         """
         Generate the environment variables list for the Kubernetes container.
 
         Args:
-            env_vars (Dict[str, str]): A dictionary of environment variables to include.
+            env_vars (Dict[str, Union[str, List[str]]]): A dictionary of environment variables to include.
 
         Returns:
             List[Dict[str, str]]: A list of dictionaries representing the environment variables.
@@ -144,14 +144,14 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
         env_list = [{"name": "OMPI_ALLOW_RUN_AS_ROOT", "value": "1"}]
         # Include additional environment variables from env_vars
         for key, value in env_vars.items():
-            env_list.append({"name": key, "value": value})
+            env_list.append({"name": key, "value": value})  # pyright: ignore [reportArgumentType]
         return env_list
 
     def _generate_launcher_command(
         self,
         final_num_nodes: int,
         nodes: List[str],
-        env_vars: Dict[str, str],
+        env_vars: Dict[str, Union[str, List[str]]],
         cmd_args: Dict[str, Union[str, List[str]]],
         extra_cmd_args: str,
     ) -> str:
@@ -161,8 +161,8 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
         Args:
             final_num_nodes (int): The final number of nodes determined.
             nodes (List[str]): A list of specific nodes to run the job on.
-            env_vars (Dict[str, str]): A dictionary of environment variables for the job.
-            cmd_args (Dict[str, str]): A dictionary of command-line arguments for the NCCL test.
+            env_vars (Dict[str, Union[str, List[str]]]): A dictionary of environment variables for the job.
+            cmd_args (Dict[str, Union[str, List[str]]]): A dictionary of command-line arguments for the NCCL test.
             extra_cmd_args (str): Additional command-line arguments for the NCCL test.
 
         Returns:

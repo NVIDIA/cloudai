@@ -97,18 +97,18 @@ class TestTemplateStrategy:
 
     def _override_env_vars(
         self,
-        default_env_vars: Dict[str, str],
-        provided_env_vars: Dict[str, str],
-    ) -> Dict[str, str]:
+        default_env_vars: Dict[str, Union[str, List[str]]],
+        provided_env_vars: Dict[str, Union[str, List[str]]],
+    ) -> Dict[str, Union[str, List[str]]]:
         """
         Override the default environment variables with provided values.
 
         Args:
-            default_env_vars (Dict[str, str]): The default environment variables.
-            provided_env_vars (Dict[str, str]): The provided environment variables to override defaults.
+            default_env_vars (Dict[str, str | List[str]]): The default environment variables.
+            provided_env_vars (Dict[str, str | List[str]]): The provided environment variables to override defaults.
 
         Returns:
-            Dict[str, str]: A dictionary of environment variables with overrides applied.
+            Dict[str, str | List[str]]: A dictionary of environment variables with overrides applied.
         """
         final_env_vars = default_env_vars.copy()
         final_env_vars.update(provided_env_vars)

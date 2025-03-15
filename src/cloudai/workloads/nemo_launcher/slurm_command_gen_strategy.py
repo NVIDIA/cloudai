@@ -105,14 +105,17 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return full_cmd.strip()
 
     def _prepare_environment(
-        self, cmd_args: Dict[str, Union[str, List[str]]], extra_env_vars: Dict[str, str], output_path: Path
+        self,
+        cmd_args: Dict[str, Union[str, List[str]]],
+        extra_env_vars: Dict[str, Union[str, List[str]]],
+        output_path: Path,
     ) -> None:
         """
         Prepare the environment variables and command arguments.
 
         Args:
             cmd_args (Dict[str, Union[str, List[str]]]): Command-line arguments for the launcher.
-            extra_env_vars (Dict[str, str]): Additional environment variables.
+            extra_env_vars (Dict[str, Union[str, List[str]]]): Additional environment variables.
             output_path (Path): Path to the output directory.
         """
         self.final_env_vars = self._override_env_vars(self.system.global_env_vars, extra_env_vars)
