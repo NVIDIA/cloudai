@@ -15,11 +15,12 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict
 
-from .installables import GitRepo, Installable
+from .installables import GitRepo, Installable, PythonExecutable
 from .test_template import TestTemplate
 
 
@@ -123,6 +124,16 @@ class NsysConfiguration(BaseModel):
         return parts
 
 
+@dataclass
+class PredictorConfig(PythonExecutable):
+    """Predictor configuration."""
+
+    bin_name: Optional[str] = None
+
+    def __hash__(self) -> int:
+        return self.git_repo.__hash__()
+
+
 class TestDefinition(BaseModel, ABC):
     """Base Test object."""
 
@@ -139,6 +150,7 @@ class TestDefinition(BaseModel, ABC):
     extra_container_mounts: list[str] = []
     git_repos: list[GitRepo] = []
     nsys: Optional[NsysConfiguration] = None
+    predictor: Optional[PredictorConfig] = None
     agent: str = "grid_search"
     agent_steps: int = 1
 
