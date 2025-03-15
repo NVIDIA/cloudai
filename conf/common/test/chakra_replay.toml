@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,16 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
-from .grading_strategy import ChakraReplayGradingStrategy
-from .report_generation_strategy import ChakraReplayReportGenerationStrategy
-from .slurm_command_gen_strategy import ChakraReplayConfigParser, ChakraReplaySlurmCommandGenStrategy
+name = "chakra_replay"
+description = "chakra_replay"
+test_template_name = "ChakraReplay"
 
-__all__ = [
-    "ChakraReplayCmdArgs",
-    "ChakraReplayConfigParser",
-    "ChakraReplayGradingStrategy",
-    "ChakraReplayReportGenerationStrategy",
-    "ChakraReplaySlurmCommandGenStrategy",
-    "ChakraReplayTestDefinition",
-]
+[cmd_args]
+"docker_image_url" = "/lustre/fsw/coreai_dlalgo_ci/theo/docker_images/nemo_24_12_01.sqsh"
+"backend_name" = "pytorch-dist"
+"trace_dir" = "/tmp/"
+"warmup_iters" = 10
+"iters" = 10
+
+  [cmd_args.git_repo]
+  url = "git@github.com:TaekyungHeo/chakra-replay.git"
+  commit = "546fc841c21612ce30e1f838bc3c44f3b46ed8e7"
