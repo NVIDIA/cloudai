@@ -120,6 +120,7 @@ class PythonExecutable(Installable):
     venv_path: Optional[Path] = None
     project_subpath: Optional[Path] = None
     dependencies_from_pyproject: bool = True
+    bin_name: Optional[str] = None
 
     def __eq__(self, other: object) -> bool:
         """Check if two installable objects are equal."""
