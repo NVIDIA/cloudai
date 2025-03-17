@@ -34,7 +34,11 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return mounts
 
     def _parse_slurm_args(
-        self, job_name_prefix: str, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
+        self,
+        job_name_prefix: str,
+        env_vars: Dict[str, str],
+        cmd_args: Dict[str, Union[str, List[str]]],
+        tr: TestRun,
     ) -> Dict[str, Any]:
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
@@ -44,30 +48,22 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return base_args
 
     def generate_test_command(
-        self, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
+        self,
+        env_vars: Dict[str, str],
+        cmd_args: Dict[str, Union[str, List[str]]],
+        tr: TestRun,
     ) -> List[str]:
-        srun_command_parts = [f"{cmd_args['subtest_name']}"]
-        nccl_test_args = [
-            "nthreads",
-            "ngpus",
-            "minbytes",
-            "maxbytes",
-            "stepbytes",
-            "op",
-            "datatype",
-            "root",
-            "iters",
-            "warmup_iters",
-            "agg_iters",
-            "average",
-            "parallel_init",
-            "check",
-            "blocking",
-            "cudagraph",
-        ]
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, tr.test.test_definition)
+        srun_command_parts = [f"{tdef.cmd_args.subtest_name}"]
+        nccl_test_args = tdef.cmd_args.model_dump().keys()
         for arg in nccl_test_args:
-            if arg in cmd_args:
-                srun_command_parts.append(f"--{arg} {cmd_args[arg]}")
+            if arg in {"docker_image_url", "subtest_name"}:
+                continue
+
+            if len(arg) > 1:
+                srun_command_parts.append(f"--{arg} {getattr(tdef.cmd_args, arg)}")
+            else:
+                srun_command_parts.append(f"-{arg} {getattr(tdef.cmd_args, arg)}")
 
         if tr.test.extra_cmd_args:
             srun_command_parts.append(tr.test.extra_cmd_args)
