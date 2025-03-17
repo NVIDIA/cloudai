@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -208,7 +208,7 @@ class BokehReportTool:
             x_range=Range1d(start=single_x - x_padding, end=single_x + x_padding),
         )
 
-        for (y_column, color), single_y in zip(y_columns, y_values):
+        for (y_column, color), single_y in zip(y_columns, y_values, strict=False):
             p.scatter(x=[single_x], y=[single_y], size=6, color=color, legend_label=y_column)
 
         return p

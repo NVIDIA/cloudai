@@ -104,15 +104,19 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return self._gen_srun_command(slurm_args, env_vars, cmd_args, tr)
 
     def _parse_slurm_args(
-        self, job_name_prefix: str, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
+        self,
+        job_name_prefix: str,
+        env_vars: Dict[str, Union[str, List[str]]],
+        cmd_args: Dict[str, Union[str, List[str]]],
+        tr: TestRun,
     ) -> Dict[str, Any]:
         """
         Parse command arguments to configure Slurm job settings.
 
         Args:
             job_name_prefix (str): Prefix for the job name.
-            env_vars (Dict[str, str]): Environment variables.
-            cmd_args (Dict[str, str]): Command-line arguments.
+            env_vars (Dict[str, Union[str, List[str]]]): Environment variables.
+            cmd_args (Dict[str, Union[str, List[str]]]): Command-line arguments.
             tr (TestRun): Test run object.
 
         Returns:
@@ -219,7 +223,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     def _gen_srun_command(
         self,
         slurm_args: Dict[str, Any],
-        env_vars: Dict[str, str],
+        env_vars: Dict[str, Union[str, List[str]]],
         cmd_args: Dict[str, Union[str, List[str]]],
         tr: TestRun,
     ) -> str:
@@ -242,7 +246,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return srun_command_parts
 
     def generate_test_command(
-        self, env_vars: Dict[str, str], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
+        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> List[str]:
         return []
 
@@ -276,14 +280,14 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         )
 
     def _write_sbatch_script(
-        self, slurm_args: Dict[str, Any], env_vars: Dict[str, str], srun_command: str, tr: TestRun
+        self, slurm_args: Dict[str, Any], env_vars: Dict[str, Union[str, List[str]]], srun_command: str, tr: TestRun
     ) -> str:
         """
         Write the batch script for Slurm submission and return the sbatch command.
 
         Args:
             slurm_args (Dict[str, Any]): Slurm-specific arguments.
-            env_vars (env_vars: Dict[str, str]): Environment variables.
+            env_vars (Dict[str, Union[str, List[str]]]): Environment variables.
             srun_command (str): srun command.
             tr (TestRun): Test run object.
 
