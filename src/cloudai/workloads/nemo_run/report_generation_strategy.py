@@ -74,5 +74,3 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             f.write("Median: {median}\n".format(median=stats["median"]))
             f.write("Min: {min}\n".format(min=stats["min"]))
             f.write("Max: {max}\n".format(max=stats["max"]))
-
-        logging.info(f"Report generated at {summary_file}")
