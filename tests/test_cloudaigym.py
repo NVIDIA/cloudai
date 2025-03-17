@@ -169,9 +169,101 @@ def test_populate_action_space():
             micro_batch_size=[1, 2],
         ),
     )
-    env.populate_action_space("", cmd_args.model_dump(), action_space)
+    extra_env_args = {"extra_param_1": [10, 20]}
+    combined_dict = {**cmd_args.model_dump(), **extra_env_args}
+    env.populate_action_space("", combined_dict, action_space)
 
     assert action_space["trainer.num_nodes"] == [1, 2]
     assert action_space["trainer.strategy.tensor_model_parallel_size"] == [1, 2]
     assert action_space["trainer.strategy.unknown_nested"] == [1, 2]
     assert action_space["data.micro_batch_size"] == [1, 2]
+    assert action_space["extra_param_1"] == [10, 20]
+
+
+def test_populate_action_space_cmd_args_list():
+    env = CloudAIGymEnv(test_run=MagicMock(), runner=MagicMock())
+    action_space = {}
+    cmd_args = NeMoRunCmdArgs(
+        docker_image_url="https://docker/url",
+        task="some_task",
+        recipe_name="some_recipe",
+        trainer=Trainer(
+            num_nodes=[1, 2],
+            strategy=TrainerStrategy(
+                tensor_model_parallel_size=[1, 2],
+            ),
+        ),
+        data=Data(
+            micro_batch_size=[1, 2],
+        ),
+    )
+    extra_env_args = {
+        "extra_param_1": [10],
+    }
+    combined_dict = {**cmd_args.model_dump(), **extra_env_args}
+    env.populate_action_space("", combined_dict, action_space)
+
+    assert action_space["trainer.num_nodes"] == [1, 2]
+    assert action_space["trainer.strategy.tensor_model_parallel_size"] == [1, 2]
+    assert action_space["data.micro_batch_size"] == [1, 2]
+    assert action_space["extra_param_1"] == [10]
+
+
+def test_populate_action_space_extra_env_args_list():
+    env = CloudAIGymEnv(test_run=MagicMock(), runner=MagicMock())
+    action_space = {}
+    cmd_args = NeMoRunCmdArgs(
+        docker_image_url="https://docker/url",
+        task="some_task",
+        recipe_name="some_recipe",
+        trainer=Trainer(
+            num_nodes=1,
+            strategy=TrainerStrategy(
+                tensor_model_parallel_size=1,
+            ),
+        ),
+        data=Data(
+            micro_batch_size=1,
+        ),
+    )
+    extra_env_args = {
+        "extra_param_1": [10, 20],
+    }
+    combined_dict = {**cmd_args.model_dump(), **extra_env_args}
+    env.populate_action_space("", combined_dict, action_space)
+
+    assert action_space["extra_param_1"] == [10, 20]
+
+
+def test_update_test_run_obj():
+    env = CloudAIGymEnv(test_run=MagicMock(), runner=MagicMock())
+
+    cmd_args = NeMoRunCmdArgs(
+        docker_image_url="https://docker/url",
+        task="some_task",
+        recipe_name="some_recipe",
+        trainer=Trainer(
+            num_nodes=[1, 2],
+            strategy=TrainerStrategy(
+                tensor_model_parallel_size=[1, 2],
+                pipeline_model_parallel_size=[1, 2],
+                context_parallel_size=[2, 4],
+            ),
+        ),
+        data=Data(
+            micro_batch_size=[1, 2],
+        ),
+    )
+    obj = cmd_args.model_dump()
+    env.update_test_run_obj(obj, "trainer.strategy.tensor_model_parallel_size", 2)
+    assert obj["trainer"]["strategy"]["tensor_model_parallel_size"] == 2
+
+    env.update_test_run_obj(cmd_args, "trainer.strategy.tensor_model_parallel_size", 2)
+    assert cmd_args.trainer.strategy.tensor_model_parallel_size == 2
+
+    obj = cmd_args.model_dump()
+    env.update_test_run_obj(obj, "trainer.num_nodes", [3, 4])
+    assert obj["trainer"]["num_nodes"] == [3, 4]
+
+    env.update_test_run_obj(cmd_args, "trainer.num_nodes", [3, 4])
+    assert cmd_args.trainer.num_nodes == [3, 4]
