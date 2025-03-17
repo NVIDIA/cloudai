@@ -41,7 +41,7 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
         train_step_timings = []
         step_timings = []
 
-        with open(stdout_file, "r") as f:
+        with open(stdout_file, "r", encoding="utf-8", errors="ignore") as f:
             for line in f:
                 if "train_step_timing in s:" in line:
                     try:
