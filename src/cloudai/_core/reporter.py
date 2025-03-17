@@ -57,9 +57,9 @@ class Reporter:
             self.generate_per_case_reports(test_output_dir, tr)
 
     def generate_scenario_report(self) -> None:
-        template = jinja2.Environment(loader=jinja2.FileSystemLoader("src/cloudai/util")).get_template(
-            "general-report.jinja2"
-        )
+        template = jinja2.Environment(
+            loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / "util")
+        ).get_template("general-report.jinja2")
 
         results = {}
         for tr in self.test_scenario.test_runs:
@@ -70,10 +70,7 @@ class Reporter:
                         tr.name + f"{iter}", {"logs_path": f"./{run_dir.relative_to(self.results_root)}"}
                     )
 
-        report = template.render(
-            test_scenario=self.test_scenario,
-            tr_results=results,
-        )
+        report = template.render(test_scenario=self.test_scenario, tr_results=results)
         report_path = self.results_root / f"{self.test_scenario.name}.html"
         with report_path.open("w") as f:
             f.write(report)
@@ -90,6 +87,7 @@ class Reporter:
             directory_path (Path): Directory for the test's section.
             tr (TestRun): The test run object.
         """
+        logging.debug(f"Available reports: {tr.reports} for directory: {directory_path}")
         for reporter in tr.reports:
             rgs = reporter(self.system, tr)
 
