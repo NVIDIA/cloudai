@@ -105,3 +105,8 @@ def test_generate_performance_report(
     assert df.iloc[-1]["Size (B)"] == 12000000
     assert df.iloc[-1]["Algbw (GB/s) Out-of-place"] == 120.30
     assert df.iloc[-1]["Busbw (GB/s) Out-of-place"] == 130.40
+
+    # Ensure extracted values match expectations
+    assert df["gpu_type"].iloc[0] == "H100", "gpu_type was not extracted correctly."
+    assert df["num_devices_per_node"].iloc[0] == 8, "num_devices_per_node is incorrect."
+    assert df["num_ranks"].iloc[0] == 16, "num_ranks is incorrect."
