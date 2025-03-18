@@ -288,7 +288,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
                 f"--output={tr.output_path.absolute() / 'metadata' / 'node-%N.toml'}",
                 f"--error={tr.output_path.absolute() / 'metadata' / 'nodes.err'}",
                 "bash",
-                "/cloudai_install/slurm-system-info.sh",
+                "/cloudai_install/slurm-metadata.sh",
             ]
         )
 

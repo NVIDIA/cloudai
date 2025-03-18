@@ -695,4 +695,4 @@ class SlurmSystem(BaseModel, System):
         return num_nodes, node_list
 
     def system_installables(self) -> list[Installable]:
-        return [File(Path(__file__).parent.absolute() / "slurm-system-info.sh")]
+        return [File(Path(__file__).parent.absolute() / "slurm-metadata.sh")]

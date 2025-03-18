@@ -52,7 +52,6 @@ def prepare_copyright_with_year(file: Path, line: str) -> str:
     spec_is_range = "-" in curr_year_spec
 
     changed_years = res.stdout.splitlines()
-
     last_modified_year_real = int(changed_years[0])
 
     after_year_str = "NVIDIA CORPORATION & AFFILIATES. All rights reserved."
