@@ -19,14 +19,17 @@ import os
 import lightning.pytorch as pl
 import nemo_run as run
 import torch
-from lightning.pytorch.loggers import WandbLogger
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.model.llama import Llama3Config8B, LlamaModel
+from nemo.collections.llm.gpt.model.nemotron import (
+    Nemotron4Config15B,
+    NemotronModel,
+)
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
@@ -43,6 +46,12 @@ def hf_tokenizer() -> run.Config[AutoTokenizer]:
         pretrained_model_name=model_name,
         use_fast=True,
     )
+
+
+@run.cli.factory(target=MockDataModule, target_arg="tokenizer")
+@run.autoconvert
+def null_tokenizer() -> run.Config[AutoTokenizer]:
+    return run.Config(get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=256000)
 
 
 @run.cli.factory
@@ -109,12 +118,13 @@ def combined_callbacks() -> list[pl.Callback]:
 def cloudai_recipe() -> run.Partial:
     recipe = run.Partial(
         llm.pretrain,
-        model=run.Config(LlamaModel, config=run.Config(Llama3Config8B)),
+        model=run.Config(NemotronModel, config=run.Config(Nemotron4Config15B)),
         data=run.Config(
             MockDataModule,
             seq_length=2048,
             micro_batch_size=4,
             global_batch_size=8,
+            tokenizer=null_tokenizer(),
         ),
         trainer=run.Config(
             nl.Trainer,
@@ -145,7 +155,6 @@ def cloudai_recipe() -> run.Partial:
             val_check_interval=1000,
             max_epochs=10,
         ),
-        log=nl.NeMoLogger(wandb=(WandbLogger() if "WANDB_API_KEY" in os.environ else None)),
         optim=run.Config(
             nl.MegatronOptimizerModule,
             config=run.Config(
@@ -169,4 +178,9 @@ def cloudai_recipe() -> run.Partial:
 
 
 if __name__ == "__main__":
-    run.cli.main(fn=llm.pretrain)
+    mode = os.getenv("CLOUDAI_NEMO_MODE")
+
+    if mode == "pretrain":
+        run.cli.main(fn=llm.pretrain)
+    elif mode == "finetune":
+        run.cli.main(fn=llm.finetune)
