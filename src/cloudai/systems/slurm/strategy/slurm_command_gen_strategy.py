@@ -235,10 +235,10 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     def gen_srun_prefix(self, slurm_args: Dict[str, Any], tr: TestRun) -> List[str]:
         srun_command_parts = ["srun", f"--mpi={self.system.mpi}"]
         if slurm_args.get("image_path"):
-            srun_command_parts.append(f'--container-image={slurm_args["image_path"]}')
+            srun_command_parts.append(f"--container-image={slurm_args['image_path']}")
             mounts = self.container_mounts(tr)
             if mounts:
-                srun_command_parts.append(f'--container-mounts={",".join(mounts)}')
+                srun_command_parts.append(f"--container-mounts={','.join(mounts)}")
 
         if self.system.extra_srun_args:
             srun_command_parts.append(self.system.extra_srun_args)
@@ -276,6 +276,13 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
                 "bash",
                 "-c",
                 r'"echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."',
+                "\n",
+                *self.gen_srun_prefix(slurm_args, tr),
+                "-n1",
+                f"--output={tr.output_path.absolute() / 'metadata-%N.toml'}",
+                f"--error={tr.output_path.absolute() / 'metadata.err'}",
+                "bash",
+                r"/home/andreyma/workspace/cloudai/src/cloudai/systems/slurm/slurm-system-info.sh",
             ]
         )
 
