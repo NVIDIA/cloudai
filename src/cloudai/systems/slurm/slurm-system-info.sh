@@ -4,9 +4,9 @@ hpcx_version=${HPCX_DIR##*/}
 while IFS=: read -r value; do
     echo "$value"
 done <<EOF
+user = "${USER:-$(whoami)}"
+
 [system]
-user = ${USER:-$(whoami)}
-system_name = "${SYSTEM:-$(command -v sacctmgr &> /dev/null && sacctmgr -nP show cluster format=cluster || echo null)}"
 os_type = "${ID:-null}"
 os_version = "${VERSION:-null}"
 linux_kernel_version = "$(uname -r)"
@@ -15,8 +15,7 @@ cpu_model_name = "$(lscpu 2>/dev/null | grep "Model name:" | sed 's/Model name:[
 cpu_arch_type = "$(lscpu 2>/dev/null | grep "Architecture:" | sed 's/Architecture:[[:space:]]*//' || echo null)"
 
 [mpi]
-mpi_type = "$(mpirun --version 2>/dev/null | grep -i "open mpi" -q && echo openmpi || echo null)"
-mpi_version = "$(mpirun --version 2>/dev/null | grep -oP "(?<=\(Open MPI\) )[^\s]+$" || echo null)"
+ompi_version = "$(mpirun --version 2>/dev/null | grep -oP "(?<=\(Open MPI\) )[^\s]+$" || echo null)"
 hpcx_version = "${hpcx_version:-null}"
 
 [cuda]
@@ -34,4 +33,9 @@ libfabric_version = "$(command -v fi_info >/dev/null && fi_info --version 2>/dev
 [nccl]
 version = "${NCCL_VERSION:-null}"
 commit_sha = "${NCCL_COMMIT_SHA:-null}"
+
+[slurm]
+cluster_name = "${SLURM_CLUSTER_NAME:-null}"
+node_list = "${SLURM_NODELIST:-null}"
+num_nodes = "${SLURM_NNODES:-null}"
 EOF

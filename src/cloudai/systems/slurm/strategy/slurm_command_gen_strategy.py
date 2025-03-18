@@ -69,6 +69,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             *tdef.extra_container_mounts,
             *repo_mounts,
             *self._container_mounts(tr),
+            f"{self.system.install_path.absolute()}:/cloudai_install",
         ]
 
     def gen_exec_command(self, tr: TestRun) -> str:
@@ -276,13 +277,18 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
                 "bash",
                 "-c",
                 r'"echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."',
-                "\n",
+            ]
+        )
+
+    def _metadata_cmd(self, slurm_args: dict[str, Any], tr: TestRun) -> str:
+        return " ".join(
+            [
                 *self.gen_srun_prefix(slurm_args, tr),
-                "-n1",
-                f"--output={tr.output_path.absolute() / 'metadata-%N.toml'}",
-                f"--error={tr.output_path.absolute() / 'metadata.err'}",
+                "--ntasks-per-node=1",
+                f"--output={tr.output_path.absolute() / 'metadata' / 'node-%N.toml'}",
+                f"--error={tr.output_path.absolute() / 'metadata' / 'nodes.err'}",
                 "bash",
-                r"/home/andreyma/workspace/cloudai/src/cloudai/systems/slurm/slurm-system-info.sh",
+                "/cloudai_install/slurm-system-info.sh",
             ]
         )
 
@@ -312,6 +318,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         batch_script_content.extend([self._format_env_vars(env_vars)])
 
         batch_script_content.extend([self._ranks_mapping_cmd(slurm_args, tr), ""])
+        batch_script_content.extend([self._metadata_cmd(slurm_args, tr), ""])
 
         batch_script_content.append(srun_command)
 

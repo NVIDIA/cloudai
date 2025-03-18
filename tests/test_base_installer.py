@@ -103,14 +103,18 @@ class TestBaseInstaller:
 
         installer.install([docker_image, docker_image])
 
-        assert mock_executor.return_value.__enter__.return_value.submit.call_count == 1
+        assert mock_executor.return_value.__enter__.return_value.submit.call_count == 1 + len(
+            installer.system.system_installables()
+        )
 
     def test_uninstalls_only_uniq(self, mock_executor: Mock, installer: MyInstaller, docker_image: DockerImage):
         mock_executor.return_value.__enter__.return_value.submit.return_value = create_real_future(0)
 
         installer.uninstall([docker_image, docker_image])
 
-        assert mock_executor.return_value.__enter__.return_value.submit.call_count == 1
+        assert mock_executor.return_value.__enter__.return_value.submit.call_count == 1 + len(
+            installer.system.system_installables()
+        )
 
 
 @pytest.mark.parametrize(
@@ -167,3 +171,23 @@ class TestPrepareOutputDir:
         subdir = no_access_dir / "subdir"
         assert prepare_output_dir(subdir) is None
         assert f"Output path '{subdir.absolute()}' is not accessible:" in caplog.text
+
+
+def test_system_installables_are_used(slurm_system: SlurmSystem):
+    installer = MyInstaller(slurm_system)
+    installer.install_one = Mock(return_value=InstallStatusResult(True))
+    installer.uninstall_one = Mock(return_value=InstallStatusResult(True))
+    installer.is_installed_one = Mock(return_value=InstallStatusResult(True))
+    installer.mark_as_installed_one = Mock(return_value=InstallStatusResult(True))
+
+    installer.install([])
+    assert installer.install_one.call_count == len(slurm_system.system_installables())
+
+    installer.uninstall([])
+    assert installer.uninstall_one.call_count == len(slurm_system.system_installables())
+
+    installer.is_installed([])
+    assert installer.is_installed_one.call_count == len(slurm_system.system_installables())
+
+    installer.mark_as_installed([])
+    assert installer.mark_as_installed_one.call_count == len(slurm_system.system_installables())

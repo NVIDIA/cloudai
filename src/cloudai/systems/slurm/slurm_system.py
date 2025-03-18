@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
-from cloudai import BaseJob, System
+from cloudai import BaseJob, File, Installable, System
 from cloudai.util import CommandShell
 
 from .slurm_node import SlurmNode, SlurmNodeState
@@ -693,3 +693,6 @@ class SlurmSystem(BaseModel, System):
             num_nodes = len(parsed_nodes)
             node_list = parsed_nodes
         return num_nodes, node_list
+
+    def system_installables(self) -> list[Installable]:
+        return [File(Path(__file__).parent.absolute() / "slurm-system-info.sh")]

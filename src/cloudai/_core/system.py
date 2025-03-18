@@ -20,6 +20,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
+from .installables import Installable
+
 if TYPE_CHECKING:
     from .base_job import BaseJob
 
@@ -152,3 +154,6 @@ class System(ABC):
         )
         logging.error(error_message)
         raise NotImplementedError(error_message)
+
+    def system_installables(self) -> list[Installable]:
+        return []
