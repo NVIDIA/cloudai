@@ -21,9 +21,10 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
-from cloudai import BaseJob, File, Installable, System
-from cloudai.util import CommandShell
-
+from ..._core.base_job import BaseJob
+from ..._core.installables import File, Installable
+from ..._core.system import System
+from ...util import CommandShell
 from .slurm_node import SlurmNode, SlurmNodeState
 
 

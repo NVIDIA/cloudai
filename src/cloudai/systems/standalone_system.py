@@ -19,8 +19,9 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-from cloudai import BaseJob, System
-from cloudai.util.command_shell import CommandShell
+from .._core.base_job import BaseJob
+from .._core.system import System
+from ..util import CommandShell
 
 
 class StandaloneSystem(BaseModel, System):
