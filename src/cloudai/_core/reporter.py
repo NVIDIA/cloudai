@@ -47,7 +47,10 @@ class ReportItem:
 
 
 @dataclass
-class SlurmReportItem(ReportItem):
+class SlurmReportItem:
+    name: str
+    description: str
+    logs_path: Optional[str] = None
     nodes: Optional[str] = None
 
     @classmethod
@@ -64,7 +67,7 @@ class SlurmReportItem(ReportItem):
         return None
 
     @classmethod
-    def from_test_runs(cls, test_runs: list[TestRun], results_root: Path) -> list["SlurmReportItem"]:  # type: ignore
+    def from_test_runs(cls, test_runs: list[TestRun], results_root: Path) -> list["SlurmReportItem"]:
         report_items: list[SlurmReportItem] = []
         for tr in test_runs:
             for iter in range(tr.iterations):
