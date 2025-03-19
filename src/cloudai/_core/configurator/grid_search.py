@@ -17,8 +17,8 @@
 import itertools
 from typing import Any, Dict, List, Tuple
 
-from cloudai._core.configurator.base_agent import BaseAgent
-from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
+from .base_agent import BaseAgent
+from .cloudai_gym import CloudAIGymEnv
 
 
 class GridSearchAgent(BaseAgent):

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,8 +23,9 @@ from kubernetes import client, config
 from kubernetes.client import ApiException, CustomObjectsApi, V1DeleteOptions, V1Job
 from pydantic import BaseModel, ConfigDict
 
-from cloudai import BaseJob, System
-from cloudai.runner.kubernetes.kubernetes_job import KubernetesJob
+from ..._core.base_job import BaseJob
+from ..._core.system import System
+from ...runner.kubernetes.kubernetes_job import KubernetesJob
 
 
 class KubernetesSystem(BaseModel, System):
