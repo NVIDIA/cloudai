@@ -53,5 +53,5 @@ class Test:
         return self.test_definition.extra_args_str
 
     @property
-    def extra_env_vars(self) -> Dict[str, str]:
+    def extra_env_vars(self) -> Dict[str, Union[str, List[str]]]:
         return self.test_definition.extra_env_vars

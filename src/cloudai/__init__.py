@@ -50,7 +50,7 @@ from ._core.test_template_strategy import TestTemplateStrategy
 from .installer.kubernetes_installer import KubernetesInstaller
 from .installer.slurm_installer import SlurmInstaller
 from .installer.standalone_installer import StandaloneInstaller
-from .models.workload import CmdArgs, NsysConfiguration, TestDefinition
+from .models.workload import CmdArgs, NsysConfiguration, PredictorConfig, TestDefinition
 from .parser import Parser
 from .runner.kubernetes.kubernetes_runner import KubernetesRunner
 from .runner.slurm.slurm_runner import SlurmRunner
@@ -253,6 +253,7 @@ __all__ = [
     "JsonGenStrategy",
     "NsysConfiguration",
     "Parser",
+    "PredictorConfig",
     "PythonExecutable",
     "ReportGenerationStrategy",
     "Reporter",

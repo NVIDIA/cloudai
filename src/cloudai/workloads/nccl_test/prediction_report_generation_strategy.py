@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,19 +16,25 @@
 
 import re
 
-from cloudai import ReportGenerationStrategy, System, TestRun
+from ..._core.report_generation_strategy import ReportGenerationStrategy
+from ..._core.system import System
+from ..._core.test_scenario import TestRun
+from .prediction_report_generator import NcclTestPredictionReportGenerator
 
-from .performance_report_generator import NcclTestPerformanceReportGenerator
 
-
-class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
-    """Strategy for generating reports from NCCL test outputs."""
+class NcclTestPredictionReportGenerationStrategy(ReportGenerationStrategy):
+    """Strategy for generating prediction reports from NCCL test outputs."""
 
     def __init__(self, system: System, tr: TestRun) -> None:
         super().__init__(system, tr)
-        self.performance_report = NcclTestPerformanceReportGenerator(
-            self.test_run.output_path, self.test_run.name, self.test_run.sol
+
+        collective_type = self._normalize_collective_type(tr.test.test_definition.cmd_args.subtest_name)
+        self.prediction_report = NcclTestPredictionReportGenerator(
+            collective_type, self.test_run.output_path, tr.test.test_definition
         )
+
+    def _normalize_collective_type(self, subtest_name: str) -> str:
+        return subtest_name.replace("_perf", "").replace("_mpi", "")
 
     def can_handle_directory(self) -> bool:
         stdout_path = self.test_run.output_path / "stdout.txt"
@@ -48,4 +54,4 @@ class NcclTestReportGenerationStrategy(ReportGenerationStrategy):
         return False
 
     def generate_report(self) -> None:
-        self.performance_report.generate()
+        self.prediction_report.generate()

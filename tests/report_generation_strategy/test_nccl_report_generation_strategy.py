@@ -22,8 +22,7 @@ import pytest
 
 from cloudai import Test, TestRun
 from cloudai.systems.slurm.slurm_system import SlurmSystem
-from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
-from cloudai.workloads.nccl_test.report_generation_strategy import NcclTestReportGenerationStrategy
+from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestPerformanceReportGenerationStrategy
 
 
 @pytest.fixture
@@ -69,15 +68,17 @@ def nccl_tr(tmp_path: Path) -> TestRun:
 
 
 @pytest.fixture
-def report_strategy(slurm_system: SlurmSystem, nccl_tr: TestRun) -> NcclTestReportGenerationStrategy:
-    return NcclTestReportGenerationStrategy(slurm_system, nccl_tr)
+def report_strategy(slurm_system: SlurmSystem, nccl_tr: TestRun) -> NcclTestPerformanceReportGenerationStrategy:
+    return NcclTestPerformanceReportGenerationStrategy(slurm_system, nccl_tr)
 
 
-def test_can_handle_directory(report_strategy: NcclTestReportGenerationStrategy) -> None:
+def test_can_handle_directory(report_strategy: NcclTestPerformanceReportGenerationStrategy) -> None:
     assert report_strategy.can_handle_directory() is True
 
 
-def test_generate_performance_report(report_strategy: NcclTestReportGenerationStrategy, nccl_tr: TestRun) -> None:
+def test_generate_performance_report(
+    report_strategy: NcclTestPerformanceReportGenerationStrategy, nccl_tr: TestRun
+) -> None:
     report_strategy.performance_report.generate()
 
     csv_report_path = nccl_tr.output_path / "cloudai_nccl_test_csv_report.csv"
@@ -104,3 +105,8 @@ def test_generate_performance_report(report_strategy: NcclTestReportGenerationSt
     assert df.iloc[-1]["Size (B)"] == 12000000
     assert df.iloc[-1]["Algbw (GB/s) Out-of-place"] == 120.30
     assert df.iloc[-1]["Busbw (GB/s) Out-of-place"] == 130.40
+
+    # Ensure extracted values match expectations
+    assert df["gpu_type"].iloc[0] == "H100", "gpu_type was not extracted correctly."
+    assert df["num_devices_per_node"].iloc[0] == 8, "num_devices_per_node is incorrect."
+    assert df["num_ranks"].iloc[0] == 16, "num_ranks is incorrect."

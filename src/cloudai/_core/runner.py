@@ -20,6 +20,7 @@ from types import FrameType
 from typing import Optional
 
 from .base_runner import BaseRunner
+from .exceptions import JobFailureError
 from .registry import Registry
 from .system import System
 from .test_scenario import TestScenario
@@ -74,7 +75,11 @@ class Runner:
 
     async def run(self):
         """Run the test scenario using the instantiated runner."""
-        await self.runner.run()
+        try:
+            await self.runner.run()
+            logging.debug("All jobs finished successfully.")
+        except JobFailureError as exc:
+            logging.debug(f"Runner failed JobFailure exception: {exc}", exc_info=True)
 
     def _cancel_all(self):
         # the below code might look excessive, this is to address https://docs.astral.sh/ruff/rules/asyncio-dangling-task/

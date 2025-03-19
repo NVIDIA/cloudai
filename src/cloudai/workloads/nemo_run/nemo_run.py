@@ -13,7 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from pathlib import Path
 from typing import List, Optional, Union, cast
 
@@ -128,8 +127,12 @@ class NeMoRunTestDefinition(TestDefinition):
         num_nodes = cast(int, self.cmd_args.trainer.num_nodes)
         num_gpus = num_nodes * 8
         num_layers = cast(int, self.cmd_args.num_layers)
+        dp = num_gpus // (tp * pp * cp)
+        mbs = cast(int, self.cmd_args.data.micro_batch_size)
+        gbs = cast(int, self.cmd_args.data.global_batch_size)
 
         constraint1 = num_gpus % (tp * pp * cp) == 0
         constraint2 = True if vp is None else (num_layers // pp) % vp == 0
+        constraint3 = gbs % (mbs * dp) == 0
 
-        return constraint1 and constraint2
+        return constraint1 and constraint2 and constraint3

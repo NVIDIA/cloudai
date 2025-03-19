@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 
 from cloudai import DockerImage, Installable
 
@@ -25,27 +25,50 @@ class UCCCmdArgs(CmdArgs):
     """UCC test command arguments."""
 
     docker_image_url: str = "nvcr.io/nvidia/pytorch:24.02-py3"
-    collective: Literal[
-        "allgather",
-        "allgatherv",
-        "allreduce",
-        "alltoall",
-        "alltoallv",
-        "barrier",
-        "bcast",
-        "gather",
-        "gatherv",
-        "reduce",
-        "reduce_scatter",
-        "reduce_scatterv",
-        "scatter",
-        "scatterv",
-        "memcpy",
-        "reducedt",
-        "reducedt_strided",
+    collective: Union[
+        Literal[
+            "allgather",
+            "allgatherv",
+            "allreduce",
+            "alltoall",
+            "alltoallv",
+            "barrier",
+            "bcast",
+            "gather",
+            "gatherv",
+            "reduce",
+            "reduce_scatter",
+            "reduce_scatterv",
+            "scatter",
+            "scatterv",
+            "memcpy",
+            "reducedt",
+            "reducedt_strided",
+        ],
+        list[
+            Literal[
+                "allgather",
+                "allgatherv",
+                "allreduce",
+                "alltoall",
+                "alltoallv",
+                "barrier",
+                "bcast",
+                "gather",
+                "gatherv",
+                "reduce",
+                "reduce_scatter",
+                "reduce_scatterv",
+                "scatter",
+                "scatterv",
+                "memcpy",
+                "reducedt",
+                "reducedt_strided",
+            ]
+        ],
     ] = "alltoall"
-    b: int = 1
-    e: str = "8M"
+    b: Union[int, list[int]] = 1
+    e: Union[str, list[str]] = "8M"
 
 
 class UCCTestDefinition(TestDefinition):

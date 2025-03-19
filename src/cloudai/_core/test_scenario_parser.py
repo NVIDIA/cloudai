@@ -33,7 +33,7 @@ from ..workloads.jax_toolbox import (
     NemotronTestDefinition,
 )
 from ..workloads.megatron_run import CheckpointTimingReportGenerationStrategy, MegatronRunTestDefinition
-from ..workloads.nccl_test import NCCLTestDefinition, NcclTestReportGenerationStrategy
+from ..workloads.nccl_test import NCCLTestDefinition, NcclTestPerformanceReportGenerationStrategy
 from ..workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy, NeMoLauncherTestDefinition
 from ..workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
 from ..workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
@@ -51,7 +51,7 @@ DEFAULT_REPORTERS: dict[Type[TestDefinition], Set[Type[ReportGenerationStrategy]
     GPTTestDefinition: {JaxToolboxReportGenerationStrategy},
     GrokTestDefinition: {JaxToolboxReportGenerationStrategy},
     MegatronRunTestDefinition: {CheckpointTimingReportGenerationStrategy},
-    NCCLTestDefinition: {NcclTestReportGenerationStrategy},
+    NCCLTestDefinition: {NcclTestPerformanceReportGenerationStrategy},
     NeMoLauncherTestDefinition: {NeMoLauncherReportGenerationStrategy},
     NeMoRunTestDefinition: {NeMoRunReportGenerationStrategy},
     NemotronTestDefinition: {JaxToolboxReportGenerationStrategy},

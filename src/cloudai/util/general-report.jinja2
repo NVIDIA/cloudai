@@ -1,0 +1,26 @@
+<html>
+    <head>
+        <title>{{ test_scenario.name }}</title>
+    </head>
+    <body>
+        <h1>{{ test_scenario.name }}</h1>
+    </body>
+    <table>
+        <tr>
+            <th>Test</th>
+            <th>Status</th>
+        </tr>
+        {% for tr in test_scenario.test_runs %}
+        {% for iter in range(tr.iterations) %}
+        <tr>
+            <td>{{ tr.name }}.{{ iter }}</td>
+            {% if tr.name + iter|string in tr_results %}
+            <td><a href="{{ tr_results[tr.name + iter|string]["logs_path"] }}">logs</a></td>
+            {% else %}
+            <td>no logs</td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+        {% endfor %}
+    </table>
+</html>

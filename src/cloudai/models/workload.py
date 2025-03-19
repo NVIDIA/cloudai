@@ -15,11 +15,12 @@
 # limitations under the License.
 
 from abc import ABC
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict
 
-from .._core.installables import GitRepo, Installable
+from .._core.installables import GitRepo, Installable, PythonExecutable
 
 
 class CmdArgs(BaseModel):
@@ -70,6 +71,21 @@ class NsysConfiguration(BaseModel):
         return parts
 
 
+@dataclass
+class PredictorConfig(PythonExecutable):
+    """Predictor configuration."""
+
+    bin_name: Optional[str] = None
+
+    def __hash__(self) -> int:
+        """
+        Hash the PredictorConfig.
+
+        It is based on git repo on purpose to avoid re-downloading the same repo for multiple scripts.
+        """
+        return self.git_repo.__hash__()
+
+
 class TestDefinition(BaseModel, ABC):
     """Base Test object."""
 
@@ -81,11 +97,12 @@ class TestDefinition(BaseModel, ABC):
     description: str
     test_template_name: str
     cmd_args: Any
-    extra_env_vars: dict[str, str] = {}
+    extra_env_vars: dict[str, Union[str, List[str]]] = {}
     extra_cmd_args: dict[str, str] = {}
     extra_container_mounts: list[str] = []
     git_repos: list[GitRepo] = []
     nsys: Optional[NsysConfiguration] = None
+    predictor: Optional[PredictorConfig] = None
     agent: str = "grid_search"
     agent_steps: int = 1
 
