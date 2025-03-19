@@ -26,7 +26,6 @@ import toml
 
 from cloudai import Installable, Parser, Registry, Reporter, Runner, System, TestParser
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
-from cloudai._core.test import TestDefinition
 from cloudai.util import prepare_output_dir
 
 from ..parser import HOOK_ROOT
@@ -86,17 +85,6 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
             rc = 1
 
     return rc
-
-
-def is_dse_job(tdef: TestDefinition) -> bool:
-    def check_dict(d: dict) -> bool:
-        if isinstance(d, dict):
-            for value in d.values():
-                if isinstance(value, list) or (isinstance(value, dict) and check_dict(value)):
-                    return True
-        return False
-
-    return check_dict(tdef.cmd_args_dict) or check_dict(tdef.extra_env_vars)
 
 
 def handle_dse_job(runner: Runner, args: argparse.Namespace):
@@ -201,7 +189,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     runner = Runner(args.mode, system, test_scenario)
     register_signal_handlers(runner.cancel_on_signal)
 
-    if any(is_dse_job(tr.test.test_definition) for tr in test_scenario.test_runs):
+    if any(tr.test.test_definition.is_dse_job for tr in test_scenario.test_runs):
         handle_dse_job(runner, args)
     else:
         handle_non_dse_job(runner, args)

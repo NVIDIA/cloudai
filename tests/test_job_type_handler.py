@@ -16,7 +16,6 @@
 
 import pytest
 
-from cloudai.cli.handlers import is_dse_job
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 
@@ -25,16 +24,16 @@ def tdef():
     return NCCLTestDefinition(name="nccl", description="NCCL Test", test_template_name="nccl", cmd_args=NCCLCmdArgs())
 
 
-def test_is_dse_job_dse(tdef: NCCLTestDefinition):
+def test_is_dse_job_non_dse(tdef: NCCLTestDefinition):
+    assert tdef.is_dse_job is False
+
+
+def test_is_dse_job_dse_args(tdef: NCCLTestDefinition):
     tdef.cmd_args.nthreads = [1, 2]
     tdef.extra_env_vars = {"VAR1": "singular"}
-    assert is_dse_job(tdef)
+    assert tdef.is_dse_job is True
 
 
-def test_is_dse_job_non_dse(tdef: NCCLTestDefinition):
-    assert not is_dse_job(tdef)
-
-
-def test_is_dse_job_dse_list_env_vars(tdef: NCCLTestDefinition):
+def test_is_dse_job_dse_env_vars(tdef: NCCLTestDefinition):
     tdef.extra_env_vars = {"VAR1": ["list-item1", "list-item2"], "VAR2": "singular3"}
-    assert is_dse_job(tdef)
+    assert tdef.is_dse_job is True
