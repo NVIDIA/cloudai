@@ -26,37 +26,14 @@ from ..nemo_launcher import NeMoLauncherSlurmCommandGenStrategy
 
 
 class DatasetPreparationSlurmCommandGenStrategy(NeMoLauncherSlurmCommandGenStrategy):
-    """Command generation strategy for NeMo Dataset Preparation on Slurm, inheriting from NeMoLauncher."""
+    """Command generation strategy for NeMo Dataset Preparation on Slurm."""
 
     job_prefix_name = "cloudai.dataprep"
 
     def gen_exec_command(self, tr: TestRun) -> str:
         tdef: DatasetPreparationTestDefinition = cast(DatasetPreparationTestDefinition, tr.test.test_definition)
-        self._prepare_environment(tr, tdef)
-        py_bin, repo_path = self._get_paths(tdef)
-        cmd_args_str = self._generate_cmd_args_str(self.final_cmd_args, tr.nodes)
-        full_cmd = f"{py_bin} {repo_path / tdef.cmd_args.launcher_script} {cmd_args_str}"
+        super()._prepare_environment(tr.test.cmd_args, tr.test.extra_env_vars, tr.output_path)
 
-        env_vars_str = " ".join(f"{key}={value}" for key, value in self.final_env_vars.items())
-        full_cmd = f"{env_vars_str} {full_cmd}" if env_vars_str else full_cmd
-
-        self._log_command_to_file(full_cmd, tr.output_path)
-        return full_cmd.strip()
-
-    def _prepare_environment(self, tr: TestRun, tdef: DatasetPreparationTestDefinition) -> None:
-        self.final_env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
-        overriden_cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
-        overriden_cmd_args.pop("launcher_script", None)
-
-        self.final_cmd_args = {
-            k: self._handle_special_keys(k, v) for k, v in sorted(overriden_cmd_args.items()) if v is not None
-        }
-
-        for key, value in self.final_env_vars.items():
-            self.final_cmd_args[f"env_vars.{key}"] = value
-
-        self.final_cmd_args["cluster.partition"] = self.system.default_partition
-        self._handle_reservation()
         self._set_job_name(tr)
         self._set_container_args(tdef)
         self._set_node_config(tr.nodes, tr.num_nodes)
@@ -67,6 +44,16 @@ class DatasetPreparationSlurmCommandGenStrategy(NeMoLauncherSlurmCommandGenStrat
                 "launcher_scripts_path": "${launcher_scripts_path}",
             }
         )
+
+        py_bin, repo_path = self._get_paths(tdef)
+        cmd_args_str = self._generate_cmd_args_str(self.final_cmd_args, tr.nodes)
+        full_cmd = f"{py_bin} {repo_path / tdef.cmd_args.launcher_script} {cmd_args_str}"
+
+        env_vars_str = " ".join(f"{key}={value}" for key, value in self.final_env_vars.items())
+        full_cmd = f"{env_vars_str} {full_cmd}" if env_vars_str else full_cmd
+
+        self._log_command_to_file(full_cmd, tr.output_path)
+        return full_cmd.strip()
 
     def _set_job_name(self, tr: TestRun):
         if self.system.account:
