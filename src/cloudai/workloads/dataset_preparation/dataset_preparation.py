@@ -43,7 +43,7 @@ class DataPreparationConfig(BaseModel):
 
 
 class DatasetPreparationCmdArgs(NeMoLauncherCmdArgs):
-    """DatasetPreparationCmdArgs - Inherits from NeMoLauncherCmdArgs."""
+    """DatasetPreparationCmdArgs."""
 
     data_dir: str = ""
     stages: str = '["data_preparation"]'
