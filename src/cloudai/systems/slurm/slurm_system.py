@@ -139,7 +139,7 @@ class SlurmSystem(BaseModel, System):
         return groups
 
     @field_serializer("install_path", "output_path")
-    def _path_serializer(cls, v: Path) -> str:
+    def _path_serializer(self, v: Path) -> str:
         return str(v)
 
     def update(self) -> None:

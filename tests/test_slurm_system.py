@@ -324,7 +324,9 @@ def test_is_job_running_exceeds_retries(slurm_system: SlurmSystem):
 def test_model_dump(slurm_system: SlurmSystem):
     sys_dict = slurm_system.model_dump()
     assert type(sys_dict["install_path"]) is str
+    assert sys_dict["install_path"] == str(slurm_system.install_path)
     assert type(sys_dict["output_path"]) is str
+    assert sys_dict["output_path"] == str(slurm_system.output_path)
     assert "cmd_shell" not in sys_dict
     recreated = SlurmSystem.model_validate(sys_dict)
     assert recreated.model_dump() == sys_dict
