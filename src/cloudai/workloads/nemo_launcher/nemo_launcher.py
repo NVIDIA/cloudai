@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Literal, Optional
+from typing import Generic, Literal, Optional, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -101,10 +101,13 @@ class NeMoLauncherCmdArgs(CmdArgs):
     training: Training = Field(default_factory=Training)
 
 
-class NeMoLauncherTestDefinition(TestDefinition):
+T = TypeVar("T", bound=NeMoLauncherCmdArgs)
+
+
+class NeMoLauncherTestDefinition(TestDefinition, Generic[T]):
     """Test object for NeMoLauncher."""
 
-    cmd_args: NeMoLauncherCmdArgs
+    cmd_args: T
     launcher_repo: GitRepo = GitRepo(
         url="https://github.com/NVIDIA/NeMo-Framework-Launcher.git", commit="599ecfcbbd64fd2de02f2cc093b1610d73854022"
     )
