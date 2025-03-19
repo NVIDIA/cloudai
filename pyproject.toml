@@ -81,7 +81,6 @@ root_package = "cloudai"
     "cloudai.report_generator",
     "cloudai.report_generator.tool",
     "cloudai.runner",
-    "cloudai.workloads",
     "cloudai.util",
     "cloudai.cli",
   ]
