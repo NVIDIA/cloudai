@@ -87,28 +87,6 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     return rc
 
 
-def is_dse_job(cmd_args: dict, extra_env_vars: dict) -> bool:
-    """
-    Recursively check if any value in cmd_args or extra_env_vars is a list.
-
-    Args:
-        cmd_args (dict): The command arguments to check.
-        extra_env_vars (dict): The extra environment variables to check.
-
-    Returns:
-        bool: True if any value is a list, False otherwise.
-    """
-
-    def check_dict(d: dict) -> bool:
-        if isinstance(d, dict):
-            for _key, value in d.items():
-                if isinstance(value, list) or (isinstance(value, dict) and check_dict(value)):
-                    return True
-        return False
-
-    return check_dict(cmd_args) or check_dict(extra_env_vars)
-
-
 def handle_dse_job(runner: Runner, args: argparse.Namespace):
     test_run = next(iter(runner.runner.test_scenario.test_runs))
     env = CloudAIGymEnv(test_run=test_run, runner=runner)
@@ -211,7 +189,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     runner = Runner(args.mode, system, test_scenario)
     register_signal_handlers(runner.cancel_on_signal)
 
-    if any(is_dse_job(tr.test.cmd_args, tr.test.test_definition.extra_env_vars) for tr in test_scenario.test_runs):
+    if any(tr.test.test_definition.is_dse_job for tr in test_scenario.test_runs):
         handle_dse_job(runner, args)
     else:
         handle_non_dse_job(runner, args)
