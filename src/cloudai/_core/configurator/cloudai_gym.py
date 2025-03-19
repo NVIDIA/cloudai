@@ -17,6 +17,7 @@
 import asyncio
 import csv
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -27,6 +28,32 @@ from cloudai._core.runner import Runner
 from cloudai._core.test_scenario import TestRun
 
 from ..reporter import Reporter
+
+
+@dataclass
+class ActionSpace:
+    """
+    A class to encapsulate command arguments and environment variables for actions.
+
+    Attributes:
+        cmd_args (Dict[str, Any]): Command arguments for the action.
+        env_vars (Dict[str, Any]): Environment variables for the action.
+    """
+
+    cmd_args: Dict[str, Any]
+    env_vars: Dict[str, Any]
+
+    def items(self):
+        """
+        Yield key-value pairs from cmd_args and env_vars.
+
+        Yields:
+            Tuple[str, Any]: Key-value pairs from cmd_args and env_vars.
+        """
+        for key, value in self.cmd_args.items():
+            yield key, value
+        for key, value in self.env_vars.items():
+            yield f"extra_env_vars.{key}", value
 
 
 class CloudAIGymEnv(BaseGym):
@@ -50,32 +77,32 @@ class CloudAIGymEnv(BaseGym):
         self.max_steps = test_run.test.test_definition.agent_steps
         super().__init__()
 
-    def define_action_space(self) -> Dict[str, Any]:
+    def define_action_space(self) -> ActionSpace:
         """
         Define the action space for the environment.
 
         Returns:
-            Dict[str, Any]: The action space.
+            ActionSpace: The action space.
         """
-        action_space: Dict[str, Any] = {}
         cmd_args_dict = self.test_run.test.test_definition.cmd_args.model_dump()
         extra_env_vars_dict = self.test_run.test.test_definition.extra_env_vars
 
-        combined_dict = {
-            **{f"{key}": value for key, value in cmd_args_dict.items()},
-            **{f"extra_env_vars.{key}": value for key, value in extra_env_vars_dict.items()},
-        }
+        return ActionSpace(cmd_args=cmd_args_dict, env_vars=extra_env_vars_dict)
 
-        self.populate_action_space("", combined_dict, action_space)
+    def populate_action_space(self, prefix: str, action_space_obj: ActionSpace, action_space: dict):
+        """
+        Populate the action space dictionary with the values from the ActionSpace object.
 
-        return action_space
-
-    def populate_action_space(self, prefix: str, d: dict, action_space: dict):
-        for key, value in d.items():
+        Args:
+            prefix (str): The prefix for the keys in the action space dictionary.
+            action_space_obj (ActionSpace): The ActionSpace object containing the action values.
+            action_space (dict): The dictionary to populate with the action values.
+        """
+        for key, value in action_space_obj.items():
             if isinstance(value, list):
                 action_space[f"{prefix}{key}"] = value
             elif isinstance(value, dict):
-                self.populate_action_space(f"{prefix}{key}.", value, action_space)
+                self.populate_action_space(f"{prefix}{key}.", ActionSpace(cmd_args=value, env_vars={}), action_space)
             else:
                 action_space[f"{prefix}{key}"] = [value]
 
@@ -112,12 +139,12 @@ class CloudAIGymEnv(BaseGym):
         info = {}
         return observation, info
 
-    def step(self, action: Any) -> Tuple[list, float, bool, dict]:
+    def step(self, action: ActionSpace) -> Tuple[list, float, bool, dict]:
         """
         Execute one step in the environment.
 
         Args:
-            action (Any): Action chosen by the agent.
+            action (ActionSpace): Action chosen by the agent.
 
         Returns:
             Tuple: A tuple containing:
@@ -126,13 +153,11 @@ class CloudAIGymEnv(BaseGym):
                 - done (bool): Whether the episode is done.
                 - info (dict): Additional info for debugging.
         """
-        for key, value in action.items():
-            if key.startswith("extra_env_vars."):
-                self.update_test_run_obj(
-                    self.test_run.test.test_definition.extra_env_vars, key[len("extra_env_vars.") :], value
-                )
-            else:
-                self.update_test_run_obj(self.test_run.test.test_definition.cmd_args, key, value)
+        for key, value in action.cmd_args.items():
+            self.update_test_run_obj(self.test_run.test.test_definition.cmd_args, key, value)
+
+        for key, value in action.env_vars.items():
+            self.update_test_run_obj(self.test_run.test.test_definition.extra_env_vars, key, value)
 
         if not self.test_run.test.test_definition.constraint_check:
             logging.info("Constraint check failed. Skipping step.")
