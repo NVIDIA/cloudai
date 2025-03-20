@@ -18,9 +18,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional, Set, Type
 
+from .system import System
+
 if TYPE_CHECKING:
     from .report_generation_strategy import ReportGenerationStrategy
     from .test import Test
+
+
+METRIC_ERROR = -1.0
 
 
 class TestDependency:
@@ -75,6 +80,18 @@ class TestRun:
             bool: True if more iterations are pending, False otherwise.
         """
         return self.current_iteration < self.iterations
+
+    def get_metric_value(self, system: System, metric: str) -> float:
+        report = None
+        for r in self.reports:
+            if metric in r.metrics:
+                report = r
+                break
+
+        if report is None:
+            return METRIC_ERROR
+
+        return report(system, self).get_metric(metric)
 
 
 class TestScenario:

@@ -14,18 +14,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
+from typing import ClassVar
 
 from .system import System
 from .test_scenario import TestRun
 
 
-class ReportGenerationStrategy:
+def report_metrics(*args: str):
+    def decorator(cls: type[ReportGenerationStrategy]) -> type[ReportGenerationStrategy]:
+        cls.metrics = list(args)
+        return cls
+
+    return decorator
+
+
+class ReportGenerationStrategy(ABC):
     """Abstract class for generating reports from TestRun objects."""
 
-    def __init__(self, system: System, tr: TestRun) -> None:
+    metrics: ClassVar[list[str]] = []
+
+    def __init__(self, system: System, test_run: TestRun) -> None:
         self.system = system
-        self.test_run = tr
+        self.test_run = test_run
+
+    def get_metric(self, metric: str) -> float:
+        return 0.0
 
     @abstractmethod
     def can_handle_directory(self) -> bool: ...
