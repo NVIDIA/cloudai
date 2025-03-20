@@ -45,10 +45,11 @@ def test_run(slurm_system: SlurmSystem) -> TestRun:
 def test_default(slurm_system: SlurmSystem, test_run: TestRun) -> None:
     cgs = SlurmContainerCommandGenStrategy(slurm_system, {})
     cmd = cgs.gen_srun_command(test_run)
-
     srun_part = (
-        f"srun --mpi={slurm_system.mpi} --container-image={test_run.test.test_definition.cmd_args.docker_image_url} "
-        f"--container-mounts={Path.cwd().absolute()}:/cloudai_run_results --no-container-mount-home"
+        f"srun --export=ALL --mpi={slurm_system.mpi} "
+        f"--container-image={test_run.test.test_definition.cmd_args.docker_image_url} "
+        f"--container-mounts={Path.cwd().absolute()}:/cloudai_run_results "
+        f"--no-container-mount-home"
     )
 
     assert cmd == f'{srun_part} bash -c "cmd"'
@@ -61,8 +62,10 @@ def test_with_nsys(slurm_system: SlurmSystem, test_run: TestRun) -> None:
     cmd = cgs.gen_srun_command(test_run)
 
     srun_part = (
-        f"srun --mpi={slurm_system.mpi} --container-image={test_run.test.test_definition.cmd_args.docker_image_url} "
-        f"--container-mounts={Path.cwd().absolute()}:/cloudai_run_results --no-container-mount-home"
+        f"srun --export=ALL --mpi={slurm_system.mpi} "
+        f"--container-image={test_run.test.test_definition.cmd_args.docker_image_url} "
+        f"--container-mounts={Path.cwd().absolute()}:/cloudai_run_results "
+        f"--no-container-mount-home"
     )
 
     assert cmd == f'{srun_part} bash -c "{" ".join(nsys.cmd_args)} cmd"'

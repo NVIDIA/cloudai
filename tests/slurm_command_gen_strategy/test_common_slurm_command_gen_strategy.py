@@ -315,7 +315,7 @@ def test_ranks_mapping_cmd(strategy_fixture: SlurmCommandGenStrategy, testrun_fi
     slurm_args = {"job_name": "test_job", "num_nodes": 2, "node_list_str": "node1,node2"}
 
     expected_command = (
-        f"srun --mpi={strategy_fixture.system.mpi} "
+        f"srun --export=ALL --mpi={strategy_fixture.system.mpi} "
         f"--output={testrun_fixture.output_path.absolute()}/mapping-stdout.txt "
         f"--error={testrun_fixture.output_path.absolute()}/mapping-stderr.txt "
         "bash -c "

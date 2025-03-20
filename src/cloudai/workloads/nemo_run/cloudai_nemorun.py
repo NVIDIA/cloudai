@@ -83,27 +83,50 @@ def nsys_callbacks() -> list[pl.Callback]:
 
 @run.cli.factory
 @run.autoconvert
-def comms_overlap_callbacks() -> list[pl.Callback]:
+def comms_overlap_callbacks_lora() -> list[pl.Callback]:
     return [
         timing_callback(),
-        run.Config(
-            MegatronCommOverlapCallback,
-            overlap_param_gather_with_optimizer_step=False,
-        ),
+        run.Config(MegatronCommOverlapCallback, tp_comm_overlap=False),
     ]
 
 
 @run.cli.factory
 @run.autoconvert
-def combined_callbacks() -> list[pl.Callback]:
+def comms_overlap_callbacks_pretrain() -> list[pl.Callback]:
+    return [
+        timing_callback(),
+        run.Config(MegatronCommOverlapCallback, overlap_param_gather_with_optimizer_step=False),
+    ]
+
+
+@run.cli.factory
+@run.autoconvert
+def combined_callbacks_lora() -> list[pl.Callback]:
     start_step = 5
     end_step = 10
     return [
         timing_callback(),
         run.Config(
             MegatronCommOverlapCallback,
-            overlap_param_gather_with_optimizer_step=False,
+            tp_comm_overlap=False,
         ),
+        run.Config(
+            NsysCallback,
+            start_step=start_step,
+            end_step=end_step,
+        ),
+        run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100),
+    ]
+
+
+@run.cli.factory
+@run.autoconvert
+def combined_callbacks_pretrain() -> list[pl.Callback]:
+    start_step = 5
+    end_step = 10
+    return [
+        timing_callback(),
+        run.Config(MegatronCommOverlapCallback, overlap_param_gather_with_optimizer_step=False),
         run.Config(
             NsysCallback,
             start_step=start_step,
@@ -178,9 +201,11 @@ def cloudai_recipe() -> run.Partial:
 
 
 if __name__ == "__main__":
-    mode = os.getenv("CLOUDAI_NEMO_MODE")
-
+    mode = os.getenv("CLOUDAI_NEMO_TASK")
+    print(f"Running in mode {mode}")
     if mode == "pretrain":
         run.cli.main(fn=llm.pretrain)
     elif mode == "finetune":
         run.cli.main(fn=llm.finetune)
+    else:
+        raise ValueError(f"Unknown mode {mode}")
