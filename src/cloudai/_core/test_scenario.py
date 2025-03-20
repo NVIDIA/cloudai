@@ -86,9 +86,6 @@ class TestRun:
         if not self.reports:
             return None
 
-        if self.test.test_definition.agent_metric == "default":
-            return next(iter(self.reports))
-
         for r in self.reports:
             if self.test.test_definition.agent_metric in r.metrics:
                 return r

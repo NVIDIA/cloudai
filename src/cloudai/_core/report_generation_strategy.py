@@ -24,11 +24,11 @@ from .test_scenario import TestRun
 class ReportGenerationStrategy(ABC):
     """Abstract class for generating reports from TestRun objects."""
 
-    metrics: ClassVar[list[str]] = []
+    metrics: ClassVar[list[str]] = ["default"]
 
-    def __init__(self, system: System, test_run: TestRun) -> None:
+    def __init__(self, system: System, tr: TestRun) -> None:
         self.system = system
-        self.test_run = test_run
+        self.test_run = tr
 
     def get_metric(self, metric: str) -> float:
         return 0.0
