@@ -18,9 +18,7 @@ name = "nemo_run_llama3_8b_sft"
 description = "nemo_run_llama3_8b"
 test_template_name = "NeMoRun"
 
-extra_container_mounts = [
-  "/path/to/nemo_models/:/path/to/nemo_models/",
-]
+extra_container_mounts = ["/path/to/nemo_models/:/path/to/nemo_models/"]
 
 [cmd_args]
 docker_image_url = "nvcr.io/nvidia/nemo:24.12.rc3"
@@ -72,4 +70,4 @@ NEMO_LOG_MEMORY_USAGE = "1"
 CUDA_DEVICE_MAX_CONNECTIONS = "1"
 NVTE_FWD_LAYERNORM_SM_MARGIN = "16"
 NVTE_BWD_LAYERNORM_SM_MARGIN = "16"
-NEMO_HOME="/path/to/nemo_models/"
+NEMO_HOME = "/path/to/nemo_models/"
