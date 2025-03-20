@@ -21,14 +21,6 @@ from .system import System
 from .test_scenario import TestRun
 
 
-def report_metrics(*args: str):
-    def decorator(cls: type[ReportGenerationStrategy]) -> type[ReportGenerationStrategy]:
-        cls.metrics = list(args)
-        return cls
-
-    return decorator
-
-
 class ReportGenerationStrategy(ABC):
     """Abstract class for generating reports from TestRun objects."""
 
