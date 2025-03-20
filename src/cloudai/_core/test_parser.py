@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import logging
+import traceback
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Union, cast
 
@@ -87,6 +88,8 @@ class TestParser:
         return extras | set([f"{prefix}.{k}" for k in m.model_extra])
 
     def load_test_definition(self, data: dict, strict: bool = False) -> TestDefinition:
+        traceback.print_stack()
+        print(data)
         test_template_name = data.get("test_template_name", "")
         registry = Registry()
         if test_template_name not in registry.test_definitions_map:
@@ -95,6 +98,7 @@ class TestParser:
 
         try:
             test_def = registry.test_definitions_map[test_template_name].model_validate(data)
+            print("Printing test_def", test_def)
         except ValidationError as e:
             logging.error(f"Failed to parse test spec: '{self.current_file}'")
             for err in e.errors(include_url=False):
