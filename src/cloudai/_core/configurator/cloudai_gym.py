@@ -189,7 +189,7 @@ class CloudAIGymEnv(BaseGym):
         Returns:
             list: The observation.
         """
-        v = self.test_run.get_metric_value(self.runner.runner.system, self.test_run.test.test_definition.agent_metric)
+        v = self.test_run.get_metric_value(self.runner.runner.system)
         if v == METRIC_ERROR:
             return [-1.0]
         return [v]

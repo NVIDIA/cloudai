@@ -81,17 +81,26 @@ class TestRun:
         """
         return self.current_iteration < self.iterations
 
-    def get_metric_value(self, system: System, metric: str) -> float:
-        report = None
-        for r in self.reports:
-            if metric in r.metrics:
-                report = r
-                break
+    @property
+    def report_for_metric(self) -> Optional[Type["ReportGenerationStrategy"]]:
+        if not self.reports:
+            return None
 
+        if self.test.test_definition.agent_metric == "default":
+            return next(iter(self.reports))
+
+        for r in self.reports:
+            if self.test.test_definition.agent_metric in r.metrics:
+                return r
+
+        return None
+
+    def get_metric_value(self, system: System) -> float:
+        report = self.report_for_metric
         if report is None:
             return METRIC_ERROR
 
-        return report(system, self).get_metric(metric)
+        return report(system, self).get_metric(self.test.test_definition.agent_metric)
 
 
 class TestScenario:

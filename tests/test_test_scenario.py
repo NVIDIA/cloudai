@@ -301,3 +301,59 @@ class TestReporters:
     )
     def test_custom_reporters(self, tdef: Type[TestDefinition], expected_reporters: Set[ReportGenerationStrategy]):
         assert DEFAULT_REPORTERS[tdef] == expected_reporters
+
+
+class TestReportMetrics:
+    @pytest.fixture
+    def tinfo_mapping(self) -> tuple[dict[str, Test], _TestRunTOML]:
+        test_mapping = {
+            "test1": Test(
+                test_definition=MyTestDefinition(
+                    name="test1", description="desc", test_template_name="tt", cmd_args=CmdArgs()
+                ),
+                test_template=Mock(),
+            )
+        }
+        test_info = _TestRunTOML(
+            id="main1", test_name="test1", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1
+        )
+        return test_mapping, test_info
+
+    def test_non_dse_is_ok_without_reports(
+        self, test_scenario_parser: TestScenarioParser, tinfo_mapping: tuple[dict[str, Test], _TestRunTOML]
+    ):
+        test_mapping, test_info = tinfo_mapping
+        test_scenario_parser.test_mapping = test_mapping
+        test_scenario_parser._create_test_run(test_info=test_info, normalized_weight=1.0)
+
+    def test_dse_raises_on_non_existing_metric(
+        self, test_scenario_parser: TestScenarioParser, tinfo_mapping: tuple[dict[str, Test], _TestRunTOML]
+    ):
+        test_mapping, test_info = tinfo_mapping
+        test_mapping[test_info.test_name].test_definition.extra_env_vars = {"DSE": ["v1", "v2"]}
+        test_mapping[test_info.test_name].test_definition.agent_metric = "unknown"
+        test_scenario_parser.test_mapping = test_mapping
+        with pytest.raises(TestScenarioParsingError) as exc_info:
+            test_scenario_parser._create_test_run(test_info=test_info, normalized_weight=1.0)
+
+        assert exc_info.match(
+            "Test 'main1' is a DSE job with agent_metric='unknown', "
+            "but no report generation strategy is defined for it. "
+            "Available report-metrics mapping: {}"
+        )
+
+    def test_dse_raises_without_reports(
+        self, test_scenario_parser: TestScenarioParser, tinfo_mapping: tuple[dict[str, Test], _TestRunTOML]
+    ):
+        test_mapping, test_info = tinfo_mapping
+        test_mapping[test_info.test_name].test_definition.extra_env_vars = {"DSE": ["v1", "v2"]}
+        test_scenario_parser.test_mapping = test_mapping
+
+        with pytest.raises(TestScenarioParsingError) as exc_info:
+            test_scenario_parser._create_test_run(test_info=test_info, normalized_weight=1.0)
+
+        assert exc_info.match(
+            "Test 'main1' is a DSE job with agent_metric='default', "
+            "but no report generation strategy is defined for it. "
+            "Available report-metrics mapping: {}"
+        )

@@ -151,5 +151,6 @@ def test_nemo_generate_report_encoded(slurm_system: SlurmSystem, nemo_tr_encoded
 
 @pytest.mark.parametrize("metric", ["default", "step-time"])
 def test_metrics(nemo_tr: TestRun, slurm_system: SlurmSystem, metric: str):
-    value = nemo_tr.get_metric_value(slurm_system, metric)
+    nemo_tr.test.test_definition.agent_metric = metric
+    value = nemo_tr.get_metric_value(slurm_system)
     assert value == 12.72090909090909

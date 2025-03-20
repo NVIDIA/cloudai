@@ -346,4 +346,13 @@ class TestScenarioParser:
             post_test=post_test,
             reports=get_reporters(test_info, test.test_definition),
         )
+
+        if test.test_definition.is_dse_job and not tr.report_for_metric:
+            report_metrics_map = {r.metrics: r for r in tr.reports}
+            raise TestScenarioParsingError(
+                f"Test '{test_info.id}' is a DSE job with agent_metric='{test.test_definition.agent_metric}', "
+                "but no report generation strategy is defined for it. "
+                f"Available report-metrics mapping: {report_metrics_map}"
+            )
+
         return tr
