@@ -18,6 +18,10 @@ name = "nemo_run_llama3_8b_sft"
 description = "nemo_run_llama3_8b"
 test_template_name = "NeMoRun"
 
+extra_container_mounts = [
+  "/path/to/nemo_models/:/path/to/nemo_models/",
+]
+
 [cmd_args]
 docker_image_url = "nvcr.io/nvidia/nemo:24.12.rc3"
 task = "finetune"
@@ -27,7 +31,7 @@ recipe_name = "llama3_8b"
   micro_batch_size = 1
   global_batch_size = 32
   seq_length = 4096
-  forced_redownload = true
+  force_redownload = true
 
   [cmd_args.trainer]
   max_steps = 100
@@ -52,7 +56,7 @@ recipe_name = "llama3_8b"
   config.use_distributed_optimizer = false
 
   [cmd_args.peft]
-  peft.target_modules = "['linear_qkv']"
+  target_modules = "\"['linear_qkv']\""
 
   [cmd_args.model.config]
   seq_length = 4096
@@ -68,3 +72,4 @@ NEMO_LOG_MEMORY_USAGE = "1"
 CUDA_DEVICE_MAX_CONNECTIONS = "1"
 NVTE_FWD_LAYERNORM_SM_MARGIN = "16"
 NVTE_BWD_LAYERNORM_SM_MARGIN = "16"
+NEMO_HOME="/path/to/nemo_models/"
