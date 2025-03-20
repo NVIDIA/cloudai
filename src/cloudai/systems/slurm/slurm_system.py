@@ -21,9 +21,10 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
-from cloudai import BaseJob, System
-from cloudai.util import CommandShell
-
+from ..._core.base_job import BaseJob
+from ..._core.installables import File, Installable
+from ..._core.system import System
+from ...util import CommandShell
 from .slurm_node import SlurmNode, SlurmNodeState
 
 
@@ -138,7 +139,7 @@ class SlurmSystem(BaseModel, System):
         return groups
 
     @field_serializer("install_path", "output_path")
-    def _path_serializer(cls, v: Path) -> str:
+    def _path_serializer(self, v: Path) -> str:
         return str(v)
 
     def update(self) -> None:
@@ -693,3 +694,6 @@ class SlurmSystem(BaseModel, System):
             num_nodes = len(parsed_nodes)
             node_list = parsed_nodes
         return num_nodes, node_list
+
+    def system_installables(self) -> list[Installable]:
+        return [File(Path(__file__).parent.absolute() / "slurm-metadata.sh")]

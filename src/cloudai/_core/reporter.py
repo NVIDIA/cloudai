@@ -15,12 +15,71 @@
 # limitations under the License.
 
 import logging
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 import jinja2
+import toml
 
+from ..systems.slurm.metadata import SlurmSystemMetadata
+from ..systems.slurm.slurm_system import SlurmSystem
 from .system import System
 from .test_scenario import TestRun, TestScenario
+
+
+@dataclass
+class ReportItem:
+    name: str
+    description: str
+    logs_path: Optional[str] = None
+
+    @classmethod
+    def from_test_runs(cls, test_runs: list[TestRun], results_root: Path) -> list["ReportItem"]:
+        report_items: list[ReportItem] = []
+        for tr in test_runs:
+            for iter in range(tr.iterations):
+                run_dir = results_root / tr.name / f"{iter}"
+                report_items.append(ReportItem(f"{tr.name} (iter {iter})", tr.test.description))
+                if run_dir.exists():
+                    report_items[-1].logs_path = f"./{run_dir.relative_to(results_root)}"
+        return report_items
+
+
+@dataclass
+class SlurmReportItem:
+    name: str
+    description: str
+    logs_path: Optional[str] = None
+    nodes: Optional[str] = None
+
+    @classmethod
+    def get_metadata(cls, run_dir: Path) -> Optional[SlurmSystemMetadata]:
+        if (run_dir / "metadata").exists():
+            node_files = list(run_dir.glob("metadata/node-*.toml"))
+            if node_files:
+                node_file = node_files[0]
+                with node_file.open() as f:
+                    try:
+                        return SlurmSystemMetadata.model_validate(toml.load(f))
+                    except Exception as e:
+                        logging.debug(f"Error validating metadata for {node_file}: {e}")
+        return None
+
+    @classmethod
+    def from_test_runs(cls, test_runs: list[TestRun], results_root: Path) -> list["SlurmReportItem"]:
+        report_items: list[SlurmReportItem] = []
+        for tr in test_runs:
+            for iter in range(tr.iterations):
+                run_dir = results_root / tr.name / f"{iter}"
+                ri = SlurmReportItem(f"{tr.name} (iter {iter})", tr.test.description)
+                if run_dir.exists():
+                    ri.logs_path = f"./{run_dir.relative_to(results_root)}"
+                if metadata := cls.get_metadata(run_dir):
+                    ri.nodes = metadata.slurm.node_list
+                report_items.append(ri)
+
+        return report_items
 
 
 class Reporter:
@@ -56,21 +115,24 @@ class Reporter:
 
             self.generate_per_case_reports(test_output_dir, tr)
 
+    @property
+    def template_file(self) -> str:
+        if isinstance(self.system, SlurmSystem):
+            return "general-slurm-report.jinja2"
+
+        return "general-report.jinja2"
+
     def generate_scenario_report(self) -> None:
         template = jinja2.Environment(
             loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / "util")
-        ).get_template("general-report.jinja2")
+        ).get_template(self.template_file)
 
-        results = {}
-        for tr in self.test_scenario.test_runs:
-            for iter in range(tr.iterations):
-                run_dir = self.results_root / tr.name / f"{iter}"
-                if run_dir.exists():
-                    results.setdefault(
-                        tr.name + f"{iter}", {"logs_path": f"./{run_dir.relative_to(self.results_root)}"}
-                    )
-
-        report = template.render(test_scenario=self.test_scenario, tr_results=results)
+        report_items = (
+            SlurmReportItem.from_test_runs(self.test_scenario.test_runs, self.results_root)
+            if isinstance(self.system, SlurmSystem)
+            else ReportItem.from_test_runs(self.test_scenario.test_runs, self.results_root)
+        )
+        report = template.render(name=self.test_scenario.name, report_items=report_items)
         report_path = self.results_root / f"{self.test_scenario.name}.html"
         with report_path.open("w") as f:
             f.write(report)

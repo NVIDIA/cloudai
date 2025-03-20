@@ -10,6 +10,7 @@
             <th>Test</th>
             <th>Description</th>
             <th>Results</th>
+            <th>Nodes</th>
         </tr>
         {% for item in report_items %}
         <tr>
@@ -20,6 +21,7 @@
             {% else %}
             <td>no logs</td>
             {% endif %}
+            <td>{{ item.nodes }}</td>
         </tr>
         {% endfor %}
     </table>

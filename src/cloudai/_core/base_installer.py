@@ -73,6 +73,9 @@ class BaseInstaller(ABC):
         logging.debug("Checking for common prerequisites.")
         return InstallStatusResult(True)
 
+    def all_items(self, items: Iterable[Installable]) -> set[Installable]:
+        return set(list(items) + self.system.system_installables())
+
     @final
     def is_installed(self, items: Iterable[Installable]) -> InstallStatusResult:
         """
@@ -90,7 +93,7 @@ class BaseInstaller(ABC):
             return InstallStatusResult(False, f"Error preparing install dir '{self.system.install_path.absolute()}'")
 
         not_installed = {}
-        for item in items:
+        for item in self.all_items(items):
             logging.debug(f"Installation check for {item!r}")
             result = self.is_installed_one(item)
             logging.debug(f"Installation check for {item!r}: {result.success}, {result.message}")
@@ -126,7 +129,7 @@ class BaseInstaller(ABC):
 
         install_results = {}
         with ThreadPoolExecutor() as executor:
-            futures = {executor.submit(self.install_one, item): item for item in set(items)}
+            futures = {executor.submit(self.install_one, item): item for item in self.all_items(items)}
             total, done = len(futures), 0
             for future in as_completed(futures):
                 item = futures[future]
@@ -167,7 +170,7 @@ class BaseInstaller(ABC):
         logging.info(f"Going to uninstall {len(set(items))} items.")
         uninstall_results = {}
         with ThreadPoolExecutor() as executor:
-            futures = {executor.submit(self.uninstall_one, item): item for item in set(items)}
+            futures = {executor.submit(self.uninstall_one, item): item for item in self.all_items(items)}
             for future in as_completed(futures):
                 item = futures[future]
                 try:
@@ -199,7 +202,7 @@ class BaseInstaller(ABC):
             InstallStatusResult: Result containing the status and error message if any.
         """
         install_results = {}
-        for item in items:
+        for item in self.all_items(items):
             self.mark_as_installed_one(item)
 
         return InstallStatusResult(True, "All items marked as installed successfully.", install_results)

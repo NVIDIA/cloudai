@@ -69,6 +69,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             *tdef.extra_container_mounts,
             *repo_mounts,
             *self._container_mounts(tr),
+            f"{self.system.install_path.absolute()}:/cloudai_install",
         ]
 
     def gen_exec_command(self, tr: TestRun) -> str:
@@ -239,10 +240,10 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     def gen_srun_prefix(self, slurm_args: Dict[str, Any], tr: TestRun) -> List[str]:
         srun_command_parts = ["srun", "--export=ALL", f"--mpi={self.system.mpi}"]
         if slurm_args.get("image_path"):
-            srun_command_parts.append(f'--container-image={slurm_args["image_path"]}')
+            srun_command_parts.append(f"--container-image={slurm_args['image_path']}")
             mounts = self.container_mounts(tr)
             if mounts:
-                srun_command_parts.append(f'--container-mounts={",".join(mounts)}')
+                srun_command_parts.append(f"--container-mounts={','.join(mounts)}")
 
         if self.system.extra_srun_args:
             srun_command_parts.append(self.system.extra_srun_args)
@@ -283,6 +284,18 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             ]
         )
 
+    def _metadata_cmd(self, slurm_args: dict[str, Any], tr: TestRun) -> str:
+        return " ".join(
+            [
+                *self.gen_srun_prefix(slurm_args, tr),
+                "--ntasks-per-node=1",
+                f"--output={tr.output_path.absolute() / 'metadata' / 'node-%N.toml'}",
+                f"--error={tr.output_path.absolute() / 'metadata' / 'nodes.err'}",
+                "bash",
+                "/cloudai_install/slurm-metadata.sh",
+            ]
+        )
+
     def _write_sbatch_script(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, Union[str, List[str]]], srun_command: str, tr: TestRun
     ) -> str:
@@ -309,6 +322,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         batch_script_content.extend([self._format_env_vars(env_vars)])
 
         batch_script_content.extend([self._ranks_mapping_cmd(slurm_args, tr), ""])
+        batch_script_content.extend([self._metadata_cmd(slurm_args, tr), ""])
 
         batch_script_content.append(srun_command)
 
