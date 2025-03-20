@@ -347,7 +347,7 @@ class TestScenarioParser:
             reports=get_reporters(test_info, test.test_definition),
         )
 
-        if test.test_definition.is_dse_job and not tr.report_for_metric:
+        if test.test_definition.is_dse_job and not tr.metric_reporter:
             report_metrics_map = {r: r.metrics for r in tr.reports}
             raise TestScenarioParsingError(
                 f"Test '{test_info.id}' is a DSE job with agent_metric='{test.test_definition.agent_metric}', "

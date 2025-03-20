@@ -17,7 +17,7 @@
 
 from pathlib import Path
 from typing import Set, Type
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -304,82 +304,49 @@ class TestReporters:
         assert DEFAULT_REPORTERS[tdef] == expected_reporters
 
 
-class TestReportMetrics:
+class TestReportMetricsDSE:
     @pytest.fixture
-    def tinfo_mapping(self) -> tuple[dict[str, Test], _TestRunTOML]:
-        test_mapping = {
-            "test1": Test(
-                test_definition=MyTestDefinition(
-                    name="test1", description="desc", test_template_name="tt", cmd_args=CmdArgs()
-                ),
-                test_template=Mock(),
-            )
-        }
-        test_info = _TestRunTOML(
-            id="main1", test_name="test1", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1
-        )
-        return test_mapping, test_info
+    def test_info(self) -> _TestRunTOML:
+        return _TestRunTOML(id="main1", test_name="nccl", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1)
 
-    def test_non_dse_is_ok_without_reports(
-        self, test_scenario_parser: TestScenarioParser, tinfo_mapping: tuple[dict[str, Test], _TestRunTOML]
-    ):
-        test_mapping, test_info = tinfo_mapping
-        test_scenario_parser.test_mapping = test_mapping
-        test_scenario_parser._create_test_run(test_info=test_info, normalized_weight=1.0)
-
-    def test_dse_raises_on_non_existing_metric(
-        self, test_scenario_parser: TestScenarioParser, tinfo_mapping: tuple[dict[str, Test], _TestRunTOML]
-    ):
-        test_mapping, test_info = tinfo_mapping
-        test_mapping[test_info.test_name].test_definition.extra_env_vars = {"DSE": ["v1", "v2"]}
-        test_mapping[test_info.test_name].test_definition.agent_metric = "unknown"
-        test_scenario_parser.test_mapping = test_mapping
-        with pytest.raises(TestScenarioParsingError) as exc_info:
-            test_scenario_parser._create_test_run(test_info=test_info, normalized_weight=1.0)
-
-        assert exc_info.match(
-            "Test 'main1' is a DSE job with agent_metric='unknown', "
-            "but no report generation strategy is defined for it. "
-            "Available report-metrics mapping: {}"
-        )
-
-    def test_dse_raises_without_reports(
-        self, test_scenario_parser: TestScenarioParser, tinfo_mapping: tuple[dict[str, Test], _TestRunTOML]
-    ):
-        test_mapping, test_info = tinfo_mapping
-        test_mapping[test_info.test_name].test_definition.extra_env_vars = {"DSE": ["v1", "v2"]}
-        test_scenario_parser.test_mapping = test_mapping
-
-        with pytest.raises(TestScenarioParsingError) as exc_info:
-            test_scenario_parser._create_test_run(test_info=test_info, normalized_weight=1.0)
-
-        assert exc_info.match(
-            "Test 'main1' is a DSE job with agent_metric='default', "
-            "but no report generation strategy is defined for it. "
-            "Available report-metrics mapping: {}"
-        )
-
-    def test_dse_raises_on_non_existing_metricssss(self, test_scenario_parser: TestScenarioParser):
+    @pytest.fixture
+    def ts_parser(self, test_scenario_parser: TestScenarioParser) -> TestScenarioParser:
         nccl = NCCLTestDefinition(
             name="nccl",
             description="desc",
             test_template_name="tt",
-            cmd_args=NCCLCmdArgs(nthreads=[1, 2]),
-            agent_metric="unknown",
+            cmd_args=NCCLCmdArgs(),
+            extra_env_vars={"DSE": ["v1", "v2"]},
         )
         test_scenario_parser.test_mapping["nccl"] = Test(test_definition=nccl, test_template=Mock())
-        test_info = _TestRunTOML(
-            id="main1", test_name="nccl", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1
-        )
+        return test_scenario_parser
+
+    def test_raises_on_unknown_metric(self, ts_parser: TestScenarioParser, test_info: _TestRunTOML):
+        tdef = ts_parser.test_mapping[test_info.test_name].test_definition
+        tdef.agent_metric = "unknown"
 
         with pytest.raises(TestScenarioParsingError) as exc_info:
-            test_scenario_parser._create_test_run(test_info=test_info, normalized_weight=1.0)
+            ts_parser._create_test_run(test_info=test_info, normalized_weight=1.0)
 
         mapping_str = (
             f"{NcclTestPerformanceReportGenerationStrategy}: {NcclTestPerformanceReportGenerationStrategy.metrics}"
         )
         assert str(exc_info.value) == (
-            f"Test '{test_info.id}' is a DSE job with agent_metric='{nccl.agent_metric}', "
+            f"Test '{test_info.id}' is a DSE job with agent_metric='{tdef.agent_metric}', "
             "but no report generation strategy is defined for it. "
             f"Available report-metrics mapping: {{{mapping_str}}}"
+        )
+
+    @patch("cloudai._core.test_scenario_parser.get_reporters", return_value=set())
+    def test_raises_if_no_reports_defined(self, _, ts_parser: TestScenarioParser, test_info: _TestRunTOML):
+        tdef = ts_parser.test_mapping[test_info.test_name].test_definition
+        tdef.agent_metric = "default"
+
+        with pytest.raises(TestScenarioParsingError) as exc_info:
+            ts_parser._create_test_run(test_info=test_info, normalized_weight=1.0)
+
+        assert str(exc_info.value) == (
+            f"Test '{test_info.id}' is a DSE job with agent_metric='{tdef.agent_metric}', "
+            "but no report generation strategy is defined for it. "
+            "Available report-metrics mapping: {}"
         )

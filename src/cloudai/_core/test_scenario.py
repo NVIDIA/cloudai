@@ -82,7 +82,7 @@ class TestRun:
         return self.current_iteration < self.iterations
 
     @property
-    def report_for_metric(self) -> Optional[Type["ReportGenerationStrategy"]]:
+    def metric_reporter(self) -> Optional[Type["ReportGenerationStrategy"]]:
         if not self.reports:
             return None
 
@@ -93,7 +93,7 @@ class TestRun:
         return None
 
     def get_metric_value(self, system: System) -> float:
-        report = self.report_for_metric
+        report = self.metric_reporter
         if report is None:
             return METRIC_ERROR
 
