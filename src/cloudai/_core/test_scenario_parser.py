@@ -348,7 +348,7 @@ class TestScenarioParser:
         )
 
         if test.test_definition.is_dse_job and not tr.report_for_metric:
-            report_metrics_map = {r.metrics: r for r in tr.reports}
+            report_metrics_map = {r: r.metrics for r in tr.reports}
             raise TestScenarioParsingError(
                 f"Test '{test_info.id}' is a DSE job with agent_metric='{test.test_definition.agent_metric}', "
                 "but no report generation strategy is defined for it. "

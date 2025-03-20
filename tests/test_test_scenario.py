@@ -43,6 +43,7 @@ from cloudai.workloads.nccl_test import (
     NCCLTestDefinition,
     NcclTestPerformanceReportGenerationStrategy,
 )
+from cloudai.workloads.nccl_test.nccl import NCCLCmdArgs
 from cloudai.workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy, NeMoLauncherTestDefinition
 from cloudai.workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
 from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
@@ -356,4 +357,29 @@ class TestReportMetrics:
             "Test 'main1' is a DSE job with agent_metric='default', "
             "but no report generation strategy is defined for it. "
             "Available report-metrics mapping: {}"
+        )
+
+    def test_dse_raises_on_non_existing_metricssss(self, test_scenario_parser: TestScenarioParser):
+        nccl = NCCLTestDefinition(
+            name="nccl",
+            description="desc",
+            test_template_name="tt",
+            cmd_args=NCCLCmdArgs(nthreads=[1, 2]),
+            agent_metric="unknown",
+        )
+        test_scenario_parser.test_mapping["nccl"] = Test(test_definition=nccl, test_template=Mock())
+        test_info = _TestRunTOML(
+            id="main1", test_name="nccl", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1
+        )
+
+        with pytest.raises(TestScenarioParsingError) as exc_info:
+            test_scenario_parser._create_test_run(test_info=test_info, normalized_weight=1.0)
+
+        mapping_str = (
+            f"{NcclTestPerformanceReportGenerationStrategy}: {NcclTestPerformanceReportGenerationStrategy.metrics}"
+        )
+        assert str(exc_info.value) == (
+            f"Test '{test_info.id}' is a DSE job with agent_metric='{nccl.agent_metric}', "
+            "but no report generation strategy is defined for it. "
+            f"Available report-metrics mapping: {{{mapping_str}}}"
         )
