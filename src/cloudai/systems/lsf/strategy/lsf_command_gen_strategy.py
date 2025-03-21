@@ -16,10 +16,9 @@
 
 from abc import abstractmethod
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, List, Union, final
 
-from cloudai import CommandGenStrategy, TestRun, TestScenario
+from cloudai import CommandGenStrategy, TestRun
 from cloudai.systems import LSFSystem
 
 
@@ -86,7 +85,7 @@ class LSFCommandGenStrategy(CommandGenStrategy):
         lsf_args = self._parse_lsf_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
 
         bsub_command = self._gen_bsub_command(lsf_args, env_vars, cmd_args, tr)
-        
+
         return bsub_command.strip()
 
     def _parse_lsf_args(
@@ -147,7 +146,7 @@ class LSFCommandGenStrategy(CommandGenStrategy):
         """
         bsub_command_parts = self.gen_bsub_prefix(lsf_args, tr)
         test_command_parts = self.generate_test_command(env_vars, cmd_args, tr)
-        
+
         return " ".join(bsub_command_parts + test_command_parts)
 
     def gen_bsub_prefix(self, lsf_args: Dict[str, Any], tr: TestRun) -> List[str]:
@@ -165,11 +164,11 @@ class LSFCommandGenStrategy(CommandGenStrategy):
 
         if lsf_args.get("time_limit"):
             time_parts = list(map(int, lsf_args["time_limit"].split(":")))
-            if len(time_parts) == 3: 
+            if len(time_parts) == 3:
                 time_limit_minutes = time_parts[0] * 60 + time_parts[1]
-            elif len(time_parts) == 2: 
+            elif len(time_parts) == 2:
                 time_limit_minutes = time_parts[0]
-            else:  
+            else:
                 time_limit_minutes = 1
             bsub_command_parts.append(f"-W {time_limit_minutes}")
 
@@ -201,4 +200,4 @@ class LSFCommandGenStrategy(CommandGenStrategy):
         Returns:
             str: The generated LSF bsub command.
         """
-        pass
+        return ""

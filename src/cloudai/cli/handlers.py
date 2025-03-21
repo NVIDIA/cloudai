@@ -49,7 +49,7 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     logging.info(f"Scheduler: {system.scheduler}")
 
     installables: list[Installable] = []
-    
+
     for test in tests:
         logging.debug(f"{test.name} has {len(test.test_definition.installables)} installables.")
         installables.extend(test.test_definition.installables)

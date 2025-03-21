@@ -26,6 +26,7 @@ from cloudai.util import CommandShell
 
 class LSFNodeObj(BaseModel):
     """Represents a node in the LSF system."""
+
     name: str
     state: str
     user: Optional[str] = None
@@ -33,6 +34,7 @@ class LSFNodeObj(BaseModel):
 
 class LSFGroup(BaseModel):
     """Represents a group of nodes within a queue."""
+
     model_config = ConfigDict(extra="forbid")
     name: str
     nodes: List[str]
@@ -40,6 +42,7 @@ class LSFGroup(BaseModel):
 
 class LSFQueue(BaseModel):
     """Represents a queue within the LSF system."""
+
     model_config = ConfigDict(extra="forbid")
     name: str
     groups: List[LSFGroup] = []
@@ -59,6 +62,7 @@ class LSFSystem(BaseModel, System):
         account (Optional[str]): Account name for resource usage.
         cmd_shell (CommandShell): Command shell for executing system commands.
     """
+
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     name: str
@@ -171,13 +175,13 @@ class LSFSystem(BaseModel, System):
             bhosts_output (str): The output of the `bhosts` command.
             node_user_map (Dict[str, str]): A dictionary mapping node names to user names.
         """
-        self.queues = [] 
+        self.queues = []
         queue_map = {}
 
         for line in bhosts_output.splitlines():
             parts = line.split()
             if len(parts) < 6:
-                continue  
+                continue
             node_name, status, _, _, _, queue_name = parts[:6]
 
             if queue_name not in queue_map:
@@ -189,4 +193,3 @@ class LSFSystem(BaseModel, System):
             queue.lsf_nodes.append(node)
 
         self.queues = list(queue_map.values())
-

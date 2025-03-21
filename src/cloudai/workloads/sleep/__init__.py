@@ -16,19 +16,19 @@
 
 from .grading_strategy import SleepGradingStrategy
 from .kubernetes_json_gen_strategy import SleepKubernetesJsonGenStrategy
+from .lsf_command_gen_strategy import SleepLSFCommandGenStrategy
 from .report_generation_strategy import SleepReportGenerationStrategy
 from .sleep import SleepCmdArgs, SleepTestDefinition
 from .slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from .standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
-from .lsf_command_gen_strategy import SleepLSFCommandGenStrategy
 
 __all__ = [
     "SleepCmdArgs",
     "SleepGradingStrategy",
     "SleepKubernetesJsonGenStrategy",
+    "SleepLSFCommandGenStrategy",
     "SleepReportGenerationStrategy",
     "SleepSlurmCommandGenStrategy",
     "SleepStandaloneCommandGenStrategy",
     "SleepTestDefinition",
-    "SleepLSFCommandGenStrategy",
 ]

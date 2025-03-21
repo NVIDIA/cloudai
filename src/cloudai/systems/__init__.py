@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,13 +15,13 @@
 # limitations under the License.
 
 from .kubernetes.kubernetes_system import KubernetesSystem
+from .lsf.lsf_system import LSFSystem
 from .slurm.slurm_system import SlurmSystem
 from .standalone_system import StandaloneSystem
-from .lsf.lsf_system import LSFSystem
 
 __all__ = [
     "KubernetesSystem",
+    "LSFSystem",
     "SlurmSystem",
     "StandaloneSystem",
-    "LSFSystem",
 ]

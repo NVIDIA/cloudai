@@ -84,12 +84,12 @@ class LSFNode(BaseModel):
             bool: True if the node is allocatable, False otherwise.
         """
         if free_only:
-            return self.state == LsfNodeState.OK
+            return self.state == LSFNodeState.OK
         else:
             return self.state in [
-                LsfNodeState.OK,
-                LsfNodeState.RESERVED,
-                LsfNodeState.POWERING_UP,
+                LSFNodeState.OK,
+                LSFNodeState.RESERVED,
+                LSFNodeState.POWERING_UP,
             ]
 
     def __repr__(self) -> str:
@@ -99,9 +99,4 @@ class LSFNode(BaseModel):
         Returns:
             str: A string representation of the LSF node.
         """
-        return (
-            f"LsfNode(name={self.name}, "
-            f"queue={self.queue}, "
-            f"state={self.state.name}, "
-            f"user={self.user})"
-        )
+        return f"LsfNode(name={self.name}, " f"queue={self.queue}, " f"state={self.state.name}, " f"user={self.user})"

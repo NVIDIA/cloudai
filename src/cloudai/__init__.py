@@ -47,18 +47,18 @@ from ._core.test_scenario_parser import TestScenarioParser
 from ._core.test_template import TestTemplate
 from ._core.test_template_strategy import TestTemplateStrategy
 from .installer.kubernetes_installer import KubernetesInstaller
-from .installer.slurm_installer import SlurmInstaller
 from .installer.lsf_installer import LSFInstaller
+from .installer.slurm_installer import SlurmInstaller
 from .installer.standalone_installer import StandaloneInstaller
 from .parser import Parser
 from .runner.kubernetes.kubernetes_runner import KubernetesRunner
-from .runner.slurm.slurm_runner import SlurmRunner
 from .runner.lsf.lsf_runner import LSFRunner
+from .runner.slurm.slurm_runner import SlurmRunner
 from .runner.standalone.standalone_runner import StandaloneRunner
 from .systems.kubernetes.kubernetes_system import KubernetesSystem
+from .systems.lsf.lsf_system import LSFSystem
 from .systems.slurm.slurm_system import SlurmSystem
 from .systems.standalone_system import StandaloneSystem
-from .systems.lsf.lsf_system import LSFSystem
 from .workloads.chakra_replay import (
     ChakraReplayGradingStrategy,
     ChakraReplaySlurmCommandGenStrategy,
@@ -66,9 +66,9 @@ from .workloads.chakra_replay import (
 )
 from .workloads.common import (
     DefaultJobStatusRetrievalStrategy,
+    LSFJobIdRetrievalStrategy,
     SlurmJobIdRetrievalStrategy,
     StandaloneJobIdRetrievalStrategy,
-    LSFJobIdRetrievalStrategy,
 )
 from .workloads.jax_toolbox import (
     GPTTestDefinition,
@@ -96,9 +96,9 @@ from .workloads.nemo_run import NeMoRunSlurmCommandGenStrategy, NeMoRunTestDefin
 from .workloads.sleep import (
     SleepGradingStrategy,
     SleepKubernetesJsonGenStrategy,
+    SleepLSFCommandGenStrategy,
     SleepSlurmCommandGenStrategy,
     SleepStandaloneCommandGenStrategy,
-    SleepLSFCommandGenStrategy,
     SleepTestDefinition,
 )
 from .workloads.slurm_container import SlurmContainerCommandGenStrategy, SlurmContainerTestDefinition
@@ -171,9 +171,7 @@ Registry().add_strategy(
     JobIdRetrievalStrategy, [StandaloneSystem], [SleepTestDefinition], StandaloneJobIdRetrievalStrategy
 )
 
-Registry().add_strategy(
-    JobIdRetrievalStrategy, [LSFSystem], [SleepTestDefinition], LSFJobIdRetrievalStrategy
-)
+Registry().add_strategy(JobIdRetrievalStrategy, [LSFSystem], [SleepTestDefinition], LSFJobIdRetrievalStrategy)
 Registry().add_strategy(
     JobStatusRetrievalStrategy,
     [KubernetesSystem],
@@ -210,7 +208,9 @@ Registry().add_strategy(
     JobStatusRetrievalStrategy, [StandaloneSystem], [SleepTestDefinition], DefaultJobStatusRetrievalStrategy
 )
 
-Registry().add_strategy(JobStatusRetrievalStrategy, [LSFSystem], [SleepTestDefinition], DefaultJobStatusRetrievalStrategy)
+Registry().add_strategy(
+    JobStatusRetrievalStrategy, [LSFSystem], [SleepTestDefinition], DefaultJobStatusRetrievalStrategy
+)
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [UCCTestDefinition], UCCTestSlurmCommandGenStrategy)
 
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [ChakraReplayTestDefinition], ChakraReplayGradingStrategy)
