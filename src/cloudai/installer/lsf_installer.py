@@ -106,7 +106,19 @@ class LSFInstaller(BaseInstaller):
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
     def is_installed_one(self, item: Installable) -> InstallStatusResult:
-        if isinstance(item, GitRepo):
+        """
+        Check if a single item is installed.
+
+        Args:
+            item (Installable): The item to check.
+
+        Returns:
+            InstallStatusResult: Result containing the installation status and error message if any.
+        """
+        if isinstance(item, DockerImage):
+            logging.info(f"Skipping installation check for Docker image {item} in LSF system.")
+            return InstallStatusResult(True, "Docker image installation skipped for LSF system.")
+        elif isinstance(item, GitRepo):
             repo_path = self.system.install_path / item.repo_name
             if repo_path.exists():
                 item.installed_path = repo_path
