@@ -17,7 +17,7 @@
 
 from pathlib import Path
 from typing import Set, Type
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -43,6 +43,7 @@ from cloudai.workloads.nccl_test import (
     NCCLTestDefinition,
     NcclTestPerformanceReportGenerationStrategy,
 )
+from cloudai.workloads.nccl_test.nccl import NCCLCmdArgs
 from cloudai.workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy, NeMoLauncherTestDefinition
 from cloudai.workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
 from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
@@ -301,3 +302,51 @@ class TestReporters:
     )
     def test_custom_reporters(self, tdef: Type[TestDefinition], expected_reporters: Set[ReportGenerationStrategy]):
         assert DEFAULT_REPORTERS[tdef] == expected_reporters
+
+
+class TestReportMetricsDSE:
+    @pytest.fixture
+    def test_info(self) -> _TestRunTOML:
+        return _TestRunTOML(id="main1", test_name="nccl", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1)
+
+    @pytest.fixture
+    def ts_parser(self, test_scenario_parser: TestScenarioParser) -> TestScenarioParser:
+        nccl = NCCLTestDefinition(
+            name="nccl",
+            description="desc",
+            test_template_name="tt",
+            cmd_args=NCCLCmdArgs(),
+            extra_env_vars={"DSE": ["v1", "v2"]},
+        )
+        test_scenario_parser.test_mapping["nccl"] = Test(test_definition=nccl, test_template=Mock())
+        return test_scenario_parser
+
+    def test_raises_on_unknown_metric(self, ts_parser: TestScenarioParser, test_info: _TestRunTOML):
+        tdef = ts_parser.test_mapping[test_info.test_name].test_definition
+        tdef.agent_metric = "unknown"
+
+        with pytest.raises(TestScenarioParsingError) as exc_info:
+            ts_parser._create_test_run(test_info=test_info, normalized_weight=1.0)
+
+        mapping_str = (
+            f"{NcclTestPerformanceReportGenerationStrategy}: {NcclTestPerformanceReportGenerationStrategy.metrics}"
+        )
+        assert str(exc_info.value) == (
+            f"Test '{test_info.id}' is a DSE job with agent_metric='{tdef.agent_metric}', "
+            "but no report generation strategy is defined for it. "
+            f"Available report-metrics mapping: {{{mapping_str}}}"
+        )
+
+    @patch("cloudai._core.test_scenario_parser.get_reporters", return_value=set())
+    def test_raises_if_no_reports_defined(self, _, ts_parser: TestScenarioParser, test_info: _TestRunTOML):
+        tdef = ts_parser.test_mapping[test_info.test_name].test_definition
+        tdef.agent_metric = "default"
+
+        with pytest.raises(TestScenarioParsingError) as exc_info:
+            ts_parser._create_test_run(test_info=test_info, normalized_weight=1.0)
+
+        assert str(exc_info.value) == (
+            f"Test '{test_info.id}' is a DSE job with agent_metric='{tdef.agent_metric}', "
+            "but no report generation strategy is defined for it. "
+            "Available report-metrics mapping: {}"
+        )
