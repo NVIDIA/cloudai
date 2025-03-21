@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,8 +19,9 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-from cloudai import BaseJob, System
-from cloudai.util.command_shell import CommandShell
+from .._core.base_job import BaseJob
+from .._core.system import System
+from ..util import CommandShell
 
 
 class StandaloneSystem(BaseModel, System):
