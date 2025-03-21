@@ -23,25 +23,24 @@ from typing import Any, Dict, List, Literal, Optional, Set, Type
 import toml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
-from cloudai.workloads.jax_toolbox import (
+from ..workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
+from ..workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
     JaxToolboxReportGenerationStrategy,
     NemotronTestDefinition,
 )
-from cloudai.workloads.megatron_run import CheckpointTimingReportGenerationStrategy, MegatronRunTestDefinition
-from cloudai.workloads.nccl_test import (
+from ..workloads.megatron_run import CheckpointTimingReportGenerationStrategy, MegatronRunTestDefinition
+from ..workloads.nccl_test import (
     NCCLTestDefinition,
     NcclTestPerformanceReportGenerationStrategy,
     NcclTestPredictionReportGenerationStrategy,
 )
-from cloudai.workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy, NeMoLauncherTestDefinition
-from cloudai.workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
-from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
-from cloudai.workloads.slurm_container import SlurmContainerReportGenerationStrategy, SlurmContainerTestDefinition
-from cloudai.workloads.ucc_test import UCCTestDefinition, UCCTestReportGenerationStrategy
-
+from ..workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy, NeMoLauncherTestDefinition
+from ..workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
+from ..workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
+from ..workloads.slurm_container import SlurmContainerReportGenerationStrategy, SlurmContainerTestDefinition
+from ..workloads.ucc_test import UCCTestDefinition, UCCTestReportGenerationStrategy
 from .exceptions import TestScenarioParsingError, format_validation_error
 from .report_generation_strategy import ReportGenerationStrategy
 from .test import Test, TestDefinition
@@ -347,4 +346,13 @@ class TestScenarioParser:
             post_test=post_test,
             reports=get_reporters(test_info, test.test_definition),
         )
+
+        if test.test_definition.is_dse_job and not tr.metric_reporter:
+            report_metrics_map = {r: r.metrics for r in tr.reports}
+            raise TestScenarioParsingError(
+                f"Test '{test_info.id}' is a DSE job with agent_metric='{test.test_definition.agent_metric}', "
+                "but no report generation strategy is defined for it. "
+                f"Available report-metrics mapping: {report_metrics_map}"
+            )
+
         return tr

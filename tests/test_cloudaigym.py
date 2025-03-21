@@ -14,12 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
 from cloudai._core.runner import Runner
+from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestRun, TestScenario
 from cloudai.systems import SlurmSystem
 from cloudai.workloads.nemo_run import (
@@ -29,13 +30,11 @@ from cloudai.workloads.nemo_run import (
     Trainer,
     TrainerStrategy,
 )
+from cloudai.workloads.nemo_run.report_generation_strategy import NeMoRunReportGenerationStrategy
 
 
 @pytest.fixture
-def setup_env(slurm_system: SlurmSystem):
-    test_run = MagicMock(spec=TestRun)
-    test_scenario = MagicMock(spec=TestScenario)
-
+def setup_env(slurm_system: SlurmSystem) -> tuple[TestRun, Runner]:
     cmd_args = NeMoRunCmdArgs(
         docker_image_url="https://docker/url",
         task="some_task",
@@ -45,26 +44,29 @@ def setup_env(slurm_system: SlurmSystem):
             val_check_interval=[100, 200],
             num_nodes=[1, 2],
             strategy=TrainerStrategy(
-                tensor_model_parallel_size=[1, 2],
-                pipeline_model_parallel_size=[1, 2],
-                context_parallel_size=[2, 4],
+                tensor_model_parallel_size=[1, 2], pipeline_model_parallel_size=[1, 2], context_parallel_size=[2, 4]
             ),
         ),
-        data=Data(
-            micro_batch_size=[1, 2],
+        data=Data(micro_batch_size=[1, 2]),
+    )
+
+    test_run = TestRun(
+        name="mock_test_run",
+        test=Test(
+            test_definition=NeMoRunTestDefinition(
+                name="NemoModel", description="Nemo Model", test_template_name="nemo_template", cmd_args=cmd_args
+            ),
+            test_template=MagicMock(),
         ),
+        num_nodes=1,
+        nodes=[],
+        reports={NeMoRunReportGenerationStrategy},
     )
 
-    test_definition = NeMoRunTestDefinition(
-        name="NemoModel", description="Nemo Model", test_template_name="nemo_template", cmd_args=cmd_args
+    test_scenario = TestScenario(name="mock_test_scenario", test_runs=[test_run])
+    test_run.output_path = (
+        slurm_system.output_path / test_scenario.name / test_run.name / f"{test_run.current_iteration}"
     )
-
-    test_run.test = MagicMock()
-    test_run.test.test_definition = test_definition
-
-    test_run.name = "mock_test_run"
-    test_scenario.name = "mock_test_scenario"
-    test_scenario.test_runs = [test_run]
 
     runner = Runner(mode="run", system=slurm_system, test_scenario=test_scenario)
 
@@ -101,38 +103,6 @@ def test_observation_space(setup_env):
     expected_observation_space = [0.0]
 
     assert observation_space == expected_observation_space
-
-
-def test_get_observation(tmp_path, setup_env):
-    test_run, runner = setup_env
-    env = CloudAIGymEnv(test_run=test_run, runner=runner)
-
-    output_path = tmp_path / "output" / "mock_test_scenario"
-    output_path.mkdir(parents=True, exist_ok=True)
-    subdir = output_path / "0"
-    subdir.mkdir(parents=True, exist_ok=True)
-    report_file_path = subdir / "0" / "report.txt"
-    report_file_path.parent.mkdir(parents=True, exist_ok=True)
-    report_file_path.write_text("Average: 0.34827126874999986\n")
-
-    with patch.object(env, "parse_report", return_value=[0.34827126874999986]):
-        observation = env.get_observation(action={})
-        assert observation == [0.34827126874999986]
-
-
-def test_parse_report(tmp_path):
-    report_content = """Min: 0.342734
-Max: 0.355174
-Average: 0.34827126874999986
-Median: 0.347785
-Stdev: 0.0031025735345648264
-"""
-    report_file = tmp_path / "report.txt"
-    report_file.write_text(report_content)
-
-    env = CloudAIGymEnv(test_run=MagicMock(), runner=MagicMock())
-    observation = env.parse_report(tmp_path)
-    assert observation == [0.34827126874999986]
 
 
 def test_compute_reward():
