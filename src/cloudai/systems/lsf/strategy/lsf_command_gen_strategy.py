@@ -86,6 +86,7 @@ class LSFCommandGenStrategy(CommandGenStrategy):
         lsf_args = self._parse_lsf_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
 
         bsub_command = self._gen_bsub_command(lsf_args, env_vars, cmd_args, tr)
+        
         return bsub_command.strip()
 
     def _parse_lsf_args(
@@ -146,17 +147,58 @@ class LSFCommandGenStrategy(CommandGenStrategy):
         """
         bsub_command_parts = self.gen_bsub_prefix(lsf_args, tr)
         test_command_parts = self.generate_test_command(env_vars, cmd_args, tr)
+        
         return " ".join(bsub_command_parts + test_command_parts)
 
     def gen_bsub_prefix(self, lsf_args: Dict[str, Any], tr: TestRun) -> List[str]:
-        bsub_command_parts = ["bsub", f"-J {lsf_args['job_name']}"]
+        """
+        Generate the prefix for the bsub command.
+
+        Args:
+            lsf_args (Dict[str, Any]): LSF-specific arguments.
+            tr (TestRun): The test run object.
+
+        Returns:
+            List[str]: The prefix for the bsub command.
+        """
+        bsub_command_parts = ["qsub", f"-J {lsf_args['job_name']}"]
+
         if lsf_args.get("time_limit"):
-            bsub_command_parts.append(f"-W {lsf_args['time_limit']}")
-        if self.system.account:
-            bsub_command_parts.append(f"-P {self.system.account}")
+            time_parts = list(map(int, lsf_args["time_limit"].split(":")))
+            if len(time_parts) == 3: 
+                time_limit_minutes = time_parts[0] * 60 + time_parts[1]
+            elif len(time_parts) == 2: 
+                time_limit_minutes = time_parts[0]
+            else:  
+                time_limit_minutes = 1
+            bsub_command_parts.append(f"-W {time_limit_minutes}")
+
+        if self.system.project_name:
+            bsub_command_parts.append(f"-P {self.system.project_name}")
+
+        if self.system.default_queue:
+            bsub_command_parts.append(f"-q {self.system.default_queue}")
+
+        if self.system.app:
+            bsub_command_parts.append(f"-app {self.system.app}")
+        if self.system.os_version:
+            bsub_command_parts.append(f"-m {self.system.os_version}")
+
         return bsub_command_parts
 
     def generate_test_command(
         self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> List[str]:
         return []
+
+    def gen_srun_command(self, tr: TestRun) -> str:
+        """
+        Generate the LSF bsub command for a test based on the given parameters.
+
+        Args:
+            tr (TestRun): Contains the test and its run-specific configurations.
+
+        Returns:
+            str: The generated LSF bsub command.
+        """
+       pass

@@ -17,9 +17,11 @@
 from .default_job_status_retrieval_strategy import DefaultJobStatusRetrievalStrategy
 from .slurm_job_id_retrieval_strategy import SlurmJobIdRetrievalStrategy
 from .standalone_job_id_retrieval_strategy import StandaloneJobIdRetrievalStrategy
+from .lsf_job_id_retrieval_strategy import LSFJobIdRetrievalStrategy
 
 __all__ = [
     "DefaultJobStatusRetrievalStrategy",
     "SlurmJobIdRetrievalStrategy",
     "StandaloneJobIdRetrievalStrategy",
+    "LSFJobIdRetrievalStrategy",
 ]

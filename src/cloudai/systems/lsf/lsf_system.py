@@ -64,13 +64,15 @@ class LSFSystem(BaseModel, System):
     name: str
     install_path: Path
     output_path: Path
-    default_queue: str
     queues: Optional[List[LSFQueue]] = Field(default_factory=list)
     account: Optional[str] = None
     global_env_vars: Dict[str, Any] = {}
     scheduler: str = "lsf"
     project_name: Optional[str] = None
+    default_queue: Optional[str] = None
     monitor_interval: int = 60
+    app: Optional[str] = None
+    os_version: Optional[str] = None
     cmd_shell: CommandShell = Field(default=CommandShell(), exclude=True)
 
     @field_serializer("install_path", "output_path")

@@ -68,6 +68,7 @@ from .workloads.common import (
     DefaultJobStatusRetrievalStrategy,
     SlurmJobIdRetrievalStrategy,
     StandaloneJobIdRetrievalStrategy,
+    LSFJobIdRetrievalStrategy,
 )
 from .workloads.jax_toolbox import (
     GPTTestDefinition,
@@ -168,6 +169,10 @@ Registry().add_strategy(
 )
 Registry().add_strategy(
     JobIdRetrievalStrategy, [StandaloneSystem], [SleepTestDefinition], StandaloneJobIdRetrievalStrategy
+)
+
+Registry().add_strategy(
+    JobIdRetrievalStrategy, [LSFSystem], [SleepTestDefinition], LSFJobIdRetrievalStrategy
 )
 Registry().add_strategy(
     JobStatusRetrievalStrategy,
