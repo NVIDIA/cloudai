@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 from shutil import rmtree
 
-from cloudai import BaseInstaller, File, GitRepo, Installable, InstallStatusResult, PythonExecutable
+from cloudai import BaseInstaller, DockerImage, File, GitRepo, Installable, InstallStatusResult, PythonExecutable
 from cloudai.systems import LSFSystem
 
 
@@ -65,7 +65,11 @@ class LSFInstaller(BaseInstaller):
             InstallStatusResult: Result containing the installation status and error message if any.
         """
         logging.debug(f"Attempt to install {item}")
-        if isinstance(item, GitRepo):
+
+        if isinstance(item, DockerImage):
+            logging.info(f"Skipping installation of Docker image {item} in LSF system.")
+            return InstallStatusResult(True, "Docker image installation skipped for LSF system.")
+        elif isinstance(item, GitRepo):
             return self._install_one_git_repo(item)
         elif isinstance(item, PythonExecutable):
             return self._install_python_executable(item)
