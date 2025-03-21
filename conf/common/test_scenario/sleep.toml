@@ -19,24 +19,4 @@ name = "test_scenario_example"
 [[Tests]]
 id = "Tests.1"
 test_name = "sleep_10"
-
-[[Tests]]
-id = "Tests.2"
-test_name = "sleep_5"
-  [[Tests.dependencies]]
-  type = "start_post_init"
-  id = "Tests.1"
-
-[[Tests]]
-id = "Tests.3"
-test_name = "sleep_5"
-  [[Tests.dependencies]]
-  type = "start_post_comp"
-  id = "Tests.1"
-
-[[Tests]]
-id = "Tests.4"
-test_name = "sleep_20"
-  [[Tests.dependencies]]
-  type = "end_post_comp"
-  id = "Tests.1"
+time_limit = "00:05:00"
