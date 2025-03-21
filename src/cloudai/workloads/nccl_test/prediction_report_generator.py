@@ -21,8 +21,8 @@ from typing import Optional, Tuple
 
 import pandas as pd
 
-from cloudai import TestDefinition
-from cloudai.report_generator.tool.csv_report_tool import CSVReportTool
+from ..._core.test import TestDefinition
+from ...report_generator.tool.csv_report_tool import CSVReportTool
 
 
 class NcclTestPredictionReportGenerator:

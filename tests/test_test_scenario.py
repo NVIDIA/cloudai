@@ -20,17 +20,15 @@ from typing import Set, Type
 from unittest.mock import Mock
 
 import pytest
+import toml
 
-from cloudai import CmdArgs, Test, TestRun, TestScenario, TestScenarioParser, TestScenarioParsingError
+from cloudai import CmdArgs, Test, TestRun, TestScenario, TestScenarioParser
 from cloudai._core.report_generation_strategy import ReportGenerationStrategy
 from cloudai._core.test import TestDefinition
-from cloudai._core.test_scenario_parser import (
-    DEFAULT_REPORTERS,
-    _TestRunTOML,
-    _TestScenarioTOML,
-    calculate_total_time_limit,
-    get_reporters,
-)
+from cloudai._core.test_scenario_parser import DEFAULT_REPORTERS, calculate_total_time_limit, get_reporters
+from cloudai._core.test_template import TestTemplate
+from cloudai.models.scenario import TestRunModel, TestScenarioModel, TestSpecModel
+from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
@@ -39,10 +37,7 @@ from cloudai.workloads.jax_toolbox import (
     NemotronTestDefinition,
 )
 from cloudai.workloads.megatron_run import CheckpointTimingReportGenerationStrategy, MegatronRunTestDefinition
-from cloudai.workloads.nccl_test import (
-    NCCLTestDefinition,
-    NcclTestPerformanceReportGenerationStrategy,
-)
+from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestPerformanceReportGenerationStrategy
 from cloudai.workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy, NeMoLauncherTestDefinition
 from cloudai.workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
 from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
@@ -52,8 +47,8 @@ from tests.conftest import MyTestDefinition
 
 
 @pytest.fixture
-def test_scenario_parser(tmp_path: Path) -> TestScenarioParser:
-    tsp = TestScenarioParser(Path(""), {}, {})
+def test_scenario_parser(slurm_system: SlurmSystem) -> TestScenarioParser:
+    tsp = TestScenarioParser(Path(""), slurm_system, {}, {})
     return tsp
 
 
@@ -136,15 +131,9 @@ def test_two_independent_cases(test: Test, test_scenario_parser: TestScenarioPar
     assert test_scenario.test_runs[1].dependencies == {}
 
 
-def test_raises_on_missing_mapping(test_scenario_parser: TestScenarioParser):
-    with pytest.raises(TestScenarioParsingError) as exc_info:
-        test_scenario_parser._parse_data({"name": "nccl-test", "Tests": [{"id": "1", "test_name": "nccl1"}]})
-    assert exc_info.match("Test 'nccl1' not found in the test schema directory")
-
-
 def test_cant_depends_on_itself() -> None:
     with pytest.raises(ValueError) as exc_info:
-        _TestScenarioTOML.model_validate(
+        TestScenarioModel.model_validate(
             {
                 "name": "nccl-test",
                 "Tests": [
@@ -184,7 +173,7 @@ def test_two_dependent_cases(test: Test, test_scenario_parser: TestScenarioParse
 
 def test_ids_must_be_unique() -> None:
     with pytest.raises(ValueError) as exc_info:
-        _TestScenarioTOML.model_validate(
+        TestScenarioModel.model_validate(
             {
                 "name": "test",
                 "Tests": [
@@ -198,7 +187,7 @@ def test_ids_must_be_unique() -> None:
 
 def test_raises_on_unknown_dependency() -> None:
     with pytest.raises(ValueError) as exc_info:
-        _TestScenarioTOML.model_validate(
+        TestScenarioModel.model_validate(
             {
                 "name": "test",
                 "Tests": [
@@ -216,18 +205,18 @@ def test_raises_on_unknown_dependency() -> None:
 
 def test_list_of_tests_must_not_be_empty() -> None:
     with pytest.raises(ValueError) as exc_info:
-        _TestScenarioTOML.model_validate({"name": "name"})
-    assert exc_info.match("_TestScenarioTOML\nTests\n  Field required")
+        TestScenarioModel.model_validate({"name": "name"})
+    assert exc_info.match("TestScenarioModel\nTests\n  Field required")
 
     with pytest.raises(ValueError) as exc_info:
-        _TestScenarioTOML.model_validate({"name": "name", "Tests": []})
-    assert exc_info.match("_TestScenarioTOML\nTests\n  List should have at least 1 item after validation")
+        TestScenarioModel.model_validate({"name": "name", "Tests": []})
+    assert exc_info.match("TestScenarioModel\nTests\n  List should have at least 1 item after validation")
 
 
 def test_test_id_must_contain_at_least_one_letter() -> None:
     with pytest.raises(ValueError) as exc_info:
-        _TestScenarioTOML.model_validate({"name": "name", "Tests": [{"id": "", "test_name": "nccl"}]})
-    assert exc_info.match("_TestScenarioTOML\nTests.0.id\n  String should have at least 1 character")
+        TestScenarioModel.model_validate({"name": "name", "Tests": [{"id": "", "test_name": "nccl"}]})
+    assert exc_info.match("TestScenarioModel\nTests.0.id\n  String should have at least 1 character")
 
 
 @pytest.mark.parametrize(
@@ -257,7 +246,7 @@ def test_create_test_run_with_hooks(test: Test, test_scenario_parser: TestScenar
         test_runs=[TestRun(name="post1", test=test, num_nodes=1, nodes=[], time_limit="00:20:00", iterations=1)],
     )
 
-    test_info = _TestRunTOML(id="main1", test_name="test1", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1)
+    test_info = TestRunModel(id="main1", test_name="test1", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1)
     test_scenario_parser.test_mapping = {"test1": test}
 
     test_run = test_scenario_parser._create_test_run(
@@ -272,10 +261,86 @@ def test_total_time_limit_with_empty_hooks():
     assert result == "01:00:00"
 
 
+class TestSpec:
+    def test_spec_without_test_name_and_type(self):
+        with pytest.raises(ValueError) as exc_info:
+            TestRunModel(id="1")
+        assert exc_info.match("Either 'test_name' or 'test_spec' must be set.")
+
+    def test_name_is_not_in_mapping(self, test_scenario_parser: TestScenarioParser):
+        with pytest.raises(ValueError) as exc_info:
+            test_scenario_parser._prepare_tdef(TestRunModel(id="1", test_name="nccl"))
+        assert exc_info.match("Test 'nccl' is not defined. Was tests directory correctly set?")
+
+    def test_spec_without_test_type(self):
+        with pytest.raises(ValueError) as exc_info:
+            TestRunModel(id="1", test_spec=TestSpecModel(test_template_name=None))
+        assert exc_info.match("'test_spec.test_template_name' must be set if 'test_name' is not set.")
+
+    def test_spec_with_unknown_test_type(self):
+        with pytest.raises(ValueError) as exc_info:
+            TestRunModel(id="1", test_spec=TestSpecModel(test_template_name="unknown"))
+        assert exc_info.match("Test type 'unknown' not found in the test definitions. Possible values are:")
+
+    def test_type_is_not_allowed_when_name_is_set(self):
+        with pytest.raises(ValueError) as exc_info:
+            TestRunModel(id="1", test_name="nccl", test_spec=TestSpecModel(test_template_name="NcclTest"))
+        assert exc_info.match("'test_spec.test_template_name' must not be set if 'test_name' is set.")
+
+    def test_spec_without_test(self, test_scenario_parser: TestScenarioParser):
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+
+              [Tests.test_spec]
+              name = "nccl"
+              description = "desc"
+              test_template_name = "NcclTest"
+
+                [Tests.test_spec.cmd_args]
+            """
+            )
+        )
+        test, tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        assert isinstance(tdef, NCCLTestDefinition)
+        assert isinstance(test, Test)
+
+    def test_spec_has_priority(self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem):
+        test_scenario_parser.test_mapping = {
+            "nccl": Test(
+                test_definition=NCCLTestDefinition(
+                    name="nccl", description="desc", test_template_name="NcclTest", cmd_args=NCCLCmdArgs()
+                ),
+                test_template=TestTemplate(system=slurm_system),
+            )
+        }
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "nccl"
+
+              [Tests.test_spec.cmd_args]
+              nthreads = 42
+            """
+            )
+        )
+        tr = test_scenario_parser._create_test_run(test_info=model.tests[0], normalized_weight=1.0)
+
+        assert tr.test.test_definition.cmd_args.nthreads == 42
+
+
 class TestReporters:
     def test_default(self):
         reporters = get_reporters(
-            _TestRunTOML(id="id", test_name="tn"),
+            TestRunModel(id="id", test_name="tn"),
             MyTestDefinition(name="test", description="desc", test_template_name="tt", cmd_args=CmdArgs()),
         )
         assert len(reporters) == 0

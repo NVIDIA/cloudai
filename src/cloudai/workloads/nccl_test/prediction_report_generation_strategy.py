@@ -16,8 +16,9 @@
 
 import re
 
-from cloudai import ReportGenerationStrategy, System, TestRun
-
+from ..._core.report_generation_strategy import ReportGenerationStrategy
+from ..._core.system import System
+from ..._core.test_scenario import TestRun
 from .prediction_report_generator import NcclTestPredictionReportGenerator
 
 
