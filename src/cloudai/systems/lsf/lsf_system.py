@@ -70,7 +70,7 @@ class LSFSystem(BaseModel, System):
     name: str
     install_path: Path
     output_path: Path
-    queues: Optional[List[LSFQueue]] = Field(default_factory=list)
+    queues: List[LSFQueue] = Field(default_factory=list)
     account: Optional[str] = None
     global_env_vars: Dict[str, Any] = {}
     scheduler: str = "lsf"
