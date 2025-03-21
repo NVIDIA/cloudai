@@ -67,6 +67,7 @@ class LSFSystem(BaseModel, System):
     default_queue: str
     queues: Optional[List[LSFQueue]] = Field(default_factory=list)
     account: Optional[str] = None
+    global_env_vars: Dict[str, Any] = {}
     scheduler: str = "lsf"
     project_name: Optional[str] = None
     monitor_interval: int = 60
