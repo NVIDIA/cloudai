@@ -20,6 +20,7 @@ from .report_generation_strategy import SleepReportGenerationStrategy
 from .sleep import SleepCmdArgs, SleepTestDefinition
 from .slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 from .standalone_command_gen_strategy import SleepStandaloneCommandGenStrategy
+from .lsf_command_gen_strategy import SleepLSFCommandGenStrategy
 
 __all__ = [
     "SleepCmdArgs",
@@ -29,4 +30,5 @@ __all__ = [
     "SleepSlurmCommandGenStrategy",
     "SleepStandaloneCommandGenStrategy",
     "SleepTestDefinition",
+    "SleepLSFCommandGenStrategy",
 ]

@@ -53,6 +53,7 @@ from .installer.standalone_installer import StandaloneInstaller
 from .parser import Parser
 from .runner.kubernetes.kubernetes_runner import KubernetesRunner
 from .runner.slurm.slurm_runner import SlurmRunner
+from .runner.lsf.lsf_runner import LSFRunner
 from .runner.standalone.standalone_runner import StandaloneRunner
 from .systems.kubernetes.kubernetes_system import KubernetesSystem
 from .systems.slurm.slurm_system import SlurmSystem
@@ -96,6 +97,7 @@ from .workloads.sleep import (
     SleepKubernetesJsonGenStrategy,
     SleepSlurmCommandGenStrategy,
     SleepStandaloneCommandGenStrategy,
+    SleepLSFCommandGenStrategy,
     SleepTestDefinition,
 )
 from .workloads.slurm_container import SlurmContainerCommandGenStrategy, SlurmContainerTestDefinition
@@ -108,10 +110,12 @@ from .workloads.ucc_test import (
 Registry().add_runner("slurm", SlurmRunner)
 Registry().add_runner("kubernetes", KubernetesRunner)
 Registry().add_runner("standalone", StandaloneRunner)
+Registry().add_runner("lsf", LSFRunner)
 
 Registry().add_strategy(
     CommandGenStrategy, [StandaloneSystem], [SleepTestDefinition], SleepStandaloneCommandGenStrategy
 )
+Registry().add_strategy(CommandGenStrategy, [LSFSystem], [SleepTestDefinition], SleepLSFCommandGenStrategy)
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [SleepTestDefinition], SleepSlurmCommandGenStrategy)
 Registry().add_strategy(JsonGenStrategy, [KubernetesSystem], [SleepTestDefinition], SleepKubernetesJsonGenStrategy)
 Registry().add_strategy(JsonGenStrategy, [KubernetesSystem], [NCCLTestDefinition], NcclTestKubernetesJsonGenStrategy)

@@ -69,6 +69,7 @@ class LSFSystem(BaseModel, System):
     account: Optional[str] = None
     scheduler: str = "lsf"
     project_name: Optional[str] = None
+    monitor_interval: int = 60
     cmd_shell: CommandShell = Field(default=CommandShell(), exclude=True)
 
     @field_serializer("install_path", "output_path")
