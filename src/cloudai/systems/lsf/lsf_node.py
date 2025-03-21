@@ -68,7 +68,7 @@ class LSFNode(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str
     queue: str
-    state: LsfNodeState
+    state: LSFNodeState
     user: str = "N/A"
 
     def allocatable(self, free_only: bool = True) -> bool:

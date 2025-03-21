@@ -65,8 +65,10 @@ class LSFSystem(BaseModel, System):
     install_path: Path
     output_path: Path
     default_queue: str
-    queues: List[LSFQueue]
+    queues: Optional[List[LSFQueue]] = Field(default_factory=list)
     account: Optional[str] = None
+    scheduler: str = "lsf"
+    project_name: Optional[str] = None
     cmd_shell: CommandShell = Field(default=CommandShell(), exclude=True)
 
     @field_serializer("install_path", "output_path")
@@ -136,4 +138,51 @@ class LSFSystem(BaseModel, System):
         if stderr:
             logging.error(f"Error executing command '{command}': {stderr}")
         return stdout, stderr
+
+    def parse_bjobs_output(self, bjobs_output: str) -> Dict[str, str]:
+        """
+        Parse the output of the `bjobs` command to map nodes to users.
+
+        Args:
+            bjobs_output (str): The output of the `bjobs -u all` command.
+
+        Returns:
+            Dict[str, str]: A dictionary mapping node names to user names.
+        """
+        node_user_map = {}
+        for line in bjobs_output.splitlines():
+            parts = line.split()
+            if len(parts) < 6:
+                continue
+            job_id, user, _, _, _, exec_host = parts[:6]
+            if exec_host not in node_user_map:
+                node_user_map[exec_host] = user
+        return node_user_map
+
+    def parse_bhosts_output(self, bhosts_output: str, node_user_map: Dict[str, str]) -> None:
+        """
+        Parse the output of the `bhosts` command and update the system's node information.
+
+        Args:
+            bhosts_output (str): The output of the `bhosts` command.
+            node_user_map (Dict[str, str]): A dictionary mapping node names to user names.
+        """
+        self.queues = [] 
+        queue_map = {}
+
+        for line in bhosts_output.splitlines():
+            parts = line.split()
+            if len(parts) < 6:
+                continue  
+            node_name, status, _, _, _, queue_name = parts[:6]
+
+            if queue_name not in queue_map:
+                queue_map[queue_name] = LSFQueue(name=queue_name)
+            queue = queue_map[queue_name]
+
+            user = node_user_map.get(node_name)
+            node = LSFNodeObj(name=node_name, state=status, user=user)
+            queue.lsf_nodes.append(node)
+
+        self.queues = list(queue_map.values())
 

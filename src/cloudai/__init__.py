@@ -48,6 +48,7 @@ from ._core.test_template import TestTemplate
 from ._core.test_template_strategy import TestTemplateStrategy
 from .installer.kubernetes_installer import KubernetesInstaller
 from .installer.slurm_installer import SlurmInstaller
+from .installer.lsf_installer import LSFInstaller
 from .installer.standalone_installer import StandaloneInstaller
 from .parser import Parser
 from .runner.kubernetes.kubernetes_runner import KubernetesRunner
@@ -56,6 +57,7 @@ from .runner.standalone.standalone_runner import StandaloneRunner
 from .systems.kubernetes.kubernetes_system import KubernetesSystem
 from .systems.slurm.slurm_system import SlurmSystem
 from .systems.standalone_system import StandaloneSystem
+from .systems.lsf.lsf_system import LSFSystem
 from .workloads.chakra_replay import (
     ChakraReplayGradingStrategy,
     ChakraReplaySlurmCommandGenStrategy,
@@ -211,10 +213,12 @@ Registry().add_strategy(
 Registry().add_installer("slurm", SlurmInstaller)
 Registry().add_installer("standalone", StandaloneInstaller)
 Registry().add_installer("kubernetes", KubernetesInstaller)
+Registry().add_installer("lsf", LSFInstaller)
 
 Registry().add_system("slurm", SlurmSystem)
 Registry().add_system("standalone", StandaloneSystem)
 Registry().add_system("kubernetes", KubernetesSystem)
+Registry().add_system("lsf", LSFSystem)
 
 Registry().add_test_definition("UCCTest", UCCTestDefinition)
 Registry().add_test_definition("NcclTest", NCCLTestDefinition)

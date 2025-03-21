@@ -14,13 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .lsf_node import LsfNode, LsfNodeState
-from .lsf_system import LSFNode, LsfQueue, LSFGroup
+from .lsf_node import LSFNode, LSFNodeState
+from .lsf_system import LSFNodeObj, LSFQueue, LSFGroup
 
 __all__ = [
-    "LsfGroup",
-    "LsfNode",
-    "LsfNodeState",
-    "LsfQueue",
-    "LsfSystem",
+    "LSFGroup",
+    "LSFNode",
+    "LSFNodeState",
+    "LSFQueue",
+    "LSFSystem",
+    "LSFNodeObj"
 ]

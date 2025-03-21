@@ -17,11 +17,11 @@
 from .kubernetes.kubernetes_system import KubernetesSystem
 from .slurm.slurm_system import SlurmSystem
 from .standalone_system import StandaloneSystem
-from .lsf.lsf_system import LsfSystem
+from .lsf.lsf_system import LSFSystem
 
 __all__ = [
     "KubernetesSystem",
     "SlurmSystem",
     "StandaloneSystem",
-    "LsfSystem",
+    "LSFSystem",
 ]
