@@ -22,11 +22,10 @@ from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
-from cloudai._core.configurator.base_gym import BaseGym
-from cloudai._core.runner import Runner
-from cloudai._core.test_scenario import TestRun
-
 from ..reporter import Reporter
+from ..runner import Runner
+from ..test_scenario import TestRun
+from .base_gym import BaseGym
 
 
 class CloudAIGymEnv(BaseGym):

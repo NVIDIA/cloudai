@@ -49,7 +49,8 @@ def test_default(slurm_system: SlurmSystem, test_run: TestRun) -> None:
 
     srun_part = (
         f"srun --mpi={slurm_system.mpi} --container-image={test_run.test.test_definition.cmd_args.docker_image_url} "
-        f"--container-mounts={Path.cwd().absolute()}:/cloudai_run_results --no-container-mount-home"
+        f"--container-mounts={Path.cwd().absolute()}:/cloudai_run_results,{slurm_system.install_path.absolute()}:"
+        "/cloudai_install --no-container-mount-home"
     )
 
     assert cmd == f'{srun_part} bash -c "cmd"'
@@ -63,7 +64,8 @@ def test_with_nsys(slurm_system: SlurmSystem, test_run: TestRun) -> None:
 
     srun_part = (
         f"srun --mpi={slurm_system.mpi} --container-image={test_run.test.test_definition.cmd_args.docker_image_url} "
-        f"--container-mounts={Path.cwd().absolute()}:/cloudai_run_results --no-container-mount-home"
+        f"--container-mounts={Path.cwd().absolute()}:/cloudai_run_results,{slurm_system.install_path.absolute()}:"
+        "/cloudai_install --no-container-mount-home"
     )
 
     assert cmd == f'{srun_part} bash -c "{" ".join(nsys.cmd_args)} cmd"'
