@@ -23,13 +23,13 @@ from cloudai import (
     JsonGenStrategy,
     Registry,
 )
+from cloudai.installer.lsf_installer import LSFInstaller
 from cloudai.installer.slurm_installer import SlurmInstaller
 from cloudai.installer.standalone_installer import StandaloneInstaller
-from cloudai.installer.lsf_installer import LSFInstaller
 from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
+from cloudai.systems.lsf.lsf_system import LSFSystem
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.standalone_system import StandaloneSystem
-from cloudai.systems.lsf.lsf_system import LSFSystem
 from cloudai.workloads.chakra_replay import (
     ChakraReplayGradingStrategy,
     ChakraReplaySlurmCommandGenStrategy,
@@ -37,6 +37,7 @@ from cloudai.workloads.chakra_replay import (
 )
 from cloudai.workloads.common import SlurmJobIdRetrievalStrategy, StandaloneJobIdRetrievalStrategy
 from cloudai.workloads.common.default_job_status_retrieval_strategy import DefaultJobStatusRetrievalStrategy
+from cloudai.workloads.common.lsf_job_id_retrieval_strategy import LSFJobIdRetrievalStrategy
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -63,9 +64,9 @@ from cloudai.workloads.nemo_run import NeMoRunSlurmCommandGenStrategy, NeMoRunTe
 from cloudai.workloads.sleep import (
     SleepGradingStrategy,
     SleepKubernetesJsonGenStrategy,
+    SleepLSFCommandGenStrategy,
     SleepSlurmCommandGenStrategy,
     SleepStandaloneCommandGenStrategy,
-    SleepLSFCommandGenStrategy,
     SleepTestDefinition,
 )
 from cloudai.workloads.slurm_container import SlurmContainerCommandGenStrategy, SlurmContainerTestDefinition
@@ -74,7 +75,6 @@ from cloudai.workloads.ucc_test import (
     UCCTestGradingStrategy,
     UCCTestSlurmCommandGenStrategy,
 )
-from cloudai.workloads.common.lsf_job_id_retrieval_strategy import LSFJobIdRetrievalStrategy
 
 
 def test_systems():
