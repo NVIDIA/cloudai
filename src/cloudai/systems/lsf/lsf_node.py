@@ -25,33 +25,20 @@ class LSFNodeState(Enum):
 
     Each state represents the current status or condition of a node within an LSF cluster, impacting its availability
     for job allocation and execution.
-
-    - OK: Node is available and functioning normally.
-    - CLOSED: Node is closed and not available for job allocation.
-    - UNREACHABLE: Node is unreachable.
-    - BUSY: Node is busy and cannot accept new jobs.
-    - ERROR: Node is in an error state.
-    - UNKNOWN: Node state is unknown.
-    - DRAINED: Node is drained and unavailable for use.
-    - DRAINING: Node is in the process of being drained.
-    - RESERVED: Node is reserved for specific jobs or users.
-    - POWERING_UP: Node is in the process of powering up.
-    - POWERING_DOWN: Node is in the process of powering down.
-    - MAINTENANCE: Node is under maintenance.
     """
 
-    OK = "OK"
-    CLOSED = "CLOSED"
-    UNREACHABLE = "UNREACHABLE"
-    BUSY = "BUSY"
-    ERROR = "ERROR"
-    UNKNOWN = "UNKNOWN"
-    DRAINED = "DRAINED"
-    DRAINING = "DRAINING"
-    RESERVED = "RESERVED"
-    POWERING_UP = "POWERING_UP"
-    POWERING_DOWN = "POWERING_DOWN"
-    MAINTENANCE = "MAINTENANCE"
+    OK = "OK"  # Node is available and functioning normally.
+    CLOSED = "CLOSED"  # Node is closed and not available for job allocation.
+    UNREACHABLE = "UNREACHABLE"  # Node is unreachable.
+    BUSY = "BUSY"  # Node is busy and cannot accept new jobs.
+    ERROR = "ERROR"  # Node is in an error state.
+    UNKNOWN = "UNKNOWN"  # Node state is unknown.
+    DRAINED = "DRAINED"  # Node is drained and unavailable for use.
+    DRAINING = "DRAINING"  # Node is in the process of being drained.
+    RESERVED = "RESERVED"  # Node is reserved for specific jobs or users.
+    POWERING_UP = "POWERING_UP"  # Node is in the process of powering up.
+    POWERING_DOWN = "POWERING_DOWN"  # Node is in the process of powering down.
+    MAINTENANCE = "MAINTENANCE"  # Node is under maintenance.
 
 
 class LSFNode(BaseModel):
@@ -70,27 +57,6 @@ class LSFNode(BaseModel):
     queue: str
     state: LSFNodeState
     user: str = "N/A"
-
-    def allocatable(self, free_only: bool = True) -> bool:
-        """
-        Determine if the node is allocatable based on its state.
-
-        Args:
-            free_only (bool): If True, considers only the OK state as allocatable. Otherwise, considers various
-                states based on LSF's allocation logic, including states where a node may be partially used or in a
-                transitional state that does not preclude future allocations.
-
-        Returns:
-            bool: True if the node is allocatable, False otherwise.
-        """
-        if free_only:
-            return self.state == LSFNodeState.OK
-        else:
-            return self.state in [
-                LSFNodeState.OK,
-                LSFNodeState.RESERVED,
-                LSFNodeState.POWERING_UP,
-            ]
 
     def __repr__(self) -> str:
         """
