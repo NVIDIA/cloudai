@@ -14,9 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import abstractmethod
 from datetime import datetime
-from typing import Any, Dict, List, Union, final
+from typing import Any, Dict, List, Union
 
 from cloudai import CommandGenStrategy, TestRun
 from cloudai.systems import LSFSystem
@@ -42,33 +41,6 @@ class LSFCommandGenStrategy(CommandGenStrategy):
         super().__init__(system, cmd_args)
         self.system = system
         self.docker_image_url = self.cmd_args.get("docker_image_url", "")
-
-    @abstractmethod
-    def _container_mounts(self, tr: TestRun) -> list[str]:
-        """Return CommandGenStrategy specific container mounts for the test run."""
-        ...
-
-    @final
-    def container_mounts(self, tr: TestRun) -> list[str]:
-        """
-        Return the container mounts for the test run.
-
-        Function returns CommandGenStrategy specific container mounts as well as default ones
-        that should always be used.
-        """
-        tdef = tr.test.test_definition
-
-        repo_mounts = []
-        for repo in tdef.git_repos:
-            path = repo.installed_path.absolute() if repo.installed_path else self.system.install_path / repo.repo_name
-            repo_mounts.append(f"{path}:{repo.container_mount}")
-
-        return [
-            f"{tr.output_path.absolute()}:/cloudai_run_results",
-            *tdef.extra_container_mounts,
-            *repo_mounts,
-            *self._container_mounts(tr),
-        ]
 
     def gen_exec_command(self, tr: TestRun) -> str:
         """
