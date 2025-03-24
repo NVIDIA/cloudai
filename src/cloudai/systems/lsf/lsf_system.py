@@ -59,9 +59,15 @@ class LSFSystem(BaseModel, System):
         name (str): Name of the system.
         install_path (Path): Path to the installation directory.
         output_path (Path): Path to the output directory.
-        default_queue (str): The default queue for job submission.
         queues (List[LSFQueue]): List of queues in the system.
         account (Optional[str]): Account name for resource usage.
+        global_env_vars (Dict[str, Any]): Global environment variables for the system.
+        scheduler (str): Scheduler type, default is "lsf".
+        project_name (Optional[str]): Project name associated with the system.
+        default_queue (Optional[str]): The default queue for job submission.
+        monitor_interval (int): Interval for monitoring jobs, in seconds.
+        app (Optional[str]): Application name associated with the system.
+        os_version (Optional[str]): Operating system version.
         cmd_shell (CommandShell): Command shell for executing system commands.
     """
 
