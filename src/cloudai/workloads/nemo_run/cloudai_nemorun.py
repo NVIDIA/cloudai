@@ -102,8 +102,6 @@ def comms_overlap_callbacks_pretrain() -> list[pl.Callback]:
 @run.cli.factory
 @run.autoconvert
 def combined_callbacks_lora() -> list[pl.Callback]:
-    start_step = 5
-    end_step = 10
     return [
         timing_callback(),
         run.Config(

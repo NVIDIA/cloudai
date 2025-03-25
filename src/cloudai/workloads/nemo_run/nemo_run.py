@@ -73,8 +73,8 @@ class LogCkpt(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    save_on_train_epoch_end: Optional[bool] = Field(default=False)
-    save_last: Optional[bool] = Field(default=False)
+    save_on_train_epoch_end: Optional[bool] = Field(default=None)
+    save_last: Optional[bool] = Field(default=None)
 
 
 class LogTensorboard(BaseModel):
