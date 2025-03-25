@@ -30,7 +30,7 @@ docker_image_url = "nvcr.io/nvidia/nemo:24.12.rc3"
     limit_val_batches = "1"
     max_steps = "100"
     precision = "bf16"
-    val_check_interval = "100"
+  val_check_interval = "100"
 
     [cmd_args.training.model]
     bias_activation_fusion = "false"

@@ -77,10 +77,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
         slurm_args = self._parse_slurm_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
 
-        cloudai_nemo_task = cmd_args.get("task", "")
-        if cloudai_nemo_task:
-            env_vars["CLOUDAI_NEMO_TASK"] = f"{cloudai_nemo_task}"
-
         srun_command = self._gen_srun_command(slurm_args, env_vars, cmd_args, tr)
         command_list = []
         indent = ""

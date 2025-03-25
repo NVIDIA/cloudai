@@ -18,7 +18,9 @@ name = "nemo_run_llama3_8b_sft"
 description = "nemo_run_llama3_8b"
 test_template_name = "NeMoRun"
 
-extra_container_mounts = ["/path/to/nemo_models/:/path/to/nemo_models/"]
+extra_container_mounts = [
+  "/lustre/fsw/portfolios/coreai/users/srivatsank/workspace/sri_cloudai/nemo_models:/lustre/fsw/portfolios/coreai/users/srivatsank/workspace/sri_cloudai/nemo_models",
+]
 
 [cmd_args]
 docker_image_url = "nvcr.io/nvidia/nemo:24.12.rc3"
@@ -30,12 +32,14 @@ recipe_name = "llama3_8b"
   global_batch_size = 32
   seq_length = 4096
   force_redownload = true
+  packed_sequence_specs="packed_sequence_data_lora"
 
   [cmd_args.trainer]
   max_steps = 100
-  val_check_interval = 50
+  val_check_interval = 100
   num_nodes = 1
   callbacks = "combined_callbacks_lora"
+  log_every_n_steps=1
 
     [cmd_args.trainer.strategy]
     tensor_model_parallel_size = 1
@@ -43,11 +47,8 @@ recipe_name = "llama3_8b"
     context_parallel_size = 1
 
     [cmd_args.trainer.plugins]
-    grad_reduce_in_fp32 = false
+    grad_reduce_in_fp32 = true
 
-  [cmd_args.log.ckpt]
-  save_on_train_epoch_end = false
-  save_last = false
 
   [cmd_args.optim]
   config.lr = 1e-4
@@ -70,4 +71,4 @@ NEMO_LOG_MEMORY_USAGE = "1"
 CUDA_DEVICE_MAX_CONNECTIONS = "1"
 NVTE_FWD_LAYERNORM_SM_MARGIN = "16"
 NVTE_BWD_LAYERNORM_SM_MARGIN = "16"
-NEMO_HOME = "/path/to/nemo_models/"
+NEMO_HOME="/lustre/fsw/portfolios/coreai/users/srivatsank/workspace/sri_cloudai/nemo_models"

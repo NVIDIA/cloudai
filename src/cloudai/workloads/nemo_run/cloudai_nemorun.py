@@ -110,11 +110,6 @@ def combined_callbacks_lora() -> list[pl.Callback]:
             MegatronCommOverlapCallback,
             tp_comm_overlap=False,
         ),
-        run.Config(
-            NsysCallback,
-            start_step=start_step,
-            end_step=end_step,
-        ),
         run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100),
     ]
 

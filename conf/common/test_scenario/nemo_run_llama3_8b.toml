@@ -14,19 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "nemo_run_llama3_8b"
+name = "nemo_run_llama3_8b_lora"
 
 [[Tests]]
-id = "nemo_run_llama3_8b_1"
-test_name = "nemo_run_llama3_8b"
+id = "nemo_run_llama3_8b_sft"
+test_name = "nemo_run_llama3_8b_sft"
 num_nodes = "1"
 time_limit = "00:30:00"
-
-[[Tests]]
-id = "nemo_run_llama3_8b_2"
-test_name = "nemo_run_llama3_8b"
-num_nodes = "2"
-time_limit = "00:30:00"
-  [[Tests.dependencies]]
-  type = "start_post_comp"
-  id = "nemo_run_llama3_8b_1"
