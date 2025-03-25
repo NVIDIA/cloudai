@@ -1,4 +1,18 @@
-from pathlib import Path
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import pytest
 
@@ -6,7 +20,7 @@ from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestRun
 from cloudai._core.test_template import TestTemplate
 from cloudai.systems.slurm.slurm_system import SlurmSystem
-from cloudai.workloads.ucc_test.report_generation_strategy import UCCTestReportGenerationStrategy
+from cloudai.workloads.ucc_test.report_generation_strategy import parse_ucc_output
 from cloudai.workloads.ucc_test.ucc import UCCCmdArgs, UCCTestDefinition
 
 UCC_LOG = """
@@ -69,12 +83,25 @@ def ucc_tr(slurm_system: SlurmSystem) -> TestRun:
         output_path=slurm_system.output_path,
     )
 
+    ucc_tr.output_path.mkdir(parents=True, exist_ok=True)
+    with open(ucc_tr.output_path / "stdout.txt", "w") as f:
+        f.write(UCC_LOG)
+
     return ucc_tr
 
 
 def test_ucc_report_parsing(slurm_system: SlurmSystem, ucc_tr: TestRun):
-    strategy = UCCTestReportGenerationStrategy(slurm_system, ucc_tr)
-    data = strategy._parse_output(UCC_LOG)
-    assert len(data) == 24
-    assert data[0] == ["1", "4", "977.52", "952.26", "1004.35", "0.00", "0.00", "0.00"]
-    assert data[-1] == ["8388608", "33554432", "47292.49", "47258.38", "47344.21", "44.70", "44.73", "44.65"]
+    dt = parse_ucc_output(ucc_tr.output_path / "stdout.txt")
+    assert dt is not None
+    assert len(dt) == 24
+    assert dt.iloc[0].tolist() == ["1", "4", "977.52", "952.26", "1004.35", "0.00", "0.00", "0.00"]
+    assert dt.iloc[-1].tolist() == [
+        "8388608",
+        "33554432",
+        "47292.49",
+        "47258.38",
+        "47344.21",
+        "44.70",
+        "44.73",
+        "44.65",
+    ]

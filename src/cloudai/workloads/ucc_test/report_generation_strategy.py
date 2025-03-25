@@ -14,14 +14,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import re
+from functools import cache
 from pathlib import Path
-from typing import List
+from typing import Optional
 
 import pandas as pd
 
 from cloudai import ReportGenerationStrategy
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.report_generator.util import add_human_readable_sizes
+
+
+@cache
+def parse_ucc_output(res_file: Path) -> Optional[pd.DataFrame]:
+    data = []
+    with res_file.open("r") as file:
+        content = file.read()
+        for line in content.splitlines()[14:]:  # UCC data starts at line 15
+            values = re.split(r"\s+", line.strip())
+            if len(values) == 8:  # Expected data format
+                data.append(values)
+
+    if not data:
+        return None
+
+    return pd.DataFrame(
+        data,
+        columns=[
+            "Count",
+            "Size (B)",
+            "Time Avg (us)",
+            "Time Min (us)",
+            "Time Max (us)",
+            "Bandwidth (GB/s) avg",
+            "Bandwidth (GB/s) max",
+            "Bandwidth (GB/s) min",
+        ],
+    )
 
 
 class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
@@ -41,47 +70,30 @@ class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
         return False
 
     def generate_report(self) -> None:
-        report_data = []
-        stdout_path = self.test_run.output_path / "stdout.txt"
-        if stdout_path.is_file():
-            with stdout_path.open("r") as file:
-                content = file.read()
-                report_data = self._parse_output(content)
+        res_data = parse_ucc_output(self.test_run.output_path / "stdout.txt")
 
-        if report_data:
-            df = pd.DataFrame(
-                report_data,
-                columns=[
-                    "Count",
-                    "Size (B)",
-                    "Time Avg (us)",
-                    "Time Min (us)",
-                    "Time Max (us)",
-                    "Bandwidth (GB/s) avg",
-                    "Bandwidth (GB/s) max",
-                    "Bandwidth (GB/s) min",
-                ],
-            )
-            df["Size (B)"] = df["Size (B)"].astype(float)
-            df["Bandwidth (GB/s) avg"] = df["Bandwidth (GB/s) avg"].astype(float)
-            df["Bandwidth (GB/s) max"] = df["Bandwidth (GB/s) max"].astype(float)
-            df["Bandwidth (GB/s) min"] = df["Bandwidth (GB/s) min"].astype(float)
-            df = add_human_readable_sizes(df, "Size (B)", "Size Human-readable")
-            self._generate_plots(df)
+        if not res_data:
+            return
 
-    def _parse_output(self, content: str) -> List[List[str]]:
-        """
-        Extract data from 'stdout.txt' for report generation.
-
-        Args:
-            content (str): Content of the 'stdout.txt' file.
-        """
-        data = []
-        for line in content.splitlines()[14:]:  # UCC data starts at line 15
-            values = re.split(r"\s+", line.strip())
-            if len(values) == 8:  # Expected data format
-                data.append(values)
-        return data
+        df = pd.DataFrame(
+            res_data,
+            columns=[
+                "Count",
+                "Size (B)",
+                "Time Avg (us)",
+                "Time Min (us)",
+                "Time Max (us)",
+                "Bandwidth (GB/s) avg",
+                "Bandwidth (GB/s) max",
+                "Bandwidth (GB/s) min",
+            ],
+        )
+        df["Size (B)"] = df["Size (B)"].astype(float)
+        df["Bandwidth (GB/s) avg"] = df["Bandwidth (GB/s) avg"].astype(float)
+        df["Bandwidth (GB/s) max"] = df["Bandwidth (GB/s) max"].astype(float)
+        df["Bandwidth (GB/s) min"] = df["Bandwidth (GB/s) min"].astype(float)
+        df = add_human_readable_sizes(df, "Size (B)", "Size Human-readable")
+        self._generate_plots(df)
 
     def _generate_plots(self, df: pd.DataFrame) -> None:
         """
