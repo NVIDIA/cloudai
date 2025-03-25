@@ -16,11 +16,12 @@
 import re
 from functools import cache
 from pathlib import Path
-from typing import Optional
+from typing import ClassVar, Optional, Union
 
 import pandas as pd
 
 from cloudai import ReportGenerationStrategy
+from cloudai._core.test_scenario import METRIC_ERROR
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.report_generator.util import add_human_readable_sizes
 
@@ -59,6 +60,8 @@ class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
 
     Visualizing bus bandwidth changes over epochs using interactive Bokeh plots.
     """
+
+    metrics: ClassVar[list[str]] = ["default", "time"]
 
     def can_handle_directory(self) -> bool:
         stdout_path = self.test_run.output_path / "stdout.txt"
@@ -131,3 +134,11 @@ class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
         )
 
         report_tool.finalize_report(Path("cloudai_ucc_test_bokeh_report.html"))
+
+    def get_metric(self, metric: str) -> Union[float, list[float]]:
+        res_data = parse_ucc_output(self.test_run.output_path / "stdout.txt")
+        if metric not in {"default", "time"} or res_data is None:
+            return METRIC_ERROR
+
+        avg_times: list[float] = res_data["Time Avg (us)"].to_list()
+        return avg_times
