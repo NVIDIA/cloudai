@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name = "llama2_70b"
+description = "Llama2 70b"
+test_template_name = "NeMoLauncher"
+
+[cmd_args]
+  [cmd_args.training]
+  values = "llama/llama2_70b"
+    [cmd_args.training.trainer]
+    max_steps = "120"
+    [cmd_args.training.model]
+    global_batch_size = "256"
+    pipeline_model_parallel_size = "2"
+
+# FIXME : ~training.model.position_embedding_type was added in the extra_cmd_args in order to fix a bug from NeMo repository (https://github.com/NVIDIA/NeMo).
+# the commit that should fix this issue in NeMo is : 5b296e8af832c67d361fdfb80a165db3affaf76a.
+# Once the new release of NeMoLauncher includes this commit (check by downloading the corresponding container and look inside /opt for this commit), ~training.model.position_embedding_type should be removed from the extra args
+[extra_cmd_args]
+"~training.model.position_embedding_type" = ""
+"+training.model.fsdp" = "True"
+"~training.model.optim.bucket_cap_mb" = ""
+"~training.model.optim.overlap_grad_sync" = ""
+"~training.model.optim.overlap_param_sync" = ""
+"~training.model.optim.contiguous_grad_buffer" = ""
+"training.model.virtual_pipeline_model_parallel_size" = "null"
+"training.model.megatron_amp_O2" = "False"
+"training.model.activations_checkpoint_num_layers" = "null"
+"training.model.gradient_accumulation_fusion" = "False"
+"training.model.use_cpu_initialization" = "True"
+"training.model.optim.name" = "fused_adam"
+"training.model.tokenizer.model" = "TOKENIZER_MODEL"
+"training.exp_manager.create_wandb_logger" = "False"
