@@ -32,14 +32,14 @@ recipe_name = "llama3_8b"
   global_batch_size = 32
   seq_length = 4096
   force_redownload = true
-  packed_sequence_specs="packed_sequence_data_lora"
+  packed_sequence_specs = "packed_sequence_data_lora"
 
   [cmd_args.trainer]
   max_steps = 100
   val_check_interval = 100
   num_nodes = 1
   callbacks = "combined_callbacks_lora"
-  log_every_n_steps=1
+  log_every_n_steps = 1
 
     [cmd_args.trainer.strategy]
     tensor_model_parallel_size = 1
@@ -71,4 +71,4 @@ NEMO_LOG_MEMORY_USAGE = "1"
 CUDA_DEVICE_MAX_CONNECTIONS = "1"
 NVTE_FWD_LAYERNORM_SM_MARGIN = "16"
 NVTE_BWD_LAYERNORM_SM_MARGIN = "16"
-NEMO_HOME="/lustre/fsw/portfolios/coreai/users/srivatsank/workspace/sri_cloudai/nemo_models"
+NEMO_HOME = "/lustre/fsw/portfolios/coreai/users/srivatsank/workspace/sri_cloudai/nemo_models"
