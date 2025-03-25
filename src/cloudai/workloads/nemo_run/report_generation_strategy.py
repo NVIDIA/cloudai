@@ -16,14 +16,48 @@
 
 import logging
 import os
+from functools import cache
+from pathlib import Path
+from typing import ClassVar
 
 import numpy as np
 
 from cloudai import ReportGenerationStrategy
+from cloudai._core.test_scenario import METRIC_ERROR
+
+
+@cache
+def extract_timings(stdout_file: Path) -> list[float]:
+    train_step_timings: list[float] = []
+    step_timings: list[float] = []
+
+    with open(stdout_file, "r", encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            if "train_step_timing in s:" in line:
+                try:
+                    timing = float(line.split("train_step_timing in s:")[1].strip().split()[0])
+                    train_step_timings.append(timing)
+                    if "global_step:" in line:
+                        global_step = int(line.split("global_step:")[1].split("|")[0].strip())
+                        if 80 <= global_step <= 100:
+                            step_timings.append(timing)
+                except (ValueError, IndexError):
+                    continue
+
+    if not train_step_timings:
+        logging.error(f"No train_step_timing found in {stdout_file}")
+        return []
+
+    if len(step_timings) < 20:
+        step_timings = train_step_timings[1:]
+
+    return step_timings
 
 
 class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
     """Strategy for generating reports from NeMoRun directories."""
+
+    metrics: ClassVar[list[str]] = ["default", "step-time"]
 
     def can_handle_directory(self) -> bool:
         for _, __, files in os.walk(self.test_run.output_path):
@@ -32,34 +66,16 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
                     return True
         return False
 
+    @property
+    def results_file(self) -> Path:
+        return self.test_run.output_path / "stdout.txt"
+
     def generate_report(self) -> None:
-        stdout_file = self.test_run.output_path / "stdout.txt"
-        if not stdout_file.exists():
-            logging.error(f"{stdout_file} not found")
+        if not self.results_file.exists():
+            logging.error(f"{self.results_file} not found")
             return
 
-        train_step_timings = []
-        step_timings = []
-
-        with open(stdout_file, "r", encoding="utf-8", errors="ignore") as f:
-            for line in f:
-                if "train_step_timing in s:" in line:
-                    try:
-                        timing = float(line.split("train_step_timing in s:")[1].strip().split()[0])
-                        train_step_timings.append(timing)
-                        if "global_step:" in line:
-                            global_step = int(line.split("global_step:")[1].split("|")[0].strip())
-                            if 80 <= global_step <= 100:
-                                step_timings.append(timing)
-                    except (ValueError, IndexError):
-                        continue
-
-        if not train_step_timings:
-            logging.error(f"No train_step_timing found in {stdout_file}")
-            return
-
-        if len(step_timings) < 20:
-            step_timings = train_step_timings[1:]
+        step_timings = extract_timings(self.results_file)
 
         stats = {
             "avg": np.mean(step_timings),
@@ -74,3 +90,10 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             f.write("Median: {median}\n".format(median=stats["median"]))
             f.write("Min: {min}\n".format(min=stats["min"]))
             f.write("Max: {max}\n".format(max=stats["max"]))
+
+    def get_metric(self, metric: str) -> float:
+        step_timings = extract_timings(self.results_file)
+        if metric not in {"default", "step-time"} or not step_timings:
+            return METRIC_ERROR
+
+        return float(np.mean(step_timings))

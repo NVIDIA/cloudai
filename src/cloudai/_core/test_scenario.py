@@ -18,9 +18,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional, Set, Type
 
+from .system import System
+
 if TYPE_CHECKING:
     from .report_generation_strategy import ReportGenerationStrategy
     from .test import Test
+
+
+METRIC_ERROR = -1.0
 
 
 class TestDependency:
@@ -75,6 +80,24 @@ class TestRun:
             bool: True if more iterations are pending, False otherwise.
         """
         return self.current_iteration < self.iterations
+
+    @property
+    def metric_reporter(self) -> Optional[Type["ReportGenerationStrategy"]]:
+        if not self.reports:
+            return None
+
+        for r in self.reports:
+            if self.test.test_definition.agent_metric in r.metrics:
+                return r
+
+        return None
+
+    def get_metric_value(self, system: System) -> float:
+        report = self.metric_reporter
+        if report is None:
+            return METRIC_ERROR
+
+        return report(system, self).get_metric(self.test.test_definition.agent_metric)
 
 
 class TestScenario:

@@ -17,14 +17,12 @@
 import asyncio
 import csv
 import logging
-from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
-from ..reporter import Reporter
 from ..runner import Runner
-from ..test_scenario import TestRun
+from ..test_scenario import METRIC_ERROR, TestRun
 from .base_gym import BaseGym
 
 
@@ -191,38 +189,10 @@ class CloudAIGymEnv(BaseGym):
         Returns:
             list: The observation.
         """
-        output_path = self.runner.runner.system.output_path / self.runner.runner.test_scenario.name
-
-        reporter = Reporter(self.runner.runner.system, self.test_scenario, output_path)
-        reporter.generate()
-
-        subdir = next(output_path.iterdir())
-        report_file_path = subdir / f"{self.test_run.current_iteration}" / f"{self.test_run.step}"
-
-        observation = self.parse_report(report_file_path)
-        return observation
-
-    def parse_report(self, output_path: Path) -> list:
-        """
-        Parse the generated report to extract the observation.
-
-        Args:
-            output_path (Path): The path to the runner's output.
-
-        Returns:
-            list: The extracted observation.
-        """
-        report_file_path = output_path / "report.txt"
-        if not report_file_path.exists():
+        v = self.test_run.get_metric_value(self.runner.runner.system)
+        if v == METRIC_ERROR:
             return [-1.0]
-
-        with open(report_file_path, "r") as file:
-            lines = file.readlines()
-            for line in lines:
-                if line.startswith("Average:"):
-                    average_value = float(line.split(":")[1].strip())
-                    return [average_value]
-        return [-1.0]
+        return [v]
 
     def update_test_run_obj(self, obj: Any, attr_path: str, value: Any) -> None:
         """Update a nested attribute of an object."""
