@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import ClassVar, List, Tuple, Type, Union
+from typing import ClassVar, List, Set, Tuple, Type, Union
 
 from .base_installer import BaseInstaller
 from .base_runner import BaseRunner
@@ -22,6 +22,7 @@ from .configurator.base_agent import BaseAgent
 from .grading_strategy import GradingStrategy
 from .job_id_retrieval_strategy import JobIdRetrievalStrategy
 from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
+from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
 from .test import TestDefinition
 from .test_template_strategy import TestTemplateStrategy
@@ -70,6 +71,7 @@ class Registry(metaclass=Singleton):
     systems_map: ClassVar[dict[str, Type[System]]] = {}
     test_definitions_map: ClassVar[dict[str, Type[TestDefinition]]] = {}
     agents_map: ClassVar[dict[str, Type[BaseAgent]]] = {}
+    reports_map: ClassVar[dict[Type[TestDefinition], Set[Type[ReportGenerationStrategy]]]] = {}
 
     def add_runner(self, name: str, value: Type[BaseRunner]) -> None:
         """
@@ -298,3 +300,33 @@ class Registry(metaclass=Singleton):
         if not issubclass(value, BaseAgent):
             raise ValueError(f"Invalid agent implementation for '{name}', should be subclass of 'BaseAgent'.")
         self.agents_map[name] = value
+
+    def add_report(self, tdef_type: Type[TestDefinition], value: Type[ReportGenerationStrategy]) -> None:
+        """
+        Add a new report implementation mapping.
+
+        Args:
+            tdef_type (Type[TestDefinition]): The test definition type.
+            value (Type[ReportGenerationStrategy]): The report generation strategy implementation.
+
+        Raises:
+            ValueError: If the report generation strategy implementation already exists.
+        """
+        if not issubclass(value, ReportGenerationStrategy):
+            raise ValueError(
+                f"Invalid report generation strategy implementation for '{tdef_type}', "
+                "should be subclass of 'ReportGenerationStrategy'."
+            )
+        if tdef_type not in self.reports_map:
+            self.reports_map.setdefault(tdef_type, set())
+        self.reports_map[tdef_type].add(value)
+
+    def update_report(self, tdef_type: Type[TestDefinition], reports: Set[Type[ReportGenerationStrategy]]) -> None:
+        """
+        Create or replace report implementation mapping.
+
+        Args:
+            tdef_type (Type[TestDefinition]): The test definition type.
+            reports (Set[Type[ReportGenerationStrategy]]): The report generation strategy implementations.
+        """
+        self.reports_map[tdef_type] = reports
