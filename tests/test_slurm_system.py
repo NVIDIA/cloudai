@@ -266,7 +266,7 @@ def test_is_job_completed(stdout: str, stderr: str, is_completed: bool, slurm_sy
     "stdout,stderr,is_running",
     [
         ("RUNNING", "", True),
-        ("PENDING", "", True),
+        ("PENDING", "", False),
         ("COMPLETED", "", False),
         ("FAILED", "", False),
         ("CANCELLED", "", False),
