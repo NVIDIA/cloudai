@@ -116,10 +116,10 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
 def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> None:
     asyncio.run(runner.run())
 
-    logging.info(f"All test scenario results stored at: {runner.runner.output_path}")
+    logging.info(f"All test scenario results stored at: {runner.runner.scenario_root}")
 
     if args.mode == "run":
-        reporter = Reporter(runner.runner.system, runner.runner.test_scenario, runner.runner.output_path)
+        reporter = Reporter(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
         reporter.generate()
         logging.info(
             "All test scenario execution attempts are complete. Please review"
