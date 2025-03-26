@@ -234,7 +234,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return " ".join(srun_command_parts + nsys_command_parts + test_command_parts)
 
     def gen_srun_prefix(self, slurm_args: Dict[str, Any], tr: TestRun) -> List[str]:
-        srun_command_parts = ["srun", f"--mpi={self.system.mpi}"]
+        srun_command_parts = ["srun", "--export=ALL", f"--mpi={self.system.mpi}"]
         if slurm_args.get("image_path"):
             srun_command_parts.append(f"--container-image={slurm_args['image_path']}")
             mounts = self.container_mounts(tr)
