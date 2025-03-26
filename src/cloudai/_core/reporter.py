@@ -28,6 +28,21 @@ from .system import System
 from .test_scenario import TestRun, TestScenario
 
 
+def get_test_run_result_dirs(test_run: TestRun, results_root: Path) -> list[Path]:
+    dirs: list[Path] = []
+    print(f"{results_root=}")
+    for iter in range(test_run.iterations):
+        run_dir = results_root / test_run.name / f"{iter}"
+        print(f"run_dir: {run_dir}")
+        if test_run.test.test_definition.is_dse_job:
+            for d in run_dir.iterdir():
+                if d.is_dir():
+                    dirs.append(d)
+        else:
+            dirs.append(run_dir)
+    return dirs
+
+
 @dataclass
 class ReportItem:
     name: str
@@ -38,9 +53,8 @@ class ReportItem:
     def from_test_runs(cls, test_runs: list[TestRun], results_root: Path) -> list["ReportItem"]:
         report_items: list[ReportItem] = []
         for tr in test_runs:
-            for iter in range(tr.iterations):
-                run_dir = results_root / tr.name / f"{iter}"
-                report_items.append(ReportItem(f"{tr.name} (iter {iter})", tr.test.description))
+            for run_dir in get_test_run_result_dirs(tr, results_root):
+                report_items.append(ReportItem(f"{tr.name}", tr.test.description))
                 if run_dir.exists():
                     report_items[-1].logs_path = f"./{run_dir.relative_to(results_root)}"
         return report_items
@@ -70,9 +84,8 @@ class SlurmReportItem:
     def from_test_runs(cls, test_runs: list[TestRun], results_root: Path) -> list["SlurmReportItem"]:
         report_items: list[SlurmReportItem] = []
         for tr in test_runs:
-            for iter in range(tr.iterations):
-                run_dir = results_root / tr.name / f"{iter}"
-                ri = SlurmReportItem(f"{tr.name} (iter {iter})", tr.test.description)
+            for run_dir in get_test_run_result_dirs(tr, results_root):
+                ri = SlurmReportItem(f"{tr.name}", tr.test.description)
                 if run_dir.exists():
                     ri.logs_path = f"./{run_dir.relative_to(results_root)}"
                 if metadata := cls.get_metadata(run_dir):

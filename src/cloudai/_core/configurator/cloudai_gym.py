@@ -222,7 +222,7 @@ class CloudAIGymEnv(BaseGym):
             reward (float): The reward received for the action.
             observation (list): The observation after taking the action.
         """
-        output_path = self.runner.runner.system.output_path / self.runner.runner.test_scenario.name
+        output_path = self.runner.runner.scenario_root
         subdir = next(output_path.iterdir())
         trajectory_file_path = subdir / f"{self.test_run.current_iteration}" / "trajectory.csv"
 
