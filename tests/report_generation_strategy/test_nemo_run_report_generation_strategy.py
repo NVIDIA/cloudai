@@ -36,6 +36,7 @@ def nemo_tr(tmp_path: Path) -> TestRun:
         test_template=Mock(),
     )
     tr = TestRun(name="nemo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
+    tr.reports = {NeMoRunReportGenerationStrategy}
 
     stdout_content = (
         "Training epoch 0, iteration 17/99 | lr: 2.699e-06 | global_batch_size: 128 | global_step: 17 | "
@@ -146,3 +147,10 @@ def test_nemo_generate_report_encoded(slurm_system: SlurmSystem, nemo_tr_encoded
     for line in summary_content:
         key, value = line.split(": ")
         assert pytest.approx(float(value), 0.01) == expected_values[key], f"{key} value mismatch."
+
+
+@pytest.mark.parametrize("metric", ["default", "step-time"])
+def test_metrics(nemo_tr: TestRun, slurm_system: SlurmSystem, metric: str):
+    nemo_tr.test.test_definition.agent_metric = metric
+    value = nemo_tr.get_metric_value(slurm_system)
+    assert value == 12.72090909090909

@@ -35,6 +35,9 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd_args: Dict[str, Union[str, List[str]]],
         tr: TestRun,
     ) -> Dict[str, Any]:
+        cloudai_nemo_task = cmd_args.get("task", "")
+        env_vars["CLOUDAI_NEMO_TASK"] = f"{cloudai_nemo_task}"
+
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)

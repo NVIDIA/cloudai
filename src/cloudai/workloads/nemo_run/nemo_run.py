@@ -75,14 +75,23 @@ class LogCkpt(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    save_on_train_epoch_end: bool = Field(default=False)
-    save_last: bool = Field(default=False)
+    save_on_train_epoch_end: Optional[bool] = Field(default=None)
+    save_last: Optional[bool] = Field(default=None)
+
+
+class LogTensorboard(BaseModel):
+    """Logging tensorboard configuration for NeMoRun."""
+
+    model_config = ConfigDict(extra="allow")
+    save_dir: Union[str, Path] = Field(default="logs")
+    name: Optional[str] = Field(default="default")
 
 
 class Log(BaseModel):
     """Base logging configuration for NeMoRun."""
 
-    ckpt: LogCkpt = Field(default_factory=LogCkpt)
+    ckpt: Optional[LogCkpt] = Field(default=None)
+    tensorboard: Optional[LogTensorboard] = Field(default=None)
 
     model_config = ConfigDict(extra="allow")
 
