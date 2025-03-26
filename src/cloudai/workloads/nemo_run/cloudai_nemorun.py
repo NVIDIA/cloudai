@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import os
-from typing import Optional, Type
 
 import lightning.pytorch as pl
 import nemo_run as run
@@ -26,6 +25,8 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
 from nemo.collections.llm.gpt.data.mock import MockDataModule
+from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
+from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.nemotron import (
     Nemotron4Config15B,
     NemotronModel,
@@ -35,8 +36,6 @@ from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectio
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
 from nemo.utils.exp_manager import TimingCallback
-from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
 
 
 @run.cli.factory
@@ -113,7 +112,7 @@ def combined_callbacks_lora() -> list[pl.Callback]:
             MegatronCommOverlapCallback,
             tp_comm_overlap=False,
         ),
-        run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100),
+        run.Config(GarbageCollectionCallback, gc_interval_train=start_step, gc_interval_val=end_step),
     ]
 
 
@@ -133,14 +132,12 @@ def combined_callbacks_pretrain() -> list[pl.Callback]:
         run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100),
     ]
 
+
 @run.cli.factory(target=SquadDataModule, target_arg="packed_sequence_specs")
 @run.autoconvert
 def packed_sequence_data_lora() -> run.Config[PackedSequenceSpecs]:
-    return run.Config(
-        PackedSequenceSpecs,
-        pad_cu_seqlens=False,
-        packed_sequence_size=4096
-    )
+    return run.Config(PackedSequenceSpecs, pad_cu_seqlens=False, packed_sequence_size=4096)
+
 
 @run.cli.factory(target=llm.pretrain)
 @run.autoconvert
