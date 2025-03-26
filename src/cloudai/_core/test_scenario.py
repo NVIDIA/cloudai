@@ -16,7 +16,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, Set, Type
+from typing import TYPE_CHECKING, List, Optional, Set, Type, Union
 
 from .system import System
 
@@ -92,7 +92,7 @@ class TestRun:
 
         return None
 
-    def get_metric_value(self, system: System) -> float:
+    def get_metric_value(self, system: System) -> Union[float, list[float]]:
         report = self.metric_reporter
         if report is None:
             return METRIC_ERROR

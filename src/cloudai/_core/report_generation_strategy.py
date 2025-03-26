@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import ClassVar
+from typing import ClassVar, Union
 
 from .system import System
 from .test_scenario import TestRun
@@ -30,7 +30,7 @@ class ReportGenerationStrategy(ABC):
         self.system = system
         self.test_run = tr
 
-    def get_metric(self, metric: str) -> float:
+    def get_metric(self, metric: str) -> Union[float, list[float]]:
         return 0.0
 
     @abstractmethod

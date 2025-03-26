@@ -192,6 +192,8 @@ class CloudAIGymEnv(BaseGym):
         v = self.test_run.get_metric_value(self.runner.runner.system)
         if v == METRIC_ERROR:
             return [-1.0]
+        if isinstance(v, list):
+            return v
         return [v]
 
     def update_test_run_obj(self, obj: Any, attr_path: str, value: Any) -> None:
