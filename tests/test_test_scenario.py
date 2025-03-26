@@ -23,6 +23,7 @@ import pytest
 import toml
 
 from cloudai import CmdArgs, Test, TestRun, TestScenario, TestScenarioParser
+from cloudai._core.exceptions import TestScenarioParsingError
 from cloudai._core.report_generation_strategy import ReportGenerationStrategy
 from cloudai._core.test import TestDefinition
 from cloudai._core.test_scenario_parser import DEFAULT_REPORTERS, calculate_total_time_limit, get_reporters
@@ -42,7 +43,6 @@ from cloudai.workloads.nccl_test import (
     NCCLTestDefinition,
     NcclTestPerformanceReportGenerationStrategy,
 )
-from cloudai.workloads.nccl_test.nccl import NCCLCmdArgs
 from cloudai.workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy, NeMoLauncherTestDefinition
 from cloudai.workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
 from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
@@ -375,8 +375,12 @@ class TestReporters:
 
 class TestReportMetricsDSE:
     @pytest.fixture
-    def test_info(self) -> _TestRunTOML:
-        return _TestRunTOML(id="main1", test_name="nccl", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1)
+    def tname(self) -> str:
+        return "nccl"
+
+    @pytest.fixture
+    def test_info(self, tname: str) -> TestRunModel:
+        return TestRunModel(id="main1", test_name=tname, time_limit="01:00:00", weight=10, iterations=1, num_nodes=1)
 
     @pytest.fixture
     def ts_parser(self, test_scenario_parser: TestScenarioParser) -> TestScenarioParser:
@@ -390,8 +394,8 @@ class TestReportMetricsDSE:
         test_scenario_parser.test_mapping["nccl"] = Test(test_definition=nccl, test_template=Mock())
         return test_scenario_parser
 
-    def test_raises_on_unknown_metric(self, ts_parser: TestScenarioParser, test_info: _TestRunTOML):
-        tdef = ts_parser.test_mapping[test_info.test_name].test_definition
+    def test_raises_on_unknown_metric(self, ts_parser: TestScenarioParser, test_info: TestRunModel, tname: str):
+        tdef = ts_parser.test_mapping[tname].test_definition
         tdef.agent_metric = "unknown"
 
         with pytest.raises(TestScenarioParsingError) as exc_info:
@@ -407,8 +411,8 @@ class TestReportMetricsDSE:
         )
 
     @patch("cloudai._core.test_scenario_parser.get_reporters", return_value=set())
-    def test_raises_if_no_reports_defined(self, _, ts_parser: TestScenarioParser, test_info: _TestRunTOML):
-        tdef = ts_parser.test_mapping[test_info.test_name].test_definition
+    def test_raises_if_no_reports_defined(self, _, ts_parser: TestScenarioParser, test_info: TestRunModel, tname: str):
+        tdef = ts_parser.test_mapping[tname].test_definition
         tdef.agent_metric = "default"
 
         with pytest.raises(TestScenarioParsingError) as exc_info:
