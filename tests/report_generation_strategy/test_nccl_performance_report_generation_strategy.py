@@ -79,7 +79,7 @@ def test_can_handle_directory(report_strategy: NcclTestPerformanceReportGenerati
 def test_generate_performance_report(
     report_strategy: NcclTestPerformanceReportGenerationStrategy, nccl_tr: TestRun
 ) -> None:
-    report_strategy.performance_report.generate()
+    report_strategy.generate_report()
 
     csv_report_path = nccl_tr.output_path / "cloudai_nccl_test_csv_report.csv"
     assert csv_report_path.is_file(), "CSV report was not generated."
