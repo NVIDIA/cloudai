@@ -192,7 +192,7 @@ class SlurmSystem(BaseModel, System):
                 raise RuntimeError(error_message)
 
             job_state = stdout.strip()
-            if job_state in ["RUNNING", "PENDING"]:
+            if job_state == "RUNNING":
                 return True
 
             break

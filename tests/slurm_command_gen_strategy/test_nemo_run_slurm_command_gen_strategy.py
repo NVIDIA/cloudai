@@ -25,8 +25,6 @@ from cloudai._core.test_scenario import TestRun
 from cloudai.systems import SlurmSystem
 from cloudai.workloads.nemo_run import (
     Data,
-    Log,
-    LogCkpt,
     NeMoRunCmdArgs,
     NeMoRunSlurmCommandGenStrategy,
     NeMoRunTestDefinition,
@@ -72,7 +70,6 @@ class TestNeMoRunSlurmCommandGenStrategy:
             trainer=Trainer(
                 strategy=TrainerStrategy(tensor_model_parallel_size=2, virtual_pipeline_model_parallel_size=None),
             ),
-            log=Log(ckpt=LogCkpt(save_last=False)),
             data=Data(micro_batch_size=1),
         )
         test_run.test.test_definition.cmd_args = cmd_args
@@ -90,7 +87,6 @@ class TestNeMoRunSlurmCommandGenStrategy:
         assert (
             f"trainer.strategy.tensor_model_parallel_size={cmd_args.trainer.strategy.tensor_model_parallel_size}" in cmd
         )
-        assert f"log.ckpt.save_last={cmd_args.log.ckpt.save_last}" in cmd
         assert f"data.micro_batch_size={cmd_args.data.micro_batch_size}" in cmd
 
     def test_num_nodes(self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy, test_run: TestRun) -> None:

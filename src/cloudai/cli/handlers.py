@@ -59,11 +59,9 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     if installer_class is None:
         raise NotImplementedError(f"No installer available for scheduler: {system.scheduler}")
     installer = installer_class(system)
-
     rc = 0
     if args.mode == "install":
         all_installed = installer.is_installed(installables)
-
         if all_installed:
             logging.info(f"CloudAI is already installed into '{system.install_path}'.")
         else:
