@@ -46,8 +46,8 @@ class NcclTestPredictionReportGenerator:
             logging.warning("No valid NCCL performance data extracted. Ensure the test ran successfully.")
             return
 
-        self._store_intermediate_data(df.drop(columns=["gpu_type", "measured_dur"]))
-        predictions = self._run_predictor(df["gpu_type"].iloc[0])
+        self._store_intermediate_data(df.drop(columns=["GPU Type", "measured_dur"]))
+        predictions = self._run_predictor(df["GPU Type"].iloc[0])
 
         if predictions.empty:
             logging.warning("Prediction output is empty. Skipping report generation.")
@@ -64,7 +64,7 @@ class NcclTestPredictionReportGenerator:
 
         df = pd.read_csv(csv_report_path)
 
-        required_columns = {"gpu_type", "num_devices_per_node", "num_ranks", "Size (B)", "Time (us) Out-of-place"}
+        required_columns = {"GPU Type", "Devices per Node", "Ranks", "Size (B)", "Time (us) Out-of-place"}
         missing_columns = required_columns - set(df.columns)
 
         if missing_columns:
@@ -73,11 +73,13 @@ class NcclTestPredictionReportGenerator:
 
         df.rename(columns={"Size (B)": "message_size", "Time (us) Out-of-place": "measured_dur"}, inplace=True)
 
-        df = df[["gpu_type", "num_devices_per_node", "num_ranks", "message_size", "measured_dur"]]
+        df = df[["GPU Type", "Devices per Node", "Ranks", "message_size", "measured_dur"]]
 
         return df
 
     def _store_intermediate_data(self, df: pd.DataFrame) -> None:
+        df = df.rename(columns={"Devices per Node": "num_devices_per_node", "Ranks": "num_ranks"})
+
         csv_path = self.output_path / "cloudai_nccl_test_prediction_input.csv"
         df.to_csv(csv_path, index=False)
         logging.debug(f"Stored intermediate predictor input data at {csv_path}")
