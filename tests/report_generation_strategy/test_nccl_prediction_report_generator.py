@@ -21,7 +21,10 @@ import pandas as pd
 import pytest
 
 from cloudai import GitRepo, PredictorConfig, Test, TestRun
-from cloudai.workloads.nccl_test.prediction_report_generator import NcclTestPredictionReportGenerator
+from cloudai.systems.slurm.slurm_system import SlurmSystem
+from cloudai.workloads.nccl_test import NCCLCmdArgs
+from cloudai.workloads.nccl_test.prediction_report_generation_strategy import NcclTestPredictionReportGenerationStrategy
+from cloudai.workloads.nccl_test.predictor.default import DefaultNCCLTestPredictor
 from tests.conftest import MyTestDefinition
 
 
@@ -40,26 +43,30 @@ def test_definition(tmp_path: Path) -> MyTestDefinition:
         dependencies_from_pyproject=True,
     )
 
+    cmd_args = NCCLCmdArgs(subtest_name="all_reduce_perf")
+
     return MyTestDefinition(
         name="mock_test",
         description="A mock test definition",
         test_template_name="mock_template",
-        cmd_args={},
+        cmd_args=cmd_args,
         predictor=predictor,
     )
 
 
 @pytest.fixture
-def generator(test_definition: MyTestDefinition, tmp_path: Path) -> NcclTestPredictionReportGenerator:
+def generator(
+    slurm_system: SlurmSystem, test_definition: MyTestDefinition, tmp_path: Path
+) -> NcclTestPredictionReportGenerationStrategy:
     test = Test(
         test_definition=test_definition,
         test_template=Mock(),
     )
     test_run = TestRun(name="mock_test_run", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
-    return NcclTestPredictionReportGenerator("all_reduce", test_run)
+    return NcclTestPredictionReportGenerationStrategy(slurm_system, test_run)
 
 
-def test_extract_performance_data(generator: NcclTestPredictionReportGenerator, tmp_path: Path) -> None:
+def test_extract_performance_data(tmp_path: Path) -> None:
     csv_report_path = tmp_path / "cloudai_nccl_test_csv_report.csv"
 
     mock_csv_data = pd.DataFrame(
@@ -74,7 +81,11 @@ def test_extract_performance_data(generator: NcclTestPredictionReportGenerator, 
 
     mock_csv_data.to_csv(csv_report_path, index=False)
 
-    df = generator._extract_performance_data()
+    predictor = DefaultNCCLTestPredictor()
+
+    df = pd.read_csv(csv_report_path)
+
+    df = predictor._extract_performance_data(df)
 
     assert not df.empty
     assert set(df.columns) == {"GPU Type", "Devices per Node", "Ranks", "message_size", "measured_dur"}
