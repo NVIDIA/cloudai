@@ -13,10 +13,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 import re
 from functools import cache
 from pathlib import Path
-from typing import ClassVar, Optional, Union
+from typing import ClassVar, Optional
 
 import pandas as pd
 
@@ -61,7 +62,7 @@ class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
     Visualizing bus bandwidth changes over epochs using interactive Bokeh plots.
     """
 
-    metrics: ClassVar[list[str]] = ["default", "time"]
+    metrics: ClassVar[list[str]] = ["default", "time-avg", "time-max"]
 
     def can_handle_directory(self) -> bool:
         stdout_path = self.test_run.output_path / "stdout.txt"
@@ -135,10 +136,27 @@ class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
 
         report_tool.finalize_report(Path("cloudai_ucc_test_bokeh_report.html"))
 
-    def get_metric(self, metric: str) -> Union[float, list[float]]:
+    def get_metric(self, metric: str) -> float:
+        """
+        Calculate the metric value from the UCC test output.
+
+        Today we expect to optimize for a single message size only, user should
+        limit the number of message sizes in the test configuration. CloudAI will
+        take the first value from the list.
+        """
         res_data = parse_ucc_output(self.test_run.output_path / "stdout.txt")
-        if metric not in {"default", "time"} or res_data is None:
+        if metric not in {"default", "time-avg", "time-max"} or res_data is None:
             return METRIC_ERROR
 
-        avg_times: list[float] = res_data["Time Avg (us)"].to_list()
-        return avg_times
+        label_to_metric = {
+            "default": "Time Avg (us)",
+            "time-avg": "Time Avg (us)",
+            "time-max": "Time Max (us)",
+        }
+        values: list[float] = res_data[label_to_metric[metric]].to_list()
+        if len(values) != 1:
+            logging.warning(
+                "Expected to optimize for a single message size only, but got %d values",
+                len(values),
+            )
+        return values[0]
