@@ -26,7 +26,7 @@ from cloudai.report_generator.util import add_human_readable_sizes
 
 
 class NcclTestPerformanceReportGenerator:
-    """Extract and transform NCCL test output data and generates CSV & Bokeh reports."""
+    """Extract and transform NCCL test output data and generate reports."""
 
     def __init__(self, output_path: Path, test_name: str, sol: Optional[float] = None):
         self.stdout_path = output_path / "stdout.txt"
@@ -116,7 +116,7 @@ class NcclTestPerformanceReportGenerator:
         with self.stdout_path.open("r") as file:
             for line in file:
                 line = line.strip()
-                if re.match(r"^\d", line):  # Match lines starting with a digit
+                if re.match(r"^\d", line):
                     data.append(re.split(r"\s+", line))
 
             content = file.read()
