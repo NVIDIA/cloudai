@@ -15,12 +15,12 @@
 # limitations under the License.
 
 from pathlib import Path
+from unittest.mock import Mock
 
 import pandas as pd
 import pytest
 
-from cloudai import GitRepo, PredictorConfig
-from cloudai.workloads.nccl_test import NCCLTestDefinition
+from cloudai import GitRepo, PredictorConfig, Test, TestRun
 from cloudai.workloads.nccl_test.prediction_report_generator import NcclTestPredictionReportGenerator
 from tests.conftest import MyTestDefinition
 
@@ -50,8 +50,13 @@ def test_definition(tmp_path: Path) -> MyTestDefinition:
 
 
 @pytest.fixture
-def generator(test_definition: NCCLTestDefinition, tmp_path: Path) -> NcclTestPredictionReportGenerator:
-    return NcclTestPredictionReportGenerator("all_reduce", tmp_path, test_definition)
+def generator(test_definition: MyTestDefinition, tmp_path: Path) -> NcclTestPredictionReportGenerator:
+    test = Test(
+        test_definition=test_definition,
+        test_template=Mock(),
+    )
+    test_run = TestRun(name="mock_test_run", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
+    return NcclTestPredictionReportGenerator("all_reduce", test_run)
 
 
 def test_extract_performance_data(generator: NcclTestPredictionReportGenerator, tmp_path: Path) -> None:
