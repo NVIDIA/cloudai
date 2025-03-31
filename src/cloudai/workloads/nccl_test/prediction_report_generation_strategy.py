@@ -28,9 +28,7 @@ class NcclTestPredictionReportGenerationStrategy(ReportGenerationStrategy):
         super().__init__(system, tr)
 
         collective_type = self._normalize_collective_type(tr.test.test_definition.cmd_args.subtest_name)
-        self.prediction_report = NcclTestPredictionReportGenerator(
-            collective_type, self.test_run.output_path, tr.test.test_definition
-        )
+        self.prediction_report = NcclTestPredictionReportGenerator(collective_type, tr)
 
     def _normalize_collective_type(self, subtest_name: str) -> str:
         return subtest_name.replace("_perf", "").replace("_mpi", "")

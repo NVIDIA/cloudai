@@ -21,19 +21,20 @@ from typing import Optional, Tuple
 
 import pandas as pd
 
-from cloudai import TestDefinition
+from cloudai import TestRun
 from cloudai.report_generator.tool.csv_report_tool import CSVReportTool
 
 
 class NcclTestPredictionReportGenerator:
     """Generate NCCL test predictor reports by extracting and analyzing performance data."""
 
-    def __init__(self, collective_type: str, output_path: Path, test_definition: TestDefinition):
+    def __init__(self, collective_type: str, test_run: TestRun):
         self.collective_type = collective_type
-        self.output_path = output_path
-        self.stdout_path = output_path / "stdout.txt"
-        self.test_definition = test_definition
-        self.predictor = test_definition.predictor
+        self.test_run = test_run
+        self.output_path = test_run.output_path
+        self.stdout_path = self.output_path / "stdout.txt"
+        self.test_definition = test_run.test.test_definition
+        self.predictor = self.test_definition.predictor
 
     def generate(self) -> None:
         if not self.predictor:
