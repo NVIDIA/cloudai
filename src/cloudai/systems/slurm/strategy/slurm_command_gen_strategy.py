@@ -61,11 +61,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         repo_mounts = []
         for repo in tdef.git_repos:
-            path = (
-                repo.installed_path.absolute()
-                if repo.installed_path
-                else self.system.install_path / repo.repo_name
-            )
+            path = repo.installed_path.absolute() if repo.installed_path else self.system.install_path / repo.repo_name
             repo_mounts.append(f"{path}:{repo.container_mount}")
 
         return [
@@ -77,13 +73,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         ]
 
     def gen_exec_command(self, tr: TestRun) -> str:
-        env_vars = self._override_env_vars(
-            self.system.global_env_vars, tr.test.extra_env_vars
-        )
+        env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
         cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
-        slurm_args = self._parse_slurm_args(
-            tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr
-        )
+        slurm_args = self._parse_slurm_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
 
         srun_command = self._gen_srun_command(slurm_args, env_vars, cmd_args, tr)
         command_list = []
@@ -107,13 +99,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return self._write_sbatch_script(slurm_args, env_vars, full_command, tr)
 
     def gen_srun_command(self, tr: TestRun) -> str:
-        env_vars = self._override_env_vars(
-            self.system.global_env_vars, tr.test.extra_env_vars
-        )
+        env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
         cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
-        slurm_args = self._parse_slurm_args(
-            tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr
-        )
+        slurm_args = self._parse_slurm_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
         return self._gen_srun_command(slurm_args, env_vars, cmd_args, tr)
 
     def _parse_slurm_args(
@@ -192,13 +180,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             success_check_command = tr.test.test_template.gen_srun_success_check(tr)
             pre_test_commands.append(f"{success_var}=$({success_check_command})")
 
-        combined_success_var = " && ".join(
-            [f"[ ${var} -eq 1 ]" for var in success_vars]
-        )
+        combined_success_var = " && ".join([f"[ ${var} -eq 1 ]" for var in success_vars])
 
-        pre_test_commands.append(
-            f"PRE_TEST_SUCCESS=$( {combined_success_var} && echo 1 || echo 0 )"
-        )
+        pre_test_commands.append(f"PRE_TEST_SUCCESS=$( {combined_success_var} && echo 1 || echo 0 )")
 
         return "\n".join(pre_test_commands)
 
@@ -283,13 +267,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             List[str]: updated batch script with reservation if exists.
         """
         reservation_key = "--reservation "
-        if (
-            self.system.extra_srun_args
-            and reservation_key in self.system.extra_srun_args
-        ):
-            reservation = self.system.extra_srun_args.split(reservation_key, 1)[
-                1
-            ].split(" ", 1)[0]
+        if self.system.extra_srun_args and reservation_key in self.system.extra_srun_args:
+            reservation = self.system.extra_srun_args.split(reservation_key, 1)[1].split(" ", 1)[0]
             batch_script_content.append(f"#SBATCH --reservation={reservation}")
 
         return batch_script_content
@@ -375,33 +354,21 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         batch_script_content = self._add_reservation(batch_script_content)
 
         if "output" not in args:
-            batch_script_content.append(
-                f"#SBATCH --output={output_path / 'stdout.txt'}"
-            )
+            batch_script_content.append(f"#SBATCH --output={output_path / 'stdout.txt'}")
         if "error" not in args:
             batch_script_content.append(f"#SBATCH --error={output_path / 'stderr.txt'}")
-        batch_script_content.append(
-            f"#SBATCH --partition={self.system.default_partition}"
-        )
+        batch_script_content.append(f"#SBATCH --partition={self.system.default_partition}")
         if args["node_list_str"]:
             batch_script_content.append(f"#SBATCH --nodelist={args['node_list_str']}")
         if self.system.account:
             batch_script_content.append(f"#SBATCH --account={self.system.account}")
         if self.system.distribution:
-            batch_script_content.append(
-                f"#SBATCH --distribution={self.system.distribution}"
-            )
+            batch_script_content.append(f"#SBATCH --distribution={self.system.distribution}")
         if self.system.gpus_per_node:
-            batch_script_content.append(
-                f"#SBATCH --gpus-per-node={self.system.gpus_per_node}"
-            )
-            batch_script_content.append(
-                f"#SBATCH --gres=gpu:{self.system.gpus_per_node}"
-            )
+            batch_script_content.append(f"#SBATCH --gpus-per-node={self.system.gpus_per_node}")
+            batch_script_content.append(f"#SBATCH --gres=gpu:{self.system.gpus_per_node}")
         if self.system.ntasks_per_node:
-            batch_script_content.append(
-                f"#SBATCH --ntasks-per-node={self.system.ntasks_per_node}"
-            )
+            batch_script_content.append(f"#SBATCH --ntasks-per-node={self.system.ntasks_per_node}")
         if "time_limit" in args:
             batch_script_content.append(f"#SBATCH --time={args['time_limit']}")
 
@@ -425,10 +392,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         formatted_vars = []
         for key in sorted(env_vars.keys()):
             value = env_vars[key]
-            formatted_value = (
-                str(value["default"])
-                if isinstance(value, dict) and "default" in value
-                else str(value)
-            )
+            formatted_value = str(value["default"]) if isinstance(value, dict) and "default" in value else str(value)
             formatted_vars.append(f"export {key}={formatted_value}")
         return "\n".join(formatted_vars)
