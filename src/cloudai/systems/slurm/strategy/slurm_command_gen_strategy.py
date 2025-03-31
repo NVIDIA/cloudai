@@ -169,8 +169,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
             srun_command = tr.test.test_template.gen_srun_command(tr)
             srun_command_with_output = srun_command.replace(
-                "srun ",
-                f"srun --output={hook_dir / 'stdout.txt'} --error={hook_dir / 'stderr.txt'} ",
+                "srun ", f"srun --output={hook_dir / 'stdout.txt'} --error={hook_dir / 'stderr.txt'} "
             )
             pre_test_commands.append(srun_command_with_output)
 
@@ -209,8 +208,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
             srun_command = tr.test.test_template.gen_srun_command(tr)
             srun_command_with_output = srun_command.replace(
-                "srun ",
-                f"srun --output={hook_dir / 'stdout.txt'} --error={hook_dir / 'stderr.txt'} ",
+                "srun ", f"srun --output={hook_dir / 'stdout.txt'} --error={hook_dir / 'stderr.txt'} "
             )
             post_test_commands.append(srun_command_with_output)
 
@@ -249,10 +247,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return srun_command_parts
 
     def generate_test_command(
-        self,
-        env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, Union[str, List[str]]],
-        tr: TestRun,
+        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> List[str]:
         return []
 
@@ -301,11 +296,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         )
 
     def _write_sbatch_script(
-        self,
-        slurm_args: Dict[str, Any],
-        env_vars: Dict[str, Union[str, List[str]]],
-        srun_command: str,
-        tr: TestRun,
+        self, slurm_args: Dict[str, Any], env_vars: Dict[str, Union[str, List[str]]], srun_command: str, tr: TestRun
     ) -> str:
         """
         Write the batch script for Slurm submission and return the sbatch command.
