@@ -88,9 +88,8 @@ ntasks_per_node = 8
 [partitions]
   [partitions.<YOUR PARTITION NAME>]
   name = "<YOUR PARTITION NAME>"
-  nodes = ["<nodes-[01-10]>"]
 ```
-Please replace `<YOUR PARTITION NAME>` with the name of the partition you want to use. You can find the partition name by running `sinfo` on the cluster. Replace `<nodes-[01-10]>` with the node names you want to use.
+Replace `<YOUR PARTITION NAME>` with the name of the partition you want to use. You can find the partition name by running `sinfo` on the cluster. 
 
 #### Step 4: Install Test Requirements
 Once all configs are ready, it is time to install test requirements. It is done once so that you can run multiple experiments without reinstalling the requirements. This step requires the system config file from the step 3.
@@ -238,7 +237,7 @@ cache_docker_images_locally = true
 - **output_path**: Defines the default path where outputs are stored. Whenever a user runs a test scenario, a new subdirectory will be created under this path.
 - **default_partition**: Specifies the default partition where jobs are scheduled.
 - **partitions**: Describes the available partitions and nodes within those partitions.
-  - **groups**: Within the same partition, users can define groups of nodes. This is a logical grouping that does not overlap between groups. The group concept can be used to allocate nodes from specific groups in a test scenario schema.
+  - **[optional] groups**: Within the same partition, users can define groups of nodes. The group concept can be used to allocate nodes from specific groups in a test scenario schema. For instance, this feature is useful for specifying topology awareness. Groups represents logical partitioning of nodes and users are responsible for ensuring no overlap across groups. 
 - **mpi**: Indicates the Process Management Interface (PMI) implementation to be used for inter-process communication.
 - **gpus_per_node** and **ntasks_per_node**: These are Slurm arguments passed to the `sbatch` script and `srun`.
 - **cache_docker_images_locally**: Specifies whether CloudAI should cache remote Docker images locally during installation. If set to `true`, CloudAI will cache the Docker images, enabling local access without needing to download them each time a test is run. This approach saves network bandwidth but requires more disk capacity. If set to `false`, CloudAI will allow Slurm to download the Docker images as needed when they are not cached locally by Slurm.
