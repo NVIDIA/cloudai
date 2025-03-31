@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,11 +15,13 @@
 # limitations under the License.
 
 import re
+from io import TextIOWrapper
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import pandas as pd
 
+from cloudai import TestRun
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.report_generator.tool.csv_report_tool import CSVReportTool
 from cloudai.report_generator.util import add_human_readable_sizes
@@ -28,27 +30,68 @@ from cloudai.report_generator.util import add_human_readable_sizes
 class NcclTestPerformanceReportGenerator:
     """Extract and transform NCCL test output data and generate reports."""
 
-    def __init__(self, output_path: Path, test_name: str, sol: Optional[float] = None):
-        self.stdout_path = output_path / "stdout.txt"
-        self.output_path = output_path
-        self.test_name = test_name
-        self.sol = sol
+    def __init__(self, test_run: TestRun):
+        self.test_run = test_run
+        self.stdout_path = test_run.output_path / "stdout.txt"
 
     def generate(self) -> None:
-        df, _ = self._extract_data()
+        df: pd.DataFrame = self._extract_data()
         if df.empty:
             return
 
         self._generate_csv_report(df)
         self._generate_bokeh_report(df)
 
-    def _extract_data(self) -> Tuple[pd.DataFrame, Optional[float]]:
-        data, avg_bus_bw = self._parse_stdout()
-        if not data:
-            return pd.DataFrame(), None
+    def _parse_stdout(self) -> Tuple[List[List[str]], str, int, int]:
+        parsed_data_rows: List[List[str]] = []
+        gpu_type: str = "Unknown"
+        num_ranks: int = 0
+        num_devices_per_node: int = 0
 
-        df = pd.DataFrame(
-            data,
+        if not self.stdout_path.is_file():
+            return parsed_data_rows, gpu_type, num_devices_per_node, num_ranks
+
+        with self.stdout_path.open("r", encoding="utf-8") as file:
+            parsed_data_rows = self._parse_data_rows(file)
+            file.seek(0)
+            num_devices_per_node, gpu_type, num_ranks = self._parse_device_info(file)
+
+        return parsed_data_rows, gpu_type, num_devices_per_node, num_ranks
+
+    def _parse_data_rows(self, file: TextIOWrapper) -> List[List[str]]:
+        parsed_data_rows: List[List[str]] = []
+        for line in file:
+            line: str = line.strip()
+            if re.match(r"^\d", line):
+                parsed_data_rows.append(re.split(r"\s+", line))
+        return parsed_data_rows
+
+    def _parse_device_info(self, file: TextIOWrapper) -> Tuple[int, str, int]:
+        device_indices: dict = {}
+        gpu_type: str = "Unknown"
+        num_ranks: int = 0
+
+        for line in file:
+            if "Rank" in line and "device" in line and "NVIDIA" in line:
+                num_ranks += 1
+
+                if match := re.search(r"on\s+([\w\d\-.]+)\s+device\s+(\d+)", line):
+                    host, device_index = match.groups()
+                    device_indices[host] = max(device_indices.get(host, -1), int(device_index))
+
+                if match := re.search(r"NVIDIA\s+([A-Z0-9]+)", line):
+                    gpu_type = match.group(1).strip()
+
+        num_devices_per_node: int = max(device_indices.values(), default=-1) + 1 if device_indices else 0
+        return num_devices_per_node, gpu_type, num_ranks
+
+    def _extract_data(self) -> pd.DataFrame:
+        parsed_data_rows, gpu_type, num_devices_per_node, num_ranks = self._parse_stdout()
+        if not parsed_data_rows:
+            return pd.DataFrame()
+
+        df: pd.DataFrame = pd.DataFrame(
+            parsed_data_rows,
             columns=[
                 "Size (B)",
                 "Count",
@@ -66,6 +109,10 @@ class NcclTestPerformanceReportGenerator:
             ],
         )
 
+        df["GPU Type"] = gpu_type
+        df["Devices per Node"] = num_devices_per_node
+        df["Ranks"] = num_ranks
+
         df["Size (B)"] = df["Size (B)"].astype(int)
         df["Time (us) Out-of-place"] = df["Time (us) Out-of-place"].astype(float).round(1)
         df["Time (us) In-place"] = df["Time (us) In-place"].astype(float).round(1)
@@ -76,87 +123,43 @@ class NcclTestPerformanceReportGenerator:
 
         df = add_human_readable_sizes(df, "Size (B)", "Size Human-readable")
 
-        gpu_type, num_devices_per_node, num_ranks = self._extract_device_info()
-
-        df["gpu_type"] = gpu_type
-        df["num_devices_per_node"] = num_devices_per_node
-        df["num_ranks"] = num_ranks
-
-        return df, avg_bus_bw
-
-    def _extract_device_info(self) -> Tuple[str, int, int]:
-        gpu_type, num_ranks = "Unknown", 0
-        device_indices = {}
-
-        if not self.stdout_path.is_file():
-            return gpu_type, 0, 0
-
-        with self.stdout_path.open(encoding="utf-8") as file:
-            for line in file:
-                if "Rank" in line and "device" in line and "NVIDIA" in line:
-                    num_ranks += 1
-
-                    if match := re.search(r"on\s+([\w\d\-.]+)\s+device\s+(\d+)", line):
-                        host, device_index = match.groups()
-                        device_indices[host] = max(device_indices.get(host, -1), int(device_index))
-
-                    if match := re.search(r"NVIDIA\s+([A-Z0-9]+)", line):
-                        gpu_type = match.group(1).strip()
-
-        num_devices = max(device_indices.values(), default=-1) + 1 if device_indices else 0
-        return gpu_type, num_devices, num_ranks
-
-    def _parse_stdout(self) -> Tuple[List[List[str]], Optional[float]]:
-        data = []
-        avg_bus_bw = None
-
-        if not self.stdout_path.is_file():
-            return data, avg_bus_bw
-
-        with self.stdout_path.open("r") as file:
-            for line in file:
-                line = line.strip()
-                if re.match(r"^\d", line):
-                    data.append(re.split(r"\s+", line))
-
-            content = file.read()
-            avg_bus_bw_match = re.search(r"Avg bus bandwidth\s+:\s+(\d+\.\d+)", content)
-            avg_bus_bw = float(avg_bus_bw_match.group(1)) if avg_bus_bw_match else None
-
-        return data, avg_bus_bw
+        return df
 
     def _generate_csv_report(self, df: pd.DataFrame) -> None:
-        csv_report_tool = CSVReportTool(self.output_path)
+        csv_report_tool: CSVReportTool = CSVReportTool(self.test_run.output_path)
         csv_report_tool.set_dataframe(df)
         csv_report_tool.finalize_report(Path("cloudai_nccl_test_csv_report.csv"))
 
     def _generate_bokeh_report(self, df: pd.DataFrame) -> None:
-        report_tool = BokehReportTool(self.output_path)
+        report_tool: BokehReportTool = BokehReportTool(self.test_run.output_path)
 
-        line_plots = [
+        line_plots: List[Tuple[str, str, str]] = [
             ("Busbw (GB/s) Out-of-place", "blue", "Out-of-place Bus Bandwidth"),
             ("Busbw (GB/s) In-place", "green", "In-place Bus Bandwidth"),
         ]
         for col_name, color, title in line_plots:
             report_tool.add_log_x_linear_y_multi_line_plot(
-                title=f"{self.test_name} {title}",
+                title=f"{self.test_run.name} {title}",
                 x_column="Size (B)",
                 y_columns=[(col_name, color)],
                 x_axis_label="Message Size",
                 y_axis_label="Bandwidth (GB/s)",
                 df=df,
-                sol=self.sol,
+                sol=self.test_run.sol,
             )
 
-        combined_columns = [("Busbw (GB/s) Out-of-place", "blue"), ("Busbw (GB/s) In-place", "green")]
+        combined_columns: List[Tuple[str, str]] = [
+            ("Busbw (GB/s) Out-of-place", "blue"),
+            ("Busbw (GB/s) In-place", "green"),
+        ]
         report_tool.add_log_x_linear_y_multi_line_plot(
-            title=f"{self.test_name} Combined Bus Bandwidth",
+            title=f"{self.test_run.name} Combined Bus Bandwidth",
             x_column="Size (B)",
             y_columns=combined_columns,
             x_axis_label="Message Size",
             y_axis_label="Bandwidth (GB/s)",
             df=df,
-            sol=self.sol,
+            sol=self.test_run.sol,
         )
 
         report_tool.finalize_report(Path("cloudai_nccl_test_bokeh_report.html"))

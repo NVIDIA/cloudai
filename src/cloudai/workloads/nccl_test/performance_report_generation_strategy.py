@@ -26,10 +26,7 @@ class NcclTestPerformanceReportGenerationStrategy(ReportGenerationStrategy):
 
     def __init__(self, system: System, tr: TestRun) -> None:
         super().__init__(system, tr)
-
-        self.performance_report = NcclTestPerformanceReportGenerator(
-            self.test_run.output_path, self.test_run.name, self.test_run.sol
-        )
+        self.performance_report = NcclTestPerformanceReportGenerator(self.test_run)
 
     def can_handle_directory(self) -> bool:
         stdout_path = self.test_run.output_path / "stdout.txt"
