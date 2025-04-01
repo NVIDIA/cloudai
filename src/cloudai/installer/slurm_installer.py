@@ -170,7 +170,9 @@ class SlurmInstaller(BaseInstaller):
         elif isinstance(item, PythonExecutable):
             return self._is_python_executable_installed(item)
         elif isinstance(item, File):
-            if (self.system.install_path / item.src.name).exists():
+            if (self.system.install_path / item.src.name).exists() and (
+                self.system.install_path / item.src.name
+            ).read_text() == item.src.read_text():
                 item.installed_path = self.system.install_path / item.src.name
                 return InstallStatusResult(True)
             return InstallStatusResult(False, f"File {item.installed_path} does not exist")
