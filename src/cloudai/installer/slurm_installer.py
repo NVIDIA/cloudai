@@ -55,7 +55,6 @@ class SlurmInstaller(BaseInstaller):
             system (SlurmSystem): The system schema object.
         """
         super().__init__(system)
-        self.system = system
         self.docker_image_cache_manager = DockerImageCacheManager(system)
 
     def _check_prerequisites(self) -> InstallStatusResult:

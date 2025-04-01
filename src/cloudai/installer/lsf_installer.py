@@ -18,7 +18,6 @@ import logging
 
 from cloudai import BaseInstaller, DockerImage, File, GitRepo, Installable, InstallStatusResult, PythonExecutable
 from cloudai.installer.slurm_installer import SlurmInstaller
-from cloudai.systems import LSFSystem
 
 
 class LSFInstaller(BaseInstaller):
@@ -33,16 +32,6 @@ class LSFInstaller(BaseInstaller):
     """
 
     PREREQUISITES = ("bsub", "bjobs", "bhosts", "lsid", "lsload")
-
-    def __init__(self, system: LSFSystem):
-        """
-        Initialize the LSFInstaller with a system object.
-
-        Args:
-            system (LSFSystem): The system schema object.
-        """
-        super().__init__(system)
-        self.system = system
 
     @property
     def slurm_installer(self) -> SlurmInstaller:
