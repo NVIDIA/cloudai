@@ -387,8 +387,10 @@ class TestGitRepo:
 
 class TestInstallOneFile:
     @pytest.fixture
-    def f(self) -> File:
-        return File(Path(__file__))
+    def f(self, tmp_path: Path) -> File:
+        f = tmp_path / "file"
+        f.write_text("content")
+        return File(f)
 
     def test_no_dst(self, installer: SlurmInstaller, f: File):
         res = installer.install_one(f)
@@ -403,6 +405,14 @@ class TestInstallOneFile:
         res = installer.install_one(f)
         assert res.success
         assert f.src.read_bytes() == f.installed_path.read_bytes()
+
+    def test_is_installed_checks_content(self, installer: SlurmInstaller, f: File):
+        f.installed_path = installer.system.install_path / f.src.name
+        f.installed_path.touch()
+        f.src.write_text("new content")
+
+        res = installer.is_installed_one(f)
+        assert not res.success
 
 
 def test_check_supported(slurm_system: SlurmSystem):
