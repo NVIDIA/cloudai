@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import asyncio
+import datetime
 import logging
 from types import FrameType
 from typing import Optional
@@ -71,7 +72,13 @@ class Runner:
             raise NotImplementedError(msg)
         runner_class = registry.runners_map[scheduler_type]
         logging.info(f"Creating {runner_class.__name__}")
-        return runner_class(mode, system, test_scenario)
+
+        if not system.output_path.exists():
+            system.output_path.mkdir()
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        results_root = system.output_path / f"{test_scenario.name}_{current_time}"
+
+        return runner_class(mode, system, test_scenario, results_root)
 
     async def run(self):
         """Run the test scenario using the instantiated runner."""

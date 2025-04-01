@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,6 +29,15 @@ from .system import System
 from .test_scenario import TestRun, TestScenario
 
 
+def case_name(tr: TestRun) -> str:
+    name = tr.name
+    if tr.current_iteration > 0:
+        name = f"{name} iter={tr.current_iteration}"
+    if tr.step > 0:
+        name = f"{name} step={tr.step}"
+    return name
+
+
 @dataclass
 class ReportItem:
     name: str
@@ -38,11 +48,9 @@ class ReportItem:
     def from_test_runs(cls, test_runs: list[TestRun], results_root: Path) -> list["ReportItem"]:
         report_items: list[ReportItem] = []
         for tr in test_runs:
-            for iter in range(tr.iterations):
-                run_dir = results_root / tr.name / f"{iter}"
-                report_items.append(ReportItem(f"{tr.name} (iter {iter})", tr.test.description))
-                if run_dir.exists():
-                    report_items[-1].logs_path = f"./{run_dir.relative_to(results_root)}"
+            report_items.append(ReportItem(case_name(tr), tr.test.description))
+            if tr.output_path.exists():
+                report_items[-1].logs_path = f"./{tr.output_path.relative_to(results_root)}"
         return report_items
 
 
@@ -70,14 +78,12 @@ class SlurmReportItem:
     def from_test_runs(cls, test_runs: list[TestRun], results_root: Path) -> list["SlurmReportItem"]:
         report_items: list[SlurmReportItem] = []
         for tr in test_runs:
-            for iter in range(tr.iterations):
-                run_dir = results_root / tr.name / f"{iter}"
-                ri = SlurmReportItem(f"{tr.name} (iter {iter})", tr.test.description)
-                if run_dir.exists():
-                    ri.logs_path = f"./{run_dir.relative_to(results_root)}"
-                if metadata := cls.get_metadata(run_dir):
-                    ri.nodes = metadata.slurm.node_list
-                report_items.append(ri)
+            ri = SlurmReportItem(case_name(tr), tr.test.description)
+            if tr.output_path.exists():
+                ri.logs_path = f"./{tr.output_path.relative_to(results_root)}"
+            if metadata := cls.get_metadata(tr.output_path):
+                ri.nodes = metadata.slurm.node_list
+            report_items.append(ri)
 
         return report_items
 
@@ -94,6 +100,25 @@ class Reporter:
         self.system = system
         self.test_scenario = test_scenario
         self.results_root = results_root
+        self.trs: list[TestRun] = []
+
+    def load_test_runs(self):
+        for tr in self.test_scenario.test_runs:
+            tr_root = self.results_root / tr.name
+            iters = list(subdir for subdir in tr_root.glob("*") if subdir.is_dir())
+            for iter in sorted(iters):
+                if tr.test.test_definition.is_dse_job:
+                    steps = list(subdir for subdir in iter.glob("*") if subdir.is_dir())
+                    for step in sorted(steps):
+                        tr.current_iteration = int(iter.name)
+                        tr.step = int(step.name)
+                        tr.output_path = tr_root / f"{tr.current_iteration}" / f"{tr.step}"
+                        self.trs.append(copy.deepcopy(tr))
+                else:
+                    tr.current_iteration = int(iter.name)
+                    tr.step = 0
+                    tr.output_path = tr_root / f"{tr.current_iteration}"
+                    self.trs.append(copy.deepcopy(tr))
 
     def generate(self) -> None:
         """
@@ -105,9 +130,10 @@ class Reporter:
         Args:
             test_scenario (TestScenario): The scenario containing tests.
         """
+        self.load_test_runs()
         self.generate_scenario_report()
 
-        for tr in self.test_scenario.test_runs:
+        for tr in self.trs:
             test_output_dir = self.results_root / tr.name
             if not test_output_dir.exists() or not test_output_dir.is_dir():
                 logging.warning(f"Directory '{test_output_dir}' not found.")
@@ -128,9 +154,9 @@ class Reporter:
         ).get_template(self.template_file)
 
         report_items = (
-            SlurmReportItem.from_test_runs(self.test_scenario.test_runs, self.results_root)
+            SlurmReportItem.from_test_runs(self.trs, self.results_root)
             if isinstance(self.system, SlurmSystem)
-            else ReportItem.from_test_runs(self.test_scenario.test_runs, self.results_root)
+            else ReportItem.from_test_runs(self.trs, self.results_root)
         )
         report = template.render(name=self.test_scenario.name, report_items=report_items)
         report_path = self.results_root / f"{self.test_scenario.name}.html"
