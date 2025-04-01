@@ -35,6 +35,7 @@ build-backend = "pdm.backend"
 
 [tool.pdm.version]
 source = "scm"
+fallback_version = "1.2.0+unknown"
 
 [tool.ruff]
 target-version = "py39"
