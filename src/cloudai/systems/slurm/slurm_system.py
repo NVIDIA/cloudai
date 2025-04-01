@@ -131,10 +131,17 @@ class SlurmSystem(BaseModel, System):
                 node_names = set()
                 for group_nodes in group.nodes:
                     node_names.update(set(parse_node_list(group_nodes)))
-                groups[part.name][group.name] = [
-                    SlurmNode(name=node_name, partition=self.name, state=SlurmNodeState.UNKNOWN_STATE)
-                    for node_name in node_names
-                ]
+
+                groups[part.name][group.name] = []
+                for node_name in node_names:
+                    node_in_partition = next((node for node in part.slurm_nodes if node.name == node_name), None)
+                    if not node_in_partition:
+                        logging.error(f"Node '{node_name}' not found in partition '{part.name}'")
+                        groups[part.name][group.name].append(
+                            SlurmNode(name=node_name, partition=self.name, state=SlurmNodeState.UNKNOWN_STATE)
+                        )
+                    else:
+                        groups[part.name][group.name].append(node_in_partition)
 
         return groups
 
@@ -424,6 +431,8 @@ class SlurmSystem(BaseModel, System):
             if node.state in grouped_nodes:
                 grouped_nodes[node.state].append(node)
 
+        logging.debug(f"Grouped nodes by state: {grouped_nodes}")
+
         return grouped_nodes
 
     def allocate_nodes(
@@ -501,6 +510,7 @@ class SlurmSystem(BaseModel, System):
         """
         logging.debug(f"Executing command: {command}")
         stdout, stderr = self.cmd_shell.execute(command).communicate()
+        logging.debug(f"Command output: {stdout}")
         if stderr:
             logging.error(f"Error executing command '{command}': {stderr}")
         return stdout, stderr
