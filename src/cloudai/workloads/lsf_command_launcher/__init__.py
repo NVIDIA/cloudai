@@ -14,13 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .report_generation_strategy import LSFCommandLauncherReportGenerationStrategy
-from .slurm_command_gen_strategy import LSFCommandGenStrategy
-from .slurm_container import LSFCmdLauncherCmdArgs, LSFCommandLauncherTestDefinition
+from .report_generation_strategy import LSFCmdLauncherReportGenerationStrategy
+from .lsf_command_gen_strategy import LSFCommandGenStrategy
+from .lsf_command_launcher import LSFCmdLauncherCmdArgs, LSFCommandLauncherTestDefinition
 
 __all__ = [
     "LSFCmdLauncherCmdArgs",
     "LSFCommandGenStrategy",
-    "LSFCommandLauncherReportGenerationStrategy",
+    "LSFCmdLauncherReportGenerationStrategy",
     "LSFCommandLauncherTestDefinition",
 ]
