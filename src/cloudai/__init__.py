@@ -48,15 +48,18 @@ from ._core.test_template import TestTemplate
 from ._core.test_template_strategy import TestTemplateStrategy
 from .installer.kubernetes_installer import KubernetesInstaller
 from .installer.lsf_installer import LSFInstaller
+from .installer.runai_installer import RunAIInstaller
 from .installer.slurm_installer import SlurmInstaller
 from .installer.standalone_installer import StandaloneInstaller
 from .parser import Parser
 from .runner.kubernetes.kubernetes_runner import KubernetesRunner
 from .runner.lsf.lsf_runner import LSFRunner
+from .runner.runai.runai_runner import RunAIRunner
 from .runner.slurm.slurm_runner import SlurmRunner
 from .runner.standalone.standalone_runner import StandaloneRunner
 from .systems.kubernetes.kubernetes_system import KubernetesSystem
 from .systems.lsf.lsf_system import LSFSystem
+from .systems.runai.runai_system import RunAISystem
 from .systems.slurm.slurm_system import SlurmSystem
 from .systems.standalone_system import StandaloneSystem
 from .workloads.chakra_replay import (
@@ -91,6 +94,7 @@ from .workloads.nccl_test import (
     NcclTestJobStatusRetrievalStrategy,
     NcclTestKubernetesJsonGenStrategy,
     NcclTestPerformanceReportGenerationStrategy,
+    NcclTestRunAIJsonGenStrategy,
     NcclTestSlurmCommandGenStrategy,
 )
 from .workloads.nemo_launcher import (
@@ -126,6 +130,7 @@ Registry().add_runner("slurm", SlurmRunner)
 Registry().add_runner("kubernetes", KubernetesRunner)
 Registry().add_runner("standalone", StandaloneRunner)
 Registry().add_runner("lsf", LSFRunner)
+Registry().add_runner("runai", RunAIRunner)
 
 Registry().add_strategy(
     CommandGenStrategy, [StandaloneSystem], [SleepTestDefinition], SleepStandaloneCommandGenStrategy
@@ -134,6 +139,7 @@ Registry().add_strategy(CommandGenStrategy, [LSFSystem], [SleepTestDefinition], 
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [SleepTestDefinition], SleepSlurmCommandGenStrategy)
 Registry().add_strategy(JsonGenStrategy, [KubernetesSystem], [SleepTestDefinition], SleepKubernetesJsonGenStrategy)
 Registry().add_strategy(JsonGenStrategy, [KubernetesSystem], [NCCLTestDefinition], NcclTestKubernetesJsonGenStrategy)
+Registry().add_strategy(JsonGenStrategy, [RunAISystem], [NCCLTestDefinition], NcclTestRunAIJsonGenStrategy)
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [NCCLTestDefinition], NcclTestGradingStrategy)
 
 Registry().add_strategy(
@@ -164,6 +170,7 @@ Registry().add_strategy(
     [GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition],
     JaxToolboxSlurmCommandGenStrategy,
 )
+
 Registry().add_strategy(
     JobIdRetrievalStrategy,
     [SlurmSystem],
@@ -184,8 +191,8 @@ Registry().add_strategy(
 Registry().add_strategy(
     JobIdRetrievalStrategy, [StandaloneSystem], [SleepTestDefinition], StandaloneJobIdRetrievalStrategy
 )
-
 Registry().add_strategy(JobIdRetrievalStrategy, [LSFSystem], [SleepTestDefinition], LSFJobIdRetrievalStrategy)
+
 Registry().add_strategy(
     JobStatusRetrievalStrategy,
     [KubernetesSystem],
@@ -221,10 +228,16 @@ Registry().add_strategy(
 Registry().add_strategy(
     JobStatusRetrievalStrategy, [StandaloneSystem], [SleepTestDefinition], DefaultJobStatusRetrievalStrategy
 )
-
 Registry().add_strategy(
     JobStatusRetrievalStrategy, [LSFSystem], [SleepTestDefinition], DefaultJobStatusRetrievalStrategy
 )
+Registry().add_strategy(
+    JobStatusRetrievalStrategy,
+    [RunAISystem],
+    [NCCLTestDefinition],
+    DefaultJobStatusRetrievalStrategy,
+)
+
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [UCCTestDefinition], UCCTestSlurmCommandGenStrategy)
 
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [ChakraReplayTestDefinition], ChakraReplayGradingStrategy)
@@ -239,11 +252,13 @@ Registry().add_installer("slurm", SlurmInstaller)
 Registry().add_installer("standalone", StandaloneInstaller)
 Registry().add_installer("kubernetes", KubernetesInstaller)
 Registry().add_installer("lsf", LSFInstaller)
+Registry().add_installer("runai", RunAIInstaller)
 
 Registry().add_system("slurm", SlurmSystem)
 Registry().add_system("standalone", StandaloneSystem)
 Registry().add_system("kubernetes", KubernetesSystem)
 Registry().add_system("lsf", LSFSystem)
+Registry().add_system("runai", RunAISystem)
 
 Registry().add_test_definition("UCCTest", UCCTestDefinition)
 Registry().add_test_definition("NcclTest", NCCLTestDefinition)
@@ -295,6 +310,7 @@ __all__ = [
     "PythonExecutable",
     "ReportGenerationStrategy",
     "Reporter",
+    "RunAISystem",
     "Runner",
     "System",
     "SystemConfigParsingError",
