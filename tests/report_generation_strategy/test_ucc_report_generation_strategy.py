@@ -20,7 +20,7 @@ from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestRun
 from cloudai._core.test_template import TestTemplate
 from cloudai.systems.slurm.slurm_system import SlurmSystem
-from cloudai.workloads.ucc_test.report_generation_strategy import parse_ucc_output
+from cloudai.workloads.ucc_test.report_generation_strategy import UCCTestReportGenerationStrategy, parse_ucc_output
 from cloudai.workloads.ucc_test.ucc import UCCCmdArgs, UCCTestDefinition
 
 UCC_LOG = """
@@ -105,3 +105,9 @@ def test_ucc_report_parsing(slurm_system: SlurmSystem, ucc_tr: TestRun):
         "44.73",
         "44.65",
     ]
+
+
+def test_bokeh_report_generation(slurm_system: SlurmSystem, ucc_tr: TestRun):
+    report_gen = UCCTestReportGenerationStrategy(slurm_system, ucc_tr)
+    report_gen.generate_report()
+    assert (ucc_tr.output_path / "cloudai_ucc_test_bokeh_report.html").exists()

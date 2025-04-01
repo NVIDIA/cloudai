@@ -74,24 +74,12 @@ class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
         return False
 
     def generate_report(self) -> None:
-        res_data = parse_ucc_output(self.test_run.output_path / "stdout.txt")
+        df = parse_ucc_output(self.test_run.output_path / "stdout.txt")
 
-        if not res_data:
+        if df is None:
+            logging.warning(f"Could not extract data from UCC report in {self.test_run.output_path}")
             return
 
-        df = pd.DataFrame(
-            res_data,
-            columns=[
-                "Count",
-                "Size (B)",
-                "Time Avg (us)",
-                "Time Min (us)",
-                "Time Max (us)",
-                "Bandwidth (GB/s) avg",
-                "Bandwidth (GB/s) max",
-                "Bandwidth (GB/s) min",
-            ],
-        )
         df["Size (B)"] = df["Size (B)"].astype(float)
         df["Bandwidth (GB/s) avg"] = df["Bandwidth (GB/s) avg"].astype(float)
         df["Bandwidth (GB/s) max"] = df["Bandwidth (GB/s) max"].astype(float)
