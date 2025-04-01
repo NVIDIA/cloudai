@@ -24,3 +24,9 @@ id = "Tests.1"
 test_name = "dse_nccl_all_gather"
 num_nodes = "2"
 time_limit = "00:20:00"
+
+[[Tests]]
+id = "Tests.2"
+test_name = "dse_nccl_all_gather"
+num_nodes = "2"
+time_limit = "00:20:00"

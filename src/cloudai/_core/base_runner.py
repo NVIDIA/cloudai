@@ -199,6 +199,7 @@ class BaseRunner(ABC):
             self.scenario_root.mkdir()
 
         job_output_path = self.scenario_root / tr.name / str(tr.current_iteration)
+        # here it is required to check DSE as step number because test_definition object is not a DSE object anymore
         if tr.step > 0:
             job_output_path = job_output_path / str(tr.step)
 
@@ -272,14 +273,17 @@ class BaseRunner(ABC):
         Args:
             completed_job (BaseJob): The job that has just been completed.
         """
-        logging.info(f"Job completed: {completed_job.test_run.name}")
+        logging.info(
+            f"Job completed: {completed_job.test_run.name} "
+            f"(iteration {completed_job.test_run.current_iteration+1} of {completed_job.test_run.iterations})"
+        )
 
         self.jobs.remove(completed_job)
         del self.testrun_to_job_map[completed_job.test_run]
 
         if completed_job.test_run.step <= 0:
-            completed_job.test_run.current_iteration += 1
             if not completed_job.terminated_by_dependency and completed_job.test_run.has_more_iterations():
+                completed_job.test_run.current_iteration += 1
                 msg = f"Re-running job for iteration {completed_job.test_run.current_iteration}"
                 logging.info(msg)
                 await self.submit_test(completed_job.test_run)
