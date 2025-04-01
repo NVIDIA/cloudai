@@ -21,13 +21,13 @@ from cloudai import ReportGenerationStrategy
 
 class LSFCmdLauncherReportGenerationStrategy(ReportGenerationStrategy):
         def can_handle_directory(self) -> bool:
-        stdout_path = self.test_run.output_path / "stdout.txt"
-        if stdout_path.exists():
-            with stdout_path.open("r") as file:
-                if re.search(
-                    r"Training epoch \d+, iteration \d+/\d+ | lr: [\d.]+ | global_batch_size: \d+ | global_step: \d+ | "
-                    r"reduced_train_loss: [\d.]+ | train_step_timing in s: [\d.]+",
-                    file.read(),
-                ):
-                    return True
-        return False
+            stdout_path = self.test_run.output_path / "stdout.txt"
+            if stdout_path.exists():
+                with stdout_path.open("r") as file:
+                    if re.search(
+                        r"Training epoch \d+, iteration \d+/\d+ | lr: [\d.]+ | global_batch_size: \d+ | global_step: \d+ | "
+                        r"reduced_train_loss: [\d.]+ | train_step_timing in s: [\d.]+",
+                        file.read(),
+                    ):
+                        return True
+            return False
