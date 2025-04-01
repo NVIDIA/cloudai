@@ -34,6 +34,7 @@ num_nodes = "2"
 [[Tests]]
 id = "Tests.3"
 test_name = "ucc_test_alltoall"
+time_limit = "00:20:00"
 num_nodes = "2"
   [[Tests.dependencies]]
   type = "start_post_comp"
