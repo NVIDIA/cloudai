@@ -77,6 +77,7 @@ class UCCTestReportGenerationStrategy(ReportGenerationStrategy):
         df = parse_ucc_output(self.test_run.output_path / "stdout.txt")
 
         if df is None:
+            logging.warning(f"Could not extract data from UCC report in {self.test_run.output_path}")
             return
 
         df["Size (B)"] = df["Size (B)"].astype(float)
