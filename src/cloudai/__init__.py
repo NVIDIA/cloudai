@@ -108,6 +108,8 @@ from .workloads.ucc_test import (
     UCCTestSlurmCommandGenStrategy,
 )
 
+from .workloads.lsf_command_launcher import LSFCommandLauncherTestDefinition, LSFCommandGenStrategy
+
 Registry().add_runner("slurm", SlurmRunner)
 Registry().add_runner("kubernetes", KubernetesRunner)
 Registry().add_runner("standalone", StandaloneRunner)
@@ -163,6 +165,7 @@ Registry().add_strategy(
         SleepTestDefinition,
         NeMoRunTestDefinition,
         SlurmContainerTestDefinition,
+        LSFCommandLauncherTestDefinition,
         MegatronRunTestDefinition,
     ],
     SlurmJobIdRetrievalStrategy,
@@ -200,6 +203,7 @@ Registry().add_strategy(
         SleepTestDefinition,
         NeMoRunTestDefinition,
         SlurmContainerTestDefinition,
+        LSFCommandLauncherTestDefinition,
         MegatronRunTestDefinition,
     ],
     DefaultJobStatusRetrievalStrategy,
@@ -220,6 +224,9 @@ Registry().add_strategy(
 Registry().add_strategy(
     CommandGenStrategy, [SlurmSystem], [SlurmContainerTestDefinition], SlurmContainerCommandGenStrategy
 )
+
+Registry().add_strategy(
+    CommandGenStrategy, [LSFSystem], [LSFCommandLauncherTestDefinition], LSFCommandGenStrategy)
 
 Registry().add_installer("slurm", SlurmInstaller)
 Registry().add_installer("standalone", StandaloneInstaller)
@@ -242,6 +249,7 @@ Registry().add_test_definition("JaxToolboxGrok", GrokTestDefinition)
 Registry().add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)
 Registry().add_test_definition("SlurmContainer", SlurmContainerTestDefinition)
 Registry().add_test_definition("MegatronRun", MegatronRunTestDefinition)
+Registry().add_test_definition("LSFCommandLauncher", LSFCommandLauncherTestDefinition)
 
 Registry().add_agent("grid_search", GridSearchAgent)
 
