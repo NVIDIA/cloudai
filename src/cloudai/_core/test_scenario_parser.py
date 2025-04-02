@@ -23,6 +23,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Type
 import toml
 from pydantic import ValidationError
 
+from cloudai.workloads.nccl_test.prediction_report_generation_strategy import NcclTestPredictionReportGenerationStrategy
+
 from ..models.scenario import TestRunModel, TestScenarioModel
 from ..models.workload import TestDefinition
 from ..workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
@@ -62,7 +64,12 @@ DEFAULT_REPORTERS: dict[Type[TestDefinition], Set[Type[ReportGenerationStrategy]
 
 
 def get_reporters(test_info: TestRunModel, tdef: TestDefinition) -> Set[Type[ReportGenerationStrategy]]:
-    return DEFAULT_REPORTERS.get(type(tdef), set())
+    reporters = DEFAULT_REPORTERS.get(type(tdef), set())
+
+    if isinstance(tdef, NCCLTestDefinition) and tdef.predictor is not None:
+        reporters.add(NcclTestPredictionReportGenerationStrategy)
+
+    return reporters
 
 
 def parse_time_limit(limit: str) -> timedelta:

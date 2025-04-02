@@ -22,13 +22,14 @@ from unittest.mock import Mock, patch
 import pytest
 import toml
 
-from cloudai import CmdArgs, Test, TestRun, TestScenario, TestScenarioParser
+from cloudai import CmdArgs, GitRepo, Test, TestRun, TestScenario, TestScenarioParser
 from cloudai._core.exceptions import TestScenarioParsingError
 from cloudai._core.report_generation_strategy import ReportGenerationStrategy
 from cloudai._core.test import TestDefinition
 from cloudai._core.test_scenario_parser import DEFAULT_REPORTERS, calculate_total_time_limit, get_reporters
 from cloudai._core.test_template import TestTemplate
 from cloudai.models.scenario import TestRunModel, TestScenarioModel, TestSpecModel
+from cloudai.models.workload import PredictorConfig
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
 from cloudai.workloads.jax_toolbox import (
@@ -43,6 +44,7 @@ from cloudai.workloads.nccl_test import (
     NCCLTestDefinition,
     NcclTestPerformanceReportGenerationStrategy,
 )
+from cloudai.workloads.nccl_test.prediction_report_generation_strategy import NcclTestPredictionReportGenerationStrategy
 from cloudai.workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy, NeMoLauncherTestDefinition
 from cloudai.workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
 from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
@@ -423,3 +425,17 @@ class TestReportMetricsDSE:
             "but no report generation strategy is defined for it. "
             "Available report-metrics mapping: {}"
         )
+
+
+def test_get_reporters_nccl():
+    tr_model = TestRunModel(id="id", test_name="nccl", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1)
+    tdef = NCCLTestDefinition(name="nccl", description="desc", test_template_name="tt", cmd_args=NCCLCmdArgs())
+    reporters = get_reporters(tr_model, tdef)
+    assert len(reporters) == 1
+    assert NcclTestPerformanceReportGenerationStrategy in reporters
+
+    tdef.predictor = PredictorConfig(git_repo=GitRepo(url="", commit=""))
+    reporters = get_reporters(tr_model, tdef)
+    assert len(reporters) == 2
+    assert NcclTestPerformanceReportGenerationStrategy in reporters
+    assert NcclTestPredictionReportGenerationStrategy in reporters
