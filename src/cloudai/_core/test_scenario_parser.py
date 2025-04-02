@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import logging
 import re
 from datetime import timedelta
@@ -103,7 +104,7 @@ def calculate_total_time_limit(test_hooks: List[TestScenario], time_limit: Optio
 
 
 def get_reporters(test_info: "_TestRunTOML", tdef: TestDefinition) -> Set[Type[ReportGenerationStrategy]]:
-    reporters = Registry().reports_map.get(type(tdef), set())
+    reporters = copy.deepcopy(Registry().reports_map.get(type(tdef), set()))
 
     if isinstance(tdef, NCCLTestDefinition) and tdef.predictor is not None:
         reporters.add(NcclTestPredictionReportGenerationStrategy)
