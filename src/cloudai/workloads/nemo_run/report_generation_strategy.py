@@ -28,6 +28,10 @@ from cloudai._core.test_scenario import METRIC_ERROR
 
 @cache
 def extract_timings(stdout_file: Path) -> list[float]:
+    if not stdout_file.exists():
+        logging.error(f"{stdout_file} not found")
+        return []
+
     train_step_timings: list[float] = []
     step_timings: list[float] = []
 
@@ -76,6 +80,9 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             return
 
         step_timings = extract_timings(self.results_file)
+        if not step_timings:
+            logging.error("No valid step timings found. Report generation aborted.")
+            return
 
         stats = {
             "avg": np.mean(step_timings),
@@ -93,7 +100,10 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
 
     def get_metric(self, metric: str) -> float:
         step_timings = extract_timings(self.results_file)
-        if metric not in {"default", "step-time"} or not step_timings:
+        if not step_timings:
+            return METRIC_ERROR
+
+        if metric not in {"default", "step-time"}:
             return METRIC_ERROR
 
         return float(np.mean(step_timings))
