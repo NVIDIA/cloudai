@@ -15,12 +15,12 @@
 # limitations under the License.
 
 from pathlib import Path
+from unittest.mock import Mock
 
 import pandas as pd
 import pytest
 
-from cloudai import GitRepo, PredictorConfig
-from cloudai.workloads.nccl_test import NCCLTestDefinition
+from cloudai import GitRepo, PredictorConfig, Test, TestRun
 from cloudai.workloads.nccl_test.prediction_report_generator import NcclTestPredictionReportGenerator
 from tests.conftest import MyTestDefinition
 
@@ -50,8 +50,13 @@ def test_definition(tmp_path: Path) -> MyTestDefinition:
 
 
 @pytest.fixture
-def generator(test_definition: NCCLTestDefinition, tmp_path: Path) -> NcclTestPredictionReportGenerator:
-    return NcclTestPredictionReportGenerator("all_reduce", tmp_path, test_definition)
+def generator(test_definition: MyTestDefinition, tmp_path: Path) -> NcclTestPredictionReportGenerator:
+    test = Test(
+        test_definition=test_definition,
+        test_template=Mock(),
+    )
+    test_run = TestRun(name="mock_test_run", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
+    return NcclTestPredictionReportGenerator("all_reduce", test_run)
 
 
 def test_extract_performance_data(generator: NcclTestPredictionReportGenerator, tmp_path: Path) -> None:
@@ -59,9 +64,9 @@ def test_extract_performance_data(generator: NcclTestPredictionReportGenerator, 
 
     mock_csv_data = pd.DataFrame(
         {
-            "gpu_type": ["H100", "H100"],
-            "num_devices_per_node": [8, 8],
-            "num_ranks": [16, 16],
+            "GPU Type": ["H100", "H100"],
+            "Devices per Node": [8, 8],
+            "Ranks": [16, 16],
             "Size (B)": [128, 256],
             "Time (us) Out-of-place": [343.8, 96.89],
         }
@@ -72,10 +77,10 @@ def test_extract_performance_data(generator: NcclTestPredictionReportGenerator, 
     df = generator._extract_performance_data()
 
     assert not df.empty
-    assert set(df.columns) == {"gpu_type", "num_devices_per_node", "num_ranks", "message_size", "measured_dur"}
-    assert df.iloc[0]["gpu_type"] == "H100"
-    assert df.iloc[0]["num_devices_per_node"] == 8
-    assert df.iloc[0]["num_ranks"] == 16
+    assert set(df.columns) == {"GPU Type", "Devices per Node", "Ranks", "message_size", "measured_dur"}
+    assert df.iloc[0]["GPU Type"] == "H100"
+    assert df.iloc[0]["Devices per Node"] == 8
+    assert df.iloc[0]["Ranks"] == 16
     assert df.iloc[0]["message_size"] == 128
     assert df.iloc[0]["measured_dur"] == 343.8
     assert df.iloc[1]["message_size"] == 256
