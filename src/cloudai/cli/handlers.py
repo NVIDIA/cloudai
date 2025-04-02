@@ -16,6 +16,7 @@
 
 import argparse
 import asyncio
+import copy
 import logging
 import signal
 from pathlib import Path
@@ -59,11 +60,9 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     if installer_class is None:
         raise NotImplementedError(f"No installer available for scheduler: {system.scheduler}")
     installer = installer_class(system)
-
     rc = 0
     if args.mode == "install":
         all_installed = installer.is_installed(installables)
-
         if all_installed:
             logging.info(f"CloudAI is already installed into '{system.install_path}'.")
         else:
@@ -88,40 +87,41 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
 
 
 def handle_dse_job(runner: Runner, args: argparse.Namespace):
-    test_run = next(iter(runner.runner.test_scenario.test_runs))
-    env = CloudAIGymEnv(test_run=test_run, runner=runner)
     registry = Registry()
 
-    agent_type = test_run.test.test_definition.agent
+    for tr in runner.runner.test_scenario.test_runs:
+        test_run = copy.deepcopy(tr)
+        env = CloudAIGymEnv(test_run=test_run, runner=runner)
+        agent_type = test_run.test.test_definition.agent
 
-    agent_class = registry.agents_map.get(agent_type)
-    if agent_class is None:
-        logging.error(
-            f"No agent available for type: {agent_type}. Please make sure {agent_type} "
-            f"is a valid agent type. Available agents: {registry.agents_map.keys()}"
-        )
-        exit(1)
+        agent_class = registry.agents_map.get(agent_type)
+        if agent_class is None:
+            logging.error(
+                f"No agent available for type: {agent_type}. Please make sure {agent_type} "
+                f"is a valid agent type. Available agents: {registry.agents_map.keys()}"
+            )
+            continue
 
-    agent = agent_class(env)
-    for step in range(agent.max_steps):
-        result = agent.select_action()
-        if result is None:
-            break
-        step, action = result
-        test_run.step = step
-        observation, reward, done, info = env.step(action)
-        feedback = {"trial_index": step, "value": reward}
-        agent.update_policy(feedback)
-        logging.info(f"Step {step}: Observation: {observation}, Reward: {reward}")
+        agent = agent_class(env)
+        for step in range(agent.max_steps):
+            result = agent.select_action()
+            if result is None:
+                break
+            step, action = result
+            test_run.step = step
+            observation, reward, done, info = env.step(action)
+            feedback = {"trial_index": step, "value": reward}
+            agent.update_policy(feedback)
+            logging.info(f"Step {step}: Observation: {observation}, Reward: {reward}")
 
 
 def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> None:
     asyncio.run(runner.run())
 
-    logging.info(f"All test scenario results stored at: {runner.runner.output_path}")
+    logging.info(f"All test scenario results stored at: {runner.runner.scenario_root}")
 
     if args.mode == "run":
-        reporter = Reporter(runner.runner.system, runner.runner.test_scenario, runner.runner.output_path)
+        reporter = Reporter(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
         reporter.generate()
         logging.info(
             "All test scenario execution attempts are complete. Please review"
@@ -189,8 +189,14 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     runner = Runner(args.mode, system, test_scenario)
     register_signal_handlers(runner.cancel_on_signal)
 
+    all_dse = all(tr.test.test_definition.is_dse_job for tr in test_scenario.test_runs)
+
     if any(tr.test.test_definition.is_dse_job for tr in test_scenario.test_runs):
-        handle_dse_job(runner, args)
+        if all_dse:
+            handle_dse_job(runner, args)
+        else:
+            logging.error("Mixing DSE and non-DSE jobs is not allowed.")
+            return 1
     else:
         handle_non_dse_job(runner, args)
 

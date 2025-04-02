@@ -234,7 +234,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return " ".join(srun_command_parts + nsys_command_parts + test_command_parts)
 
     def gen_srun_prefix(self, slurm_args: Dict[str, Any], tr: TestRun) -> List[str]:
-        srun_command_parts = ["srun", f"--mpi={self.system.mpi}"]
+        srun_command_parts = ["srun", "--export=ALL", f"--mpi={self.system.mpi}"]
         if slurm_args.get("image_path"):
             srun_command_parts.append(f"--container-image={slurm_args['image_path']}")
             mounts = self.container_mounts(tr)
@@ -281,9 +281,12 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         )
 
     def _metadata_cmd(self, slurm_args: dict[str, Any], tr: TestRun) -> str:
+        (tr.output_path.absolute() / "metadata").mkdir(parents=True, exist_ok=True)
+        num_nodes, _ = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
         return " ".join(
             [
                 *self.gen_srun_prefix(slurm_args, tr),
+                f"--ntasks={num_nodes}",
                 "--ntasks-per-node=1",
                 f"--output={tr.output_path.absolute() / 'metadata' / 'node-%N.toml'}",
                 f"--error={tr.output_path.absolute() / 'metadata' / 'nodes.err'}",

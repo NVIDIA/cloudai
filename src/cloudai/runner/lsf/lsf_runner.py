@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,12 +20,12 @@ from pathlib import Path
 from cloudai import BaseRunner, JobIdRetrievalError, System, TestRun, TestScenario
 from cloudai.util import CommandShell
 
-from .slurm_job import SlurmJob
+from .lsf_job import LSFJob
 
 
-class SlurmRunner(BaseRunner):
+class LSFRunner(BaseRunner):
     """
-    Implementation of the Runner for a system using Slurm.
+    Implementation of the Runner for a system using LSF.
 
     Attributes
         cmd_shell (CommandShell): An instance of CommandShell for executing system commands.
@@ -33,7 +33,7 @@ class SlurmRunner(BaseRunner):
 
     def __init__(self, mode: str, system: System, test_scenario: TestScenario, output_path: Path) -> None:
         """
-        Initialize the SlurmRunner.
+        Initialize the LSFRunner.
 
         Args:
             mode (str): The operation mode ('dry-run', 'run').
@@ -44,15 +44,15 @@ class SlurmRunner(BaseRunner):
         super().__init__(mode, system, test_scenario, output_path)
         self.cmd_shell = CommandShell()
 
-    def _submit_test(self, tr: TestRun) -> SlurmJob:
+    def _submit_test(self, tr: TestRun) -> LSFJob:
         """
-        Submit a test for execution on Slurm and returns a SlurmJob.
+        Submit a test for execution on LSF and returns an LSFJob.
 
         Args:
             tr (TestRun): The test run to be executed.
 
         Returns:
-            SlurmJob: A SlurmJob object
+            LSFJob: An LSFJob object
         """
         logging.info(f"Running test: {tr.name}")
         tr.output_path = self.get_job_output_path(tr)
@@ -70,5 +70,5 @@ class SlurmRunner(BaseRunner):
                     stderr=stderr,
                     message="Failed to retrieve job ID from command output.",
                 )
-        logging.info(f"Submitted slurm job: {job_id}")
-        return SlurmJob(tr, id=job_id)
+        logging.info(f"Submitted LSF job: {job_id}")
+        return LSFJob(tr, id=job_id)

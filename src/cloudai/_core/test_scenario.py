@@ -79,7 +79,7 @@ class TestRun:
         Returns
             bool: True if more iterations are pending, False otherwise.
         """
-        return self.current_iteration < self.iterations
+        return self.current_iteration + 1 < self.iterations
 
     @property
     def metric_reporter(self) -> Optional[Type["ReportGenerationStrategy"]]:

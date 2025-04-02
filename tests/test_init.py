@@ -23,9 +23,11 @@ from cloudai import (
     JsonGenStrategy,
     Registry,
 )
+from cloudai.installer.lsf_installer import LSFInstaller
 from cloudai.installer.slurm_installer import SlurmInstaller
 from cloudai.installer.standalone_installer import StandaloneInstaller
 from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
+from cloudai.systems.lsf.lsf_system import LSFSystem
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.standalone_system import StandaloneSystem
 from cloudai.workloads.chakra_replay import (
@@ -35,6 +37,7 @@ from cloudai.workloads.chakra_replay import (
 )
 from cloudai.workloads.common import SlurmJobIdRetrievalStrategy, StandaloneJobIdRetrievalStrategy
 from cloudai.workloads.common.default_job_status_retrieval_strategy import DefaultJobStatusRetrievalStrategy
+from cloudai.workloads.common.lsf_job_id_retrieval_strategy import LSFJobIdRetrievalStrategy
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -61,6 +64,7 @@ from cloudai.workloads.nemo_run import NeMoRunSlurmCommandGenStrategy, NeMoRunTe
 from cloudai.workloads.sleep import (
     SleepGradingStrategy,
     SleepKubernetesJsonGenStrategy,
+    SleepLSFCommandGenStrategy,
     SleepSlurmCommandGenStrategy,
     SleepStandaloneCommandGenStrategy,
     SleepTestDefinition,
@@ -78,7 +82,8 @@ def test_systems():
     assert "standalone" in parsers
     assert "slurm" in parsers
     assert "kubernetes" in parsers
-    assert len(parsers) == 3
+    assert "lsf" in parsers
+    assert len(parsers) == 4
 
 
 def test_runners():
@@ -86,7 +91,8 @@ def test_runners():
     assert "standalone" in runners
     assert "slurm" in runners
     assert "kubernetes" in runners
-    assert len(runners) == 3
+    assert "lsf" in runners
+    assert len(runners) == 4
 
 
 ALL_STRATEGIES = {
@@ -102,6 +108,7 @@ ALL_STRATEGIES = {
     (CommandGenStrategy, SlurmSystem, UCCTestDefinition): UCCTestSlurmCommandGenStrategy,
     (CommandGenStrategy, SlurmSystem, MegatronRunTestDefinition): MegatronRunSlurmCommandGenStrategy,
     (CommandGenStrategy, StandaloneSystem, SleepTestDefinition): SleepStandaloneCommandGenStrategy,
+    (CommandGenStrategy, LSFSystem, SleepTestDefinition): SleepLSFCommandGenStrategy,
     (GradingStrategy, SlurmSystem, ChakraReplayTestDefinition): ChakraReplayGradingStrategy,
     (GradingStrategy, SlurmSystem, GPTTestDefinition): JaxToolboxGradingStrategy,
     (GradingStrategy, SlurmSystem, GrokTestDefinition): JaxToolboxGradingStrategy,
@@ -122,6 +129,7 @@ ALL_STRATEGIES = {
     (JobIdRetrievalStrategy, SlurmSystem, UCCTestDefinition): SlurmJobIdRetrievalStrategy,
     (JobIdRetrievalStrategy, SlurmSystem, MegatronRunTestDefinition): SlurmJobIdRetrievalStrategy,
     (JobIdRetrievalStrategy, StandaloneSystem, SleepTestDefinition): StandaloneJobIdRetrievalStrategy,
+    (JobIdRetrievalStrategy, LSFSystem, SleepTestDefinition): LSFJobIdRetrievalStrategy,
     (JobStatusRetrievalStrategy, KubernetesSystem, NCCLTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, KubernetesSystem, SleepTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, SlurmSystem, ChakraReplayTestDefinition): DefaultJobStatusRetrievalStrategy,
@@ -136,6 +144,7 @@ ALL_STRATEGIES = {
     (JobStatusRetrievalStrategy, SlurmSystem, UCCTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, SlurmSystem, MegatronRunTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, StandaloneSystem, SleepTestDefinition): DefaultJobStatusRetrievalStrategy,
+    (JobStatusRetrievalStrategy, LSFSystem, SleepTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JsonGenStrategy, KubernetesSystem, NCCLTestDefinition): NcclTestKubernetesJsonGenStrategy,
     (JsonGenStrategy, KubernetesSystem, SleepTestDefinition): SleepKubernetesJsonGenStrategy,
 }
@@ -158,9 +167,10 @@ def test_strategies():
 
 def test_installers():
     installers = Registry().installers_map
-    assert len(installers) == 3
+    assert len(installers) == 4
     assert installers["standalone"] == StandaloneInstaller
     assert installers["slurm"] == SlurmInstaller
+    assert installers["lsf"] == LSFInstaller
 
 
 def test_definitions():

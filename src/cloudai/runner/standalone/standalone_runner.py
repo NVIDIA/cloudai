@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import logging
+from pathlib import Path
 
 from cloudai import BaseRunner, JobIdRetrievalError, System, TestRun, TestScenario
 from cloudai.util import CommandShell
@@ -30,7 +31,7 @@ class StandaloneRunner(BaseRunner):
         cmd_shell (CommandShell): An instance of CommandShell for executing system commands.
     """
 
-    def __init__(self, mode: str, system: System, test_scenario: TestScenario) -> None:
+    def __init__(self, mode: str, system: System, test_scenario: TestScenario, output_path: Path) -> None:
         """
         Initialize the StandaloneRunner.
 
@@ -38,8 +39,9 @@ class StandaloneRunner(BaseRunner):
             mode (str): The operation mode ('run', 'dry-run').
             system (System): The system object.
             test_scenario (TestScenario): The test scenario to run.
+            output_path (Path): Path to the output directory.
         """
-        super().__init__(mode, system, test_scenario)
+        super().__init__(mode, system, test_scenario, output_path)
         self.cmd_shell = CommandShell()
 
     def _submit_test(self, tr: TestRun) -> StandaloneJob:

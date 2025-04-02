@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import asyncio
-import datetime
 import logging
 from abc import ABC, abstractmethod
 from asyncio import Task
@@ -49,7 +48,7 @@ class BaseRunner(ABC):
             new tests and ensuring a graceful termination of all running tests.
     """
 
-    def __init__(self, mode: str, system: System, test_scenario: TestScenario):
+    def __init__(self, mode: str, system: System, test_scenario: TestScenario, output_path: Path):
         """
         Initialize the BaseRunner with a system object, test scenario, and monitor interval.
 
@@ -57,32 +56,17 @@ class BaseRunner(ABC):
             mode (str): The operation mode ('dry-run', 'run').
             system (System): The system configuration.
             test_scenario (TestScenario): The test scenario to run.
+            output_path (Path): Path to the output directory.
         """
         self.mode = mode
         self.system = system
         self.test_scenario = test_scenario
-        self.output_path = self.setup_output_directory(system.output_path)
+        self.scenario_root = output_path
         self.monitor_interval = system.monitor_interval
         self.jobs: List[BaseJob] = []
         self.testrun_to_job_map: Dict[TestRun, BaseJob] = {}
         logging.debug(f"{self.__class__.__name__} initialized")
         self.shutting_down = False
-
-    def setup_output_directory(self, base_output_path: Path) -> Path:
-        """
-        Set up and return the output directory path for the runner instance.
-
-        Args:
-            base_output_path (Path): The base output directory.
-
-        Returns:
-            Path: The path to the output directory.
-        """
-        if not base_output_path.exists():
-            base_output_path.mkdir()
-        current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        output_subpath = base_output_path / f"{self.test_scenario.name}_{current_time}"
-        return output_subpath
 
     async def shutdown(self):
         """Gracefully shut down the runner, terminating all outstanding jobs."""
@@ -211,23 +195,19 @@ class BaseRunner(ABC):
             FileNotFoundError: If the base output directory does not exist.
             PermissionError: If there is a permission issue creating the directories.
         """
-        if tr.step < 0 and not self.output_path.exists():
-            self.output_path.mkdir()
+        if not self.scenario_root.exists():
+            self.scenario_root.mkdir()
 
-        job_output_path = Path()  # avoid reportPossiblyUnboundVariable from pyright
+        job_output_path = self.scenario_root / tr.name / str(tr.current_iteration)
+        # here it is required to check DSE as step number because test_definition object is not a DSE object anymore
+        if tr.step > 0:
+            job_output_path = job_output_path / str(tr.step)
 
-        try:
-            if tr.step > 0:
-                base_path = self.system.output_path / self.test_scenario.name
-                job_output_path = base_path / tr.name / str(tr.current_iteration) / str(tr.step)
-            else:
-                base_path = self.output_path
-                job_output_path = base_path / tr.name / str(tr.current_iteration)
-
-            if not job_output_path.exists():
+        if not job_output_path.exists():
+            try:
                 job_output_path.mkdir(parents=True, exist_ok=True)
-        except PermissionError as e:
-            raise PermissionError(f"Cannot create directory {job_output_path}: {e}") from e
+            except PermissionError as e:
+                raise PermissionError(f"Cannot create directory {job_output_path}: {e}") from e
 
         return job_output_path
 
@@ -293,14 +273,17 @@ class BaseRunner(ABC):
         Args:
             completed_job (BaseJob): The job that has just been completed.
         """
-        logging.info(f"Job completed: {completed_job.test_run.name}")
+        logging.info(
+            f"Job completed: {completed_job.test_run.name} "
+            f"(iteration {completed_job.test_run.current_iteration+1} of {completed_job.test_run.iterations})"
+        )
 
         self.jobs.remove(completed_job)
         del self.testrun_to_job_map[completed_job.test_run]
 
         if completed_job.test_run.step <= 0:
-            completed_job.test_run.current_iteration += 1
             if not completed_job.terminated_by_dependency and completed_job.test_run.has_more_iterations():
+                completed_job.test_run.current_iteration += 1
                 msg = f"Re-running job for iteration {completed_job.test_run.current_iteration}"
                 logging.info(msg)
                 await self.submit_test(completed_job.test_run)
