@@ -302,31 +302,14 @@ class Registry(metaclass=Singleton):
         self.agents_map[name] = value
 
     def add_report(self, tdef_type: Type[TestDefinition], value: Type[ReportGenerationStrategy]) -> None:
-        """
-        Add a new report implementation mapping.
+        existing_reports = self.reports_map.get(tdef_type, set())
+        existing_reports.add(value)
+        self.update_report(tdef_type, existing_reports)
 
-        Args:
-            tdef_type (Type[TestDefinition]): The test definition type.
-            value (Type[ReportGenerationStrategy]): The report generation strategy implementation.
-
-        Raises:
-            ValueError: If the report generation strategy implementation already exists.
-        """
-        if not issubclass(value, ReportGenerationStrategy):
+    def update_report(self, tdef_type: Type[TestDefinition], reports: Set[Type[ReportGenerationStrategy]]) -> None:
+        if not any(issubclass(report, ReportGenerationStrategy) for report in reports):
             raise ValueError(
                 f"Invalid report generation strategy implementation for '{tdef_type}', "
                 "should be subclass of 'ReportGenerationStrategy'."
             )
-        if tdef_type not in self.reports_map:
-            self.reports_map.setdefault(tdef_type, set())
-        self.reports_map[tdef_type].add(value)
-
-    def update_report(self, tdef_type: Type[TestDefinition], reports: Set[Type[ReportGenerationStrategy]]) -> None:
-        """
-        Create or replace report implementation mapping.
-
-        Args:
-            tdef_type (Type[TestDefinition]): The test definition type.
-            reports (Set[Type[ReportGenerationStrategy]]): The report generation strategy implementations.
-        """
         self.reports_map[tdef_type] = reports

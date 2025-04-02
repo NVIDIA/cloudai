@@ -21,11 +21,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai import CmdArgs, Test, TestRun, TestScenario, TestScenarioParser, TestScenarioParsingError
+from cloudai import CmdArgs, Registry, Test, TestRun, TestScenario, TestScenarioParser, TestScenarioParsingError
 from cloudai._core.report_generation_strategy import ReportGenerationStrategy
 from cloudai._core.test import TestDefinition
 from cloudai._core.test_scenario_parser import (
-    DEFAULT_REPORTERS,
     _TestRunTOML,
     _TestScenarioTOML,
     calculate_total_time_limit,
@@ -282,7 +281,8 @@ class TestReporters:
         assert len(reporters) == 0
 
     def test_default_reporters_size(self):
-        assert len(DEFAULT_REPORTERS) == 11
+        print(Registry().reports_map)
+        assert len(Registry().reports_map) == 11
 
     @pytest.mark.parametrize(
         "tdef,expected_reporters",
@@ -301,7 +301,7 @@ class TestReporters:
         ],
     )
     def test_custom_reporters(self, tdef: Type[TestDefinition], expected_reporters: Set[ReportGenerationStrategy]):
-        assert DEFAULT_REPORTERS[tdef] == expected_reporters
+        assert Registry().reports_map[tdef] == expected_reporters
 
 
 class TestReportMetricsDSE:
