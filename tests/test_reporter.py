@@ -59,7 +59,7 @@ def dse_tdef() -> NCCLTestDefinition:
 
 @pytest.fixture
 def benchmark_tr(slurm_system: SlurmSystem, bench_tdef: NCCLTestDefinition) -> TestRun:
-    test_template = TestTemplate(system=slurm_system, name="test_template")
+    test_template = TestTemplate(system=slurm_system)
     test_run = TestRun(
         name="regular_test_run",
         test=Test(test_definition=bench_tdef, test_template=test_template),
@@ -73,7 +73,7 @@ def benchmark_tr(slurm_system: SlurmSystem, bench_tdef: NCCLTestDefinition) -> T
 
 @pytest.fixture
 def dse_tr(slurm_system: SlurmSystem, dse_tdef: NCCLTestDefinition) -> TestRun:
-    test_template = TestTemplate(system=slurm_system, name="test_template")
+    test_template = TestTemplate(system=slurm_system)
     test_run = TestRun(
         name="dse_test_run",
         test=Test(test_definition=dse_tdef, test_template=test_template),
