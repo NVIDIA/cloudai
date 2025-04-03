@@ -23,6 +23,7 @@ from cloudai import (
     JsonGenStrategy,
     Registry,
 )
+from cloudai._core.reporter import PerTestReporter, StatusReporter
 from cloudai.installer.lsf_installer import LSFInstaller
 from cloudai.installer.slurm_installer import SlurmInstaller
 from cloudai.installer.standalone_installer import StandaloneInstaller
@@ -190,3 +191,10 @@ def test_definitions():
         ("MegatronRun", MegatronRunTestDefinition),
     ]:
         assert test_defs[tdef[0]] == tdef[1]
+
+
+def test_scenario_reports():
+    scenario_reports = Registry().scenario_reports
+    assert len(scenario_reports) == 2
+    assert PerTestReporter in scenario_reports
+    assert StatusReporter in scenario_reports

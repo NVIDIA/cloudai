@@ -25,8 +25,9 @@ from unittest.mock import Mock
 
 import toml
 
-from cloudai import Installable, Parser, Registry, Reporter, Runner, System, TestParser
+from cloudai import Installable, Parser, Registry, Runner, System, TestParser
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
+from cloudai._core.test_scenario import TestScenario
 from cloudai.util import prepare_output_dir
 
 from ..parser import HOOK_ROOT
@@ -115,19 +116,25 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
             logging.info(f"Step {step}: Observation: {observation}, Reward: {reward}")
 
 
+def _generate_reports(system: System, test_scenario: TestScenario, result_dir: Path) -> None:
+    registry = Registry()
+    for reporter_class in registry.scenario_reports:
+        try:
+            reporter = reporter_class(system, test_scenario, result_dir)
+            reporter.generate()
+        except Exception as e:
+            logging.warning(f"Error generating report: {e}")
+
+
 def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> None:
     asyncio.run(runner.run())
 
     logging.info(f"All test scenario results stored at: {runner.runner.scenario_root}")
 
     if args.mode == "run":
-        reporter = Reporter(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
-        reporter.generate()
-        logging.info(
-            "All test scenario execution attempts are complete. Please review"
-            f" the '{args.log_file}' file to confirm successful completion or to"
-            " identify any issues."
-        )
+        _generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
+
+    logging.info(f"All jobs are complete. For more details, please review the '{args.log_file}'.")
 
 
 def register_signal_handlers(signal_handler: Callable) -> None:
@@ -215,8 +222,7 @@ def handle_generate_report(args: argparse.Namespace) -> int:
     assert test_scenario is not None
 
     logging.info("Generating report based on system and test scenario")
-    reporter = Reporter(system, test_scenario, args.result_dir)
-    reporter.generate()
+    _generate_reports(system, test_scenario, args.result_dir)
 
     logging.info("Report generation completed.")
 

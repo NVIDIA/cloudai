@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 from typing import ClassVar, List, Set, Tuple, Type, Union
 
 from .base_installer import BaseInstaller
@@ -23,6 +24,7 @@ from .grading_strategy import GradingStrategy
 from .job_id_retrieval_strategy import JobIdRetrievalStrategy
 from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from .report_generation_strategy import ReportGenerationStrategy
+from .reporter import Reporter
 from .system import System
 from .test import TestDefinition
 from .test_template_strategy import TestTemplateStrategy
@@ -72,6 +74,7 @@ class Registry(metaclass=Singleton):
     test_definitions_map: ClassVar[dict[str, Type[TestDefinition]]] = {}
     agents_map: ClassVar[dict[str, Type[BaseAgent]]] = {}
     reports_map: ClassVar[dict[Type[TestDefinition], Set[Type[ReportGenerationStrategy]]]] = {}
+    scenario_reports: ClassVar[Set[Type[Reporter]]] = set()
 
     def add_runner(self, name: str, value: Type[BaseRunner]) -> None:
         """
@@ -313,3 +316,14 @@ class Registry(metaclass=Singleton):
                 "should be subclass of 'ReportGenerationStrategy'."
             )
         self.reports_map[tdef_type] = reports
+
+    def add_scenario_report(self, value: Type[Reporter]) -> None:
+        existing_reports = copy.copy(self.scenario_reports)
+        existing_reports.add(value)
+        self.update_scenario_report(existing_reports)
+
+    def update_scenario_report(self, reports: Set[Type[Reporter]]) -> None:
+        if not any(issubclass(report, Reporter) for report in reports):
+            raise ValueError("Invalid scenario report implementation, should be subclass of 'Reporter'.")
+        self.scenario_reports.clear()
+        self.scenario_reports.update(reports)

@@ -16,6 +16,7 @@
 
 import copy
 import logging
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -88,14 +89,7 @@ class SlurmReportItem:
         return report_items
 
 
-class Reporter:
-    """
-    Generates reports for each test in a TestScenario.
-
-    By identifying the appropriate directories for each test and using test templates to generate detailed reports
-    based on subdirectories.
-    """
-
+class Reporter(ABC):
     def __init__(self, system: System, test_scenario: TestScenario, results_root: Path) -> None:
         self.system = system
         self.test_scenario = test_scenario
@@ -120,18 +114,13 @@ class Reporter:
                     tr.output_path = tr_root / f"{tr.current_iteration}"
                     self.trs.append(copy.deepcopy(tr))
 
+    @abstractmethod
+    def generate(self) -> None: ...
+
+
+class PerTestReporter(Reporter):
     def generate(self) -> None:
-        """
-        Iterate over tests in the given test scenario.
-
-        Identifies the relevant directories based on the test's section name, and generates a report for each test
-        using its associated test template.
-
-        Args:
-            test_scenario (TestScenario): The scenario containing tests.
-        """
         self.load_test_runs()
-        self.generate_scenario_report()
 
         for tr in self.trs:
             test_output_dir = self.results_root / tr.name
@@ -141,40 +130,7 @@ class Reporter:
 
             self.generate_per_case_reports(test_output_dir, tr)
 
-    @property
-    def template_file(self) -> str:
-        if isinstance(self.system, SlurmSystem):
-            return "general-slurm-report.jinja2"
-
-        return "general-report.jinja2"
-
-    def generate_scenario_report(self) -> None:
-        template = jinja2.Environment(
-            loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / "util")
-        ).get_template(self.template_file)
-
-        report_items = (
-            SlurmReportItem.from_test_runs(self.trs, self.results_root)
-            if isinstance(self.system, SlurmSystem)
-            else ReportItem.from_test_runs(self.trs, self.results_root)
-        )
-        report = template.render(name=self.test_scenario.name, report_items=report_items)
-        report_path = self.results_root / f"{self.test_scenario.name}.html"
-        with report_path.open("w") as f:
-            f.write(report)
-
-        logging.info(f"Generated scenario report at {report_path}")
-
     def generate_per_case_reports(self, directory_path: Path, tr: TestRun) -> None:
-        """
-        Generate reports for a test by iterating through subdirectories within the directory path.
-
-        Checks if the test's template can handle each, and generating reports accordingly.
-
-        Args:
-            directory_path (Path): Directory for the test's section.
-            tr (TestRun): The test run object.
-        """
         logging.debug(f"Available reports: {tr.reports} for directory: {directory_path}")
         for reporter in tr.reports:
             rgs = reporter(self.system, tr)
@@ -193,3 +149,32 @@ class Reporter:
                     logging.warning(
                         f"Error generating report for '{tr.output_path}' with strategy={reporter.__name__}: {e}"
                     )
+
+
+class StatusReporter(Reporter):
+    @property
+    def template_file(self) -> str:
+        if isinstance(self.system, SlurmSystem):
+            return "general-slurm-report.jinja2"
+        return "general-report.jinja2"
+
+    def generate(self) -> None:
+        self.load_test_runs()
+        self.generate_scenario_report()
+
+    def generate_scenario_report(self) -> None:
+        template = jinja2.Environment(
+            loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / "util")
+        ).get_template(self.template_file)
+
+        report_items = (
+            SlurmReportItem.from_test_runs(self.trs, self.results_root)
+            if isinstance(self.system, SlurmSystem)
+            else ReportItem.from_test_runs(self.trs, self.results_root)
+        )
+        report = template.render(name=self.test_scenario.name, report_items=report_items)
+        report_path = self.results_root / f"{self.test_scenario.name}.html"
+        with report_path.open("w") as f:
+            f.write(report)
+
+        logging.info(f"Generated scenario report at {report_path}")
