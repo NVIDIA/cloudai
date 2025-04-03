@@ -32,28 +32,10 @@ class StandaloneRunner(BaseRunner):
     """
 
     def __init__(self, mode: str, system: System, test_scenario: TestScenario, output_path: Path) -> None:
-        """
-        Initialize the StandaloneRunner.
-
-        Args:
-            mode (str): The operation mode ('run', 'dry-run').
-            system (System): The system object.
-            test_scenario (TestScenario): The test scenario to run.
-            output_path (Path): Path to the output directory.
-        """
         super().__init__(mode, system, test_scenario, output_path)
         self.cmd_shell = CommandShell()
 
     def _submit_test(self, tr: TestRun) -> StandaloneJob:
-        """
-        Submit a test for execution on Standalone and returns a StandaloneJob.
-
-        Args:
-            tr (TestRun): The test run to be executed.
-
-        Returns:
-            StandaloneJob: A StandaloneJob object
-        """
         logging.info(f"Running test: {tr.name}")
         tr.output_path = self.get_job_output_path(tr)
         exec_cmd = tr.test.test_template.gen_exec_command(tr)
