@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,15 +27,6 @@ class KubernetesRunner(BaseRunner):
     """Implementation of the Runner for a system using Kubernetes."""
 
     def _submit_test(self, tr: TestRun) -> KubernetesJob:
-        """
-        Submit a test for execution on Kubernetes and return a KubernetesJob object.
-
-        Args:
-            tr (TestRun): The test run to be executed.
-
-        Returns:
-            KubernetesJob: A KubernetesJob object containing job details.
-        """
         logging.info(f"Running test: {tr.name}")
         tr.output_path = self.get_job_output_path(tr)
         job_name = tr.name.replace(".", "-").lower()
@@ -62,12 +53,6 @@ class KubernetesRunner(BaseRunner):
         k8s_system.delete_job(k_job.name, k_job.kind)
 
     def kill_job(self, job: BaseJob) -> None:
-        """
-        Terminate a Kubernetes job.
-
-        Args:
-            job (BaseJob): The job to be terminated, casted to KubernetesJob.
-        """
         k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)
         k_job = cast(KubernetesJob, job)
         k8s_system.store_logs_for_job(k_job.name, k_job.test_run.output_path)

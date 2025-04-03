@@ -32,28 +32,10 @@ class SlurmRunner(BaseRunner):
     """
 
     def __init__(self, mode: str, system: System, test_scenario: TestScenario, output_path: Path) -> None:
-        """
-        Initialize the SlurmRunner.
-
-        Args:
-            mode (str): The operation mode ('dry-run', 'run').
-            system (System): The system object.
-            test_scenario (TestScenario): The test scenario to run.
-            output_path (Path): Path to the output directory.
-        """
         super().__init__(mode, system, test_scenario, output_path)
         self.cmd_shell = CommandShell()
 
     def _submit_test(self, tr: TestRun) -> SlurmJob:
-        """
-        Submit a test for execution on Slurm and returns a SlurmJob.
-
-        Args:
-            tr (TestRun): The test run to be executed.
-
-        Returns:
-            SlurmJob: A SlurmJob object
-        """
         logging.info(f"Running test: {tr.name}")
         tr.output_path = self.get_job_output_path(tr)
         exec_cmd = tr.test.test_template.gen_exec_command(tr)
