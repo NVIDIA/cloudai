@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import logging
 import re
 from datetime import timedelta
@@ -23,42 +24,15 @@ from typing import Any, Dict, List, Literal, Optional, Set, Type
 import toml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from ..workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
-from ..workloads.jax_toolbox import (
-    GPTTestDefinition,
-    GrokTestDefinition,
-    JaxToolboxReportGenerationStrategy,
-    NemotronTestDefinition,
-)
-from ..workloads.megatron_run import CheckpointTimingReportGenerationStrategy, MegatronRunTestDefinition
 from ..workloads.nccl_test import (
     NCCLTestDefinition,
-    NcclTestPerformanceReportGenerationStrategy,
     NcclTestPredictionReportGenerationStrategy,
 )
-from ..workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy, NeMoLauncherTestDefinition
-from ..workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
-from ..workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
-from ..workloads.slurm_container import SlurmContainerReportGenerationStrategy, SlurmContainerTestDefinition
-from ..workloads.ucc_test import UCCTestDefinition, UCCTestReportGenerationStrategy
 from .exceptions import TestScenarioParsingError, format_validation_error
+from .registry import Registry
 from .report_generation_strategy import ReportGenerationStrategy
 from .test import Test, TestDefinition
 from .test_scenario import TestDependency, TestRun, TestScenario
-
-DEFAULT_REPORTERS: dict[Type[TestDefinition], Set[Type[ReportGenerationStrategy]]] = {
-    ChakraReplayTestDefinition: {ChakraReplayReportGenerationStrategy},
-    GPTTestDefinition: {JaxToolboxReportGenerationStrategy},
-    GrokTestDefinition: {JaxToolboxReportGenerationStrategy},
-    MegatronRunTestDefinition: {CheckpointTimingReportGenerationStrategy},
-    NCCLTestDefinition: {NcclTestPerformanceReportGenerationStrategy},
-    NeMoLauncherTestDefinition: {NeMoLauncherReportGenerationStrategy},
-    NeMoRunTestDefinition: {NeMoRunReportGenerationStrategy},
-    NemotronTestDefinition: {JaxToolboxReportGenerationStrategy},
-    SleepTestDefinition: {SleepReportGenerationStrategy},
-    SlurmContainerTestDefinition: {SlurmContainerReportGenerationStrategy},
-    UCCTestDefinition: {UCCTestReportGenerationStrategy},
-}
 
 
 def parse_time_limit(limit: str) -> timedelta:
@@ -130,7 +104,7 @@ def calculate_total_time_limit(test_hooks: List[TestScenario], time_limit: Optio
 
 
 def get_reporters(test_info: "_TestRunTOML", tdef: TestDefinition) -> Set[Type[ReportGenerationStrategy]]:
-    reporters = DEFAULT_REPORTERS.get(type(tdef), set())
+    reporters = copy.deepcopy(Registry().reports_map.get(type(tdef), set()))
 
     if isinstance(tdef, NCCLTestDefinition) and tdef.predictor is not None:
         reporters.add(NcclTestPredictionReportGenerationStrategy)

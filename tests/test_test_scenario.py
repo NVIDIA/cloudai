@@ -21,11 +21,11 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai import CmdArgs, Test, TestRun, TestScenario, TestScenarioParser, TestScenarioParsingError
+from cloudai import CmdArgs, Registry, Test, TestRun, TestScenario, TestScenarioParser, TestScenarioParsingError
+from cloudai._core.installables import GitRepo
 from cloudai._core.report_generation_strategy import ReportGenerationStrategy
-from cloudai._core.test import TestDefinition
+from cloudai._core.test import PredictorConfig, TestDefinition
 from cloudai._core.test_scenario_parser import (
-    DEFAULT_REPORTERS,
     _TestRunTOML,
     _TestScenarioTOML,
     calculate_total_time_limit,
@@ -44,6 +44,7 @@ from cloudai.workloads.nccl_test import (
     NcclTestPerformanceReportGenerationStrategy,
 )
 from cloudai.workloads.nccl_test.nccl import NCCLCmdArgs
+from cloudai.workloads.nccl_test.prediction_report_generation_strategy import NcclTestPredictionReportGenerationStrategy
 from cloudai.workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy, NeMoLauncherTestDefinition
 from cloudai.workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
 from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
@@ -282,7 +283,7 @@ class TestReporters:
         assert len(reporters) == 0
 
     def test_default_reporters_size(self):
-        assert len(DEFAULT_REPORTERS) == 11
+        assert len(Registry().reports_map) == 11
 
     @pytest.mark.parametrize(
         "tdef,expected_reporters",
@@ -301,7 +302,20 @@ class TestReporters:
         ],
     )
     def test_custom_reporters(self, tdef: Type[TestDefinition], expected_reporters: Set[ReportGenerationStrategy]):
-        assert DEFAULT_REPORTERS[tdef] == expected_reporters
+        assert Registry().reports_map[tdef] == expected_reporters
+
+    def test_get_reporters_nccl(self):
+        tr_model = _TestRunTOML(id="id", test_name="nccl", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1)
+        tdef = NCCLTestDefinition(name="nccl", description="desc", test_template_name="tt", cmd_args=NCCLCmdArgs())
+        reporters = get_reporters(tr_model, tdef)
+        assert len(reporters) == 1
+        assert NcclTestPerformanceReportGenerationStrategy in reporters
+
+        tdef.predictor = PredictorConfig(git_repo=GitRepo(url="", commit=""))
+        reporters = get_reporters(tr_model, tdef)
+        assert len(reporters) == 2
+        assert NcclTestPerformanceReportGenerationStrategy in reporters
+        assert NcclTestPredictionReportGenerationStrategy in reporters
 
 
 class TestReportMetricsDSE:

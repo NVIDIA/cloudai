@@ -61,6 +61,7 @@ from .systems.slurm.slurm_system import SlurmSystem
 from .systems.standalone_system import StandaloneSystem
 from .workloads.chakra_replay import (
     ChakraReplayGradingStrategy,
+    ChakraReplayReportGenerationStrategy,
     ChakraReplaySlurmCommandGenStrategy,
     ChakraReplayTestDefinition,
 )
@@ -75,36 +76,49 @@ from .workloads.jax_toolbox import (
     GrokTestDefinition,
     JaxToolboxGradingStrategy,
     JaxToolboxJobStatusRetrievalStrategy,
+    JaxToolboxReportGenerationStrategy,
     JaxToolboxSlurmCommandGenStrategy,
     NemotronTestDefinition,
 )
-from .workloads.megatron_run import MegatronRunSlurmCommandGenStrategy, MegatronRunTestDefinition
+from .workloads.megatron_run import (
+    CheckpointTimingReportGenerationStrategy,
+    MegatronRunSlurmCommandGenStrategy,
+    MegatronRunTestDefinition,
+)
 from .workloads.nccl_test import (
     NCCLTestDefinition,
     NcclTestGradingStrategy,
     NcclTestJobStatusRetrievalStrategy,
     NcclTestKubernetesJsonGenStrategy,
+    NcclTestPerformanceReportGenerationStrategy,
     NcclTestSlurmCommandGenStrategy,
 )
 from .workloads.nemo_launcher import (
     NeMoLauncherGradingStrategy,
+    NeMoLauncherReportGenerationStrategy,
     NeMoLauncherSlurmCommandGenStrategy,
     NeMoLauncherSlurmJobIdRetrievalStrategy,
     NeMoLauncherTestDefinition,
 )
-from .workloads.nemo_run import NeMoRunSlurmCommandGenStrategy, NeMoRunTestDefinition
+from .workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunSlurmCommandGenStrategy, NeMoRunTestDefinition
 from .workloads.sleep import (
     SleepGradingStrategy,
     SleepKubernetesJsonGenStrategy,
     SleepLSFCommandGenStrategy,
+    SleepReportGenerationStrategy,
     SleepSlurmCommandGenStrategy,
     SleepStandaloneCommandGenStrategy,
     SleepTestDefinition,
 )
-from .workloads.slurm_container import SlurmContainerCommandGenStrategy, SlurmContainerTestDefinition
+from .workloads.slurm_container import (
+    SlurmContainerCommandGenStrategy,
+    SlurmContainerReportGenerationStrategy,
+    SlurmContainerTestDefinition,
+)
 from .workloads.ucc_test import (
     UCCTestDefinition,
     UCCTestGradingStrategy,
+    UCCTestReportGenerationStrategy,
     UCCTestSlurmCommandGenStrategy,
 )
 
@@ -244,6 +258,18 @@ Registry().add_test_definition("SlurmContainer", SlurmContainerTestDefinition)
 Registry().add_test_definition("MegatronRun", MegatronRunTestDefinition)
 
 Registry().add_agent("grid_search", GridSearchAgent)
+
+Registry().add_report(ChakraReplayTestDefinition, ChakraReplayReportGenerationStrategy)
+Registry().add_report(GPTTestDefinition, JaxToolboxReportGenerationStrategy)
+Registry().add_report(GrokTestDefinition, JaxToolboxReportGenerationStrategy)
+Registry().add_report(MegatronRunTestDefinition, CheckpointTimingReportGenerationStrategy)
+Registry().add_report(NCCLTestDefinition, NcclTestPerformanceReportGenerationStrategy)
+Registry().add_report(NeMoLauncherTestDefinition, NeMoLauncherReportGenerationStrategy)
+Registry().add_report(NeMoRunTestDefinition, NeMoRunReportGenerationStrategy)
+Registry().add_report(NemotronTestDefinition, JaxToolboxReportGenerationStrategy)
+Registry().add_report(SleepTestDefinition, SleepReportGenerationStrategy)
+Registry().add_report(SlurmContainerTestDefinition, SlurmContainerReportGenerationStrategy)
+Registry().add_report(UCCTestDefinition, UCCTestReportGenerationStrategy)
 
 __all__ = [
     "BaseAgent",

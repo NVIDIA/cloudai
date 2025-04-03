@@ -23,6 +23,7 @@ from cloudai import (
     JobIdRetrievalStrategy,
     JobStatusRetrievalStrategy,
     Registry,
+    ReportGenerationStrategy,
     System,
     TestDefinition,
     TestTemplateStrategy,
@@ -31,7 +32,12 @@ from cloudai import (
 
 @pytest.fixture
 def registry():
-    return Registry()
+    registry = Registry()
+    yield registry
+
+    # Clean up the registry after the test, we check exact list of reports in other tests
+    if MyTestDefinition in registry.reports_map:
+        del registry.reports_map[MyTestDefinition]
 
 
 class MyRunner(BaseRunner):
@@ -263,3 +269,43 @@ class TestRegistry__AgentsMap:
         with pytest.raises(ValueError) as exc_info:
             registry.update_agent("TestAgent", str)  # pyright: ignore
         assert "Invalid agent implementation for 'TestAgent'" in str(exc_info.value)
+
+
+class MyReport(ReportGenerationStrategy):
+    pass
+
+
+class AnotherReport(ReportGenerationStrategy):
+    pass
+
+
+class TestRegistry__ReportsMap:
+    """This test verifies Registry class functionality.
+
+    Since Registry is a Singleton, the order of cases is important.
+    Only covers the reports_map attribute.
+    """
+
+    def test_add_report(self, registry: Registry):
+        registry.add_report(MyTestDefinition, MyReport)
+        assert registry.reports_map[MyTestDefinition] == {MyReport}
+
+    def test_duplicate_is_fine(self, registry: Registry):
+        registry.add_report(MyTestDefinition, MyReport)
+        registry.add_report(MyTestDefinition, MyReport)
+        assert registry.reports_map[MyTestDefinition] == {MyReport}
+
+    def test_add_multiple_reports(self, registry: Registry):
+        registry.add_report(MyTestDefinition, MyReport)
+        registry.add_report(MyTestDefinition, AnotherReport)
+        assert registry.reports_map[MyTestDefinition] == {MyReport, AnotherReport}
+
+    def test_update_report(self, registry: Registry):
+        registry.update_report(MyTestDefinition, {AnotherReport})
+        assert registry.reports_map[MyTestDefinition] == {AnotherReport}
+
+    def test_invalid_type(self, registry: Registry):
+        with pytest.raises(ValueError) as exc_info:
+            registry.update_report(MyTestDefinition, {str})  # pyright: ignore
+        assert "Invalid report generation strategy implementation for" in str(exc_info.value)
+        assert "should be subclass of 'ReportGenerationStrategy'" in str(exc_info.value)
