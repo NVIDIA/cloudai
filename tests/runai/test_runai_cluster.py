@@ -50,7 +50,7 @@ def test_cluster_state_enum() -> None:
 
 
 def test_cluster_initialization(cluster_data: Dict[str, Any]) -> None:
-    cluster = RunAICluster(cluster_data)
+    cluster = RunAICluster(**cluster_data)
     assert cluster.name == cluster_data["name"]
     assert cluster.uuid == cluster_data["uuid"]
     assert cluster.tenant_id == cluster_data["tenantId"]
@@ -63,23 +63,23 @@ def test_cluster_initialization(cluster_data: Dict[str, Any]) -> None:
 
 
 def test_cluster_state_disconnected(cluster_data: Dict[str, Any]) -> None:
-    cluster = RunAICluster(cluster_data)
+    cluster = RunAICluster(**cluster_data)
     assert not cluster.is_connected()
 
 
 def test_cluster_state_connected(cluster_data: Dict[str, Any]) -> None:
     cluster_data["status"]["state"] = "Connected"
-    cluster = RunAICluster(cluster_data)
+    cluster = RunAICluster(**cluster_data)
     assert cluster.is_connected()
 
 
 def test_cluster_kubernetes_version(cluster_data: Dict[str, Any]) -> None:
-    cluster = RunAICluster(cluster_data)
+    cluster = RunAICluster(**cluster_data)
     assert cluster.get_kubernetes_version() == "v0.0.0-dummy"
 
 
 def test_repr(cluster_data: Dict[str, Any]) -> None:
-    cluster = RunAICluster(cluster_data)
+    cluster = RunAICluster(**cluster_data)
     output = repr(cluster)
     assert isinstance(output, str)
     assert cluster.name is not None and cluster.name in output

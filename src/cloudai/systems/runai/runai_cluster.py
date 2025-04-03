@@ -19,6 +19,9 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from pydantic import BaseModel, Field
+from pydantic.aliases import AliasPath
+
 
 class ClusterState(Enum):
     """Enumeration of possible cluster states."""
@@ -35,29 +38,33 @@ class ClusterState(Enum):
         return cls(cls._value2member_map_.get(value, cls.UNKNOWN))
 
 
-class RunAICluster:
+class RunAICluster(BaseModel):
     """Represent a RunAI cluster with its associated data and operations."""
 
-    def __init__(self, data: Dict[str, Any]) -> None:
-        """Initialize a RunAICluster with data from a dictionary."""
-        self.uuid: str = data.get("uuid", "")
-        self.tenant_id: int = data.get("tenantId", 0)
-        self.name: str = data.get("name", "")
-        self.created_at: str = data.get("createdAt", "")
-        self.domain: Optional[str] = data.get("domain")
-        self.version: Optional[str] = data.get("version")
-        self.updated_at: Optional[str] = data.get("updatedAt")
-        self.deleted_at: Optional[str] = data.get("deletedAt")
-        self.last_liveness: Optional[str] = data.get("lastLiveness")
-        self.delete_requested_at: Optional[str] = data.get("deleteRequestedAt")
+    uuid: str = Field(default="", alias="uuid")
+    tenant_id: int = Field(default=0, alias="tenantId")
+    name: str = Field(default="", alias="name")
+    created_at: str = Field(default="", alias="createdAt")
+    domain: Optional[str] = Field(default=None, alias="domain")
+    version: Optional[str] = Field(default=None, alias="version")
+    updated_at: Optional[str] = Field(default=None, alias="updatedAt")
+    deleted_at: Optional[str] = Field(default=None, alias="deletedAt")
+    last_liveness: Optional[str] = Field(default=None, alias="lastLiveness")
+    delete_requested_at: Optional[str] = Field(default=None, alias="deleteRequestedAt")
 
-        status: Dict[str, Any] = data.get("status", {})
-        self.state: ClusterState = ClusterState.from_str(status.get("state", "Unknown"))
-        self.conditions: List[Dict[str, Any]] = status.get("conditions", [])
-        self.operands: Dict[str, Any] = status.get("operands", {})
-        self.platform: Optional[Dict[str, Any]] = status.get("platform")
-        self.config: Optional[Dict[str, Any]] = status.get("config")
-        self.dependencies: Dict[str, Any] = status.get("dependencies", {})
+    state: ClusterState = Field(default=ClusterState.UNKNOWN, validation_alias=AliasPath("status", "state"))
+    conditions: List[Dict[str, Any]] = Field(default_factory=list, validation_alias=AliasPath("status", "conditions"))
+    operands: Dict[str, Any] = Field(default_factory=dict, validation_alias=AliasPath("status", "operands"))
+    platform: Optional[Dict[str, Any]] = Field(default=None, validation_alias=AliasPath("status", "platform"))
+    config: Optional[Dict[str, Any]] = Field(default=None, validation_alias=AliasPath("status", "config"))
+    dependencies: Dict[str, Any] = Field(default_factory=dict, validation_alias=AliasPath("status", "dependencies"))
+
+    class Config:
+        """Pydantic configuration for RunAICluster."""
+
+        populate_by_name = True
+        populate_by_alias = True
+        validate_by_alias = True
 
     def is_connected(self) -> bool:
         return self.state == ClusterState.CONNECTED
@@ -70,7 +77,7 @@ class RunAICluster:
     def __repr__(self) -> str:
         """Return a string representation of the RunAICluster object."""
         return (
-            f"RunAICluster(name='{self.name}', uuid='{self.uuid}', tenant_id={self.tenant_id}, "
-            f"state='{self.state.value}', created_at='{self.created_at}', version='{self.version}', "
-            f"domain='{self.domain}')"
+            f"RunAICluster(name={self.name!r}, uuid={self.uuid!r}, tenant_id={self.tenant_id}, "
+            f"state={self.state.value!r}, created_at={self.created_at!r}, version={self.version!r}, "
+            f"domain={self.domain!r})"
         )

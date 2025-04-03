@@ -16,53 +16,80 @@
 
 from typing import Any, Dict, List, Optional
 
+from pydantic import BaseModel, Field
 
-class RunAIPVC:
+
+class PVCMeta(BaseModel):
+    """Represent the metadata of a Persistent Volume Claim (PVC)."""
+
+    id: str = Field(default="", alias="id")
+    name: str = Field(default="", alias="name")
+    kind: str = Field(default="", alias="kind")
+    scope: str = Field(default="", alias="scope")
+    cluster_id: str = Field(default="", alias="clusterId")
+    department_id: Optional[str] = Field(default=None, alias="departmentId")
+    tenant_id: int = Field(default=-1, alias="tenantId")
+    created_by: str = Field(default="", alias="createdBy")
+    created_at: str = Field(default="", alias="createdAt")
+    updated_by: str = Field(default="", alias="updatedBy")
+    updated_at: str = Field(default="", alias="updatedAt")
+    deleted_at: Optional[str] = Field(default=None, alias="deletedAt")
+    deleted_by: Optional[str] = Field(default=None, alias="deletedBy")
+    description: str = Field(default="", alias="description")
+    auto_delete: bool = Field(default=False, alias="autoDelete")
+    project_id: Optional[int] = Field(default=None, alias="projectId")
+    workload_supported_types: Optional[Dict[str, Any]] = Field(default=None, alias="workloadSupportedTypes")
+    project_name: Optional[str] = Field(default=None, alias="projectName")
+    update_count: Optional[int] = Field(default=None, alias="updateCount")
+
+
+class PVCCLAimInfo(BaseModel):
+    """Represent the claim information of a Persistent Volume Claim (PVC)."""
+
+    access_modes: Optional[Dict[str, bool]] = Field(default=None, alias="accessModes")
+    size: Optional[str] = Field(default=None, alias="size")
+    storage_class: Optional[str] = Field(default=None, alias="storageClass")
+    volume_mode: Optional[str] = Field(default=None, alias="volumeMode")
+
+
+class PVCSpec(BaseModel):
+    """Represent the specification of a Persistent Volume Claim (PVC)."""
+
+    claim_name: str = Field(default="", alias="claimName")
+    path: str = Field(default="", alias="path")
+    read_only: bool = Field(default=False, alias="readOnly")
+    ephemeral: bool = Field(default=False, alias="ephemeral")
+    existing_pvc: bool = Field(default=False, alias="existingPvc")
+    claim_info: Optional[PVCCLAimInfo] = Field(default=None, alias="claimInfo")
+
+
+class PVCClusterInfo(BaseModel):
+    """Represent the cluster information of a Persistent Volume Claim (PVC)."""
+
+    resources: List[Dict[str, Any]] = Field(default_factory=list, alias="resources")
+
+
+class RunAIPVC(BaseModel):
     """Represent a Persistent Volume Claim (PVC) in the RunAI cluster."""
 
-    def __init__(self, raw: Dict[str, Any]) -> None:
-        self._parse_meta(raw.get("meta", {}))
-        self._parse_spec(raw.get("spec", {}))
-        self.resources: List[Dict[str, Any]] = raw.get("clusterInfo", {}).get("resources", [])
+    meta: PVCMeta = Field(alias="meta")
+    spec: PVCSpec = Field(alias="spec")
+    cluster_info: PVCClusterInfo = Field(alias="clusterInfo")
 
-    def _parse_meta(self, meta: Dict[str, Any]) -> None:
-        self.name: str = meta.get("name", "")
-        self.description: str = meta.get("description", "")
-        self.scope: str = meta.get("scope", "")
-        self.cluster_id: str = meta.get("clusterId", "")
-        self.department_id: Optional[str] = meta.get("departmentId")
-        self.project_id: Optional[int] = meta.get("projectId")
-        self.auto_delete: bool = meta.get("autoDelete", False)
-        self.workload_supported_types: Optional[Dict[str, Any]] = meta.get("workloadSupportedTypes")
-        self.id: str = meta.get("id", "")
-        self.kind: str = meta.get("kind", "")
-        self.tenant_id: int = meta.get("tenantId", -1)
-        self.created_by: str = meta.get("createdBy", "")
-        self.created_at: str = meta.get("createdAt", "")
-        self.updated_by: str = meta.get("updatedBy", "")
-        self.updated_at: str = meta.get("updatedAt", "")
-        self.deleted_at: Optional[str] = meta.get("deletedAt")
-        self.deleted_by: Optional[str] = meta.get("deletedBy")
-        self.project_name: Optional[str] = meta.get("projectName")
-        self.update_count: Optional[int] = meta.get("updateCount")
+    class Config:
+        """Pydantic configuration for RunAIPVC."""
 
-    def _parse_spec(self, spec: Dict[str, Any]) -> None:
-        self.path: str = spec.get("path", "")
-        self.existing_pvc: bool = spec.get("existingPvc", False)
-        self.claim_name: str = spec.get("claimName", "")
-        self.read_only: bool = spec.get("readOnly", False)
-        self.ephemeral: bool = spec.get("ephemeral", False)
-        claim_info: Dict[str, Any] = spec.get("claimInfo", {})
-        self.access_modes: Optional[Dict[str, bool]] = claim_info.get("accessModes")
-        self.size: Optional[str] = claim_info.get("size")
-        self.storage_class: Optional[str] = claim_info.get("storageClass")
-        self.volume_mode: Optional[str] = claim_info.get("volumeMode")
+        populate_by_name = True
+        populate_by_alias = True
+        validate_by_alias = True
 
     def __repr__(self) -> str:
         """Return a string representation of the RunAIPVC object."""
         return (
-            f"RunAIPVC(name='{self.name}', id='{self.id}', created_by='{self.created_by}', "
-            f"scope='{self.scope}', cluster_id='{self.cluster_id}', project_id={self.project_id}, "
-            f"size='{self.size}', storage_class='{self.storage_class}', path='{self.path}', "
-            f"claim_name='{self.claim_name}')"
+            f"RunAIPVC(name={self.meta.name!r}, id={self.meta.id!r}, "
+            f"created_by={self.meta.created_by!r}, scope={self.meta.scope!r}, "
+            f"cluster_id={self.meta.cluster_id!r}, project_id={self.meta.project_id}, "
+            f"size={(self.spec.claim_info.size if self.spec.claim_info else None)!r}, "
+            f"storage_class={(self.spec.claim_info.storage_class if self.spec.claim_info else None)!r}, "
+            f"path={self.spec.path!r}, claim_name={self.spec.claim_name!r})"
         )

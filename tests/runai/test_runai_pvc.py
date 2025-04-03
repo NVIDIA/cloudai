@@ -58,36 +58,37 @@ def raw_pvc() -> Dict[str, Any]:
 
 
 def test_pvc_initialization(raw_pvc: Dict[str, Any]) -> None:
-    pvc = RunAIPVC(raw_pvc)
-    assert pvc.name == "test-pvc"
-    assert pvc.description == "test pvc"
-    assert pvc.scope == "namespace"
-    assert pvc.cluster_id == "cluster-001"
-    assert pvc.department_id is None
-    assert pvc.project_id == 1001
-    assert pvc.auto_delete is True
-    assert pvc.workload_supported_types is None
-    assert pvc.id == "pvc-123"
-    assert pvc.kind == "PersistentVolumeClaim"
-    assert pvc.tenant_id == 42
-    assert pvc.created_by == "user-1"
-    assert pvc.created_at == "2024-01-01T00:00:00Z"
-    assert pvc.updated_by == "user-2"
-    assert pvc.updated_at == "2024-01-02T00:00:00Z"
-    assert pvc.deleted_at is None
-    assert pvc.deleted_by is None
-    assert pvc.project_name is None
-    assert pvc.update_count is None
-    assert pvc.claim_name == "claim-001"
-    assert pvc.path == "/mnt/data"
-    assert pvc.read_only is False
-    assert pvc.ephemeral is True
-    assert pvc.existing_pvc is True
-    assert pvc.access_modes == {"ReadWriteOnce": True}
-    assert pvc.size == "10Gi"
-    assert pvc.storage_class == "standard"
-    assert pvc.volume_mode == "Filesystem"
-    assert pvc.resources == [{"cpu": "4", "memory": "16Gi"}]
+    pvc = RunAIPVC(**raw_pvc)
+    assert pvc.meta.name == "test-pvc"
+    assert pvc.meta.description == "test pvc"
+    assert pvc.meta.scope == "namespace"
+    assert pvc.meta.cluster_id == "cluster-001"
+    assert pvc.meta.department_id is None
+    assert pvc.meta.project_id == 1001
+    assert pvc.meta.auto_delete is True
+    assert pvc.meta.workload_supported_types is None
+    assert pvc.meta.id == "pvc-123"
+    assert pvc.meta.kind == "PersistentVolumeClaim"
+    assert pvc.meta.tenant_id == 42
+    assert pvc.meta.created_by == "user-1"
+    assert pvc.meta.created_at == "2024-01-01T00:00:00Z"
+    assert pvc.meta.updated_by == "user-2"
+    assert pvc.meta.updated_at == "2024-01-02T00:00:00Z"
+    assert pvc.meta.deleted_at is None
+    assert pvc.meta.deleted_by is None
+    assert pvc.meta.project_name is None
+    assert pvc.meta.update_count is None
+    assert pvc.spec.claim_name == "claim-001"
+    assert pvc.spec.path == "/mnt/data"
+    assert pvc.spec.read_only is False
+    assert pvc.spec.ephemeral is True
+    assert pvc.spec.existing_pvc is True
+    if pvc.spec.claim_info:
+        assert pvc.spec.claim_info.access_modes == {"ReadWriteOnce": True}
+        assert pvc.spec.claim_info.size == "10Gi"
+        assert pvc.spec.claim_info.storage_class == "standard"
+        assert pvc.spec.claim_info.volume_mode == "Filesystem"
+    assert pvc.cluster_info.resources == [{"cpu": "4", "memory": "16Gi"}]
 
 
 @pytest.mark.parametrize(
@@ -101,12 +102,12 @@ def test_pvc_initialization(raw_pvc: Dict[str, Any]) -> None:
 def test_pvc_optional_fields(raw_pvc: Dict[str, Any], optional_fields: Dict[str, Any]) -> None:
     raw_pvc_mod = raw_pvc.copy()
     raw_pvc_mod["spec"] = {**raw_pvc["spec"], **optional_fields}
-    pvc = RunAIPVC(raw_pvc_mod)
+    pvc = RunAIPVC(**raw_pvc_mod)
     assert isinstance(pvc, RunAIPVC)
 
 
 def test_pvc_repr(raw_pvc: Dict[str, Any]) -> None:
-    pvc = RunAIPVC(raw_pvc)
+    pvc = RunAIPVC(**raw_pvc)
     expected = (
         "RunAIPVC(name='test-pvc', id='pvc-123', created_by='user-1', "
         "scope='namespace', cluster_id='cluster-001', project_id=1001, "

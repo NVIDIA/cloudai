@@ -42,7 +42,7 @@ def runai_event_data(involved_object_data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def test_involved_object_initialization(involved_object_data: Dict[str, Any]) -> None:
-    obj = InvolvedObject(involved_object_data)
+    obj = InvolvedObject(**involved_object_data)
     assert obj.uid == involved_object_data["uid"]
     assert obj.kind == involved_object_data["kind"]
     assert obj.name == involved_object_data["name"]
@@ -50,7 +50,7 @@ def test_involved_object_initialization(involved_object_data: Dict[str, Any]) ->
 
 
 def test_involved_object_defaults() -> None:
-    obj = InvolvedObject({})
+    obj = InvolvedObject()
     assert obj.uid == ""
     assert obj.kind == ""
     assert obj.name == ""
@@ -58,7 +58,10 @@ def test_involved_object_defaults() -> None:
 
 
 def test_runai_event_initialization(runai_event_data: Dict[str, Any]) -> None:
-    event = RunAIEvent(runai_event_data)
+    runai_event_data["createdAt"] = datetime.fromisoformat(runai_event_data["createdAt"].replace("Z", "+00:00"))
+    runai_event_data["involvedObject"] = InvolvedObject(**runai_event_data["involvedObject"])
+
+    event = RunAIEvent(**runai_event_data)
     expected_datetime = datetime(2025, 4, 1, 12, 0, 0, tzinfo=timezone.utc)
     assert event.created_at == expected_datetime
     assert event.id == runai_event_data["id"]
@@ -68,14 +71,17 @@ def test_runai_event_initialization(runai_event_data: Dict[str, Any]) -> None:
     assert event.reason == runai_event_data["reason"]
     assert event.source == runai_event_data["source"]
     assert isinstance(event.involved_object, InvolvedObject)
-    assert event.involved_object.uid == runai_event_data["involvedObject"]["uid"]
+    assert event.involved_object.uid == runai_event_data["involvedObject"].uid
 
 
 @pytest.mark.parametrize(
     "field,expected", [("id", ""), ("type", ""), ("cluster_id", ""), ("message", ""), ("reason", ""), ("source", "")]
 )
 def test_runai_event_defaults(field: str, expected: str) -> None:
-    minimal_data = {"createdAt": "2025-04-01T12:00:00Z"}
-    event = RunAIEvent(minimal_data)
+    minimal_data = {
+        "createdAt": datetime.fromisoformat("2025-04-01T12:00:00Z".replace("Z", "+00:00")),
+        "involvedObject": {},
+    }
+    event = RunAIEvent(**minimal_data)
     assert getattr(event, field) == expected
     assert isinstance(event.involved_object, InvolvedObject)

@@ -57,7 +57,7 @@ def sample_node_data() -> dict:
 
 
 def test_runai_node_properties(sample_node_data) -> None:
-    node = RunAINode(sample_node_data)
+    node = RunAINode(**sample_node_data)
 
     assert node.status == NodeStatus.READY
     assert node.conditions == sample_node_data["conditions"]
@@ -75,7 +75,7 @@ def test_runai_node_properties(sample_node_data) -> None:
 
 
 def test_runai_node_repr(sample_node_data) -> None:
-    node = RunAINode(sample_node_data)
+    node = RunAINode(**sample_node_data)
     text = repr(node)
     assert "RunAINode(name='node-1'" in text
     assert "gpu_count=8" in text

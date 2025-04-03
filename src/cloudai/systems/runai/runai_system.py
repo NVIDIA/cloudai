@@ -84,13 +84,13 @@ class RunAISystem(BaseModel, System):
     def is_job_running(self, job: BaseJob) -> bool:
         """Return True if the specified job is running in the RunAI cluster."""
         training_data = self.api_client.get_training(str(job.id))
-        training = RunAITraining.from_dict(training_data)
+        training = RunAITraining(**training_data)
         return training.actual_phase == ActualPhase.RUNNING
 
     def is_job_completed(self, job: BaseJob) -> bool:
         """Return True if the specified job is completed in the RunAI cluster."""
         training_data = self.api_client.get_training(str(job.id))
-        training = RunAITraining.from_dict(training_data)
+        training = RunAITraining(**training_data)
         return training.actual_phase == ActualPhase.COMPLETED
 
     def kill(self, job: BaseJob) -> None:
@@ -105,24 +105,24 @@ class RunAISystem(BaseModel, System):
     def get_clusters(self) -> List[RunAICluster]:
         """Fetch and return clusters as RunAICluster objects."""
         clusters_data = self.api_client.get_clusters()
-        return [RunAICluster(data) for data in clusters_data.get("clusters", [])]
+        return [RunAICluster(**data) for data in clusters_data.get("clusters", [])]
 
     # ============================ Projects ============================
     def get_projects(self) -> List[RunAIProject]:
         """Fetch and return projects as RunAIProject objects."""
         projects_data = self.api_client.get_projects()
-        projects = [RunAIProject(data) for data in projects_data.get("projects", [])]
+        projects = [RunAIProject(**data) for data in projects_data.get("projects", [])]
         return [project for project in projects if project.created_by == self.user_email]
 
     def create_project(self, project_data: Dict[str, Any]) -> RunAIProject:
         """Create a project and return it as a RunAIProject object."""
         project_data = self.api_client.create_project(project_data)
-        return RunAIProject(project_data)
+        return RunAIProject(**project_data)
 
     def update_project(self, project_id: str, project_data: Dict[str, Any]) -> RunAIProject:
         """Update a project and return the updated RunAIProject object."""
         updated_data = self.api_client.update_project(project_id, project_data)
-        return RunAIProject(updated_data)
+        return RunAIProject(**updated_data)
 
     def delete_project(self, project_id: str) -> None:
         """Delete a project by its ID."""
@@ -132,12 +132,12 @@ class RunAISystem(BaseModel, System):
     def get_pvc_assets(self) -> List[RunAIPVC]:
         """Fetch and return PVC assets as RunAIPVC objects."""
         pvc_data = self.api_client.get_pvc_assets()
-        return [RunAIPVC(raw=pvc) for pvc in pvc_data.get("entries", [])]
+        return [RunAIPVC(**pvc) for pvc in pvc_data.get("entries", [])]
 
     def create_pvc_asset(self, payload: Dict[str, Any]) -> RunAIPVC:
         """Create a PVC asset and return it as a RunAIPVC object."""
         pvc_data = self.api_client.create_pvc_asset(payload)
-        return RunAIPVC(raw=pvc_data)
+        return RunAIPVC(**pvc_data)
 
     def delete_pvc_asset(self, asset_id: str) -> None:
         """Delete a PVC asset by its ID."""
@@ -151,7 +151,7 @@ class RunAISystem(BaseModel, System):
         response = self.api_client.get_workload_events(workload_id, offset=offset, limit=limit, sort_order=sort_order)
         events_data = response.get("events", [])
 
-        events: List[RunAIEvent] = [RunAIEvent(event_data) for event_data in events_data]
+        events: List[RunAIEvent] = [RunAIEvent(**event_data) for event_data in events_data]
 
         with output_file_path.open("w") as file:
             for event in events:
@@ -161,7 +161,7 @@ class RunAISystem(BaseModel, System):
     def create_training(self, training_data: Dict[str, Any]) -> RunAITraining:
         """Create a training and return it as a RunAITraining object."""
         training_data = self.api_client.create_training(training_data)
-        return RunAITraining.from_dict(training_data)
+        return RunAITraining(**training_data)
 
     def delete_training(self, workload_id: str) -> None:
         """Delete a training by its ID."""
@@ -183,11 +183,11 @@ class RunAISystem(BaseModel, System):
     async def store_logs(self, workload_id: str, output_file_path: Path):
         """Store logs for a given workload."""
         training_data = self.api_client.get_training(workload_id)
-        training = RunAITraining.from_dict(training_data)
+        training = RunAITraining(**training_data)
         cluster_id = training.cluster_id
 
         projects_data = self.api_client.get_projects()
-        projects = [RunAIProject(data) for data in projects_data.get("projects", [])]
+        projects = [RunAIProject(**data) for data in projects_data.get("projects", [])]
         project = next((p for p in projects if p.id == self.project_id), None)
 
         if not project:
@@ -195,7 +195,7 @@ class RunAISystem(BaseModel, System):
             return
 
         clusters_data = self.api_client.get_clusters()
-        clusters = [RunAICluster(data) for data in clusters_data]
+        clusters = [RunAICluster(**data) for data in clusters_data]
         cluster = next((c for c in clusters if c.uuid == cluster_id), None)
 
         if not cluster:

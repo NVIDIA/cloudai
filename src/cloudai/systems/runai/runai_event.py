@@ -15,35 +15,41 @@
 # limitations under the License.
 
 from datetime import datetime
-from typing import Any, Dict
+
+from pydantic import BaseModel, Field
 
 
-class InvolvedObject:
+class InvolvedObject(BaseModel):
     """Represent an object involved in a RunAI event."""
 
-    def __init__(self, data: Dict[str, Any]) -> None:
-        self.uid: str = data.get("uid", "")
-        self.kind: str = data.get("kind", "")
-        self.name: str = data.get("name", "")
-        self.namespace: str = data.get("namespace", "")
+    uid: str = Field(default="", alias="uid")
+    kind: str = Field(default="", alias="kind")
+    name: str = Field(default="", alias="name")
+    namespace: str = Field(default="", alias="namespace")
 
     def __repr__(self) -> str:
         """Return a string representation of the InvolvedObject."""
         return f"InvolvedObject(uid={self.uid}, kind={self.kind}, name={self.name}, namespace={self.namespace})"
 
 
-class RunAIEvent:
+class RunAIEvent(BaseModel):
     """Represent a RunAI event."""
 
-    def __init__(self, data: Dict[str, Any]) -> None:
-        self.created_at: datetime = datetime.fromisoformat(data["createdAt"].replace("Z", "+00:00"))
-        self.id: str = data.get("id", "")
-        self.type: str = data.get("type", "")
-        self.cluster_id: str = data.get("clusterId", "")
-        self.message: str = data.get("message", "")
-        self.reason: str = data.get("reason", "")
-        self.source: str = data.get("source", "")
-        self.involved_object: InvolvedObject = InvolvedObject(data.get("involvedObject", {}))
+    created_at: datetime = Field(alias="createdAt")
+    id: str = Field(default="", alias="id")
+    type: str = Field(default="", alias="type")
+    cluster_id: str = Field(default="", alias="clusterId")
+    message: str = Field(default="", alias="message")
+    reason: str = Field(default="", alias="reason")
+    source: str = Field(default="", alias="source")
+    involved_object: InvolvedObject = Field(default_factory=InvolvedObject, alias="involvedObject")
+
+    class Config:
+        """Pydantic configuration for RunAIEvent."""
+
+        populate_by_name = True
+        populate_by_alias = True
+        validate_by_alias = True
 
     def __repr__(self) -> str:
         """Return a string representation of the RunAIEvent."""

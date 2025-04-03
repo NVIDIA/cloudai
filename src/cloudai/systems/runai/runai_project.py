@@ -17,6 +17,8 @@
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from pydantic import BaseModel, Field
+
 
 class ProjectPhase(Enum):
     """Enumeration of possible project phases."""
@@ -25,39 +27,44 @@ class ProjectPhase(Enum):
     CREATING = "creating"
 
 
-class RunAIProject:
+class RunAIProject(BaseModel):
     """Represent a RunAI Project."""
 
-    def __init__(self, data: Dict[str, Any]) -> None:
-        """Initialize project from a project dictionary."""
-        self.description: str = data.get("description", "")
-        self.scheduling_rules: Optional[Dict[str, Any]] = data.get("schedulingRules", {})
-        self.default_node_pools: Optional[List[str]] = data.get("defaultNodePools", [])
-        self.node_types: Dict[str, Any] = data.get("nodeTypes", {})
-        self.resources: List[Dict[str, Any]] = data.get("resources", [])
-        self.name: str = data.get("name", "")
-        self.cluster_id: str = data.get("clusterId", "")
-        self.id: str = data.get("id", "")
-        self.parent_id: str = data.get("parentId", "")
-        self.requested_namespace: Optional[str] = data.get("requestedNamespace")
-        self.enforce_runai_scheduler: bool = data.get("enforceRunaiScheduler", False)
-        self.status: Dict[str, Any] = data.get("status", {})
-        self.total_resources: Dict[str, Any] = data.get("totalResources", {})
-        self.created_at: str = data.get("createdAt", "")
-        self.updated_at: str = data.get("updatedAt", "")
-        self.created_by: str = data.get("createdBy", "")
-        self.updated_by: str = data.get("updatedBy", "")
-        self.parent: Optional[Dict[str, Any]] = data.get("parent")
-        self.effective: Dict[str, Any] = data.get("effective", {})
-        self.overtime_data: Dict[str, Any] = data.get("overtimeData", {})
-        self.range_24h_data: Optional[Dict[str, Any]] = self.overtime_data.get("range24hData")
-        self.range_7d_data: Optional[Dict[str, Any]] = self.overtime_data.get("range7dData")
-        self.range_30d_data: Optional[Dict[str, Any]] = self.overtime_data.get("range30dData")
+    description: str = Field(default="", alias="description")
+    scheduling_rules: Optional[Dict[str, Any]] = Field(default_factory=dict, alias="schedulingRules")
+    default_node_pools: Optional[List[str]] = Field(default_factory=list, alias="defaultNodePools")
+    node_types: Dict[str, Any] = Field(default_factory=dict, alias="nodeTypes")
+    resources: List[Dict[str, Any]] = Field(default_factory=list, alias="resources")
+    name: str = Field(default="", alias="name")
+    cluster_id: str = Field(default="", alias="clusterId")
+    id: str = Field(default="", alias="id")
+    parent_id: str = Field(default="", alias="parentId")
+    requested_namespace: Optional[str] = Field(default=None, alias="requestedNamespace")
+    enforce_runai_scheduler: bool = Field(default=False, alias="enforceRunaiScheduler")
+    status: Dict[str, Any] = Field(default_factory=dict, alias="status")
+    total_resources: Dict[str, Any] = Field(default_factory=dict, alias="totalResources")
+    created_at: str = Field(default="", alias="createdAt")
+    updated_at: str = Field(default="", alias="updatedAt")
+    created_by: str = Field(default="", alias="createdBy")
+    updated_by: str = Field(default="", alias="updatedBy")
+    parent: Optional[Dict[str, Any]] = Field(default=None, alias="parent")
+    effective: Dict[str, Any] = Field(default_factory=dict, alias="effective")
+    overtime_data: Dict[str, Any] = Field(default_factory=dict, alias="overtimeData")
+    range_24h_data: Optional[Dict[str, Any]] = Field(default=None, alias="range24hData")
+    range_7d_data: Optional[Dict[str, Any]] = Field(default=None, alias="range7dData")
+    range_30d_data: Optional[Dict[str, Any]] = Field(default=None, alias="range30dData")
+
+    class Config:
+        """Pydantic configuration for RunAIProject."""
+
+        populate_by_name = True
+        populate_by_alias = True
+        validate_by_alias = True
 
     def __repr__(self) -> str:
         """Prettify project output."""
         phase: str = self.status.get("phase", "")
         return (
-            f"RunAIProject(name='{self.name}', id='{self.id}', cluster_id='{self.cluster_id}', "
-            f"created_by='{self.created_by}', phase='{phase}')"
+            f"RunAIProject(name={self.name!r}, id={self.id!r}, cluster_id={self.cluster_id!r}, "
+            f"created_by={self.created_by!r}, phase={phase!r})"
         )

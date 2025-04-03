@@ -56,7 +56,7 @@ def example_data() -> Dict[str, Any]:
 
 
 def test_project_initialization(example_data: Dict[str, Any]) -> None:
-    project = RunAIProject(example_data)
+    project = RunAIProject(**example_data)
     assert project.name == "organization1"
     assert project.cluster_id == "71f69d83-ba66-4822-adf5-55ce55efd210"
     assert project.description == "string"
@@ -88,7 +88,7 @@ def test_project_initialization(example_data: Dict[str, Any]) -> None:
 
 
 def test_repr_output(example_data: Dict[str, Any]) -> None:
-    project = RunAIProject(example_data)
+    project = RunAIProject(**example_data)
     output = repr(project)
     assert "RunAIProject" in output
     assert "organization1" in output

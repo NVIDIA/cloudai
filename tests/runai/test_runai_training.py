@@ -54,7 +54,7 @@ def training_data() -> Dict[str, Any]:
 
 
 def test_training_initialization(training_data: Dict[str, Any]) -> None:
-    training = RunAITraining.from_dict(training_data)
+    training = RunAITraining(**training_data)
     assert training.name == training_data["name"]
     assert training.requested_name == training_data["requestedName"]
     assert training.workload_id == training_data["workloadId"]
@@ -79,13 +79,13 @@ def test_training_initialization(training_data: Dict[str, Any]) -> None:
 def test_training_phases(training_data: Dict[str, Any], desired_phase: str, actual_phase: str) -> None:
     training_data["desiredPhase"] = desired_phase
     training_data["actualPhase"] = actual_phase
-    training = RunAITraining.from_dict(training_data)
+    training = RunAITraining(**training_data)
     assert training.desired_phase == WorkloadPhase(desired_phase)
     assert training.actual_phase == ActualPhase(actual_phase)
 
 
 def test_training_specification(training_data: Dict[str, Any]) -> None:
-    training = RunAITraining.from_dict(training_data)
+    training = RunAITraining(**training_data)
     spec = training.spec
     assert spec is not None
     assert spec.command == training_data["spec"]["command"]
