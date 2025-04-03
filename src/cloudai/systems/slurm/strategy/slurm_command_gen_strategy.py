@@ -167,7 +167,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             hook_dir.mkdir(parents=True, exist_ok=True)
             tr.output_path = hook_dir
 
-            srun_command = self.gen_srun_command(tr)
+            srun_command = tr.test.test_template.gen_srun_command(tr)
             srun_command_with_output = srun_command.replace(
                 "srun ", f"srun --output={hook_dir / 'stdout.txt'} --error={hook_dir / 'stderr.txt'} "
             )
@@ -176,7 +176,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             success_var = f"SUCCESS_{idx}"
             success_vars.append(success_var)
 
-            success_check_command = self.gen_srun_success_check(tr)
+            success_check_command = tr.test.test_template.gen_srun_success_check(tr)
             pre_test_commands.append(f"{success_var}=$({success_check_command})")
 
         combined_success_var = " && ".join([f"[ ${var} -eq 1 ]" for var in success_vars])
@@ -206,7 +206,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             hook_dir.mkdir(parents=True, exist_ok=True)
             tr.output_path = hook_dir
 
-            srun_command = self.gen_srun_command(tr)
+            srun_command = tr.test.test_template.gen_srun_command(tr)
             srun_command_with_output = srun_command.replace(
                 "srun ", f"srun --output={hook_dir / 'stdout.txt'} --error={hook_dir / 'stderr.txt'} "
             )

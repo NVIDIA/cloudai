@@ -132,140 +132,122 @@ def test_time_limit(time_limit: Optional[str], strategy_fixture: SlurmCommandGen
 
 
 @pytest.mark.parametrize(
-    "pre_test_names, post_test_names, expected_substrings",
+    "pre_test,post_test,expected_script_lines",
     [
-        # Case 1: No pre_test, no post_test
+        # No pre_test, no post_test
+        (None, None, ["srun"]),
+        # One pre_test, no post_test
         (
-            None,
+            [Mock(test=Mock(name="test1", test_template=Mock()))],
             None,
             [
-                "srun --export=",
-            ],
-        ),
-        # Case 2: One pre_test, no post_test
-        (
-            ["test1"],
-            None,
-            [
-                "/pre_test/test1/stdout.txt",
+                "pre_test",
                 "PRE_TEST_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && echo 1 || echo 0 )",
                 "if [ $PRE_TEST_SUCCESS -eq 1 ]; then",
-                "srun --export=",
+                "    srun",
                 "fi",
             ],
         ),
-        # Case 3: No pre_test, one post_test
+        # No pre_test, one post_test
         (
             None,
-            ["test2"],
+            [Mock(test=Mock(name="test2", test_template=Mock()))],
             [
-                "srun --export=",
-                "/post_test/test2/stdout.txt",
+                "srun",
+                "post_test",
             ],
         ),
-        # Case 4: One pre_test, one post_test
+        # One pre_test, one post_test
         (
-            ["test1"],
-            ["test2"],
+            [Mock(test=Mock(name="test1", test_template=Mock()))],
+            [Mock(test=Mock(name="test2", test_template=Mock()))],
             [
-                "/pre_test/test1/stdout.txt",
+                "pre_test",
                 "PRE_TEST_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && echo 1 || echo 0 )",
                 "if [ $PRE_TEST_SUCCESS -eq 1 ]; then",
-                "srun --export=",
-                "/post_test/test2/stdout.txt",
+                "    srun",
+                "    post_test",
                 "fi",
             ],
         ),
-        # Case 5: Multiple pre_tests, multiple post_tests
+        # Multiple pre_tests, multiple post_tests
         (
-            ["test1", "test2"],
-            ["test3", "test4"],
+            [Mock(test=Mock(name="test1", test_template=Mock())), Mock(test=Mock(name="test2", test_template=Mock()))],
+            [Mock(test=Mock(name="test3", test_template=Mock())), Mock(test=Mock(name="test4", test_template=Mock()))],
             [
-                "/pre_test/test1/stdout.txt",
-                "/pre_test/test2/stdout.txt",
+                "pre_test",
+                "pre_test",
                 "PRE_TEST_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && [ $SUCCESS_1 -eq 1 ] && echo 1 || echo 0 )",
                 "if [ $PRE_TEST_SUCCESS -eq 1 ]; then",
-                "srun --export=",
-                "/post_test/test3/stdout.txt",
-                "/post_test/test4/stdout.txt",
+                "    srun",
+                "    post_test",
+                "    post_test",
                 "fi",
             ],
         ),
-        # Case 6: Multiple pre_tests, no post_test
+        # Multiple pre_tests, no post_test
         (
-            ["test1", "test2"],
+            [Mock(test=Mock(name="test1", test_template=Mock())), Mock(test=Mock(name="test2", test_template=Mock()))],
             None,
             [
-                "/pre_test/test1/stdout.txt",
-                "/pre_test/test2/stdout.txt",
+                "pre_test",
+                "pre_test",
                 "PRE_TEST_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && [ $SUCCESS_1 -eq 1 ] && echo 1 || echo 0 )",
                 "if [ $PRE_TEST_SUCCESS -eq 1 ]; then",
-                "srun --export=",
+                "    srun",
                 "fi",
             ],
         ),
-        # Case 7: No pre_test, multiple post_tests
+        # No pre_test, multiple post_tests
         (
             None,
-            ["test3", "test4"],
+            [Mock(test=Mock(name="test3", test_template=Mock())), Mock(test=Mock(name="test4", test_template=Mock()))],
             [
-                "srun --export=",
-                "/post_test/test3/stdout.txt",
-                "/post_test/test4/stdout.txt",
+                "srun",
+                "post_test",
+                "post_test",
             ],
         ),
-        # Case 8: Multiple pre_tests, single post_test
+        # Multiple pre_tests, single post_test
         (
-            ["test1", "test2"],
-            ["test3"],
+            [Mock(test=Mock(name="test1", test_template=Mock())), Mock(test=Mock(name="test2", test_template=Mock()))],
+            [Mock(test=Mock(name="test3", test_template=Mock()))],
             [
-                "/pre_test/test1/stdout.txt",
-                "/pre_test/test2/stdout.txt",
+                "pre_test",
+                "pre_test",
                 "PRE_TEST_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && [ $SUCCESS_1 -eq 1 ] && echo 1 || echo 0 )",
                 "if [ $PRE_TEST_SUCCESS -eq 1 ]; then",
-                "srun --export=",
-                "/post_test/test3/stdout.txt",
+                "    srun",
+                "    post_test",
                 "fi",
             ],
         ),
     ],
 )
 def test_pre_test_post_test_combinations(
-    strategy_fixture: "SlurmCommandGenStrategy",
+    strategy_fixture: SlurmCommandGenStrategy,
     testrun_fixture: TestRun,
-    pre_test_names,
-    post_test_names,
-    expected_substrings,
+    pre_test,
+    post_test,
+    expected_script_lines,
 ):
-    if pre_test_names:
-        pre_test_runs = []
-        for name in pre_test_names:
-            run = Mock()
-            run.test = Mock(test_template=Mock())
-            run.test.name = name
-            run.test.test_definition = testrun_fixture.test.test_definition
-            run.test.extra_env_vars = {}
-            run.test.cmd_args = {}
-            run.configure_mock(num_nodes=testrun_fixture.num_nodes, nodes=testrun_fixture.nodes)
-            pre_test_runs.append(run)
-        testrun_fixture.pre_test = Mock(spec=TestScenario)
-        testrun_fixture.pre_test.test_runs = pre_test_runs
-        testrun_fixture.pre_test.cmd_args = {}
-        testrun_fixture.pre_test.extra_env_vars = {}
+    testrun_fixture.pre_test = Mock(spec=TestScenario) if pre_test else None
+    testrun_fixture.post_test = Mock(spec=TestScenario) if post_test else None
 
-    if post_test_names:
-        post_test_runs = []
-        for name in post_test_names:
-            run = Mock()
-            run.test = Mock(test_template=Mock())
-            run.test.name = name
-            run.test.test_definition = testrun_fixture.test.test_definition
-            run.test.extra_env_vars = {}
-            run.test.cmd_args = {}
-            run.configure_mock(num_nodes=testrun_fixture.num_nodes, nodes=testrun_fixture.nodes)
-            post_test_runs.append(run)
+    if pre_test is not None:
+        testrun_fixture.pre_test = Mock(spec=TestScenario)
+        testrun_fixture.pre_test.test_runs = pre_test
+        for idx, run in enumerate(pre_test):
+            run.test.test_template.gen_srun_success_check.return_value = "pre_test"
+            run.test.test_template.gen_srun_command.return_value = "srun"
+            run.test.name = f"test{idx+1}"
+
+    if post_test is not None:
         testrun_fixture.post_test = Mock(spec=TestScenario)
-        testrun_fixture.post_test.test_runs = post_test_runs
+        testrun_fixture.post_test.test_runs = post_test
+        for idx, run in enumerate(post_test):
+            run.test.test_template.gen_srun_command.return_value = "post_test"
+            run.test.name = f"test{idx+1}"
 
     sbatch_command = strategy_fixture.gen_exec_command(testrun_fixture)
     script_file_path = sbatch_command.split()[-1]
@@ -273,8 +255,8 @@ def test_pre_test_post_test_combinations(
     with open(script_file_path, "r") as script_file:
         script_content = script_file.read()
 
-    for substring in expected_substrings:
-        assert substring in script_content, f"Expected substring '{substring}' in generated script but it was missing."
+    for expected_line in expected_script_lines:
+        assert expected_line in script_content, f"Expected '{expected_line}' in generated script but it was missing."
 
 
 def test_default_container_mounts(strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun):
