@@ -386,3 +386,15 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             formatted_value = str(value["default"]) if isinstance(value, dict) and "default" in value else str(value)
             formatted_vars.append(f"export {key}={formatted_value}")
         return "\n".join(formatted_vars)
+
+    def gen_srun_success_check(self, tr: TestRun) -> str:
+        """
+        Generate the Slurm success check command to verify if a test run was successful.
+
+        Args:
+            tr (TestRun): Contains the test and its run-specific configurations.
+
+        Returns:
+            str: The generated command to check the success of the test run.
+        """
+        return ""
