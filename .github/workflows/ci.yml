@@ -79,7 +79,7 @@ jobs:
 
           python -m pytest --dead-fixtures
 
-          python -m pytest -m ci_only
+          python -m pytest -vv -m ci_only
 
       - name: Test local installation
         run: |
