@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+from typing import Optional, Union, List
 
 from cloudai import CmdArgs, DockerImage, Installable, TestDefinition
 
@@ -22,6 +22,9 @@ class LSFCmdLauncherCmdArgs(CmdArgs):
     """Command line arguments for a generic LSF Command Launcher test."""
 
     cmd: str
+    hybrid_parallel_config: Optional[Union[str, List[str]]] = None
+    chunk_size: Optional[Union[str, List[str]]] = None
+
 
 class LSFCommandLauncherTestDefinition(TestDefinition):
     """Test definition for a generic LSF Command Launcher test."""

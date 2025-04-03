@@ -41,6 +41,7 @@ from ..workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDef
 from ..workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
 from ..workloads.slurm_container import SlurmContainerReportGenerationStrategy, SlurmContainerTestDefinition
 from ..workloads.ucc_test import UCCTestDefinition, UCCTestReportGenerationStrategy
+from ..workloads.lsf_command_launcher import LSFCommandLauncherTestDefinition, LSFCmdLauncherReportGenerationStrategy
 from .exceptions import TestScenarioParsingError, format_validation_error
 from .report_generation_strategy import ReportGenerationStrategy
 from .test import Test, TestDefinition
@@ -58,6 +59,7 @@ DEFAULT_REPORTERS: dict[Type[TestDefinition], Set[Type[ReportGenerationStrategy]
     SleepTestDefinition: {SleepReportGenerationStrategy},
     SlurmContainerTestDefinition: {SlurmContainerReportGenerationStrategy},
     UCCTestDefinition: {UCCTestReportGenerationStrategy},
+    LSFCommandLauncherTestDefinition: {LSFCmdLauncherReportGenerationStrategy},
 }
 
 

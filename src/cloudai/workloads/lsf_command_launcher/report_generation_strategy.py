@@ -17,17 +17,33 @@
 import re
 
 from cloudai import ReportGenerationStrategy
+from typing import ClassVar
+from cloudai._core.test_scenario import METRIC_ERROR
 
 
 class LSFCmdLauncherReportGenerationStrategy(ReportGenerationStrategy):
-        def can_handle_directory(self) -> bool:
-            stdout_path = self.test_run.output_path / "stdout.txt"
-            if stdout_path.exists():
-                with stdout_path.open("r") as file:
-                    if re.search(
-                        r"Training epoch \d+, iteration \d+/\d+ | lr: [\d.]+ | global_batch_size: \d+ | global_step: \d+ | "
-                        r"reduced_train_loss: [\d.]+ | train_step_timing in s: [\d.]+",
-                        file.read(),
-                    ):
-                        return True
-            return False
+    """Strategy for generating reports from LSF command launcher directories."""
+
+    metrics: ClassVar[list[str]] = ["default", "step-time"]
+
+    def can_handle_directory(self) -> bool:
+        stdout_path = self.test_run.output_path / "stdout.txt"
+        if stdout_path.exists():
+            with stdout_path.open("r") as file:
+                if re.search(
+                    r"Training epoch \d+, iteration \d+/\d+ | lr: [\d.]+ | global_batch_size: \d+ | global_step: \d+ | "
+                    r"reduced_train_loss: [\d.]+ | train_step_timing in s: [\d.]+",
+                    file.read(),
+                ):
+                    return True
+        return False
+    
+    def get_metric(self, metric: str) -> float:
+        if metric not in {"default", "step-time"}:
+            return METRIC_ERROR
+
+        return 0.0
+    
+    def generate_report(self) -> None:
+        """Generate a report for the test run."""
+        pass
