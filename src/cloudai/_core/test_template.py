@@ -91,6 +91,8 @@ class TestTemplate:
         return self.command_gen_strategy.gen_exec_command(tr)
 
     def gen_srun_command(self, tr: TestRun) -> str:
+        from ..systems.slurm.strategy.slurm_command_gen_strategy import SlurmCommandGenStrategy
+
         """
         Generate an Slurm srun command for a test using the provided command generation strategy.
 
@@ -105,9 +107,14 @@ class TestTemplate:
                 "command_gen_strategy is missing. Ensure the strategy is registered in the Registry "
                 "by calling the appropriate registration function for the system type."
             )
-        return self.command_gen_strategy.gen_srun_command(tr)
+        if isinstance(self.command_gen_strategy, SlurmCommandGenStrategy):
+            return self.command_gen_strategy.gen_srun_command(tr)
+        else:
+            raise TypeError("command_gen_strategy is not of type SlurmCommandGenStrategy")
 
     def gen_srun_success_check(self, tr: TestRun) -> str:
+        from ..systems.slurm.strategy.slurm_command_gen_strategy import SlurmCommandGenStrategy
+
         """
         Generate a Slurm success check command for a test using the provided command generation strategy.
 
@@ -122,7 +129,10 @@ class TestTemplate:
                 "command_gen_strategy is missing. Ensure the strategy is registered in the Registry "
                 "by calling the appropriate registration function for the system type."
             )
-        return self.command_gen_strategy.gen_srun_success_check(tr)
+        if isinstance(self.command_gen_strategy, SlurmCommandGenStrategy):
+            return self.command_gen_strategy.gen_srun_success_check(tr)
+        else:
+            raise TypeError("command_gen_strategy is not of type SlurmCommandGenStrategy")
 
     def gen_json(self, tr: TestRun) -> Dict[Any, Any]:
         """
