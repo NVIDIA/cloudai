@@ -80,6 +80,7 @@ def test_slurm(tmp_path: Path, scenario: Dict):
         test_scenario=test_scenario_path,
         output_dir=tmp_path,
         enable_cache_without_check=False,
+        log_file="debug.log",
     )
     with (
         patch("asyncio.sleep", return_value=None),
