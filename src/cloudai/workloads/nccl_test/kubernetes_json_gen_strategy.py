@@ -144,7 +144,9 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
         env_list = [{"name": "OMPI_ALLOW_RUN_AS_ROOT", "value": "1"}]
         # Include additional environment variables from env_vars
         for key, value in env_vars.items():
-            env_list.append({"name": key, "value": value})  # pyright: ignore [reportArgumentType]
+            if isinstance(value, list):
+                value = ",".join(value)
+            env_list.append({"name": key, "value": value})
         return env_list
 
     def _generate_launcher_command(

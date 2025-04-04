@@ -29,8 +29,10 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         mounts: list[str] = []
         env = tr.test.extra_env_vars | self.system.global_env_vars
         if "NCCL_TOPO_FILE" in env:
-            nccl_topo_file = Path(env["NCCL_TOPO_FILE"]).resolve()  # pyright: ignore [reportArgumentType]
-            mounts.append(f"{nccl_topo_file}:{nccl_topo_file}")
+            nccl_topo_file = env["NCCL_TOPO_FILE"]
+            if isinstance(nccl_topo_file, str):
+                nccl_topo_file_path = Path(nccl_topo_file).resolve()
+                mounts.append(f"{nccl_topo_file_path}:{nccl_topo_file_path}")
         return mounts
 
     def _parse_slurm_args(
