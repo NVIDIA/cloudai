@@ -335,7 +335,9 @@ class TestReportMetricsDSE:
         test_scenario_parser.test_mapping["nccl"] = Test(test_definition=nccl, test_template=Mock())
         return test_scenario_parser
 
-    def test_raises_on_unknown_metric(self, ts_parser: TestScenarioParser, test_info: _TestRunTOML):
+    def test_raises_on_unknown_metric(
+        self, ts_parser: TestScenarioParser, test_info: _TestRunTOML, caplog: pytest.LogCaptureFixture
+    ):
         tdef = ts_parser.test_mapping[test_info.test_name].test_definition
         tdef.agent_metric = "unknown"
 
@@ -345,11 +347,16 @@ class TestReportMetricsDSE:
         mapping_str = (
             f"{NcclTestPerformanceReportGenerationStrategy}: {NcclTestPerformanceReportGenerationStrategy.metrics}"
         )
-        assert str(exc_info.value) == (
+        msg = (
             f"Test '{test_info.id}' is a DSE job with agent_metric='{tdef.agent_metric}', "
             "but no report generation strategy is defined for it. "
             f"Available report-metrics mapping: {{{mapping_str}}}"
         )
+        assert str(exc_info.value) == msg
+        assert caplog.records[0].levelname == "ERROR"
+        assert caplog.records[0].message == f"Failed to parse Test Scenario definition: {ts_parser.file_path}"
+        assert caplog.records[1].levelname == "ERROR"
+        assert caplog.records[1].message == msg
 
     @patch("cloudai._core.test_scenario_parser.get_reporters", return_value=set())
     def test_raises_if_no_reports_defined(self, _, ts_parser: TestScenarioParser, test_info: _TestRunTOML):

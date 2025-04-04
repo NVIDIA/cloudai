@@ -84,12 +84,11 @@ def format_time_limit(total_time: timedelta) -> str:
     return f"{hours:02}:{minutes:02}:{seconds:02}"
 
 
-def calculate_total_time_limit(test_hooks: List[TestScenario], time_limit: Optional[str] = None) -> str:
-    total_time = timedelta()
+def calculate_total_time_limit(test_hooks: List[TestScenario], time_limit: Optional[str] = None) -> Optional[str]:
+    if not time_limit:
+        return None
 
-    if time_limit:
-        total_time += parse_time_limit(time_limit)
-
+    total_time = parse_time_limit(time_limit)
     total_time += sum(
         (
             parse_time_limit(test_run.time_limit)
@@ -323,10 +322,13 @@ class TestScenarioParser:
 
         if test.test_definition.is_dse_job and not tr.metric_reporter:
             report_metrics_map = {r: r.metrics for r in tr.reports}
-            raise TestScenarioParsingError(
+            logging.error(f"Failed to parse Test Scenario definition: {self.file_path}")
+            msg = (
                 f"Test '{test_info.id}' is a DSE job with agent_metric='{test.test_definition.agent_metric}', "
                 "but no report generation strategy is defined for it. "
                 f"Available report-metrics mapping: {report_metrics_map}"
             )
+            logging.error(msg)
+            raise TestScenarioParsingError(msg)
 
         return tr
