@@ -84,12 +84,11 @@ def format_time_limit(total_time: timedelta) -> str:
     return f"{hours:02}:{minutes:02}:{seconds:02}"
 
 
-def calculate_total_time_limit(test_hooks: List[TestScenario], time_limit: Optional[str] = None) -> str:
-    total_time = timedelta()
+def calculate_total_time_limit(test_hooks: List[TestScenario], time_limit: Optional[str] = None) -> Optional[str]:
+    if not time_limit:
+        return None
 
-    if time_limit:
-        total_time += parse_time_limit(time_limit)
-
+    total_time = parse_time_limit(time_limit)
     total_time += sum(
         (
             parse_time_limit(test_run.time_limit)
