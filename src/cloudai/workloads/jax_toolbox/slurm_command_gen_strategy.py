@@ -82,11 +82,14 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Any], num_nodes: int
     ):
         combine_threshold = env_vars["COMBINE_THRESHOLD"]
-        combine_threshold_bytes = int(combine_threshold)  # pyright: ignore [reportArgumentType]
-        per_gpu_combine_threshold = int(
-            combine_threshold_bytes / (int(cmd_args[f"{self.test_name}.setup_flags"]["gpus_per_node"]) * num_nodes)
-        )
-        env_vars["PER_GPU_COMBINE_THRESHOLD"] = str(per_gpu_combine_threshold)
+        if isinstance(combine_threshold, str):
+            combine_threshold_bytes = int(combine_threshold)
+            per_gpu_combine_threshold = int(
+                combine_threshold_bytes / (int(cmd_args[f"{self.test_name}.setup_flags"]["gpus_per_node"]) * num_nodes)
+            )
+            env_vars["PER_GPU_COMBINE_THRESHOLD"] = str(per_gpu_combine_threshold)
+        else:
+            raise TypeError("COMBINE_THRESHOLD must be a string representing an integer")
 
     def _update_xla_flags(self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Any]):
         env_vars["XLA_FLAGS"] = self._format_xla_flags(cmd_args, "perf")
