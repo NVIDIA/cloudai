@@ -134,7 +134,7 @@ def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> None:
     if args.mode == "run":
         generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
 
-    logging.info(f"All jobs are complete. For more details, please review the '{args.log_file}'.")
+    logging.info("All jobs are complete.")
 
 
 def register_signal_handlers(signal_handler: Callable) -> None:
