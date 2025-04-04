@@ -97,13 +97,14 @@ class Reporter(ABC):
         self.trs: list[TestRun] = []
 
     def load_test_runs(self):
-        for tr in self.test_scenario.test_runs:
+        for _tr in self.test_scenario.test_runs:
+            tr = copy.deepcopy(_tr)
             tr_root = self.results_root / tr.name
             iters = list(subdir for subdir in tr_root.glob("*") if subdir.is_dir())
-            for iter in sorted(iters):
+            for iter in sorted(iters, key=lambda x: int(x.name)):
                 if tr.test.test_definition.is_dse_job:
                     steps = list(subdir for subdir in iter.glob("*") if subdir.is_dir())
-                    for step in sorted(steps):
+                    for step in sorted(steps, key=lambda x: int(x.name)):
                         tr.current_iteration = int(iter.name)
                         tr.step = int(step.name)
                         tr.output_path = tr_root / f"{tr.current_iteration}" / f"{tr.step}"
@@ -114,6 +115,10 @@ class Reporter(ABC):
                     tr.output_path = tr_root / f"{tr.current_iteration}"
                     self.trs.append(copy.deepcopy(tr))
 
+        logging.debug(f"Loaded {len(self.trs)} test runs for {self.test_scenario.name} in {self.results_root}")
+        for tr in self.trs:
+            logging.debug(f"Test run: {tr.name} {tr.output_path}")
+
     @abstractmethod
     def generate(self) -> None: ...
 
@@ -123,25 +128,12 @@ class PerTestReporter(Reporter):
         self.load_test_runs()
 
         for tr in self.trs:
-            test_output_dir = self.results_root / tr.name
-            if not test_output_dir.exists() or not test_output_dir.is_dir():
-                logging.warning(f"Directory '{test_output_dir}' not found.")
-                continue
-
-            self.generate_per_case_reports(test_output_dir, tr)
-
-    def generate_per_case_reports(self, directory_path: Path, tr: TestRun) -> None:
-        logging.debug(f"Available reports: {tr.reports} for directory: {directory_path}")
-        for reporter in tr.reports:
-            rgs = reporter(self.system, tr)
-
-            for subdir in directory_path.iterdir():
-                if tr.step > 0:
-                    subdir = subdir / f"{tr.step}"
-                tr.output_path = subdir
+            logging.debug(f"Available reports: {[r.__name__ for r in tr.reports]} for directory: {tr.output_path}")
+            for reporter in tr.reports:
+                rgs = reporter(self.system, tr)
 
                 if not rgs.can_handle_directory():
-                    logging.warning(f"Skipping '{tr.output_path}', can't handle with " f"strategy={reporter.__name__}.")
+                    logging.warning(f"Skipping '{tr.output_path}', can't handle with strategy={reporter.__name__}.")
                     continue
                 try:
                     rgs.generate_report()

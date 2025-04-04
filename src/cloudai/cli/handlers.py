@@ -116,9 +116,10 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
             logging.info(f"Step {step}: Observation: {observation}, Reward: {reward}")
 
 
-def _generate_reports(system: System, test_scenario: TestScenario, result_dir: Path) -> None:
+def generate_reports(system: System, test_scenario: TestScenario, result_dir: Path) -> None:
     registry = Registry()
     for reporter_class in registry.scenario_reports:
+        logging.debug(f"Generating report with {reporter_class.__name__}")
         try:
             reporter = reporter_class(system, test_scenario, result_dir)
             reporter.generate()
@@ -132,7 +133,7 @@ def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> None:
     logging.info(f"All test scenario results stored at: {runner.runner.scenario_root}")
 
     if args.mode == "run":
-        _generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
+        generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
 
     logging.info(f"All jobs are complete. For more details, please review the '{args.log_file}'.")
 
@@ -222,7 +223,7 @@ def handle_generate_report(args: argparse.Namespace) -> int:
     assert test_scenario is not None
 
     logging.info("Generating report based on system and test scenario")
-    _generate_reports(system, test_scenario, args.result_dir)
+    generate_reports(system, test_scenario, args.result_dir)
 
     logging.info("Report generation completed.")
 

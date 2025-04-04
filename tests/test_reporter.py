@@ -55,39 +55,41 @@ def dse_tr(slurm_system: SlurmSystem) -> TestRun:
         test_template_name="nccl",
         cmd_args=NCCLCmdArgs(),
         extra_env_vars={"VAR1": ["value1", "value2"]},
-        agent_steps=2,
+        agent_steps=12,
     )
     test_template = TestTemplate(system=slurm_system, name="nccl")
     test = Test(test_definition=test_definition, test_template=test_template)
 
-    tr = TestRun(name="dse", test=test, num_nodes=1, nodes=["node1"], iterations=1)
+    tr = TestRun(name="dse", test=test, num_nodes=1, nodes=["node1"], iterations=12)
     create_test_directories(slurm_system, tr)
     return tr
 
 
 class TestLoadTestTuns:
-    def test_load_test_runs_regular(self, slurm_system: SlurmSystem, benchmark_tr: TestRun) -> None:
+    def test_load_test_runs_behcnmark_sorted(self, slurm_system: SlurmSystem, benchmark_tr: TestRun) -> None:
         reporter = PerTestReporter(
             slurm_system, TestScenario(name="test_scenario", test_runs=[benchmark_tr]), slurm_system.output_path
         )
         reporter.load_test_runs()
 
         assert len(reporter.trs) == benchmark_tr.iterations
-        for i, tr in enumerate(reporter.trs):  # test_runs should be sorted for iterations and steps
+        for i, tr in enumerate(reporter.trs):
             assert tr.name == benchmark_tr.name
             assert tr.current_iteration == i
             assert tr.step == 0
             assert tr.output_path == slurm_system.output_path / benchmark_tr.name / str(i)
 
-    def test_load_test_runs_dse(self, slurm_system: SlurmSystem, dse_tr: TestRun) -> None:
+    def test_load_test_runs_dse_sorted(self, slurm_system: SlurmSystem, dse_tr: TestRun) -> None:
         reporter = PerTestReporter(
             slurm_system, TestScenario(name="test_scenario", test_runs=[dse_tr]), slurm_system.output_path
         )
         reporter.load_test_runs()
 
-        assert len(reporter.trs) == dse_tr.test.test_definition.agent_steps
-        for i, tr in enumerate(reporter.trs):  # test_runs should be sorted for iterations and steps
+        assert len(reporter.trs) == dse_tr.test.test_definition.agent_steps * dse_tr.iterations
+        for i, tr in enumerate(reporter.trs):
+            exp_iter = i // dse_tr.test.test_definition.agent_steps
+            exp_step = i % dse_tr.test.test_definition.agent_steps
             assert tr.name == dse_tr.name
-            assert tr.current_iteration == 0
-            assert tr.step == i
-            assert tr.output_path == slurm_system.output_path / dse_tr.name / "0" / str(i)
+            assert tr.current_iteration == exp_iter
+            assert tr.step == exp_step
+            assert tr.output_path == slurm_system.output_path / dse_tr.name / str(exp_iter) / str(exp_step)
