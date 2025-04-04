@@ -30,7 +30,9 @@ class DummyTestRun(TestRun):
     def __init__(self, time_limit: str) -> None:
         dummy_test = create_autospec(Test, instance=True)
         dummy_test.name = "dummy_test"
-        dummy_test.test_definition = MyTestDefinition
+        dummy_test.test_definition = MyTestDefinition(
+            name="dummy_test", description="dummy_test", test_template_name="dummy_test", cmd_args={}
+        )
         super().__init__(
             name="dummy_run",
             test=dummy_test,
@@ -60,6 +62,7 @@ class DummyHook(TestScenario):
     "test_hooks, time_limit, expected",
     [
         ([], None, None),
+        ([DummyHook([DummyTestRun("30m")])], None, None),
         ([], "1h", "01:00:00"),
         ([DummyHook([DummyTestRun("30m")])], "1h", "01:30:00"),
         ([DummyHook([DummyTestRun("15m")]), DummyHook([DummyTestRun("45m")])], "1h", "02:00:00"),
