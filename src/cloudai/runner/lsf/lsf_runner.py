@@ -45,15 +45,6 @@ class LSFRunner(BaseRunner):
         self.cmd_shell = CommandShell()
 
     def _submit_test(self, tr: TestRun) -> LSFJob:
-        """
-        Submit a test for execution on LSF and returns an LSFJob.
-
-        Args:
-            tr (TestRun): The test run to be executed.
-
-        Returns:
-            LSFJob: An LSFJob object
-        """
         logging.info(f"Running test: {tr.name}")
         tr.output_path = self.get_job_output_path(tr)
         exec_cmd = tr.test.test_template.gen_exec_command(tr)
