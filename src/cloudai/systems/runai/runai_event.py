@@ -27,10 +27,6 @@ class InvolvedObject(BaseModel):
     name: str = Field(default="", alias="name")
     namespace: str = Field(default="", alias="namespace")
 
-    def __repr__(self) -> str:
-        """Return a string representation of the InvolvedObject."""
-        return f"InvolvedObject(uid={self.uid}, kind={self.kind}, name={self.name}, namespace={self.namespace})"
-
 
 class RunAIEvent(BaseModel):
     """Represent a RunAI event."""
