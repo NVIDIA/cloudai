@@ -20,7 +20,7 @@ import copy
 import logging
 import signal
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import Callable, List
 from unittest.mock import Mock
 
 import toml
@@ -287,14 +287,8 @@ def verify_test_scenarios(
     test_tomls: list[Path],
     hook_tomls: List[Path],
     hook_test_tomls: list[Path],
-    system_config: Optional[Path] = None,
 ) -> int:
     system = Mock(spec=System)
-    if system_config:
-        system = Parser.parse_system(system_config)
-    else:
-        logging.warning("System configuration not provided, mocking it.")
-
     nfailed = 0
     for scenario_file in scenario_tomls:
         logging.debug(f"Verifying Test Scenario: {scenario_file}...")
@@ -339,9 +333,7 @@ def handle_verify_all_configs(args: argparse.Namespace) -> int:
     if files["test"]:
         nfailed += verify_test_configs(files["test"], args.strict)
     if files["scenario"]:
-        nfailed += verify_test_scenarios(
-            files["scenario"], test_tomls, files["hook"], files["hook_test"], args.system_config
-        )
+        nfailed += verify_test_scenarios(files["scenario"], test_tomls, files["hook"], files["hook_test"])
     if files["unknown"]:
         logging.error(f"Unknown configuration files: {[str(f) for f in files['unknown']]}")
         nfailed += len(files["unknown"])
