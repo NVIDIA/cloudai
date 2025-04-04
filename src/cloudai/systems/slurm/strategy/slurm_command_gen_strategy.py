@@ -249,6 +249,10 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         srun_command_parts = self.gen_srun_prefix(slurm_args, tr)
         nsys_command_parts = self.gen_nsys_command(tr)
         test_command_parts = self.generate_test_command(env_vars, cmd_args, tr)
+
+        pinning_flags = self.system.pinning_strategy.get_pinning_flags()
+        srun_command_parts.extend(pinning_flags)
+
         return " ".join(srun_command_parts + nsys_command_parts + test_command_parts)
 
     def gen_srun_prefix(self, slurm_args: Dict[str, Any], tr: TestRun) -> List[str]:

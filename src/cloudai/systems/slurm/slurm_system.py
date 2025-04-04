@@ -21,6 +21,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
+from cloudai._core.pinning_strategy import AbstractPinningStrategy, NoOpPinningStrategy, create_pinning_strategy
+
 from ..._core.base_job import BaseJob
 from ..._core.installables import File, Installable
 from ..._core.system import System
@@ -121,6 +123,15 @@ class SlurmSystem(BaseModel, System):
     cmd_shell: CommandShell = Field(default=CommandShell(), exclude=True)
     extra_srun_args: Optional[str] = None
     extra_sbatch_args: list[str] = []
+    pinning_strategy: AbstractPinningStrategy = Field(default=NoOpPinningStrategy(0, 0), exclude=True)
+
+    def __init__(self, **data: Any) -> None:
+        super().__init__(**data)
+        self.pinning_strategy = create_pinning_strategy(
+            system_name=self.name,
+            cpus_per_node=self.ntasks_per_node or 0,  # FIXME
+            num_tasks_per_node=self.ntasks_per_node or 1,
+        )
 
     @property
     def groups(self) -> Dict[str, Dict[str, List[SlurmNode]]]:
