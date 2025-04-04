@@ -112,6 +112,7 @@ class RunAITraining(BaseModel):
     requested_name: str = Field(alias="requestedName")
     workload_id: str = Field(alias="workloadId")
     project_id: str = Field(alias="projectId")
+    department_id: Optional[str] = Field(default=None, alias="departmentId")
     cluster_id: str = Field(alias="clusterId")
     created_by: str = Field(alias="createdBy")
     created_at: datetime = Field(alias="createdAt")
