@@ -23,7 +23,7 @@ import pytest
 from cloudai import GitRepo, Test, TestRun, TestScenario, TestTemplate
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
-from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
+from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestSlurmCommandGenStrategy
 from tests.conftest import create_autospec_dataclass
 
 
@@ -140,8 +140,6 @@ def make_test_run(slurm_system: SlurmSystem, name: str, output_dir: Path) -> Tes
         extra_env_vars={"TEST_VAR": "VALUE"},
     )
     test_template = TestTemplate(slurm_system, "nccl")
-    from cloudai.workloads.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
-
     test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(slurm_system, test_def.cmd_args_dict)
     test = Test(test_definition=test_def, test_template=test_template)
     return TestRun(name=name, test=test, num_nodes=1, nodes=["node1"], output_path=output_dir / name)
