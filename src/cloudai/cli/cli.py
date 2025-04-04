@@ -106,7 +106,6 @@ class CloudAICLI:
                     "Test TOML files or all Test TOML files in the given directory."
                 ),
                 handle_verify_all_configs,
-                system_config=False,
                 tests_dir=False,
             )
             p.add_argument("configs_dir", help="Path to a file or the directory containing the TOML files.", type=Path)
