@@ -19,7 +19,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union, cast, final
 
-from cloudai import CommandGenStrategy, TestRun, TestScenario
+from cloudai import CommandGenStrategy, Registry, TestRun, TestScenario
 from cloudai.systems import SlurmSystem
 
 
@@ -159,8 +159,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         hook_dir = base_output_dir / tr.test.name
         hook_dir.mkdir(parents=True, exist_ok=True)
         tr.output_path = hook_dir
-
-        from cloudai import Registry
 
         registry = Registry()
         key = (CommandGenStrategy, type(self.system), type(tr.test.test_definition))
