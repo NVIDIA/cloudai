@@ -17,7 +17,7 @@
 from abc import abstractmethod
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Union, final
+from typing import Any, Dict, List, Tuple, Union, cast, final
 
 from cloudai import CommandGenStrategy, TestRun, TestScenario
 from cloudai.systems import SlurmSystem
@@ -145,16 +145,40 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             job_name = f"{self.system.account}-{job_name_prefix}.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         return job_name
 
-    def gen_pre_test(self, pre_test: TestScenario, base_output_path: Path) -> str:
+    def _prepare_test_run(self, base_output_dir: Path, tr: TestRun) -> Tuple[Path, "SlurmCommandGenStrategy"]:
         """
-        Generate the pre-test command by running all tests defined in the pre-test test scenario.
+        Prepare a test run by creating its hook directory, setting its output_path, and retrieving CommandGenStrategy.
 
         Args:
-            pre_test (TestScenario): The pre-test test scenario containing the tests to be run.
-            base_output_path (Path): The base output directory path for storing pre-test outputs.
+            base_output_dir (Path): The base directory where hook directories are created.
+            tr (TestRun): The test run to prepare.
 
         Returns:
-            str: A string with all the Slurm srun commands generated for the pre_test.
+            Tuple[Path, CommandGenStrategy]: The hook directory and the strategy instance.
+        """
+        hook_dir = base_output_dir / tr.test.name
+        hook_dir.mkdir(parents=True, exist_ok=True)
+        tr.output_path = hook_dir
+
+        from cloudai import Registry
+
+        registry = Registry()
+        key = (CommandGenStrategy, type(self.system), type(tr.test.test_definition))
+        strategy_cls = registry.strategies_map[key]
+        strategy_cls_typed = cast(type[SlurmCommandGenStrategy], strategy_cls)
+        strategy = strategy_cls_typed(self.system, tr.test.cmd_args)
+        return hook_dir, strategy
+
+    def gen_pre_test(self, pre_test: TestScenario, base_output_path: Path) -> str:
+        """
+        Generate the pre-test command by running all tests defined in the pre-test scenario.
+
+        Args:
+            pre_test (TestScenario): The pre-test scenario containing tests to run.
+            base_output_path (Path): Base output directory for storing pre-test outputs.
+
+        Returns:
+            str: A string with all the Slurm srun commands generated for the pre-test.
         """
         pre_test_output_dir = base_output_path / "pre_test"
         pre_test_output_dir.mkdir(parents=True, exist_ok=True)
@@ -163,11 +187,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         success_vars = []
 
         for idx, tr in enumerate(pre_test.test_runs):
-            hook_dir = pre_test_output_dir / tr.test.name
-            hook_dir.mkdir(parents=True, exist_ok=True)
-            tr.output_path = hook_dir
-
-            srun_command = tr.test.test_template.gen_srun_command(tr)
+            hook_dir, strategy = self._prepare_test_run(pre_test_output_dir, tr)
+            srun_command = strategy.gen_srun_command(tr)
             srun_command_with_output = srun_command.replace(
                 "srun ", f"srun --output={hook_dir / 'stdout.txt'} --error={hook_dir / 'stderr.txt'} "
             )
@@ -175,23 +196,21 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
             success_var = f"SUCCESS_{idx}"
             success_vars.append(success_var)
-
-            success_check_command = tr.test.test_template.gen_srun_success_check(tr)
+            success_check_command = strategy.gen_srun_success_check(tr)
             pre_test_commands.append(f"{success_var}=$({success_check_command})")
 
         combined_success_var = " && ".join([f"[ ${var} -eq 1 ]" for var in success_vars])
-
         pre_test_commands.append(f"PRE_TEST_SUCCESS=$( {combined_success_var} && echo 1 || echo 0 )")
 
         return "\n".join(pre_test_commands)
 
     def gen_post_test(self, post_test: TestScenario, base_output_path: Path) -> str:
         """
-        Generate the post-test command by running all tests defined in the post-test test scenario.
+        Generate the post-test command by running all tests defined in the post-test scenario.
 
         Args:
-            post_test (TestScenario): The post-test test scenario containing the tests to be run.
-            base_output_path (Path): The base output directory path for storing post-test outputs.
+            post_test (TestScenario): The post-test scenario containing tests to run.
+            base_output_path (Path): Base output directory for storing post-test outputs.
 
         Returns:
             str: A string with all the Slurm srun commands generated for the post-test.
@@ -200,13 +219,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         post_test_output_dir.mkdir(parents=True, exist_ok=True)
 
         post_test_commands = []
-
         for tr in post_test.test_runs:
-            hook_dir = post_test_output_dir / tr.test.name
-            hook_dir.mkdir(parents=True, exist_ok=True)
-            tr.output_path = hook_dir
-
-            srun_command = tr.test.test_template.gen_srun_command(tr)
+            hook_dir, strategy = self._prepare_test_run(post_test_output_dir, tr)
+            srun_command = strategy.gen_srun_command(tr)
             srun_command_with_output = srun_command.replace(
                 "srun ", f"srun --output={hook_dir / 'stdout.txt'} --error={hook_dir / 'stderr.txt'} "
             )

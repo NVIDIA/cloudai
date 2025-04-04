@@ -131,132 +131,127 @@ def test_time_limit(time_limit: Optional[str], strategy_fixture: SlurmCommandGen
         assert "time_limit" not in slurm_args
 
 
-@pytest.mark.parametrize(
-    "pre_test,post_test,expected_script_lines",
-    [
-        # No pre_test, no post_test
-        (None, None, ["srun"]),
-        # One pre_test, no post_test
-        (
-            [Mock(test=Mock(name="test1", test_template=Mock()))],
-            None,
-            [
-                "pre_test",
-                "PRE_TEST_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && echo 1 || echo 0 )",
-                "if [ $PRE_TEST_SUCCESS -eq 1 ]; then",
-                "    srun",
-                "fi",
-            ],
-        ),
-        # No pre_test, one post_test
-        (
-            None,
-            [Mock(test=Mock(name="test2", test_template=Mock()))],
-            [
-                "srun",
-                "post_test",
-            ],
-        ),
-        # One pre_test, one post_test
-        (
-            [Mock(test=Mock(name="test1", test_template=Mock()))],
-            [Mock(test=Mock(name="test2", test_template=Mock()))],
-            [
-                "pre_test",
-                "PRE_TEST_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && echo 1 || echo 0 )",
-                "if [ $PRE_TEST_SUCCESS -eq 1 ]; then",
-                "    srun",
-                "    post_test",
-                "fi",
-            ],
-        ),
-        # Multiple pre_tests, multiple post_tests
-        (
-            [Mock(test=Mock(name="test1", test_template=Mock())), Mock(test=Mock(name="test2", test_template=Mock()))],
-            [Mock(test=Mock(name="test3", test_template=Mock())), Mock(test=Mock(name="test4", test_template=Mock()))],
-            [
-                "pre_test",
-                "pre_test",
-                "PRE_TEST_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && [ $SUCCESS_1 -eq 1 ] && echo 1 || echo 0 )",
-                "if [ $PRE_TEST_SUCCESS -eq 1 ]; then",
-                "    srun",
-                "    post_test",
-                "    post_test",
-                "fi",
-            ],
-        ),
-        # Multiple pre_tests, no post_test
-        (
-            [Mock(test=Mock(name="test1", test_template=Mock())), Mock(test=Mock(name="test2", test_template=Mock()))],
-            None,
-            [
-                "pre_test",
-                "pre_test",
-                "PRE_TEST_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && [ $SUCCESS_1 -eq 1 ] && echo 1 || echo 0 )",
-                "if [ $PRE_TEST_SUCCESS -eq 1 ]; then",
-                "    srun",
-                "fi",
-            ],
-        ),
-        # No pre_test, multiple post_tests
-        (
-            None,
-            [Mock(test=Mock(name="test3", test_template=Mock())), Mock(test=Mock(name="test4", test_template=Mock()))],
-            [
-                "srun",
-                "post_test",
-                "post_test",
-            ],
-        ),
-        # Multiple pre_tests, single post_test
-        (
-            [Mock(test=Mock(name="test1", test_template=Mock())), Mock(test=Mock(name="test2", test_template=Mock()))],
-            [Mock(test=Mock(name="test3", test_template=Mock()))],
-            [
-                "pre_test",
-                "pre_test",
-                "PRE_TEST_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && [ $SUCCESS_1 -eq 1 ] && echo 1 || echo 0 )",
-                "if [ $PRE_TEST_SUCCESS -eq 1 ]; then",
-                "    srun",
-                "    post_test",
-                "fi",
-            ],
-        ),
-    ],
-)
-def test_pre_test_post_test_combinations(
+def make_test_run(slurm_system: SlurmSystem, name: str, output_dir: Path) -> TestRun:
+    test_def = NCCLTestDefinition(
+        name=name,
+        description=name,
+        test_template_name="nccl",
+        cmd_args=NCCLCmdArgs(),
+        extra_env_vars={"TEST_VAR": "VALUE"},
+    )
+    test_template = TestTemplate(slurm_system, "nccl")
+    from cloudai.workloads.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
+
+    test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(slurm_system, test_def.cmd_args_dict)
+    test = Test(test_definition=test_def, test_template=test_template)
+    return TestRun(name=name, test=test, num_nodes=1, nodes=["node1"], output_path=output_dir / name)
+
+
+def test_pre_post_combinations(
+    tmp_path: Path,
+    slurm_system: SlurmSystem,
     strategy_fixture: SlurmCommandGenStrategy,
     testrun_fixture: TestRun,
-    pre_test,
-    post_test,
-    expected_script_lines,
 ):
-    testrun_fixture.pre_test = Mock(spec=TestScenario) if pre_test else None
-    testrun_fixture.post_test = Mock(spec=TestScenario) if post_test else None
+    test_cases = [
+        {
+            "pre_count": 0,
+            "post_count": 0,
+            "expected_lines": ["srun --export=ALL --mpi="],
+        },
+        {
+            "pre_count": 1,
+            "post_count": 0,
+            "expected_lines": [
+                "PRE_TEST_SUCCESS=$( [ $SUCCESS_0 -eq 1 ]",
+                "if [ $PRE_TEST_SUCCESS -eq 1 ]; then",
+                "srun --export=ALL --mpi=",
+                "fi",
+            ],
+        },
+        {
+            "pre_count": 0,
+            "post_count": 1,
+            "expected_lines": [
+                "srun --export=ALL --mpi=",
+                "/post_test/",
+            ],
+        },
+        {
+            "pre_count": 1,
+            "post_count": 1,
+            "expected_lines": [
+                "PRE_TEST_SUCCESS=$( [ $SUCCESS_0 -eq 1 ]",
+                "if [ $PRE_TEST_SUCCESS -eq 1 ]; then",
+                "srun --export=ALL --mpi=",
+                "/post_test/",
+                "fi",
+            ],
+        },
+        {
+            "pre_count": 2,
+            "post_count": 2,
+            "expected_lines": [
+                "PRE_TEST_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && [ $SUCCESS_1 -eq 1 ]",
+                "if [ $PRE_TEST_SUCCESS -eq 1 ]; then",
+                "srun --export=ALL --mpi=",
+                "/post_test/",
+            ],
+        },
+        {
+            "pre_count": 2,
+            "post_count": 0,
+            "expected_lines": [
+                "PRE_TEST_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && [ $SUCCESS_1 -eq 1 ]",
+                "if [ $PRE_TEST_SUCCESS -eq 1 ]; then",
+                "srun --export=ALL --mpi=",
+                "fi",
+            ],
+        },
+        {
+            "pre_count": 0,
+            "post_count": 2,
+            "expected_lines": [
+                "srun --export=ALL --mpi=",
+                "/post_test/",
+            ],
+        },
+        {
+            "pre_count": 2,
+            "post_count": 1,
+            "expected_lines": [
+                "PRE_TEST_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && [ $SUCCESS_1 -eq 1 ]",
+                "if [ $PRE_TEST_SUCCESS -eq 1 ]; then",
+                "srun --export=ALL --mpi=",
+                "/post_test/",
+                "fi",
+            ],
+        },
+    ]
 
-    if pre_test is not None:
-        testrun_fixture.pre_test = Mock(spec=TestScenario)
-        testrun_fixture.pre_test.test_runs = pre_test
-        for idx, run in enumerate(pre_test):
-            run.test.test_template.gen_srun_success_check.return_value = "pre_test"
-            run.test.test_template.gen_srun_command.return_value = "srun"
-            run.test.name = f"test{idx+1}"
+    for case in test_cases:
+        pre_count = case["pre_count"]
+        post_count = case["post_count"]
+        expected_lines = case["expected_lines"]
 
-    if post_test is not None:
-        testrun_fixture.post_test = Mock(spec=TestScenario)
-        testrun_fixture.post_test.test_runs = post_test
-        for idx, run in enumerate(post_test):
-            run.test.test_template.gen_srun_command.return_value = "post_test"
-            run.test.name = f"test{idx+1}"
+        if pre_count > 0:
+            pre_runs = [make_test_run(slurm_system, f"pre{i}", tmp_path) for i in range(pre_count)]
+            testrun_fixture.pre_test = TestScenario(name="pre", test_runs=pre_runs)
+        else:
+            testrun_fixture.pre_test = None
 
-    sbatch_command = strategy_fixture.gen_exec_command(testrun_fixture)
-    script_file_path = sbatch_command.split()[-1]
+        if post_count > 0:
+            post_runs = [make_test_run(slurm_system, f"post{i}", tmp_path) for i in range(post_count)]
+            testrun_fixture.post_test = TestScenario(name="post", test_runs=post_runs)
+        else:
+            testrun_fixture.post_test = None
 
-    with open(script_file_path, "r") as script_file:
-        script_content = script_file.read()
+        sbatch_command = strategy_fixture.gen_exec_command(testrun_fixture)
+        script_path = sbatch_command.split()[-1]
+        content = Path(script_path).read_text()
 
-    for expected_line in expected_script_lines:
-        assert expected_line in script_content, f"Expected '{expected_line}' in generated script but it was missing."
+        for expected in expected_lines:
+            assert any(expected in line for line in content.splitlines()), f"Missing line: {expected}"
 
 
 def test_default_container_mounts(strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun):
