@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,16 +14,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .kubernetes.kubernetes_system import KubernetesSystem
-from .lsf.lsf_system import LSFSystem
-from .runai import RunAISystem
-from .slurm.slurm_system import SlurmSystem
-from .standalone_system import StandaloneSystem
+name = "example-runai-cluster"
+scheduler = "runai"
 
-__all__ = [
-    "KubernetesSystem",
-    "LSFSystem",
-    "RunAISystem",
-    "SlurmSystem",
-    "StandaloneSystem",
-]
+install_path = "./install_dir"
+output_path = "./results"
+monitor_interval = 1
+
+base_url = "http://runai.example.com"
+user_email = "your_email"
+app_id = "your_app_id"
+app_secret = "your_app_secret"
+project_id = "your_project_id"
+cluster_id = "your_cluster_id"
+
+[global_env_vars]
+NCCL_IB_GID_INDEX = "3"
+NCCL_IB_TIMEOUT = "20"
+NCCL_IB_QPS_PER_CONNECTION = "4"

@@ -21,6 +21,7 @@ from unittest.mock import Mock
 import pytest
 
 from cloudai import TestDefinition
+from cloudai.systems.runai.runai_system import RunAISystem
 from cloudai.systems.slurm.slurm_system import SlurmGroup, SlurmPartition, SlurmSystem
 
 
@@ -55,6 +56,25 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
     )
     system.scheduler = "slurm"
     system.monitor_interval = 10
+    return system
+
+
+@pytest.fixture
+def runai_system(tmp_path: Path) -> RunAISystem:
+    system = RunAISystem(
+        name="test_runai_system",
+        install_path=tmp_path / "install",
+        output_path=tmp_path / "output",
+        base_url="http://runai.example.com",
+        app_id="test_app_id",
+        app_secret="test_app_secret",
+        project_id="test_project_id",
+        cluster_id="test_cluster_id",
+        scheduler="runai",
+        global_env_vars={},
+        monitor_interval=60,
+        user_email="test_user@example.com",
+    )
     return system
 
 

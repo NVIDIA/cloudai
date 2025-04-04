@@ -16,19 +16,19 @@ These schemas enable CloudAI to be flexible and compatible with different system
 
 
 ## Support matrix
-|Test|Slurm|Kubernetes (experimental)|Standalone|
-|---|---|---|---|
-|ChakraReplay|✅|❌|❌|
-|GPT|✅|❌|❌|
-|Grok|✅|❌|❌|
-|NCCL|✅|✅|❌|
-|NeMo Launcher|✅|❌|❌|
-|NeMo Run|✅|❌|❌|
-|Nemotron|✅|❌|❌|
-|Sleep|✅|✅|✅|
-|UCC|✅|❌|❌|
-|SlurmContainer|✅|❌|❌|
-|MegatronRun (experimental)|✅|❌|❌|
+|Test|Slurm|Kubernetes|RunAI|Standalone|
+|---|---|---|---|---|
+|ChakraReplay|✅|❌|❌|❌|
+|GPT|✅|❌|❌|❌|
+|Grok|✅|❌|❌|❌|
+|NCCL|✅|✅|✅|❌|
+|NeMo Launcher|✅|❌|❌|❌|
+|NeMo Run|✅|❌|❌|❌|
+|Nemotron|✅|❌|❌|❌|
+|Sleep|✅|✅|❌|✅|
+|UCC|✅|❌|❌|❌|
+|SlurmContainer|✅|❌|❌|❌|
+|MegatronRun (experimental)|✅|❌|❌|❌|
 
 
 ## Set Up Access to the Private NGC Registry
