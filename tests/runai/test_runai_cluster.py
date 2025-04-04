@@ -59,7 +59,7 @@ def test_cluster_initialization(cluster_data: Dict[str, Any]) -> None:
     assert cluster.created_at == cluster_data["createdAt"]
     assert cluster.updated_at == cluster_data["updatedAt"]
     assert cluster.last_liveness == cluster_data["lastLiveness"]
-    assert cluster.state == ClusterState.DISCONNECTED
+    assert cluster.status.state == ClusterState.DISCONNECTED
 
 
 def test_cluster_state_disconnected(cluster_data: Dict[str, Any]) -> None:

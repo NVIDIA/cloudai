@@ -20,7 +20,6 @@ from enum import Enum
 from typing import Any, ClassVar, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
-from pydantic.aliases import AliasPath
 
 
 class ClusterState(Enum):
@@ -38,6 +37,17 @@ class ClusterState(Enum):
         return cls(cls._value2member_map_.get(value, cls.UNKNOWN))
 
 
+class Status(BaseModel):
+    """Represent the status of a RunAI cluster."""
+
+    state: ClusterState = Field(default=ClusterState.UNKNOWN)
+    conditions: List[Dict[str, Any]] = Field(default_factory=list)
+    operands: Dict[str, Any] = Field(default_factory=dict)
+    platform: Optional[Dict[str, Any]] = Field(default=None)
+    config: Optional[Dict[str, Any]] = Field(default=None)
+    dependencies: Dict[str, Any] = Field(default_factory=dict)
+
+
 class RunAICluster(BaseModel):
     """Represent a RunAI cluster with its associated data and operations."""
 
@@ -52,27 +62,22 @@ class RunAICluster(BaseModel):
     last_liveness: Optional[str] = Field(default=None, alias="lastLiveness")
     delete_requested_at: Optional[str] = Field(default=None, alias="deleteRequestedAt")
 
-    state: ClusterState = Field(default=ClusterState.UNKNOWN, validation_alias=AliasPath("status", "state"))
-    conditions: List[Dict[str, Any]] = Field(default_factory=list, validation_alias=AliasPath("status", "conditions"))
-    operands: Dict[str, Any] = Field(default_factory=dict, validation_alias=AliasPath("status", "operands"))
-    platform: Optional[Dict[str, Any]] = Field(default=None, validation_alias=AliasPath("status", "platform"))
-    config: Optional[Dict[str, Any]] = Field(default=None, validation_alias=AliasPath("status", "config"))
-    dependencies: Dict[str, Any] = Field(default_factory=dict, validation_alias=AliasPath("status", "dependencies"))
+    status: Status = Field(default_factory=Status, alias="status")
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     def is_connected(self) -> bool:
-        return self.state == ClusterState.CONNECTED
+        return self.status.state == ClusterState.CONNECTED
 
     def get_kubernetes_version(self) -> Optional[str]:
-        if not self.platform:
+        if not self.status.platform:
             return None
-        return self.platform.get("kubeVersion")
+        return self.status.platform.get("kubeVersion")
 
     def __repr__(self) -> str:
         """Return a string representation of the RunAICluster object."""
         return (
             f"RunAICluster(name={self.name!r}, uuid={self.uuid!r}, tenant_id={self.tenant_id}, "
-            f"state={self.state.value!r}, created_at={self.created_at!r}, version={self.version!r}, "
+            f"state={self.status.state.value!r}, created_at={self.created_at!r}, version={self.version!r}, "
             f"domain={self.domain!r})"
         )
