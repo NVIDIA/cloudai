@@ -75,7 +75,8 @@ class RunAISystem(BaseModel, System):
             )
         return self._api_client
 
-    def set_api_client(self, api_client: RunAIRestClient) -> None:
+    @api_client.setter
+    def api_client(self, api_client: RunAIRestClient) -> None:
         self._api_client = api_client
 
     def update(self):
