@@ -29,10 +29,7 @@ class NodeStatus(Enum):
 
     @classmethod
     def from_str(cls, value: str) -> "NodeStatus":
-        try:
-            return cls(value)
-        except ValueError:
-            return cls.UNKNOWN
+        return NodeStatus(cls._value2member_map_.get(value, cls.UNKNOWN))
 
 
 class RunAINode(BaseModel):
