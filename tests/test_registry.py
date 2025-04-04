@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
+
 import pytest
 
 from cloudai import (
@@ -28,16 +30,21 @@ from cloudai import (
     TestDefinition,
     TestTemplateStrategy,
 )
+from cloudai._core.reporter import Reporter
 
 
 @pytest.fixture
 def registry():
     registry = Registry()
+    scenario_reports = copy.copy(registry.scenario_reports)
+    registry.scenario_reports.clear()
+
     yield registry
 
     # Clean up the registry after the test, we check exact list of reports in other tests
     if MyTestDefinition in registry.reports_map:
         del registry.reports_map[MyTestDefinition]
+    registry.update_scenario_report(scenario_reports)
 
 
 class MyRunner(BaseRunner):
@@ -309,3 +316,42 @@ class TestRegistry__ReportsMap:
             registry.update_report(MyTestDefinition, {str})  # pyright: ignore
         assert "Invalid report generation strategy implementation for" in str(exc_info.value)
         assert "should be subclass of 'ReportGenerationStrategy'" in str(exc_info.value)
+
+
+class MyReporter(Reporter):
+    pass
+
+
+class AnotherReporter(Reporter):
+    pass
+
+
+class TestRegistry__ScenarioReports:
+    """This test verifies Registry class functionality.
+
+    Since Registry is a Singleton, the order of cases is important.
+    Only covers the scenario_reports attribute.
+    """
+
+    def test_add_scenario_report(self, registry: Registry):
+        registry.add_scenario_report(MyReporter)
+        assert registry.scenario_reports == {MyReporter}
+
+    def test_duplicate_is_fine(self, registry: Registry):
+        registry.add_scenario_report(MyReporter)
+        registry.add_scenario_report(MyReporter)
+        assert registry.scenario_reports == {MyReporter}
+
+    def test_can_add_multiple_reports(self, registry: Registry):
+        registry.add_scenario_report(MyReporter)
+        registry.add_scenario_report(AnotherReporter)
+        assert registry.scenario_reports == {MyReporter, AnotherReporter}
+
+    def test_update_scenario_report(self, registry: Registry):
+        registry.update_scenario_report({AnotherReporter})
+        assert registry.scenario_reports == {AnotherReporter}
+
+    def test_invalid_type(self, registry: Registry):
+        with pytest.raises(ValueError) as exc_info:
+            registry.update_scenario_report({str})  # pyright: ignore
+        assert "Invalid scenario report implementation, should be subclass of 'Reporter'." in str(exc_info.value)
