@@ -25,10 +25,12 @@ from cloudai import (
 )
 from cloudai._core.reporter import PerTestReporter, StatusReporter
 from cloudai.installer.lsf_installer import LSFInstaller
+from cloudai.installer.runai_installer import RunAIInstaller
 from cloudai.installer.slurm_installer import SlurmInstaller
 from cloudai.installer.standalone_installer import StandaloneInstaller
 from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
 from cloudai.systems.lsf.lsf_system import LSFSystem
+from cloudai.systems.runai.runai_system import RunAISystem
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.standalone_system import StandaloneSystem
 from cloudai.workloads.chakra_replay import (
@@ -53,6 +55,7 @@ from cloudai.workloads.nccl_test import (
     NcclTestGradingStrategy,
     NcclTestJobStatusRetrievalStrategy,
     NcclTestKubernetesJsonGenStrategy,
+    NcclTestRunAIJsonGenStrategy,
     NcclTestSlurmCommandGenStrategy,
 )
 from cloudai.workloads.nemo_launcher import (
@@ -84,7 +87,8 @@ def test_systems():
     assert "slurm" in parsers
     assert "kubernetes" in parsers
     assert "lsf" in parsers
-    assert len(parsers) == 4
+    assert "runai" in parsers
+    assert len(parsers) == 5
 
 
 def test_runners():
@@ -93,7 +97,8 @@ def test_runners():
     assert "slurm" in runners
     assert "kubernetes" in runners
     assert "lsf" in runners
-    assert len(runners) == 4
+    assert "runai" in runners
+    assert len(runners) == 5
 
 
 ALL_STRATEGIES = {
@@ -146,8 +151,10 @@ ALL_STRATEGIES = {
     (JobStatusRetrievalStrategy, SlurmSystem, MegatronRunTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, StandaloneSystem, SleepTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, LSFSystem, SleepTestDefinition): DefaultJobStatusRetrievalStrategy,
+    (JobStatusRetrievalStrategy, RunAISystem, NCCLTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JsonGenStrategy, KubernetesSystem, NCCLTestDefinition): NcclTestKubernetesJsonGenStrategy,
     (JsonGenStrategy, KubernetesSystem, SleepTestDefinition): SleepKubernetesJsonGenStrategy,
+    (JsonGenStrategy, RunAISystem, NCCLTestDefinition): NcclTestRunAIJsonGenStrategy,
 }
 
 
@@ -168,10 +175,11 @@ def test_strategies():
 
 def test_installers():
     installers = Registry().installers_map
-    assert len(installers) == 4
+    assert len(installers) == 5
     assert installers["standalone"] == StandaloneInstaller
     assert installers["slurm"] == SlurmInstaller
     assert installers["lsf"] == LSFInstaller
+    assert installers["runai"] == RunAIInstaller
 
 
 def test_definitions():
