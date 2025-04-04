@@ -16,9 +16,10 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import ClassVar, List, Optional
 
 from pydantic import BaseModel, Field
+from pydantic.config import ConfigDict
 
 
 class WorkloadPhase(str, Enum):
@@ -118,10 +119,4 @@ class RunAITraining(BaseModel):
     desired_phase: WorkloadPhase = Field(alias="desiredPhase")
     actual_phase: ActualPhase = Field(alias="actualPhase")
     spec: TrainingSpec = Field(alias="spec")
-
-    class Config:
-        """Pydantic configuration for RunAITraining."""
-
-        populate_by_name = True
-        populate_by_alias = True
-        validate_by_alias = True
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")

@@ -15,9 +15,9 @@
 # limitations under the License.
 
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, ClassVar, Dict, List, Optional
 
-from pydantic import BaseModel, Field, root_validator
+from pydantic import BaseModel, ConfigDict, Field, root_validator
 
 
 class NodeStatus(Enum):
@@ -51,6 +51,8 @@ class RunAINode(BaseModel):
     cluster_uuid: str = Field(default="", alias="clusterUuid")
     updated_at: str = Field(default="", alias="updatedAt")
 
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
     @root_validator(pre=True)
     def extract_gpu_info(cls, values):
         gpu_info = values.pop("gpuInfo", None)
@@ -60,13 +62,6 @@ class RunAINode(BaseModel):
             values["nvLinkDomainUid"] = gpu_info.get("nvLinkDomainUid")
             values["nvLinkCliqueId"] = gpu_info.get("nvLinkCliqueId")
         return values
-
-    class Config:
-        """Pydantic configuration for RunAINode."""
-
-        populate_by_name = True
-        populate_by_alias = True
-        validate_by_alias = True
 
     def __repr__(self) -> str:
         """Return a string representation of the RunAINode object."""

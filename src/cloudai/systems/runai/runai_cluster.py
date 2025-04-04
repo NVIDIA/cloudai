@@ -17,9 +17,9 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, ClassVar, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.aliases import AliasPath
 
 
@@ -59,12 +59,7 @@ class RunAICluster(BaseModel):
     config: Optional[Dict[str, Any]] = Field(default=None, validation_alias=AliasPath("status", "config"))
     dependencies: Dict[str, Any] = Field(default_factory=dict, validation_alias=AliasPath("status", "dependencies"))
 
-    class Config:
-        """Pydantic configuration for RunAICluster."""
-
-        populate_by_name = True
-        populate_by_alias = True
-        validate_by_alias = True
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     def is_connected(self) -> bool:
         return self.state == ClusterState.CONNECTED

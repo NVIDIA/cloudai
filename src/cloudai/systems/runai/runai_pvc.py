@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Optional
+from typing import Any, ClassVar, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PVCMeta(BaseModel):
@@ -75,13 +75,7 @@ class RunAIPVC(BaseModel):
     meta: PVCMeta = Field(alias="meta")
     spec: PVCSpec = Field(alias="spec")
     cluster_info: PVCClusterInfo = Field(alias="clusterInfo")
-
-    class Config:
-        """Pydantic configuration for RunAIPVC."""
-
-        populate_by_name = True
-        populate_by_alias = True
-        validate_by_alias = True
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     def __repr__(self) -> str:
         """Return a string representation of the RunAIPVC object."""

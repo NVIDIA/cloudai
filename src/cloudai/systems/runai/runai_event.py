@@ -15,8 +15,9 @@
 # limitations under the License.
 
 from datetime import datetime
+from typing import ClassVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class InvolvedObject(BaseModel):
@@ -40,12 +41,7 @@ class RunAIEvent(BaseModel):
     source: str = Field(default="", alias="source")
     involved_object: InvolvedObject = Field(default_factory=InvolvedObject, alias="involvedObject")
 
-    class Config:
-        """Pydantic configuration for RunAIEvent."""
-
-        populate_by_name = True
-        populate_by_alias = True
-        validate_by_alias = True
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     def __repr__(self) -> str:
         """Return a string representation of the RunAIEvent."""

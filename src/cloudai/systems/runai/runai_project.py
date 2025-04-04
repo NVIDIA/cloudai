@@ -15,9 +15,9 @@
 # limitations under the License.
 
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, ClassVar, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProjectPhase(Enum):
@@ -54,12 +54,7 @@ class RunAIProject(BaseModel):
     range_7d_data: Optional[Dict[str, Any]] = Field(default=None, alias="range7dData")
     range_30d_data: Optional[Dict[str, Any]] = Field(default=None, alias="range30dData")
 
-    class Config:
-        """Pydantic configuration for RunAIProject."""
-
-        populate_by_name = True
-        populate_by_alias = True
-        validate_by_alias = True
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     def __repr__(self) -> str:
         """Prettify project output."""
