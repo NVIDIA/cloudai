@@ -214,14 +214,11 @@ class TestCLIDefaultModes:
         assert "verify-configs" in cli.handlers
         assert cli.handlers["verify-configs"] is handle_verify_all_configs
 
-        args = cli.parser.parse_args(
-            ["verify-configs", "--system-config", "system_config", "--tests-dir", "tests_dir", "configs_dir"]
-        )
+        args = cli.parser.parse_args(["verify-configs", "--tests-dir", "tests_dir", "configs_dir"])
         assert args == argparse.Namespace(
             log_file="debug.log",
             log_level="INFO",
             mode="verify-configs",
-            system_config=Path("system_config"),
             tests_dir=Path("tests_dir"),
             strict=False,
             **{"configs_dir": Path("configs_dir")},
@@ -232,7 +229,6 @@ class TestCLIDefaultModes:
             log_file="debug.log",
             log_level="INFO",
             mode="verify-configs",
-            system_config=None,
             tests_dir=None,
             strict=False,
             **{"configs_dir": Path("configs_dir")},
