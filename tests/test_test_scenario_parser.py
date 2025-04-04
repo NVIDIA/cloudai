@@ -56,11 +56,6 @@ class DummyHook(TestScenario):
         super().__init__(name="dummy", test_runs=test_runs)
 
 
-@pytest.fixture
-def dummy_hook() -> DummyHook:
-    return DummyHook([DummyTestRun("30m"), DummyTestRun("45m")])
-
-
 @pytest.mark.parametrize(
     "test_hooks, time_limit, expected",
     [
