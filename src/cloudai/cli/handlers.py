@@ -25,9 +25,8 @@ from unittest.mock import Mock
 
 import toml
 
-from cloudai import Installable, Parser, Registry, Runner, System, TestParser
+from cloudai import Installable, Parser, Registry, Runner, System, TestParser, TestScenario
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
-from cloudai._core.test_scenario import TestScenario
 from cloudai.util import prepare_output_dir
 
 from ..parser import HOOK_ROOT
