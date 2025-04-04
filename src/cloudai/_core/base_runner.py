@@ -145,7 +145,7 @@ class BaseRunner(ABC):
         items = list(self.testrun_to_job_map.items())
 
         for tr, job in items:
-            if self.mode == "dry-run" or self.system.is_job_running(job):
+            if self.mode == "dry-run" or self.system.is_job_running(job) or self.system.is_job_completed(job):
                 await self.check_and_schedule_start_post_init_dependent_tests(tr)
 
     async def check_and_schedule_start_post_init_dependent_tests(self, started_test_run: TestRun):

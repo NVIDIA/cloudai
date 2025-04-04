@@ -117,7 +117,7 @@ class SlurmSystem(BaseModel, System):
     cache_docker_images_locally: bool = False
     global_env_vars: Dict[str, Any] = {}
     scheduler: str = "slurm"
-    monitor_interval: int = 1
+    monitor_interval: int = 60
     cmd_shell: CommandShell = Field(default=CommandShell(), exclude=True)
     extra_srun_args: Optional[str] = None
     extra_sbatch_args: list[str] = []
