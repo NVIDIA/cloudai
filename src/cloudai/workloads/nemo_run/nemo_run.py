@@ -13,19 +13,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 from pathlib import Path
 from typing import List, Optional, Union, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cloudai import CmdArgs, DockerImage, File, Installable, TestDefinition
+from cloudai import DockerImage, File, Installable, TestDefinition
 
 
 class Plugin(BaseModel):
-    """Plugin configuration for NeMoRun."""
+    """Plugin configuration."""
 
     model_config = ConfigDict(extra="allow")
-
     fp8: Optional[str] = None
     fp8_margin: Optional[int] = None
     fp8_amax_history_len: Optional[int] = None
@@ -36,30 +36,29 @@ class Plugin(BaseModel):
 
 
 class Data(BaseModel):
-    """Data configuration for NeMoRun."""
+    """Data configuration."""
 
     model_config = ConfigDict(extra="allow")
-
     micro_batch_size: Union[int, List[int]] = 1
     global_batch_size: Union[int, List[int]] = 1
+    seq_length: Optional[int] = None
 
 
 class TrainerStrategy(BaseModel):
-    """Trainer strategy configuration for NeMoRun."""
+    """Trainer strategy configuration."""
 
     model_config = ConfigDict(extra="allow")
-
     tensor_model_parallel_size: Union[int, List[int]] = 1
     pipeline_model_parallel_size: Union[int, List[int]] = 1
     context_parallel_size: Union[int, List[int]] = 2
     virtual_pipeline_model_parallel_size: Optional[Union[int, List[int]]] = None
+    sequence_parallel: Optional[bool] = None
 
 
 class Trainer(BaseModel):
-    """Trainer configuration for NeMoRun."""
+    """Trainer configuration."""
 
     model_config = ConfigDict(extra="allow")
-
     max_steps: Union[int, List[int]] = 100
     val_check_interval: Union[int, List[int]] = 1000
     num_nodes: Optional[Union[int, List[int]]] = None
@@ -69,16 +68,15 @@ class Trainer(BaseModel):
 
 
 class LogCkpt(BaseModel):
-    """Logging checkpoint configuration for NeMoRun."""
+    """Checkpoint logging configuration."""
 
     model_config = ConfigDict(extra="allow")
-
-    save_on_train_epoch_end: Optional[bool] = Field(default=None)
-    save_last: Optional[bool] = Field(default=None)
+    save_on_train_epoch_end: Optional[bool] = None
+    save_last: Optional[bool] = None
 
 
 class LogTensorboard(BaseModel):
-    """Logging tensorboard configuration for NeMoRun."""
+    """Tensorboard logging configuration."""
 
     model_config = ConfigDict(extra="allow")
     save_dir: Union[str, Path] = Field(default="logs")
@@ -86,17 +84,17 @@ class LogTensorboard(BaseModel):
 
 
 class Log(BaseModel):
-    """Base logging configuration for NeMoRun."""
+    """Logging configuration."""
 
+    model_config = ConfigDict(extra="allow")
     ckpt: Optional[LogCkpt] = Field(default=None)
     tensorboard: Optional[LogTensorboard] = Field(default=None)
 
+
+class NeMoRunCmdArgs(BaseModel):
+    """NeMoRun command arguments."""
+
     model_config = ConfigDict(extra="allow")
-
-
-class NeMoRunCmdArgs(CmdArgs):
-    """NeMoRun test command arguments."""
-
     docker_image_url: str
     task: str
     recipe_name: str
@@ -120,13 +118,11 @@ class NeMoRunTestDefinition(TestDefinition):
         return self._docker_image
 
     @property
-    def installables(self) -> list[Installable]:
-        """Get list of installable objects."""
+    def installables(self) -> List[Installable]:
         return [self.docker_image, self.script]
 
     @property
     def constraint_check(self) -> bool:
-        """Check constraints for NeMoRun."""
         tp = cast(int, self.cmd_args.trainer.strategy.tensor_model_parallel_size)
         pp = cast(int, self.cmd_args.trainer.strategy.pipeline_model_parallel_size)
         cp = cast(int, self.cmd_args.trainer.strategy.context_parallel_size)
