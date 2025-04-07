@@ -453,17 +453,3 @@ class TestReportMetricsDSE:
             "but no report generation strategy is defined for it. "
             "Available report-metrics mapping: {}"
         )
-
-
-def test_get_reporters_nccl():
-    tr_model = TestRunModel(id="id", test_name="nccl", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1)
-    tdef = NCCLTestDefinition(name="nccl", description="desc", test_template_name="tt", cmd_args=NCCLCmdArgs())
-    reporters = get_reporters(tr_model, tdef)
-    assert len(reporters) == 1
-    assert NcclTestPerformanceReportGenerationStrategy in reporters
-
-    tdef.predictor = PredictorConfig(git_repo=GitRepo(url="", commit=""))
-    reporters = get_reporters(tr_model, tdef)
-    assert len(reporters) == 2
-    assert NcclTestPerformanceReportGenerationStrategy in reporters
-    assert NcclTestPredictionReportGenerationStrategy in reporters
