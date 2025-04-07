@@ -16,6 +16,7 @@
 
 import argparse
 import asyncio
+import copy
 import logging
 import signal
 from pathlib import Path
@@ -30,7 +31,6 @@ from cloudai import (
     Installable,
     Parser,
     Registry,
-    Reporter,
     Runner,
     System,
     Test,
@@ -111,31 +111,43 @@ def prepare_installation(
 
 
 def handle_dse_job(runner: Runner, args: argparse.Namespace):
-    test_run = next(iter(runner.runner.test_scenario.test_runs))
-    env = CloudAIGymEnv(test_run=test_run, runner=runner)
     registry = Registry()
 
-    agent_type = test_run.test.test_definition.agent
+    for tr in runner.runner.test_scenario.test_runs:
+        test_run = copy.deepcopy(tr)
+        env = CloudAIGymEnv(test_run=test_run, runner=runner)
+        agent_type = test_run.test.test_definition.agent
 
-    agent_class = registry.agents_map.get(agent_type)
-    if agent_class is None:
-        logging.error(
-            f"No agent available for type: {agent_type}. Please make sure {agent_type} "
-            f"is a valid agent type. Available agents: {registry.agents_map.keys()}"
-        )
-        exit(1)
+        agent_class = registry.agents_map.get(agent_type)
+        if agent_class is None:
+            logging.error(
+                f"No agent available for type: {agent_type}. Please make sure {agent_type} "
+                f"is a valid agent type. Available agents: {registry.agents_map.keys()}"
+            )
+            continue
 
-    agent = agent_class(env)
-    for step in range(agent.max_steps):
-        result = agent.select_action()
-        if result is None:
-            break
-        step, action = result
-        test_run.step = step
-        observation, reward, done, info = env.step(action)
-        feedback = {"trial_index": step, "value": reward}
-        agent.update_policy(feedback)
-        logging.info(f"Step {step}: Observation: {observation}, Reward: {reward}")
+        agent = agent_class(env)
+        for step in range(agent.max_steps):
+            result = agent.select_action()
+            if result is None:
+                break
+            step, action = result
+            test_run.step = step
+            observation, reward, done, info = env.step(action)
+            feedback = {"trial_index": step, "value": reward}
+            agent.update_policy(feedback)
+            logging.info(f"Step {step}: Observation: {observation}, Reward: {reward}")
+
+
+def generate_reports(system: System, test_scenario: TestScenario, result_dir: Path) -> None:
+    registry = Registry()
+    for reporter_class in registry.scenario_reports:
+        logging.debug(f"Generating report with {reporter_class.__name__}")
+        try:
+            reporter = reporter_class(system, test_scenario, result_dir)
+            reporter.generate()
+        except Exception as e:
+            logging.warning(f"Error generating report: {e}")
 
 
 def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> None:
@@ -144,13 +156,9 @@ def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> None:
     logging.info(f"All test scenario results stored at: {runner.runner.scenario_root}")
 
     if args.mode == "run":
-        reporter = Reporter(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
-        reporter.generate()
-        logging.info(
-            "All test scenario execution attempts are complete. Please review"
-            f" the '{args.log_file}' file to confirm successful completion or to"
-            " identify any issues."
-        )
+        generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
+
+    logging.info("All jobs are complete.")
 
 
 def register_signal_handlers(signal_handler: Callable) -> None:
@@ -203,8 +211,14 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     runner = Runner(args.mode, system, test_scenario)
     register_signal_handlers(runner.cancel_on_signal)
 
+    all_dse = all(tr.test.test_definition.is_dse_job for tr in test_scenario.test_runs)
+
     if any(tr.test.test_definition.is_dse_job for tr in test_scenario.test_runs):
-        handle_dse_job(runner, args)
+        if all_dse:
+            handle_dse_job(runner, args)
+        else:
+            logging.error("Mixing DSE and non-DSE jobs is not allowed.")
+            return 1
     else:
         handle_non_dse_job(runner, args)
 
@@ -223,8 +237,7 @@ def handle_generate_report(args: argparse.Namespace) -> int:
     assert test_scenario is not None
 
     logging.info("Generating report based on system and test scenario")
-    reporter = Reporter(system, test_scenario, args.result_dir)
-    reporter.generate()
+    generate_reports(system, test_scenario, args.result_dir)
 
     logging.info("Report generation completed.")
 
@@ -289,15 +302,9 @@ def verify_test_scenarios(
     test_tomls: list[Path],
     hook_tomls: List[Path],
     hook_test_tomls: list[Path],
-    system_config: Optional[Path] = None,
     strict: bool = False,
 ) -> int:
     system = Mock(spec=System)
-    if system_config:
-        system = Parser.parse_system(system_config)
-    else:
-        logging.warning("System configuration not provided, mocking it.")
-
     nfailed = 0
     for scenario_file in scenario_tomls:
         logging.debug(f"Verifying Test Scenario: {scenario_file}...")
@@ -343,9 +350,7 @@ def handle_verify_all_configs(args: argparse.Namespace) -> int:
     if files["test"]:
         nfailed += verify_test_configs(files["test"], args.strict)
     if files["scenario"]:
-        nfailed += verify_test_scenarios(
-            files["scenario"], test_tomls, files["hook"], files["hook_test"], args.system_config, args.strict
-        )
+        nfailed += verify_test_scenarios(files["scenario"], test_tomls, files["hook"], files["hook_test"], args.strict)
     if files["unknown"]:
         logging.error(f"Unknown configuration files: {[str(f) for f in files['unknown']]}")
         nfailed += len(files["unknown"])

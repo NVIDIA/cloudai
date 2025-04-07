@@ -72,13 +72,14 @@ jobs:
           set -o pipefail
 
           python -m pytest -vv --cov
-
-          python -m pytest --dead-fixtures
-
           # <100% coverage might indicate that some tests are not doing what they should,
           # but realistically, it might too hard to reach, so lower it a bit
           # (at the moment of writing, it is 99.95%)
           coverage report --include='tests/*' --precision=2 --fail-under=97.00
+
+          python -m pytest --dead-fixtures
+
+          python -m pytest -vv -m ci_only
 
       - name: Test local installation
         run: |

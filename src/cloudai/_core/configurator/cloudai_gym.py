@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import asyncio
+import copy
 import csv
 import logging
 from typing import Any, Dict, Optional, Tuple
@@ -43,7 +44,6 @@ class CloudAIGymEnv(BaseGym):
         """
         self.test_run = test_run
         self.runner = runner
-        self.test_scenario = runner.runner.test_scenario
         self.max_steps = test_run.test.test_definition.agent_steps
         super().__init__()
 
@@ -134,7 +134,9 @@ class CloudAIGymEnv(BaseGym):
         if not self.test_run.test.test_definition.constraint_check:
             logging.info("Constraint check failed. Skipping step.")
             return [-1.0], -1.0, True, {}
-        logging.info(f"Running step {self.test_run.current_iteration} with action {action}")
+
+        logging.info(f"Running step {self.test_run.step} with action {action}")
+        self.runner.runner.test_scenario.test_runs = [copy.deepcopy(self.test_run)]
         asyncio.run(self.runner.run())
 
         observation = self.get_observation(action)
@@ -142,7 +144,7 @@ class CloudAIGymEnv(BaseGym):
         done = False
         info = {}
 
-        self.write_trajectory(self.test_run.current_iteration, action, reward, observation)
+        self.write_trajectory(self.test_run.step, action, reward, observation)
 
         return observation, reward, done, info
 
@@ -222,11 +224,15 @@ class CloudAIGymEnv(BaseGym):
             reward (float): The reward received for the action.
             observation (list): The observation after taking the action.
         """
-        output_path = self.runner.runner.scenario_root
-        subdir = next(output_path.iterdir())
-        trajectory_file_path = subdir / f"{self.test_run.current_iteration}" / "trajectory.csv"
+        trajectory_file_path = (
+            self.runner.runner.scenario_root
+            / self.test_run.name
+            / f"{self.test_run.current_iteration}"
+            / "trajectory.csv"
+        )
 
         file_exists = trajectory_file_path.exists()
+        logging.debug(f"Writing trajectory into {trajectory_file_path} (exists: {file_exists})")
 
         with open(trajectory_file_path, mode="a", newline="") as file:
             writer = csv.writer(file)

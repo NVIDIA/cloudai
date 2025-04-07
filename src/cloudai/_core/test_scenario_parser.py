@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import logging
 import re
 from datetime import timedelta
@@ -23,48 +24,20 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Type
 import toml
 from pydantic import ValidationError
 
-from cloudai.workloads.nccl_test.prediction_report_generation_strategy import NcclTestPredictionReportGenerationStrategy
-
 from ..models.scenario import TestRunModel, TestScenarioModel
 from ..models.workload import TestDefinition
-from ..workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
-from ..workloads.jax_toolbox import (
-    GPTTestDefinition,
-    GrokTestDefinition,
-    JaxToolboxReportGenerationStrategy,
-    NemotronTestDefinition,
-)
-from ..workloads.megatron_run import CheckpointTimingReportGenerationStrategy, MegatronRunTestDefinition
-from ..workloads.nccl_test import NCCLTestDefinition, NcclTestPerformanceReportGenerationStrategy
-from ..workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy, NeMoLauncherTestDefinition
-from ..workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
-from ..workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
-from ..workloads.slurm_container import SlurmContainerReportGenerationStrategy, SlurmContainerTestDefinition
-from ..workloads.ucc_test import UCCTestDefinition, UCCTestReportGenerationStrategy
+from ..workloads.nccl_test import NCCLTestDefinition, NcclTestPredictionReportGenerationStrategy
 from .exceptions import TestScenarioParsingError, format_validation_error
+from .registry import Registry
 from .report_generation_strategy import ReportGenerationStrategy
 from .system import System
 from .test import Test
 from .test_parser import TestParser
 from .test_scenario import TestDependency, TestRun, TestScenario
 
-DEFAULT_REPORTERS: dict[Type[TestDefinition], Set[Type[ReportGenerationStrategy]]] = {
-    ChakraReplayTestDefinition: {ChakraReplayReportGenerationStrategy},
-    GPTTestDefinition: {JaxToolboxReportGenerationStrategy},
-    GrokTestDefinition: {JaxToolboxReportGenerationStrategy},
-    MegatronRunTestDefinition: {CheckpointTimingReportGenerationStrategy},
-    NCCLTestDefinition: {NcclTestPerformanceReportGenerationStrategy},
-    NeMoLauncherTestDefinition: {NeMoLauncherReportGenerationStrategy},
-    NeMoRunTestDefinition: {NeMoRunReportGenerationStrategy},
-    NemotronTestDefinition: {JaxToolboxReportGenerationStrategy},
-    SleepTestDefinition: {SleepReportGenerationStrategy},
-    SlurmContainerTestDefinition: {SlurmContainerReportGenerationStrategy},
-    UCCTestDefinition: {UCCTestReportGenerationStrategy},
-}
-
 
 def get_reporters(test_info: TestRunModel, tdef: TestDefinition) -> Set[Type[ReportGenerationStrategy]]:
-    reporters = DEFAULT_REPORTERS.get(type(tdef), set())
+    reporters = copy.deepcopy(Registry().reports_map.get(type(tdef), set()))
 
     if isinstance(tdef, NCCLTestDefinition) and tdef.predictor is not None:
         reporters.add(NcclTestPredictionReportGenerationStrategy)
@@ -121,12 +94,11 @@ def format_time_limit(total_time: timedelta) -> str:
     return f"{hours:02}:{minutes:02}:{seconds:02}"
 
 
-def calculate_total_time_limit(test_hooks: List[TestScenario], time_limit: Optional[str] = None) -> str:
-    total_time = timedelta()
+def calculate_total_time_limit(test_hooks: List[TestScenario], time_limit: Optional[str] = None) -> Optional[str]:
+    if not time_limit:
+        return None
 
-    if time_limit:
-        total_time += parse_time_limit(time_limit)
-
+    total_time = parse_time_limit(time_limit)
     total_time += sum(
         (
             parse_time_limit(test_run.time_limit)
@@ -284,11 +256,14 @@ class TestScenarioParser:
 
         if test.test_definition.is_dse_job and not tr.metric_reporter:
             report_metrics_map = {r: r.metrics for r in tr.reports}
-            raise TestScenarioParsingError(
+            logging.error(f"Failed to parse Test Scenario definition: {self.file_path}")
+            msg = (
                 f"Test '{test_info.id}' is a DSE job with agent_metric='{test.test_definition.agent_metric}', "
                 "but no report generation strategy is defined for it. "
                 f"Available report-metrics mapping: {report_metrics_map}"
             )
+            logging.error(msg)
+            raise TestScenarioParsingError(msg)
 
         return tr
 

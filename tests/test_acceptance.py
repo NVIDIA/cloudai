@@ -80,6 +80,7 @@ def test_slurm(tmp_path: Path, scenario: Dict):
         test_scenario=test_scenario_path,
         output_dir=tmp_path,
         enable_cache_without_check=False,
+        log_file="debug.log",
     )
     with (
         patch("asyncio.sleep", return_value=None),
@@ -147,7 +148,9 @@ def build_special_test_run(
                 name=test_type,
                 description=test_type,
                 test_template_name=test_type,
-                cmd_args=GPTCmdArgs(fdl_config="fdl/config", docker_image_url="https://docker/url"),
+                cmd_args=GPTCmdArgs(
+                    fdl_config="fdl/config", docker_image_url="https://docker/url", output_path="/some/output/path"
+                ),
                 extra_env_vars={"COMBINE_THRESHOLD": "1"},
             ),
             JaxToolboxSlurmCommandGenStrategy,
@@ -162,7 +165,9 @@ def build_special_test_run(
                 name=test_type,
                 description=test_type,
                 test_template_name=test_type,
-                cmd_args=GrokCmdArgs(fdl_config="fdl/config", docker_image_url="https://docker/url"),
+                cmd_args=GrokCmdArgs(
+                    fdl_config="fdl/config", docker_image_url="https://docker/url", output_path="/some/output/path"
+                ),
                 extra_env_vars={"COMBINE_THRESHOLD": "1"},
             ),
             JaxToolboxSlurmCommandGenStrategy,

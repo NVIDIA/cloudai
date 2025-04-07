@@ -16,6 +16,7 @@
 
 import copy
 import logging
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -88,14 +89,7 @@ class SlurmReportItem:
         return report_items
 
 
-class Reporter:
-    """
-    Generates reports for each test in a TestScenario.
-
-    By identifying the appropriate directories for each test and using test templates to generate detailed reports
-    based on subdirectories.
-    """
-
+class Reporter(ABC):
     def __init__(self, system: System, test_scenario: TestScenario, results_root: Path) -> None:
         self.system = system
         self.test_scenario = test_scenario
@@ -103,13 +97,14 @@ class Reporter:
         self.trs: list[TestRun] = []
 
     def load_test_runs(self):
-        for tr in self.test_scenario.test_runs:
+        for _tr in self.test_scenario.test_runs:
+            tr = copy.deepcopy(_tr)
             tr_root = self.results_root / tr.name
             iters = list(subdir for subdir in tr_root.glob("*") if subdir.is_dir())
-            for iter in sorted(iters):
+            for iter in sorted(iters, key=lambda x: int(x.name)):
                 if tr.test.test_definition.is_dse_job:
                     steps = list(subdir for subdir in iter.glob("*") if subdir.is_dir())
-                    for step in sorted(steps):
+                    for step in sorted(steps, key=lambda x: int(x.name)):
                         tr.current_iteration = int(iter.name)
                         tr.step = int(step.name)
                         tr.output_path = tr_root / f"{tr.current_iteration}" / f"{tr.step}"
@@ -120,33 +115,44 @@ class Reporter:
                     tr.output_path = tr_root / f"{tr.current_iteration}"
                     self.trs.append(copy.deepcopy(tr))
 
+        logging.debug(f"Loaded {len(self.trs)} test runs for {self.test_scenario.name} in {self.results_root}")
+        for tr in self.trs:
+            logging.debug(f"Test run: {tr.name} {tr.output_path}")
+
+    @abstractmethod
+    def generate(self) -> None: ...
+
+
+class PerTestReporter(Reporter):
     def generate(self) -> None:
-        """
-        Iterate over tests in the given test scenario.
-
-        Identifies the relevant directories based on the test's section name, and generates a report for each test
-        using its associated test template.
-
-        Args:
-            test_scenario (TestScenario): The scenario containing tests.
-        """
         self.load_test_runs()
-        self.generate_scenario_report()
 
         for tr in self.trs:
-            test_output_dir = self.results_root / tr.name
-            if not test_output_dir.exists() or not test_output_dir.is_dir():
-                logging.warning(f"Directory '{test_output_dir}' not found.")
-                continue
+            logging.debug(f"Available reports: {[r.__name__ for r in tr.reports]} for directory: {tr.output_path}")
+            for reporter in tr.reports:
+                rgs = reporter(self.system, tr)
 
-            self.generate_per_case_reports(test_output_dir, tr)
+                if not rgs.can_handle_directory():
+                    logging.warning(f"Skipping '{tr.output_path}', can't handle with strategy={reporter.__name__}.")
+                    continue
+                try:
+                    rgs.generate_report()
+                except Exception as e:
+                    logging.warning(
+                        f"Error generating report for '{tr.output_path}' with strategy={reporter.__name__}: {e}"
+                    )
 
+
+class StatusReporter(Reporter):
     @property
     def template_file(self) -> str:
         if isinstance(self.system, SlurmSystem):
             return "general-slurm-report.jinja2"
-
         return "general-report.jinja2"
+
+    def generate(self) -> None:
+        self.load_test_runs()
+        self.generate_scenario_report()
 
     def generate_scenario_report(self) -> None:
         template = jinja2.Environment(
@@ -164,32 +170,3 @@ class Reporter:
             f.write(report)
 
         logging.info(f"Generated scenario report at {report_path}")
-
-    def generate_per_case_reports(self, directory_path: Path, tr: TestRun) -> None:
-        """
-        Generate reports for a test by iterating through subdirectories within the directory path.
-
-        Checks if the test's template can handle each, and generating reports accordingly.
-
-        Args:
-            directory_path (Path): Directory for the test's section.
-            tr (TestRun): The test run object.
-        """
-        logging.debug(f"Available reports: {tr.reports} for directory: {directory_path}")
-        for reporter in tr.reports:
-            rgs = reporter(self.system, tr)
-
-            for subdir in directory_path.iterdir():
-                if tr.step > 0:
-                    subdir = subdir / f"{tr.step}"
-                tr.output_path = subdir
-
-                if not rgs.can_handle_directory():
-                    logging.warning(f"Skipping '{tr.output_path}', can't handle with " f"strategy={reporter.__name__}.")
-                    continue
-                try:
-                    rgs.generate_report()
-                except Exception as e:
-                    logging.warning(
-                        f"Error generating report for '{tr.output_path}' with strategy={reporter.__name__}: {e}"
-                    )

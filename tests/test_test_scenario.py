@@ -22,11 +22,19 @@ from unittest.mock import Mock, patch
 import pytest
 import toml
 
-from cloudai import CmdArgs, GitRepo, Test, TestRun, TestScenario, TestScenarioParser
-from cloudai._core.exceptions import TestScenarioParsingError
+from cloudai import (
+    CmdArgs,
+    GitRepo,
+    Registry,
+    Test,
+    TestRun,
+    TestScenario,
+    TestScenarioParser,
+    TestScenarioParsingError,
+)
 from cloudai._core.report_generation_strategy import ReportGenerationStrategy
 from cloudai._core.test import TestDefinition
-from cloudai._core.test_scenario_parser import DEFAULT_REPORTERS, calculate_total_time_limit, get_reporters
+from cloudai._core.test_scenario_parser import calculate_total_time_limit, get_reporters
 from cloudai._core.test_template import TestTemplate
 from cloudai.models.scenario import TestRunModel, TestScenarioModel, TestSpecModel
 from cloudai.models.workload import PredictorConfig
@@ -43,8 +51,8 @@ from cloudai.workloads.nccl_test import (
     NCCLCmdArgs,
     NCCLTestDefinition,
     NcclTestPerformanceReportGenerationStrategy,
+    NcclTestPredictionReportGenerationStrategy,
 )
-from cloudai.workloads.nccl_test.prediction_report_generation_strategy import NcclTestPredictionReportGenerationStrategy
 from cloudai.workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy, NeMoLauncherTestDefinition
 from cloudai.workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
 from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
@@ -353,7 +361,7 @@ class TestReporters:
         assert len(reporters) == 0
 
     def test_default_reporters_size(self):
-        assert len(DEFAULT_REPORTERS) == 11
+        assert len(Registry().reports_map) == 11
 
     @pytest.mark.parametrize(
         "tdef,expected_reporters",
@@ -372,7 +380,20 @@ class TestReporters:
         ],
     )
     def test_custom_reporters(self, tdef: Type[TestDefinition], expected_reporters: Set[ReportGenerationStrategy]):
-        assert DEFAULT_REPORTERS[tdef] == expected_reporters
+        assert Registry().reports_map[tdef] == expected_reporters
+
+    def test_get_reporters_nccl(self):
+        tr_model = TestRunModel(id="id", test_name="nccl", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1)
+        tdef = NCCLTestDefinition(name="nccl", description="desc", test_template_name="tt", cmd_args=NCCLCmdArgs())
+        reporters = get_reporters(tr_model, tdef)
+        assert len(reporters) == 1
+        assert NcclTestPerformanceReportGenerationStrategy in reporters
+
+        tdef.predictor = PredictorConfig(git_repo=GitRepo(url="", commit=""))
+        reporters = get_reporters(tr_model, tdef)
+        assert len(reporters) == 2
+        assert NcclTestPerformanceReportGenerationStrategy in reporters
+        assert NcclTestPredictionReportGenerationStrategy in reporters
 
 
 class TestReportMetricsDSE:
@@ -396,7 +417,9 @@ class TestReportMetricsDSE:
         test_scenario_parser.test_mapping["nccl"] = Test(test_definition=nccl, test_template=Mock())
         return test_scenario_parser
 
-    def test_raises_on_unknown_metric(self, ts_parser: TestScenarioParser, test_info: TestRunModel, tname: str):
+    def test_raises_on_unknown_metric(
+        self, ts_parser: TestScenarioParser, tname: str, test_info: TestRunModel, caplog: pytest.LogCaptureFixture
+    ):
         tdef = ts_parser.test_mapping[tname].test_definition
         tdef.agent_metric = "unknown"
 
@@ -406,11 +429,16 @@ class TestReportMetricsDSE:
         mapping_str = (
             f"{NcclTestPerformanceReportGenerationStrategy}: {NcclTestPerformanceReportGenerationStrategy.metrics}"
         )
-        assert str(exc_info.value) == (
+        msg = (
             f"Test '{test_info.id}' is a DSE job with agent_metric='{tdef.agent_metric}', "
             "but no report generation strategy is defined for it. "
             f"Available report-metrics mapping: {{{mapping_str}}}"
         )
+        assert str(exc_info.value) == msg
+        assert caplog.records[0].levelname == "ERROR"
+        assert caplog.records[0].message == f"Failed to parse Test Scenario definition: {ts_parser.file_path}"
+        assert caplog.records[1].levelname == "ERROR"
+        assert caplog.records[1].message == msg
 
     @patch("cloudai._core.test_scenario_parser.get_reporters", return_value=set())
     def test_raises_if_no_reports_defined(self, _, ts_parser: TestScenarioParser, test_info: TestRunModel, tname: str):
