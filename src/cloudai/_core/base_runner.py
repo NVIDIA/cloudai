@@ -21,6 +21,8 @@ from asyncio import Task
 from pathlib import Path
 from typing import Dict, List
 
+from cloudai.util.compression_utility import CompressionUtility
+
 from .base_job import BaseJob
 from .exceptions import JobFailureError, JobSubmissionError
 from .job_status_result import JobStatusResult
@@ -46,6 +48,7 @@ class BaseRunner(ABC):
         logger (logging.Logger): Logger for the runner.
         shutting_down (bool): A flag indicating whether a shutdown process has been initiated, preventing the start of
             new tests and ensuring a graceful termination of all running tests.
+        failure_detected (bool): A flag indicating whether a test failure has been detected.
     """
 
     def __init__(self, mode: str, system: System, test_scenario: TestScenario, output_path: Path):
@@ -67,6 +70,7 @@ class BaseRunner(ABC):
         self.testrun_to_job_map: Dict[TestRun, BaseJob] = {}
         logging.debug(f"{self.__class__.__name__} initialized")
         self.shutting_down = False
+        self.failure_detected = False
 
     async def shutdown(self):
         """Gracefully shut down the runner, terminating all outstanding jobs."""
@@ -76,6 +80,7 @@ class BaseRunner(ABC):
             logging.info(f"Terminating job {job.id} for test {job.test_run.name}")
             self.system.kill(job)
         logging.info("All jobs have been killed.")
+        self.archive_results_if_failure()
 
     async def run(self):
         """Asynchronously run the test scenario."""
@@ -93,6 +98,8 @@ class BaseRunner(ABC):
             await self.check_start_post_init_dependencies()
             completed_jobs_count += await self.monitor_jobs()
             await asyncio.sleep(self.monitor_interval)
+
+        self.archive_results_if_failure()
 
     async def submit_test(self, tr: TestRun):
         """
@@ -239,6 +246,7 @@ class BaseRunner(ABC):
                                 f"{job_status_result.error_message}"
                             )
                             logging.error(error_message)
+                            self.failure_detected = True
                             await self.shutdown()
                             raise JobFailureError(job.test_run.name, error_message, job_status_result.error_message)
                     else:
@@ -249,6 +257,7 @@ class BaseRunner(ABC):
                                 f"{job_status_result.error_message}"
                             )
                             logging.error(error_message)
+                            self.failure_detected = True
                         successful_jobs_count += 1
                         await self.handle_job_completion(job)
 
@@ -344,3 +353,10 @@ class BaseRunner(ABC):
         await asyncio.sleep(delay)
         job.terminated_by_dependency = True
         self.system.kill(job)
+
+    def archive_results_if_failure(self) -> None:
+        """Archive the results directory if a test failure was detected and not already archived."""
+        if self.failure_detected:
+            archive_path = self.scenario_root.parent / f"{self.scenario_root.name}.tar.gz"
+            logging.info(f"Archiving results directory to {archive_path} due to test failure")
+            CompressionUtility.compress_directory(self.scenario_root, archive_path)
