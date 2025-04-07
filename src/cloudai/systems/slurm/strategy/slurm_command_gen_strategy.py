@@ -72,6 +72,15 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             f"{self.system.install_path.absolute()}:/cloudai_install",
         ]
 
+        merged_env = self.system.global_env_vars.copy()
+        merged_env.update(tr.test.extra_env_vars)
+        if "NCCL_TOPO_FILE" in merged_env:
+            nccl_topo_file = merged_env["NCCL_TOPO_FILE"]
+            nccl_topo_file_path = Path(nccl_topo_file).resolve()
+            mounts.append(f"{nccl_topo_file_path}")
+
+        return mounts
+
     def gen_exec_command(self, tr: TestRun) -> str:
         env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
         cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)

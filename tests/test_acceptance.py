@@ -44,7 +44,7 @@ from cloudai.workloads.nemo_launcher import (
     NeMoLauncherSlurmCommandGenStrategy,
     NeMoLauncherTestDefinition,
 )
-from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunSlurmCommandGenStrategy, NeMoRunTestDefinition
+from cloudai.workloads.nemo_run import NeMoBaseRunCmdArgs, NeMoRunSlurmCommandGenStrategy, NeMoRunTestDefinition
 from cloudai.workloads.sleep import SleepCmdArgs, SleepSlurmCommandGenStrategy, SleepTestDefinition
 from cloudai.workloads.slurm_container import (
     SlurmContainerCmdArgs,
@@ -182,7 +182,7 @@ def build_special_test_run(
                 name=test_type,
                 description=test_type,
                 test_template_name=test_type,
-                cmd_args=NeMoRunCmdArgs(
+                cmd_args=NeMoBaseRunCmdArgs(
                     docker_image_url="nvcr.io/nvidia/nemo:24.09", task="pretrain", recipe_name="llama_3b"
                 ),
             ),

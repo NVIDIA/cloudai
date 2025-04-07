@@ -34,7 +34,7 @@ from cloudai.workloads.jax_toolbox import (
 from cloudai.workloads.megatron_run import MegatronRunCmdArgs, MegatronRunTestDefinition
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.workloads.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
-from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
+from cloudai.workloads.nemo_run import NeMoBaseRunCmdArgs, NeMoRunTestDefinition
 from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition
 from tests.conftest import MyTestDefinition
 
@@ -191,7 +191,9 @@ class TestLoadTestDefinition:
             "description": "d",
             "test_template_name": "NeMoRun",
             "cmd_args": {
-                **NeMoRunCmdArgs(docker_image_url="fake://url/nemo", task="task", recipe_name="recipe").model_dump(),
+                **NeMoBaseRunCmdArgs(
+                    docker_image_url="fake://url/nemo", task="task", recipe_name="recipe"
+                ).model_dump(),
                 "unknown": {"sub": "sub"},
                 "trainer": {"strategy": {"nested_unknown": "nested_unknown"}},
             },

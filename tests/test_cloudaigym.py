@@ -25,7 +25,7 @@ from cloudai._core.test_scenario import TestRun, TestScenario
 from cloudai.systems import SlurmSystem
 from cloudai.workloads.nemo_run import (
     Data,
-    NeMoRunCmdArgs,
+    NeMoBaseRunCmdArgs,
     NeMoRunTestDefinition,
     Trainer,
     TrainerStrategy,
@@ -35,7 +35,7 @@ from cloudai.workloads.nemo_run.report_generation_strategy import NeMoRunReportG
 
 @pytest.fixture
 def setup_env(slurm_system: SlurmSystem) -> tuple[TestRun, Runner]:
-    cmd_args = NeMoRunCmdArgs(
+    cmd_args = NeMoBaseRunCmdArgs(
         docker_image_url="https://docker/url",
         task="some_task",
         recipe_name="some_recipe",
@@ -124,7 +124,7 @@ def test_compute_reward():
 def test_populate_action_space():
     env = CloudAIGymEnv(test_run=MagicMock(), runner=MagicMock())
     action_space = {}
-    cmd_args = NeMoRunCmdArgs(
+    cmd_args = NeMoBaseRunCmdArgs(
         docker_image_url="https://docker/url",
         task="some_task",
         recipe_name="some_recipe",
@@ -153,7 +153,7 @@ def test_populate_action_space():
 def test_populate_action_space_cmd_args_list():
     env = CloudAIGymEnv(test_run=MagicMock(), runner=MagicMock())
     action_space = {}
-    cmd_args = NeMoRunCmdArgs(
+    cmd_args = NeMoBaseRunCmdArgs(
         docker_image_url="https://docker/url",
         task="some_task",
         recipe_name="some_recipe",
@@ -182,7 +182,7 @@ def test_populate_action_space_cmd_args_list():
 def test_populate_action_space_extra_env_args_list():
     env = CloudAIGymEnv(test_run=MagicMock(), runner=MagicMock())
     action_space = {}
-    cmd_args = NeMoRunCmdArgs(
+    cmd_args = NeMoBaseRunCmdArgs(
         docker_image_url="https://docker/url",
         task="some_task",
         recipe_name="some_recipe",
@@ -208,7 +208,7 @@ def test_populate_action_space_extra_env_args_list():
 def test_update_test_run_obj():
     env = CloudAIGymEnv(test_run=MagicMock(), runner=MagicMock())
 
-    cmd_args = NeMoRunCmdArgs(
+    cmd_args = NeMoBaseRunCmdArgs(
         docker_image_url="https://docker/url",
         task="some_task",
         recipe_name="some_recipe",

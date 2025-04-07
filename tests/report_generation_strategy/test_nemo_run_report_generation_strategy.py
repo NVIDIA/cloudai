@@ -21,7 +21,7 @@ import pytest
 
 from cloudai import Test, TestRun
 from cloudai.systems.slurm.slurm_system import SlurmSystem
-from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
+from cloudai.workloads.nemo_run import NeMoBaseRunCmdArgs, NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
 from cloudai.workloads.nemo_run.report_generation_strategy import extract_timings
 
 
@@ -32,7 +32,7 @@ def nemo_tr(tmp_path: Path) -> TestRun:
             name="nemo",
             description="desc",
             test_template_name="t",
-            cmd_args=NeMoRunCmdArgs(docker_image_url="docker://url", task="task", recipe_name="recipe"),
+            cmd_args=NeMoBaseRunCmdArgs(docker_image_url="docker://url", task="task", recipe_name="recipe"),
         ),
         test_template=Mock(),
     )
@@ -78,7 +78,7 @@ def nemo_tr_encoded(tmp_path: Path) -> TestRun:
             name="nemo",
             description="desc",
             test_template_name="t",
-            cmd_args=NeMoRunCmdArgs(docker_image_url="docker://url", task="task", recipe_name="recipe"),
+            cmd_args=NeMoBaseRunCmdArgs(docker_image_url="docker://url", task="task", recipe_name="recipe"),
         ),
         test_template=Mock(),
     )

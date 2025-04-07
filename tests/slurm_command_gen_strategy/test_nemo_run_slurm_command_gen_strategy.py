@@ -25,7 +25,7 @@ from cloudai._core.test_scenario import TestRun
 from cloudai.systems import SlurmSystem
 from cloudai.workloads.nemo_run import (
     Data,
-    NeMoRunCmdArgs,
+    NeMoBaseRunCmdArgs,
     NeMoRunSlurmCommandGenStrategy,
     NeMoRunTestDefinition,
     Trainer,
@@ -40,7 +40,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
             name="t1",
             description="desc1",
             test_template_name="tt",
-            cmd_args=NeMoRunCmdArgs(
+            cmd_args=NeMoBaseRunCmdArgs(
                 docker_image_url="nvcr.io/nvidia/nemo:24.09", task="pretrain", recipe_name="llama_3b"
             ),
             extra_env_vars={"TEST_VAR_1": "value1"},
@@ -63,7 +63,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
         return NeMoRunSlurmCommandGenStrategy(slurm_system, {})
 
     def test_generate_test_command(self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy, test_run: TestRun) -> None:
-        cmd_args = NeMoRunCmdArgs(
+        cmd_args = NeMoBaseRunCmdArgs(
             docker_image_url="nvcr.io/nvidia/nemo:24.09",
             task="fine_tune",
             recipe_name="llama7_13b",
@@ -106,7 +106,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
         self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy, test_run: TestRun, caplog
     ) -> None:
         test_run.num_nodes = 1
-        cmd_args = NeMoRunCmdArgs(
+        cmd_args = NeMoBaseRunCmdArgs(
             docker_image_url="nvcr.io/nvidia/nemo:24.09",
             task="fine_tune",
             recipe_name="llama7_13b",
