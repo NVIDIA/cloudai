@@ -320,3 +320,10 @@ def test_ranks_mapping_cmd(strategy_fixture: SlurmCommandGenStrategy, testrun_fi
 
     result = strategy_fixture._ranks_mapping_cmd(slurm_args, testrun_fixture)
     assert result == expected_command
+
+
+def test_nccl_topo_mount(strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun):
+    testrun_fixture.test.extra_env_vars["NCCL_TOPO_FILE"] = "/tmp/nccl_topo.txt"
+    mounts = strategy_fixture.container_mounts(testrun_fixture)
+    expected_mount = f"{Path('/tmp/nccl_topo.txt').resolve()}:{Path('/tmp/nccl_topo.txt').resolve()}"
+    assert expected_mount in mounts

@@ -51,12 +51,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
     @final
     def container_mounts(self, tr: TestRun) -> list[str]:
-        """
-        Return the container mounts for the test run.
-
-        Function returns CommandGenStrategy specific container mounts as well as default ones
-        that should always be used.
-        """
+        """Return the container mounts for the test run."""
         tdef = tr.test.test_definition
 
         repo_mounts = []
@@ -64,13 +59,23 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             path = repo.installed_path.absolute() if repo.installed_path else self.system.install_path / repo.repo_name
             repo_mounts.append(f"{path}:{repo.container_mount}")
 
-        return [
+        mounts = [
             f"{tr.output_path.absolute()}:/cloudai_run_results",
             *tdef.extra_container_mounts,
             *repo_mounts,
             *self._container_mounts(tr),
             f"{self.system.install_path.absolute()}:/cloudai_install",
         ]
+
+        merged_env = self.system.global_env_vars.copy()
+        merged_env.update(tr.test.extra_env_vars)
+        if "NCCL_TOPO_FILE" in merged_env:
+            nccl_topo_file = merged_env["NCCL_TOPO_FILE"]
+            if isinstance(nccl_topo_file, str):
+                nccl_topo_file_path = Path(nccl_topo_file).resolve()
+                mounts.append(f"{nccl_topo_file_path}:{nccl_topo_file_path}")
+
+        return mounts
 
     def gen_exec_command(self, tr: TestRun) -> str:
         env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)

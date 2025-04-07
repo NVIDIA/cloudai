@@ -25,15 +25,8 @@ from cloudai.workloads.nccl_test import NCCLTestDefinition
 class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for NCCL tests on Slurm systems."""
 
-    def _container_mounts(self, tr: TestRun) -> list[str]:
-        mounts: list[str] = []
-        env = tr.test.extra_env_vars | self.system.global_env_vars
-        if "NCCL_TOPO_FILE" in env:
-            nccl_topo_file = env["NCCL_TOPO_FILE"]
-            if isinstance(nccl_topo_file, str):
-                nccl_topo_file_path = Path(nccl_topo_file).resolve()
-                mounts.append(f"{nccl_topo_file_path}:{nccl_topo_file_path}")
-        return mounts
+    def _container_mounts(self, tr: TestRun) -> List[str]:
+        return []
 
     def _parse_slurm_args(
         self,
