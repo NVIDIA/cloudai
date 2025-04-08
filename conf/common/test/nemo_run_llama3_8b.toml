@@ -28,7 +28,7 @@ recipe_name = "llama3_8b"
   global_batch_size = 128
 
   [cmd_args.trainer]
-  max_steps = 100
+  max_steps = 35
   val_check_interval = 1000
   num_nodes = 1
 
@@ -40,3 +40,9 @@ recipe_name = "llama3_8b"
   [cmd_args.log.ckpt]
   save_on_train_epoch_end = false
   save_last = false
+
+[extra_env_vars]
+NCCL_DEBUG = "INFO"
+NCCL_DEBUG_SUBSYS = "COLL,P2P,NET"
+NCCL_DEBUG_FILE = "/cloudai_run_results/nccl_trace.txt"
+NCCL_TOPO_DUMP_FILE = "/cloudai_run_results/nccl_topo.xml"
