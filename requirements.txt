@@ -6,3 +6,4 @@ kubernetes==30.1.0
 pydantic==2.8.2
 jinja2==3.1.6
 websockets==15.0.1
+elasticsearch==7.12.1

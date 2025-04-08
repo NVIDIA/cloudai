@@ -24,6 +24,8 @@ import numpy as np
 
 from cloudai import ReportGenerationStrategy
 from cloudai._core.test_scenario import METRIC_ERROR
+from cloudai.systems.slurm.slurm_system import SlurmSystem
+from cloudai.workloads.nemo_run.data.llama_record_publisher import NeMoRunLLAMARecordPublisher
 
 
 @cache
@@ -97,6 +99,23 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             f.write("Median: {median}\n".format(median=stats["median"]))
             f.write("Min: {min}\n".format(min=stats["min"]))
             f.write("Max: {max}\n".format(max=stats["max"]))
+
+        self.publish_job_data()
+
+    def publish_job_data(self) -> None:
+        from typing import cast
+
+        if isinstance(self.system, SlurmSystem):
+            slurm_system = cast(SlurmSystem, self.system)
+            if slurm_system.data_repository is None:
+                logging.error("No data repository configured in the Slurm system for publishing job data.")
+                return
+            repository = slurm_system.data_repository.instantiate_repository()
+        else:
+            return
+
+        publisher = NeMoRunLLAMARecordPublisher(repository=repository)
+        publisher.publish_from_test_run(self.test_run)
 
     def get_metric(self, metric: str) -> float:
         step_timings = extract_timings(self.results_file)

@@ -47,6 +47,14 @@ name = "partition_1"
 [[partitions]]
 name = "partition_2"
 
+[data_repository]
+backend = "elastic"
+host = "MY_HOTS"
+api_key_id = "MY_API_KEY"
+api_key_secret = "MY_API_KEY_SECRET"
+index = "MY_INDEX"
+verify_certs = true
+
 [global_env_vars]
 # NCCL Specific Configurations
 NCCL_IB_GID_INDEX = "3"
