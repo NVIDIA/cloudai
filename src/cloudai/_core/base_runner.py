@@ -16,6 +16,8 @@
 
 import asyncio
 import logging
+import os
+import tarfile
 from abc import ABC, abstractmethod
 from asyncio import Task
 from pathlib import Path
@@ -359,4 +361,5 @@ class BaseRunner(ABC):
         if self.failure_detected:
             archive_path = self.scenario_root.parent / f"{self.scenario_root.name}.tar.gz"
             logging.info(f"Archiving results directory to {archive_path} due to test failure")
-            CompressionUtility.compress_directory(self.scenario_root, archive_path)
+            with tarfile.open(archive_path, "w:gz") as tar:
+                tar.add(self.scenario_root, arcname=os.path.basename(self.scenario_root))
