@@ -23,8 +23,6 @@ from asyncio import Task
 from pathlib import Path
 from typing import Dict, List
 
-from cloudai.util.compression_utility import CompressionUtility
-
 from .base_job import BaseJob
 from .exceptions import JobFailureError, JobSubmissionError
 from .job_status_result import JobStatusResult
