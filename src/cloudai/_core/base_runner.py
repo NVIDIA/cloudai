@@ -85,14 +85,18 @@ class BaseRunner(ABC):
         total_tests = len(self.test_scenario.test_runs)
         completed_jobs_count = 0
 
-        dependency_free_tests = self.find_dependency_free_tests()
-        for tr in dependency_free_tests:
+        dependency_free_trs = self.find_dependency_free_tests()
+        for tr in dependency_free_trs:
             await self.submit_test(tr)
 
-        logging.debug(f"Total tests: {total_tests}, dependency free tests: {len(dependency_free_tests)}")
+        logging.debug(f"Total tests: {total_tests}, dependency free tests: {[tr.name for tr in dependency_free_trs]}")
         while completed_jobs_count < total_tests:
             await self.check_start_post_init_dependencies()
             completed_jobs_count += await self.monitor_jobs()
+            logging.debug(
+                f"Completed jobs: {completed_jobs_count}, total tests: {total_tests}, "
+                f"sleeping for {self.monitor_interval} seconds"
+            )
             await asyncio.sleep(self.monitor_interval)
 
     async def submit_test(self, tr: TestRun):
@@ -147,8 +151,8 @@ class BaseRunner(ABC):
 
         for tr, job in items:
             is_running, is_completed = self.system.is_job_running(job), self.system.is_job_completed(job)
+            logging.debug(f"start_post_init for test {tr.name} ({is_running=}, {is_completed=}, {self.mode=})")
             if self.mode == "dry-run" or is_running or is_completed:
-                logging.debug(f"start_post_init for test {tr.name} ({is_running=}, {is_completed=}, {self.mode=})")
                 await self.check_and_schedule_start_post_init_dependent_tests(tr)
 
     async def check_and_schedule_start_post_init_dependent_tests(self, started_test_run: TestRun):
