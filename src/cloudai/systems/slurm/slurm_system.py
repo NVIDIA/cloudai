@@ -510,7 +510,6 @@ class SlurmSystem(BaseModel, System):
         """
         logging.debug(f"Executing command: {command}")
         stdout, stderr = self.cmd_shell.execute(command).communicate()
-        logging.debug(f"Command output: {stdout}")
         if stderr:
             logging.error(f"Error executing command '{command}': {stderr}")
         return stdout, stderr
