@@ -30,12 +30,17 @@ from nemo.collections import llm
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.model.llama import Llama3Config8B, LlamaModel
-from nemo.collections.llm.recipes.llama3_70b import pretrain_recipe as llama3_70b_recipe
+from nemo.collections.llm.gpt.model.llama import Llama3Config8B, Llama3Config70B, LlamaModel
 from nemo.collections.llm.recipes.llama31_405b import pretrain_recipe as llama3_405b_recipe
 from nemo.collections.llm.recipes.nemotron3_8b import pretrain_recipe as nemotron3_8b_recipe
 from nemo.collections.llm.recipes.nemotron4_15b import pretrain_recipe as nemotron4_15b_recipe
 from nemo.collections.llm.recipes.nemotron4_340b import pretrain_recipe as nemotron4_340b_recipe
+from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
+    BulkOverlapCfg,
+    PipelineOverlapCfg,
+    RingExchangeOverlapCfg,
+    TransformerLayerTPOverlapCfg,
+)
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import AutoResume, NeMoLogger
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
@@ -71,7 +76,7 @@ def default_log(
         name=name,
         tensorboard=tensorboard_logger,
         wandb=wandb_logger,
-        log_dir=dir,
+        log_dir=None,
     )
 
 
@@ -192,6 +197,168 @@ def comms_overlap_callbacks() -> list[pl.Callback]:
     ]
 
 
+@run.cli.factory
+@run.autoconvert
+def llama3_70b_bf16_tp_overlap_config() -> run.Config[TransformerLayerTPOverlapCfg]:
+    return run.Config(
+        TransformerLayerTPOverlapCfg,
+        qkv_dgrad=run.Config(
+            BulkOverlapCfg,
+            cga_size=2,
+            method="bulk",
+            num_sm=4,
+            set_sm_margin=False,
+        ),
+        qkv_wgrad=run.Config(
+            BulkOverlapCfg,
+            cga_size=2,
+            method="bulk",
+            num_sm=24,
+            set_sm_margin=False,
+        ),
+        qkv_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        proj_dgrad=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        proj_fprop=run.Config(
+            PipelineOverlapCfg,
+            num_sm=24,
+            cga_size=2,
+            num_splits=4,
+            set_sm_margin=True,
+            fp8_buf=False,
+        ),
+        fc1_dgrad=run.Config(
+            BulkOverlapCfg,
+            num_sm=2,
+            cga_size=2,
+            set_sm_margin=False,
+            method="bulk",
+        ),
+        fc1_wgrad=run.Config(
+            BulkOverlapCfg,
+            num_sm=4,
+            cga_size=2,
+            set_sm_margin=False,
+            method="bulk",
+        ),
+        fc1_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        fc2_dgrad=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        fc2_fprop=run.Config(
+            PipelineOverlapCfg,
+            num_sm=16,
+            cga_size=2,
+            num_splits=4,
+            set_sm_margin=True,
+            fp8_buf=False,
+        ),
+    )
+
+
+@run.cli.factory
+@run.autoconvert
+def llama3_70b_fp8_tp_overlap_config() -> run.Config[TransformerLayerTPOverlapCfg]:
+    return run.Config(
+        TransformerLayerTPOverlapCfg,
+        qkv_dgrad=run.Config(
+            BulkOverlapCfg,
+            cga_size=2,
+            method="bulk",
+            num_sm=4,
+            set_sm_margin=False,
+        ),
+        qkv_wgrad=run.Config(
+            BulkOverlapCfg,
+            cga_size=2,
+            method="bulk",
+            num_sm=4,
+            set_sm_margin=False,
+        ),
+        qkv_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        proj_dgrad=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        proj_fprop=run.Config(
+            PipelineOverlapCfg,
+            num_sm=24,
+            cga_size=2,
+            num_splits=4,
+            set_sm_margin=True,
+            fp8_buf=True,
+            method="pipeline",
+        ),
+        fc1_dgrad=run.Config(
+            BulkOverlapCfg,
+            num_sm=2,
+            cga_size=2,
+            set_sm_margin=False,
+            method="bulk",
+        ),
+        fc1_wgrad=run.Config(
+            BulkOverlapCfg,
+            num_sm=4,
+            cga_size=2,
+            set_sm_margin=False,
+            method="bulk",
+        ),
+        fc1_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        fc2_dgrad=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        fc2_fprop=run.Config(
+            PipelineOverlapCfg,
+            num_sm=16,
+            cga_size=2,
+            num_splits=4,
+            set_sm_margin=True,
+            fp8_buf=False,
+            method="pipeline",
+        ),
+    )
+
+
 # LLAMA3 8B Recipe
 @run.cli.factory(target=llm.pretrain)
 def cloudai_llama3_8b_recipe() -> run.Partial:
@@ -247,7 +414,7 @@ def cloudai_llama3_8b_recipe() -> run.Partial:
             seq_length=8192,
             micro_batch_size=1,
             global_batch_size=32,
-            tokenizer=hf_tokenizer_llama3_8b(),
+            tokenizer=null_tokenizer(vocab_size=128256),
         ),
         optim=run.Config(
             nl.MegatronOptimizerModule,
@@ -273,17 +440,17 @@ def cloudai_llama3_8b_recipe() -> run.Partial:
             ),
         ),
         resume=default_resume(),
+        log=default_log(),
     )
     return recipe
 
 
 # LLAMA3 70B Recipe
 @run.cli.factory(target=llm.pretrain)
-@run.autoconvert
 def cloudai_llama3_70b_recipe() -> run.Partial:
     recipe = run.Partial(
         llm.pretrain,
-        model=run.Config(llama3_70b_recipe(performance_mode=True)),
+        model=run.Config(LlamaModel, config=Llama3Config70B()),
         data=run.Config(
             MockDataModule,
             seq_length=8192,
@@ -306,7 +473,7 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
                 pipeline_model_parallel_size=1,
                 context_parallel_size=1,
                 virtual_pipeline_model_parallel_size=None,
-                sequence_parallel=False,
+                sequence_parallel=True,
                 pipeline_dtype=torch.bfloat16,
                 ddp=run.Config(
                     DistributedDataParallelConfig,
@@ -319,6 +486,16 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
             num_sanity_val_steps=0,
             val_check_interval=1000,
             max_epochs=10,
+            callbacks=[
+                run.Config(
+                    MegatronCommOverlapCallback,
+                    tp_comm_overlap=True,
+                    tp_comm_overlap_cfg=llama3_70b_bf16_tp_overlap_config(),
+                    overlap_grad_reduce=True,
+                    overlap_param_gather=True,
+                ),
+                timing_callback(),
+            ],
         ),
         optim=run.Config(
             nl.MegatronOptimizerModule,
@@ -545,7 +722,7 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
             seq_length=4096,
             micro_batch_size=1,
             global_batch_size=8,
-            tokenizer=null_tokenizer(),
+            tokenizer=null_tokenizer(vocab_size=128256),
         ),
         trainer=run.Config(
             nl.Trainer,
