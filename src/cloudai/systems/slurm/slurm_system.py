@@ -247,7 +247,7 @@ class SlurmSystem(BaseModel, System):
             if "RUNNING" in job_states:
                 return False
 
-            if any(state in ["COMPLETED", "FAILED", "CANCELLED", "TIMEOUT"] for state in job_states):
+            if any(state in ["COMPLETED", "FAILED", "CANCELLED", "TIMEOUT", "CANCELLED+"] for state in job_states):
                 return True
 
             break
