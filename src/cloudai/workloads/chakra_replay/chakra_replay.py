@@ -16,17 +16,19 @@
 
 from typing import Optional
 
-from cloudai import CmdArgs, DockerImage, Installable, TestDefinition
+from cloudai import CmdArgs, DockerImage, GitRepo, Installable, PythonExecutable, TestDefinition
 
 
 class ChakraReplayCmdArgs(CmdArgs):
     """ChakraReplay test command arguments."""
 
     docker_image_url: str
-    mpi: str = "pmix"
-    trace_type: str = "et"
-    trace_path: Optional[str] = None
-    num_replays: int = 1
+    git_repo: GitRepo
+    backend_name: str = "pytorch-dist"
+    trace_dir: Optional[str] = None
+    warmup_iters: int
+    iters: int
+    log_level: str = "INFO"
 
 
 class ChakraReplayTestDefinition(TestDefinition):
@@ -34,6 +36,7 @@ class ChakraReplayTestDefinition(TestDefinition):
 
     cmd_args: ChakraReplayCmdArgs
     _docker_image: Optional[DockerImage] = None
+    _comm_replay_executable: Optional[PythonExecutable] = None
 
     @property
     def docker_image(self) -> DockerImage:
@@ -42,5 +45,13 @@ class ChakraReplayTestDefinition(TestDefinition):
         return self._docker_image
 
     @property
+    def comm_replay_executable(self) -> PythonExecutable:
+        if not self._comm_replay_executable:
+            self._comm_replay_executable = PythonExecutable(
+                git_repo=GitRepo(url=self.cmd_args.git_repo.url, commit=self.cmd_args.git_repo.commit),
+            )
+        return self._comm_replay_executable
+
+    @property
     def installables(self) -> list[Installable]:
-        return [self.docker_image]
+        return [self.docker_image, self.comm_replay_executable]
