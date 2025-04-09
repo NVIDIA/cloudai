@@ -26,8 +26,8 @@ id = "Tests.2"
 time_limit = "00:01:00"
 test_name = "sleep_5"
   [[Tests.dependencies]]
-  type = "start_post_init"
-  id = "Tests.1"
+  type = "start_post_comp"
+  id = "Tests.3"
 
 [[Tests]]
 id = "Tests.3"
