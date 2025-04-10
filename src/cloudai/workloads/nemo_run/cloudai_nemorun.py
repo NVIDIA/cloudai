@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+import sys
 from datetime import timedelta
 from typing import Optional
 
@@ -30,11 +31,9 @@ from nemo.collections import llm
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.model.llama import Llama3Config8B, Llama3Config70B, LlamaModel
-from nemo.collections.llm.recipes.llama31_405b import pretrain_recipe as llama3_405b_recipe
+from nemo.collections.llm.gpt.model.llama import Llama3Config8B, Llama3Config70B, Llama31Config405B, LlamaModel
+from nemo.collections.llm.gpt.model.nemotron import Nemotron4Config15B, Nemotron4Config340B, NemotronModel
 from nemo.collections.llm.recipes.nemotron3_8b import pretrain_recipe as nemotron3_8b_recipe
-from nemo.collections.llm.recipes.nemotron4_15b import pretrain_recipe as nemotron4_15b_recipe
-from nemo.collections.llm.recipes.nemotron4_340b import pretrain_recipe as nemotron4_340b_recipe
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
     BulkOverlapCfg,
     PipelineOverlapCfg,
@@ -456,7 +455,7 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
             seq_length=8192,
             micro_batch_size=1,
             global_batch_size=8,
-            tokenizer=null_tokenizer(),
+            tokenizer=null_tokenizer(vocab_size=128256),
         ),
         trainer=run.Config(
             nl.Trainer,
@@ -524,13 +523,13 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
 def cloudai_llama3_405b_recipe() -> run.Partial:
     recipe = run.Partial(
         llm.pretrain,
-        model=run.Config(llama3_405b_recipe(performance_mode=True)),
+        model=run.Config(LlamaModel, config=Llama31Config405B()),
         data=run.Config(
             MockDataModule,
             seq_length=8192,
             micro_batch_size=1,
             global_batch_size=8,
-            tokenizer=null_tokenizer(),
+            tokenizer=null_tokenizer(128256),
         ),
         trainer=run.Config(
             nl.Trainer,
@@ -648,46 +647,60 @@ def cloudai_nemotron3_8b_recipe() -> run.Partial:
 
 # NEMOTRON4 15B Recipe
 @run.cli.factory(target=llm.pretrain)
-@run.autoconvert
 def cloudai_nemotron4_15b_recipe() -> run.Partial:
     recipe = run.Partial(
         llm.pretrain,
-        model=run.Config(nemotron4_15b_recipe(performance_mode=True)),
+        model=run.Config(NemotronModel, config=Nemotron4Config15B()),
         data=run.Config(
             MockDataModule,
             seq_length=4096,
             micro_batch_size=1,
             global_batch_size=8,
-            tokenizer=null_tokenizer(),
+            tokenizer=null_tokenizer(vocab_size=256000),
         ),
         trainer=run.Config(
             nl.Trainer,
             devices=8,
-            num_nodes=1,
+            num_nodes=2,
             accelerator="gpu",
             max_steps=10,
             limit_test_batches=50,
             limit_val_batches=32,
             log_every_n_steps=10,
+            use_distributed_sampler=False,
+            val_check_interval=150,
+            plugins=run.Config(
+                nl.MegatronMixedPrecision,
+                autocast_enabled=False,
+                grad_reduce_in_fp32=False,
+                params_dtype=torch.bfloat16,
+                pipeline_dtype=torch.bfloat16,
+                precision="bf16-mixed",
+            ),
             strategy=run.Config(
                 nl.MegatronStrategy,
-                tensor_model_parallel_size=2,
+                tensor_model_parallel_size=4,
                 pipeline_model_parallel_size=1,
                 context_parallel_size=1,
                 virtual_pipeline_model_parallel_size=None,
-                sequence_parallel=False,
-                pipeline_dtype=torch.bfloat16,
+                sequence_parallel=True,
+                pipeline_dtype=None,
+                gradient_as_bucket_view=True,
+                ckpt_async_save=True,
+                ckpt_include_optimizer=True,
+                ckpt_parallel_load=True,
                 ddp=run.Config(
                     DistributedDataParallelConfig,
                     check_for_nan_in_grad=True,
                     grad_reduce_in_fp32=True,
                     overlap_grad_reduce=True,
                     overlap_param_gather=True,
+                    average_in_collective=True,
                 ),
             ),
             num_sanity_val_steps=0,
-            val_check_interval=1000,
             max_epochs=10,
+            callbacks=[timing_callback()],
         ),
         optim=run.Config(
             nl.MegatronOptimizerModule,
@@ -712,11 +725,10 @@ def cloudai_nemotron4_15b_recipe() -> run.Partial:
 
 # NEMOTRON4 340B Recipe
 @run.cli.factory(target=llm.pretrain)
-@run.autoconvert
 def cloudai_nemotron4_340b_recipe() -> run.Partial:
     recipe = run.Partial(
         llm.pretrain,
-        model=run.Config(nemotron4_340b_recipe(performance_mode=True)),
+        model=run.Config(NemotronModel, config=Nemotron4Config340B()),
         data=run.Config(
             MockDataModule,
             seq_length=4096,
@@ -733,25 +745,48 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
             limit_test_batches=50,
             limit_val_batches=32,
             log_every_n_steps=10,
+            use_distributed_sampler=False,
+            plugins=run.Config(
+                nl.MegatronMixedPrecision,
+                autocast_enabled=False,
+                grad_reduce_in_fp32=False,
+                params_dtype=torch.bfloat16,
+                pipeline_dtype=torch.bfloat16,
+                precision="bf16-mixed",
+            ),
             strategy=run.Config(
                 nl.MegatronStrategy,
                 tensor_model_parallel_size=8,
-                pipeline_model_parallel_size=1,
-                context_parallel_size=1,
-                virtual_pipeline_model_parallel_size=None,
-                sequence_parallel=False,
+                pipeline_model_parallel_size=8,
+                context_parallel_size=2,
+                virtual_pipeline_model_parallel_size=12,
+                sequence_parallel=True,
                 pipeline_dtype=torch.bfloat16,
+                gradient_as_bucket_view=True,
+                ckpt_async_save=True,
+                ckpt_include_optimizer=True,
+                ckpt_parallel_load=True,
                 ddp=run.Config(
                     DistributedDataParallelConfig,
                     check_for_nan_in_grad=True,
                     grad_reduce_in_fp32=True,
                     overlap_grad_reduce=True,
                     overlap_param_gather=True,
+                    average_in_collective=True,
                 ),
             ),
             num_sanity_val_steps=0,
-            val_check_interval=1000,
+            val_check_interval=500,
             max_epochs=10,
+            callbacks=[
+                run.Config(
+                    MegatronCommOverlapCallback,
+                    tp_comm_overlap=True,
+                    overlap_grad_reduce=True,
+                    overlap_param_gather=True,
+                ),
+                timing_callback(),
+            ],
         ),
         optim=run.Config(
             nl.MegatronOptimizerModule,
@@ -776,10 +811,8 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
 
 if __name__ == "__main__":
     mode = os.getenv("CLOUDAI_NEMO_TASK")
-    model_type = os.getenv("CLOUDAI_MODEL_TYPE", "llama3_8b")
-    print(f"Running in mode {mode} with model {model_type}")
 
-    recipe_mapping = {
+    supported_recipes = {
         "llama3_8b": cloudai_llama3_8b_recipe,
         "llama3_70b": cloudai_llama3_70b_recipe,
         "llama3_405b": cloudai_llama3_405b_recipe,
@@ -787,6 +820,15 @@ if __name__ == "__main__":
         "nemotron4_15b": cloudai_nemotron4_15b_recipe,
         "nemotron4_340b": cloudai_nemotron4_340b_recipe,
     }
+
+    recipe_name = os.getenv("CLOUDAI_NEMO_RECIPE")
+
+    if recipe_name not in supported_recipes:
+        print(
+            f"Error: Recipe '{recipe_name}' is not supported. Supported recipes are: "
+            f"{', '.join(supported_recipes.keys())}"
+        )
+        sys.exit(1)
 
     if mode == "pretrain":
         run.cli.main(fn=llm.pretrain)
