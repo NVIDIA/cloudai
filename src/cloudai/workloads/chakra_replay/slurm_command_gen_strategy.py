@@ -36,7 +36,8 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
             return []
 
         replay_exec = tdef.comm_replay_executable
-        assert replay_exec.git_repo.installed_path is not None, "installed_path should never be None"
+        if replay_exec.git_repo.installed_path is None:
+            raise ValueError("installed_path should never be None")
 
         installed_path: Path = replay_exec.git_repo.installed_path.resolve()
 
@@ -69,7 +70,8 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
         config_parser = ChakraReplayConfigParser(cmd_args)
         config_parser.write_to_toml(tr.output_path)
         tdef = cast(ChakraReplayTestDefinition, tr.test.test_definition)
-        assert tdef.comm_replay_executable.git_repo.installed_path is not None
+        if tdef.comm_replay_executable.git_repo.installed_path is None:
+            raise ValueError("installed_path should never be None")
         git_repo_path = tdef.comm_replay_executable.git_repo.installed_path.resolve()
 
         num_nodes = slurm_args.get("num_nodes", tr.num_nodes)
