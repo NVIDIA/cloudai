@@ -17,11 +17,10 @@
 from .chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
 from .grading_strategy import ChakraReplayGradingStrategy
 from .report_generation_strategy import ChakraReplayReportGenerationStrategy
-from .slurm_command_gen_strategy import ChakraReplayConfigParser, ChakraReplaySlurmCommandGenStrategy
+from .slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
 
 __all__ = [
     "ChakraReplayCmdArgs",
-    "ChakraReplayConfigParser",
     "ChakraReplayGradingStrategy",
     "ChakraReplayReportGenerationStrategy",
     "ChakraReplaySlurmCommandGenStrategy",

@@ -16,17 +16,113 @@
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Union, cast
+from typing import Any, Dict, List, Optional, Union, cast
 
 import toml
+from pydantic import BaseModel, Field, root_validator
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 from cloudai.workloads.chakra_replay import ChakraReplayTestDefinition
 
 
+class RunConfig(BaseModel):
+    """Run configuration."""
+
+    warmup_iters: int = 3
+    iters: int = 10
+
+
+class TraceConfig(BaseModel):
+    """Trace configuration."""
+
+    directory: str
+
+
+class TensorAllocatorConfig(BaseModel):
+    """Tensor allocator configuration."""
+
+    reuse_tensors: bool = False
+
+
+class CommBackend(BaseModel):
+    """Communication backend."""
+
+    name: str = "pytorch-dist"
+    backend: str = "nccl"
+
+
+class CommConfig(BaseModel):
+    """Communication configuration."""
+
+    backend: CommBackend = Field(default_factory=CommBackend)
+
+
+class ProfilerConfig(BaseModel):
+    """Profiler configuration."""
+
+    enabled: bool = False
+
+
+class LoggingConfig(BaseModel):
+    """Logging configuration."""
+
+    level: str = "INFO"
+
+
+class ChakraReplayConfig(BaseModel):
+    """ChakraReplay configuration."""
+
+    run: RunConfig = Field(default_factory=RunConfig)
+    trace: Optional[TraceConfig] = None
+    tensor_allocator: TensorAllocatorConfig = Field(default_factory=TensorAllocatorConfig)
+    comm: CommConfig = Field(default_factory=CommConfig)
+    profiler: ProfilerConfig = Field(default_factory=ProfilerConfig)
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)
+
+    @root_validator(pre=True)
+    def build_nested(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        def single(val: Union[str, List[str], Any]) -> Any:
+            return val[0] if isinstance(val, list) else val
+
+        run = {
+            "warmup_iters": int(single(values.get("warmup_iters", 3))),
+            "iters": int(single(values.get("iters", 10))),
+        }
+        trace_val = values.get("trace_dir")
+        trace = {"directory": single(trace_val)} if trace_val is not None else None
+        tensor_allocator = {
+            "reuse_tensors": str(single(values.get("reuse_tensors", False))).lower() in {"1", "true", "yes", "on"}
+        }
+        backend = {
+            "name": single(values.get("backend.name", "pytorch-dist")),
+            "backend": single(values.get("backend.backend", "nccl")),
+        }
+        comm = {"backend": backend}
+        profiler = {"enabled": str(single(values.get("profiler.enabled", False))).lower() in {"1", "true", "yes", "on"}}
+        logging_ = {"level": single(values.get("logging.level", "INFO"))}
+        return {
+            "run": run,
+            "trace": trace,
+            "tensor_allocator": tensor_allocator,
+            "comm": comm,
+            "profiler": profiler,
+            "logging": logging_,
+        }
+
+    @classmethod
+    def from_cmd_args(cls, cmd_args: Dict[str, Union[str, List[str]]]) -> "ChakraReplayConfig":
+        return cls.parse_obj(cmd_args)
+
+    def write_to_toml(self, output_path: Path) -> Path:
+        config_path = output_path / "config.toml"
+        with config_path.open("w") as toml_file:
+            toml.dump(self.dict(), toml_file)
+        return config_path
+
+
 class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
-    """ChakraReplaySlurmCommandGenStrategy."""
+    """ChakraReplay SLURM command generation strategy."""
 
     def _container_mounts(self, tr: TestRun) -> List[str]:
         tdef = cast(ChakraReplayTestDefinition, tr.test.test_definition)
@@ -67,8 +163,8 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd_args: Dict[str, Union[str, List[str]]],
         tr: TestRun,
     ) -> str:
-        config_parser = ChakraReplayConfigParser(cmd_args)
-        config_parser.write_to_toml(tr.output_path)
+        config = ChakraReplayConfig.from_cmd_args(cmd_args)
+        config.write_to_toml(tr.output_path)
         tdef = cast(ChakraReplayTestDefinition, tr.test.test_definition)
         if tdef.comm_replay_executable.git_repo.installed_path is None:
             raise ValueError("installed_path should never be None")
@@ -102,78 +198,3 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
         run_command = f'{" ".join(run_prefix)} bash -c "comm_replay --config /cloudai_run_results/config.toml"'
 
         return f"{install_command}\n{run_command}"
-
-
-class ChakraReplayConfigParser:
-    """ChakraReplayConfigParser."""
-
-    def __init__(self, cmd_args: Dict[str, Union[str, List[str]]]) -> None:
-        self.cmd_args = cmd_args
-        self.config_data: Dict[str, Any] = {}
-        self.parse()
-
-    def parse(self) -> Dict[str, Any]:
-        self._add_run_config()
-        self._add_trace_config()
-        self._add_tensor_allocator_config()
-        self._add_comm_config()
-        self._add_profiler_config()
-        self._add_logging_config()
-        return self.config_data
-
-    def _get_single_value(self, val: Union[str, List[str]]) -> str:
-        return val[0] if isinstance(val, list) else val
-
-    def _add_run_config(self) -> None:
-        warmup = 3
-        iters = 10
-        if "warmup_iters" in self.cmd_args:
-            warmup = int(self._get_single_value(self.cmd_args["warmup_iters"]))
-        if "iters" in self.cmd_args:
-            iters = int(self._get_single_value(self.cmd_args["iters"]))
-        self.config_data["run"] = {"warmup_iters": warmup, "iters": iters}
-
-    def _add_trace_config(self) -> None:
-        if "trace_dir" in self.cmd_args:
-            val = self._get_single_value(self.cmd_args["trace_dir"])
-            self.config_data["trace"] = {"directory": val}
-
-    def _add_tensor_allocator_config(self) -> None:
-        reuse = False
-        if "reuse_tensors" in self.cmd_args:
-            val = self._get_single_value(self.cmd_args["reuse_tensors"])
-            reuse = self._parse_bool(val)
-        self.config_data["tensor_allocator"] = {"reuse_tensors": reuse}
-
-    def _add_comm_config(self) -> None:
-        backend_name = "pytorch-dist"
-        backend_backend = "nccl"
-        if "backend.name" in self.cmd_args:
-            backend_name = self._get_single_value(self.cmd_args["backend.name"])
-        if "backend.backend" in self.cmd_args:
-            backend_backend = self._get_single_value(self.cmd_args["backend.backend"])
-        self.config_data["comm"] = {"backend": {"name": backend_name, "backend": backend_backend}}
-
-    def _add_profiler_config(self) -> None:
-        enabled = False
-        if "profiler.enabled" in self.cmd_args:
-            val = self._get_single_value(self.cmd_args["profiler.enabled"])
-            enabled = self._parse_bool(val)
-        self.config_data["profiler"] = {"enabled": enabled}
-
-    def _add_logging_config(self) -> None:
-        level = "INFO"
-        if "logging.level" in self.cmd_args:
-            level = self._get_single_value(self.cmd_args["logging.level"])
-        self.config_data["logging"] = {"level": level}
-
-    def write_to_toml(self, output_path: Path) -> Path:
-        config_path = output_path / "config.toml"
-        with config_path.open("w") as toml_file:
-            toml.dump(self.config_data, toml_file)
-        return config_path
-
-    def _parse_bool(self, val: Union[str, bool]) -> bool:
-        if isinstance(val, bool):
-            return val
-        return val.lower() in {"1", "true", "yes", "on"}

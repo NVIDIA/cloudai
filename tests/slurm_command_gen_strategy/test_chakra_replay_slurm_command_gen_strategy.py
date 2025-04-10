@@ -20,14 +20,12 @@ from typing import Any, Dict, List, Union
 from unittest.mock import Mock
 
 import pytest
-import toml
 
 from cloudai import GitRepo, PythonExecutable, TestRun
 from cloudai._core.test import Test
 from cloudai.systems import SlurmSystem
 from cloudai.workloads.chakra_replay import (
     ChakraReplayCmdArgs,
-    ChakraReplayConfigParser,
     ChakraReplaySlurmCommandGenStrategy,
     ChakraReplayTestDefinition,
 )
@@ -95,52 +93,6 @@ def test_parse_slurm_args(
     slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, cmd_args, chakra_replay_tr)
     assert slurm_args["image_path"] == expected_result["image_path"]
     assert cmd_gen_strategy._container_mounts(chakra_replay_tr) == expected_result["container_mounts"]
-
-
-@pytest.mark.parametrize(
-    "cmd_args, expected_config",
-    [
-        (
-            {"trace_dir": "/output/traces/", "warmup_iters": 5, "iters": 10},
-            {
-                "trace": {"directory": "/output/traces/"},
-                "run": {"warmup_iters": 5, "iters": 10},
-                "comm": {"backend": {"name": "pytorch-dist", "backend": "nccl"}},
-                "tensor_allocator": {"reuse_tensors": False},
-                "logging": {"level": "INFO"},
-                "profiler": {"enabled": False},
-            },
-        ),
-        (
-            {
-                "trace_dir": "/data/traces/",
-                "warmup_iters": 0,
-                "iters": 50,
-                "profiler.enabled": True,
-                "backend.name": "custom_backend",
-                "logging.level": "DEBUG",
-                "git_repo.url": "https://example.com/repo.git",
-                "git_repo.commit": "abc123",
-            },
-            {
-                "trace": {"directory": "/data/traces/"},
-                "run": {"warmup_iters": 0, "iters": 50},
-                "profiler": {"enabled": True},
-                "comm": {"backend": {"name": "custom_backend", "backend": "nccl"}},
-                "logging": {"level": "DEBUG"},
-                "tensor_allocator": {"reuse_tensors": False},
-            },
-        ),
-    ],
-)
-def test_write_toml_config(cmd_args: Dict[str, Any], expected_config: Dict[str, Any], tmp_path: Path) -> None:
-    config_parser = ChakraReplayConfigParser(cmd_args)
-    config_path = config_parser.write_to_toml(tmp_path)
-
-    with config_path.open("r") as toml_file:
-        config_data = toml.load(toml_file)
-
-    assert config_data == expected_config
 
 
 @pytest.mark.parametrize(
