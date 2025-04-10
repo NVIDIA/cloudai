@@ -27,6 +27,8 @@ class ChakraReplayCmdArgs(CmdArgs):
     trace_dir: Optional[str] = None
     warmup_iters: int
     iters: int
+    reuse_tensors: bool = True
+    profiler_enabled: bool = False
     log_level: str = "INFO"
 
 

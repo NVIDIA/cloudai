@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field, root_validator
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
-from cloudai.workloads.chakra_replay import ChakraReplayTestDefinition
+from cloudai.workloads.chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
 
 
 def single(val: Union[str, List[str], Any]) -> Any:
@@ -153,8 +153,15 @@ class ChakraReplayConfig(BaseModel):
         return values
 
     @classmethod
-    def from_cmd_args(cls, cmd_args: Dict[str, Union[str, List[str]]]) -> "ChakraReplayConfig":
-        return cls.model_validate(cmd_args)
+    def from_cmd_args(cls, cmd_args: ChakraReplayCmdArgs) -> "ChakraReplayConfig":
+        return cls(
+            run=RunConfig(warmup_iters=cmd_args.warmup_iters, iters=cmd_args.iters),
+            trace=TraceConfig(directory=cmd_args.trace_dir) if cmd_args.trace_dir else None,
+            tensor_allocator=TensorAllocatorConfig(reuse_tensors=cmd_args.reuse_tensors),
+            comm=CommConfig(backend=CommBackend(name=cmd_args.backend_name, backend=cmd_args.backend_name)),
+            profiler=ProfilerConfig(enabled=cmd_args.profiler_enabled),
+            logging=LoggingConfig(level=cmd_args.log_level),
+        )
 
     def write_to_toml(self, output_path: Path) -> Path:
         config_path = output_path / "config.toml"
@@ -205,7 +212,7 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd_args: Dict[str, Union[str, List[str]]],
         tr: TestRun,
     ) -> str:
-        config = ChakraReplayConfig.from_cmd_args(cmd_args)
+        config = ChakraReplayConfig.from_cmd_args(tr.test.test_definition.cmd_args)
         config.write_to_toml(tr.output_path)
         tdef = cast(ChakraReplayTestDefinition, tr.test.test_definition)
         if tdef.comm_replay_executable.git_repo.installed_path is None:
