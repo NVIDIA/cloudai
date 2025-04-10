@@ -75,7 +75,7 @@ def default_log(
         name=name,
         tensorboard=tensorboard_logger,
         wandb=wandb_logger,
-        log_dir=None,
+        log_dir=dir,
     )
 
 
