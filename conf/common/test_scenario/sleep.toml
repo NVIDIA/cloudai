@@ -14,14 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "test_scenario_example"
+name = "sleep-scenario"
 
 [[Tests]]
 id = "Tests.1"
+time_limit = "00:01:00"
 test_name = "sleep_10"
 
 [[Tests]]
 id = "Tests.2"
+time_limit = "00:01:00"
 test_name = "sleep_5"
   [[Tests.dependencies]]
   type = "start_post_init"
@@ -29,6 +31,7 @@ test_name = "sleep_5"
 
 [[Tests]]
 id = "Tests.3"
+time_limit = "00:01:00"
 test_name = "sleep_5"
   [[Tests.dependencies]]
   type = "start_post_comp"
@@ -36,6 +39,7 @@ test_name = "sleep_5"
 
 [[Tests]]
 id = "Tests.4"
+time_limit = "00:01:00"
 test_name = "sleep_20"
   [[Tests.dependencies]]
   type = "end_post_comp"
