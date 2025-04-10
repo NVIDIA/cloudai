@@ -196,6 +196,7 @@ class SlurmSystem(BaseModel, System):
 
         while retry_count < retry_threshold:
             stdout, stderr = self.cmd_shell.execute(command).communicate()
+            logging.debug(f"Job running: {command=} {stdout=} {stderr=}")
 
             if "Socket timed out" in stderr or "slurm_load_jobs error" in stderr:
                 retry_count += 1
@@ -209,8 +210,8 @@ class SlurmSystem(BaseModel, System):
                 logging.error(error_message)
                 raise RuntimeError(error_message)
 
-            job_state = stdout.strip()
-            if job_state == "RUNNING":
+            job_states = stdout.strip().split()
+            if "RUNNING" in job_states:
                 return True
 
             break
@@ -243,6 +244,7 @@ class SlurmSystem(BaseModel, System):
 
         while retry_count < retry_threshold:
             stdout, stderr = self.cmd_shell.execute(command).communicate()
+            logging.debug(f"Job completed: {command=} {stdout=} {stderr=}")
 
             if "Socket timed out" in stderr or "slurm_load_jobs error" in stderr:
                 retry_count += 1
@@ -258,7 +260,7 @@ class SlurmSystem(BaseModel, System):
             if "RUNNING" in job_states:
                 return False
 
-            if any(state in ["COMPLETED", "FAILED", "CANCELLED", "TIMEOUT"] for state in job_states):
+            if any(state in ["COMPLETED", "FAILED", "CANCELLED", "TIMEOUT", "CANCELLED+"] for state in job_states):
                 return True
 
             break
@@ -521,7 +523,6 @@ class SlurmSystem(BaseModel, System):
         """
         logging.debug(f"Executing command: {command}")
         stdout, stderr = self.cmd_shell.execute(command).communicate()
-        logging.debug(f"Command output: {stdout}")
         if stderr:
             logging.error(f"Error executing command '{command}': {stderr}")
         return stdout, stderr
