@@ -73,20 +73,36 @@ class GSWContext(BaseModel):
     }
 
 
-class BaseRecord(BaseModel):
-    """Base record for common fields across records."""
+class NeMoRunContext(BaseModel):
+    """NeMoRun context for a NemoRun workload."""
 
     timestamp: datetime = Field(alias="ts_timestamp")
     created_ts: int = Field(alias="ts_created")
     gsw: GSWContext
 
+    framework: str = Field(alias="s_framework")
+    fw_version: str = Field(alias="s_fw_version")
+    model: str = Field(alias="s_model")
+    model_size: str = Field(alias="s_model_size", pattern=r"[\d]+[mbtMBT]")
+    workload: str = Field(alias="s_workload")
+    dtype: str = Field(alias="s_dtype")
+    base_config: str = Field(alias="s_base_config")
+    max_steps: int = Field(alias="l_max_steps")
+    seq_len: int = Field(alias="l_seq_len")
+    num_layers: int = Field(alias="l_num_layers")
+    vocab_size: int = Field(alias="l_vocab_size")
+    hidden_size: int = Field(alias="l_hidden_size")
+    count: int = Field(alias="l_count")
+    gbs: int = Field(alias="l_gbs")
+    mbs: int = Field(alias="l_mbs")
+    pp: int = Field(alias="l_pp")
+    tp: int = Field(alias="l_tp")
+    vp: int = Field(alias="l_vp")
+    cp: int = Field(alias="l_cp")
+
     model_config = {
         "populate_by_name": True,
     }
-
-    def to_flat_dict(self) -> dict:
-        """Flatten the record into a dictionary using alias names."""
-        return self.dict(by_alias=True)
 
 
 class NeMoRunPerformanceMetrics(BaseModel):
@@ -102,55 +118,16 @@ class NeMoRunPerformanceMetrics(BaseModel):
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
 
-class NemoRunBaseRecord(BaseRecord):
-    """NemoRun base record for common top-level fields."""
-
-    framework: str = Field(alias="s_framework")
-    fw_version: str = Field(alias="s_fw_version")
-    mode: str = Field(default="training", alias="s_job_mode")
-    model: str = Field(alias="s_model")
-    model_size: str = Field(alias="s_model_size", pattern=r"[\d]+[mbtMBT]")
-    synthetic_dataset: bool = Field(alias="b_synthetic_dataset")
-    performance: NeMoRunPerformanceMetrics
-
-
-class NeMoRunLLAMAContext(BaseModel):
-    """NeMoRun LLAMA context for a NemoRun workload."""
-
-    model_config = ConfigDict(protected_namespaces=())
-
-    workload: str = Field(alias="s_workload")
-    dtype: str = Field(alias="s_dtype")
-    base_config: str = Field(alias="s_base_config")
-
-    max_steps: int = Field(alias="l_max_steps")
-    seq_len: int = Field(alias="l_seq_len")
-    num_layers: int = Field(alias="l_num_layers")
-    vocab_size: int = Field(alias="l_vocab_size")
-    hidden_size: int = Field(alias="l_hidden_size")
-    count: int = Field(alias="l_count")
-    gbs: int = Field(alias="l_gbs")
-    mbs: int = Field(alias="l_mbs")
-    pp: int = Field(alias="l_pp")
-    tp: int = Field(alias="l_tp")
-    vp: int = Field(alias="l_vp")
-    cp: int = Field(alias="l_cp")
-
-
-class NeMoRunLLAMARecord(NemoRunBaseRecord):
+class NeMoRunLLAMARecord(BaseModel):
     """NeMoRun LLAMA record for a NemoRun workload."""
 
     system: SystemContext
     job: JobContext
-    context: NeMoRunLLAMAContext
+    context: NeMoRunContext
+    performance: NeMoRunPerformanceMetrics
 
     @classmethod
     def from_flat_dict(cls, data: dict) -> "NeMoRunLLAMARecord":
-        top_level = {
-            "ts_timestamp": data["ts_timestamp"],
-            "b_synthetic_dataset": data["b_synthetic_dataset"],
-            "ts_created": data["ts_created"],
-        }
         perf = {k: v for k, v in data.items() if k.startswith("d_")}
         performance = NeMoRunPerformanceMetrics(**perf)
 
@@ -169,7 +146,7 @@ class NeMoRunLLAMARecord(NemoRunBaseRecord):
         for key in data:
             if key.startswith("l_") and key not in {"l_devices", "l_num_nodes"}:
                 context_keys[key] = data[key]
-        context = NeMoRunLLAMAContext(**context_keys)
+        context = NeMoRunContext(**context_keys)
 
         job_keys = {}
         for key in ["s_job_id", "s_job_mode", "s_cluster", "s_image", "l_devices", "l_num_nodes"]:
@@ -183,16 +160,12 @@ class NeMoRunLLAMARecord(NemoRunBaseRecord):
                 system_keys[key] = data[key]
         system = SystemContext(**system_keys)
 
-        gsw = GSWContext(s_gsw_version=data["s_gsw_version"])
-
-        record = cls(**top_level, gsw=gsw, performance=performance, context=context, job=job, system=system)
+        record = cls(context=context, job=job, system=system, performance=performance)
         return record
 
     def to_flat_dict(self) -> dict:
-        flat = self.model_dump(by_alias=True, exclude={"performance", "context", "job", "system", "gsw"})
-        flat.update(self.gsw.model_dump(by_alias=True))
+        flat = self.context.model_dump(by_alias=True, exclude={"performance", "job", "system", "gsw"})
         flat.update(self.performance.model_dump(by_alias=True))
-        flat.update(self.context.model_dump(by_alias=True))
         flat.update(self.job.model_dump(by_alias=True))
         flat.update(self.system.model_dump(by_alias=True))
         return flat
