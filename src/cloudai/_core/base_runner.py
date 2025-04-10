@@ -150,9 +150,17 @@ class BaseRunner(ABC):
         items = list(self.testrun_to_job_map.items())
 
         for tr, job in items:
-            is_running, is_completed = self.system.is_job_running(job), self.system.is_job_completed(job)
+            is_running, is_completed = False, False
+            if self.mode == "dry-run":
+                is_running, is_completed = True, True
+            else:
+                is_running, is_completed = (
+                    self.system.is_job_running(job),
+                    self.system.is_job_completed(job),
+                )
+
             logging.debug(f"start_post_init for test {tr.name} ({is_running=}, {is_completed=}, {self.mode=})")
-            if self.mode == "dry-run" or is_running or is_completed:
+            if is_running or is_completed:
                 await self.check_and_schedule_start_post_init_dependent_tests(tr)
 
     async def check_and_schedule_start_post_init_dependent_tests(self, started_test_run: TestRun):
@@ -229,8 +237,9 @@ class BaseRunner(ABC):
 
         logging.debug(f"Monitoring {len(self.jobs)} jobs")
         for job in list(self.jobs):
-            is_completed = self.system.is_job_completed(job)
-            if self.mode == "dry-run" or is_completed:
+            is_completed = True if self.mode == "dry-run" else self.system.is_job_completed(job)
+
+            if is_completed:
                 logging.debug(f"Job {job.id} for test {job.test_run.name} completed ({self.mode=}, {is_completed=})")
                 await self.job_completion_callback(job)
 
