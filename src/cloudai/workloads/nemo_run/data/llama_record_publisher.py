@@ -15,7 +15,6 @@
 # limitations under the License.
 
 
-import logging
 from typing import Any, Dict
 
 from .http_data_repository import HttpDataRepository
