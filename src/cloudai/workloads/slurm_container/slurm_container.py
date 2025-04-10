@@ -16,7 +16,9 @@
 
 from typing import Optional
 
-from cloudai import CmdArgs, DockerImage, Installable, TestDefinition
+from cloudai import DockerImage, Installable
+
+from ...models.workload import CmdArgs, TestDefinition
 
 
 class SlurmContainerCmdArgs(CmdArgs):

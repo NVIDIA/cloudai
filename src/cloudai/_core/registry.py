@@ -17,6 +17,7 @@
 import copy
 from typing import ClassVar, List, Set, Tuple, Type, Union
 
+from ..models.workload import TestDefinition
 from .base_installer import BaseInstaller
 from .base_runner import BaseRunner
 from .configurator.base_agent import BaseAgent
@@ -26,7 +27,6 @@ from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from .report_generation_strategy import ReportGenerationStrategy
 from .reporter import Reporter
 from .system import System
-from .test import TestDefinition
 from .test_template_strategy import TestTemplateStrategy
 
 

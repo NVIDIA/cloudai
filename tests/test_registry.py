@@ -27,10 +27,10 @@ from cloudai import (
     Registry,
     ReportGenerationStrategy,
     System,
-    TestDefinition,
     TestTemplateStrategy,
 )
 from cloudai._core.reporter import Reporter
+from cloudai.models.workload import TestDefinition
 
 
 @pytest.fixture
