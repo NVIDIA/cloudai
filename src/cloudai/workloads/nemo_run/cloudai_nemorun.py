@@ -75,7 +75,7 @@ def default_log(
         name=name,
         tensorboard=tensorboard_logger,
         wandb=wandb_logger,
-        log_dir=dir,
+        log_dir=None,
     )
 
 
@@ -825,8 +825,10 @@ if __name__ == "__main__":
 
     if recipe_name not in supported_recipes:
         print(
-            f"Error: Recipe '{recipe_name}' is not supported. Supported recipes are: "
-            f"{', '.join(supported_recipes.keys())}"
+            (
+                f"Error: Recipe '{recipe_name}' is not supported. Supported recipes are: "
+                f"{', '.join(supported_recipes.keys())}"
+            )
         )
         sys.exit(1)
 

@@ -10,8 +10,7 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
+# WITHOUT WARRANTIES OR CONDITIONS AND
 # limitations under the License.
 
 
@@ -35,29 +34,27 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd_args: Dict[str, Union[str, List[str]]],
         tr: TestRun,
     ) -> Dict[str, Any]:
-        self._set_additional_env_vars(cmd_args, env_vars)
+        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
+        self._set_additional_env_vars(env_vars, tdef)
 
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
-        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
         base_args.update({"image_path": tdef.docker_image.installed_path})
 
         return base_args
 
-    def _set_additional_env_vars(
-        self, cmd_args: Dict[str, Union[str, List[str]]], env_vars: Dict[str, Union[str, List[str]]]
-    ):
-        """Set environment variables based. CloudAI version of PerfEnvPlugin."""
-        cloudai_nemo_task = cmd_args.get("task", "")
-        env_vars["CLOUDAI_NEMO_TASK"] = f"{cloudai_nemo_task}"
-        cloudai_recipe_name = cmd_args.get("recipe_name", "")
-        env_vars["CLOUDAI_NEMO_RECIPE"] = f"{cloudai_recipe_name}"
+    def _set_additional_env_vars(self, env_vars: Dict[str, Union[str, List[str]]], tdef: NeMoRunTestDefinition):
+        """Set environment variables based on NeMoRunTestDefinition."""
+        env_vars["CLOUDAI_NEMO_TASK"] = tdef.cmd_args.task
+        env_vars["CLOUDAI_NEMO_RECIPE"] = tdef.cmd_args.recipe_name
 
-        pipeline_model_parallel_size = cmd_args.get("trainer.strategy.pipeline_model_parallel_size", 1)
-        if isinstance(pipeline_model_parallel_size, int) and pipeline_model_parallel_size > 1:
-            logging.info(
-                "Setting NCCL_P2P_NET_CHUNKSIZE to 2097152 as " "pipeline_model_parallel_size is greater than 1"
-            )
+        pipeline_model_parallel_size = tdef.cmd_args.trainer.strategy.pipeline_model_parallel_size
+        if isinstance(pipeline_model_parallel_size, list):
+            pipeline_model_parallel_size = pipeline_model_parallel_size[0]
+        pipeline_model_parallel_size = int(pipeline_model_parallel_size)
+
+        if pipeline_model_parallel_size > 1:
+            logging.debug("Setting NCCL_P2P_NET_CHUNKSIZE to 2097152 as pipeline_model_parallel_size is greater than 1")
             env_vars["NCCL_P2P_NET_CHUNKSIZE"] = "2097152"
 
     def _run_script(self, tr: TestRun) -> Path:
@@ -88,15 +85,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _map_recipe_name(self, recipe_name: str) -> str:
         """Map recipe names to their cloudai-prefixed equivalents."""
-        recipe_mapper = {
-            "llama3_8b": "cloudai_llama3_8b_recipe",
-            "llama3_70b": "cloudai_llama3_70b_recipe",
-            "llama3_405b": "cloudai_llama3_405b_recipe",
-            "nemotron3_8b": "cloudai_nemotron3_8b_recipe",
-            "nemotron4_15b": "cloudai_nemotron4_15b_recipe",
-            "nemotron4_340b": "cloudai_nemotron4_340b_recipe",
-        }
-        return recipe_mapper.get(recipe_name, f"cloudai_{recipe_name}_recipe")
+        return f"cloudai_{recipe_name}_recipe"
 
     def generate_test_command(
         self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
