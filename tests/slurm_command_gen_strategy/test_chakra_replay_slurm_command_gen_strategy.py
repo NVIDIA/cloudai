@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import re
-import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Union
 from unittest.mock import Mock
@@ -132,14 +131,12 @@ def test_parse_slurm_args(
         ),
     ],
 )
-def test_write_toml_config(cmd_args: Dict[str, Any], expected_config: Dict[str, Any]) -> None:
+def test_write_toml_config(cmd_args: Dict[str, Any], expected_config: Dict[str, Any], tmp_path: Path) -> None:
     config_parser = ChakraReplayConfigParser(cmd_args)
+    config_path = config_parser.write_to_toml(tmp_path)
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        config_path = config_parser.write_to_toml(Path(temp_dir))
-
-        with config_path.open("r") as toml_file:
-            config_data = toml.load(toml_file)
+    with config_path.open("r") as toml_file:
+        config_data = toml.load(toml_file)
 
     assert config_data == expected_config
 
@@ -165,30 +162,30 @@ def test_generate_srun_command(
     num_nodes: int,
     ntasks_per_node: int,
     chakra_replay_tr: TestRun,
+    tmp_path: Path,
 ) -> None:
     chakra_replay_tr.num_nodes = num_nodes
     cmd_gen_strategy.system.ntasks_per_node = ntasks_per_node
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        chakra_replay_tr.output_path = Path(temp_dir)
-        slurm_args = cmd_gen_strategy._parse_slurm_args("test", {}, cmd_args, chakra_replay_tr)
-        command = cmd_gen_strategy._gen_srun_command(slurm_args, {}, cmd_args, chakra_replay_tr)
+    chakra_replay_tr.output_path = tmp_path
+    slurm_args = cmd_gen_strategy._parse_slurm_args("test", {}, cmd_args, chakra_replay_tr)
+    command = cmd_gen_strategy._gen_srun_command(slurm_args, {}, cmd_args, chakra_replay_tr)
 
-        generated_commands = command.strip().split("\n")
+    generated_commands = command.strip().split("\n")
 
-        assert len(generated_commands) == 2
+    assert len(generated_commands) == 2
 
-        timestamp_pattern = r"\d{14}"
-        container_name_pattern = re.compile(r"--container-name=chakra_replay_container_" + timestamp_pattern)
+    timestamp_pattern = r"\d{14}"
+    container_name_pattern = re.compile(r"--container-name=chakra_replay_container_" + timestamp_pattern)
 
-        assert container_name_pattern.search(generated_commands[0]) is not None
-        assert container_name_pattern.search(generated_commands[1]) is not None
+    assert container_name_pattern.search(generated_commands[0]) is not None
+    assert container_name_pattern.search(generated_commands[1]) is not None
 
-        assert f"-N {num_nodes}" in generated_commands[0]
-        assert f"-n {num_nodes}" in generated_commands[0]
-        assert "--ntasks-per-node=1" in generated_commands[0]
+    assert f"-N {num_nodes}" in generated_commands[0]
+    assert f"-n {num_nodes}" in generated_commands[0]
+    assert "--ntasks-per-node=1" in generated_commands[0]
 
-        assert f"-N {num_nodes}" in generated_commands[1]
-        assert f"-n {num_nodes * ntasks_per_node}" in generated_commands[1]
-        assert f"--ntasks-per-node={ntasks_per_node}" in generated_commands[1]
-        assert "comm_replay --config" in generated_commands[1]
+    assert f"-N {num_nodes}" in generated_commands[1]
+    assert f"-n {num_nodes * ntasks_per_node}" in generated_commands[1]
+    assert f"--ntasks-per-node={ntasks_per_node}" in generated_commands[1]
+    assert "comm_replay --config" in generated_commands[1]
