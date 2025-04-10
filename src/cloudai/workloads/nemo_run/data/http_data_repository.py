@@ -18,6 +18,7 @@ import json
 from typing import Any, Dict
 
 import requests
+import toml
 
 
 class HttpDataRepository:
@@ -26,14 +27,20 @@ class HttpDataRepository:
     def __init__(
         self,
         post_endpoint: str,
-        token: str,
         index: str,
         verify_certs: bool = True,
     ) -> None:
         self.post_endpoint = post_endpoint
-        self.token = token
         self.index = index
         self.verify = verify_certs
+
+        credentials = toml.load(".credential.toml")
+        self.token = credentials.get("data_repository", {}).get("token")
+        if not self.token:
+            raise ValueError(
+                "Credential not configured. Please create and populate the .credential.toml file "
+                "with the token under the data_repository section."
+            )
 
     def store(self, entry: Dict[str, Any]) -> None:
         endpoint = f"{self.post_endpoint}/{self.index}/posting"

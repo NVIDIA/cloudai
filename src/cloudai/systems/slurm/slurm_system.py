@@ -32,7 +32,6 @@ class DataRepositoryConfig(BaseModel):
     """Configuration for a data repository."""
 
     post_endpoint: str
-    token: str
     index: str
     verify_certs: bool = True
 

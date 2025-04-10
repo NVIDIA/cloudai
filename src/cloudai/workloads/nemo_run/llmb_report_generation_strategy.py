@@ -39,7 +39,6 @@ class NeMoRunLLMBReportGenerationStrategy(ReportGenerationStrategy):
 
         repository_instance = HttpDataRepository(
             slurm_system.data_repository.post_endpoint,
-            slurm_system.data_repository.token,
             slurm_system.data_repository.index,
             slurm_system.data_repository.verify_certs,
         )

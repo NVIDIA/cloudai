@@ -49,7 +49,6 @@ name = "partition_2"
 
 [data_repository]
 post_endpoint = "MY_ENDPOINT"
-token = "MY_TOKEN"
 index = "MY_INDEX"
 verify_certs = false
 
