@@ -40,7 +40,7 @@ def cmd_gen_strategy(slurm_system: SlurmSystem) -> ChakraReplaySlurmCommandGenSt
 
 
 @pytest.fixture
-def test_run(cmd_args: Dict[str, Any]) -> TestRun:
+def chakra_replay_tr(cmd_args: Dict[str, Any]) -> TestRun:
     chakra = ChakraReplayTestDefinition(
         name="name",
         description="desc",
@@ -57,7 +57,7 @@ def test_run(cmd_args: Dict[str, Any]) -> TestRun:
 
     chakra.comm_replay_executable.git_repo.installed_path = Path("/git_repo_path")
 
-    return TestRun(name="test_run", test=test, nodes=[], num_nodes=1)
+    return TestRun(name="chakra_replay_tr", test=test, nodes=[], num_nodes=1)
 
 
 @pytest.mark.parametrize(
@@ -89,11 +89,11 @@ def test_parse_slurm_args(
     env_vars: Dict[str, Union[str, List[str]]],
     cmd_args: Dict[str, Any],
     expected_result: Dict[str, Any],
-    test_run: TestRun,
+    chakra_replay_tr: TestRun,
 ) -> None:
-    slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, cmd_args, test_run)
+    slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, cmd_args, chakra_replay_tr)
     assert slurm_args["image_path"] == expected_result["image_path"]
-    assert cmd_gen_strategy._container_mounts(test_run) == expected_result["container_mounts"]
+    assert cmd_gen_strategy._container_mounts(chakra_replay_tr) == expected_result["container_mounts"]
 
 
 @pytest.mark.parametrize(
@@ -164,15 +164,15 @@ def test_generate_srun_command(
     cmd_args: Dict[str, Any],
     num_nodes: int,
     ntasks_per_node: int,
-    test_run: TestRun,
+    chakra_replay_tr: TestRun,
 ) -> None:
-    test_run.num_nodes = num_nodes
+    chakra_replay_tr.num_nodes = num_nodes
     cmd_gen_strategy.system.ntasks_per_node = ntasks_per_node
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        test_run.output_path = Path(temp_dir)
-        slurm_args = cmd_gen_strategy._parse_slurm_args("test", {}, cmd_args, test_run)
-        command = cmd_gen_strategy._gen_srun_command(slurm_args, {}, cmd_args, test_run)
+        chakra_replay_tr.output_path = Path(temp_dir)
+        slurm_args = cmd_gen_strategy._parse_slurm_args("test", {}, cmd_args, chakra_replay_tr)
+        command = cmd_gen_strategy._gen_srun_command(slurm_args, {}, cmd_args, chakra_replay_tr)
 
         generated_commands = command.strip().split("\n")
 
