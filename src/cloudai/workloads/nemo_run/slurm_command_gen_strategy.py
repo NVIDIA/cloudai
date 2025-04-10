@@ -35,10 +35,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd_args: Dict[str, Union[str, List[str]]],
         tr: TestRun,
     ) -> Dict[str, Any]:
-        cloudai_nemo_task = cmd_args.get("task", "")
-        env_vars["CLOUDAI_NEMO_TASK"] = f"{cloudai_nemo_task}"
-        cloudai_recipe_name = cmd_args.get("recipe_name", "")
-        env_vars["CLOUDAI_NEMO_RECIPE"] = f"{cloudai_recipe_name}"
+        self._set_additional_env_vars(cmd_args, env_vars)
 
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
@@ -46,6 +43,22 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         base_args.update({"image_path": tdef.docker_image.installed_path})
 
         return base_args
+
+    def _set_additional_env_vars(
+        self, cmd_args: Dict[str, Union[str, List[str]]], env_vars: Dict[str, Union[str, List[str]]]
+    ):
+        """Set environment variables based. CloudAI version of PerfEnvPlugin."""
+        cloudai_nemo_task = cmd_args.get("task", "")
+        env_vars["CLOUDAI_NEMO_TASK"] = f"{cloudai_nemo_task}"
+        cloudai_recipe_name = cmd_args.get("recipe_name", "")
+        env_vars["CLOUDAI_NEMO_RECIPE"] = f"{cloudai_recipe_name}"
+
+        pipeline_model_parallel_size = cmd_args.get("trainer.strategy.pipeline_model_parallel_size", 1)
+        if isinstance(pipeline_model_parallel_size, int) and pipeline_model_parallel_size > 1:
+            logging.info(
+                "Setting NCCL_P2P_NET_CHUNKSIZE to 2097152 as " "pipeline_model_parallel_size is greater than 1"
+            )
+            env_vars["NCCL_P2P_NET_CHUNKSIZE"] = "2097152"
 
     def _run_script(self, tr: TestRun) -> Path:
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
