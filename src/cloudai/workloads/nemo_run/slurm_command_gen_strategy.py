@@ -37,6 +37,8 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     ) -> Dict[str, Any]:
         cloudai_nemo_task = cmd_args.get("task", "")
         env_vars["CLOUDAI_NEMO_TASK"] = f"{cloudai_nemo_task}"
+        cloudai_recipe_name = cmd_args.get("recipe_name", "")
+        env_vars["CLOUDAI_NEMO_RECIPE"] = f"{cloudai_recipe_name}"
 
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
@@ -71,6 +73,18 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 else:
                     command.append(f"{key}={value}")
 
+    def _map_recipe_name(self, recipe_name: str) -> str:
+        """Map recipe names to their cloudai-prefixed equivalents."""
+        recipe_mapper = {
+            "llama3_8b": "cloudai_llama3_8b_recipe",
+            "llama3_70b": "cloudai_llama3_70b_recipe",
+            "llama3_405b": "cloudai_llama3_405b_recipe",
+            "nemotron3_8b": "cloudai_nemotron3_8b_recipe",
+            "nemotron4_15b": "cloudai_nemotron4_15b_recipe",
+            "nemotron4_340b": "cloudai_nemotron4_340b_recipe",
+        }
+        return recipe_mapper.get(recipe_name, f"cloudai_{recipe_name}_recipe")
+
     def generate_test_command(
         self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> List[str]:
@@ -81,11 +95,13 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         for non_cmd_arg in {"docker_image_url", "num_layers", "task", "recipe_name"}:
             cmd_args_dict.pop(non_cmd_arg)
 
+        mapped_recipe_name = self._map_recipe_name(tdef.cmd_args.recipe_name)
+
         command = [
             "python",
             f"/cloudai_install/{self._run_script(tr).name}",
             "--factory",
-            tdef.cmd_args.recipe_name,
+            mapped_recipe_name,
             "-y",
         ]
 
