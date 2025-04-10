@@ -15,18 +15,40 @@
 # limitations under the License.
 
 
-from typing import Dict
+import logging
+from typing import Any, Dict
 
-from cloudai import TestRun
-from cloudai.data.publisher.base_record_publisher import BaseRecordPublisher
-from cloudai.workloads.nemo_run.data.llama import NeMoRunLLAMARecord
+from .http_data_repository import HttpDataRepository
+from .llama_record import NeMoRunLLAMARecord
 
 
-class NeMoRunLLAMARecordPublisher(BaseRecordPublisher):
+class NeMoRunLLAMARecordPublisher:
     """Publisher for NeMoRun LLAMA records to the HTTP data repository."""
+
+    def __init__(self, repository: HttpDataRepository) -> None:
+        """Initialize the publisher with a repository."""
+        self.repository = repository
 
     def build_record(self, raw_data: Dict) -> NeMoRunLLAMARecord:
         return NeMoRunLLAMARecord.from_flat_dict(raw_data)
 
-    def publish_from_test_run(self, tr: TestRun) -> None:
-        pass  # TODO: Implement this
+    def publish(self, raw_data: Dict[str, Any]) -> None:
+        """
+        Build the record from raw_data and publish it.
+
+        Args:
+            raw_data (Dict[str, Any]): The raw data used to build the record.
+        """
+        record = self.build_record(raw_data)
+        self.publish_record(record)
+
+    def publish_record(self, record: NeMoRunLLAMARecord) -> None:
+        """
+        Flatten the record and store it in the repository.
+
+        Args:
+            record (NeMoRunLLAMARecord): The record to be published. Must have a to_flat_dict() method.
+        """
+        flat_record = record.to_flat_dict()
+        self.repository.store(flat_record)
+        logging.info("Published record successfully.")

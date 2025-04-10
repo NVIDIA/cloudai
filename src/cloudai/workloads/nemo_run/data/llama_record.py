@@ -14,14 +14,104 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cloudai.data.model.gsw_context import GSWContext
-from cloudai.data.model.job_context import JobContext
-from cloudai.data.model.system_context import SystemContext
 
-from .base import NemoRunBaseRecord, PerformanceMetrics
+class SystemContext(BaseModel):
+    """
+    Hold system metadata common to all workloads.
+
+    Attributes:
+      cluster: The cluster identifier for the system.
+      user: The user associated with the system.
+      num_gpus: The number of GPUs associated with the system.
+    """
+
+    cluster: Optional[str] = Field(default=None, alias="s_cluster")
+    user: Optional[str] = Field(default=None, alias="s_user")
+    num_gpus: Optional[int] = Field(default=None, alias="l_num_gpus")
+
+    model_config = {
+        "populate_by_name": True,
+    }
+
+
+class JobContext(BaseModel):
+    """
+    Hold job metadata common to all workloads.
+
+    Attributes:
+      job_id: The job id provided by the service provider.
+      image: The path or identifier for the software image.
+      num_nodes: Number of nodes used in the job.
+    """
+
+    job_id: Optional[str] = Field(default=None, alias="s_job_id")
+    image: Optional[str] = Field(default=None, alias="s_image")
+    num_nodes: Optional[int] = Field(default=None, ge=1, alias="l_num_nodes")
+
+    model_config = {
+        "populate_by_name": True,
+    }
+
+
+class GSWContext(BaseModel):
+    """
+    Hold GSW metadata common to all workloads.
+
+    Attributes:
+      gsw_version: The version of the GSW.
+    """
+
+    gsw_version: str = Field(alias="s_gsw_version")
+
+    model_config = {
+        "populate_by_name": True,
+    }
+
+
+class BaseRecord(BaseModel):
+    """Base record for common fields across records."""
+
+    timestamp: datetime = Field(alias="ts_timestamp")
+    created_ts: int = Field(alias="ts_created")
+    gsw: GSWContext
+
+    model_config = {
+        "populate_by_name": True,
+    }
+
+    def to_flat_dict(self) -> dict:
+        """Flatten the record into a dictionary using alias names."""
+        return self.dict(by_alias=True)
+
+
+class NeMoRunPerformanceMetrics(BaseModel):
+    """Performance metrics for NemoRun workloads."""
+
+    metric: float = Field(alias="d_metric")
+    metric_stddev: float = Field(alias="d_metric_stddev")
+    step_time_mean: float = Field(alias="d_step_time_mean")
+    tokens_per_sec: float = Field(alias="d_tokens_per_sec")
+    checkpoint_size: Optional[int] = Field(default=None, alias="l_checkpoint_size")
+    checkpoint_save_rank_time: Optional[float] = Field(alias="d_checkpoint_save_rank_time")
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+
+class NemoRunBaseRecord(BaseRecord):
+    """NemoRun base record for common top-level fields."""
+
+    framework: str = Field(alias="s_framework")
+    fw_version: str = Field(alias="s_fw_version")
+    mode: str = Field(default="training", alias="s_job_mode")
+    model: str = Field(alias="s_model")
+    model_size: str = Field(alias="s_model_size", pattern=r"[\d]+[mbtMBT]")
+    synthetic_dataset: bool = Field(alias="b_synthetic_dataset")
+    performance: NeMoRunPerformanceMetrics
 
 
 class NeMoRunLLAMAContext(BaseModel):
@@ -29,10 +119,6 @@ class NeMoRunLLAMAContext(BaseModel):
 
     model_config = ConfigDict(protected_namespaces=())
 
-    framework: str = Field(alias="s_framework")
-    fw_version: str = Field(alias="s_fw_version")
-    model: str = Field(alias="s_model")
-    model_size: str = Field(alias="s_model_size", pattern=r"[\d]+[mbtMBT]")
     workload: str = Field(alias="s_workload")
     dtype: str = Field(alias="s_dtype")
     base_config: str = Field(alias="s_base_config")
@@ -54,9 +140,9 @@ class NeMoRunLLAMAContext(BaseModel):
 class NeMoRunLLAMARecord(NemoRunBaseRecord):
     """NeMoRun LLAMA record for a NemoRun workload."""
 
-    context: NeMoRunLLAMAContext
-    job: JobContext
     system: SystemContext
+    job: JobContext
+    context: NeMoRunLLAMAContext
 
     @classmethod
     def from_flat_dict(cls, data: dict) -> "NeMoRunLLAMARecord":
@@ -66,7 +152,7 @@ class NeMoRunLLAMARecord(NemoRunBaseRecord):
             "ts_created": data["ts_created"],
         }
         perf = {k: v for k, v in data.items() if k.startswith("d_")}
-        performance = PerformanceMetrics(**perf)
+        performance = NeMoRunPerformanceMetrics(**perf)
 
         context_keys = {}
         for key in [

@@ -21,13 +21,20 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
-from cloudai.data.repository.config import DataRepositoryConfig
-
 from ..._core.base_job import BaseJob
 from ..._core.installables import File, Installable
 from ..._core.system import System
 from ...util import CommandShell
 from .slurm_node import SlurmNode, SlurmNodeState
+
+
+class DataRepositoryConfig(BaseModel):
+    """Configuration for a data repository."""
+
+    post_endpoint: str
+    token: str
+    index: str
+    verify_certs: bool = True
 
 
 def parse_node_list(node_list: str) -> List[str]:
@@ -125,18 +132,6 @@ class SlurmSystem(BaseModel, System):
     extra_sbatch_args: list[str] = []
 
     data_repository: Optional[DataRepositoryConfig] = None
-    repository_instance: Optional[Any] = Field(default=None, exclude=True)
-
-    def model_post_init(self, __context: object) -> None:
-        del __context
-        if self.data_repository is not None:
-            try:
-                self.repository_instance = self.data_repository.instantiate_repository()
-                logging.info("Data repository instantiated successfully.")
-            except Exception as e:
-                logging.error("Failed to instantiate data repository: %s", e)
-        else:
-            logging.info("No data repository configuration provided. Skipping instantiation.")
 
     @property
     def groups(self) -> Dict[str, Dict[str, List[SlurmNode]]]:

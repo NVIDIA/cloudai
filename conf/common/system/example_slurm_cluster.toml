@@ -48,12 +48,10 @@ name = "partition_1"
 name = "partition_2"
 
 [data_repository]
-backend = "elastic"
-host = "MY_HOTS"
-api_key_id = "MY_API_KEY"
-api_key_secret = "MY_API_KEY_SECRET"
+post_endpoint = "MY_ENDPOINT"
+token = "MY_TOKEN"
 index = "MY_INDEX"
-verify_certs = true
+verify_certs = false
 
 [global_env_vars]
 # NCCL Specific Configurations

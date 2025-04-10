@@ -104,7 +104,12 @@ from .workloads.nemo_launcher import (
     NeMoLauncherSlurmJobIdRetrievalStrategy,
     NeMoLauncherTestDefinition,
 )
-from .workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunSlurmCommandGenStrategy, NeMoRunTestDefinition
+from .workloads.nemo_run import (
+    NeMoRunLLMBReportGenerationStrategy,
+    NeMoRunReportGenerationStrategy,
+    NeMoRunSlurmCommandGenStrategy,
+    NeMoRunTestDefinition,
+)
 from .workloads.sleep import (
     SleepGradingStrategy,
     SleepKubernetesJsonGenStrategy,
@@ -281,6 +286,7 @@ Registry().add_report(MegatronRunTestDefinition, CheckpointTimingReportGeneratio
 Registry().add_report(NCCLTestDefinition, NcclTestPerformanceReportGenerationStrategy)
 Registry().add_report(NeMoLauncherTestDefinition, NeMoLauncherReportGenerationStrategy)
 Registry().add_report(NeMoRunTestDefinition, NeMoRunReportGenerationStrategy)
+Registry().add_report(NeMoRunTestDefinition, NeMoRunLLMBReportGenerationStrategy)
 Registry().add_report(NemotronTestDefinition, JaxToolboxReportGenerationStrategy)
 Registry().add_report(SleepTestDefinition, SleepReportGenerationStrategy)
 Registry().add_report(SlurmContainerTestDefinition, SlurmContainerReportGenerationStrategy)
