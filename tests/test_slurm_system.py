@@ -272,6 +272,7 @@ def test_is_job_completed(stdout: str, stderr: str, is_completed: bool, slurm_sy
         ("CANCELLED", "", False),
         ("TIMEOUT", "", False),
         ("", "error", False),
+        ("   RUNNING \n   RUNNING \n   RUNNING \n COMPLETED \n    FAILED \n   RUNNING \n", "", True),
     ],
 )
 def test_is_job_running(stdout: str, stderr: str, is_running: bool, slurm_system: SlurmSystem):
