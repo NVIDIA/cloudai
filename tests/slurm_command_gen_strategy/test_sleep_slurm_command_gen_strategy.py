@@ -14,13 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Union
+from typing import Dict, List, Union, cast
 from unittest.mock import Mock
 
 import pytest
 
 from cloudai.systems import SlurmSystem
-from cloudai.workloads.sleep import SleepSlurmCommandGenStrategy
+from cloudai.workloads.sleep import SleepCmdArgs, SleepSlurmCommandGenStrategy, SleepTestDefinition
 
 
 class TestSleepSlurmCommandGenStrategy:
@@ -42,5 +42,10 @@ class TestSleepSlurmCommandGenStrategy:
         expected_command: List[str],
     ) -> None:
         env_vars = {}
-        command = cmd_gen_strategy.generate_test_command(env_vars, cmd_args, Mock())
+        tr = Mock()
+        sleep_cmd_args = SleepCmdArgs(seconds=cast(int, cmd_args["seconds"]))
+        mock_test_def = Mock(spec=SleepTestDefinition)
+        mock_test_def.cmd_args = sleep_cmd_args
+        tr.test.test_definition = mock_test_def
+        command = cmd_gen_strategy.generate_test_command(env_vars, cmd_args, tr)
         assert command == expected_command
