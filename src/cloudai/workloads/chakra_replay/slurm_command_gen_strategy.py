@@ -26,11 +26,15 @@ from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 from cloudai.workloads.chakra_replay import ChakraReplayTestDefinition
 
 
+def single(val: Union[str, List[str], Any]) -> Any:
+    return val[0] if isinstance(val, list) else val
+
+
 class RunConfig(BaseModel):
     """Run configuration."""
 
-    warmup_iters: int = 3
-    iters: int = 10
+    warmup_iters: int
+    iters: int
 
 
 class TraceConfig(BaseModel):
@@ -42,7 +46,7 @@ class TraceConfig(BaseModel):
 class TensorAllocatorConfig(BaseModel):
     """Tensor allocator configuration."""
 
-    reuse_tensors: bool = False
+    reuse_tensors: bool = True
 
 
 class CommBackend(BaseModel):
@@ -73,46 +77,84 @@ class LoggingConfig(BaseModel):
 class ChakraReplayConfig(BaseModel):
     """ChakraReplay configuration."""
 
-    run: RunConfig = Field(default_factory=RunConfig)
-    trace: Optional[TraceConfig] = None
-    tensor_allocator: TensorAllocatorConfig = Field(default_factory=TensorAllocatorConfig)
-    comm: CommConfig = Field(default_factory=CommConfig)
-    profiler: ProfilerConfig = Field(default_factory=ProfilerConfig)
-    logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    run: RunConfig
+    trace: Optional[TraceConfig]
+    tensor_allocator: TensorAllocatorConfig
+    comm: CommConfig
+    profiler: ProfilerConfig
+    logging: LoggingConfig
+
+    @classmethod
+    def _build_run(cls, values: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if "warmup_iters" not in values and "iters" not in values:
+            return None
+        run = {}
+        if "warmup_iters" in values:
+            run["warmup_iters"] = int(single(values["warmup_iters"]))
+        if "iters" in values:
+            run["iters"] = int(single(values["iters"]))
+        return run
+
+    @classmethod
+    def _build_trace(cls, values: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if "trace_dir" not in values:
+            return None
+        return {"directory": single(values["trace_dir"])}
+
+    @classmethod
+    def _build_tensor_allocator(cls, values: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if "reuse_tensors" not in values:
+            return None
+        return {"reuse_tensors": str(single(values["reuse_tensors"])).lower() in {"1", "true", "yes", "on"}}
+
+    @classmethod
+    def _build_comm(cls, values: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if "backend.name" not in values and "backend.backend" not in values:
+            return None
+        backend = {}
+        if "backend.name" in values:
+            backend["name"] = single(values["backend.name"])
+        if "backend.backend" in values:
+            backend["backend"] = single(values["backend.backend"])
+        return {"backend": backend}
+
+    @classmethod
+    def _build_profiler(cls, values: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if "profiler.enabled" not in values:
+            return None
+        return {"enabled": str(single(values["profiler.enabled"])).lower() in {"1", "true", "yes", "on"}}
+
+    @classmethod
+    def _build_logging(cls, values: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if "logging.level" not in values:
+            return None
+        return {"level": single(values["logging.level"])}
 
     @root_validator(pre=True)
     def build_nested(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        def single(val: Union[str, List[str], Any]) -> Any:
-            return val[0] if isinstance(val, list) else val
-
-        run = {
-            "warmup_iters": int(single(values.get("warmup_iters", 3))),
-            "iters": int(single(values.get("iters", 10))),
-        }
-        trace_val = values.get("trace_dir")
-        trace = {"directory": single(trace_val)} if trace_val is not None else None
-        tensor_allocator = {
-            "reuse_tensors": str(single(values.get("reuse_tensors", False))).lower() in {"1", "true", "yes", "on"}
-        }
-        backend = {
-            "name": single(values.get("backend.name", "pytorch-dist")),
-            "backend": single(values.get("backend.backend", "nccl")),
-        }
-        comm = {"backend": backend}
-        profiler = {"enabled": str(single(values.get("profiler.enabled", False))).lower() in {"1", "true", "yes", "on"}}
-        logging_ = {"level": single(values.get("logging.level", "INFO"))}
-        return {
-            "run": run,
-            "trace": trace,
-            "tensor_allocator": tensor_allocator,
-            "comm": comm,
-            "profiler": profiler,
-            "logging": logging_,
-        }
+        run = cls._build_run(values)
+        if run is not None:
+            values["run"] = run
+        trace = cls._build_trace(values)
+        if trace is not None:
+            values["trace"] = trace
+        tensor_allocator = cls._build_tensor_allocator(values)
+        if tensor_allocator is not None:
+            values["tensor_allocator"] = tensor_allocator
+        comm = cls._build_comm(values)
+        if comm is not None:
+            values["comm"] = comm
+        profiler = cls._build_profiler(values)
+        if profiler is not None:
+            values["profiler"] = profiler
+        logging_ = cls._build_logging(values)
+        if logging_ is not None:
+            values["logging"] = logging_
+        return values
 
     @classmethod
     def from_cmd_args(cls, cmd_args: Dict[str, Union[str, List[str]]]) -> "ChakraReplayConfig":
-        return cls.parse_obj(cmd_args)
+        return cls.model_validate(cmd_args)
 
     def write_to_toml(self, output_path: Path) -> Path:
         config_path = output_path / "config.toml"

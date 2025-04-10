@@ -99,12 +99,30 @@ def test_parse_slurm_args(
     "cmd_args, num_nodes, ntasks_per_node",
     [
         (
-            {"trace_dir": "/output/traces/"},
+            {
+                "trace_dir": "/output/traces/",
+                "warmup_iters": 5,
+                "iters": 10,
+                "reuse_tensors": False,
+                "backend.name": "pytorch-dist",
+                "backend.backend": "nccl",
+                "profiler.enabled": False,
+                "logging.level": "INFO",
+            },
             2,
             4,
         ),
         (
-            {"trace_dir": "/another/path/"},
+            {
+                "trace_dir": "/another/path/",
+                "warmup_iters": 0,
+                "iters": 50,
+                "reuse_tensors": True,
+                "backend.name": "custom_backend",
+                "backend.backend": "nccl",
+                "profiler.enabled": True,
+                "logging.level": "DEBUG",
+            },
             3,
             2,
         ),
