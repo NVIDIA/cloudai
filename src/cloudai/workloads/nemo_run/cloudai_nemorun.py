@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import os
-import sys
 from datetime import timedelta
 from typing import Optional
 
@@ -812,26 +811,24 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
 if __name__ == "__main__":
     mode = os.getenv("CLOUDAI_NEMO_TASK")
 
-    supported_recipes = {
-        "llama3_8b": cloudai_llama3_8b_recipe,
-        "llama3_70b": cloudai_llama3_70b_recipe,
-        "llama3_405b": cloudai_llama3_405b_recipe,
-        "nemotron3_8b": cloudai_nemotron3_8b_recipe,
-        "nemotron4_15b": cloudai_nemotron4_15b_recipe,
-        "nemotron4_340b": cloudai_nemotron4_340b_recipe,
-    }
+    supported_recipes = [
+        "cloudai_llama3_8b_recipe",
+        "cloudai_llama3_70b_recipe",
+        "cloudai_llama3_405b_recipe",
+        "cloudai_nemotron3_8b_recipe",
+        "cloudai_nemotron4_15b_recipe",
+        "cloudai_nemotron4_340b_recipe",
+    ]
 
     recipe_name = os.getenv("CLOUDAI_NEMO_RECIPE")
 
     if recipe_name not in supported_recipes:
         print(
             (
-                f"Error: Recipe '{recipe_name}' is not supported. Supported recipes are: "
-                f"{', '.join(supported_recipes.keys())}"
+                f"Warning: Using Default Recipe '{recipe_name}'. "
+                "Advanced CLI features that use ForwardRefs are not supported using in Nemo-Run CLI yet."
             )
         )
-        sys.exit(1)
-
     if mode == "pretrain":
         run.cli.main(fn=llm.pretrain)
     elif mode == "finetune":
