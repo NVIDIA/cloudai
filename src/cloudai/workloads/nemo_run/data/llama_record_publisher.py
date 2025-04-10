@@ -29,26 +29,7 @@ class NeMoRunLLAMARecordPublisher:
         """Initialize the publisher with a repository."""
         self.repository = repository
 
-    def build_record(self, raw_data: Dict) -> NeMoRunLLAMARecord:
-        return NeMoRunLLAMARecord.from_flat_dict(raw_data)
-
     def publish(self, raw_data: Dict[str, Any]) -> None:
-        """
-        Build the record from raw_data and publish it.
-
-        Args:
-            raw_data (Dict[str, Any]): The raw data used to build the record.
-        """
-        record = self.build_record(raw_data)
-        self.publish_record(record)
-
-    def publish_record(self, record: NeMoRunLLAMARecord) -> None:
-        """
-        Flatten the record and store it in the repository.
-
-        Args:
-            record (NeMoRunLLAMARecord): The record to be published. Must have a to_flat_dict() method.
-        """
+        record = NeMoRunLLAMARecord.from_flat_dict(raw_data)
         flat_record = record.to_flat_dict()
         self.repository.store(flat_record)
-        logging.info("Published record successfully.")
