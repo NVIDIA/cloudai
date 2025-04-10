@@ -22,7 +22,7 @@ from unittest.mock import Mock
 import pytest
 import toml
 
-from cloudai import GitRepo, TestRun
+from cloudai import GitRepo, PythonExecutable, TestRun
 from cloudai._core.test import Test
 from cloudai.systems import SlurmSystem
 from cloudai.workloads.chakra_replay import (
@@ -47,9 +47,11 @@ def chakra_replay_tr(cmd_args: Dict[str, Any]) -> TestRun:
         cmd_args=ChakraReplayCmdArgs(
             docker_image_url=cmd_args.get("docker_image_url", ""),
             trace_dir=cmd_args.get("trace_dir", ""),
-            git_repo=GitRepo(url="./git_repo", commit="commit"),
             warmup_iters=cmd_args.get("warmup_iters", 0),
             iters=cmd_args.get("iters", 10),
+        ),
+        comm_replay_executable=PythonExecutable(
+            git_repo=GitRepo(url="./git_repo", commit="commit"),
         ),
     )
     test = Test(test_definition=chakra, test_template=Mock())
