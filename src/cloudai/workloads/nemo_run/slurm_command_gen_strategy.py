@@ -84,9 +84,24 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 else:
                     command.append(f"{key}={value}")
 
-    def _map_recipe_name(self, recipe_name: str) -> str:
-        """Map recipe names to their cloudai-prefixed equivalents."""
-        return f"cloudai_{recipe_name}_recipe"
+    def _validate_recipe_name(self, recipe_name: str) -> str:
+        """Validate the recipe name against the supported list."""
+        supported_recipes = [
+            "cloudai_llama3_8b_recipe",
+            "cloudai_llama3_70b_recipe",
+            "cloudai_llama3_405b_recipe",
+            "cloudai_nemotron3_8b_recipe",
+            "cloudai_nemotron4_15b_recipe",
+            "cloudai_nemotron4_340b_recipe",
+        ]
+
+        if recipe_name not in supported_recipes:
+            logging.warning(
+                f"Using default {recipe_name} in Nemo2.0."
+                "Passing advance CLI options (e.g., factory fuctions) might not be fully supported in Nemo-Run CLI."
+            )
+
+        return recipe_name
 
     def generate_test_command(
         self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
@@ -98,13 +113,13 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         for non_cmd_arg in {"docker_image_url", "num_layers", "task", "recipe_name"}:
             cmd_args_dict.pop(non_cmd_arg)
 
-        mapped_recipe_name = self._map_recipe_name(tdef.cmd_args.recipe_name)
+        recipe_name = self._validate_recipe_name(tdef.cmd_args.recipe_name)
 
         command = [
             "python",
             f"/cloudai_install/{self._run_script(tr).name}",
             "--factory",
-            mapped_recipe_name,
+            recipe_name,
             "-y",
         ]
 
