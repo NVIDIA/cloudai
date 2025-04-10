@@ -73,6 +73,9 @@ class TestNeMoRunSlurmCommandGenStrategy:
             data=Data(micro_batch_size=1),
         )
         test_run.test.test_definition.cmd_args = cmd_args
+
+        mapped_recipe_name = cmd_gen_strategy._map_recipe_name(cmd_args.recipe_name)
+
         cmd = cmd_gen_strategy.generate_test_command(
             test_run.test.test_definition.extra_env_vars, test_run.test.test_definition.cmd_args.model_dump(), test_run
         )
@@ -81,7 +84,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
             "python",
             f"/cloudai_install/{cmd_gen_strategy._run_script(test_run).name}",
             "--factory",
-            cmd_args.recipe_name,
+            mapped_recipe_name,
             "-y",
         ]
         assert (
@@ -124,3 +127,8 @@ class TestNeMoRunSlurmCommandGenStrategy:
             )
         assert excinfo.value.code == 1
         assert "Mismatch in num_nodes" in caplog.text
+
+    def test_map_recipe_name(self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy) -> None:
+        assert cmd_gen_strategy._map_recipe_name("llama3_8b") == "cloudai_llama3_8b_recipe"
+        assert cmd_gen_strategy._map_recipe_name("nemotron4_15b") == "cloudai_nemotron4_15b_recipe"
+        assert cmd_gen_strategy._map_recipe_name("unknown_recipe") == "cloudai_unknown_recipe_recipe"
