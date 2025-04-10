@@ -321,7 +321,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
                 f"--error={tr.output_path.absolute() / 'vboost.err'}",
                 "bash",
                 "-c",
-                "'sudo nvidia-smi boost-slider --vboost 1'",
+                '"sudo nvidia-smi boost-slider --vboost 1"',
             ]
         )
 
