@@ -73,6 +73,9 @@ class TestNeMoRunSlurmCommandGenStrategy:
             data=Data(micro_batch_size=1),
         )
         test_run.test.test_definition.cmd_args = cmd_args
+
+        recipe_name = cmd_gen_strategy._validate_recipe_name(cmd_args.recipe_name)
+
         cmd = cmd_gen_strategy.generate_test_command(
             test_run.test.test_definition.extra_env_vars, test_run.test.test_definition.cmd_args.model_dump(), test_run
         )
@@ -81,7 +84,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
             "python",
             f"/cloudai_install/{cmd_gen_strategy._run_script(test_run).name}",
             "--factory",
-            cmd_args.recipe_name,
+            recipe_name,
             "-y",
         ]
         assert (
