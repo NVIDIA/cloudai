@@ -32,19 +32,16 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self,
         job_name_prefix: str,
         env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, Union[str, List[str]]],
         tr: TestRun,
     ) -> Dict[str, Any]:
-        base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
+        base_args = super()._parse_slurm_args(job_name_prefix, env_vars, tr)
 
         tdef: UCCTestDefinition = cast(UCCTestDefinition, tr.test.test_definition)
         base_args.update({"image_path": tdef.docker_image.installed_path})
 
         return base_args
 
-    def generate_test_command(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
-    ) -> List[str]:
+    def generate_test_command(self, env_vars: Dict[str, Union[str, List[str]]], tr: TestRun) -> List[str]:
         tdef: UCCTestDefinition = cast(UCCTestDefinition, tr.test.test_definition)
         tdef_cmd_args: UCCCmdArgs = tdef.cmd_args
 

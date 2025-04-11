@@ -26,8 +26,8 @@ from cloudai.workloads.jax_toolbox import GPTTestDefinition, GrokTestDefinition,
 class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for JaxToolbox tests on Slurm systems."""
 
-    def __init__(self, system: SlurmSystem, cmd_args: Dict[str, Any]) -> None:
-        super().__init__(system, cmd_args)
+    def __init__(self, system: SlurmSystem) -> None:
+        super().__init__(system)
         self.test_name = ""
 
     def _container_mounts(self, tr: TestRun) -> list[str]:
@@ -135,16 +135,16 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return " ".join(sorted(xla_flags))
 
     def _parse_slurm_args(
-        self, job_name_prefix: str, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Any], tr: TestRun
+        self, job_name_prefix: str, env_vars: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> Dict[str, Any]:
-        base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
+        base_args = super()._parse_slurm_args(job_name_prefix, env_vars, tr)
 
         tdef: Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition] = cast(
             Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition], tr.test.test_definition
         )
         base_args.update({"image_path": tdef.docker_image.installed_path})
 
-        output_path = Path(cmd_args["output_path"]).resolve()
+        output_path = Path(tr.output_path).resolve()
         output_suffix = "-%j.txt" if env_vars.get("UNIFIED_STDOUT_STDERR") == "1" else "-%j-%n-%t.txt"
         base_args["output"] = str(output_path / f"output{output_suffix}")
         base_args["error"] = str(output_path / f"error{output_suffix}")
@@ -155,13 +155,12 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self,
         slurm_args: Dict[str, Any],
         env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, Any],
         tr: TestRun,
     ) -> str:
-        self._create_run_script(env_vars, cmd_args, tr.test.extra_cmd_args)
+        self._create_run_script(env_vars, tr.test.cmd_args, tr.test.extra_cmd_args)
 
         commands = []
-        load_container = cmd_args.get("load_container", False)
+        load_container = tr.test.cmd_args.get("load_container", False)
         if load_container:
             commands += self._generate_container_load_command(slurm_args)
         commands += self._generate_run_command(slurm_args, tr)

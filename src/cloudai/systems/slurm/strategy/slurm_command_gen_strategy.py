@@ -32,17 +32,15 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             properties and methods.
     """
 
-    def __init__(self, system: SlurmSystem, cmd_args: Dict[str, Any]) -> None:
+    def __init__(self, system: SlurmSystem) -> None:
         """
         Initialize a new SlurmCommandGenStrategy instance.
 
         Args:
             system (SlurmSystem): The system schema object.
-            cmd_args (Dict[str, Any]): Command-line arguments.
         """
-        super().__init__(system, cmd_args)
+        super().__init__(system)
         self.system = system
-        self.docker_image_url = self.cmd_args.get("docker_image_url", "")
 
     @abstractmethod
     def _container_mounts(self, tr: TestRun) -> list[str]:
@@ -79,10 +77,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
     def gen_exec_command(self, tr: TestRun) -> str:
         env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
-        cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
-        slurm_args = self._parse_slurm_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
+        slurm_args = self._parse_slurm_args(tr.test.test_template.__class__.__name__, env_vars, tr)
 
-        srun_command = self._gen_srun_command(slurm_args, env_vars, cmd_args, tr)
+        srun_command = self._gen_srun_command(slurm_args, env_vars, tr)
         command_list = []
         indent = ""
 
@@ -105,15 +102,13 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
     def gen_srun_command(self, tr: TestRun) -> str:
         env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
-        cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
-        slurm_args = self._parse_slurm_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
-        return self._gen_srun_command(slurm_args, env_vars, cmd_args, tr)
+        slurm_args = self._parse_slurm_args(tr.test.test_template.__class__.__name__, env_vars, tr)
+        return self._gen_srun_command(slurm_args, env_vars, tr)
 
     def _parse_slurm_args(
         self,
         job_name_prefix: str,
         env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, Union[str, List[str]]],
         tr: TestRun,
     ) -> Dict[str, Any]:
         """
@@ -122,7 +117,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         Args:
             job_name_prefix (str): Prefix for the job name.
             env_vars (Dict[str, Union[str, List[str]]]): Environment variables.
-            cmd_args (Dict[str, Union[str, List[str]]]): Command-line arguments.
             tr (TestRun): Test run object.
 
         Returns:
@@ -169,7 +163,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         key = (CommandGenStrategy, type(self.system), type(tr.test.test_definition))
         strategy_cls = registry.strategies_map[key]
         strategy_cls_typed = cast(type[SlurmCommandGenStrategy], strategy_cls)
-        strategy = strategy_cls_typed(self.system, tr.test.cmd_args)
+        strategy = strategy_cls_typed(self.system)
         return hook_dir, strategy
 
     def gen_pre_test(self, pre_test: TestScenario, base_output_path: Path) -> str:
@@ -243,12 +237,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         self,
         slurm_args: Dict[str, Any],
         env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, Union[str, List[str]]],
         tr: TestRun,
     ) -> str:
         srun_command_parts = self.gen_srun_prefix(slurm_args, tr)
         nsys_command_parts = self.gen_nsys_command(tr)
-        test_command_parts = self.generate_test_command(env_vars, cmd_args, tr)
+        test_command_parts = self.generate_test_command(env_vars, tr)
         return " ".join(srun_command_parts + nsys_command_parts + test_command_parts)
 
     def gen_srun_prefix(self, slurm_args: Dict[str, Any], tr: TestRun) -> List[str]:
@@ -264,9 +257,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         return srun_command_parts
 
-    def generate_test_command(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
-    ) -> List[str]:
+    def generate_test_command(self, env_vars: Dict[str, Union[str, List[str]]], tr: TestRun) -> List[str]:
         return []
 
     def _add_reservation(self, batch_script_content: List[str]):

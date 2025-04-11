@@ -71,9 +71,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 else:
                     command.append(f"{key}={value}")
 
-    def generate_test_command(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
-    ) -> List[str]:
+    def generate_test_command(self, env_vars: Dict[str, Union[str, List[str]]], tr: TestRun) -> List[str]:
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
 
         cmd_args_dict = tdef.cmd_args.model_dump()

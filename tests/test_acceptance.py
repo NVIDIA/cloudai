@@ -131,9 +131,7 @@ def create_test_run(
         name=name,
         test=Test(test_definition=test_definition, test_template=TestTemplate(slurm_system, name=name)),
     )
-    tr.test.test_template.command_gen_strategy = command_gen_strategy(
-        slurm_system, tr.test.test_definition.cmd_args_dict
-    )
+    tr.test.test_template.command_gen_strategy = command_gen_strategy(slurm_system)
     if isinstance(tr.test.test_template.command_gen_strategy, SlurmCommandGenStrategy):
         tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
     return tr

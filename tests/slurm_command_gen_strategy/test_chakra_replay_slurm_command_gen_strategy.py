@@ -33,7 +33,7 @@ from cloudai.workloads.chakra_replay import (
 
 @pytest.fixture
 def cmd_gen_strategy(slurm_system: SlurmSystem) -> ChakraReplaySlurmCommandGenStrategy:
-    return ChakraReplaySlurmCommandGenStrategy(slurm_system, {})
+    return ChakraReplaySlurmCommandGenStrategy(slurm_system)
 
 
 @pytest.fixture
@@ -90,11 +90,10 @@ def test_parse_slurm_args(
     cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy,
     job_name_prefix: str,
     env_vars: Dict[str, Union[str, List[str]]],
-    cmd_args: Dict[str, Any],
     expected_result: Dict[str, Any],
     chakra_replay_tr: TestRun,
 ) -> None:
-    slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, cmd_args, chakra_replay_tr)
+    slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, chakra_replay_tr)
     assert slurm_args["image_path"] == expected_result["image_path"]
     assert cmd_gen_strategy._container_mounts(chakra_replay_tr) == expected_result["container_mounts"]
 
@@ -120,7 +119,6 @@ def test_parse_slurm_args(
 )
 def test_generate_srun_command(
     cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy,
-    cmd_args: Dict[str, Any],
     num_nodes: int,
     ntasks_per_node: int,
     chakra_replay_tr: TestRun,
@@ -130,8 +128,8 @@ def test_generate_srun_command(
     cmd_gen_strategy.system.ntasks_per_node = ntasks_per_node
     chakra_replay_tr.output_path = tmp_path
 
-    slurm_args = cmd_gen_strategy._parse_slurm_args("test", {}, {}, chakra_replay_tr)
-    command = cmd_gen_strategy._gen_srun_command(slurm_args, {}, {}, chakra_replay_tr)
+    slurm_args = cmd_gen_strategy._parse_slurm_args("test", {}, chakra_replay_tr)
+    command = cmd_gen_strategy._gen_srun_command(slurm_args, {}, chakra_replay_tr)
 
     generated_commands = command.strip().split("\n")
     assert len(generated_commands) == 2

@@ -28,7 +28,7 @@ from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTes
 class TestNcclTestSlurmCommandGenStrategy:
     @pytest.fixture
     def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> NcclTestSlurmCommandGenStrategy:
-        return NcclTestSlurmCommandGenStrategy(slurm_system, {})
+        return NcclTestSlurmCommandGenStrategy(slurm_system)
 
     @pytest.mark.parametrize(
         "job_name_prefix, env_vars, cmd_args, num_nodes, nodes, expected_result",
@@ -60,7 +60,6 @@ class TestNcclTestSlurmCommandGenStrategy:
         cmd_gen_strategy: NcclTestSlurmCommandGenStrategy,
         job_name_prefix: str,
         env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, Union[str, List[str]]],
         num_nodes: int,
         nodes: List[str],
         expected_result: Dict[str, Any],
@@ -87,7 +86,7 @@ class TestNcclTestSlurmCommandGenStrategy:
         t = Test(test_definition=nccl, test_template=Mock())
         tr = TestRun(name="t1", test=t, nodes=[], num_nodes=1)
 
-        cmd = cmd_gen_strategy.generate_test_command({}, {}, tr)
+        cmd = cmd_gen_strategy.generate_test_command({}, tr)
 
         for arg in args:
             cli_key = f"--{arg}" if len(arg) > 1 else f"-{arg}"

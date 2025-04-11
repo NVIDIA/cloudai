@@ -31,7 +31,7 @@ class TestSleepSlurmCommandGenStrategy:
 
     @pytest.fixture
     def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> SleepSlurmCommandGenStrategy:
-        return SleepSlurmCommandGenStrategy(slurm_system, {})
+        return SleepSlurmCommandGenStrategy(slurm_system)
 
     @pytest.mark.parametrize(
         "cmd_args_data, expected_command",
@@ -70,7 +70,6 @@ class TestSleepSlurmCommandGenStrategy:
 
         command = cmd_gen_strategy.generate_test_command(
             test_def.extra_env_vars,
-            test_def.cmd_args_dict,
             tr,
         )
 

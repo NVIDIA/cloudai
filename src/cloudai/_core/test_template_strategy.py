@@ -28,51 +28,18 @@ class TestTemplateStrategy:
 
     Attributes
         system (System): The system schema object.
-        cmd_args (Dict[str, Union[str, List[str]]]): Default command-line arguments with possible ranges.
-        default_cmd_args (Dict[str, str]): Constructed default command-line arguments with ranges flattened.
     """
 
     __test__ = False
 
-    def __init__(self, system: System, cmd_args: Dict[str, Union[str, List[str]]]) -> None:
+    def __init__(self, system: System) -> None:
         """
         Initialize a TestTemplateStrategy instance with system configuration, env variables, and command-line arguments.
 
         Args:
             system (System): The system configuration for the test.
-            cmd_args (Dict[str, Union[str, List[str]]]): Default command-line arguments with possible ranges.
         """
         self.system = system
-        self.cmd_args = cmd_args
-        self.default_cmd_args = self._construct_default_cmd_args()
-
-    def _construct_default_cmd_args(self) -> Dict[str, Union[str, List[str]]]:
-        """
-        Construct the default arguments for the test template recursively, flattening ranges.
-
-        Returns:
-            Dict[str, Union[str, List[str]]]: A dictionary containing the combined default arguments
-            with ranges flattened.
-        """
-
-        def construct_args(
-            cmd_args: Dict[str, Union[str, List[str]]], parent_key: str = ""
-        ) -> Dict[str, Union[str, List[str]]]:
-            args: Dict[str, Union[str, List[str]]] = {}
-            for key, value in cmd_args.items():
-                full_key = f"{parent_key}.{key}" if parent_key else key
-
-                if isinstance(value, dict):
-                    nested_args = construct_args(
-                        {k: v for k, v in value.items() if k not in ["type", "default", "values"]},
-                        full_key,
-                    )
-                    args.update(nested_args)
-                else:
-                    args[full_key] = value
-            return args
-
-        return construct_args(self.cmd_args)
 
     def _flatten_dict(self, d: Dict[str, Any], parent_key: str = "", sep: str = ".") -> Dict[str, Any]:
         """

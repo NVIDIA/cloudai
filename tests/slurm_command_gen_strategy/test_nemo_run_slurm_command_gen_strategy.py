@@ -60,7 +60,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
 
     @pytest.fixture
     def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> NeMoRunSlurmCommandGenStrategy:
-        return NeMoRunSlurmCommandGenStrategy(slurm_system, {})
+        return NeMoRunSlurmCommandGenStrategy(slurm_system)
 
     def test_generate_test_command(self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy, test_run: TestRun) -> None:
         cmd_args = NeMoRunCmdArgs(
@@ -73,9 +73,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
             data=Data(micro_batch_size=1),
         )
         test_run.test.test_definition.cmd_args = cmd_args
-        cmd = cmd_gen_strategy.generate_test_command(
-            test_run.test.test_definition.extra_env_vars, test_run.test.test_definition.cmd_args.model_dump(), test_run
-        )
+        cmd = cmd_gen_strategy.generate_test_command(test_run.test.test_definition.extra_env_vars, test_run)
         assert cmd is not None
         assert cmd[:5] == [
             "python",
@@ -96,7 +94,6 @@ class TestNeMoRunSlurmCommandGenStrategy:
 
         cmd = cmd_gen_strategy.generate_test_command(
             test_run.test.test_definition.extra_env_vars,
-            cmd_args_dict,
             test_run,
         )
 
@@ -119,7 +116,6 @@ class TestNeMoRunSlurmCommandGenStrategy:
         with caplog.at_level(logging.WARNING), pytest.raises(SystemExit) as excinfo:
             cmd_gen_strategy.generate_test_command(
                 test_run.test.test_definition.extra_env_vars,
-                test_run.test.test_definition.cmd_args.model_dump(),
                 test_run,
             )
         assert excinfo.value.code == 1

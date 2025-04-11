@@ -28,7 +28,7 @@ from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition, UCCTestSlu
 class TestUCCTestSlurmCommandGenStrategy:
     @pytest.fixture
     def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> UCCTestSlurmCommandGenStrategy:
-        return UCCTestSlurmCommandGenStrategy(slurm_system, {})
+        return UCCTestSlurmCommandGenStrategy(slurm_system)
 
     @pytest.mark.parametrize(
         "cmd_args_data, extra_cmd_args, expected_command",
@@ -95,7 +95,6 @@ class TestUCCTestSlurmCommandGenStrategy:
 
         command = cmd_gen_strategy.generate_test_command(
             test_def.extra_env_vars,
-            test_def.cmd_args_dict,
             tr,
         )
         assert command == expected_command

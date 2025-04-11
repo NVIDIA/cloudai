@@ -129,10 +129,9 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self,
         job_name_prefix: str,
         env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, Union[str, List[str]]],
         tr: TestRun,
     ) -> Dict[str, Any]:
-        base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
+        base_args = super()._parse_slurm_args(job_name_prefix, env_vars, tr)
         tdef = cast(ChakraReplayTestDefinition, tr.test.test_definition)
         base_args.update({"image_path": str(tdef.docker_image.installed_path)})
         return base_args
@@ -141,7 +140,6 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self,
         slurm_args: Dict[str, Any],
         env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, Union[str, List[str]]],
         tr: TestRun,
     ) -> str:
         config = ChakraReplayConfig.from_cmd_args(tr.test.test_definition.cmd_args)

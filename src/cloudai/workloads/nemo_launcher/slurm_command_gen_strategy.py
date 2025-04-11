@@ -34,7 +34,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return []
 
     def gen_exec_command(self, tr: TestRun) -> str:
-        self._prepare_environment(tr.test.cmd_args, tr.test.extra_env_vars, tr.output_path)
+        self._prepare_environment(tr)
 
         _, nodes = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
         self._set_node_config(nodes, tr.num_nodes)
@@ -104,23 +104,11 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return full_cmd.strip()
 
-    def _prepare_environment(
-        self,
-        cmd_args: Dict[str, Union[str, List[str]]],
-        extra_env_vars: Dict[str, Union[str, List[str]]],
-        output_path: Path,
-    ) -> None:
-        """
-        Prepare the environment variables and command arguments.
+    def _prepare_environment(self, tr: TestRun) -> None:
+        """Prepare the environment variables and command arguments."""
+        self.final_env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
 
-        Args:
-            cmd_args (Dict[str, Union[str, List[str]]]): Command-line arguments for the launcher.
-            extra_env_vars (Dict[str, Union[str, List[str]]]): Additional environment variables.
-            output_path (Path): Path to the output directory.
-        """
-        self.final_env_vars = self._override_env_vars(self.system.global_env_vars, extra_env_vars)
-
-        overriden_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
+        overriden_cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
         overriden_cmd_args.pop("launcher_script", None)
         self.final_cmd_args = {k: self._handle_special_keys(k, v) for k, v in sorted(overriden_cmd_args.items())}
 

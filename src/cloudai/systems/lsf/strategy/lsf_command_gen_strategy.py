@@ -30,17 +30,15 @@ class LSFCommandGenStrategy(CommandGenStrategy):
             properties and methods.
     """
 
-    def __init__(self, system: LSFSystem, cmd_args: Dict[str, Any]) -> None:
+    def __init__(self, system: LSFSystem) -> None:
         """
         Initialize a new LSFCommandGenStrategy instance.
 
         Args:
             system (LSFSystem): The system schema object.
-            cmd_args (Dict[str, Any]): Command-line arguments.
         """
-        super().__init__(system, cmd_args)
+        super().__init__(system)
         self.system = system
-        self.docker_image_url = self.cmd_args.get("docker_image_url", "")
 
     def gen_exec_command(self, tr: TestRun) -> str:
         """
@@ -53,10 +51,9 @@ class LSFCommandGenStrategy(CommandGenStrategy):
             str: The generated LSF command.
         """
         env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
-        cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
-        lsf_args = self._parse_lsf_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
+        lsf_args = self._parse_lsf_args(tr.test.test_template.__class__.__name__, env_vars, tr)
 
-        bsub_command = self._gen_bsub_command(lsf_args, env_vars, cmd_args, tr)
+        bsub_command = self._gen_bsub_command(lsf_args, env_vars, tr)
 
         return bsub_command.strip()
 
@@ -64,7 +61,6 @@ class LSFCommandGenStrategy(CommandGenStrategy):
         self,
         job_name_prefix: str,
         env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, Union[str, List[str]]],
         tr: TestRun,
     ) -> Dict[str, Any]:
         """
@@ -73,7 +69,6 @@ class LSFCommandGenStrategy(CommandGenStrategy):
         Args:
             job_name_prefix (str): Prefix for the job name.
             env_vars (Dict[str, Union[str, List[str]]]): Environment variables.
-            cmd_args (Dict[str, Union[str, List[str]]]): Command-line arguments.
             tr (TestRun): Test run object.
 
         Returns:
@@ -101,7 +96,6 @@ class LSFCommandGenStrategy(CommandGenStrategy):
         self,
         lsf_args: Dict[str, Any],
         env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, Union[str, List[str]]],
         tr: TestRun,
     ) -> str:
         """
@@ -110,14 +104,13 @@ class LSFCommandGenStrategy(CommandGenStrategy):
         Args:
             lsf_args (Dict[str, Any]): LSF-specific arguments.
             env_vars (Dict[str, Union[str, List[str]]]): Environment variables.
-            cmd_args (Dict[str, Union[str, List[str]]]): Command-line arguments.
             tr (TestRun): The test run object.
 
         Returns:
             str: The generated bsub command.
         """
         bsub_command_parts = self.gen_bsub_prefix(lsf_args, tr)
-        test_command_parts = self.generate_test_command(env_vars, cmd_args, tr)
+        test_command_parts = self.generate_test_command(env_vars, tr)
 
         return " ".join(bsub_command_parts + test_command_parts)
 
@@ -157,9 +150,7 @@ class LSFCommandGenStrategy(CommandGenStrategy):
 
         return bsub_command_parts
 
-    def generate_test_command(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
-    ) -> List[str]:
+    def generate_test_command(self, env_vars: Dict[str, Union[str, List[str]]], tr: TestRun) -> List[str]:
         return []
 
     def gen_srun_command(self, tr: TestRun) -> str:
