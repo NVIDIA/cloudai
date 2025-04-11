@@ -316,6 +316,28 @@ Dependencies of a test can be described as a subsection of the test. It requires
 - `end_post_comp` means the test ends when the prior test completes
 
 
+## Configuring HTTP Data Repository Credentials
+To enable secure access to the HTTP Data Repository, you must create a local credential file that contains your authentication token.
+
+### Step 1: Create the Credential File
+Create a file named `.credential.toml` in the root of your CloudAI project directory.
+
+### Step 2: Add Your Token
+Open the `.credential.toml` file and add the following structure:
+
+```toml
+[data_repository]
+token = "<your-api-token-here>"
+```
+
+Replace <your-api-token-here> with your actual token value.
+
+### Step 3: Secure the File
+Ensure that the file is not committed to version control and has appropriate file permissions to prevent unauthorized access.
+
+### Step 4: Usage
+The token will be automatically loaded when using the HTTP Data Repository.
+
 ## Downloading and Installing the NeMo Dataset (The Pile Dataset)
 This section describes how you can download the NeMo datasets on your server. The install mode of CloudAI handles the installation of all test prerequisites, but downloading and installing datasets is not the responsibility of the install mode. This is because any large datasets should be installed globally by the administrator and shared with multiple users, even if a user does not use CloudAI.
 
