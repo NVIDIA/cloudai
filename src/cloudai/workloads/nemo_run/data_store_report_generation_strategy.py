@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import json
+import os
 from typing import cast
 
 from cloudai import ReportGenerationStrategy
@@ -28,7 +29,20 @@ class NeMoRunDataStoreReportGenerationStrategy(ReportGenerationStrategy):
     """Report generation strategy for NeMo 2.0 data store."""
 
     def can_handle_directory(self) -> bool:
-        return True
+        has_stdout = False
+        has_report_data = False
+
+        for _, __, files in os.walk(self.test_run.output_path):
+            for file in files:
+                if file == "stdout.txt":
+                    has_stdout = True
+                if file == "report_data.json":
+                    has_report_data = True
+
+                if has_stdout and has_report_data:
+                    return True
+
+        return False
 
     def generate_report(self) -> None:
         raw_data = self._load_data_file()
