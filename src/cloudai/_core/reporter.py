@@ -16,6 +16,7 @@
 
 import copy
 import logging
+import tarfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
@@ -170,3 +171,20 @@ class StatusReporter(Reporter):
             f.write(report)
 
         logging.info(f"Generated scenario report at {report_path}")
+
+
+class TarballReporter(Reporter):
+    def generate(self) -> None:
+        self.load_test_runs()
+
+        if any(not self.is_successful(tr) for tr in self.trs):
+            self.create_tarball(self.results_root)
+
+    def is_successful(self, tr: TestRun) -> bool:
+        return tr.test.test_template.get_job_status(tr.output_path).is_successful
+
+    def create_tarball(self, directory: Path) -> None:
+        tarball_path = directory.with_suffix(".tgz")
+        with tarfile.open(tarball_path, "w:gz") as tar:
+            tar.add(directory, arcname=directory.name)
+        logging.info(f"Created tarball at {tarball_path}")

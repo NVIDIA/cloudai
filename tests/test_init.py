@@ -23,7 +23,7 @@ from cloudai import (
     JsonGenStrategy,
     Registry,
 )
-from cloudai._core.reporter import PerTestReporter, StatusReporter
+from cloudai._core.reporter import PerTestReporter, StatusReporter, TarballReporter
 from cloudai.installer.lsf_installer import LSFInstaller
 from cloudai.installer.runai_installer import RunAIInstaller
 from cloudai.installer.slurm_installer import SlurmInstaller
@@ -203,6 +203,7 @@ def test_definitions():
 
 def test_scenario_reports():
     scenario_reports = Registry().scenario_reports
-    assert len(scenario_reports) == 2
+    assert len(scenario_reports) == 3
     assert PerTestReporter in scenario_reports
     assert StatusReporter in scenario_reports
+    assert TarballReporter in scenario_reports
