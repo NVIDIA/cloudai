@@ -26,12 +26,10 @@ class HttpDataRepository:
 
     def __init__(
         self,
-        post_endpoint: str,
-        index: str,
+        endpoint: str,
         verify_certs: bool = True,
     ) -> None:
-        self.post_endpoint = post_endpoint
-        self.index = index
+        self.endpoint = endpoint
         self.verify = verify_certs
 
         credentials = toml.load(".credential.toml")
@@ -43,8 +41,7 @@ class HttpDataRepository:
             )
 
     def store(self, entry: Dict[str, Any]) -> None:
-        endpoint = f"{self.post_endpoint}/{self.index}/posting"
         headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
         payload = json.dumps([entry])
-        response = requests.post(endpoint, data=payload, headers=headers, verify=self.verify)
+        response = requests.post(self.endpoint, data=payload, headers=headers, verify=self.verify)
         response.raise_for_status()

@@ -40,8 +40,7 @@ class NeMoRunDataStoreReportGenerationStrategy(ReportGenerationStrategy):
             return
 
         repository_instance = HttpDataRepository(
-            slurm_system.data_repository.post_endpoint,
-            slurm_system.data_repository.index,
+            slurm_system.data_repository.endpoint,
             slurm_system.data_repository.verify_certs,
         )
         publisher = NeMoRunLLAMARecordPublisher(repository=repository_instance)

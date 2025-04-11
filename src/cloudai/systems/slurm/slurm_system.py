@@ -31,8 +31,7 @@ from .slurm_node import SlurmNode, SlurmNodeState
 class DataRepositoryConfig(BaseModel):
     """Configuration for a data repository."""
 
-    post_endpoint: str
-    index: str
+    endpoint: str
     verify_certs: bool = True
 
 

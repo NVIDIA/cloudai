@@ -48,8 +48,7 @@ name = "partition_1"
 name = "partition_2"
 
 [data_repository]
-post_endpoint = "MY_ENDPOINT"
-index = "MY_INDEX"
+endpoint = "MY_ENDPOINT"
 verify_certs = false
 
 [global_env_vars]
