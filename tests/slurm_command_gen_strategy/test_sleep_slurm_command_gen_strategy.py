@@ -14,38 +14,64 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Union, cast
+from pathlib import Path
+from typing import Dict, List
 from unittest.mock import Mock
 
 import pytest
 
+from cloudai._core.test import Test
+from cloudai._core.test_scenario import TestRun
 from cloudai.systems import SlurmSystem
 from cloudai.workloads.sleep import SleepCmdArgs, SleepSlurmCommandGenStrategy, SleepTestDefinition
 
 
 class TestSleepSlurmCommandGenStrategy:
+    """Test the SleepSlurmCommandGenStrategy class."""
+
     @pytest.fixture
     def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> SleepSlurmCommandGenStrategy:
         return SleepSlurmCommandGenStrategy(slurm_system, {})
 
     @pytest.mark.parametrize(
-        "cmd_args, expected_command",
+        "cmd_args_data, expected_command",
         [
-            ({"seconds": "60"}, ["sleep 60"]),
-            ({"seconds": "120"}, ["sleep 120"]),
+            ({"seconds": 60}, ["sleep 60"]),
+            ({"seconds": 120}, ["sleep 120"]),
         ],
     )
     def test_generate_test_command(
         self,
+        tmp_path: Path,
         cmd_gen_strategy: SleepSlurmCommandGenStrategy,
-        cmd_args: Dict[str, Union[str, List[str]]],
+        cmd_args_data: Dict[str, int],
         expected_command: List[str],
     ) -> None:
-        env_vars = {}
-        tr = Mock()
-        sleep_cmd_args = SleepCmdArgs(seconds=cast(int, cmd_args["seconds"]))
-        mock_test_def = Mock(spec=SleepTestDefinition)
-        mock_test_def.cmd_args = sleep_cmd_args
-        tr.test.test_definition = mock_test_def
-        command = cmd_gen_strategy.generate_test_command(env_vars, cmd_args, tr)
+        sleep_cmd_args = SleepCmdArgs(seconds=cmd_args_data["seconds"])
+
+        test_def = SleepTestDefinition(
+            name="sleep_test",
+            description="Simple sleep test",
+            test_template_name="default_template",
+            cmd_args=sleep_cmd_args,
+            extra_env_vars={},
+            extra_cmd_args={},
+        )
+
+        test_obj = Test(test_definition=test_def, test_template=Mock())
+
+        tr = TestRun(
+            test=test_obj,
+            num_nodes=1,
+            nodes=[],
+            output_path=tmp_path / "output",
+            name="sleep-job",
+        )
+
+        command = cmd_gen_strategy.generate_test_command(
+            test_def.extra_env_vars,
+            test_def.cmd_args.model_dump(),
+            tr,
+        )
+
         assert command == expected_command
