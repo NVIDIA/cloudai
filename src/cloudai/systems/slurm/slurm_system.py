@@ -28,6 +28,13 @@ from ...util import CommandShell
 from .slurm_node import SlurmNode, SlurmNodeState
 
 
+class DataRepositoryConfig(BaseModel):
+    """Configuration for a data repository."""
+
+    endpoint: str
+    verify_certs: bool = True
+
+
 def parse_node_list(node_list: str) -> List[str]:
     """
     Expand a list of node names (with ranges) into a flat list of individual node names, keeping leading zeroes.
@@ -121,6 +128,8 @@ class SlurmSystem(BaseModel, System):
     cmd_shell: CommandShell = Field(default=CommandShell(), exclude=True)
     extra_srun_args: Optional[str] = None
     extra_sbatch_args: list[str] = []
+
+    data_repository: Optional[DataRepositoryConfig] = None
 
     @property
     def groups(self) -> Dict[str, Dict[str, List[SlurmNode]]]:
