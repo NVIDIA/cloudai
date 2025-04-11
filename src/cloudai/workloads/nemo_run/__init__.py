@@ -15,7 +15,7 @@
 # limitations under the License.
 
 
-from .llmb_report_generation_strategy import NeMoRunLLMBReportGenerationStrategy
+from .data_store_report_generation_strategy import NeMoRunDataStoreReportGenerationStrategy
 from .nemo_run import Data, Log, LogCkpt, NeMoRunCmdArgs, NeMoRunTestDefinition, Trainer, TrainerStrategy
 from .report_generation_strategy import NeMoRunReportGenerationStrategy
 from .slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
@@ -25,7 +25,7 @@ __all__ = [
     "Log",
     "LogCkpt",
     "NeMoRunCmdArgs",
-    "NeMoRunLLMBReportGenerationStrategy",
+    "NeMoRunDataStoreReportGenerationStrategy",
     "NeMoRunReportGenerationStrategy",
     "NeMoRunSlurmCommandGenStrategy",
     "NeMoRunTestDefinition",

@@ -26,7 +26,7 @@ from .data.llama_record_publisher import NeMoRunLLAMARecordPublisher
 from .nemo_run import NeMoRunTestDefinition
 
 
-class NeMoRunLLMBReportGenerationStrategy(ReportGenerationStrategy):
+class NeMoRunDataStoreReportGenerationStrategy(ReportGenerationStrategy):
     """Report generation strategy for NeMoRun LLMB."""
 
     metrics: ClassVar[list[str]] = ["default", "step-time"]
