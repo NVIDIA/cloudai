@@ -133,11 +133,11 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
         return {
             "s_framework": "nemo",
             "s_fw_version": s_fw_version,
-            "s_model": tdef.cmd_args.recipe_name,
+            "s_model": tdef.cmd_args.recipe_name,  # TODO: llama3.1, ...
             "s_model_size": "",  # TODO: 8b, 13b, 30b, 70b...
             "s_workload": tdef.cmd_args.recipe_name,
             "s_dtype": "",  # TODO: fp16, bf16, fp8, fp32
-            "s_base_config": "",
+            "s_base_config": "",  # TODO: model.tokenizer.type=/dataset/llama
             "l_max_steps": tdef.cmd_args.trainer.max_steps,
             "l_seq_len": "",  # TODO: ./src/cloudperf_resparse/gsw/log_file_regexes.py
             "l_num_layers": tdef.cmd_args.num_layers,
@@ -150,7 +150,7 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             "l_tp": tdef.cmd_args.trainer.strategy.tensor_model_parallel_size,
             "l_vp": tdef.cmd_args.trainer.strategy.virtual_pipeline_model_parallel_size,
             "l_cp": "",  # TODO: ./src/cloudperf_resparse/gsw/log_file_regexes.py
-            "d_metric": "",
+            "d_metric": "",  # TODO: ctx.results.throughput.mean
             "d_metric_stddev": "",
             "d_step_time_mean": "",
             "d_tokens_per_sec": "",  # TODO: = (global_batch_size*encoder_seq_length/throughput.mean)
@@ -164,7 +164,7 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             "s_cluster": socket.gethostname(),
             "s_user": getpass.getuser(),
             "s_gsw_version": "25.02",
-            "b_synthetic_dataset": "",
+            "b_synthetic_dataset": "",  # TODO: true, false
         }
 
     def _dump_raw_data(self, raw_data: dict) -> None:
