@@ -70,6 +70,7 @@ pythonpath = ["src", "."]
 addopts = "--strict-markers -m 'not ci_only'"
 empty_parameter_set_mark = "fail_at_collect"
 markers = ["ci_only: mark test as CI-only"]
+filterwarnings = ["error"]
 
 [tool.importlinter]
 root_package = "cloudai"
