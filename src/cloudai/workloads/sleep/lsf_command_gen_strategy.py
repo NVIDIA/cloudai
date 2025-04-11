@@ -14,10 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Union
+from typing import Dict, List, Union, cast
 
 from cloudai import TestRun
 from cloudai.systems.lsf.strategy import LSFCommandGenStrategy
+
+from .sleep import SleepCmdArgs, SleepTestDefinition
 
 
 class SleepLSFCommandGenStrategy(LSFCommandGenStrategy):
@@ -29,4 +31,6 @@ class SleepLSFCommandGenStrategy(LSFCommandGenStrategy):
     def generate_test_command(
         self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> List[str]:
-        return [f'sleep {cmd_args["seconds"]}']
+        tdef: SleepTestDefinition = cast(SleepTestDefinition, tr.test.test_definition)
+        tdef_cmd_args: SleepCmdArgs = tdef.cmd_args
+        return [f"sleep {tdef_cmd_args.seconds}"]

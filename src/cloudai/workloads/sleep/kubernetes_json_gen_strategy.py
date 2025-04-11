@@ -19,13 +19,16 @@ from typing import Any, Dict, cast
 from cloudai import JsonGenStrategy, TestRun
 from cloudai.systems import KubernetesSystem
 
+from .sleep import SleepCmdArgs, SleepTestDefinition
+
 
 class SleepKubernetesJsonGenStrategy(JsonGenStrategy):
     """JSON generation strategy for Sleep on Kubernetes systems."""
 
     def gen_json(self, tr: TestRun) -> Dict[Any, Any]:
-        self.final_cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
-        sec = self.final_cmd_args["seconds"]
+        tdef: SleepTestDefinition = cast(SleepTestDefinition, tr.test.test_definition)
+        tdef_cmd_args: SleepCmdArgs = tdef.cmd_args
+        sec = tdef_cmd_args.seconds
 
         kubernetes_system = cast(KubernetesSystem, self.system)
 
@@ -50,5 +53,4 @@ class SleepKubernetesJsonGenStrategy(JsonGenStrategy):
                 },
             },
         }
-
         return job_spec

@@ -14,18 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import cast
 
 from cloudai import CommandGenStrategy, TestRun
 
+from .sleep import SleepCmdArgs, SleepTestDefinition
+
 
 class SleepStandaloneCommandGenStrategy(CommandGenStrategy):
-    """
-    Command generation strategy for the Sleep test on standalone systems.
-
-    This strategy generates a command to execute a sleep operation with specified duration on standalone systems.
-    """
+    """Command generation strategy for the Sleep test on standalone systems."""
 
     def gen_exec_command(self, tr: TestRun) -> str:
-        self.final_cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
-        sec = self.final_cmd_args["seconds"]
+        tdef: SleepTestDefinition = cast(SleepTestDefinition, tr.test.test_definition)
+        tdef_cmd_args: SleepCmdArgs = tdef.cmd_args
+        sec = tdef_cmd_args.seconds
         return f"sleep {sec}"
