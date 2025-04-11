@@ -47,15 +47,16 @@ def chakra_replay_tr(cmd_args: Dict[str, Any]) -> TestRun:
             trace_dir=cmd_args.get("trace_dir", ""),
             warmup_iters=cmd_args.get("warmup_iters", 0),
             iters=cmd_args.get("iters", 10),
+            reuse_tensors=cmd_args.get("reuse_tensors", True),
+            backend_name=cmd_args.get("backend.name", "pytorch-dist"),
+            profiler_enabled=cmd_args.get("profiler.enabled", False),
+            log_level=cmd_args.get("logging.level", "INFO"),
         ),
-        comm_replay_executable=PythonExecutable(
-            git_repo=GitRepo(url="./git_repo", commit="commit"),
-        ),
+        comm_replay_executable=PythonExecutable(git_repo=GitRepo(url="./git_repo", commit="commit")),
     )
     test = Test(test_definition=chakra, test_template=Mock())
 
     chakra.comm_replay_executable.git_repo.installed_path = Path("/git_repo_path")
-
     return TestRun(name="chakra_replay_tr", test=test, nodes=[], num_nodes=1)
 
 
@@ -74,7 +75,10 @@ def chakra_replay_tr(cmd_args: Dict[str, Any]) -> TestRun:
         (
             "chakra_replay",
             {"NCCL_DEBUG": "INFO"},
-            {"docker_image_url": "another_image_url", "trace_dir": "/another/trace_dir/"},
+            {
+                "docker_image_url": "another_image_url",
+                "trace_dir": "/another/trace_dir/",
+            },
             {
                 "image_path": "another_image_url",
                 "container_mounts": ["/another/trace_dir/:/another/trace_dir/,/git_repo_path:/git_repo_path"],
@@ -138,18 +142,16 @@ def test_generate_srun_command(
 ) -> None:
     chakra_replay_tr.num_nodes = num_nodes
     cmd_gen_strategy.system.ntasks_per_node = ntasks_per_node
-
     chakra_replay_tr.output_path = tmp_path
-    slurm_args = cmd_gen_strategy._parse_slurm_args("test", {}, cmd_args, chakra_replay_tr)
-    command = cmd_gen_strategy._gen_srun_command(slurm_args, {}, cmd_args, chakra_replay_tr)
+
+    slurm_args = cmd_gen_strategy._parse_slurm_args("test", {}, {}, chakra_replay_tr)
+    command = cmd_gen_strategy._gen_srun_command(slurm_args, {}, {}, chakra_replay_tr)
 
     generated_commands = command.strip().split("\n")
-
     assert len(generated_commands) == 2
 
     timestamp_pattern = r"\d{14}"
     container_name_pattern = re.compile(r"--container-name=chakra_replay_container_" + timestamp_pattern)
-
     assert container_name_pattern.search(generated_commands[0]) is not None
     assert container_name_pattern.search(generated_commands[1]) is not None
 
