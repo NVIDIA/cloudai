@@ -16,7 +16,7 @@
 
 import json
 import os
-from typing import cast
+from typing import Dict, Optional, cast
 
 from cloudai import ReportGenerationStrategy
 from cloudai.systems.slurm import SlurmSystem
@@ -38,7 +38,6 @@ class NeMoRunDataStoreReportGenerationStrategy(ReportGenerationStrategy):
                     has_stdout = True
                 if file == "report_data.json":
                     has_report_data = True
-
                 if has_stdout and has_report_data:
                     return True
 
@@ -50,14 +49,14 @@ class NeMoRunDataStoreReportGenerationStrategy(ReportGenerationStrategy):
             return
         self._publish(raw_data)
 
-    def _load_data_file(self) -> dict | None:
+    def _load_data_file(self) -> Optional[Dict]:
         data_file = self.test_run.output_path / "report_data.json"
         if not data_file.exists():
             return None
         with open(data_file, "r") as f:
             return json.load(f)
 
-    def _publish(self, raw_data: dict) -> None:
+    def _publish(self, raw_data: Dict) -> None:
         slurm_system = cast(SlurmSystem, self.system)
         if slurm_system.data_repository is None:
             return
