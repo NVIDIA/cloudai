@@ -14,16 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import ClassVar, cast
+import getpass
+import socket
+from typing import Any, ClassVar, Dict, cast
 
 from cloudai import ReportGenerationStrategy
+from cloudai.systems.slurm.slurm_system import SlurmSystem
 
 from .data.http_data_repository import HttpDataRepository
 from .data.llama_record_publisher import NeMoRunLLAMARecordPublisher
+from .nemo_run import NeMoRunTestDefinition
 
 
 class NeMoRunLLMBReportGenerationStrategy(ReportGenerationStrategy):
-    """Strategy for generating reports from NeMoRun directories."""
+    """Report generation strategy for NeMoRun LLMB."""
 
     metrics: ClassVar[list[str]] = ["default", "step-time"]
 
@@ -31,8 +35,6 @@ class NeMoRunLLMBReportGenerationStrategy(ReportGenerationStrategy):
         pass
 
     def publish_job_data(self) -> None:
-        from cloudai.systems.slurm.slurm_system import SlurmSystem
-
         slurm_system = cast(SlurmSystem, self.system)
         if slurm_system.data_repository is None:
             return
@@ -43,5 +45,41 @@ class NeMoRunLLMBReportGenerationStrategy(ReportGenerationStrategy):
             slurm_system.data_repository.verify_certs,
         )
         publisher = NeMoRunLLAMARecordPublisher(repository=repository_instance)
-        # TODO: Add data to publish
-        publisher.publish({})
+        tdef = cast(NeMoRunTestDefinition, self.test_run.test.test_definition)
+        raw_data: Dict[str, Any] = {
+            "s_framework": "nemo",
+            "s_fw_version": "24.09",  # TODO: extract from docker image
+            "s_model": tdef.cmd_args.recipe_name,
+            "s_model_size": "",  # TODO: 8b, 13b, 30b, 70b...
+            "s_workload": tdef.cmd_args.recipe_name,
+            "s_dtype": "",  # TODO: fp16, bf16, fp8, fp32
+            "s_base_config": "",
+            "l_max_steps": tdef.cmd_args.trainer.max_steps,
+            "l_seq_len": "",  # TODO: ./src/cloudperf_resparse/gsw/log_file_regexes.py
+            "l_num_layers": tdef.cmd_args.num_layers,
+            "l_vocab_size": "",  # TODO: ./src/cloudperf_resparse/models/nemo/patterns.py
+            "l_hidden_size": "",  # TOOD: ./src/cloudperf_resparse/models/nemo/patterns.py
+            "l_count": "",
+            "l_gbs": "",  # TODO: ./src/cloudperf_resparse/gsw/log_file_regexes.py
+            "l_mbs": "",  # TODO: ./src/cloudperf_resparse/gsw/log_file_regexes.py
+            "l_pp": tdef.cmd_args.trainer.strategy.pipeline_model_parallel_size,
+            "l_tp": tdef.cmd_args.trainer.strategy.tensor_model_parallel_size,
+            "l_vp": tdef.cmd_args.trainer.strategy.virtual_pipeline_model_parallel_size,
+            "l_cp": "",  # TODO: ./src/cloudperf_resparse/gsw/log_file_regexes.py
+            "d_metric": "",
+            "d_metric_stddev": "",
+            "d_step_time_mean": "",
+            "d_tokens_per_sec": "",  # TODO: = (global_batch_size*encoder_seq_length/throughput.mean)
+            "l_checkpoint_size": None,  # TODO: ./common/nemo/nemo-utils.sh
+            "d_checkpoint_save_rank_time": None,  # TODO: ./common/nemo/nemo-utils.sh
+            "s_job_id": "0",  # FIXME: get job id
+            "s_job_mode": "training",
+            "s_image": tdef.cmd_args.docker_image_url,
+            "l_num_nodes": self.test_run.num_nodes,
+            "l_num_gpus": self.test_run.num_nodes * (slurm_system.gpus_per_node or 0),
+            "s_cluster": socket.gethostname(),
+            "s_user": getpass.getuser(),
+            "s_gsw_version": "25.02",
+            "b_synthetic_dataset": "",
+        }
+        publisher.publish(raw_data)
