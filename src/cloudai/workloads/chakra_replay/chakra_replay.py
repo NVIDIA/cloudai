@@ -24,6 +24,7 @@ class ChakraReplayCmdArgs(CmdArgs):
 
     docker_image_url: str
     backend_name: str = "pytorch-dist"
+    backend_backend: str = "nccl"
     trace_dir: Optional[str] = None
     warmup_iters: int
     iters: int

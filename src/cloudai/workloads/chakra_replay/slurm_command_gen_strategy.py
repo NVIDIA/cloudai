@@ -90,7 +90,7 @@ class ChakraReplayConfig(BaseModel):
             run=RunConfig(warmup_iters=cmd_args.warmup_iters, iters=cmd_args.iters),
             trace=TraceConfig(directory=cmd_args.trace_dir) if cmd_args.trace_dir else None,
             tensor_allocator=TensorAllocatorConfig(reuse_tensors=cmd_args.reuse_tensors),
-            comm=CommConfig(backend=CommBackend(name=cmd_args.backend_name, backend=cmd_args.backend_name)),
+            comm=CommConfig(backend=CommBackend(name=cmd_args.backend_name, backend=cmd_args.backend_backend)),
             profiler=ProfilerConfig(enabled=cmd_args.profiler_enabled),
             logging=LoggingConfig(level=cmd_args.log_level),
         )
