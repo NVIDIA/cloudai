@@ -109,13 +109,12 @@ class CloudAIGymEnv(BaseGym):
         info = {}
         return observation, info
 
-    def step(self, action: Any, step: int) -> Tuple[list, float, bool, dict]:
+    def step(self, action: Any) -> Tuple[list, float, bool, dict]:
         """
         Execute one step in the environment.
 
         Args:
             action (Any): Action chosen by the agent.
-            step (int): Step number.
 
         Returns:
             Tuple: A tuple containing:
@@ -138,7 +137,6 @@ class CloudAIGymEnv(BaseGym):
 
         logging.info(f"Running step {self.test_run.step} with action {action}")
         new_tr = copy.deepcopy(self.test_run)
-        new_tr.step = step
         self.runner.runner.test_scenario.test_runs = [new_tr]
         asyncio.run(self.runner.run())
         self.test_run = self.runner.runner.test_scenario.test_runs[0]

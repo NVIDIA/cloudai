@@ -246,7 +246,8 @@ def test_tr_output_path(setup_env: tuple[TestRun, Runner]):
     env = CloudAIGymEnv(test_run=test_run, runner=runner)
     agent = GridSearchAgent(env)
 
-    _, result = agent.select_action()
-    env.step(result, 42)
+    _, action = agent.select_action()
+    env.test_run.step = 42
+    env.step(action)
 
     assert env.test_run.output_path.name == "42"

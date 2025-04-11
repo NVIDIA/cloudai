@@ -108,7 +108,8 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
             if result is None:
                 break
             step, action = result
-            observation, reward, done, info = env.step(action, step)
+            env.test_run.step = step
+            observation, reward, done, info = env.step(action)
             feedback = {"trial_index": step, "value": reward}
             agent.update_policy(feedback)
             logging.info(f"Step {step}: Observation: {observation}, Reward: {reward}")
