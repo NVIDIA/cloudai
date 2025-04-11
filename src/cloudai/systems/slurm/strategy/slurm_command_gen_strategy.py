@@ -301,6 +301,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     def _metadata_cmd(self, slurm_args: dict[str, Any], tr: TestRun) -> str:
         (tr.output_path.absolute() / "metadata").mkdir(parents=True, exist_ok=True)
         num_nodes, _ = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
+        metadata_script_path = "/cloudai_install"
+        if "image_path" not in slurm_args:
+            metadata_script_path = str(self.system.install_path.absolute())
         return " ".join(
             [
                 *self.gen_srun_prefix(slurm_args, tr),
@@ -309,7 +312,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
                 f"--output={tr.output_path.absolute() / 'metadata' / 'node-%N.toml'}",
                 f"--error={tr.output_path.absolute() / 'metadata' / 'nodes.err'}",
                 "bash",
-                "/cloudai_install/slurm-metadata.sh",
+                f"{metadata_script_path}/slurm-metadata.sh",
             ]
         )
 
