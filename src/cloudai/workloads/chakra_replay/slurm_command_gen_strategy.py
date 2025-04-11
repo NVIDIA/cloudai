@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, cast
 
 import toml
-from pydantic import BaseModel, Field, root_validator
+from pydantic import BaseModel, Field
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
@@ -85,74 +85,6 @@ class ChakraReplayConfig(BaseModel):
     logging: LoggingConfig
 
     @classmethod
-    def _build_run(cls, values: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        if "warmup_iters" not in values and "iters" not in values:
-            return None
-        run = {}
-        if "warmup_iters" in values:
-            run["warmup_iters"] = int(single(values["warmup_iters"]))
-        if "iters" in values:
-            run["iters"] = int(single(values["iters"]))
-        return run
-
-    @classmethod
-    def _build_trace(cls, values: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        if "trace_dir" not in values:
-            return None
-        return {"directory": single(values["trace_dir"])}
-
-    @classmethod
-    def _build_tensor_allocator(cls, values: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        if "reuse_tensors" not in values:
-            return None
-        return {"reuse_tensors": str(single(values["reuse_tensors"])).lower() in {"1", "true", "yes", "on"}}
-
-    @classmethod
-    def _build_comm(cls, values: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        if "backend.name" not in values and "backend.backend" not in values:
-            return None
-        backend = {}
-        if "backend.name" in values:
-            backend["name"] = single(values["backend.name"])
-        if "backend.backend" in values:
-            backend["backend"] = single(values["backend.backend"])
-        return {"backend": backend}
-
-    @classmethod
-    def _build_profiler(cls, values: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        if "profiler.enabled" not in values:
-            return None
-        return {"enabled": str(single(values["profiler.enabled"])).lower() in {"1", "true", "yes", "on"}}
-
-    @classmethod
-    def _build_logging(cls, values: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        if "logging.level" not in values:
-            return None
-        return {"level": single(values["logging.level"])}
-
-    @root_validator(pre=True)
-    def build_nested(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        run = cls._build_run(values)
-        if run is not None:
-            values["run"] = run
-        trace = cls._build_trace(values)
-        if trace is not None:
-            values["trace"] = trace
-        tensor_allocator = cls._build_tensor_allocator(values)
-        if tensor_allocator is not None:
-            values["tensor_allocator"] = tensor_allocator
-        comm = cls._build_comm(values)
-        if comm is not None:
-            values["comm"] = comm
-        profiler = cls._build_profiler(values)
-        if profiler is not None:
-            values["profiler"] = profiler
-        logging_ = cls._build_logging(values)
-        if logging_ is not None:
-            values["logging"] = logging_
-        return values
-
-    @classmethod
     def from_cmd_args(cls, cmd_args: ChakraReplayCmdArgs) -> "ChakraReplayConfig":
         return cls(
             run=RunConfig(warmup_iters=cmd_args.warmup_iters, iters=cmd_args.iters),
@@ -166,7 +98,7 @@ class ChakraReplayConfig(BaseModel):
     def write_to_toml(self, output_path: Path) -> Path:
         config_path = output_path / "config.toml"
         with config_path.open("w") as toml_file:
-            toml.dump(self.dict(), toml_file)
+            toml.dump(self.model_dump(), toml_file)
         return config_path
 
 
@@ -219,7 +151,7 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
             raise ValueError("installed_path should never be None")
         git_repo_path = tdef.comm_replay_executable.git_repo.installed_path.resolve()
 
-        num_nodes = slurm_args.get("num_nodes", tr.num_nodes)
+        num_nodes = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)[0]
         ntasks_per_node = self.system.ntasks_per_node or 1
         total_tasks = num_nodes * ntasks_per_node
 
