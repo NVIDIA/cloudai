@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import requests
-from websockets.legacy.client import connect
+import websockets
 
 
 class RunAIRestClient:
@@ -512,9 +512,9 @@ class RunAIRestClient:
         }
 
         ssl_context = ssl._create_unverified_context()
-        async with connect(url, extra_headers=headers, ssl=ssl_context) as websocket:
+        async with websockets.connect(url, extra_headers=headers, ssl=ssl_context) as websocket:
             with output_file_path.open("w") as log_file:
                 async for message in websocket:
                     if isinstance(message, bytes):
                         message = message.decode("utf-8")
-                    log_file.write(message)
+                    log_file.write(str(message))
