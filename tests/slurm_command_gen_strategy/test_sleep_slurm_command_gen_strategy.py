@@ -70,7 +70,7 @@ class TestSleepSlurmCommandGenStrategy:
 
         command = cmd_gen_strategy.generate_test_command(
             test_def.extra_env_vars,
-            test_def.cmd_args.model_dump(),
+            test_def.cmd_args_dict,
             tr,
         )
 
