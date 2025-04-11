@@ -19,6 +19,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
+from cloudai._core.configurator.grid_search import GridSearchAgent
 from cloudai._core.runner import Runner
 from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestRun, TestScenario
@@ -68,7 +69,7 @@ def setup_env(slurm_system: SlurmSystem) -> tuple[TestRun, Runner]:
         slurm_system.output_path / test_scenario.name / test_run.name / f"{test_run.current_iteration}"
     )
 
-    runner = Runner(mode="run", system=slurm_system, test_scenario=test_scenario)
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
 
     return test_run, runner
 
@@ -237,3 +238,15 @@ def test_update_test_run_obj():
 
     env.update_test_run_obj(cmd_args, "trainer.num_nodes", [3, 4])
     assert cmd_args.trainer.num_nodes == [3, 4]
+
+
+def test_tr_output_path(setup_env: tuple[TestRun, Runner]):
+    test_run, runner = setup_env
+    test_run.test.test_definition.cmd_args.data.global_batch_size = 8  # avoid constraint check failure
+    env = CloudAIGymEnv(test_run=test_run, runner=runner)
+    agent = GridSearchAgent(env)
+
+    _, result = agent.select_action()
+    env.step(result, 42)
+
+    assert env.test_run.output_path.name == "42"

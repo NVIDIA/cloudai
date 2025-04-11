@@ -67,12 +67,13 @@ class BaseGym(ABC):
         pass
 
     @abstractmethod
-    def step(self, action: Any) -> Tuple[list, float, bool, dict]:
+    def step(self, action: Any, step: int) -> Tuple[list, float, bool, dict]:
         """
         Execute one step in the environment.
 
         Args:
             action (Any): Action chosen by the agent.
+            step (int): Step number.
 
         Returns:
             Tuple: A tuple containing:
