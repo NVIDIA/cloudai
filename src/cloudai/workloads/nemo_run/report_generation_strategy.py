@@ -130,7 +130,6 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
         slurm_system = cast(SlurmSystem, self.system)
         docker_image_url = tdef.cmd_args.docker_image_url
         s_fw_version = self.extract_version_from_docker_image(docker_image_url)
-        parsed_data = {"step_timings": step_timings, "statistics": stats}
         return {
             "s_framework": "nemo",
             "s_fw_version": s_fw_version,
@@ -166,7 +165,6 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             "s_user": getpass.getuser(),
             "s_gsw_version": "25.02",
             "b_synthetic_dataset": "",
-            "parsed_report": parsed_data,
         }
 
     def _dump_raw_data(self, raw_data: dict) -> None:
