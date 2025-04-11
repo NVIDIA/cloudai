@@ -316,6 +316,18 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             ]
         )
 
+    def _enable_vboost_cmd(self, slurm_args: dict[str, Any], tr: TestRun) -> str:
+        return " ".join(
+            [
+                *self.gen_srun_prefix(slurm_args, tr),
+                f"--output={tr.output_path.absolute() / 'vboost.out'}",
+                f"--error={tr.output_path.absolute() / 'vboost.err'}",
+                "bash",
+                "-c",
+                '"sudo nvidia-smi boost-slider --vboost 1"',
+            ]
+        )
+
     def _write_sbatch_script(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, Union[str, List[str]]], srun_command: str, tr: TestRun
     ) -> str:
@@ -341,6 +353,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         batch_script_content.extend([self._format_env_vars(env_vars)])
 
+        if env_vars.get("ENABLE_VBOOST") == "1":
+            batch_script_content.extend([self._enable_vboost_cmd(slurm_args, tr), ""])
         batch_script_content.extend([self._ranks_mapping_cmd(slurm_args, tr), ""])
         batch_script_content.extend([self._metadata_cmd(slurm_args, tr), ""])
 

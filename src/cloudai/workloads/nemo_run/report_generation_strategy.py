@@ -99,6 +99,7 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             f.write("Max: {max}\n".format(max=stats["max"]))
 
     def get_metric(self, metric: str) -> float:
+        logging.debug(f"Getting metric {metric} from {self.results_file.absolute()}")
         step_timings = extract_timings(self.results_file)
         if not step_timings:
             return METRIC_ERROR

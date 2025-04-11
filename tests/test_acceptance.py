@@ -234,6 +234,7 @@ def build_special_test_run(
         "nemo-launcher",
         "nemo-run-pre-test",
         "nemo-run-no-hook",
+        "nemo-run-vboost",
         "slurm_container",
         "megatron-run",
     ]
@@ -291,13 +292,36 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             ),
             MegatronRunSlurmCommandGenStrategy,
         ),
+        "nemo-run": lambda: create_test_run(
+            partial_tr,
+            slurm_system,
+            "nemo-run",
+            NeMoRunTestDefinition(
+                name="nemo-run",
+                description="Test enabling vboost",
+                test_template_name="nemo-run",
+                cmd_args=NeMoRunCmdArgs(
+                    docker_image_url="nvcr.io/nvidia/nemo:24.09",
+                    task="pretrain",
+                    recipe_name="llama_3b",
+                ),
+            ),
+            NeMoRunSlurmCommandGenStrategy,
+        ),
     }
 
     if request.param.startswith(("gpt-", "grok-", "nemo-run-", "nemo-launcher")):
-        return build_special_test_run(partial_tr, slurm_system, request.param, test_mapping)
+        tr, sbatch_file, run_script = build_special_test_run(partial_tr, slurm_system, request.param, test_mapping)
+
+        if request.param == "nemo-run-vboost":
+            tr.test.extra_env_vars["ENABLE_VBOOST"] = "1"
+
+        return tr, sbatch_file, run_script
+
     if request.param in test_mapping:
         tr = test_mapping[request.param]()
         return tr, f"{request.param}.sbatch", None
+
     raise ValueError(f"Unknown test: {request.param}")
 
 
