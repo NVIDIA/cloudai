@@ -31,10 +31,11 @@ class TestUCCTestSlurmCommandGenStrategy:
         return UCCTestSlurmCommandGenStrategy(slurm_system, {})
 
     @pytest.mark.parametrize(
-        "cmd_args_data, expected_command",
+        "cmd_args_data, extra_cmd_args, expected_command",
         [
             (
                 {"collective": "allgather", "b": 8, "e": "256M"},
+                {"--max-steps": "100"},
                 [
                     "/opt/hpcx/ucc/bin/ucc_perftest",
                     "-c allgather",
@@ -42,10 +43,12 @@ class TestUCCTestSlurmCommandGenStrategy:
                     "-e 256M",
                     "-m cuda",
                     "-F",
+                    "--max-steps=100",
                 ],
             ),
             (
                 {"collective": "allreduce", "b": 4, "e": "8M"},
+                {},
                 [
                     "/opt/hpcx/ucc/bin/ucc_perftest",
                     "-c allreduce",
@@ -62,6 +65,7 @@ class TestUCCTestSlurmCommandGenStrategy:
         tmp_path: Path,
         cmd_gen_strategy: UCCTestSlurmCommandGenStrategy,
         cmd_args_data: dict,
+        extra_cmd_args: dict,
         expected_command: list[str],
     ) -> None:
         ucc_cmd_args = UCCCmdArgs(
@@ -76,7 +80,7 @@ class TestUCCTestSlurmCommandGenStrategy:
             test_template_name="default_template",
             cmd_args=ucc_cmd_args,
             extra_env_vars={},
-            extra_cmd_args={},
+            extra_cmd_args=extra_cmd_args,
         )
 
         test_obj = Test(test_definition=test_def, test_template=Mock())
