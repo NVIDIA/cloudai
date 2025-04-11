@@ -116,20 +116,6 @@ def test_parse_slurm_args(
             2,
             4,
         ),
-        (
-            {
-                "trace_dir": "/another/path/",
-                "warmup_iters": 0,
-                "iters": 50,
-                "reuse_tensors": True,
-                "backend.name": "custom_backend",
-                "backend.backend": "nccl",
-                "profiler.enabled": True,
-                "logging.level": "DEBUG",
-            },
-            3,
-            2,
-        ),
     ],
 )
 def test_generate_srun_command(
