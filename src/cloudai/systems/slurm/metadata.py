@@ -66,6 +66,10 @@ class MetadataSlurm(BaseModel):
     cluster_name: str
     node_list: str
     num_nodes: str
+    ntasks_per_node: str
+    ntasks: str
+    nnodes: str
+    job_id: str
 
 
 class SlurmSystemMetadata(BaseModel):
