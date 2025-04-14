@@ -126,7 +126,7 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             "l_num_gpus": self.test_run.num_nodes * gpus_per_node,
             "s_cluster": socket.gethostname(),
             "s_user": getpass.getuser(),
-            "s_gsw_version": "25.02",
+            "s_gsw_version": "25.04",
             "b_synthetic_dataset": "true",
             "train_step_timings": step_timings,
             "train_step_timings_stats": train_step_timings_stats,
