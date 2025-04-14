@@ -51,13 +51,20 @@ def setup_env(slurm_system: SlurmSystem) -> tuple[TestRun, Runner]:
         data=Data(micro_batch_size=[1, 2]),
     )
 
+    mock_command_gen = MagicMock()
+    mock_command_gen.gen_srun_command.return_value = "srun mock command"
+    mock_command_gen.generate_test_command.return_value = ["python", "run.py", "--arg", "value"]
+
+    test_template_mock = MagicMock()
+    test_template_mock.command_gen_strategy = mock_command_gen
+
     test_run = TestRun(
         name="mock_test_run",
         test=Test(
             test_definition=NeMoRunTestDefinition(
                 name="NemoModel", description="Nemo Model", test_template_name="nemo_template", cmd_args=cmd_args
             ),
-            test_template=MagicMock(),
+            test_template=test_template_mock,
         ),
         num_nodes=1,
         nodes=[],
