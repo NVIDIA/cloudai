@@ -19,8 +19,8 @@ from typing import Any, Dict
 from .http_data_repository import HttpDataRepository
 
 
-class NeMoRunLLAMARecordPublisher:
-    """Publisher for NeMoRun LLAMA records to the HTTP data repository."""
+class NeMoRunPublisher:
+    """Publisher for NeMoRun records to the HTTP data repository."""
 
     def __init__(self, repository: HttpDataRepository) -> None:
         """Initialize the publisher with a repository."""

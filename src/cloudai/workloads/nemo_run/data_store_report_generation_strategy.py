@@ -22,7 +22,7 @@ from cloudai import ReportGenerationStrategy
 from cloudai.systems.slurm import SlurmSystem
 
 from .data.http_data_repository import HttpDataRepository
-from .data.llama_record_publisher import NeMoRunLLAMARecordPublisher
+from .data.publisher import NeMoRunPublisher
 
 
 class NeMoRunDataStoreReportGenerationStrategy(ReportGenerationStrategy):
@@ -65,5 +65,5 @@ class NeMoRunDataStoreReportGenerationStrategy(ReportGenerationStrategy):
             slurm_system.data_repository.endpoint,
             slurm_system.data_repository.verify_certs,
         )
-        publisher = NeMoRunLLAMARecordPublisher(repository=repository)
+        publisher = NeMoRunPublisher(repository=repository)
         publisher.publish(raw_data)
