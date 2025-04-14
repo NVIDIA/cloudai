@@ -101,7 +101,7 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             "l_cp": tdef.cmd_args.trainer.strategy.context_parallel_size,
             "d_metric": "",  # TODO: ctx.results.throughput.mean
             "d_metric_stddev": "",
-            "d_step_time_mean": "",
+            "d_step_time_mean": float(np.mean(step_timings)),
             "d_tokens_per_sec": "",  # TODO: = (global_batch_size*encoder_seq_length/throughput.mean)
             "l_checkpoint_size": None,  # TODO: ./common/nemo/nemo-utils.sh
             "d_checkpoint_save_rank_time": None,  # TODO: ./common/nemo/nemo-utils.sh
