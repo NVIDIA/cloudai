@@ -44,7 +44,7 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
     def can_handle_directory(self) -> bool:
         for _, __, files in os.walk(self.test_run.output_path):
             for file in files:
-                if file.startswith("stdout.txt") and self._parse_timings(self.test_run.output_path / file):
+                if file.startswith("stdout.txt") and self._parse_step_timings(self.test_run.output_path / file):
                     return True
         return False
 
@@ -54,13 +54,13 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             return
         data: Dict[str, object] = self._collect_raw_data()
         if not data:
-            logging.error(f"No valid step timings found in {self.results_file}. Report generation aborted.")
+            logging.error(f"No valid step step_timings found in {self.results_file}. Report generation aborted.")
             return
         self._write_summary_file(cast(Dict[str, float], data["stats"]))
         self._dump_json(data)
 
     def get_metric(self, metric: str) -> float:
-        step_timings: List[float] = self._parse_timings(self.results_file)
+        step_timings: List[float] = self._parse_step_timings(self.results_file)
         if not step_timings:
             return METRIC_ERROR
 
@@ -70,10 +70,10 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
         return float(np.mean(step_timings))
 
     def _collect_raw_data(self) -> Dict[str, object]:
-        timings: List[float] = self._parse_timings(self.results_file)
-        if not timings:
+        step_timings: List[float] = self._parse_step_timings(self.results_file)
+        if not step_timings:
             return {}
-        stats: Dict[str, float] = self._compute_statistics(timings)
+        stats: Dict[str, float] = self._compute_statistics(step_timings)
         tdef = cast(NeMoRunTestDefinition, self.test_run.test.test_definition)
         slurm_system = cast(SlurmSystem, self.system)
         docker_image_url: str = tdef.cmd_args.docker_image_url
@@ -87,7 +87,7 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             "s_dtype": "",  # TODO: fp16, bf16, fp8, fp32
             "s_base_config": "",  # TODO: model.tokenizer.type=/dataset/llama
             "l_max_steps": tdef.cmd_args.trainer.max_steps,
-            "l_seq_len": "",  # TODO: should be read from cmd_args
+            "l_seq_len": tdef.cmd_args.data.seq_length,
             "l_num_layers": tdef.cmd_args.num_layers,
             "l_vocab_size": "",  # TODO: ./src/cloudperf_resparse/models/nemo/patterns.py
             "l_hidden_size": "",  # TODO: ./src/cloudperf_resparse/models/nemo/patterns.py
@@ -112,28 +112,28 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             "s_user": getpass.getuser(),
             "s_gsw_version": "25.02",
             "b_synthetic_dataset": "true",
-            "train_step_timings": timings,
+            "train_step_timings": step_timings,
             "stats": stats,
         }
         return data
 
-    def _parse_timings(self, filepath: Path) -> List[float]:
+    def _parse_step_timings(self, filepath: Path) -> List[float]:
         if not filepath.exists():
             logging.debug(f"{filepath} not found")
             return []
-        timings: List[float] = []
+        step_timings: List[float] = []
         with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
             for line in f:
                 if "train_step_timing in s:" in line:
                     try:
                         timing = float(line.split("train_step_timing in s:")[1].strip().split()[0])
-                        timings.append(timing)
+                        step_timings.append(timing)
                     except (ValueError, IndexError):
                         continue
-        if not timings:
+        if not step_timings:
             logging.debug(f"No train_step_timing found in {filepath}")
             return []
-        return self._filter_step_timings(timings)
+        return self._filter_step_timings(step_timings)
 
     def _filter_step_timings(self, step_timings: List[float]) -> List[float]:
         return step_timings[-20:] if len(step_timings) > 100 else step_timings
