@@ -16,8 +16,13 @@
 
 import logging
 from pathlib import Path
+from typing import cast
 
-from cloudai import BaseRunner, JobIdRetrievalError, System, TestRun, TestScenario
+import toml
+
+from cloudai import BaseJob, BaseRunner, JobIdRetrievalError, System, TestRun, TestScenario
+from cloudai.systems.slurm.slurm_system import SlurmJobMetadata, SlurmSystem
+from cloudai.systems.slurm.strategy.slurm_command_gen_strategy import SlurmCommandGenStrategy
 from cloudai.util import CommandShell
 
 from .slurm_job import SlurmJob
@@ -54,3 +59,26 @@ class SlurmRunner(BaseRunner):
                 )
         logging.info(f"Submitted slurm job: {job_id}")
         return SlurmJob(tr, id=job_id)
+
+    async def job_completion_callback(self, job: BaseJob) -> None:
+        self.store_job_metadata(job)
+
+    def store_job_metadata(self, job):
+        jb = cast(SlurmJob, job)
+        system = cast(SlurmSystem, self.system)
+        cmd_gen = cast(SlurmCommandGenStrategy, jb.test_run.test.test_template.command_gen_strategy)
+        res = None if self.mode == "dry-run" else system.get_job_status(jb)
+        job_name, job_state, time_sec = "unknown", "UNKNOWN", 0
+        if res:
+            job_name, job_state, time_sec = res[0], res[1], int(res[2])
+        job_meta = SlurmJobMetadata(
+            job_id=int(jb.id),
+            job_name=job_name,
+            job_state=job_state,
+            elapsed_time_sec=time_sec,
+            srun_cmd=cmd_gen.gen_srun_command(jb.test_run),
+            test_cmd=" ".join(cmd_gen.generate_test_command({}, {}, jb.test_run)),
+        )
+
+        with open(jb.test_run.output_path / "slurm-job.toml", "w") as job_file:
+            toml.dump(job_meta.model_dump(), job_file)
