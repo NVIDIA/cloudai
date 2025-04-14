@@ -28,9 +28,9 @@ task = "finetune"
 recipe_name = "llama3_8b"
 
   [cmd_args.data]
+  seq_length = 4096
   micro_batch_size = 1
   global_batch_size = 32
-  seq_length = 4096
   force_redownload = true
   packed_sequence_specs = "packed_sequence_data_lora"
 
