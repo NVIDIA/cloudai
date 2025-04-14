@@ -88,12 +88,12 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             "l_vocab_size": "",  # TODO: ./src/cloudperf_resparse/models/nemo/patterns.py
             "l_hidden_size": "",  # TODO: ./src/cloudperf_resparse/models/nemo/patterns.py
             "l_count": "",
-            "l_gbs": "",  # TODO: should be read from cmd_args
-            "l_mbs": "",  # TODO: should be read from cmd_args
+            "l_gbs": tdef.cmd_args.data.global_batch_size,
+            "l_mbs": tdef.cmd_args.data.micro_batch_size,
             "l_pp": tdef.cmd_args.trainer.strategy.pipeline_model_parallel_size,
             "l_tp": tdef.cmd_args.trainer.strategy.tensor_model_parallel_size,
             "l_vp": tdef.cmd_args.trainer.strategy.virtual_pipeline_model_parallel_size,
-            "l_cp": "",  # TODO: should be read from cmd_args
+            "l_cp": tdef.cmd_args.trainer.strategy.context_parallel_size,
             "d_metric": "",  # TODO: ctx.results.throughput.mean
             "d_metric_stddev": "",
             "d_step_time_mean": "",
