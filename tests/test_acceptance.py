@@ -86,7 +86,14 @@ def test_slurm(tmp_path: Path, scenario: Dict):
         patch("asyncio.sleep", return_value=None),
         patch("cloudai.systems.slurm.SlurmSystem.is_job_completed", return_value=True),
         patch("cloudai.systems.slurm.SlurmSystem.is_job_running", return_value=True),
+        patch("cloudai.util.command_shell.CommandShell.execute") as mock_execute,
     ):
+        mock_process = Mock()
+        mock_process.poll.return_value = 0
+        mock_process.returncode = 0
+        mock_process.communicate.return_value = ("", "")
+        mock_execute.return_value = mock_process
+
         handle_dry_run_and_run(args)
 
     # Find the directory that was created for the test results
