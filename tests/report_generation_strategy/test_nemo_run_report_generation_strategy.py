@@ -252,6 +252,24 @@ def test_generate_report_partial_timings(slurm_system: SlurmSystem, nemo_tr: Tes
 
 
 @pytest.mark.parametrize(
+    "docker_image_url,expected_version",
+    [
+        ("nvcr.io/nvidia/nemo:24.12.rc3", "24.12.rc3"),
+        ("/home/theo/cloudaix/install/nvcr.io_nvidia__nemo__24.12.01.sqsh", "24.12.01"),
+        ("custom_docker_image_without_version", "unknown"),
+    ],
+)
+def test_extract_version_from_docker_image(
+    slurm_system: SlurmSystem, nemo_tr: TestRun, docker_image_url: str, expected_version: str
+) -> None:
+    strategy = NeMoRunReportGenerationStrategy(slurm_system, nemo_tr)
+    version = strategy.extract_version_from_docker_image(docker_image_url)
+    assert (
+        version == expected_version
+    ), f"Expected version '{expected_version}' but got '{version}' for input '{docker_image_url}'"
+
+
+@pytest.mark.parametrize(
     "input_name,expected",
     [
         ("nemotron4_15b_64k", ("nemotron4", "15b")),

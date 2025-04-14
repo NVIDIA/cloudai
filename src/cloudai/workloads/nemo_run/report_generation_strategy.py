@@ -153,7 +153,12 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
 
     def extract_version_from_docker_image(self, docker_image_url: str) -> str:
         version_match = re.search(r":(\d+\.\d+(?:\.\w+)?)", docker_image_url)
-        return version_match.group(1) if version_match else "unknown"
+        if version_match:
+            return version_match.group(1)
+        version_match = re.search(r"__(\d+\.\d+\.\d+)", docker_image_url)
+        if version_match:
+            return version_match.group(1)
+        return "unknown"
 
     def extract_model_info(self, recipe_name: str) -> Tuple[str, str]:
         size_pattern = re.compile(r"^\d+(?:p\d+)?[bBmM]$")
