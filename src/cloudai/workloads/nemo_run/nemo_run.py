@@ -41,6 +41,7 @@ class Data(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
+    seq_length: int = 4096
     micro_batch_size: Union[int, List[int]] = 1
     global_batch_size: Union[int, List[int]] = 1
 
