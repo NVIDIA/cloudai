@@ -60,10 +60,14 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
         self._dump_json(data)
 
     def get_metric(self, metric: str) -> float:
-        timings: List[float] = self._parse_timings(self.results_file)
-        if not timings or metric not in {"default", "step-time"}:
+        step_timings: List[float] = self._parse_timings(self.results_file)
+        if not step_timings:
             return METRIC_ERROR
-        return float(np.mean(timings))
+
+        if metric not in {"default", "step-time"}:
+            return METRIC_ERROR
+
+        return float(np.mean(step_timings))
 
     def _collect_raw_data(self) -> Dict[str, object]:
         timings: List[float] = self._parse_timings(self.results_file)
