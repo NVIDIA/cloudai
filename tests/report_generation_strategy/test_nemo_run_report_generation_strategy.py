@@ -352,6 +352,12 @@ def test_extract_version_from_docker_image(
         ("qwen2_500m", ("qwen2", "500m")),
         ("mamba2_130m", ("mamba2", "130m")),
         ("bert_110m", ("bert", "110m")),
+        ("cloudai_llama3_8b_recipe", ("llama3", "8b")),
+        ("cloudai_llama3_70b_recipe", ("llama3", "70b")),
+        ("cloudai_llama3_405b_recipe", ("llama3", "405b")),
+        ("cloudai_nemotron3_8b_recipe", ("nemotron3", "8b")),
+        ("cloudai_nemotron4_15b_recipe", ("nemotron4", "15b")),
+        ("cloudai_nemotron4_340b_recipe", ("nemotron4", "340b")),
     ],
 )
 def test_extract_model_info(

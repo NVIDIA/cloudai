@@ -165,6 +165,7 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
         return "unknown"
 
     def extract_model_info(self, recipe_name: str) -> Tuple[str, str]:
+        recipe_name = recipe_name.removeprefix("cloudai_")
         size_pattern = re.compile(r"^\d+(?:p\d+)?[bBmM]$")
         tokens: List[str] = recipe_name.split("_")
         for idx, token in enumerate(tokens):
