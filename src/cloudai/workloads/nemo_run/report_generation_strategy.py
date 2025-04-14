@@ -80,6 +80,14 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
         s_model, s_model_size = self.extract_model_info(tdef.cmd_args.recipe_name)
         s_base_config = self.extract_base_config_from_sbatch_script(self.test_run.output_path)
         vocab_size = self.extract_vocab_size(self.results_file)
+        mean_step_time = float(np.mean(step_timings))
+        global_bs = tdef.cmd_args.data.global_batch_size
+        seq_len = tdef.cmd_args.data.seq_length
+
+        if isinstance(global_bs, int) and isinstance(seq_len, int) and mean_step_time > 0:
+            tokens_per_sec = global_bs * seq_len / mean_step_time
+        else:
+            tokens_per_sec = None
         data: Dict[str, object] = {
             "s_framework": "nemo",
             "s_fw_version": self.extract_version_from_docker_image(docker_image_url),
@@ -99,10 +107,10 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             "l_tp": tdef.cmd_args.trainer.strategy.tensor_model_parallel_size,
             "l_vp": tdef.cmd_args.trainer.strategy.virtual_pipeline_model_parallel_size,
             "l_cp": tdef.cmd_args.trainer.strategy.context_parallel_size,
-            "d_metric": "",  # TODO: ctx.results.throughput.mean
-            "d_metric_stddev": "",
-            "d_step_time_mean": float(np.mean(step_timings)),
-            "d_tokens_per_sec": "",  # TODO: = (global_batch_size*encoder_seq_length/throughput.mean)
+            "d_metric": mean_step_time,
+            "d_metric_stddev": float(np.std(step_timings)),
+            "d_step_time_mean": mean_step_time,
+            "d_tokens_per_sec": tokens_per_sec,
             "l_checkpoint_size": None,  # TODO: ./common/nemo/nemo-utils.sh
             "d_checkpoint_save_rank_time": None,  # TODO: ./common/nemo/nemo-utils.sh
             "s_job_id": "0",  # TODO: load from metadata when ready
