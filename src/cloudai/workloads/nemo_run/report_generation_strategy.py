@@ -108,7 +108,7 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             "s_cluster": socket.gethostname(),
             "s_user": getpass.getuser(),
             "s_gsw_version": "25.02",
-            "b_synthetic_dataset": "",  # TODO: true, false
+            "b_synthetic_dataset": "true",
             "train_step_timings": timings,
             "stats": stats,
         }
