@@ -78,6 +78,7 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
         slurm_system = cast(SlurmSystem, self.system)
         docker_image_url: str = tdef.cmd_args.docker_image_url
         s_model, s_model_size = self.extract_model_info(tdef.cmd_args.recipe_name)
+        vocab_size = self.extract_vocab_size(self.results_file)
         data: Dict[str, object] = {
             "s_framework": "nemo",
             "s_fw_version": self.extract_version_from_docker_image(docker_image_url),
@@ -89,7 +90,7 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             "l_max_steps": tdef.cmd_args.trainer.max_steps,
             "l_seq_len": tdef.cmd_args.data.seq_length,
             "l_num_layers": tdef.cmd_args.num_layers,
-            "l_vocab_size": "",  # TODO: ./src/cloudperf_resparse/models/nemo/patterns.py
+            "l_vocab_size": vocab_size,
             "l_hidden_size": "",  # TODO: ./src/cloudperf_resparse/models/nemo/patterns.py
             "l_gbs": tdef.cmd_args.data.global_batch_size,
             "l_mbs": tdef.cmd_args.data.micro_batch_size,
@@ -173,6 +174,18 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
                 s_model_size: str = token
                 return s_model, s_model_size
         return recipe_name, ""
+
+    def extract_vocab_size(self, filepath: Path) -> int:
+        if not filepath.exists():
+            return -1
+        vocab_line_pattern = re.compile(r"Padded vocab_size:\s*(\d+)", re.IGNORECASE)
+
+        with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                match = vocab_line_pattern.search(line)
+                if match:
+                    return int(match.group(1))
+        return -1
 
     def _dump_json(self, data: Dict[str, object]) -> None:
         data_file: Path = self.test_run.output_path / "report_data.json"

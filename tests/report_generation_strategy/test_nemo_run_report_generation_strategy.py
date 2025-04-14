@@ -366,3 +366,24 @@ def test_extract_model_info(
     strategy = NeMoRunReportGenerationStrategy(slurm_system, nemo_tr)
     model_info = strategy.extract_model_info(input_name)
     assert model_info == expected, f"Model info extraction failed for {input_name}"
+
+
+def test_extract_vocab_size(slurm_system: SlurmSystem, nemo_tr_empty_log: TestRun, tmp_path: Path) -> None:
+    log_file = tmp_path / "stdout.txt"
+    log_file.write_text(
+        (
+            "[NeMo I 2025-04-14 08:10:56 tokenizer_utils:225] Getting Megatron tokenizer for pretrained model name: "
+            "megatron-gpt-345m\n"
+            "[NeMo I 2025-04-14 08:10:56 tokenizer_utils:130] Getting HuggingFace AutoTokenizer with "
+            "pretrained_model_name: gpt2\n"
+            "[NeMo I 2025-04-14 08:11:01 megatron_init:513] Rank 0 has embedding rank: 0\n"
+            "[NeMo I 2025-04-14 08:11:05 base:44] Padded vocab_size: 50304, original vocab_size: 50257"
+            ", dummy tokens: 47.\n"
+            "[NeMo I 2025-04-14 08:11:06 something_else:999] Some other unrelated log line\n"
+        )
+    )
+
+    strategy = NeMoRunReportGenerationStrategy(slurm_system, nemo_tr_empty_log)
+    vocab_size = strategy.extract_vocab_size(log_file)
+
+    assert vocab_size == 50304, f"Expected vocab size 50304, but got {vocab_size}"
