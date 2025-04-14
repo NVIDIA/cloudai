@@ -87,6 +87,13 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             tokens_per_sec = global_bs * seq_len / mean_step_time
         else:
             tokens_per_sec = None
+
+        gpus_per_node = (
+            slurm_system.gpus_per_node
+            if slurm_system.gpus_per_node is not None
+            else (slurm_system.ntasks_per_node if slurm_system.ntasks_per_node is not None else 8)
+        )
+
         data: Dict[str, object] = {
             "s_framework": "nemo",
             "s_fw_version": self.extract_version_from_docker_image(docker_image_url),
@@ -116,7 +123,7 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             "s_job_mode": "training",
             "s_image": docker_image_url,
             "l_num_nodes": self.test_run.num_nodes,
-            "l_num_gpus": self.test_run.num_nodes * (slurm_system.gpus_per_node or 0),
+            "l_num_gpus": self.test_run.num_nodes * gpus_per_node,
             "s_cluster": socket.gethostname(),
             "s_user": getpass.getuser(),
             "s_gsw_version": "25.02",
