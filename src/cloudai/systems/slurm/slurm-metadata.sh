@@ -38,4 +38,8 @@ commit_sha = "${NCCL_COMMIT_SHA:-null}"
 cluster_name = "${SLURM_CLUSTER_NAME:-null}"
 node_list = "${SLURM_NODELIST:-null}"
 num_nodes = "${SLURM_NNODES:-null}"
+ntasks_per_node = "${SLURM_NTASKS_PER_NODE:-null}"
+ntasks = "${SLURM_NTASKS:-null}"
+nnodes = "${SLURM_NNODES:-null}"
+job_id = "${SLURM_JOBID:-null}"
 EOF
