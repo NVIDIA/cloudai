@@ -465,6 +465,14 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
             limit_test_batches=50,
             limit_val_batches=32,
             log_every_n_steps=10,
+            plugins=run.Config(
+                nl.MegatronMixedPrecision,
+                precision="bf16-mixed",
+                params_dtype=torch.bfloat16,
+                pipeline_dtype=torch.bfloat16,
+                autocast_enabled=False,
+                grad_reduce_in_fp32=False,
+            ),
             strategy=run.Config(
                 nl.MegatronStrategy,
                 tensor_model_parallel_size=4,
@@ -514,7 +522,6 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
         ),
     )
     return recipe
-
 
 # LLAMA3 405B Recipe
 @run.cli.factory(target=llm.pretrain)
@@ -699,7 +706,9 @@ def cloudai_nemotron4_15b_recipe() -> run.Partial:
             ),
             num_sanity_val_steps=0,
             max_epochs=10,
-            callbacks=[timing_callback()],
+            callbacks=[
+                timing_callback()
+            ],
         ),
         optim=run.Config(
             nl.MegatronOptimizerModule,
