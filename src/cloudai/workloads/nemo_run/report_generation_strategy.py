@@ -91,7 +91,6 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             "l_num_layers": tdef.cmd_args.num_layers,
             "l_vocab_size": "",  # TODO: ./src/cloudperf_resparse/models/nemo/patterns.py
             "l_hidden_size": "",  # TODO: ./src/cloudperf_resparse/models/nemo/patterns.py
-            "l_count": "",
             "l_gbs": tdef.cmd_args.data.global_batch_size,
             "l_mbs": tdef.cmd_args.data.micro_batch_size,
             "l_pp": tdef.cmd_args.trainer.strategy.pipeline_model_parallel_size,
