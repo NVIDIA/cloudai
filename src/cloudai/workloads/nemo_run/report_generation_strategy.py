@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import ClassVar, Dict, List, Tuple, cast
 
 import numpy as np
+import toml
 
 from cloudai import ReportGenerationStrategy
 from cloudai._core.test_scenario import METRIC_ERROR
@@ -119,7 +120,7 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             "d_tokens_per_sec": tokens_per_sec,
             "l_checkpoint_size": None,  # TODO: ./common/nemo/nemo-utils.sh
             "d_checkpoint_save_rank_time": None,  # TODO: ./common/nemo/nemo-utils.sh
-            "s_job_id": "0",  # TODO: load from metadata when ready
+            "s_job_id": self.extract_job_id_from_metadata(self.test_run.output_path),
             "s_job_mode": "training",
             "s_image": docker_image_url,
             "l_num_nodes": self.test_run.num_nodes,
@@ -226,6 +227,29 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
                 if match:
                     return int(match.group(1))
         return -1
+
+    def extract_job_id_from_metadata(self, output_path: Path) -> str:
+        metadata_dir = output_path / "metadata"
+        if not metadata_dir.is_dir():
+            logging.debug(f"No metadata directory found at {metadata_dir}")
+            return "0"
+
+        toml_files = sorted(metadata_dir.glob("*.toml"))
+        if not toml_files:
+            logging.debug(f"No TOML files found in metadata directory: {metadata_dir}")
+            return "0"
+
+        metadata_file = toml_files[0]
+        try:
+            metadata = toml.load(metadata_file)
+            job_id = metadata.get("slurm", {}).get("job_id")
+            if job_id is not None:
+                return str(job_id)
+            logging.debug(f"'job_id' not found in 'slurm' section of {metadata_file}")
+        except (toml.TomlDecodeError, OSError) as e:
+            logging.warning(f"Failed to read or parse {metadata_file}: {e}")
+
+        return "0"
 
     def _dump_json(self, data: Dict[str, object]) -> None:
         data_file: Path = self.test_run.output_path / "report_data.json"
