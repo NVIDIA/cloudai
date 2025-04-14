@@ -57,8 +57,11 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
         if not data:
             logging.error(f"No valid step step_timings found in {self.results_file}. Report generation aborted.")
             return
-        self._write_summary_file(cast(Dict[str, float], data["stats"]))
-        self._dump_json(data)
+        self._write_summary_file(cast(Dict[str, float], data["train_step_timings_stats"]))
+
+        keys_to_remove = {"train_step_timings", "train_step_timings_stats"}
+        filtered_data = {k: v for k, v in data.items() if k not in keys_to_remove}
+        self._dump_json(filtered_data)
 
     def get_metric(self, metric: str) -> float:
         step_timings: List[float] = self._parse_step_timings(self.results_file)
@@ -74,7 +77,7 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
         step_timings: List[float] = self._parse_step_timings(self.results_file)
         if not step_timings:
             return {}
-        stats: Dict[str, float] = self._compute_statistics(step_timings)
+        train_step_timings_stats: Dict[str, float] = self._compute_statistics(step_timings)
         tdef = cast(NeMoRunTestDefinition, self.test_run.test.test_definition)
         slurm_system = cast(SlurmSystem, self.system)
         docker_image_url: str = tdef.cmd_args.docker_image_url
@@ -101,13 +104,11 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             "s_model": s_model,
             "s_model_size": s_model_size,
             "s_workload": tdef.cmd_args.recipe_name,
-            "s_dtype": "",  # TODO: fp16, bf16, fp8, fp32
             "s_base_config": s_base_config,
             "l_max_steps": tdef.cmd_args.trainer.max_steps,
             "l_seq_len": tdef.cmd_args.data.seq_length,
             "l_num_layers": tdef.cmd_args.num_layers,
             "l_vocab_size": self.extract_vocab_size(self.results_file),
-            "l_hidden_size": "",  # TODO: ./src/cloudperf_resparse/models/nemo/patterns.py
             "l_gbs": tdef.cmd_args.data.global_batch_size,
             "l_mbs": tdef.cmd_args.data.micro_batch_size,
             "l_pp": tdef.cmd_args.trainer.strategy.pipeline_model_parallel_size,
@@ -118,8 +119,6 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             "d_metric_stddev": float(np.std(step_timings)),
             "d_step_time_mean": mean_step_time,
             "d_tokens_per_sec": tokens_per_sec,
-            "l_checkpoint_size": None,  # TODO: ./common/nemo/nemo-utils.sh
-            "d_checkpoint_save_rank_time": None,  # TODO: ./common/nemo/nemo-utils.sh
             "s_job_id": self.extract_job_id_from_metadata(self.test_run.output_path),
             "s_job_mode": "training",
             "s_image": docker_image_url,
@@ -130,7 +129,7 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             "s_gsw_version": "25.02",
             "b_synthetic_dataset": "true",
             "train_step_timings": step_timings,
-            "stats": stats,
+            "train_step_timings_stats": train_step_timings_stats,
         }
         return data
 
