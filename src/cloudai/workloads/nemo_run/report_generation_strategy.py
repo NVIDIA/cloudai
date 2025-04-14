@@ -79,7 +79,6 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
         docker_image_url: str = tdef.cmd_args.docker_image_url
         s_model, s_model_size = self.extract_model_info(tdef.cmd_args.recipe_name)
         s_base_config = self.extract_base_config_from_sbatch_script(self.test_run.output_path)
-        vocab_size = self.extract_vocab_size(self.results_file)
         mean_step_time = float(np.mean(step_timings))
         global_bs = tdef.cmd_args.data.global_batch_size
         seq_len = tdef.cmd_args.data.seq_length
@@ -99,7 +98,7 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             "l_max_steps": tdef.cmd_args.trainer.max_steps,
             "l_seq_len": tdef.cmd_args.data.seq_length,
             "l_num_layers": tdef.cmd_args.num_layers,
-            "l_vocab_size": vocab_size,
+            "l_vocab_size": self.extract_vocab_size(self.results_file),
             "l_hidden_size": "",  # TODO: ./src/cloudperf_resparse/models/nemo/patterns.py
             "l_gbs": tdef.cmd_args.data.global_batch_size,
             "l_mbs": tdef.cmd_args.data.micro_batch_size,
