@@ -78,6 +78,7 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
         slurm_system = cast(SlurmSystem, self.system)
         docker_image_url: str = tdef.cmd_args.docker_image_url
         s_model, s_model_size = self.extract_model_info(tdef.cmd_args.recipe_name)
+        s_base_config = self.extract_base_config_from_sbatch_script(self.test_run.output_path)
         vocab_size = self.extract_vocab_size(self.results_file)
         data: Dict[str, object] = {
             "s_framework": "nemo",
@@ -86,7 +87,7 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             "s_model_size": s_model_size,
             "s_workload": tdef.cmd_args.recipe_name,
             "s_dtype": "",  # TODO: fp16, bf16, fp8, fp32
-            "s_base_config": "",  # TODO: model.tokenizer.type=/dataset/llama
+            "s_base_config": s_base_config,
             "l_max_steps": tdef.cmd_args.trainer.max_steps,
             "l_seq_len": tdef.cmd_args.data.seq_length,
             "l_num_layers": tdef.cmd_args.num_layers,
@@ -174,6 +175,31 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
                 s_model_size: str = token
                 return s_model, s_model_size
         return recipe_name, ""
+
+    def extract_base_config_from_sbatch_script(self, output_path: Path) -> str:
+        sbatch_script = output_path / "cloudai_sbatch_script.sh"
+        if not sbatch_script.is_file():
+            logging.warning(f"SBATCH script not found: {sbatch_script}")
+            return ""
+
+        try:
+            last_command = self._read_last_nonempty_line(sbatch_script)
+            return self._extract_config_from_command_line(last_command)
+        except Exception as e:
+            logging.exception(f"Error extracting base config from sbatch script: {e}")
+            return ""
+
+    def _read_last_nonempty_line(self, file_path: Path) -> str:
+        with file_path.open("r", encoding="utf-8") as f:
+            lines = [line.strip() for line in f if line.strip()]
+        return lines[-1] if lines else ""
+
+    def _extract_config_from_command_line(self, command_line: str) -> str:
+        y_flag = " -y"
+        index = command_line.find(y_flag)
+        if index == -1:
+            return ""
+        return command_line[index + len(y_flag) :].strip()
 
     def extract_vocab_size(self, filepath: Path) -> int:
         if not filepath.exists():

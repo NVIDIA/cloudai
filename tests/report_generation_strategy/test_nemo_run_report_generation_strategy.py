@@ -387,3 +387,53 @@ def test_extract_vocab_size(slurm_system: SlurmSystem, nemo_tr_empty_log: TestRu
     vocab_size = strategy.extract_vocab_size(log_file)
 
     assert vocab_size == 50304, f"Expected vocab size 50304, but got {vocab_size}"
+
+
+@pytest.mark.parametrize(
+    "lines,expected_config",
+    [
+        (
+            [
+                "#!/bin/bash",
+                "echo Hello World",
+                "srun python train.py -y trainer.max_steps=100 data.seq_length=2048",
+            ],
+            "trainer.max_steps=100 data.seq_length=2048",
+        ),
+        (
+            [
+                "#SBATCH --job-name=test",
+                "srun echo nothing here",
+                "srun python run.py --config something -y data.global_batch_size=256",
+            ],
+            "data.global_batch_size=256",
+        ),
+        (
+            [
+                "# just comments",
+                "srun python script.py",  # no `-y`
+            ],
+            "",
+        ),
+        (
+            [
+                "   ",  # empty line
+                "srun --mpi=pmix python app.py -y trainer.num_nodes=2",
+            ],
+            "trainer.num_nodes=2",
+        ),
+        (
+            [],  # empty file
+            "",
+        ),
+    ],
+)
+def test_extract_base_config_from_sbatch_script_parametrized(
+    slurm_system: SlurmSystem, nemo_tr: TestRun, lines: list[str], expected_config: str
+) -> None:
+    strategy = NeMoRunReportGenerationStrategy(slurm_system, nemo_tr)
+    sbatch_path = nemo_tr.output_path / "cloudai_sbatch_script.sh"
+    sbatch_path.write_text("\n".join(lines), encoding="utf-8")
+
+    extracted = strategy.extract_base_config_from_sbatch_script(nemo_tr.output_path)
+    assert extracted == expected_config, f"Expected: {expected_config}, Got: {extracted}"
