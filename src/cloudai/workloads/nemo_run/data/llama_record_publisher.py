@@ -17,7 +17,6 @@
 from typing import Any, Dict
 
 from .http_data_repository import HttpDataRepository
-from .llama_record import NeMoRunLLAMARecord
 
 
 class NeMoRunLLAMARecordPublisher:
@@ -28,6 +27,4 @@ class NeMoRunLLAMARecordPublisher:
         self.repository = repository
 
     def publish(self, raw_data: Dict[str, Any]) -> None:
-        record = NeMoRunLLAMARecord.from_flat_dict(raw_data)
-        flat_record = record.to_flat_dict()
-        self.repository.store(flat_record)
+        self.repository.store(raw_data)
