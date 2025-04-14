@@ -523,6 +523,7 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
     )
     return recipe
 
+
 # LLAMA3 405B Recipe
 @run.cli.factory(target=llm.pretrain)
 @run.autoconvert
@@ -706,9 +707,7 @@ def cloudai_nemotron4_15b_recipe() -> run.Partial:
             ),
             num_sanity_val_steps=0,
             max_epochs=10,
-            callbacks=[
-                timing_callback()
-            ],
+            callbacks=[timing_callback()],
         ),
         optim=run.Config(
             nl.MegatronOptimizerModule,

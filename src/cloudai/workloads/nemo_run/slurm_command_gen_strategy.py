@@ -97,7 +97,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         if recipe_name not in supported_recipes:
             logging.warning(
-                f"Using default {recipe_name} in Nemo2.0."
+                f"Using default {recipe_name} in Nemo2.0. "
                 "Passing advance CLI options (e.g., factory fuctions) might not be fully supported in Nemo-Run CLI."
             )
 
