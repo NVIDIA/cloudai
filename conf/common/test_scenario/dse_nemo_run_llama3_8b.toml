@@ -18,6 +18,6 @@ name = "nemo_run_llama3_8b"
 
 [[Tests]]
 id = "dse_nemo_run_llama3_8b_1"
-test_name = "dse_nemo_run_llama3_8b"
+test_name = "dse_nemo_run_llama3_8b_fp8"
 num_nodes = "1"
 time_limit = "00:30:00"
