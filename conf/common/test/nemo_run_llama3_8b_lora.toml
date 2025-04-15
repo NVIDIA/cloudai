@@ -23,9 +23,9 @@ extra_container_mounts = [
 ]
 
 [cmd_args]
-docker_image_url = "nvcr.io/nvidia/nemo:24.12.rc3"
+docker_image_url = "nvcr.io/nvidia/nemo:25.04.rc2"
 task = "finetune"
-recipe_name = "llama3_8b"
+recipe_name = "cloudai_llama3_8b_recipe"
 
   [cmd_args.data]
   seq_length = 4096
@@ -38,7 +38,6 @@ recipe_name = "llama3_8b"
   max_steps = 100
   val_check_interval = 100
   num_nodes = 1
-  callbacks = "combined_callbacks_lora"
   log_every_n_steps = 1
 
     [cmd_args.trainer.strategy]

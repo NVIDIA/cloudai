@@ -19,9 +19,9 @@ description = "nemo_run_nemotron_15b_bf16_64_node"
 test_template_name = "NeMoRun"
 
 [cmd_args]
-docker_image_url = "nvcr.io/nvidia/nemo:24.12.rc3"
+docker_image_url = "nvcr.io/nvidia/nemo:25.04.rc2"
 task = "pretrain"
-recipe_name = "nemotron4_15b"
+recipe_name = "cloudai_nemotron4_15b_recipe"
 num_layers = 32
 
   [cmd_args.data]
@@ -30,9 +30,8 @@ num_layers = 32
 
   [cmd_args.trainer]
   max_steps = 100
-  val_check_interval = 2
+  val_check_interval = 100
   num_nodes = 64
-  callbacks = "comms_overlap_callbacks"
   accumulate_grad_batches = 1
 
     [cmd_args.trainer.strategy]
@@ -40,10 +39,6 @@ num_layers = 32
     pipeline_model_parallel_size = 1
     context_parallel_size = 1
     sequence_parallel = true
-
-  [cmd_args.log.ckpt]
-  save_on_train_epoch_end = false
-  save_last = false
 
 [extra_env_vars]
 NCCL_P2P_NET_CHUNKSIZE = "2097152"

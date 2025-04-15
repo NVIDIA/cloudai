@@ -19,9 +19,9 @@ description = "dse_nemo_run_llama3_8b"
 test_template_name = "NeMoRun"
 
 [cmd_args]
-docker_image_url = "nvcr.io/nvidia/nemo:24.12.rc3"
+docker_image_url = "nvcr.io/nvidia/nemo:25.04.rc2"
 task = "pretrain"
-recipe_name = "llama3_8b"
+recipe_name = "cloudai_llama3_8b_recipe"
 num_layers = 32
 
   [cmd_args.data]
@@ -30,7 +30,7 @@ num_layers = 32
 
   [cmd_args.trainer]
   max_steps = 100
-  val_check_interval = 1000
+  val_check_interval = 100
   num_nodes = 1
 
     [cmd_args.trainer.strategy]
@@ -45,7 +45,3 @@ num_layers = 32
     fp8_amax_compute_algo = "max"
     fp8_params = true
     grad_reduce_in_fp32 = true
-
-  [cmd_args.log.ckpt]
-  save_on_train_epoch_end = false
-  save_last = false
