@@ -139,12 +139,11 @@ class SlurmSystem(BaseModel, System):
 
     def __init__(self, **data: Any) -> None:
         super().__init__(**data)
-        if self.cpus_per_node is not None:
-            self.pinning_strategy = create_pinning_strategy(
-                system_name=self.name,
-                cpus_per_node=self.cpus_per_node,
-                num_tasks_per_node=self.ntasks_per_node or 1,
-            )
+        self.pinning_strategy = create_pinning_strategy(
+            system_name=self.name,
+            cpus_per_node=self.cpus_per_node,
+            num_tasks_per_node=self.ntasks_per_node or 1,
+        )
 
     @property
     def groups(self) -> Dict[str, Dict[str, List[SlurmNode]]]:

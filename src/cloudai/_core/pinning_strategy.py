@@ -16,7 +16,7 @@
 
 import re
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Optional
 
 
 class AbstractPinningStrategy(ABC):
@@ -63,8 +63,13 @@ class AzurePinningStrategy(AbstractPinningStrategy):
         return [f"{(base_mask << (i * self.cores_per_task)):x}" for i in range(self.num_tasks_per_node)]
 
 
-def create_pinning_strategy(system_name: str, cpus_per_node: int, num_tasks_per_node: int) -> AbstractPinningStrategy:
+def create_pinning_strategy(
+    system_name: str, cpus_per_node: Optional[int], num_tasks_per_node: int
+) -> AbstractPinningStrategy:
     system_name = system_name.lower().strip()
+
+    if cpus_per_node is None:
+        return NoOpPinningStrategy(1, num_tasks_per_node)
 
     if re.search(r"\baws\b", system_name):
         return AwsPinningStrategy(cpus_per_node, num_tasks_per_node)
