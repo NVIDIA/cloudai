@@ -43,16 +43,6 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
                     return True
         return False
 
-    def get_metric(self, metric: str) -> float:
-        step_timings: List[float] = parse_step_timings(self.results_file)
-        if not step_timings:
-            return METRIC_ERROR
-
-        if metric not in {"default", "step-time"}:
-            return METRIC_ERROR
-
-        return float(np.mean(step_timings))
-
     def generate_report(self) -> None:
         if not self.results_file.exists():
             logging.error(f"{self.results_file} not found")
@@ -78,3 +68,14 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             f.write("Median: {median}\n".format(median=stats["median"]))
             f.write("Min: {min}\n".format(min=stats["min"]))
             f.write("Max: {max}\n".format(max=stats["max"]))
+
+    def get_metric(self, metric: str) -> float:
+        logging.debug(f"Getting metric {metric} from {self.results_file.absolute()}")
+        step_timings = parse_step_timings(self.results_file)
+        if not step_timings:
+            return METRIC_ERROR
+
+        if metric not in {"default", "step-time"}:
+            return METRIC_ERROR
+
+        return float(np.mean(step_timings))
