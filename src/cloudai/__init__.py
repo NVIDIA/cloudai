@@ -74,6 +74,10 @@ from .workloads.common import (
     SlurmJobIdRetrievalStrategy,
     StandaloneJobIdRetrievalStrategy,
 )
+from .workloads.dataset_preparation import (
+    DatasetPreparationSlurmCommandGenStrategy,
+    DatasetPreparationTestDefinition,
+)
 from .workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -149,7 +153,14 @@ Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NCCLTestDefinition],
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [SleepTestDefinition], SleepGradingStrategy)
 
 Registry().add_strategy(
-    JobIdRetrievalStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherSlurmJobIdRetrievalStrategy
+    CommandGenStrategy, [SlurmSystem], [DatasetPreparationTestDefinition], DatasetPreparationSlurmCommandGenStrategy
+)
+
+Registry().add_strategy(
+    JobIdRetrievalStrategy,
+    [SlurmSystem],
+    [NeMoLauncherTestDefinition, DatasetPreparationTestDefinition],
+    NeMoLauncherSlurmJobIdRetrievalStrategy,
 )
 Registry().add_strategy(
     CommandGenStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherSlurmCommandGenStrategy
