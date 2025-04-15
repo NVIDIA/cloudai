@@ -32,11 +32,11 @@ class HttpDataRepository:
         self.endpoint = endpoint
         self.verify = verify_certs
 
-        credentials = toml.load(".credential.toml")
+        credentials = toml.load(".cloudai.toml")
         self.token = credentials.get("data_repository", {}).get("token")
         if not self.token:
             raise ValueError(
-                "Credential not configured. Please create and populate the .credential.toml file "
+                "Credential not configured. Please create and populate the .cloudai.toml file "
                 "with the token under the data_repository section."
             )
 

@@ -320,10 +320,10 @@ Dependencies of a test can be described as a subsection of the test. It requires
 To enable access to the HTTP Data Repository, you must create a local credential file that contains your authentication token.
 
 ### Step 1: Create the Credential File
-Create a file named `.credential.toml` in the root of your CloudAI project directory.
+Create a file named `.cloudai.toml` in the root of your CloudAI project directory.
 
 ### Step 2: Add Your Token
-Open the `.credential.toml` file and add the following structure:
+Open the `.cloudai.toml` file and add the following structure:
 
 ```toml
 [data_repository]

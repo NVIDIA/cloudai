@@ -89,4 +89,4 @@ Thumbs.db
 install/
 results/
 .*
-.credential.toml
+.cloudai.toml
