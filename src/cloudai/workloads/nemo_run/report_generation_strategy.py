@@ -47,10 +47,12 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
         if not self.results_file.exists():
             logging.error(f"{self.results_file} not found")
             return
+
         train_step_timings: List[float] = parse_step_timings(self.results_file)
         if not train_step_timings:
             logging.error(f"No valid step step_timings found in {self.results_file}. Report generation aborted.")
             return
+
         self._write_summary_file(self._compute_statistics(train_step_timings))
 
     def _compute_statistics(self, step_timings: List[float]) -> Dict[str, float]:
