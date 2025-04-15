@@ -40,7 +40,7 @@ class HttpDataRepository:
                 "with the token under the data_repository section."
             )
 
-    def store(self, entry: Dict[str, Any]) -> None:
+    def push(self, entry: Dict[str, Any]) -> None:
         headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
         payload = json.dumps([entry])
         response = requests.post(self.endpoint, data=payload, headers=headers, verify=self.verify)
