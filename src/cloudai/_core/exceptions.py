@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -130,7 +130,12 @@ class SystemConfigParsingError(Exception):
 
 
 def format_validation_error(err: ErrorDetails) -> str:
-    if err["msg"] == "Field required":
-        return f"Field '{'.'.join(str(v) for v in err['loc'])}': {err['msg']}"
+    flattened_field = ".".join(str(v) for v in err["loc"])
 
-    return f"Field '{'.'.join(str(v) for v in err['loc'])}' with value '{err['input']}' is invalid: {err['msg']}"
+    if not flattened_field:
+        return "Validation error: " + err["msg"]
+
+    if err["msg"] == "Field required":
+        return f"Field '{flattened_field}': {err['msg']}"
+
+    return f"Field '{flattened_field}' with value '{err['input']}' is invalid: {err['msg']}"
