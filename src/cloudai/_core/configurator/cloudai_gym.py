@@ -136,17 +136,17 @@ class CloudAIGymEnv(BaseGym):
             return [-1.0], -1.0, True, {}
 
         logging.info(f"Running step {self.test_run.step} with action {action}")
-        self.runner.runner.test_scenario.test_runs = [copy.deepcopy(self.test_run)]
+        new_tr = copy.deepcopy(self.test_run)
+        self.runner.runner.test_scenario.test_runs = [new_tr]
         asyncio.run(self.runner.run())
+        self.test_run = self.runner.runner.test_scenario.test_runs[0]
 
         observation = self.get_observation(action)
         reward = self.compute_reward(observation)
-        done = False
-        info = {}
 
         self.write_trajectory(self.test_run.step, action, reward, observation)
 
-        return observation, reward, done, info
+        return observation, reward, False, {}
 
     def render(self, mode: str = "human"):
         """

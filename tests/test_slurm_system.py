@@ -272,6 +272,7 @@ def test_is_job_completed(stdout: str, stderr: str, is_completed: bool, slurm_sy
         ("CANCELLED", "", False),
         ("TIMEOUT", "", False),
         ("", "error", False),
+        ("   RUNNING \n   RUNNING \n   RUNNING \n COMPLETED \n    FAILED \n   RUNNING \n", "", True),
     ],
 )
 def test_is_job_running(stdout: str, stderr: str, is_running: bool, slurm_system: SlurmSystem):
@@ -285,6 +286,35 @@ def test_is_job_running(stdout: str, stderr: str, is_running: bool, slurm_system
             slurm_system.is_job_running(job)
     else:
         assert slurm_system.is_job_running(job) is is_running
+
+
+@pytest.mark.parametrize(
+    "stdout,stderr, expected",
+    [
+        ("", "error", None),
+        (  # a real stdout example
+            """coreai_dlalgo_llm-TestTemplate.20250414_004818,COMPLETED,144,
+batch,COMPLETED,144,
+extern,COMPLETED,144,
+bash,COMPLETED,23,
+bash,COMPLETED,29,
+all_reduce_perf_mpi,COMPLETED,46,""",
+            "",
+            ("coreai_dlalgo_llm-TestTemplate.20250414_004818", "COMPLETED", "144"),
+        ),
+    ],
+)
+def test_get_job_status(slurm_system: SlurmSystem, stdout: str, stderr: str, expected: tuple):
+    job = BaseJob(test_run=Mock(), id=1)
+    pp = Mock()
+    pp.communicate = Mock(return_value=(stdout, stderr))
+    slurm_system.cmd_shell.execute = Mock(return_value=pp)
+
+    if stderr:
+        with pytest.raises(RuntimeError):
+            slurm_system.get_job_status(job)
+    else:
+        assert slurm_system.get_job_status(job) == expected
 
 
 def test_is_job_running_with_retries(slurm_system: SlurmSystem):

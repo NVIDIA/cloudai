@@ -55,7 +55,7 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
         ],
     )
     system.scheduler = "slurm"
-    system.monitor_interval = 10
+    system.monitor_interval = 0
     return system
 
 

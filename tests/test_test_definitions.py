@@ -21,7 +21,7 @@ import pytest
 import toml
 from pydantic import ValidationError
 
-from cloudai import Parser, Registry, TestConfigParsingError, TestParser
+from cloudai import GitRepo, Parser, PythonExecutable, Registry, TestConfigParsingError, TestParser
 from cloudai.models.workload import NsysConfiguration
 from cloudai.workloads.chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
 from cloudai.workloads.jax_toolbox import (
@@ -126,7 +126,14 @@ def test_chakra_docker_image_is_required():
             name="chakra",
             description="desc",
             test_template_name="chakra",
-            cmd_args=ChakraReplayCmdArgs(docker_image_url="fake://url/chakra"),
+            cmd_args=ChakraReplayCmdArgs(
+                docker_image_url="fake://url/chakra",
+                warmup_iters=0,
+                iters=10,
+            ),
+            comm_replay_executable=PythonExecutable(
+                git_repo=GitRepo(url="./git_repo", commit="commit"),
+            ),
         ),
     ],
 )
