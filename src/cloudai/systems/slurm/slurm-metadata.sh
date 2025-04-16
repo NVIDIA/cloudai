@@ -15,7 +15,8 @@ cpu_model_name = "$(lscpu 2>/dev/null | grep "Model name:" | sed 's/Model name:[
 cpu_arch_type = "$(lscpu 2>/dev/null | grep "Architecture:" | sed 's/Architecture:[[:space:]]*//' || echo null)"
 
 [mpi]
-ompi_version = "$(mpirun --version 2>/dev/null | grep -oP "(?<=\(Open MPI\) )[^\s]+$" || echo null)"
+mpi_type = "$(mpirun --version 2>/dev/null | grep -i "open mpi" -q && echo openmpi || echo null)"
+mpi_version = "$(mpirun --version 2>/dev/null | grep -oP "(?<=\(Open MPI\) )[^\s]+$" || echo null)"
 hpcx_version = "${hpcx_version:-null}"
 
 [cuda]
@@ -40,6 +41,5 @@ node_list = "${SLURM_NODELIST:-null}"
 num_nodes = "${SLURM_NNODES:-null}"
 ntasks_per_node = "${SLURM_NTASKS_PER_NODE:-null}"
 ntasks = "${SLURM_NTASKS:-null}"
-nnodes = "${SLURM_NNODES:-null}"
 job_id = "${SLURM_JOBID:-null}"
 EOF
