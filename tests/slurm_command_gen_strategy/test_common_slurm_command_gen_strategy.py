@@ -24,7 +24,6 @@ from cloudai import GitRepo, Test, TestRun, TestScenario, TestTemplate
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestSlurmCommandGenStrategy
-from tests.conftest import create_autospec_dataclass
 
 
 class MySlurmCommandGenStrategy(SlurmCommandGenStrategy):
