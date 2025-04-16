@@ -1,0 +1,20 @@
+name = "EOS"
+scheduler = "slurm"
+
+install_path = "./install"
+output_path = "./results"
+default_partition = "batch"
+
+account = "coreai_dlalgo_ci"
+distribution = "block"
+
+ntasks_per_node = 8
+
+[[partitions]]
+name = "backfill"
+
+[[partitions]]
+name = "batch"
+
+[[partitions]]
+name = "hp"
