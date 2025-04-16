@@ -316,27 +316,31 @@ Dependencies of a test can be described as a subsection of the test. It requires
 - `end_post_comp` means the test ends when the prior test completes
 
 
-## Configuring HTTP Data Repository Credentials
-To enable access to the HTTP Data Repository, you must create a local credential file that contains your authentication token.
+## Configuring HTTP Data Repository
+The HTTP Data Repository is currently supported for Slurm systems only. To enable access, you must update your system schema file and create a credential file in your CloudAI project's root directory.
 
-### Step 1: Create the Credential File
-Create a file named `.cloudai.toml` in the root of your CloudAI project directory.
+### Step 1: Update the System Schema File
+Add the following section to your system schema TOML file (e.g., `system_schema.toml`):
 
-### Step 2: Add Your Token
-Open the `.cloudai.toml` file and add the following structure:
+```toml
+[data_repository]
+endpoint = "https://my-data-endpoint.com"
+```
+
+Replace the endpoint with your actual data repository URL.
+
+### Step 2: Create the Credential File
+In the root of your CloudAI project (i.e., the current working directory), create a file named `.cloudai.toml` with the following content:
 
 ```toml
 [data_repository]
 token = "<your-api-token-here>"
 ```
 
-Replace <your-api-token-here> with your actual token value.
+Replace `<your-api-token-here>` with your actual token.
 
-### Step 3: Secure the File
-Ensure that the file is not committed to version control and has appropriate file permissions to prevent unauthorized access.
-
-### Step 4: Usage
-The token will be automatically loaded when using the HTTP Data Repository.
+### Step 3: Usage
+Both the endpoint and token must be valid for the HTTP Data Repository to function correctly. If either is missing or incorrect, data will not be posted.
 
 
 ## Downloading and Installing the NeMo Dataset (The Pile Dataset)
