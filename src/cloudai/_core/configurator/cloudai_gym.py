@@ -61,6 +61,7 @@ class CloudAIGymEnv(BaseGym):
         combined_dict = {
             **{f"{key}": value for key, value in cmd_args_dict.items()},
             **{f"extra_env_vars.{key}": value for key, value in extra_env_vars_dict.items()},
+            "NUM_NODES": self.test_run.num_nodes,
         }
 
         self.populate_action_space("", combined_dict, action_space)
@@ -123,13 +124,7 @@ class CloudAIGymEnv(BaseGym):
                 - done (bool): Whether the episode is done.
                 - info (dict): Additional info for debugging.
         """
-        for key, value in action.items():
-            if key.startswith("extra_env_vars."):
-                self.update_test_run_obj(
-                    self.test_run.test.test_definition.extra_env_vars, key[len("extra_env_vars.") :], value
-                )
-            else:
-                self.update_test_run_obj(self.test_run.test.test_definition.cmd_args, key, value)
+        self.update_test_run(action)
 
         if not self.test_run.test.test_definition.constraint_check:
             logging.info("Constraint check failed. Skipping step.")
@@ -147,6 +142,17 @@ class CloudAIGymEnv(BaseGym):
         self.write_trajectory(self.test_run.step, action, reward, observation)
 
         return observation, reward, False, {}
+
+    def update_test_run(self, action):
+        for key, value in action.items():
+            if key == "NUM_NODES":
+                self.test_run.num_nodes = value
+            if key.startswith("extra_env_vars."):
+                self.update_test_run_obj(
+                    self.test_run.test.test_definition.extra_env_vars, key[len("extra_env_vars.") :], value
+                )
+            else:
+                self.update_test_run_obj(self.test_run.test.test_definition.cmd_args, key, value)
 
     def render(self, mode: str = "human"):
         """

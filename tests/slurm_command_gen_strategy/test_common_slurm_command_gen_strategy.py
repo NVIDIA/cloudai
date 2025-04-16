@@ -95,13 +95,13 @@ def test_only_num_nodes(strategy_fixture: SlurmCommandGenStrategy):
     job_name_prefix = "test_job"
     env_vars: Dict[str, Union[str, List[str]]] = {"TEST_VAR": "VALUE"}
     cmd_args: Dict[str, Union[str, List[str]]] = {"test_arg": "test_value"}
-    tr = create_autospec(TestRun)
+    tr: TestRun = create_autospec(TestRun)
     tr.nodes = []
     tr.num_nodes = 3
 
     slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
-    assert slurm_args["num_nodes"] == tr.num_nodes
+    assert slurm_args["num_nodes"] == tr.nnodes
 
 
 def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
@@ -119,9 +119,7 @@ def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
 
 @pytest.mark.parametrize("time_limit", [None, "1:00:00"])
 def test_time_limit(time_limit: Optional[str], strategy_fixture: SlurmCommandGenStrategy):
-    tr = create_autospec_dataclass(TestRun)
-    tr.nodes = []
-    tr.time_limit = time_limit
+    tr = TestRun(name="", test=Mock(), num_nodes=1, nodes=[], time_limit=time_limit)
 
     slurm_args = strategy_fixture._parse_slurm_args("prefix", {}, {}, tr)
 

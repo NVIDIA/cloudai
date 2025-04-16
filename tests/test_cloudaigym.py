@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 
@@ -32,6 +32,26 @@ from cloudai.workloads.nemo_run import (
     TrainerStrategy,
 )
 from cloudai.workloads.nemo_run.report_generation_strategy import NeMoRunReportGenerationStrategy
+
+
+@pytest.fixture
+def nemorun() -> NeMoRunTestDefinition:
+    return NeMoRunTestDefinition(
+        name="",
+        description="",
+        test_template_name="",
+        cmd_args=NeMoRunCmdArgs(
+            docker_image_url="https://docker/url",
+            task="some_task",
+            recipe_name="some_recipe",
+            data=Data(micro_batch_size=[1, 2]),
+        ),
+        extra_env_vars={"ENV_VAR": ["10", "20"]},
+    )
+
+
+def wrap_into_tr(tdef: NeMoRunTestDefinition) -> TestRun:
+    return TestRun(name="", test=Test(test_definition=tdef, test_template=MagicMock()), num_nodes=[1, 2], nodes=[])
 
 
 @pytest.fixture
@@ -213,6 +233,19 @@ def test_populate_action_space_extra_env_args_list():
     assert action_space["extra_param_1"] == [10, 20]
 
 
+def test_populate_action_space_mixed(nemorun: NeMoRunTestDefinition) -> None:
+    nemorun.extra_env_vars = {"ENV_VAR": ["10", "20"]}
+    nemorun.cmd_args.data.micro_batch_size = [1, 2]
+    tr = wrap_into_tr(nemorun)
+    tr.num_nodes = [1, 2]
+    env = CloudAIGymEnv(test_run=tr, runner=Mock())
+    action_space = env.define_action_space()
+
+    assert action_space["data.micro_batch_size"] == [1, 2]
+    assert action_space["extra_env_vars.ENV_VAR"] == ["10", "20"]
+    assert action_space["NUM_NODES"] == [1, 2]
+
+
 def test_update_test_run_obj():
     env = CloudAIGymEnv(test_run=MagicMock(), runner=MagicMock())
 
@@ -245,6 +278,19 @@ def test_update_test_run_obj():
 
     env.update_test_run_obj(cmd_args, "trainer.num_nodes", [3, 4])
     assert cmd_args.trainer.num_nodes == [3, 4]
+
+
+def test_update_test_run_obj_mixed(nemorun: NeMoRunTestDefinition) -> None:
+    nemorun.extra_env_vars = {"ENV_VAR": ["10", "20"]}
+    nemorun.cmd_args.data.micro_batch_size = [1, 2]
+    tr = wrap_into_tr(nemorun)
+    tr.num_nodes = [1, 2]
+
+    env = CloudAIGymEnv(test_run=tr, runner=Mock())
+    env.update_test_run({"data.micro_batch_size": 1, "extra_env_vars.ENV_VAR": "20", "NUM_NODES": 2})
+    assert env.test_run.test.test_definition.cmd_args.data.micro_batch_size == 1
+    assert env.test_run.test.test_definition.extra_env_vars["ENV_VAR"] == "20"
+    assert env.test_run.num_nodes == 2
 
 
 def test_tr_output_path(setup_env: tuple[TestRun, Runner]):

@@ -174,14 +174,3 @@ class TestDefinition(BaseModel, ABC):
     @property
     def constraint_check(self) -> bool:
         return True
-
-    @property
-    def is_dse_job(self) -> bool:
-        def check_dict(d: dict) -> bool:
-            if isinstance(d, dict):
-                for value in d.values():
-                    if isinstance(value, list) or (isinstance(value, dict) and check_dict(value)):
-                        return True
-            return False
-
-        return check_dict(self.cmd_args_dict) or check_dict(self.extra_env_vars)

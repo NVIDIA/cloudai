@@ -19,7 +19,7 @@ import logging
 import re
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Set, Type
+from typing import Any, Dict, List, Literal, Optional, Set, Type, Union
 
 import toml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -123,7 +123,7 @@ class _TestRunTOML(BaseModel):
 
     id: str = Field(min_length=1)
     test_name: str
-    num_nodes: Optional[int] = None
+    num_nodes: Optional[Union[int, list[int]]] = None
     nodes: list[str] = Field(default_factory=list)
     weight: int = 0
     iterations: int = 1
@@ -320,7 +320,7 @@ class TestScenarioParser:
             reports=get_reporters(test_info, test.test_definition),
         )
 
-        if test.test_definition.is_dse_job and not tr.metric_reporter:
+        if tr.is_dse_job and not tr.metric_reporter:
             report_metrics_map = {r: r.metrics for r in tr.reports}
             logging.error(f"Failed to parse Test Scenario definition: {self.file_path}")
             msg = (

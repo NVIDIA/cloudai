@@ -151,7 +151,7 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
             raise ValueError("installed_path should never be None")
         git_repo_path = tdef.comm_replay_executable.git_repo.installed_path.resolve()
 
-        num_nodes = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)[0]
+        num_nodes = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes)[0]
         ntasks_per_node = self.system.ntasks_per_node or 1
         total_tasks = num_nodes * ntasks_per_node
 

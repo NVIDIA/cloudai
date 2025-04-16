@@ -30,7 +30,7 @@ def create_test_directories(slurm_system: SlurmSystem, test_run: TestRun) -> Non
     for iteration in range(test_run.iterations):
         folder = test_dir / str(iteration)
         folder.mkdir(exist_ok=True, parents=True)
-        if test_run.test.test_definition.is_dse_job:
+        if test_run.is_dse_job:
             for step in range(test_run.test.test_definition.agent_steps):
                 (folder / str(step)).mkdir(exist_ok=True, parents=True)
 

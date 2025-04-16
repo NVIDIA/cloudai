@@ -16,24 +16,40 @@
 
 import pytest
 
+from cloudai._core.test import Test
+from cloudai._core.test_scenario import TestRun
+from cloudai._core.test_template import TestTemplate
+from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 
 @pytest.fixture
-def tdef():
-    return NCCLTestDefinition(name="nccl", description="NCCL Test", test_template_name="nccl", cmd_args=NCCLCmdArgs())
+def tr(slurm_system: SlurmSystem) -> TestRun:
+    tdef = NCCLTestDefinition(name="nccl", description="NCCL Test", test_template_name="nccl", cmd_args=NCCLCmdArgs())
+    return TestRun(
+        name="test_run",
+        test=Test(test_definition=tdef, test_template=TestTemplate(system=slurm_system, name="nccl")),
+        num_nodes=1,
+        nodes=[],
+        output_path=slurm_system.output_path,
+    )
 
 
-def test_is_dse_job_non_dse(tdef: NCCLTestDefinition):
-    assert tdef.is_dse_job is False
+def test_is_dse_job_non_dse(tr: TestRun):
+    assert tr.is_dse_job is False
 
 
-def test_is_dse_job_dse_args(tdef: NCCLTestDefinition):
-    tdef.cmd_args.nthreads = [1, 2]
-    tdef.extra_env_vars = {"VAR1": "singular"}
-    assert tdef.is_dse_job is True
+def test_is_dse_job_dse_args(tr: TestRun):
+    tr.test.test_definition.cmd_args.nthreads = [1, 2]
+    tr.test.test_definition.extra_env_vars = {"VAR1": "singular"}
+    assert tr.is_dse_job is True
 
 
-def test_is_dse_job_dse_env_vars(tdef: NCCLTestDefinition):
-    tdef.extra_env_vars = {"VAR1": ["list-item1", "list-item2"], "VAR2": "singular3"}
-    assert tdef.is_dse_job is True
+def test_is_dse_job_dse_env_vars(tr: TestRun):
+    tr.test.test_definition.extra_env_vars = {"VAR1": ["list-item1", "list-item2"], "VAR2": "singular3"}
+    assert tr.is_dse_job is True
+
+
+def test_is_dse_job_num_nodes(tr: TestRun):
+    tr.num_nodes = [1, 2]
+    assert tr.is_dse_job is True
