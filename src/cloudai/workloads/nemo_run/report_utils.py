@@ -15,10 +15,12 @@
 # limitations under the License.
 
 import logging
+from functools import cache
 from pathlib import Path
 from typing import List
 
 
+@cache
 def parse_step_timings(filepath: Path) -> List[float]:
     if not filepath.exists():
         logging.debug(f"{filepath} not found")
