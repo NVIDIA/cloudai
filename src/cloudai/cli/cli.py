@@ -128,7 +128,7 @@ class CloudAICLI:
                 desc,
                 handle_dry_run_and_run,
                 system_config=True,
-                tests_dir=True,
+                tests_dir=False,
                 test_scenario=True,
                 output_dir=False,
             )
@@ -152,7 +152,7 @@ class CloudAICLI:
                 desc,
                 handle_install_and_uninstall,
                 system_config=True,
-                tests_dir=True,
+                tests_dir=False,
                 test_scenario=False,
                 output_dir=False,
             )
