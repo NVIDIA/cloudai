@@ -158,11 +158,12 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd_args: Dict[str, Any],
         tr: TestRun,
     ) -> str:
-        self._create_run_script(env_vars, cmd_args, tr.test.extra_cmd_args)
+        tdef = cast(Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition], tr.test.test_definition)
+        tdef_cmd_args = tdef.cmd_args_dict
 
-        commands = []
-        load_container = cmd_args.get("load_container", False)
-        if load_container:
+        self._create_run_script(env_vars, tdef_cmd_args, tr.test.extra_cmd_args)
+        commands: List[str] = []
+        if tdef_cmd_args["load_container"]:
             commands += self._generate_container_load_command(slurm_args)
         commands += self._generate_run_command(slurm_args, tr)
 
@@ -262,24 +263,24 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             str: The formatted Python command string to be executed within a Slurm job.
         """
         fdl_config = cmd_args.get(f"{self.test_name}.fdl_config")
-        parts = [
+        parts: List[str] = [
             "python3 -u -m paxml.main",
             "--num_hosts=$SLURM_NTASKS",
             "--server_addr=$SLURM_JOB_MASTER_NODE:12345",
             "--host_idx=$SLURM_PROCID",
-            f"--job_log_dir={cmd_args[f'{self.test_name}.setup_flags.docker_workspace_dir']}",
-            f"--tfds_data_dir={cmd_args[f'{self.test_name}.setup_flags.tfds_data_dir']}",
-            f"--enable_checkpoint_saving={cmd_args[f'{self.test_name}.setup_flags.enable_checkpoint_saving']}",
+            f"--job_log_dir={cmd_args.get(f'{self.test_name}.setup_flags.docker_workspace_dir')}",
+            f"--tfds_data_dir={cmd_args.get(f'{self.test_name}.setup_flags.tfds_data_dir')}",
+            f"--enable_checkpoint_saving={cmd_args.get(f'{self.test_name}.setup_flags.enable_checkpoint_saving')}",
             "--multiprocess_gpu",
             "--alsologtostderr",
             f'--fdl_config="{fdl_config}"',
         ]
 
-        fdl_args: Dict[str, str] = {}
-        for cmd_arg in cmd_args:
-            if f"{self.test_name}.fdl." in cmd_arg:
-                fdl_key = cmd_arg.replace(f"{self.test_name}.fdl.", "")
-                fdl_args[fdl_key] = cmd_args[cmd_arg]
+        fdl_args: Dict[str, Any] = {}
+        for key, value in cmd_args.items():
+            if key.startswith(f"{self.test_name}.fdl."):
+                fdl_key = key.replace(f"{self.test_name}.fdl.", "")
+                fdl_args[fdl_key] = value
 
         for key, value in sorted(fdl_args.items()):
             parts.append(f"--fdl.{key.upper()}={value}")
