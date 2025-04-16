@@ -169,14 +169,14 @@ def test_extract_timings_valid_file(tmp_path: Path) -> None:
     assert timings == [12.65, 12.66], "Timings extraction failed for valid file."
 
 
-def test_extract_timings_missing_file(slurm_system: SlurmSystem, tmp_path: Path) -> None:
+def test_extract_timings_missing_file(tmp_path: Path) -> None:
     stdout_file = tmp_path / "missing_stdout.txt"
 
     timings = extract_timings(stdout_file)
     assert timings == [], "Timings extraction should return an empty list for missing file."
 
 
-def test_extract_timings_invalid_content(slurm_system: SlurmSystem, tmp_path: Path) -> None:
+def test_extract_timings_invalid_content(tmp_path: Path) -> None:
     stdout_file = tmp_path / "stdout.txt"
     stdout_file.write_text("Invalid content without timing information\n")
 
@@ -184,7 +184,7 @@ def test_extract_timings_invalid_content(slurm_system: SlurmSystem, tmp_path: Pa
     assert timings == [], "Timings extraction should return an empty list for invalid content."
 
 
-def test_extract_timings_file_not_found(slurm_system: SlurmSystem, tmp_path: Path) -> None:
+def test_extract_timings_file_not_found(tmp_path: Path) -> None:
     stdout_file = tmp_path / "nonexistent_stdout.txt"
 
     timings = extract_timings(stdout_file)
