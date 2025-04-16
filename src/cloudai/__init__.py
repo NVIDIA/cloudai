@@ -37,7 +37,7 @@ from ._core.job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from ._core.json_gen_strategy import JsonGenStrategy
 from ._core.registry import Registry
 from ._core.report_generation_strategy import ReportGenerationStrategy
-from ._core.reporter import PerTestReporter, Reporter, StatusReporter
+from ._core.reporter import PerTestReporter, Reporter, StatusReporter, TarballReporter
 from ._core.runner import Runner
 from ._core.system import System
 from ._core.test import CmdArgs, NsysConfiguration, PredictorConfig, Test, TestDefinition
@@ -294,6 +294,7 @@ Registry().add_report(UCCTestDefinition, UCCTestReportGenerationStrategy)
 
 Registry().add_scenario_report(PerTestReporter)
 Registry().add_scenario_report(StatusReporter)
+Registry().add_scenario_report(TarballReporter)
 
 __all__ = [
     "BaseAgent",
