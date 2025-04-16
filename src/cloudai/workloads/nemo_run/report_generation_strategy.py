@@ -16,55 +16,82 @@
 
 import logging
 import os
+from functools import cache
 from pathlib import Path
-from typing import ClassVar, Dict, List
+from typing import ClassVar
 
 import numpy as np
 
 from cloudai import ReportGenerationStrategy
 from cloudai._core.test_scenario import METRIC_ERROR
 
-from .report_utils import parse_step_timings
+
+@cache
+def extract_timings(stdout_file: Path) -> list[float]:
+    if not stdout_file.exists():
+        logging.debug(f"{stdout_file} not found")
+        return []
+
+    train_step_timings: list[float] = []
+    step_timings: list[float] = []
+
+    with open(stdout_file, "r", encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            if "train_step_timing in s:" in line:
+                try:
+                    timing = float(line.split("train_step_timing in s:")[1].strip().split()[0])
+                    train_step_timings.append(timing)
+                    if "global_step:" in line:
+                        global_step = int(line.split("global_step:")[1].split("|")[0].strip())
+                        if 80 <= global_step <= 100:
+                            step_timings.append(timing)
+                except (ValueError, IndexError):
+                    continue
+
+    if not train_step_timings:
+        logging.debug(f"No train_step_timing found in {stdout_file}")
+        return []
+
+    if len(step_timings) < 20:
+        step_timings = train_step_timings[1:]
+
+    return step_timings
 
 
 class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
     """Strategy for generating reports from NeMoRun directories."""
 
-    metrics: ClassVar[List[str]] = ["default", "step-time"]
-
-    @property
-    def results_file(self) -> Path:
-        return self.test_run.output_path / "stdout.txt"
+    metrics: ClassVar[list[str]] = ["default", "step-time"]
 
     def can_handle_directory(self) -> bool:
         for _, __, files in os.walk(self.test_run.output_path):
             for file in files:
-                if file.startswith("stdout.txt") and parse_step_timings(self.test_run.output_path / file):
+                if file.startswith("stdout.txt") and extract_timings(self.test_run.output_path / file):
                     return True
         return False
+
+    @property
+    def results_file(self) -> Path:
+        return self.test_run.output_path / "stdout.txt"
 
     def generate_report(self) -> None:
         if not self.results_file.exists():
             logging.error(f"{self.results_file} not found")
             return
 
-        train_step_timings: List[float] = parse_step_timings(self.results_file)
-        if not train_step_timings:
-            logging.error(f"No valid step step_timings found in {self.results_file}. Report generation aborted.")
+        step_timings = extract_timings(self.results_file)
+        if not step_timings:
+            logging.error(f"No valid step timings found in {self.results_file}. Report generation aborted.")
             return
 
-        self._write_summary_file(self._compute_statistics(train_step_timings))
-
-    def _compute_statistics(self, step_timings: List[float]) -> Dict[str, float]:
-        return {
-            "avg": float(np.mean(step_timings)),
-            "median": float(np.median(step_timings)),
-            "min": float(np.min(step_timings)),
-            "max": float(np.max(step_timings)),
+        stats = {
+            "avg": np.mean(step_timings),
+            "median": np.median(step_timings),
+            "min": np.min(step_timings),
+            "max": np.max(step_timings),
         }
 
-    def _write_summary_file(self, stats: Dict[str, float]) -> None:
-        summary_file: Path = self.test_run.output_path / "report.txt"
+        summary_file = self.test_run.output_path / "report.txt"
         with open(summary_file, "w") as f:
             f.write("Average: {avg}\n".format(avg=stats["avg"]))
             f.write("Median: {median}\n".format(median=stats["median"]))
@@ -73,7 +100,7 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
 
     def get_metric(self, metric: str) -> float:
         logging.debug(f"Getting metric {metric} from {self.results_file.absolute()}")
-        step_timings = parse_step_timings(self.results_file)
+        step_timings = extract_timings(self.results_file)
         if not step_timings:
             return METRIC_ERROR
 

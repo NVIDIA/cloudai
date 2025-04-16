@@ -31,7 +31,7 @@ from cloudai.systems.slurm import SlurmSystem
 
 from .http_data_repository import HttpDataRepository
 from .nemo_run import NeMoRunTestDefinition
-from .report_utils import parse_step_timings
+from .report_generation_strategy import extract_timings
 
 
 class NeMoRunDataStoreReportGenerationStrategy(ReportGenerationStrategy):
@@ -44,7 +44,7 @@ class NeMoRunDataStoreReportGenerationStrategy(ReportGenerationStrategy):
     def can_handle_directory(self) -> bool:
         for _, __, files in os.walk(self.test_run.output_path):
             for file in files:
-                if file.startswith("stdout.txt") and parse_step_timings(self.test_run.output_path / file):
+                if file.startswith("stdout.txt") and extract_timings(self.test_run.output_path / file):
                     return True
         return False
 
@@ -54,7 +54,7 @@ class NeMoRunDataStoreReportGenerationStrategy(ReportGenerationStrategy):
         self._publish(raw_data)
 
     def _collect_raw_data(self) -> Dict[str, object]:
-        step_timings: List[float] = parse_step_timings(self.results_file)
+        step_timings: List[float] = extract_timings(self.results_file)
         if not step_timings:
             return {}
         tdef = cast(NeMoRunTestDefinition, self.test_run.test.test_definition)
