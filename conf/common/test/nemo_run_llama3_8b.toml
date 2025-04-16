@@ -19,9 +19,9 @@ description = "dse_nemo_run_llama3_8b"
 test_template_name = "NeMoRun"
 
 [cmd_args]
-docker_image_url = "nvcr.io/nvidia/nemo:24.12.rc3"
+docker_image_url = "nvcr.io/nvidia/nemo:25.04.rc2"
 task = "pretrain"
-recipe_name = "llama3_8b"
+recipe_name = "cloudai_llama3_8b_recipe"
 
   [cmd_args.data]
   seq_length = 8192
@@ -30,14 +30,24 @@ recipe_name = "llama3_8b"
 
   [cmd_args.trainer]
   max_steps = 100
-  val_check_interval = 1000
+  val_check_interval = 100
   num_nodes = 1
 
     [cmd_args.trainer.strategy]
-    tensor_model_parallel_size = 1
+    tensor_model_parallel_size = 4
     pipeline_model_parallel_size = 1
     context_parallel_size = 2
 
-  [cmd_args.log.ckpt]
-  save_on_train_epoch_end = false
-  save_last = false
+[extra_env_vars]
+NCCL_P2P_NET_CHUNKSIZE = "2097152"
+TORCHX_MAX_RETRIES = "0"
+TRANSFORMERS_OFFLINE = "0"
+NCCL_NVLS_ENABLE = "0"
+NVTE_DP_AMAX_REDUCE_INTERVAL = "0"
+NVTE_ASYNC_AMAX_REDUCTION = "1"
+NVTE_FUSED_ATTN = "1"
+NVTE_FLASH_ATTN = "1"
+NEMO_LOG_MEMORY_USAGE = "1"
+CUDA_DEVICE_MAX_CONNECTIONS = "1"
+NVTE_FWD_LAYERNORM_SM_MARGIN = "16"
+NVTE_BWD_LAYERNORM_SM_MARGIN = "16"
