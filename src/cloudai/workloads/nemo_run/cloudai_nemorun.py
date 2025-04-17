@@ -909,6 +909,7 @@ if __name__ == "__main__":
         "cloudai_nemotron3_8b_recipe",
         "cloudai_nemotron4_15b_recipe",
         "cloudai_nemotron4_340b_recipe",
+        "cloudai_qa_llama3_8b_recipe"
     ]
 
     recipe_name = os.getenv("CLOUDAI_NEMO_RECIPE")
