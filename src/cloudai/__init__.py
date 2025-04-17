@@ -37,7 +37,7 @@ from ._core.job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from ._core.json_gen_strategy import JsonGenStrategy
 from ._core.registry import Registry
 from ._core.report_generation_strategy import ReportGenerationStrategy
-from ._core.reporter import PerTestReporter, Reporter, StatusReporter
+from ._core.reporter import PerTestReporter, Reporter, StatusReporter, TarballReporter
 from ._core.runner import Runner
 from ._core.system import System
 from ._core.test import CmdArgs, NsysConfiguration, PredictorConfig, Test, TestDefinition
@@ -104,7 +104,12 @@ from .workloads.nemo_launcher import (
     NeMoLauncherSlurmJobIdRetrievalStrategy,
     NeMoLauncherTestDefinition,
 )
-from .workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunSlurmCommandGenStrategy, NeMoRunTestDefinition
+from .workloads.nemo_run import (
+    NeMoRunDataStoreReportGenerationStrategy,
+    NeMoRunReportGenerationStrategy,
+    NeMoRunSlurmCommandGenStrategy,
+    NeMoRunTestDefinition,
+)
 from .workloads.sleep import (
     SleepGradingStrategy,
     SleepKubernetesJsonGenStrategy,
@@ -281,6 +286,7 @@ Registry().add_report(MegatronRunTestDefinition, CheckpointTimingReportGeneratio
 Registry().add_report(NCCLTestDefinition, NcclTestPerformanceReportGenerationStrategy)
 Registry().add_report(NeMoLauncherTestDefinition, NeMoLauncherReportGenerationStrategy)
 Registry().add_report(NeMoRunTestDefinition, NeMoRunReportGenerationStrategy)
+Registry().add_report(NeMoRunTestDefinition, NeMoRunDataStoreReportGenerationStrategy)
 Registry().add_report(NemotronTestDefinition, JaxToolboxReportGenerationStrategy)
 Registry().add_report(SleepTestDefinition, SleepReportGenerationStrategy)
 Registry().add_report(SlurmContainerTestDefinition, SlurmContainerReportGenerationStrategy)
@@ -288,6 +294,7 @@ Registry().add_report(UCCTestDefinition, UCCTestReportGenerationStrategy)
 
 Registry().add_scenario_report(PerTestReporter)
 Registry().add_scenario_report(StatusReporter)
+Registry().add_scenario_report(TarballReporter)
 
 __all__ = [
     "BaseAgent",

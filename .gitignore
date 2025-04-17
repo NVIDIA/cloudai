@@ -89,3 +89,4 @@ Thumbs.db
 install/
 results/
 .*
+.cloudai.toml

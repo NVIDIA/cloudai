@@ -31,7 +31,8 @@ class MetadataSystem(BaseModel):
 class MetadataMPI(BaseModel):
     """Represents the MPI metadata."""
 
-    ompi_version: str
+    mpi_type: str
+    mpi_version: str
     hpcx_version: str
 
 
@@ -68,7 +69,6 @@ class MetadataSlurm(BaseModel):
     num_nodes: str
     ntasks_per_node: str
     ntasks: str
-    nnodes: str
     job_id: str
 
 
