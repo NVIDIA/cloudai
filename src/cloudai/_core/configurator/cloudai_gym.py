@@ -147,7 +147,7 @@ class CloudAIGymEnv(BaseGym):
         for key, value in action.items():
             if key == "NUM_NODES":
                 self.test_run.num_nodes = value
-            if key.startswith("extra_env_vars."):
+            elif key.startswith("extra_env_vars."):
                 self.update_test_run_obj(
                     self.test_run.test.test_definition.extra_env_vars, key[len("extra_env_vars.") :], value
                 )

@@ -291,6 +291,7 @@ def test_update_test_run_obj_mixed(nemorun: NeMoRunTestDefinition) -> None:
     assert env.test_run.test.test_definition.cmd_args.data.micro_batch_size == 1
     assert env.test_run.test.test_definition.extra_env_vars["ENV_VAR"] == "20"
     assert env.test_run.num_nodes == 2
+    assert "NUM_NODES" not in env.test_run.test.test_definition.cmd_args_dict
 
 
 def test_tr_output_path(setup_env: tuple[TestRun, Runner]):
