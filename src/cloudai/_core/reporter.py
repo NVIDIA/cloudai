@@ -184,7 +184,7 @@ class TarballReporter(Reporter):
         return tr.test.test_template.get_job_status(tr.output_path).is_successful
 
     def create_tarball(self, directory: Path) -> None:
-        tarball_path = directory.with_suffix(".tgz")
+        tarball_path = Path(str(directory) + ".tgz")
         with tarfile.open(tarball_path, "w:gz") as tar:
             tar.add(directory, arcname=directory.name)
         logging.info(f"Created tarball at {tarball_path}")
