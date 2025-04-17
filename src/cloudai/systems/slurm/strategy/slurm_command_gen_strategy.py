@@ -132,7 +132,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             KeyError: If partition or essential node settings are missing.
         """
         job_name = self.job_name(job_name_prefix)
-        num_nodes, node_list = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
+        num_nodes, node_list = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes)
 
         slurm_args = {
             "job_name": job_name,
@@ -300,7 +300,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
     def _metadata_cmd(self, slurm_args: dict[str, Any], tr: TestRun) -> str:
         (tr.output_path.absolute() / "metadata").mkdir(parents=True, exist_ok=True)
-        num_nodes, _ = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
+        num_nodes, _ = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes)
         metadata_script_path = "/cloudai_install"
         if "image_path" not in slurm_args:
             metadata_script_path = str(self.system.install_path.absolute())
