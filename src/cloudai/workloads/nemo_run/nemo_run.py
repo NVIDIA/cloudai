@@ -142,6 +142,7 @@ class NeMoRunTestDefinition(TestDefinition):
 
         constraint1 = num_gpus % (tp * pp * cp) == 0
         constraint2 = True if vp is None else (num_layers // pp) % vp == 0
-        constraint3 = gbs % (mbs * dp) == 0
+        constraint3 = dp != 0
+        constraint4 = gbs % (mbs * dp) == 0 if dp != 0 else False
 
-        return constraint1 and constraint2 and constraint3
+        return constraint1 and constraint2 and constraint3 and constraint4
