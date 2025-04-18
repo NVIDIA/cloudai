@@ -14,8 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import getpass
 import logging
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -26,6 +28,46 @@ from ..._core.installables import File, Installable
 from ..._core.system import System
 from ...util import CommandShell
 from .slurm_node import SlurmNode, SlurmNodeState
+
+
+@dataclass(frozen=True)
+class ShareEntry:
+    """
+    Represents an entry in the Slurm share table.
+
+    Attributes:
+        account (str): The account name.
+        jobs (int): The number of jobs.
+        normshares (float): The normalized shares.
+        rawusage (float): The raw usage.
+        effectvusage (float): The effective usage.
+        fairshare (float): The fair share.
+    """
+
+    account: str
+    jobs: int
+    normshares: float
+    rawusage: float
+    effectvusage: float
+    fairshare: float
+
+    @staticmethod
+    def from_line(line: str) -> Optional["ShareEntry"]:
+        parts = line.split()
+        if len(parts) < 7:
+            return None
+        account, _, jobs, normshares, rawusage, effectvusage, fairshare = parts[:7]
+        return ShareEntry(
+            account=account,
+            jobs=int(jobs),
+            normshares=float(normshares),
+            rawusage=float(rawusage),
+            effectvusage=float(effectvusage),
+            fairshare=float(fairshare),
+        )
+
+    def score(self, weight_effect: float = 0.5, weight_fair: float = 0.5) -> float:
+        return weight_effect * (1.0 / (self.effectvusage + 1e-6)) + weight_fair * self.fairshare
 
 
 class SlurmJobMetadata(BaseModel):
@@ -141,6 +183,49 @@ class SlurmSystem(BaseModel, System):
     extra_sbatch_args: list[str] = []
 
     data_repository: Optional[DataRepositoryConfig] = None
+
+    def model_post_init(self, __context: Any) -> None:
+        del __context
+        try:
+            best = self.best_account
+            if self.account is None:
+                if best:
+                    self.account = best
+                    logging.info(f"Auto-selected Slurm account: {best}")
+            elif best and self.account != best:
+                logging.warning(f"Selected account '{self.account}' is suboptimal; '{best}' is better.")
+        except Exception:
+            pass
+
+    @property
+    def best_account(self) -> Optional[str]:
+        stdout, _ = self.fetch_command_output("sshare --parsable")
+        entries = self.parse_sshare_output(stdout)
+        if not entries:
+            return None
+        return max(entries, key=lambda e: e.fairshare).account
+
+    def parse_sshare_output(self, output: str) -> List[ShareEntry]:
+        me = getpass.getuser()
+        entries: List[ShareEntry] = []
+        for line in output.strip().splitlines():
+            cols = [c.strip() for c in line.split("|")]
+            if len(cols) < 7 or cols[0].lower() == "account":
+                continue
+            account, user, raw, norm, rawu, effu, fair = cols[:7]
+            if user != me:
+                continue
+            entries.append(
+                ShareEntry(
+                    account=account,
+                    jobs=int(raw),
+                    normshares=float(norm),
+                    rawusage=float(rawu),
+                    effectvusage=float(effu),
+                    fairshare=float(fair),
+                )
+            )
+        return entries
 
     @property
     def groups(self) -> Dict[str, Dict[str, List[SlurmNode]]]:
