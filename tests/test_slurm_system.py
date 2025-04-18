@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import getpass
+import logging
 import re
 from pathlib import Path
 from typing import Dict, List
@@ -25,6 +27,11 @@ from cloudai import BaseJob
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm import SlurmNode, SlurmNodeState
 from cloudai.systems.slurm.slurm_system import parse_node_list
+
+
+@pytest.fixture(autouse=True)
+def fake_user(monkeypatch):
+    monkeypatch.setattr(getpass, "getuser", lambda: "cloudai_user")
 
 
 def test_parse_squeue_output(slurm_system):
@@ -388,3 +395,111 @@ class TestParseNodes:
     def test_colon_invalid_syntax(self, slurm_system: SlurmSystem, spec: str):
         with pytest.raises(ValueError):
             slurm_system.parse_nodes([spec])
+
+
+def test_parse_sshare_output_filters_only_current_user() -> None:
+    sl = SlurmSystem(
+        name="x",
+        install_path=Path("."),
+        output_path=Path("."),
+        default_partition="p",
+        partitions=[],
+    )
+    raw = "\n".join(
+        [
+            "acctA|cloudai_user|1|0.1|0|0.01|0.2|",
+            "acctB|other      |1|0.1|0|0.02|0.3|",
+        ]
+    )
+    entries = sl.parse_sshare_output(raw)
+    assert len(entries) == 1
+    assert entries[0].account == "acctA"
+
+
+def test_best_account_returns_none_if_no_entries(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(SlurmSystem, "fetch_command_output", lambda self, cmd: ("", ""))
+    sl = SlurmSystem(
+        name="x",
+        install_path=Path("."),
+        output_path=Path("."),
+        default_partition="p",
+        partitions=[],
+    )
+    assert sl.best_account is None
+
+
+def test_best_account_picks_highest_score(monkeypatch: pytest.MonkeyPatch) -> None:
+    parsable = "\n".join(
+        [
+            "good  |cloudai_user|1|0.1|0|0.01|0.1|",
+            "better|cloudai_user|2|0.2|0|0.02|0.5|",
+        ]
+    )
+    monkeypatch.setattr(SlurmSystem, "fetch_command_output", lambda self, cmd: (parsable, ""))
+    sl = SlurmSystem(
+        name="x",
+        install_path=Path("."),
+        output_path=Path("."),
+        default_partition="p",
+        partitions=[],
+    )
+    assert sl.best_account == "better"
+
+
+def test_model_post_init_auto_sets_account(monkeypatch: pytest.MonkeyPatch) -> None:
+    parsable = "\n".join(
+        [
+            "a1|cloudai_user|1|0.1|0|0.01|0.2|",
+            "a2|cloudai_user|2|0.2|0|0.02|0.3|",
+        ]
+    )
+    monkeypatch.setattr(SlurmSystem, "fetch_command_output", lambda self, cmd: (parsable, ""))
+    sl = SlurmSystem(
+        name="x",
+        install_path=Path("."),
+        output_path=Path("."),
+        default_partition="p",
+        partitions=[],
+        account=None,
+    )
+    assert sl.account == "a2"
+
+
+def test_model_post_init_warns_if_suboptimal(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    parsable = "\n".join(
+        [
+            "best|cloudai_user|1|0.1|0|0.01|0.9|",
+            "bad |cloudai_user|1|0.1|0|0.02|0.1|",
+        ]
+    )
+    monkeypatch.setattr(SlurmSystem, "fetch_command_output", lambda self, cmd: (parsable, ""))
+    caplog.set_level(logging.WARNING)
+    sl = SlurmSystem(
+        name="x",
+        install_path=Path("."),
+        output_path=Path("."),
+        default_partition="p",
+        partitions=[],
+        account="bad",
+    )
+    assert "suboptimal" in caplog.text
+    assert "best" in caplog.text
+    assert sl.account == "bad"
+
+
+def test_model_post_init_no_warning_when_optimal(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    parsable = "only|cloudai_user|1|0.1|0|0.01|0.5|"
+    monkeypatch.setattr(SlurmSystem, "fetch_command_output", lambda self, cmd: (parsable, ""))
+    caplog.set_level(logging.WARNING)
+    sl = SlurmSystem(
+        name="x",
+        install_path=Path("."),
+        output_path=Path("."),
+        default_partition="p",
+        partitions=[],
+        account="only",
+    )
+    assert caplog.text == ""
+    assert sl.account == "only"
