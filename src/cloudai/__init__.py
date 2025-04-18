@@ -106,6 +106,7 @@ from .workloads.nemo_launcher import (
 )
 from .workloads.nemo_run import (
     NeMoRunDataStoreReportGenerationStrategy,
+    NeMoRunJobStatusRetrievalStrategy,
     NeMoRunReportGenerationStrategy,
     NeMoRunSlurmCommandGenStrategy,
     NeMoRunTestDefinition,
@@ -219,12 +220,17 @@ Registry().add_strategy(
 Registry().add_strategy(
     JobStatusRetrievalStrategy,
     [SlurmSystem],
+    [NeMoRunTestDefinition],
+    NeMoRunJobStatusRetrievalStrategy,
+)
+Registry().add_strategy(
+    JobStatusRetrievalStrategy,
+    [SlurmSystem],
     [
         ChakraReplayTestDefinition,
         UCCTestDefinition,
         NeMoLauncherTestDefinition,
         SleepTestDefinition,
-        NeMoRunTestDefinition,
         SlurmContainerTestDefinition,
         MegatronRunTestDefinition,
     ],
