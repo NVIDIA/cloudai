@@ -441,6 +441,14 @@ def cloudai_llama3_8b_recipe() -> run.Partial:
         resume=default_resume(),
         log=default_log(),
     )
+    recipe.trainer.callbacks.append(
+        run.Config(
+            FLOPsMeasurementCallback,
+            model_config=recipe.model.config,
+            data_config=recipe.data,
+        )
+    )
+    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
 
 
@@ -530,6 +538,7 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
             data_config=recipe.data,
         )
     )
+    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
 
 
@@ -601,6 +610,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
             data_config=recipe.data,
         )
     )
+    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
 
 
@@ -672,6 +682,7 @@ def cloudai_nemotron3_8b_recipe() -> run.Partial:
             data_config=recipe.data,
         )
     )
+    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
 
 
@@ -758,6 +769,7 @@ def cloudai_nemotron4_15b_recipe() -> run.Partial:
             data_config=recipe.data,
         )
     )
+    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
 
 
@@ -852,6 +864,7 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
             data_config=recipe.data,
         )
     )
+    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
 
 
