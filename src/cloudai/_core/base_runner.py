@@ -83,18 +83,16 @@ class BaseRunner(ABC):
             return
 
         total_tests = len(self.test_scenario.test_runs)
-        completed_jobs_count = 0
-
         dependency_free_trs = self.find_dependency_free_tests()
         for tr in dependency_free_trs:
             await self.submit_test(tr)
 
         logging.debug(f"Total tests: {total_tests}, dependency free tests: {[tr.name for tr in dependency_free_trs]}")
-        while completed_jobs_count < total_tests:
+        while self.jobs:
             await self.check_start_post_init_dependencies()
-            completed_jobs_count += await self.monitor_jobs()
+            completed_jobs_count = await self.monitor_jobs()
             logging.debug(
-                f"Completed jobs: {completed_jobs_count}, total tests: {total_tests}, "
+                f"Completed jobs in this cycle: {completed_jobs_count}, remaining jobs: {len(self.jobs)}, "
                 f"sleeping for {self.monitor_interval} seconds"
             )
             await asyncio.sleep(self.monitor_interval)
