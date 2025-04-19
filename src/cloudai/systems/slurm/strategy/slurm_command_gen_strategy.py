@@ -319,7 +319,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     def _enable_vboost_cmd(self, slurm_args: dict[str, Any], tr: TestRun) -> str:
         return " ".join(
             [
-                *self.gen_srun_prefix(slurm_args, tr),
+                "srun",
+                "--ntasks=1",
                 f"--output={tr.output_path.absolute() / 'vboost.out'}",
                 f"--error={tr.output_path.absolute() / 'vboost.err'}",
                 "bash",

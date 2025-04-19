@@ -42,6 +42,7 @@ from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import AutoResume, NeMoLogger
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
+from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
@@ -440,6 +441,15 @@ def cloudai_llama3_8b_recipe() -> run.Partial:
         resume=default_resume(),
         log=default_log(),
     )
+    recipe.trainer.callbacks.append(
+        run.Config(
+            FLOPsMeasurementCallback,
+            model_config=recipe.model.config,
+            data_config=recipe.data,
+            model_name="llama3",
+        )
+    )
+    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
 
 
@@ -522,6 +532,15 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
         ),
     )
     recipe.model.config.vocab_size = 128256
+    recipe.trainer.callbacks.append(
+        run.Config(
+            FLOPsMeasurementCallback,
+            model_config=recipe.model.config,
+            data_config=recipe.data,
+            model_name="llama3",
+        )
+    )
+    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
 
 
@@ -585,6 +604,16 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
             resume_past_end=True,
         ),
     )
+    recipe.model.config.vocab_size = 128256
+    recipe.trainer.callbacks.append(
+        run.Config(
+            FLOPsMeasurementCallback,
+            model_config=recipe.model.config,
+            data_config=recipe.data,
+            model_name="llama3",
+        )
+    )
+    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
 
 
@@ -599,7 +628,7 @@ def cloudai_nemotron3_8b_recipe() -> run.Partial:
             seq_length=2048,
             micro_batch_size=4,
             global_batch_size=8,
-            tokenizer=null_tokenizer(),
+            tokenizer=null_tokenizer(vocab_size=256000),
         ),
         trainer=run.Config(
             nl.Trainer,
@@ -648,6 +677,16 @@ def cloudai_nemotron3_8b_recipe() -> run.Partial:
             resume_past_end=True,
         ),
     )
+    recipe.model.config.vocab_size = 256000
+    recipe.trainer.callbacks.append(
+        run.Config(
+            FLOPsMeasurementCallback,
+            model_config=recipe.model.config,
+            data_config=recipe.data,
+            model_name="nemotron",
+        )
+    )
+    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
 
 
@@ -726,6 +765,16 @@ def cloudai_nemotron4_15b_recipe() -> run.Partial:
             resume_past_end=True,
         ),
     )
+    recipe.model.config.vocab_size = 256000
+    recipe.trainer.callbacks.append(
+        run.Config(
+            FLOPsMeasurementCallback,
+            model_config=recipe.model.config,
+            data_config=recipe.data,
+            model_name="nemotron",
+        )
+    )
+    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
 
 
@@ -812,6 +861,16 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
             resume_past_end=True,
         ),
     )
+    recipe.model.config.vocab_size = 256000
+    recipe.trainer.callbacks.append(
+        run.Config(
+            FLOPsMeasurementCallback,
+            model_config=recipe.model.config,
+            data_config=recipe.data,
+            model_name="nemotron",
+        )
+    )
+    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
 
 
