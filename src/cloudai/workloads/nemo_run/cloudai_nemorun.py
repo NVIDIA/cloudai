@@ -446,6 +446,29 @@ def cloudai_llama3_8b_recipe() -> run.Partial:
 # LLAMA3 70B Recipe
 @run.cli.factory(target=llm.pretrain)
 def cloudai_llama3_70b_recipe() -> run.Partial:
+    nsys_enabled = os.getenv("NSYS", "0") == "1"
+    callbacks = [
+        run.Config(
+            MegatronCommOverlapCallback,
+            tp_comm_overlap=True,
+            tp_comm_overlap_cfg=llama3_70b_bf16_tp_overlap_config(),
+            overlap_grad_reduce=True,
+            overlap_param_gather=True,
+        ),
+        timing_callback(),
+    ]
+
+    if nsys_enabled:
+        nsys_start = int(os.getenv("NSYS_START", "20"))
+        nsys_end = int(os.getenv("NSYS_END", "30"))
+        callbacks.append(
+            run.Config(
+                NsysCallback,
+                start_step=nsys_start,
+                end_step=nsys_end,
+            )
+        )
+
     recipe = run.Partial(
         llm.pretrain,
         model=run.Config(LlamaModel, config=Llama3Config70B()),
@@ -492,16 +515,7 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
             num_sanity_val_steps=0,
             val_check_interval=1000,
             max_epochs=10,
-            callbacks=[
-                run.Config(
-                    MegatronCommOverlapCallback,
-                    tp_comm_overlap=True,
-                    tp_comm_overlap_cfg=llama3_70b_bf16_tp_overlap_config(),
-                    overlap_grad_reduce=True,
-                    overlap_param_gather=True,
-                ),
-                timing_callback(),
-            ],
+            callbacks=callbacks,
         ),
         optim=run.Config(
             nl.MegatronOptimizerModule,
