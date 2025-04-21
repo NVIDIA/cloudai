@@ -74,6 +74,11 @@ from .workloads.common import (
     SlurmJobIdRetrievalStrategy,
     StandaloneJobIdRetrievalStrategy,
 )
+from .workloads.deepseek_r1 import (
+    DeepSeekR1ReportGenerationStrategy,
+    DeepSeekR1SlurmCommandGenStrategy,
+    DeepSeekR1TestDefinition,
+)
 from .workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -109,6 +114,11 @@ from .workloads.nemo_run import (
     NeMoRunReportGenerationStrategy,
     NeMoRunSlurmCommandGenStrategy,
     NeMoRunTestDefinition,
+)
+from .workloads.nim import (
+    NimReportGenerationStrategy,
+    NimSlurmCommandGenStrategy,
+    NimTestDefinition,
 )
 from .workloads.sleep import (
     SleepGradingStrategy,
@@ -190,6 +200,8 @@ Registry().add_strategy(
         NeMoRunTestDefinition,
         SlurmContainerTestDefinition,
         MegatronRunTestDefinition,
+        NimTestDefinition,
+        DeepSeekR1TestDefinition,
     ],
     SlurmJobIdRetrievalStrategy,
 )
@@ -227,6 +239,8 @@ Registry().add_strategy(
         NeMoRunTestDefinition,
         SlurmContainerTestDefinition,
         MegatronRunTestDefinition,
+        NimTestDefinition,
+        DeepSeekR1TestDefinition,
     ],
     DefaultJobStatusRetrievalStrategy,
 )
@@ -252,6 +266,10 @@ Registry().add_strategy(
 Registry().add_strategy(
     CommandGenStrategy, [SlurmSystem], [SlurmContainerTestDefinition], SlurmContainerCommandGenStrategy
 )
+Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NimTestDefinition], NimSlurmCommandGenStrategy)
+Registry().add_strategy(
+    CommandGenStrategy, [SlurmSystem], [DeepSeekR1TestDefinition], DeepSeekR1SlurmCommandGenStrategy
+)
 
 Registry().add_installer("slurm", SlurmInstaller)
 Registry().add_installer("standalone", StandaloneInstaller)
@@ -276,7 +294,8 @@ Registry().add_test_definition("JaxToolboxGrok", GrokTestDefinition)
 Registry().add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)
 Registry().add_test_definition("SlurmContainer", SlurmContainerTestDefinition)
 Registry().add_test_definition("MegatronRun", MegatronRunTestDefinition)
-
+Registry().add_test_definition("NIM", NimTestDefinition)
+Registry().add_test_definition("DeepSeekR1", DeepSeekR1TestDefinition)
 Registry().add_agent("grid_search", GridSearchAgent)
 
 Registry().add_report(ChakraReplayTestDefinition, ChakraReplayReportGenerationStrategy)
@@ -291,6 +310,8 @@ Registry().add_report(NemotronTestDefinition, JaxToolboxReportGenerationStrategy
 Registry().add_report(SleepTestDefinition, SleepReportGenerationStrategy)
 Registry().add_report(SlurmContainerTestDefinition, SlurmContainerReportGenerationStrategy)
 Registry().add_report(UCCTestDefinition, UCCTestReportGenerationStrategy)
+Registry().add_report(NimTestDefinition, NimReportGenerationStrategy)
+Registry().add_report(DeepSeekR1TestDefinition, DeepSeekR1ReportGenerationStrategy)
 
 Registry().add_scenario_report(PerTestReporter)
 Registry().add_scenario_report(StatusReporter)
