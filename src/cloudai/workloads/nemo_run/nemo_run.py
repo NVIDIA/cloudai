@@ -44,6 +44,7 @@ class Data(BaseModel):
     seq_length: Union[int, List[int]] = 8192
     micro_batch_size: Union[int, List[int]] = 1
     global_batch_size: Union[int, List[int]] = 1
+    num_train_samples: Optional[int] = 1000
 
 
 class TrainerStrategy(BaseModel):
