@@ -329,6 +329,17 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             ]
         )
 
+    def _enable_numa_control_cmd(self, slurm_args: dict[str, Any], tr: TestRun) -> str:
+        return " ".join(
+            [
+                "srun",
+                "--mpi=pmix",
+                "numactl",
+                "--cpunodebind=$((SLURM_LOCALID/4))",
+                "--membind=$((SLURM_LOCALID/4))",
+            ]
+        )
+
     def _write_sbatch_script(
         self, slurm_args: Dict[str, Any], env_vars: Dict[str, Union[str, List[str]]], srun_command: str, tr: TestRun
     ) -> str:
@@ -356,6 +367,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         if env_vars.get("ENABLE_VBOOST") == "1":
             batch_script_content.extend([self._enable_vboost_cmd(slurm_args, tr), ""])
+        if env_vars.get("ENABLE_NUMA_CONTROL") == "1":
+            batch_script_content.extend([self._enable_numa_control_cmd(slurm_args, tr), ""])
         batch_script_content.extend([self._ranks_mapping_cmd(slurm_args, tr), ""])
         batch_script_content.extend([self._metadata_cmd(slurm_args, tr), ""])
 
