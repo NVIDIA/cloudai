@@ -21,7 +21,7 @@ import os
 import re
 import socket
 from pathlib import Path
-from typing import Dict, List, Tuple, cast
+from typing import ClassVar, Dict, List, Tuple, cast
 
 import numpy as np
 import toml
@@ -36,6 +36,8 @@ from .report_generation_strategy import extract_timings
 
 class NeMoRunDataStoreReportGenerationStrategy(ReportGenerationStrategy):
     """Report generation strategy for NeMo 2.0 data store."""
+
+    metrics: ClassVar[list[str]] = []
 
     @property
     def results_file(self) -> Path:
