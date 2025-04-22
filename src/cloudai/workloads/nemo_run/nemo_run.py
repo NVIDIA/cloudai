@@ -36,6 +36,20 @@ class Plugin(BaseModel):
     grad_reduce_in_fp32: Optional[bool] = None
 
 
+class OptimConfig(BaseModel):
+    """Configuration for NeMoRun."""
+
+    model_config = ConfigDict(extra="allow")
+    use_precision_aware_optimizer: Optional[bool] = None
+
+
+class Optim(BaseModel):
+    """Optimizer configuration for NeMoRun."""
+
+    model_config = ConfigDict(extra="allow")
+    config: Optional[OptimConfig] = None
+
+
 class Data(BaseModel):
     """Data configuration for NeMoRun."""
 
@@ -107,6 +121,7 @@ class NeMoRunCmdArgs(CmdArgs):
     trainer: Trainer = Field(default_factory=Trainer)
     log: Log = Field(default_factory=Log)
     data: Data = Field(default_factory=Data)
+    optim: Optim = Field(default_factory=Optim)
 
 
 class NeMoRunTestDefinition(TestDefinition):
