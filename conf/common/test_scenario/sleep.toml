@@ -20,6 +20,7 @@ name = "sleep-scenario"
 id = "Tests.1"
 time_limit = "00:01:00"
 test_name = "sleep_10"
+iterations = "3"
 
 [[Tests]]
 id = "Tests.2"
