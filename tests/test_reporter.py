@@ -14,11 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import tarfile
+from pathlib import Path
 
 import pytest
 
 from cloudai import Test, TestRun, TestScenario
-from cloudai._core.reporter import PerTestReporter
+from cloudai._core.reporter import PerTestReporter, TarballReporter
 from cloudai._core.test_template import TestTemplate
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
@@ -93,3 +95,19 @@ class TestLoadTestTuns:
             assert tr.current_iteration == exp_iter
             assert tr.step == exp_step
             assert tr.output_path == slurm_system.output_path / dse_tr.name / str(exp_iter) / str(exp_step)
+
+
+def test_create_tarball_preserves_full_name(tmp_path: Path, slurm_system: SlurmSystem) -> None:
+    results_dir = tmp_path / "nemo2.0_llama3_70b_fp8_2025-04-16_14-27-45"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    (results_dir / "dummy.txt").write_text("test content")
+
+    reporter = TarballReporter(slurm_system, TestScenario(name="dummy", test_runs=[]), results_dir)
+    reporter.create_tarball(results_dir)
+
+    tarball_path = tmp_path / "nemo2.0_llama3_70b_fp8_2025-04-16_14-27-45.tgz"
+    assert tarball_path.exists()
+    assert tarfile.is_tarfile(tarball_path)
+
+    with tarfile.open(tarball_path, "r:gz") as tar:
+        assert f"{results_dir.name}/dummy.txt" in tar.getnames()

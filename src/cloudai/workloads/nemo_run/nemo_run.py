@@ -13,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 from pathlib import Path
 from typing import List, Optional, Union, cast
 
@@ -40,6 +41,7 @@ class Data(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
+    seq_length: Union[int, List[int]] = 8192
     micro_batch_size: Union[int, List[int]] = 1
     global_batch_size: Union[int, List[int]] = 1
 

@@ -15,16 +15,17 @@ cpu_model_name = "$(lscpu 2>/dev/null | grep "Model name:" | sed 's/Model name:[
 cpu_arch_type = "$(lscpu 2>/dev/null | grep "Architecture:" | sed 's/Architecture:[[:space:]]*//' || echo null)"
 
 [mpi]
-ompi_version = "$(mpirun --version 2>/dev/null | grep -oP "(?<=\(Open MPI\) )[^\s]+$" || echo null)"
+mpi_type = "$(mpirun --version 2>/dev/null | grep -i "open mpi" -q && echo openmpi || echo null)"
+mpi_version = "$(mpirun --version 2>/dev/null | grep -oP "(?<=\(Open MPI\) )[^\s]+$" || echo null)"
 hpcx_version = "${hpcx_version:-null}"
 
 [cuda]
 cuda_build_version = "${CUDA_BUILD_VERSION:-null}"
-cuda_runtime_version = "$(nvcc --version 2>/dev/null | grep -oP 'release \K[0-9]+\.[0-9]+(?=,)' || echo null)"
+cuda_runtime_version = "$(nvidia-smi 2>/dev/null | grep -oP "(?<=CUDA Version: )[\d\.]+" || echo null)"
 cuda_driver_version = "$(nvidia-smi 2>/dev/null | grep -oP "(?<=Driver Version: )[\d\.]+" || echo null)"
 
 [network]
-nics = "$(lspci 2>/dev/null | grep -E "Ethernet controller|Infiniband controller" | grep -v "BlueField" | awk -F": " '/Mellanox/ {found=1;print $NF;exit 0} END {if (!found) exit 1}' || echo null)"
+nics = "$(lspci 2>/dev/null | grep -E "Ethernet controller|Infiniband controller" | awk -F": " '/Mellanox/ {found=1;print $NF;exit 0} END {if (!found) exit 1}' || echo null)"
 switch_type = "${SWITCH:-null}"
 network_name = "${NETWORK:-null}"
 mofed_version = "$(command -v ofed_info >/dev/null && ofed_info -s 2>/dev/null | sed 's/:$//' || echo null)"
@@ -38,4 +39,7 @@ commit_sha = "${NCCL_COMMIT_SHA:-null}"
 cluster_name = "${SLURM_CLUSTER_NAME:-null}"
 node_list = "${SLURM_NODELIST:-null}"
 num_nodes = "${SLURM_NNODES:-null}"
+ntasks_per_node = "${SLURM_NTASKS_PER_NODE:-null}"
+ntasks = "${SLURM_NTASKS:-null}"
+job_id = "${SLURM_JOBID:-null}"
 EOF

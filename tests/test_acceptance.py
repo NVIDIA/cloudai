@@ -86,7 +86,14 @@ def test_slurm(tmp_path: Path, scenario: Dict):
         patch("asyncio.sleep", return_value=None),
         patch("cloudai.systems.slurm.SlurmSystem.is_job_completed", return_value=True),
         patch("cloudai.systems.slurm.SlurmSystem.is_job_running", return_value=True),
+        patch("cloudai.util.command_shell.CommandShell.execute") as mock_execute,
     ):
+        mock_process = Mock()
+        mock_process.poll.return_value = 0
+        mock_process.returncode = 0
+        mock_process.communicate.return_value = ("", "")
+        mock_execute.return_value = mock_process
+
         handle_dry_run_and_run(args)
 
     # Find the directory that was created for the test results
@@ -227,6 +234,7 @@ def build_special_test_run(
         "nemo-launcher",
         "nemo-run-pre-test",
         "nemo-run-no-hook",
+        "nemo-run-vboost",
         "slurm_container",
         "megatron-run",
     ]
@@ -277,20 +285,44 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 cmd_args=MegatronRunCmdArgs(
                     docker_image_url="nvcr.io/nvidia/megatron:24.09",
                     run_script=Path.cwd() / "run.py",
-                    save=Path.cwd() / "save",
-                    load=Path.cwd() / "load",
+                    save=Path.cwd(),
+                    load=Path.cwd(),
                     tokenizer_model=Path.cwd() / "model.m",
                 ),
+                extra_container_mounts=["$PWD"],
             ),
             MegatronRunSlurmCommandGenStrategy,
+        ),
+        "nemo-run": lambda: create_test_run(
+            partial_tr,
+            slurm_system,
+            "nemo-run",
+            NeMoRunTestDefinition(
+                name="nemo-run",
+                description="Test enabling vboost",
+                test_template_name="nemo-run",
+                cmd_args=NeMoRunCmdArgs(
+                    docker_image_url="nvcr.io/nvidia/nemo:24.09",
+                    task="pretrain",
+                    recipe_name="llama_3b",
+                ),
+            ),
+            NeMoRunSlurmCommandGenStrategy,
         ),
     }
 
     if request.param.startswith(("gpt-", "grok-", "nemo-run-", "nemo-launcher")):
-        return build_special_test_run(partial_tr, slurm_system, request.param, test_mapping)
+        tr, sbatch_file, run_script = build_special_test_run(partial_tr, slurm_system, request.param, test_mapping)
+
+        if request.param == "nemo-run-vboost":
+            tr.test.extra_env_vars["ENABLE_VBOOST"] = "1"
+
+        return tr, sbatch_file, run_script
+
     if request.param in test_mapping:
         tr = test_mapping[request.param]()
         return tr, f"{request.param}.sbatch", None
+
     raise ValueError(f"Unknown test: {request.param}")
 
 

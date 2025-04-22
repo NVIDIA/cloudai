@@ -35,24 +35,35 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd_args: Dict[str, Union[str, List[str]]],
         tr: TestRun,
     ) -> Dict[str, Any]:
-        cloudai_nemo_task = cmd_args.get("task", "")
-        env_vars["CLOUDAI_NEMO_TASK"] = f"{cloudai_nemo_task}"
+        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
+        self._set_additional_env_vars(env_vars, tdef)
 
         base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
 
-        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
         base_args.update({"image_path": tdef.docker_image.installed_path})
 
         return base_args
+
+    def _set_additional_env_vars(self, env_vars: Dict[str, Union[str, List[str]]], tdef: NeMoRunTestDefinition):
+        """Set environment variables based on NeMoRunTestDefinition."""
+        env_vars["CLOUDAI_NEMO_TASK"] = tdef.cmd_args.task
+        env_vars["CLOUDAI_NEMO_RECIPE"] = tdef.cmd_args.recipe_name
+
+        pipeline_model_parallel_size = tdef.cmd_args.trainer.strategy.pipeline_model_parallel_size
+        if isinstance(pipeline_model_parallel_size, list):
+            pipeline_model_parallel_size = pipeline_model_parallel_size[0]
+        pipeline_model_parallel_size = int(pipeline_model_parallel_size)
+
+        if pipeline_model_parallel_size > 1:
+            logging.debug("Setting NCCL_P2P_NET_CHUNKSIZE to 2097152 as pipeline_model_parallel_size is greater than 1")
+            env_vars["NCCL_P2P_NET_CHUNKSIZE"] = "2097152"
 
     def _run_script(self, tr: TestRun) -> Path:
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
         return tdef.script.installed_path
 
     def _container_mounts(self, tr: TestRun) -> List[str]:
-        nemorun_ws = tr.output_path / "nemorun-workspace"
-        nemorun_ws.mkdir(exist_ok=True)
-        return [f"{self._run_script(tr).parent.absolute()}:/cloudai_workspace", f"{nemorun_ws.absolute()}:/workspace"]
+        return [f"{self._run_script(tr).parent.absolute()}:/cloudai_workspace"]
 
     def flatten_dict(self, d: dict[str, str], parent_key: str = "", sep: str = "."):
         items = []
@@ -73,6 +84,25 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 else:
                     command.append(f"{key}={value}")
 
+    def _validate_recipe_name(self, recipe_name: str) -> str:
+        """Validate the recipe name against the supported list."""
+        supported_recipes = [
+            "cloudai_llama3_8b_recipe",
+            "cloudai_llama3_70b_recipe",
+            "cloudai_llama3_405b_recipe",
+            "cloudai_nemotron3_8b_recipe",
+            "cloudai_nemotron4_15b_recipe",
+            "cloudai_nemotron4_340b_recipe",
+        ]
+
+        if recipe_name not in supported_recipes:
+            logging.warning(
+                f"Using default {recipe_name} in Nemo2.0. "
+                "Passing advance CLI options (e.g., factory functions) might not be fully supported in Nemo-Run CLI."
+            )
+
+        return recipe_name
+
     def generate_test_command(
         self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> List[str]:
@@ -83,11 +113,13 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         for non_cmd_arg in {"docker_image_url", "num_layers", "task", "recipe_name"}:
             cmd_args_dict.pop(non_cmd_arg)
 
+        recipe_name = self._validate_recipe_name(tdef.cmd_args.recipe_name)
+
         command = [
             "python",
-            f"/cloudai_workspace/{self._run_script(tr).name}",
+            f"/cloudai_install/{self._run_script(tr).name}",
             "--factory",
-            tdef.cmd_args.recipe_name,
+            recipe_name,
             "-y",
         ]
 

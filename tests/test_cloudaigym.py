@@ -19,6 +19,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
+from cloudai._core.configurator.grid_search import GridSearchAgent
 from cloudai._core.runner import Runner
 from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestRun, TestScenario
@@ -50,13 +51,20 @@ def setup_env(slurm_system: SlurmSystem) -> tuple[TestRun, Runner]:
         data=Data(micro_batch_size=[1, 2]),
     )
 
+    mock_command_gen = MagicMock()
+    mock_command_gen.gen_srun_command.return_value = "srun mock command"
+    mock_command_gen.generate_test_command.return_value = ["python", "run.py", "--arg", "value"]
+
+    test_template_mock = MagicMock()
+    test_template_mock.command_gen_strategy = mock_command_gen
+
     test_run = TestRun(
         name="mock_test_run",
         test=Test(
             test_definition=NeMoRunTestDefinition(
                 name="NemoModel", description="Nemo Model", test_template_name="nemo_template", cmd_args=cmd_args
             ),
-            test_template=MagicMock(),
+            test_template=test_template_mock,
         ),
         num_nodes=1,
         nodes=[],
@@ -68,7 +76,7 @@ def setup_env(slurm_system: SlurmSystem) -> tuple[TestRun, Runner]:
         slurm_system.output_path / test_scenario.name / test_run.name / f"{test_run.current_iteration}"
     )
 
-    runner = Runner(mode="run", system=slurm_system, test_scenario=test_scenario)
+    runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
 
     return test_run, runner
 
@@ -237,3 +245,16 @@ def test_update_test_run_obj():
 
     env.update_test_run_obj(cmd_args, "trainer.num_nodes", [3, 4])
     assert cmd_args.trainer.num_nodes == [3, 4]
+
+
+def test_tr_output_path(setup_env: tuple[TestRun, Runner]):
+    test_run, runner = setup_env
+    test_run.test.test_definition.cmd_args.data.global_batch_size = 8  # avoid constraint check failure
+    env = CloudAIGymEnv(test_run=test_run, runner=runner)
+    agent = GridSearchAgent(env)
+
+    _, action = agent.select_action()
+    env.test_run.step = 42
+    env.step(action)
+
+    assert env.test_run.output_path.name == "42"

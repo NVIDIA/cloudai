@@ -14,13 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Union
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
 
+from cloudai._core.test import Test
+from cloudai._core.test_scenario import TestRun
 from cloudai.systems import SlurmSystem
-from cloudai.workloads.ucc_test import UCCTestSlurmCommandGenStrategy
+from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition, UCCTestSlurmCommandGenStrategy
 
 
 class TestUCCTestSlurmCommandGenStrategy:
@@ -29,11 +31,11 @@ class TestUCCTestSlurmCommandGenStrategy:
         return UCCTestSlurmCommandGenStrategy(slurm_system, {})
 
     @pytest.mark.parametrize(
-        "cmd_args, extra_cmd_args, expected_command",
+        "cmd_args_data, extra_cmd_args, expected_command",
         [
             (
-                {"collective": "allgather", "b": "8", "e": "256M"},
-                "--max-steps 100",
+                {"collective": "allgather", "b": 8, "e": "256M"},
+                {"--max-steps": "100"},
                 [
                     "/opt/hpcx/ucc/bin/ucc_perftest",
                     "-c allgather",
@@ -41,16 +43,17 @@ class TestUCCTestSlurmCommandGenStrategy:
                     "-e 256M",
                     "-m cuda",
                     "-F",
-                    "--max-steps 100",
+                    "--max-steps=100",
                 ],
             ),
             (
-                {"collective": "allreduce", "b": "4"},
-                "",
+                {"collective": "allreduce", "b": 4, "e": "8M"},
+                {},
                 [
                     "/opt/hpcx/ucc/bin/ucc_perftest",
                     "-c allreduce",
                     "-b 4",
+                    "-e 8M",
                     "-m cuda",
                     "-F",
                 ],
@@ -59,13 +62,40 @@ class TestUCCTestSlurmCommandGenStrategy:
     )
     def test_generate_test_command(
         self,
+        tmp_path: Path,
         cmd_gen_strategy: UCCTestSlurmCommandGenStrategy,
-        cmd_args: Dict[str, Union[str, List[str]]],
-        extra_cmd_args: str,
-        expected_command: List[str],
+        cmd_args_data: dict,
+        extra_cmd_args: dict,
+        expected_command: list[str],
     ) -> None:
-        env_vars = {}
-        tr = Mock()
-        tr.test.extra_cmd_args = extra_cmd_args
-        command = cmd_gen_strategy.generate_test_command(env_vars, cmd_args, tr)
+        ucc_cmd_args = UCCCmdArgs(
+            collective=cmd_args_data["collective"],
+            b=cmd_args_data["b"],
+            e=cmd_args_data.get("e", "8M"),
+        )
+
+        test_def = UCCTestDefinition(
+            name="ucc_test",
+            description="UCC test",
+            test_template_name="default_template",
+            cmd_args=ucc_cmd_args,
+            extra_env_vars={},
+            extra_cmd_args=extra_cmd_args,
+        )
+
+        test_obj = Test(test_definition=test_def, test_template=Mock())
+
+        tr = TestRun(
+            test=test_obj,
+            num_nodes=1,
+            nodes=[],
+            output_path=tmp_path / "output",
+            name="test-job",
+        )
+
+        command = cmd_gen_strategy.generate_test_command(
+            test_def.extra_env_vars,
+            test_def.cmd_args_dict,
+            tr,
+        )
         assert command == expected_command

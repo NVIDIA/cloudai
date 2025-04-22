@@ -17,7 +17,7 @@
 from enum import Enum
 from typing import Any, ClassVar, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, root_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class NodeStatus(Enum):
@@ -53,7 +53,7 @@ class RunAINode(BaseModel):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
     def extract_gpu_info(cls, values):
         gpu_info = values.pop("gpuInfo", None)
         if gpu_info and isinstance(gpu_info, dict):
