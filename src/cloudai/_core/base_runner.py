@@ -90,11 +90,8 @@ class BaseRunner(ABC):
         logging.debug(f"Total tests: {total_tests}, dependency free tests: {[tr.name for tr in dependency_free_trs]}")
         while self.jobs:
             await self.check_start_post_init_dependencies()
-            completed_jobs_count = await self.monitor_jobs()
-            logging.debug(
-                f"Completed jobs in this cycle: {completed_jobs_count}, remaining jobs: {len(self.jobs)}, "
-                f"sleeping for {self.monitor_interval} seconds"
-            )
+            await self.monitor_jobs()
+            logging.debug(f"sleeping for {self.monitor_interval} seconds")
             await asyncio.sleep(self.monitor_interval)
 
     async def submit_test(self, tr: TestRun):
