@@ -285,10 +285,11 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 cmd_args=MegatronRunCmdArgs(
                     docker_image_url="nvcr.io/nvidia/megatron:24.09",
                     run_script=Path.cwd() / "run.py",
-                    save=Path.cwd() / "save",
-                    load=Path.cwd() / "load",
+                    save=Path.cwd(),
+                    load=Path.cwd(),
                     tokenizer_model=Path.cwd() / "model.m",
                 ),
+                extra_container_mounts=["$PWD"],
             ),
             MegatronRunSlurmCommandGenStrategy,
         ),

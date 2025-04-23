@@ -483,7 +483,7 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
                 pipeline_dtype=torch.bfloat16,
                 ddp=run.Config(
                     DistributedDataParallelConfig,
-                    check_for_nan_in_grad=True,
+                    check_for_nan_in_grad=False,
                     grad_reduce_in_fp32=True,
                     overlap_grad_reduce=True,
                     overlap_param_gather=True,
@@ -521,12 +521,12 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
             resume_past_end=True,
         ),
     )
+    recipe.model.config.vocab_size = 128256
     return recipe
 
 
 # LLAMA3 405B Recipe
 @run.cli.factory(target=llm.pretrain)
-@run.autoconvert
 def cloudai_llama3_405b_recipe() -> run.Partial:
     recipe = run.Partial(
         llm.pretrain,
@@ -536,7 +536,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
             seq_length=8192,
             micro_batch_size=1,
             global_batch_size=8,
-            tokenizer=null_tokenizer(128256),
+            tokenizer=null_tokenizer(vocab_size=128256),
         ),
         trainer=run.Config(
             nl.Trainer,
@@ -590,7 +590,6 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
 
 # NEMOTRON3 8B Recipe
 @run.cli.factory(target=llm.pretrain)
-@run.autoconvert
 def cloudai_nemotron3_8b_recipe() -> run.Partial:
     recipe = run.Partial(
         llm.pretrain,
@@ -741,7 +740,7 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
             seq_length=4096,
             micro_batch_size=1,
             global_batch_size=8,
-            tokenizer=null_tokenizer(vocab_size=128256),
+            tokenizer=null_tokenizer(vocab_size=256000),
         ),
         trainer=run.Config(
             nl.Trainer,

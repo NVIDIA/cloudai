@@ -19,11 +19,13 @@ import asyncio
 import copy
 import logging
 import signal
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable, List, Optional
 from unittest.mock import Mock
 
 import toml
+import yaml
 
 from cloudai import (
     BaseInstaller,
@@ -259,14 +261,75 @@ def expand_file_list(root: Path, glob: str = "*.toml") -> tuple[int, List[Path]]
     return (0, test_tomls)
 
 
+@contextmanager
+def _ensure_kube_config_exists(system_toml_path: Path, content: str):
+    try:
+        config_dict = toml.loads(content)
+    except Exception as e:
+        logging.error(f"Error parsing TOML file {system_toml_path}: {e}")
+        raise
+
+    kube_config_path_str = config_dict.get("kube_config_path")
+    kube_config_path = Path(kube_config_path_str) if kube_config_path_str else Path.home() / ".kube" / "config"
+
+    created_file = False
+    created_dir = False
+
+    if not kube_config_path.exists():
+        logging.warning(f"Kube config file '{kube_config_path}' not found. Creating a dummy one.")
+        if not kube_config_path.parent.exists():
+            kube_config_path.parent.mkdir(parents=True, exist_ok=True)
+            created_dir = True
+
+        dummy_config = {
+            "apiVersion": "v1",
+            "kind": "Config",
+            "preferences": {},
+            "clusters": [{"name": "dummy-cluster", "cluster": {"server": "https://dummy-server"}}],
+            "users": [{"name": "dummy-user", "user": {"token": "dummy-token"}}],
+            "contexts": [{"name": "dummy-context", "context": {"cluster": "dummy-cluster", "user": "dummy-user"}}],
+            "current-context": "dummy-context",
+        }
+        kube_config_path.write_text(yaml.dump(dummy_config))
+        created_file = True
+    else:
+        logging.debug(f"Kube config '{kube_config_path}' already exists. Skipping creation.")
+
+    try:
+        yield kube_config_path
+    finally:
+        if created_file:
+            try:
+                kube_config_path.unlink()
+                logging.debug(f"Deleted temporary kube config: {kube_config_path}")
+            except Exception as e:
+                logging.warning(f"Failed to remove temporary kube config '{kube_config_path}': {e}")
+        if created_dir:
+            try:
+                kube_config_path.parent.rmdir()
+                logging.debug(f"Deleted kube config directory: {kube_config_path.parent}")
+            except OSError:
+                pass
+
+
 def verify_system_configs(system_tomls: List[Path]) -> int:
     nfailed = 0
-    for test_toml in system_tomls:
-        logging.debug(f"Verifying System: {test_toml}...")
-        try:
-            Parser.parse_system(test_toml)
-        except Exception:
-            nfailed += 1
+
+    for system_toml in system_tomls:
+        logging.debug(f"Verifying System: {system_toml}...")
+        content = system_toml.read_text()
+
+        if 'scheduler = "kubernetes"' in content:
+            try:
+                with _ensure_kube_config_exists(system_toml, content):
+                    Parser.parse_system(system_toml)
+            except Exception:
+                nfailed += 1
+        else:
+            try:
+                Parser.parse_system(system_toml)
+            except Exception:
+                nfailed += 1
 
     if nfailed:
         logging.error(f"{nfailed} out of {len(system_tomls)} system configurations have issues.")

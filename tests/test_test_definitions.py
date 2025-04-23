@@ -304,3 +304,74 @@ class TestMegatronRun:
         d = megatron_run.cmd_args.model_dump()
         assert "docker_image_url" not in d
         assert "run_script" not in d
+
+    @pytest.mark.parametrize("field", ["load", "save"])
+    def test_load_is_set_but_not_mounted(self, field: str):
+        with pytest.raises(ValueError) as exc_info:
+            MegatronRunTestDefinition.model_validate(
+                {
+                    "name": "n",
+                    "description": "d",
+                    "test_template_name": "n",
+                    "cmd_args": {
+                        "docker_image_url": "fake://url",
+                        "run_script": Path(__file__),
+                        field: Path("/path/to/load"),
+                    },
+                }
+            )
+        assert "Path /path/to/load is not mounted in the container." in str(exc_info.value)
+        assert "Please check the 'extra_container_mounts' field." in str(exc_info.value)
+
+    @pytest.mark.parametrize(
+        "field,mount",
+        [
+            ("load", "/load"),
+            ("load", "/src:/load"),
+            ("save", "/save"),
+            ("save", "/src:/save"),
+        ],
+    )
+    def test_load_is_mounted_but_src_doesnt_exist(self, field: str, mount: str):
+        dst = mount.split(":")[1] if ":" in mount else mount
+        with pytest.raises(ValueError) as exc_info:
+            MegatronRunTestDefinition.model_validate(
+                {
+                    "name": "n",
+                    "description": "d",
+                    "test_template_name": "n",
+                    "cmd_args": {
+                        "docker_image_url": "fake://url",
+                        "run_script": Path(__file__),
+                        field: Path(dst),
+                    },
+                    "extra_container_mounts": [mount],
+                }
+            )
+        src = mount.split(":")[0] if ":" in mount else mount
+        assert f"Source path {src} ({src}) does not exist for {field}={dst}." in str(exc_info.value)
+
+    @pytest.mark.parametrize(
+        "field,mount",
+        [
+            ("load", "$PWD"),
+            ("load", "$PWD:/load"),
+            ("save", "$PWD"),
+            ("save", "$PWD:/save"),
+        ],
+    )
+    def test_load_is_mounted_and_src_exists(self, field: str, mount: str):
+        dst = mount.split(":")[1] if ":" in mount else mount
+        MegatronRunTestDefinition.model_validate(
+            {
+                "name": "n",
+                "description": "d",
+                "test_template_name": "n",
+                "cmd_args": {
+                    "docker_image_url": "fake://url",
+                    "run_script": Path(__file__),
+                    field: Path(dst),
+                },
+                "extra_container_mounts": [mount],
+            }
+        )

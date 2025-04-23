@@ -54,7 +54,11 @@ from cloudai.workloads.nccl_test import (
     NcclTestPredictionReportGenerationStrategy,
 )
 from cloudai.workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy, NeMoLauncherTestDefinition
-from cloudai.workloads.nemo_run import NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
+from cloudai.workloads.nemo_run import (
+    NeMoRunDataStoreReportGenerationStrategy,
+    NeMoRunReportGenerationStrategy,
+    NeMoRunTestDefinition,
+)
 from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
 from cloudai.workloads.slurm_container import SlurmContainerReportGenerationStrategy, SlurmContainerTestDefinition
 from cloudai.workloads.ucc_test import UCCTestDefinition, UCCTestReportGenerationStrategy
@@ -372,7 +376,7 @@ class TestReporters:
             (MegatronRunTestDefinition, {CheckpointTimingReportGenerationStrategy}),
             (NCCLTestDefinition, {NcclTestPerformanceReportGenerationStrategy}),
             (NeMoLauncherTestDefinition, {NeMoLauncherReportGenerationStrategy}),
-            (NeMoRunTestDefinition, {NeMoRunReportGenerationStrategy}),
+            (NeMoRunTestDefinition, {NeMoRunReportGenerationStrategy, NeMoRunDataStoreReportGenerationStrategy}),
             (NemotronTestDefinition, {JaxToolboxReportGenerationStrategy}),
             (SleepTestDefinition, {SleepReportGenerationStrategy}),
             (SlurmContainerTestDefinition, {SlurmContainerReportGenerationStrategy}),
