@@ -32,6 +32,7 @@ from cloudai._core.test_scenario_parser import (
     get_reporters,
 )
 from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
+from cloudai.workloads.deepseek_r1 import DeepSeekR1ReportGenerationStrategy, DeepSeekR1TestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -287,7 +288,7 @@ class TestReporters:
         assert len(reporters) == 0
 
     def test_default_reporters_size(self):
-        assert len(Registry().reports_map) == 11
+        assert len(Registry().reports_map) == 12
 
     @pytest.mark.parametrize(
         "tdef,expected_reporters",
@@ -303,6 +304,7 @@ class TestReporters:
             (SleepTestDefinition, {SleepReportGenerationStrategy}),
             (SlurmContainerTestDefinition, {SlurmContainerReportGenerationStrategy}),
             (UCCTestDefinition, {UCCTestReportGenerationStrategy}),
+            (DeepSeekR1TestDefinition, {DeepSeekR1ReportGenerationStrategy}),
         ],
     )
     def test_custom_reporters(self, tdef: Type[TestDefinition], expected_reporters: Set[ReportGenerationStrategy]):
