@@ -18,12 +18,14 @@ import logging
 import os
 from functools import cache
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, List
 
 import numpy as np
+import pandas as pd
 
 from cloudai import ReportGenerationStrategy
 from cloudai._core.test_scenario import METRIC_ERROR
+from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 
 
 @cache
@@ -98,6 +100,8 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             f.write("Min: {min}\n".format(min=stats["min"]))
             f.write("Max: {max}\n".format(max=stats["max"]))
 
+        self.generate_bokeh_report(step_timings)
+
     def get_metric(self, metric: str) -> float:
         logging.debug(f"Getting metric {metric} from {self.results_file.absolute()}")
         step_timings = extract_timings(self.results_file)
@@ -108,3 +112,21 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             return METRIC_ERROR
 
         return float(np.mean(step_timings))
+
+    def generate_bokeh_report(self, step_timings: List[float]) -> None:
+        if not step_timings:
+            return
+
+        df = pd.DataFrame({"Step": range(1, len(step_timings) + 1), "train_step_timing in s": step_timings})
+
+        report_tool = BokehReportTool(self.test_run.output_path)
+        report_tool.add_linear_xy_line_plot(
+            title="Train Step Timing over Steps",
+            x_column="Step",
+            y_column="train_step_timing in s",
+            x_axis_label="Step",
+            df=df,
+            sol=self.test_run.sol,
+            color="black",
+        )
+        report_tool.finalize_report(Path("cloudai_nemorun_bokeh_report.html"))
