@@ -171,7 +171,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         tr.output_path = base_output_path / "pre_test" / tr.test.name
         tr.output_path.mkdir(parents=True, exist_ok=True)
 
-    def pre_test_srun_extra_args(self) -> list[str]:
+    def pre_test_srun_extra_args(self, tr: TestRun) -> list[str]:
         """
         Return extra arguments from pre-test to actual test.
 
@@ -262,7 +262,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         srun_command_parts = ["srun", "--export=ALL", f"--mpi={self.system.mpi}"]
         if not ignore_pre_test and tr.pre_test:
             for pre_tr in tr.pre_test.test_runs:
-                srun_command_parts.extend(self._get_cmd_gen_strategy(pre_tr).pre_test_srun_extra_args())
+                srun_command_parts.extend(self._get_cmd_gen_strategy(pre_tr).pre_test_srun_extra_args(tr))
 
         if slurm_args.get("image_path"):
             srun_command_parts.append(f"--container-image={slurm_args['image_path']}")
