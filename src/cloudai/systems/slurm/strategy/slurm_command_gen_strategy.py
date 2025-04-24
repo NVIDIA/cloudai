@@ -258,9 +258,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         test_command_parts = self.generate_test_command(env_vars, cmd_args, tr)
         return " ".join(srun_command_parts + nsys_command_parts + test_command_parts)
 
-    def gen_srun_prefix(self, slurm_args: Dict[str, Any], tr: TestRun) -> List[str]:
+    def gen_srun_prefix(self, slurm_args: Dict[str, Any], tr: TestRun, ignore_pre_test: bool = False) -> List[str]:
         srun_command_parts = ["srun", "--export=ALL", f"--mpi={self.system.mpi}"]
-        if tr.pre_test:
+        if not ignore_pre_test and tr.pre_test:
             for pre_tr in tr.pre_test.test_runs:
                 srun_command_parts.extend(self._get_cmd_gen_strategy(pre_tr).pre_test_srun_extra_args())
 
@@ -300,7 +300,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     def _ranks_mapping_cmd(self, slurm_args: dict[str, Any], tr: TestRun) -> str:
         return " ".join(
             [
-                *self.gen_srun_prefix(slurm_args, tr),
+                *self.gen_srun_prefix(slurm_args, tr, ignore_pre_test=True),
                 f"--output={tr.output_path.absolute() / 'mapping-stdout.txt'}",
                 f"--error={tr.output_path.absolute() / 'mapping-stderr.txt'}",
                 "bash",
@@ -317,7 +317,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             metadata_script_path = str(self.system.install_path.absolute())
         return " ".join(
             [
-                *self.gen_srun_prefix(slurm_args, tr),
+                *self.gen_srun_prefix(slurm_args, tr, ignore_pre_test=True),
                 f"--ntasks={num_nodes}",
                 "--ntasks-per-node=1",
                 f"--output={tr.output_path.absolute() / 'metadata' / 'node-%N.toml'}",
@@ -330,7 +330,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     def _enable_vboost_cmd(self, slurm_args: dict[str, Any], tr: TestRun) -> str:
         return " ".join(
             [
-                *self.gen_srun_prefix(slurm_args, tr),
+                *self.gen_srun_prefix(slurm_args, tr, ignore_pre_test=True),
                 f"--output={tr.output_path.absolute() / 'vboost.out'}",
                 f"--error={tr.output_path.absolute() / 'vboost.err'}",
                 "bash",
