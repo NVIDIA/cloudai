@@ -74,6 +74,7 @@ from .workloads.common import (
     SlurmJobIdRetrievalStrategy,
     StandaloneJobIdRetrievalStrategy,
 )
+from .workloads.healthy_nodes import HealthyNodesSlurmCommandGenStrategy, HealthyNodesTestDefinition
 from .workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -252,6 +253,9 @@ Registry().add_strategy(
 Registry().add_strategy(
     CommandGenStrategy, [SlurmSystem], [SlurmContainerTestDefinition], SlurmContainerCommandGenStrategy
 )
+Registry().add_strategy(
+    CommandGenStrategy, [SlurmSystem], [HealthyNodesTestDefinition], HealthyNodesSlurmCommandGenStrategy
+)
 
 Registry().add_installer("slurm", SlurmInstaller)
 Registry().add_installer("standalone", StandaloneInstaller)
@@ -276,6 +280,7 @@ Registry().add_test_definition("JaxToolboxGrok", GrokTestDefinition)
 Registry().add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)
 Registry().add_test_definition("SlurmContainer", SlurmContainerTestDefinition)
 Registry().add_test_definition("MegatronRun", MegatronRunTestDefinition)
+Registry().add_test_definition("HealthyNodes", HealthyNodesTestDefinition)
 
 Registry().add_agent("grid_search", GridSearchAgent)
 

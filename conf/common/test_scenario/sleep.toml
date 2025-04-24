@@ -16,31 +16,39 @@
 
 name = "sleep-scenario"
 
-[[Tests]]
-id = "Tests.1"
-time_limit = "00:01:00"
-test_name = "sleep_10"
+pre_test = "healthy-nodes"
+
+# [[Tests]]
+# id = "node-health-test"
+# time_limit = "00:01:00"
+# test_name = "sleep_10"
+# num_nodes = 40
+# nodes = [] # 39, iter 1
+# nodes = [] # 38, iter 2
+# nodes = [] # 37, iter 3
+
+# nccl-sanity generate nodes-list.txt with good nodes. min_nodes definition here???
 
 [[Tests]]
-id = "Tests.2"
-time_limit = "00:01:00"
-test_name = "sleep_5"
-  [[Tests.dependencies]]
-  type = "start_post_init"
-  id = "Tests.1"
-
-[[Tests]]
-id = "Tests.3"
-time_limit = "00:01:00"
-test_name = "sleep_5"
-  [[Tests.dependencies]]
-  type = "start_post_comp"
-  id = "Tests.1"
-
-[[Tests]]
-id = "Tests.4"
+id = "main-test"
 time_limit = "00:01:00"
 test_name = "sleep_20"
-  [[Tests.dependencies]]
-  type = "end_post_comp"
-  id = "Tests.1"
+num_nodes = 40          # <-- serves as min_nodes, max_nodes will be taken from node-health-test.num_nodes
+  # [[Tests.dependencies]]
+  # type = "faulty-nodes-less"
+  # id = "node-health-test"
+
+# THE FLOW
+# When "node-health-test" is done, we take "main-test":
+# 1. Check, if "node-health-test" is successful, if so — simply run "main-test"
+# 2. If "node-health-test" is failed, we extract the nodes that a faulty and calculate number of "good" nodes
+# in-a-loop:
+# 11. exclude one faulty node from the "node-health-test" job
+# 12. get the list of "good" nodes
+# 13. If the number of "good" nodes is < "main-test.num_nodes", job fails
+# 14. If the number of "good" nodes is >= "main-test.num_nodes", re-run "node-health-test" on smaller number of nodes
+# 3. we run "main-test" on the "good" nodes using "main-test.nodes" field
+
+# ???
+# 1. What if "good" nodes are allocated between our runs?
+# 2. This introduces an expectation on "node-health-test" job type, should be NCCL only
