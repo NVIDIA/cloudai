@@ -794,7 +794,7 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
         trainer=run.Config(
             nl.Trainer,
             devices=8,
-            num_nodes=1,
+            num_nodes=32,
             accelerator="gpu",
             max_steps=10,
             limit_test_batches=50,
@@ -839,6 +839,9 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
                     tp_comm_overlap=True,
                     overlap_grad_reduce=True,
                     overlap_param_gather=True,
+                    overlap_param_gather_with_optimizer_step=True,
+                    defer_embedding_wgrad_compute=True,
+                    wgrad_deferral_limit=22,
                 ),
                 timing_callback(),
             ],
@@ -847,11 +850,24 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
             nl.MegatronOptimizerModule,
             config=run.Config(
                 OptimizerConfig,
-                lr=1e-4,
+                optimizer="adam",
+                lr=0.0001,
+                weight_decay=0.1,
+                fp16=False,
                 bf16=True,
-                params_dtype=torch.bfloat16,
+                use_precision_aware_optimizer=True,
+                adam_beta1=0.9,
+                adam_beta2=0.95,
+                adam_eps=1e-05,
                 use_distributed_optimizer=True,
-                weight_decay=0,
+                clip_grad=1.0,
+                params_dtype=torch.bfloat16,
+            ),
+            lr_scheduler=run.Config(
+                CosineAnnealingScheduler,
+                warmup_steps=2000,
+                constant_steps=0,
+                min_lr=2.9999999999999997e-05,
             ),
         ),
         resume=run.Config(
@@ -870,6 +886,7 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
             model_name="nemotron",
         )
     )
+    recipe.trainer.callbacks.append(run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100))
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
 
