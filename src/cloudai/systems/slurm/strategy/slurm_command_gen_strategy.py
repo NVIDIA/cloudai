@@ -334,7 +334,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return " ".join(
             [
                 "srun",
-                "--mpi=pmix",
+                f"--mpi={self.system.mpi}",
                 "numactl",
                 "--cpunodebind=$((SLURM_LOCALID/4))",
                 "--membind=$((SLURM_LOCALID/4))",
