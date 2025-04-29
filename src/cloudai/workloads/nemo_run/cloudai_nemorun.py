@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import os
-from datetime import timedelta
 from typing import Optional
 
 import lightning.pytorch as pl
@@ -41,7 +40,6 @@ from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import AutoResume, NeMoLogger
-from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
@@ -57,21 +55,13 @@ def default_log(
     tensorboard_logger: Optional[run.Config[TensorBoardLogger]] = None,
     wandb_logger: Optional[run.Config[WandbLogger]] = None,
 ) -> run.Config[NeMoLogger]:
-    ckpt = run.Config(
-        ModelCheckpoint,
-        save_last=False,
-        save_top_k=10,
-        train_time_interval=run.Config(timedelta, minutes=15),
-        filename="{model_name}--{val_loss:.2f}-{step}-{consumed_samples}",
-    )
-
     # Default TensorBoard logger if not provided
     if tensorboard_logger is None:
         tensorboard_logger = run.Config(TensorBoardLogger, save_dir="tb_logs", name=name)
 
     return run.Config(
         NeMoLogger,
-        ckpt=ckpt,
+        ckpt=None,
         name=name,
         tensorboard=tensorboard_logger,
         wandb=wandb_logger,
@@ -464,7 +454,7 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
             seq_length=8192,
             micro_batch_size=1,
             global_batch_size=8,
-            tokenizer=null_tokenizer(vocab_size=128256),
+            tokenizer=hf_tokenizer_llama3_70b(),
         ),
         trainer=run.Config(
             nl.Trainer,
@@ -475,6 +465,7 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
             limit_test_batches=50,
             limit_val_batches=32,
             log_every_n_steps=10,
+            accumulate_grad_batches=1,
             plugins=run.Config(
                 nl.MegatronMixedPrecision,
                 precision="bf16-mixed",
@@ -485,6 +476,8 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
             ),
             strategy=run.Config(
                 nl.MegatronStrategy,
+                ckpt_async_save=True,
+                ckpt_parallel_load=True,
                 tensor_model_parallel_size=4,
                 pipeline_model_parallel_size=1,
                 context_parallel_size=1,
@@ -493,11 +486,13 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
                 pipeline_dtype=torch.bfloat16,
                 ddp=run.Config(
                     DistributedDataParallelConfig,
-                    check_for_nan_in_grad=False,
+                    check_for_nan_in_grad=True,
                     grad_reduce_in_fp32=True,
                     overlap_grad_reduce=True,
                     overlap_param_gather=True,
+                    average_in_collective=True,
                 ),
+                gradient_as_bucket_view=True,
             ),
             num_sanity_val_steps=0,
             val_check_interval=1000,
@@ -507,8 +502,9 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
                     MegatronCommOverlapCallback,
                     tp_comm_overlap=True,
                     tp_comm_overlap_cfg=llama3_70b_bf16_tp_overlap_config(),
-                    overlap_grad_reduce=True,
-                    overlap_param_gather=True,
+                    overlap_param_gather_with_optimizer_step=True,
+                    defer_embedding_wgrad_compute=True,
+                    wgrad_deferral_limit=22,
                 ),
                 timing_callback(),
             ],
@@ -517,11 +513,22 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
             nl.MegatronOptimizerModule,
             config=run.Config(
                 OptimizerConfig,
-                lr=1e-4,
+                lr=3e-4,
                 bf16=True,
                 params_dtype=torch.bfloat16,
                 use_distributed_optimizer=True,
-                weight_decay=0,
+                weight_decay=0.1,
+                adam_beta1=0.9,
+                adam_beta2=0.95,
+                adam_eps=1e-05,
+                clip_grad=1.0,
+                fp16=False,
+            ),
+            lr_scheduler=run.Config(
+                CosineAnnealingScheduler,
+                warmup_steps=2000,
+                constant_steps=0,
+                min_lr=2.9999999999999997e-05,
             ),
         ),
         resume=run.Config(
@@ -797,8 +804,8 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
             num_nodes=32,
             accelerator="gpu",
             max_steps=10,
-            limit_test_batches=50,
-            limit_val_batches=32,
+            limit_test_batches=32,
+            limit_val_batches=0,
             log_every_n_steps=10,
             use_distributed_sampler=False,
             plugins=run.Config(
@@ -815,6 +822,8 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
                 pipeline_model_parallel_size=8,
                 context_parallel_size=2,
                 virtual_pipeline_model_parallel_size=12,
+                expert_model_parallel_size=1,
+                expert_tensor_parallel_size=None,
                 sequence_parallel=True,
                 pipeline_dtype=torch.bfloat16,
                 gradient_as_bucket_view=True,
@@ -829,6 +838,7 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
                     overlap_param_gather=True,
                     average_in_collective=True,
                 ),
+                cross_entropy_fusion_impl="te",
             ),
             num_sanity_val_steps=0,
             val_check_interval=500,
@@ -865,9 +875,9 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
             ),
             lr_scheduler=run.Config(
                 CosineAnnealingScheduler,
-                warmup_steps=2000,
+                warmup_steps=500,
                 constant_steps=0,
-                min_lr=2.9999999999999997e-05,
+                min_lr=1e-5,
             ),
         ),
         resume=run.Config(
@@ -876,6 +886,7 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
             resume_ignore_no_checkpoint=True,
             resume_past_end=True,
         ),
+        log=default_log(),
     )
     recipe.model.config.vocab_size = 256000
     recipe.trainer.callbacks.append(
@@ -888,6 +899,7 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
     )
     recipe.trainer.callbacks.append(run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100))
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
+    recipe.model.config.cross_entropy_fusion_impl = "te"
     return recipe
 
 
