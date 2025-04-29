@@ -15,7 +15,7 @@
 # limitations under the License.
 
 [project]
-name = "CloudAI"
+name = "cloudai"
 dynamic = ["version"]
 dependencies = [
   "bokeh==3.4.1",
