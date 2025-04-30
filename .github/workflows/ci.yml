@@ -20,7 +20,7 @@ jobs:
           python-version: 3.9
 
       - name: Install dependencies
-        run: pip install -r requirements-dev.txt
+        run: pip install '.[dev]'
 
       - name: Run ruff linter
         run: ruff check
@@ -64,7 +64,7 @@ jobs:
           python-version: 3.9
 
       - name: Install dependencies
-        run: pip install pytest -r requirements-dev.txt
+        run: pip install '.[dev]'
 
       - name: Run pytest
         run: |

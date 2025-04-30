@@ -62,14 +62,14 @@ Replace `<api-key>` with your respective credentials. Keep `$oauthtoken` as is.
     source venv/bin/activate
     ```
 
-3. Install the required packages using pip:
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-4. After setting up the environment and installing dependencies, install the CloudAI package itself:
+3. Next, install the required packages:
     ```bash
     pip install .
+    ```
+
+    For development please use the following command:
+    ```bash
+    pip install -e '.[dev]'  
     ```
 
 CloudAI supports five modes:
