@@ -261,7 +261,7 @@ class KubernetesSystem(BaseModel, System):
         except ApiException as e:
             if e.status == 404:
                 logging.debug(
-                    f"Batch job '{job_name}' not found." "It may have completed and been removed from the system."
+                    f"Batch job '{job_name}' not found.It may have completed and been removed from the system."
                 )
                 return False
             else:
@@ -321,7 +321,7 @@ class KubernetesSystem(BaseModel, System):
             logging.debug(f"MPIJob '{job_name}' deleted successfully")
         except ApiException as e:
             if e.status == 404:
-                logging.debug(f"MPIJob '{job_name}' not found. " "It may have already been deleted.")
+                logging.debug(f"MPIJob '{job_name}' not found. It may have already been deleted.")
             else:
                 logging.error(
                     f"An error occurred while attempting to delete MPIJob '{job_name}'. "

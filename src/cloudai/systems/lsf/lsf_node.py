@@ -65,4 +65,4 @@ class LSFNode(BaseModel):
         Returns:
             str: A string representation of the LSF node.
         """
-        return f"LsfNode(name={self.name}, " f"queue={self.queue}, " f"state={self.state.name}, " f"user={self.user})"
+        return f"LsfNode(name={self.name}, queue={self.queue}, state={self.state.name}, user={self.user})"

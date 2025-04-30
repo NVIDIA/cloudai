@@ -147,9 +147,4 @@ class SlurmNode(BaseModel):
         Returns
             str: A string representation of the Slurm node.
         """
-        return (
-            f"SlurmNode(name={self.name}, "
-            f"partition={self.partition}, "
-            f"state={self.state.name}, "
-            f"user={self.user})"
-        )
+        return f"SlurmNode(name={self.name}, partition={self.partition}, state={self.state.name}, user={self.user})"
