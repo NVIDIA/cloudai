@@ -198,7 +198,7 @@ class KubernetesSystem(BaseModel, System):
             )
 
             assert isinstance(mpijob, dict)
-            status = mpijob.get("status", {})
+            status: dict = cast(dict, mpijob.get("status", {}))
             conditions = status.get("conditions", [])
 
             # Consider an empty conditions list as running
