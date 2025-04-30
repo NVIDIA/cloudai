@@ -188,7 +188,7 @@ def comms_overlap_callbacks() -> list[pl.Callback]:
 
 @run.cli.factory
 @run.autoconvert
-def llama3_70b_bf16_tp_overlap_config() -> run.Config[TransformerLayerTPOverlapCfg]:
+def llama3_70b_bf16_h100_tp_overlap_config() -> run.Config[TransformerLayerTPOverlapCfg]:
     return run.Config(
         TransformerLayerTPOverlapCfg,
         qkv_dgrad=run.Config(
@@ -268,7 +268,167 @@ def llama3_70b_bf16_tp_overlap_config() -> run.Config[TransformerLayerTPOverlapC
 
 @run.cli.factory
 @run.autoconvert
-def llama3_70b_fp8_tp_overlap_config() -> run.Config[TransformerLayerTPOverlapCfg]:
+def llama3_70b_bf16_b200_tp_overlap_config() -> run.Config[TransformerLayerTPOverlapCfg]:
+    return run.Config(
+        TransformerLayerTPOverlapCfg,
+        qkv_dgrad=run.Config(
+            BulkOverlapCfg,
+            cga_size=2,
+            method="bulk",
+            num_sm=16,
+            set_sm_margin=False,
+        ),
+        qkv_wgrad=run.Config(
+            BulkOverlapCfg,
+            cga_size=2,
+            method="bulk",
+            num_sm=24,
+            set_sm_margin=False,
+        ),
+        qkv_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        proj_dgrad=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        proj_fprop=run.Config(
+            PipelineOverlapCfg,
+            num_sm=32,
+            cga_size=2,
+            num_splits=4,
+            set_sm_margin=True,
+            fp8_buf=False,
+            method="pipeline",
+        ),
+        fc1_dgrad=run.Config(
+            BulkOverlapCfg,
+            num_sm=2,
+            cga_size=2,
+            set_sm_margin=False,
+            method="bulk",
+        ),
+        fc1_wgrad=run.Config(
+            BulkOverlapCfg,
+            num_sm=4,
+            cga_size=2,
+            set_sm_margin=False,
+            method="bulk",
+        ),
+        fc1_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        fc2_dgrad=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        fc2_fprop=run.Config(
+            PipelineOverlapCfg,
+            num_sm=16,
+            cga_size=2,
+            num_splits=4,
+            set_sm_margin=True,
+            fp8_buf=False,
+            method="pipeline",
+        ),
+    )
+
+
+@run.cli.factory
+@run.autoconvert
+def llama3_70b_fp8_b200_tp_overlap_config() -> run.Config[TransformerLayerTPOverlapCfg]:
+    return run.Config(
+        TransformerLayerTPOverlapCfg,
+        qkv_dgrad=run.Config(
+            BulkOverlapCfg,
+            cga_size=2,
+            method="bulk",
+            num_sm=4,
+            set_sm_margin=False,
+        ),
+        qkv_wgrad=run.Config(
+            BulkOverlapCfg,
+            cga_size=2,
+            method="bulk",
+            num_sm=24,
+            set_sm_margin=False,
+        ),
+        qkv_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        proj_dgrad=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        proj_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=True,
+        ),
+        fc1_dgrad=run.Config(
+            BulkOverlapCfg,
+            num_sm=2,
+            cga_size=2,
+            set_sm_margin=False,
+            method="bulk",
+        ),
+        fc1_wgrad=run.Config(
+            BulkOverlapCfg,
+            num_sm=4,
+            cga_size=2,
+            set_sm_margin=False,
+            method="bulk",
+        ),
+        fc1_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        fc2_dgrad=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        fc2_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=True,
+        ),
+    )
+
+
+@run.cli.factory
+@run.autoconvert
+def llama3_70b_fp8_h100_tp_overlap_config() -> run.Config[TransformerLayerTPOverlapCfg]:
     return run.Config(
         TransformerLayerTPOverlapCfg,
         qkv_dgrad=run.Config(
@@ -498,14 +658,6 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
             val_check_interval=1000,
             max_epochs=10,
             callbacks=[
-                run.Config(
-                    MegatronCommOverlapCallback,
-                    tp_comm_overlap=True,
-                    tp_comm_overlap_cfg=llama3_70b_bf16_tp_overlap_config(),
-                    overlap_param_gather_with_optimizer_step=True,
-                    defer_embedding_wgrad_compute=True,
-                    wgrad_deferral_limit=22,
-                ),
                 timing_callback(),
             ],
         ),
@@ -547,6 +699,70 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
             model_name="llama3",
         )
     )
+    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
+    gpu_type = os.getenv("CLOUDAI_GPU_TYPE")
+    compute_dtype = os.getenv("CLOUDAI_GPU_DTYPE")
+
+    if gpu_type == "h100" and compute_dtype == "bf16":
+        recipe.trainer.callbacks.append(
+            run.Config(
+                MegatronCommOverlapCallback,
+                tp_comm_overlap=True,
+                tp_comm_overlap_cfg=llama3_70b_bf16_h100_tp_overlap_config(),
+                overlap_param_gather_with_optimizer_step=True,
+                defer_embedding_wgrad_compute=True,
+                wgrad_deferral_limit=22,
+            )
+        )
+    elif gpu_type == "h100" and compute_dtype == "fp8":
+        recipe.trainer.callbacks.append(
+            run.Config(
+                MegatronCommOverlapCallback,
+                tp_comm_overlap=True,
+                tp_comm_overlap_cfg=llama3_70b_fp8_h100_tp_overlap_config(),
+                overlap_param_gather_with_optimizer_step=True,
+                defer_embedding_wgrad_compute=True,
+                wgrad_deferral_limit=22,
+            )
+        )
+    elif gpu_type == "b200" and compute_dtype == "bf16":
+        recipe.trainer.callbacks.append(
+            run.Config(
+                MegatronCommOverlapCallback,
+                tp_comm_overlap=True,
+                tp_comm_overlap_cfg=llama3_70b_bf16_b200_tp_overlap_config(),
+                overlap_param_gather_with_optimizer_step=True,
+                defer_embedding_wgrad_compute=True,
+                wgrad_deferral_limit=22,
+            )
+        )
+    elif gpu_type == "b200" and compute_dtype == "fp8":
+        recipe.trainer.callbacks.append(
+            run.Config(
+                MegatronCommOverlapCallback,
+                tp_comm_overlap=True,
+                tp_comm_overlap_cfg=llama3_70b_fp8_b200_tp_overlap_config(),
+                overlap_param_gather_with_optimizer_step=True,
+                defer_embedding_wgrad_compute=True,
+                wgrad_deferral_limit=22,
+            )
+        )
+    else:
+        print(
+            "Warning: Not using Default Comm Overlap Config.\n"
+            "Please set the GPU type and compute dtype in the environment variables."
+        )
+
+        recipe.trainer.callbacks.append(
+            run.Config(
+                MegatronCommOverlapCallback,
+                tp_comm_overlap=False,
+                overlap_param_gather_with_optimizer_step=True,
+                defer_embedding_wgrad_compute=True,
+                wgrad_deferral_limit=22,
+            )
+        )
+
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
 
