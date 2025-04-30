@@ -708,7 +708,7 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
     compute_dtype = os.getenv("CLOUDAI_GPU_DTYPE")
     enable_cuda_graphs = os.getenv("CLOUDAI_ENABLE_CUDA_GRAPHS", "0") == "1"
     if enable_cuda_graphs:
-        recipe.model.config.enable_cuda_graphs = True
+        recipe.model.config.enable_cuda_graph = True
         recipe.trainer.strategy.use_te_rng_tracker = True
 
     if gpu_type == "h100" and compute_dtype == "bf16":
@@ -919,7 +919,7 @@ def cloudai_nemotron3_8b_recipe() -> run.Partial:
     )
     enable_cuda_graphs = os.getenv("CLOUDAI_ENABLE_CUDA_GRAPHS", "0") == "1"
     if enable_cuda_graphs:
-        recipe.model.config.enable_cuda_graphs = True
+        recipe.model.config.enable_cuda_graph = True
         recipe.trainer.strategy.use_te_rng_tracker = True
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
@@ -1012,7 +1012,7 @@ def cloudai_nemotron4_15b_recipe() -> run.Partial:
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     enable_cuda_graphs = os.getenv("CLOUDAI_ENABLE_CUDA_GRAPHS", "0") == "1"
     if enable_cuda_graphs:
-        recipe.model.config.enable_cuda_graphs = True
+        recipe.model.config.enable_cuda_graph = True
         recipe.trainer.strategy.use_te_rng_tracker = True
     return recipe
 
@@ -1134,7 +1134,7 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
     recipe.model.config.cross_entropy_fusion_impl = "te"
     enable_cuda_graphs = os.getenv("CLOUDAI_ENABLE_CUDA_GRAPHS", "0") == "1"
     if enable_cuda_graphs:
-        recipe.model.config.enable_cuda_graphs = True
+        recipe.model.config.enable_cuda_graph = True
         recipe.trainer.strategy.use_te_rng_tracker = True
     return recipe
 
