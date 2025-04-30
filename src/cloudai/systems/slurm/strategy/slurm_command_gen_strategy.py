@@ -260,7 +260,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
     def gen_srun_prefix(self, slurm_args: Dict[str, Any], tr: TestRun, use_pretest_extras: bool = False) -> List[str]:
         srun_command_parts = ["srun", "--export=ALL", f"--mpi={self.system.mpi}"]
-        if not use_pretest_extras and tr.pre_test:
+        if use_pretest_extras and tr.pre_test:
             for pre_tr in tr.pre_test.test_runs:
                 srun_command_parts.extend(self._get_cmd_gen_strategy(pre_tr).pre_test_srun_extra_args(tr))
 
