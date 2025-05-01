@@ -138,10 +138,8 @@ class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "profile",
             "-m",
             args.served_model_name,
-            "--endpoint-type",
-            args.endpoint_type,
-            "--service-kind",
-            args.service_kind,
+            f"--endpoint-type {args.endpoint_type}",
+            f"--service-kind {args.service_kind}",
         ]
         if args.streaming:
             client_command.append("--streaming")
