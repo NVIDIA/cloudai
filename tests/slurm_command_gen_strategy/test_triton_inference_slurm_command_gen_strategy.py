@@ -201,4 +201,4 @@ def test_gen_srun_command(
     strategy._build_server_srun = Mock(return_value="S")
     strategy._build_client_srun = Mock(return_value="C")
     cmd = strategy._gen_srun_command({}, {}, {}, test_run)
-    assert cmd == "S &\n\nsleep 3300\n\nC"
+    assert cmd == f"S &\n\nsleep {test_run.test.test_definition.cmd_args.sleep_seconds}\n\nC"
