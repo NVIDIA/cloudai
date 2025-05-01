@@ -38,7 +38,12 @@ def strategy(slurm_system: SlurmSystem) -> TritonInferenceSlurmCommandGenStrateg
 
 @pytest.fixture
 def test_run(tmp_path: Path) -> TestRun:
-    args = TritonInferenceCmdArgs(served_model_name="model", tokenizer="tok")
+    args = TritonInferenceCmdArgs(
+        server_docker_image_url="nvcr.io/nim/deepseek-ai/deepseek-r1:1.7.2",
+        client_docker_image_url="nvcr.io/nvidia/tritonserver:25.01-py3-sdk",
+        served_model_name="model",
+        tokenizer="tok",
+    )
     tdef = TritonInferenceTestDefinition(
         name="dsr1",
         description="desc",
@@ -54,7 +59,12 @@ def test_container_mounts_invalid_model(
     tmp_path: Path,
     strategy: TritonInferenceSlurmCommandGenStrategy,
 ) -> None:
-    args = TritonInferenceCmdArgs(served_model_name="m", tokenizer="tok")
+    args = TritonInferenceCmdArgs(
+        server_docker_image_url="nvcr.io/nim/deepseek-ai/deepseek-r1:1.7.2",
+        client_docker_image_url="nvcr.io/nvidia/tritonserver:25.01-py3-sdk",
+        served_model_name="m",
+        tokenizer="tok",
+    )
     cache_dir = tmp_path / "cache"
     cache_dir.mkdir()
     tdef = TritonInferenceTestDefinition(
@@ -144,7 +154,12 @@ def test_build_server_srun(
         name="z",
         description="",
         test_template_name="",
-        cmd_args=TritonInferenceCmdArgs(served_model_name="", tokenizer=""),
+        cmd_args=TritonInferenceCmdArgs(
+            server_docker_image_url="nvcr.io/nim/deepseek-ai/deepseek-r1:1.7.2",
+            client_docker_image_url="nvcr.io/nvidia/tritonserver:25.01-py3-sdk",
+            served_model_name="",
+            tokenizer="",
+        ),
         extra_env_vars={"NIM_CACHE_PATH": "/tmp"},
     )
     test = Test(test_definition=tdef, test_template=Mock())
