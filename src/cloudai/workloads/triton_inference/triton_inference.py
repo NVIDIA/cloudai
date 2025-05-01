@@ -22,8 +22,8 @@ from cloudai import CmdArgs, DockerImage, Installable, TestDefinition
 class TritonInferenceCmdArgs(CmdArgs):
     """Arguments for TritonInference server and client."""
 
-    server_docker_image_url: str = "nvcr.io/nim/deepseek-ai/deepseek-r1:1.7.2"
-    client_docker_image_url: str = "nvcr.io/nvidia/tritonserver:25.01-py3-sdk"
+    server_docker_image_url: str
+    client_docker_image_url: str
     served_model_name: str
     endpoint_type: Literal["chat"] = "chat"
     service_kind: Literal["openai"] = "openai"
