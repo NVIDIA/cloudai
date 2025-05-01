@@ -182,7 +182,7 @@ def test_build_client_srun(
     test_run.test.test_definition.cmd_args.streaming = streaming
     result = strategy._build_client_srun({}, test_run, 1)
     called_args, called_tr = strategy.gen_srun_prefix.call_args.args
-    assert called_args["image_path"] == "nvcr.io/nvidia/tritonserver:25.01-py3-sdk"
+    assert called_args["image_path"] == test_run.test.test_definition.cmd_args.client_docker_image_url
     assert called_tr is test_run
     parts = result.split()
     assert "--nodes=1" in parts
