@@ -361,7 +361,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             f"#SBATCH -N {slurm_args['num_nodes']}",
         ]
 
-        self._append_sbatch_directives(batch_script_content, slurm_args, tr.output_path)
+        self._append_sbatch_directives(batch_script_content, slurm_args, tr)
 
         batch_script_content.extend([self._format_env_vars(env_vars)])
 
@@ -380,23 +380,21 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         return f"sbatch {batch_script_path}"
 
-    def _append_sbatch_directives(
-        self, batch_script_content: List[str], args: Dict[str, Any], output_path: Path
-    ) -> None:
+    def _append_sbatch_directives(self, batch_script_content: List[str], args: Dict[str, Any], tr: TestRun) -> None:
         """
         Append SBATCH directives to the batch script content.
 
         Args:
             batch_script_content (List[str]): The list of script lines to append to.
             args (Dict[str, Any]): Arguments including job settings.
-            output_path (Path): Output directory for script and logs.
+            tr (TestRun): Test run object.
         """
         batch_script_content = self._add_reservation(batch_script_content)
 
         if "output" not in args:
-            batch_script_content.append(f"#SBATCH --output={output_path / 'stdout.txt'}")
+            batch_script_content.append(f"#SBATCH --output={tr.output_path / 'stdout.txt'}")
         if "error" not in args:
-            batch_script_content.append(f"#SBATCH --error={output_path / 'stderr.txt'}")
+            batch_script_content.append(f"#SBATCH --error={tr.output_path / 'stderr.txt'}")
         batch_script_content.append(f"#SBATCH --partition={self.system.default_partition}")
         if args["node_list_str"]:
             batch_script_content.append(f"#SBATCH --nodelist={args['node_list_str']}")

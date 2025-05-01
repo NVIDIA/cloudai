@@ -260,10 +260,10 @@ def test_default_container_mounts(strategy_fixture: SlurmCommandGenStrategy, tes
     assert mounts[1] == f"{strategy_fixture.system.install_path.absolute()}:/cloudai_install"
 
 
-def test_append_sbatch_directives(strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path):
+def test_append_sbatch_directives(strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun):
     content: list[str] = []
     strategy_fixture.system.extra_sbatch_args = ["--section=4", "--other-arg 1"]
-    strategy_fixture._append_sbatch_directives(content, {"node_list_str": ""}, tmp_path)
+    strategy_fixture._append_sbatch_directives(content, {"node_list_str": ""}, testrun_fixture)
 
     assert f"#SBATCH --partition={strategy_fixture.system.default_partition}" in content
     for arg in strategy_fixture.system.extra_sbatch_args:
