@@ -400,8 +400,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             batch_script_content.append(f"#SBATCH --nodelist={args['node_list_str']}")
         if self.system.account:
             batch_script_content.append(f"#SBATCH --account={self.system.account}")
-        if self.system.distribution:
-            batch_script_content.append(f"#SBATCH --distribution={self.system.distribution}")
+
+        self._append_distribution_and_hostfile(batch_script_content, args, tr)
+
         if self.system.gpus_per_node:
             batch_script_content.append(f"#SBATCH --gpus-per-node={self.system.gpus_per_node}")
             batch_script_content.append(f"#SBATCH --gres=gpu:{self.system.gpus_per_node}")
@@ -416,6 +417,20 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         batch_script_content.append(
             "\nexport SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)"
         )
+
+    def _append_distribution_and_hostfile(self, content: List[str], args: Dict[str, Any], tr: TestRun) -> None:
+        _, node_list = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
+        if node_list:
+            content.append("#SBATCH --distribution=arbitrary")
+            hostfile = tr.output_path / "hostfile.txt"
+            with hostfile.open("w") as hf:
+                tasks = self.system.ntasks_per_node or 1
+                for node in node_list:
+                    for _ in range(tasks):
+                        hf.write(f"{node}\n")
+            content.append(f"export SLURM_HOSTFILE={hostfile}")
+        elif self.system.distribution:
+            content.append(f"#SBATCH --distribution={self.system.distribution}")
 
     def _format_env_vars(self, env_vars: Dict[str, Any]) -> str:
         """
