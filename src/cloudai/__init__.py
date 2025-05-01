@@ -74,11 +74,6 @@ from .workloads.common import (
     SlurmJobIdRetrievalStrategy,
     StandaloneJobIdRetrievalStrategy,
 )
-from .workloads.triton_inference import (
-    TritonInferenceReportGenerationStrategy,
-    TritonInferenceSlurmCommandGenStrategy,
-    TritonInferenceTestDefinition,
-)
 from .workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -128,6 +123,11 @@ from .workloads.slurm_container import (
     SlurmContainerCommandGenStrategy,
     SlurmContainerReportGenerationStrategy,
     SlurmContainerTestDefinition,
+)
+from .workloads.triton_inference import (
+    TritonInferenceReportGenerationStrategy,
+    TritonInferenceSlurmCommandGenStrategy,
+    TritonInferenceTestDefinition,
 )
 from .workloads.ucc_test import (
     UCCTestDefinition,

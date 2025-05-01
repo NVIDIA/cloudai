@@ -41,10 +41,6 @@ from cloudai.workloads.chakra_replay import (
 from cloudai.workloads.common import SlurmJobIdRetrievalStrategy, StandaloneJobIdRetrievalStrategy
 from cloudai.workloads.common.default_job_status_retrieval_strategy import DefaultJobStatusRetrievalStrategy
 from cloudai.workloads.common.lsf_job_id_retrieval_strategy import LSFJobIdRetrievalStrategy
-from cloudai.workloads.triton_inference import (
-    TritonInferenceSlurmCommandGenStrategy,
-    TritonInferenceTestDefinition,
-)
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -78,6 +74,10 @@ from cloudai.workloads.sleep import (
     SleepTestDefinition,
 )
 from cloudai.workloads.slurm_container import SlurmContainerCommandGenStrategy, SlurmContainerTestDefinition
+from cloudai.workloads.triton_inference import (
+    TritonInferenceSlurmCommandGenStrategy,
+    TritonInferenceTestDefinition,
+)
 from cloudai.workloads.ucc_test import (
     UCCTestDefinition,
     UCCTestGradingStrategy,

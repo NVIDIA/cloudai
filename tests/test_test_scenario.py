@@ -32,7 +32,6 @@ from cloudai._core.test_scenario_parser import (
     get_reporters,
 )
 from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
-from cloudai.workloads.triton_inference import TritonInferenceReportGenerationStrategy, TritonInferenceTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -54,6 +53,7 @@ from cloudai.workloads.nemo_run import (
 )
 from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
 from cloudai.workloads.slurm_container import SlurmContainerReportGenerationStrategy, SlurmContainerTestDefinition
+from cloudai.workloads.triton_inference import TritonInferenceReportGenerationStrategy, TritonInferenceTestDefinition
 from cloudai.workloads.ucc_test import UCCTestDefinition, UCCTestReportGenerationStrategy
 from tests.conftest import MyTestDefinition
 
