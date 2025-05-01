@@ -19,8 +19,8 @@ from typing import Literal, Optional
 from cloudai import CmdArgs, DockerImage, Installable, TestDefinition
 
 
-class DeepSeekR1CmdArgs(CmdArgs):
-    """Arguments for DeepSeekR1 server and client."""
+class TritonInferenceCmdArgs(CmdArgs):
+    """Arguments for TritonInference server and client."""
 
     server_docker_image_url: str = "nvcr.io/nim/deepseek-ai/deepseek-r1:1.7.2"
     client_docker_image_url: str = "nvcr.io/nvidia/tritonserver:25.01-py3-sdk"
@@ -37,10 +37,10 @@ class DeepSeekR1CmdArgs(CmdArgs):
     sleep_seconds: int = 3300
 
 
-class DeepSeekR1TestDefinition(TestDefinition):
-    """Test definition for DeepSeekR1 server and NIM client."""
+class TritonInferenceTestDefinition(TestDefinition):
+    """Test definition for TritonInference server and NIM client."""
 
-    cmd_args: DeepSeekR1CmdArgs
+    cmd_args: TritonInferenceCmdArgs
     _server_image: Optional[DockerImage] = None
     _client_image: Optional[DockerImage] = None
 

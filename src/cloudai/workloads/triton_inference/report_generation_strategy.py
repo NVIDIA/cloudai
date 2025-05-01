@@ -17,8 +17,8 @@
 from cloudai import ReportGenerationStrategy
 
 
-class DeepSeekR1ReportGenerationStrategy(ReportGenerationStrategy):
-    """Report generation strategy for DeepSeekR1."""
+class TritonInferenceReportGenerationStrategy(ReportGenerationStrategy):
+    """Report generation strategy for TritonInference."""
 
     def can_handle_directory(self) -> bool:
         return False

@@ -20,14 +20,14 @@ from typing import Any, Dict, List, Tuple, Union, cast
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
-from .deepseek_r1 import DeepSeekR1TestDefinition
+from .triton_inference import TritonInferenceTestDefinition
 
 
-class DeepSeekR1SlurmCommandGenStrategy(SlurmCommandGenStrategy):
-    """Command generation strategy for DeepSeekR1 server and client."""
+class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
+    """Command generation strategy for TritonInference server and client."""
 
     def _container_mounts(self, tr: TestRun) -> List[str]:
-        test_definition = cast(DeepSeekR1TestDefinition, tr.test.test_definition)
+        test_definition = cast(TritonInferenceTestDefinition, tr.test.test_definition)
         mounts: List[str] = []
 
         model_path_str = test_definition.extra_env_vars.get("NIM_MODEL_NAME")
@@ -99,7 +99,7 @@ class DeepSeekR1SlurmCommandGenStrategy(SlurmCommandGenStrategy):
         num_server_nodes, num_client_nodes = self._get_server_client_split(tr)
         server_line = self._build_server_srun(slurm_args, tr, num_server_nodes)
         client_line = self._build_client_srun(slurm_args, tr, num_client_nodes)
-        sleep_sec = cast(DeepSeekR1TestDefinition, tr.test.test_definition).cmd_args.sleep_seconds
+        sleep_sec = cast(TritonInferenceTestDefinition, tr.test.test_definition).cmd_args.sleep_seconds
         return f"{server_line} &\n\nsleep {sleep_sec}\n\n{client_line}"
 
     def _get_server_client_split(self, tr: TestRun) -> Tuple[int, int]:
@@ -109,7 +109,7 @@ class DeepSeekR1SlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return num_nodes - 1, 1
 
     def _build_server_srun(self, slurm_args: Dict[str, Any], tr: TestRun, num_server_nodes: int) -> str:
-        test_definition = cast(DeepSeekR1TestDefinition, tr.test.test_definition)
+        test_definition = cast(TritonInferenceTestDefinition, tr.test.test_definition)
         server_slurm_args = {
             **slurm_args,
             "image_path": test_definition.server_docker_image.installed_path,
@@ -123,7 +123,7 @@ class DeepSeekR1SlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return " ".join(srun_prefix + nsys_command + server_launch_command)
 
     def _build_client_srun(self, slurm_args: Dict[str, Any], tr: TestRun, num_client_nodes: int) -> str:
-        test_definition = cast(DeepSeekR1TestDefinition, tr.test.test_definition)
+        test_definition = cast(TritonInferenceTestDefinition, tr.test.test_definition)
         client_slurm_args = {
             **slurm_args,
             "image_path": test_definition.client_docker_image.installed_path,

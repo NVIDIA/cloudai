@@ -24,22 +24,22 @@ import pytest
 from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestRun
 from cloudai.systems import SlurmSystem
-from cloudai.workloads.deepseek_r1 import (
-    DeepSeekR1CmdArgs,
-    DeepSeekR1SlurmCommandGenStrategy,
-    DeepSeekR1TestDefinition,
+from cloudai.workloads.triton_inference import (
+    TritonInferenceCmdArgs,
+    TritonInferenceSlurmCommandGenStrategy,
+    TritonInferenceTestDefinition,
 )
 
 
 @pytest.fixture
-def strategy(slurm_system: SlurmSystem) -> DeepSeekR1SlurmCommandGenStrategy:
-    return DeepSeekR1SlurmCommandGenStrategy(slurm_system, {})
+def strategy(slurm_system: SlurmSystem) -> TritonInferenceSlurmCommandGenStrategy:
+    return TritonInferenceSlurmCommandGenStrategy(slurm_system, {})
 
 
 @pytest.fixture
 def test_run(tmp_path: Path) -> TestRun:
-    args = DeepSeekR1CmdArgs(served_model_name="model", tokenizer="tok")
-    tdef = DeepSeekR1TestDefinition(
+    args = TritonInferenceCmdArgs(served_model_name="model", tokenizer="tok")
+    tdef = TritonInferenceTestDefinition(
         name="dsr1",
         description="desc",
         test_template_name="tt",
@@ -52,12 +52,12 @@ def test_run(tmp_path: Path) -> TestRun:
 
 def test_container_mounts_invalid_model(
     tmp_path: Path,
-    strategy: DeepSeekR1SlurmCommandGenStrategy,
+    strategy: TritonInferenceSlurmCommandGenStrategy,
 ) -> None:
-    args = DeepSeekR1CmdArgs(served_model_name="m", tokenizer="tok")
+    args = TritonInferenceCmdArgs(served_model_name="m", tokenizer="tok")
     cache_dir = tmp_path / "cache"
     cache_dir.mkdir()
-    tdef = DeepSeekR1TestDefinition(
+    tdef = TritonInferenceTestDefinition(
         name="x",
         description="",
         test_template_name="",
@@ -75,7 +75,7 @@ def test_container_mounts_invalid_model(
 
 def test_container_mounts_with_model_and_cache(
     tmp_path: Path,
-    strategy: DeepSeekR1SlurmCommandGenStrategy,
+    strategy: TritonInferenceSlurmCommandGenStrategy,
     test_run: TestRun,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -92,7 +92,7 @@ def test_container_mounts_with_model_and_cache(
     model_dir.mkdir()
     cache_dir.mkdir()
 
-    tdef = cast(DeepSeekR1TestDefinition, test_run.test.test_definition)
+    tdef = cast(TritonInferenceTestDefinition, test_run.test.test_definition)
     tdef.extra_env_vars["NIM_MODEL_NAME"] = str(model_dir)
     tdef.extra_env_vars["NIM_CACHE_PATH"] = str(cache_dir)
 
@@ -109,7 +109,7 @@ def test_container_mounts_with_model_and_cache(
 
 def test_generate_start_wrapper_script(
     tmp_path: Path,
-    strategy: DeepSeekR1SlurmCommandGenStrategy,
+    strategy: TritonInferenceSlurmCommandGenStrategy,
 ) -> None:
     script_path = tmp_path / "script.sh"
     env_vars = {"KEY": "VALUE", "NIM_LEADER_IP_ADDRESS": "X", "NIM_NODE_RANK": "Y"}
@@ -123,7 +123,7 @@ def test_generate_start_wrapper_script(
 
 
 def test_append_sbatch_directives(
-    strategy: DeepSeekR1SlurmCommandGenStrategy,
+    strategy: TritonInferenceSlurmCommandGenStrategy,
     tmp_path: Path,
 ) -> None:
     args: Dict[str, Any] = {"num_nodes": 3, "node_list_str": ""}
@@ -136,15 +136,15 @@ def test_append_sbatch_directives(
 
 
 def test_build_server_srun(
-    strategy: DeepSeekR1SlurmCommandGenStrategy,
+    strategy: TritonInferenceSlurmCommandGenStrategy,
 ) -> None:
     strategy.gen_srun_prefix = Mock(return_value=["P"])
     strategy.gen_nsys_command = Mock(return_value=["N"])
-    tdef = DeepSeekR1TestDefinition(
+    tdef = TritonInferenceTestDefinition(
         name="z",
         description="",
         test_template_name="",
-        cmd_args=DeepSeekR1CmdArgs(served_model_name="", tokenizer=""),
+        cmd_args=TritonInferenceCmdArgs(served_model_name="", tokenizer=""),
         extra_env_vars={"NIM_CACHE_PATH": "/tmp"},
     )
     test = Test(test_definition=tdef, test_template=Mock())
@@ -159,7 +159,7 @@ def test_build_server_srun(
 
 @pytest.mark.parametrize("streaming", [True, False])
 def test_build_client_srun(
-    strategy: DeepSeekR1SlurmCommandGenStrategy,
+    strategy: TritonInferenceSlurmCommandGenStrategy,
     test_run: TestRun,
     streaming: bool,
 ) -> None:
@@ -180,7 +180,7 @@ def test_build_client_srun(
 
 
 def test_gen_srun_command(
-    strategy: DeepSeekR1SlurmCommandGenStrategy,
+    strategy: TritonInferenceSlurmCommandGenStrategy,
     test_run: TestRun,
 ) -> None:
     strategy._build_server_srun = Mock(return_value="S")

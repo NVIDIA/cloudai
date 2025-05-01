@@ -14,13 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .deepseek_r1 import DeepSeekR1CmdArgs, DeepSeekR1TestDefinition
-from .report_generation_strategy import DeepSeekR1ReportGenerationStrategy
-from .slurm_command_gen_strategy import DeepSeekR1SlurmCommandGenStrategy
+from .triton_inference import TritonInferenceCmdArgs, TritonInferenceTestDefinition
+from .report_generation_strategy import TritonInferenceReportGenerationStrategy
+from .slurm_command_gen_strategy import TritonInferenceSlurmCommandGenStrategy
 
 __all__ = [
-    "DeepSeekR1CmdArgs",
-    "DeepSeekR1ReportGenerationStrategy",
-    "DeepSeekR1SlurmCommandGenStrategy",
-    "DeepSeekR1TestDefinition",
+    "TritonInferenceCmdArgs",
+    "TritonInferenceReportGenerationStrategy",
+    "TritonInferenceSlurmCommandGenStrategy",
+    "TritonInferenceTestDefinition",
 ]
