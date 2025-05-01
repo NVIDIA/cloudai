@@ -103,10 +103,30 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return recipe_name
 
+    def update_num_train_samples(self, tr: TestRun) -> None:
+        """Update num_train_samples based on global_batch_size and max_steps."""
+        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
+
+        global_batch_size = (
+            tdef.cmd_args.data.global_batch_size[0]
+            if isinstance(tdef.cmd_args.data.global_batch_size, list)
+            else tdef.cmd_args.data.global_batch_size
+        )
+
+        max_steps = (
+            tdef.cmd_args.trainer.max_steps[0]
+            if isinstance(tdef.cmd_args.trainer.max_steps, list)
+            else tdef.cmd_args.trainer.max_steps
+        )
+
+        tdef.cmd_args.data.num_train_samples = global_batch_size * max_steps
+
     def generate_test_command(
         self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> List[str]:
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
+
+        self.update_num_train_samples(tr)
 
         cmd_args_dict = tdef.cmd_args.model_dump()
 
