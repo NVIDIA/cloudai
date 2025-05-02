@@ -332,6 +332,7 @@ def test_nccl_topo_mount(strategy_fixture: SlurmCommandGenStrategy, testrun_fixt
 def test_append_distribution_and_hostfile_with_nodes(
     strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun
 ) -> None:
+    strategy_fixture.system.distribution = "block"
     strategy_fixture.system.ntasks_per_node = 2
     content: List[str] = []
     args: Dict[str, Any] = {"node_list_str": ",".join(testrun_fixture.nodes)}
