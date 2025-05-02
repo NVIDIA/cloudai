@@ -770,7 +770,7 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
                 wgrad_deferral_limit=22,
             )
         )
-
+    recipe.trainer.callbacks.append(run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100))
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
 
