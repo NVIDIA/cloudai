@@ -40,6 +40,8 @@ from ._core.report_generation_strategy import ReportGenerationStrategy
 from ._core.reporter import PerTestReporter, Reporter, StatusReporter, TarballReporter
 from ._core.runner import Runner
 from ._core.system import System
+from ._core.telemetry import Telemetry
+from ._core.telemetry_logger import OneLoggerTelemetry
 from ._core.test import CmdArgs, NsysConfiguration, PredictorConfig, Test, TestDefinition
 from ._core.test_parser import TestParser
 from ._core.test_scenario import TestRun, TestScenario
@@ -296,6 +298,9 @@ Registry().add_scenario_report(PerTestReporter)
 Registry().add_scenario_report(StatusReporter)
 Registry().add_scenario_report(TarballReporter)
 
+Registry().add_logger(OneLoggerTelemetry)
+
+
 __all__ = [
     "BaseAgent",
     "BaseInstaller",
@@ -324,6 +329,7 @@ __all__ = [
     "Runner",
     "System",
     "SystemConfigParsingError",
+    "Telemetry",
     "Test",
     "TestConfigParsingError",
     "TestDefinition",

@@ -25,6 +25,7 @@ from .base_job import BaseJob
 from .exceptions import JobFailureError, JobSubmissionError
 from .job_status_result import JobStatusResult
 from .system import System
+from .telemetry import Telemetry
 from .test_scenario import TestRun, TestScenario
 
 
@@ -79,6 +80,13 @@ class BaseRunner(ABC):
 
     async def run(self):
         """Asynchronously run the test scenario."""
+        Telemetry().log_metrics(
+            {
+                "test_scenario_name": self.test_scenario.name,
+                "test_runs": len(self.test_scenario.test_runs),
+                "event_name": "submit_scenario",
+            }
+        )
         if self.shutting_down:
             return
 
@@ -102,6 +110,7 @@ class BaseRunner(ABC):
             tr (TestRun): The test to be started.
         """
         logging.info(f"Starting test: {tr.name}")
+        Telemetry().log_metrics({"test_name": tr.name, "num_nodes": tr.num_nodes, "event_name": "submit_test"})
         try:
             job = self._submit_test(tr)
             self.jobs.append(job)

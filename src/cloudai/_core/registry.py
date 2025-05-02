@@ -15,10 +15,12 @@
 # limitations under the License.
 
 import copy
-from typing import ClassVar, List, Set, Tuple, Type, Union
+from typing import TYPE_CHECKING, ClassVar, List, Set, Tuple, Type, Union
+
+if TYPE_CHECKING:
+    from .base_runner import BaseRunner
 
 from .base_installer import BaseInstaller
-from .base_runner import BaseRunner
 from .configurator.base_agent import BaseAgent
 from .grading_strategy import GradingStrategy
 from .job_id_retrieval_strategy import JobIdRetrievalStrategy
@@ -26,6 +28,7 @@ from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from .report_generation_strategy import ReportGenerationStrategy
 from .reporter import Reporter
 from .system import System
+from .telemetry_logger import TelemetryLogger
 from .test import TestDefinition
 from .test_template_strategy import TestTemplateStrategy
 
@@ -33,18 +36,18 @@ from .test_template_strategy import TestTemplateStrategy
 class Singleton(type):
     """Singleton metaclass."""
 
-    _instance = None
+    _instances: ClassVar[dict] = {}
 
-    def __new__(cls, name, bases, dct):
-        if not isinstance(cls._instance, cls):
-            cls._instance = super().__new__(cls, name, bases, dct)
-        return cls._instance
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super().__call__(*args, **kwargs)
+        return cls._instances[cls]
 
 
 class Registry(metaclass=Singleton):
     """Registry for implementations mappings."""
 
-    runners_map: ClassVar[dict[str, Type[BaseRunner]]] = {}
+    runners_map: ClassVar[dict[str, Type["BaseRunner"]]] = {}
     strategies_map: ClassVar[
         dict[
             Tuple[
@@ -75,8 +78,9 @@ class Registry(metaclass=Singleton):
     agents_map: ClassVar[dict[str, Type[BaseAgent]]] = {}
     reports_map: ClassVar[dict[Type[TestDefinition], Set[Type[ReportGenerationStrategy]]]] = {}
     scenario_reports: ClassVar[Set[Type[Reporter]]] = set()
+    loggers: ClassVar[Set[Type[TelemetryLogger]]] = set()
 
-    def add_runner(self, name: str, value: Type[BaseRunner]) -> None:
+    def add_runner(self, name: str, value: Type["BaseRunner"]) -> None:
         """
         Add a new runner implementation mapping.
 
@@ -91,7 +95,7 @@ class Registry(metaclass=Singleton):
             raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
         self.update_runner(name, value)
 
-    def update_runner(self, name: str, value: Type[BaseRunner]) -> None:
+    def update_runner(self, name: str, value: Type["BaseRunner"]) -> None:
         """
         Create or replace runner implementation mapping.
 
@@ -102,6 +106,8 @@ class Registry(metaclass=Singleton):
         Raises:
             ValueError: If value is not a subclass of BaseRunner.
         """
+        from .base_runner import BaseRunner
+
         if not issubclass(value, BaseRunner):
             raise ValueError(f"Invalid runner implementation for '{name}', should be subclass of 'BaseRunner'.")
         self.runners_map[name] = value
@@ -327,3 +333,14 @@ class Registry(metaclass=Singleton):
             raise ValueError("Invalid scenario report implementation, should be subclass of 'Reporter'.")
         self.scenario_reports.clear()
         self.scenario_reports.update(reports)
+
+    def add_logger(self, value: Type[TelemetryLogger]) -> None:
+        existing_loggers = copy.copy(self.loggers)
+        existing_loggers.add(value)
+        self.update_logger(existing_loggers)
+
+    def update_logger(self, loggers: Set[Type[TelemetryLogger]]) -> None:
+        if not any(issubclass(logger, TelemetryLogger) for logger in loggers):
+            raise ValueError("Invalid telemetry logger implementation, should be subclass of 'TelemetryLogger'.")
+        self.loggers.clear()
+        self.loggers.update(loggers)

@@ -24,6 +24,7 @@ from .base_runner import BaseRunner
 from .exceptions import JobFailureError
 from .registry import Registry
 from .system import System
+from .telemetry import Telemetry
 from .test_scenario import TestScenario
 
 
@@ -77,6 +78,9 @@ class Runner:
             system.output_path.mkdir()
         current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         results_root = system.output_path / f"{test_scenario.name}_{current_time}"
+
+        Telemetry().set_output_dir(results_root / ".cloudai")
+        Telemetry().set_name(f"{test_scenario.name}_{current_time}")
 
         return runner_class(mode, system, test_scenario, results_root)
 
