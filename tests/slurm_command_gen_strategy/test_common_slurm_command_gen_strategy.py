@@ -336,7 +336,7 @@ def test_append_distribution_and_hostfile_with_nodes(
     strategy_fixture.system.ntasks_per_node = 2
     content: List[str] = []
     args: Dict[str, Any] = {"node_list_str": ",".join(testrun_fixture.nodes)}
-    strategy_fixture._append_distribution_and_hostfile(content, args, testrun_fixture)
+    strategy_fixture._append_nodes_related_directives(content, args, testrun_fixture)
 
     assert "#SBATCH --distribution=arbitrary" in content
 
@@ -353,6 +353,6 @@ def test_distribution_fallback_when_no_nodes(
     strategy_fixture.system.distribution = "cyclic"
     content: List[str] = []
     args: Dict[str, Any] = {"node_list_str": ""}
-    strategy_fixture._append_distribution_and_hostfile(content, args, testrun_fixture)
+    strategy_fixture._append_nodes_related_directives(content, args, testrun_fixture)
 
     assert "#SBATCH --distribution=cyclic" in content
