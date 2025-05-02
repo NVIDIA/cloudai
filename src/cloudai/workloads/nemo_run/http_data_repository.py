@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import json
+from pathlib import Path
 from typing import Any, Dict
 
 import requests
@@ -32,7 +33,14 @@ class HttpDataRepository:
         self.endpoint = endpoint
         self.verify = verify_certs
 
-        credentials = toml.load(".cloudai.toml")
+        config_path = Path(".cloudai.toml")
+        if not config_path.is_file():
+            raise ValueError(
+                "Credential file '.cloudai.toml' not found. Please create the file and "
+                "record a valid token under [data_repository]. Refer to USER_GUIDE.md for details."
+            )
+
+        credentials = toml.load(config_path)
         self.token = credentials.get("data_repository", {}).get("token")
         if not self.token:
             raise ValueError(
