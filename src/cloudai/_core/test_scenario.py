@@ -14,11 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
+import itertools
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, Set, Type
+from typing import TYPE_CHECKING, Any, List, Optional, Set, Type
 
 from .system import System
+from .test_template_strategy import TestTemplateStrategy
 
 if TYPE_CHECKING:
     from .report_generation_strategy import ReportGenerationStrategy
@@ -98,6 +101,49 @@ class TestRun:
             return METRIC_ERROR
 
         return report(system, self).get_metric(self.test.test_definition.agent_metric)
+
+    @property
+    def action_space(self) -> dict[str, Any]:
+        action_space: dict[str, Any] = {}
+        cmd_args_dict = TestTemplateStrategy._flatten_dict(self.test.test_definition.cmd_args.model_dump())
+        extra_env_vars_dict = self.test.test_definition.extra_env_vars
+
+        action_space = {
+            **{f"{key}": value for key, value in cmd_args_dict.items() if isinstance(value, list)},
+            **{f"extra_env_vars.{key}": value for key, value in extra_env_vars_dict.items() if isinstance(value, list)},
+        }
+
+        return action_space
+
+    @property
+    def all_combinations(self) -> list[dict[str, Any]]:
+        if not self.test.test_definition.is_dse_job:
+            return []
+
+        action_space: dict[str, Any] = self.action_space
+
+        parameter_values: list[Any] = []
+        for _, values in action_space.items():
+            parameter_values.append(values)
+        action_combinations = list(itertools.product(*parameter_values))
+
+        keys = list(action_space.keys())
+        all_combinations = [dict(zip(keys, combination, strict=True)) for combination in action_combinations]
+
+        return all_combinations
+
+    def apply_action(self, action: dict[str, Any]) -> "TestRun":
+        new_tr = copy.deepcopy(self)
+        for key, value in action.items():
+            if key.startswith("extra_env_vars."):
+                new_tr.test.test_definition.extra_env_vars[key[len("extra_env_vars.") :]] = value
+            else:
+                attrs = key.split(".")
+                obj = new_tr.test.test_definition.cmd_args
+                for attr in attrs[:-1]:
+                    obj = getattr(obj, attr)
+                setattr(obj, attrs[-1], value)
+        return new_tr
 
 
 class TestScenario:
