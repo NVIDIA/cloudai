@@ -330,12 +330,24 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     def _enable_vboost_cmd(self, slurm_args: dict[str, Any], tr: TestRun) -> str:
         return " ".join(
             [
-                *self.gen_srun_prefix(slurm_args, tr),
+                "srun",
+                "--ntasks=1",
                 f"--output={tr.output_path.absolute() / 'vboost.out'}",
                 f"--error={tr.output_path.absolute() / 'vboost.err'}",
                 "bash",
                 "-c",
                 '"sudo nvidia-smi boost-slider --vboost 1"',
+            ]
+        )
+
+    def _enable_numa_control_cmd(self, slurm_args: dict[str, Any], tr: TestRun) -> str:
+        return " ".join(
+            [
+                "srun",
+                f"--mpi={self.system.mpi}",
+                "numactl",
+                "--cpunodebind=$((SLURM_LOCALID/4))",
+                "--membind=$((SLURM_LOCALID/4))",
             ]
         )
 
@@ -366,6 +378,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         if env_vars.get("ENABLE_VBOOST") == "1":
             batch_script_content.extend([self._enable_vboost_cmd(slurm_args, tr), ""])
+        if env_vars.get("ENABLE_NUMA_CONTROL") == "1":
+            batch_script_content.extend([self._enable_numa_control_cmd(slurm_args, tr), ""])
         batch_script_content.extend([self._ranks_mapping_cmd(slurm_args, tr), ""])
         batch_script_content.extend([self._metadata_cmd(slurm_args, tr), ""])
 

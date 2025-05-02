@@ -34,7 +34,7 @@ class JaxFdl(BaseModel):
     num_gpus: Union[int, list[int]] = 64
     num_microbatches: Union[int, list[int]] = 1
     num_stages: Union[int, list[int]] = 1
-    percore_batch_size: Union[float, list[float]] = 4
+    percore_batch_size: Union[float, list[float]] = 4.0
     use_fp8: Union[int, list[int]] = 1
     use_repeated_layer: Union[bool, list[bool]] = False
 
