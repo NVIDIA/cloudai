@@ -316,33 +316,6 @@ Dependencies of a test can be described as a subsection of the test. It requires
 - `end_post_comp` means the test ends when the prior test completes
 
 
-## Configuring HTTP Data Repository
-The HTTP Data Repository is currently supported for Slurm systems only. To enable access, you must update your system schema file and create a credential file in your CloudAI project's root directory.
-
-### Step 1: Update the System Schema File
-Add the following section to your system schema TOML file (e.g., `system_schema.toml`):
-
-```toml
-[data_repository]
-endpoint = "https://my-data-endpoint.com"
-```
-
-Replace the endpoint with your actual data repository URL.
-
-### Step 2: Create the Credential File
-In the root of your CloudAI project (i.e., the current working directory), create a file named `.cloudai.toml` with the following content:
-
-```toml
-[data_repository]
-token = "<your-api-token-here>"
-```
-
-Replace `<your-api-token-here>` with your actual token.
-
-### Step 3: Usage
-Both the endpoint and token must be valid for the HTTP Data Repository to function correctly. If either is missing or incorrect, data will not be posted.
-
-
 ## Downloading and Installing the NeMo Dataset (The Pile Dataset)
 This section describes how you can download the NeMo datasets on your server. The install mode of CloudAI handles the installation of all test prerequisites, but downloading and installing datasets is not the responsibility of the install mode. This is because any large datasets should be installed globally by the administrator and shared with multiple users, even if a user does not use CloudAI.
 
