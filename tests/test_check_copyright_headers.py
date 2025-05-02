@@ -73,9 +73,9 @@ def test_src_copyright_header(py_file: Path):
     with py_file.open() as file:
         first_lines = [next(file).strip() for _ in range(HEADER_LINES)]
 
-    assert (
-        first_lines[0] == "# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES"
-    ), "SPDX-FileCopyrightText is not valid"
+    assert first_lines[0] == "# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES", (
+        "SPDX-FileCopyrightText is not valid"
+    )
     assert first_lines[1] == prepare_copyright_with_year(py_file, first_lines[1]), "Copyright year is not valid"
     assert "\n".join(first_lines[2:]) == "\n".join(HEADER.splitlines()[2:]), f"Header mismatch in {py_file}"
 
