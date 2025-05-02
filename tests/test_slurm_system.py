@@ -104,7 +104,7 @@ def test_parse_sinfo_output(slurm_system: SlurmSystem) -> None:
 def test_update_with_mocked_outputs(mock_fetch_command_output: Mock, slurm_system: SlurmSystem):
     mock_fetch_command_output.side_effect = [
         ("node-033|user1", ""),
-        ("PARTITION AVAIL TIMELIMIT NODES STATE NODELIST\n" "main up infinite 1 idle node-033", ""),
+        ("PARTITION AVAIL TIMELIMIT NODES STATE NODELIST\nmain up infinite 1 idle node-033", ""),
     ]
 
     parts_by_name = {part.name: part for part in slurm_system.partitions}
@@ -118,7 +118,7 @@ def test_update_with_mocked_outputs(mock_fetch_command_output: Mock, slurm_syste
 
     mock_fetch_command_output.side_effect = [
         ("node01|root", ""),
-        ("PARTITION AVAIL TIMELIMIT NODES STATE NODELIST\n" "backup up infinite 1 allocated node01", ""),
+        ("PARTITION AVAIL TIMELIMIT NODES STATE NODELIST\nbackup up infinite 1 allocated node01", ""),
     ]
 
     slurm_system.update()
@@ -202,9 +202,9 @@ def test_allocate_nodes_max_avail(slurm_system: SlurmSystem, grouped_nodes: dict
     ]
     returned_node_names = [node.name for node in available_nodes]
 
-    assert set(returned_node_names) == set(
-        expected_node_names
-    ), "Should return all available nodes except ALLOCATED nodes"
+    assert set(returned_node_names) == set(expected_node_names), (
+        "Should return all available nodes except ALLOCATED nodes"
+    )
     allocated_node_name = grouped_nodes[SlurmNodeState.ALLOCATED][0].name
     assert allocated_node_name not in returned_node_names, "ALLOCATED node should not be included"
 
