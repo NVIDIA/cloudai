@@ -17,7 +17,7 @@
 from abc import abstractmethod
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Union, cast, final
+from typing import Any, Dict, List, Optional, Tuple, Union, cast, final
 
 from cloudai import CommandGenStrategy, Registry, TestRun, TestScenario
 from cloudai.systems import SlurmSystem
@@ -358,8 +358,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         batch_script_content = [
             "#!/bin/bash",
             f"#SBATCH --job-name={slurm_args['job_name']}",
-            f"#SBATCH -N {slurm_args['num_nodes']}",
         ]
+
+        num_nodes, node_list = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
+        if not node_list:
+            batch_script_content.append(f"#SBATCH -N {num_nodes}")
 
         self._append_sbatch_directives(batch_script_content, slurm_args, tr)
 
@@ -401,7 +404,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         if self.system.account:
             batch_script_content.append(f"#SBATCH --account={self.system.account}")
 
-        self._append_distribution_and_hostfile(batch_script_content, args, tr)
+        hostfile = self._append_distribution_and_hostfile(batch_script_content, args, tr)
 
         if self.system.gpus_per_node:
             batch_script_content.append(f"#SBATCH --gpus-per-node={self.system.gpus_per_node}")
@@ -414,23 +417,33 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         for arg in self.system.extra_sbatch_args:
             batch_script_content.append(f"#SBATCH {arg}")
 
+        if hostfile is not None:
+            batch_script_content.append(f"export SLURM_HOSTFILE={hostfile}")
+
         batch_script_content.append(
             "\nexport SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)"
         )
 
-    def _append_distribution_and_hostfile(self, content: List[str], args: Dict[str, Any], tr: TestRun) -> None:
+    def _append_distribution_and_hostfile(
+        self, content: List[str], args: Dict[str, Any], tr: TestRun
+    ) -> Optional[Path]:
         _, node_list = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
         if node_list:
             content.append("#SBATCH --distribution=arbitrary")
+
             hostfile = (tr.output_path / "hostfile.txt").absolute()
             with hostfile.open("w") as hf:
                 tasks = self.system.ntasks_per_node or 1
                 for node in node_list:
                     for _ in range(tasks):
                         hf.write(f"{node}\n")
-            content.append(f"export SLURM_HOSTFILE={hostfile}")
-        elif self.system.distribution:
+
+            return hostfile
+
+        if self.system.distribution:
             content.append(f"#SBATCH --distribution={self.system.distribution}")
+
+        return None
 
     def _format_env_vars(self, env_vars: Dict[str, Any]) -> str:
         """

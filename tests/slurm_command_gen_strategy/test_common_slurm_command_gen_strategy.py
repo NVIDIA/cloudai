@@ -340,8 +340,7 @@ def test_append_distribution_and_hostfile_with_nodes(
 
     assert "#SBATCH --distribution=arbitrary" in content
 
-    hostfile_line: str = next(line for line in content if line.startswith("export SLURM_HOSTFILE="))
-    hostfile_path: Path = Path(hostfile_line.split("=", 1)[1])
+    hostfile_path = testrun_fixture.output_path / "hostfile.txt"
     assert hostfile_path.exists()
     lines: List[str] = hostfile_path.read_text().splitlines()
     assert lines == ["node1", "node1", "node2", "node2"]
