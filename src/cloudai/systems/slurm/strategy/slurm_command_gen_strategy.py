@@ -422,7 +422,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         _, node_list = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
         if node_list:
             content.append("#SBATCH --distribution=arbitrary")
-            hostfile = tr.output_path / "hostfile.txt"
+            hostfile = (tr.output_path / "hostfile.txt").absolute()
             with hostfile.open("w") as hf:
                 tasks = self.system.ntasks_per_node or 1
                 for node in node_list:
