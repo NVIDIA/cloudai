@@ -107,9 +107,9 @@ def test_extract_version_from_docker_image(
 ) -> None:
     strategy = NeMoRunDataStoreReportGenerationStrategy(slurm_system, nemo_tr)
     version = strategy.extract_version_from_docker_image(docker_image_url)
-    assert (
-        version == expected_version
-    ), f"Expected version '{expected_version}' but got '{version}' for input '{docker_image_url}'"
+    assert version == expected_version, (
+        f"Expected version '{expected_version}' but got '{version}' for input '{docker_image_url}'"
+    )
 
 
 @pytest.mark.parametrize(
