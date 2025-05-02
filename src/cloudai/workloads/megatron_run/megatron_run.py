@@ -66,7 +66,7 @@ class MegatronRunCmdArgs(CmdArgs):
     @property
     def cmd_args(self) -> dict[str, Union[str, list[str]]]:
         args = self.model_dump(exclude_none=True)
-        args = {f'--{k.replace("_", "-")}': v for k, v in args.items()}
+        args = {f"--{k.replace('_', '-')}": v for k, v in args.items()}
         return args
 
 
@@ -119,7 +119,7 @@ class MegatronRunTestDefinition(TestDefinition):
 
         if not src_mount:
             raise ValueError(
-                f"Path {path} is not mounted in the container. " f"Please check the 'extra_container_mounts' field."
+                f"Path {path} is not mounted in the container. Please check the 'extra_container_mounts' field."
             )
 
         if not Path(expandvars(src_mount)).exists():

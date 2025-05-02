@@ -14,14 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
-from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Union, cast
 from unittest.mock import Mock
 
 import pytest
 
-from cloudai import GitRepo, PythonExecutable, TestRun
+from cloudai import TestRun
 from cloudai._core.test import Test
 from cloudai.systems import SlurmSystem
 from cloudai.workloads.chakra_replay import (
@@ -29,123 +27,108 @@ from cloudai.workloads.chakra_replay import (
     ChakraReplaySlurmCommandGenStrategy,
     ChakraReplayTestDefinition,
 )
+from tests.conftest import create_autospec_dataclass
 
 
-@pytest.fixture
-def cmd_gen_strategy(slurm_system: SlurmSystem) -> ChakraReplaySlurmCommandGenStrategy:
-    return ChakraReplaySlurmCommandGenStrategy(slurm_system, {})
+class TestChakraReplaySlurmCommandGenStrategy:
+    @pytest.fixture
+    def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> ChakraReplaySlurmCommandGenStrategy:
+        return ChakraReplaySlurmCommandGenStrategy(slurm_system, {})
 
-
-@pytest.fixture
-def chakra_replay_tr(cmd_args: Dict[str, Any]) -> TestRun:
-    chakra = ChakraReplayTestDefinition(
-        name="name",
-        description="desc",
-        test_template_name="template",
-        cmd_args=ChakraReplayCmdArgs(
-            docker_image_url=cmd_args.get("docker_image_url", ""),
-            trace_dir=cmd_args.get("trace_dir", ""),
-            warmup_iters=cmd_args.get("warmup_iters", 0),
-            iters=cmd_args.get("iters", 10),
-            reuse_tensors=cmd_args.get("reuse_tensors", True),
-            backend_name=cmd_args.get("backend.name", "pytorch-dist"),
-            profiler_enabled=cmd_args.get("profiler.enabled", False),
-            log_level=cmd_args.get("logging.level", "INFO"),
-        ),
-        comm_replay_executable=PythonExecutable(git_repo=GitRepo(url="./git_repo", commit="commit")),
+    @pytest.mark.parametrize(
+        "job_name_prefix, env_vars, cmd_args_attrs, num_nodes, nodes, expected_result",
+        [
+            (
+                "chakra_replay",
+                {"NCCL_DEBUG": "INFO"},
+                {"docker_image_url": "fake_image_url", "trace_path": "/workspace/traces/"},
+                2,
+                ["node1", "node2"],
+                {
+                    "image_path": "fake_image_url",
+                    "container_mounts": "/workspace/traces/:/workspace/traces/",
+                },
+            ),
+            (
+                "chakra_replay",
+                {"NCCL_DEBUG": "INFO"},
+                {"docker_image_url": "another_image_url", "trace_path": "/another/trace_path/"},
+                1,
+                ["node1"],
+                {
+                    "image_path": "another_image_url",
+                    "container_mounts": "/another/trace_path/:/another/trace_path/",
+                },
+            ),
+        ],
     )
-    test = Test(test_definition=chakra, test_template=Mock())
+    def test_parse_slurm_args(
+        self,
+        cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy,
+        job_name_prefix: str,
+        env_vars: Dict[str, Union[str, List[str]]],
+        cmd_args_attrs: Dict[str, Any],
+        num_nodes: int,
+        nodes: List[str],
+        expected_result: Dict[str, Any],
+    ) -> None:
+        chakra = ChakraReplayTestDefinition(
+            name="name",
+            description="desc",
+            test_template_name="tt",
+            cmd_args=ChakraReplayCmdArgs(
+                docker_image_url=cmd_args_attrs["docker_image_url"], trace_path=cmd_args_attrs["trace_path"]
+            ),
+        )
+        t = Test(test_definition=chakra, test_template=Mock())
+        tr = TestRun(name="t1", test=t, nodes=nodes, num_nodes=num_nodes)
 
-    chakra.comm_replay_executable.git_repo.installed_path = Path("/git_repo_path")
-    return TestRun(name="chakra_replay_tr", test=test, nodes=[], num_nodes=1)
+        slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, {}, tr)
+        assert slurm_args["image_path"] == expected_result["image_path"]
+        assert expected_result["container_mounts"] in cmd_gen_strategy.container_mounts(tr)
 
-
-@pytest.mark.parametrize(
-    "job_name_prefix, env_vars, cmd_args, expected_result",
-    [
-        (
-            "chakra_replay",
-            {"NCCL_DEBUG": "INFO"},
-            {"docker_image_url": "fake_image_url", "trace_dir": "/output/traces/"},
-            {
-                "image_path": "fake_image_url",
-                "container_mounts": ["/output/traces/:/output/traces/,/git_repo_path:/git_repo_path"],
-            },
-        ),
-        (
-            "chakra_replay",
-            {"NCCL_DEBUG": "INFO"},
-            {
-                "docker_image_url": "another_image_url",
-                "trace_dir": "/another/trace_dir/",
-            },
-            {
-                "image_path": "another_image_url",
-                "container_mounts": ["/another/trace_dir/:/another/trace_dir/,/git_repo_path:/git_repo_path"],
-            },
-        ),
-    ],
-)
-def test_parse_slurm_args(
-    cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy,
-    job_name_prefix: str,
-    env_vars: Dict[str, Union[str, List[str]]],
-    cmd_args: Dict[str, Any],
-    expected_result: Dict[str, Any],
-    chakra_replay_tr: TestRun,
-) -> None:
-    slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, cmd_args, chakra_replay_tr)
-    assert slurm_args["image_path"] == expected_result["image_path"]
-    assert cmd_gen_strategy._container_mounts(chakra_replay_tr) == expected_result["container_mounts"]
-
-
-@pytest.mark.parametrize(
-    "cmd_args, num_nodes, ntasks_per_node",
-    [
-        (
-            {
-                "trace_dir": "/output/traces/",
-                "warmup_iters": 5,
-                "iters": 10,
-                "reuse_tensors": False,
-                "backend.name": "pytorch-dist",
-                "backend.backend": "nccl",
-                "profiler.enabled": False,
-                "logging.level": "INFO",
-            },
-            2,
-            4,
-        ),
-    ],
-)
-def test_generate_srun_command(
-    cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy,
-    cmd_args: Dict[str, Any],
-    num_nodes: int,
-    ntasks_per_node: int,
-    chakra_replay_tr: TestRun,
-    tmp_path: Path,
-) -> None:
-    chakra_replay_tr.num_nodes = num_nodes
-    cmd_gen_strategy.system.ntasks_per_node = ntasks_per_node
-    chakra_replay_tr.output_path = tmp_path
-
-    slurm_args = cmd_gen_strategy._parse_slurm_args("test", {}, {}, chakra_replay_tr)
-    command = cmd_gen_strategy._gen_srun_command(slurm_args, {}, {}, chakra_replay_tr)
-
-    generated_commands = command.strip().split("\n")
-    assert len(generated_commands) == 2
-
-    timestamp_pattern = r"\d{14}"
-    container_name_pattern = re.compile(r"--container-name=chakra_replay_container_" + timestamp_pattern)
-    assert container_name_pattern.search(generated_commands[0]) is not None
-    assert container_name_pattern.search(generated_commands[1]) is not None
-
-    assert f"-N {num_nodes}" in generated_commands[0]
-    assert f"-n {num_nodes}" in generated_commands[0]
-    assert "--ntasks-per-node=1" in generated_commands[0]
-
-    assert f"-N {num_nodes}" in generated_commands[1]
-    assert f"-n {num_nodes * ntasks_per_node}" in generated_commands[1]
-    assert f"--ntasks-per-node={ntasks_per_node}" in generated_commands[1]
-    assert "comm_replay --config" in generated_commands[1]
+    @pytest.mark.parametrize(
+        "cmd_args, extra_cmd_args, expected_result",
+        [
+            (
+                {"trace_type": "comms_trace", "trace_path": "/workspace/traces/", "num_replays": 10},
+                "--max-steps 100",
+                [
+                    "comm_replay",
+                    "--trace-type comms_trace",
+                    "--trace-path /workspace/traces/",
+                    "--num-replays 10",
+                    "--max-steps 100",
+                ],
+            ),
+            (
+                {"trace_type": "comms_trace", "trace_path": "/workspace/traces/", "num_replays": 5},
+                "",
+                [
+                    "comm_replay",
+                    "--trace-type comms_trace",
+                    "--trace-path /workspace/traces/",
+                    "--num-replays 5",
+                    "",
+                ],
+            ),
+        ],
+    )
+    def test_generate_test_command(
+        self,
+        cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy,
+        cmd_args: Dict[str, Union[str, List[str]]],
+        extra_cmd_args: str,
+        expected_result: List[str],
+        slurm_system: SlurmSystem,
+    ) -> None:
+        tr = create_autospec_dataclass(TestRun)
+        tr.test.test_definition.cmd_args = ChakraReplayCmdArgs(
+            docker_image_url="",
+            trace_type=cast(str, cmd_args["trace_type"]),
+            trace_path=cast(str, cmd_args["trace_path"]),
+            num_replays=cast(int, cmd_args["num_replays"]),
+        )
+        tr.test.extra_cmd_args = extra_cmd_args
+        command = cmd_gen_strategy.generate_test_command({}, {}, tr)
+        assert command == expected_result

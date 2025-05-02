@@ -82,7 +82,7 @@ class TestParser:
             return set()
 
         extras = set()
-        for field in m.model_fields:
+        for field in type(m).model_fields:
             if isinstance(m.__dict__[field], BaseModel):
                 extras |= TestParser.model_extras(m.__dict__[field], prefix=f"{prefix}.{field}")
         return extras | set([f"{prefix}.{k}" for k in m.model_extra])
