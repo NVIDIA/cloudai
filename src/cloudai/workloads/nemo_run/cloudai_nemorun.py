@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import os
-from datetime import timedelta
 from typing import Optional
 
 import lightning.pytorch as pl
@@ -41,7 +40,6 @@ from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import AutoResume, NeMoLogger
-from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
@@ -57,21 +55,13 @@ def default_log(
     tensorboard_logger: Optional[run.Config[TensorBoardLogger]] = None,
     wandb_logger: Optional[run.Config[WandbLogger]] = None,
 ) -> run.Config[NeMoLogger]:
-    ckpt = run.Config(
-        ModelCheckpoint,
-        save_last=False,
-        save_top_k=10,
-        train_time_interval=run.Config(timedelta, minutes=15),
-        filename="{model_name}--{val_loss:.2f}-{step}-{consumed_samples}",
-    )
-
     # Default TensorBoard logger if not provided
     if tensorboard_logger is None:
         tensorboard_logger = run.Config(TensorBoardLogger, save_dir="tb_logs", name=name)
 
     return run.Config(
         NeMoLogger,
-        ckpt=ckpt,
+        ckpt=None,
         name=name,
         tensorboard=tensorboard_logger,
         wandb=wandb_logger,
@@ -198,7 +188,7 @@ def comms_overlap_callbacks() -> list[pl.Callback]:
 
 @run.cli.factory
 @run.autoconvert
-def llama3_70b_bf16_tp_overlap_config() -> run.Config[TransformerLayerTPOverlapCfg]:
+def llama3_70b_bf16_h100_tp_overlap_config() -> run.Config[TransformerLayerTPOverlapCfg]:
     return run.Config(
         TransformerLayerTPOverlapCfg,
         qkv_dgrad=run.Config(
@@ -278,7 +268,167 @@ def llama3_70b_bf16_tp_overlap_config() -> run.Config[TransformerLayerTPOverlapC
 
 @run.cli.factory
 @run.autoconvert
-def llama3_70b_fp8_tp_overlap_config() -> run.Config[TransformerLayerTPOverlapCfg]:
+def llama3_70b_bf16_b200_tp_overlap_config() -> run.Config[TransformerLayerTPOverlapCfg]:
+    return run.Config(
+        TransformerLayerTPOverlapCfg,
+        qkv_dgrad=run.Config(
+            BulkOverlapCfg,
+            cga_size=2,
+            method="bulk",
+            num_sm=16,
+            set_sm_margin=False,
+        ),
+        qkv_wgrad=run.Config(
+            BulkOverlapCfg,
+            cga_size=2,
+            method="bulk",
+            num_sm=24,
+            set_sm_margin=False,
+        ),
+        qkv_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        proj_dgrad=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        proj_fprop=run.Config(
+            PipelineOverlapCfg,
+            num_sm=32,
+            cga_size=2,
+            num_splits=4,
+            set_sm_margin=True,
+            fp8_buf=False,
+            method="pipeline",
+        ),
+        fc1_dgrad=run.Config(
+            BulkOverlapCfg,
+            num_sm=2,
+            cga_size=2,
+            set_sm_margin=False,
+            method="bulk",
+        ),
+        fc1_wgrad=run.Config(
+            BulkOverlapCfg,
+            num_sm=4,
+            cga_size=2,
+            set_sm_margin=False,
+            method="bulk",
+        ),
+        fc1_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        fc2_dgrad=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        fc2_fprop=run.Config(
+            PipelineOverlapCfg,
+            num_sm=16,
+            cga_size=2,
+            num_splits=4,
+            set_sm_margin=True,
+            fp8_buf=False,
+            method="pipeline",
+        ),
+    )
+
+
+@run.cli.factory
+@run.autoconvert
+def llama3_70b_fp8_b200_tp_overlap_config() -> run.Config[TransformerLayerTPOverlapCfg]:
+    return run.Config(
+        TransformerLayerTPOverlapCfg,
+        qkv_dgrad=run.Config(
+            BulkOverlapCfg,
+            cga_size=2,
+            method="bulk",
+            num_sm=4,
+            set_sm_margin=False,
+        ),
+        qkv_wgrad=run.Config(
+            BulkOverlapCfg,
+            cga_size=2,
+            method="bulk",
+            num_sm=24,
+            set_sm_margin=False,
+        ),
+        qkv_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        proj_dgrad=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        proj_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=True,
+        ),
+        fc1_dgrad=run.Config(
+            BulkOverlapCfg,
+            num_sm=2,
+            cga_size=2,
+            set_sm_margin=False,
+            method="bulk",
+        ),
+        fc1_wgrad=run.Config(
+            BulkOverlapCfg,
+            num_sm=4,
+            cga_size=2,
+            set_sm_margin=False,
+            method="bulk",
+        ),
+        fc1_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        fc2_dgrad=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        fc2_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=True,
+        ),
+    )
+
+
+@run.cli.factory
+@run.autoconvert
+def llama3_70b_fp8_h100_tp_overlap_config() -> run.Config[TransformerLayerTPOverlapCfg]:
     return run.Config(
         TransformerLayerTPOverlapCfg,
         qkv_dgrad=run.Config(
@@ -449,6 +599,10 @@ def cloudai_llama3_8b_recipe() -> run.Partial:
             model_name="llama3",
         )
     )
+    enable_cuda_graphs = os.getenv("CLOUDAI_ENABLE_CUDA_GRAPHS", "0") == "1"
+    if enable_cuda_graphs:
+        recipe.model.config.enable_cuda_graphs = True
+        recipe.trainer.strategy.use_te_rng_tracker = True
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
 
@@ -464,7 +618,7 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
             seq_length=8192,
             micro_batch_size=1,
             global_batch_size=8,
-            tokenizer=null_tokenizer(vocab_size=128256),
+            tokenizer=hf_tokenizer_llama3_70b(),
         ),
         trainer=run.Config(
             nl.Trainer,
@@ -475,6 +629,7 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
             limit_test_batches=50,
             limit_val_batches=32,
             log_every_n_steps=10,
+            accumulate_grad_batches=1,
             plugins=run.Config(
                 nl.MegatronMixedPrecision,
                 precision="bf16-mixed",
@@ -485,6 +640,8 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
             ),
             strategy=run.Config(
                 nl.MegatronStrategy,
+                ckpt_async_save=True,
+                ckpt_parallel_load=True,
                 tensor_model_parallel_size=4,
                 pipeline_model_parallel_size=1,
                 context_parallel_size=1,
@@ -493,23 +650,18 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
                 pipeline_dtype=torch.bfloat16,
                 ddp=run.Config(
                     DistributedDataParallelConfig,
-                    check_for_nan_in_grad=False,
+                    check_for_nan_in_grad=True,
                     grad_reduce_in_fp32=True,
                     overlap_grad_reduce=True,
                     overlap_param_gather=True,
+                    average_in_collective=True,
                 ),
+                gradient_as_bucket_view=True,
             ),
             num_sanity_val_steps=0,
             val_check_interval=1000,
             max_epochs=10,
             callbacks=[
-                run.Config(
-                    MegatronCommOverlapCallback,
-                    tp_comm_overlap=True,
-                    tp_comm_overlap_cfg=llama3_70b_bf16_tp_overlap_config(),
-                    overlap_grad_reduce=True,
-                    overlap_param_gather=True,
-                ),
                 timing_callback(),
             ],
         ),
@@ -517,11 +669,22 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
             nl.MegatronOptimizerModule,
             config=run.Config(
                 OptimizerConfig,
-                lr=1e-4,
+                lr=3e-4,
                 bf16=True,
                 params_dtype=torch.bfloat16,
                 use_distributed_optimizer=True,
-                weight_decay=0,
+                weight_decay=0.1,
+                adam_beta1=0.9,
+                adam_beta2=0.95,
+                adam_eps=1e-05,
+                clip_grad=1.0,
+                fp16=False,
+            ),
+            lr_scheduler=run.Config(
+                CosineAnnealingScheduler,
+                warmup_steps=2000,
+                constant_steps=0,
+                min_lr=2.9999999999999997e-05,
             ),
         ),
         resume=run.Config(
@@ -540,6 +703,74 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
             model_name="llama3",
         )
     )
+    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
+    gpu_type = os.getenv("CLOUDAI_GPU_TYPE")
+    compute_dtype = os.getenv("CLOUDAI_GPU_DTYPE")
+    enable_cuda_graphs = os.getenv("CLOUDAI_ENABLE_CUDA_GRAPHS", "0") == "1"
+    if enable_cuda_graphs:
+        recipe.model.config.enable_cuda_graph = True
+        recipe.trainer.strategy.use_te_rng_tracker = True
+
+    if gpu_type == "h100" and compute_dtype == "bf16":
+        recipe.trainer.callbacks.append(
+            run.Config(
+                MegatronCommOverlapCallback,
+                tp_comm_overlap=True,
+                tp_comm_overlap_cfg=llama3_70b_bf16_h100_tp_overlap_config(),
+                overlap_param_gather_with_optimizer_step=True,
+                defer_embedding_wgrad_compute=True,
+                wgrad_deferral_limit=22,
+            )
+        )
+    elif gpu_type == "h100" and compute_dtype == "fp8":
+        recipe.trainer.callbacks.append(
+            run.Config(
+                MegatronCommOverlapCallback,
+                tp_comm_overlap=True,
+                tp_comm_overlap_cfg=llama3_70b_fp8_h100_tp_overlap_config(),
+                overlap_param_gather_with_optimizer_step=True,
+                defer_embedding_wgrad_compute=True,
+                wgrad_deferral_limit=22,
+            )
+        )
+    elif gpu_type == "b200" and compute_dtype == "bf16":
+        recipe.trainer.callbacks.append(
+            run.Config(
+                MegatronCommOverlapCallback,
+                tp_comm_overlap=True,
+                tp_comm_overlap_cfg=llama3_70b_bf16_b200_tp_overlap_config(),
+                overlap_param_gather_with_optimizer_step=True,
+                defer_embedding_wgrad_compute=True,
+                wgrad_deferral_limit=22,
+            )
+        )
+    elif gpu_type == "b200" and compute_dtype == "fp8":
+        recipe.trainer.callbacks.append(
+            run.Config(
+                MegatronCommOverlapCallback,
+                tp_comm_overlap=True,
+                tp_comm_overlap_cfg=llama3_70b_fp8_b200_tp_overlap_config(),
+                overlap_param_gather_with_optimizer_step=True,
+                defer_embedding_wgrad_compute=True,
+                wgrad_deferral_limit=22,
+            )
+        )
+    else:
+        print(
+            "Warning: Not using Default Comm Overlap Config.\n"
+            "Please set the GPU type and compute dtype in the environment variables."
+        )
+
+        recipe.trainer.callbacks.append(
+            run.Config(
+                MegatronCommOverlapCallback,
+                tp_comm_overlap=False,
+                overlap_param_gather_with_optimizer_step=True,
+                defer_embedding_wgrad_compute=True,
+                wgrad_deferral_limit=22,
+            )
+        )
+    recipe.trainer.callbacks.append(run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100))
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
 
@@ -686,6 +917,10 @@ def cloudai_nemotron3_8b_recipe() -> run.Partial:
             model_name="nemotron",
         )
     )
+    enable_cuda_graphs = os.getenv("CLOUDAI_ENABLE_CUDA_GRAPHS", "0") == "1"
+    if enable_cuda_graphs:
+        recipe.model.config.enable_cuda_graph = True
+        recipe.trainer.strategy.use_te_rng_tracker = True
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
 
@@ -775,6 +1010,10 @@ def cloudai_nemotron4_15b_recipe() -> run.Partial:
         )
     )
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
+    enable_cuda_graphs = os.getenv("CLOUDAI_ENABLE_CUDA_GRAPHS", "0") == "1"
+    if enable_cuda_graphs:
+        recipe.model.config.enable_cuda_graph = True
+        recipe.trainer.strategy.use_te_rng_tracker = True
     return recipe
 
 
@@ -794,11 +1033,11 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
         trainer=run.Config(
             nl.Trainer,
             devices=8,
-            num_nodes=1,
+            num_nodes=32,
             accelerator="gpu",
             max_steps=10,
-            limit_test_batches=50,
-            limit_val_batches=32,
+            limit_test_batches=32,
+            limit_val_batches=0,
             log_every_n_steps=10,
             use_distributed_sampler=False,
             plugins=run.Config(
@@ -815,6 +1054,8 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
                 pipeline_model_parallel_size=8,
                 context_parallel_size=2,
                 virtual_pipeline_model_parallel_size=12,
+                expert_model_parallel_size=1,
+                expert_tensor_parallel_size=None,
                 sequence_parallel=True,
                 pipeline_dtype=torch.bfloat16,
                 gradient_as_bucket_view=True,
@@ -829,6 +1070,7 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
                     overlap_param_gather=True,
                     average_in_collective=True,
                 ),
+                cross_entropy_fusion_impl="te",
             ),
             num_sanity_val_steps=0,
             val_check_interval=500,
@@ -839,6 +1081,9 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
                     tp_comm_overlap=True,
                     overlap_grad_reduce=True,
                     overlap_param_gather=True,
+                    overlap_param_gather_with_optimizer_step=True,
+                    defer_embedding_wgrad_compute=True,
+                    wgrad_deferral_limit=22,
                 ),
                 timing_callback(),
             ],
@@ -847,11 +1092,24 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
             nl.MegatronOptimizerModule,
             config=run.Config(
                 OptimizerConfig,
-                lr=1e-4,
+                optimizer="adam",
+                lr=0.0001,
+                weight_decay=0.1,
+                fp16=False,
                 bf16=True,
-                params_dtype=torch.bfloat16,
+                use_precision_aware_optimizer=True,
+                adam_beta1=0.9,
+                adam_beta2=0.95,
+                adam_eps=1e-05,
                 use_distributed_optimizer=True,
-                weight_decay=0,
+                clip_grad=1.0,
+                params_dtype=torch.bfloat16,
+            ),
+            lr_scheduler=run.Config(
+                CosineAnnealingScheduler,
+                warmup_steps=500,
+                constant_steps=0,
+                min_lr=1e-5,
             ),
         ),
         resume=run.Config(
@@ -860,6 +1118,7 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
             resume_ignore_no_checkpoint=True,
             resume_past_end=True,
         ),
+        log=default_log(),
     )
     recipe.model.config.vocab_size = 256000
     recipe.trainer.callbacks.append(
@@ -870,7 +1129,13 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
             model_name="nemotron",
         )
     )
+    recipe.trainer.callbacks.append(run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100))
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
+    recipe.model.config.cross_entropy_fusion_impl = "te"
+    enable_cuda_graphs = os.getenv("CLOUDAI_ENABLE_CUDA_GRAPHS", "0") == "1"
+    if enable_cuda_graphs:
+        recipe.model.config.enable_cuda_graph = True
+        recipe.trainer.strategy.use_te_rng_tracker = True
     return recipe
 
 
