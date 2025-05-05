@@ -132,10 +132,7 @@ def test_generate_start_wrapper_script(
     assert bool(mode & stat.S_IXUSR)
 
 
-def test_append_sbatch_directives(
-    strategy: TritonInferenceSlurmCommandGenStrategy,
-    test_run: TestRun
-) -> None:
+def test_append_sbatch_directives(strategy: TritonInferenceSlurmCommandGenStrategy, test_run: TestRun) -> None:
     args: Dict[str, Any] = {"num_nodes": 3, "node_list_str": ""}
     lines: List[str] = []
     strategy._append_sbatch_directives(lines, args, test_run)
