@@ -355,6 +355,57 @@ class TestSpec:
 
         assert tr.test.test_definition.cmd_args.nthreads == 42
 
+    def test_spec_can_set_unknown_args(self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem):
+        test_scenario_parser.test_mapping = {
+            "nccl": Test(
+                test_definition=NCCLTestDefinition(
+                    name="nccl", description="desc", test_template_name="NcclTest", cmd_args=NCCLCmdArgs()
+                ),
+                test_template=TestTemplate(system=slurm_system),
+            )
+        }
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "nccl"
+
+              [Tests.test_spec.cmd_args]
+              unknown = 42
+            """
+            )
+        )
+        tr = test_scenario_parser._create_test_run(test_info=model.tests[0], normalized_weight=1.0)
+
+        assert tr.test.test_definition.cmd_args.unknown == 42
+
+    def test_spec_can_set_unknown_args_no_mapping(self, test_scenario_parser: TestScenarioParser):
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+
+              [Tests.test_spec]
+              name = "nccl"
+              description = "desc"
+              test_template_name = "NcclTest"
+
+                [Tests.test_spec.cmd_args]
+                unknown = 42
+            """
+            )
+        )
+        test, tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        assert isinstance(tdef, NCCLTestDefinition)
+        assert isinstance(test, Test)
+        assert tdef.cmd_args_dict["unknown"] == 42
+
 
 class TestReporters:
     def test_default(self):
