@@ -21,10 +21,19 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai import CmdArgs, Registry, Test, TestRun, TestScenario, TestScenarioParser, TestScenarioParsingError
+from cloudai import (
+    CmdArgs,
+    PredictorConfig,
+    Registry,
+    Test,
+    TestDefinition,
+    TestRun,
+    TestScenario,
+    TestScenarioParser,
+    TestScenarioParsingError,
+)
 from cloudai._core.installables import GitRepo
 from cloudai._core.report_generation_strategy import ReportGenerationStrategy
-from cloudai._core.test import PredictorConfig, TestDefinition
 from cloudai._core.test_scenario_parser import (
     _TestRunTOML,
     _TestScenarioTOML,
@@ -54,7 +63,6 @@ from cloudai.workloads.nemo_run import (
 from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
 from cloudai.workloads.slurm_container import SlurmContainerReportGenerationStrategy, SlurmContainerTestDefinition
 from cloudai.workloads.ucc_test import UCCTestDefinition, UCCTestReportGenerationStrategy
-from tests.conftest import MyTestDefinition
 
 
 @pytest.fixture
@@ -66,7 +74,7 @@ def test_scenario_parser(tmp_path: Path) -> TestScenarioParser:
 @pytest.fixture
 def test() -> Test:
     return Test(
-        test_definition=MyTestDefinition(
+        test_definition=TestDefinition(
             name="t1",
             description="desc1",
             test_template_name="tt",
@@ -282,7 +290,7 @@ class TestReporters:
     def test_default(self):
         reporters = get_reporters(
             _TestRunTOML(id="id", test_name="tn"),
-            MyTestDefinition(name="test", description="desc", test_template_name="tt", cmd_args=CmdArgs()),
+            TestDefinition(name="test", description="desc", test_template_name="tt", cmd_args=CmdArgs()),
         )
         assert len(reporters) == 0
 

@@ -21,7 +21,7 @@ import pytest
 import toml
 from pydantic import ValidationError
 
-from cloudai import NsysConfiguration, Parser, Registry, TestConfigParsingError, TestParser
+from cloudai import NsysConfiguration, Parser, Registry, TestConfigParsingError, TestDefinition, TestParser
 from cloudai.workloads.chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
@@ -36,7 +36,6 @@ from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.workloads.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
 from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
 from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition
-from tests.conftest import MyTestDefinition
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
 ALL_TESTS = [t for t in TOML_FILES if "test_template_name" in t.read_text()]
@@ -52,7 +51,7 @@ ALL_TESTS = [t for t in TOML_FILES if "test_template_name" in t.read_text()]
     ],
 )
 def test_extra_args_str(input: dict, expected: str):
-    t = MyTestDefinition(name="test", description="test", test_template_name="test", cmd_args={}, extra_cmd_args=input)
+    t = TestDefinition(name="test", description="test", test_template_name="test", cmd_args={}, extra_cmd_args=input)
     assert t.extra_args_str == expected
 
 

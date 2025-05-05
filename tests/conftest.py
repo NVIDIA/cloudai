@@ -20,7 +20,6 @@ from unittest.mock import Mock
 
 import pytest
 
-from cloudai import TestDefinition
 from cloudai.systems.runai.runai_system import RunAISystem
 from cloudai.systems.slurm.slurm_system import SlurmGroup, SlurmPartition, SlurmSystem
 
@@ -76,9 +75,3 @@ def runai_system(tmp_path: Path) -> RunAISystem:
         user_email="test_user@example.com",
     )
     return system
-
-
-class MyTestDefinition(TestDefinition):
-    @property
-    def installables(self):
-        return []
