@@ -202,8 +202,13 @@ class NeMoRunDataStoreReportGenerationStrategy(ReportGenerationStrategy):
         if slurm_system.data_repository is None:
             return
 
-        repository = HttpDataRepository(
-            slurm_system.data_repository.endpoint,
-            slurm_system.data_repository.verify_certs,
-        )
+        try:
+            repository = HttpDataRepository(
+                slurm_system.data_repository.endpoint,
+                slurm_system.data_repository.verify_certs,
+            )
+        except ValueError as e:
+            logging.warning("Skipping data publish: %s", e)
+            return
+
         repository.push(raw_data)

@@ -17,7 +17,7 @@
 from abc import abstractmethod
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Union, cast, final
+from typing import Any, Dict, List, Optional, Union, cast, final
 
 from cloudai import CommandGenStrategy, Registry, TestRun, TestScenario
 from cloudai.systems import SlurmSystem
@@ -369,10 +369,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         batch_script_content = [
             "#!/bin/bash",
             f"#SBATCH --job-name={slurm_args['job_name']}",
-            f"#SBATCH -N {slurm_args['num_nodes']}",
         ]
 
-        self._append_sbatch_directives(batch_script_content, slurm_args, tr.output_path)
+        self._append_sbatch_directives(batch_script_content, slurm_args, tr)
 
         batch_script_content.extend([self._format_env_vars(env_vars)])
 
@@ -391,30 +390,29 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         return f"sbatch {batch_script_path}"
 
-    def _append_sbatch_directives(
-        self, batch_script_content: List[str], args: Dict[str, Any], output_path: Path
-    ) -> None:
+    def _append_sbatch_directives(self, batch_script_content: List[str], args: Dict[str, Any], tr: TestRun) -> None:
         """
         Append SBATCH directives to the batch script content.
 
         Args:
             batch_script_content (List[str]): The list of script lines to append to.
             args (Dict[str, Any]): Arguments including job settings.
-            output_path (Path): Output directory for script and logs.
+            tr (TestRun): Test run object.
         """
         batch_script_content = self._add_reservation(batch_script_content)
 
         if "output" not in args:
-            batch_script_content.append(f"#SBATCH --output={output_path / 'stdout.txt'}")
+            batch_script_content.append(f"#SBATCH --output={tr.output_path / 'stdout.txt'}")
         if "error" not in args:
-            batch_script_content.append(f"#SBATCH --error={output_path / 'stderr.txt'}")
+            batch_script_content.append(f"#SBATCH --error={tr.output_path / 'stderr.txt'}")
         batch_script_content.append(f"#SBATCH --partition={self.system.default_partition}")
         if args["node_list_str"]:
             batch_script_content.append(f"#SBATCH --nodelist={args['node_list_str']}")
         if self.system.account:
             batch_script_content.append(f"#SBATCH --account={self.system.account}")
-        if self.system.distribution:
-            batch_script_content.append(f"#SBATCH --distribution={self.system.distribution}")
+
+        hostfile = self._append_nodes_related_directives(batch_script_content, args, tr)
+
         if self.system.gpus_per_node:
             batch_script_content.append(f"#SBATCH --gpus-per-node={self.system.gpus_per_node}")
             batch_script_content.append(f"#SBATCH --gres=gpu:{self.system.gpus_per_node}")
@@ -426,9 +424,33 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         for arg in self.system.extra_sbatch_args:
             batch_script_content.append(f"#SBATCH {arg}")
 
+        if hostfile is not None:
+            batch_script_content.append(f"export SLURM_HOSTFILE={hostfile}")
+
         batch_script_content.append(
             "\nexport SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)"
         )
+
+    def _append_nodes_related_directives(self, content: List[str], args: Dict[str, Any], tr: TestRun) -> Optional[Path]:
+        num_nodes, node_list = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
+
+        if node_list:
+            content.append("#SBATCH --distribution=arbitrary")
+
+            hostfile = (tr.output_path / "hostfile.txt").absolute()
+            with hostfile.open("w") as hf:
+                tasks = self.system.ntasks_per_node or 1
+                for node in node_list:
+                    for _ in range(tasks):
+                        hf.write(f"{node}\n")
+
+            return hostfile
+
+        content.append(f"#SBATCH -N {num_nodes}")
+        if self.system.distribution:
+            content.append(f"#SBATCH --distribution={self.system.distribution}")
+
+        return None
 
     def _format_env_vars(self, env_vars: Dict[str, Any]) -> str:
         """
