@@ -57,9 +57,9 @@ class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self,
         batch_script_content: List[str],
         args: Dict[str, Any],
-        output_path: Path,
+        test_run: TestRun,
     ) -> None:
-        super()._append_sbatch_directives(batch_script_content, args, output_path)
+        super()._append_sbatch_directives(batch_script_content, args, test_run)
         batch_script_content.append("export HEAD_NODE=$SLURM_JOB_MASTER_NODE")
         batch_script_content.append("export NIM_LEADER_IP_ADDRESS=$SLURM_JOB_MASTER_NODE")
         batch_script_content.append(f"export NIM_NUM_COMPUTE_NODES={args['num_nodes'] - 1}")
