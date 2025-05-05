@@ -255,3 +255,11 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
 
         expected_mount = f'container_mounts=["{nccl_topo_file_path}:{nccl_topo_file_path}"]'
         assert expected_mount in cmd
+
+    def test_env_vars_with_spaces(
+        self, cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy, test_run: TestRun
+    ) -> None:
+        env: dict[str, str | list[str]] = {"VAR1": "value with spaces", "VAR2": r"$(cmd \$vv| cmd)"}
+        cmd = cmd_gen_strategy._gen_env_vars_str(env)
+
+        assert cmd == 'VAR1="value with spaces" VAR2="$(cmd \\$vv| cmd)"'
