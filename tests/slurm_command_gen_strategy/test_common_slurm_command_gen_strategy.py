@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 from unittest.mock import Mock, create_autospec
 
 import pytest
@@ -260,10 +260,10 @@ def test_default_container_mounts(strategy_fixture: SlurmCommandGenStrategy, tes
     assert mounts[1] == f"{strategy_fixture.system.install_path.absolute()}:/cloudai_install"
 
 
-def test_append_sbatch_directives(strategy_fixture: SlurmCommandGenStrategy, tmp_path: Path):
+def test_append_sbatch_directives(strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun):
     content: list[str] = []
     strategy_fixture.system.extra_sbatch_args = ["--section=4", "--other-arg 1"]
-    strategy_fixture._append_sbatch_directives(content, {"node_list_str": ""}, tmp_path)
+    strategy_fixture._append_sbatch_directives(content, {"node_list_str": ""}, testrun_fixture)
 
     assert f"#SBATCH --partition={strategy_fixture.system.default_partition}" in content
     for arg in strategy_fixture.system.extra_sbatch_args:
@@ -327,3 +327,32 @@ def test_nccl_topo_mount(strategy_fixture: SlurmCommandGenStrategy, testrun_fixt
     mounts = strategy_fixture.container_mounts(testrun_fixture)
     expected_mount = f"{Path('/tmp/nccl_topo.txt').resolve()}:{Path('/tmp/nccl_topo.txt').resolve()}"
     assert expected_mount in mounts
+
+
+def test_append_distribution_and_hostfile_with_nodes(
+    strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun
+) -> None:
+    strategy_fixture.system.distribution = "block"
+    strategy_fixture.system.ntasks_per_node = 2
+    content: List[str] = []
+    args: Dict[str, Any] = {"node_list_str": ",".join(testrun_fixture.nodes)}
+    strategy_fixture._append_nodes_related_directives(content, args, testrun_fixture)
+
+    assert "#SBATCH --distribution=arbitrary" in content
+
+    hostfile_path = testrun_fixture.output_path / "hostfile.txt"
+    assert hostfile_path.exists()
+    lines: List[str] = hostfile_path.read_text().splitlines()
+    assert lines == ["node1", "node1", "node2", "node2"]
+
+
+def test_distribution_fallback_when_no_nodes(
+    strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun
+) -> None:
+    testrun_fixture.nodes = []
+    strategy_fixture.system.distribution = "cyclic"
+    content: List[str] = []
+    args: Dict[str, Any] = {"node_list_str": ""}
+    strategy_fixture._append_nodes_related_directives(content, args, testrun_fixture)
+
+    assert "#SBATCH --distribution=cyclic" in content
