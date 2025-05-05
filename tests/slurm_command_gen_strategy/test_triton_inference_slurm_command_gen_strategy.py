@@ -134,11 +134,11 @@ def test_generate_start_wrapper_script(
 
 def test_append_sbatch_directives(
     strategy: TritonInferenceSlurmCommandGenStrategy,
-    tmp_path: Path,
+    test_run: TestRun
 ) -> None:
     args: Dict[str, Any] = {"num_nodes": 3, "node_list_str": ""}
     lines: List[str] = []
-    strategy._append_sbatch_directives(lines, args, output_path=tmp_path)
+    strategy._append_sbatch_directives(lines, args, test_run)
     assert "export HEAD_NODE=$SLURM_JOB_MASTER_NODE" in lines
     assert "export NIM_LEADER_IP_ADDRESS=$SLURM_JOB_MASTER_NODE" in lines
     assert "export NIM_NUM_COMPUTE_NODES=2" in lines
