@@ -432,7 +432,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         )
 
     def _append_nodes_related_directives(self, content: List[str], args: Dict[str, Any], tr: TestRun) -> Optional[Path]:
-        num_nodes, node_list = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
+        num_nodes, node_list = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes)
 
         if node_list:
             content.append("#SBATCH --distribution=arbitrary")
