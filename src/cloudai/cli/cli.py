@@ -28,7 +28,7 @@ from .handlers import (
 
 def existing_path(filepath: str) -> Path:
     fpath = Path(filepath)
-    if not fpath.is_file():
+    if not fpath.exists():
         raise argparse.ArgumentTypeError(f"Path '{fpath}' does not exist.")
     return fpath
 
