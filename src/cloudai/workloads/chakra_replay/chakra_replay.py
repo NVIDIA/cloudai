@@ -16,21 +16,17 @@
 
 from typing import Optional
 
-from cloudai import CmdArgs, DockerImage, Installable, PythonExecutable, TestDefinition
+from cloudai import CmdArgs, DockerImage, Installable, TestDefinition
 
 
 class ChakraReplayCmdArgs(CmdArgs):
     """ChakraReplay test command arguments."""
 
     docker_image_url: str
-    backend_name: str = "pytorch-dist"
-    backend_backend: str = "nccl"
-    trace_dir: Optional[str] = None
-    warmup_iters: int
-    iters: int
-    reuse_tensors: bool = True
-    profiler_enabled: bool = False
-    log_level: str = "INFO"
+    mpi: str = "pmix"
+    trace_type: str = "et"
+    trace_path: Optional[str] = None
+    num_replays: int = 1
 
 
 class ChakraReplayTestDefinition(TestDefinition):
@@ -38,7 +34,6 @@ class ChakraReplayTestDefinition(TestDefinition):
 
     cmd_args: ChakraReplayCmdArgs
     _docker_image: Optional[DockerImage] = None
-    comm_replay_executable: PythonExecutable
 
     @property
     def docker_image(self) -> DockerImage:
@@ -48,4 +43,4 @@ class ChakraReplayTestDefinition(TestDefinition):
 
     @property
     def installables(self) -> list[Installable]:
-        return [self.docker_image, self.comm_replay_executable]
+        return [self.docker_image]
