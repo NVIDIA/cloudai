@@ -93,9 +93,7 @@ class CloudAICLI:
                 "--output-dir", help="Path to the output directory.", required=output_dir, type=existing_path
             )
         if result_dir is not None:
-            p.add_argument(
-                "--result-dir", help="Path to the result directory.", required=result_dir, type=existing_path
-            )
+            p.add_argument("--result-dir", help="Path to the result directory.", required=result_dir, type=Path)
 
         return p
 
