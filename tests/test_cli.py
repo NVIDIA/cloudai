@@ -145,7 +145,7 @@ def test_add_command_all_required():
             "--test-scenario",
             f"{Path(__file__)}",
             "--output-dir",
-            f"{Path.cwd()}",
+            "output_dir",
         ]
     )
     assert args == argparse.Namespace(
@@ -155,7 +155,7 @@ def test_add_command_all_required():
         system_config=Path(__file__),
         tests_dir=Path.cwd(),
         test_scenario=Path(__file__),
-        output_dir=Path.cwd(),
+        output_dir=Path("output_dir"),
     )
 
 
