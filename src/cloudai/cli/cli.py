@@ -89,11 +89,11 @@ class CloudAICLI:
                 "--test-scenario", help="Path to the test scenario file.", required=test_scenario, type=existing_path
             )
         if output_dir is not None:
-            p.add_argument(
-                "--output-dir", help="Path to the output directory.", required=output_dir, type=existing_path
-            )
+            p.add_argument("--output-dir", help="Path to the output directory.", required=output_dir, type=Path)
         if result_dir is not None:
-            p.add_argument("--result-dir", help="Path to the result directory.", required=result_dir, type=Path)
+            p.add_argument(
+                "--result-dir", help="Path to the result directory.", required=result_dir, type=existing_path
+            )
 
         return p
 
