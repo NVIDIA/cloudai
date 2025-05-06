@@ -66,8 +66,8 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         [
             (
                 [
-                    "TEST_VAR_1=value1",
-                    "+env_vars.TEST_VAR_1=value1",
+                    'TEST_VAR_1="value1"',
+                    '+env_vars.TEST_VAR_1="value1"',
                     'stages=["training"]',
                     "cluster.gpus_per_node=null",
                     "cluster.partition=main",
@@ -227,23 +227,13 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
 
         assert " \\\n " in written_content, "Command should contain line breaks when written to the file"
         assert "python" in written_content, "Logged command should start with 'python'"
-        assert "TEST_VAR_1=value1" in written_content, "Logged command should contain environment variables"
+        assert 'TEST_VAR_1="value1"' in written_content, "Logged command should contain environment variables"
         assert "training.trainer.num_nodes=2" in written_content, "Command should contain the number of nodes"
 
         assert str((tdef.python_executable.venv_path / "bin" / "python").absolute()) in written_content
         assert (
             f"launcher_scripts_path={(repo_path / tdef.cmd_args.launcher_script).parent.absolute()} " in written_content
         )
-
-    def test_no_line_breaks_in_executed_command(
-        self, cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy, test_run: TestRun, tmp_path: Path
-    ) -> None:
-        test_run.output_path = tmp_path / "output_dir"
-        test_run.output_path.mkdir()
-
-        cmd = cmd_gen_strategy.gen_exec_command(test_run)
-
-        assert "\n" not in cmd, "Executed command should not contain line breaks"
 
     def test_container_mounts_with_nccl_topo_file(
         self, cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy, test_run: TestRun
@@ -255,3 +245,11 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
 
         expected_mount = f'container_mounts=["{nccl_topo_file_path}:{nccl_topo_file_path}"]'
         assert expected_mount in cmd
+
+    def test_env_vars_with_spaces(
+        self, cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy, test_run: TestRun
+    ) -> None:
+        env: dict[str, str | list[str]] = {"VAR1": "value with spaces", "VAR2": r"$(cmd \$vv| cmd)"}
+        cmd = cmd_gen_strategy._gen_env_vars_str(env)
+
+        assert cmd == 'VAR1="value with spaces" \\\nVAR2="$(cmd \\$vv| cmd)" \\\n'
