@@ -74,7 +74,7 @@ class Registry(metaclass=Singleton):
     test_definitions_map: ClassVar[dict[str, Type[TestDefinition]]] = {}
     agents_map: ClassVar[dict[str, Type[BaseAgent]]] = {}
     reports_map: ClassVar[dict[Type[TestDefinition], Set[Type[ReportGenerationStrategy]]]] = {}
-    scenario_reports: ClassVar[Set[Type[Reporter]]] = set()
+    scenario_reports: ClassVar[List[Type[Reporter]]] = []
 
     def add_runner(self, name: str, value: Type[BaseRunner]) -> None:
         """
@@ -318,12 +318,13 @@ class Registry(metaclass=Singleton):
         self.reports_map[tdef_type] = reports
 
     def add_scenario_report(self, value: Type[Reporter]) -> None:
-        existing_reports = copy.copy(self.scenario_reports)
-        existing_reports.add(value)
-        self.update_scenario_report(existing_reports)
+        if value not in self.scenario_reports:
+            existing_reports = copy.copy(self.scenario_reports)
+            existing_reports.append(value)
+            self.update_scenario_report(existing_reports)
 
-    def update_scenario_report(self, reports: Set[Type[Reporter]]) -> None:
+    def update_scenario_report(self, reports: List[Type[Reporter]]) -> None:
         if not any(issubclass(report, Reporter) for report in reports):
             raise ValueError("Invalid scenario report implementation, should be subclass of 'Reporter'.")
         self.scenario_reports.clear()
-        self.scenario_reports.update(reports)
+        self.scenario_reports.extend(reports)

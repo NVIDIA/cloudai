@@ -27,8 +27,23 @@ dependencies = [
   "jinja2==3.1.6",
   "websockets==15.0.1",
 ]
-  [project.scripts]
-  cloudai = "cloudai.__main__:main"
+requires-python = ">=3.10"
+scripts = { cloudai = "cloudai.__main__:main" }
+
+  [project.optional-dependencies]
+  dev = [
+    "ruff==0.11.7",
+    "pandas-stubs==2.2.*",
+    "pyright==1.1.400",
+    "build==1.2.*",
+    "vulture==2.14",
+    "pytest==8.3.*",
+    "pytest-cov==6.1.*",
+    "pytest-asyncio==0.26.*",
+    "import-linter==2.3.*",
+    "pytest-deadfixtures==2.2.*",
+    "taplo==0.9.3",
+  ]
 
 [build-system]
 requires = ["pdm-backend"]
@@ -36,10 +51,9 @@ build-backend = "pdm.backend"
 
 [tool.pdm.version]
 source = "scm"
-fallback_version = "1.2.0+unknown"
+fallback_version = "1.3.0+unknown"
 
 [tool.ruff]
-target-version = "py39"
 line-length = 120
 
   [tool.ruff.format]

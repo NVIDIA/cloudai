@@ -31,7 +31,7 @@ if [ "$SLURM_NODEID" -eq 0 ] && [ "$SLURM_PROCID" -eq 0 ]; then
     --fdl.NUM_GROUPS=64 \
     --fdl.NUM_MICROBATCHES=1 \
     --fdl.NUM_STAGES=1 \
-    --fdl.PERCORE_BATCH_SIZE=4 \
+    --fdl.PERCORE_BATCH_SIZE=4.0 \
     --fdl.USE_FP8=1 \
     --fdl.USE_REPEATED_LAYER=False >> /opt/paxml/workspace/profile_stderr_${SLURM_PROCID}.txt 2>&1
 else
@@ -54,7 +54,7 @@ else
     --fdl.NUM_GROUPS=64 \
     --fdl.NUM_MICROBATCHES=1 \
     --fdl.NUM_STAGES=1 \
-    --fdl.PERCORE_BATCH_SIZE=4 \
+    --fdl.PERCORE_BATCH_SIZE=4.0 \
     --fdl.USE_FP8=1 \
     --fdl.USE_REPEATED_LAYER=False >> /opt/paxml/workspace/profile_stderr_${SLURM_PROCID}.txt 2>&1
 fi
@@ -98,7 +98,7 @@ if [ "$SLURM_NODEID" -eq 0 ] && [ "$SLURM_PROCID" -eq 0 ]; then
     --fdl.NUM_GROUPS=64 \
     --fdl.NUM_MICROBATCHES=1 \
     --fdl.NUM_STAGES=1 \
-    --fdl.PERCORE_BATCH_SIZE=4 \
+    --fdl.PERCORE_BATCH_SIZE=4.0 \
     --fdl.USE_FP8=1 \
     --fdl.USE_REPEATED_LAYER=False
 else
@@ -121,7 +121,7 @@ else
     --fdl.NUM_GROUPS=64 \
     --fdl.NUM_MICROBATCHES=1 \
     --fdl.NUM_STAGES=1 \
-    --fdl.PERCORE_BATCH_SIZE=4 \
+    --fdl.PERCORE_BATCH_SIZE=4.0 \
     --fdl.USE_FP8=1 \
     --fdl.USE_REPEATED_LAYER=False
 fi

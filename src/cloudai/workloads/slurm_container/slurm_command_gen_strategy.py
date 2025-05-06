@@ -32,7 +32,7 @@ class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
         """NSYS command is generated as part of the test command and disabled here."""
         return []
 
-    def gen_srun_prefix(self, slurm_args: dict[str, Any], tr: TestRun) -> list[str]:
+    def gen_srun_prefix(self, slurm_args: dict[str, Any], tr: TestRun, use_pretest_extras: bool = False) -> list[str]:
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
         slurm_args["image_path"] = tdef.docker_image.installed_path
         cmd = super().gen_srun_prefix(slurm_args, tr)
