@@ -133,16 +133,19 @@ class TestRun:
         return all_combinations
 
     def apply_action(self, action: dict[str, Any]) -> "TestRun":
-        new_tr = copy.deepcopy(self)
+        tdef = self.test.test_definition.model_copy(deep=True)
         for key, value in action.items():
             if key.startswith("extra_env_vars."):
-                new_tr.test.test_definition.extra_env_vars[key[len("extra_env_vars.") :]] = value
+                tdef.extra_env_vars[key[len("extra_env_vars.") :]] = value
             else:
                 attrs = key.split(".")
-                obj = new_tr.test.test_definition.cmd_args
+                obj = tdef.cmd_args
                 for attr in attrs[:-1]:
                     obj = getattr(obj, attr)
                 setattr(obj, attrs[-1], value)
+
+        new_tr = copy.deepcopy(self)
+        new_tr.test.test_definition = type(tdef)(**tdef.model_dump())  # re-create the model to enable validation
         return new_tr
 
 
