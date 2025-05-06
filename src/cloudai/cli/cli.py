@@ -26,6 +26,13 @@ from .handlers import (
 )
 
 
+def existing_path(filepath: str) -> Path:
+    fpath = Path(filepath)
+    if not fpath.is_file():
+        raise argparse.ArgumentTypeError(f"Path '{fpath}' does not exist.")
+    return fpath
+
+
 class CloudAICLI:
     """Command-line argument parser for CloudAI and derivatives."""
 
@@ -68,18 +75,27 @@ class CloudAICLI:
         self.handlers[name] = handler
         if system_config is not None:
             p.add_argument(
-                "--system-config", help="Path to the system configuration file.", required=system_config, type=Path
+                "--system-config",
+                help="Path to the system configuration file.",
+                required=system_config,
+                type=existing_path,
             )
         if tests_dir is not None:
             p.add_argument(
-                "--tests-dir", help="Path to the test configuration directory.", required=tests_dir, type=Path
+                "--tests-dir", help="Path to the test configuration directory.", required=tests_dir, type=existing_path
             )
         if test_scenario is not None:
-            p.add_argument("--test-scenario", help="Path to the test scenario file.", required=test_scenario, type=Path)
+            p.add_argument(
+                "--test-scenario", help="Path to the test scenario file.", required=test_scenario, type=existing_path
+            )
         if output_dir is not None:
-            p.add_argument("--output-dir", help="Path to the output directory.", required=output_dir, type=Path)
+            p.add_argument(
+                "--output-dir", help="Path to the output directory.", required=output_dir, type=existing_path
+            )
         if result_dir is not None:
-            p.add_argument("--result-dir", help="Path to the result directory.", required=result_dir, type=Path)
+            p.add_argument(
+                "--result-dir", help="Path to the result directory.", required=result_dir, type=existing_path
+            )
 
         return p
 
