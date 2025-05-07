@@ -275,16 +275,16 @@ class TestScenarioParser:
             if test_info.test_name not in self.test_mapping:
                 raise ValueError(f"Test '{test_info.test_name}' is not defined. Was tests directory correctly set?")
             test = self.test_mapping[test_info.test_name]
-        elif test_info.test_spec and test_info.test_spec.test_template_name:
-            test = tp._parse_data(test_info.test_spec.model_dump(), self.strict)
+        elif test_info.test_template_name:
+            test = tp._parse_data(test_info.tdef_model_dump(), self.strict)
         else:
             # this should never happen, because we check for this in the modelvalidator
-            raise ValueError(f"Cannot configure test case '{test_info.id}' with both 'test_name' and 'test_spec'.")
+            raise ValueError(
+                f"Cannot configure test case '{test_info.id}' with both 'test_name' and 'test_template_name'."
+            )
 
-        tdef = test.test_definition
-        if test_info.test_spec:
-            data = test.test_definition.model_dump()
-            data.update(test_info.test_spec.model_dump(exclude_none=True, exclude_defaults=True))
-            tdef = tp.load_test_definition(data, self.strict)
+        merged_data = test.test_definition.model_dump()
+        merged_data.update(test_info.tdef_model_dump())
+        tdef = tp.load_test_definition(merged_data, self.strict)
 
         return test, tdef

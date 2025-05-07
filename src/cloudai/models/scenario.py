@@ -23,26 +23,6 @@ from .._core.registry import Registry
 from .workload import CmdArgs, NsysConfiguration
 
 
-class TestSpecModel(BaseModel):
-    """Model for test definition in test scenario."""
-
-    __test__ = False
-
-    model_config = ConfigDict(extra="forbid")
-
-    name: Optional[str] = None
-    description: Optional[str] = None
-    test_template_name: Optional[str] = None
-    cmd_args: Optional[CmdArgs] = None
-    extra_env_vars: dict[str, str] = {}
-    extra_container_mounts: list[str] = []
-    git_repos: list[GitRepo] = []
-    nsys: Optional[NsysConfiguration] = None
-    agent: str = "grid_search"
-    agent_steps: int = 1
-    agent_metric: str = "default"
-
-
 class TestRunDependencyModel(BaseModel):
     """Model for test dependency in test scenario."""
 
@@ -71,26 +51,59 @@ class TestRunModel(BaseModel):
     ideal_perf: float = 1.0
     time_limit: Optional[str] = None
     dependencies: list[TestRunDependencyModel] = Field(default_factory=list)
-    test_spec: Optional[TestSpecModel] = None
+
+    # test definition fields
+    name: Optional[str] = None
+    description: Optional[str] = None
+    test_template_name: Optional[str] = None
+    cmd_args: Optional[CmdArgs] = None
+    extra_env_vars: Optional[dict[str, str]] = None
+    extra_container_mounts: Optional[list[str]] = None
+    git_repos: Optional[list[GitRepo]] = None
+    nsys: Optional[NsysConfiguration] = None
+    agent: Optional[str] = None
+    agent_steps: Optional[int] = None
+    agent_metric: Optional[str] = None
+
+    def tdef_model_dump(self) -> dict:
+        """Return a dictionary with non-None values that correspond to the test definition fields."""
+        data = {
+            "name": self.name,
+            "description": self.description,
+            "test_template_name": self.test_template_name,
+            "agent": self.agent,
+            "agent_steps": self.agent_steps,
+            "agent_metric": self.agent_metric,
+            "extra_container_mounts": self.extra_container_mounts,
+            "cmd_args": self.cmd_args.model_dump() if self.cmd_args else None,
+            "extra_env_vars": self.extra_env_vars if self.extra_env_vars else None,
+            "git_repos": [repo.model_dump() for repo in self.git_repos] if self.git_repos else None,
+            "nsys": self.nsys.model_dump() if self.nsys else None,
+        }
+        return {k: v for k, v in data.items() if v is not None}
 
     @model_validator(mode="after")
     def check_test_name_or_type_is_set(self):
-        if self.test_name is None and self.test_spec is None:
-            raise ValueError("Either 'test_name' or 'test_spec' must be set.")
+        has_base = self.test_name is not None
+        if not has_base and (self.test_template_name is None or self.name is None or self.description is None):
+            raise ValueError(
+                "When 'test_name' is not set, the following fields must be set: "
+                "'test_template_name', 'name', 'description'."
+            )
 
         if not self.test_name:
-            if self.test_spec and not self.test_spec.test_template_name:
-                raise ValueError("'test_spec.test_template_name' must be set if 'test_name' is not set.")
+            if not self.test_template_name:
+                raise ValueError("'test_template_name' must be set if 'test_name' is not set.")
 
             registry = Registry()
-            if self.test_spec and self.test_spec.test_template_name not in registry.test_definitions_map:
+            if self.test_template_name not in registry.test_definitions_map:
                 raise ValueError(
-                    f"Test type '{self.test_spec.test_template_name}' not found in the test definitions. "
+                    f"Test type '{self.test_template_name}' not found in the test definitions. "
                     f"Possible values are: {', '.join(registry.test_definitions_map.keys())}"
                 )
         else:
-            if self.test_spec and self.test_spec.test_template_name:
-                raise ValueError("'test_spec.test_template_name' must not be set if 'test_name' is set.")
+            if self.test_template_name:
+                raise ValueError("'test_template_name' must not be set if 'test_name' is set.")
 
         return self
 

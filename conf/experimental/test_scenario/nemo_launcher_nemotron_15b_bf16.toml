@@ -26,7 +26,7 @@ id = "nemo_launcher_nemotron_15b_bf16_4_node"
 test_name = "nemo_launcher_nemotron_15b_bf16_2_node"
 num_nodes = "4"
 
-  [Tests.test_spec.cmd_args.training.model]
+  [Tests.cmd_args.training.model]
   global_batch_size = 128
 
 [[Tests]]
@@ -34,7 +34,7 @@ id = "nemo_launcher_nemotron_15b_bf16_8_node"
 test_name = "nemo_launcher_nemotron_15b_bf16_2_node"
 num_nodes = "8"
 
-  [Tests.test_spec.cmd_args.training.model]
+  [Tests.cmd_args.training.model]
   global_batch_size = 256
 
 [[Tests]]
@@ -42,7 +42,7 @@ id = "nemo_launcher_nemotron_15b_bf16_16_node"
 test_name = "nemo_launcher_nemotron_15b_bf16_2_node"
 num_nodes = "16"
 
-  [Tests.test_spec.cmd_args.training.model]
+  [Tests.cmd_args.training.model]
   global_batch_size = 512
 
 [[Tests]]
@@ -50,7 +50,7 @@ id = "nemo_launcher_nemotron_15b_bf16_32_node"
 test_name = "nemo_launcher_nemotron_15b_bf16_2_node"
 num_nodes = "32"
 
-  [Tests.test_spec.cmd_args.training.model]
+  [Tests.cmd_args.training.model]
   global_batch_size = 1024
 
 [[Tests]]
@@ -58,5 +58,5 @@ id = "nemo_launcher_nemotron_15b_bf16_64_node"
 test_name = "nemo_launcher_nemotron_15b_bf16_2_node"
 num_nodes = "64"
 
-  [Tests.test_spec.cmd_args.training.model]
+  [Tests.cmd_args.training.model]
   global_batch_size = 2048

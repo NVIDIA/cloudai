@@ -21,5 +21,5 @@ id = "nemo_launcher_nemotron_15b_bf16_4_node"
 test_name = "nemo_launcher_nemotron_15b_bf16_2_node"
 num_nodes = "4"
 
-  [Tests.test_spec.cmd_args.training.model]
+  [Tests.cmd_args.training.model]
   global_batch_size = 128

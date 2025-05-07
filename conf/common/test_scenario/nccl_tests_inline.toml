@@ -21,33 +21,31 @@ id = "nccl.all_reduce"
 num_nodes = 2
 time_limit = "00:20:00"
 
-  [Tests.test_spec]
-  name = "all_reduce"
-  description = "all_reduce"
-  test_template_name = "NcclTest"
+name = "nccl-all_reduce"
+description = "all_reduce"
+test_template_name = "NcclTest"
 
-    [Tests.test_spec.cmd_args]
-    subtest_name = "all_reduce_perf_mpi"
-    ngpus = 1
-    minbytes = "128"
-    maxbytes = "512"
-    iters = 50
-    warmup_iters = 10
+  [Tests.cmd_args]
+  subtest_name = "all_reduce_perf_mpi"
+  ngpus = 1
+  minbytes = "128"
+  maxbytes = "512"
+  iters = 50
+  warmup_iters = 10
 
 [[Tests]]
 id = "nccl.all_gather"
 num_nodes = 2
 time_limit = "00:20:00"
 
-  [Tests.test_spec]
-  name = "all_gather"
-  description = "all_gather"
-  test_template_name = "NcclTest"
+name = "nccl-all_gather"
+description = "all_gather"
+test_template_name = "NcclTest"
 
-    [Tests.test_spec.cmd_args]
-    subtest_name = "all_reduce_perf_mpi"
-    ngpus = 1
-    minbytes = "128"
-    maxbytes = "512"
-    iters = 50
-    warmup_iters = 10
+  [Tests.cmd_args]
+  subtest_name = "all_gather_perf_mpi"
+  ngpus = 1
+  minbytes = "128"
+  maxbytes = "512"
+  iters = 50
+  warmup_iters = 10

@@ -36,7 +36,7 @@ from cloudai._core.report_generation_strategy import ReportGenerationStrategy
 from cloudai._core.test import TestDefinition
 from cloudai._core.test_scenario_parser import calculate_total_time_limit, get_reporters
 from cloudai._core.test_template import TestTemplate
-from cloudai.models.scenario import TestRunModel, TestScenarioModel, TestSpecModel
+from cloudai.models.scenario import TestRunModel, TestScenarioModel
 from cloudai.models.workload import PredictorConfig
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
@@ -72,15 +72,15 @@ def test_scenario_parser(slurm_system: SlurmSystem) -> TestScenarioParser:
 
 
 @pytest.fixture
-def test() -> Test:
+def test(slurm_system: SlurmSystem) -> Test:
     return Test(
-        test_definition=MyTestDefinition(
+        test_definition=NCCLTestDefinition(
             name="t1",
             description="desc1",
-            test_template_name="tt",
-            cmd_args=CmdArgs(),
+            test_template_name="NcclTest",
+            cmd_args=NCCLCmdArgs(),
         ),
-        test_template=Mock(),
+        test_template=TestTemplate(system=slurm_system),
     )
 
 
@@ -281,32 +281,51 @@ def test_total_time_limit_with_empty_hooks():
 
 
 class TestSpec:
-    def test_spec_without_test_name_and_type(self):
+    @pytest.mark.parametrize("missing_arg", ["test_template_name", "name", "description"])
+    def test_without_base(self, missing_arg: str):
+        spec = {
+            "id": "1",
+            "test_template_name": "NcclTest",
+            "name": "nccl",
+            "description": "desc",
+        }
+        spec.pop(missing_arg)
         with pytest.raises(ValueError) as exc_info:
-            TestRunModel(id="1")
-        assert exc_info.match("Either 'test_name' or 'test_spec' must be set.")
+            TestRunModel.model_validate(spec)
+        assert exc_info.match(
+            "When 'test_name' is not set, the following fields must be set: 'test_template_name', 'name', 'description'"
+        )
 
     def test_name_is_not_in_mapping(self, test_scenario_parser: TestScenarioParser):
         with pytest.raises(ValueError) as exc_info:
             test_scenario_parser._prepare_tdef(TestRunModel(id="1", test_name="nccl"))
         assert exc_info.match("Test 'nccl' is not defined. Was tests directory correctly set?")
 
-    def test_spec_without_test_type(self):
+    @pytest.mark.parametrize("override_arg", ["name", "description"])
+    def test_can_override_name_and_description(self, override_arg: str):
+        spec = {"id": "1", "test_name": "nccl", override_arg: "value"}
+        model = TestRunModel.model_validate(spec)
+
+        data = model.model_dump()
+        assert data[override_arg] == "value"
+
+    def test_cant_override_template_name(self):
+        spec = {"id": "1", "test_name": "nccl", "test_template_name": "NcclTest"}
         with pytest.raises(ValueError) as exc_info:
-            TestRunModel(id="1", test_spec=TestSpecModel(test_template_name=None))
-        assert exc_info.match("'test_spec.test_template_name' must be set if 'test_name' is not set.")
+            TestRunModel.model_validate(spec)
+        assert exc_info.match("'test_template_name' must not be set if 'test_name' is set.")
 
     def test_spec_with_unknown_test_type(self):
         with pytest.raises(ValueError) as exc_info:
-            TestRunModel(id="1", test_spec=TestSpecModel(test_template_name="unknown"))
+            TestRunModel(id="1", name="nccl", description="desc", test_template_name="unknown")
         assert exc_info.match("Test type 'unknown' not found in the test definitions. Possible values are:")
 
     def test_type_is_not_allowed_when_name_is_set(self):
         with pytest.raises(ValueError) as exc_info:
-            TestRunModel(id="1", test_name="nccl", test_spec=TestSpecModel(test_template_name="NcclTest"))
-        assert exc_info.match("'test_spec.test_template_name' must not be set if 'test_name' is set.")
+            TestRunModel(id="1", test_name="nccl", test_template_name="NcclTest")
+        assert exc_info.match("'test_template_name' must not be set if 'test_name' is set.")
 
-    def test_spec_without_test(self, test_scenario_parser: TestScenarioParser):
+    def test_spec_without_base(self, test_scenario_parser: TestScenarioParser):
         model = TestScenarioModel.model_validate(
             toml.loads(
                 """
@@ -314,19 +333,17 @@ class TestSpec:
 
             [[Tests]]
             id = "1"
-
-              [Tests.test_spec]
-              name = "nccl"
-              description = "desc"
-              test_template_name = "NcclTest"
-
-                [Tests.test_spec.cmd_args]
+            name = "nccl"
+            description = "desc"
+            test_template_name = "NcclTest"
             """
             )
         )
-        test, tdef = test_scenario_parser._prepare_tdef(model.tests[0])
-        assert isinstance(tdef, NCCLTestDefinition)
-        assert isinstance(test, Test)
+        assert model.name == "test"
+        assert len(model.tests) == 1
+        assert model.tests[0].name == "nccl"
+        assert model.tests[0].test_template_name == "NcclTest"
+        assert model.tests[0].description == "desc"
 
     def test_spec_has_priority(self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem):
         test_scenario_parser.test_mapping = {
@@ -346,14 +363,13 @@ class TestSpec:
             id = "1"
             test_name = "nccl"
 
-              [Tests.test_spec.cmd_args]
+              [Tests.cmd_args]
               nthreads = 42
             """
             )
         )
-        tr = test_scenario_parser._create_test_run(test_info=model.tests[0], normalized_weight=1.0)
-
-        assert tr.test.test_definition.cmd_args.nthreads == 42
+        _, tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        assert tdef.cmd_args.nthreads == 42
 
     def test_spec_can_set_unknown_args(self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem):
         test_scenario_parser.test_mapping = {
@@ -372,17 +388,14 @@ class TestSpec:
             [[Tests]]
             id = "1"
             test_name = "nccl"
-
-              [Tests.test_spec.cmd_args]
-              unknown = 42
+            cmd_args = { unknown = 42 }
             """
             )
         )
-        tr = test_scenario_parser._create_test_run(test_info=model.tests[0], normalized_weight=1.0)
+        _, tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        assert tdef.cmd_args_dict["unknown"] == 42
 
-        assert tr.test.test_definition.cmd_args.unknown == 42
-
-    def test_spec_can_set_unknown_args_no_mapping(self, test_scenario_parser: TestScenarioParser):
+    def test_spec_can_set_unknown_args_no_base(self, test_scenario_parser: TestScenarioParser):
         model = TestScenarioModel.model_validate(
             toml.loads(
                 """
@@ -390,20 +403,14 @@ class TestSpec:
 
             [[Tests]]
             id = "1"
-
-              [Tests.test_spec]
-              name = "nccl"
-              description = "desc"
-              test_template_name = "NcclTest"
-
-                [Tests.test_spec.cmd_args]
-                unknown = 42
+            name = "nccl"
+            test_template_name = "NcclTest"
+            description = "desc"
+            cmd_args = { unknown = 42 }
             """
             )
         )
-        test, tdef = test_scenario_parser._prepare_tdef(model.tests[0])
-        assert isinstance(tdef, NCCLTestDefinition)
-        assert isinstance(test, Test)
+        _, tdef = test_scenario_parser._prepare_tdef(model.tests[0])
         assert tdef.cmd_args_dict["unknown"] == 42
 
 
@@ -465,7 +472,7 @@ class TestReportMetricsDSE:
         nccl = NCCLTestDefinition(
             name="nccl",
             description="desc",
-            test_template_name="tt",
+            test_template_name="NcclTest",
             cmd_args=NCCLCmdArgs(),
             extra_env_vars={"DSE": ["v1", "v2"]},
         )
