@@ -40,6 +40,7 @@ class TestSpecModel(BaseModel):
     nsys: Optional[NsysConfiguration] = None
     agent: str = "grid_search"
     agent_steps: int = 1
+    agent_metric: str = "default"
 
 
 class TestRunDependencyModel(BaseModel):
