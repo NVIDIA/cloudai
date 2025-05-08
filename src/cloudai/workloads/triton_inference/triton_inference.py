@@ -17,8 +17,6 @@
 from pathlib import Path
 from typing import Literal, Optional
 
-from pydantic import model_validator
-
 from cloudai import CmdArgs, DockerImage, Installable, TestDefinition
 
 
@@ -63,18 +61,22 @@ class TritonInferenceTestDefinition(TestDefinition):
     def installables(self) -> list[Installable]:
         return [self.server_docker_image, self.client_docker_image]
 
-    @model_validator(mode="after")
-    def verify_nim_paths(self):
-        model_raw = self.extra_env_vars.get("NIM_MODEL_NAME")
-        cache_raw = self.extra_env_vars.get("NIM_CACHE_PATH")
+    @property
+    def nim_model_path(self) -> Path:
+        raw = self.extra_env_vars.get("NIM_MODEL_NAME")
+        if not isinstance(raw, str) or not raw.strip():
+            raise ValueError("NIM_MODEL_NAME must be set and non-empty")
+        path = Path(raw)
+        if not path.is_dir():
+            raise FileNotFoundError(f"NIM_MODEL_NAME path not found at {path}")
+        return path
 
-        for name, raw in [("NIM_MODEL_NAME", model_raw), ("NIM_CACHE_PATH", cache_raw)]:
-            if not isinstance(raw, str) or not raw.strip():
-                raise ValueError(f"{name} must be set and non-empty")
-            p = Path(raw)
-            if not p.is_dir():
-                raise FileNotFoundError(f"{name} path not found at {p}")
-
-        self.nim_model_path = Path(model_raw)
-        self.nim_cache_path = Path(cache_raw)
-        return self
+    @property
+    def nim_cache_path(self) -> Path:
+        raw = self.extra_env_vars.get("NIM_CACHE_PATH")
+        if not isinstance(raw, str) or not raw.strip():
+            raise ValueError("NIM_CACHE_PATH must be set and non-empty")
+        path = Path(raw)
+        if not path.is_dir():
+            raise FileNotFoundError(f"NIM_CACHE_PATH path not found at {path}")
+        return path
