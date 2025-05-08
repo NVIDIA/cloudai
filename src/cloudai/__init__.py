@@ -20,6 +20,7 @@ from ._core.base_runner import BaseRunner
 from ._core.base_system_parser import BaseSystemParser
 from ._core.command_gen_strategy import CommandGenStrategy
 from ._core.configurator.base_agent import BaseAgent
+from ._core.configurator.cloudai_gym import CloudAIGymEnv
 from ._core.configurator.grid_search import GridSearchAgent
 from ._core.exceptions import (
     JobIdRetrievalError,
@@ -40,7 +41,7 @@ from ._core.report_generation_strategy import ReportGenerationStrategy
 from ._core.reporter import PerTestReporter, Reporter, StatusReporter, TarballReporter
 from ._core.runner import Runner
 from ._core.system import System
-from ._core.test import CmdArgs, NsysConfiguration, PredictorConfig, Test, TestDefinition
+from ._core.test import Test
 from ._core.test_parser import TestParser
 from ._core.test_scenario import TestRun, TestScenario
 from ._core.test_scenario_parser import TestScenarioParser
@@ -51,6 +52,7 @@ from .installer.lsf_installer import LSFInstaller
 from .installer.runai_installer import RunAIInstaller
 from .installer.slurm_installer import SlurmInstaller
 from .installer.standalone_installer import StandaloneInstaller
+from .models.workload import CmdArgs, NsysConfiguration, PredictorConfig, TestDefinition
 from .parser import Parser
 from .runner.kubernetes.kubernetes_runner import KubernetesRunner
 from .runner.lsf.lsf_runner import LSFRunner
@@ -314,6 +316,7 @@ __all__ = [
     "BaseJob",
     "BaseRunner",
     "BaseSystemParser",
+    "CloudAIGymEnv",
     "CmdArgs",
     "CommandGenStrategy",
     "DockerImage",

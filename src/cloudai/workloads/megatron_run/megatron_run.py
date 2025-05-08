@@ -20,7 +20,9 @@ from typing import Optional, Tuple, Union
 
 from pydantic import Field, field_validator, model_validator
 
-from cloudai import CmdArgs, DockerImage, Installable, TestDefinition
+from cloudai import DockerImage, Installable
+
+from ...models.workload import CmdArgs, TestDefinition
 
 
 class MegatronRunCmdArgs(CmdArgs):

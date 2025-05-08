@@ -76,7 +76,7 @@ def ucc_tr(slurm_system: SlurmSystem) -> TestRun:
                 test_template_name="ucc_test",
                 cmd_args=UCCCmdArgs(),
             ),
-            test_template=TestTemplate(system=slurm_system, name="ucc_test"),
+            test_template=TestTemplate(system=slurm_system),
         ),
         num_nodes=1,
         nodes=[],

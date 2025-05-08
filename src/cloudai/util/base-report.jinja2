@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>{{ name }}</title>
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+                line-height: 1.6;
+                max-width: 1200px;
+                margin: 0;
+                padding: 2rem;
+                color: #333;
+            }
+            h1 {
+                color: #2c3e50;
+                border-bottom: 2px solid #eee;
+                padding-bottom: 0.5rem;
+                margin-bottom: 2rem;
+            }
+            h2 {
+                color: #2c3e50;
+                margin-top: 2rem;
+                margin-bottom: 1rem;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 1rem;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            }
+            th, td {
+                padding: 12px 15px;
+                text-align: left;
+                border-bottom: 1px solid #eee;
+            }
+            th {
+                background-color: #f8f9fa;
+                font-weight: 600;
+            }
+            tr:hover {
+                background-color: #f8f9fa;
+            }
+            a {
+                color: #3498db;
+                text-decoration: none;
+            }
+            a:hover {
+                text-decoration: underline;
+            }
+        </style>
+        {% block extra_head %}{% endblock %}
+    </head>
+    <body>
+        <h1>{{ name }}</h1>
+        {% block content %}{% endblock %}
+    </body>
+</html>

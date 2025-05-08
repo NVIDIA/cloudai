@@ -134,7 +134,7 @@ def create_test_run(
 ) -> TestRun:
     tr = partial_tr(
         name=name,
-        test=Test(test_definition=test_definition, test_template=TestTemplate(slurm_system, name=name)),
+        test=Test(test_definition=test_definition, test_template=TestTemplate(slurm_system)),
     )
     tr.test.test_template.command_gen_strategy = command_gen_strategy(
         slurm_system, tr.test.test_definition.cmd_args_dict
