@@ -211,6 +211,7 @@ def build_special_test_run(
                 description="nemo-launcher",
                 test_template_name="nemo-launcher",
                 cmd_args=NeMoLauncherCmdArgs(),
+                extra_env_vars={"VAR": r"$(scontrol show hostname \"${SLURM_STEP_NODELIST}\" | head -n1)"},
             ),
             NeMoLauncherSlurmCommandGenStrategy,
         )
