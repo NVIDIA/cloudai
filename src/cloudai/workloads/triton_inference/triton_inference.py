@@ -14,7 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from typing import Literal, Optional
+
+from pydantic import model_validator
 
 from cloudai import CmdArgs, DockerImage, Installable, TestDefinition
 
@@ -59,3 +62,19 @@ class TritonInferenceTestDefinition(TestDefinition):
     @property
     def installables(self) -> list[Installable]:
         return [self.server_docker_image, self.client_docker_image]
+
+    @model_validator(mode="after")
+    def verify_nim_paths(self):
+        model_raw = self.extra_env_vars.get("NIM_MODEL_NAME")
+        cache_raw = self.extra_env_vars.get("NIM_CACHE_PATH")
+
+        for name, raw in [("NIM_MODEL_NAME", model_raw), ("NIM_CACHE_PATH", cache_raw)]:
+            if not isinstance(raw, str) or not raw.strip():
+                raise ValueError(f"{name} must be set and non-empty")
+            p = Path(raw)
+            if not p.is_dir():
+                raise FileNotFoundError(f"{name} path not found at {p}")
+
+        self.nim_model_path = Path(model_raw)
+        self.nim_cache_path = Path(cache_raw)
+        return self

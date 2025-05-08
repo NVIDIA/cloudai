@@ -26,30 +26,17 @@ from .triton_inference import TritonInferenceTestDefinition
 class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for TritonInference server and client."""
 
-    def _container_mounts(self, tr: TestRun) -> List[str]:
-        test_definition = cast(TritonInferenceTestDefinition, tr.test.test_definition)
-        mounts: List[str] = []
+    def _container_mounts(self, tr: TestRun) -> list[str]:
+        td = cast(TritonInferenceTestDefinition, tr.test.test_definition)
+        mounts = [
+            f"{td.nim_model_path}:{td.nim_model_path}:ro",
+            f"{td.nim_cache_path}:{td.nim_cache_path}:rw",
+        ]
 
-        model_path_str = test_definition.extra_env_vars.get("NIM_MODEL_NAME")
-        if not isinstance(model_path_str, str) or not model_path_str.strip():
-            raise ValueError("NIM_MODEL_NAME must be set and non-empty.")
-        model_path = Path(model_path_str)
-        if not model_path.is_dir():
-            raise FileNotFoundError(f"Model directory not found at: {model_path}")
-        mounts.append(f"{model_path}:{model_path}:ro")
-
-        cache_path_str = test_definition.extra_env_vars.get("NIM_CACHE_PATH")
-        if not isinstance(cache_path_str, str) or not cache_path_str.strip():
-            raise ValueError("NIM_CACHE_PATH must be set and non-empty.")
-        cache_path = Path(cache_path_str)
-        if not cache_path.is_dir():
-            raise FileNotFoundError(f"NIM cache directory not found at: {cache_path}")
-        mounts.append(f"{cache_path}:{cache_path}:rw")
-
-        wrapper_host_path = (tr.output_path / "start_server_wrapper.sh").resolve()
-        wrapper_container_path = "/opt/nim/start_server_wrapper.sh"
-        self._generate_start_wrapper_script(wrapper_host_path, test_definition.extra_env_vars)
-        mounts.append(f"{wrapper_host_path}:{wrapper_container_path}:ro")
+        wrapper_host = (tr.output_path / "start_server_wrapper.sh").resolve()
+        wrapper_container = "/opt/nim/start_server_wrapper.sh"
+        self._generate_start_wrapper_script(wrapper_host, td.extra_env_vars)
+        mounts.append(f"{wrapper_host}:{wrapper_container}:ro")
 
         return mounts
 
