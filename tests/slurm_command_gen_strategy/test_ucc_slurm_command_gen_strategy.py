@@ -21,7 +21,7 @@ import pytest
 
 from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestRun
-from cloudai.systems import SlurmSystem
+from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition, UCCTestSlurmCommandGenStrategy
 
 

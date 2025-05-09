@@ -24,9 +24,7 @@ from cloudai import TestTemplate
 from cloudai._core.exceptions import JobIdRetrievalError
 from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestRun, TestScenario
-from cloudai.runner.slurm.slurm_runner import SlurmRunner
-from cloudai.systems import SlurmSystem
-from cloudai.systems.slurm.slurm_system import SlurmPartition
+from cloudai.systems.slurm import SlurmPartition, SlurmRunner, SlurmSystem
 from cloudai.util import CommandShell
 
 

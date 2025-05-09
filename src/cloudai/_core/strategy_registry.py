@@ -16,7 +16,7 @@
 
 from typing import Optional, Type
 
-from .registry import Registry
+from ..registry import Registry
 
 
 class StrategyRegistry:

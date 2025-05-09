@@ -24,13 +24,13 @@ from cloudai import (
     BaseRunner,
     JobIdRetrievalStrategy,
     JobStatusRetrievalStrategy,
-    Registry,
+    Reporter,
     ReportGenerationStrategy,
     System,
     TestTemplateStrategy,
 )
-from cloudai._core.reporter import Reporter
 from cloudai.models.workload import TestDefinition
+from cloudai.registry import Registry
 
 
 class MyTestDefinition(TestDefinition):

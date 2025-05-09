@@ -20,8 +20,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from cloudai.systems.runai.runai_system import RunAISystem
-from cloudai.systems.slurm.slurm_system import SlurmGroup, SlurmPartition, SlurmSystem
+from cloudai.systems.runai import RunAISystem
+from cloudai.systems.slurm import SlurmGroup, SlurmPartition, SlurmSystem
 
 
 def create_autospec_dataclass(dataclass: type) -> Mock:

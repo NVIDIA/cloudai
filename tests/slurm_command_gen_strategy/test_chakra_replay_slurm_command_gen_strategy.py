@@ -21,7 +21,7 @@ import pytest
 
 from cloudai import TestRun
 from cloudai._core.test import Test
-from cloudai.systems import SlurmSystem
+from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.chakra_replay import (
     ChakraReplayCmdArgs,
     ChakraReplaySlurmCommandGenStrategy,

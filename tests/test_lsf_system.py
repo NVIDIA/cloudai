@@ -20,7 +20,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from cloudai import BaseJob
-from cloudai.systems import LSFSystem
+from cloudai.systems.lsf import LSFSystem
 
 
 @pytest.fixture

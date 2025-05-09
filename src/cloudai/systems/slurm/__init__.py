@@ -14,13 +14,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from cloudai.registry import Registry
+
+from .metadata import SlurmSystemMetadata
+from .slurm_command_gen_strategy import SlurmCommandGenStrategy
+from .slurm_installer import SlurmInstaller
 from .slurm_node import SlurmNode, SlurmNodeState
-from .slurm_system import SlurmGroup, SlurmPartition, SlurmSystem
+from .slurm_runner import SlurmRunner
+from .slurm_system import SlurmGroup, SlurmPartition, SlurmSystem, parse_node_list
+
+Registry().add_installer("slurm", SlurmInstaller)
+Registry().add_system("slurm", SlurmSystem)
+Registry().add_runner("slurm", SlurmRunner)
 
 __all__ = [
+    "SlurmCommandGenStrategy",
     "SlurmGroup",
+    "SlurmInstaller",
     "SlurmNode",
     "SlurmNodeState",
     "SlurmPartition",
+    "SlurmRunner",
     "SlurmSystem",
+    "SlurmSystemMetadata",
+    "parse_node_list",
 ]

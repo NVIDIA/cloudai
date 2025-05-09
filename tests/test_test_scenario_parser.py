@@ -22,7 +22,7 @@ import pytest
 
 from cloudai._core.test import Test, TestDefinition
 from cloudai._core.test_scenario import TestRun, TestScenario
-from cloudai._core.test_scenario_parser import calculate_total_time_limit
+from cloudai.test_scenario_parser import calculate_total_time_limit
 
 
 class DummyTestRun(TestRun):

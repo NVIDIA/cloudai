@@ -22,17 +22,18 @@ import toml
 from pydantic import ValidationError
 
 from cloudai import (
-    Registry,
     System,
     SystemConfigParsingError,
     Test,
     TestConfigParsingError,
-    TestParser,
     TestScenario,
-    TestScenarioParser,
     TestScenarioParsingError,
     format_validation_error,
 )
+from cloudai.registry import Registry
+from cloudai.test_scenario_parser import TestScenarioParser
+
+from .test_parser import TestParser
 
 HOOK_ROOT = Path("conf/hook")
 HOOK_TEST_ROOT = HOOK_ROOT / "test"

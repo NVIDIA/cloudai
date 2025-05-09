@@ -19,8 +19,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, cast, final
 
-from cloudai import CommandGenStrategy, Registry, TestRun, TestScenario
-from cloudai.systems import SlurmSystem
+from cloudai import CommandGenStrategy, TestRun, TestScenario
+from cloudai.registry import Registry
+
+from .slurm_system import SlurmSystem
 
 
 class SlurmCommandGenStrategy(CommandGenStrategy):

@@ -14,7 +14,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from cloudai.registry import Registry
+
+from .lsf_command_gen_strategy import LSFCommandGenStrategy
+from .lsf_installer import LSFInstaller
+from .lsf_job import LSFJob
 from .lsf_node import LSFNode, LSFNodeState
+from .lsf_runner import LSFRunner
 from .lsf_system import LSFGroup, LSFNodeObj, LSFQueue, LSFSystem
 
-__all__ = ["LSFGroup", "LSFNode", "LSFNodeObj", "LSFNodeState", "LSFQueue", "LSFSystem"]
+Registry().add_installer("lsf", LSFInstaller)
+Registry().add_system("lsf", LSFSystem)
+Registry().add_runner("lsf", LSFRunner)
+
+__all__ = [
+    "LSFCommandGenStrategy",
+    "LSFGroup",
+    "LSFJob",
+    "LSFNode",
+    "LSFNodeObj",
+    "LSFNodeState",
+    "LSFQueue",
+    "LSFRunner",
+    "LSFSystem",
+]

@@ -21,7 +21,7 @@ from unittest.mock import Mock, patch
 import pytest
 from pydantic_core import ErrorDetails
 
-from cloudai import Parser, format_validation_error
+from cloudai.parser import Parser, format_validation_error
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 
 
@@ -37,7 +37,7 @@ class Test_Parser:
             parser.parse(tests_dir, None)
         assert "Test path" in str(exc_info.value)
 
-    @patch("cloudai._core.test_parser.TestParser.parse_all")
+    @patch("cloudai.test_parser.TestParser.parse_all")
     def test_no_scenario(self, test_parser: Mock, parser: Parser):
         tests_dir = parser.system_config_path.parent.parent / "test"
         fake_tests = []
@@ -48,8 +48,8 @@ class Test_Parser:
         _, tests, _ = parser.parse(tests_dir, None)
         assert len(tests) == 3
 
-    @patch("cloudai._core.test_parser.TestParser.parse_all")
-    @patch("cloudai._core.test_scenario_parser.TestScenarioParser.parse")
+    @patch("cloudai.test_parser.TestParser.parse_all")
+    @patch("cloudai.test_scenario_parser.TestScenarioParser.parse")
     def test_scenario_without_hook(self, test_scenario_parser: Mock, test_parser: Mock, parser: Parser):
         tests_dir = parser.system_config_path.parent.parent / "test"
 
@@ -69,8 +69,8 @@ class Test_Parser:
         assert len(tests) == 1
         assert tests[0].name == "test-1"
 
-    @patch("cloudai._core.test_parser.TestParser.parse_all")
-    @patch("cloudai._core.test_scenario_parser.TestScenarioParser.parse")
+    @patch("cloudai.test_parser.TestParser.parse_all")
+    @patch("cloudai.test_scenario_parser.TestScenarioParser.parse")
     @patch("cloudai.parser.Parser.parse_hooks")
     def test_scenario_with_hook_common_tests(
         self, parse_hooks: Mock, test_scenario_parser: Mock, test_parser: Mock, parser: Parser
@@ -101,8 +101,8 @@ class Test_Parser:
         assert len(tests) == 1
         assert "test-1" in filtered_test_names
 
-    @patch("cloudai._core.test_parser.TestParser.parse_all")
-    @patch("cloudai._core.test_scenario_parser.TestScenarioParser.parse")
+    @patch("cloudai.test_parser.TestParser.parse_all")
+    @patch("cloudai.test_scenario_parser.TestScenarioParser.parse")
     def test_scenario_with_hook_exclusive_tests(self, test_scenario_parser: Mock, test_parser: Mock, parser: Parser):
         tests_dir = parser.system_config_path.parent.parent / "test"
         test_scenario_path = Path("/mock/test_scenario.toml")

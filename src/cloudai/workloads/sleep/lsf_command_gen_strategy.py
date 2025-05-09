@@ -17,7 +17,7 @@
 from typing import Dict, List, Union, cast
 
 from cloudai import TestRun
-from cloudai.systems.lsf.strategy import LSFCommandGenStrategy
+from cloudai.systems.lsf import LSFCommandGenStrategy
 
 from .sleep import SleepCmdArgs, SleepTestDefinition
 

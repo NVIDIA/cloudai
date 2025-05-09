@@ -21,18 +21,18 @@ from typing import Any, Dict, List, Optional, Type, Union, cast
 import toml
 from pydantic import BaseModel, ValidationError
 
-from ..models.workload import TestDefinition
-from .command_gen_strategy import CommandGenStrategy
-from .exceptions import TestConfigParsingError, format_validation_error
-from .grading_strategy import GradingStrategy
-from .job_id_retrieval_strategy import JobIdRetrievalStrategy
-from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
-from .json_gen_strategy import JsonGenStrategy
-from .registry import Registry
-from .system import System
-from .test import Test
-from .test_template import TestTemplate
-from .test_template_strategy import TestTemplateStrategy
+from cloudai._core.command_gen_strategy import CommandGenStrategy
+from cloudai._core.exceptions import TestConfigParsingError, format_validation_error
+from cloudai._core.grading_strategy import GradingStrategy
+from cloudai._core.job_id_retrieval_strategy import JobIdRetrievalStrategy
+from cloudai._core.job_status_retrieval_strategy import JobStatusRetrievalStrategy
+from cloudai._core.json_gen_strategy import JsonGenStrategy
+from cloudai._core.system import System
+from cloudai._core.test import Test
+from cloudai._core.test_template import TestTemplate
+from cloudai._core.test_template_strategy import TestTemplateStrategy
+from cloudai.models.workload import TestDefinition
+from cloudai.registry import Registry
 
 
 class TestParser:
@@ -92,8 +92,10 @@ class TestParser:
         registry = Registry()
         if not test_template_name or test_template_name not in registry.test_definitions_map:
             logging.error(f"Failed to parse test spec: '{self.current_file}'")
-            logging.error(f"TestTemplate with name '{test_template_name}' not supported.")
-            raise NotImplementedError(f"TestTemplate with name '{test_template_name}' not supported.")
+            msg = f"TestDefinition with name '{test_template_name}' not supported. "
+            msg += "Available test definitions are: " + ", ".join(registry.test_definitions_map.keys())
+            logging.error(msg)
+            raise NotImplementedError(msg)
 
         try:
             test_def = registry.test_definitions_map[test_template_name].model_validate(data)

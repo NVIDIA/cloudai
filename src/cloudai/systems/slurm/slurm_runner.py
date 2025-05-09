@@ -21,8 +21,8 @@ from typing import cast
 import toml
 
 from cloudai import BaseJob, BaseRunner, JobIdRetrievalError, System, TestRun, TestScenario
+from cloudai.systems.slurm.slurm_command_gen_strategy import SlurmCommandGenStrategy
 from cloudai.systems.slurm.slurm_system import SlurmJobMetadata, SlurmSystem
-from cloudai.systems.slurm.strategy.slurm_command_gen_strategy import SlurmCommandGenStrategy
 from cloudai.util import CommandShell
 
 from .slurm_job import SlurmJob

@@ -14,6 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from cloudai.registry import Registry
+
+from .runai_installer import RunAIInstaller
+from .runai_job import RunAIJob
+from .runai_runner import RunAIRunner
 from .runai_system import RunAISystem
 
-__all__ = ["RunAISystem"]
+Registry().add_installer("runai", RunAIInstaller)
+Registry().add_system("runai", RunAISystem)
+Registry().add_runner("runai", RunAIRunner)
+
+__all__ = ["RunAIJob", "RunAIRunner", "RunAISystem"]

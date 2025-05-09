@@ -18,9 +18,9 @@ import logging
 from typing import cast
 
 from cloudai import BaseJob, BaseRunner, TestRun
-from cloudai.systems import KubernetesSystem
 
 from .kubernetes_job import KubernetesJob
+from .kubernetes_system import KubernetesSystem
 
 
 class KubernetesRunner(BaseRunner):

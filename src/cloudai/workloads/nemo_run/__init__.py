@@ -14,11 +14,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from cloudai import CommandGenStrategy, JobIdRetrievalStrategy, JobStatusRetrievalStrategy
+from cloudai.registry import Registry
+from cloudai.systems.slurm import SlurmSystem
 
+from ..common import DefaultJobStatusRetrievalStrategy, SlurmJobIdRetrievalStrategy
 from .data_store_report_generation_strategy import NeMoRunDataStoreReportGenerationStrategy
 from .nemo_run import Data, Log, LogCkpt, NeMoRunCmdArgs, NeMoRunTestDefinition, Trainer, TrainerStrategy
 from .report_generation_strategy import NeMoRunReportGenerationStrategy
 from .slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
+
+Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NeMoRunTestDefinition], NeMoRunSlurmCommandGenStrategy)
+Registry().add_strategy(JobIdRetrievalStrategy, [SlurmSystem], [NeMoRunTestDefinition], SlurmJobIdRetrievalStrategy)
+Registry().add_strategy(
+    JobStatusRetrievalStrategy, [SlurmSystem], [NeMoRunTestDefinition], DefaultJobStatusRetrievalStrategy
+)
+
+Registry().add_test_definition("NeMoRun", NeMoRunTestDefinition)
+Registry().add_report(NeMoRunTestDefinition, NeMoRunReportGenerationStrategy)
+Registry().add_report(NeMoRunTestDefinition, NeMoRunDataStoreReportGenerationStrategy)
 
 __all__ = [
     "Data",

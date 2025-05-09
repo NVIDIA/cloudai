@@ -14,8 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from cloudai.registry import Registry
+
+from .kubernetes_installer import KubernetesInstaller
+from .kubernetes_job import KubernetesJob
+from .kubernetes_runner import KubernetesRunner
 from .kubernetes_system import KubernetesSystem
 
+Registry().add_installer("kubernetes", KubernetesInstaller)
+Registry().add_system("kubernetes", KubernetesSystem)
+Registry().add_runner("kubernetes", KubernetesRunner)
+
 __all__ = [
+    "KubernetesJob",
+    "KubernetesRunner",
     "KubernetesSystem",
 ]

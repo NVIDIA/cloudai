@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,8 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .slurm_command_gen_strategy import SlurmCommandGenStrategy
+from cloudai.registry import Registry
 
-__all__ = [
-    "SlurmCommandGenStrategy",
-]
+from .standalone_installer import StandaloneInstaller
+from .standalone_job import StandaloneJob
+from .standalone_runner import StandaloneRunner
+from .standalone_system import StandaloneSystem
+
+Registry().add_installer("standalone", StandaloneInstaller)
+Registry().add_system("standalone", StandaloneSystem)
+Registry().add_runner("standalone", StandaloneRunner)
+
+__all__ = ["StandaloneJob", "StandaloneRunner", "StandaloneSystem"]

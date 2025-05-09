@@ -14,6 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from cloudai import CommandGenStrategy, GradingStrategy, JobIdRetrievalStrategy, JobStatusRetrievalStrategy
+from cloudai.registry import Registry
+from cloudai.systems.slurm import SlurmSystem
+
+from ..common import SlurmJobIdRetrievalStrategy
 from .gpt import GPTCmdArgs, GPTTestDefinition
 from .grading_strategy import JaxToolboxGradingStrategy
 from .grok import GrokCmdArgs, GrokTestDefinition
@@ -22,6 +27,36 @@ from .job_status_retrieval_strategy import JaxToolboxJobStatusRetrievalStrategy
 from .nemotron import NemotronCmdArgs, NemotronTestDefinition
 from .report_generation_strategy import JaxToolboxReportGenerationStrategy
 from .slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
+
+Registry().add_test_definition("JaxToolboxGrok", GrokTestDefinition)
+Registry().add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)
+Registry().add_test_definition("JaxToolboxGPT", GPTTestDefinition)
+
+Registry().add_report(GPTTestDefinition, JaxToolboxReportGenerationStrategy)
+Registry().add_report(GrokTestDefinition, JaxToolboxReportGenerationStrategy)
+Registry().add_report(NemotronTestDefinition, JaxToolboxReportGenerationStrategy)
+
+
+Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [GrokTestDefinition], JaxToolboxSlurmCommandGenStrategy)
+Registry().add_strategy(GradingStrategy, [SlurmSystem], [GrokTestDefinition], JaxToolboxGradingStrategy)
+Registry().add_strategy(JobIdRetrievalStrategy, [SlurmSystem], [GrokTestDefinition], SlurmJobIdRetrievalStrategy)
+Registry().add_strategy(
+    JobStatusRetrievalStrategy, [SlurmSystem], [GrokTestDefinition], JaxToolboxJobStatusRetrievalStrategy
+)
+
+Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NemotronTestDefinition], JaxToolboxSlurmCommandGenStrategy)
+Registry().add_strategy(GradingStrategy, [SlurmSystem], [NemotronTestDefinition], JaxToolboxGradingStrategy)
+Registry().add_strategy(JobIdRetrievalStrategy, [SlurmSystem], [NemotronTestDefinition], SlurmJobIdRetrievalStrategy)
+Registry().add_strategy(
+    JobStatusRetrievalStrategy, [SlurmSystem], [NemotronTestDefinition], JaxToolboxJobStatusRetrievalStrategy
+)
+
+Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [GPTTestDefinition], JaxToolboxSlurmCommandGenStrategy)
+Registry().add_strategy(GradingStrategy, [SlurmSystem], [GPTTestDefinition], JaxToolboxGradingStrategy)
+Registry().add_strategy(JobIdRetrievalStrategy, [SlurmSystem], [GPTTestDefinition], SlurmJobIdRetrievalStrategy)
+Registry().add_strategy(
+    JobStatusRetrievalStrategy, [SlurmSystem], [GPTTestDefinition], JaxToolboxJobStatusRetrievalStrategy
+)
 
 __all__ = [
     "GPTCmdArgs",

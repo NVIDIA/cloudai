@@ -21,8 +21,9 @@ from pathlib import Path
 from shutil import rmtree
 
 from cloudai import BaseInstaller, DockerImage, File, GitRepo, Installable, InstallStatusResult, PythonExecutable
-from cloudai.systems import SlurmSystem
-from cloudai.util.docker_image_cache_manager import DockerImageCacheManager, DockerImageCacheResult
+
+from .docker_image_cache_manager import DockerImageCacheManager, DockerImageCacheResult
+from .slurm_system import SlurmSystem
 
 
 class SlurmInstaller(BaseInstaller):

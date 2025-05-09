@@ -14,10 +14,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from cloudai import CommandGenStrategy, GradingStrategy, JobIdRetrievalStrategy, JobStatusRetrievalStrategy
+from cloudai.registry import Registry
+from cloudai.systems.slurm import SlurmSystem
+
+from ..common import DefaultJobStatusRetrievalStrategy, SlurmJobIdRetrievalStrategy
 from .grading_strategy import UCCTestGradingStrategy
 from .report_generation_strategy import UCCTestReportGenerationStrategy
 from .slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
 from .ucc import UCCCmdArgs, UCCTestDefinition
+
+Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [UCCTestDefinition], UCCTestSlurmCommandGenStrategy)
+Registry().add_strategy(GradingStrategy, [SlurmSystem], [UCCTestDefinition], UCCTestGradingStrategy)
+Registry().add_strategy(JobIdRetrievalStrategy, [SlurmSystem], [UCCTestDefinition], SlurmJobIdRetrievalStrategy)
+Registry().add_strategy(
+    JobStatusRetrievalStrategy, [SlurmSystem], [UCCTestDefinition], DefaultJobStatusRetrievalStrategy
+)
+
+Registry().add_test_definition("UCCTest", UCCTestDefinition)
+Registry().add_report(UCCTestDefinition, UCCTestReportGenerationStrategy)
 
 __all__ = [
     "UCCCmdArgs",

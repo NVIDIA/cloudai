@@ -18,7 +18,8 @@ from datetime import datetime
 from typing import Any, Dict, List, Union
 
 from cloudai import CommandGenStrategy, TestRun
-from cloudai.systems import LSFSystem
+
+from .lsf_system import LSFSystem
 
 
 class LSFCommandGenStrategy(CommandGenStrategy):

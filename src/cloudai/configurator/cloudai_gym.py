@@ -22,9 +22,10 @@ from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
+from cloudai import METRIC_ERROR, TestRun
+
+from .._core.base_gym import BaseGym
 from ..runner import Runner
-from ..test_scenario import METRIC_ERROR, TestRun
-from .base_gym import BaseGym
 
 
 class CloudAIGymEnv(BaseGym):

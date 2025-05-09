@@ -24,16 +24,17 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Type
 import toml
 from pydantic import ValidationError
 
-from ..models.scenario import TestRunModel, TestScenarioModel
-from ..models.workload import TestDefinition
-from ..workloads.nccl_test import NCCLTestDefinition, NcclTestPredictionReportGenerationStrategy
-from .exceptions import TestScenarioParsingError, format_validation_error
-from .registry import Registry
-from .report_generation_strategy import ReportGenerationStrategy
-from .system import System
-from .test import Test
+from cloudai._core.exceptions import TestScenarioParsingError, format_validation_error
+from cloudai._core.report_generation_strategy import ReportGenerationStrategy
+from cloudai._core.system import System
+from cloudai._core.test import Test
+from cloudai._core.test_scenario import TestDependency, TestRun, TestScenario
+from cloudai.models.scenario import TestRunModel, TestScenarioModel
+from cloudai.models.workload import TestDefinition
+from cloudai.registry import Registry
+from cloudai.workloads.nccl_test import NCCLTestDefinition, NcclTestPredictionReportGenerationStrategy
+
 from .test_parser import TestParser
-from .test_scenario import TestDependency, TestRun, TestScenario
 
 
 def get_reporters(test_info: TestRunModel, tdef: TestDefinition) -> Set[Type[ReportGenerationStrategy]]:

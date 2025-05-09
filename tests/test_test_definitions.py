@@ -21,7 +21,11 @@ import pytest
 import toml
 from pydantic import ValidationError
 
-from cloudai import NsysConfiguration, Parser, Registry, TestConfigParsingError, TestDefinition, TestParser
+from cloudai._core.exceptions import TestConfigParsingError
+from cloudai.models.workload import NsysConfiguration, TestDefinition
+from cloudai.parser import Parser
+from cloudai.registry import Registry
+from cloudai.test_parser import TestParser
 from cloudai.workloads.chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
@@ -218,7 +222,8 @@ class TestLoadTestDefinition:
     def test_load_test_definition_unknown_test(self, test_parser: TestParser):
         with pytest.raises(NotImplementedError) as exc_info:
             test_parser.load_test_definition(data={"test_template_name": "unknown"})
-        assert "TestTemplate with name 'unknown' not supported." in str(exc_info.value)
+        assert "TestDefinition with name 'unknown' not supported." in str(exc_info.value)
+        assert "Available test definitions are:" in str(exc_info.value)
 
 
 class TestMegatronRun:

@@ -18,12 +18,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
-from cloudai._core.configurator.grid_search import GridSearchAgent
-from cloudai._core.runner import Runner
-from cloudai._core.test import Test
-from cloudai._core.test_scenario import TestRun, TestScenario
-from cloudai.systems import SlurmSystem
+from cloudai import Test, TestRun, TestScenario
+from cloudai.configurator import CloudAIGymEnv, GridSearchAgent
+from cloudai.runner import Runner
+from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.nemo_run import (
     Data,
     NeMoRunCmdArgs,

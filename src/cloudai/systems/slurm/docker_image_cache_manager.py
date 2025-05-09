@@ -21,7 +21,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-from cloudai.systems import SlurmSystem
+from .slurm_system import SlurmSystem
 
 
 class PrerequisiteCheckResult:

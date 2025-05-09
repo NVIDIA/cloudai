@@ -14,10 +14,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from cloudai import CommandGenStrategy, GradingStrategy, JobIdRetrievalStrategy, JobStatusRetrievalStrategy
+from cloudai.registry import Registry
+from cloudai.systems.slurm import SlurmSystem
+
+from ..common import DefaultJobStatusRetrievalStrategy, SlurmJobIdRetrievalStrategy
 from .chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
 from .grading_strategy import ChakraReplayGradingStrategy
 from .report_generation_strategy import ChakraReplayReportGenerationStrategy
 from .slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
+
+Registry().add_test_definition("ChakraReplay", ChakraReplayTestDefinition)
+Registry().add_report(ChakraReplayTestDefinition, ChakraReplayReportGenerationStrategy)
+
+Registry().add_strategy(
+    CommandGenStrategy, [SlurmSystem], [ChakraReplayTestDefinition], ChakraReplaySlurmCommandGenStrategy
+)
+Registry().add_strategy(GradingStrategy, [SlurmSystem], [ChakraReplayTestDefinition], ChakraReplayGradingStrategy)
+Registry().add_strategy(
+    JobIdRetrievalStrategy, [SlurmSystem], [ChakraReplayTestDefinition], SlurmJobIdRetrievalStrategy
+)
+Registry().add_strategy(
+    JobStatusRetrievalStrategy, [SlurmSystem], [ChakraReplayTestDefinition], DefaultJobStatusRetrievalStrategy
+)
 
 __all__ = [
     "ChakraReplayCmdArgs",

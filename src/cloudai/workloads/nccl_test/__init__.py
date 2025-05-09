@@ -14,6 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from cloudai import (
+    CommandGenStrategy,
+    GradingStrategy,
+    JobIdRetrievalStrategy,
+    JobStatusRetrievalStrategy,
+    JsonGenStrategy,
+)
+from cloudai.registry import Registry
+from cloudai.systems.kubernetes import KubernetesSystem
+from cloudai.systems.runai import RunAISystem
+from cloudai.systems.slurm import SlurmSystem
+
+from ..common import DefaultJobStatusRetrievalStrategy, SlurmJobIdRetrievalStrategy
 from .grading_strategy import NcclTestGradingStrategy
 from .job_status_retrieval_strategy import NcclTestJobStatusRetrievalStrategy
 from .kubernetes_json_gen_strategy import NcclTestKubernetesJsonGenStrategy
@@ -22,6 +35,27 @@ from .performance_report_generation_strategy import NcclTestPerformanceReportGen
 from .prediction_report_generation_strategy import NcclTestPredictionReportGenerationStrategy
 from .runai_json_gen_strategy import NcclTestRunAIJsonGenStrategy
 from .slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
+
+Registry().add_strategy(JsonGenStrategy, [KubernetesSystem], [NCCLTestDefinition], NcclTestKubernetesJsonGenStrategy)
+Registry().add_strategy(
+    JobStatusRetrievalStrategy, [KubernetesSystem], [NCCLTestDefinition], DefaultJobStatusRetrievalStrategy
+)
+
+Registry().add_strategy(JsonGenStrategy, [RunAISystem], [NCCLTestDefinition], NcclTestRunAIJsonGenStrategy)
+Registry().add_strategy(
+    JobStatusRetrievalStrategy, [RunAISystem], [NCCLTestDefinition], DefaultJobStatusRetrievalStrategy
+)
+
+Registry().add_strategy(GradingStrategy, [SlurmSystem], [NCCLTestDefinition], NcclTestGradingStrategy)
+Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NCCLTestDefinition], NcclTestSlurmCommandGenStrategy)
+Registry().add_strategy(JobIdRetrievalStrategy, [SlurmSystem], [NCCLTestDefinition], SlurmJobIdRetrievalStrategy)
+Registry().add_strategy(
+    JobStatusRetrievalStrategy, [SlurmSystem], [NCCLTestDefinition], NcclTestJobStatusRetrievalStrategy
+)
+
+Registry().add_test_definition("NcclTest", NCCLTestDefinition)
+
+Registry().add_report(NCCLTestDefinition, NcclTestPerformanceReportGenerationStrategy)
 
 __all__ = [
     "NCCLCmdArgs",

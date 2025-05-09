@@ -14,9 +14,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from cloudai import CommandGenStrategy, JobIdRetrievalStrategy, JobStatusRetrievalStrategy
+from cloudai.registry import Registry
+from cloudai.systems.slurm import SlurmSystem
+
+from ..common import DefaultJobStatusRetrievalStrategy, SlurmJobIdRetrievalStrategy
 from .report_generation_strategy import SlurmContainerReportGenerationStrategy
 from .slurm_command_gen_strategy import SlurmContainerCommandGenStrategy
 from .slurm_container import SlurmContainerCmdArgs, SlurmContainerTestDefinition
+
+Registry().add_test_definition("SlurmContainer", SlurmContainerTestDefinition)
+Registry().add_report(SlurmContainerTestDefinition, SlurmContainerReportGenerationStrategy)
+Registry().add_strategy(
+    CommandGenStrategy, [SlurmSystem], [SlurmContainerTestDefinition], SlurmContainerCommandGenStrategy
+)
+Registry().add_strategy(
+    JobIdRetrievalStrategy, [SlurmSystem], [SlurmContainerTestDefinition], SlurmJobIdRetrievalStrategy
+)
+Registry().add_strategy(
+    JobStatusRetrievalStrategy, [SlurmSystem], [SlurmContainerTestDefinition], DefaultJobStatusRetrievalStrategy
+)
 
 __all__ = [
     "SlurmContainerCmdArgs",

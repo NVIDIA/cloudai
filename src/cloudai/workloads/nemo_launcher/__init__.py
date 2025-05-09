@@ -14,11 +14,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from cloudai import CommandGenStrategy, GradingStrategy, JobIdRetrievalStrategy, JobStatusRetrievalStrategy
+from cloudai.registry import Registry
+from cloudai.systems.slurm import SlurmSystem
+
+from ..common import DefaultJobStatusRetrievalStrategy
 from .grading_strategy import NeMoLauncherGradingStrategy
 from .nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
 from .report_generation_strategy import NeMoLauncherReportGenerationStrategy
 from .slurm_command_gen_strategy import NeMoLauncherSlurmCommandGenStrategy
 from .slurm_job_id_retrieval_strategy import NeMoLauncherSlurmJobIdRetrievalStrategy
+
+Registry().add_strategy(
+    CommandGenStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherSlurmCommandGenStrategy
+)
+Registry().add_strategy(GradingStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherGradingStrategy)
+Registry().add_strategy(
+    JobIdRetrievalStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherSlurmJobIdRetrievalStrategy
+)
+Registry().add_strategy(
+    JobStatusRetrievalStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], DefaultJobStatusRetrievalStrategy
+)
+
+Registry().add_test_definition("NeMoLauncher", NeMoLauncherTestDefinition)
+Registry().add_report(NeMoLauncherTestDefinition, NeMoLauncherReportGenerationStrategy)
 
 __all__ = [
     "NeMoLauncherCmdArgs",

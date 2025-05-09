@@ -21,18 +21,19 @@ from cloudai import (
     JobIdRetrievalStrategy,
     JobStatusRetrievalStrategy,
     JsonGenStrategy,
-    Registry,
 )
-from cloudai._core.reporter import PerTestReporter, StatusReporter, TarballReporter
-from cloudai.installer.lsf_installer import LSFInstaller
-from cloudai.installer.runai_installer import RunAIInstaller
-from cloudai.installer.slurm_installer import SlurmInstaller
-from cloudai.installer.standalone_installer import StandaloneInstaller
+from cloudai.registry import Registry
+from cloudai.reporters.case_reporters import PerTestReporter
+from cloudai.reporters.scenario_reporters import StatusReporter, TarballReporter
 from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
+from cloudai.systems.lsf.lsf_installer import LSFInstaller
 from cloudai.systems.lsf.lsf_system import LSFSystem
+from cloudai.systems.runai.runai_installer import RunAIInstaller
 from cloudai.systems.runai.runai_system import RunAISystem
+from cloudai.systems.slurm.slurm_installer import SlurmInstaller
 from cloudai.systems.slurm.slurm_system import SlurmSystem
-from cloudai.systems.standalone_system import StandaloneSystem
+from cloudai.systems.standalone.standalone_installer import StandaloneInstaller
+from cloudai.systems.standalone.standalone_system import StandaloneSystem
 from cloudai.workloads.chakra_replay import (
     ChakraReplayGradingStrategy,
     ChakraReplaySlurmCommandGenStrategy,

@@ -17,8 +17,9 @@
 import logging
 
 from cloudai import BaseInstaller, DockerImage, File, GitRepo, Installable, InstallStatusResult, PythonExecutable
-from cloudai.installer.slurm_installer import SlurmInstaller
-from cloudai.systems import LSFSystem
+from cloudai.systems.slurm import SlurmInstaller
+
+from .lsf_system import LSFSystem
 
 
 class LSFInstaller(BaseInstaller):
@@ -53,7 +54,7 @@ class LSFInstaller(BaseInstaller):
             SlurmInstaller: The SlurmInstaller instance.
         """
         if not hasattr(self, "_slurm_installer"):
-            from cloudai.systems import SlurmSystem
+            from cloudai.systems.slurm import SlurmSystem
 
             if not isinstance(self.system, SlurmSystem):
                 raise TypeError("The system must be of type SlurmSystem to use SlurmInstaller.")

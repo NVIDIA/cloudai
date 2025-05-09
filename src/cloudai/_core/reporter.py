@@ -16,85 +16,11 @@
 
 import copy
 import logging
-import tarfile
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
-import jinja2
-import toml
-
-from ..systems.slurm.metadata import SlurmSystemMetadata
-from ..systems.slurm.slurm_system import SlurmSystem
 from .system import System
 from .test_scenario import TestRun, TestScenario
-
-
-def case_name(tr: TestRun) -> str:
-    name = tr.name
-    if tr.current_iteration > 0:
-        name = f"{name} iter={tr.current_iteration}"
-    if tr.step > 0:
-        name = f"{name} step={tr.step}"
-    return name
-
-
-@dataclass
-class ReportItem:
-    name: str
-    description: str
-    logs_path: Optional[str] = None
-
-    @classmethod
-    def from_test_runs(cls, test_runs: list[TestRun], results_root: Path) -> list["ReportItem"]:
-        report_items: list[ReportItem] = []
-        for tr in test_runs:
-            report_items.append(ReportItem(case_name(tr), tr.test.description))
-            if tr.output_path.exists():
-                report_items[-1].logs_path = f"./{tr.output_path.relative_to(results_root)}"
-        return report_items
-
-
-@dataclass
-class SlurmReportItem:
-    name: str
-    description: str
-    logs_path: Optional[str] = None
-    nodes: Optional[str] = None
-
-    @classmethod
-    def get_metadata(cls, run_dir: Path) -> Optional[SlurmSystemMetadata]:
-        if not (run_dir / "metadata").exists():
-            logging.debug(f"No metadata folder found in {run_dir}")
-            return None
-
-        node_files = list(run_dir.glob("metadata/node-*.toml"))
-        if not node_files:
-            logging.debug(f"No node files found in {run_dir}/metadata")
-            return None
-
-        node_file = node_files[0]
-        with node_file.open() as f:
-            try:
-                return SlurmSystemMetadata.model_validate(toml.load(f))
-            except Exception as e:
-                logging.debug(f"Error validating metadata for {node_file}: {e}")
-
-        return None
-
-    @classmethod
-    def from_test_runs(cls, test_runs: list[TestRun], results_root: Path) -> list["SlurmReportItem"]:
-        report_items: list[SlurmReportItem] = []
-        for tr in test_runs:
-            ri = SlurmReportItem(case_name(tr), tr.test.description)
-            if tr.output_path.exists():
-                ri.logs_path = f"./{tr.output_path.relative_to(results_root)}"
-            if metadata := cls.get_metadata(tr.output_path):
-                ri.nodes = metadata.slurm.node_list
-            report_items.append(ri)
-
-        return report_items
 
 
 class Reporter(ABC):
@@ -129,69 +55,3 @@ class Reporter(ABC):
 
     @abstractmethod
     def generate(self) -> None: ...
-
-
-class PerTestReporter(Reporter):
-    def generate(self) -> None:
-        self.load_test_runs()
-
-        for tr in self.trs:
-            logging.debug(f"Available reports: {[r.__name__ for r in tr.reports]} for directory: {tr.output_path}")
-            for reporter in tr.reports:
-                rgs = reporter(self.system, tr)
-
-                if not rgs.can_handle_directory():
-                    logging.warning(f"Skipping '{tr.output_path}', can't handle with strategy={reporter.__name__}.")
-                    continue
-                try:
-                    rgs.generate_report()
-                except Exception as e:
-                    logging.warning(
-                        f"Error generating report for '{tr.output_path}' with strategy={reporter.__name__}: {e}"
-                    )
-
-
-class StatusReporter(Reporter):
-    @property
-    def template_file(self) -> str:
-        if isinstance(self.system, SlurmSystem):
-            return "general-slurm-report.jinja2"
-        return "general-report.jinja2"
-
-    def generate(self) -> None:
-        self.load_test_runs()
-        self.generate_scenario_report()
-
-    def generate_scenario_report(self) -> None:
-        template = jinja2.Environment(
-            loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / "util")
-        ).get_template(self.template_file)
-
-        report_items = (
-            SlurmReportItem.from_test_runs(self.trs, self.results_root)
-            if isinstance(self.system, SlurmSystem)
-            else ReportItem.from_test_runs(self.trs, self.results_root)
-        )
-        report = template.render(name=self.test_scenario.name, report_items=report_items)
-        report_path = self.results_root / f"{self.test_scenario.name}.html"
-        with report_path.open("w") as f:
-            f.write(report)
-
-        logging.info(f"Generated scenario report at {report_path}")
-
-
-class TarballReporter(Reporter):
-    def generate(self) -> None:
-        self.load_test_runs()
-
-        if any(not self.is_successful(tr) for tr in self.trs):
-            self.create_tarball(self.results_root)
-
-    def is_successful(self, tr: TestRun) -> bool:
-        return tr.test.test_template.get_job_status(tr.output_path).is_successful
-
-    def create_tarball(self, directory: Path) -> None:
-        tarball_path = Path(str(directory) + ".tgz")
-        with tarfile.open(tarball_path, "w:gz") as tar:
-            tar.add(directory, arcname=directory.name)
-        logging.info(f"Created tarball at {tarball_path}")
