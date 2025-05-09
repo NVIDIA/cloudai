@@ -346,7 +346,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
     if request.param in test_mapping:
         tr = test_mapping[request.param]()
         if request.param.startswith("triton-inference"):
-            print("HERE")
             tr.num_nodes = 3
             tr.test.test_definition.extra_env_vars["NIM_MODEL_NAME"] = str(tr.output_path)
             tr.test.test_definition.extra_env_vars["NIM_CACHE_PATH"] = str(tr.output_path)
