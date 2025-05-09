@@ -25,19 +25,19 @@ import toml
 from cloudai import (
     CmdArgs,
     GitRepo,
+    PredictorConfig,
     Registry,
     Test,
+    TestDefinition,
     TestRun,
     TestScenario,
     TestScenarioParser,
     TestScenarioParsingError,
 )
 from cloudai._core.report_generation_strategy import ReportGenerationStrategy
-from cloudai._core.test import TestDefinition
 from cloudai._core.test_scenario_parser import calculate_total_time_limit, get_reporters
 from cloudai._core.test_template import TestTemplate
 from cloudai.models.scenario import TestRunModel, TestScenarioModel
-from cloudai.models.workload import PredictorConfig
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
 from cloudai.workloads.jax_toolbox import (
@@ -62,7 +62,6 @@ from cloudai.workloads.nemo_run import (
 from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
 from cloudai.workloads.slurm_container import SlurmContainerReportGenerationStrategy, SlurmContainerTestDefinition
 from cloudai.workloads.ucc_test import UCCTestDefinition, UCCTestReportGenerationStrategy
-from tests.conftest import MyTestDefinition
 
 
 @pytest.fixture
@@ -418,7 +417,7 @@ class TestReporters:
     def test_default(self):
         reporters = get_reporters(
             TestRunModel(id="id", test_name="tn"),
-            MyTestDefinition(name="test", description="desc", test_template_name="tt", cmd_args=CmdArgs()),
+            TestDefinition(name="test", description="desc", test_template_name="tt", cmd_args=CmdArgs()),
         )
         assert len(reporters) == 0
 
