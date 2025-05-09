@@ -378,3 +378,13 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
         curr_run_script = Path(slurm_system.output_path / "run.sh").read_text()
         ref_run_script = (Path(__file__).parent / "ref_data" / run_script).read_text()
         assert curr_run_script == ref_run_script
+
+    if test_req[1] == "triton-inference.sbatch":
+        wrapper_file = slurm_system.output_path / "start_server_wrapper.sh"
+        assert wrapper_file.exists(), "start_server_wrapper.sh was not generated"
+        curr_wrapper = wrapper_file.read_text().strip()
+        ref_wrapper = (
+            (Path(__file__).parent / "ref_data" / "triton-inference-start_server_wrapper.sh").read_text().strip()
+        )
+        ref_wrapper = ref_wrapper.replace("__OUTPUT_DIR__", str(slurm_system.output_path.parent))
+        assert curr_wrapper == ref_wrapper, "start_server_wrapper.sh does not match reference"
