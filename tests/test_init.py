@@ -64,11 +64,7 @@ from cloudai.workloads.nemo_launcher import (
     NeMoLauncherSlurmJobIdRetrievalStrategy,
     NeMoLauncherTestDefinition,
 )
-from cloudai.workloads.nemo_run import (
-    NeMoRunJobStatusRetrievalStrategy,
-    NeMoRunSlurmCommandGenStrategy,
-    NeMoRunTestDefinition,
-)
+from cloudai.workloads.nemo_run import NeMoRunSlurmCommandGenStrategy, NeMoRunTestDefinition
 from cloudai.workloads.sleep import (
     SleepGradingStrategy,
     SleepKubernetesJsonGenStrategy,
@@ -153,7 +149,7 @@ ALL_STRATEGIES = {
     (JobStatusRetrievalStrategy, SlurmSystem, GrokTestDefinition): JaxToolboxJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, SlurmSystem, NCCLTestDefinition): NcclTestJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, SlurmSystem, NeMoLauncherTestDefinition): DefaultJobStatusRetrievalStrategy,
-    (JobStatusRetrievalStrategy, SlurmSystem, NeMoRunTestDefinition): NeMoRunJobStatusRetrievalStrategy,
+    (JobStatusRetrievalStrategy, SlurmSystem, NeMoRunTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, SlurmSystem, NemotronTestDefinition): JaxToolboxJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, SlurmSystem, SleepTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, SlurmSystem, SlurmContainerTestDefinition): DefaultJobStatusRetrievalStrategy,
