@@ -21,17 +21,27 @@ import logging
 import signal
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Callable, List
+from typing import Callable, List, Optional
 from unittest.mock import Mock
 
 import toml
 import yaml
 
-from cloudai import Installable, Parser, Registry, Runner, System, TestParser, TestScenario
-from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
-from cloudai.util import prepare_output_dir
+from cloudai import (
+    BaseInstaller,
+    CloudAIGymEnv,
+    Installable,
+    Parser,
+    Registry,
+    Runner,
+    System,
+    Test,
+    TestParser,
+    TestScenario,
+)
 
 from ..parser import HOOK_ROOT
+from ..util import prepare_output_dir
 
 
 def handle_install_and_uninstall(args: argparse.Namespace) -> int:
@@ -44,7 +54,7 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
         args (argparse.Namespace): The parsed command-line arguments.
     """
     parser = Parser(args.system_config)
-    system, tests, _ = parser.parse(args.tests_dir, args.test_scenario)
+    system, tests, scenario = parser.parse(args.tests_dir, args.test_scenario)
 
     if args.output_dir:
         system.output_path = args.output_dir.absolute()
@@ -52,16 +62,8 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     logging.info(f"System Name: {system.name}")
     logging.info(f"Scheduler: {system.scheduler}")
 
-    installables: list[Installable] = []
-    for test in tests:
-        logging.debug(f"{test.name} has {len(test.test_definition.installables)} installables.")
-        installables.extend(test.test_definition.installables)
+    installables, installer = prepare_installation(system, tests, scenario)
 
-    registry = Registry()
-    installer_class = registry.installers_map.get(system.scheduler)
-    if installer_class is None:
-        raise NotImplementedError(f"No installer available for scheduler: {system.scheduler}")
-    installer = installer_class(system)
     rc = 0
     if args.mode == "install":
         all_installed = installer.is_installed(installables)
@@ -86,6 +88,28 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
             rc = 1
 
     return rc
+
+
+def prepare_installation(
+    system: System, tests: list[Test], scenario: Optional[TestScenario]
+) -> tuple[list[Installable], BaseInstaller]:
+    installables: list[Installable] = []
+    if scenario:
+        for test in scenario.test_runs:
+            logging.debug(f"{test.test.name} has {len(test.test.test_definition.installables)} installables.")
+            installables.extend(test.test.test_definition.installables)
+    else:
+        for test in tests:
+            logging.debug(f"{test.name} has {len(test.test_definition.installables)} installables.")
+            installables.extend(test.test_definition.installables)
+
+    registry = Registry()
+    installer_class = registry.installers_map.get(system.scheduler)
+    if installer_class is None:
+        raise NotImplementedError(f"No installer available for scheduler: {system.scheduler}")
+    installer = installer_class(system)
+
+    return installables, installer
 
 
 def handle_dse_job(runner: Runner, args: argparse.Namespace):
@@ -172,16 +196,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
 
     logging.info("Checking if test templates are installed.")
 
-    installables: list[Installable] = []
-    for test in tests:
-        logging.debug(f"{test.name} has {len(test.test_definition.installables)} installables.")
-        installables.extend(test.test_definition.installables)
-
-    registry = Registry()
-    installer_class = registry.installers_map.get(system.scheduler)
-    if installer_class is None:
-        raise NotImplementedError(f"No installer available for scheduler: {system.scheduler}")
-    installer = installer_class(system)
+    installables, installer = prepare_installation(system, tests, test_scenario)
 
     if args.enable_cache_without_check:
         result = installer.mark_as_installed(installables)
@@ -350,6 +365,7 @@ def verify_test_scenarios(
     test_tomls: list[Path],
     hook_tomls: List[Path],
     hook_test_tomls: list[Path],
+    strict: bool = False,
 ) -> int:
     system = Mock(spec=System)
     nfailed = 0
@@ -358,8 +374,8 @@ def verify_test_scenarios(
         try:
             tests = Parser.parse_tests(test_tomls, system)
             hook_tests = Parser.parse_tests(hook_test_tomls, system)
-            hooks = Parser.parse_hooks(hook_tomls, {t.name: t for t in hook_tests})
-            Parser.parse_test_scenario(scenario_file, {t.name: t for t in tests}, hooks)
+            hooks = Parser.parse_hooks(hook_tomls, system, {t.name: t for t in hook_tests})
+            Parser.parse_test_scenario(scenario_file, system, {t.name: t for t in tests}, hooks, strict)
         except Exception:
             nfailed += 1
 
@@ -379,6 +395,7 @@ def handle_verify_all_configs(args: argparse.Namespace) -> int:
 
     err, hook_tomls = expand_file_list(HOOK_ROOT, glob="**/*.toml")
     tomls += hook_tomls
+    logging.info(f"Found {len(hook_tomls)} hook TOMLs (always verified)")
 
     files = load_tomls_by_type(tomls)
 
@@ -396,7 +413,7 @@ def handle_verify_all_configs(args: argparse.Namespace) -> int:
     if files["test"]:
         nfailed += verify_test_configs(files["test"], args.strict)
     if files["scenario"]:
-        nfailed += verify_test_scenarios(files["scenario"], test_tomls, files["hook"], files["hook_test"])
+        nfailed += verify_test_scenarios(files["scenario"], test_tomls, files["hook"], files["hook_test"], args.strict)
     if files["unknown"]:
         logging.error(f"Unknown configuration files: {[str(f) for f in files['unknown']]}")
         nfailed += len(files["unknown"])
@@ -437,7 +454,7 @@ def load_tomls_by_type(tomls: List[Path]) -> dict[str, List[Path]]:
 
         if "scheduler =" in content:
             files["system"].append(toml_file)
-        elif "test_template_name =" in content:
+        elif "test_template_name =" in content and "[[Tests]]" not in content:
             files["test"].append(toml_file)
         elif "[[Tests]]" in content:
             files["scenario"].append(toml_file)
