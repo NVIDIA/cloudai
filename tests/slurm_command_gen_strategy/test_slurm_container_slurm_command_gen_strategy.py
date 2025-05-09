@@ -19,8 +19,9 @@ from pathlib import Path
 import pytest
 
 from cloudai import TestRun
-from cloudai._core.test import NsysConfiguration, Test
+from cloudai._core.test import Test
 from cloudai._core.test_template import TestTemplate
+from cloudai.models.workload import NsysConfiguration
 from cloudai.systems import SlurmSystem
 from cloudai.workloads.slurm_container import (
     SlurmContainerCmdArgs,
@@ -37,7 +38,7 @@ def test_run(slurm_system: SlurmSystem) -> TestRun:
         test_template_name="tt",
         cmd_args=SlurmContainerCmdArgs(docker_image_url="docker://url", cmd="cmd"),
     )
-    t = Test(test_definition=tdef, test_template=TestTemplate(name="tt", system=slurm_system))
+    t = Test(test_definition=tdef, test_template=TestTemplate(system=slurm_system))
     tr = TestRun(name="name", test=t, num_nodes=1, nodes=[])
     return tr
 

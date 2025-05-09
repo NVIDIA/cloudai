@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,12 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "nemo_launcher_nemotron_15b_bf16_64_node"
+from cloudai import ReportGenerationStrategy
 
-[[Tests]]
-id = "nemo_launcher_nemotron_15b_bf16_64_node"
-test_name = "nemo_launcher_nemotron_15b_bf16_2_node"
-num_nodes = "64"
 
-  [Tests.cmd_args.training.model]
-  global_batch_size = 2048
+class TritonInferenceReportGenerationStrategy(ReportGenerationStrategy):
+    """Report generation strategy for TritonInference."""
+
+    def can_handle_directory(self) -> bool:
+        return False
+
+    def generate_report(self) -> None:
+        pass

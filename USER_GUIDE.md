@@ -442,6 +442,55 @@ test_name = "nccl_test_all_reduce"
 time_limit = "00:20:00"
 ```
 
+## Downloading DeepSeek Weights
+To run DeepSeek R1 tests in CloudAI, you must download the model weights in advance. These weights are distributed via the NVIDIA NGC Registry and must be manually downloaded using the NGC CLI.
+
+### Step 1: Install NGC CLI
+Download and install the NGC CLI using the following commands:
+
+```bash
+wget --content-disposition https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/3.64.2/files/ngccli_linux.zip -O ngccli_linux.zip
+unzip ngccli_linux.zip
+chmod u+x ngc-cli/ngc
+echo "export PATH=\"$PATH:$(pwd)/ngc-cli\"" >> ~/.bash_profile && source ~/.bash_profile
+```
+
+This will make the `ngc` command available in your terminal.
+
+### Step 2: Configure NGC CLI
+Authenticate your CLI with your NGC API key by running:
+
+```bash
+ngc config set
+```
+
+When prompted, paste your API key, which you can obtain from [https://org.ngc.nvidia.com/setup](https://org.ngc.nvidia.com/setup).
+
+### Step 3: Download the Weights
+Navigate to the directory where you want the DeepSeek model weights to be stored, then run:
+
+```bash
+ngc registry model download-version nim/deepseek-ai/deepseek-r1-instruct:hf-5dde110-nim-fp8 --dest .
+```
+
+This command will create a folder named:
+
+```
+deepseek-r1-instruct_vhf-5dde110-nim-fp8/
+```
+
+inside your current directory.
+
+### Step 4: Verify the Download
+Ensure the full model has been downloaded by checking the folder size:
+
+```bash
+du -sh deepseek-r1-instruct_vhf-5dde110-nim-fp8
+```
+
+The expected size is approximately 642 GB. If it’s significantly smaller, remove the folder and re-run the download.
+
+
 ## Slurm specifics
 
 ### Extra srun and sbatch arguments

@@ -1,3 +1,4 @@
+VAR="$(scontrol show hostname \"${SLURM_STEP_NODELIST}\" | head -n1)" \
 __OUTPUT_DIR__/install/NeMo-Framework-Launcher__599ecfcbbd64fd2de02f2cc093b1610d73854022-venv/bin/python \
  __OUTPUT_DIR__/install/NeMo-Framework-Launcher__599ecfcbbd64fd2de02f2cc093b1610d73854022/launcher_scripts/main.py \
  cluster.gpus_per_node=null \
@@ -22,4 +23,5 @@ __OUTPUT_DIR__/install/NeMo-Framework-Launcher__599ecfcbbd64fd2de02f2cc093b1610d
  container=nvcr.io/nvidia/nemo:24.12.01 \
  cluster.job_name_prefix=test_account-cloudai.nemo: \
  base_results_dir=__OUTPUT_DIR__/output \
- launcher_scripts_path=__OUTPUT_DIR__/install/NeMo-Framework-Launcher__599ecfcbbd64fd2de02f2cc093b1610d73854022/launcher_scripts
+ launcher_scripts_path=__OUTPUT_DIR__/install/NeMo-Framework-Launcher__599ecfcbbd64fd2de02f2cc093b1610d73854022/launcher_scripts \
+ +env_vars.VAR="$(scontrol show hostname \"${SLURM_STEP_NODELIST}\" | head -n1)"

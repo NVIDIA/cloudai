@@ -16,7 +16,7 @@
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-from unittest.mock import Mock, create_autospec
+from unittest.mock import Mock, create_autospec, patch
 
 import pytest
 
@@ -139,7 +139,7 @@ def make_test_run(slurm_system: SlurmSystem, name: str, output_dir: Path) -> Tes
         cmd_args=NCCLCmdArgs(),
         extra_env_vars={"TEST_VAR": "VALUE"},
     )
-    test_template = TestTemplate(slurm_system, "nccl")
+    test_template = TestTemplate(slurm_system)
     test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(slurm_system, test_def.cmd_args_dict)
     test = Test(test_definition=test_def, test_template=test_template)
     return TestRun(name=name, test=test, num_nodes=1, nodes=["node1"], output_path=output_dir / name)
@@ -327,6 +327,29 @@ def test_nccl_topo_mount(strategy_fixture: SlurmCommandGenStrategy, testrun_fixt
     mounts = strategy_fixture.container_mounts(testrun_fixture)
     expected_mount = f"{Path('/tmp/nccl_topo.txt').resolve()}:{Path('/tmp/nccl_topo.txt').resolve()}"
     assert expected_mount in mounts
+
+
+@pytest.mark.parametrize("use_pretest_extras", [True, False])
+def test_gen_srun_prefix_with_pretest_extras(
+    use_pretest_extras: bool, tmp_path: Path, slurm_system: SlurmSystem, strategy_fixture: SlurmCommandGenStrategy
+):
+    pre_test = TestScenario(name="pre", test_runs=[make_test_run(slurm_system, "pre", tmp_path)])
+
+    tr = make_test_run(slurm_system, "test_with_pre", tmp_path)
+    tr.pre_test = pre_test
+
+    class PreTestCmdGenStrategy(MySlurmCommandGenStrategy):
+        def pre_test_srun_extra_args(self, tr: TestRun) -> List[str]:
+            return ["--pre-arg1", "--pre-arg2"]
+
+    with patch.object(strategy_fixture, "_get_cmd_gen_strategy", return_value=PreTestCmdGenStrategy(slurm_system, {})):
+        slurm_args = {"job_name": "test_job", "num_nodes": 2, "node_list_str": "node1,node2"}
+        srun_prefix_with_extras = strategy_fixture.gen_srun_prefix(
+            slurm_args, tr, use_pretest_extras=use_pretest_extras
+        )
+
+    assert ("--pre-arg1" in srun_prefix_with_extras) is use_pretest_extras
+    assert ("--pre-arg2" in srun_prefix_with_extras) is use_pretest_extras
 
 
 def test_append_distribution_and_hostfile_with_nodes(
