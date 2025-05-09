@@ -51,6 +51,11 @@ from cloudai.workloads.slurm_container import (
     SlurmContainerCommandGenStrategy,
     SlurmContainerTestDefinition,
 )
+from cloudai.workloads.triton_inference import (
+    TritonInferenceCmdArgs,
+    TritonInferenceSlurmCommandGenStrategy,
+    TritonInferenceTestDefinition,
+)
 from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition, UCCTestSlurmCommandGenStrategy
 
 SLURM_TEST_SCENARIOS = [
@@ -238,6 +243,7 @@ def build_special_test_run(
         "nemo-run-vboost",
         "slurm_container",
         "megatron-run",
+        "triton-inference",
     ]
 )
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> Tuple[TestRun, str, Optional[str]]:
@@ -310,6 +316,23 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             ),
             NeMoRunSlurmCommandGenStrategy,
         ),
+        "triton-inference": lambda: create_test_run(
+            partial_tr,
+            slurm_system,
+            "triton-inference",
+            TritonInferenceTestDefinition(
+                name="triton-inference",
+                description="triton-inference",
+                test_template_name="triton-inference",
+                cmd_args=TritonInferenceCmdArgs(
+                    server_docker_image_url="nvcr.io/nim/deepseek-ai/deepseek-r1:1.7.2",
+                    client_docker_image_url="nvcr.io/nvidia/tritonserver:25.01-py3-sdk",
+                    served_model_name="model",
+                    tokenizer="tok",
+                ),
+            ),
+            TritonInferenceSlurmCommandGenStrategy,
+        ),
     }
 
     if request.param.startswith(("gpt-", "grok-", "nemo-run-", "nemo-launcher")):
@@ -322,6 +345,10 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
 
     if request.param in test_mapping:
         tr = test_mapping[request.param]()
+        if request.param.startswith("triton-inference"):
+            tr.num_nodes = 3
+            tr.test.test_definition.extra_env_vars["NIM_MODEL_NAME"] = str(tr.output_path)
+            tr.test.test_definition.extra_env_vars["NIM_CACHE_PATH"] = str(tr.output_path)
         return tr, f"{request.param}.sbatch", None
 
     raise ValueError(f"Unknown test: {request.param}")
@@ -351,3 +378,13 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
         curr_run_script = Path(slurm_system.output_path / "run.sh").read_text()
         ref_run_script = (Path(__file__).parent / "ref_data" / run_script).read_text()
         assert curr_run_script == ref_run_script
+
+    if test_req[1] == "triton-inference.sbatch":
+        wrapper_file = slurm_system.output_path / "start_server_wrapper.sh"
+        assert wrapper_file.exists(), "start_server_wrapper.sh was not generated"
+        curr_wrapper = wrapper_file.read_text().strip()
+        ref_wrapper = (
+            (Path(__file__).parent / "ref_data" / "triton-inference-start_server_wrapper.sh").read_text().strip()
+        )
+        ref_wrapper = ref_wrapper.replace("__OUTPUT_DIR__", str(slurm_system.output_path.parent))
+        assert curr_wrapper == ref_wrapper, "start_server_wrapper.sh does not match reference"
