@@ -39,6 +39,10 @@ from cloudai._core.test_scenario_parser import calculate_total_time_limit, get_r
 from cloudai._core.test_template import TestTemplate
 from cloudai.models.scenario import TestRunModel, TestScenarioModel
 from cloudai.systems.slurm.slurm_system import SlurmSystem
+from cloudai.workloads.ai_dynamo import (
+    AIDynamoReportGenerationStrategy,
+    AIDynamoTestDefinition,
+)
 from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
@@ -475,7 +479,7 @@ class TestReporters:
         assert len(reporters) == 0
 
     def test_default_reporters_size(self):
-        assert len(Registry().reports_map) == 13
+        assert len(Registry().reports_map) == 14
 
     @pytest.mark.parametrize(
         "tdef,expected_reporters",
@@ -493,6 +497,7 @@ class TestReporters:
             (UCCTestDefinition, {UCCTestReportGenerationStrategy}),
             (TritonInferenceTestDefinition, {TritonInferenceReportGenerationStrategy}),
             (NIXLBenchTestDefinition, {NIXLBenchReportGenerationStrategy}),
+            (AIDynamoTestDefinition, {AIDynamoReportGenerationStrategy}),
         ],
     )
     def test_custom_reporters(self, tdef: Type[TestDefinition], expected_reporters: Set[ReportGenerationStrategy]):
