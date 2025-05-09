@@ -20,13 +20,6 @@ from ._core.base_job import BaseJob
 from ._core.base_runner import BaseRunner
 from ._core.base_system_parser import BaseSystemParser
 from ._core.command_gen_strategy import CommandGenStrategy
-from ._core.exceptions import (
-    JobIdRetrievalError,
-    SystemConfigParsingError,
-    TestConfigParsingError,
-    TestScenarioParsingError,
-    format_validation_error,
-)
 from ._core.grader import Grader
 from ._core.grading_strategy import GradingStrategy
 from ._core.installables import DockerImage, File, GitRepo, Installable, PythonExecutable
@@ -38,9 +31,16 @@ from ._core.report_generation_strategy import ReportGenerationStrategy
 from ._core.reporter import Reporter
 from ._core.system import System
 from ._core.test import Test
-from ._core.test_scenario import METRIC_ERROR, TestRun, TestScenario
+from ._core.test_scenario import METRIC_ERROR, TestDependency, TestRun, TestScenario
 from ._core.test_template import TestTemplate
 from ._core.test_template_strategy import TestTemplateStrategy
+from .exceptions import (
+    JobIdRetrievalError,
+    SystemConfigParsingError,
+    TestConfigParsingError,
+    TestScenarioParsingError,
+    format_validation_error,
+)
 
 __all__ = [
     "METRIC_ERROR",
@@ -70,6 +70,7 @@ __all__ = [
     "SystemConfigParsingError",
     "Test",
     "TestConfigParsingError",
+    "TestDependency",
     "TestRun",
     "TestScenario",
     "TestScenarioParsingError",

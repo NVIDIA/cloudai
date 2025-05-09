@@ -24,11 +24,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Type
 import toml
 from pydantic import ValidationError
 
-from cloudai._core.exceptions import TestScenarioParsingError, format_validation_error
-from cloudai._core.report_generation_strategy import ReportGenerationStrategy
-from cloudai._core.system import System
-from cloudai._core.test import Test
-from cloudai._core.test_scenario import TestDependency, TestRun, TestScenario
+from cloudai import ReportGenerationStrategy, System, Test, TestDependency, TestRun, TestScenario
+from cloudai.exceptions import TestScenarioParsingError, format_validation_error
 from cloudai.models.scenario import TestRunModel, TestScenarioModel
 from cloudai.models.workload import TestDefinition
 from cloudai.registry import Registry

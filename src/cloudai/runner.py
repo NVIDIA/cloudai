@@ -20,11 +20,9 @@ import logging
 from types import FrameType
 from typing import Optional
 
-from ._core.base_runner import BaseRunner
-from ._core.exceptions import JobFailureError
-from ._core.system import System
-from ._core.test_scenario import TestScenario
-from .registry import Registry
+from cloudai import BaseRunner, System, TestScenario
+from cloudai.exceptions import JobFailureError
+from cloudai.registry import Registry
 
 
 class Runner:

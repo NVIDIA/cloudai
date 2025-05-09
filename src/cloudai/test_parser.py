@@ -21,16 +21,18 @@ from typing import Any, Dict, List, Optional, Type, Union, cast
 import toml
 from pydantic import BaseModel, ValidationError
 
-from cloudai._core.command_gen_strategy import CommandGenStrategy
-from cloudai._core.exceptions import TestConfigParsingError, format_validation_error
-from cloudai._core.grading_strategy import GradingStrategy
-from cloudai._core.job_id_retrieval_strategy import JobIdRetrievalStrategy
-from cloudai._core.job_status_retrieval_strategy import JobStatusRetrievalStrategy
-from cloudai._core.json_gen_strategy import JsonGenStrategy
-from cloudai._core.system import System
-from cloudai._core.test import Test
-from cloudai._core.test_template import TestTemplate
-from cloudai._core.test_template_strategy import TestTemplateStrategy
+from cloudai import (
+    CommandGenStrategy,
+    GradingStrategy,
+    JobIdRetrievalStrategy,
+    JobStatusRetrievalStrategy,
+    JsonGenStrategy,
+    System,
+    Test,
+    TestTemplate,
+    TestTemplateStrategy,
+)
+from cloudai.exceptions import TestConfigParsingError, format_validation_error
 from cloudai.models.workload import TestDefinition
 from cloudai.registry import Registry
 

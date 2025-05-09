@@ -21,7 +21,7 @@ import pytest
 import toml
 from pydantic import ValidationError
 
-from cloudai._core.exceptions import TestConfigParsingError
+from cloudai.exceptions import TestConfigParsingError
 from cloudai.models.workload import NsysConfiguration, TestDefinition
 from cloudai.parser import Parser
 from cloudai.registry import Registry
