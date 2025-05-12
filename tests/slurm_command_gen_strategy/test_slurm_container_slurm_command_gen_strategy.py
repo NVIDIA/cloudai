@@ -18,9 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from cloudai import TestRun
-from cloudai._core.test import Test
-from cloudai._core.test_template import TestTemplate
+from cloudai import Test, TestRun, TestTemplate
 from cloudai.models.workload import NsysConfiguration
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.slurm_container import (

@@ -19,8 +19,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from cloudai import TestRun
-from cloudai._core.test import Test
+from cloudai import Test, TestRun
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.chakra_replay import (
     ChakraReplayCmdArgs,

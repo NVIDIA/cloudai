@@ -21,8 +21,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai import BaseInstaller, InstallStatusResult
-from cloudai._core.installables import DockerImage, GitRepo, Installable
+from cloudai import BaseInstaller, DockerImage, GitRepo, Installable, InstallStatusResult
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.util import prepare_output_dir
 

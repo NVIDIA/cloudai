@@ -20,8 +20,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from cloudai._core.test import Test
-from cloudai._core.test_scenario import TestRun
+from cloudai import Test, TestRun
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.sleep import SleepCmdArgs, SleepSlurmCommandGenStrategy, SleepTestDefinition
 

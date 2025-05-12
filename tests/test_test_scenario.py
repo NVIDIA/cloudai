@@ -22,9 +22,15 @@ from unittest.mock import Mock, patch
 import pytest
 import toml
 
-from cloudai import GitRepo, Test, TestRun, TestScenario, TestScenarioParsingError
-from cloudai._core.report_generation_strategy import ReportGenerationStrategy
-from cloudai._core.test_template import TestTemplate
+from cloudai import (
+    GitRepo,
+    ReportGenerationStrategy,
+    Test,
+    TestRun,
+    TestScenario,
+    TestScenarioParsingError,
+    TestTemplate,
+)
 from cloudai.models.scenario import TestRunModel, TestScenarioModel
 from cloudai.models.workload import CmdArgs, PredictorConfig, TestDefinition
 from cloudai.registry import Registry
