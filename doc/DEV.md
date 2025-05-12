@@ -2,36 +2,16 @@
 This document targets developers who want to contribute to the project's core.
 
 
-```mermaid
-graph TD
-    subgraph _core
-        base_modules
-        core_implementations
-        registry
-    end
+## Project Structure and imports
+We use [import-linter](https://github.com/seddonym/import-linter) to ensure no core modules import higher level modules.
 
-    subgraph runners
-        SlurmRunner
-        StandaloneRunner
-    end
+1. `_core/` should depends only on itself and provide all base classes. For example, `System` class should be imported from top-level `cloudai` package, but `SlurmSystem` should be imported from `cloudai.systems.slurm`.
+1. Top-level `cloudai/__init__.py` should not re-export any packages.
+1. Workloads are organized under `cloudai.workloads`, each workload has its own package. `TestDefinition`, `CmdArgs`, command generation strategies, etc. are defined in the workload's package. Each workload is responsible for registering itself and related strategies.
+1. Systems are organized under `cloudai.systems`, each system has its own package. It includes `System` derivative, installer and runner classes. Systems should not depend on workloads.
 
-    subgraph installers
-        SlurmInstaller
-        StandaloneInstaller
-    end
-
-    subgraph systems
-        SlurmSystem
-        StandaloneSystem
-    end
-
-    installers --> _core
-    runners --> _core
-    systems --> _core
-```
 
 ## Core Modules
-We use [import-linter](https://github.com/seddonym/import-linter) to ensure no core modules import higher level modules.
 
 `Registry` object is a singleton that holds implementation mappings. Users can register their own implementations to the registry or replace the default implementations.
 
