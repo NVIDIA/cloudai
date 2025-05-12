@@ -47,7 +47,6 @@ from cloudai.workloads.jax_toolbox import (
     NemotronTestDefinition,
 )
 from cloudai.workloads.megatron_run import CheckpointTimingReportGenerationStrategy, MegatronRunTestDefinition
-from cloudai.workloads.megatron_run.megatron_run import MegatronRunCmdArgs
 from cloudai.workloads.nccl_test import (
     NCCLCmdArgs,
     NCCLTestDefinition,
