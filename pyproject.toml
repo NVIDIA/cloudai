@@ -96,8 +96,6 @@ root_packages = ["cloudai", "tests"]
   allow_indirect_imports = true # this is to allow "from cloudai import ..."
   source_modules = [
     "cloudai.cli",
-    "cloudai.configurator",
-    "cloudai.models",
     "cloudai.report_generator",
     "cloudai.report_generator.tool",
     "cloudai.reporters",
@@ -132,6 +130,14 @@ root_packages = ["cloudai", "tests"]
   type = "forbidden"
   forbidden_modules = ["cloudai.workloads.**"]
   source_modules = ["cloudai.systems.**"]
+
+  [[tool.importlinter.contracts]]
+  name = "systems layers"
+  type = "layers"
+  layers = [
+    "cloudai.systems.lsf",
+    "cloudai.systems.kubernetes | cloudai.systems.runai | cloudai.systems.slurm | cloudai.systems.standalone",
+  ]
 
 [tool.vulture]
 ignore_names = ["mock_datetime_now"]
