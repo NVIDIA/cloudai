@@ -125,12 +125,6 @@ root_packages = ["cloudai", "tests"]
   source_modules = ["tests.**"]
   allow_indirect_imports = true
 
-  [[tool.importlinter.contracts]]
-  name = "systems do not depend on workloads"
-  type = "forbidden"
-  forbidden_modules = ["cloudai.workloads.**"]
-  source_modules = ["cloudai.systems.**"]
-
 [tool.vulture]
 ignore_names = ["mock_datetime_now"]
 min_confidence = 100
