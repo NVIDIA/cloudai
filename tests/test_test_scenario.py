@@ -47,6 +47,7 @@ from cloudai.workloads.jax_toolbox import (
     NemotronTestDefinition,
 )
 from cloudai.workloads.megatron_run import CheckpointTimingReportGenerationStrategy, MegatronRunTestDefinition
+from cloudai.workloads.megatron_run.megatron_run import MegatronRunCmdArgs
 from cloudai.workloads.nccl_test import (
     NCCLCmdArgs,
     NCCLTestDefinition,
@@ -412,6 +413,7 @@ class TestSpec:
         )
         _, tdef = test_scenario_parser._prepare_tdef(model.tests[0])
         assert tdef.cmd_args_dict["unknown"] == 42
+        assert isinstance(tdef.cmd_args, NCCLCmdArgs)
 
 
 class TestReporters:
