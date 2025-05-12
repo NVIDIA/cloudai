@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict
 
-from .._core.installables import GitRepo, Installable, PythonExecutable
+from cloudai import GitRepo, Installable, PythonExecutable
 
 
 class CmdArgs(BaseModel):

@@ -20,10 +20,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
+from cloudai import BaseJob, System
 from cloudai.util import CommandShell
-
-from ..._core.base_job import BaseJob
-from ..._core.system import System
 
 
 class LSFNodeObj(BaseModel):

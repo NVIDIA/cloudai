@@ -23,10 +23,9 @@ from kubernetes import client, config
 from kubernetes.client import ApiException, CustomObjectsApi, V1DeleteOptions, V1Job
 from pydantic import BaseModel, ConfigDict
 
-from cloudai.systems.kubernetes.kubernetes_job import KubernetesJob
+from cloudai import BaseJob, System
 
-from ..._core.base_job import BaseJob
-from ..._core.system import System
+from .kubernetes_job import KubernetesJob
 
 
 class KubernetesSystem(BaseModel, System):

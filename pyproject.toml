@@ -95,13 +95,29 @@ root_package = "cloudai"
   forbidden_modules = ["cloudai._core"]
   allow_indirect_imports = true # this is to allow "from cloudai import ..."
   source_modules = [
-    "cloudai.installer",
-    "cloudai.parser",
+    "cloudai.cli",
+    "cloudai.configurator",
+    "cloudai.models",
     "cloudai.report_generator",
     "cloudai.report_generator.tool",
-    "cloudai.runner",
+    "cloudai.reporters",
+    "cloudai.systems.kubernetes",
+    "cloudai.systems.lsf",
+    "cloudai.systems.runai",
+    "cloudai.systems.slurm",
+    "cloudai.systems.standalone",
     "cloudai.util",
-    "cloudai.cli",
+    "cloudai.workloads.chakra_replay",
+    "cloudai.workloads.common",
+    "cloudai.workloads.jax_toolbox",
+    "cloudai.workloads.megatron_run",
+    "cloudai.workloads.nccl_test",
+    "cloudai.workloads.nemo_launcher",
+    "cloudai.workloads.nemo_run",
+    "cloudai.workloads.sleep",
+    "cloudai.workloads.slurm_container",
+    "cloudai.workloads.triton_inference",
+    "cloudai.workloads.ucc_test",
   ]
 
 [tool.vulture]

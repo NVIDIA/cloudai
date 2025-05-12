@@ -19,8 +19,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-from cloudai._core.base_job import BaseJob
-from cloudai._core.system import System
+from cloudai import BaseJob, System
 from cloudai.util import CommandShell
 
 

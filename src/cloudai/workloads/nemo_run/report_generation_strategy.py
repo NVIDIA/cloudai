@@ -23,8 +23,7 @@ from typing import ClassVar, List
 import numpy as np
 import pandas as pd
 
-from cloudai import ReportGenerationStrategy
-from cloudai._core.test_scenario import METRIC_ERROR
+from cloudai import METRIC_ERROR, ReportGenerationStrategy
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 
 

@@ -18,8 +18,9 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .._core.installables import GitRepo
-from ..registry import Registry
+from cloudai import GitRepo
+from cloudai.registry import Registry
+
 from .workload import CmdArgs, NsysConfiguration
 
 

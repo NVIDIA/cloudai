@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from ._core.base_agent import BaseAgent
+from ._core.base_gym import BaseGym
 from ._core.base_installer import BaseInstaller, InstallStatusResult
 from ._core.base_job import BaseJob
 from ._core.base_runner import BaseRunner
@@ -45,6 +46,7 @@ from .exceptions import (
 __all__ = [
     "METRIC_ERROR",
     "BaseAgent",
+    "BaseGym",
     "BaseInstaller",
     "BaseJob",
     "BaseRunner",
