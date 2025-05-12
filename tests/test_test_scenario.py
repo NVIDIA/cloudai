@@ -412,6 +412,7 @@ class TestSpec:
         )
         _, tdef = test_scenario_parser._prepare_tdef(model.tests[0])
         assert tdef.cmd_args_dict["unknown"] == 42
+        assert isinstance(tdef.cmd_args, NCCLCmdArgs)
 
 
 class TestReporters:

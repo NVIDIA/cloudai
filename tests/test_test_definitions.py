@@ -291,11 +291,6 @@ class TestMegatronRun:
         assert megatron_run.cmd_args_dict["--tokenizer-model"] == Path("/path/to/tokenizer")
         assert megatron_run.cmd_args.tokenizer_model == Path("/path/to/tokenizer")
 
-    def test_auxiliary_fields_not_in_model_dump(self, megatron_run: MegatronRunTestDefinition):
-        d = megatron_run.cmd_args.model_dump()
-        assert "docker_image_url" not in d
-        assert "run_script" not in d
-
     @pytest.mark.parametrize("field", ["load", "save"])
     def test_load_is_set_but_not_mounted(self, field: str):
         with pytest.raises(ValueError) as exc_info:

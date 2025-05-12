@@ -28,8 +28,8 @@ from ...models.workload import CmdArgs, TestDefinition
 class MegatronRunCmdArgs(CmdArgs):
     """MegatronRun test command arguments."""
 
-    docker_image_url: str = Field(exclude=True)
-    run_script: Path = Field(exclude=True)
+    docker_image_url: str = Field()
+    run_script: Path = Field()
 
     global_batch_size: Optional[int] = 16
     hidden_size: Optional[int] = 4096
@@ -65,7 +65,7 @@ class MegatronRunCmdArgs(CmdArgs):
 
     @property
     def cmd_args(self) -> dict[str, Union[str, list[str]]]:
-        args = self.model_dump(exclude_none=True)
+        args = self.model_dump(exclude_none=True, exclude={"docker_image_url", "run_script"})
         args = {f"--{k.replace('_', '-')}": v for k, v in args.items()}
         return args
 
