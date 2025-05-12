@@ -31,7 +31,6 @@ Registry().add_strategy(
     JobStatusRetrievalStrategy, [SlurmSystem], [MegatronRunTestDefinition], DefaultJobStatusRetrievalStrategy
 )
 
-Registry().add_test_definition("MegatronRun", MegatronRunTestDefinition)
 Registry().add_report(MegatronRunTestDefinition, CheckpointTimingReportGenerationStrategy)
 
 __all__ = [

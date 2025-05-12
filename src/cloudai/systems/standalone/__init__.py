@@ -22,7 +22,6 @@ from .standalone_runner import StandaloneRunner
 from .standalone_system import StandaloneSystem
 
 Registry().add_installer("standalone", StandaloneInstaller)
-Registry().add_system("standalone", StandaloneSystem)
 Registry().add_runner("standalone", StandaloneRunner)
 
 __all__ = ["StandaloneJob", "StandaloneRunner", "StandaloneSystem"]

@@ -35,6 +35,7 @@ from ._core.test import Test
 from ._core.test_scenario import METRIC_ERROR, TestDependency, TestRun, TestScenario
 from ._core.test_template import TestTemplate
 from ._core.test_template_strategy import TestTemplateStrategy
+from .configurator import GridSearchAgent
 from .exceptions import (
     JobIdRetrievalError,
     SystemConfigParsingError,
@@ -42,6 +43,44 @@ from .exceptions import (
     TestScenarioParsingError,
     format_validation_error,
 )
+from .registry import Registry
+from .systems.kubernetes import KubernetesSystem
+from .systems.lsf import LSFSystem
+from .systems.runai import RunAISystem
+from .systems.slurm import SlurmSystem
+from .systems.standalone import StandaloneSystem
+from .workloads.chakra_replay import ChakraReplayTestDefinition
+from .workloads.jax_toolbox import GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition
+from .workloads.megatron_run import MegatronRunTestDefinition
+from .workloads.nccl_test import NCCLTestDefinition
+from .workloads.nemo_launcher import NeMoLauncherTestDefinition
+from .workloads.nemo_run import NeMoRunTestDefinition
+from .workloads.sleep import SleepTestDefinition
+from .workloads.slurm_container import SlurmContainerTestDefinition
+from .workloads.triton_inference import TritonInferenceTestDefinition
+from .workloads.ucc_test import UCCTestDefinition
+
+registry = Registry()
+registry.add_agent("grid_search", GridSearchAgent)
+
+registry.add_system("kubernetes", KubernetesSystem)
+registry.add_system("lsf", LSFSystem)
+registry.add_system("runai", RunAISystem)
+registry.add_system("slurm", SlurmSystem)
+registry.add_system("standalone", StandaloneSystem)
+
+registry.add_test_definition("ChakraReplay", ChakraReplayTestDefinition)
+registry.add_test_definition("JaxToolboxGrok", GrokTestDefinition)
+registry.add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)
+registry.add_test_definition("JaxToolboxGPT", GPTTestDefinition)
+registry.add_test_definition("MegatronRun", MegatronRunTestDefinition)
+registry.add_test_definition("NcclTest", NCCLTestDefinition)
+registry.add_test_definition("NeMoLauncher", NeMoLauncherTestDefinition)
+registry.add_test_definition("NeMoRun", NeMoRunTestDefinition)
+registry.add_test_definition("Sleep", SleepTestDefinition)
+registry.add_test_definition("SlurmContainer", SlurmContainerTestDefinition)
+registry.add_test_definition("TritonInference", TritonInferenceTestDefinition)
+registry.add_test_definition("UCCTest", UCCTestDefinition)
 
 __all__ = [
     "METRIC_ERROR",

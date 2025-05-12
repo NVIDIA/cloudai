@@ -19,7 +19,6 @@ from datetime import timedelta
 from typing import Optional
 
 import lightning.pytorch as pl
-import nemo_run as run
 import torch
 from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.loggers.wandb import WandbLogger
@@ -48,6 +47,8 @@ from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommO
 from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.utils.exp_manager import TimingCallback
+
+import nemo_run as run
 
 
 @run.cli.factory(is_target_default=True)

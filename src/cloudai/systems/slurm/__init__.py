@@ -24,7 +24,6 @@ from .slurm_runner import SlurmRunner
 from .slurm_system import SlurmGroup, SlurmPartition, SlurmSystem, parse_node_list
 
 Registry().add_installer("slurm", SlurmInstaller)
-Registry().add_system("slurm", SlurmSystem)
 Registry().add_runner("slurm", SlurmRunner)
 
 __all__ = [

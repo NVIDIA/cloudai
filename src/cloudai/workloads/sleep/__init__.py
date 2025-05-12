@@ -74,7 +74,6 @@ Registry().add_strategy(
     JobStatusRetrievalStrategy, [LSFSystem], [SleepTestDefinition], DefaultJobStatusRetrievalStrategy
 )
 
-Registry().add_test_definition("Sleep", SleepTestDefinition)
 Registry().add_report(SleepTestDefinition, SleepReportGenerationStrategy)
 
 __all__ = [

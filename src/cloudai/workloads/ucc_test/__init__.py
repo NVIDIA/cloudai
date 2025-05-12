@@ -31,7 +31,6 @@ Registry().add_strategy(
     JobStatusRetrievalStrategy, [SlurmSystem], [UCCTestDefinition], DefaultJobStatusRetrievalStrategy
 )
 
-Registry().add_test_definition("UCCTest", UCCTestDefinition)
 Registry().add_report(UCCTestDefinition, UCCTestReportGenerationStrategy)
 
 __all__ = [

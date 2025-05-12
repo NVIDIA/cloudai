@@ -31,7 +31,6 @@ Registry().add_strategy(
     JobStatusRetrievalStrategy, [SlurmSystem], [NeMoRunTestDefinition], NeMoRunJobStatusRetrievalStrategy
 )
 
-Registry().add_test_definition("NeMoRun", NeMoRunTestDefinition)
 Registry().add_report(NeMoRunTestDefinition, NeMoRunReportGenerationStrategy)
 Registry().add_report(NeMoRunTestDefinition, NeMoRunDataStoreReportGenerationStrategy)
 

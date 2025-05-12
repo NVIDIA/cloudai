@@ -22,7 +22,6 @@ from .runai_runner import RunAIRunner
 from .runai_system import RunAISystem
 
 Registry().add_installer("runai", RunAIInstaller)
-Registry().add_system("runai", RunAISystem)
 Registry().add_runner("runai", RunAIRunner)
 
 __all__ = ["RunAIJob", "RunAIRunner", "RunAISystem"]

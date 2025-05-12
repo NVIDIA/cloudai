@@ -23,7 +23,6 @@ from .report_generation_strategy import SlurmContainerReportGenerationStrategy
 from .slurm_command_gen_strategy import SlurmContainerCommandGenStrategy
 from .slurm_container import SlurmContainerCmdArgs, SlurmContainerTestDefinition
 
-Registry().add_test_definition("SlurmContainer", SlurmContainerTestDefinition)
 Registry().add_report(SlurmContainerTestDefinition, SlurmContainerReportGenerationStrategy)
 Registry().add_strategy(
     CommandGenStrategy, [SlurmSystem], [SlurmContainerTestDefinition], SlurmContainerCommandGenStrategy

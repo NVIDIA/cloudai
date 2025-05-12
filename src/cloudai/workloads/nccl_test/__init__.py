@@ -53,8 +53,6 @@ Registry().add_strategy(
     JobStatusRetrievalStrategy, [SlurmSystem], [NCCLTestDefinition], NcclTestJobStatusRetrievalStrategy
 )
 
-Registry().add_test_definition("NcclTest", NCCLTestDefinition)
-
 Registry().add_report(NCCLTestDefinition, NcclTestPerformanceReportGenerationStrategy)
 
 __all__ = [

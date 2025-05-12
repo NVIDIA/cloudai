@@ -17,8 +17,7 @@
 import itertools
 from typing import Any, Dict, List, Tuple
 
-from cloudai import BaseAgent
-
+from .._core import BaseAgent
 from .cloudai_gym import CloudAIGymEnv
 
 

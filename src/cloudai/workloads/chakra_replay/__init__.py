@@ -24,7 +24,6 @@ from .grading_strategy import ChakraReplayGradingStrategy
 from .report_generation_strategy import ChakraReplayReportGenerationStrategy
 from .slurm_command_gen_strategy import ChakraReplaySlurmCommandGenStrategy
 
-Registry().add_test_definition("ChakraReplay", ChakraReplayTestDefinition)
 Registry().add_report(ChakraReplayTestDefinition, ChakraReplayReportGenerationStrategy)
 
 Registry().add_strategy(

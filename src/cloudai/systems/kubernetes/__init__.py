@@ -22,7 +22,6 @@ from .kubernetes_runner import KubernetesRunner
 from .kubernetes_system import KubernetesSystem
 
 Registry().add_installer("kubernetes", KubernetesInstaller)
-Registry().add_system("kubernetes", KubernetesSystem)
 Registry().add_runner("kubernetes", KubernetesRunner)
 
 __all__ = [

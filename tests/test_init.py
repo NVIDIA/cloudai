@@ -110,6 +110,12 @@ def test_runners():
     assert len(runners) == 5
 
 
+def test_agents():
+    agents = Registry().agents_map.keys()
+    assert "grid_search" in agents
+    assert len(agents) == 1
+
+
 ALL_STRATEGIES = {
     (CommandGenStrategy, SlurmSystem, ChakraReplayTestDefinition): ChakraReplaySlurmCommandGenStrategy,
     (CommandGenStrategy, SlurmSystem, GPTTestDefinition): JaxToolboxSlurmCommandGenStrategy,

@@ -22,8 +22,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
-from cloudai import METRIC_ERROR, BaseGym, TestRun
-
+from .._core import METRIC_ERROR, BaseGym, TestRun
 from ..runner import Runner
 
 

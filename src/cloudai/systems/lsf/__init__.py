@@ -24,7 +24,6 @@ from .lsf_runner import LSFRunner
 from .lsf_system import LSFGroup, LSFNodeObj, LSFQueue, LSFSystem
 
 Registry().add_installer("lsf", LSFInstaller)
-Registry().add_system("lsf", LSFSystem)
 Registry().add_runner("lsf", LSFRunner)
 
 __all__ = [

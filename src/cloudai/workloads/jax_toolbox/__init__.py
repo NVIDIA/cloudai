@@ -28,10 +28,6 @@ from .nemotron import NemotronCmdArgs, NemotronTestDefinition
 from .report_generation_strategy import JaxToolboxReportGenerationStrategy
 from .slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
 
-Registry().add_test_definition("JaxToolboxGrok", GrokTestDefinition)
-Registry().add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)
-Registry().add_test_definition("JaxToolboxGPT", GPTTestDefinition)
-
 Registry().add_report(GPTTestDefinition, JaxToolboxReportGenerationStrategy)
 Registry().add_report(GrokTestDefinition, JaxToolboxReportGenerationStrategy)
 Registry().add_report(NemotronTestDefinition, JaxToolboxReportGenerationStrategy)

@@ -33,7 +33,6 @@ Registry().add_strategy(
     JobStatusRetrievalStrategy, [SlurmSystem], [TritonInferenceTestDefinition], DefaultJobStatusRetrievalStrategy
 )
 
-Registry().add_test_definition("TritonInference", TritonInferenceTestDefinition)
 Registry().add_report(TritonInferenceTestDefinition, TritonInferenceReportGenerationStrategy)
 
 __all__ = [

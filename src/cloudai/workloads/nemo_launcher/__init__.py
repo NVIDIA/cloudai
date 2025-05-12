@@ -36,7 +36,6 @@ Registry().add_strategy(
     JobStatusRetrievalStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], DefaultJobStatusRetrievalStrategy
 )
 
-Registry().add_test_definition("NeMoLauncher", NeMoLauncherTestDefinition)
 Registry().add_report(NeMoLauncherTestDefinition, NeMoLauncherReportGenerationStrategy)
 
 __all__ = [
