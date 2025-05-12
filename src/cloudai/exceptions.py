@@ -116,16 +116,22 @@ class JobFailureError(Exception):
 
 
 class TestConfigParsingError(Exception):
+    """Exception raised when there is an error parsing the test configuration."""
+
     __test__ = False
     pass
 
 
 class TestScenarioParsingError(Exception):
+    """Exception raised when there is an error parsing the test scenario."""
+
     __test__ = False
     pass
 
 
 class SystemConfigParsingError(Exception):
+    """Exception raised when there is an error parsing the system configuration."""
+
     pass
 
 

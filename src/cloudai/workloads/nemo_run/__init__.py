@@ -18,8 +18,9 @@ from cloudai import CommandGenStrategy, JobIdRetrievalStrategy, JobStatusRetriev
 from cloudai.registry import Registry
 from cloudai.systems.slurm import SlurmSystem
 
-from ..common import DefaultJobStatusRetrievalStrategy, SlurmJobIdRetrievalStrategy
+from ..common import SlurmJobIdRetrievalStrategy
 from .data_store_report_generation_strategy import NeMoRunDataStoreReportGenerationStrategy
+from .job_status_retrieval_strategy import NeMoRunJobStatusRetrievalStrategy
 from .nemo_run import Data, Log, LogCkpt, NeMoRunCmdArgs, NeMoRunTestDefinition, Trainer, TrainerStrategy
 from .report_generation_strategy import NeMoRunReportGenerationStrategy
 from .slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
@@ -27,7 +28,7 @@ from .slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NeMoRunTestDefinition], NeMoRunSlurmCommandGenStrategy)
 Registry().add_strategy(JobIdRetrievalStrategy, [SlurmSystem], [NeMoRunTestDefinition], SlurmJobIdRetrievalStrategy)
 Registry().add_strategy(
-    JobStatusRetrievalStrategy, [SlurmSystem], [NeMoRunTestDefinition], DefaultJobStatusRetrievalStrategy
+    JobStatusRetrievalStrategy, [SlurmSystem], [NeMoRunTestDefinition], NeMoRunJobStatusRetrievalStrategy
 )
 
 Registry().add_test_definition("NeMoRun", NeMoRunTestDefinition)
@@ -40,6 +41,7 @@ __all__ = [
     "LogCkpt",
     "NeMoRunCmdArgs",
     "NeMoRunDataStoreReportGenerationStrategy",
+    "NeMoRunJobStatusRetrievalStrategy",
     "NeMoRunReportGenerationStrategy",
     "NeMoRunSlurmCommandGenStrategy",
     "NeMoRunTestDefinition",

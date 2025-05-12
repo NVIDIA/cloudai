@@ -52,6 +52,7 @@ from cloudai.workloads.nemo_run import (
 )
 from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
 from cloudai.workloads.slurm_container import SlurmContainerReportGenerationStrategy, SlurmContainerTestDefinition
+from cloudai.workloads.triton_inference import TritonInferenceReportGenerationStrategy, TritonInferenceTestDefinition
 from cloudai.workloads.ucc_test import UCCTestDefinition, UCCTestReportGenerationStrategy
 
 
@@ -413,7 +414,7 @@ class TestReporters:
         assert len(reporters) == 0
 
     def test_default_reporters_size(self):
-        assert len(Registry().reports_map) == 11
+        assert len(Registry().reports_map) == 12
 
     @pytest.mark.parametrize(
         "tdef,expected_reporters",
@@ -429,6 +430,7 @@ class TestReporters:
             (SleepTestDefinition, {SleepReportGenerationStrategy}),
             (SlurmContainerTestDefinition, {SlurmContainerReportGenerationStrategy}),
             (UCCTestDefinition, {UCCTestReportGenerationStrategy}),
+            (TritonInferenceTestDefinition, {TritonInferenceReportGenerationStrategy}),
         ],
     )
     def test_custom_reporters(self, tdef: Type[TestDefinition], expected_reporters: Set[ReportGenerationStrategy]):
