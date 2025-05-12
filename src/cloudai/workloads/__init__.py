@@ -13,3 +13,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from .chakra_replay import ChakraReplayTestDefinition
+from .jax_toolbox import GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition
+from .megatron_run import MegatronRunTestDefinition
+from .nemo_launcher import NeMoLauncherTestDefinition
+from .nemo_run import NeMoRunTestDefinition
+from .sleep import SleepTestDefinition
+from .slurm_container import SlurmContainerTestDefinition
+from .triton_inference import TritonInferenceTestDefinition
+from .ucc_test import UCCTestDefinition
+
+__all__ = [
+    "ChakraReplayTestDefinition",
+    "GPTTestDefinition",
+    "GrokTestDefinition",
+    "MegatronRunTestDefinition",
+    "NeMoLauncherTestDefinition",
+    "NeMoRunTestDefinition",
+    "NemotronTestDefinition",
+    "SleepTestDefinition",
+    "SlurmContainerTestDefinition",
+    "TritonInferenceTestDefinition",
+    "UCCTestDefinition",
+]

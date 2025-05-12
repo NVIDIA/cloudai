@@ -169,14 +169,12 @@ class Parser:
                 raise SystemConfigParsingError(f"Missing 'scheduler' key in {system_config_path}")
 
             if scheduler not in registry.systems_map:
-                logging.error(
+                msg = (
                     f"Unsupported system type '{scheduler}' in {system_config_path}. "
-                    f"Should be one of: {', '.join(registry.systems_map.keys())}"
+                    f"Supported types: {', '.join(sorted(registry.systems_map.keys()))}"
                 )
-                raise SystemConfigParsingError(
-                    f"Unsupported system type '{scheduler}' in {system_config_path}. "
-                    f"Supported types: {', '.join(registry.systems_map.keys())}"
-                )
+                logging.error(msg)
+                raise SystemConfigParsingError(msg)
 
         try:
             system = registry.systems_map[scheduler](**data)
