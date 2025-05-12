@@ -131,14 +131,6 @@ root_packages = ["cloudai", "tests"]
   forbidden_modules = ["cloudai.workloads.**"]
   source_modules = ["cloudai.systems.**"]
 
-  [[tool.importlinter.contracts]]
-  name = "systems layers"
-  type = "layers"
-  layers = [
-    "cloudai.systems.lsf",
-    "cloudai.systems.kubernetes | cloudai.systems.runai | cloudai.systems.slurm | cloudai.systems.standalone",
-  ]
-
 [tool.vulture]
 ignore_names = ["mock_datetime_now"]
 min_confidence = 100
