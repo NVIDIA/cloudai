@@ -20,17 +20,16 @@ from unittest.mock import create_autospec
 
 import pytest
 
-from cloudai._core.test import Test
+from cloudai._core.test import Test, TestDefinition
 from cloudai._core.test_scenario import TestRun, TestScenario
 from cloudai._core.test_scenario_parser import calculate_total_time_limit
-from tests.conftest import MyTestDefinition
 
 
 class DummyTestRun(TestRun):
     def __init__(self, time_limit: str) -> None:
         dummy_test = create_autospec(Test, instance=True)
         dummy_test.name = "dummy_test"
-        dummy_test.test_definition = MyTestDefinition(
+        dummy_test.test_definition = TestDefinition(
             name="dummy_test", description="dummy_test", test_template_name="dummy_test", cmd_args={}
         )
         super().__init__(

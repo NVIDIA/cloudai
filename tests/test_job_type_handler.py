@@ -28,7 +28,7 @@ def tr(slurm_system: SlurmSystem) -> TestRun:
     tdef = NCCLTestDefinition(name="nccl", description="NCCL Test", test_template_name="nccl", cmd_args=NCCLCmdArgs())
     return TestRun(
         name="test_run",
-        test=Test(test_definition=tdef, test_template=TestTemplate(system=slurm_system, name="nccl")),
+        test=Test(test_definition=tdef, test_template=TestTemplate(system=slurm_system)),
         num_nodes=1,
         nodes=[],
         output_path=slurm_system.output_path,

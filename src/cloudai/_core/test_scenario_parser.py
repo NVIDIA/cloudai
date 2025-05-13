@@ -19,20 +19,30 @@ import logging
 import re
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Set, Type, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Type
 
 import toml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import ValidationError
 
-from ..workloads.nccl_test import (
-    NCCLTestDefinition,
-    NcclTestPredictionReportGenerationStrategy,
-)
+from ..models.scenario import TestRunModel, TestScenarioModel
+from ..models.workload import TestDefinition
+from ..workloads.nccl_test import NCCLTestDefinition, NcclTestPredictionReportGenerationStrategy
 from .exceptions import TestScenarioParsingError, format_validation_error
 from .registry import Registry
 from .report_generation_strategy import ReportGenerationStrategy
-from .test import Test, TestDefinition
+from .system import System
+from .test import Test
+from .test_parser import TestParser
 from .test_scenario import TestDependency, TestRun, TestScenario
+
+
+def get_reporters(test_info: TestRunModel, tdef: TestDefinition) -> Set[Type[ReportGenerationStrategy]]:
+    reporters = copy.deepcopy(Registry().reports_map.get(type(tdef), set()))
+
+    if isinstance(tdef, NCCLTestDefinition) and tdef.predictor is not None:
+        reporters.add(NcclTestPredictionReportGenerationStrategy)
+
+    return reporters
 
 
 def parse_time_limit(limit: str) -> timedelta:
@@ -102,80 +112,6 @@ def calculate_total_time_limit(test_hooks: List[TestScenario], time_limit: Optio
     return format_time_limit(total_time)
 
 
-def get_reporters(test_info: "_TestRunTOML", tdef: TestDefinition) -> Set[Type[ReportGenerationStrategy]]:
-    reporters = copy.deepcopy(Registry().reports_map.get(type(tdef), set()))
-
-    if isinstance(tdef, NCCLTestDefinition) and tdef.predictor is not None:
-        reporters.add(NcclTestPredictionReportGenerationStrategy)
-
-    return reporters
-
-
-class _TestDependencyTOML(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    type: Literal["end_post_comp", "start_post_init", "start_post_comp"]
-    id: str
-
-
-class _TestRunTOML(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    id: str = Field(min_length=1)
-    test_name: str
-    num_nodes: Optional[Union[int, list[int]]] = None
-    nodes: list[str] = Field(default_factory=list)
-    weight: int = 0
-    iterations: int = 1
-    sol: Optional[float] = None
-    ideal_perf: float = 1.0
-    time_limit: Optional[str] = None
-    dependencies: list[_TestDependencyTOML] = Field(default_factory=list)
-
-
-class _TestScenarioTOML(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    name: str
-    sol_path: Optional[str] = None
-    job_status_check: bool = True
-    tests: list[_TestRunTOML] = Field(alias="Tests", min_length=1)
-    pre_test: Optional[str] = None
-    post_test: Optional[str] = None
-
-    @model_validator(mode="after")
-    def check_no_self_dependency(self):
-        """Check for circular dependencies in the test scenario."""
-        for test_run in self.tests:
-            for dep in test_run.dependencies:
-                if dep.id == test_run.id:
-                    raise ValueError(f"Test '{test_run.id}' must not depend on itself.")
-
-        return self
-
-    @model_validator(mode="after")
-    def check_no_duplicate_ids(self):
-        """Check for duplicate test ids in the test scenario."""
-        test_ids = set()
-        for tr in self.tests:
-            if tr.id in test_ids:
-                raise ValueError(f"Duplicate test id '{tr.id}' found in the test scenario.")
-            test_ids.add(tr.id)
-
-        return self
-
-    @model_validator(mode="after")
-    def check_all_dependencies_are_known(self):
-        """Check that all dependencies are known."""
-        test_ids = set(tr.id for tr in self.tests)
-        for tr in self.tests:
-            for dep in tr.dependencies:
-                if dep.id not in test_ids:
-                    raise ValueError(f"Dependency section '{dep.id}' not found for test '{tr.id}'.")
-
-        return self
-
-
 class TestScenarioParser:
     """
     Parser for TestScenario objects.
@@ -187,10 +123,19 @@ class TestScenarioParser:
 
     __test__ = False
 
-    def __init__(self, file_path: Path, test_mapping: Dict[str, Test], hook_mapping: Dict[str, TestScenario]) -> None:
+    def __init__(
+        self,
+        file_path: Path,
+        system: System,
+        test_mapping: Dict[str, Test],
+        hook_mapping: Dict[str, TestScenario],
+        strict: bool = False,
+    ) -> None:
         self.file_path = file_path
+        self.system = system
         self.test_mapping = test_mapping
         self.hook_mapping = hook_mapping
+        self.strict = strict
 
     def parse(self) -> TestScenario:
         """
@@ -214,7 +159,7 @@ class TestScenarioParser:
             TestScenario: Parsed TestScenario object.
         """
         try:
-            ts_model = _TestScenarioTOML.model_validate(data)
+            ts_model = TestScenarioModel.model_validate(data)
         except ValidationError as e:
             logging.error(f"Failed to parse Test Scenario definition: {self.file_path}")
             for err in e.errors(include_url=False):
@@ -252,7 +197,7 @@ class TestScenarioParser:
             tr.id: self._create_test_run(tr, normalized_weight, pre_test, post_test) for tr in ts_model.tests
         }
 
-        tests_data: dict[str, _TestRunTOML] = {tr.id: tr for tr in ts_model.tests}
+        tests_data: dict[str, TestRunModel] = {tr.id: tr for tr in ts_model.tests}
         for section, tr in test_runs_by_id.items():
             test_info = tests_data[section]
             tr.dependencies = {
@@ -267,7 +212,7 @@ class TestScenarioParser:
 
     def _create_test_run(
         self,
-        test_info: _TestRunTOML,
+        test_info: TestRunModel,
         normalized_weight: float,
         pre_test: Optional[TestScenario] = None,
         post_test: Optional[TestScenario] = None,
@@ -287,20 +232,9 @@ class TestScenarioParser:
         Raises:
             ValueError: If the test or nodes are not found within the system.
         """
-        if test_info.test_name not in self.test_mapping:
-            msg = (
-                f"Test '{test_info.test_name}' not found in the test schema directory. Please ensure that all "
-                f"tests referenced in the test scenario schema exist in the test schema directory. To resolve this "
-                f"issue, you can either add the corresponding test schema file for '{test_info.test_name}' in "
-                f"the directory or remove the test reference from the test scenario schema."
-            )
-            logging.error(f"Failed to parse Test Scenario definition: {self.file_path}")
-            logging.error(msg)
-            raise TestScenarioParsingError(msg)
+        original_test, tdef = self._prepare_tdef(test_info)
 
-        original_test = self.test_mapping[test_info.test_name]
-
-        test = Test(test_definition=original_test.test_definition, test_template=original_test.test_template)
+        test = Test(test_definition=tdef, test_template=original_test.test_template)
 
         hooks = [hook for hook in [pre_test, post_test] if hook is not None]
         total_time_limit = calculate_total_time_limit(test_hooks=hooks, time_limit=test_info.time_limit)
@@ -332,3 +266,25 @@ class TestScenarioParser:
             raise TestScenarioParsingError(msg)
 
         return tr
+
+    def _prepare_tdef(self, test_info: TestRunModel) -> Tuple[Test, TestDefinition]:
+        tp = TestParser([self.file_path], self.system)
+        tp.current_file = self.file_path
+
+        if test_info.test_name:
+            if test_info.test_name not in self.test_mapping:
+                raise ValueError(f"Test '{test_info.test_name}' is not defined. Was tests directory correctly set?")
+            test = self.test_mapping[test_info.test_name]
+        elif test_info.test_template_name:
+            test = tp._parse_data(test_info.tdef_model_dump(), self.strict)
+        else:
+            # this should never happen, because we check for this in the modelvalidator
+            raise ValueError(
+                f"Cannot configure test case '{test_info.id}' with both 'test_name' and 'test_template_name'."
+            )
+
+        merged_data = test.test_definition.model_dump()
+        merged_data.update(test_info.tdef_model_dump())
+        tdef = tp.load_test_definition(merged_data, self.strict)
+
+        return test, tdef

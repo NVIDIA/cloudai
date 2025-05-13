@@ -27,10 +27,14 @@ from cloudai import (
     Registry,
     ReportGenerationStrategy,
     System,
-    TestDefinition,
     TestTemplateStrategy,
 )
 from cloudai._core.reporter import Reporter
+from cloudai.models.workload import TestDefinition
+
+
+class MyTestDefinition(TestDefinition):
+    pass
 
 
 @pytest.fixture
@@ -208,10 +212,6 @@ class TestRegistry__Installers:
         with pytest.raises(ValueError) as exc_info:
             registry.update_installer("TestInstaller", str)  # pyright: ignore
         assert "Invalid installer implementation for 'TestInstaller'" in str(exc_info.value)
-
-
-class MyTestDefinition(TestDefinition):
-    pass
 
 
 class AnotherTestDefinition(TestDefinition):

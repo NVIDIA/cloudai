@@ -42,7 +42,7 @@ def benchmark_tr(slurm_system: SlurmSystem) -> TestRun:
     test_definition = NCCLTestDefinition(
         name="nccl", description="NCCL test", test_template_name="nccl", cmd_args=NCCLCmdArgs()
     )
-    test_template = TestTemplate(system=slurm_system, name="nccl")
+    test_template = TestTemplate(system=slurm_system)
     test = Test(test_definition=test_definition, test_template=test_template)
     tr = TestRun(name="benchmark", test=test, num_nodes=1, nodes=["node1"], iterations=3)
     create_test_directories(slurm_system, tr)
@@ -59,7 +59,7 @@ def dse_tr(slurm_system: SlurmSystem) -> TestRun:
         extra_env_vars={"VAR1": ["value1", "value2"]},
         agent_steps=12,
     )
-    test_template = TestTemplate(system=slurm_system, name="nccl")
+    test_template = TestTemplate(system=slurm_system)
     test = Test(test_definition=test_definition, test_template=test_template)
 
     tr = TestRun(name="dse", test=test, num_nodes=1, nodes=["node1"], iterations=12)

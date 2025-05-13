@@ -136,7 +136,7 @@ def make_test_run(slurm_system: SlurmSystem, name: str, output_dir: Path) -> Tes
         cmd_args=NCCLCmdArgs(),
         extra_env_vars={"TEST_VAR": "VALUE"},
     )
-    test_template = TestTemplate(slurm_system, "nccl")
+    test_template = TestTemplate(slurm_system)
     test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(slurm_system, test_def.cmd_args_dict)
     test = Test(test_definition=test_def, test_template=test_template)
     return TestRun(name=name, test=test, num_nodes=1, nodes=["node1"], output_path=output_dir / name)

@@ -65,15 +65,22 @@ class SlurmReportItem:
 
     @classmethod
     def get_metadata(cls, run_dir: Path) -> Optional[SlurmSystemMetadata]:
-        if (run_dir / "metadata").exists():
-            node_files = list(run_dir.glob("metadata/node-*.toml"))
-            if node_files:
-                node_file = node_files[0]
-                with node_file.open() as f:
-                    try:
-                        return SlurmSystemMetadata.model_validate(toml.load(f))
-                    except Exception as e:
-                        logging.debug(f"Error validating metadata for {node_file}: {e}")
+        if not (run_dir / "metadata").exists():
+            logging.debug(f"No metadata folder found in {run_dir}")
+            return None
+
+        node_files = list(run_dir.glob("metadata/node-*.toml"))
+        if not node_files:
+            logging.debug(f"No node files found in {run_dir}/metadata")
+            return None
+
+        node_file = node_files[0]
+        with node_file.open() as f:
+            try:
+                return SlurmSystemMetadata.model_validate(toml.load(f))
+            except Exception as e:
+                logging.debug(f"Error validating metadata for {node_file}: {e}")
+
         return None
 
     @classmethod
