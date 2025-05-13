@@ -14,14 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai.registry import Registry
 
 from .case_reporters import PerTestReporter
 from .scenario_reporters import StatusReporter, TarballReporter
-
-Registry().add_scenario_report(StatusReporter)
-Registry().add_scenario_report(TarballReporter)
-Registry().add_scenario_report(PerTestReporter)
 
 __all__ = [
     "PerTestReporter",

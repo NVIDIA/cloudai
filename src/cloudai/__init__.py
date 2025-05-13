@@ -53,7 +53,10 @@ from .exceptions import (
     TestScenarioParsingError,
     format_validation_error,
 )
+
+# initialize default registry
 from .registry import Registry
+from .reporters import PerTestReporter, StatusReporter, TarballReporter
 from .systems.kubernetes import KubernetesSystem
 from .systems.lsf import LSFSystem
 from .systems.runai import RunAISystem
@@ -91,6 +94,10 @@ registry.add_test_definition("Sleep", SleepTestDefinition)
 registry.add_test_definition("SlurmContainer", SlurmContainerTestDefinition)
 registry.add_test_definition("TritonInference", TritonInferenceTestDefinition)
 registry.add_test_definition("UCCTest", UCCTestDefinition)
+
+registry.add_scenario_report(PerTestReporter)
+registry.add_scenario_report(StatusReporter)
+registry.add_scenario_report(TarballReporter)
 
 __all__ = [
     "METRIC_ERROR",
