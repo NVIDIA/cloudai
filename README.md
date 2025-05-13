@@ -3,7 +3,7 @@
 CloudAI benchmark framework aims to develop an industry standard benchmark focused on grading Data Center (DC) scale AI systems in the Cloud. The primary motivation is to provide automated benchmarking on various systems.
 
 ## Get Started
-**Note**: instructions for inslatting a custom python version are available [here](#install-custom-python-version).
+**Note**: instructions for installing a custom python version are available [here](#install-custom-python-version).
 
 **Note**: instructions for setting up access for `enroot` are available [here](#set-up-access-to-the-private-ngc-registry).
 
