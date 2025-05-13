@@ -23,7 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_valid
 from .._core.installables import GitRepo
 from .._core.registry import Registry
 from .._core.test_scenario import TestRun
-from .workload import CmdArgs, NsysConfiguration, TestDefinition
+from .workload import CmdArgs, NsysConfiguration
 
 
 class TestRunDependencyModel(BaseModel):
@@ -164,6 +164,9 @@ class TestRunDetails(BaseModel):
 
     Used for storing a single test run with all fields set during command generation.
     """
+
+    __test__ = False
+    model_config = ConfigDict(extra="forbid")
 
     name: str
     nnodes: int
