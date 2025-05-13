@@ -54,11 +54,24 @@ class TestTemplate:
             system (System): System configuration for the test template.
         """
         self.system = system
-        self.command_gen_strategy: Optional[CommandGenStrategy] = None
+        self._command_gen_strategy: Optional[CommandGenStrategy] = None
         self.json_gen_strategy: Optional[JsonGenStrategy] = None
         self.job_id_retrieval_strategy: Optional[JobIdRetrievalStrategy] = None
         self.job_status_retrieval_strategy: Optional[JobStatusRetrievalStrategy] = None
         self.grading_strategy: Optional[GradingStrategy] = None
+
+    @property
+    def command_gen_strategy(self) -> CommandGenStrategy:
+        if self._command_gen_strategy is None:
+            raise ValueError(
+                "command_gen_strategy is missing. Ensure the strategy is registered in the Registry "
+                "by calling the appropriate registration function for the system type."
+            )
+        return self._command_gen_strategy
+
+    @command_gen_strategy.setter
+    def command_gen_strategy(self, value: CommandGenStrategy) -> None:
+        self._command_gen_strategy = value
 
     def gen_exec_command(self, tr: TestRun) -> str:
         """
@@ -70,11 +83,6 @@ class TestTemplate:
         Returns:
             str: The generated execution command.
         """
-        if self.command_gen_strategy is None:
-            raise ValueError(
-                "command_gen_strategy is missing. Ensure the strategy is registered in the Registry "
-                "by calling the appropriate registration function for the system type."
-            )
         return self.command_gen_strategy.gen_exec_command(tr)
 
     def gen_json(self, tr: TestRun) -> Dict[Any, Any]:

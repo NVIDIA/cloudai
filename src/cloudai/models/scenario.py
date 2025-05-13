@@ -14,13 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
+from pathlib import Path
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_validator
 
 from .._core.installables import GitRepo
 from .._core.registry import Registry
-from .workload import CmdArgs, NsysConfiguration
+from .._core.test_scenario import TestRun
+from .workload import CmdArgs, NsysConfiguration, TestDefinition
 
 
 class TestRunDependencyModel(BaseModel):
@@ -153,3 +156,41 @@ class TestScenarioModel(BaseModel):
                     raise ValueError(f"Dependency section '{dep.id}' not found for test '{tr.id}'.")
 
         return self
+
+
+class TestRunDetails(BaseModel):
+    """
+    Model for test run dump.
+
+    Used for storing a single test run with all fields set during command generation.
+    """
+
+    name: str
+    nnodes: int
+    nodes: list[str] = []
+    output_path: Path
+    iterations: int
+    current_iteration: int
+    step: int
+    test_cmd: str
+    full_cmd: str
+    env_vars: dict[str, str]
+
+    @field_serializer("output_path")
+    def _path_serializer(self, v: Path) -> str:
+        return str(v.absolute())
+
+    @classmethod
+    def from_test_run(cls, tr: TestRun, test_cmd: str, full_cmd: str, env_vars: dict[str, str]) -> "TestRunDetails":
+        return cls(
+            name=tr.name,
+            nnodes=tr.num_nodes,
+            nodes=tr.nodes,
+            output_path=tr.output_path,
+            iterations=tr.iterations,
+            current_iteration=tr.current_iteration,
+            step=tr.step,
+            test_cmd=test_cmd,
+            full_cmd=full_cmd,
+            env_vars=copy.deepcopy(env_vars),
+        )

@@ -19,7 +19,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, cast, final
 
+import toml
+
 from cloudai import CommandGenStrategy, Registry, TestRun, TestScenario
+from cloudai.models.scenario import TestRunDetails
 from cloudai.systems import SlurmSystem
 
 
@@ -48,6 +51,13 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     def _container_mounts(self, tr: TestRun) -> list[str]:
         """Return CommandGenStrategy specific container mounts for the test run."""
         ...
+
+    def store_test_run(self, tr: TestRun) -> None:
+        env_vars = {k: f"{v}" for k, v in (self.system.global_env_vars | tr.test.extra_env_vars).items()}
+        test_cmd, srun_cmd = " ".join(self.generate_test_command({}, {}, tr)), self.gen_srun_command(tr)
+        with (tr.output_path / self.TEST_RUN_DUMP_FILE_NAME).open("w") as f:
+            trd = TestRunDetails.from_test_run(tr, test_cmd=test_cmd, full_cmd=srun_cmd, env_vars=env_vars)
+            toml.dump(trd.model_dump(), f)
 
     @final
     def container_mounts(self, tr: TestRun) -> list[str]:
