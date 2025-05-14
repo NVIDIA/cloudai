@@ -183,3 +183,18 @@ def test_apply_action(setup_env: tuple[TestRun, Runner]):
                 assert new_tr.test.test_definition.extra_env_vars[key[len("extra_env_vars.") :]] == value
             else:
                 assert cmd_args[key] == value
+
+
+def test_apply_action_validated(setup_env: tuple[TestRun, Runner], nemorun: NeMoRunTestDefinition):
+    tr, _ = setup_env
+    nemorun.cmd_args.trainer = Trainer(max_steps=[1000])
+    tr.test.test_definition = nemorun
+    action_space = tr.action_space
+    action_space["trainer.max_steps"] = "invalid"
+
+    with pytest.raises(UserWarning) as excinfo:
+        tr.apply_action(action_space)
+
+    assert excinfo.type is UserWarning
+    assert "Pydantic serializer warnings:" in str(excinfo.value)
+    assert "but got `str`" in str(excinfo.value)
