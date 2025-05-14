@@ -1,26 +1,22 @@
-<html>
-    <head>
-        <title>{{ name }}</title>
-    </head>
-    <body>
-        <h1>{{ name }}</h1>
-    </body>
-    <table>
-        <tr>
-            <th>Test</th>
-            <th>Description</th>
-            <th>Results</th>
-        </tr>
-        {% for item in report_items %}
-        <tr>
-            <td>{{ item.name }}</td>
-            <td>{{ item.description }}</td>
-            {% if item.logs_path %}
-                <td><a href="{{ item.logs_path }}">logs</a></td>
-            {% else %}
+{% extends "base-report.jinja2" %}
+
+{% block content %}
+<table>
+    <tr>
+        <th>Test</th>
+        <th>Description</th>
+        <th>Results</th>
+    </tr>
+    {% for item in report_items %}
+    <tr>
+        <td>{{ item.name }}</td>
+        <td>{{ item.description }}</td>
+        {% if item.logs_path %}
+            <td><a href="{{ item.logs_path }}">logs</a></td>
+        {% else %}
             <td>no logs</td>
-            {% endif %}
-        </tr>
-        {% endfor %}
-    </table>
-</html>
+        {% endif %}
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}

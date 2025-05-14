@@ -16,6 +16,7 @@
 
 
 from .data_store_report_generation_strategy import NeMoRunDataStoreReportGenerationStrategy
+from .job_status_retrieval_strategy import NeMoRunJobStatusRetrievalStrategy
 from .nemo_run import Data, Log, LogCkpt, NeMoRunCmdArgs, NeMoRunTestDefinition, Trainer, TrainerStrategy
 from .report_generation_strategy import NeMoRunReportGenerationStrategy
 from .slurm_command_gen_strategy import NeMoRunSlurmCommandGenStrategy
@@ -26,6 +27,7 @@ __all__ = [
     "LogCkpt",
     "NeMoRunCmdArgs",
     "NeMoRunDataStoreReportGenerationStrategy",
+    "NeMoRunJobStatusRetrievalStrategy",
     "NeMoRunReportGenerationStrategy",
     "NeMoRunSlurmCommandGenStrategy",
     "NeMoRunTestDefinition",

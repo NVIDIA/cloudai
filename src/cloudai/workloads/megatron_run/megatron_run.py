@@ -20,14 +20,16 @@ from typing import Optional, Tuple, Union
 
 from pydantic import Field, field_validator, model_validator
 
-from cloudai import CmdArgs, DockerImage, Installable, TestDefinition
+from cloudai import DockerImage, Installable
+
+from ...models.workload import CmdArgs, TestDefinition
 
 
 class MegatronRunCmdArgs(CmdArgs):
     """MegatronRun test command arguments."""
 
-    docker_image_url: str = Field(exclude=True)
-    run_script: Path = Field(exclude=True)
+    docker_image_url: str = Field()
+    run_script: Path = Field()
 
     global_batch_size: Optional[int] = 16
     hidden_size: Optional[int] = 4096
@@ -63,8 +65,8 @@ class MegatronRunCmdArgs(CmdArgs):
 
     @property
     def cmd_args(self) -> dict[str, Union[str, list[str]]]:
-        args = self.model_dump(exclude_none=True)
-        args = {f'--{k.replace("_", "-")}': v for k, v in args.items()}
+        args = self.model_dump(exclude_none=True, exclude={"docker_image_url", "run_script"})
+        args = {f"--{k.replace('_', '-')}": v for k, v in args.items()}
         return args
 
 
@@ -117,7 +119,7 @@ class MegatronRunTestDefinition(TestDefinition):
 
         if not src_mount:
             raise ValueError(
-                f"Path {path} is not mounted in the container. " f"Please check the 'extra_container_mounts' field."
+                f"Path {path} is not mounted in the container. Please check the 'extra_container_mounts' field."
             )
 
         if not Path(expandvars(src_mount)).exists():

@@ -21,7 +21,7 @@ import pytest
 import toml
 from pydantic import ValidationError
 
-from cloudai import GitRepo, NsysConfiguration, Parser, PythonExecutable, Registry, TestConfigParsingError, TestParser
+from cloudai import NsysConfiguration, Parser, Registry, TestConfigParsingError, TestDefinition, TestParser
 from cloudai.workloads.chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
@@ -36,10 +36,13 @@ from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.workloads.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
 from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
 from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition
-from tests.conftest import MyTestDefinition
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
-ALL_TESTS = [t for t in TOML_FILES if "test_template_name" in t.read_text()]
+ALL_TESTS = []
+for t in TOML_FILES:
+    content = t.read_text()
+    if "test_template_name" in content and "[[Tests]]" not in content:
+        ALL_TESTS.append(t)
 
 
 @pytest.mark.parametrize(
@@ -52,7 +55,7 @@ ALL_TESTS = [t for t in TOML_FILES if "test_template_name" in t.read_text()]
     ],
 )
 def test_extra_args_str(input: dict, expected: str):
-    t = MyTestDefinition(name="test", description="test", test_template_name="test", cmd_args={}, extra_cmd_args=input)
+    t = TestDefinition(name="test", description="test", test_template_name="test", cmd_args={}, extra_cmd_args=input)
     assert t.extra_args_str == expected
 
 
@@ -121,14 +124,7 @@ def test_chakra_docker_image_is_required():
             name="chakra",
             description="desc",
             test_template_name="chakra",
-            cmd_args=ChakraReplayCmdArgs(
-                docker_image_url="fake://url/chakra",
-                warmup_iters=0,
-                iters=10,
-            ),
-            comm_replay_executable=PythonExecutable(
-                git_repo=GitRepo(url="./git_repo", commit="commit"),
-            ),
+            cmd_args=ChakraReplayCmdArgs(docker_image_url="fake://url/chakra"),
         ),
     ],
 )
@@ -294,11 +290,6 @@ class TestMegatronRun:
         )
         assert megatron_run.cmd_args_dict["--tokenizer-model"] == Path("/path/to/tokenizer")
         assert megatron_run.cmd_args.tokenizer_model == Path("/path/to/tokenizer")
-
-    def test_auxiliary_fields_not_in_model_dump(self, megatron_run: MegatronRunTestDefinition):
-        d = megatron_run.cmd_args.model_dump()
-        assert "docker_image_url" not in d
-        assert "run_script" not in d
 
     @pytest.mark.parametrize("field", ["load", "save"])
     def test_load_is_set_but_not_mounted(self, field: str):
