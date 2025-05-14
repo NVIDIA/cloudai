@@ -275,7 +275,12 @@ class TestScenarioParser:
             if test_info.test_name not in self.test_mapping:
                 raise ValueError(f"Test '{test_info.test_name}' is not defined. Was tests directory correctly set?")
             test = self.test_mapping[test_info.test_name]
-        elif test_info.test_template_name:
+
+            test_defined = test.test_definition.model_dump()
+            tc_defined = test_info.tdef_model_dump()
+            merged_data = deep_merge(test_defined, tc_defined)
+            test.test_definition = tp.load_test_definition(merged_data, self.strict)
+        elif test_info.test_template_name:  # test fully defined in the scenario
             test = tp._parse_data(test_info.tdef_model_dump(), self.strict)
         else:
             # this should never happen, because we check for this in the modelvalidator
@@ -283,8 +288,17 @@ class TestScenarioParser:
                 f"Cannot configure test case '{test_info.id}' with both 'test_name' and 'test_template_name'."
             )
 
-        merged_data = test.test_definition.model_dump()
-        merged_data.update(test_info.tdef_model_dump())
-        tdef = tp.load_test_definition(merged_data, self.strict)
+        return test, test.test_definition
 
-        return test, tdef
+
+def deep_merge(a: dict, b: dict):
+    result = a.copy()
+    for key in b:
+        if key in result:
+            if isinstance(result[key], dict) and isinstance(b[key], dict):
+                result[key] = deep_merge(result[key], b[key])
+            else:
+                result[key] = b[key]
+        else:
+            result[key] = b[key]
+    return result

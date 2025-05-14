@@ -75,8 +75,8 @@ class TestRunModel(BaseModel):
             "agent_steps": self.agent_steps,
             "agent_metric": self.agent_metric,
             "extra_container_mounts": self.extra_container_mounts,
-            "cmd_args": self.cmd_args.model_dump() if self.cmd_args else None,
             "extra_env_vars": self.extra_env_vars if self.extra_env_vars else None,
+            "cmd_args": self.cmd_args.model_dump() if self.cmd_args else None,
             "git_repos": [repo.model_dump() for repo in self.git_repos] if self.git_repos else None,
             "nsys": self.nsys.model_dump() if self.nsys else None,
         }
