@@ -53,10 +53,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         ...
 
     def store_test_run(self, tr: TestRun) -> None:
-        env_vars = {k: f"{v}" for k, v in (self.system.global_env_vars | tr.test.extra_env_vars).items()}
         test_cmd, srun_cmd = " ".join(self.generate_test_command({}, {}, tr)), self.gen_srun_command(tr)
         with (tr.output_path / self.TEST_RUN_DUMP_FILE_NAME).open("w") as f:
-            trd = TestRunDetails.from_test_run(tr, test_cmd=test_cmd, full_cmd=srun_cmd, env_vars=env_vars)
+            trd = TestRunDetails.from_test_run(tr, test_cmd=test_cmd, full_cmd=srun_cmd)
             toml.dump(trd.model_dump(), f)
 
     @final
