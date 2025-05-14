@@ -46,7 +46,7 @@ class LazyImports:
         self._bokeh_pallettes: ModuleType | None = None
 
     @property
-    def np(self) -> "np":  # type: ignore[no-any-return]
+    def np(self) -> np:  # type: ignore[no-any-return]
         """Lazy import of numpy."""
         if self._np is None:
             import numpy as np
@@ -55,7 +55,7 @@ class LazyImports:
         return cast("np", self._np)
 
     @property
-    def pd(self) -> "pd":  # type: ignore[no-any-return]
+    def pd(self) -> pd:  # type: ignore[no-any-return]
         """Lazy import of pandas."""
         if self._pd is None:
             import pandas as pd
@@ -64,7 +64,7 @@ class LazyImports:
         return cast("pd", self._pd)
 
     @property
-    def k8s(self) -> "k8s":  # type: ignore[no-any-return]
+    def k8s(self) -> k8s:  # type: ignore[no-any-return]
         """Lazy import of kubernetes."""
         if self._k8s is None:
             import kubernetes as k8s
@@ -74,7 +74,7 @@ class LazyImports:
         return cast("k8s", self._k8s)
 
     @property
-    def bokeh(self) -> "bokeh":  # type: ignore[no-any-return]
+    def bokeh(self) -> bokeh:  # type: ignore[no-any-return]
         """Lazy import of bokeh."""
         if self._bokeh is None:
             import bokeh as bokeh
@@ -84,7 +84,7 @@ class LazyImports:
         return cast("bokeh", self._bokeh)
 
     @property
-    def bokeh_plotting(self) -> "bokeh_plotting":  # type: ignore[no-any-return]
+    def bokeh_plotting(self) -> bokeh_plotting:  # type: ignore[no-any-return]
         """Lazy import of bokeh.plotting."""
         if self._bokeh_plotting is None:
             import bokeh.plotting as bokeh_plotting
@@ -94,7 +94,7 @@ class LazyImports:
         return cast("bokeh_plotting", self._bokeh_plotting)
 
     @property
-    def bokeh_models(self) -> "bokeh_models":  # type: ignore[no-any-return]
+    def bokeh_models(self) -> bokeh_models:  # type: ignore[no-any-return]
         """Lazy import of bokeh.models."""
         if self._bokeh_models is None:
             import bokeh.models as bokeh_models
@@ -104,7 +104,7 @@ class LazyImports:
         return cast("bokeh_models", self._bokeh_models)
 
     @property
-    def bokeh_layouts(self) -> "bokeh_layouts":  # type: ignore[no-any-return]
+    def bokeh_layouts(self) -> bokeh_layouts:  # type: ignore[no-any-return]
         """Lazy import of bokeh.layouts."""
         if self._bokeh_layouts is None:
             import bokeh.layouts as bokeh_layouts
@@ -114,7 +114,7 @@ class LazyImports:
         return cast("bokeh_layouts", self._bokeh_layouts)
 
     @property
-    def bokeh_transform(self) -> "bokeh_transform":  # type: ignore[no-any-return]
+    def bokeh_transform(self) -> bokeh_transform:  # type: ignore[no-any-return]
         """Lazy import of bokeh.transform."""
         if self._bokeh_transform is None:
             import bokeh.transform as bokeh_transform
@@ -124,7 +124,7 @@ class LazyImports:
         return cast("bokeh_transform", self._bokeh_transform)
 
     @property
-    def bokeh_pallettes(self) -> "bokeh_pallettes":  # type: ignore[no-any-return]
+    def bokeh_pallettes(self) -> bokeh_pallettes:  # type: ignore[no-any-return]
         """Lazy import of bokeh.palettes."""
         if self._bokeh_pallettes is None:
             import bokeh.palettes as bokeh_pallettes
