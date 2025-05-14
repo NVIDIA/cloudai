@@ -164,6 +164,7 @@ class StatusReporter(Reporter):
     def generate(self) -> None:
         self.load_test_runs()
         self.generate_scenario_report()
+        self.report_best_dse_config()
 
     def generate_scenario_report(self) -> None:
         template = jinja2.Environment(
@@ -199,8 +200,9 @@ class StatusReporter(Reporter):
             with best_step_details.open() as f:
                 trd = TestRunDetails.model_validate(toml.load(f))
 
-            with (self.results_root / tr.name / "best-config.toml").open("w") as f:
+            with (tr_root / "best-config.toml").open("w") as f:
                 toml.dump(trd.test_definition.model_dump(), f)
+                logging.info(f"Wrote best config for {tr.name} to {self.results_root / tr.name / 'best-config.toml'}")
 
 
 class TarballReporter(Reporter):

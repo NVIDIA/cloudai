@@ -130,5 +130,5 @@ def test_best_dse_config(dse_tr: TestRun, slurm_system: SlurmSystem) -> None:
         slurm_system, TestScenario(name="test_scenario", test_runs=[dse_tr]), slurm_system.output_path
     )
     reporter.report_best_dse_config()
-    best_config_path = reporter.results_root / dse_tr.name / "best-config.toml"
+    best_config_path = reporter.results_root / dse_tr.name / f"{dse_tr.current_iteration}" / "best-config.toml"
     assert best_config_path.exists()
