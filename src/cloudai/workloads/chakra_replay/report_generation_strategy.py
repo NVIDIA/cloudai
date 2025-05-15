@@ -14,19 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import re
 from math import pi
 from pathlib import Path
-from typing import Dict
+from typing import TYPE_CHECKING, Dict
 
-import pandas as pd
-from bokeh.layouts import column
-from bokeh.models import ColumnDataSource, DataTable, Div, TableColumn, Title
-from bokeh.palettes import Turbo256
-from bokeh.plotting import figure, output_file, save
-from bokeh.transform import cumsum
+if TYPE_CHECKING:
+    import pandas as pd
+
 
 from cloudai import ReportGenerationStrategy
+from cloudai.util.lazy_imports import lazy
 
 
 class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
@@ -113,13 +113,13 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
                     data_values.append(current_values)
                 else:
                     if op_name and data_values:
-                        df = pd.DataFrame(data_values, columns=headers[: len(data_values[0])])
+                        df = lazy.pd.DataFrame(data_values, columns=headers[: len(data_values[0])])
                         comms_data[op_name] = df
                         data_started = False
                         data_values = []
 
         if op_name and data_values:
-            df = pd.DataFrame(data_values, columns=headers[: len(data_values[0])])
+            df = lazy.pd.DataFrame(data_values, columns=headers[: len(data_values[0])])
             comms_data[op_name] = df
 
         return comms_data
@@ -162,7 +162,7 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
             op_name_match = re.search(r"\+ (\d+) (\w+)", line)
             if op_name_match:
                 if op_name and section and data_values:
-                    df = pd.DataFrame(data_values, columns=headers)
+                    df = lazy.pd.DataFrame(data_values, columns=headers)
                     tensor_sizes[op_name][section] = df
 
                 # Reset for new operation
@@ -174,7 +174,7 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
             elif "Input tensors" in line or "Output tensors" in line:
                 # Save previous section (Input/Output) before starting new section
                 if op_name and section and data_values:
-                    df = pd.DataFrame(data_values, columns=headers)
+                    df = lazy.pd.DataFrame(data_values, columns=headers)
                     tensor_sizes[op_name][section] = df
                     data_values = []  # Reset for new section
 
@@ -187,7 +187,7 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
 
         # Save the last collected data for the last operation
         if op_name and section and data_values:
-            df = pd.DataFrame(data_values, columns=headers)
+            df = lazy.pd.DataFrame(data_values, columns=headers)
             tensor_sizes[op_name][section] = df
 
         return tensor_sizes
@@ -214,26 +214,26 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
                           and output tensor sizes.
         """
         # Generate and configure pie chart for communications data
-        data = pd.Series(comms_data).reset_index(name="value").rename(columns={"index": "comm"})
+        data = lazy.pd.Series(comms_data).reset_index(name="value").rename(columns={"index": "comm"})
         data["angle"] = data["value"] / data["value"].sum() * 2 * pi
-        data["color"] = [Turbo256[i * int(256 / len(data))] for i in range(len(data))]
+        data["color"] = [lazy.bokeh_pallettes.Turbo256[i * int(256 / len(data))] for i in range(len(data))]
         data["percentage"] = (data["value"] / data["value"].sum() * 100).apply(lambda x: f"{x:.2f}%")
 
-        source = ColumnDataSource(data)
-        p = figure(
+        source = lazy.bokeh_models.ColumnDataSource(data)
+        p = lazy.bokeh_plotting.figure(
             height=350,
             toolbar_location="right",
             tools="hover",
             tooltips="@comm: @value (@percentage)",
             x_range=(-0.5, 1.5),
         )
-        p.add_layout(Title(text="Comm Types Distribution", align="center"), "above")
+        p.add_layout(lazy.bokeh_models.Title(text="Comm Types Distribution", align="center"), "above")
         p.wedge(
             x=0,
             y=1,
             radius=0.4,
-            start_angle=cumsum("angle", include_zero=True),
-            end_angle=cumsum("angle"),
+            start_angle=lazy.bokeh_transform.cumsum("angle", include_zero=True),
+            end_angle=lazy.bokeh_transform.cumsum("angle"),
             line_color="white",
             fill_color="color",
             legend_field="comm",
@@ -241,19 +241,19 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
         )
 
         # Generate DataTable for latency metrics
-        merged_df = pd.DataFrame(columns=["Comm Type"])
+        merged_df = lazy.pd.DataFrame(columns=["Comm Type"])
         for comm_type, df in latency_tables.items():
             df["Comm Type"] = comm_type
             df = df[["Comm Type"] + [col for col in df.columns if col != "Comm Type"]]
-            merged_df = pd.concat([merged_df, df], ignore_index=True)
+            merged_df = lazy.pd.concat([merged_df, df], ignore_index=True)
 
-        table_title_div = Div(
+        table_title_div = lazy.bokeh_models.Div(
             text="<h2>Latency Metrics by Communication Type</h2>",
             sizing_mode="stretch_width",
         )
-        source = ColumnDataSource(merged_df)
-        columns = [TableColumn(field=col, title=col) for col in merged_df.columns]
-        data_table = DataTable(
+        source = lazy.bokeh_models.ColumnDataSource(merged_df)
+        columns = [lazy.bokeh_models.TableColumn(field=col, title=col) for col in merged_df.columns]
+        data_table = lazy.bokeh_models.DataTable(
             source=source,
             columns=columns,
             width=800,
@@ -261,21 +261,21 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
             index_position=None,
         )
 
-        layout = column(p, table_title_div, data_table)
+        layout = lazy.bokeh_layouts.column(p, table_title_div, data_table)
 
         # Generate merged DataFrame for tensor sizes
         merged_tensor_sizes = self._transform_and_merge_tensor_sizes(tensor_sizes)
 
         # Add a title for the merged table
-        table_title_div = Div(
+        table_title_div = lazy.bokeh_models.Div(
             text="<h2>Tensor Sizes by Communication Type</h2>",
             sizing_mode="stretch_width",
         )
 
         # Create DataTable from the merged DataFrame
-        source = ColumnDataSource(merged_tensor_sizes)
-        columns = [TableColumn(field=col, title=col) for col in merged_tensor_sizes.columns]
-        data_table = DataTable(
+        source = lazy.bokeh_models.ColumnDataSource(merged_tensor_sizes)
+        columns = [lazy.bokeh_models.TableColumn(field=col, title=col) for col in merged_tensor_sizes.columns]
+        data_table = lazy.bokeh_models.DataTable(
             source=source,
             columns=columns,
             width=800,
@@ -284,14 +284,14 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
         )
 
         # Layout configuration (assuming latency data table layout is already defined as `layout_latency`)
-        layout_final = column(layout, table_title_div, data_table)  # Combine layouts
+        layout_final = lazy.bokeh_layouts.column(layout, table_title_div, data_table)  # Combine layouts
 
         # Generate and save the report
         output_filepath = self.test_run.output_path / "chakra_replay_report.html"
         if output_filepath.exists():
             output_filepath.unlink()
-        output_file(output_filepath)
-        save(layout_final)  # Generates an HTML file with the specified filename
+        lazy.bokeh_plotting.output_file(output_filepath)
+        lazy.bokeh_plotting.save(layout_final)  # Generates an HTML file with the specified filename
 
     def _transform_and_merge_tensor_sizes(self, tensor_sizes):
         """
@@ -305,14 +305,14 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
         Returns:
             A single merged DataFrame with 'Comm Type' and 'Type' columns added.
         """
-        merged_df = pd.DataFrame()
+        merged_df = lazy.pd.DataFrame()
 
         for op_name, sizes in tensor_sizes.items():
             for io_type, df in sizes.items():
                 if df is not None:
                     df["Comm Type"] = op_name
                     df["Type"] = io_type.capitalize()  # 'Input' or 'Output'
-                    merged_df = pd.concat([merged_df, df], ignore_index=True)
+                    merged_df = lazy.pd.concat([merged_df, df], ignore_index=True)
 
         # Reorder columns to have 'Comm Type' and 'Type' at the beginning
         cols = ["Comm Type", "Type"] + [col for col in merged_df.columns if col not in ["Comm Type", "Type"]]
