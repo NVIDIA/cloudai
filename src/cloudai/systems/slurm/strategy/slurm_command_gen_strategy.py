@@ -256,7 +256,10 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         srun_command_parts = self.gen_srun_prefix(slurm_args, tr, use_pretest_extras=True)
         nsys_command_parts = self.gen_nsys_command(tr)
         test_command_parts = self.generate_test_command(env_vars, cmd_args, tr)
-        return " ".join(srun_command_parts + nsys_command_parts + test_command_parts)
+
+        full_test_cmd = 'bash -c "' + " ".join(nsys_command_parts + test_command_parts) + '"'
+
+        return " ".join(srun_command_parts) + " " + full_test_cmd
 
     def gen_srun_prefix(self, slurm_args: Dict[str, Any], tr: TestRun, use_pretest_extras: bool = False) -> List[str]:
         srun_command_parts = ["srun", "--export=ALL", f"--mpi={self.system.mpi}"]
