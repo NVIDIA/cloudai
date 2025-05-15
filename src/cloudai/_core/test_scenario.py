@@ -16,7 +16,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, Set, Type
+from typing import TYPE_CHECKING, List, Optional, Set, Type, Union
 
 from .system import System
 
@@ -54,7 +54,7 @@ class TestRun:
 
     name: str
     test: "Test"
-    num_nodes: int
+    num_nodes: Union[int, list[int]]
     nodes: List[str]
     output_path: Path = Path("")
     iterations: int = 1
@@ -98,6 +98,28 @@ class TestRun:
             return METRIC_ERROR
 
         return report(system, self).get_metric(self.test.test_definition.agent_metric)
+
+    @property
+    def is_dse_job(self) -> bool:
+        def check_dict(d: dict) -> bool:
+            if isinstance(d, dict):
+                for value in d.values():
+                    if isinstance(value, list) or (isinstance(value, dict) and check_dict(value)):
+                        return True
+            return False
+
+        return (
+            check_dict(self.test.test_definition.cmd_args_dict)
+            or check_dict(self.test.test_definition.extra_env_vars)
+            or isinstance(self.num_nodes, list)
+        )
+
+    @property
+    def nnodes(self) -> int:
+        """Type safe getter for num_nodes, should only be used on an unrolled DSE job."""
+        if isinstance(self.num_nodes, list):
+            raise TypeError("num_nodes is a list, cannot be used as a scalar.")
+        return self.num_nodes
 
 
 class TestScenario:

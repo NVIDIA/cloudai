@@ -71,7 +71,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """Update environment variables."""
         env_vars = tr.test.test_definition.extra_env_vars
         cmd_args = tr.test.test_definition.cmd_args_dict
-        num_nodes = len(tr.nodes) if tr.nodes else tr.num_nodes
+        num_nodes = len(tr.nodes) if tr.nodes else tr.nnodes
 
         self._update_per_gpu_combine_threshold(env_vars, cmd_args, num_nodes)
         self._update_xla_flags(env_vars, cmd_args)
