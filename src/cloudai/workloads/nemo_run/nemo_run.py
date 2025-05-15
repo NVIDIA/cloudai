@@ -166,8 +166,11 @@ class NeMoRunTestDefinition(TestDefinition):
         return constraint1 and constraint2 and constraint3 and constraint4
 
     @property
-    def num_train_samples(self) -> int:
+    def num_train_samples(self) -> Optional[int]:
         """Calculate num_train_samples based on global_batch_size and max_steps."""
-        global_batch_size = cast(int, self.cmd_args.data.global_batch_size)
-        max_steps = cast(int, self.cmd_args.trainer.max_steps)
-        return global_batch_size * max_steps
+        gbs = self.cmd_args.data.global_batch_size
+        max_steps = self.cmd_args.trainer.max_steps
+
+        if isinstance(gbs, int) and isinstance(max_steps, int):
+            return gbs * max_steps
+        return None

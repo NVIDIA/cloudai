@@ -16,6 +16,7 @@
 
 from pathlib import Path
 from typing import Union, cast
+from unittest.mock import MagicMock
 
 import pytest
 import toml
@@ -34,7 +35,7 @@ from cloudai.workloads.jax_toolbox import (
 from cloudai.workloads.megatron_run import MegatronRunCmdArgs, MegatronRunTestDefinition
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.workloads.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
-from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
+from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition, Trainer, Data
 from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
@@ -361,3 +362,45 @@ class TestMegatronRun:
                 "extra_container_mounts": [mount],
             }
         )
+
+
+def test_nemorun_num_train_samples_static():
+    """Test the num_train_samples property with static values."""
+    mock_data = Data(global_batch_size=16)
+    mock_trainer = Trainer(max_steps=100)
+
+    cmd_args = NeMoRunCmdArgs(
+        docker_image_url="fake://url/nemo",
+        task="task",
+        recipe_name="recipe",
+        data=mock_data,
+        trainer=mock_trainer,
+    )
+    test_def = NeMoRunTestDefinition(
+        name="nemo_test",
+        description="desc",
+        test_template_name="nemo",
+        cmd_args=cmd_args,
+    )
+    assert test_def.num_train_samples == 1600
+
+
+def test_nemorun_num_train_samples_list():
+    """Test the num_train_samples property with list values."""
+    mock_data = Data(global_batch_size=[16, 32])
+    mock_trainer = Trainer(max_steps=[100, 200])
+
+    cmd_args = NeMoRunCmdArgs(
+        docker_image_url="fake://url/nemo",
+        task="task",
+        recipe_name="recipe",
+        data=mock_data,
+        trainer=mock_trainer,
+    )
+    test_def = NeMoRunTestDefinition(
+        name="nemo_test",
+        description="desc",
+        test_template_name="nemo",
+        cmd_args=cmd_args,
+    )
+    assert test_def.num_train_samples is None
