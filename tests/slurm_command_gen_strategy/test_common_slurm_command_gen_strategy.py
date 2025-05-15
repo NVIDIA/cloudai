@@ -255,9 +255,10 @@ def test_pre_post_combinations(
 def test_default_container_mounts(strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun):
     testrun_fixture.output_path = Path("./")
     mounts = strategy_fixture.container_mounts(testrun_fixture)
-    assert len(mounts) == 2
+    assert len(mounts) == 3
     assert mounts[0] == f"{testrun_fixture.output_path.absolute()}:/cloudai_run_results"
     assert mounts[1] == f"{strategy_fixture.system.install_path.absolute()}:/cloudai_install"
+    assert mounts[2] == f"{testrun_fixture.output_path.absolute()}"
 
 
 def test_append_sbatch_directives(strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun):
@@ -281,10 +282,11 @@ def test_default_container_mounts_with_extra_mounts(strategy_fixture: SlurmComma
     t = Test(test_definition=nccl, test_template=Mock())
     tr = TestRun(name="t1", test=t, num_nodes=1, nodes=[], output_path=Path("./"))
     mounts = strategy_fixture.container_mounts(tr)
-    assert len(mounts) == 3
+    assert len(mounts) == 4
     assert mounts[0] == f"{tr.output_path.absolute()}:/cloudai_run_results"
-    assert mounts[1] == "/host:/container"
-    assert mounts[2] == f"{strategy_fixture.system.install_path.absolute()}:/cloudai_install"
+    assert mounts[1] == f"{strategy_fixture.system.install_path.absolute()}:/cloudai_install"
+    assert mounts[2] == f"{tr.output_path.absolute()}"
+    assert mounts[3] == "/host:/container"
 
 
 def test_default_container_mounts_with_git_repos(strategy_fixture: SlurmCommandGenStrategy):
@@ -300,11 +302,12 @@ def test_default_container_mounts_with_git_repos(strategy_fixture: SlurmCommandG
     t = Test(test_definition=nccl, test_template=Mock())
     tr = TestRun(name="t1", test=t, num_nodes=1, nodes=[], output_path=Path("./"))
     mounts = strategy_fixture.container_mounts(tr)
-    assert len(mounts) == 4
+    assert len(mounts) == 5
     assert mounts[0] == f"{tr.output_path.absolute()}:/cloudai_run_results"
-    assert mounts[1] == f"{repo1.installed_path}:{repo1.container_mount}"
-    assert mounts[2] == f"{repo2.installed_path}:{repo2.container_mount}"
-    assert mounts[3] == f"{strategy_fixture.system.install_path.absolute()}:/cloudai_install"
+    assert mounts[1] == f"{strategy_fixture.system.install_path.absolute()}:/cloudai_install"
+    assert mounts[2] == f"{tr.output_path.absolute()}"
+    assert mounts[3] == f"{repo1.installed_path}:{repo1.container_mount}"
+    assert mounts[4] == f"{repo2.installed_path}:{repo2.container_mount}"
 
 
 def test_ranks_mapping_cmd(strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun):

@@ -61,10 +61,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         mounts = [
             f"{tr.output_path.absolute()}:/cloudai_run_results",
+            f"{self.system.install_path.absolute()}:/cloudai_install",
+            f"{tr.output_path.absolute()}",
             *tdef.extra_container_mounts,
             *repo_mounts,
             *self._container_mounts(tr),
-            f"{self.system.install_path.absolute()}:/cloudai_install",
         ]
 
         merged_env = self.system.global_env_vars.copy()
