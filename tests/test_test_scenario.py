@@ -43,7 +43,11 @@ from cloudai.workloads.jax_toolbox import (
     JaxToolboxReportGenerationStrategy,
     NemotronTestDefinition,
 )
-from cloudai.workloads.megatron_run import CheckpointTimingReportGenerationStrategy, MegatronRunTestDefinition
+from cloudai.workloads.megatron_run import (
+    CheckpointTimingReportGenerationStrategy,
+    MegatronRunCmdArgs,
+    MegatronRunTestDefinition,
+)
 from cloudai.workloads.nccl_test import (
     NCCLCmdArgs,
     NCCLTestDefinition,
@@ -277,7 +281,7 @@ def test_total_time_limit_with_empty_hooks():
     assert result == "01:00:00"
 
 
-class TestSpec:
+class TestInScenario:
     @pytest.mark.parametrize("missing_arg", ["test_template_name", "name", "description"])
     def test_without_base(self, missing_arg: str):
         spec = {
@@ -410,6 +414,34 @@ class TestSpec:
         _, tdef = test_scenario_parser._prepare_tdef(model.tests[0])
         assert tdef.cmd_args_dict["unknown"] == 42
         assert isinstance(tdef.cmd_args, NCCLCmdArgs)
+
+    def test_data_is_merge_correctly(self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem):
+        test_scenario_parser.test_mapping = {
+            "megatron": Test(
+                test_definition=MegatronRunTestDefinition(
+                    name="megatron",
+                    description="desc",
+                    test_template_name="MegatronRun",
+                    cmd_args=MegatronRunCmdArgs(docker_image_url="docker://megatron", run_script=Path("run.sh")),
+                ),
+                test_template=TestTemplate(system=slurm_system),
+            )
+        }
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "megatron"
+            cmd_args = { any = 42 }
+            """
+            )
+        )
+        _, tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        assert isinstance(tdef.cmd_args, MegatronRunCmdArgs)
+        assert tdef.cmd_args.run_script == Path("run.sh")
 
 
 class TestReporters:

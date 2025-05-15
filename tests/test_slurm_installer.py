@@ -179,14 +179,21 @@ class TestInstallOnePythonExecutable:
         assert res.success
         mock_run.assert_called_once_with(["python", "-m", "venv", str(venv_path)], capture_output=True, text=True)
 
-    def test_error_creating_venv(self, installer: SlurmInstaller, git: GitRepo):
+    @pytest.mark.parametrize("venv_folder_created", [True, False])
+    def test_error_creating_venv(self, installer: SlurmInstaller, git: GitRepo, venv_folder_created: bool):
         py = PythonExecutable(git)
         venv_path = installer.system.install_path / py.venv_name
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = CompletedProcess(args=[], returncode=1, stderr="err")
+
+        def mock_run(*args, **kwargs):
+            if venv_folder_created:  # simulate case when installation started, but didn't finish successfully
+                venv_path.mkdir()
+            return CompletedProcess(args=args, returncode=1, stderr="err")
+
+        with patch("subprocess.run", side_effect=mock_run):
             res = installer._create_venv(venv_path)
         assert not res.success
         assert res.message == "Failed to create venv: err"
+        assert not venv_path.exists(), "venv folder wasn't removed after unsuccessful installation"
 
     def test_venv_already_exists(self, installer: SlurmInstaller, git: GitRepo):
         py = PythonExecutable(git)

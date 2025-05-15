@@ -290,6 +290,8 @@ class SlurmInstaller(BaseInstaller):
 
         result = subprocess.run(["python", "-m", "venv", str(venv_dir)], capture_output=True, text=True)
         if result.returncode != 0:
+            if venv_dir.exists():
+                rmtree(venv_dir)
             return InstallStatusResult(False, f"Failed to create venv: {result.stderr}")
         return InstallStatusResult(True)
 

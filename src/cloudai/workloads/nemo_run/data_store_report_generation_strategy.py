@@ -23,11 +23,11 @@ import socket
 from pathlib import Path
 from typing import ClassVar, Dict, List, Tuple, cast
 
-import numpy as np
 import toml
 
 from cloudai import ReportGenerationStrategy
 from cloudai.systems.slurm import SlurmSystem
+from cloudai.util.lazy_imports import lazy
 
 from .http_data_repository import HttpDataRepository
 from .nemo_run import NeMoRunTestDefinition
@@ -64,7 +64,7 @@ class NeMoRunDataStoreReportGenerationStrategy(ReportGenerationStrategy):
         docker_image_url: str = tdef.cmd_args.docker_image_url
         s_model, s_model_size = self.extract_model_info(tdef.cmd_args.recipe_name)
         s_base_config = self.extract_base_config_from_sbatch_script(self.test_run.output_path)
-        mean_step_time = float(np.mean(step_timings))
+        mean_step_time = float(lazy.np.mean(step_timings))
         global_bs = tdef.cmd_args.data.global_batch_size
         seq_len = tdef.cmd_args.data.seq_length
 
@@ -97,7 +97,7 @@ class NeMoRunDataStoreReportGenerationStrategy(ReportGenerationStrategy):
             "l_vp": tdef.cmd_args.trainer.strategy.virtual_pipeline_model_parallel_size,
             "l_cp": tdef.cmd_args.trainer.strategy.context_parallel_size,
             "d_metric": mean_step_time,
-            "d_metric_stddev": float(np.std(step_timings)),
+            "d_metric_stddev": float(lazy.np.std(step_timings)),
             "d_step_time_mean": mean_step_time,
             "d_tokens_per_sec": tokens_per_sec,
             "s_job_id": self.extract_job_id_from_metadata(self.test_run.output_path),

@@ -14,17 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import logging
 import os
 from functools import cache
 from pathlib import Path
 from typing import ClassVar, List
 
-import numpy as np
-import pandas as pd
-
 from cloudai import METRIC_ERROR, ReportGenerationStrategy
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
+from cloudai.util.lazy_imports import lazy
 
 
 @cache
@@ -86,10 +86,10 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
             return
 
         stats = {
-            "avg": np.mean(step_timings),
-            "median": np.median(step_timings),
-            "min": np.min(step_timings),
-            "max": np.max(step_timings),
+            "avg": lazy.np.mean(step_timings),
+            "median": lazy.np.median(step_timings),
+            "min": lazy.np.min(step_timings),
+            "max": lazy.np.max(step_timings),
         }
 
         summary_file = self.test_run.output_path / "report.txt"
@@ -110,13 +110,13 @@ class NeMoRunReportGenerationStrategy(ReportGenerationStrategy):
         if metric not in {"default", "step-time"}:
             return METRIC_ERROR
 
-        return float(np.mean(step_timings))
+        return float(lazy.np.mean(step_timings))
 
     def generate_bokeh_report(self, step_timings: List[float]) -> None:
         if not step_timings:
             return
 
-        df = pd.DataFrame({"Step": range(1, len(step_timings) + 1), "train_step_timing in s": step_timings})
+        df = lazy.pd.DataFrame({"Step": range(1, len(step_timings) + 1), "train_step_timing in s": step_timings})
 
         report_tool = BokehReportTool(self.test_run.output_path)
         report_tool.add_linear_xy_line_plot(
