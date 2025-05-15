@@ -54,7 +54,7 @@ def test_default(slurm_system: SlurmSystem, test_run: TestRun) -> None:
         f"--no-container-mount-home"
     )
 
-    assert cmd == f'{srun_part} bash -c "bash -c "cmd""'
+    assert cmd == f'{srun_part} bash -c "cmd"'
 
 
 def test_with_nsys(slurm_system: SlurmSystem, test_run: TestRun) -> None:
@@ -71,4 +71,4 @@ def test_with_nsys(slurm_system: SlurmSystem, test_run: TestRun) -> None:
         f"--no-container-mount-home"
     )
 
-    assert cmd == f'{srun_part} bash -c "bash -c "nsys profile cmd""'
+    assert cmd == f'{srun_part} bash -c "nsys profile cmd"'

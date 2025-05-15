@@ -42,8 +42,8 @@ class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
         self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> list[str]:
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
-        srun_command_parts: list[str] = [*super().gen_nsys_command(tr), tdef.cmd_args.cmd]
+        command_parts: list[str] = [*super().gen_nsys_command(tr), tdef.cmd_args.cmd]
         if tr.test.extra_cmd_args:
-            srun_command_parts.append(tr.test.extra_cmd_args)
+            command_parts.append(tr.test.extra_cmd_args)
 
-        return ["bash", "-c", f'"{" ".join(srun_command_parts)}"']
+        return command_parts

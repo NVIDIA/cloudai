@@ -11,4 +11,4 @@ srun --export=ALL --mpi=pmix --container-image=https://docker/url --container-mo
 
 srun --export=ALL --mpi=pmix --container-image=https://docker/url --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install --no-container-mount-home --ntasks=1 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
-srun --export=ALL --mpi=pmix --container-image=https://docker/url --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install --no-container-mount-home bash -c "bash -c "pwd ; ls""
+srun --export=ALL --mpi=pmix --container-image=https://docker/url --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install --no-container-mount-home bash -c "pwd ; ls"
