@@ -16,10 +16,9 @@
 
 from pathlib import Path
 
-import numpy as np
-
 from cloudai import GradingStrategy
 from cloudai.report_generator.tool import TensorBoardDataReader
+from cloudai.util.lazy_imports import lazy
 
 
 class NeMoLauncherGradingStrategy(GradingStrategy):
@@ -41,7 +40,7 @@ class NeMoLauncherGradingStrategy(GradingStrategy):
         if train_step_data:
             timings = [timing for _, timing in train_step_data]
             if timings:
-                median_timing = np.median(timings)
+                median_timing = lazy.np.median(timings)
                 normalized_timing = float(median_timing / ideal_perf)
                 return normalized_timing
 

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,12 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import logging
 
-from kubernetes import client, config
-from kubernetes.client.rest import ApiException
-
 from cloudai import BaseInstaller, Installable, InstallStatusResult
+from cloudai.util.lazy_imports import lazy
 
 
 class KubernetesInstaller(BaseInstaller):
@@ -47,7 +47,7 @@ class KubernetesInstaller(BaseInstaller):
 
         # Load Kubernetes configuration
         try:
-            config.load_kube_config()
+            lazy.k8s.config.load_kube_config()
         except Exception as e:
             message = (
                 f"Installation failed during prerequisite checking stage because Kubernetes configuration could not "
@@ -75,9 +75,9 @@ class KubernetesInstaller(BaseInstaller):
         """
         # Check if MPIJob CRD is installed
         try:
-            custom_api = client.CustomObjectsApi()
+            custom_api = lazy.k8s.client.CustomObjectsApi()
             custom_api.get_cluster_custom_object(group="kubeflow.org", version="v1", plural="mpijobs", name="mpijobs")
-        except ApiException as e:
+        except lazy.k8s.client.ApiException as e:
             if e.status == 404:
                 message = (
                     "Installation failed during prerequisite checking stage because MPIJob CRD is not installed on "
@@ -98,9 +98,9 @@ class KubernetesInstaller(BaseInstaller):
 
         # Check if MPIJob kind is supported
         try:
-            api_resources = client.ApiextensionsV1Api().list_custom_resource_definition()
+            api_resources = lazy.k8s.client.ApiextensionsV1Api().list_custom_resource_definition()
             mpi_job_supported = any(item.metadata.name == "mpijobs.kubeflow.org" for item in api_resources.items)
-        except ApiException as e:
+        except lazy.k8s.client.ApiException as e:
             message = (
                 f"Installation failed during prerequisite checking stage due to an error while checking for MPIJob "
                 f"kind support. Original error: {e!r}. Please ensure that the Kubernetes cluster is accessible and "

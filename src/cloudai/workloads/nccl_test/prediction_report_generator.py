@@ -14,15 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import logging
 import subprocess
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
 
-import pandas as pd
+if TYPE_CHECKING:
+    import pandas as pd
 
 from cloudai import TestRun
 from cloudai.report_generator.tool.csv_report_tool import CSVReportTool
+from cloudai.util.lazy_imports import lazy
 
 
 class NcclTestPredictionReportGenerator:
@@ -60,16 +64,16 @@ class NcclTestPredictionReportGenerator:
 
         if not csv_report_path.is_file():
             logging.warning(f"Performance CSV {csv_report_path} not found.")
-            return pd.DataFrame()
+            return lazy.pd.DataFrame()
 
-        df = pd.read_csv(csv_report_path)
+        df = lazy.pd.read_csv(csv_report_path)
 
         required_columns = {"GPU Type", "Devices per Node", "Ranks", "Size (B)", "Time (us) Out-of-place"}
         missing_columns = required_columns - set(df.columns)
 
         if missing_columns:
             logging.warning(f"Missing required columns in performance CSV: {', '.join(missing_columns)}")
-            return pd.DataFrame()
+            return lazy.pd.DataFrame()
 
         df.rename(columns={"Size (B)": "message_size", "Time (us) Out-of-place": "measured_dur"}, inplace=True)
 
@@ -107,21 +111,21 @@ class NcclTestPredictionReportGenerator:
     def _run_predictor(self, gpu_type: str) -> pd.DataFrame:
         if not self.predictor or not self.predictor.venv_path or not self.test_definition.predictor:
             logging.warning("Predictor setup is incomplete. Skipping prediction.")
-            return pd.DataFrame()
+            return lazy.pd.DataFrame()
 
         predictor_paths = self._get_predictor_paths(gpu_type)
         if predictor_paths is None:
-            return pd.DataFrame()
+            return lazy.pd.DataFrame()
 
         config_path, model_path, input_csv, output_csv, predictor_sub_path = predictor_paths
 
         if not self.predictor or not self.predictor.venv_path:
             logging.warning("Predictor virtual environment is not set up. Skipping prediction.")
-            return pd.DataFrame()
+            return lazy.pd.DataFrame()
 
         if not self.test_definition.predictor or not self.test_definition.predictor.bin_name:
             logging.warning("Predictor binary is not properly configured. Skipping prediction.")
-            return pd.DataFrame()
+            return lazy.pd.DataFrame()
 
         venv_path = self.predictor.venv_path
         predictor_path = venv_path / "bin" / self.test_definition.predictor.bin_name
@@ -146,19 +150,19 @@ class NcclTestPredictionReportGenerator:
             logging.debug(f"Predictor output:\n{result.stdout}")
         except subprocess.CalledProcessError as e:
             logging.warning(f"Predictor execution failed. Error:\n{e.stderr}")
-            return pd.DataFrame()
+            return lazy.pd.DataFrame()
 
         if not output_csv.exists():
             logging.warning(f"Expected output CSV {output_csv} not found after inference.")
-            return pd.DataFrame()
+            return lazy.pd.DataFrame()
 
-        predictions = pd.read_csv(output_csv)
+        predictions = lazy.pd.read_csv(output_csv)
         required_columns = {"num_devices_per_node", "num_ranks", "message_size", "dur"}
         missing_columns = required_columns - set(predictions.columns)
 
         if missing_columns:
             logging.warning(f"Missing required columns in prediction output: {', '.join(missing_columns)}")
-            return pd.DataFrame()
+            return lazy.pd.DataFrame()
 
         predictions.rename(columns={"dur": "predicted_dur"}, inplace=True)
         predictions["predicted_dur"] = predictions["predicted_dur"].round(2)

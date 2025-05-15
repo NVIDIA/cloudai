@@ -20,7 +20,7 @@ import csv
 import logging
 from typing import Any, Dict, Optional, Tuple
 
-import numpy as np
+from cloudai.util.lazy_imports import lazy
 
 from ..runner import Runner
 from ..test_scenario import METRIC_ERROR, TestRun
@@ -103,7 +103,7 @@ class CloudAIGymEnv(BaseGym):
                 - info (dict): Additional info for debugging.
         """
         if seed is not None:
-            np.random.seed(seed)
+            lazy.np.random.seed(seed)
         self.test_run.current_iteration = 0
         observation = [0.0]
         info = {}
@@ -165,7 +165,7 @@ class CloudAIGymEnv(BaseGym):
             seed (Optional[int]): Seed for the environment's random number generator.
         """
         if seed is not None:
-            np.random.seed(seed)
+            lazy.np.random.seed(seed)
 
     def compute_reward(self, observation: list) -> float:
         """
