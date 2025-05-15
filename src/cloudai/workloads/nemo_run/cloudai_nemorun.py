@@ -855,9 +855,8 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
             data_config=recipe.data,
             model_name="llama3",
         )
-
     )
-    
+
     enable_cuda_graphs = os.getenv("CLOUDAI_ENABLE_CUDA_GRAPHS", "0") == "1"
     if enable_cuda_graphs:
         recipe.model.config.enable_cuda_graph = True
@@ -873,12 +872,11 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
         recipe.trainer.strategy.ddp.average_in_collective = False
         recipe.trainer.strategy.ddp.keep_fp8_transpose_cache_when_using_custom_fsdp = False
         recipe.model.config.gradient_accumulation_fusion = False
-        # disabling embedding wgrad deferral for fsdp
         recipe.trainer.callbacks[0].defer_embedding_wgrad_compute = False
-        
+
         if disable_tp_commd_overlap:
             recipe.trainer.callbacks[0].tp_comm_overlap = False
-        
+
     return recipe
 
 
