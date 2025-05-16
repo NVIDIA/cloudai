@@ -258,19 +258,52 @@ def expand_file_list(root: Path, glob: str = "*.toml") -> tuple[int, List[Path]]
 @contextmanager
 def _ensure_kube_config_exists(system_toml_path: Path, content: str):
     try:
-        if 'scheduler = "kubernetes"' in content:
-            kube_config_path = system_toml_path.parent / "kubeconfig.yaml"
-            if not kube_config_path.exists():
-                kube_config_path.write_text(yaml.dump({"apiVersion": "v1", "kind": "Config"}))
-                yield
-                kube_config_path.unlink()
-            else:
-                yield
-        else:
-            yield
+        config_dict = toml.loads(content)
     except Exception as e:
-        logging.error(f"Error ensuring kubeconfig exists: {e}")
+        logging.error(f"Error parsing TOML file {system_toml_path}: {e}")
         raise
+
+    kube_config_path_str = config_dict.get("kube_config_path")
+    kube_config_path = Path(kube_config_path_str) if kube_config_path_str else Path.home() / ".kube" / "config"
+
+    created_file = False
+    created_dir = False
+
+    if not kube_config_path.exists():
+        logging.warning(f"Kube config file '{kube_config_path}' not found. Creating a dummy one.")
+        if not kube_config_path.parent.exists():
+            kube_config_path.parent.mkdir(parents=True, exist_ok=True)
+            created_dir = True
+
+        dummy_config = {
+            "apiVersion": "v1",
+            "kind": "Config",
+            "preferences": {},
+            "clusters": [{"name": "dummy-cluster", "cluster": {"server": "https://dummy-server"}}],
+            "users": [{"name": "dummy-user", "user": {"token": "dummy-token"}}],
+            "contexts": [{"name": "dummy-context", "context": {"cluster": "dummy-cluster", "user": "dummy-user"}}],
+            "current-context": "dummy-context",
+        }
+        kube_config_path.write_text(yaml.dump(dummy_config))
+        created_file = True
+    else:
+        logging.debug(f"Kube config '{kube_config_path}' already exists. Skipping creation.")
+
+    try:
+        yield kube_config_path
+    finally:
+        if created_file:
+            try:
+                kube_config_path.unlink()
+                logging.debug(f"Deleted temporary kube config: {kube_config_path}")
+            except Exception as e:
+                logging.warning(f"Failed to remove temporary kube config '{kube_config_path}': {e}")
+        if created_dir:
+            try:
+                kube_config_path.parent.rmdir()
+                logging.debug(f"Deleted kube config directory: {kube_config_path.parent}")
+            except OSError:
+                pass
 
 
 def verify_system_configs(system_tomls: List[Path]) -> int:
