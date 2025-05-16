@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, cast
 
 from cloudai import TestRun
-from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.systems.slurm import SlurmCommandGenStrategy
 from cloudai.workloads.nemo_launcher import NeMoLauncherTestDefinition
 
 

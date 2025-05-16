@@ -16,9 +16,7 @@
 
 import pytest
 
-from cloudai._core.test import Test
-from cloudai._core.test_scenario import TestRun
-from cloudai._core.test_template import TestTemplate
+from cloudai import Test, TestRun, TestTemplate
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.ucc_test.report_generation_strategy import UCCTestReportGenerationStrategy, parse_ucc_output
 from cloudai.workloads.ucc_test.ucc import UCCCmdArgs, UCCTestDefinition

@@ -33,7 +33,7 @@ jobs:
         run: vulture src/ tests/
 
       - name: Import linter
-        run: PYTHONPATH=src lint-imports
+        run: PYTHONPATH=src:. lint-imports
 
       - name: Check TOML formatting
         run: |

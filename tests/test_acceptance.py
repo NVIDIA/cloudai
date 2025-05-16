@@ -22,10 +22,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai import CommandGenStrategy, Test, TestDefinition, TestRun, TestScenario, TestTemplate
+from cloudai import CommandGenStrategy, Test, TestRun, TestScenario, TestTemplate
 from cloudai.cli import handle_dry_run_and_run, setup_logging
-from cloudai.systems import SlurmSystem
-from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.models.workload import TestDefinition
+from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmSystem
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
     GPTTestDefinition,

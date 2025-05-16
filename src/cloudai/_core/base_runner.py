@@ -21,8 +21,8 @@ from asyncio import Task
 from pathlib import Path
 from typing import Dict, List
 
+from ..exceptions import JobFailureError, JobSubmissionError
 from .base_job import BaseJob
-from .exceptions import JobFailureError, JobSubmissionError
 from .job_status_result import JobStatusResult
 from .system import System
 from .test_scenario import TestRun, TestScenario

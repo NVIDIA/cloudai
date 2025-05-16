@@ -27,20 +27,14 @@ from unittest.mock import Mock
 import toml
 import yaml
 
-from cloudai import (
-    BaseInstaller,
-    CloudAIGymEnv,
-    Installable,
-    Parser,
-    Registry,
-    Runner,
-    System,
-    Test,
-    TestParser,
-    TestScenario,
-)
+from cloudai import BaseInstaller, Installable, System, Test, TestScenario
+from cloudai.configurator import CloudAIGymEnv
+from cloudai.parser import Parser
+from cloudai.registry import Registry
+from cloudai.runner import Runner
 
 from ..parser import HOOK_ROOT
+from ..test_parser import TestParser
 from ..util import prepare_output_dir
 
 

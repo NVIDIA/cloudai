@@ -22,7 +22,7 @@ from unittest.mock import Mock, mock_open, patch
 import pytest
 
 from cloudai import Test, TestRun
-from cloudai.systems import SlurmSystem
+from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.nemo_launcher import (
     NeMoLauncherCmdArgs,
     NeMoLauncherSlurmCommandGenStrategy,

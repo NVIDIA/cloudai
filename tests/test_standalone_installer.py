@@ -16,8 +16,8 @@
 
 from unittest.mock import Mock
 
-from cloudai.installer.standalone_installer import StandaloneInstaller
-from cloudai.systems.standalone_system import StandaloneSystem
+from cloudai.systems.standalone.standalone_installer import StandaloneInstaller
+from cloudai.systems.standalone.standalone_system import StandaloneSystem
 
 
 def test_create():

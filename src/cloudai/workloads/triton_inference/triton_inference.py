@@ -17,7 +17,8 @@
 from pathlib import Path
 from typing import Literal, Optional
 
-from cloudai import CmdArgs, DockerImage, Installable, TestDefinition
+from cloudai import DockerImage, Installable
+from cloudai.models.workload import CmdArgs, TestDefinition
 
 
 class TritonInferenceCmdArgs(CmdArgs):

@@ -17,7 +17,7 @@
 from typing import Any, Dict, cast
 
 from cloudai import JsonGenStrategy, TestRun
-from cloudai.systems import KubernetesSystem
+from cloudai.systems.kubernetes import KubernetesSystem
 
 from .sleep import SleepCmdArgs, SleepTestDefinition
 

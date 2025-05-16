@@ -20,9 +20,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, PrivateAttr
 
-from cloudai import BaseJob
+from cloudai import BaseJob, System
 
-from ..._core.system import System
 from .runai_cluster import RunAICluster
 from .runai_event import RunAIEvent
 from .runai_node import RunAINode

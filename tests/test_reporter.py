@@ -19,9 +19,9 @@ from pathlib import Path
 
 import pytest
 
-from cloudai import Test, TestRun, TestScenario
-from cloudai._core.reporter import PerTestReporter, TarballReporter
-from cloudai._core.test_template import TestTemplate
+from cloudai import Test, TestRun, TestScenario, TestTemplate
+from cloudai.reporters.case_reporters import PerTestReporter
+from cloudai.reporters.scenario_reporters import TarballReporter
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 

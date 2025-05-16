@@ -22,17 +22,18 @@ import toml
 from pydantic import ValidationError
 
 from cloudai import (
-    Registry,
     System,
     SystemConfigParsingError,
     Test,
     TestConfigParsingError,
-    TestParser,
     TestScenario,
-    TestScenarioParser,
     TestScenarioParsingError,
     format_validation_error,
 )
+from cloudai.registry import Registry
+from cloudai.test_scenario_parser import TestScenarioParser
+
+from .test_parser import TestParser
 
 HOOK_ROOT = Path("conf/hook")
 HOOK_TEST_ROOT = HOOK_ROOT / "test"
@@ -168,14 +169,12 @@ class Parser:
                 raise SystemConfigParsingError(f"Missing 'scheduler' key in {system_config_path}")
 
             if scheduler not in registry.systems_map:
-                logging.error(
+                msg = (
                     f"Unsupported system type '{scheduler}' in {system_config_path}. "
-                    f"Should be one of: {', '.join(registry.systems_map.keys())}"
+                    f"Supported types: {', '.join(sorted(registry.systems_map.keys()))}"
                 )
-                raise SystemConfigParsingError(
-                    f"Unsupported system type '{scheduler}' in {system_config_path}. "
-                    f"Supported types: {', '.join(registry.systems_map.keys())}"
-                )
+                logging.error(msg)
+                raise SystemConfigParsingError(msg)
 
         try:
             system = registry.systems_map[scheduler](**data)

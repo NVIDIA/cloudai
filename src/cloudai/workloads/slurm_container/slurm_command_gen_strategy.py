@@ -17,7 +17,7 @@
 from typing import Any, Dict, List, Union, cast
 
 from cloudai import TestRun
-from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 from .slurm_container import SlurmContainerTestDefinition
 

@@ -16,7 +16,8 @@
 
 from typing import Optional
 
-from cloudai import CmdArgs, DockerImage, Installable, TestDefinition
+from cloudai import DockerImage
+from cloudai.models.workload import CmdArgs, Installable, TestDefinition
 
 
 class ChakraReplayCmdArgs(CmdArgs):

@@ -18,8 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Union, cast
 
 from cloudai import TestRun
-from cloudai.systems import SlurmSystem
-from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmSystem
 from cloudai.workloads.jax_toolbox import GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition
 
 

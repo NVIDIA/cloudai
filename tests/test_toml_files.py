@@ -20,8 +20,8 @@ from unittest.mock import patch
 import pytest
 import toml
 
-from cloudai import Parser
 from cloudai.models.scenario import TestScenarioModel
+from cloudai.parser import Parser
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
 

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,8 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from cloudai.registry import Registry
+
+from .kubernetes_installer import KubernetesInstaller
+from .kubernetes_job import KubernetesJob
+from .kubernetes_runner import KubernetesRunner
 from .kubernetes_system import KubernetesSystem
 
+Registry().add_installer("kubernetes", KubernetesInstaller)
+Registry().add_runner("kubernetes", KubernetesRunner)
+
 __all__ = [
+    "KubernetesJob",
+    "KubernetesRunner",
     "KubernetesSystem",
 ]

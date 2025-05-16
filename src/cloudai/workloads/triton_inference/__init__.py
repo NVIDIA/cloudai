@@ -14,9 +14,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from cloudai import CommandGenStrategy, JobIdRetrievalStrategy, JobStatusRetrievalStrategy
+from cloudai.registry import Registry
+from cloudai.systems.slurm import SlurmSystem
+
+from ..common import DefaultJobStatusRetrievalStrategy, SlurmJobIdRetrievalStrategy
 from .report_generation_strategy import TritonInferenceReportGenerationStrategy
 from .slurm_command_gen_strategy import TritonInferenceSlurmCommandGenStrategy
 from .triton_inference import TritonInferenceCmdArgs, TritonInferenceTestDefinition
+
+Registry().add_strategy(
+    CommandGenStrategy, [SlurmSystem], [TritonInferenceTestDefinition], TritonInferenceSlurmCommandGenStrategy
+)
+Registry().add_strategy(
+    JobIdRetrievalStrategy, [SlurmSystem], [TritonInferenceTestDefinition], SlurmJobIdRetrievalStrategy
+)
+Registry().add_strategy(
+    JobStatusRetrievalStrategy, [SlurmSystem], [TritonInferenceTestDefinition], DefaultJobStatusRetrievalStrategy
+)
+
+Registry().add_report(TritonInferenceTestDefinition, TritonInferenceReportGenerationStrategy)
 
 __all__ = [
     "TritonInferenceCmdArgs",
