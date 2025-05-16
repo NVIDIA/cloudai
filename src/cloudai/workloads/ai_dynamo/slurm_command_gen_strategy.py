@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, cast
 
@@ -129,17 +130,17 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "legends. Are they driven by a quest for knowledge, a search for lost family, or a desire to "
             "uncover the truth about Aeloria's past?"
         )
-        escaped_prompt = prompt.replace('"', '\\\\"')
 
-        payload = (
-            "{"
-            '"model": "nvidia/Llama-3.1-405B-Instruct-FP8", '
-            '"messages": [{"role": "user", "content": "' + escaped_prompt + '"}], '
-            '"stream": false, "max_tokens": 30'
-            "}"
-        )
+        payload_data = {
+            "model": "nvidia/Llama-3.1-405B-Instruct-FP8",
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": False,
+            "max_tokens": 30,
+        }
 
-        return f'curl -s -X POST "http://$DYNAMO_FRONTEND/v1/chat/completions" -H "Content-Type: application/json" -d \'{payload}\''
+        payload_json = json.dumps(payload_data).replace("'", "\\'")
+
+        return f'curl -s -X POST "http://$DYNAMO_FRONTEND/v1/chat/completions" -H "Content-Type: application/json" -d \'{payload_json}\''
 
     def _prefill_block(self, td: AIDynamoTestDefinition) -> List[str]:
         return [
