@@ -287,15 +287,19 @@ class SlurmInstaller(BaseInstaller):
             logging.warning(msg)
             return InstallStatusResult(True, msg)
 
+        cmd = ["python", "-m", "venv", str(venv_dir)]
+        logging.debug(f"Creating venv using cmd: {' '.join(cmd)}")
         result = subprocess.run(["python", "-m", "venv", str(venv_dir)], capture_output=True, text=True)
+        logging.debug(f"venv creation STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}")
         if result.returncode != 0:
             if venv_dir.exists():
                 rmtree(venv_dir)
-            return InstallStatusResult(False, f"Failed to create venv: {result.stderr}")
+            return InstallStatusResult(False, f"Failed to create venv:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}")
         return InstallStatusResult(True)
 
     def _install_pyproject(self, venv_dir: Path, project_dir: Path) -> InstallStatusResult:
         install_cmd = [str(venv_dir / "bin" / "python"), "-m", "pip", "install", str(project_dir)]
+        logging.debug(f"Installing dependencies using: {' '.join(install_cmd)}")
         result = subprocess.run(install_cmd, capture_output=True, text=True)
 
         if result.returncode != 0:
@@ -308,6 +312,7 @@ class SlurmInstaller(BaseInstaller):
             return InstallStatusResult(False, f"Requirements file is invalid or does not exist: {requirements_txt}")
 
         install_cmd = [str(venv_dir / "bin" / "python"), "-m", "pip", "install", "-r", str(requirements_txt)]
+        logging.debug(f"Installing dependencies using: {' '.join(install_cmd)}")
         result = subprocess.run(install_cmd, capture_output=True, text=True)
 
         if result.returncode != 0:
