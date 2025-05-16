@@ -64,6 +64,11 @@ from .systems.lsf.lsf_system import LSFSystem
 from .systems.runai.runai_system import RunAISystem
 from .systems.slurm.slurm_system import SlurmSystem
 from .systems.standalone_system import StandaloneSystem
+from .workloads.ai_dynamo import (
+    AIDynamoReportGenerationStrategy,
+    AIDynamoSlurmCommandGenStrategy,
+    AIDynamoTestDefinition,
+)
 from .workloads.chakra_replay import (
     ChakraReplayGradingStrategy,
     ChakraReplayReportGenerationStrategy,
@@ -199,6 +204,7 @@ Registry().add_strategy(
         SlurmContainerTestDefinition,
         MegatronRunTestDefinition,
         TritonInferenceTestDefinition,
+        AIDynamoTestDefinition,
     ],
     SlurmJobIdRetrievalStrategy,
 )
@@ -242,6 +248,7 @@ Registry().add_strategy(
         SlurmContainerTestDefinition,
         MegatronRunTestDefinition,
         TritonInferenceTestDefinition,
+        AIDynamoTestDefinition,
     ],
     DefaultJobStatusRetrievalStrategy,
 )
@@ -270,6 +277,7 @@ Registry().add_strategy(
 Registry().add_strategy(
     CommandGenStrategy, [SlurmSystem], [TritonInferenceTestDefinition], TritonInferenceSlurmCommandGenStrategy
 )
+Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [AIDynamoTestDefinition], AIDynamoSlurmCommandGenStrategy)
 
 Registry().add_installer("slurm", SlurmInstaller)
 Registry().add_installer("standalone", StandaloneInstaller)
@@ -295,6 +303,7 @@ Registry().add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)
 Registry().add_test_definition("SlurmContainer", SlurmContainerTestDefinition)
 Registry().add_test_definition("MegatronRun", MegatronRunTestDefinition)
 Registry().add_test_definition("TritonInference", TritonInferenceTestDefinition)
+Registry().add_test_definition("AIDynamo", AIDynamoTestDefinition)
 
 Registry().add_agent("grid_search", GridSearchAgent)
 
@@ -311,6 +320,7 @@ Registry().add_report(SleepTestDefinition, SleepReportGenerationStrategy)
 Registry().add_report(SlurmContainerTestDefinition, SlurmContainerReportGenerationStrategy)
 Registry().add_report(UCCTestDefinition, UCCTestReportGenerationStrategy)
 Registry().add_report(TritonInferenceTestDefinition, TritonInferenceReportGenerationStrategy)
+Registry().add_report(AIDynamoTestDefinition, AIDynamoReportGenerationStrategy)
 
 Registry().add_scenario_report(PerTestReporter)
 Registry().add_scenario_report(StatusReporter)
