@@ -129,13 +129,16 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "legends. Are they driven by a quest for knowledge, a search for lost family, or a desire to "
             "uncover the truth about Aeloria's past?"
         )
+        escaped_prompt = prompt.replace('"', '\\\\"')
+
         payload = (
             "{"
             '"model": "nvidia/Llama-3.1-405B-Instruct-FP8", '
-            '"messages": [{"role": "user", "content": "' + prompt.replace('"', '\\"') + '"}], '
+            '"messages": [{"role": "user", "content": "' + escaped_prompt + '"}], '
             '"stream": false, "max_tokens": 30'
             "}"
         )
+
         return f'curl -s -X POST "http://$DYNAMO_FRONTEND/v1/chat/completions" -H "Content-Type: application/json" -d \'{payload}\''
 
     def _prefill_block(self, td: AIDynamoTestDefinition) -> List[str]:
