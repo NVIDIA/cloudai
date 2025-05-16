@@ -28,7 +28,7 @@ from .install_status_result import InstallStatusResult
 from .installables import Installable
 from .system import System
 
-TASK_LIMIT_THRESHOLD = 1024
+TASK_LIMIT_THRESHOLD = 256
 
 
 class BaseInstaller(ABC):
