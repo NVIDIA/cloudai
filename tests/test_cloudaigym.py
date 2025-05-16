@@ -134,7 +134,7 @@ def test_action_space(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, 
 
     tr.test.test_definition = nemorun
 
-    action_space = tr.action_space
+    action_space = tr.param_space
 
     assert len(action_space) == 4
     assert action_space["data.micro_batch_size"] == nemorun.cmd_args.data.micro_batch_size
@@ -172,11 +172,11 @@ def test_all_combinations_non_dse(nemorun: NeMoRunTestDefinition, setup_env: tup
     assert len(tr.all_combinations) == 0
 
 
-def test_apply_action(setup_env: tuple[TestRun, Runner]):
+def test_params_set(setup_env: tuple[TestRun, Runner]):
     tr, _ = setup_env
     assert len(tr.all_combinations) > 1
     for action in tr.all_combinations:
-        new_tr = tr.apply_action(action)
+        new_tr = tr.apply_params_set(action)
         cmd_args = TestTemplateStrategy._flatten_dict(new_tr.test.test_definition.cmd_args.model_dump())
         for key, value in action.items():
             if key.startswith("extra_env_vars."):
@@ -185,15 +185,15 @@ def test_apply_action(setup_env: tuple[TestRun, Runner]):
                 assert cmd_args[key] == value
 
 
-def test_apply_action_validated(setup_env: tuple[TestRun, Runner], nemorun: NeMoRunTestDefinition):
+def test_params_set_validated(setup_env: tuple[TestRun, Runner], nemorun: NeMoRunTestDefinition):
     tr, _ = setup_env
     nemorun.cmd_args.trainer = Trainer(max_steps=[1000])
     tr.test.test_definition = nemorun
-    action_space = tr.action_space
+    action_space = tr.param_space
     action_space["trainer.max_steps"] = "invalid"
 
     with pytest.raises(UserWarning) as excinfo:
-        tr.apply_action(action_space)
+        tr.apply_params_set(action_space)
 
     assert excinfo.type is UserWarning
     assert "Pydantic serializer warnings:" in str(excinfo.value)

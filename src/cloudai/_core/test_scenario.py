@@ -103,7 +103,7 @@ class TestRun:
         return report(system, self).get_metric(self.test.test_definition.agent_metric)
 
     @property
-    def action_space(self) -> dict[str, Any]:
+    def param_space(self) -> dict[str, Any]:
         action_space: dict[str, Any] = {}
         cmd_args_dict = TestTemplateStrategy._flatten_dict(self.test.test_definition.cmd_args.model_dump())
         extra_env_vars_dict = self.test.test_definition.extra_env_vars
@@ -120,7 +120,7 @@ class TestRun:
         if not self.test.test_definition.is_dse_job:
             return []
 
-        action_space: dict[str, Any] = self.action_space
+        action_space: dict[str, Any] = self.param_space
 
         parameter_values: list[Any] = []
         for _, values in action_space.items():
@@ -132,7 +132,7 @@ class TestRun:
 
         return all_combinations
 
-    def apply_action(self, action: dict[str, Any]) -> "TestRun":
+    def apply_params_set(self, action: dict[str, Any]) -> "TestRun":
         tdef = self.test.test_definition.model_copy(deep=True)
         for key, value in action.items():
             if key.startswith("extra_env_vars."):

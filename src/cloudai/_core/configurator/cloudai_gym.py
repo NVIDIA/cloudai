@@ -48,7 +48,7 @@ class CloudAIGymEnv(BaseGym):
         super().__init__()
 
     def define_action_space(self) -> Dict[str, Any]:
-        return self.test_run.action_space
+        return self.test_run.param_space
 
     def define_observation_space(self) -> list:
         """
@@ -97,7 +97,7 @@ class CloudAIGymEnv(BaseGym):
                 - done (bool): Whether the episode is done.
                 - info (dict): Additional info for debugging.
         """
-        self.test_run = self.test_run.apply_action(action)
+        self.test_run = self.test_run.apply_params_set(action)
 
         if not self.test_run.test.test_definition.constraint_check:
             logging.info("Constraint check failed. Skipping step.")
