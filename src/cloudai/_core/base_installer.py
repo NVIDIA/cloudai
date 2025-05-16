@@ -15,7 +15,9 @@
 # limitations under the License.
 
 import logging
+import os
 import shutil
+import subprocess
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Iterable, final
@@ -25,6 +27,8 @@ from cloudai.util import prepare_output_dir
 from .install_status_result import InstallStatusResult
 from .installables import Installable
 from .system import System
+
+TASK_LIMIT_THRESHOLD = 1024
 
 
 class BaseInstaller(ABC):
@@ -46,7 +50,40 @@ class BaseInstaller(ABC):
             system (System): The system schema object.
         """
         self.system = system
+        self._low_thread_env = None
         logging.debug(f"BaseInstaller initialized for {self.system.scheduler}.")
+
+    @property
+    def is_low_thread_environment(self, threshold: int = TASK_LIMIT_THRESHOLD) -> bool:
+        """
+        Check if the current environment has a limit on the number of threads that is below the threshold.
+
+        Args:
+            threshold (int, optional): The threshold to consider "low thread". Defaults to TASK_LIMIT_THRESHOLD.
+
+        Returns:
+            bool: True if the environment has a low thread limit, False otherwise.
+        """
+        if self._low_thread_env is None:
+            self._low_thread_env = self._check_low_thread_environment(threshold)
+        return self._low_thread_env
+
+    def _check_low_thread_environment(self, threshold: int = TASK_LIMIT_THRESHOLD) -> bool:
+        try:
+            result = subprocess.run(
+                ["systemctl", "show", f"user-{os.getuid()}.slice", "--property=TasksMax"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            _, value = result.stdout.strip().split("=", 1)
+            value = value.strip()
+            if value.lower() == "infinity":
+                return False
+            return int(value) < threshold
+        except Exception as e:
+            logging.warning(f"Could not determine TasksMax from systemd: {e}")
+            return False
 
     def _is_binary_installed(self, binary_name: str) -> bool:
         """
@@ -127,8 +164,12 @@ class BaseInstaller(ABC):
         logging.debug(f"Going to install {len(set(items))} uniq item(s) (total is {len(list(items))})")
         logging.info(f"Going to install {len(set(items))} item(s)")
 
+        max_workers = 1 if self.is_low_thread_environment else None
+        if self.is_low_thread_environment:
+            logging.info("Low thread environment detected. Using single-threaded execution.")
+
         install_results = {}
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(self.install_one, item): item for item in self.all_items(items)}
             total, done = len(futures), 0
             for future in as_completed(futures):
@@ -168,8 +209,14 @@ class BaseInstaller(ABC):
         """
         logging.debug(f"Going to uninstall {len(set(items))} uniq items (total {len(list(items))}).")
         logging.info(f"Going to uninstall {len(set(items))} items.")
+
+        # Set max_workers to 1 when in low thread environment to avoid thread contention
+        max_workers = 1 if self.is_low_thread_environment else None
+        if self.is_low_thread_environment:
+            logging.info("Low thread environment detected. Using single-threaded execution.")
+
         uninstall_results = {}
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(self.uninstall_one, item): item for item in self.all_items(items)}
             for future in as_completed(futures):
                 item = futures[future]
