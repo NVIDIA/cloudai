@@ -106,12 +106,37 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 "frontend_stderr",
             ),
             f"sleep {td.cmd_args.sleep_seconds}",
+            'echo "Calling curl before genai-perf..."',
+            self._curl_prompt_command(),
             "echo 'Launching genai-perf now'",
             "  " + self._build_genai_perf_command(td),
             "echo 'genai-perf finished. Writing done marker'",
             'touch "$DONE_MARKER"',
             "exit 0",
         ]
+
+    def _curl_prompt_command(self) -> str:
+        prompt = (
+            "In the heart of Eldoria, an ancient land of boundless magic and mysterious creatures, "
+            "lies the long-forgotten city of Aeloria. Once a beacon of knowledge and power, Aeloria "
+            "was buried beneath the shifting sands of time, lost to the world for centuries. You are an "
+            "intrepid explorer, known for your unparalleled curiosity and courage, who has stumbled upon "
+            "an ancient map hinting that Aeloria holds a secret so profound that it has the potential to "
+            "reshape the very fabric of reality. Your journey will take you through treacherous deserts, "
+            "enchanted forests, and across perilous mountain ranges. Your Task: Character Background: "
+            "Develop a detailed background for your character. Describe their motivations for seeking out "
+            "Aeloria, their skills and weaknesses, and any personal connections to the ancient city or its "
+            "legends. Are they driven by a quest for knowledge, a search for lost family, or a desire to "
+            "uncover the truth about Aeloria's past?"
+        )
+        payload = (
+            "{"
+            '"model": "nvidia/Llama-3.1-405B-Instruct-FP8", '
+            '"messages": [{"role": "user", "content": "' + prompt.replace('"', '\\"') + '"}], '
+            '"stream": false, "max_tokens": 30'
+            "}"
+        )
+        return f'curl -s -X POST "http://$DYNAMO_FRONTEND/v1/chat/completions" -H "Content-Type: application/json" -d \'{payload}\''
 
     def _prefill_block(self, td: AIDynamoTestDefinition) -> List[str]:
         return [
