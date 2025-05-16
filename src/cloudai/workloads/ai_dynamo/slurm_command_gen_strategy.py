@@ -117,6 +117,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ]
 
     def _curl_prompt_command(self) -> str:
+
         prompt = (
             "In the heart of Eldoria, an ancient land of boundless magic and mysterious creatures, "
             "lies the long-forgotten city of Aeloria. Once a beacon of knowledge and power, Aeloria "
@@ -138,9 +139,16 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "max_tokens": 30,
         }
 
-        payload_json = json.dumps(payload_data).replace("'", "\\'")
-
-        return f'curl -s -X POST "http://$DYNAMO_FRONTEND/v1/chat/completions" -H "Content-Type: application/json" -d \'{payload_json}\''
+        # Using a heredoc to avoid all quoting issues
+        json_string = json.dumps(payload_data)
+        return (
+            "cat > /tmp/payload.json << EOF\n"
+            f"{json_string}\n"
+            "EOF\n"
+            'curl -s -X POST "http://$DYNAMO_FRONTEND/v1/chat/completions" '
+            '-H "Content-Type: application/json" '
+            "-d @/tmp/payload.json"
+        )
 
     def _prefill_block(self, td: AIDynamoTestDefinition) -> List[str]:
         return [
