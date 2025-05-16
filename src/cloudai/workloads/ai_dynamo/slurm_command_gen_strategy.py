@@ -29,12 +29,12 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _container_mounts(self, tr: TestRun) -> list[str]:
         td = cast(AIDynamoTestDefinition, tr.test.test_definition)
         mounts = [
-            f"{td.hugging_face_home_path}:{td.hugging_face_home_path}:ro",
+            f"{td.hugging_face_home_path}:{td.hugging_face_home_path}",
         ]
         script_host = (tr.output_path / "start_dynamo_wrapper.sh").resolve()
         script_container = "/opt/start_dynamo_wrapper.sh"
         self._generate_wrapper_script(script_host, td)
-        mounts.append(f"{script_host}:{script_container}:ro")
+        mounts.append(f"{script_host}:{script_container}")
         return mounts
 
     def _parse_slurm_args(
