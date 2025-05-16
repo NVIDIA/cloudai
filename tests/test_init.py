@@ -64,7 +64,11 @@ from cloudai.workloads.nemo_launcher import (
     NeMoLauncherSlurmJobIdRetrievalStrategy,
     NeMoLauncherTestDefinition,
 )
-from cloudai.workloads.nemo_run import NeMoRunSlurmCommandGenStrategy, NeMoRunTestDefinition
+from cloudai.workloads.nemo_run import (
+    NeMoRunJobStatusRetrievalStrategy,
+    NeMoRunSlurmCommandGenStrategy,
+    NeMoRunTestDefinition,
+)
 from cloudai.workloads.sleep import (
     SleepGradingStrategy,
     SleepKubernetesJsonGenStrategy,
@@ -74,6 +78,10 @@ from cloudai.workloads.sleep import (
     SleepTestDefinition,
 )
 from cloudai.workloads.slurm_container import SlurmContainerCommandGenStrategy, SlurmContainerTestDefinition
+from cloudai.workloads.triton_inference import (
+    TritonInferenceSlurmCommandGenStrategy,
+    TritonInferenceTestDefinition,
+)
 from cloudai.workloads.ucc_test import (
     UCCTestDefinition,
     UCCTestGradingStrategy,
@@ -115,6 +123,7 @@ ALL_STRATEGIES = {
     (CommandGenStrategy, SlurmSystem, MegatronRunTestDefinition): MegatronRunSlurmCommandGenStrategy,
     (CommandGenStrategy, StandaloneSystem, SleepTestDefinition): SleepStandaloneCommandGenStrategy,
     (CommandGenStrategy, LSFSystem, SleepTestDefinition): SleepLSFCommandGenStrategy,
+    (CommandGenStrategy, SlurmSystem, TritonInferenceTestDefinition): TritonInferenceSlurmCommandGenStrategy,
     (GradingStrategy, SlurmSystem, ChakraReplayTestDefinition): ChakraReplayGradingStrategy,
     (GradingStrategy, SlurmSystem, GPTTestDefinition): JaxToolboxGradingStrategy,
     (GradingStrategy, SlurmSystem, GrokTestDefinition): JaxToolboxGradingStrategy,
@@ -134,6 +143,7 @@ ALL_STRATEGIES = {
     (JobIdRetrievalStrategy, SlurmSystem, SlurmContainerTestDefinition): SlurmJobIdRetrievalStrategy,
     (JobIdRetrievalStrategy, SlurmSystem, UCCTestDefinition): SlurmJobIdRetrievalStrategy,
     (JobIdRetrievalStrategy, SlurmSystem, MegatronRunTestDefinition): SlurmJobIdRetrievalStrategy,
+    (JobIdRetrievalStrategy, SlurmSystem, TritonInferenceTestDefinition): SlurmJobIdRetrievalStrategy,
     (JobIdRetrievalStrategy, StandaloneSystem, SleepTestDefinition): StandaloneJobIdRetrievalStrategy,
     (JobIdRetrievalStrategy, LSFSystem, SleepTestDefinition): LSFJobIdRetrievalStrategy,
     (JobStatusRetrievalStrategy, KubernetesSystem, NCCLTestDefinition): DefaultJobStatusRetrievalStrategy,
@@ -143,12 +153,13 @@ ALL_STRATEGIES = {
     (JobStatusRetrievalStrategy, SlurmSystem, GrokTestDefinition): JaxToolboxJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, SlurmSystem, NCCLTestDefinition): NcclTestJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, SlurmSystem, NeMoLauncherTestDefinition): DefaultJobStatusRetrievalStrategy,
-    (JobStatusRetrievalStrategy, SlurmSystem, NeMoRunTestDefinition): DefaultJobStatusRetrievalStrategy,
+    (JobStatusRetrievalStrategy, SlurmSystem, NeMoRunTestDefinition): NeMoRunJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, SlurmSystem, NemotronTestDefinition): JaxToolboxJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, SlurmSystem, SleepTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, SlurmSystem, SlurmContainerTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, SlurmSystem, UCCTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, SlurmSystem, MegatronRunTestDefinition): DefaultJobStatusRetrievalStrategy,
+    (JobStatusRetrievalStrategy, SlurmSystem, TritonInferenceTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, StandaloneSystem, SleepTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, LSFSystem, SleepTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, RunAISystem, NCCLTestDefinition): DefaultJobStatusRetrievalStrategy,
@@ -184,7 +195,7 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 11
+    assert len(test_defs) == 12
     for tdef in [
         ("UCCTest", UCCTestDefinition),
         ("NcclTest", NCCLTestDefinition),
@@ -197,6 +208,7 @@ def test_definitions():
         ("JaxToolboxNemotron", NemotronTestDefinition),
         ("SlurmContainer", SlurmContainerTestDefinition),
         ("MegatronRun", MegatronRunTestDefinition),
+        ("TritonInference", TritonInferenceTestDefinition),
     ]:
         assert test_defs[tdef[0]] == tdef[1]
 

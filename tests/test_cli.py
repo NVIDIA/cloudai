@@ -139,11 +139,11 @@ def test_add_command_all_required():
         [
             "test",
             "--system-config",
-            "system_config",
+            f"{Path(__file__)}",
             "--tests-dir",
-            "tests_dir",
+            f"{Path.cwd()}",
             "--test-scenario",
-            "test_scenario",
+            f"{Path(__file__)}",
             "--output-dir",
             "output_dir",
         ]
@@ -152,9 +152,9 @@ def test_add_command_all_required():
         log_file="debug.log",
         log_level="INFO",
         mode="test",
-        system_config=Path("system_config"),
-        tests_dir=Path("tests_dir"),
-        test_scenario=Path("test_scenario"),
+        system_config=Path(__file__),
+        tests_dir=Path.cwd(),
+        test_scenario=Path(__file__),
         output_dir=Path("output_dir"),
     )
 
@@ -194,9 +194,9 @@ class TestCLIDefaultModes:
                 [
                     mode,
                     "--system-config",
-                    "system_config",
+                    f"{Path(__file__)}",
                     "--tests-dir",
-                    "tests_dir",
+                    f"{Path.cwd()}",
                 ]
             )
 
@@ -204,8 +204,8 @@ class TestCLIDefaultModes:
                 log_file="debug.log",
                 log_level="INFO",
                 mode=mode,
-                system_config=Path("system_config"),
-                tests_dir=Path("tests_dir"),
+                system_config=Path(__file__),
+                tests_dir=Path.cwd(),
                 test_scenario=None,
                 output_dir=None,
             )
@@ -214,12 +214,12 @@ class TestCLIDefaultModes:
         assert "verify-configs" in cli.handlers
         assert cli.handlers["verify-configs"] is handle_verify_all_configs
 
-        args = cli.parser.parse_args(["verify-configs", "--tests-dir", "tests_dir", "configs_dir"])
+        args = cli.parser.parse_args(["verify-configs", "--tests-dir", f"{Path.cwd()}", "configs_dir"])
         assert args == argparse.Namespace(
             log_file="debug.log",
             log_level="INFO",
             mode="verify-configs",
-            tests_dir=Path("tests_dir"),
+            tests_dir=Path.cwd(),
             strict=False,
             **{"configs_dir": Path("configs_dir")},
         )
@@ -242,23 +242,23 @@ class TestCLIDefaultModes:
             [
                 "generate-report",
                 "--system-config",
-                "system_config",
+                f"{Path(__file__)}",
                 "--tests-dir",
-                "tests_dir",
+                f"{Path.cwd()}",
                 "--test-scenario",
-                "test_scenario",
+                f"{Path(__file__)}",
                 "--result-dir",
-                "result_dir",
+                f"{Path.cwd()}",
             ]
         )
         assert args == argparse.Namespace(
             log_file="debug.log",
             log_level="INFO",
             mode="generate-report",
-            test_scenario=Path("test_scenario"),
-            result_dir=Path("result_dir"),
-            system_config=Path("system_config"),
-            tests_dir=Path("tests_dir"),
+            test_scenario=Path(__file__),
+            result_dir=Path.cwd(),
+            system_config=Path(__file__),
+            tests_dir=Path.cwd(),
         )
 
     def test_run_dry_run_modes(self, cli: CloudAICLI):
@@ -270,11 +270,11 @@ class TestCLIDefaultModes:
                 [
                     mode,
                     "--system-config",
-                    "system_config",
+                    f"{Path(__file__)}",
                     "--tests-dir",
-                    "tests_dir",
+                    f"{Path.cwd()}",
                     "--test-scenario",
-                    "test_scenario",
+                    f"{Path(__file__)}",
                 ]
             )
 
@@ -282,9 +282,9 @@ class TestCLIDefaultModes:
                 log_file="debug.log",
                 log_level="INFO",
                 mode=mode,
-                system_config=Path("system_config"),
-                tests_dir=Path("tests_dir"),
-                test_scenario=Path("test_scenario"),
+                system_config=Path(__file__),
+                tests_dir=Path.cwd(),
+                test_scenario=Path(__file__),
                 output_dir=None,
                 enable_cache_without_check=False,
             )
@@ -306,9 +306,9 @@ class TestCLIDefaultModes:
         self, mode_and_missing_options: tuple[str, list[str]], cli: CloudAICLI, capsys: pytest.CaptureFixture[str]
     ):
         opts = {
-            "--system-config": "system_config",
-            "--tests-dir": "tests_dir",
-            "--test-scenario": "test_scenario",
+            "--system-config": f"{Path(__file__)}",
+            "--tests-dir": f"{Path.cwd()}",
+            "--test-scenario": f"{Path(__file__)}",
             "--output-dir": "output_dir",
         }
         mode, missing_options = mode_and_missing_options

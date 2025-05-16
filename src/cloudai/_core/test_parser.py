@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional, Type, Union, cast
 import toml
 from pydantic import BaseModel, ValidationError
 
+from ..models.workload import TestDefinition
 from .command_gen_strategy import CommandGenStrategy
 from .exceptions import TestConfigParsingError, format_validation_error
 from .grading_strategy import GradingStrategy
@@ -29,7 +30,7 @@ from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from .json_gen_strategy import JsonGenStrategy
 from .registry import Registry
 from .system import System
-from .test import Test, TestDefinition
+from .test import Test
 from .test_template import TestTemplate
 from .test_template_strategy import TestTemplateStrategy
 
@@ -87,9 +88,10 @@ class TestParser:
         return extras | set([f"{prefix}.{k}" for k in m.model_extra])
 
     def load_test_definition(self, data: dict, strict: bool = False) -> TestDefinition:
-        test_template_name = data.get("test_template_name", "")
+        test_template_name = data.get("test_template_name")
         registry = Registry()
-        if test_template_name not in registry.test_definitions_map:
+        if not test_template_name or test_template_name not in registry.test_definitions_map:
+            logging.error(f"Failed to parse test spec: '{self.current_file}'")
             logging.error(f"TestTemplate with name '{test_template_name}' not supported.")
             raise NotImplementedError(f"TestTemplate with name '{test_template_name}' not supported.")
 
@@ -174,7 +176,7 @@ class TestParser:
         """
         cmd_args = tdef.cmd_args_dict
 
-        obj = TestTemplate(system=self.system, name=name)
+        obj = TestTemplate(system=self.system)
         obj.command_gen_strategy = cast(
             CommandGenStrategy,
             self._fetch_strategy(CommandGenStrategy, type(obj.system), type(tdef), cmd_args),
@@ -196,19 +198,17 @@ class TestParser:
         )
         return obj
 
-    def _parse_data(self, data: Dict[str, Any]) -> Test:
+    def _parse_data(self, data: Dict[str, Any], strict: bool = False) -> Test:
         """
         Parse data for a Test object.
 
         Args:
             data (Dict[str, Any]): Data from a source (e.g., a TOML file).
+            strict (bool): Whether to enforce strict validation for test definition.
 
         Returns:
             Test: Parsed Test object.
         """
-        test_def = self.load_test_definition(data)
-
-        test_template_name = data.get("test_template_name", "")
-        test_template = self._get_test_template(test_template_name, test_def)
-
+        test_def = self.load_test_definition(data, strict)
+        test_template = self._get_test_template(test_def.test_template_name, test_def)
         return Test(test_definition=test_def, test_template=test_template)

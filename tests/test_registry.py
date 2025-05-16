@@ -27,10 +27,14 @@ from cloudai import (
     Registry,
     ReportGenerationStrategy,
     System,
-    TestDefinition,
     TestTemplateStrategy,
 )
 from cloudai._core.reporter import Reporter
+from cloudai.models.workload import TestDefinition
+
+
+class MyTestDefinition(TestDefinition):
+    pass
 
 
 @pytest.fixture
@@ -210,10 +214,6 @@ class TestRegistry__Installers:
         assert "Invalid installer implementation for 'TestInstaller'" in str(exc_info.value)
 
 
-class MyTestDefinition(TestDefinition):
-    pass
-
-
 class AnotherTestDefinition(TestDefinition):
     pass
 
@@ -335,21 +335,21 @@ class TestRegistry__ScenarioReports:
 
     def test_add_scenario_report(self, registry: Registry):
         registry.add_scenario_report(MyReporter)
-        assert registry.scenario_reports == {MyReporter}
+        assert registry.scenario_reports == [MyReporter]
 
     def test_duplicate_is_fine(self, registry: Registry):
         registry.add_scenario_report(MyReporter)
         registry.add_scenario_report(MyReporter)
-        assert registry.scenario_reports == {MyReporter}
+        assert registry.scenario_reports == [MyReporter]
 
     def test_can_add_multiple_reports(self, registry: Registry):
         registry.add_scenario_report(MyReporter)
         registry.add_scenario_report(AnotherReporter)
-        assert registry.scenario_reports == {MyReporter, AnotherReporter}
+        assert registry.scenario_reports == [MyReporter, AnotherReporter]
 
     def test_update_scenario_report(self, registry: Registry):
-        registry.update_scenario_report({AnotherReporter})
-        assert registry.scenario_reports == {AnotherReporter}
+        registry.update_scenario_report([AnotherReporter])
+        assert registry.scenario_reports == [AnotherReporter]
 
     def test_invalid_type(self, registry: Registry):
         with pytest.raises(ValueError) as exc_info:

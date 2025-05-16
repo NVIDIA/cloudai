@@ -20,6 +20,7 @@ from ._core.base_runner import BaseRunner
 from ._core.base_system_parser import BaseSystemParser
 from ._core.command_gen_strategy import CommandGenStrategy
 from ._core.configurator.base_agent import BaseAgent
+from ._core.configurator.cloudai_gym import CloudAIGymEnv
 from ._core.configurator.grid_search import GridSearchAgent
 from ._core.exceptions import (
     JobIdRetrievalError,
@@ -40,7 +41,7 @@ from ._core.report_generation_strategy import ReportGenerationStrategy
 from ._core.reporter import PerTestReporter, Reporter, StatusReporter, TarballReporter
 from ._core.runner import Runner
 from ._core.system import System
-from ._core.test import CmdArgs, NsysConfiguration, PredictorConfig, Test, TestDefinition
+from ._core.test import Test
 from ._core.test_parser import TestParser
 from ._core.test_scenario import TestRun, TestScenario
 from ._core.test_scenario_parser import TestScenarioParser
@@ -51,6 +52,7 @@ from .installer.lsf_installer import LSFInstaller
 from .installer.runai_installer import RunAIInstaller
 from .installer.slurm_installer import SlurmInstaller
 from .installer.standalone_installer import StandaloneInstaller
+from .models.workload import CmdArgs, NsysConfiguration, PredictorConfig, TestDefinition
 from .parser import Parser
 from .runner.kubernetes.kubernetes_runner import KubernetesRunner
 from .runner.lsf.lsf_runner import LSFRunner
@@ -106,6 +108,7 @@ from .workloads.nemo_launcher import (
 )
 from .workloads.nemo_run import (
     NeMoRunDataStoreReportGenerationStrategy,
+    NeMoRunJobStatusRetrievalStrategy,
     NeMoRunReportGenerationStrategy,
     NeMoRunSlurmCommandGenStrategy,
     NeMoRunTestDefinition,
@@ -123,6 +126,11 @@ from .workloads.slurm_container import (
     SlurmContainerCommandGenStrategy,
     SlurmContainerReportGenerationStrategy,
     SlurmContainerTestDefinition,
+)
+from .workloads.triton_inference import (
+    TritonInferenceReportGenerationStrategy,
+    TritonInferenceSlurmCommandGenStrategy,
+    TritonInferenceTestDefinition,
 )
 from .workloads.ucc_test import (
     UCCTestDefinition,
@@ -190,6 +198,7 @@ Registry().add_strategy(
         NeMoRunTestDefinition,
         SlurmContainerTestDefinition,
         MegatronRunTestDefinition,
+        TritonInferenceTestDefinition,
     ],
     SlurmJobIdRetrievalStrategy,
 )
@@ -219,14 +228,20 @@ Registry().add_strategy(
 Registry().add_strategy(
     JobStatusRetrievalStrategy,
     [SlurmSystem],
+    [NeMoRunTestDefinition],
+    NeMoRunJobStatusRetrievalStrategy,
+)
+Registry().add_strategy(
+    JobStatusRetrievalStrategy,
+    [SlurmSystem],
     [
         ChakraReplayTestDefinition,
         UCCTestDefinition,
         NeMoLauncherTestDefinition,
         SleepTestDefinition,
-        NeMoRunTestDefinition,
         SlurmContainerTestDefinition,
         MegatronRunTestDefinition,
+        TritonInferenceTestDefinition,
     ],
     DefaultJobStatusRetrievalStrategy,
 )
@@ -252,6 +267,9 @@ Registry().add_strategy(
 Registry().add_strategy(
     CommandGenStrategy, [SlurmSystem], [SlurmContainerTestDefinition], SlurmContainerCommandGenStrategy
 )
+Registry().add_strategy(
+    CommandGenStrategy, [SlurmSystem], [TritonInferenceTestDefinition], TritonInferenceSlurmCommandGenStrategy
+)
 
 Registry().add_installer("slurm", SlurmInstaller)
 Registry().add_installer("standalone", StandaloneInstaller)
@@ -276,6 +294,7 @@ Registry().add_test_definition("JaxToolboxGrok", GrokTestDefinition)
 Registry().add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)
 Registry().add_test_definition("SlurmContainer", SlurmContainerTestDefinition)
 Registry().add_test_definition("MegatronRun", MegatronRunTestDefinition)
+Registry().add_test_definition("TritonInference", TritonInferenceTestDefinition)
 
 Registry().add_agent("grid_search", GridSearchAgent)
 
@@ -291,6 +310,7 @@ Registry().add_report(NemotronTestDefinition, JaxToolboxReportGenerationStrategy
 Registry().add_report(SleepTestDefinition, SleepReportGenerationStrategy)
 Registry().add_report(SlurmContainerTestDefinition, SlurmContainerReportGenerationStrategy)
 Registry().add_report(UCCTestDefinition, UCCTestReportGenerationStrategy)
+Registry().add_report(TritonInferenceTestDefinition, TritonInferenceReportGenerationStrategy)
 
 Registry().add_scenario_report(PerTestReporter)
 Registry().add_scenario_report(StatusReporter)
@@ -302,6 +322,7 @@ __all__ = [
     "BaseJob",
     "BaseRunner",
     "BaseSystemParser",
+    "CloudAIGymEnv",
     "CmdArgs",
     "CommandGenStrategy",
     "DockerImage",

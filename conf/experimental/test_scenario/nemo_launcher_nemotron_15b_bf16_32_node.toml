@@ -18,5 +18,8 @@ name = "nemo_launcher_nemotron_15b_bf16_32_node"
 
 [[Tests]]
 id = "nemo_launcher_nemotron_15b_bf16_32_node"
-test_name = "nemo_launcher_nemotron_15b_bf16_32_node"
+test_name = "nemo_launcher_nemotron_15b_bf16_2_node"
 num_nodes = "32"
+
+  [Tests.cmd_args.training.model]
+  global_batch_size = 1024
