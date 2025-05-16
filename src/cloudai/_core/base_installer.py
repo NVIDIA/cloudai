@@ -210,7 +210,6 @@ class BaseInstaller(ABC):
         logging.debug(f"Going to uninstall {len(set(items))} uniq items (total {len(list(items))}).")
         logging.info(f"Going to uninstall {len(set(items))} items.")
 
-        # Set max_workers to 1 when in low thread environment to avoid thread contention
         max_workers = 1 if self.is_low_thread_environment else None
         if self.is_low_thread_environment:
             logging.info("Low thread environment detected. Using single-threaded execution.")
