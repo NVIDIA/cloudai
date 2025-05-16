@@ -74,7 +74,8 @@ class TestTemplateStrategy:
 
         return construct_args(self.cmd_args)
 
-    def _flatten_dict(self, d: Dict[str, Any], parent_key: str = "", sep: str = ".") -> Dict[str, Any]:
+    @classmethod
+    def _flatten_dict(cls, d: Dict[str, Any], parent_key: str = "", sep: str = ".") -> Dict[str, Any]:
         """
         Flatten a nested dictionary into a single level dictionary with dot-separated keys.
 
@@ -90,7 +91,7 @@ class TestTemplateStrategy:
         for k, v in d.items():
             new_key = f"{parent_key}{sep}{k}" if parent_key else k
             if isinstance(v, dict):
-                items.extend(self._flatten_dict(v, new_key, sep=sep).items())
+                items.extend(cls._flatten_dict(v, new_key, sep=sep).items())
             else:
                 items.append((new_key, v))
         return dict(items)
