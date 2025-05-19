@@ -446,6 +446,24 @@ class TestInScenario:
         assert isinstance(tdef.cmd_args, MegatronRunCmdArgs)
         assert tdef.cmd_args.run_script == Path("run.sh")
 
+    def test_num_nodes_can_be_list(self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem):
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            name = "nccl"
+            test_template_name = "NcclTest"
+            description = "desc"
+            cmd_args = { any = 42 }
+            num_nodes = [1, 2]
+            """
+            )
+        )
+        assert model.tests[0].num_nodes == [1, 2]
+
 
 class TestReporters:
     def test_default(self):
