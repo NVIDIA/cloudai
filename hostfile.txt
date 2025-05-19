@@ -1,3 +1,0 @@
-nodeA
-nodeB
-nodeC
