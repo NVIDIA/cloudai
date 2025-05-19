@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from abc import abstractmethod
 from datetime import datetime
 from pathlib import Path
@@ -43,6 +44,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         super().__init__(system, cmd_args)
         self.system = system
         self.docker_image_url = self.cmd_args.get("docker_image_url", "")
+
+        self._node_spec_cache: dict[str, tuple[int, list[str]]] = {}
 
     @abstractmethod
     def _container_mounts(self, tr: TestRun) -> list[str]:
@@ -132,7 +135,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             KeyError: If partition or essential node settings are missing.
         """
         job_name = self.job_name(job_name_prefix)
-        num_nodes, node_list = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
+        num_nodes, node_list = self.get_cached_nodes_spec(tr)
 
         slurm_args = {
             "job_name": job_name,
@@ -311,7 +314,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
     def _metadata_cmd(self, slurm_args: dict[str, Any], tr: TestRun) -> str:
         (tr.output_path.absolute() / "metadata").mkdir(parents=True, exist_ok=True)
-        num_nodes, _ = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
+        num_nodes, _ = self.get_cached_nodes_spec(tr)
         metadata_script_path = "/cloudai_install"
         if "image_path" not in slurm_args:
             metadata_script_path = str(self.system.install_path.absolute())
@@ -432,7 +435,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         )
 
     def _append_nodes_related_directives(self, content: List[str], args: Dict[str, Any], tr: TestRun) -> Optional[Path]:
-        num_nodes, node_list = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
+        num_nodes, node_list = self.get_cached_nodes_spec(tr)
 
         if node_list:
             content.append("#SBATCH --distribution=arbitrary")
@@ -480,3 +483,19 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             str: The generated command to check the success of the test run.
         """
         return ""
+
+    def get_cached_nodes_spec(self, tr: TestRun) -> tuple[int, list[str]]:
+        """
+        Get nodes for a test run, using cache when available.
+
+        It is needed to avoid multiple calls to the system.get_nodes_by_spec method which in turn queries the Slurm API.
+        For a single test run it is not required, we can get actual nodes status only once.
+        """
+        cache_key = f"{tr.num_nodes}:{','.join(tr.nodes)}"
+
+        if cache_key in self._node_spec_cache:
+            logging.debug(f"Using cached node allocation for {cache_key}: {self._node_spec_cache[cache_key]}")
+            return self._node_spec_cache[cache_key]
+
+        self._node_spec_cache[cache_key] = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
+        return self._node_spec_cache[cache_key]
