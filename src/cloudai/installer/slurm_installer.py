@@ -237,7 +237,7 @@ class SlurmInstaller(BaseInstaller):
 
         clone_cmd.extend([git_url, str(path)])
 
-        logging.info(f"Running git clone command: {' '.join(clone_cmd)}")
+        logging.debug(f"Running git clone command: {' '.join(clone_cmd)}")
         result = subprocess.run(clone_cmd, capture_output=True, text=True)
         if result.returncode != 0:
             return InstallStatusResult(False, f"Failed to clone repository: {result.stderr}")
