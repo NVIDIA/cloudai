@@ -816,6 +816,18 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
             num_sanity_val_steps=0,
             val_check_interval=1000,
             max_epochs=10,
+            callbacks=[
+                run.Config(
+                    MegatronCommOverlapCallback,
+                    tp_comm_overlap=True,
+                    overlap_grad_reduce=True,
+                    overlap_param_gather=True,
+                    overlap_param_gather_with_optimizer_step=True,
+                    defer_embedding_wgrad_compute=True,
+                    wgrad_deferral_limit=22,
+                ),
+                timing_callback(),
+            ],
         ),
         optim=run.Config(
             nl.MegatronOptimizerModule,
@@ -844,7 +856,38 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
             model_name="llama3",
         )
     )
+
+    enable_cuda_graphs = os.getenv("CLOUDAI_ENABLE_CUDA_GRAPHS", "0") == "1"
+    if enable_cuda_graphs:
+        recipe.model.config.enable_cuda_graph = True
+        recipe.trainer.strategy.use_te_rng_tracker = True
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
+
+    enable_fsdp = os.getenv("CLOUDAI_ENABLE_FSDP", "0") == "1"
+    disable_tp_commd_overlap = os.getenv("CLOUDAI_DISABLE_TP_COMM_OVERLAP", "0") == "1"
+    if enable_fsdp:
+        recipe.model.config.init_model_with_meta_device = True
+        recipe.trainer.strategy.fsdp = "megatron"
+        recipe.trainer.strategy.ddp.data_parallel_sharding_strategy = "optim_grads_params"
+        recipe.trainer.strategy.ddp.average_in_collective = False
+        recipe.trainer.strategy.ddp.keep_fp8_transpose_cache_when_using_custom_fsdp = False
+        recipe.model.config.gradient_accumulation_fusion = False
+        recipe.trainer.callbacks[0].defer_embedding_wgrad_compute = False
+
+        if disable_tp_commd_overlap:
+            recipe.trainer.callbacks[0].tp_comm_overlap = False
+
+    recompute_layers = int(os.getenv("CLOUDAI_RECOMPUTE_LAYERS", "0"))
+    if recompute_layers > 0:
+        recipe.model.config.recompute_granularity = "full"
+        recipe.model.config.recompute_method = "block"
+        recipe.model.config.recompute_num_layers = recompute_layers
+
+    activation_offload_layers = int(os.getenv("CLOUDAI_ACTIVATION_OFFLOAD_LAYERS", "0"))
+    if activation_offload_layers > 0:
+        recipe.model.config.cpu_offloading = True
+        recipe.model.config.cpu_offloading_weights = False
+        recipe.model.config.cpu_offloading_num_layers = activation_offload_layers
     return recipe
 
 

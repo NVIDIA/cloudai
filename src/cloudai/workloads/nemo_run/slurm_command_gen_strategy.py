@@ -108,7 +108,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     ) -> List[str]:
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
 
-        tdef.cmd_args.data.num_train_samples = tdef.num_train_samples
+        tdef.cmd_args.data.num_train_samples = tdef.update_num_train_samples
 
         cmd_args_dict = tdef.cmd_args.model_dump()
 
