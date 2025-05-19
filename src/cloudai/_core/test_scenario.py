@@ -14,11 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
+import itertools
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, Set, Type, Union
+from typing import TYPE_CHECKING, Any, List, Optional, Set, Type, Union
 
 from .system import System
+from .test_template_strategy import TestTemplateStrategy
 
 if TYPE_CHECKING:
     from .report_generation_strategy import ReportGenerationStrategy
@@ -120,6 +123,56 @@ class TestRun:
         if isinstance(self.num_nodes, list):
             raise TypeError("num_nodes is a list, cannot be used as a scalar.")
         return self.num_nodes
+
+    @property
+    def param_space(self) -> dict[str, Any]:
+        action_space: dict[str, Any] = {}
+        cmd_args_dict = TestTemplateStrategy._flatten_dict(self.test.test_definition.cmd_args.model_dump())
+        extra_env_vars_dict = self.test.test_definition.extra_env_vars
+
+        action_space = {
+            **{f"{key}": value for key, value in cmd_args_dict.items() if isinstance(value, list)},
+            **{f"extra_env_vars.{key}": value for key, value in extra_env_vars_dict.items() if isinstance(value, list)},
+        }
+        if isinstance(self.num_nodes, list):
+            action_space["NUM_NODES"] = self.num_nodes
+
+        return action_space
+
+    @property
+    def all_combinations(self) -> list[dict[str, Any]]:
+        if not self.test.test_definition.is_dse_job:
+            return []
+
+        action_space: dict[str, Any] = self.param_space
+
+        parameter_values: list[Any] = []
+        for _, values in action_space.items():
+            parameter_values.append(values)
+        action_combinations = list(itertools.product(*parameter_values))
+
+        keys = list(action_space.keys())
+        all_combinations = [dict(zip(keys, combination, strict=True)) for combination in action_combinations]
+
+        return all_combinations
+
+    def apply_params_set(self, action: dict[str, Any]) -> "TestRun":
+        tdef = self.test.test_definition.model_copy(deep=True)
+        for key, value in action.items():
+            if key.startswith("extra_env_vars."):
+                tdef.extra_env_vars[key[len("extra_env_vars.") :]] = value
+            else:
+                attrs = key.split(".")
+                obj = tdef.cmd_args
+                for attr in attrs[:-1]:
+                    obj = getattr(obj, attr)
+                setattr(obj, attrs[-1], value)
+
+        new_tr = copy.deepcopy(self)
+        if "NUM_NODES" in action:
+            new_tr.num_nodes = action["NUM_NODES"]
+        new_tr.test.test_definition = type(tdef)(**tdef.model_dump())  # re-create the model to enable validation
+        return new_tr
 
 
 class TestScenario:

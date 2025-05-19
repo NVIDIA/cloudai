@@ -14,18 +14,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import logging
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
-from kubernetes import client, config
-from kubernetes.client import ApiException, CustomObjectsApi, V1DeleteOptions, V1Job
+if TYPE_CHECKING:
+    import kubernetes as k8s
+
 from pydantic import BaseModel, ConfigDict
 
 from ..._core.base_job import BaseJob
 from ..._core.system import System
 from ...runner.kubernetes.kubernetes_job import KubernetesJob
+from ...util.lazy_imports import lazy
 
 
 class KubernetesSystem(BaseModel, System):
@@ -56,9 +60,9 @@ class KubernetesSystem(BaseModel, System):
     scheduler: str = "kubernetes"
     global_env_vars: Dict[str, Any] = {}
     monitor_interval: int = 1
-    _core_v1: Optional[client.CoreV1Api] = None
-    _batch_v1: Optional[client.BatchV1Api] = None
-    _custom_objects_api: Optional[CustomObjectsApi] = None
+    _core_v1: Optional[k8s.client.CoreV1Api] = None
+    _batch_v1: Optional[k8s.client.BatchV1Api] = None
+    _custom_objects_api: Optional[k8s.client.CustomObjectsApi] = None
 
     def model_post_init(self, __context):  # noqa: Vulture
         """Initialize the KubernetesSystem instance."""
@@ -79,28 +83,28 @@ class KubernetesSystem(BaseModel, System):
 
         # Instantiate Kubernetes APIs
         logging.debug(f"Loading kube config from: {kube_config_path}")
-        config.load_kube_config(config_file=str(kube_config_path))
+        lazy.k8s.config.load_kube_config(config_file=str(kube_config_path))
 
-        self._core_v1 = client.CoreV1Api()
-        self._batch_v1 = client.BatchV1Api()
-        self._custom_objects_api = CustomObjectsApi()
+        self._core_v1 = lazy.k8s.client.CoreV1Api()
+        self._batch_v1 = lazy.k8s.client.BatchV1Api()
+        self._custom_objects_api = lazy.k8s.client.CustomObjectsApi()
 
         logging.debug(f"{self.__class__.__name__} initialized")
 
     @property
-    def core_v1(self) -> client.CoreV1Api:
+    def core_v1(self) -> k8s.client.CoreV1Api:
         """Returns the Kubernetes Core V1 API client."""
         assert self._core_v1 is not None
         return self._core_v1
 
     @property
-    def batch_v1(self) -> client.BatchV1Api:
+    def batch_v1(self) -> k8s.client.BatchV1Api:
         """Returns the Kubernetes Batch V1 API client."""
         assert self._batch_v1 is not None
         return self._batch_v1
 
     @property
-    def custom_objects_api(self) -> CustomObjectsApi:
+    def custom_objects_api(self) -> k8s.client.CustomObjectsApi:
         """Returns the Kubernetes Custom Objects API client."""
         assert self._custom_objects_api is not None
         return self._custom_objects_api
@@ -214,7 +218,7 @@ class KubernetesSystem(BaseModel, System):
             # If the job has been created but is neither succeeded nor failed, it is considered running
             return any(condition["type"] == "Created" and condition["status"] == "True" for condition in conditions)
 
-        except ApiException as e:
+        except lazy.k8s.client.ApiException as e:
             if e.status == 404:
                 logging.debug(f"MPIJob '{job_name}' not found. It may have completed and been removed from the system.")
                 return False
@@ -258,7 +262,7 @@ class KubernetesSystem(BaseModel, System):
 
             return any(condition.type == "Created" and condition.status == "True" for condition in conditions)
 
-        except ApiException as e:
+        except lazy.k8s.client.ApiException as e:
             if e.status == 404:
                 logging.debug(
                     f"Batch job '{job_name}' not found.It may have completed and been removed from the system."
@@ -316,10 +320,10 @@ class KubernetesSystem(BaseModel, System):
                 namespace=self.default_namespace,
                 plural="mpijobs",
                 name=job_name,
-                body=V1DeleteOptions(propagation_policy="Foreground", grace_period_seconds=5),
+                body=k8s.client.V1DeleteOptions(propagation_policy="Foreground", grace_period_seconds=5),
             )
             logging.debug(f"MPIJob '{job_name}' deleted successfully")
-        except ApiException as e:
+        except lazy.k8s.client.ApiException as e:
             if e.status == 404:
                 logging.debug(f"MPIJob '{job_name}' not found. It may have already been deleted.")
             else:
@@ -341,9 +345,9 @@ class KubernetesSystem(BaseModel, System):
         api_response = self.batch_v1.delete_namespaced_job(
             name=job_name,
             namespace=self.default_namespace,
-            body=V1DeleteOptions(propagation_policy="Foreground", grace_period_seconds=5),
+            body=k8s.client.V1DeleteOptions(propagation_policy="Foreground", grace_period_seconds=5),
         )
-        api_response = cast(V1Job, api_response)
+        api_response = cast(k8s.client.V1Job, api_response)
 
         logging.debug(f"Batch job '{job_name}' deleted with status: {api_response.status}")
 
@@ -419,7 +423,7 @@ class KubernetesSystem(BaseModel, System):
         """
         api_response = self.batch_v1.create_namespaced_job(body=job_spec, namespace=self.default_namespace)
 
-        if not isinstance(api_response, V1Job) or api_response.metadata is None:
+        if not isinstance(api_response, lazy.k8s.client.V1Job) or api_response.metadata is None:
             raise ValueError("Job creation failed or returned an unexpected type")
 
         job_name: str = api_response.metadata.name
@@ -481,7 +485,7 @@ class KubernetesSystem(BaseModel, System):
         """
         logging.debug(f"Attempting to observe MPIJob '{job_name}'.")
         try:
-            api_instance = CustomObjectsApi()
+            api_instance = self.custom_objects_api
             mpijob = api_instance.get_namespaced_custom_object(
                 group="kubeflow.org",
                 version="v2beta1",
@@ -495,7 +499,7 @@ class KubernetesSystem(BaseModel, System):
             else:
                 logging.debug(f"MPIJob '{job_name}' is not yet observable.")
                 return False
-        except ApiException as e:
+        except lazy.k8s.client.ApiException as e:
             if e.status == 404:
                 logging.debug(f"MPIJob '{job_name}' not found.")
                 return False
@@ -519,7 +523,7 @@ class KubernetesSystem(BaseModel, System):
         logging.debug(f"Attempting to observe batch job '{job_name}'.")
         try:
             return self.batch_v1.read_namespaced_job_status(name=job_name, namespace=self.default_namespace) is not None
-        except ApiException as e:
+        except lazy.k8s.client.ApiException as e:
             if e.status == 404:
                 logging.debug(f"Batch job '{job_name}' not found.")
                 return False
@@ -583,7 +587,7 @@ class KubernetesSystem(BaseModel, System):
 
                     stdout_file.write(logs + "\n")
 
-                except client.ApiException as e:
+                except lazy.k8s.client.ApiException as e:
                     logging.error(f"Error retrieving logs for pod '{pod_name}': {e}")
 
         logging.info(f"All logs concatenated and saved to '{stdout_file_path}'")
@@ -604,6 +608,6 @@ class KubernetesSystem(BaseModel, System):
             for pod in pods.items:
                 if pod.metadata.labels and pod.metadata.labels.get("training.kubeflow.org/job-name") == job_name:
                     pod_names.append(pod.metadata.name)
-        except client.ApiException as e:
+        except lazy.k8s.client.ApiException as e:
             logging.error(f"Error retrieving pods for job '{job_name}': {e}")
         return pod_names

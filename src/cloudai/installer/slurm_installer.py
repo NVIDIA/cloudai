@@ -20,23 +20,21 @@ import subprocess
 from pathlib import Path
 from shutil import rmtree
 
-from cloudai import BaseInstaller, DockerImage, File, GitRepo, Installable, InstallStatusResult, PythonExecutable
+from cloudai import (
+    BaseInstaller,
+    DockerImage,
+    File,
+    GitRepo,
+    Installable,
+    InstallStatusResult,
+    PythonExecutable,
+)
 from cloudai.systems import SlurmSystem
 from cloudai.util.docker_image_cache_manager import DockerImageCacheManager, DockerImageCacheResult
 
 
 class SlurmInstaller(BaseInstaller):
-    """
-    Installer for systems that use the Slurm scheduler.
-
-    Handles the installation of benchmarks or test templates for Slurm-managed systems.
-
-    Attributes
-        PREREQUISITES (List[str]): A list of required binaries for the installer.
-        REQUIRED_SRUN_OPTIONS (List[str]): A list of required srun options to check.
-        install_path (Path): Path where the benchmarks are to be installed. This is optional since uninstallation does
-            not require it.
-    """
+    """Installer for Slurm systems."""
 
     PREREQUISITES = ("git", "sbatch", "sinfo", "squeue", "srun", "scancel", "sacct")
     REQUIRED_SRUN_OPTIONS = (
@@ -48,26 +46,11 @@ class SlurmInstaller(BaseInstaller):
     )
 
     def __init__(self, system: SlurmSystem):
-        """
-        Initialize the SlurmInstaller with a system object and an optional installation path.
-
-        Args:
-            system (SlurmSystem): The system schema object.
-        """
         super().__init__(system)
         self.system = system
         self.docker_image_cache_manager = DockerImageCacheManager(system)
 
     def _check_prerequisites(self) -> InstallStatusResult:
-        """
-        Check for the presence of required binaries and specific srun options, raising an error if any are missing.
-
-        This ensures the system environment is properly set up before proceeding with the installation or uninstallation
-        processes.
-
-        Returns
-            InstallStatusResult: Result containing the status and any error message.
-        """
         base_prerequisites_result = super()._check_prerequisites()
         if not base_prerequisites_result.success:
             return InstallStatusResult(False, base_prerequisites_result.message)
@@ -80,7 +63,6 @@ class SlurmInstaller(BaseInstaller):
             return InstallStatusResult(False, str(e))
 
     def _check_required_binaries(self) -> None:
-        """Check for the presence of required binaries, raising an error if any are missing."""
         for binary in self.PREREQUISITES:
             if not self._is_binary_installed(binary):
                 raise EnvironmentError(f"Required binary '{binary}' is not installed.")
@@ -103,15 +85,6 @@ class SlurmInstaller(BaseInstaller):
             raise EnvironmentError(f"Required srun options missing: {missing_options_str}")
 
     def install_one(self, item: Installable) -> InstallStatusResult:
-        """
-        Install a single item.
-
-        Args:
-            item (Installable): The item to install.
-
-        Returns:
-            InstallStatusResult: Result containing the installation status and error message if any.
-        """
         logging.debug(f"Attempt to install {item}")
         if isinstance(item, DockerImage):
             res = self._install_docker_image(item)
@@ -128,15 +101,6 @@ class SlurmInstaller(BaseInstaller):
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
     def uninstall_one(self, item: Installable) -> InstallStatusResult:
-        """
-        Uninstall a single item.
-
-        Args:
-            item (Installable): The item to uninstall.
-
-        Returns:
-            InstallStatusResult: Result containing the uninstallation status and error message if any.
-        """
         logging.debug(f"Attempt to uninstall {item!r}")
         if isinstance(item, DockerImage):
             res = self._uninstall_docker_image(item)
@@ -266,7 +230,14 @@ class SlurmInstaller(BaseInstaller):
 
     def _clone_repository(self, git_url: str, path: Path) -> InstallStatusResult:
         logging.debug(f"Cloning repository {git_url} into {path}")
-        clone_cmd = ["git", "clone", git_url, str(path)]
+        clone_cmd = ["git", "clone"]
+
+        if self.is_low_thread_environment:
+            clone_cmd.extend(["-c", "pack.threads=4"])
+
+        clone_cmd.extend([git_url, str(path)])
+
+        logging.debug(f"Running git clone command: {' '.join(clone_cmd)}")
         result = subprocess.run(clone_cmd, capture_output=True, text=True)
         if result.returncode != 0:
             return InstallStatusResult(False, f"Failed to clone repository: {result.stderr}")
@@ -289,6 +260,8 @@ class SlurmInstaller(BaseInstaller):
 
         result = subprocess.run(["python", "-m", "venv", str(venv_dir)], capture_output=True, text=True)
         if result.returncode != 0:
+            if venv_dir.exists():
+                rmtree(venv_dir)
             return InstallStatusResult(False, f"Failed to create venv: {result.stderr}")
         return InstallStatusResult(True)
 
