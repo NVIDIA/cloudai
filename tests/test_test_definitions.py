@@ -363,17 +363,21 @@ class TestMegatronRun:
         )
 
 
-def test_nemorun_num_train_samples_static():
-    """Test the num_train_samples property with static values."""
-    mock_data = Data(global_batch_size=16)
-    mock_trainer = Trainer(max_steps=100)
-
+@pytest.mark.parametrize(
+    "data,trainer,expected_num_train_samples",
+    [
+        (Data(global_batch_size=16), Trainer(max_steps=100), 1600),
+        (Data(global_batch_size=[16, 32]), Trainer(max_steps=[100, 200]), None),
+    ],
+)
+def test_nemorun_num_train_samples(data: Data, trainer: Trainer, expected_num_train_samples: Union[int, None]):
+    """Test the num_train_samples property with various data and trainer configurations."""
     cmd_args = NeMoRunCmdArgs(
         docker_image_url="fake://url/nemo",
         task="task",
         recipe_name="recipe",
-        data=mock_data,
-        trainer=mock_trainer,
+        data=data,
+        trainer=trainer,
     )
     test_def = NeMoRunTestDefinition(
         name="nemo_test",
@@ -381,25 +385,4 @@ def test_nemorun_num_train_samples_static():
         test_template_name="nemo",
         cmd_args=cmd_args,
     )
-    assert test_def.num_train_samples == 1600
-
-
-def test_nemorun_num_train_samples_list():
-    """Test the num_train_samples property with list values."""
-    mock_data = Data(global_batch_size=[16, 32])
-    mock_trainer = Trainer(max_steps=[100, 200])
-
-    cmd_args = NeMoRunCmdArgs(
-        docker_image_url="fake://url/nemo",
-        task="task",
-        recipe_name="recipe",
-        data=mock_data,
-        trainer=mock_trainer,
-    )
-    test_def = NeMoRunTestDefinition(
-        name="nemo_test",
-        description="desc",
-        test_template_name="nemo",
-        cmd_args=cmd_args,
-    )
-    assert test_def.num_train_samples is None
+    assert test_def.num_train_samples == expected_num_train_samples
