@@ -385,4 +385,5 @@ def test_nemorun_num_train_samples(data: Data, trainer: Trainer, expected_num_tr
         test_template_name="nemo",
         cmd_args=cmd_args,
     )
-    assert test_def.num_train_samples == expected_num_train_samples
+    test_def.cmd_args.data.num_train_samples = test_def.update_num_train_samples
+    assert test_def.cmd_args.data.num_train_samples == expected_num_train_samples
