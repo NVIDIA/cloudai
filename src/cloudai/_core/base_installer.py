@@ -20,7 +20,7 @@ import shutil
 import subprocess
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Iterable, final
+from typing import Iterable, Optional, final
 
 from cloudai.util import prepare_output_dir
 
@@ -80,10 +80,23 @@ class BaseInstaller(ABC):
             value = value.strip()
             if value.lower() == "infinity":
                 return False
-            return int(value) < threshold
+            is_low_thread = int(value) < threshold
+            if is_low_thread:
+                logging.info("Low thread environment detected.")
+            return is_low_thread
         except Exception as e:
-            logging.warning(f"Could not determine TasksMax from systemd: {e}")
+            logging.debug(f"Could not determine TasksMax from systemd: {e}")
             return False
+
+    @property
+    def num_workers(self) -> Optional[int]:
+        """
+        Get the appropriate number of worker threads based on the environment.
+
+        Returns:
+            Optional[int]: 1 for low thread environments, None otherwise (allowing ThreadPoolExecutor to choose).
+        """
+        return 1 if self.is_low_thread_environment else None
 
     def _is_binary_installed(self, binary_name: str) -> bool:
         """
@@ -164,12 +177,8 @@ class BaseInstaller(ABC):
         logging.debug(f"Going to install {len(set(items))} uniq item(s) (total is {len(list(items))})")
         logging.info(f"Going to install {len(set(items))} item(s)")
 
-        max_workers = 1 if self.is_low_thread_environment else None
-        if self.is_low_thread_environment:
-            logging.info("Low thread environment detected. Using single-threaded execution.")
-
         install_results = {}
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
             futures = {executor.submit(self.install_one, item): item for item in self.all_items(items)}
             total, done = len(futures), 0
             for future in as_completed(futures):
@@ -210,12 +219,8 @@ class BaseInstaller(ABC):
         logging.debug(f"Going to uninstall {len(set(items))} uniq items (total {len(list(items))}).")
         logging.info(f"Going to uninstall {len(set(items))} items.")
 
-        max_workers = 1 if self.is_low_thread_environment else None
-        if self.is_low_thread_environment:
-            logging.info("Low thread environment detected. Using single-threaded execution.")
-
         uninstall_results = {}
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
             futures = {executor.submit(self.uninstall_one, item): item for item in self.all_items(items)}
             for future in as_completed(futures):
                 item = futures[future]

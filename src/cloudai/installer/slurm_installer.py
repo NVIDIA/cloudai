@@ -233,11 +233,11 @@ class SlurmInstaller(BaseInstaller):
         clone_cmd = ["git", "clone"]
 
         if self.is_low_thread_environment:
-            logging.info("Low thread environment detected. Limiting Git to 4 threads.")
             clone_cmd.extend(["-c", "pack.threads=4"])
 
         clone_cmd.extend([git_url, str(path)])
 
+        logging.info(f"Running git clone command: {' '.join(clone_cmd)}")
         result = subprocess.run(clone_cmd, capture_output=True, text=True)
         if result.returncode != 0:
             return InstallStatusResult(False, f"Failed to clone repository: {result.stderr}")
