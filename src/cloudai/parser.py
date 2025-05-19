@@ -50,13 +50,18 @@ class Parser:
         """
         logging.debug(f"Initializing parser with: {system_config_path=}")
         self.system_config_path = system_config_path
+        self._system: Optional[System] = None
 
     @property
     def system(self) -> System:
+        if self._system:
+            return self._system
+
         try:
-            return self.parse_system(self.system_config_path)
+            self._system = self.parse_system(self.system_config_path)
         except SystemConfigParsingError:
             exit(1)  # exit right away to keep error message readable for users
+        return self._system
 
     def parse(
         self,
