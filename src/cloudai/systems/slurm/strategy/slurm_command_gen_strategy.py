@@ -491,7 +491,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         It is needed to avoid multiple calls to the system.get_nodes_by_spec method which in turn queries the Slurm API.
         For a single test run it is not required, we can get actual nodes status only once.
         """
-        cache_key = f"{tr.num_nodes}:{','.join(tr.nodes)}"
+        cache_key = f"{tr.current_iteration}:{tr.num_nodes}:{','.join(tr.nodes)}"
 
         if cache_key in self._node_spec_cache:
             logging.debug(f"Using cached node allocation for {cache_key}: {self._node_spec_cache[cache_key]}")
