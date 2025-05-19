@@ -42,7 +42,7 @@ class OptimConfig(BaseModel):
     """Configuration for NeMoRun."""
 
     model_config = ConfigDict(extra="allow")
-    use_precision_aware_optimizer: Optional[bool] = None
+    use_precision_aware_optimizer: Optional[Union[bool, List[bool]]] = None
 
 
 class Optim(BaseModel):
@@ -166,7 +166,7 @@ class NeMoRunTestDefinition(TestDefinition):
         return constraint1 and constraint2 and constraint3 and constraint4
 
     @property
-    def num_train_samples(self) -> Optional[int]:
+    def update_num_train_samples(self) -> Optional[int]:
         """Calculate num_train_samples based on global_batch_size and max_steps."""
         gbs = self.cmd_args.data.global_batch_size
         max_steps = self.cmd_args.trainer.max_steps
