@@ -59,7 +59,6 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             logging.debug("Setting NCCL_P2P_NET_CHUNKSIZE to 2097152 as pipeline_model_parallel_size is greater than 1")
             env_vars["NCCL_P2P_NET_CHUNKSIZE"] = "2097152"
 
-        # Check CLOUDAI_ENABLE_FSDP and set CLOUDAI_DISABLE_TP_COMM_OVERLAP
         enable_fsdp = os.getenv("CLOUDAI_ENABLE_FSDP", "0")
         if enable_fsdp == "1":
             logging.info(

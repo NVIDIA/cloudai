@@ -877,6 +877,17 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
         if disable_tp_commd_overlap:
             recipe.trainer.callbacks[0].tp_comm_overlap = False
 
+    recompute_layers = int(os.getenv("CLOUDAI_RECOMPUTE_LAYERS", "0"))
+    if recompute_layers > 0:
+        recipe.model.config.recompute_granularity = "full"
+        recipe.model.config.recompute_method = "block"
+        recipe.model.config.recompute_num_layers = recompute_layers
+
+    activation_offload_layers = int(os.getenv("CLOUDAI_ACTIVATION_OFFLOAD_LAYERS", "0"))
+    if activation_offload_layers > 0:
+        recipe.model.config.cpu_offloading = True
+        recipe.model.config.cpu_offloading_weights = False
+        recipe.model.config.cpu_offloading_num_layers = activation_offload_layers
     return recipe
 
 
