@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 
@@ -170,6 +170,13 @@ def test_all_combinations_non_dse(nemorun: NeMoRunTestDefinition, setup_env: tup
     tr, _ = setup_env
     tr.test.test_definition = nemorun
     assert len(tr.all_combinations) == 0
+
+
+def test_all_combinations_non_dse_but_with_space(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, Runner]):
+    tr, _ = setup_env
+    tr.test.test_definition = nemorun
+    with patch.object(type(tr.test.test_definition), "is_dse_job", new_callable=PropertyMock(return_value=True)):
+        assert len(tr.all_combinations) == 0
 
 
 def test_params_set(setup_env: tuple[TestRun, Runner]):
