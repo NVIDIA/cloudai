@@ -194,8 +194,10 @@ def test_all_combinations_non_dse(nemorun: NeMoRunTestDefinition, setup_env: tup
     assert len(tr.all_combinations) == 0
 
 
-def test_params_set(setup_env: tuple[TestRun, Runner]):
+@pytest.mark.parametrize("num_nodes", (1, [1, 2], [3]))
+def test_params_set(setup_env: tuple[TestRun, Runner], num_nodes: int):
     tr, _ = setup_env
+    tr.num_nodes = num_nodes
     assert len(tr.all_combinations) > 1
     for action in tr.all_combinations:
         new_tr = tr.apply_params_set(action)
@@ -203,6 +205,8 @@ def test_params_set(setup_env: tuple[TestRun, Runner]):
         for key, value in action.items():
             if key.startswith("extra_env_vars."):
                 assert new_tr.test.test_definition.extra_env_vars[key[len("extra_env_vars.") :]] == value
+            elif key == "NUM_NODES":
+                assert new_tr.num_nodes == value
             else:
                 assert cmd_args[key] == value
 
