@@ -23,11 +23,7 @@ from cloudai.util.lazy_imports import lazy
 
 
 class KubernetesInstaller(BaseInstaller):
-    """
-    Installer for systems that use Kubernetes.
-
-    Handles the installation of benchmarks or test templates for Kubernetes-based systems.
-    """
+    """Installer for Kubernetes systems."""
 
     def _check_prerequisites(self) -> InstallStatusResult:
         """
