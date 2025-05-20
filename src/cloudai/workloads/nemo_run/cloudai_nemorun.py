@@ -757,7 +757,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
             seq_length=8192,
             micro_batch_size=1,
             global_batch_size=8,
-            tokenizer=null_tokenizer(vocab_size=128256),
+            tokenizer=hf_tokenizer_llama3_405b(),
         ),
         trainer=run.Config(
             nl.Trainer,
@@ -788,15 +788,6 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
             val_check_interval=1000,
             max_epochs=10,
             callbacks=[
-                run.Config(
-                    MegatronCommOverlapCallback,
-                    tp_comm_overlap=True,
-                    overlap_grad_reduce=True,
-                    overlap_param_gather=True,
-                    overlap_param_gather_with_optimizer_step=True,
-                    defer_embedding_wgrad_compute=True,
-                    wgrad_deferral_limit=22,
-                ),
                 timing_callback(),
             ],
         ),
@@ -834,6 +825,39 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
         recipe.trainer.strategy.use_te_rng_tracker = True
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
 
+    gpu_type = os.getenv("CLOUDAI_GPU_TYPE")
+    compute_dtype = os.getenv("CLOUDAI_GPU_DTYPE")
+    if gpu_type == "h100" and compute_dtype == "bf16":
+        tp_overlap_cfg = llama3_70b_bf16_h100_tp_overlap_config()
+        tp_comm_overlap = True
+    elif gpu_type == "h100" and compute_dtype == "fp8":
+        tp_overlap_cfg = llama3_70b_fp8_h100_tp_overlap_config()
+        tp_comm_overlap = True
+    elif gpu_type == "b200" and compute_dtype == "bf16":
+        tp_overlap_cfg = llama3_70b_bf16_b200_tp_overlap_config()
+        tp_comm_overlap = True
+    elif gpu_type == "b200" and compute_dtype == "fp8":
+        tp_overlap_cfg = llama3_70b_fp8_b200_tp_overlap_config()
+        tp_comm_overlap = True
+    else:
+        print(
+            "Warning: Not using Default Comm Overlap Config.\n"
+            "Please set the GPU type and compute dtype in the environment variables."
+        )
+        tp_overlap_cfg = None
+        tp_comm_overlap = False
+
+    recipe.trainer.callbacks.append(
+        run.Config(
+            MegatronCommOverlapCallback,
+            tp_comm_overlap=tp_comm_overlap,
+            tp_comm_overlap_cfg=tp_overlap_cfg,
+            overlap_param_gather_with_optimizer_step=True,
+            defer_embedding_wgrad_compute=True,
+            wgrad_deferral_limit=22,
+        )
+    )
+
     enable_fsdp = os.getenv("CLOUDAI_ENABLE_FSDP", "0") == "1"
     disable_tp_commd_overlap = os.getenv("CLOUDAI_DISABLE_TP_COMM_OVERLAP", "0") == "1"
     if enable_fsdp:
@@ -859,6 +883,8 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
         recipe.model.config.cpu_offloading = True
         recipe.model.config.cpu_offloading_weights = False
         recipe.model.config.cpu_offloading_num_layers = activation_offload_layers
+
+    recipe.model.config.vocab_size = 128256
     return recipe
 
 
