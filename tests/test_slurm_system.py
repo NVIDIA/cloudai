@@ -195,9 +195,9 @@ def test_allocate_nodes_max_avail(slurm_system: SlurmSystem, grouped_nodes: dict
     ]
     returned_node_names = [node.name for node in available_nodes]
 
-    assert set(returned_node_names) == set(
-        expected_node_names
-    ), "Should return all available nodes except ALLOCATED nodes"
+    assert set(returned_node_names) == set(expected_node_names), (
+        "Should return all available nodes except ALLOCATED nodes"
+    )
     allocated_node_name = grouped_nodes[SlurmNodeState.ALLOCATED][0].name
     assert allocated_node_name not in returned_node_names, "ALLOCATED node should not be included"
 
