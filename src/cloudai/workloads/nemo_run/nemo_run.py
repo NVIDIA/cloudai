@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from pathlib import Path
 from typing import List, Optional, Union, cast
 
@@ -159,9 +160,28 @@ class NeMoRunTestDefinition(TestDefinition):
         gbs = cast(int, self.cmd_args.data.global_batch_size)
 
         constraint1 = num_gpus % (tp * pp * cp) == 0
+        if not constraint1:
+            logging.error(
+                "Constraint 1 failed: num_gpus %% (tp * pp * cp) != 0. "
+                f"Values: num_gpus={num_gpus}, tp={tp}, pp={pp}, cp={cp}"
+            )
+
         constraint2 = True if vp is None else (num_layers // pp) % vp == 0
+        if not constraint2:
+            logging.error(
+                "Constraint 2 failed: vp is not None and (num_layers // pp) %% vp != 0. "
+                f"Values: num_layers={num_layers}, pp={pp}, vp={vp}"
+            )
+
         constraint3 = dp != 0
+        if not constraint3:
+            logging.error(
+                "Constraint 3 failed: dp == 0. " f"Values: dp={dp}, num_gpus={num_gpus}, tp={tp}, pp={pp}, cp={cp}"
+            )
+
         constraint4 = gbs % (mbs * dp) == 0 if dp != 0 else False
+        if not constraint4:
+            logging.error("Constraint 4 failed: gbs %% (mbs * dp) != 0. " f"Values: gbs={gbs}, mbs={mbs}, dp={dp}")
 
         return constraint1 and constraint2 and constraint3 and constraint4
 
