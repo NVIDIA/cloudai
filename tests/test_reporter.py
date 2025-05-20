@@ -132,3 +132,6 @@ def test_best_dse_config(dse_tr: TestRun, slurm_system: SlurmSystem) -> None:
     reporter.report_best_dse_config()
     best_config_path = reporter.results_root / dse_tr.name / f"{dse_tr.current_iteration}" / "best-config.toml"
     assert best_config_path.exists()
+    nccl = NCCLTestDefinition.model_validate(toml.load(best_config_path))
+    assert isinstance(nccl.cmd_args, NCCLCmdArgs)
+    assert nccl.agent_steps == 12
