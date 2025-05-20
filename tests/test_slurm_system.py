@@ -515,3 +515,18 @@ class TestSlurmCommandGenStrategyCache:
         res = strategy.get_cached_nodes_spec(test_run)
         assert mock_get_nodes.call_count == 2
         assert res == (2, ["node03", "node04"])
+
+    @patch("cloudai.systems.slurm.SlurmSystem.get_nodes_by_spec")
+    def test_per_step_isolation(self, mock_get_nodes: Mock, slurm_system: SlurmSystem, test_run: TestRun):
+        mock_get_nodes.side_effect = [(2, ["node01", "node02"]), (2, ["node03", "node04"])]
+
+        strategy = ConcreteSlurmStrategy(slurm_system, {})
+
+        res = strategy.get_cached_nodes_spec(test_run)
+        assert mock_get_nodes.call_count == 1
+        assert res == (2, ["node01", "node02"])
+
+        test_run.step = 1
+        res = strategy.get_cached_nodes_spec(test_run)
+        assert mock_get_nodes.call_count == 2
+        assert res == (2, ["node03", "node04"])
