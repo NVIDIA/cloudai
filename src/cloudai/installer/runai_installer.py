@@ -24,7 +24,6 @@ class RunAIInstaller(BaseInstaller):
     """Installer for RunAI systems."""
 
     def __init__(self, system: RunAISystem):
-        """Initialize the RunAIInstaller with a system object."""
         super().__init__(system)
 
     def _check_prerequisites(self) -> InstallStatusResult:
