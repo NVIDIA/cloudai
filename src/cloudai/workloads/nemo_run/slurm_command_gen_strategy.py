@@ -121,6 +121,14 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         tdef.cmd_args.data.num_train_samples = global_batch_size * max_steps
 
+    def _enable_numa_control_cmd(self) -> List[str]:
+        """Generate the numactl command."""
+        return [
+            "numactl",
+            "--cpunodebind=$((SLURM_LOCALID/4))",
+            "--membind=$((SLURM_LOCALID/4))",
+        ]
+
     def generate_test_command(
         self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> List[str]:
@@ -142,6 +150,10 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             recipe_name,
             "-y",
         ]
+
+        if env_vars.get("ENABLE_NUMA_CONTROL") == "1":
+            numa_cmd = self._enable_numa_control_cmd()
+            command = numa_cmd + command
 
         num_nodes, _ = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
 
