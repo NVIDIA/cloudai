@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from pathlib import Path
 from typing import List, Optional, Union, cast
 
@@ -36,6 +37,20 @@ class Plugin(BaseModel):
     fp8_wgrad: Optional[bool] = None
     fp8_params: Optional[bool] = None
     grad_reduce_in_fp32: Optional[bool] = None
+
+
+class OptimConfig(BaseModel):
+    """Configuration for NeMoRun."""
+
+    model_config = ConfigDict(extra="allow")
+    use_precision_aware_optimizer: Optional[Union[bool, List[bool]]] = None
+
+
+class Optim(BaseModel):
+    """Optimizer configuration for NeMoRun."""
+
+    model_config = ConfigDict(extra="allow")
+    config: Optional[OptimConfig] = None
 
 
 class Data(BaseModel):
@@ -109,6 +124,7 @@ class NeMoRunCmdArgs(CmdArgs):
     trainer: Trainer = Field(default_factory=Trainer)
     log: Log = Field(default_factory=Log)
     data: Data = Field(default_factory=Data)
+    optim: Optim = Field(default_factory=Optim)
 
 
 class NeMoRunTestDefinition(TestDefinition):
@@ -144,8 +160,37 @@ class NeMoRunTestDefinition(TestDefinition):
         gbs = cast(int, self.cmd_args.data.global_batch_size)
 
         constraint1 = num_gpus % (tp * pp * cp) == 0
+        if not constraint1:
+            logging.error(
+                "Constraint 1 failed: num_gpus %% (tp * pp * cp) != 0. "
+                f"Values: num_gpus={num_gpus}, tp={tp}, pp={pp}, cp={cp}"
+            )
+
         constraint2 = True if vp is None else (num_layers // pp) % vp == 0
+        if not constraint2:
+            logging.error(
+                "Constraint 2 failed: vp is not None and (num_layers // pp) %% vp != 0. "
+                f"Values: num_layers={num_layers}, pp={pp}, vp={vp}"
+            )
+
         constraint3 = dp != 0
+        if not constraint3:
+            logging.error(
+                f"Constraint 3 failed: dp == 0. Values: dp={dp}, num_gpus={num_gpus}, tp={tp}, pp={pp}, cp={cp}"
+            )
+
         constraint4 = gbs % (mbs * dp) == 0 if dp != 0 else False
+        if not constraint4:
+            logging.error(f"Constraint 4 failed: gbs %% (mbs * dp) != 0. Values: gbs={gbs}, mbs={mbs}, dp={dp}")
 
         return constraint1 and constraint2 and constraint3 and constraint4
+
+    @property
+    def update_num_train_samples(self) -> Optional[int]:
+        """Calculate num_train_samples based on global_batch_size and max_steps."""
+        gbs = self.cmd_args.data.global_batch_size
+        max_steps = self.cmd_args.trainer.max_steps
+
+        if isinstance(gbs, int) and isinstance(max_steps, int):
+            return gbs * max_steps
+        return None

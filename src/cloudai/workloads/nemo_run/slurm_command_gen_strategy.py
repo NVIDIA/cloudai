@@ -16,6 +16,7 @@
 
 
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Union, cast
@@ -57,6 +58,16 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if pipeline_model_parallel_size > 1:
             logging.debug("Setting NCCL_P2P_NET_CHUNKSIZE to 2097152 as pipeline_model_parallel_size is greater than 1")
             env_vars["NCCL_P2P_NET_CHUNKSIZE"] = "2097152"
+
+        enable_fsdp = os.getenv("CLOUDAI_ENABLE_FSDP", "0")
+        if enable_fsdp == "1":
+            logging.info(
+                (
+                    "CLOUDAI_ENABLE_FSDP is set to 1. Currently, NemoRun does not support FSDP "
+                    "with TP communication overlap."
+                )
+            )
+            env_vars["CLOUDAI_DISABLE_TP_COMM_OVERLAP"] = "1"
 
     def _run_script(self, tr: TestRun) -> Path:
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
@@ -103,30 +114,12 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return recipe_name
 
-    def update_num_train_samples(self, tr: TestRun) -> None:
-        """Update num_train_samples based on global_batch_size and max_steps."""
-        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
-
-        global_batch_size = (
-            tdef.cmd_args.data.global_batch_size[0]
-            if isinstance(tdef.cmd_args.data.global_batch_size, list)
-            else tdef.cmd_args.data.global_batch_size
-        )
-
-        max_steps = (
-            tdef.cmd_args.trainer.max_steps[0]
-            if isinstance(tdef.cmd_args.trainer.max_steps, list)
-            else tdef.cmd_args.trainer.max_steps
-        )
-
-        tdef.cmd_args.data.num_train_samples = global_batch_size * max_steps
-
     def generate_test_command(
         self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> List[str]:
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
 
-        self.update_num_train_samples(tr)
+        tdef.cmd_args.data.num_train_samples = tdef.update_num_train_samples
 
         cmd_args_dict = tdef.cmd_args.model_dump()
 
