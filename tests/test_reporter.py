@@ -130,7 +130,9 @@ def test_best_dse_config(dse_tr: TestRun, slurm_system: SlurmSystem) -> None:
         slurm_system, TestScenario(name="test_scenario", test_runs=[dse_tr]), slurm_system.output_path
     )
     reporter.report_best_dse_config()
-    best_config_path = reporter.results_root / dse_tr.name / f"{dse_tr.current_iteration}" / "best-config.toml"
+    best_config_path = (
+        reporter.results_root / dse_tr.name / f"{dse_tr.current_iteration}" / reporter.best_dse_config_file_name(dse_tr)
+    )
     assert best_config_path.exists()
     nccl = NCCLTestDefinition.model_validate(toml.load(best_config_path))
     assert isinstance(nccl.cmd_args, NCCLCmdArgs)

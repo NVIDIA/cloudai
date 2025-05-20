@@ -161,6 +161,9 @@ class StatusReporter(Reporter):
             return "general-slurm-report.jinja2"
         return "general-report.jinja2"
 
+    def best_dse_config_file_name(self, tr: TestRun) -> str:
+        return "{tr.name}.toml"
+
     def generate(self) -> None:
         self.load_test_runs()
         self.generate_scenario_report()
@@ -200,9 +203,10 @@ class StatusReporter(Reporter):
             with best_step_details.open() as f:
                 trd = TestRunDetails.model_validate(toml.load(f))
 
-            with (tr_root / "best-config.toml").open("w") as f:
+            best_config_path = tr_root / self.best_dse_config_file_name(tr)
+            logging.info(f"Writing best config for {tr.name} to {best_config_path}")
+            with best_config_path.open("w") as f:
                 toml.dump(trd.test_definition.model_dump(), f)
-                logging.info(f"Wrote best config for {tr.name} to {self.results_root / tr.name / 'best-config.toml'}")
 
 
 class TarballReporter(Reporter):
