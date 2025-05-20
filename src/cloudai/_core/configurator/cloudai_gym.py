@@ -20,7 +20,7 @@ import csv
 import logging
 from typing import Any, Dict, Optional, Tuple
 
-import numpy as np
+from cloudai.util.lazy_imports import lazy
 
 from ..runner import Runner
 from ..test_scenario import METRIC_ERROR, TestRun
@@ -48,33 +48,7 @@ class CloudAIGymEnv(BaseGym):
         super().__init__()
 
     def define_action_space(self) -> Dict[str, Any]:
-        """
-        Define the action space for the environment.
-
-        Returns:
-            Dict[str, Any]: The action space.
-        """
-        action_space: Dict[str, Any] = {}
-        cmd_args_dict = self.test_run.test.test_definition.cmd_args.model_dump()
-        extra_env_vars_dict = self.test_run.test.test_definition.extra_env_vars
-
-        combined_dict = {
-            **{f"{key}": value for key, value in cmd_args_dict.items()},
-            **{f"extra_env_vars.{key}": value for key, value in extra_env_vars_dict.items()},
-        }
-
-        self.populate_action_space("", combined_dict, action_space)
-
-        return action_space
-
-    def populate_action_space(self, prefix: str, d: dict, action_space: dict):
-        for key, value in d.items():
-            if isinstance(value, list):
-                action_space[f"{prefix}{key}"] = value
-            elif isinstance(value, dict):
-                self.populate_action_space(f"{prefix}{key}.", value, action_space)
-            else:
-                action_space[f"{prefix}{key}"] = [value]
+        return self.test_run.param_space
 
     def define_observation_space(self) -> list:
         """
@@ -103,7 +77,7 @@ class CloudAIGymEnv(BaseGym):
                 - info (dict): Additional info for debugging.
         """
         if seed is not None:
-            np.random.seed(seed)
+            lazy.np.random.seed(seed)
         self.test_run.current_iteration = 0
         observation = [0.0]
         info = {}
@@ -123,13 +97,7 @@ class CloudAIGymEnv(BaseGym):
                 - done (bool): Whether the episode is done.
                 - info (dict): Additional info for debugging.
         """
-        for key, value in action.items():
-            if key.startswith("extra_env_vars."):
-                self.update_test_run_obj(
-                    self.test_run.test.test_definition.extra_env_vars, key[len("extra_env_vars.") :], value
-                )
-            else:
-                self.update_test_run_obj(self.test_run.test.test_definition.cmd_args, key, value)
+        self.test_run = self.test_run.apply_params_set(action)
 
         if not self.test_run.test.test_definition.constraint_check:
             logging.info("Constraint check failed. Skipping step.")
@@ -165,7 +133,7 @@ class CloudAIGymEnv(BaseGym):
             seed (Optional[int]): Seed for the environment's random number generator.
         """
         if seed is not None:
-            np.random.seed(seed)
+            lazy.np.random.seed(seed)
 
     def compute_reward(self, observation: list) -> float:
         """
@@ -195,24 +163,6 @@ class CloudAIGymEnv(BaseGym):
         if v == METRIC_ERROR:
             return [-1.0]
         return [v]
-
-    def update_test_run_obj(self, obj: Any, attr_path: str, value: Any) -> None:
-        """Update a nested attribute of an object."""
-        attrs = attr_path.split(".")
-        for attr in attrs[:-1]:
-            if isinstance(obj, dict):
-                if attr in obj:
-                    obj = obj[attr]
-                else:
-                    raise AttributeError(f"dict object has no key {attr!r}")
-            elif hasattr(obj, attr):
-                obj = getattr(obj, attr)
-            else:
-                raise AttributeError(f"{type(obj).__name__!r} object has no attribute {attr!r}")
-        if isinstance(obj, dict):
-            obj[attrs[-1]] = value
-        else:
-            setattr(obj, attrs[-1], value)
 
     def write_trajectory(self, step: int, action: Any, reward: float, observation: list):
         """

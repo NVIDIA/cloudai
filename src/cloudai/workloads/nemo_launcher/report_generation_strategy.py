@@ -14,16 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import logging
 import re
 from pathlib import Path
 from typing import List
 
-import numpy as np
-import pandas as pd
-
 from cloudai import ReportGenerationStrategy
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
+from cloudai.util.lazy_imports import lazy
 
 
 class NeMoLauncherReportGenerationStrategy(ReportGenerationStrategy):
@@ -67,10 +67,10 @@ class NeMoLauncherReportGenerationStrategy(ReportGenerationStrategy):
             return
 
         stats = {
-            "avg": np.mean(train_step_timings),
-            "median": np.median(train_step_timings),
-            "min": np.min(train_step_timings),
-            "max": np.max(train_step_timings),
+            "avg": lazy.np.mean(train_step_timings),
+            "median": lazy.np.median(train_step_timings),
+            "min": lazy.np.min(train_step_timings),
+            "max": lazy.np.max(train_step_timings),
         }
 
         summary_file = self.test_run.output_path / "train_step_timing_report.txt"
@@ -81,7 +81,9 @@ class NeMoLauncherReportGenerationStrategy(ReportGenerationStrategy):
         if not train_step_timings:
             return
 
-        df = pd.DataFrame({"Step": range(1, len(train_step_timings) + 1), "train_step_timing in s": train_step_timings})
+        df = lazy.pd.DataFrame(
+            {"Step": range(1, len(train_step_timings) + 1), "train_step_timing in s": train_step_timings}
+        )
 
         report_tool = BokehReportTool(self.test_run.output_path)
         report_tool.add_linear_xy_line_plot(
