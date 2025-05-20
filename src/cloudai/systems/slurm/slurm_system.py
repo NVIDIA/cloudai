@@ -415,9 +415,9 @@ class SlurmSystem(BaseModel, System):
             ValueError: If the partition or group is not found, or if the requested number of nodes exceeds the
                 available nodes.
         """
-        self.validate_partition_and_group(partition_name, group_name)
-
         self.update()
+
+        self.validate_partition_and_group(partition_name, group_name)
 
         grouped_nodes = self.group_nodes_by_state(partition_name, group_name)
 
