@@ -176,12 +176,12 @@ class NeMoRunTestDefinition(TestDefinition):
         constraint3 = dp != 0
         if not constraint3:
             logging.error(
-                "Constraint 3 failed: dp == 0. " f"Values: dp={dp}, num_gpus={num_gpus}, tp={tp}, pp={pp}, cp={cp}"
+                f"Constraint 3 failed: dp == 0. Values: dp={dp}, num_gpus={num_gpus}, tp={tp}, pp={pp}, cp={cp}"
             )
 
         constraint4 = gbs % (mbs * dp) == 0 if dp != 0 else False
         if not constraint4:
-            logging.error("Constraint 4 failed: gbs %% (mbs * dp) != 0. " f"Values: gbs={gbs}, mbs={mbs}, dp={dp}")
+            logging.error(f"Constraint 4 failed: gbs %% (mbs * dp) != 0. Values: gbs={gbs}, mbs={mbs}, dp={dp}")
 
         return constraint1 and constraint2 and constraint3 and constraint4
 
