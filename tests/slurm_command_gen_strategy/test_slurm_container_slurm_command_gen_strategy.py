@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -72,3 +73,23 @@ def test_with_nsys(slurm_system: SlurmSystem, test_run: TestRun) -> None:
     )
 
     assert cmd == f'{srun_part} bash -c "{" ".join(nsys.cmd_args)} cmd"'
+
+
+def test_with_extra_srun_args(slurm_system: SlurmSystem, test_run: TestRun) -> None:
+    extra_args = ["--ntasks=1", "--ntasks-per-node=1"]
+    tdef = cast(SlurmContainerTestDefinition, test_run.test.test_definition)
+    tdef.extra_srun_args = extra_args
+
+    cgs = SlurmContainerCommandGenStrategy(slurm_system, {})
+    cmd = cgs.gen_srun_command(test_run)
+
+    srun_part = (
+        f"srun --export=ALL --mpi={slurm_system.mpi} "
+        f"--container-image={test_run.test.test_definition.cmd_args.docker_image_url} "
+        f"--container-mounts={Path.cwd().absolute()}:/cloudai_run_results,"
+        f"{slurm_system.install_path.absolute()}:/cloudai_install "
+        f"{' '.join(extra_args)} "
+        f"--no-container-mount-home"
+    )
+
+    assert cmd == f'{srun_part} bash -c "cmd"'

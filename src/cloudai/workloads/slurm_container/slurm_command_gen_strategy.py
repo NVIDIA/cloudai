@@ -36,7 +36,7 @@ class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
         slurm_args["image_path"] = tdef.docker_image.installed_path
         cmd = super().gen_srun_prefix(slurm_args, tr)
-        return [*cmd, "--no-container-mount-home"]
+        return [*cmd, *tdef.extra_srun_args, "--no-container-mount-home"]
 
     def generate_test_command(
         self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun

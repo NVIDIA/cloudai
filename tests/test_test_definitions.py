@@ -21,7 +21,7 @@ import pytest
 import toml
 from pydantic import ValidationError
 
-from cloudai import NsysConfiguration, Parser, Registry, TestConfigParsingError, TestDefinition, TestParser
+from cloudai import File, NsysConfiguration, Parser, Registry, TestConfigParsingError, TestDefinition, TestParser
 from cloudai.workloads.chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
@@ -35,6 +35,7 @@ from cloudai.workloads.megatron_run import MegatronRunCmdArgs, MegatronRunTestDe
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.workloads.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
 from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
+from cloudai.workloads.slurm_container import SlurmContainerCmdArgs, SlurmContainerTestDefinition
 from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
@@ -126,6 +127,12 @@ def test_chakra_docker_image_is_required():
             test_template_name="chakra",
             cmd_args=ChakraReplayCmdArgs(docker_image_url="fake://url/chakra"),
         ),
+        SlurmContainerTestDefinition(
+            name="sc",
+            description="desc",
+            test_template_name="sc",
+            cmd_args=SlurmContainerCmdArgs(docker_image_url="fake://url/sc", cmd="cmd"),
+        ),
     ],
 )
 def test_docker_installable_persists(
@@ -137,6 +144,7 @@ def test_docker_installable_persists(
         NeMoLauncherTestDefinition,
         NemotronTestDefinition,
         UCCTestDefinition,
+        SlurmContainerTestDefinition,
     ],
     tmp_path: Path,
 ):
@@ -157,6 +165,25 @@ def test_python_executable_installable_persists(test: NeMoLauncherTestDefinition
     test.python_executable.venv_path = tmp_path
     assert test.python_executable.git_repo.installed_path == tmp_path
     assert test.python_executable.venv_path == tmp_path
+
+
+@pytest.mark.parametrize(
+    "test",
+    [
+        SlurmContainerTestDefinition(
+            name="sc",
+            description="desc",
+            test_template_name="sc",
+            cmd_args=SlurmContainerCmdArgs(docker_image_url="fake://url/sc", cmd="cmd"),
+            scripts=[File(src=Path("./script1")), File(src=Path("./script2"))],
+        )
+    ],
+)
+def test_slurm_container_installables(test: SlurmContainerTestDefinition):
+    assert len(test.installables) >= 3
+    assert test.docker_image in test.installables
+    assert File(src=Path("./script1")) in test.installables
+    assert File(src=Path("./script2")) in test.installables
 
 
 class TestNsysConfiguration:
