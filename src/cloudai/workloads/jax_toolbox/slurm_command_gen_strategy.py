@@ -135,9 +135,9 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return " ".join(sorted(xla_flags))
 
     def _parse_slurm_args(
-        self, job_name_prefix: str, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Any], tr: TestRun
+        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Any], tr: TestRun
     ) -> Dict[str, Any]:
-        base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
+        base_args = super()._parse_slurm_args(env_vars, cmd_args, tr)
 
         tdef: Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition] = cast(
             Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition], tr.test.test_definition

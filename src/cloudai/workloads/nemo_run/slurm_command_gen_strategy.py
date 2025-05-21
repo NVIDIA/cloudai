@@ -29,16 +29,12 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for NeMo 2.0 on Slurm systems."""
 
     def _parse_slurm_args(
-        self,
-        job_name_prefix: str,
-        env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, Union[str, List[str]]],
-        tr: TestRun,
+        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> Dict[str, Any]:
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
         self._set_additional_env_vars(env_vars, tdef)
 
-        base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
+        base_args = super()._parse_slurm_args(env_vars, cmd_args, tr)
 
         base_args.update({"image_path": tdef.docker_image.installed_path})
 

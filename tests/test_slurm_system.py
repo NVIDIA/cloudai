@@ -432,7 +432,7 @@ class ConcreteSlurmStrategy(SlurmCommandGenStrategy):
     def generate_test_command(self, env_vars, cmd_args, tr):
         return ["test_command"]
 
-    def job_name(self, job_name_prefix: str) -> str:
+    def job_name(self, tr: TestRun) -> str:
         return "job_name"
 
 
