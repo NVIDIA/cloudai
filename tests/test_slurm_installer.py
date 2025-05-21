@@ -32,6 +32,7 @@ from cloudai.workloads.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTes
 def installer(slurm_system: SlurmSystem):
     si = SlurmInstaller(slurm_system)
     si.system.install_path.mkdir()
+    si._check_low_thread_environment = lambda threshold=None: False
     return si
 
 

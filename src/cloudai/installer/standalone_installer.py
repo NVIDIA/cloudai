@@ -18,16 +18,11 @@ from cloudai import BaseInstaller, Installable, InstallStatusResult
 
 
 class StandaloneInstaller(BaseInstaller):
-    """
-    Installer for systems that do not use a scheduler (standalone systems).
-
-    Handles the installation of benchmarks or test templates for standalone systems.
-    """
+    """Installer for standalone systems."""
 
     PREREQUISITES = ("ps", "kill")
 
     def _check_prerequisites(self) -> InstallStatusResult:
-        """Check for the presence of required binaries, returning an error status if any are missing."""
         super()._check_prerequisites()  # TODO: if fails, print out missing prerequisites
         missing_binaries = []
         for binary in self.PREREQUISITES:
