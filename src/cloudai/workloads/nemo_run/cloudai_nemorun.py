@@ -773,7 +773,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
                 tensor_model_parallel_size=8,
                 pipeline_model_parallel_size=1,
                 context_parallel_size=2,
-                virtual_pipeline_model_parallel_size=None,
+                virtual_pipeline_model_parallel_size=8,
                 sequence_parallel=False,
                 pipeline_dtype=torch.bfloat16,
                 ddp=run.Config(
