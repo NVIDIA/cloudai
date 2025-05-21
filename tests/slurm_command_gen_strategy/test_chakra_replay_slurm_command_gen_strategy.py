@@ -36,10 +36,9 @@ class TestChakraReplaySlurmCommandGenStrategy:
         return ChakraReplaySlurmCommandGenStrategy(slurm_system, {})
 
     @pytest.mark.parametrize(
-        "job_name_prefix, env_vars, cmd_args_attrs, num_nodes, nodes, expected_result",
+        "env_vars, cmd_args_attrs, num_nodes, nodes, expected_result",
         [
             (
-                "chakra_replay",
                 {"NCCL_DEBUG": "INFO"},
                 {"docker_image_url": "fake_image_url", "trace_path": "/workspace/traces/"},
                 2,
@@ -50,7 +49,6 @@ class TestChakraReplaySlurmCommandGenStrategy:
                 },
             ),
             (
-                "chakra_replay",
                 {"NCCL_DEBUG": "INFO"},
                 {"docker_image_url": "another_image_url", "trace_path": "/another/trace_path/"},
                 1,
@@ -65,7 +63,6 @@ class TestChakraReplaySlurmCommandGenStrategy:
     def test_parse_slurm_args(
         self,
         cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy,
-        job_name_prefix: str,
         env_vars: Dict[str, Union[str, List[str]]],
         cmd_args_attrs: Dict[str, Any],
         num_nodes: int,
@@ -83,7 +80,7 @@ class TestChakraReplaySlurmCommandGenStrategy:
         t = Test(test_definition=chakra, test_template=Mock())
         tr = TestRun(name="t1", test=t, nodes=nodes, num_nodes=num_nodes)
 
-        slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, {}, tr)
+        slurm_args = cmd_gen_strategy._parse_slurm_args(env_vars, {}, tr)
         assert slurm_args["image_path"] == expected_result["image_path"]
         assert expected_result["container_mounts"] in cmd_gen_strategy.container_mounts(tr)
 
