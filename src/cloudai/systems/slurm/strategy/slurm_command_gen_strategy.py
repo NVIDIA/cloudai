@@ -325,7 +325,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             ]
         )
 
-    def _enable_vboost_cmd(self, slurm_args: dict[str, Any], tr: TestRun) -> str:
+    def _enable_vboost_cmd(self, tr: TestRun) -> str:
         num_nodes, _ = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
         return " ".join(
             [

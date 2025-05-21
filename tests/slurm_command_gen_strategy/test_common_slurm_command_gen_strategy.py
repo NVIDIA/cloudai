@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 from unittest.mock import Mock, patch
 
 import pytest
