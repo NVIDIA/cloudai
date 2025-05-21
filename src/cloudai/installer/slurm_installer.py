@@ -177,7 +177,7 @@ class SlurmInstaller(BaseInstaller):
         if repo_path.exists():
             item.installed_path = repo_path
             msg = f"Git repository already exists at {repo_path}."
-            logging.warning(msg)
+            logging.debug(msg)
             return InstallStatusResult(True, msg)
 
         res = self._clone_repository(item.url, repo_path)
@@ -196,14 +196,20 @@ class SlurmInstaller(BaseInstaller):
         if not res.success:
             return res
 
-        venv_path = self.system.install_path / item.venv_name
-        res = self._create_venv(venv_path)
+        res = self._create_venv(item)
         if not res.success:
             return res
 
-        assert item.git_repo.installed_path, "Git repository must be installed before creating virtual environment."
+        return InstallStatusResult(True)
+
+    def _install_dependencies(self, item: PythonExecutable) -> InstallStatusResult:
+        venv_path = self.system.install_path / item.venv_name
+
+        if not item.git_repo.installed_path:
+            return InstallStatusResult(False, "Git repository must be installed before creating virtual environment.")
 
         project_dir = item.git_repo.installed_path
+
         if item.project_subpath:
             project_dir = project_dir / item.project_subpath
 
@@ -222,11 +228,7 @@ class SlurmInstaller(BaseInstaller):
         else:
             return InstallStatusResult(False, "No pyproject.toml or requirements.txt found for installation.")
 
-        if not res.success:
-            return res
-
-        item.venv_path = venv_path
-        return InstallStatusResult(True)
+        return res
 
     def _clone_repository(self, git_url: str, path: Path) -> InstallStatusResult:
         logging.debug(f"Cloning repository {git_url} into {path}")
@@ -251,21 +253,33 @@ class SlurmInstaller(BaseInstaller):
             return InstallStatusResult(False, f"Failed to checkout commit: {result.stderr}")
         return InstallStatusResult(True)
 
-    def _create_venv(self, venv_dir: Path) -> InstallStatusResult:
-        logging.debug(f"Creating virtual environment in {venv_dir}")
-        if venv_dir.exists():
-            msg = f"Virtual environment already exists at {venv_dir}."
-            logging.warning(msg)
+    def _create_venv(self, item: PythonExecutable) -> InstallStatusResult:
+        venv_path = self.system.install_path / item.venv_name
+        logging.debug(f"Creating virtual environment in {venv_path}")
+        if venv_path.exists():
+            msg = f"Virtual environment already exists at {venv_path}."
+            logging.debug(msg)
             return InstallStatusResult(True, msg)
 
-        cmd = ["python", "-m", "venv", str(venv_dir)]
+        cmd = ["python", "-m", "venv", str(venv_path)]
         logging.debug(f"Creating venv using cmd: {' '.join(cmd)}")
-        result = subprocess.run(["python", "-m", "venv", str(venv_dir)], capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True)
         logging.debug(f"venv creation STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}")
         if result.returncode != 0:
-            if venv_dir.exists():
-                rmtree(venv_dir)
-            return InstallStatusResult(False, f"Failed to create venv:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}")
+            if venv_path.exists():
+                rmtree(venv_path)
+            return InstallStatusResult(
+                False, f"Failed to create venv:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+            )
+
+        res = self._install_dependencies(item)
+        if not res.success:
+            if venv_path.exists():
+                rmtree(venv_path)
+            return res
+
+        item.venv_path = self.system.install_path / item.venv_name
+
         return InstallStatusResult(True)
 
     def _install_pyproject(self, venv_dir: Path, project_dir: Path) -> InstallStatusResult:
