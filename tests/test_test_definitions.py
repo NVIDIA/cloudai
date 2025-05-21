@@ -34,10 +34,8 @@ from cloudai.workloads.jax_toolbox import (
 from cloudai.workloads.megatron_run import MegatronRunCmdArgs, MegatronRunTestDefinition
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.workloads.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
-
 from cloudai.workloads.nemo_run import Data, NeMoRunCmdArgs, NeMoRunTestDefinition, Trainer
 from cloudai.workloads.slurm_container import SlurmContainerCmdArgs, SlurmContainerTestDefinition
-
 from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
