@@ -332,10 +332,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         )
 
     def _enable_vboost_cmd(self, slurm_args: dict[str, Any], tr: TestRun) -> str:
+        num_nodes, _ = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
         return " ".join(
             [
                 "srun",
-                "--ntasks=1",
+                f"--ntasks={num_nodes}",
                 f"--output={tr.output_path.absolute() / 'vboost.out'}",
                 f"--error={tr.output_path.absolute() / 'vboost.err'}",
                 "bash",

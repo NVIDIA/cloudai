@@ -34,7 +34,7 @@ from cloudai.workloads.jax_toolbox import (
 from cloudai.workloads.megatron_run import MegatronRunCmdArgs, MegatronRunTestDefinition
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.workloads.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
-from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
+from cloudai.workloads.nemo_run import Data, NeMoRunCmdArgs, NeMoRunTestDefinition, Trainer
 from cloudai.workloads.slurm_container import SlurmContainerCmdArgs, SlurmContainerTestDefinition
 from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition
 
@@ -388,3 +388,29 @@ class TestMegatronRun:
                 "extra_container_mounts": [mount],
             }
         )
+
+
+@pytest.mark.parametrize(
+    "data,trainer,expected_num_train_samples",
+    [
+        (Data(global_batch_size=16), Trainer(max_steps=100), 1600),
+        (Data(global_batch_size=[16, 32]), Trainer(max_steps=[100, 200]), None),
+    ],
+)
+def test_nemorun_num_train_samples(data: Data, trainer: Trainer, expected_num_train_samples: Union[int, None]):
+    """Test the num_train_samples property with various data and trainer configurations."""
+    cmd_args = NeMoRunCmdArgs(
+        docker_image_url="fake://url/nemo",
+        task="task",
+        recipe_name="recipe",
+        data=data,
+        trainer=trainer,
+    )
+    test_def = NeMoRunTestDefinition(
+        name="nemo_test",
+        description="desc",
+        test_template_name="nemo",
+        cmd_args=cmd_args,
+    )
+    test_def.cmd_args.data.num_train_samples = test_def.update_num_train_samples
+    assert test_def.cmd_args.data.num_train_samples == expected_num_train_samples
