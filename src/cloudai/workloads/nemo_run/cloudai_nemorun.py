@@ -48,6 +48,13 @@ from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.utils.exp_manager import TimingCallback
 
 
+def set_enable_cuda_graphs_params(recipe):
+    enable_cuda_graphs = os.getenv("CLOUDAI_ENABLE_CUDA_GRAPHS", "0") == "1"
+    if enable_cuda_graphs:
+        recipe.model.config.enable_cuda_graph = True
+        recipe.trainer.strategy.use_te_rng_tracker = True
+
+
 @run.cli.factory(is_target_default=True)
 def default_log(
     dir: Optional[str] = None,
@@ -599,10 +606,7 @@ def cloudai_llama3_8b_recipe() -> run.Partial:
             model_name="llama3",
         )
     )
-    enable_cuda_graphs = os.getenv("CLOUDAI_ENABLE_CUDA_GRAPHS", "0") == "1"
-    if enable_cuda_graphs:
-        recipe.model.config.enable_cuda_graphs = True
-        recipe.trainer.strategy.use_te_rng_tracker = True
+    set_enable_cuda_graphs_params(recipe)
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
 
@@ -706,10 +710,7 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     gpu_type = os.getenv("CLOUDAI_GPU_TYPE")
     compute_dtype = os.getenv("CLOUDAI_GPU_DTYPE")
-    enable_cuda_graphs = os.getenv("CLOUDAI_ENABLE_CUDA_GRAPHS", "0") == "1"
-    if enable_cuda_graphs:
-        recipe.model.config.enable_cuda_graph = True
-        recipe.trainer.strategy.use_te_rng_tracker = True
+    set_enable_cuda_graphs_params(recipe)
 
     if gpu_type == "h100" and compute_dtype == "bf16":
         tp_overlap_cfg = llama3_70b_bf16_h100_tp_overlap_config()
@@ -828,10 +829,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
         )
     )
 
-    enable_cuda_graphs = os.getenv("CLOUDAI_ENABLE_CUDA_GRAPHS", "0") == "1"
-    if enable_cuda_graphs:
-        recipe.model.config.enable_cuda_graph = True
-        recipe.trainer.strategy.use_te_rng_tracker = True
+    set_enable_cuda_graphs_params(recipe)
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
 
     enable_fsdp = os.getenv("CLOUDAI_ENABLE_FSDP", "0") == "1"
@@ -931,10 +929,7 @@ def cloudai_nemotron3_8b_recipe() -> run.Partial:
             model_name="nemotron",
         )
     )
-    enable_cuda_graphs = os.getenv("CLOUDAI_ENABLE_CUDA_GRAPHS", "0") == "1"
-    if enable_cuda_graphs:
-        recipe.model.config.enable_cuda_graph = True
-        recipe.trainer.strategy.use_te_rng_tracker = True
+    set_enable_cuda_graphs_params(recipe)
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
 
@@ -1024,10 +1019,7 @@ def cloudai_nemotron4_15b_recipe() -> run.Partial:
         )
     )
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
-    enable_cuda_graphs = os.getenv("CLOUDAI_ENABLE_CUDA_GRAPHS", "0") == "1"
-    if enable_cuda_graphs:
-        recipe.model.config.enable_cuda_graph = True
-        recipe.trainer.strategy.use_te_rng_tracker = True
+    set_enable_cuda_graphs_params(recipe)
     return recipe
 
 
@@ -1146,10 +1138,7 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
     recipe.trainer.callbacks.append(run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100))
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     recipe.model.config.cross_entropy_fusion_impl = "te"
-    enable_cuda_graphs = os.getenv("CLOUDAI_ENABLE_CUDA_GRAPHS", "0") == "1"
-    if enable_cuda_graphs:
-        recipe.model.config.enable_cuda_graph = True
-        recipe.trainer.strategy.use_te_rng_tracker = True
+    set_enable_cuda_graphs_params(recipe)
     return recipe
 
 
