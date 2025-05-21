@@ -43,7 +43,7 @@ class TestRunModel(BaseModel):
 
     id: str = Field(min_length=1)
     test_name: Optional[str] = None
-    num_nodes: Optional[int] = None
+    num_nodes: int | list[int] | None = None
     nodes: list[str] = Field(default_factory=list)
     weight: int = 0
     iterations: int = 1

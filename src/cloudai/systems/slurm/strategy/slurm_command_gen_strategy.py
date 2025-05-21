@@ -497,5 +497,5 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             logging.debug(f"Using cached node allocation for {cache_key}: {self._node_spec_cache[cache_key]}")
             return self._node_spec_cache[cache_key]
 
-        self._node_spec_cache[cache_key] = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
+        self._node_spec_cache[cache_key] = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes)
         return self._node_spec_cache[cache_key]

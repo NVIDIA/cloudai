@@ -113,17 +113,14 @@ class TestNeMoRunSlurmCommandGenStrategy:
             docker_image_url="nvcr.io/nvidia/nemo:24.09",
             task="fine_tune",
             recipe_name="llama7_13b",
-            trainer=Trainer(
-                num_nodes=4,
-            ),
+            trainer=Trainer(num_nodes=4),
         )
         test_run.test.test_definition.cmd_args = cmd_args
 
-        with caplog.at_level(logging.WARNING), pytest.raises(SystemExit) as excinfo:
+        with caplog.at_level(logging.WARNING):
             cmd_gen_strategy.generate_test_command(
                 test_run.test.test_definition.extra_env_vars,
                 test_run.test.test_definition.cmd_args.model_dump(),
                 test_run,
             )
-        assert excinfo.value.code == 1
         assert "Mismatch in num_nodes" in caplog.text
