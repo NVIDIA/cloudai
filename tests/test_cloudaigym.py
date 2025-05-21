@@ -51,7 +51,6 @@ def setup_env(slurm_system: SlurmSystem, nemorun: NeMoRunTestDefinition) -> tupl
     tdef.cmd_args.trainer = Trainer(
         max_steps=[1000, 2000],
         val_check_interval=[100, 200],
-        num_nodes=[1, 2],
         strategy=TrainerStrategy(
             tensor_model_parallel_size=[1, 2],
             pipeline_model_parallel_size=[1, 2],

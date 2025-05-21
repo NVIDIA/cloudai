@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, ConfigDict
 
 from .._core.installables import GitRepo, Installable, PythonExecutable
+from .._core.test_scenario import TestRun
 
 
 class CmdArgs(BaseModel):
@@ -122,8 +123,7 @@ class TestDefinition(BaseModel, ABC):
     def installables(self) -> list[Installable]:
         return [*self.git_repos]
 
-    @property
-    def constraint_check(self) -> bool:
+    def constraint_check(self, tr: TestRun) -> bool:
         return True
 
     @property
