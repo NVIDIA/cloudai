@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Union, cast
+from typing import Dict, List, Union, cast
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
@@ -30,15 +30,9 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
             return [f"{tdef.cmd_args.trace_path}:{tdef.cmd_args.trace_path}"]
         return []
 
-    def _parse_slurm_args(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
-    ) -> Dict[str, Any]:
-        base_args = super()._parse_slurm_args(env_vars, cmd_args, tr)
-
+    def image_path(self, tr: TestRun) -> str | None:
         tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, tr.test.test_definition)
-        base_args.update({"image_path": tdef.docker_image.installed_path})
-
-        return base_args
+        return str(tdef.docker_image.installed_path)
 
     def generate_test_command(
         self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun

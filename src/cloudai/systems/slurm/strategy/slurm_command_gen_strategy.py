@@ -84,9 +84,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     def gen_exec_command(self, tr: TestRun) -> str:
         env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
         cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
-        slurm_args = self._parse_slurm_args(env_vars, cmd_args, tr)
 
-        srun_command = self._gen_srun_command(slurm_args, env_vars, cmd_args, tr)
+        srun_command = self._gen_srun_command(env_vars, cmd_args, tr)
         command_list = []
         indent = ""
 
@@ -105,41 +104,15 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             command_list.append("fi")
 
         full_command = "\n".join(command_list).strip()
-        return self._write_sbatch_script(slurm_args, env_vars, full_command, tr)
+        return self._write_sbatch_script(env_vars, full_command, tr)
 
     def gen_srun_command(self, tr: TestRun) -> str:
         env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
         cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
-        slurm_args = self._parse_slurm_args(env_vars, cmd_args, tr)
-        return self._gen_srun_command(slurm_args, env_vars, cmd_args, tr)
+        return self._gen_srun_command(env_vars, cmd_args, tr)
 
     def job_name_prefix(self, tr: TestRun) -> str:
         return tr.test.test_template.__class__.__name__
-
-    def _parse_slurm_args(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
-    ) -> Dict[str, Any]:
-        """
-        Parse command arguments to configure Slurm job settings.
-
-        Args:
-            env_vars (Dict[str, Union[str, List[str]]]): Environment variables.
-            cmd_args (Dict[str, Union[str, List[str]]]): Command-line arguments.
-            tr (TestRun): Test run object.
-
-        Returns:
-            Dict[str, Any]: Dictionary containing configuration for Slurm job.
-
-        Raises:
-            KeyError: If partition or essential node settings are missing.
-        """
-        num_nodes, node_list = self.get_cached_nodes_spec(tr)
-
-        slurm_args = {"num_nodes": num_nodes, "node_list_str": ",".join(node_list)}
-        if tr.time_limit:
-            slurm_args["time_limit"] = tr.time_limit
-
-        return slurm_args
 
     def job_name(self, tr: TestRun) -> str:
         job_name_prefix = self.job_name_prefix(tr)
@@ -245,25 +218,24 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return nsys.cmd_args
 
     def _gen_srun_command(
-        self,
-        slurm_args: Dict[str, Any],
-        env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, Union[str, List[str]]],
-        tr: TestRun,
+        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> str:
-        srun_command_parts = self.gen_srun_prefix(slurm_args, tr, use_pretest_extras=True)
+        srun_command_parts = self.gen_srun_prefix(tr, use_pretest_extras=True)
         nsys_command_parts = self.gen_nsys_command(tr)
         test_command_parts = self.generate_test_command(env_vars, cmd_args, tr)
         return " ".join(srun_command_parts + nsys_command_parts + test_command_parts)
 
-    def gen_srun_prefix(self, slurm_args: Dict[str, Any], tr: TestRun, use_pretest_extras: bool = False) -> List[str]:
+    def image_path(self, tr: TestRun) -> Optional[str]:
+        return None
+
+    def gen_srun_prefix(self, tr: TestRun, use_pretest_extras: bool = False) -> List[str]:
         srun_command_parts = ["srun", "--export=ALL", f"--mpi={self.system.mpi}"]
         if use_pretest_extras and tr.pre_test:
             for pre_tr in tr.pre_test.test_runs:
                 srun_command_parts.extend(self._get_cmd_gen_strategy(pre_tr).pre_test_srun_extra_args(tr))
 
-        if slurm_args.get("image_path"):
-            srun_command_parts.append(f"--container-image={slurm_args['image_path']}")
+        if image_path := self.image_path(tr):
+            srun_command_parts.append(f"--container-image={image_path}")
             mounts = self.container_mounts(tr)
             if mounts:
                 srun_command_parts.append(f"--container-mounts={','.join(mounts)}")
@@ -295,10 +267,10 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         return batch_script_content
 
-    def _ranks_mapping_cmd(self, slurm_args: dict[str, Any], tr: TestRun) -> str:
+    def _ranks_mapping_cmd(self, tr: TestRun) -> str:
         return " ".join(
             [
-                *self.gen_srun_prefix(slurm_args, tr),
+                *self.gen_srun_prefix(tr),
                 f"--output={tr.output_path.absolute() / 'mapping-stdout.txt'}",
                 f"--error={tr.output_path.absolute() / 'mapping-stderr.txt'}",
                 "bash",
@@ -307,15 +279,15 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             ]
         )
 
-    def _metadata_cmd(self, slurm_args: dict[str, Any], tr: TestRun) -> str:
+    def _metadata_cmd(self, tr: TestRun) -> str:
         (tr.output_path.absolute() / "metadata").mkdir(parents=True, exist_ok=True)
         num_nodes, _ = self.get_cached_nodes_spec(tr)
         metadata_script_path = "/cloudai_install"
-        if "image_path" not in slurm_args:
+        if not self.image_path(tr):
             metadata_script_path = str(self.system.install_path.absolute())
         return " ".join(
             [
-                *self.gen_srun_prefix(slurm_args, tr),
+                *self.gen_srun_prefix(tr),
                 f"--ntasks={num_nodes}",
                 "--ntasks-per-node=1",
                 f"--output={tr.output_path.absolute() / 'metadata' / 'node-%N.toml'}",
@@ -350,9 +322,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             ]
         )
 
-    def _write_sbatch_script(
-        self, slurm_args: Dict[str, Any], env_vars: Dict[str, Union[str, List[str]]], srun_command: str, tr: TestRun
-    ) -> str:
+    def _write_sbatch_script(self, env_vars: Dict[str, Union[str, List[str]]], srun_command: str, tr: TestRun) -> str:
         """
         Write the batch script for Slurm submission and return the sbatch command.
 
@@ -371,7 +341,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             f"#SBATCH --job-name={self.job_name(tr)}",
         ]
 
-        self._append_sbatch_directives(batch_script_content, slurm_args, tr)
+        self._append_sbatch_directives(batch_script_content, tr)
 
         batch_script_content.extend([self._format_env_vars(env_vars)])
 
@@ -379,8 +349,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             batch_script_content.extend([self._enable_vboost_cmd(tr), ""])
         if env_vars.get("ENABLE_NUMA_CONTROL") == "1":
             batch_script_content.extend([self._enable_numa_control_cmd(tr), ""])
-        batch_script_content.extend([self._ranks_mapping_cmd(slurm_args, tr), ""])
-        batch_script_content.extend([self._metadata_cmd(slurm_args, tr), ""])
+        batch_script_content.extend([self._ranks_mapping_cmd(tr), ""])
+        batch_script_content.extend([self._metadata_cmd(tr), ""])
 
         batch_script_content.append(srun_command)
 
@@ -390,26 +360,19 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         return f"sbatch {batch_script_path}"
 
-    def _append_sbatch_directives(
-        self, batch_script_content: List[str], slurm_args: Dict[str, Any], tr: TestRun
-    ) -> None:
+    def _append_sbatch_directives(self, batch_script_content: List[str], tr: TestRun) -> None:
         """
         Append SBATCH directives to the batch script content.
 
         Args:
             batch_script_content (List[str]): The list of script lines to append to.
-            slurm_args (Dict[str, Any]): Arguments including job settings.
             tr (TestRun): Test run object.
         """
         batch_script_content = self._add_reservation(batch_script_content)
 
-        if "output" not in slurm_args:
-            batch_script_content.append(f"#SBATCH --output={tr.output_path / 'stdout.txt'}")
-        if "error" not in slurm_args:
-            batch_script_content.append(f"#SBATCH --error={tr.output_path / 'stderr.txt'}")
+        batch_script_content.append(f"#SBATCH --output={tr.output_path / 'stdout.txt'}")
+        batch_script_content.append(f"#SBATCH --error={tr.output_path / 'stderr.txt'}")
         batch_script_content.append(f"#SBATCH --partition={self.system.default_partition}")
-        if slurm_args["node_list_str"]:
-            batch_script_content.append(f"#SBATCH --nodelist={slurm_args['node_list_str']}")
         if self.system.account:
             batch_script_content.append(f"#SBATCH --account={self.system.account}")
 
@@ -438,6 +401,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         if node_list:
             content.append("#SBATCH --distribution=arbitrary")
+            content.append(f"#SBATCH --nodelist={','.join(node_list)}")
 
             hostfile = (tr.output_path / "hostfile.txt").absolute()
             with hostfile.open("w") as hf:

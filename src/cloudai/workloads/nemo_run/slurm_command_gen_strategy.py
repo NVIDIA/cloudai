@@ -28,17 +28,16 @@ from cloudai.workloads.nemo_run import NeMoRunTestDefinition
 class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for NeMo 2.0 on Slurm systems."""
 
-    def _parse_slurm_args(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
-    ) -> Dict[str, Any]:
+    def image_path(self, tr: TestRun) -> str | None:
+        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
+        return str(tdef.docker_image.installed_path)
+
+    def _gen_srun_command(
+        self, env_vars: Dict[str, str | List[str]], cmd_args: Dict[str, str | List[str]], tr: TestRun
+    ) -> str:
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
         self._set_additional_env_vars(env_vars, tdef)
-
-        base_args = super()._parse_slurm_args(env_vars, cmd_args, tr)
-
-        base_args.update({"image_path": tdef.docker_image.installed_path})
-
-        return base_args
+        return super()._gen_srun_command(env_vars, cmd_args, tr)
 
     def _set_additional_env_vars(self, env_vars: Dict[str, Union[str, List[str]]], tdef: NeMoRunTestDefinition):
         """Set environment variables based on NeMoRunTestDefinition."""
