@@ -28,6 +28,14 @@ def create_autospec_dataclass(dataclass: type) -> Mock:
     return Mock(spec=[field.name for field in fields(dataclass)])
 
 
+@pytest.fixture(scope="session", autouse=True)
+def cleanup():
+    yield
+
+    for f in {"env_vars.sh", "hostfile.txt"}:
+        (Path.cwd() / f).unlink(missing_ok=True)
+
+
 @pytest.fixture
 def slurm_system(tmp_path: Path) -> SlurmSystem:
     system = SlurmSystem(

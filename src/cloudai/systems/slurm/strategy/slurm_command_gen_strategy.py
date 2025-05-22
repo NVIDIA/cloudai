@@ -65,10 +65,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         mounts = [
             f"{tr.output_path.absolute()}:/cloudai_run_results",
+            f"{self.system.install_path.absolute()}:/cloudai_install",
+            f"{tr.output_path.absolute()}",
             *tdef.extra_container_mounts,
             *repo_mounts,
             *self._container_mounts(tr),
-            f"{self.system.install_path.absolute()}:/cloudai_install",
         ]
 
         merged_env = self.system.global_env_vars.copy()
@@ -223,7 +224,18 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         srun_command_parts = self.gen_srun_prefix(tr, use_pretest_extras=True)
         nsys_command_parts = self.gen_nsys_command(tr)
         test_command_parts = self.generate_test_command(env_vars, cmd_args, tr)
-        return " ".join(srun_command_parts + nsys_command_parts + test_command_parts)
+
+        with (tr.output_path / "env_vars.sh").open("w") as f:
+            for key, value in env_vars.items():
+                f.write(f'export {key}="{value}"\n')
+
+        full_test_cmd = (
+            f'bash -c "source {(tr.output_path / "env_vars.sh").absolute()}; '
+            + " ".join(nsys_command_parts + test_command_parts)
+            + '"'
+        )
+
+        return " ".join(srun_command_parts) + " " + full_test_cmd
 
     def image_path(self, tr: TestRun) -> Optional[str]:
         return None

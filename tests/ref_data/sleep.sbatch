@@ -12,4 +12,4 @@ srun --export=ALL --mpi=pmix --output=__OUTPUT_DIR__/output/mapping-stdout.txt -
 
 srun --export=ALL --mpi=pmix --ntasks=1 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash __OUTPUT_DIR__/install/slurm-metadata.sh
 
-srun --export=ALL --mpi=pmix sleep 5
+srun --export=ALL --mpi=pmix bash -c "source __OUTPUT_DIR__/output/env_vars.sh; sleep 5"
