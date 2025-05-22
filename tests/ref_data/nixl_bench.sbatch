@@ -14,4 +14,4 @@ srun --export=ALL --mpi=pmix --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DI
 
 srun --export=ALL --mpi=pmix --container-image=url.com/docker:1 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install --overlap --ntasks-per-node=1 --ntasks=1 --nodelist=$SLURM_JOB_MASTER_NODE -N1 bash -c "/usr/local/bin/etcd --listen-client-urls http://0.0.0.0:2379 --advertise-client-urls http://$(hostname -I | awk '{print $1}'):2379" &
 sleep 5
-srun --export=ALL --mpi=pmix --container-image=url.com/docker:2 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install --overlap --ntasks-per-node=1 --ntasks=2 -N2 bash -c "./nixlbench --etcd-endpoints http://$SLURM_JOB_MASTER_NODE:2379 --backend UCX --initiator_seg_type VRAM"
+srun --export=ALL --mpi=pmix --container-image=url.com/docker:2 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install --overlap --ntasks-per-node=1 --ntasks=2 -N2 bash -c "./nixlbench --etcd-endpoints http://$SLURM_JOB_MASTER_NODE:2379"
