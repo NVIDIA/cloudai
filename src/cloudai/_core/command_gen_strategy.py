@@ -23,6 +23,8 @@ from .test_template_strategy import TestTemplateStrategy
 class CommandGenStrategy(TestTemplateStrategy, ABC):
     """Abstract base class defining the interface for command generation strategies across different systems."""
 
+    TEST_RUN_DUMP_FILE_NAME: str = "test-run.toml"
+
     @abstractmethod
     def gen_exec_command(self, tr: TestRun) -> str:
         """
@@ -33,5 +35,17 @@ class CommandGenStrategy(TestTemplateStrategy, ABC):
 
         Returns:
             str: The generated execution command.
+        """
+        pass
+
+    @abstractmethod
+    def store_test_run(self, tr: TestRun) -> None:
+        """
+        Store the test run information in output folder.
+
+        Only at command generation time, CloudAI has all the information to store the test run.
+
+        Args:
+            tr (TestRun): The test run object to be stored.
         """
         pass
