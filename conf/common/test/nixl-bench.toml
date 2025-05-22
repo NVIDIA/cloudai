@@ -21,3 +21,5 @@ etcd_image_url = "gitlab-master.nvidia.com/andreyma/andreyma/etcd:v3.5.1"
 
 [cmd_args]
 docker_image_url = "gitlab-master.nvidia.com/andreyma/andreyma/nixlbench:v0.2.0.dev.73578e7"
+backend = "UCX"
+etcd_endpoint = "http://$SLURM_JOB_MASTER_NODE:2379"

@@ -25,8 +25,7 @@ class NIXLBenchCmdArgs(CmdArgs):
     """Command line arguments for a NIXL Bench test."""
 
     docker_image_url: str
-    backend: str = "UCX"
-    initiator_seg_type: str = "VRAM"
+    etcd_endpoint: str
 
 
 class NIXLBenchTestDefinition(TestDefinition):

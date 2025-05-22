@@ -70,15 +70,9 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def gen_nixlbench_command(self, tr: TestRun) -> list[str]:
         tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, tr.test.test_definition)
-        cmd = [
-            "./nixlbench",
-            "--etcd-endpoints",
-            "http://$SLURM_JOB_MASTER_NODE:2379",
-            f"--backend {tdef.cmd_args.backend}",
-            f"--initiator_seg_type {tdef.cmd_args.initiator_seg_type}",
-        ]
+        cmd = ["./nixlbench", f"--etcd-endpoints {tdef.cmd_args.etcd_endpoint}"]
 
-        other_args = tdef.cmd_args.model_dump(exclude={"backend", "initiator_seg_type", "docker_image_url"})
+        other_args = tdef.cmd_args.model_dump(exclude={"docker_image_url", "etcd_endpoint"})
         for k, v in other_args.items():
             cmd.append(f"--{k} {v}")
 
