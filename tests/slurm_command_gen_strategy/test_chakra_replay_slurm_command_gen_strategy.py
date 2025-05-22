@@ -57,6 +57,18 @@ class TestChakraReplaySlurmCommandGenStrategy:
                     "",
                 ],
             ),
+            (
+                {"trace_type": "comms_trace", "trace_path": "/workspace/traces/", "num_replays": 5, "--max-steps": "100"},
+                "",
+                [
+                    "comm_replay",
+                    "--trace-type comms_trace",
+                    "--trace-path /workspace/traces/",
+                    "--num-replays 5",
+                    "--max-steps 100",
+                    "",
+                ],
+            ),
         ],
     )
     def test_generate_test_command(
