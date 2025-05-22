@@ -165,6 +165,20 @@ class SlurmSystem(BaseModel, System):
 
         return groups
 
+    @property
+    def supports_gpu_directives(self) -> bool:
+        try:
+            stdout, stderr = self.fetch_command_output("scontrol show config")
+            if stderr:
+                logging.warning(f"Error checking GPU support: {stderr}")
+                return True
+
+            return any("AccountingStorageTRES" in line and "gres/gpu" in line for line in stdout.splitlines())
+
+        except Exception as e:
+            logging.warning(f"Failed to check Slurm GPU directive support: {e}")
+            return True
+
     @field_serializer("install_path", "output_path")
     def _path_serializer(self, v: Path) -> str:
         return str(v)
