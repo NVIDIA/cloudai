@@ -173,7 +173,16 @@ class SlurmSystem(BaseModel, System):
                 logging.warning(f"Error checking GPU support: {stderr}")
                 return True
 
-            return any("AccountingStorageTRES" in line and "gres/gpu" in line for line in stdout.splitlines())
+            has_gres_gpu = False
+            has_gpu_gres_type = False
+
+            for line in stdout.splitlines():
+                if "AccountingStorageTRES" in line and "gres/gpu" in line:
+                    has_gres_gpu = True
+                if "GresTypes" in line and "gpu" in line and "(null)" not in line:
+                    has_gpu_gres_type = True
+
+            return has_gres_gpu and has_gpu_gres_type
 
         except Exception as e:
             logging.warning(f"Failed to check Slurm GPU directive support: {e}")

@@ -535,12 +535,28 @@ class TestSlurmCommandGenStrategyCache:
 @pytest.mark.parametrize(
     "scontrol_output,expected_support",
     [
+        # Case 1: gres/gpu in AccountingStorageTRES and gpu in GresTypes - should be supported
         (
             """Configuration data as of 2023-06-14T16:28:09
 AccountingStorageTRES   = cpu,mem,energy,node,billing,fs/disk,vmem,pages,gres/gpu,gres/gpumem,gres/gpuutil
 GresTypes               = gpu""",
             True,
         ),
+        # Case 2: gres/gpu in AccountingStorageTRES but GresTypes is (null) - should NOT be supported
+        (
+            """Configuration data as of 2023-06-14T16:28:09
+AccountingStorageTRES   = cpu,mem,energy,node,billing,fs/disk,vmem,pages,gres/gpu,gres/gpumem,gres/gpuutil
+GresTypes               = (null)""",
+            False,
+        ),
+        # Case 3: No gres/gpu in AccountingStorageTRES - should NOT be supported
+        (
+            """Configuration data as of 2023-06-14T16:28:09
+AccountingStorageTRES   = cpu,mem,energy,node,billing,fs/disk,vmem,pages
+GresTypes               = gpu""",
+            False,
+        ),
+        # Case 4: No gres/gpu in AccountingStorageTRES and GresTypes is (null) - should NOT be supported
         (
             """Configuration data as of 2023-06-14T16:28:09
 AccountingStorageTRES   = cpu,mem,energy,node,billing,fs/disk,vmem,pages
