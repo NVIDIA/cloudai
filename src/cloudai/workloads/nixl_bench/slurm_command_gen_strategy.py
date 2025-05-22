@@ -42,7 +42,7 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     ) -> str:
         etcd_command: list[str] = self.gen_etcd_srun_command(tr)
         nixl_command: list[str] = self.gen_nixl_srun_command(tr)
-        return " ".join(etcd_command) + "\n" + " ".join(nixl_command)
+        return " ".join(etcd_command) + "\nsleep 5\n" + " ".join(nixl_command)
 
     def gen_etcd_srun_command(self, tr: TestRun) -> list[str]:
         tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, tr.test.test_definition)
@@ -72,7 +72,7 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self._current_image_url = str(tdef.docker_image.installed_path)
         nnodes, _ = self.get_cached_nodes_spec(tr)
         nixlbench_cmd = [
-            "nixlbench",
+            "./nixlbench",
             "--etcd-endpoints",
             "http://$SLURM_JOB_MASTER_NODE:2379",
             f"--backend {tdef.cmd_args.backend}",

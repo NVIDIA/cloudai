@@ -26,4 +26,4 @@ description = "NIXL Benchmark"
 test_template_name = "NIXLBench"
 
     [Tests.cmd_args]
-    docker_image_url = "gitlab-master.nvidia.com/andreyma/andreyma/nixlbench:v0.2.0-dev.73578e7"
+    docker_image_url = "gitlab-master.nvidia.com/andreyma/andreyma/nixlbench:v0.2.0.dev.73578e7"
