@@ -779,7 +779,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
                 ddp=run.Config(
                     DistributedDataParallelConfig,
                     check_for_nan_in_grad=True,
-                    grad_reduce_in_fp32=True,
+                    grad_reduce_in_fp32=False,
                     overlap_grad_reduce=True,
                     overlap_param_gather=True,
                 ),
@@ -885,6 +885,8 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
         recipe.model.config.cpu_offloading_num_layers = activation_offload_layers
 
     recipe.model.config.vocab_size = 128256
+    recipe.trainer.strategy.account_for_embedding_in_pipeline_split = True
+    recipe.trainer.strategy.account_for_loss_in_pipeline_split = True
     return recipe
 
 
