@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union, cast
 
 from cloudai import TestRun
+from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 
 from .triton_inference import TritonInferenceTestDefinition
@@ -25,6 +26,10 @@ from .triton_inference import TritonInferenceTestDefinition
 
 class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for TritonInference server and client."""
+
+    def __init__(self, system: SlurmSystem, cmd_args: Dict[str, Any]) -> None:
+        super().__init__(system, cmd_args)
+        self._current_container_image: str | None = None
 
     def _container_mounts(self, tr: TestRun) -> list[str]:
         td = cast(TritonInferenceTestDefinition, tr.test.test_definition)
@@ -40,13 +45,11 @@ class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return mounts
 
-    def _append_sbatch_directives(
-        self, batch_script_content: List[str], slurm_args: Dict[str, Any], tr: TestRun
-    ) -> None:
-        super()._append_sbatch_directives(batch_script_content, slurm_args, tr)
+    def _append_sbatch_directives(self, batch_script_content: List[str], tr: TestRun) -> None:
+        super()._append_sbatch_directives(batch_script_content, tr)
         batch_script_content.append("export HEAD_NODE=$SLURM_JOB_MASTER_NODE")
         batch_script_content.append("export NIM_LEADER_IP_ADDRESS=$SLURM_JOB_MASTER_NODE")
-        batch_script_content.append(f"export NIM_NUM_COMPUTE_NODES={slurm_args['num_nodes'] - 1}")
+        batch_script_content.append(f"export NIM_NUM_COMPUTE_NODES={tr.num_nodes - 1}")
         batch_script_content.append("export NIM_MODEL_TOKENIZER='deepseek-ai/DeepSeek-R1'")
 
     def _generate_start_wrapper_script(self, script_path: Path, env_vars: Dict[str, Any]) -> None:
@@ -74,15 +77,11 @@ class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         script_path.chmod(0o755)
 
     def _gen_srun_command(
-        self,
-        slurm_args: Dict[str, Any],
-        env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, Union[str, List[str]]],
-        tr: TestRun,
+        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> str:
         num_server_nodes, num_client_nodes = self._get_server_client_split(tr)
-        server_line = self._build_server_srun(slurm_args, tr, num_server_nodes)
-        client_line = self._build_client_srun(slurm_args, tr, num_client_nodes)
+        server_line = self._build_server_srun(tr, num_server_nodes)
+        client_line = self._build_client_srun(tr, num_client_nodes)
         sleep_sec = cast(TritonInferenceTestDefinition, tr.test.test_definition).cmd_args.sleep_seconds
         return f"{server_line} &\n\nsleep {sleep_sec}\n\n{client_line}"
 
@@ -92,13 +91,15 @@ class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             raise ValueError("DeepSeekR1 requires at least 3 nodes: 2 server and 1 client.")
         return num_nodes - 1, 1
 
-    def _build_server_srun(self, slurm_args: Dict[str, Any], tr: TestRun, num_server_nodes: int) -> str:
+    def image_path(self, tr: TestRun) -> str | None:
+        return self._current_container_image
+
+    def _build_server_srun(self, tr: TestRun, num_server_nodes: int) -> str:
         test_definition = cast(TritonInferenceTestDefinition, tr.test.test_definition)
-        server_slurm_args = {
-            **slurm_args,
-            "image_path": test_definition.server_docker_image.installed_path,
-        }
-        srun_prefix = self.gen_srun_prefix(server_slurm_args, tr)
+        self._current_container_image = str(test_definition.server_docker_image.installed_path)
+        srun_prefix = self.gen_srun_prefix(tr)
+        self._current_container_image = None
+
         srun_prefix.append(f"--nodes={num_server_nodes}")
         srun_prefix.append(f"--ntasks={num_server_nodes}")
         srun_prefix.append("--ntasks-per-node=1")
@@ -106,13 +107,12 @@ class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         server_launch_command = ["/opt/nim/start_server_wrapper.sh"]
         return " ".join(srun_prefix + nsys_command + server_launch_command)
 
-    def _build_client_srun(self, slurm_args: Dict[str, Any], tr: TestRun, num_client_nodes: int) -> str:
+    def _build_client_srun(self, tr: TestRun, num_client_nodes: int) -> str:
         test_definition = cast(TritonInferenceTestDefinition, tr.test.test_definition)
-        client_slurm_args = {
-            **slurm_args,
-            "image_path": test_definition.client_docker_image.installed_path,
-        }
-        srun_prefix = self.gen_srun_prefix(client_slurm_args, tr)
+        self._current_container_image = str(test_definition.client_docker_image.installed_path)
+        srun_prefix = self.gen_srun_prefix(tr)
+        self._current_container_image = None
+
         srun_prefix.append(f"--nodes={num_client_nodes}")
         srun_prefix.append(f"--ntasks={num_client_nodes}")
 

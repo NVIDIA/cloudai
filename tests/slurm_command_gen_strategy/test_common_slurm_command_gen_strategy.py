@@ -57,10 +57,9 @@ def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, testrun_
     env_vars: Dict[str, Union[str, List[str]]] = {"TEST_VAR": "VALUE"}
     cmd_args: Dict[str, Union[str, List[str]]] = {"test_arg": "test_value"}
 
-    slurm_args = strategy_fixture._parse_slurm_args(env_vars, cmd_args, testrun_fixture)
-    srun_command = strategy_fixture._gen_srun_command(slurm_args, env_vars, cmd_args, testrun_fixture)
+    srun_command = strategy_fixture._gen_srun_command(env_vars, cmd_args, testrun_fixture)
 
-    sbatch_command = strategy_fixture._write_sbatch_script(slurm_args, env_vars, srun_command, testrun_fixture)
+    sbatch_command = strategy_fixture._write_sbatch_script(env_vars, srun_command, testrun_fixture)
     filepath_from_command = sbatch_command.split()[-1]
 
     assert testrun_fixture.output_path.joinpath("cloudai_sbatch_script.sh").exists()
@@ -74,45 +73,47 @@ def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, testrun_
 
 
 def test_num_nodes_and_nodes(strategy_fixture: SlurmCommandGenStrategy):
-    env_vars: Dict[str, Union[str, List[str]]] = {"TEST_VAR": "VALUE"}
-    cmd_args: Dict[str, Union[str, List[str]]] = {"test_arg": "test_value"}
     tr = make_test_run(
         slurm_system=strategy_fixture.system, name="test_job", output_dir=strategy_fixture.system.output_path
     )
     tr.nodes = ["node1", "node2"]
     tr.num_nodes = 3
+    tr.output_path.mkdir(parents=True, exist_ok=True)
 
-    slurm_args = strategy_fixture._parse_slurm_args(env_vars, cmd_args, tr)
+    lines: list[str] = []
+    strategy_fixture._append_sbatch_directives(lines, tr)
 
-    assert slurm_args["num_nodes"] == len(tr.nodes)
+    assert f"#SBATCH -N {tr.num_nodes}" not in lines
+    assert f"#SBATCH --nodelist={','.join(tr.nodes)}" in lines
 
 
 def test_only_num_nodes(strategy_fixture: SlurmCommandGenStrategy):
-    env_vars: Dict[str, Union[str, List[str]]] = {"TEST_VAR": "VALUE"}
-    cmd_args: Dict[str, Union[str, List[str]]] = {"test_arg": "test_value"}
     tr = make_test_run(
         slurm_system=strategy_fixture.system, name="test_job", output_dir=strategy_fixture.system.output_path
     )
     tr.nodes = []
     tr.num_nodes = 3
 
-    slurm_args = strategy_fixture._parse_slurm_args(env_vars, cmd_args, tr)
+    lines: list[str] = []
+    strategy_fixture._append_sbatch_directives(lines, tr)
 
-    assert slurm_args["num_nodes"] == tr.num_nodes
+    assert f"#SBATCH -N {tr.num_nodes}" in lines
+    assert f"#SBATCH --nodelist={','.join(tr.nodes)}" not in lines
 
 
 def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
-    env_vars: Dict[str, Union[str, List[str]]] = {"TEST_VAR": "VALUE"}
-    cmd_args: Dict[str, Union[str, List[str]]] = {"test_arg": "test_value"}
     tr = make_test_run(
         slurm_system=strategy_fixture.system, name="test_job", output_dir=strategy_fixture.system.output_path
     )
     tr.num_nodes = 0
     tr.nodes = ["node1", "node2"]
+    tr.output_path.mkdir(parents=True, exist_ok=True)
 
-    slurm_args = strategy_fixture._parse_slurm_args(env_vars, cmd_args, tr)
+    lines: list[str] = []
+    strategy_fixture._append_sbatch_directives(lines, tr)
 
-    assert slurm_args["num_nodes"] == len(tr.nodes)
+    assert f"#SBATCH --nodelist={','.join(tr.nodes)}" in lines
+    assert f"#SBATCH -N {tr.num_nodes}" not in lines
 
 
 @pytest.mark.parametrize("time_limit", [None, "1:00:00"])
@@ -123,12 +124,13 @@ def test_time_limit(time_limit: Optional[str], strategy_fixture: SlurmCommandGen
     tr.nodes = []
     tr.time_limit = time_limit
 
-    slurm_args = strategy_fixture._parse_slurm_args({}, {}, tr)
+    lines: list[str] = []
+    strategy_fixture._append_sbatch_directives(lines, tr)
 
     if time_limit is not None:
-        assert slurm_args["time_limit"] == time_limit
+        assert any("#SBATCH --time=" in line for line in lines)
     else:
-        assert "time_limit" not in slurm_args
+        assert not any("#SBATCH --time=" in line for line in lines)
 
 
 def make_test_run(slurm_system: SlurmSystem, name: str, output_dir: Path) -> TestRun:
@@ -263,7 +265,7 @@ def test_default_container_mounts(strategy_fixture: SlurmCommandGenStrategy, tes
 def test_append_sbatch_directives(strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun):
     content: list[str] = []
     strategy_fixture.system.extra_sbatch_args = ["--section=4", "--other-arg 1"]
-    strategy_fixture._append_sbatch_directives(content, {"node_list_str": ""}, testrun_fixture)
+    strategy_fixture._append_sbatch_directives(content, testrun_fixture)
 
     assert f"#SBATCH --partition={strategy_fixture.system.default_partition}" in content
     for arg in strategy_fixture.system.extra_sbatch_args:
@@ -308,8 +310,6 @@ def test_default_container_mounts_with_git_repos(strategy_fixture: SlurmCommandG
 
 
 def test_ranks_mapping_cmd(strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun):
-    slurm_args = {"job_name": "test_job", "num_nodes": 2, "node_list_str": "node1,node2"}
-
     expected_command = (
         f"srun --export=ALL --mpi={strategy_fixture.system.mpi} "
         f"--output={testrun_fixture.output_path.absolute()}/mapping-stdout.txt "
@@ -318,7 +318,7 @@ def test_ranks_mapping_cmd(strategy_fixture: SlurmCommandGenStrategy, testrun_fi
         r'"echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."'
     )
 
-    result = strategy_fixture._ranks_mapping_cmd(slurm_args, testrun_fixture)
+    result = strategy_fixture._ranks_mapping_cmd(testrun_fixture)
     assert result == expected_command
 
 
@@ -343,10 +343,7 @@ def test_gen_srun_prefix_with_pretest_extras(
             return ["--pre-arg1", "--pre-arg2"]
 
     with patch.object(strategy_fixture, "_get_cmd_gen_strategy", return_value=PreTestCmdGenStrategy(slurm_system, {})):
-        slurm_args = {"job_name": "test_job", "num_nodes": 2, "node_list_str": "node1,node2"}
-        srun_prefix_with_extras = strategy_fixture.gen_srun_prefix(
-            slurm_args, tr, use_pretest_extras=use_pretest_extras
-        )
+        srun_prefix_with_extras = strategy_fixture.gen_srun_prefix(tr, use_pretest_extras=use_pretest_extras)
 
     assert ("--pre-arg1" in srun_prefix_with_extras) is use_pretest_extras
     assert ("--pre-arg2" in srun_prefix_with_extras) is use_pretest_extras
@@ -361,6 +358,7 @@ def test_append_distribution_and_hostfile_with_nodes(
     strategy_fixture._append_nodes_related_directives(content, testrun_fixture)
 
     assert "#SBATCH --distribution=arbitrary" in content
+    assert "#SBATCH --nodelist=node1,node2" in content
 
     hostfile_path = testrun_fixture.output_path / "hostfile.txt"
     assert hostfile_path.exists()
@@ -377,3 +375,4 @@ def test_distribution_fallback_when_no_nodes(
     strategy_fixture._append_nodes_related_directives(content, testrun_fixture)
 
     assert "#SBATCH --distribution=cyclic" in content
+    assert "#SBATCH --nodelist=" not in content
