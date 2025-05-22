@@ -78,7 +78,7 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f"--initiator_seg_type {tdef.cmd_args.initiator_seg_type}",
         ]
 
-        other_args = tdef.cmd_args.model_dump(exclude={"backend", "initiator_seg_type"})
+        other_args = tdef.cmd_args.model_dump(exclude={"backend", "initiator_seg_type", "docker_image_url"})
         for k, v in other_args.items():
             cmd.append(f"--{k} {v}")
 
