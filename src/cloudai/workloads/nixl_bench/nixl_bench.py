@@ -33,7 +33,7 @@ class NIXLBenchTestDefinition(TestDefinition):
     """Test definition for a NIXL Bench test."""
 
     cmd_args: NIXLBenchCmdArgs
-    etcd_image_url: str = "gitlab-master.nvidia.com/andreyma/andreyma/etcd:v3.5.1"
+    etcd_image_url: str
     _nixl_image: Optional[DockerImage] = None
     _etcd_image: Optional[DockerImage] = None
 

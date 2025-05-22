@@ -1,4 +1,3 @@
-# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -15,23 +14,10 @@
 # limitations under the License.
 
 name = "nixl-benchmark"
+description = "NIXL Benchmark"
+test_template_name = "NIXLBench"
 
-[[Tests]]
-test_name = "nixl-benchmark"
-num_nodes = 2
-time_limit = "00:20:00"
+etcd_image_url = "gitlab-master.nvidia.com/andreyma/andreyma/etcd:v3.5.1"
 
-id = "nixl-benchmark.vram-dram"
-  [Tests.cmd_args]
-  initiator_seg_type = "VRAM"
-  target_seg_type = "DRAM"
-
-[[Tests]]
-test_name = "nixl-benchmark"
-num_nodes = 2
-time_limit = "00:20:00"
-
-id = "nixl-benchmark.dram-vram"
-  [Tests.cmd_args]
-  initiator_seg_type = "DRAM"
-  target_seg_type = "VRAM"
+[cmd_args]
+docker_image_url = "gitlab-master.nvidia.com/andreyma/andreyma/nixlbench:v0.2.0.dev.73578e7"
