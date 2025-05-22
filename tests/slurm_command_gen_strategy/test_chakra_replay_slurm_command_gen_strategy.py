@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Union, cast
+from typing import Dict, List, Union
 
 import pytest
 
@@ -58,7 +58,12 @@ class TestChakraReplaySlurmCommandGenStrategy:
                 ],
             ),
             (
-                {"trace_type": "comms_trace", "trace_path": "/workspace/traces/", "num_replays": 5, "--max-steps": "100"},
+                {
+                    "trace_type": "comms_trace",
+                    "trace_path": "/workspace/traces/",
+                    "num_replays": 5,
+                    "--max-steps": "100"
+                },
                 "",
                 [
                     "comm_replay",
@@ -82,9 +87,7 @@ class TestChakraReplaySlurmCommandGenStrategy:
         tr = create_autospec_dataclass(TestRun)
         tr.test.test_definition.cmd_args = ChakraReplayCmdArgs(
             docker_image_url="",
-            trace_type=cast(str, cmd_args["trace_type"]),
-            trace_path=cast(str, cmd_args["trace_path"]),
-            num_replays=cast(int, cmd_args["num_replays"]),
+            **cmd_args,
         )
         tr.test.extra_cmd_args = extra_cmd_args
         command = cmd_gen_strategy.generate_test_command({}, {}, tr)
