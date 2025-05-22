@@ -38,6 +38,20 @@ class Plugin(BaseModel):
     grad_reduce_in_fp32: Optional[bool] = None
 
 
+class OptimConfig(BaseModel):
+    """Configuration for NeMoRun."""
+
+    model_config = ConfigDict(extra="allow")
+    use_precision_aware_optimizer: Optional[Union[bool, List[bool]]] = None
+
+
+class Optim(BaseModel):
+    """Optimizer configuration for NeMoRun."""
+
+    model_config = ConfigDict(extra="allow")
+    config: Optional[OptimConfig] = None
+
+
 class Data(BaseModel):
     """Data configuration for NeMoRun."""
 
@@ -109,6 +123,7 @@ class NeMoRunCmdArgs(CmdArgs):
     trainer: Trainer = Field(default_factory=Trainer)
     log: Log = Field(default_factory=Log)
     data: Data = Field(default_factory=Data)
+    optim: Optim = Field(default_factory=Optim)
 
 
 class NeMoRunTestDefinition(TestDefinition):
@@ -149,3 +164,13 @@ class NeMoRunTestDefinition(TestDefinition):
         constraint4 = gbs % (mbs * dp) == 0 if dp != 0 else False
 
         return constraint1 and constraint2 and constraint3 and constraint4
+
+    @property
+    def update_num_train_samples(self) -> Optional[int]:
+        """Calculate num_train_samples based on global_batch_size and max_steps."""
+        gbs = self.cmd_args.data.global_batch_size
+        max_steps = self.cmd_args.trainer.max_steps
+
+        if isinstance(gbs, int) and isinstance(max_steps, int):
+            return gbs * max_steps
+        return None

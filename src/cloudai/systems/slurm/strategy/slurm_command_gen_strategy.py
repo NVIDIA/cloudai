@@ -14,8 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from abc import abstractmethod
 from datetime import datetime
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, cast, final
 
@@ -43,6 +45,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         super().__init__(system, cmd_args)
         self.system = system
         self.docker_image_url = self.cmd_args.get("docker_image_url", "")
+
+        self._node_spec_cache: dict[str, tuple[int, list[str]]] = {}
 
     @abstractmethod
     def _container_mounts(self, tr: TestRun) -> list[str]:
@@ -81,7 +85,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     def gen_exec_command(self, tr: TestRun) -> str:
         env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
         cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
-        slurm_args = self._parse_slurm_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
+        slurm_args = self._parse_slurm_args(env_vars, cmd_args, tr)
 
         srun_command = self._gen_srun_command(slurm_args, env_vars, cmd_args, tr)
         command_list = []
@@ -107,21 +111,19 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     def gen_srun_command(self, tr: TestRun) -> str:
         env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
         cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
-        slurm_args = self._parse_slurm_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
+        slurm_args = self._parse_slurm_args(env_vars, cmd_args, tr)
         return self._gen_srun_command(slurm_args, env_vars, cmd_args, tr)
 
+    def job_name_prefix(self, tr: TestRun) -> str:
+        return tr.test.test_template.__class__.__name__
+
     def _parse_slurm_args(
-        self,
-        job_name_prefix: str,
-        env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, Union[str, List[str]]],
-        tr: TestRun,
+        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> Dict[str, Any]:
         """
         Parse command arguments to configure Slurm job settings.
 
         Args:
-            job_name_prefix (str): Prefix for the job name.
             env_vars (Dict[str, Union[str, List[str]]]): Environment variables.
             cmd_args (Dict[str, Union[str, List[str]]]): Command-line arguments.
             tr (TestRun): Test run object.
@@ -132,20 +134,16 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         Raises:
             KeyError: If partition or essential node settings are missing.
         """
-        job_name = self.job_name(job_name_prefix)
-        num_nodes, node_list = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
+        num_nodes, node_list = self.get_cached_nodes_spec(tr)
 
-        slurm_args = {
-            "job_name": job_name,
-            "num_nodes": num_nodes,
-            "node_list_str": ",".join(node_list),
-        }
+        slurm_args = {"num_nodes": num_nodes, "node_list_str": ",".join(node_list)}
         if tr.time_limit:
             slurm_args["time_limit"] = tr.time_limit
 
         return slurm_args
 
-    def job_name(self, job_name_prefix: str) -> str:
+    def job_name(self, tr: TestRun) -> str:
+        job_name_prefix = self.job_name_prefix(tr)
         job_name = f"{job_name_prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         if self.system.account:
             job_name = f"{self.system.account}-{job_name_prefix}.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -323,7 +321,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
     def _metadata_cmd(self, slurm_args: dict[str, Any], tr: TestRun) -> str:
         (tr.output_path.absolute() / "metadata").mkdir(parents=True, exist_ok=True)
-        num_nodes, _ = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
+        num_nodes, _ = self.get_cached_nodes_spec(tr)
         metadata_script_path = "/cloudai_install"
         if "image_path" not in slurm_args:
             metadata_script_path = str(self.system.install_path.absolute())
@@ -339,11 +337,12 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             ]
         )
 
-    def _enable_vboost_cmd(self, slurm_args: dict[str, Any], tr: TestRun) -> str:
+    def _enable_vboost_cmd(self, tr: TestRun) -> str:
+        num_nodes, _ = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
         return " ".join(
             [
                 "srun",
-                "--ntasks=1",
+                f"--ntasks={num_nodes}",
                 f"--output={tr.output_path.absolute() / 'vboost.out'}",
                 f"--error={tr.output_path.absolute() / 'vboost.err'}",
                 "bash",
@@ -352,7 +351,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             ]
         )
 
-    def _enable_numa_control_cmd(self, slurm_args: dict[str, Any], tr: TestRun) -> str:
+    def _enable_numa_control_cmd(self, tr: TestRun) -> str:
         return " ".join(
             [
                 "srun",
@@ -380,7 +379,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         """
         batch_script_content = [
             "#!/bin/bash",
-            f"#SBATCH --job-name={slurm_args['job_name']}",
+            f"# generated by CloudAI@{version('cloudai')}",
+            f"#SBATCH --job-name={self.job_name(tr)}",
         ]
 
         self._append_sbatch_directives(batch_script_content, slurm_args, tr)
@@ -388,9 +388,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         batch_script_content.extend([self._format_env_vars(env_vars)])
 
         if env_vars.get("ENABLE_VBOOST") == "1":
-            batch_script_content.extend([self._enable_vboost_cmd(slurm_args, tr), ""])
+            batch_script_content.extend([self._enable_vboost_cmd(tr), ""])
         if env_vars.get("ENABLE_NUMA_CONTROL") == "1":
-            batch_script_content.extend([self._enable_numa_control_cmd(slurm_args, tr), ""])
+            batch_script_content.extend([self._enable_numa_control_cmd(tr), ""])
         batch_script_content.extend([self._ranks_mapping_cmd(slurm_args, tr), ""])
         batch_script_content.extend([self._metadata_cmd(slurm_args, tr), ""])
 
@@ -402,36 +402,38 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         return f"sbatch {batch_script_path}"
 
-    def _append_sbatch_directives(self, batch_script_content: List[str], args: Dict[str, Any], tr: TestRun) -> None:
+    def _append_sbatch_directives(
+        self, batch_script_content: List[str], slurm_args: Dict[str, Any], tr: TestRun
+    ) -> None:
         """
         Append SBATCH directives to the batch script content.
 
         Args:
             batch_script_content (List[str]): The list of script lines to append to.
-            args (Dict[str, Any]): Arguments including job settings.
+            slurm_args (Dict[str, Any]): Arguments including job settings.
             tr (TestRun): Test run object.
         """
         batch_script_content = self._add_reservation(batch_script_content)
 
-        if "output" not in args:
+        if "output" not in slurm_args:
             batch_script_content.append(f"#SBATCH --output={tr.output_path / 'stdout.txt'}")
-        if "error" not in args:
+        if "error" not in slurm_args:
             batch_script_content.append(f"#SBATCH --error={tr.output_path / 'stderr.txt'}")
         batch_script_content.append(f"#SBATCH --partition={self.system.default_partition}")
-        if args["node_list_str"]:
-            batch_script_content.append(f"#SBATCH --nodelist={args['node_list_str']}")
+        if slurm_args["node_list_str"]:
+            batch_script_content.append(f"#SBATCH --nodelist={slurm_args['node_list_str']}")
         if self.system.account:
             batch_script_content.append(f"#SBATCH --account={self.system.account}")
 
-        hostfile = self._append_nodes_related_directives(batch_script_content, args, tr)
+        hostfile = self._append_nodes_related_directives(batch_script_content, tr)
 
         if self.system.gpus_per_node:
             batch_script_content.append(f"#SBATCH --gpus-per-node={self.system.gpus_per_node}")
             batch_script_content.append(f"#SBATCH --gres=gpu:{self.system.gpus_per_node}")
         if self.system.ntasks_per_node:
             batch_script_content.append(f"#SBATCH --ntasks-per-node={self.system.ntasks_per_node}")
-        if "time_limit" in args:
-            batch_script_content.append(f"#SBATCH --time={args['time_limit']}")
+        if tr.time_limit:
+            batch_script_content.append(f"#SBATCH --time={tr.time_limit}")
 
         for arg in self.system.extra_sbatch_args:
             batch_script_content.append(f"#SBATCH {arg}")
@@ -443,8 +445,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             "\nexport SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)"
         )
 
-    def _append_nodes_related_directives(self, content: List[str], args: Dict[str, Any], tr: TestRun) -> Optional[Path]:
-        num_nodes, node_list = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
+    def _append_nodes_related_directives(self, content: List[str], tr: TestRun) -> Optional[Path]:
+        num_nodes, node_list = self.get_cached_nodes_spec(tr)
 
         if node_list:
             content.append("#SBATCH --distribution=arbitrary")
@@ -492,3 +494,19 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             str: The generated command to check the success of the test run.
         """
         return ""
+
+    def get_cached_nodes_spec(self, tr: TestRun) -> tuple[int, list[str]]:
+        """
+        Get nodes for a test run, using cache when available.
+
+        It is needed to avoid multiple calls to the system.get_nodes_by_spec method which in turn queries the Slurm API.
+        For a single test run it is not required, we can get actual nodes status only once.
+        """
+        cache_key = f"{tr.current_iteration}:{tr.step}:{tr.num_nodes}:{','.join(tr.nodes)}"
+
+        if cache_key in self._node_spec_cache:
+            logging.debug(f"Using cached node allocation for {cache_key}: {self._node_spec_cache[cache_key]}")
+            return self._node_spec_cache[cache_key]
+
+        self._node_spec_cache[cache_key] = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
+        return self._node_spec_cache[cache_key]

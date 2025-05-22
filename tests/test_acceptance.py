@@ -16,6 +16,7 @@
 
 import argparse
 from functools import partial
+from importlib.metadata import version
 from pathlib import Path
 from typing import Callable, Dict, Optional, Tuple, Type
 from unittest.mock import Mock, patch
@@ -365,6 +366,7 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
         .replace("__JOB_NAME__", "job_name")
         .replace("__CLOUDAI_DIR__", str(Path(__file__).parent.parent))
     )
+    ref = ref.replace("__CLOUDAI_VERSION__", version("cloudai"))
 
     sbatch_script = tr.test.test_template.gen_exec_command(tr).split()[-1]
     if "nemo-launcher" in test_req[1]:

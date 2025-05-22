@@ -14,16 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 from math import pi
 from pathlib import Path
-from typing import List, Optional, Tuple
-
-import pandas as pd
-from bokeh.layouts import column
-from bokeh.models import ColumnDataSource, CustomJSTickFormatter, Range1d
-from bokeh.plotting import figure, output_file, save
+from typing import TYPE_CHECKING, List, Optional, Tuple
 
 from cloudai.report_generator.util import bokeh_size_unit_js_tick_formatter, calculate_power_of_two_ticks
+from cloudai.util.lazy_imports import lazy
+
+if TYPE_CHECKING:
+    import bokeh
+    import bokeh.models
+    import bokeh.plotting
+    import pandas as pd
 
 
 class BokehReportTool:
@@ -43,13 +47,13 @@ class BokehReportTool:
         title: str,
         x_axis_label: str,
         y_axis_label: str,
-        y_range: Range1d,
+        y_range: bokeh.models.Range1d,
         width: int = 500,
         height: int = 308,
         x_axis_type: str = "linear",
         tools: str = "pan,wheel_zoom,box_zoom,reset,save",
-        x_range: Optional[Range1d] = None,
-    ) -> figure:
+        x_range: Optional[bokeh.models.Range1d] = None,
+    ) -> bokeh.plotting.figure:
         """
         Create a configured Bokeh figure with common settings.
 
@@ -67,7 +71,7 @@ class BokehReportTool:
         Returns:
             figure: A Bokeh figure configured with the specified parameters.
         """
-        plot = figure(
+        plot = lazy.bokeh_plotting.figure(
             title=title,
             width=width,
             height=height,
@@ -86,7 +90,7 @@ class BokehReportTool:
 
     def add_sol_line(
         self,
-        plot: figure,
+        plot: bokeh.plotting.figure,
         df: pd.DataFrame,
         x_column: str,
         y_column: str,
@@ -104,7 +108,7 @@ class BokehReportTool:
         """
         if sol is not None:  # Only add the SOL line if a value is provided
             sol_df = pd.DataFrame({x_column: df[x_column], y_column: [sol] * len(df)})
-            sol_source = ColumnDataSource(sol_df)
+            sol_source = lazy.bokeh_models.ColumnDataSource(sol_df)
             plot.line(
                 x=x_column,
                 y=y_column,
@@ -161,10 +165,17 @@ class BokehReportTool:
             title="CloudAI " + title,
             x_axis_label=x_axis_label,
             y_axis_label=y_column,
-            y_range=Range1d(start=0, end=(max(df[y_column]) * 1.1)),
+            y_range=lazy.bokeh_models.Range1d(start=0, end=(max(df[y_column]) * 1.1)),
         )
 
-        p.line(x=x_column, y=y_column, source=ColumnDataSource(df), line_width=2, color=color, legend_label=y_column)
+        p.line(
+            x=x_column,
+            y=y_column,
+            source=lazy.bokeh_models.ColumnDataSource(df),
+            line_width=2,
+            color=color,
+            legend_label=y_column,
+        )
 
         self.add_sol_line(p, df, x_column, y_column, sol)
 
@@ -204,8 +215,8 @@ class BokehReportTool:
             x_axis_label=x_axis_label,
             y_axis_label=y_axis_label,
             x_axis_type="linear",
-            y_range=Range1d(start=0, end=y_max + y_padding),
-            x_range=Range1d(start=single_x - x_padding, end=single_x + x_padding),
+            y_range=lazy.bokeh_models.Range1d(start=0, end=y_max + y_padding),
+            x_range=lazy.bokeh_models.Range1d(start=single_x - x_padding, end=single_x + x_padding),
         )
 
         for (y_column, color), single_y in zip(y_columns, y_values, strict=False):
@@ -246,14 +257,14 @@ class BokehReportTool:
                 x_axis_label=x_axis_label,
                 y_axis_label=y_axis_label,
                 x_axis_type="log",
-                y_range=Range1d(start=0, end=y_max * 1.1),
+                y_range=lazy.bokeh_models.Range1d(start=0, end=y_max * 1.1),
             )
 
             # Plot min, max, and avg lines
             p.line(
                 x=x_column,
                 y="min",
-                source=ColumnDataSource(grouped),
+                source=lazy.bokeh_models.ColumnDataSource(grouped),
                 color="blue",
                 legend_label=f"{y_columns[0][0]} Min",
             )
@@ -261,7 +272,7 @@ class BokehReportTool:
             p.line(
                 x=x_column,
                 y="max",
-                source=ColumnDataSource(grouped),
+                source=lazy.bokeh_models.ColumnDataSource(grouped),
                 color="red",
                 legend_label=f"{y_columns[0][0]} Max",
             )
@@ -269,7 +280,7 @@ class BokehReportTool:
             p.line(
                 x=x_column,
                 y="avg",
-                source=ColumnDataSource(grouped),
+                source=lazy.bokeh_models.ColumnDataSource(grouped),
                 color="green",
                 legend_label=f"{y_columns[0][0]} Avg",
             )
@@ -284,7 +295,7 @@ class BokehReportTool:
                 x_axis_label=x_axis_label,
                 y_axis_label=y_axis_label,
                 x_axis_type="log",
-                y_range=Range1d(start=0, end=y_max * 1.1),
+                y_range=lazy.bokeh_models.Range1d(start=0, end=y_max * 1.1),
             )
 
             # Plot avg line for each y_column
@@ -292,7 +303,7 @@ class BokehReportTool:
                 p.line(
                     x=x_column,
                     y=f"{y_column}_avg",
-                    source=ColumnDataSource(grouped),
+                    source=lazy.bokeh_models.ColumnDataSource(grouped),
                     line_width=2,
                     color=color,
                     legend_label=f"{y_column} Avg",
@@ -349,14 +360,14 @@ class BokehReportTool:
                     x_column = "iteration"
                     x_axis_label = "Iteration"
                     x_axis_type = "linear"
-                    x_range = Range1d(start=1, end=len(df))
+                    x_range = lazy.bokeh_models.Range1d(start=1, end=len(df))
 
                 p = self.create_figure(
                     title="CloudAI " + title,
                     x_axis_label=x_axis_label,
                     y_axis_label=y_axis_label,
                     x_axis_type=x_axis_type,
-                    y_range=Range1d(start=0, end=y_max * 1.1),
+                    y_range=lazy.bokeh_models.Range1d(start=0, end=y_max * 1.1),
                     x_range=x_range,
                 )
 
@@ -365,7 +376,7 @@ class BokehReportTool:
                     p.line(
                         x=x_column,
                         y=y_column,
-                        source=ColumnDataSource(df),
+                        source=lazy.bokeh_models.ColumnDataSource(df),
                         line_width=2,
                         color=color,
                         legend_label=y_column,
@@ -378,7 +389,7 @@ class BokehReportTool:
                 if x_axis_type == "log":
                     # Setting up custom tick formatter for log scale readability
                     p.xaxis.ticker = calculate_power_of_two_ticks(x_min, x_max)
-                    p.xaxis.formatter = CustomJSTickFormatter(code=bokeh_size_unit_js_tick_formatter)
+                    p.xaxis.formatter = lazy.bokeh_models.CustomJSTickFormatter(code=bokeh_size_unit_js_tick_formatter)
                     p.xaxis.major_label_orientation = pi / 4
 
         p.legend.location = "bottom_right"
@@ -392,6 +403,6 @@ class BokehReportTool:
             output_filename (Path): Path to save the final report.
         """
         output_filepath = self.output_directory / output_filename
-        output_file(output_filepath)
-        save(column(*self.plots))
+        lazy.bokeh_plotting.output_file(output_filepath)
+        lazy.bokeh_plotting.save(lazy.bokeh_layouts.column(*self.plots))
         self.plots = []  # Clear the list after saving to prepare for future use.

@@ -21,7 +21,7 @@ import pytest
 import toml
 from pydantic import ValidationError
 
-from cloudai import NsysConfiguration, Parser, Registry, TestConfigParsingError, TestDefinition, TestParser
+from cloudai import File, NsysConfiguration, Parser, Registry, TestConfigParsingError, TestDefinition, TestParser
 from cloudai.workloads.chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
@@ -34,7 +34,8 @@ from cloudai.workloads.jax_toolbox import (
 from cloudai.workloads.megatron_run import MegatronRunCmdArgs, MegatronRunTestDefinition
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.workloads.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
-from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
+from cloudai.workloads.nemo_run import Data, NeMoRunCmdArgs, NeMoRunTestDefinition, Trainer
+from cloudai.workloads.slurm_container import SlurmContainerCmdArgs, SlurmContainerTestDefinition
 from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
@@ -126,6 +127,12 @@ def test_chakra_docker_image_is_required():
             test_template_name="chakra",
             cmd_args=ChakraReplayCmdArgs(docker_image_url="fake://url/chakra"),
         ),
+        SlurmContainerTestDefinition(
+            name="sc",
+            description="desc",
+            test_template_name="sc",
+            cmd_args=SlurmContainerCmdArgs(docker_image_url="fake://url/sc", cmd="cmd"),
+        ),
     ],
 )
 def test_docker_installable_persists(
@@ -137,6 +144,7 @@ def test_docker_installable_persists(
         NeMoLauncherTestDefinition,
         NemotronTestDefinition,
         UCCTestDefinition,
+        SlurmContainerTestDefinition,
     ],
     tmp_path: Path,
 ):
@@ -157,6 +165,25 @@ def test_python_executable_installable_persists(test: NeMoLauncherTestDefinition
     test.python_executable.venv_path = tmp_path
     assert test.python_executable.git_repo.installed_path == tmp_path
     assert test.python_executable.venv_path == tmp_path
+
+
+@pytest.mark.parametrize(
+    "test",
+    [
+        SlurmContainerTestDefinition(
+            name="sc",
+            description="desc",
+            test_template_name="sc",
+            cmd_args=SlurmContainerCmdArgs(docker_image_url="fake://url/sc", cmd="cmd"),
+            scripts=[File(src=Path("./script1")), File(src=Path("./script2"))],
+        )
+    ],
+)
+def test_slurm_container_installables(test: SlurmContainerTestDefinition):
+    assert len(test.installables) >= 3
+    assert test.docker_image in test.installables
+    assert File(src=Path("./script1")) in test.installables
+    assert File(src=Path("./script2")) in test.installables
 
 
 class TestNsysConfiguration:
@@ -361,3 +388,29 @@ class TestMegatronRun:
                 "extra_container_mounts": [mount],
             }
         )
+
+
+@pytest.mark.parametrize(
+    "data,trainer,expected_num_train_samples",
+    [
+        (Data(global_batch_size=16), Trainer(max_steps=100), 1600),
+        (Data(global_batch_size=[16, 32]), Trainer(max_steps=[100, 200]), None),
+    ],
+)
+def test_nemorun_num_train_samples(data: Data, trainer: Trainer, expected_num_train_samples: Union[int, None]):
+    """Test the num_train_samples property with various data and trainer configurations."""
+    cmd_args = NeMoRunCmdArgs(
+        docker_image_url="fake://url/nemo",
+        task="task",
+        recipe_name="recipe",
+        data=data,
+        trainer=trainer,
+    )
+    test_def = NeMoRunTestDefinition(
+        name="nemo_test",
+        description="desc",
+        test_template_name="nemo",
+        cmd_args=cmd_args,
+    )
+    test_def.cmd_args.data.num_train_samples = test_def.update_num_train_samples
+    assert test_def.cmd_args.data.num_train_samples == expected_num_train_samples

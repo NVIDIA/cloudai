@@ -13,18 +13,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from __future__ import annotations
+
 import logging
 import re
 from functools import cache
 from pathlib import Path
-from typing import ClassVar, Optional
+from typing import TYPE_CHECKING, ClassVar, Optional
 
-import pandas as pd
+if TYPE_CHECKING:
+    import pandas as pd
 
 from cloudai import ReportGenerationStrategy
 from cloudai._core.test_scenario import METRIC_ERROR
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.report_generator.util import add_human_readable_sizes
+from cloudai.util.lazy_imports import lazy
 
 
 @cache
@@ -40,7 +45,7 @@ def parse_ucc_output(res_file: Path) -> Optional[pd.DataFrame]:
     if not data:
         return None
 
-    return pd.DataFrame(
+    return lazy.pd.DataFrame(
         data,
         columns=[
             "Count",

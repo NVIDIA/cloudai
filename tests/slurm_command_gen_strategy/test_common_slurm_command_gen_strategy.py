@@ -15,8 +15,8 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
-from unittest.mock import Mock, create_autospec, patch
+from typing import Dict, List, Optional, Union
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -24,7 +24,6 @@ from cloudai import GitRepo, Test, TestRun, TestScenario, TestTemplate
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestSlurmCommandGenStrategy
-from tests.conftest import create_autospec_dataclass
 
 
 class MySlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -40,7 +39,7 @@ def strategy_fixture(slurm_system: SlurmSystem) -> SlurmCommandGenStrategy:
 
 
 @pytest.fixture
-def testrun_fixture(tmp_path: Path) -> TestRun:
+def testrun_fixture(tmp_path: Path, slurm_system: SlurmSystem) -> TestRun:
     tdef = NCCLTestDefinition(
         name="test_job",
         description="Test description",
@@ -48,20 +47,17 @@ def testrun_fixture(tmp_path: Path) -> TestRun:
         cmd_args=NCCLCmdArgs(),
         extra_env_vars={"TEST_VAR": "VALUE"},
     )
-    mock_test_template = Mock(spec=TestTemplate)
-    mock_test_template.name = "test_template"
 
-    test = Test(test_definition=tdef, test_template=mock_test_template)
+    test = Test(test_definition=tdef, test_template=TestTemplate(slurm_system))
 
     return TestRun(name="test_job", test=test, output_path=tmp_path, num_nodes=2, nodes=["node1", "node2"])
 
 
 def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun):
-    job_name_prefix = "test_job"
     env_vars: Dict[str, Union[str, List[str]]] = {"TEST_VAR": "VALUE"}
     cmd_args: Dict[str, Union[str, List[str]]] = {"test_arg": "test_value"}
 
-    slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, testrun_fixture)
+    slurm_args = strategy_fixture._parse_slurm_args(env_vars, cmd_args, testrun_fixture)
     srun_command = strategy_fixture._gen_srun_command(slurm_args, env_vars, cmd_args, testrun_fixture)
 
     sbatch_command = strategy_fixture._write_sbatch_script(slurm_args, env_vars, srun_command, testrun_fixture)
@@ -72,58 +68,62 @@ def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, testrun_
     with open(filepath_from_command, "r") as file:
         file_contents = file.read()
 
-    assert "test_job" in file_contents
     assert "node1,node2" in file_contents
     assert "srun" in file_contents
     assert f"--mpi={strategy_fixture.system.mpi}" in file_contents
 
 
 def test_num_nodes_and_nodes(strategy_fixture: SlurmCommandGenStrategy):
-    job_name_prefix = "test_job"
     env_vars: Dict[str, Union[str, List[str]]] = {"TEST_VAR": "VALUE"}
     cmd_args: Dict[str, Union[str, List[str]]] = {"test_arg": "test_value"}
-    tr = Mock(spec=TestRun)
+    tr = make_test_run(
+        slurm_system=strategy_fixture.system, name="test_job", output_dir=strategy_fixture.system.output_path
+    )
     tr.nodes = ["node1", "node2"]
     tr.num_nodes = 3
 
-    slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
+    slurm_args = strategy_fixture._parse_slurm_args(env_vars, cmd_args, tr)
 
     assert slurm_args["num_nodes"] == len(tr.nodes)
 
 
 def test_only_num_nodes(strategy_fixture: SlurmCommandGenStrategy):
-    job_name_prefix = "test_job"
     env_vars: Dict[str, Union[str, List[str]]] = {"TEST_VAR": "VALUE"}
     cmd_args: Dict[str, Union[str, List[str]]] = {"test_arg": "test_value"}
-    tr = create_autospec(TestRun)
+    tr = make_test_run(
+        slurm_system=strategy_fixture.system, name="test_job", output_dir=strategy_fixture.system.output_path
+    )
     tr.nodes = []
     tr.num_nodes = 3
 
-    slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
+    slurm_args = strategy_fixture._parse_slurm_args(env_vars, cmd_args, tr)
 
     assert slurm_args["num_nodes"] == tr.num_nodes
 
 
 def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
-    job_name_prefix = "test_job"
     env_vars: Dict[str, Union[str, List[str]]] = {"TEST_VAR": "VALUE"}
     cmd_args: Dict[str, Union[str, List[str]]] = {"test_arg": "test_value"}
-    tr = create_autospec(TestRun)
+    tr = make_test_run(
+        slurm_system=strategy_fixture.system, name="test_job", output_dir=strategy_fixture.system.output_path
+    )
     tr.num_nodes = 0
     tr.nodes = ["node1", "node2"]
 
-    slurm_args = strategy_fixture._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
+    slurm_args = strategy_fixture._parse_slurm_args(env_vars, cmd_args, tr)
 
     assert slurm_args["num_nodes"] == len(tr.nodes)
 
 
 @pytest.mark.parametrize("time_limit", [None, "1:00:00"])
 def test_time_limit(time_limit: Optional[str], strategy_fixture: SlurmCommandGenStrategy):
-    tr = create_autospec_dataclass(TestRun)
+    tr = make_test_run(
+        slurm_system=strategy_fixture.system, name="test_job", output_dir=strategy_fixture.system.output_path
+    )
     tr.nodes = []
     tr.time_limit = time_limit
 
-    slurm_args = strategy_fixture._parse_slurm_args("prefix", {}, {}, tr)
+    slurm_args = strategy_fixture._parse_slurm_args({}, {}, tr)
 
     if time_limit is not None:
         assert slurm_args["time_limit"] == time_limit
@@ -361,8 +361,7 @@ def test_append_distribution_and_hostfile_with_nodes(
     strategy_fixture.system.distribution = "block"
     strategy_fixture.system.ntasks_per_node = 2
     content: List[str] = []
-    args: Dict[str, Any] = {"node_list_str": ",".join(testrun_fixture.nodes)}
-    strategy_fixture._append_nodes_related_directives(content, args, testrun_fixture)
+    strategy_fixture._append_nodes_related_directives(content, testrun_fixture)
 
     assert "#SBATCH --distribution=arbitrary" in content
 
@@ -378,7 +377,6 @@ def test_distribution_fallback_when_no_nodes(
     testrun_fixture.nodes = []
     strategy_fixture.system.distribution = "cyclic"
     content: List[str] = []
-    args: Dict[str, Any] = {"node_list_str": ""}
-    strategy_fixture._append_nodes_related_directives(content, args, testrun_fixture)
+    strategy_fixture._append_nodes_related_directives(content, testrun_fixture)
 
     assert "#SBATCH --distribution=cyclic" in content
