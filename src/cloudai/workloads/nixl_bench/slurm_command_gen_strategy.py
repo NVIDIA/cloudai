@@ -56,10 +56,11 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ]
         cmd = [
             *self.gen_srun_prefix(tr),
-            "--exclusive",
+            "--overlap",
             "--ntasks-per-node=1",
             "--ntasks=1",
             "--nodelist=$SLURM_JOB_MASTER_NODE",
+            "-N1",
             "bash",
             "-c",
             f'"{" ".join(etcd_cmd)}" &',
@@ -67,26 +68,35 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self._current_image_url = None
         return cmd
 
-    def gen_nixl_srun_command(self, tr: TestRun) -> list[str]:
+    def gen_nixlbench_command(self, tr: TestRun) -> list[str]:
         tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, tr.test.test_definition)
-        self._current_image_url = str(tdef.docker_image.installed_path)
-        nnodes, _ = self.get_cached_nodes_spec(tr)
-        nixlbench_cmd = [
+        cmd = [
             "./nixlbench",
             "--etcd-endpoints",
             "http://$SLURM_JOB_MASTER_NODE:2379",
             f"--backend {tdef.cmd_args.backend}",
             f"--initiator_seg_type {tdef.cmd_args.initiator_seg_type}",
         ]
+
+        other_args = tdef.cmd_args.model_dump(exclude={"backend", "initiator_seg_type"})
+        for k, v in other_args.items():
+            cmd.append(f"--{k} {v}")
+
+        return cmd
+
+    def gen_nixl_srun_command(self, tr: TestRun) -> list[str]:
+        tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, tr.test.test_definition)
+        self._current_image_url = str(tdef.docker_image.installed_path)
+        nnodes, _ = self.get_cached_nodes_spec(tr)
         cmd = [
             *self.gen_srun_prefix(tr),
-            "--exclusive",
+            "--overlap",
             "--ntasks-per-node=1",
             f"--ntasks={nnodes}",
             f"-N{nnodes}",
             "bash",
             "-c",
-            f'"{" ".join(nixlbench_cmd)}"',
+            f'"{" ".join(self.gen_nixlbench_command(tr))}"',
         ]
         self._current_image_url = None
         return cmd
