@@ -20,13 +20,12 @@ from unittest.mock import Mock
 import pandas as pd
 import pytest
 
-from cloudai import GitRepo, PredictorConfig, Test, TestRun
+from cloudai import GitRepo, PredictorConfig, Test, TestDefinition, TestRun
 from cloudai.workloads.nccl_test.prediction_report_generator import NcclTestPredictionReportGenerator
-from tests.conftest import MyTestDefinition
 
 
 @pytest.fixture
-def test_definition(tmp_path: Path) -> MyTestDefinition:
+def test_definition(tmp_path: Path) -> TestDefinition:
     repo = GitRepo(
         url="https://github.com/mock/repo.git",
         commit="mock_commit",
@@ -40,7 +39,7 @@ def test_definition(tmp_path: Path) -> MyTestDefinition:
         dependencies_from_pyproject=True,
     )
 
-    return MyTestDefinition(
+    return TestDefinition(
         name="mock_test",
         description="A mock test definition",
         test_template_name="mock_template",
@@ -50,7 +49,7 @@ def test_definition(tmp_path: Path) -> MyTestDefinition:
 
 
 @pytest.fixture
-def generator(test_definition: MyTestDefinition, tmp_path: Path) -> NcclTestPredictionReportGenerator:
+def generator(test_definition: TestDefinition, tmp_path: Path) -> NcclTestPredictionReportGenerator:
     test = Test(
         test_definition=test_definition,
         test_template=Mock(),

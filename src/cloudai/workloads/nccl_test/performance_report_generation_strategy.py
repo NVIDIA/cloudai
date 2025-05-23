@@ -14,17 +14,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import re
 from io import TextIOWrapper
 from pathlib import Path
-from typing import List, Tuple
-
-import pandas as pd
+from typing import TYPE_CHECKING, List, Tuple
 
 from cloudai import System, TestRun
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.report_generator.tool.csv_report_tool import CSVReportTool
 from cloudai.report_generator.util import add_human_readable_sizes
+from cloudai.util.lazy_imports import lazy
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 from .report_generation_strategy import NcclTestReportGenerationStrategy
 
@@ -91,9 +95,9 @@ class NcclTestPerformanceReportGenerationStrategy(NcclTestReportGenerationStrate
     def _extract_data(self) -> pd.DataFrame:
         parsed_data_rows, gpu_type, num_devices_per_node, num_ranks = self._parse_stdout()
         if not parsed_data_rows:
-            return pd.DataFrame()
+            return lazy.pd.DataFrame()
 
-        df: pd.DataFrame = pd.DataFrame(
+        df: pd.DataFrame = lazy.pd.DataFrame(
             parsed_data_rows,
             columns=[
                 "Size (B)",
