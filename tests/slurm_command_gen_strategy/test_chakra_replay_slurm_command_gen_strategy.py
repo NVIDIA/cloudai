@@ -62,7 +62,7 @@ class TestChakraReplaySlurmCommandGenStrategy:
                     "trace_type": "comms_trace",
                     "trace_path": "/workspace/traces/",
                     "num_replays": 5,
-                    "--max-steps": "100",
+                    "max_steps": "100",
                 },
                 "",
                 [
