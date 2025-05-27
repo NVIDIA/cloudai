@@ -139,6 +139,7 @@ class SlurmSystem(BaseModel, System):
     cmd_shell: CommandShell = Field(default=CommandShell(), exclude=True)
     extra_srun_args: Optional[str] = None
     extra_sbatch_args: list[str] = []
+    _supports_gpu_directives: Optional[bool] = Field(default=None, exclude=True)
 
     data_repository: Optional[DataRepositoryConfig] = None
 
@@ -167,10 +168,14 @@ class SlurmSystem(BaseModel, System):
 
     @property
     def supports_gpu_directives(self) -> bool:
+        if self._supports_gpu_directives is not None:
+            return self._supports_gpu_directives
+
         try:
             stdout, stderr = self.fetch_command_output("scontrol show config")
             if stderr:
                 logging.warning(f"Error checking GPU support: {stderr}")
+                self._supports_gpu_directives = True
                 return True
 
             has_gres_gpu = False
@@ -182,10 +187,12 @@ class SlurmSystem(BaseModel, System):
                 if "GresTypes" in line and "gpu" in line and "(null)" not in line:
                     has_gpu_gres_type = True
 
-            return has_gres_gpu and has_gpu_gres_type
+            self._supports_gpu_directives = has_gres_gpu and has_gpu_gres_type
+            return self._supports_gpu_directives
 
         except Exception as e:
             logging.warning(f"Failed to check Slurm GPU directive support: {e}")
+            self._supports_gpu_directives = True
             return True
 
     @field_serializer("install_path", "output_path")
