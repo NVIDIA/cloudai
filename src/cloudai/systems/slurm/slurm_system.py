@@ -139,7 +139,7 @@ class SlurmSystem(BaseModel, System):
     cmd_shell: CommandShell = Field(default=CommandShell(), exclude=True)
     extra_srun_args: Optional[str] = None
     extra_sbatch_args: list[str] = []
-    _supports_gpu_directives: Optional[bool] = Field(default=None, exclude=True)
+    supports_gpu_directives_cache: Optional[bool] = Field(default=None, exclude=True)
 
     data_repository: Optional[DataRepositoryConfig] = None
 
@@ -168,13 +168,13 @@ class SlurmSystem(BaseModel, System):
 
     @property
     def supports_gpu_directives(self) -> bool:
-        if self._supports_gpu_directives is not None:
-            return self._supports_gpu_directives
+        if self.supports_gpu_directives_cache is not None:
+            return self.supports_gpu_directives_cache
 
         stdout, stderr = self.fetch_command_output("scontrol show config")
         if stderr:
             logging.warning(f"Error checking GPU support: {stderr}")
-            self._supports_gpu_directives = True
+            self.supports_gpu_directives_cache = True
             return True
 
         has_gres_gpu = False
@@ -186,8 +186,8 @@ class SlurmSystem(BaseModel, System):
             if "GresTypes" in line and "gpu" in line and "(null)" not in line:
                 has_gpu_gres_type = True
 
-        self._supports_gpu_directives = has_gres_gpu and has_gpu_gres_type
-        return self._supports_gpu_directives
+        self.supports_gpu_directives_cache = has_gres_gpu and has_gpu_gres_type
+        return self.supports_gpu_directives_cache
 
     @field_serializer("install_path", "output_path")
     def _path_serializer(self, v: Path) -> str:
