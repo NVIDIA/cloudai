@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Union
+from typing import Any, Dict, List
 
 import pytest
 
@@ -79,12 +79,13 @@ class TestChakraReplaySlurmCommandGenStrategy:
     def test_generate_test_command(
         self,
         cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy,
-        cmd_args: Dict[str, Union[str, List[str]]],
+        cmd_args: Dict[str, Any],
         extra_cmd_args: str,
         expected_result: List[str],
         slurm_system: SlurmSystem,
     ) -> None:
         tr = create_autospec_dataclass(TestRun)
+
         tr.test.test_definition.cmd_args = ChakraReplayCmdArgs(
             docker_image_url="",
             **cmd_args,
