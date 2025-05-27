@@ -38,11 +38,15 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> List[str]:
         tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, tr.test.test_definition)
+
+        additional_cmd_args_dict = tdef.cmd_args.model_extra or {}
+
         srun_command_parts = [
             "comm_replay",
             f"--trace-type {tdef.cmd_args.trace_type}",
             f"--trace-path {tdef.cmd_args.trace_path}",
             f"--num-replays {tdef.cmd_args.num_replays}",
+            *[f"--{k.replace('_', '-')} {v}" for k, v in additional_cmd_args_dict.items()],
             tr.test.extra_cmd_args,
         ]
         return srun_command_parts
