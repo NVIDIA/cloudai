@@ -530,3 +530,44 @@ class TestSlurmCommandGenStrategyCache:
         res = strategy.get_cached_nodes_spec(test_run)
         assert mock_get_nodes.call_count == 2
         assert res == (2, ["node03", "node04"])
+
+
+@pytest.mark.parametrize(
+    "scontrol_output,expected_support",
+    [
+        # Case 1: gres/gpu in AccountingStorageTRES and gpu in GresTypes - should be supported
+        (
+            """Configuration data as of 2023-06-14T16:28:09
+AccountingStorageTRES   = cpu,mem,energy,node,billing,fs/disk,vmem,pages,gres/gpu,gres/gpumem,gres/gpuutil
+GresTypes               = gpu""",
+            True,
+        ),
+        # Case 2: gres/gpu in AccountingStorageTRES but GresTypes is (null) - should NOT be supported
+        (
+            """Configuration data as of 2023-06-14T16:28:09
+AccountingStorageTRES   = cpu,mem,energy,node,billing,fs/disk,vmem,pages,gres/gpu,gres/gpumem,gres/gpuutil
+GresTypes               = (null)""",
+            False,
+        ),
+        # Case 3: No gres/gpu in AccountingStorageTRES - should NOT be supported
+        (
+            """Configuration data as of 2023-06-14T16:28:09
+AccountingStorageTRES   = cpu,mem,energy,node,billing,fs/disk,vmem,pages
+GresTypes               = gpu""",
+            False,
+        ),
+        # Case 4: No gres/gpu in AccountingStorageTRES and GresTypes is (null) - should NOT be supported
+        (
+            """Configuration data as of 2023-06-14T16:28:09
+AccountingStorageTRES   = cpu,mem,energy,node,billing,fs/disk,vmem,pages
+GresTypes               = (null)""",
+            False,
+        ),
+    ],
+)
+@patch("cloudai.systems.slurm.slurm_system.SlurmSystem.fetch_command_output")
+def test_supports_gpu_directives(
+    mock_fetch_command_output, scontrol_output: str, expected_support: bool, slurm_system: SlurmSystem
+):
+    mock_fetch_command_output.return_value = (scontrol_output, "")
+    assert slurm_system.supports_gpu_directives == expected_support
