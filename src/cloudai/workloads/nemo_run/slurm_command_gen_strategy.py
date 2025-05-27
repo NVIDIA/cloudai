@@ -137,7 +137,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if self.system.gpus_per_node:
             cmd_args_dict["trainer"]["devices"] = self.system.gpus_per_node
         else:
-            logging.warning("SlurmSystem.gpus_per_node is not set. Skipping trainer.devices injection.")
+            logging.debug("SlurmSystem.gpus_per_node is not set. Skipping trainer.devices injection.")
 
         self.append_flattened_dict("", cmd_args_dict, command)
 
