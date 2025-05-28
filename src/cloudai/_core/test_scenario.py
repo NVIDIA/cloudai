@@ -104,18 +104,7 @@ class TestRun:
 
     @property
     def is_dse_job(self) -> bool:
-        def check_dict(d: dict) -> bool:
-            if isinstance(d, dict):
-                for value in d.values():
-                    if isinstance(value, list) or (isinstance(value, dict) and check_dict(value)):
-                        return True
-            return False
-
-        return (
-            check_dict(self.test.test_definition.cmd_args_dict)
-            or check_dict(self.test.test_definition.extra_env_vars)
-            or isinstance(self.num_nodes, list)
-        )
+        return self.test.test_definition.is_dse_job or isinstance(self.num_nodes, list)
 
     @property
     def nnodes(self) -> int:

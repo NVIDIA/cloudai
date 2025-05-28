@@ -187,7 +187,7 @@ class TestRunDetails(BaseModel):
     def from_test_run(cls, tr: TestRun, test_cmd: str, full_cmd: str) -> "TestRunDetails":
         return cls(
             name=tr.name,
-            nnodes=tr.num_nodes,
+            nnodes=tr.nnodes,
             nodes=tr.nodes,
             output_path=tr.output_path,
             iterations=tr.iterations,
