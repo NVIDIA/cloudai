@@ -102,6 +102,8 @@ class BaseRunner(ABC):
             tr (TestRun): The test to be started.
         """
         logging.info(f"Starting test: {tr.name}")
+        tr.output_path = self.get_job_output_path(tr)
+        await self.job_submit_callback(tr)
         try:
             job = self._submit_test(tr)
             self.jobs.append(job)
@@ -109,6 +111,10 @@ class BaseRunner(ABC):
         except JobSubmissionError as e:
             logging.error(e)
             exit(1)
+
+    async def job_submit_callback(self, tr: TestRun) -> None:
+        cmd_gen = tr.test.test_template.command_gen_strategy
+        cmd_gen.store_test_run(tr)
 
     async def delayed_submit_test(self, tr: TestRun, delay: int = 5):
         """

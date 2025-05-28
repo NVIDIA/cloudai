@@ -22,9 +22,11 @@ from typing import Callable, Dict, Optional, Tuple, Type
 from unittest.mock import Mock, patch
 
 import pytest
+import toml
 
 from cloudai import CommandGenStrategy, Test, TestDefinition, TestRun, TestScenario, TestTemplate
 from cloudai.cli import handle_dry_run_and_run, setup_logging
+from cloudai.models.scenario import TestRunDetails
 from cloudai.systems import SlurmSystem
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
 from cloudai.workloads.jax_toolbox import (
@@ -69,56 +71,77 @@ SLURM_TEST_SCENARIOS = [
 ]
 
 
-@pytest.mark.parametrize("scenario", SLURM_TEST_SCENARIOS, ids=lambda x: str(x))
-def test_slurm(tmp_path: Path, scenario: Dict):
-    test_scenario_path = scenario["path"]
-    expected_dirs_number = scenario.get("expected_dirs_number")
-    log_file = scenario.get("log_file", ".")
-    log_file_path = tmp_path / log_file
+class TestInDryRun:
+    @pytest.fixture(scope="class", params=SLURM_TEST_SCENARIOS)
+    def do_dry_run(self, tmp_path_factory: pytest.TempPathFactory, request: pytest.FixtureRequest) -> tuple[Path, dict]:
+        tmp_path = tmp_path_factory.mktemp("dry_run")
+        scenario = request.param
 
-    setup_logging(log_file_path, "DEBUG")
-    args = argparse.Namespace(
-        mode="dry-run",
-        system_config=Path("conf/common/system/example_slurm_cluster.toml"),
-        test_templates_dir=Path("conf/common/test_template"),
-        tests_dir=Path("conf/common/test"),
-        hook_dir=Path("conf/common/hook"),
-        test_scenario=test_scenario_path,
-        output_dir=tmp_path,
-        enable_cache_without_check=False,
-        log_file="debug.log",
-    )
-    with (
-        patch("asyncio.sleep", return_value=None),
-        patch("cloudai.systems.slurm.SlurmSystem.is_job_completed", return_value=True),
-        patch("cloudai.systems.slurm.SlurmSystem.is_job_running", return_value=True),
-        patch("cloudai.util.command_shell.CommandShell.execute") as mock_execute,
-    ):
-        mock_process = Mock()
-        mock_process.poll.return_value = 0
-        mock_process.returncode = 0
-        mock_process.communicate.return_value = ("", "")
-        mock_execute.return_value = mock_process
+        test_scenario_path = scenario["path"]
+        log_file = scenario.get("log_file", ".")
+        log_file_path = tmp_path / log_file
 
-        handle_dry_run_and_run(args)
+        setup_logging(log_file_path, "DEBUG")
+        args = argparse.Namespace(
+            mode="dry-run",
+            system_config=Path("conf/common/system/example_slurm_cluster.toml"),
+            test_templates_dir=Path("conf/common/test_template"),
+            tests_dir=Path("conf/common/test"),
+            hook_dir=Path("conf/common/hook"),
+            test_scenario=test_scenario_path,
+            output_dir=tmp_path,
+            enable_cache_without_check=False,
+            log_file="debug.log",
+        )
+        with (
+            patch("asyncio.sleep", return_value=None),
+            patch("cloudai.systems.slurm.SlurmSystem.is_job_completed", return_value=True),
+            patch("cloudai.systems.slurm.SlurmSystem.is_job_running", return_value=True),
+            patch("cloudai.util.command_shell.CommandShell.execute") as mock_execute,
+        ):
+            mock_process = Mock()
+            mock_process.poll.return_value = 0
+            mock_process.returncode = 0
+            mock_process.communicate.return_value = ("", "")
+            mock_execute.return_value = mock_process
 
-    # Find the directory that was created for the test results
-    results_output_dirs = [d for d in tmp_path.iterdir() if d.is_dir()]
+            handle_dry_run_and_run(args)
 
-    # Assuming there's only one result directory created
-    assert len(results_output_dirs) == 1, "No result directory found or multiple directories found."
-    results_output = results_output_dirs[0]
+        return (tmp_path, scenario)
 
-    test_dirs = list(results_output.iterdir())
+    def test_the_only_results_dir_created(self, do_dry_run: tuple[Path, dict]) -> None:
+        tmp_path = do_dry_run[0]
+        results_output_dirs = [d for d in tmp_path.iterdir() if d.is_dir()]
+        assert len(results_output_dirs) == 1, "No result directory found or multiple directories found."
 
-    if expected_dirs_number is not None:
-        assert len(test_dirs) == expected_dirs_number, "Dirs number in output is not as expected"
+    def test_number_of_cases(self, do_dry_run: tuple[Path, dict]) -> None:
+        tmp_path, scenario = do_dry_run
+        results_output_dirs = [d for d in tmp_path.iterdir() if d.is_dir()]
+        results_output = results_output_dirs[0]
 
-    for td in test_dirs:
-        assert td.is_dir(), "Invalid test directory"
-        assert "Tests." in td.name, "Invalid test directory name"
+        test_dirs = list(results_output.iterdir())
 
-    assert log_file_path.exists(), f"Log file {log_file_path} was not created"
+        if scenario["expected_dirs_number"] is not None:
+            assert len(test_dirs) == scenario["expected_dirs_number"], "Dirs number in output is not as expected"
+
+        for td in test_dirs:
+            assert td.is_dir(), "Invalid test directory"
+            assert "Tests." in td.name, "Invalid test directory name"
+
+    def test_log_file(self, do_dry_run: tuple[Path, dict]) -> None:
+        tmp_path, scenario = do_dry_run
+        log_file_path = tmp_path / scenario["log_file"]
+        assert log_file_path.exists(), f"Log file {log_file_path} was not created"
+
+    def test_details_is_dumped_and_valid(self, do_dry_run: tuple[Path, dict]) -> None:
+        tmp_path, scenario = do_dry_run
+
+        num_cases = scenario["expected_dirs_number"]
+        details_tomls = list(tmp_path.glob(f"**/{CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME}"))
+        assert len(details_tomls) == num_cases, "Details files number is not as expected"
+
+        for details_toml in details_tomls:
+            TestRunDetails.model_validate(toml.load(details_toml))
 
 
 @pytest.fixture
