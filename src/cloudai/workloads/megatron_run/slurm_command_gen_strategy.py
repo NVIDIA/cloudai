@@ -15,7 +15,7 @@
 # limitations under the License.
 
 
-from typing import Any, Dict, List, Union, cast
+from typing import Dict, List, Union, cast
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
@@ -26,19 +26,9 @@ from .megatron_run import MegatronRunTestDefinition
 class MegatronRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for MegatronRun on Slurm systems."""
 
-    def _parse_slurm_args(
-        self,
-        job_name_prefix: str,
-        env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: dict[str, Union[str, list[str]]],
-        tr: TestRun,
-    ) -> dict[str, Any]:
-        base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
-
+    def image_path(self, tr: TestRun) -> str | None:
         tdef: MegatronRunTestDefinition = cast(MegatronRunTestDefinition, tr.test.test_definition)
-        base_args.update({"image_path": tdef.docker_image.installed_path})
-
-        return base_args
+        return str(tdef.docker_image.installed_path)
 
     def _container_mounts(self, tr: TestRun) -> list[str]:
         return []

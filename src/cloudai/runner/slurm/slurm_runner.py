@@ -42,7 +42,6 @@ class SlurmRunner(BaseRunner):
 
     def _submit_test(self, tr: TestRun) -> SlurmJob:
         logging.info(f"Running test: {tr.name}")
-        tr.output_path = self.get_job_output_path(tr)
         exec_cmd = tr.test.test_template.gen_exec_command(tr)
         logging.debug(f"Executing command for test {tr.name}: {exec_cmd}")
         job_id = 0

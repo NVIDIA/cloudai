@@ -108,16 +108,14 @@ def test_cache_docker_image(
     ]  # Ensure all path checks return True
     mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=0, stderr="")
     result = manager.cache_docker_image("docker.io/hello-world", "image.tar.gz")
-    mock_run.assert_called_once_with(
-        (
-            f"srun --export=ALL --partition={slurm_system.default_partition} enroot "
-            f"import -o {slurm_system.install_path}/image.tar.gz docker://docker.io/hello-world"
-        ),
-        shell=True,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+
+    assert mock_run.call_count == 1
+    actual_command = mock_run.call_args[0][0]
+    assert f"srun --export=ALL --partition={slurm_system.default_partition}" in actual_command
+    assert "--job-name=CloudAI_install_docker_image_" in actual_command
+    assert f"enroot import -o {slurm_system.install_path}/image.tar.gz docker://docker.io/hello-world" in actual_command
+    assert mock_run.call_args[1] == {"shell": True, "check": True, "capture_output": True, "text": True}
+
     assert result.success
     assert result.message == f"Docker image cached successfully at {slurm_system.install_path}/image.tar.gz."
 
@@ -215,17 +213,25 @@ def test_docker_import_with_extra_system_config(slurm_system: SlurmSystem, accou
         res = manager.cache_docker_image("docker.io/hello-world", "docker_image.sqsh")
         assert res.success
 
-    command = f"srun --export=ALL --partition={slurm_system.default_partition}"
-    if slurm_system.account:
-        command += f" --account={slurm_system.account}"
-    if slurm_system.gpus_per_node:
-        command += " --gres=gpu:1"
-    command += f" enroot import -o {slurm_system.install_path}/docker_image.sqsh docker://docker.io/hello-world"
+    assert mock_run.call_count == 1
 
-    mock_run.assert_called_once_with(
-        command,
-        shell=True,
-        check=True,
-        capture_output=True,
-        text=True,
+    actual_command = mock_run.call_args[0][0]
+
+    expected_prefix = f"srun --export=ALL --partition={slurm_system.default_partition}"
+    assert expected_prefix in actual_command
+
+    if account:
+        assert f"--account={account}" in actual_command
+        assert f"--job-name={account}-CloudAI_install_docker_image." in actual_command
+    else:
+        assert "--job-name=CloudAI_install_docker_image_" in actual_command
+
+    if gpus_per_node:
+        assert "--gres=gpu:1" in actual_command
+
+    assert (
+        f"enroot import -o {slurm_system.install_path}/docker_image.sqsh docker://docker.io/hello-world"
+        in actual_command
     )
+
+    assert mock_run.call_args[1] == {"shell": True, "check": True, "capture_output": True, "text": True}
