@@ -16,6 +16,8 @@
 
 from typing import Dict, Optional
 
+from .installables import Installable
+
 
 class InstallStatusResult:
     """
@@ -27,7 +29,9 @@ class InstallStatusResult:
         details (Optional[Dict[str, str]]): A dictionary containing details about the result for each test template.
     """
 
-    def __init__(self, success: bool, message: str = "", details: Optional[Dict[str, str]] = None):
+    def __init__(
+        self, success: bool, message: str = "", details: Optional[Dict[Installable, "InstallStatusResult"]] = None
+    ):
         """
         Initialize the InstallStatusResult.
 
