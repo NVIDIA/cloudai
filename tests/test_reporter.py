@@ -41,14 +41,12 @@ def create_test_directories(slurm_system: SlurmSystem, test_run: TestRun) -> Non
                 csw_writer.writerow(["step", "action", "reward", "observation"])
 
                 for step in range(test_run.test.test_definition.agent_steps):
-                    (folder / str(step)).mkdir(exist_ok=True, parents=True)
-                    for step in range(test_run.test.test_definition.agent_steps):
-                        step_folder = folder / str(step)
-                        step_folder.mkdir(exist_ok=True, parents=True)
-                        trd = TestRunDetails.from_test_run(test_run, "", "")
-                        csw_writer.writerow([step, {}, step * 2.1, [step]])
-                        with open(step_folder / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME, "w") as _f_trd:
-                            toml.dump(trd.model_dump(), _f_trd)
+                    step_folder = folder / str(step)
+                    step_folder.mkdir(exist_ok=True, parents=True)
+                    trd = TestRunDetails.from_test_run(test_run, "", "")
+                    csw_writer.writerow([step, {}, step * 2.1, [step]])
+                    with open(step_folder / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME, "w") as _f_trd:
+                        toml.dump(trd.model_dump(), _f_trd)
 
 
 @pytest.fixture
