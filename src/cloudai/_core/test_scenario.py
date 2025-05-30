@@ -129,7 +129,7 @@ class TestRun:
 
     @property
     def all_combinations(self) -> list[dict[str, Any]]:
-        if not self.test.test_definition.is_dse_job:
+        if not self.is_dse_job:
             return []
 
         param_space: dict[str, Any] = self.param_space
