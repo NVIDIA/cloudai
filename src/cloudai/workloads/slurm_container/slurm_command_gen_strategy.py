@@ -39,7 +39,7 @@ class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
     def gen_srun_prefix(self, tr: TestRun, use_pretest_extras: bool = False) -> list[str]:
         cmd = super().gen_srun_prefix(tr)
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
-        return [*cmd, *tdef.extra_srun_args, "--no-container-mount-home"]
+        return [*cmd, *tdef.extra_srun_args]
 
     def generate_test_command(
         self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
