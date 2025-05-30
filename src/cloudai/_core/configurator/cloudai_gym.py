@@ -99,7 +99,7 @@ class CloudAIGymEnv(BaseGym):
         """
         self.test_run = self.test_run.apply_params_set(action)
 
-        if not self.test_run.test.test_definition.constraint_check:
+        if not self.test_run.test.test_definition.constraint_check(self.test_run):
             logging.info("Constraint check failed. Skipping step.")
             return [-1.0], -1.0, True, {}
 

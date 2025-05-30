@@ -18,7 +18,7 @@ import copy
 import itertools
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, List, Optional, Set, Type
+from typing import TYPE_CHECKING, Any, List, Optional, Set, Type, Union
 
 from .system import System
 from .test_template_strategy import TestTemplateStrategy
@@ -57,7 +57,7 @@ class TestRun:
 
     name: str
     test: "Test"
-    num_nodes: int
+    num_nodes: Union[int, list[int]]
     nodes: List[str]
     output_path: Path = Path("")
     iterations: int = 1
@@ -103,6 +103,17 @@ class TestRun:
         return report(system, self).get_metric(self.test.test_definition.agent_metric)
 
     @property
+    def is_dse_job(self) -> bool:
+        return self.test.test_definition.is_dse_job or isinstance(self.num_nodes, list)
+
+    @property
+    def nnodes(self) -> int:
+        """Type safe getter for num_nodes, should only be used on an unrolled DSE job."""
+        if isinstance(self.num_nodes, list):
+            raise TypeError("num_nodes is a list, cannot be used as a scalar.")
+        return self.num_nodes
+
+    @property
     def param_space(self) -> dict[str, Any]:
         cmd_args_dict = TestTemplateStrategy._flatten_dict(self.test.test_definition.cmd_args.model_dump())
         extra_env_vars_dict = self.test.test_definition.extra_env_vars
@@ -111,12 +122,14 @@ class TestRun:
             **{key: value for key, value in cmd_args_dict.items() if isinstance(value, list)},
             **{f"extra_env_vars.{key}": value for key, value in extra_env_vars_dict.items() if isinstance(value, list)},
         }
+        if isinstance(self.num_nodes, list):
+            action_space["NUM_NODES"] = self.num_nodes
 
         return action_space
 
     @property
     def all_combinations(self) -> list[dict[str, Any]]:
-        if not self.test.test_definition.is_dse_job:
+        if not self.is_dse_job:
             return []
 
         param_space: dict[str, Any] = self.param_space
@@ -146,6 +159,8 @@ class TestRun:
                 setattr(obj, attrs[-1], value)
 
         new_tr = copy.deepcopy(self)
+        if "NUM_NODES" in action:
+            new_tr.num_nodes = action["NUM_NODES"]
         new_tr.test.test_definition = type(tdef)(**tdef.model_dump())  # re-create the model to enable validation
         return new_tr
 

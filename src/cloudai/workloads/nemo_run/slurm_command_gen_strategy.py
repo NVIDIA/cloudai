@@ -16,7 +16,6 @@
 
 
 import logging
-import sys
 from pathlib import Path
 from typing import Any, Dict, List, Union, cast
 
@@ -112,25 +111,15 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         recipe_name = self._validate_recipe_name(tdef.cmd_args.recipe_name)
 
-        command = [
-            "python",
-            f"/cloudai_install/{self._run_script(tr).name}",
-            "--factory",
-            recipe_name,
-            "-y",
-        ]
+        command = ["python", f"/cloudai_install/{self._run_script(tr).name}", "--factory", recipe_name, "-y"]
 
-        num_nodes, _ = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
+        num_nodes, _ = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes)
 
-        if cmd_args_dict["trainer"]["num_nodes"] and cmd_args_dict["trainer"]["num_nodes"] > num_nodes:
-            err = (
-                f"Mismatch in num_nodes: {num_nodes} vs {cmd_args_dict['trainer']['num_nodes']}. "
-                "trainer.num_nodes should be less than or equal to the number of nodes specified "
-                "in the test scenario."
+        if tdef.cmd_args.trainer.num_nodes is not None and tdef.cmd_args.trainer.num_nodes > num_nodes:
+            logging.warning(
+                f"Mismatch in num_nodes: real {num_nodes} < requested by test {tdef.cmd_args.trainer.num_nodes}. "
+                "cmd_args.trainer.num_nodes value will be overridden to the actual number of nodes."
             )
-
-            logging.error(err)
-            sys.exit(1)
 
         cmd_args_dict["trainer"]["num_nodes"] = num_nodes
 

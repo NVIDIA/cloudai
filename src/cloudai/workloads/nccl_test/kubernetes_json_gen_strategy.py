@@ -25,7 +25,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
     def gen_json(self, tr: TestRun) -> Dict[Any, Any]:
         final_env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
         final_cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
-        final_num_nodes = self._determine_num_nodes(tr.num_nodes, tr.nodes)
+        final_num_nodes = self._determine_num_nodes(tr.nnodes, tr.nodes)
         sanitized_job_name = self.sanitize_k8s_job_name("nccl-test")
         job_spec = self._create_job_spec(
             sanitized_job_name, final_num_nodes, tr.nodes, final_env_vars, final_cmd_args, tr.test.extra_cmd_args

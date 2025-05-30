@@ -35,7 +35,7 @@ def create_test_directories(slurm_system: SlurmSystem, test_run: TestRun) -> Non
     for iteration in range(test_run.iterations):
         folder = test_dir / str(iteration)
         folder.mkdir(exist_ok=True, parents=True)
-        if test_run.test.test_definition.is_dse_job:
+        if test_run.is_dse_job:
             with open(folder / "trajectory.csv", "w") as _f_csv:
                 csw_writer = csv.writer(_f_csv)
                 csw_writer.writerow(["step", "action", "reward", "observation"])

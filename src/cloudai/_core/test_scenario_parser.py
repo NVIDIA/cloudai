@@ -254,7 +254,7 @@ class TestScenarioParser:
             reports=get_reporters(test_info, test.test_definition),
         )
 
-        if test.test_definition.is_dse_job and not tr.metric_reporter:
+        if tr.is_dse_job and not tr.metric_reporter:
             report_metrics_map = {r: r.metrics for r in tr.reports}
             logging.error(f"Failed to parse Test Scenario definition: {self.file_path}")
             msg = (
