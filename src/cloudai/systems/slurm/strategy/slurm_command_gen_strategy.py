@@ -264,6 +264,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             if mounts:
                 srun_command_parts.append(f"--container-mounts={','.join(mounts)}")
 
+            if not self.system.container_mount_home:
+                srun_command_parts.append("--no-container-mount-home")
+
         if self.system.extra_srun_args:
             srun_command_parts.append(self.system.extra_srun_args)
 

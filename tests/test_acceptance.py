@@ -399,6 +399,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
 
 def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, str]):
     slurm_system.output_path.mkdir(parents=True, exist_ok=True)
+    slurm_system.container_mount_home = True
 
     tr = test_req[0]
 

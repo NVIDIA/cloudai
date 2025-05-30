@@ -90,8 +90,8 @@ def test_with_extra_srun_args(slurm_system: SlurmSystem, test_run: TestRun) -> N
         f"--container-mounts={test_run.output_path.absolute()}:/cloudai_run_results,"
         f"{slurm_system.install_path.absolute()}:/cloudai_install,"
         f"{test_run.output_path.absolute()} "
-        f"{' '.join(extra_args)} "
-        f"--no-container-mount-home"
+        f"--no-container-mount-home "
+        f"{' '.join(extra_args)}"
     )
 
     assert cmd == f'{srun_part} bash -c "source {(test_run.output_path / "env_vars.sh").absolute()}; cmd"'

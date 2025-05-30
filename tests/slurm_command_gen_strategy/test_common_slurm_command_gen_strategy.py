@@ -352,6 +352,16 @@ def test_gen_srun_prefix_with_pretest_extras(
     assert ("--pre-arg2" in srun_prefix_with_extras) is use_pretest_extras
 
 
+@pytest.mark.parametrize("container_mount_home", [True, False])
+def test_gen_srun_prefix_with_container_mount_home(
+    container_mount_home: bool, strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun
+):
+    strategy_fixture.system.container_mount_home = container_mount_home
+    strategy_fixture.image_path = Mock(return_value="path")
+    srun_prefix = strategy_fixture.gen_srun_prefix(testrun_fixture)
+    assert ("--no-container-mount-home" in srun_prefix) is not container_mount_home
+
+
 def test_append_distribution_and_hostfile_with_nodes(
     strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun
 ) -> None:

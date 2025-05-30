@@ -140,6 +140,7 @@ class SlurmSystem(BaseModel, System):
     extra_srun_args: Optional[str] = None
     extra_sbatch_args: list[str] = []
     supports_gpu_directives_cache: Optional[bool] = Field(default=None, exclude=True)
+    container_mount_home: bool = False
 
     data_repository: Optional[DataRepositoryConfig] = None
 
