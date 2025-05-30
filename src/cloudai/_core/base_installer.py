@@ -123,8 +123,9 @@ class BaseInstaller(ABC):
         logging.debug("Checking for common prerequisites.")
         return InstallStatusResult(True)
 
-    def all_items(self, items: Iterable[Installable]) -> set[Installable]:
-        return set(list(items) + self.system.system_installables())
+    def all_items(self, items: Iterable[Installable], with_duplicates: bool = False) -> list[Installable]:
+        all_items = list(items) + self.system.system_installables()
+        return list(set(all_items)) if not with_duplicates else all_items
 
     @final
     def is_installed(self, items: Iterable[Installable]) -> InstallStatusResult:
@@ -142,16 +143,22 @@ class BaseInstaller(ABC):
         if not prepare_output_dir(self.system.install_path):
             return InstallStatusResult(False, f"Error preparing install dir '{self.system.install_path.absolute()}'")
 
-        not_installed = {}
+        install_results: dict[Installable, InstallStatusResult] = {}
         for item in self.all_items(items):
             logging.debug(f"Installation check for {item!r}")
             result = self.is_installed_one(item)
             logging.debug(f"Installation check for {item!r}: {result.success}, {result.message}")
-            if not result.success:
-                not_installed[item] = result.message
+            install_results[item] = result
 
-        if not_installed:
-            res = InstallStatusResult(False, f"{len(not_installed)} item(s) are not installed.", not_installed)
+        self._populate_sucessful_install(items, install_results)
+
+        nfailed = len([result for result in install_results.values() if not result.success])
+        if nfailed:
+            res = InstallStatusResult(
+                False,
+                f"{nfailed} item(s) are not installed.",
+                {k: v for k, v in install_results.items() if not v.success},
+            )
             logging.debug(str(res))
             return res
         return InstallStatusResult(True, "All test templates are installed.")
@@ -177,7 +184,7 @@ class BaseInstaller(ABC):
         logging.debug(f"Going to install {len(set(items))} uniq item(s) (total is {len(list(items))})")
         logging.info(f"Going to install {len(set(items))} item(s)")
 
-        install_results = {}
+        install_results: dict[Installable, InstallStatusResult] = {}
         with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
             futures = {executor.submit(self.install_one, item): item for item in self.all_items(items)}
             total, done = len(futures), 0
@@ -187,23 +194,41 @@ class BaseInstaller(ABC):
                     result = future.result()
                     done += 1
                     msg = f"{done}/{total} Installation of {item!r}: {result.message if result.message else 'OK'}"
+                    install_results[item] = result
                     if result.success:
-                        install_results[item] = "Success"
                         logging.info(msg)
                     else:
-                        install_results[item] = result.message
                         logging.error(msg)
                 except Exception as e:
                     done += 1
                     logging.error(f"{done}/{total} Installation failed for {item!r}: {e}")
-                    install_results[item] = str(e)
+                    install_results[item] = InstallStatusResult(False, str(e))
 
-        all_success = all(result == "Success" for result in install_results.values())
+        self._populate_sucessful_install(items, install_results)
+
+        all_success = all(result.success for result in install_results.values())
         if all_success:
             return InstallStatusResult(True, "All items installed successfully.", install_results)
 
-        nfailed = len([result for result in install_results.values() if result != "Success"])
+        nfailed = len([result for result in install_results.values() if not result.success])
         return InstallStatusResult(False, f"{nfailed} item(s) failed to install.", install_results)
+
+    def _populate_sucessful_install(
+        self, items: Iterable[Installable], install_results: dict[Installable, InstallStatusResult]
+    ):
+        dups: dict[Installable, list[Installable]] = {}
+        for item in self.all_items(items, with_duplicates=True):
+            if item in dups:
+                dups[item].append(item)
+            else:
+                dups[item] = [item]
+
+        for item, res in install_results.items():
+            if not res.success:
+                continue
+
+            for dup in dups[item]:
+                self.mark_as_installed_one(dup)
 
     @final
     def uninstall(self, items: Iterable[Installable]) -> InstallStatusResult:
@@ -219,26 +244,23 @@ class BaseInstaller(ABC):
         logging.debug(f"Going to uninstall {len(set(items))} uniq items (total {len(list(items))}).")
         logging.info(f"Going to uninstall {len(set(items))} items.")
 
-        uninstall_results = {}
+        uninstall_results: dict[Installable, InstallStatusResult] = {}
         with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
             futures = {executor.submit(self.uninstall_one, item): item for item in self.all_items(items)}
             for future in as_completed(futures):
                 item = futures[future]
                 try:
                     result = future.result()
-                    if result.success:
-                        uninstall_results[item] = "Success"
-                    else:
-                        uninstall_results[item] = result.message
+                    uninstall_results[item] = result
                 except Exception as e:
                     logging.error(f"Uninstallation failed for {item!r}: {e}")
-                    uninstall_results[item] = str(e)
+                    uninstall_results[item] = InstallStatusResult(False, str(e))
 
-        all_success = all(result == "Success" for result in uninstall_results.values())
+        all_success = all(result.success for result in uninstall_results.values())
         if all_success:
             return InstallStatusResult(True, "All items uninstalled successfully.", uninstall_results)
 
-        nfailed = len([result for result in uninstall_results.values() if result != "Success"])
+        nfailed = len([result for result in uninstall_results.values() if not result.success])
         return InstallStatusResult(False, f"{nfailed} item(s) failed to uninstall.", uninstall_results)
 
     @final
