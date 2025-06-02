@@ -143,6 +143,22 @@ def test_docker_cache_filename(url: str, expected: str):
     assert DockerImage(url).cache_filename == expected, f"Input: {url}"
 
 
+def test_docker_image_installed_path():
+    docker_image = DockerImage("fake_url/img")
+
+    # Test with string path
+    string_path = "/some/path/to/image"
+    docker_image._installed_path = string_path
+    assert isinstance(docker_image.installed_path, Path)
+    assert docker_image.installed_path == Path(string_path).absolute()
+
+    # Test with Path object
+    path_obj = Path("/another/path")
+    docker_image._installed_path = path_obj
+    assert isinstance(docker_image.installed_path, Path)
+    assert docker_image.installed_path == path_obj.absolute()
+
+
 @pytest.mark.parametrize(
     "url,expected",
     [
