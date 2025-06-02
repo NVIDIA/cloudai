@@ -216,20 +216,10 @@ class BaseInstaller(ABC):
     def _populate_sucessful_install(
         self, items: Iterable[Installable], install_results: dict[Installable, InstallStatusResult]
     ):
-        dups: dict[Installable, list[Installable]] = {}
         for item in self.all_items(items, with_duplicates=True):
             if item not in install_results or not install_results[item].success:
                 continue
-
-            if item not in dups:
-                dups[item] = []
-                continue
-
-            dups[item].append(item)
-
-        for dup_list in dups.values():
-            for dup in dup_list:
-                self.mark_as_installed_one(dup)
+            self.mark_as_installed_one(item)
 
     @final
     def uninstall(self, items: Iterable[Installable]) -> InstallStatusResult:

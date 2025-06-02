@@ -238,3 +238,26 @@ class TestSuccessIsPopulated:
         assert f1._installed_path is not None, "First file is not installed"
         assert f2._installed_path is not None, "Second file is not installed"
         assert f1._installed_path == f2._installed_path, "Files are installed to different paths"
+
+    def test_order_of_items_does_not_matter(self, installer: SlurmInstaller):
+        f = installer.system.install_path / "file"
+        f1, f2 = File(src=f), File(src=f)
+        assert f1._installed_path is None, "First file is installed before testing"
+        assert f2._installed_path is None, "Second file is installed before testing"
+
+        installer._populate_sucessful_install([f1, f2], {})
+        assert f1._installed_path is None, "First file was marked as installed, but should not be"
+        assert f2._installed_path is None, "Second file was marked as installed, but should not be"
+
+        installer._populate_sucessful_install([f1, f2], {f1: InstallStatusResult(success=True)})
+        assert f1._installed_path is not None, (
+            "First ('self', present in the statuses) file was not marked as installed"
+        )
+        assert f2._installed_path is not None, "Second file was not marked as installed"
+
+        f1._installed_path, f2._installed_path = None, None
+        installer._populate_sucessful_install([f2, f1], {f1: InstallStatusResult(success=True)})
+        assert f1._installed_path is not None, (
+            "First ('self', present in the statuses) file was not marked as installed"
+        )
+        assert f2._installed_path is not None, "Second file was not marked as installed"
