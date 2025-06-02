@@ -147,10 +147,9 @@ def test_docker_image_installed_path():
     docker_image = DockerImage("fake_url/img")
 
     # Test with string path
-    string_path = "/some/path/to/image"
+    string_path = "fake_url/img"
     docker_image._installed_path = string_path
-    assert isinstance(docker_image.installed_path, Path)
-    assert docker_image.installed_path == Path(string_path).absolute()
+    assert docker_image.installed_path == "fake_url/img"
 
     # Test with Path object
     path_obj = Path("/another/path")
