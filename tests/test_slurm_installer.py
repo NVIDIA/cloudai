@@ -68,6 +68,7 @@ class TestInstallOneDocker:
         assert res.success
         assert res.message == f"Cached Docker image removed successfully from {cached_file}."
         assert d.installed_path == d.url
+        assert not cached_file.exists(), "Cache file should be deleted after uninstallation"
 
     def test_is_installed_when_cache_exists(self, installer: SlurmInstaller):
         d = DockerImage("fake_url/img")
@@ -180,7 +181,9 @@ class TestInstallOnePythonExecutable:
             mock_run.return_value = CompletedProcess(args=[], returncode=0)
             res = installer._create_venv(py)
         assert res.success
-        mock_run.assert_called_once_with(["python", "-m", "venv", str(venv_path)], capture_output=True, text=True)
+        mock_run.assert_called_once_with(
+            ["python", "-m", "venv", "--copies", str(venv_path)], capture_output=True, text=True
+        )
 
     @pytest.mark.parametrize("failure_on_venv_creation,reqs_install_failure", [(True, False), (False, True)])
     def test_error_creating_venv(

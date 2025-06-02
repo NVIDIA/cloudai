@@ -73,7 +73,7 @@ class DockerImage(Installable):
     def installed_path(self) -> Union[str, Path]:
         """Return the cached path or URL of the docker image."""
         if self._installed_path:
-            return self._installed_path
+            return self._installed_path.absolute() if isinstance(self._installed_path, Path) else self._installed_path
         return self.url
 
     @installed_path.setter

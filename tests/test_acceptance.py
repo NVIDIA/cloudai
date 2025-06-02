@@ -48,6 +48,7 @@ from cloudai.workloads.nemo_launcher import (
     NeMoLauncherTestDefinition,
 )
 from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunSlurmCommandGenStrategy, NeMoRunTestDefinition
+from cloudai.workloads.nixl_bench import NIXLBenchCmdArgs, NIXLBenchSlurmCommandGenStrategy, NIXLBenchTestDefinition
 from cloudai.workloads.sleep import SleepCmdArgs, SleepSlurmCommandGenStrategy, SleepTestDefinition
 from cloudai.workloads.slurm_container import (
     SlurmContainerCmdArgs,
@@ -268,6 +269,7 @@ def build_special_test_run(
         "slurm_container",
         "megatron-run",
         "triton-inference",
+        "nixl_bench",
     ]
 )
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> Tuple[TestRun, str, Optional[str]]:
@@ -357,6 +359,21 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             ),
             TritonInferenceSlurmCommandGenStrategy,
         ),
+        "nixl_bench": lambda: create_test_run(
+            partial_tr,
+            slurm_system,
+            "nixl_bench",
+            NIXLBenchTestDefinition(
+                name="nixl_bench",
+                description="nixl_bench",
+                test_template_name="nixl_bench",
+                etcd_image_url="url.com/docker:1",
+                cmd_args=NIXLBenchCmdArgs(
+                    docker_image_url="url.com/docker:2", etcd_endpoint="http://$SLURM_JOB_MASTER_NODE:2379"
+                ),
+            ),
+            NIXLBenchSlurmCommandGenStrategy,
+        ),
     }
 
     if request.param.startswith(("gpt-", "grok-", "nemo-run-", "nemo-launcher")):
@@ -373,6 +390,8 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             tr.num_nodes = 3
             tr.test.test_definition.extra_env_vars["NIM_MODEL_NAME"] = str(tr.output_path)
             tr.test.test_definition.extra_env_vars["NIM_CACHE_PATH"] = str(tr.output_path)
+        if request.param == "nixl_bench":
+            tr.num_nodes = 2
         return tr, f"{request.param}.sbatch", None
 
     raise ValueError(f"Unknown test: {request.param}")
@@ -380,6 +399,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
 
 def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, str]):
     slurm_system.output_path.mkdir(parents=True, exist_ok=True)
+    slurm_system.container_mount_home = True
 
     tr = test_req[0]
 
@@ -388,6 +408,7 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
         ref.replace("__OUTPUT_DIR__", str(slurm_system.output_path.parent))
         .replace("__JOB_NAME__", "job_name")
         .replace("__CLOUDAI_DIR__", str(Path(__file__).parent.parent))
+        .replace("__INSTALL_DIR__", str(slurm_system.install_path.absolute()))
     )
     ref = ref.replace("__CLOUDAI_VERSION__", version("cloudai"))
 
