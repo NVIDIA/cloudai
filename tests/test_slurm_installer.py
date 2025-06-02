@@ -68,6 +68,7 @@ class TestInstallOneDocker:
         assert res.success
         assert res.message == f"Cached Docker image removed successfully from {cached_file}."
         assert d.installed_path == d.url
+        assert not cached_file.exists(), "Cache file should be deleted after uninstallation"
 
     def test_is_installed_when_cache_exists(self, installer: SlurmInstaller):
         d = DockerImage("fake_url/img")
