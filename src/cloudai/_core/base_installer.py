@@ -218,7 +218,7 @@ class BaseInstaller(ABC):
     ):
         dups: dict[Installable, list[Installable]] = {}
         for item in self.all_items(items, with_duplicates=True):
-            if not install_results[item].success:
+            if item not in install_results or not install_results[item].success:
                 continue
 
             if item not in dups:
