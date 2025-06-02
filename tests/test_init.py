@@ -69,8 +69,11 @@ from cloudai.workloads.nemo_run import (
     NeMoRunSlurmCommandGenStrategy,
     NeMoRunTestDefinition,
 )
-from cloudai.workloads.nixl_bench.nixl_bench import NIXLBenchTestDefinition
-from cloudai.workloads.nixl_bench.slurm_command_gen_strategy import NIXLBenchSlurmCommandGenStrategy
+from cloudai.workloads.nixl_bench import (
+    NIXLBenchJobStatusRetrievalStrategy,
+    NIXLBenchSlurmCommandGenStrategy,
+    NIXLBenchTestDefinition,
+)
 from cloudai.workloads.sleep import (
     SleepGradingStrategy,
     SleepKubernetesJsonGenStrategy,
@@ -164,7 +167,7 @@ ALL_STRATEGIES = {
     (JobStatusRetrievalStrategy, SlurmSystem, UCCTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, SlurmSystem, MegatronRunTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, SlurmSystem, TritonInferenceTestDefinition): DefaultJobStatusRetrievalStrategy,
-    (JobStatusRetrievalStrategy, SlurmSystem, NIXLBenchTestDefinition): DefaultJobStatusRetrievalStrategy,
+    (JobStatusRetrievalStrategy, SlurmSystem, NIXLBenchTestDefinition): NIXLBenchJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, StandaloneSystem, SleepTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, LSFSystem, SleepTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, RunAISystem, NCCLTestDefinition): DefaultJobStatusRetrievalStrategy,
@@ -186,7 +189,7 @@ def test_strategies():
     assert len(missing) == 0, f"Missing: {missing}"
     assert len(extra) == 0, f"Extra: {extra}"
     for key, value in ALL_STRATEGIES.items():
-        assert strategies[key] == value
+        assert strategies[key] == value, f"Strategy {strategy2str(key)} is not {value}"
 
 
 def test_installers():
