@@ -108,4 +108,4 @@ class NIXLBenchReportGenerationStrategy(ReportGenerationStrategy):
             y_axis_label="Bandwidth (GB/Sec)",
         )
         p.width, p.height = 800, 500
-        report_tool.finalize_report(Path("cloudai_nemorun_bokeh_report.html"))
+        report_tool.finalize_report(Path("cloudai_nixlbench_bokeh_report.html"))
