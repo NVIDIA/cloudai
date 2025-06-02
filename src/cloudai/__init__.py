@@ -113,7 +113,11 @@ from .workloads.nemo_run import (
     NeMoRunSlurmCommandGenStrategy,
     NeMoRunTestDefinition,
 )
-from .workloads.nixl_bench import NIXLBenchSlurmCommandGenStrategy, NIXLBenchTestDefinition
+from .workloads.nixl_bench import (
+    NIXLBenchJobStatusRetrievalStrategy,
+    NIXLBenchSlurmCommandGenStrategy,
+    NIXLBenchTestDefinition,
+)
 from .workloads.sleep import (
     SleepGradingStrategy,
     SleepKubernetesJsonGenStrategy,
@@ -245,9 +249,14 @@ Registry().add_strategy(
         SlurmContainerTestDefinition,
         MegatronRunTestDefinition,
         TritonInferenceTestDefinition,
-        NIXLBenchTestDefinition,
     ],
     DefaultJobStatusRetrievalStrategy,
+)
+Registry().add_strategy(
+    JobStatusRetrievalStrategy,
+    [SlurmSystem],
+    [NIXLBenchTestDefinition],
+    NIXLBenchJobStatusRetrievalStrategy,
 )
 Registry().add_strategy(
     JobStatusRetrievalStrategy, [StandaloneSystem], [SleepTestDefinition], DefaultJobStatusRetrievalStrategy

@@ -14,11 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .job_status_retrieval_strategy import NIXLBenchJobStatusRetrievalStrategy
 from .nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
 from .slurm_command_gen_strategy import NIXLBenchSlurmCommandGenStrategy
 
 __all__ = [
     "NIXLBenchCmdArgs",
+    "NIXLBenchJobStatusRetrievalStrategy",
     "NIXLBenchSlurmCommandGenStrategy",
     "NIXLBenchTestDefinition",
 ]
