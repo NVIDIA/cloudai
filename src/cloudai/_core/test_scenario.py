@@ -104,12 +104,11 @@ class TestRun:
 
     @property
     def param_space(self) -> dict[str, Any]:
-        action_space: dict[str, Any] = {}
         cmd_args_dict = TestTemplateStrategy._flatten_dict(self.test.test_definition.cmd_args.model_dump())
         extra_env_vars_dict = self.test.test_definition.extra_env_vars
 
-        action_space = {
-            **{f"{key}": value for key, value in cmd_args_dict.items() if isinstance(value, list)},
+        action_space: dict[str, Any] = {
+            **{key: value for key, value in cmd_args_dict.items() if isinstance(value, list)},
             **{f"extra_env_vars.{key}": value for key, value in extra_env_vars_dict.items() if isinstance(value, list)},
         }
 
@@ -120,14 +119,16 @@ class TestRun:
         if not self.test.test_definition.is_dse_job:
             return []
 
-        action_space: dict[str, Any] = self.param_space
+        param_space: dict[str, Any] = self.param_space
+        if not param_space:
+            return []
 
         parameter_values: list[Any] = []
-        for _, values in action_space.items():
+        for _, values in param_space.items():
             parameter_values.append(values)
         action_combinations = list(itertools.product(*parameter_values))
 
-        keys = list(action_space.keys())
+        keys = list(param_space.keys())
         all_combinations = [dict(zip(keys, combination, strict=True)) for combination in action_combinations]
 
         return all_combinations

@@ -28,21 +28,16 @@ from cloudai.workloads.nemo_run import NeMoRunTestDefinition
 class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for NeMo 2.0 on Slurm systems."""
 
-    def _parse_slurm_args(
-        self,
-        job_name_prefix: str,
-        env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, Union[str, List[str]]],
-        tr: TestRun,
-    ) -> Dict[str, Any]:
+    def image_path(self, tr: TestRun) -> str | None:
+        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
+        return str(tdef.docker_image.installed_path)
+
+    def _gen_srun_command(
+        self, env_vars: Dict[str, str | List[str]], cmd_args: Dict[str, str | List[str]], tr: TestRun
+    ) -> str:
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
         self._set_additional_env_vars(env_vars, tdef)
-
-        base_args = super()._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
-
-        base_args.update({"image_path": tdef.docker_image.installed_path})
-
-        return base_args
+        return super()._gen_srun_command(env_vars, cmd_args, tr)
 
     def _set_additional_env_vars(self, env_vars: Dict[str, Union[str, List[str]]], tdef: NeMoRunTestDefinition):
         """Set environment variables based on NeMoRunTestDefinition."""
@@ -103,30 +98,12 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return recipe_name
 
-    def update_num_train_samples(self, tr: TestRun) -> None:
-        """Update num_train_samples based on global_batch_size and max_steps."""
-        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
-
-        global_batch_size = (
-            tdef.cmd_args.data.global_batch_size[0]
-            if isinstance(tdef.cmd_args.data.global_batch_size, list)
-            else tdef.cmd_args.data.global_batch_size
-        )
-
-        max_steps = (
-            tdef.cmd_args.trainer.max_steps[0]
-            if isinstance(tdef.cmd_args.trainer.max_steps, list)
-            else tdef.cmd_args.trainer.max_steps
-        )
-
-        tdef.cmd_args.data.num_train_samples = global_batch_size * max_steps
-
     def generate_test_command(
         self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> List[str]:
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
 
-        self.update_num_train_samples(tr)
+        tdef.cmd_args.data.num_train_samples = tdef.update_num_train_samples
 
         cmd_args_dict = tdef.cmd_args.model_dump()
 
@@ -156,6 +133,19 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             sys.exit(1)
 
         cmd_args_dict["trainer"]["num_nodes"] = num_nodes
+
+        if self.system.gpus_per_node:
+            trainer_config = cmd_args_dict.get("trainer", {})
+            if "devices" in trainer_config:
+                user_devices = trainer_config["devices"]
+                if user_devices != self.system.gpus_per_node:
+                    logging.warning(
+                        f"User-specified trainer.devices ({user_devices}) differs from "
+                        f"system gpus_per_node ({self.system.gpus_per_node})"
+                    )
+            cmd_args_dict["trainer"]["devices"] = self.system.gpus_per_node
+        else:
+            logging.debug("SlurmSystem.gpus_per_node is not set. Skipping trainer.devices injection.")
 
         self.append_flattened_dict("", cmd_args_dict, command)
 

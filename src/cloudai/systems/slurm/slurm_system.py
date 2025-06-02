@@ -139,6 +139,8 @@ class SlurmSystem(BaseModel, System):
     cmd_shell: CommandShell = Field(default=CommandShell(), exclude=True)
     extra_srun_args: Optional[str] = None
     extra_sbatch_args: list[str] = []
+    supports_gpu_directives_cache: Optional[bool] = Field(default=None, exclude=True)
+    container_mount_home: bool = False
 
     data_repository: Optional[DataRepositoryConfig] = None
 
@@ -164,6 +166,29 @@ class SlurmSystem(BaseModel, System):
                         groups[part.name][group.name].append(node_in_partition)
 
         return groups
+
+    @property
+    def supports_gpu_directives(self) -> bool:
+        if self.supports_gpu_directives_cache is not None:
+            return self.supports_gpu_directives_cache
+
+        stdout, stderr = self.fetch_command_output("scontrol show config")
+        if stderr:
+            logging.warning(f"Error checking GPU support: {stderr}")
+            self.supports_gpu_directives_cache = True
+            return True
+
+        has_gres_gpu = False
+        has_gpu_gres_type = False
+
+        for line in stdout.splitlines():
+            if "AccountingStorageTRES" in line and "gres/gpu" in line:
+                has_gres_gpu = True
+            if "GresTypes" in line and "gpu" in line and "(null)" not in line:
+                has_gpu_gres_type = True
+
+        self.supports_gpu_directives_cache = has_gres_gpu and has_gpu_gres_type
+        return self.supports_gpu_directives_cache
 
     @field_serializer("install_path", "output_path")
     def _path_serializer(self, v: Path) -> str:
@@ -415,9 +440,9 @@ class SlurmSystem(BaseModel, System):
             ValueError: If the partition or group is not found, or if the requested number of nodes exceeds the
                 available nodes.
         """
-        self.validate_partition_and_group(partition_name, group_name)
-
         self.update()
+
+        self.validate_partition_and_group(partition_name, group_name)
 
         grouped_nodes = self.group_nodes_by_state(partition_name, group_name)
 

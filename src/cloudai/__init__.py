@@ -113,6 +113,7 @@ from .workloads.nemo_run import (
     NeMoRunSlurmCommandGenStrategy,
     NeMoRunTestDefinition,
 )
+from .workloads.nixl_bench import NIXLBenchSlurmCommandGenStrategy, NIXLBenchTestDefinition
 from .workloads.sleep import (
     SleepGradingStrategy,
     SleepKubernetesJsonGenStrategy,
@@ -168,6 +169,7 @@ Registry().add_strategy(
     CommandGenStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherSlurmCommandGenStrategy
 )
 Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NeMoRunTestDefinition], NeMoRunSlurmCommandGenStrategy)
+Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NIXLBenchTestDefinition], NIXLBenchSlurmCommandGenStrategy)
 
 Registry().add_strategy(GradingStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherGradingStrategy)
 Registry().add_strategy(
@@ -199,6 +201,7 @@ Registry().add_strategy(
         SlurmContainerTestDefinition,
         MegatronRunTestDefinition,
         TritonInferenceTestDefinition,
+        NIXLBenchTestDefinition,
     ],
     SlurmJobIdRetrievalStrategy,
 )
@@ -242,6 +245,7 @@ Registry().add_strategy(
         SlurmContainerTestDefinition,
         MegatronRunTestDefinition,
         TritonInferenceTestDefinition,
+        NIXLBenchTestDefinition,
     ],
     DefaultJobStatusRetrievalStrategy,
 )
@@ -295,6 +299,7 @@ Registry().add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)
 Registry().add_test_definition("SlurmContainer", SlurmContainerTestDefinition)
 Registry().add_test_definition("MegatronRun", MegatronRunTestDefinition)
 Registry().add_test_definition("TritonInference", TritonInferenceTestDefinition)
+Registry().add_test_definition("NIXLBench", NIXLBenchTestDefinition)
 
 Registry().add_agent("grid_search", GridSearchAgent)
 

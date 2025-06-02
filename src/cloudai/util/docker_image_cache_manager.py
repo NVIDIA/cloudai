@@ -18,6 +18,7 @@ import logging
 import os
 import shutil
 import subprocess
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -185,7 +186,15 @@ class DockerImageCacheManager:
     def _import_docker_image(
         self, srun_prefix: str, docker_image_url: str, docker_image_path: Path
     ) -> DockerImageCacheResult:
-        enroot_import_cmd = f"{srun_prefix} enroot import -o {docker_image_path} docker://{docker_image_url}"
+        job_name = "CloudAI_install_docker_image"
+        if self.system.account:
+            job_name = f"{self.system.account}-{job_name}.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        else:
+            job_name = f"{job_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+        enroot_import_cmd = (
+            f"{srun_prefix} --job-name={job_name} enroot import -o {docker_image_path} docker://{docker_image_url}"
+        )
         logging.debug(f"Importing Docker image: {enroot_import_cmd}")
         try:
             p = subprocess.run(enroot_import_cmd, shell=True, check=True, capture_output=True, text=True)

@@ -14,27 +14,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import csv
 import tarfile
 from pathlib import Path
 
 import pytest
+import toml
 
 from cloudai import Test, TestRun, TestScenario
-from cloudai._core.reporter import PerTestReporter, TarballReporter
+from cloudai._core.command_gen_strategy import CommandGenStrategy
+from cloudai._core.reporter import PerTestReporter, StatusReporter, TarballReporter
 from cloudai._core.test_template import TestTemplate
+from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 
 def create_test_directories(slurm_system: SlurmSystem, test_run: TestRun) -> None:
     test_dir = slurm_system.output_path / test_run.name
-
     for iteration in range(test_run.iterations):
         folder = test_dir / str(iteration)
         folder.mkdir(exist_ok=True, parents=True)
         if test_run.test.test_definition.is_dse_job:
-            for step in range(test_run.test.test_definition.agent_steps):
-                (folder / str(step)).mkdir(exist_ok=True, parents=True)
+            with open(folder / "trajectory.csv", "w") as _f_csv:
+                csw_writer = csv.writer(_f_csv)
+                csw_writer.writerow(["step", "action", "reward", "observation"])
+
+                for step in range(test_run.test.test_definition.agent_steps):
+                    step_folder = folder / str(step)
+                    step_folder.mkdir(exist_ok=True, parents=True)
+                    trd = TestRunDetails.from_test_run(test_run, "", "")
+                    csw_writer.writerow([step, {}, step * 2.1, [step]])
+                    with open(step_folder / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME, "w") as _f_trd:
+                        toml.dump(trd.model_dump(), _f_trd)
 
 
 @pytest.fixture
@@ -111,3 +123,17 @@ def test_create_tarball_preserves_full_name(tmp_path: Path, slurm_system: SlurmS
 
     with tarfile.open(tarball_path, "r:gz") as tar:
         assert f"{results_dir.name}/dummy.txt" in tar.getnames()
+
+
+def test_best_dse_config(dse_tr: TestRun, slurm_system: SlurmSystem) -> None:
+    reporter = StatusReporter(
+        slurm_system, TestScenario(name="test_scenario", test_runs=[dse_tr]), slurm_system.output_path
+    )
+    reporter.report_best_dse_config()
+    best_config_path = (
+        reporter.results_root / dse_tr.name / f"{dse_tr.current_iteration}" / reporter.best_dse_config_file_name(dse_tr)
+    )
+    assert best_config_path.exists()
+    nccl = NCCLTestDefinition.model_validate(toml.load(best_config_path))
+    assert isinstance(nccl.cmd_args, NCCLCmdArgs)
+    assert nccl.agent_steps == 12

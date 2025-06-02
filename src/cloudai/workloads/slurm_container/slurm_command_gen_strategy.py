@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Union, cast
+from typing import Dict, List, Union, cast
 
 from cloudai import TestRun
 from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
@@ -32,18 +32,21 @@ class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
         """NSYS command is generated as part of the test command and disabled here."""
         return []
 
-    def gen_srun_prefix(self, slurm_args: dict[str, Any], tr: TestRun, use_pretest_extras: bool = False) -> list[str]:
+    def image_path(self, tr: TestRun) -> str | None:
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
-        slurm_args["image_path"] = tdef.docker_image.installed_path
-        cmd = super().gen_srun_prefix(slurm_args, tr)
-        return [*cmd, "--no-container-mount-home"]
+        return str(tdef.docker_image.installed_path)
+
+    def gen_srun_prefix(self, tr: TestRun, use_pretest_extras: bool = False) -> list[str]:
+        cmd = super().gen_srun_prefix(tr)
+        tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
+        return [*cmd, *tdef.extra_srun_args]
 
     def generate_test_command(
         self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> list[str]:
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
-        srun_command_parts: list[str] = [*super().gen_nsys_command(tr), tdef.cmd_args.cmd]
+        command_parts: list[str] = [*super().gen_nsys_command(tr), tdef.cmd_args.cmd]
         if tr.test.extra_cmd_args:
-            srun_command_parts.append(tr.test.extra_cmd_args)
+            command_parts.append(tr.test.extra_cmd_args)
 
-        return ["bash", "-c", f'"{" ".join(srun_command_parts)}"']
+        return command_parts
