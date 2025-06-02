@@ -146,7 +146,7 @@ def test_docker_cache_filename(url: str, expected: str):
 def test_docker_image_installed_path():
     docker_image = DockerImage("fake_url/img")
 
-    # Test with string path
+    # Test with string path (URL)
     string_path = "fake_url/img"
     docker_image._installed_path = string_path
     assert docker_image.installed_path == "fake_url/img"
