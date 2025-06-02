@@ -485,3 +485,16 @@ def test_mark_as_installed(slurm_system: SlurmSystem):
     assert res.success
     assert docker.installed_path == slurm_system.install_path / docker.cache_filename
     assert py_script.git_repo.installed_path == slurm_system.install_path / py_script.git_repo.repo_name
+
+
+@pytest.mark.parametrize("cache", [True, False])
+def test_mark_as_installed_docker_image_system_is_respected(slurm_system: SlurmSystem, cache: bool):
+    slurm_system.cache_docker_images_locally = cache
+    docker = DockerImage(url="fake_url/img")
+    installer = SlurmInstaller(slurm_system)
+    res = installer.mark_as_installed([docker])
+    assert res.success
+    if cache:
+        assert docker.installed_path == slurm_system.install_path / docker.cache_filename
+    else:
+        assert docker.installed_path == docker.url

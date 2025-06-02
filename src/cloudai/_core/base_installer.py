@@ -218,16 +218,17 @@ class BaseInstaller(ABC):
     ):
         dups: dict[Installable, list[Installable]] = {}
         for item in self.all_items(items, with_duplicates=True):
-            if item in dups:
-                dups[item].append(item)
-            else:
-                dups[item] = [item]
-
-        for item, res in install_results.items():
-            if not res.success:
+            if not install_results[item].success:
                 continue
 
-            for dup in dups[item]:
+            if item not in dups:
+                dups[item] = []
+                continue
+
+            dups[item].append(item)
+
+        for dup_list in dups.values():
+            for dup in dup_list:
                 self.mark_as_installed_one(dup)
 
     @final
