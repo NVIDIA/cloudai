@@ -25,9 +25,11 @@ from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestRun
 from cloudai.systems import SlurmSystem
 from cloudai.workloads.ai_dynamo import (
+    AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoSlurmCommandGenStrategy,
     AIDynamoTestDefinition,
+    GenAIPerfArgs,
 )
 
 
@@ -40,27 +42,31 @@ def strategy(slurm_system: SlurmSystem) -> AIDynamoSlurmCommandGenStrategy:
 def cmd_args() -> AIDynamoCmdArgs:
     return AIDynamoCmdArgs(
         docker_image_url="url",
-        served_model_name="gpt",
-        num_prefill_nodes=1,
-        num_decode_nodes=1,
-        port_etcd=1234,
-        port_nats=5678,
-        config_path="config.yaml",
-        port=8080,
-        endpoint_type="chat",
-        service_kind="openai",
-        endpoint="/chat",
-        streaming=True,
-        warmup_request_count=10,
-        random_seed=42,
-        synthetic_input_tokens_mean=128,
-        synthetic_input_tokens_stddev=32,
-        output_tokens_mean=256,
-        output_tokens_stddev=64,
-        extra_inputs=None,
-        concurrency=2,
-        request_count=10,
-        sleep_seconds=100,
+        dynamo=AIDynamoArgs(
+            num_prefill_nodes=1,
+            num_decode_nodes=1,
+            port_etcd=1234,
+            port_nats=5678,
+            config_path="config.yaml",
+            port=8080,
+            sleep_seconds=100,
+        ),
+        genai_perf=GenAIPerfArgs(
+            served_model_name="gpt",
+            endpoint="/chat",
+            endpoint_type="chat",
+            service_kind="openai",
+            streaming=True,
+            warmup_request_count=10,
+            random_seed=42,
+            synthetic_input_tokens_mean=128,
+            synthetic_input_tokens_stddev=32,
+            output_tokens_mean=256,
+            output_tokens_stddev=64,
+            extra_inputs=None,
+            concurrency=2,
+            request_count=10,
+        ),
     )
 
 

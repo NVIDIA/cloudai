@@ -14,15 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .ai_dynamo import AIDynamoCmdArgs, AIDynamoTestDefinition
+from .ai_dynamo import AIDynamoArgs, AIDynamoCmdArgs, AIDynamoTestDefinition, GenAIPerfArgs
 from .grading_strategy import AIDynamoGradingStrategy
 from .report_generation_strategy import AIDynamoReportGenerationStrategy
 from .slurm_command_gen_strategy import AIDynamoSlurmCommandGenStrategy
 
 __all__ = [
+    "AIDynamoArgs",
     "AIDynamoCmdArgs",
     "AIDynamoGradingStrategy",
     "AIDynamoReportGenerationStrategy",
     "AIDynamoSlurmCommandGenStrategy",
     "AIDynamoTestDefinition",
+    "GenAIPerfArgs",
 ]

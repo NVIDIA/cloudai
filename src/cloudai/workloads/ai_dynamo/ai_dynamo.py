@@ -17,34 +17,48 @@
 from pathlib import Path
 from typing import List, Literal, Optional
 
+from pydantic import BaseModel
+
 from cloudai import CmdArgs, DockerImage, Installable, TestDefinition
 
 
-class AIDynamoCmdArgs(CmdArgs):
-    """Arguments for AI Dynamo."""
+class AIDynamoArgs(BaseModel):
+    """Arguments for AI Dynamo setup."""
 
-    docker_image_url: str
-    served_model_name: str
     num_prefill_nodes: int
     num_decode_nodes: int
     port_etcd: int = 2379
     port_nats: int = 4222
     config_path: str
     port: int = 8000
+    sleep_seconds: int = 550
+
+
+class GenAIPerfArgs(BaseModel):
+    """Arguments for GenAI performance profiling."""
+
+    served_model_name: str
+    endpoint: str = "v1/chat/completions"
     endpoint_type: Literal["chat"] = "chat"
     service_kind: Literal["openai"] = "openai"
-    endpoint: str = "v1/chat/completions"
     streaming: bool
-    warmup_request_count: int
-    random_seed: int
-    synthetic_input_tokens_mean: int
-    synthetic_input_tokens_stddev: int
+    extra_inputs: Optional[str]
     output_tokens_mean: int
     output_tokens_stddev: int
-    extra_inputs: Optional[str]
-    concurrency: int
+    random_seed: int
     request_count: int
-    sleep_seconds: int = 550
+    synthetic_input_tokens_mean: int
+    synthetic_input_tokens_stddev: int
+    warmup_request_count: int
+    concurrency: int
+
+
+class AIDynamoCmdArgs(CmdArgs):
+    """Arguments for AI Dynamo."""
+
+    docker_image_url: str
+    dynamo: AIDynamoArgs
+    genai_perf: GenAIPerfArgs
 
 
 class AIDynamoTestDefinition(TestDefinition):
