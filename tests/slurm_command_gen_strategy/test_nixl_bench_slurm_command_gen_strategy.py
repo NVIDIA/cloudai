@@ -94,7 +94,7 @@ def test_gen_nixl_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem
     tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, nixl_bench_tr.test.test_definition)
 
     exp_tpn, exp_ntasks, exp_nnodes = 1, nnodes, nnodes
-    if nnodes == 1: # at least two processes of nixlbench should run
+    if nnodes == 1:  # at least two processes of nixlbench should run
         exp_tpn, exp_ntasks = 2, 2
     assert f"--container-image={tdef.docker_image.installed_path}" in cmd
     assert "--overlap" in cmd
