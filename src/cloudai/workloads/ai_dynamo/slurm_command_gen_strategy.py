@@ -182,6 +182,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             cmd.append("--streaming")
         if args.genai_perf.extra_inputs:
             cmd += [args.genai_perf.extra_inputs]
+        if args.genai_perf.input_file:
+            cmd.append(f"--input-file {args.genai_perf.input_file}")
         cmd += [
             "--output-tokens-mean",
             str(args.genai_perf.output_tokens_mean),

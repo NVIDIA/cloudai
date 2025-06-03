@@ -43,6 +43,7 @@ class GenAIPerfArgs(BaseModel):
     service_kind: Literal["openai"] = "openai"
     streaming: bool
     extra_inputs: Optional[str]
+    input_file: Optional[str] = None
     output_tokens_mean: int
     osl: int = -1
     output_tokens_stddev: int = 0
