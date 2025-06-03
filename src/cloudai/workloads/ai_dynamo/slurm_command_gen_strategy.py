@@ -171,13 +171,13 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             args.genai_perf.served_model_name,
             "--url",
             f"${{CURRENT_HOST}}:{args.dynamo.port}",
-            "--endpoint",
-            args.genai_perf.endpoint,
             "--endpoint-type",
             args.genai_perf.endpoint_type,
             "--service-kind",
             args.genai_perf.service_kind,
         ]
+        if args.genai_perf.endpoint:
+            cmd.append(f"--endpoint {args.genai_perf.endpoint}")
         if args.genai_perf.streaming:
             cmd.append("--streaming")
         if args.genai_perf.extra_inputs:
@@ -201,8 +201,10 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             str(args.genai_perf.synthetic_input_tokens_stddev),
             "--warmup-request-count",
             str(args.genai_perf.warmup_request_count),
-            "--concurrency",
-            str(args.genai_perf.concurrency),
+        ]
+        if args.genai_perf.concurrency:
+            cmd.append(f"--concurrency {args.genai_perf.concurrency}")
+        cmd += [
             "--profile-export-file",
             "profile.json",
             "--artifact-dir",

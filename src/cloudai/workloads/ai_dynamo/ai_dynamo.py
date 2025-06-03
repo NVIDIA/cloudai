@@ -38,21 +38,21 @@ class GenAIPerfArgs(BaseModel):
     """Arguments for GenAI performance profiling."""
 
     served_model_name: str
-    endpoint: str = "v1/chat/completions"
-    endpoint_type: Literal["chat"] = "chat"
+    endpoint: Optional[str] = None
+    endpoint_type: str = "kserve"
     service_kind: Literal["openai"] = "openai"
     streaming: bool
     extra_inputs: Optional[str]
     output_tokens_mean: int
     osl: int = -1
-    output_tokens_stddev: int
+    output_tokens_stddev: int = 0
     random_seed: int
     request_count: int
     synthetic_input_tokens_mean: int
     isl: int = 550
-    synthetic_input_tokens_stddev: int
+    synthetic_input_tokens_stddev: int = 0
     warmup_request_count: int
-    concurrency: int
+    concurrency: Optional[int] = None
     request_rate: Optional[float] = None
 
 
