@@ -113,7 +113,12 @@ from .workloads.nemo_run import (
     NeMoRunSlurmCommandGenStrategy,
     NeMoRunTestDefinition,
 )
-from .workloads.nixl_bench import NIXLBenchSlurmCommandGenStrategy, NIXLBenchTestDefinition
+from .workloads.nixl_bench import (
+    NIXLBenchJobStatusRetrievalStrategy,
+    NIXLBenchSlurmCommandGenStrategy,
+    NIXLBenchTestDefinition,
+)
+from .workloads.nixl_bench.report_generation_strategy import NIXLBenchReportGenerationStrategy
 from .workloads.sleep import (
     SleepGradingStrategy,
     SleepKubernetesJsonGenStrategy,
@@ -245,9 +250,14 @@ Registry().add_strategy(
         SlurmContainerTestDefinition,
         MegatronRunTestDefinition,
         TritonInferenceTestDefinition,
-        NIXLBenchTestDefinition,
     ],
     DefaultJobStatusRetrievalStrategy,
+)
+Registry().add_strategy(
+    JobStatusRetrievalStrategy,
+    [SlurmSystem],
+    [NIXLBenchTestDefinition],
+    NIXLBenchJobStatusRetrievalStrategy,
 )
 Registry().add_strategy(
     JobStatusRetrievalStrategy, [StandaloneSystem], [SleepTestDefinition], DefaultJobStatusRetrievalStrategy
@@ -316,6 +326,7 @@ Registry().add_report(SleepTestDefinition, SleepReportGenerationStrategy)
 Registry().add_report(SlurmContainerTestDefinition, SlurmContainerReportGenerationStrategy)
 Registry().add_report(UCCTestDefinition, UCCTestReportGenerationStrategy)
 Registry().add_report(TritonInferenceTestDefinition, TritonInferenceReportGenerationStrategy)
+Registry().add_report(NIXLBenchTestDefinition, NIXLBenchReportGenerationStrategy)
 
 Registry().add_scenario_report(PerTestReporter)
 Registry().add_scenario_report(StatusReporter)
