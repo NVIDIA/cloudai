@@ -688,9 +688,17 @@ test_template_name = "AIDynamo"
 
 [cmd_args]
 docker_image_url = "/path/to/docker_images/dynamo_4-23.sqsh"
-served_model_name = "nvidia/Llama-3.1-405B-Instruct-FP8"
-num_prefill_nodes = 1
-num_decode_nodes = 0
+
+  [cmd_args.dynamo]
+  num_prefill_nodes = 1
+  num_decode_nodes = 0
+
+  [cmd_args.genai_perf]
+  served_model_name = "nvidia/Llama-3.1-405B-Instruct-FP8"
+  endpoint = "v1/chat/completions"
+  synthetic_input_tokens_mean = 3000
+  synthetic_input_tokens_stddev = 0
+  warmup_request_count = 10
 
 [extra_env_vars]
 HF_HOME = "/your/path/to/hf_home"
