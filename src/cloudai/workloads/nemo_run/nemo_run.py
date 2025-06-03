@@ -80,7 +80,7 @@ class Trainer(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     max_steps: Union[int, List[int]] = 100
-    val_check_interval: Union[int, List[int]] = 1000
+    val_check_interval: Union[int, float, list[Union[int, float]]] = 1000
     num_nodes: Optional[Union[int, List[int]]] = None
     strategy: TrainerStrategy = Field(default_factory=TrainerStrategy)
     plugins: Optional[Plugin] = None
