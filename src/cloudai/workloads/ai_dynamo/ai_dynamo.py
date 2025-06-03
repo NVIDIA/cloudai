@@ -44,13 +44,16 @@ class GenAIPerfArgs(BaseModel):
     streaming: bool
     extra_inputs: Optional[str]
     output_tokens_mean: int
+    osl: int = -1
     output_tokens_stddev: int
     random_seed: int
     request_count: int
     synthetic_input_tokens_mean: int
+    isl: int = 550
     synthetic_input_tokens_stddev: int
     warmup_request_count: int
     concurrency: int
+    request_rate: Optional[float] = None
 
 
 class AIDynamoCmdArgs(CmdArgs):

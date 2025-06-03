@@ -185,6 +185,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd += [
             "--output-tokens-mean",
             str(args.genai_perf.output_tokens_mean),
+            "--osl",
+            str(args.genai_perf.osl),
             "--output-tokens-stddev",
             str(args.genai_perf.output_tokens_stddev),
             "--random-seed",
@@ -193,6 +195,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             str(args.genai_perf.request_count),
             "--synthetic-input-tokens-mean",
             str(args.genai_perf.synthetic_input_tokens_mean),
+            "--isl",
+            str(args.genai_perf.isl),
             "--synthetic-input-tokens-stddev",
             str(args.genai_perf.synthetic_input_tokens_stddev),
             "--warmup-request-count",
@@ -207,6 +211,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "-v",
             "--async",
         ]
+        if args.genai_perf.request_rate:
+            cmd.append(f"--request-rate {args.genai_perf.request_rate}")
         return " ".join(cmd)
 
     def _gen_srun_command(
