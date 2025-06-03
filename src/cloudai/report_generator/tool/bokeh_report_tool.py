@@ -146,7 +146,7 @@ class BokehReportTool:
         df: pd.DataFrame,
         sol: Optional[float] = None,
         color: str = "black",
-    ):
+    ) -> bokeh.plotting.figure:
         """
         Add a line plot with linear axes to the report tool.
 
@@ -180,6 +180,7 @@ class BokehReportTool:
         self.add_sol_line(p, df, x_column, y_column, sol)
 
         self.plots.append(p)
+        return p
 
     def add_single_point_plot(
         self,
@@ -189,7 +190,7 @@ class BokehReportTool:
         y_columns: List[Tuple[str, str]],
         x_axis_label: str,
         y_axis_label: str,
-    ):
+    ) -> bokeh.plotting.figure:
         """
         Create a scatter plot for a single data point.
 
@@ -232,7 +233,7 @@ class BokehReportTool:
         y_columns: List[Tuple[str, str]],
         x_axis_label: str,
         y_axis_label: str,
-    ):
+    ) -> bokeh.plotting.figure:
         """
         Create lines plot for multiple message sizes.
 
@@ -320,7 +321,7 @@ class BokehReportTool:
         y_axis_label: str,
         df: pd.DataFrame,
         sol: Optional[float] = None,
-    ):
+    ) -> bokeh.plotting.figure:
         """
         Add a line plot with a logarithmic x-axis and linear y-axis for multiple datasets.
 
@@ -394,6 +395,7 @@ class BokehReportTool:
 
         p.legend.location = "bottom_right"
         self.plots.append(p)
+        return p
 
     def finalize_report(self, output_filename: Path):
         """
