@@ -213,9 +213,9 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     runner = Runner(args.mode, system, test_scenario)
     register_signal_handlers(runner.cancel_on_signal)
 
-    all_dse = all(tr.test.test_definition.is_dse_job for tr in test_scenario.test_runs)
+    all_dse = all(tr.is_dse_job for tr in test_scenario.test_runs)
 
-    if any(tr.test.test_definition.is_dse_job for tr in test_scenario.test_runs):
+    if any(tr.is_dse_job for tr in test_scenario.test_runs):
         if all_dse:
             handle_dse_job(runner, args)
         else:

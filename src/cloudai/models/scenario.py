@@ -44,7 +44,7 @@ class TestRunModel(BaseModel):
 
     id: str = Field(min_length=1)
     test_name: Optional[str] = None
-    num_nodes: Optional[int] = None
+    num_nodes: int | list[int] | None = None
     nodes: list[str] = Field(default_factory=list)
     weight: int = 0
     iterations: int = 1
@@ -187,7 +187,7 @@ class TestRunDetails(BaseModel):
     def from_test_run(cls, tr: TestRun, test_cmd: str, full_cmd: str) -> "TestRunDetails":
         return cls(
             name=tr.name,
-            nnodes=tr.num_nodes,
+            nnodes=tr.nnodes,
             nodes=tr.nodes,
             output_path=tr.output_path,
             iterations=tr.iterations,

@@ -49,7 +49,7 @@ class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         super()._append_sbatch_directives(batch_script_content, tr)
         batch_script_content.append("export HEAD_NODE=$SLURM_JOB_MASTER_NODE")
         batch_script_content.append("export NIM_LEADER_IP_ADDRESS=$SLURM_JOB_MASTER_NODE")
-        batch_script_content.append(f"export NIM_NUM_COMPUTE_NODES={tr.num_nodes - 1}")
+        batch_script_content.append(f"export NIM_NUM_COMPUTE_NODES={tr.nnodes - 1}")
         batch_script_content.append("export NIM_MODEL_TOKENIZER='deepseek-ai/DeepSeek-R1'")
 
     def _generate_start_wrapper_script(self, script_path: Path, env_vars: Dict[str, Any]) -> None:
@@ -86,7 +86,7 @@ class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return f"{server_line} &\n\nsleep {sleep_sec}\n\n{client_line}"
 
     def _get_server_client_split(self, tr: TestRun) -> Tuple[int, int]:
-        num_nodes, _ = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
+        num_nodes, _ = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes)
         if num_nodes < 3:
             raise ValueError("DeepSeekR1 requires at least 3 nodes: 2 server and 1 client.")
         return num_nodes - 1, 1

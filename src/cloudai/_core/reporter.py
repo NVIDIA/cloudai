@@ -113,7 +113,7 @@ class Reporter(ABC):
             tr_root = self.results_root / tr.name
             iters = list(subdir for subdir in tr_root.glob("*") if subdir.is_dir())
             for iter in sorted(iters, key=lambda x: int(x.name)):
-                if tr.test.test_definition.is_dse_job:
+                if tr.is_dse_job:
                     steps = list(subdir for subdir in iter.glob("*") if subdir.is_dir())
                     for step in sorted(steps, key=lambda x: int(x.name)):
                         tr.current_iteration = int(iter.name)
