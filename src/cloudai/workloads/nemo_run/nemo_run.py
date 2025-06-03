@@ -82,7 +82,6 @@ class Trainer(BaseModel):
     max_steps: Union[int, List[int]] = 100
     num_nodes: Optional[int] = None  # sweeps are done via TestRun.num_nodes
     val_check_interval: Union[int, float, list[Union[int, float]]] = 1000
-    num_nodes: Optional[Union[int, List[int]]] = None
     strategy: TrainerStrategy = Field(default_factory=TrainerStrategy)
     plugins: Optional[Plugin] = None
     callbacks: Optional[Union[str, list[str]]] = None
