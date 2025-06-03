@@ -150,7 +150,7 @@ class BaseInstaller(ABC):
             logging.debug(f"Installation check for {item!r}: {result.success}, {result.message}")
             install_results[item] = result
 
-        self._populate_sucessful_install(items, install_results)
+        self._populate_successful_install(items, install_results)
 
         nfailed = len([result for result in install_results.values() if not result.success])
         if nfailed:
@@ -204,7 +204,7 @@ class BaseInstaller(ABC):
                     logging.error(f"{done}/{total} Installation failed for {item!r}: {e}")
                     install_results[item] = InstallStatusResult(False, str(e))
 
-        self._populate_sucessful_install(items, install_results)
+        self._populate_successful_install(items, install_results)
 
         all_success = all(result.success for result in install_results.values())
         if all_success:
@@ -213,7 +213,7 @@ class BaseInstaller(ABC):
         nfailed = len([result for result in install_results.values() if not result.success])
         return InstallStatusResult(False, f"{nfailed} item(s) failed to install.", install_results)
 
-    def _populate_sucessful_install(
+    def _populate_successful_install(
         self, items: Iterable[Installable], install_results: dict[Installable, InstallStatusResult]
     ):
         for item in self.all_items(items, with_duplicates=True):
