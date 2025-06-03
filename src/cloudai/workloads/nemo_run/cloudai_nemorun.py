@@ -40,7 +40,6 @@ from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import AutoResume, NeMoLogger
-from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
@@ -515,6 +514,17 @@ def llama3_70b_fp8_h100_tp_overlap_config() -> run.Config[TransformerLayerTPOver
     )
 
 
+def _get_flops_callback(model_config, data_config, model_name):
+    from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
+
+    return run.Config(
+        FLOPsMeasurementCallback,
+        model_config=model_config,
+        data_config=data_config,
+        model_name=model_name,
+    )
+
+
 # LLAMA3 8B Recipe
 @run.cli.factory(target=llm.pretrain)
 def cloudai_llama3_8b_recipe() -> run.Partial:
@@ -598,14 +608,7 @@ def cloudai_llama3_8b_recipe() -> run.Partial:
         resume=default_resume(),
         log=default_log(),
     )
-    recipe.trainer.callbacks.append(
-        run.Config(
-            FLOPsMeasurementCallback,
-            model_config=recipe.model.config,
-            data_config=recipe.data,
-            model_name="llama3",
-        )
-    )
+    recipe.trainer.callbacks.append(_get_flops_callback(recipe.model.config, recipe.data, "llama3"))
     set_enable_cuda_graphs_params(recipe)
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
@@ -699,14 +702,7 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
         ),
     )
     recipe.model.config.vocab_size = 128256
-    recipe.trainer.callbacks.append(
-        run.Config(
-            FLOPsMeasurementCallback,
-            model_config=recipe.model.config,
-            data_config=recipe.data,
-            model_name="llama3",
-        )
-    )
+    recipe.trainer.callbacks.append(_get_flops_callback(recipe.model.config, recipe.data, "llama3"))
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     gpu_type = os.getenv("CLOUDAI_GPU_TYPE")
     compute_dtype = os.getenv("CLOUDAI_GPU_DTYPE")
@@ -820,15 +816,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
         ),
     )
     recipe.model.config.vocab_size = 128256
-    recipe.trainer.callbacks.append(
-        run.Config(
-            FLOPsMeasurementCallback,
-            model_config=recipe.model.config,
-            data_config=recipe.data,
-            model_name="llama3",
-        )
-    )
-
+    recipe.trainer.callbacks.append(_get_flops_callback(recipe.model.config, recipe.data, "llama3"))
     set_enable_cuda_graphs_params(recipe)
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
 
@@ -921,14 +909,7 @@ def cloudai_nemotron3_8b_recipe() -> run.Partial:
         ),
     )
     recipe.model.config.vocab_size = 256000
-    recipe.trainer.callbacks.append(
-        run.Config(
-            FLOPsMeasurementCallback,
-            model_config=recipe.model.config,
-            data_config=recipe.data,
-            model_name="nemotron",
-        )
-    )
+    recipe.trainer.callbacks.append(_get_flops_callback(recipe.model.config, recipe.data, "nemotron"))
     set_enable_cuda_graphs_params(recipe)
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
@@ -1010,14 +991,7 @@ def cloudai_nemotron4_15b_recipe() -> run.Partial:
         ),
     )
     recipe.model.config.vocab_size = 256000
-    recipe.trainer.callbacks.append(
-        run.Config(
-            FLOPsMeasurementCallback,
-            model_config=recipe.model.config,
-            data_config=recipe.data,
-            model_name="nemotron",
-        )
-    )
+    recipe.trainer.callbacks.append(_get_flops_callback(recipe.model.config, recipe.data, "nemotron"))
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     set_enable_cuda_graphs_params(recipe)
     return recipe
@@ -1127,14 +1101,7 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
         log=default_log(),
     )
     recipe.model.config.vocab_size = 256000
-    recipe.trainer.callbacks.append(
-        run.Config(
-            FLOPsMeasurementCallback,
-            model_config=recipe.model.config,
-            data_config=recipe.data,
-            model_name="nemotron",
-        )
-    )
+    recipe.trainer.callbacks.append(_get_flops_callback(recipe.model.config, recipe.data, "nemotron"))
     recipe.trainer.callbacks.append(run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100))
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     recipe.model.config.cross_entropy_fusion_impl = "te"
