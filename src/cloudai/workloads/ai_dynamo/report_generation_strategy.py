@@ -14,14 +14,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import shutil
+
 from cloudai import ReportGenerationStrategy
 
 
 class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
-    """Strategy for generating reports from NeMoRun directories."""
+    """Strategy for generating reports from AI Dynamo run directories."""
 
     def can_handle_directory(self) -> bool:
-        return True
+        output_path = self.test_run.output_path
+        csv_path = output_path / "profile_genai_perf.csv"
+        json_path = output_path / "profile_genai_perf.json"
+        return csv_path.exists() and json_path.exists()
 
     def generate_report(self) -> None:
-        pass
+        output_path = self.test_run.output_path
+        source_csv = output_path / "profile_genai_perf.csv"
+        target_csv = output_path / "report.csv"
+
+        shutil.copy2(source_csv, target_csv)
+
+        # TODO: Add more fields to the report
