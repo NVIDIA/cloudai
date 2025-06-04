@@ -29,7 +29,10 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoCmdArgs,
     AIDynamoSlurmCommandGenStrategy,
     AIDynamoTestDefinition,
+    DecodeArgs,
+    FrontendArgs,
     GenAIPerfArgs,
+    PrefillArgs,
 )
 
 
@@ -43,14 +46,19 @@ def cmd_args() -> AIDynamoCmdArgs:
     return AIDynamoCmdArgs(
         docker_image_url="url",
         dynamo=AIDynamoArgs(
-            num_prefill_nodes=1,
-            num_decode_nodes=1,
-            port_etcd=1234,
-            port_nats=5678,
+            frontend=FrontendArgs(
+                port_etcd=1234,
+                port_nats=5678,
+            ),
+            prefill=PrefillArgs(
+                num_nodes=1,
+            ),
+            decode=DecodeArgs(
+                num_nodes=1,
+            ),
             config_path="config.yaml",
-            port=8080,
-            sleep_seconds=100,
         ),
+        sleep_seconds=100,
         genai_perf=GenAIPerfArgs(
             served_model_name="gpt",
             endpoint="/chat",

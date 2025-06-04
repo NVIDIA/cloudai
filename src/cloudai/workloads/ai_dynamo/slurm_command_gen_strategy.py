@@ -51,8 +51,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return [
             f"export HF_HOME={td.hugging_face_home_path}",
             "export DYNAMO_FRONTEND=$SLURM_JOB_MASTER_NODE",
-            f'export NATS_SERVER="nats://${{DYNAMO_FRONTEND}}:{td.cmd_args.dynamo.port_nats}"',
-            f'export ETCD_ENDPOINTS="http://${{DYNAMO_FRONTEND}}:{td.cmd_args.dynamo.port_etcd}"',
+            f'export NATS_SERVER="nats://${{DYNAMO_FRONTEND}}:{td.cmd_args.dynamo.frontend.port_nats}"',
+            f'export ETCD_ENDPOINTS="http://${{DYNAMO_FRONTEND}}:{td.cmd_args.dynamo.frontend.port_etcd}"',
             "cd /workspace/examples/llm/",
             "CURRENT_HOST=$(hostname)",
             "export DONE_MARKER=/cloudai_run_results/frontend_done.marker",
@@ -60,8 +60,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ]
 
     def _role_dispatch(self, td: AIDynamoTestDefinition) -> List[str]:
-        prefill_n = td.cmd_args.dynamo.num_prefill_nodes
-        decode_n = td.cmd_args.dynamo.num_decode_nodes
+        prefill_n = td.cmd_args.dynamo.prefill.num_nodes
+        decode_n = td.cmd_args.dynamo.decode.num_nodes
 
         dispatch = [
             'ROLE="frontend"',
@@ -98,7 +98,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 "frontend_stdout",
                 "frontend_stderr",
             ),
-            f"sleep {td.cmd_args.dynamo.sleep_seconds}",
+            f"sleep {td.cmd_args.sleep_seconds}",
             "echo 'Starting initial genai-perf'",
             f"{cmd} > /cloudai_run_results/perf_initial_stdout.txt 2> /cloudai_run_results/perf_initial_stderr.txt &",
             "sleep 60",
@@ -143,8 +143,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _etcd_cmd(self, td: AIDynamoTestDefinition) -> str:
         return (
-            f"etcd --listen-client-urls http://0.0.0.0:{td.cmd_args.dynamo.port_etcd} "
-            f"--advertise-client-urls http://0.0.0.0:{td.cmd_args.dynamo.port_etcd}"
+            f"etcd --listen-client-urls http://0.0.0.0:{td.cmd_args.dynamo.frontend.port_etcd} "
+            f"--advertise-client-urls http://0.0.0.0:{td.cmd_args.dynamo.frontend.port_etcd}"
         )
 
     def _nats_cmd(self) -> str:
@@ -170,7 +170,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "-m",
             args.genai_perf.served_model_name,
             "--url",
-            f"${{CURRENT_HOST}}:{args.dynamo.port}",
+            f"${{CURRENT_HOST}}:{args.genai_perf.port}",
             "--endpoint-type",
             args.genai_perf.endpoint_type,
             "--service-kind",
@@ -227,13 +227,13 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     ) -> str:
         num_nodes, _ = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
         td = cast(AIDynamoTestDefinition, tr.test.test_definition)
-        expected = 1 + td.cmd_args.dynamo.num_prefill_nodes + td.cmd_args.dynamo.num_decode_nodes
+        expected = 1 + td.cmd_args.dynamo.prefill.num_nodes + td.cmd_args.dynamo.decode.num_nodes
 
         if num_nodes != expected:
             raise ValueError(
                 f"Invalid node count: expected {expected} total nodes "
-                f"(1 frontend + {td.cmd_args.dynamo.num_prefill_nodes} prefill + "
-                f"{td.cmd_args.dynamo.num_decode_nodes} decode), but got {num_nodes}"
+                f"(1 frontend + {td.cmd_args.dynamo.prefill.num_nodes} prefill + "
+                f"{td.cmd_args.dynamo.decode.num_nodes} decode), but got {num_nodes}"
             )
 
         srun_prefix = self.gen_srun_prefix(tr)

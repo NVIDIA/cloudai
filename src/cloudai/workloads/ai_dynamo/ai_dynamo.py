@@ -22,21 +22,38 @@ from pydantic import BaseModel
 from cloudai import CmdArgs, DockerImage, Installable, TestDefinition
 
 
+class FrontendArgs(BaseModel):
+    """Arguments for the frontend role in AI Dynamo."""
+
+    port_etcd: int = 2379
+    port_nats: int = 4222
+
+
+class PrefillArgs(BaseModel):
+    """Arguments for the prefill role in AI Dynamo."""
+
+    num_nodes: int
+
+
+class DecodeArgs(BaseModel):
+    """Arguments for the decode role in AI Dynamo."""
+
+    num_nodes: int
+
+
 class AIDynamoArgs(BaseModel):
     """Arguments for AI Dynamo setup."""
 
-    num_prefill_nodes: int
-    num_decode_nodes: int
-    port_etcd: int = 2379
-    port_nats: int = 4222
     config_path: str
-    port: int = 8000
-    sleep_seconds: int = 550
+    frontend: FrontendArgs
+    prefill: PrefillArgs
+    decode: DecodeArgs
 
 
 class GenAIPerfArgs(BaseModel):
     """Arguments for GenAI performance profiling."""
 
+    port: int = 8000
     served_model_name: str
     endpoint: Optional[str] = None
     endpoint_type: str = "kserve"
@@ -62,6 +79,7 @@ class AIDynamoCmdArgs(CmdArgs):
 
     docker_image_url: str
     dynamo: AIDynamoArgs
+    sleep_seconds: int = 550
     genai_perf: GenAIPerfArgs
 
 
