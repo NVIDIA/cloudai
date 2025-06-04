@@ -225,7 +225,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd_args: Dict[str, Union[str, List[str]]],
         tr: TestRun,
     ) -> str:
-        num_nodes, _ = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
+        num_nodes, _ = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes)
         td = cast(AIDynamoTestDefinition, tr.test.test_definition)
         expected = 1 + td.cmd_args.dynamo.prefill.num_nodes + td.cmd_args.dynamo.decode.num_nodes
 
