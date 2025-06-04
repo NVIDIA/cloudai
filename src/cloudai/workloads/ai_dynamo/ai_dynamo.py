@@ -23,20 +23,20 @@ from cloudai import CmdArgs, DockerImage, Installable, TestDefinition
 
 
 class FrontendArgs(BaseModel):
-    """Arguments for the frontend role in AI Dynamo."""
+    """Arguments for the frontend node in AI Dynamo."""
 
     port_etcd: int = 2379
     port_nats: int = 4222
 
 
 class PrefillArgs(BaseModel):
-    """Arguments for the prefill role in AI Dynamo."""
+    """Arguments for the prefill node in AI Dynamo."""
 
     num_nodes: int
 
 
 class DecodeArgs(BaseModel):
-    """Arguments for the decode role in AI Dynamo."""
+    """Arguments for the decode node in AI Dynamo."""
 
     num_nodes: int
 
