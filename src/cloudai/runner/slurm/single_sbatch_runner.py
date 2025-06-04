@@ -24,11 +24,10 @@ from typing import Generator, Optional, cast
 import toml
 
 from cloudai import JobIdRetrievalError, System, TestRun, TestScenario
-from cloudai._core.test_scenario_parser import format_time_limit, parse_time_limit
 from cloudai.runner.slurm.slurm_runner import SlurmJob, SlurmRunner
 from cloudai.systems.slurm.slurm_system import SlurmJobMetadata, SlurmSystem
 from cloudai.systems.slurm.strategy.slurm_command_gen_strategy import SlurmCommandGenStrategy
-from cloudai.util import CommandShell
+from cloudai.util import CommandShell, format_time_limit, parse_time_limit
 
 
 class SingleSbatchRunner(SlurmRunner):
