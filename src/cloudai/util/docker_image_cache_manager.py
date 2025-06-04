@@ -157,7 +157,7 @@ class DockerImageCacheManager:
 
         # If not caching locally, return True. Defer checking URL accessibility to srun.
         if not self.system.cache_docker_images_locally:
-            return DockerImageCacheResult(True, Path(docker_image_url), "")
+            return DockerImageCacheResult(True, None, "")
 
         docker_image_path = Path(docker_image_url)
         if docker_image_path.is_file() and docker_image_path.exists():
