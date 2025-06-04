@@ -39,6 +39,8 @@ from cloudai import (
     TestParser,
     TestScenario,
 )
+from cloudai.runner.slurm.single_sbatch_runner import SingleSbatchRunner
+from cloudai.systems.slurm.slurm_system import SlurmSystem
 
 from ..parser import HOOK_ROOT
 from ..util import prepare_output_dir
@@ -189,6 +191,13 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     if args.mode == "dry-run":
         system.monitor_interval = 1
     system.update()
+
+    if args.single_sbatch:
+        if not isinstance(system, SlurmSystem):
+            logging.error("Single sbatch is only supported for Slurm systems.")
+            return 1
+
+        Registry().update_runner("slurm", SingleSbatchRunner)
 
     logging.info(f"System Name: {system.name}")
     logging.info(f"Scheduler: {system.scheduler}")

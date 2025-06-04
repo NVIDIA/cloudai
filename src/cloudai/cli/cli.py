@@ -152,6 +152,12 @@ class CloudAICLI:
                 help="Enable cache without checking.",
                 default=False,
             )
+            p.add_argument(
+                "--single-sbatch",
+                action="store_true",
+                help="Use single sbatch for all test runs (Slurm only).",
+                default=False,
+            )
 
     def add_install_and_uninstall(self):
         for mode in {"install", "uninstall"}:
