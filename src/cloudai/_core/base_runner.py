@@ -103,7 +103,7 @@ class BaseRunner(ABC):
         """
         logging.info(f"Starting test: {tr.name}")
         tr.output_path = self.get_job_output_path(tr)
-        await self.job_submit_callback(tr)
+        self.on_job_submit(tr)
         try:
             job = self._submit_test(tr)
             self.jobs.append(job)
@@ -112,7 +112,7 @@ class BaseRunner(ABC):
             logging.error(e)
             exit(1)
 
-    async def job_submit_callback(self, tr: TestRun) -> None:
+    def on_job_submit(self, tr: TestRun) -> None:
         cmd_gen = tr.test.test_template.command_gen_strategy
         cmd_gen.store_test_run(tr)
 
@@ -242,7 +242,7 @@ class BaseRunner(ABC):
 
             if is_completed:
                 logging.debug(f"Job {job.id} for test {job.test_run.name} completed ({self.mode=}, {is_completed=})")
-                await self.job_completion_callback(job)
+                self.on_job_completion(job)
 
                 if self.mode == "dry-run":
                     successful_jobs_count += 1
@@ -308,7 +308,7 @@ class BaseRunner(ABC):
             else:
                 await self.handle_dependencies(completed_job)
 
-    async def job_completion_callback(self, job: BaseJob) -> None:  # noqa: B027
+    def on_job_completion(self, job: BaseJob) -> None:
         """
         Call callback functions upon job completion.
 
@@ -318,7 +318,7 @@ class BaseRunner(ABC):
         Args:
             job (BaseJob): The job that has completed and for which callback functions are being invoked.
         """
-        pass
+        return
 
     async def handle_dependencies(self, completed_job: BaseJob) -> List[Task]:
         """
