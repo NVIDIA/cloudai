@@ -178,17 +178,12 @@ class SlurmSystem(BaseModel, System):
             self.supports_gpu_directives_cache = True
             return True
 
-        has_gres_gpu = False
-        has_gpu_gres_type = False
-
         for line in stdout.splitlines():
-            if "AccountingStorageTRES" in line and "gres/gpu" in line:
-                has_gres_gpu = True
-            if "GresTypes" in line and "gpu" in line and "(null)" not in line:
-                has_gpu_gres_type = True
+            if "GresTypes" in line and "gpu" in line:
+                self.supports_gpu_directives_cache = True
+                return True
 
-        self.supports_gpu_directives_cache = has_gres_gpu and has_gpu_gres_type
-        return self.supports_gpu_directives_cache
+        return False
 
     @field_serializer("install_path", "output_path")
     def _path_serializer(self, v: Path) -> str:
