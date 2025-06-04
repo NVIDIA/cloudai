@@ -22,6 +22,7 @@ from .handlers import (
     handle_dry_run_and_run,
     handle_generate_report,
     handle_install_and_uninstall,
+    handle_list_registered_items,
     handle_verify_all_configs,
 )
 
@@ -37,14 +38,7 @@ class CloudAICLI:
     """Command-line argument parser for CloudAI and derivatives."""
 
     def __init__(self):
-        self.DEFAULT_MODES = {
-            "dry-run",
-            "generate-report",
-            "install",
-            "run",
-            "uninstall",
-            "verify-configs",
-        }
+        self.DEFAULT_MODES = {"dry-run", "generate-report", "install", "run", "uninstall", "verify-configs"}
 
         self.parser = argparse.ArgumentParser(description="CloudAI")
         self.parser.add_argument(
@@ -126,6 +120,9 @@ class CloudAICLI:
             p.add_argument(
                 "--strict", help="Warn about unknown keys in Test TOML files.", action="store_true", default=False
             )
+
+        p = self.add_command("list", "List registered items.", handle_list_registered_items)
+        p.add_argument("type", choices=["reports"], help="Type of items to list.")
 
         return self.parser
 

@@ -39,6 +39,7 @@ from cloudai import (
     TestParser,
     TestScenario,
 )
+from cloudai.models.scenario import ReportConfig
 
 from ..parser import HOOK_ROOT
 from ..util import prepare_output_dir
@@ -143,10 +144,15 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
 
 def generate_reports(system: System, test_scenario: TestScenario, result_dir: Path) -> None:
     registry = Registry()
-    for reporter_class in registry.scenario_reports:
-        logging.debug(f"Generating report with {reporter_class.__name__}")
+    for name, reporter_class in registry.scenario_reports.items():
+        logging.debug(f"Generating report with {name} ({reporter_class.__name__})")
+
+        cfg = ReportConfig()
+        if test_scenario.reports and name in test_scenario.reports:
+            cfg = test_scenario.reports[name]
+
         try:
-            reporter = reporter_class(system, test_scenario, result_dir)
+            reporter = reporter_class(system, test_scenario, result_dir, cfg)
             reporter.generate()
         except Exception as e:
             logging.warning(f"Error generating report: {e}")
@@ -462,3 +468,18 @@ def load_tomls_by_type(tomls: List[Path]) -> dict[str, List[Path]]:
             files["unknown"].append(toml_file)
 
     return files
+
+
+def handle_list_registered_items(args: argparse.Namespace) -> int:
+    item_type = args.type
+    registry = Registry()
+    if item_type == "reports":
+        print("Registered scenario reports:")
+        for name, report in sorted(registry.scenario_reports.items()):
+            print(f"- {name}: {report.__name__}")
+
+        print("\nRegistered test reports:")
+        for tdef_type, reporter in sorted(registry.reports_map.items(), key=lambda x: x[0].__name__):
+            print(f"- {tdef_type.__name__}: {[reporter.__name__ for reporter in reporter]}")
+
+    return 0

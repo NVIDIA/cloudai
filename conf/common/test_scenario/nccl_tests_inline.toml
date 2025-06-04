@@ -16,6 +16,20 @@
 
 name = "nccl-tests"
 
+[[reports]]
+  [reports.status]
+  enable = true
+
+  [reports.tarball]
+  enable = true
+  only_on_failure = false
+
+  [reports.nccl-perf]
+  enable = false
+
+  [reports.nccl-predictor]
+  enable = false
+
 [[Tests]]
 id = "nccl.all_reduce"
 num_nodes = 2

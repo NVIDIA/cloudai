@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from cloudai.models.scenario import ReportConfig
+
 from ._core.base_installer import BaseInstaller, InstallStatusResult
 from ._core.base_job import BaseJob
 from ._core.base_runner import BaseRunner
@@ -317,9 +319,9 @@ Registry().add_report(SlurmContainerTestDefinition, SlurmContainerReportGenerati
 Registry().add_report(UCCTestDefinition, UCCTestReportGenerationStrategy)
 Registry().add_report(TritonInferenceTestDefinition, TritonInferenceReportGenerationStrategy)
 
-Registry().add_scenario_report(PerTestReporter)
-Registry().add_scenario_report(StatusReporter)
-Registry().add_scenario_report(TarballReporter)
+Registry().add_scenario_report("case", PerTestReporter, ReportConfig())
+Registry().add_scenario_report("status", StatusReporter, ReportConfig())
+Registry().add_scenario_report("tarball", TarballReporter, ReportConfig())
 
 __all__ = [
     "BaseAgent",

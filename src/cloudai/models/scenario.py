@@ -17,7 +17,9 @@
 from pathlib import Path
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
+
+from cloudai._core.registry import Registry
 
 from .._core.installables import GitRepo
 from .._core.test_scenario import TestRun
@@ -111,6 +113,19 @@ class TestRunModel(BaseModel):
         return self
 
 
+class ReportConfig(BaseModel):
+    """Model for report configuration in test scenario."""
+
+    model_config = ConfigDict(extra="forbid")
+    enable: bool = True
+
+
+class TarballReportCreator(ReportConfig):
+    """Model for tarball report creator configuration in test scenario."""
+
+    only_on_failure: bool = True
+
+
 class TestScenarioModel(BaseModel):
     """Model for test scenario."""
 
@@ -124,6 +139,24 @@ class TestScenarioModel(BaseModel):
     tests: list[TestRunModel] = Field(alias="Tests", min_length=1)
     pre_test: Optional[str] = None
     post_test: Optional[str] = None
+    reports: Optional[dict[str, ReportConfig]] = None
+
+    @field_validator("reports", mode="before")
+    @classmethod
+    def parse_reports(cls, value):
+        if value is None:
+            return value
+
+        parsed = {}
+        for name, report_data in value.items():
+            report_cls = Registry().report_configs.get(name)
+            if not report_cls:
+                raise ValueError(
+                    f"Report configuration '{name}' not found in the registry. "
+                    f"Available reports: {', '.join(Registry().report_configs.keys())}"
+                )
+            parsed[name] = report_cls.model_validate(report_data)
+        return parsed
 
     @model_validator(mode="after")
     def check_no_self_dependency(self):

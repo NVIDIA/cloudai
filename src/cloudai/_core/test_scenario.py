@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, List, Optional, Set, Type
 
+from cloudai.models.scenario import ReportConfig
+
 from .system import System
 from .test_template_strategy import TestTemplateStrategy
 
@@ -162,7 +164,13 @@ class TestScenario:
 
     __test__ = False
 
-    def __init__(self, name: str, test_runs: List[TestRun], job_status_check: bool = True) -> None:
+    def __init__(
+        self,
+        name: str,
+        test_runs: List[TestRun],
+        job_status_check: bool = True,
+        reports: Optional[dict[str, ReportConfig]] = None,
+    ) -> None:
         """
         Initialize a TestScenario instance.
 
@@ -170,10 +178,12 @@ class TestScenario:
             name (str): Name of the test scenario.
             test_runs (List[TestRun]): List of tests in the scenario with custom run options.
             job_status_check (bool): Flag indicating whether to check the job status or not.
+            reports (Optional[dict[str, ReportConfig]]): Optional dictionary of report configurations.
         """
         self.name = name
         self.test_runs = test_runs
         self.job_status_check = job_status_check
+        self.reports = reports
 
     def __repr__(self) -> str:
         """

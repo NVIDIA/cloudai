@@ -26,7 +26,7 @@ import jinja2
 import pandas as pd
 import toml
 
-from ..models.scenario import TestRunDetails
+from ..models.scenario import ReportConfig, TarballReportCreator, TestRunDetails
 from ..systems.slurm.metadata import SlurmSystemMetadata
 from ..systems.slurm.slurm_system import SlurmSystem
 from .command_gen_strategy import CommandGenStrategy
@@ -101,11 +101,12 @@ class SlurmReportItem:
 
 
 class Reporter(ABC):
-    def __init__(self, system: System, test_scenario: TestScenario, results_root: Path) -> None:
+    def __init__(self, system: System, test_scenario: TestScenario, results_root: Path, config: ReportConfig) -> None:
         self.system = system
         self.test_scenario = test_scenario
         self.results_root = results_root
         self.trs: list[TestRun] = []
+        self.config = config
 
     def load_test_runs(self):
         for _tr in self.test_scenario.test_runs:
@@ -210,6 +211,12 @@ class StatusReporter(Reporter):
 
 
 class TarballReporter(Reporter):
+    def __init__(
+        self, system: System, test_scenario: TestScenario, results_root: Path, config: TarballReportCreator
+    ) -> None:
+        super().__init__(system, test_scenario, results_root, config)
+        self.config = config
+
     def generate(self) -> None:
         self.load_test_runs()
 

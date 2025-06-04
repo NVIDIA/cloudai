@@ -14,8 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 from typing import ClassVar, List, Set, Tuple, Type, Union
+
+from cloudai.models.scenario import ReportConfig
 
 from ..models.workload import TestDefinition
 from .base_installer import BaseInstaller
@@ -74,7 +75,8 @@ class Registry(metaclass=Singleton):
     test_definitions_map: ClassVar[dict[str, Type[TestDefinition]]] = {}
     agents_map: ClassVar[dict[str, Type[BaseAgent]]] = {}
     reports_map: ClassVar[dict[Type[TestDefinition], Set[Type[ReportGenerationStrategy]]]] = {}
-    scenario_reports: ClassVar[List[Type[Reporter]]] = []
+    scenario_reports: ClassVar[dict[str, type[Reporter]]] = {}
+    report_configs: ClassVar[dict[str, ReportConfig]] = {}
 
     def add_runner(self, name: str, value: Type[BaseRunner]) -> None:
         """
@@ -317,14 +319,13 @@ class Registry(metaclass=Singleton):
             )
         self.reports_map[tdef_type] = reports
 
-    def add_scenario_report(self, value: Type[Reporter]) -> None:
-        if value not in self.scenario_reports:
-            existing_reports = copy.copy(self.scenario_reports)
-            existing_reports.append(value)
-            self.update_scenario_report(existing_reports)
+    def add_scenario_report(self, name: str, report: type[Reporter], config: ReportConfig) -> None:
+        if name in self.scenario_reports:
+            raise ValueError(
+                f"Duplicating scenario report implementation for '{name}', use 'update()' for replacement."
+            )
+        self.update_scenario_report(name, report, config)
 
-    def update_scenario_report(self, reports: List[Type[Reporter]]) -> None:
-        if not any(issubclass(report, Reporter) for report in reports):
-            raise ValueError("Invalid scenario report implementation, should be subclass of 'Reporter'.")
-        self.scenario_reports.clear()
-        self.scenario_reports.extend(reports)
+    def update_scenario_report(self, name: str, report: type[Reporter], config: ReportConfig) -> None:
+        self.scenario_reports[name] = report
+        self.report_configs[name] = config
