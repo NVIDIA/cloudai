@@ -192,9 +192,7 @@ def test_ensure_docker_image_no_local_cache(slurm_system: SlurmSystem):
     result = manager.ensure_docker_image("docker.io/hello-world", "docker_image.sqsh")
 
     assert result.success
-    assert result.docker_image_path is not None
-    assert str(result.docker_image_path) == "docker.io/hello-world"
-    assert not result.docker_image_path.is_absolute()
+    assert result.docker_image_path is None
     assert result.message == ""
 
 

@@ -81,6 +81,13 @@ class TestInstallOneDocker:
         assert res.message == f"Cached Docker image already exists at {cached_file}."
         assert d.installed_path == cached_file
 
+    def test_cache_disabled(self, installer: SlurmInstaller):
+        d = DockerImage("fake_url/img")
+        installer.system.cache_docker_images_locally = False
+        res = installer.is_installed_one(d)
+        assert res.success
+        assert d.installed_path == d.url
+
 
 class TestInstallOneGitRepo:
     @pytest.fixture
