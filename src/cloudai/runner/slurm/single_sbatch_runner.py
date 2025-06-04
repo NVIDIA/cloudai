@@ -143,6 +143,7 @@ class SingleSbatchRunner(SlurmRunner):
             content.append(self.add_pre_tests(tr.pre_test, tr))
 
         for tr in self.all_trs:
+            self.on_job_submit(tr)
             content.append(self.get_single_tr_block(tr))
             content.append("")
 

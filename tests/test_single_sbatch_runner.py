@@ -17,6 +17,7 @@
 import copy
 import re
 from typing import cast
+from unittest.mock import Mock
 
 import pytest
 import toml
@@ -249,7 +250,6 @@ class TestAuxCommands:
 
     def test_container(self, nccl_tr: TestRun, slurm_system: SlurmSystem) -> None:
         tdef = cast(NCCLTestDefinition, nccl_tr.test.test_definition)
-        # tdef._docker_image = DockerImage(url="nvcr.io/nvidia/pytorch:24.02-py3", _installed_path=Path("/nccl_install"))
         tc = TestScenario(name="tc", test_runs=[nccl_tr])
         runner = SingleSbatchRunner(
             mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path
@@ -338,9 +338,7 @@ def test_unroll_dse_constraint_check(nccl_tr: TestRun, slurm_system: SlurmSystem
     tc = TestScenario(name="tc", test_runs=[nccl_tr])
     runner = SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
 
-    # assert nccl_tr.test.test_definition.constraint_check(nccl_tr) is False
     dse_runs = list(runner.unroll_dse(nccl_tr))
-    # dse_runs = list(runner.unroll_dse(nccl_tr))
     assert len(dse_runs) == 0
 
 
@@ -446,6 +444,7 @@ class TestSbatch:
             mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path
         )
 
+        runner.on_job_submit = Mock()
         sbatch = runner.gen_sbatch_content()
         sbatch = sbatch.replace(str(runner.scenario_root.absolute()), "SCENARIO_ROOT").replace(
             str(runner.system.install_path.absolute()), "INSTALL_PATH"
@@ -471,6 +470,7 @@ class TestSbatch:
             str(runner.system.install_path.absolute()), "INSTALL_PATH"
         )
         assert sbatch == ref
+        assert runner.on_job_submit.call_count == 3  # 2 dse runs + 1 non-dse run
 
 
 def test_store_job_metadata(nccl_tr: TestRun, slurm_system: SlurmSystem) -> None:
