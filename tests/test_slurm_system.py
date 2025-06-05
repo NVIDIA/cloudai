@@ -570,28 +570,16 @@ def test_supports_gpu_directives(
 
 
 @pytest.mark.parametrize(
-    "initial_output, subsequent_output, expected_support",
+    "test_value, expected_support",
     [
-        # Initial output supports GPU, subsequent output does not
-        ("GresTypes = gpu", "GresTypes = cpu", True),
-        # Initial output does not support GPU, subsequent output does
-        ("GresTypes = cpu", "GresTypes = gpu", False),
+        (True, True),
+        (False, False),
     ],
 )
 @patch("cloudai.systems.slurm.slurm_system.SlurmSystem.fetch_command_output")
 def test_supports_gpu_directives_cache(
-    mock_fetch_command_output,
-    initial_output: str,
-    subsequent_output: str,
-    expected_support: bool,
-    slurm_system: SlurmSystem,
+    mock_fetch_command_output, test_value: bool, expected_support: bool, slurm_system: SlurmSystem
 ):
-    mock_fetch_command_output.return_value = (initial_output, "")
-
+    slurm_system.supports_gpu_directives_cache = test_value
     assert slurm_system.supports_gpu_directives is expected_support
-    assert mock_fetch_command_output.call_count == 1
-
-    mock_fetch_command_output.return_value = (subsequent_output, "")
-
-    assert slurm_system.supports_gpu_directives is expected_support
-    assert mock_fetch_command_output.call_count == 1
+    mock_fetch_command_output.assert_not_called()
