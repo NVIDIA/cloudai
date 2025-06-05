@@ -769,6 +769,15 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
             limit_val_batches=32,
             log_every_n_steps=10,
             accumulate_grad_batches=1,
+            plugins=run.Config(
+                nl.MegatronMixedPrecision,
+                precision="bf16-mixed",
+                params_dtype=torch.bfloat16,
+                pipeline_dtype=torch.bfloat16,
+                autocast_enabled=False,
+                grad_reduce_in_fp32=False,
+                
+            ),
             strategy=run.Config(
                 nl.MegatronStrategy,
                 tensor_model_parallel_size=8,
@@ -860,7 +869,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
             tp_comm_overlap_cfg=tp_overlap_cfg,
             overlap_param_gather_with_optimizer_step=True,
             defer_embedding_wgrad_compute=True,
-            wgrad_deferral_limit=22,
+            wgrad_deferral_limit=22
         )
     )
 
