@@ -159,7 +159,11 @@ class CloudAIGymEnv(BaseGym):
         Returns:
             list: The observation.
         """
-        v = self.test_run.get_metric_value(self.runner.runner.system)
+        all_metrics = self.test_run.test.test_definition.agent_metrics  # TODO: support multiple metrics
+        if not all_metrics:
+            raise ValueError("No agent metrics defined for the test run")
+
+        v = self.test_run.get_metric_value(self.runner.runner.system, all_metrics[0])
         if v == METRIC_ERROR:
             return [-1.0]
         return [v]

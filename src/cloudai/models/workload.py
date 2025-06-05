@@ -106,7 +106,7 @@ class TestDefinition(BaseModel, ABC):
     predictor: Optional[PredictorConfig] = None
     agent: str = "grid_search"
     agent_steps: int = 1
-    agent_metric: str = "default"
+    agent_metrics: list[str] | None = None
 
     @property
     def cmd_args_dict(self) -> Dict[str, Union[str, List[str]]]:
