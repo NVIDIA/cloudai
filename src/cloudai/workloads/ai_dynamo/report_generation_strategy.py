@@ -38,8 +38,8 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
 
         shutil.copy2(source_csv, target_csv)
 
-        num_prefill_nodes = self.test_run.test.test_definition.cmd_args.dynamo.prefill.num_nodes
-        num_decode_nodes = self.test_run.test.test_definition.cmd_args.dynamo.decode.num_nodes
+        num_prefill_nodes = self.test_run.test.test_definition.cmd_args.dynamo.prefill_worker.num_nodes
+        num_decode_nodes = self.test_run.test.test_definition.cmd_args.dynamo.vllm_worker.num_nodes
 
         slurm_system = cast(SlurmSystem, self.system)
         gpus_per_node = slurm_system.gpus_per_node

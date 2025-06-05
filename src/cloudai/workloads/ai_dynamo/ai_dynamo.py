@@ -17,44 +17,82 @@
 from pathlib import Path
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from cloudai import CmdArgs, DockerImage, Installable, TestDefinition
 
 
 class FrontendArgs(BaseModel):
-    """Arguments for the frontend node in AI Dynamo."""
+    """Arguments for the frontend node."""
 
-    port_etcd: int = 2379
-    port_nats: int = 4222
+    endpoint: str = "dynamo.Processor.chat/completions"
+    port: int = 8000
+    port_etcd: int = Field(2379, alias="port_etcd")
+    port_nats: int = Field(4222, alias="port_nats")
 
 
-class PrefillArgs(BaseModel):
-    """Arguments for the prefill node in AI Dynamo."""
+class ProcessorArgs(BaseModel):
+    """Arguments for the processor node."""
+
+    block_size: int = Field(64, alias="block-size")
+    max_model_len: int = Field(8192, alias="max-model-len")
+    router: str = "kv"
+
+
+class RouterArgs(BaseModel):
+    """Arguments for the router."""
+
+    min_workers: int = Field(1, alias="min-workers")
+
+
+class PrefillWorkerArgs(BaseModel):
+    """Arguments for the prefill worker node."""
 
     num_nodes: int
+    kv_transfer_config: str = Field('{"kv_connector":"DynamoNixlConnector"}', alias="kv-transfer-config")
+    block_size: int = Field(64, alias="block-size")
+    max_model_len: int = Field(8192, alias="max-model-len")
+    max_num_seqs: int = Field(16, alias="max-num-seqs")
+    gpu_memory_utilization: float = Field(0.95, alias="gpu-memory-utilization")
+    tensor_parallel_size: int = Field(8, alias="tensor-parallel-size")
+    quantization: str = "modelopt"
+    service_args: dict = Field({"workers": 1, "resources": {"gpu": "8"}}, alias="ServiceArgs")
 
 
-class DecodeArgs(BaseModel):
-    """Arguments for the decode node in AI Dynamo."""
+class VllmWorkerArgs(BaseModel):
+    """Arguments for the VllmWorker node."""
 
     num_nodes: int
+    kv_transfer_config: str = Field('{"kv_connector":"DynamoNixlConnector"}', alias="kv-transfer-config")
+    block_size: int = Field(64, alias="block-size")
+    max_model_len: int = Field(8192, alias="max-model-len")
+    max_num_seqs: int = Field(16, alias="max-num-seqs")
+    remote_prefill: bool = Field(True, alias="remote-prefill")
+    conditional_disagg: bool = Field(True, alias="conditional-disagg")
+    max_local_prefill_length: int = Field(10, alias="max-local-prefill-length")
+    max_prefill_queue_size: int = Field(2, alias="max-prefill-queue-size")
+    gpu_memory_utilization: float = Field(0.95, alias="gpu-memory-utilization")
+    tensor_parallel_size: int = Field(8, alias="tensor-parallel-size")
+    router: str = "kv"
+    quantization: str = "modelopt"
+    enable_prefix_caching: bool = Field(True, alias="enable-prefix-caching")
+    service_args: dict = Field({"workers": 1, "resources": {"gpu": "8"}}, alias="ServiceArgs")
 
 
 class AIDynamoArgs(BaseModel):
     """Arguments for AI Dynamo setup."""
 
-    config_path: str
     frontend: FrontendArgs
-    prefill: PrefillArgs
-    decode: DecodeArgs
+    processor: ProcessorArgs
+    router: RouterArgs
+    prefill_worker: PrefillWorkerArgs
+    vllm_worker: VllmWorkerArgs
 
 
 class GenAIPerfArgs(BaseModel):
     """Arguments for GenAI performance profiling."""
 
     port: int = 8000
-    served_model_name: str
     endpoint: Optional[str] = None
     endpoint_type: str = "kserve"
     service_kind: Literal["openai"] = "openai"
@@ -78,6 +116,7 @@ class AIDynamoCmdArgs(CmdArgs):
     """Arguments for AI Dynamo."""
 
     docker_image_url: str
+    served_model_name: str
     dynamo: AIDynamoArgs
     sleep_seconds: int = 550
     genai_perf: GenAIPerfArgs

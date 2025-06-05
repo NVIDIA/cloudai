@@ -18,10 +18,12 @@ from .ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoTestDefinition,
-    DecodeArgs,
     FrontendArgs,
     GenAIPerfArgs,
-    PrefillArgs,
+    PrefillWorkerArgs,
+    ProcessorArgs,
+    RouterArgs,
+    VllmWorkerArgs,
 )
 from .grading_strategy import AIDynamoGradingStrategy
 from .report_generation_strategy import AIDynamoReportGenerationStrategy
@@ -34,8 +36,10 @@ __all__ = [
     "AIDynamoReportGenerationStrategy",
     "AIDynamoSlurmCommandGenStrategy",
     "AIDynamoTestDefinition",
-    "DecodeArgs",
     "FrontendArgs",
     "GenAIPerfArgs",
-    "PrefillArgs",
+    "PrefillWorkerArgs",
+    "ProcessorArgs",
+    "RouterArgs",
+    "VllmWorkerArgs",
 ]

@@ -25,10 +25,12 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoTestDefinition,
-    DecodeArgs,
     FrontendArgs,
     GenAIPerfArgs,
-    PrefillArgs,
+    PrefillWorkerArgs,
+    ProcessorArgs,
+    RouterArgs,
+    VllmWorkerArgs,
 )
 from cloudai.workloads.ai_dynamo.report_generation_strategy import AIDynamoReportGenerationStrategy
 
@@ -59,14 +61,45 @@ def ai_dynamo_tr(tmp_path: Path) -> TestRun:
             test_template_name="t",
             cmd_args=AIDynamoCmdArgs(
                 docker_image_url="http://url",
+                served_model_name="mock_model",
                 dynamo=AIDynamoArgs(
-                    config_path=__file__,
                     frontend=FrontendArgs(port_nats=4222, port_etcd=2379),
-                    prefill=PrefillArgs(num_nodes=1),
-                    decode=DecodeArgs(num_nodes=1),
+                    processor=ProcessorArgs(**{"block-size": 64, "max-model-len": 8192, "router": "kv"}),
+                    router=RouterArgs(**{"min-workers": 1}),
+                    prefill_worker=PrefillWorkerArgs(
+                        **{
+                            "num_nodes": 1,
+                            "kv-transfer-config": '{"kv_connector":"DynamoNixlConnector"}',
+                            "block-size": 64,
+                            "max-model-len": 8192,
+                            "max-num-seqs": 16,
+                            "gpu-memory-utilization": 0.95,
+                            "tensor-parallel-size": 8,
+                            "quantization": "modelopt",
+                            "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
+                        }
+                    ),
+                    vllm_worker=VllmWorkerArgs(
+                        **{
+                            "num_nodes": 1,
+                            "kv-transfer-config": '{"kv_connector":"DynamoNixlConnector"}',
+                            "block-size": 64,
+                            "max-model-len": 8192,
+                            "max-num-seqs": 16,
+                            "remote-prefill": True,
+                            "conditional-disagg": True,
+                            "max-local-prefill-length": 10,
+                            "max-prefill-queue-size": 2,
+                            "gpu-memory-utilization": 0.95,
+                            "tensor-parallel-size": 8,
+                            "router": "kv",
+                            "quantization": "modelopt",
+                            "enable-prefix-caching": True,
+                            "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
+                        }
+                    ),
                 ),
                 genai_perf=GenAIPerfArgs(
-                    served_model_name="mock_model",
                     endpoint="http://mock_endpoint",
                     endpoint_type="kserve",
                     service_kind="openai",

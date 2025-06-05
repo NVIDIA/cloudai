@@ -20,6 +20,7 @@ from typing import cast
 from unittest.mock import Mock
 
 import pytest
+import yaml
 
 from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestRun
@@ -29,10 +30,12 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoCmdArgs,
     AIDynamoSlurmCommandGenStrategy,
     AIDynamoTestDefinition,
-    DecodeArgs,
     FrontendArgs,
     GenAIPerfArgs,
-    PrefillArgs,
+    PrefillWorkerArgs,
+    ProcessorArgs,
+    RouterArgs,
+    VllmWorkerArgs,
 )
 
 
@@ -45,22 +48,51 @@ def strategy(slurm_system: SlurmSystem) -> AIDynamoSlurmCommandGenStrategy:
 def cmd_args() -> AIDynamoCmdArgs:
     return AIDynamoCmdArgs(
         docker_image_url="url",
+        served_model_name="nvidia/Llama-3.1-405B-Instruct-FP8",
         dynamo=AIDynamoArgs(
             frontend=FrontendArgs(
+                endpoint="dynamo.Processor.chat/completions",
+                port=8000,
                 port_etcd=1234,
                 port_nats=5678,
             ),
-            prefill=PrefillArgs(
-                num_nodes=1,
+            processor=ProcessorArgs(**{"block-size": 64, "max-model-len": 8192, "router": "kv"}),
+            router=RouterArgs(**{"min-workers": 1}),
+            prefill_worker=PrefillWorkerArgs(
+                **{
+                    "num_nodes": 1,
+                    "kv-transfer-config": '{"kv_connector":"DynamoNixlConnector"}',
+                    "block-size": 64,
+                    "max-model-len": 8192,
+                    "max-num-seqs": 16,
+                    "gpu-memory-utilization": 0.95,
+                    "tensor-parallel-size": 8,
+                    "quantization": "modelopt",
+                    "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
+                }
             ),
-            decode=DecodeArgs(
-                num_nodes=1,
+            vllm_worker=VllmWorkerArgs(
+                **{
+                    "num_nodes": 1,
+                    "kv-transfer-config": '{"kv_connector":"DynamoNixlConnector"}',
+                    "block-size": 64,
+                    "max-model-len": 8192,
+                    "max-num-seqs": 16,
+                    "remote-prefill": True,
+                    "conditional-disagg": True,
+                    "max-local-prefill-length": 10,
+                    "max-prefill-queue-size": 2,
+                    "gpu-memory-utilization": 0.95,
+                    "tensor-parallel-size": 8,
+                    "router": "kv",
+                    "quantization": "modelopt",
+                    "enable-prefix-caching": True,
+                    "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
+                }
             ),
-            config_path="config.yaml",
         ),
         sleep_seconds=100,
         genai_perf=GenAIPerfArgs(
-            served_model_name="gpt",
             endpoint="/chat",
             endpoint_type="chat",
             service_kind="openai",
@@ -111,13 +143,82 @@ def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: T
     mounts = strategy._container_mounts(test_run)
     td = cast(AIDynamoTestDefinition, test_run.test.test_definition)
     script_host = test_run.output_path / "run.sh"
+    yaml_config_path = test_run.output_path / "dynamo_config.yaml"
     assert mounts == [
         f"{td.hugging_face_home_path}:{td.hugging_face_home_path}",
         f"{script_host}:/opt/run.sh",
+        f"{yaml_config_path}:{yaml_config_path}",
     ]
     assert script_host.exists()
     mode = script_host.stat().st_mode
     assert bool(mode & stat.S_IXUSR)
+
+
+def test_yaml_config_generation(strategy: AIDynamoSlurmCommandGenStrategy, test_run: TestRun) -> None:
+    td = cast(AIDynamoTestDefinition, test_run.test.test_definition)
+    yaml_path = (test_run.output_path / "dynamo_config.yaml").resolve()
+    yaml_path = strategy._generate_yaml_config(td, yaml_path)
+
+    assert yaml_path.exists()
+
+    with open(yaml_path, "r") as yaml_file:
+        config = yaml.safe_load(yaml_file)
+        expected_config = {
+            "Frontend": {
+                "served_model_name": "nvidia/Llama-3.1-405B-Instruct-FP8",
+                "endpoint": "dynamo.Processor.chat/completions",
+                "port": 8000,
+            },
+            "Processor": {
+                "model": "nvidia/Llama-3.1-405B-Instruct-FP8",
+                "block-size": 64,
+                "max-model-len": 8192,
+                "router": "kv",
+            },
+            "Router": {
+                "model": "nvidia/Llama-3.1-405B-Instruct-FP8",
+                "min-workers": 1,
+            },
+            "VllmWorker": {
+                "model": "nvidia/Llama-3.1-405B-Instruct-FP8",
+                "kv-transfer-config": '{"kv_connector":"DynamoNixlConnector"}',
+                "block-size": 64,
+                "max-model-len": 8192,
+                "max-num-seqs": 16,
+                "remote-prefill": True,
+                "conditional-disagg": True,
+                "max-local-prefill-length": 10,
+                "max-prefill-queue-size": 2,
+                "gpu-memory-utilization": 0.95,
+                "tensor-parallel-size": 8,
+                "router": "kv",
+                "quantization": "modelopt",
+                "enable-prefix-caching": True,
+                "ServiceArgs": {
+                    "workers": 1,
+                    "resources": {
+                        "gpu": "8",
+                    },
+                },
+            },
+            "PrefillWorker": {
+                "model": "nvidia/Llama-3.1-405B-Instruct-FP8",
+                "kv-transfer-config": '{"kv_connector":"DynamoNixlConnector"}',
+                "block-size": 64,
+                "max-model-len": 8192,
+                "max-num-seqs": 16,
+                "gpu-memory-utilization": 0.95,
+                "tensor-parallel-size": 8,
+                "quantization": "modelopt",
+                "ServiceArgs": {
+                    "workers": 1,
+                    "resources": {
+                        "gpu": "8",
+                    },
+                },
+            },
+        }
+        assert config == expected_config
 
 
 @pytest.mark.parametrize(
@@ -145,5 +246,5 @@ def test_dynamo_cmd(
     service_name: str | None,
     expected: str,
 ) -> None:
-    result = strategy._dynamo_cmd(module, config, service_name)
+    result = strategy._dynamo_cmd(module, Path(config), service_name)
     assert result.strip() == expected
