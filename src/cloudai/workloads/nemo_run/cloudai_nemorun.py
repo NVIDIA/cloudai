@@ -757,7 +757,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
             seq_length=8192,
             micro_batch_size=1,
             global_batch_size=8,
-            tokenizer=hf_tokenizer_llama3_405b(),
+            tokenizer=null_tokenizer(vocab_size=128256),
         ),
         trainer=run.Config(
             nl.Trainer,
@@ -905,7 +905,6 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
         recipe.model.config.cpu_offloading_weights = False
         recipe.model.config.cpu_offloading_num_layers = activation_offload_layers
 
-    recipe.model.config.vocab_size = 128256
     recipe.trainer.strategy.account_for_embedding_in_pipeline_split = True
     recipe.trainer.strategy.account_for_loss_in_pipeline_split = True
     recipe.trainer.callbacks.append(run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100))
