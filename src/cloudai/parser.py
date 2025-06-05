@@ -21,18 +21,18 @@ from typing import Dict, List, Optional, Tuple
 import toml
 from pydantic import ValidationError
 
-from cloudai import (
-    Registry,
-    System,
+from ._core.exceptions import (
     SystemConfigParsingError,
-    Test,
     TestConfigParsingError,
-    TestParser,
-    TestScenario,
-    TestScenarioParser,
     TestScenarioParsingError,
     format_validation_error,
 )
+from ._core.registry import Registry
+from ._core.system import System
+from ._core.test import Test
+from ._core.test_scenario import TestScenario
+from .test_parser import TestParser
+from .test_scenario_parser import TestScenarioParser
 
 HOOK_ROOT = Path("conf/hook")
 HOOK_TEST_ROOT = HOOK_ROOT / "test"

@@ -19,8 +19,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from cloudai import Test, TestRun, TestTemplate
-from cloudai.systems import SlurmSystem
+from cloudai.core import Test, TestRun, TestTemplate
+from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
     GPTTestDefinition,

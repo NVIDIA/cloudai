@@ -19,8 +19,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_validator
 
-from .._core.installables import GitRepo
-from .._core.test_scenario import TestRun
+from cloudai.core import GitRepo, Registry, TestRun
+
 from .workload import CmdArgs, NsysConfiguration, TestDefinition
 
 
@@ -95,8 +95,6 @@ class TestRunModel(BaseModel):
         if not self.test_name:
             if not self.test_template_name:
                 raise ValueError("'test_template_name' must be set if 'test_name' is not set.")
-
-            from .._core.registry import Registry
 
             registry = Registry()
             if self.test_template_name not in registry.test_definitions_map:

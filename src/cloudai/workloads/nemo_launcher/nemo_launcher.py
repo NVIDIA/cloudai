@@ -18,9 +18,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cloudai import DockerImage, GitRepo, Installable, PythonExecutable
-
-from ...models.workload import CmdArgs, TestDefinition
+from cloudai.core import DockerImage, GitRepo, Installable, PythonExecutable
+from cloudai.models.workload import CmdArgs, TestDefinition
 
 
 class NumaMapping(BaseModel):

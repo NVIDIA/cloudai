@@ -21,7 +21,7 @@ from io import TextIOWrapper
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Tuple
 
-from cloudai import System, TestRun
+from cloudai.core import System, TestRun
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.report_generator.tool.csv_report_tool import CSVReportTool
 from cloudai.report_generator.util import add_human_readable_sizes

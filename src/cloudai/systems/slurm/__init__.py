@@ -14,13 +14,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .metadata import SlurmSystemMetadata
+from .slurm_command_gen_strategy import SlurmCommandGenStrategy
+from .slurm_installer import SlurmInstaller
+from .slurm_job import SlurmJob
 from .slurm_node import SlurmNode, SlurmNodeState
-from .slurm_system import SlurmGroup, SlurmPartition, SlurmSystem
+from .slurm_runner import SlurmRunner
+from .slurm_system import SlurmGroup, SlurmPartition, SlurmSystem, parse_node_list
 
 __all__ = [
+    "SlurmCommandGenStrategy",
     "SlurmGroup",
+    "SlurmInstaller",
+    "SlurmJob",
     "SlurmNode",
     "SlurmNodeState",
     "SlurmPartition",
+    "SlurmRunner",
     "SlurmSystem",
+    "SlurmSystemMetadata",
+    "parse_node_list",
 ]

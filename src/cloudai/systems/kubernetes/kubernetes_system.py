@@ -26,10 +26,10 @@ if TYPE_CHECKING:
 
 from pydantic import BaseModel, ConfigDict
 
-from ..._core.base_job import BaseJob
-from ..._core.system import System
-from ...runner.kubernetes.kubernetes_job import KubernetesJob
-from ...util.lazy_imports import lazy
+from cloudai.core import BaseJob, System
+from cloudai.util.lazy_imports import lazy
+
+from .kubernetes_job import KubernetesJob
 
 
 class KubernetesSystem(BaseModel, System):

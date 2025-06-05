@@ -19,11 +19,8 @@ from typing import Any, Dict, List
 import pytest
 
 from cloudai import TestRun
-from cloudai.systems import SlurmSystem
-from cloudai.workloads.chakra_replay import (
-    ChakraReplayCmdArgs,
-    ChakraReplaySlurmCommandGenStrategy,
-)
+from cloudai.systems.slurm import SlurmSystem
+from cloudai.workloads.chakra_replay import ChakraReplayCmdArgs, ChakraReplaySlurmCommandGenStrategy
 from tests.conftest import create_autospec_dataclass
 
 

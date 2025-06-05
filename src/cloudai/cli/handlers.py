@@ -27,7 +27,7 @@ from unittest.mock import Mock
 import toml
 import yaml
 
-from cloudai import (
+from cloudai.core import (
     BaseInstaller,
     CloudAIGymEnv,
     Installable,
@@ -39,9 +39,8 @@ from cloudai import (
     TestParser,
     TestScenario,
 )
-
-from ..parser import HOOK_ROOT
-from ..util import prepare_output_dir
+from cloudai.parser import HOOK_ROOT
+from cloudai.util import prepare_output_dir
 
 
 def handle_install_and_uninstall(args: argparse.Namespace) -> int:

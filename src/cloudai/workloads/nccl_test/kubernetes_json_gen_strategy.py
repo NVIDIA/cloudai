@@ -16,7 +16,7 @@
 
 from typing import Any, Dict, List, Union
 
-from cloudai import JsonGenStrategy, TestRun
+from cloudai.core import JsonGenStrategy, TestRun
 
 
 class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):

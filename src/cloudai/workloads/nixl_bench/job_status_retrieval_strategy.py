@@ -16,7 +16,7 @@
 
 from pathlib import Path
 
-from cloudai import JobStatusResult, JobStatusRetrievalStrategy
+from cloudai.core import JobStatusResult, JobStatusRetrievalStrategy
 
 
 class NIXLBenchJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):

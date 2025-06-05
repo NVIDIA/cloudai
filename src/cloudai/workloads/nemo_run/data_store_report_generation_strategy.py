@@ -25,7 +25,7 @@ from typing import ClassVar, Dict, List, Tuple, cast
 
 import toml
 
-from cloudai import ReportGenerationStrategy
+from cloudai.core import ReportGenerationStrategy
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.util.lazy_imports import lazy
 

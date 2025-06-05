@@ -14,8 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .kubernetes_installer import KubernetesInstaller
+from .kubernetes_job import KubernetesJob
+from .kubernetes_runner import KubernetesRunner
 from .kubernetes_system import KubernetesSystem
 
 __all__ = [
+    "KubernetesInstaller",
+    "KubernetesJob",
+    "KubernetesRunner",
     "KubernetesSystem",
 ]

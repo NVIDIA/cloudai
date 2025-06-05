@@ -19,8 +19,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai import BaseJob
-from cloudai.systems import LSFSystem
+from cloudai.core import BaseJob
+from cloudai.systems.lsf import LSFSystem
 
 
 @pytest.fixture
@@ -50,7 +50,7 @@ host02 closed 0 0 0 queue2"""
     assert lsf_system.queues[1].lsf_nodes[0].user == "user2"
 
 
-@patch("cloudai.systems.LSFSystem.fetch_command_output")
+@patch("cloudai.systems.lsf.LSFSystem.fetch_command_output")
 def test_update(mock_fetch_command_output: Mock, lsf_system: LSFSystem):
     mock_fetch_command_output.side_effect = [
         ("host01 ok 0 0 0 queue1\nhost02 closed 0 0 0 queue2", ""),
@@ -97,7 +97,7 @@ def test_is_job_completed(stdout: str, expected: bool, lsf_system: LSFSystem):
     assert lsf_system.is_job_completed(job) == expected
 
 
-@patch("cloudai.systems.LSFSystem.fetch_command_output")
+@patch("cloudai.systems.lsf.LSFSystem.fetch_command_output")
 def test_fetch_command_output(mock_fetch_command_output: Mock, lsf_system: LSFSystem):
     mock_fetch_command_output.return_value = ("output", "error")
     stdout, stderr = lsf_system.fetch_command_output("some_command")

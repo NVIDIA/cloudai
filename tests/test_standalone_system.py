@@ -20,8 +20,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cloudai.runner.standalone.standalone_job import StandaloneJob
-from cloudai.systems.standalone_system import StandaloneSystem
+from cloudai.systems.standalone.standalone_job import StandaloneJob
+from cloudai.systems.standalone.standalone_system import StandaloneSystem
 
 
 @pytest.fixture
