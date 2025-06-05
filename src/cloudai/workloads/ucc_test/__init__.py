@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 from .grading_strategy import UCCTestGradingStrategy
 from .report_generation_strategy import UCCTestReportGenerationStrategy
 from .slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
