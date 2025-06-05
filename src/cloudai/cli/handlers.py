@@ -222,20 +222,16 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     runner = Runner(args.mode, system, test_scenario)
     register_signal_handlers(runner.cancel_on_signal)
 
-    if args.single_sbatch:  # in this mode cases are unrolled using grid search
+    has_dse = any(tr.is_dse_job for tr in test_scenario.test_runs)
+    if args.single_sbatch or not has_dse:  # in this mode cases are unrolled using grid search
         handle_non_dse_job(runner, args)
         return 0
 
-    all_dse = all(tr.is_dse_job for tr in test_scenario.test_runs)
-
-    if any(tr.is_dse_job for tr in test_scenario.test_runs):
-        if all_dse:
-            handle_dse_job(runner, args)
-        else:
-            logging.error("Mixing DSE and non-DSE jobs is not allowed.")
-            return 1
+    if all(tr.is_dse_job for tr in test_scenario.test_runs):
+        handle_dse_job(runner, args)
     else:
-        handle_non_dse_job(runner, args)
+        logging.error("Mixing DSE and non-DSE jobs is not allowed.")
+        return 1
 
     return 0
 
