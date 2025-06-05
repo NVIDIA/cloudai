@@ -38,6 +38,7 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
 
         shutil.copy2(source_csv, target_csv)
 
+        num_frontend_nodes = 1
         num_prefill_nodes = self.test_run.test.test_definition.cmd_args.dynamo.prefill_worker.num_nodes
         num_decode_nodes = self.test_run.test.test_definition.cmd_args.dynamo.vllm_worker.num_nodes
 
@@ -45,7 +46,7 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
         gpus_per_node = slurm_system.gpus_per_node
 
         if gpus_per_node is not None:
-            total_gpus = (num_prefill_nodes + num_decode_nodes) * gpus_per_node
+            total_gpus = (num_frontend_nodes + num_prefill_nodes + num_decode_nodes) * gpus_per_node
 
             with open(source_csv, "r") as f:
                 lines = f.readlines()
