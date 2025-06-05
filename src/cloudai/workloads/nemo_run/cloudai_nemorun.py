@@ -275,7 +275,7 @@ def llama3_70b_bf16_b200_tp_overlap_config() -> run.Config[TransformerLayerTPOve
             BulkOverlapCfg,
             cga_size=2,
             method="bulk",
-            num_sm=16,
+            num_sm=8,
             set_sm_margin=False,
         ),
         qkv_wgrad=run.Config(
@@ -317,7 +317,7 @@ def llama3_70b_bf16_b200_tp_overlap_config() -> run.Config[TransformerLayerTPOve
         ),
         fc1_wgrad=run.Config(
             BulkOverlapCfg,
-            num_sm=4,
+            num_sm=2,
             cga_size=2,
             set_sm_margin=False,
             method="bulk",
@@ -338,7 +338,7 @@ def llama3_70b_bf16_b200_tp_overlap_config() -> run.Config[TransformerLayerTPOve
         ),
         fc2_fprop=run.Config(
             PipelineOverlapCfg,
-            num_sm=16,
+            num_sm=8,
             cga_size=2,
             num_splits=4,
             set_sm_margin=True,
@@ -784,7 +784,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
                 pipeline_model_parallel_size=1,
                 context_parallel_size=2,
                 virtual_pipeline_model_parallel_size=8,
-                sequence_parallel=False,
+                sequence_parallel=True,
                 pipeline_dtype=torch.bfloat16,
                 ddp=run.Config(
                     DistributedDataParallelConfig,
@@ -815,6 +815,12 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
                 adam_beta2=0.95,
                 adam_eps=1e-05,
                 clip_grad=1.0,
+            ),
+            lr_scheduler=run.Config(
+                CosineAnnealingScheduler,
+                warmup_steps=2000,
+                constant_steps=0,
+                min_lr=2.9999999999999997e-05,
             ),
         ),
         resume=run.Config(
@@ -902,6 +908,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
     recipe.model.config.vocab_size = 128256
     recipe.trainer.strategy.account_for_embedding_in_pipeline_split = True
     recipe.trainer.strategy.account_for_loss_in_pipeline_split = True
+    recipe.trainer.callbacks.append(run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100))
     return recipe
 
 
