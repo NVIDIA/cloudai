@@ -21,7 +21,7 @@ class TritonInferenceReportGenerationStrategy(ReportGenerationStrategy):
     """Report generation strategy for TritonInference."""
 
     def can_handle_directory(self) -> bool:
-        return False
+        return True
 
     def generate_report(self) -> None:
         pass
