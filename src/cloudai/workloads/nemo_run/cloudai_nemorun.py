@@ -768,6 +768,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
             limit_test_batches=50,
             limit_val_batches=32,
             log_every_n_steps=10,
+            accumulate_grad_batches=1,
             strategy=run.Config(
                 nl.MegatronStrategy,
                 tensor_model_parallel_size=8,
@@ -795,11 +796,16 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
             nl.MegatronOptimizerModule,
             config=run.Config(
                 OptimizerConfig,
-                lr=1e-4,
+                lr=0.0003,
                 bf16=True,
+                use_precision_aware_optimizer=True,
                 params_dtype=torch.bfloat16,
                 use_distributed_optimizer=True,
-                weight_decay=0,
+                weight_decay=0.1,
+                adam_beta1=0.9,
+                adam_beta2=0.95,
+                adam_eps=1e-05,
+                clip_grad=1.0,
             ),
         ),
         resume=run.Config(
