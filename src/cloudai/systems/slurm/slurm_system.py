@@ -183,6 +183,7 @@ class SlurmSystem(BaseModel, System):
                 self.supports_gpu_directives_cache = True
                 return True
 
+        self.supports_gpu_directives_cache = False
         return False
 
     @field_serializer("install_path", "output_path")
