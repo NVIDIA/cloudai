@@ -775,8 +775,8 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
                 params_dtype=torch.bfloat16,
                 pipeline_dtype=torch.bfloat16,
                 autocast_enabled=False,
-                grad_reduce_in_fp32=False,
-                
+                grad_reduce_in_fp32=True,
+
             ),
             strategy=run.Config(
                 nl.MegatronStrategy,
