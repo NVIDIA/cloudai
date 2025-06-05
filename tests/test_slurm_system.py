@@ -570,16 +570,11 @@ def test_supports_gpu_directives(
 
 
 @pytest.mark.parametrize(
-    "test_value, expected_support",
-    [
-        (True, True),
-        (False, False),
-    ],
+    "cache_value",
+    [True, False],
 )
 @patch("cloudai.systems.slurm.slurm_system.SlurmSystem.fetch_command_output")
-def test_supports_gpu_directives_cache(
-    mock_fetch_command_output, test_value: bool, expected_support: bool, slurm_system: SlurmSystem
-):
-    slurm_system.supports_gpu_directives_cache = test_value
-    assert slurm_system.supports_gpu_directives is expected_support
+def test_supports_gpu_directives_cache(mock_fetch_command_output, cache_value: bool, slurm_system: SlurmSystem):
+    slurm_system.supports_gpu_directives_cache = cache_value
+    assert slurm_system.supports_gpu_directives is cache_value
     mock_fetch_command_output.assert_not_called()
