@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -96,7 +96,6 @@ class GenAIPerfArgs(BaseModel):
     port: int = 8000
     endpoint: Optional[str] = None
     endpoint_type: str = "kserve"
-    service_kind: Literal["openai"] = "openai"
     streaming: bool
     extra_inputs: Optional[str]
     input_file: Optional[str] = None
@@ -119,7 +118,7 @@ class AIDynamoCmdArgs(CmdArgs):
     docker_image_url: str
     served_model_name: str
     dynamo: AIDynamoArgs
-    sleep_seconds: int = 550
+    sleep_seconds: int = 660
     genai_perf: GenAIPerfArgs
 
 

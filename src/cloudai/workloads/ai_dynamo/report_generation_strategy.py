@@ -27,13 +27,13 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
 
     def can_handle_directory(self) -> bool:
         output_path = self.test_run.output_path
-        csv_path = output_path / "profile_genai_perf.csv"
-        json_path = output_path / "profile_genai_perf.json"
-        return csv_path.exists() and json_path.exists()
+        csv_files = list(output_path.rglob("profile_genai_perf.csv"))
+        json_files = list(output_path.rglob("profile_genai_perf.json"))
+        return len(csv_files) > 0 and len(json_files) > 0
 
     def generate_report(self) -> None:
         output_path = self.test_run.output_path
-        source_csv = output_path / "profile_genai_perf.csv"
+        source_csv = next(output_path.rglob("profile_genai_perf.csv"))
         target_csv = output_path / "report.csv"
 
         shutil.copy2(source_csv, target_csv)
@@ -51,7 +51,7 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
             with open(source_csv, "r") as f:
                 lines = f.readlines()
                 output_token_throughput_line = next(
-                    (line for line in lines if "Output Token Throughput (per sec)" in line), None
+                    (line for line in lines if "Output Token Throughput (tokens/sec)" in line), None
                 )
                 if output_token_throughput_line:
                     output_token_throughput = float(output_token_throughput_line.split(",")[1].strip())

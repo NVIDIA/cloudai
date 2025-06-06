@@ -46,7 +46,7 @@ def get_csv_content() -> str:
         "Output Sequence Length (tokens),101.01,202.02,303.03,404.04,505.05,606.06,707.07,808.08,909.09\n"
         "Input Sequence Length (tokens),123.45,234.56,345.67,456.78,567.89,678.90,789.01,890.12,901.23\n\n"
         "Metric,Value\n"
-        "Output Token Throughput (per sec),24\n"
+        "Output Token Throughput (tokens/sec),24\n"
         "Request Throughput (per sec),1.23\n"
         "Request Count (count),40.00\n"
     )

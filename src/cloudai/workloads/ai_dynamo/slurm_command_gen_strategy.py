@@ -198,8 +198,6 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f"${{CURRENT_HOST}}:{args.genai_perf.port}",
             "--endpoint-type",
             args.genai_perf.endpoint_type,
-            "--service-kind",
-            args.genai_perf.service_kind,
         ]
         if args.genai_perf.endpoint:
             cmd.append(f"--endpoint {args.genai_perf.endpoint}")
