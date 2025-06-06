@@ -17,9 +17,10 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, cast
 
-from cloudai import JsonGenStrategy, TestRun
+from cloudai.core import JsonGenStrategy, TestRun
 from cloudai.systems.runai.runai_system import RunAISystem
-from cloudai.workloads.nccl_test import NCCLTestDefinition
+
+from .nccl import NCCLTestDefinition
 
 
 class NcclTestRunAIJsonGenStrategy(JsonGenStrategy):

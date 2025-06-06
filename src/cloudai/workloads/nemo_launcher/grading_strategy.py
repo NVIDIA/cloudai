@@ -16,7 +16,7 @@
 
 from pathlib import Path
 
-from cloudai import GradingStrategy
+from cloudai.core import GradingStrategy
 from cloudai.report_generator.tool import TensorBoardDataReader
 from cloudai.util.lazy_imports import lazy
 

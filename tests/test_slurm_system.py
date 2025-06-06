@@ -21,11 +21,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai import BaseJob, Test, TestRun, TestTemplate
-from cloudai.systems import SlurmSystem
-from cloudai.systems.slurm import SlurmNode, SlurmNodeState
-from cloudai.systems.slurm.slurm_system import parse_node_list
-from cloudai.systems.slurm.strategy.slurm_command_gen_strategy import SlurmCommandGenStrategy
+from cloudai.core import BaseJob, Test, TestRun, TestTemplate
+from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmNode, SlurmNodeState, SlurmSystem, parse_node_list
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 
@@ -95,7 +92,7 @@ def test_parse_sinfo_output(slurm_system: SlurmSystem) -> None:
         assert node.state == SlurmNodeState.IDLE
 
 
-@patch("cloudai.systems.SlurmSystem.fetch_command_output")
+@patch("cloudai.systems.slurm.SlurmSystem.fetch_command_output")
 def test_update_with_mocked_outputs(mock_fetch_command_output: Mock, slurm_system: SlurmSystem):
     mock_fetch_command_output.side_effect = [
         ("node-033|user1", ""),

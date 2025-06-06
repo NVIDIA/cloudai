@@ -20,7 +20,7 @@ from unittest.mock import Mock
 import pandas as pd
 import pytest
 
-from cloudai import GitRepo, PredictorConfig, Test, TestDefinition, TestRun
+from cloudai.core import GitRepo, PredictorConfig, Test, TestDefinition, TestRun
 from cloudai.workloads.nccl_test.prediction_report_generator import NcclTestPredictionReportGenerator
 
 

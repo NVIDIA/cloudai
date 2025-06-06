@@ -22,13 +22,8 @@ from unittest.mock import Mock
 import pytest
 import toml
 
-from cloudai import TestScenario
-from cloudai._core.test import Test
-from cloudai._core.test_scenario import TestRun
-from cloudai._core.test_template import TestTemplate
-from cloudai.runner.slurm.single_sbatch_runner import SingleSbatchRunner
-from cloudai.runner.slurm.slurm_job import SlurmJob
-from cloudai.systems.slurm.slurm_system import SlurmJobMetadata, SlurmSystem
+from cloudai.core import Test, TestRun, TestScenario, TestTemplate
+from cloudai.systems.slurm import SingleSbatchRunner, SlurmJob, SlurmJobMetadata, SlurmSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestSlurmCommandGenStrategy
 from cloudai.workloads.sleep import SleepCmdArgs, SleepSlurmCommandGenStrategy, SleepTestDefinition
 

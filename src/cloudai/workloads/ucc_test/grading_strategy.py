@@ -16,7 +16,7 @@
 
 from pathlib import Path
 
-from cloudai import GradingStrategy
+from cloudai.core import GradingStrategy
 
 
 class UCCTestGradingStrategy(GradingStrategy):

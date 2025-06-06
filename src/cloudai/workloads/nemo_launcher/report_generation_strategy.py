@@ -21,7 +21,7 @@ import re
 from pathlib import Path
 from typing import List
 
-from cloudai import ReportGenerationStrategy
+from cloudai.core import ReportGenerationStrategy
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.util.lazy_imports import lazy
 

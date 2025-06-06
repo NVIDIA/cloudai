@@ -20,9 +20,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai import GitRepo, Test, TestRun, TestScenario, TestTemplate
-from cloudai.systems import SlurmSystem
-from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.core import GitRepo, Test, TestRun, TestScenario, TestTemplate
+from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestSlurmCommandGenStrategy
 
 

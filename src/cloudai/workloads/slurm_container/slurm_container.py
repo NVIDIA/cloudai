@@ -18,9 +18,8 @@ from typing import Optional
 
 from pydantic import Field
 
-from cloudai import DockerImage, File, Installable
-
-from ...models.workload import CmdArgs, TestDefinition
+from cloudai.core import DockerImage, File, Installable
+from cloudai.models.workload import CmdArgs, TestDefinition
 
 
 class SlurmContainerCmdArgs(CmdArgs):

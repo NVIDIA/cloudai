@@ -16,7 +16,7 @@
 
 import re
 
-from cloudai import ReportGenerationStrategy, System, TestRun
+from cloudai.core import ReportGenerationStrategy, System, TestRun
 
 
 class NcclTestReportGenerationStrategy(ReportGenerationStrategy):

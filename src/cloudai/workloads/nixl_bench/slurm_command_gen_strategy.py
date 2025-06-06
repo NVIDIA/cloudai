@@ -16,9 +16,8 @@
 
 from typing import Any, cast
 
-from cloudai import TestRun
-from cloudai.systems.slurm.slurm_system import SlurmSystem
-from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.core import TestRun
+from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmSystem
 
 from .nixl_bench import NIXLBenchTestDefinition
 

@@ -22,23 +22,23 @@ from unittest.mock import Mock, patch
 import pytest
 import toml
 
-from cloudai import (
+from cloudai.core import (
     CmdArgs,
     GitRepo,
     PredictorConfig,
     Registry,
+    ReportGenerationStrategy,
     Test,
     TestDefinition,
     TestRun,
     TestScenario,
     TestScenarioParser,
     TestScenarioParsingError,
+    TestTemplate,
 )
-from cloudai._core.report_generation_strategy import ReportGenerationStrategy
-from cloudai._core.test_scenario_parser import calculate_total_time_limit, get_reporters
-from cloudai._core.test_template import TestTemplate
 from cloudai.models.scenario import TestRunModel, TestScenarioModel
 from cloudai.systems.slurm.slurm_system import SlurmSystem
+from cloudai.test_scenario_parser import calculate_total_time_limit, get_reporters
 from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
@@ -556,7 +556,7 @@ class TestReportMetricsDSE:
         assert caplog.records[1].levelname == "ERROR"
         assert caplog.records[1].message == msg
 
-    @patch("cloudai._core.test_scenario_parser.get_reporters", return_value=set())
+    @patch("cloudai.test_scenario_parser.get_reporters", return_value=set())
     def test_raises_if_no_reports_defined(self, _, ts_parser: TestScenarioParser, test_info: TestRunModel, tname: str):
         tdef = ts_parser.test_mapping[tname].test_definition
         tdef.agent_metric = "default"
