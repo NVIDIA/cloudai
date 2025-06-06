@@ -908,7 +908,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
     recipe.trainer.strategy.account_for_embedding_in_pipeline_split = True
     recipe.trainer.strategy.account_for_loss_in_pipeline_split = True
     recipe.trainer.callbacks.append(run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100))
-    reicpe.model.tokenizer = recipe.data.tokenizer
+    recipe.model.tokenizer = recipe.data.tokenizer
     return recipe
 
 
