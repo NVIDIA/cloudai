@@ -493,6 +493,78 @@ The expected size is approximately 642 GB. If it’s significantly smaller, remo
 
 ## Slurm specifics
 
+### Single sbatch vs per-case sbatch
+CloudAI supports two modes for submitting Slurm jobs:
+
+1. (default) Per-case sbatch mode: each case is submitted as a separate sbatch job, allows flexible scheduling and dependency management.
+    - Suites best when cases can run in parallel or there are no dependencies between cases.
+2. Single sbatch mode: all cases are submitted together in a single sbatch job and share the same nodes. Each next case starts after the previous one completes. To enable it one needs to pass `--single-sbatch` flag to `cloudai run` command (works only for Slurm systems).
+    - Suites best for jobs when cases need to run on the same nodes for performance reasons.
+    - There is not support for dependency management between cases yet, all jobs run one after another.
+
+Assuming two cases in a scenario like this:
+```toml
+[[Tests]]
+id = "nccl.all_reduce"
+test_name = "nccl-all_reduce"
+num_nodes = 2
+time_limit = "00:20:00"
+
+[[Tests]]
+id = "nccl.all_gather"
+test_name = "nccl-all_gather"
+num_nodes = 2
+time_limit = "00:20:00"
+```
+
+Regular output directory structure (some files are omitted for clarity):
+```bash
+$ tree results/scenario
+results/scenario
+├── nccl.all_gather
+│   └── 0
+│       ├── cloudai_sbatch_script.sh
+│       ├── env_vars.sh
+│       ├── metadata/
+│       ├── stderr.txt
+│       ├── stdout.txt
+│       └── test-run.toml
+└── nccl.all_reduce
+    └── 0
+        ├── cloudai_sbatch_script.sh
+        ├── env_vars.sh
+        ├── metadata/
+        ├── stderr.txt
+        ├── stdout.txt
+        └── test-run.toml
+```
+
+Single sbatch mode output directory structure:
+```bash
+tree results/scenario
+results/scenario
+├── cloudai_sbatch_script.sh
+├── common.err
+├── common.out
+├── metadata/
+├── nccl.all_gather
+│   └── 0
+│       ├── env_vars.sh
+│       ├── stderr.txt
+│       ├── stdout.txt
+│       └── test-run.toml
+├── nccl.all_reduce
+│   └── 0
+│       ├── env_vars.sh
+│       ├── stderr.txt
+│       ├── stdout.txt
+│       └── test-run.toml
+└── slurm-job.toml
+```
+
+Most of the files are the same: output files, env vars script, test run metadata. Difference for single sbatch mode is that `slurm-job.toml` is created for entires job as well as `cloudai_sbatch_script.sh`. Plus extra `common.err`/`common.out` files are created for general sbatch outputs.
+
+
 ### Extra srun and sbatch arguments
 CloudAI forms sbatch script and srun commands following internal rules. Users can affect the generation but setting special arguments in System TOML file.
 
