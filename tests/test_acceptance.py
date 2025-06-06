@@ -91,6 +91,7 @@ class TestInDryRun:
             test_scenario=test_scenario_path,
             output_dir=tmp_path,
             enable_cache_without_check=False,
+            single_sbatch=False,
             log_file="debug.log",
         )
         with (

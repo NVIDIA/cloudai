@@ -15,18 +15,21 @@
 # limitations under the License.
 
 from .metadata import SlurmSystemMetadata
+from .single_sbatch_runner import SingleSbatchRunner
 from .slurm_command_gen_strategy import SlurmCommandGenStrategy
 from .slurm_installer import SlurmInstaller
 from .slurm_job import SlurmJob
 from .slurm_node import SlurmNode, SlurmNodeState
 from .slurm_runner import SlurmRunner
-from .slurm_system import SlurmGroup, SlurmPartition, SlurmSystem, parse_node_list
+from .slurm_system import SlurmGroup, SlurmJobMetadata, SlurmPartition, SlurmSystem, parse_node_list
 
 __all__ = [
+    "SingleSbatchRunner",
     "SlurmCommandGenStrategy",
     "SlurmGroup",
     "SlurmInstaller",
     "SlurmJob",
+    "SlurmJobMetadata",
     "SlurmNode",
     "SlurmNodeState",
     "SlurmPartition",

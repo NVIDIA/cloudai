@@ -40,6 +40,7 @@ from cloudai.core import (
     TestScenario,
 )
 from cloudai.parser import HOOK_ROOT
+from cloudai.systems.slurm import SingleSbatchRunner, SlurmSystem
 from cloudai.util import prepare_output_dir
 
 
@@ -189,6 +190,13 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
         system.monitor_interval = 1
     system.update()
 
+    if args.single_sbatch:
+        if not isinstance(system, SlurmSystem):
+            logging.error("Single sbatch is only supported for Slurm systems.")
+            return 1
+
+        Registry().update_runner("slurm", SingleSbatchRunner)
+
     logging.info(f"System Name: {system.name}")
     logging.info(f"Scheduler: {system.scheduler}")
     logging.info(f"Test Scenario Name: {test_scenario.name}")
@@ -212,16 +220,16 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     runner = Runner(args.mode, system, test_scenario)
     register_signal_handlers(runner.cancel_on_signal)
 
-    all_dse = all(tr.is_dse_job for tr in test_scenario.test_runs)
-
-    if any(tr.is_dse_job for tr in test_scenario.test_runs):
-        if all_dse:
-            handle_dse_job(runner, args)
-        else:
-            logging.error("Mixing DSE and non-DSE jobs is not allowed.")
-            return 1
-    else:
+    has_dse = any(tr.is_dse_job for tr in test_scenario.test_runs)
+    if args.single_sbatch or not has_dse:  # in this mode cases are unrolled using grid search
         handle_non_dse_job(runner, args)
+        return 0
+
+    if all(tr.is_dse_job for tr in test_scenario.test_runs):
+        handle_dse_job(runner, args)
+    else:
+        logging.error("Mixing DSE and non-DSE jobs is not allowed.")
+        return 1
 
     return 0
 

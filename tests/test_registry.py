@@ -37,10 +37,13 @@ class MyTestDefinition(TestDefinition):
     pass
 
 
-@pytest.fixture
+@pytest.fixture(scope="class")
 def registry():
     registry = Registry()
+
+    strategies_map = copy.copy(registry.strategies_map)
     scenario_reports = copy.copy(registry.scenario_reports)
+
     registry.scenario_reports.clear()
 
     yield registry
@@ -49,6 +52,9 @@ def registry():
     if MyTestDefinition in registry.reports_map:
         del registry.reports_map[MyTestDefinition]
     registry.update_scenario_report(scenario_reports)
+
+    registry.strategies_map.clear()
+    registry.strategies_map.update(strategies_map)
 
 
 class MyRunner(BaseRunner):
