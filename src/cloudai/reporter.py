@@ -117,6 +117,10 @@ class StatusReporter(Reporter):
     """Generates HTML status reports with system-specific templates."""
 
     @property
+    def template_file_path(self) -> Path:
+        return Path(__file__).parent / "util"
+
+    @property
     def template_file(self) -> str:
         if isinstance(self.system, SlurmSystem):
             return "general-slurm-report.jinja2"
@@ -131,9 +135,9 @@ class StatusReporter(Reporter):
         self.report_best_dse_config()
 
     def generate_scenario_report(self) -> None:
-        template = jinja2.Environment(
-            loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / "util")
-        ).get_template(self.template_file)
+        template = jinja2.Environment(loader=jinja2.FileSystemLoader(self.template_file_path)).get_template(
+            self.template_file
+        )
 
         report_items = (
             SlurmReportItem.from_test_runs(self.trs, self.results_root)
