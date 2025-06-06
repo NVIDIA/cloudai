@@ -102,7 +102,6 @@ def ai_dynamo_tr(tmp_path: Path) -> TestRun:
                 genai_perf=GenAIPerfArgs(
                     endpoint="http://mock_endpoint",
                     endpoint_type="kserve",
-                    service_kind="openai",
                     streaming=False,
                     extra_inputs="mock_extra_inputs",
                     input_file="mock_input_file",

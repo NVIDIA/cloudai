@@ -95,7 +95,6 @@ def cmd_args() -> AIDynamoCmdArgs:
         genai_perf=GenAIPerfArgs(
             endpoint="/chat",
             endpoint_type="chat",
-            service_kind="openai",
             streaming=True,
             warmup_request_count=10,
             random_seed=42,

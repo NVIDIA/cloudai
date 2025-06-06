@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -55,7 +55,7 @@ class PrefillWorkerArgs(BaseModel):
     max_model_len: int = Field(8192, alias="max-model-len")
     max_num_seqs: int = Field(16, alias="max-num-seqs")
     gpu_memory_utilization: float = Field(0.95, alias="gpu-memory-utilization")
-    tensor_parallel_size: int = Field(8, alias="tensor-parallel-size")
+    tensor_parallel_size: Union[int, list[int]] = Field(8, alias="tensor-parallel-size")
     quantization: str = "modelopt"
     service_args: dict = Field({"workers": 1, "resources": {"gpu": "8"}}, alias="ServiceArgs")
 
@@ -73,7 +73,7 @@ class VllmWorkerArgs(BaseModel):
     max_local_prefill_length: int = Field(10, alias="max-local-prefill-length")
     max_prefill_queue_size: int = Field(2, alias="max-prefill-queue-size")
     gpu_memory_utilization: float = Field(0.95, alias="gpu-memory-utilization")
-    tensor_parallel_size: int = Field(8, alias="tensor-parallel-size")
+    tensor_parallel_size: Union[int, list[int]] = Field(8, alias="tensor-parallel-size")
     router: str = "kv"
     quantization: str = "modelopt"
     enable_prefix_caching: bool = Field(True, alias="enable-prefix-caching")
@@ -108,8 +108,8 @@ class GenAIPerfArgs(BaseModel):
     isl: int = 550
     synthetic_input_tokens_stddev: int = 0
     warmup_request_count: int
-    concurrency: Optional[int] = None
-    request_rate: Optional[float] = None
+    concurrency: Optional[Union[int, list[int]]] = None
+    request_rate: Optional[Union[float, list[float]]] = None
 
 
 class AIDynamoCmdArgs(CmdArgs):
