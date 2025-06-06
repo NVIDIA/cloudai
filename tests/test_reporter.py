@@ -22,10 +22,9 @@ import pytest
 import toml
 
 from cloudai import Test, TestRun, TestScenario
-from cloudai._core.command_gen_strategy import CommandGenStrategy
-from cloudai._core.reporter import PerTestReporter, StatusReporter, TarballReporter
-from cloudai._core.test_template import TestTemplate
+from cloudai.core import CommandGenStrategy, TestTemplate
 from cloudai.models.scenario import TestRunDetails
+from cloudai.reporter import PerTestReporter, StatusReporter, TarballReporter
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 

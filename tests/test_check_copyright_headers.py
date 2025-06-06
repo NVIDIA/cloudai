@@ -50,11 +50,18 @@ def prepare_copyright_with_year(file: Path, line: str) -> str:
         capture_output=True,
         text=True,
     )
-    curr_year_spec = line.split(" ")[3]
-    spec_is_range = "-" in curr_year_spec
-
+    if not res.stdout:
+        # in some cases when a file was renamed, --follow won't allow getting the last modified year
+        res = subprocess.run(
+            ["git", "log", "--format=%ad", "--date=format:%Y", "-1", file],
+            capture_output=True,
+            text=True,
+        )
     changed_years = res.stdout.splitlines()
     last_modified_year_real = int(changed_years[0])
+
+    curr_year_spec = line.split(" ")[3]
+    spec_is_range = "-" in curr_year_spec
 
     after_year_str = "NVIDIA CORPORATION & AFFILIATES. All rights reserved."
 

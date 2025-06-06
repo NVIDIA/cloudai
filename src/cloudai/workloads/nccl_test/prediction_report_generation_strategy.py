@@ -15,7 +15,7 @@
 # limitations under the License.
 
 
-from cloudai import System, TestRun
+from cloudai.core import System, TestRun
 
 from .prediction_report_generator import NcclTestPredictionReportGenerator
 from .report_generation_strategy import NcclTestReportGenerationStrategy

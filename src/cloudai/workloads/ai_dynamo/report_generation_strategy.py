@@ -18,7 +18,7 @@ import logging
 import shutil
 from typing import cast
 
-from cloudai import ReportGenerationStrategy
+from cloudai.core import ReportGenerationStrategy
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 
 

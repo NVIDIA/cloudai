@@ -24,7 +24,7 @@ import yaml
 
 from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestRun
-from cloudai.systems import SlurmSystem
+from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,

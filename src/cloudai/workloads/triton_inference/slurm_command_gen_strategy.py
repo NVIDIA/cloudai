@@ -17,9 +17,8 @@
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union, cast
 
-from cloudai import TestRun
-from cloudai.systems.slurm.slurm_system import SlurmSystem
-from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.core import TestRun
+from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmSystem
 
 from .triton_inference import TritonInferenceTestDefinition
 

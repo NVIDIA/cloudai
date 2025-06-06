@@ -15,7 +15,7 @@
 # limitations under the License.
 
 
-from cloudai import (
+from cloudai.core import (
     CommandGenStrategy,
     GradingStrategy,
     JobIdRetrievalStrategy,
@@ -23,16 +23,15 @@ from cloudai import (
     JsonGenStrategy,
     Registry,
 )
-from cloudai._core.reporter import PerTestReporter, StatusReporter, TarballReporter
-from cloudai.installer.lsf_installer import LSFInstaller
-from cloudai.installer.runai_installer import RunAIInstaller
-from cloudai.installer.slurm_installer import SlurmInstaller
-from cloudai.installer.standalone_installer import StandaloneInstaller
+from cloudai.reporter import PerTestReporter, StatusReporter, TarballReporter
 from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
+from cloudai.systems.lsf import LSFInstaller
 from cloudai.systems.lsf.lsf_system import LSFSystem
+from cloudai.systems.runai import RunAIInstaller
 from cloudai.systems.runai.runai_system import RunAISystem
+from cloudai.systems.slurm import SlurmInstaller
 from cloudai.systems.slurm.slurm_system import SlurmSystem
-from cloudai.systems.standalone_system import StandaloneSystem
+from cloudai.systems.standalone import StandaloneInstaller, StandaloneSystem
 from cloudai.workloads.ai_dynamo import (
     AIDynamoSlurmCommandGenStrategy,
     AIDynamoTestDefinition,

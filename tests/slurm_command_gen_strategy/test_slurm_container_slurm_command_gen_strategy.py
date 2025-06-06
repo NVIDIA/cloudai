@@ -19,10 +19,9 @@ from typing import cast
 import pytest
 
 from cloudai import TestRun
-from cloudai._core.test import Test
-from cloudai._core.test_template import TestTemplate
+from cloudai.core import Test, TestTemplate
 from cloudai.models.workload import NsysConfiguration
-from cloudai.systems import SlurmSystem
+from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.slurm_container import (
     SlurmContainerCmdArgs,
     SlurmContainerCommandGenStrategy,

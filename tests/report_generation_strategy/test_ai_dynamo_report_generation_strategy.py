@@ -46,7 +46,7 @@ def get_csv_content() -> str:
         "Output Sequence Length (tokens),101.01,202.02,303.03,404.04,505.05,606.06,707.07,808.08,909.09\n"
         "Input Sequence Length (tokens),123.45,234.56,345.67,456.78,567.89,678.90,789.01,890.12,901.23\n\n"
         "Metric,Value\n"
-        "Output Token Throughput (per sec),128\n"
+        "Output Token Throughput (per sec),24\n"
         "Request Throughput (per sec),1.23\n"
         "Request Count (count),40.00\n"
     )
@@ -142,7 +142,7 @@ def slurm_system() -> SlurmSystem:
         output_path=Path("/mock/output"),
         default_partition="default",
         partitions=[],
-        gpus_per_node=1,
+        gpus_per_node=8,
     )
 
 
@@ -159,5 +159,5 @@ def test_ai_dynamo_generate_report(slurm_system: SlurmSystem, ai_dynamo_tr: Test
     assert report_file.is_file(), "Report CSV was not generated."
 
     report_content = report_file.read_text()
-    expected_content = csv_content + "Overall Output Tokens per Second per GPU,64.0\n"
+    expected_content = csv_content + "Overall Output Tokens per Second per GPU,1.0\n"
     assert report_content == expected_content, "Report content does not match expected."

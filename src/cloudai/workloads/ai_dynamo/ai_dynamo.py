@@ -19,7 +19,8 @@ from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from cloudai import CmdArgs, DockerImage, Installable, TestDefinition
+from cloudai.core import DockerImage, Installable
+from cloudai.models.workload import CmdArgs, TestDefinition
 
 
 class FrontendArgs(BaseModel):

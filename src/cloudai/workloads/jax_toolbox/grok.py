@@ -18,7 +18,7 @@ from typing import Optional, Union
 
 from pydantic import ConfigDict, Field
 
-from cloudai import DockerImage, Installable
+from cloudai.core import DockerImage, Installable
 
 from .jax_toolbox import JaxFdl, JaxToolboxCmdArgs, JaxToolboxTestDefinition, SetupFlags, XLAFlags
 

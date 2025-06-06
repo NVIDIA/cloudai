@@ -261,22 +261,24 @@ class TestCLIDefaultModes:
             tests_dir=Path.cwd(),
         )
 
-    def test_run_dry_run_modes(self, cli: CloudAICLI):
+    @pytest.mark.parametrize("single_sbatch", [True, False])
+    def test_run_dry_run_modes(self, cli: CloudAICLI, single_sbatch: bool):
         assert "dry-run" in cli.handlers
         assert "run" in cli.handlers
 
+        cmd = [
+            "--system-config",
+            f"{Path(__file__)}",
+            "--tests-dir",
+            f"{Path.cwd()}",
+            "--test-scenario",
+            f"{Path(__file__)}",
+        ]
+        if single_sbatch:
+            cmd.append("--single-sbatch")
+
         for mode in {"dry-run", "run"}:
-            args = cli.parser.parse_args(
-                [
-                    mode,
-                    "--system-config",
-                    f"{Path(__file__)}",
-                    "--tests-dir",
-                    f"{Path.cwd()}",
-                    "--test-scenario",
-                    f"{Path(__file__)}",
-                ]
-            )
+            args = cli.parser.parse_args([mode, *cmd])
 
             assert args == argparse.Namespace(
                 log_file="debug.log",
@@ -287,6 +289,7 @@ class TestCLIDefaultModes:
                 test_scenario=Path(__file__),
                 output_dir=None,
                 enable_cache_without_check=False,
+                single_sbatch=single_sbatch,
             )
 
     @pytest.mark.parametrize(

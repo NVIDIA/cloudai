@@ -19,9 +19,8 @@ from typing import List, Optional, Union, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cloudai import DockerImage, File, Installable, TestRun
-
-from ...models.workload import CmdArgs, TestDefinition
+from cloudai.core import DockerImage, File, Installable, TestRun
+from cloudai.models.workload import CmdArgs, TestDefinition
 
 
 class Plugin(BaseModel):

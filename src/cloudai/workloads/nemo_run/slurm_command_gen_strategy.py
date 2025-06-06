@@ -19,9 +19,10 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Union, cast
 
-from cloudai import TestRun
-from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
-from cloudai.workloads.nemo_run import NeMoRunTestDefinition
+from cloudai.core import TestRun
+from cloudai.systems.slurm import SlurmCommandGenStrategy
+
+from .nemo_run import NeMoRunTestDefinition
 
 
 class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):

@@ -19,8 +19,8 @@ from typing import Dict, List, Optional, Union, cast
 
 import yaml
 
-from cloudai import TestRun
-from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.models.workload import TestRun
+from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 from .ai_dynamo import AIDynamoTestDefinition
 

@@ -93,16 +93,26 @@ root_package = "cloudai"
   name = "_core is not accessed directly"
   type = "forbidden"
   forbidden_modules = ["cloudai._core"]
-  allow_indirect_imports = true # this is to allow "from cloudai import ..."
+  allow_indirect_imports = true # this is to allow "from cloudai import ..." via core.py
   source_modules = [
-    "cloudai.installer",
-    "cloudai.parser",
-    "cloudai.report_generator",
-    "cloudai.report_generator.tool",
-    "cloudai.runner",
+    "cloudai.systems",
+    "cloudai.workloads",
     "cloudai.util",
     "cloudai.cli",
+    "cloudai.report_generator",
   ]
+
+  [[tool.importlinter.contracts]]
+  name = "Report generator is leaf dependency"
+  type = "forbidden"
+  forbidden_modules = ["cloudai.systems", "cloudai.workloads", "cloudai.cli"]
+  source_modules = ["cloudai.report_generator"]
+
+  [[tool.importlinter.contracts]]
+  name = "Util modules are leaf dependencies"
+  type = "forbidden"
+  forbidden_modules = ["cloudai.systems", "cloudai.workloads", "cloudai.cli"]
+  source_modules = ["cloudai.util"]
 
 [tool.vulture]
 ignore_names = ["mock_datetime_now"]

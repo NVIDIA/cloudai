@@ -22,8 +22,7 @@ from functools import cache
 from pathlib import Path
 from typing import ClassVar, List
 
-from cloudai import ReportGenerationStrategy
-from cloudai._core.test_scenario import METRIC_ERROR
+from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.util.lazy_imports import lazy
 
