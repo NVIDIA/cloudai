@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Union, cast
 
@@ -248,17 +249,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd_args: Dict[str, Union[str, List[str]]],
         tr: TestRun,
     ) -> str:
-        num_nodes, _ = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes)
-        td = cast(AIDynamoTestDefinition, tr.test.test_definition)
-        expected = 1 + td.cmd_args.dynamo.prefill_worker.num_nodes + td.cmd_args.dynamo.vllm_worker.num_nodes
-
-        if num_nodes != expected:
-            raise ValueError(
-                f"Invalid node count: expected {expected} total nodes "
-                f"(1 frontend + {td.cmd_args.dynamo.prefill_worker.num_nodes} prefill + "
-                f"{td.cmd_args.dynamo.vllm_worker.num_nodes} decode), but got {num_nodes}"
-            )
-
+        num_nodes, _ = self.get_cached_nodes_spec(tr)
         srun_prefix = self.gen_srun_prefix(tr)
         srun_prefix.extend(
             [
@@ -268,3 +259,25 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             ]
         )
         return " ".join([*srun_prefix, "/opt/run.sh"])
+
+    def get_cached_nodes_spec(self, tr: TestRun) -> tuple[int, list[str]]:
+        cache_key = f"{tr.current_iteration}:{tr.step}:{tr.num_nodes}:{','.join(tr.nodes)}"
+
+        if cache_key in self._node_spec_cache:
+            return self._node_spec_cache[cache_key]
+
+        td = cast(AIDynamoTestDefinition, tr.test.test_definition)
+        total_nodes = 1 + td.cmd_args.dynamo.prefill_worker.num_nodes + td.cmd_args.dynamo.vllm_worker.num_nodes
+
+        requested_nodes, node_list = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes)
+        if requested_nodes != total_nodes:
+            logging.warning(
+                f"Node count mismatch: expected {total_nodes} total nodes "
+                f"(1 frontend + {td.cmd_args.dynamo.prefill_worker.num_nodes} prefill + "
+                f"{td.cmd_args.dynamo.vllm_worker.num_nodes} decode), but got {requested_nodes}. "
+                f"Overriding to use {total_nodes} nodes."
+            )
+
+        result = (total_nodes, node_list)
+        self._node_spec_cache[cache_key] = result
+        return result

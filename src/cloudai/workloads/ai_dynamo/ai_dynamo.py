@@ -49,7 +49,7 @@ class RouterArgs(BaseModel):
 class PrefillWorkerArgs(BaseModel):
     """Arguments for the prefill worker node."""
 
-    num_nodes: int
+    num_nodes: Union[int, list[int]]
     kv_transfer_config: str = Field('{"kv_connector":"DynamoNixlConnector"}', alias="kv-transfer-config")
     block_size: int = Field(64, alias="block-size")
     max_model_len: int = Field(8192, alias="max-model-len")
@@ -63,7 +63,7 @@ class PrefillWorkerArgs(BaseModel):
 class VllmWorkerArgs(BaseModel):
     """Arguments for the VllmWorker node."""
 
-    num_nodes: int
+    num_nodes: Union[int, list[int]]
     kv_transfer_config: str = Field('{"kv_connector":"DynamoNixlConnector"}', alias="kv-transfer-config")
     block_size: int = Field(64, alias="block-size")
     max_model_len: int = Field(8192, alias="max-model-len")
