@@ -16,7 +16,7 @@
 
 import re
 
-from cloudai import ReportGenerationStrategy
+from cloudai.core import ReportGenerationStrategy
 
 
 class SlurmContainerReportGenerationStrategy(ReportGenerationStrategy):

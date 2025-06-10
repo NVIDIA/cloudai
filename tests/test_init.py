@@ -15,7 +15,7 @@
 # limitations under the License.
 
 
-from cloudai import (
+from cloudai.core import (
     CommandGenStrategy,
     GradingStrategy,
     JobIdRetrievalStrategy,
@@ -23,16 +23,15 @@ from cloudai import (
     JsonGenStrategy,
     Registry,
 )
-from cloudai._core.reporter import PerTestReporter, StatusReporter, TarballReporter
-from cloudai.installer.lsf_installer import LSFInstaller
-from cloudai.installer.runai_installer import RunAIInstaller
-from cloudai.installer.slurm_installer import SlurmInstaller
-from cloudai.installer.standalone_installer import StandaloneInstaller
+from cloudai.reporter import PerTestReporter, StatusReporter, TarballReporter
 from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
+from cloudai.systems.lsf import LSFInstaller
 from cloudai.systems.lsf.lsf_system import LSFSystem
+from cloudai.systems.runai import RunAIInstaller
 from cloudai.systems.runai.runai_system import RunAISystem
+from cloudai.systems.slurm import SlurmInstaller
 from cloudai.systems.slurm.slurm_system import SlurmSystem
-from cloudai.systems.standalone_system import StandaloneSystem
+from cloudai.systems.standalone import StandaloneInstaller, StandaloneSystem
 from cloudai.workloads.chakra_replay import (
     ChakraReplayGradingStrategy,
     ChakraReplaySlurmCommandGenStrategy,
@@ -69,8 +68,11 @@ from cloudai.workloads.nemo_run import (
     NeMoRunSlurmCommandGenStrategy,
     NeMoRunTestDefinition,
 )
-from cloudai.workloads.nixl_bench.nixl_bench import NIXLBenchTestDefinition
-from cloudai.workloads.nixl_bench.slurm_command_gen_strategy import NIXLBenchSlurmCommandGenStrategy
+from cloudai.workloads.nixl_bench import (
+    NIXLBenchJobStatusRetrievalStrategy,
+    NIXLBenchSlurmCommandGenStrategy,
+    NIXLBenchTestDefinition,
+)
 from cloudai.workloads.sleep import (
     SleepGradingStrategy,
     SleepKubernetesJsonGenStrategy,
@@ -164,7 +166,7 @@ ALL_STRATEGIES = {
     (JobStatusRetrievalStrategy, SlurmSystem, UCCTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, SlurmSystem, MegatronRunTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, SlurmSystem, TritonInferenceTestDefinition): DefaultJobStatusRetrievalStrategy,
-    (JobStatusRetrievalStrategy, SlurmSystem, NIXLBenchTestDefinition): DefaultJobStatusRetrievalStrategy,
+    (JobStatusRetrievalStrategy, SlurmSystem, NIXLBenchTestDefinition): NIXLBenchJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, StandaloneSystem, SleepTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, LSFSystem, SleepTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JobStatusRetrievalStrategy, RunAISystem, NCCLTestDefinition): DefaultJobStatusRetrievalStrategy,
@@ -186,7 +188,7 @@ def test_strategies():
     assert len(missing) == 0, f"Missing: {missing}"
     assert len(extra) == 0, f"Extra: {extra}"
     for key, value in ALL_STRATEGIES.items():
-        assert strategies[key] == value
+        assert strategies[key] == value, f"Strategy {strategy2str(key)} is not {value}"
 
 
 def test_installers():
@@ -222,6 +224,4 @@ def test_definitions():
 def test_scenario_reports():
     scenario_reports = Registry().scenario_reports
     assert len(scenario_reports) == 3
-    assert PerTestReporter in scenario_reports
-    assert StatusReporter in scenario_reports
-    assert TarballReporter in scenario_reports
+    assert [PerTestReporter, StatusReporter, TarballReporter] == list(scenario_reports.values())

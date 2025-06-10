@@ -18,13 +18,9 @@ from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 
-from cloudai._core.configurator.cloudai_gym import CloudAIGymEnv
-from cloudai._core.configurator.grid_search import GridSearchAgent
-from cloudai._core.runner import Runner
-from cloudai._core.test import Test
-from cloudai._core.test_scenario import TestRun, TestScenario
-from cloudai._core.test_template_strategy import TestTemplateStrategy
-from cloudai.systems import SlurmSystem
+from cloudai.configurator import CloudAIGymEnv, GridSearchAgent
+from cloudai.core import Runner, Test, TestRun, TestScenario, TestTemplateStrategy
+from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.nemo_run import (
     Data,
     NeMoRunCmdArgs,
@@ -51,7 +47,6 @@ def setup_env(slurm_system: SlurmSystem, nemorun: NeMoRunTestDefinition) -> tupl
     tdef.cmd_args.trainer = Trainer(
         max_steps=[1000, 2000],
         val_check_interval=[100, 200],
-        num_nodes=[1, 2],
         strategy=TrainerStrategy(
             tensor_model_parallel_size=[1, 2],
             pipeline_model_parallel_size=[1, 2],
@@ -133,10 +128,11 @@ def test_action_space(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, 
     nemorun.extra_env_vars["DSE_VAR"] = ["1", "2"]
 
     tr.test.test_definition = nemorun
+    tr.num_nodes = [1, 2]
 
     action_space = tr.param_space
 
-    assert len(action_space) == 4
+    assert len(action_space) == 5
     assert action_space["data.micro_batch_size"] == nemorun.cmd_args.data.micro_batch_size
     assert action_space["trainer.max_steps"] == nemorun.cmd_args.trainer.max_steps
     assert (
@@ -144,24 +140,45 @@ def test_action_space(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, 
         == nemorun.cmd_args.trainer.strategy.tensor_model_parallel_size
     )
     assert action_space["extra_env_vars.DSE_VAR"] == nemorun.extra_env_vars["DSE_VAR"]
+    assert action_space["NUM_NODES"] == tr.num_nodes
 
 
-def test_all_combinations(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, Runner]):
+@pytest.mark.parametrize("num_nodes", (1, [1, 2], [3]))
+def test_all_combinations(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, Runner], num_nodes: int):
     tr, _ = setup_env
     nemorun.cmd_args.trainer = Trainer(max_steps=[1000], strategy=TrainerStrategy(tensor_model_parallel_size=[1, 2]))
     nemorun.extra_env_vars["DSE_VAR"] = ["1", "2", "3"]
     tr.test.test_definition = nemorun
+    tr.num_nodes = num_nodes
+
+    expected_num_combinations = 6
+    if isinstance(num_nodes, list):
+        expected_num_combinations *= len(num_nodes)
 
     real_combinations = tr.all_combinations
-    assert len(real_combinations) == 6
-    expected_combinations = [
+    assert len(real_combinations) == expected_num_combinations
+    _combinations = [
+        {"trainer.max_steps": 1000, "trainer.strategy.tensor_model_parallel_size": 1, "extra_env_vars.DSE_VAR": "1"},
         {"trainer.max_steps": 1000, "trainer.strategy.tensor_model_parallel_size": 1, "extra_env_vars.DSE_VAR": "1"},
         {"trainer.max_steps": 1000, "trainer.strategy.tensor_model_parallel_size": 1, "extra_env_vars.DSE_VAR": "2"},
+        {"trainer.max_steps": 1000, "trainer.strategy.tensor_model_parallel_size": 1, "extra_env_vars.DSE_VAR": "2"},
+        {"trainer.max_steps": 1000, "trainer.strategy.tensor_model_parallel_size": 1, "extra_env_vars.DSE_VAR": "3"},
         {"trainer.max_steps": 1000, "trainer.strategy.tensor_model_parallel_size": 1, "extra_env_vars.DSE_VAR": "3"},
         {"trainer.max_steps": 1000, "trainer.strategy.tensor_model_parallel_size": 2, "extra_env_vars.DSE_VAR": "1"},
+        {"trainer.max_steps": 1000, "trainer.strategy.tensor_model_parallel_size": 2, "extra_env_vars.DSE_VAR": "1"},
+        {"trainer.max_steps": 1000, "trainer.strategy.tensor_model_parallel_size": 2, "extra_env_vars.DSE_VAR": "2"},
         {"trainer.max_steps": 1000, "trainer.strategy.tensor_model_parallel_size": 2, "extra_env_vars.DSE_VAR": "2"},
         {"trainer.max_steps": 1000, "trainer.strategy.tensor_model_parallel_size": 2, "extra_env_vars.DSE_VAR": "3"},
+        {"trainer.max_steps": 1000, "trainer.strategy.tensor_model_parallel_size": 2, "extra_env_vars.DSE_VAR": "3"},
     ]
+    expected_combinations = []
+    for param_set in _combinations:
+        if isinstance(num_nodes, list):
+            for nnodes in num_nodes:
+                expected_combinations.append(param_set | {"NUM_NODES": nnodes})
+        else:
+            expected_combinations.append(param_set)
+
     for expected in expected_combinations:
         assert expected in real_combinations, f"Expected {expected} in all_combinations"
 
@@ -179,8 +196,22 @@ def test_all_combinations_non_dse_but_with_space(nemorun: NeMoRunTestDefinition,
         assert len(tr.all_combinations) == 0
 
 
-def test_params_set(setup_env: tuple[TestRun, Runner]):
+def test_all_combinations_dse_on_num_nodes(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, Runner]):
     tr, _ = setup_env
+    tr.test.test_definition = NeMoRunTestDefinition(
+        name="NemoModel",
+        description="Nemo Model",
+        test_template_name="nemo_template",
+        cmd_args=NeMoRunCmdArgs(docker_image_url="https://docker/url", task="some_task", recipe_name="some_recipe"),
+    )
+    tr.num_nodes = [1, 2]
+    assert len(tr.all_combinations) == 2
+
+
+@pytest.mark.parametrize("num_nodes", (1, [1, 2], [3]))
+def test_params_set(setup_env: tuple[TestRun, Runner], num_nodes: int):
+    tr, _ = setup_env
+    tr.num_nodes = num_nodes
     assert len(tr.all_combinations) > 1
     for action in tr.all_combinations:
         new_tr = tr.apply_params_set(action)
@@ -188,6 +219,8 @@ def test_params_set(setup_env: tuple[TestRun, Runner]):
         for key, value in action.items():
             if key.startswith("extra_env_vars."):
                 assert new_tr.test.test_definition.extra_env_vars[key[len("extra_env_vars.") :]] == value
+            elif key == "NUM_NODES":
+                assert new_tr.num_nodes == value
             else:
                 assert cmd_args[key] == value
 

@@ -19,9 +19,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, cast
 
-from cloudai import TestRun
-from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
-from cloudai.workloads.nemo_launcher import NeMoLauncherTestDefinition
+from cloudai.core import TestRun
+from cloudai.systems.slurm import SlurmCommandGenStrategy
+
+from .nemo_launcher import NeMoLauncherTestDefinition
 
 
 class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -36,8 +37,8 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def gen_exec_command(self, tr: TestRun) -> str:
         self._prepare_environment(tr.test.cmd_args, tr.test.extra_env_vars, tr.output_path)
 
-        _, nodes = self.system.get_nodes_by_spec(tr.num_nodes, tr.nodes)
-        self._set_node_config(nodes, tr.num_nodes)
+        _, nodes = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes)
+        self._set_node_config(nodes, tr.nnodes)
 
         tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, tr.test.test_definition)
 

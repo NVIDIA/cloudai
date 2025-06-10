@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     import pandas as pd
 
 
-from cloudai import ReportGenerationStrategy
+from cloudai.core import ReportGenerationStrategy
 from cloudai.util.lazy_imports import lazy
 
 

@@ -17,8 +17,8 @@
 
 from typing import Dict, List, Union, cast
 
-from cloudai import TestRun
-from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.core import TestRun
+from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 from .megatron_run import MegatronRunTestDefinition
 

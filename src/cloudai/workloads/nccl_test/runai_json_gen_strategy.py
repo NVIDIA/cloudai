@@ -14,12 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, cast
 
-from cloudai import JsonGenStrategy, TestRun
+from cloudai.core import JsonGenStrategy, TestRun
 from cloudai.systems.runai.runai_system import RunAISystem
-from cloudai.workloads.nccl_test import NCCLTestDefinition
+
+from .nccl import NCCLTestDefinition
 
 
 class NcclTestRunAIJsonGenStrategy(JsonGenStrategy):
@@ -31,7 +32,7 @@ class NcclTestRunAIJsonGenStrategy(JsonGenStrategy):
         project_id = runai_system.project_id
         cluster_id = runai_system.cluster_id
 
-        postfix = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        postfix = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
         name = f"nccl-test-{postfix}"
 
         training_payload = {

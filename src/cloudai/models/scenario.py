@@ -14,16 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Literal, Optional
+from typing import TYPE_CHECKING, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
 
-from cloudai._core.registry import Registry
-
-from .._core.installables import GitRepo
-from .._core.test_scenario import TestRun
-from .workload import CmdArgs, NsysConfiguration, TestDefinition
+from cloudai.core import CmdArgs, GitRepo, NsysConfiguration, Registry, TestDefinition, TestRun
 
 
 class TestRunDependencyModel(BaseModel):
@@ -46,7 +44,7 @@ class TestRunModel(BaseModel):
 
     id: str = Field(min_length=1)
     test_name: Optional[str] = None
-    num_nodes: Optional[int] = None
+    num_nodes: int | list[int] | None = None
     nodes: list[str] = Field(default_factory=list)
     weight: int = 0
     iterations: int = 1
@@ -98,8 +96,6 @@ class TestRunModel(BaseModel):
             if not self.test_template_name:
                 raise ValueError("'test_template_name' must be set if 'test_name' is not set.")
 
-            from .._core.registry import Registry
-
             registry = Registry()
             if self.test_template_name not in registry.test_definitions_map:
                 raise ValueError(
@@ -120,7 +116,7 @@ class ReportConfig(BaseModel):
     enable: bool = True
 
 
-class TarballReportCreator(ReportConfig):
+class TarballReportConfig(ReportConfig):
     """Model for tarball report creator configuration in test scenario."""
 
     only_on_failure: bool = True
@@ -217,10 +213,10 @@ class TestRunDetails(BaseModel):
         return str(v.absolute())
 
     @classmethod
-    def from_test_run(cls, tr: TestRun, test_cmd: str, full_cmd: str) -> "TestRunDetails":
+    def from_test_run(cls, tr: TestRun, test_cmd: str, full_cmd: str) -> TestRunDetails:
         return cls(
             name=tr.name,
-            nnodes=tr.num_nodes,
+            nnodes=tr.nnodes,
             nodes=tr.nodes,
             output_path=tr.output_path,
             iterations=tr.iterations,

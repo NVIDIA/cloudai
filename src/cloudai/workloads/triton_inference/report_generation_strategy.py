@@ -14,14 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai import ReportGenerationStrategy
+from cloudai.core import ReportGenerationStrategy
 
 
 class TritonInferenceReportGenerationStrategy(ReportGenerationStrategy):
     """Report generation strategy for TritonInference."""
 
     def can_handle_directory(self) -> bool:
-        return False
+        return True
 
     def generate_report(self) -> None:
         pass

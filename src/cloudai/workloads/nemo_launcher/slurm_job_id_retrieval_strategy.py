@@ -17,7 +17,7 @@
 import re
 from typing import Optional
 
-from cloudai import JobIdRetrievalStrategy
+from cloudai.core import JobIdRetrievalStrategy
 
 
 class NeMoLauncherSlurmJobIdRetrievalStrategy(JobIdRetrievalStrategy):

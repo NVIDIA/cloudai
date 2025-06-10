@@ -19,9 +19,8 @@ from typing import List, Optional, Union, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cloudai import DockerImage, File, Installable
-
-from ...models.workload import CmdArgs, TestDefinition
+from cloudai.core import DockerImage, File, Installable, TestRun
+from cloudai.models.workload import CmdArgs, TestDefinition
 
 
 class Plugin(BaseModel):
@@ -81,7 +80,7 @@ class Trainer(BaseModel):
 
     max_steps: Union[int, List[int]] = 100
     val_check_interval: Union[int, float, list[Union[int, float]]] = 1000
-    num_nodes: Optional[Union[int, List[int]]] = None
+    num_nodes: Optional[int] = None  # sweeps are done via TestRun.num_nodes
     strategy: TrainerStrategy = Field(default_factory=TrainerStrategy)
     plugins: Optional[Plugin] = None
     callbacks: Optional[Union[str, list[str]]] = None
@@ -144,15 +143,13 @@ class NeMoRunTestDefinition(TestDefinition):
         """Get list of installable objects."""
         return [self.docker_image, self.script]
 
-    @property
-    def constraint_check(self) -> bool:
+    def constraint_check(self, tr: TestRun) -> bool:
         """Check constraints for NeMoRun."""
         tp = cast(int, self.cmd_args.trainer.strategy.tensor_model_parallel_size)
         pp = cast(int, self.cmd_args.trainer.strategy.pipeline_model_parallel_size)
         cp = cast(int, self.cmd_args.trainer.strategy.context_parallel_size)
         vp = cast(Optional[int], self.cmd_args.trainer.strategy.virtual_pipeline_model_parallel_size)
-        num_nodes = cast(int, self.cmd_args.trainer.num_nodes)
-        num_gpus = num_nodes * 8
+        num_gpus = tr.nnodes * 8
         num_layers = cast(int, self.cmd_args.num_layers)
         dp = num_gpus // (tp * pp * cp)
         mbs = cast(int, self.cmd_args.data.micro_batch_size)

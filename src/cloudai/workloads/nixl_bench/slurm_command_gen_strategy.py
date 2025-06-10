@@ -16,9 +16,8 @@
 
 from typing import Any, cast
 
-from cloudai import TestRun
-from cloudai.systems.slurm.slurm_system import SlurmSystem
-from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
+from cloudai.core import TestRun
+from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmSystem
 
 from .nixl_bench import NIXLBenchTestDefinition
 
@@ -82,11 +81,14 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, tr.test.test_definition)
         self._current_image_url = str(tdef.docker_image.installed_path)
         nnodes, _ = self.get_cached_nodes_spec(tr)
+        tpn, ntasks = 1, nnodes
+        if nnodes == 1:
+            tpn, ntasks = 2, 2
         cmd = [
             *self.gen_srun_prefix(tr),
             "--overlap",
-            "--ntasks-per-node=1",
-            f"--ntasks={nnodes}",
+            f"--ntasks-per-node={tpn}",
+            f"--ntasks={ntasks}",
             f"-N{nnodes}",
             "bash",
             "-c",

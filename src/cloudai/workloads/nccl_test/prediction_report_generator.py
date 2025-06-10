@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Optional, Tuple
 if TYPE_CHECKING:
     import pandas as pd
 
-from cloudai import TestRun
+from cloudai.core import TestRun
 from cloudai.report_generator.tool.csv_report_tool import CSVReportTool
 from cloudai.util.lazy_imports import lazy
 

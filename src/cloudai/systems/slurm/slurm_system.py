@@ -21,10 +21,9 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
-from ..._core.base_job import BaseJob
-from ..._core.installables import File, Installable
-from ..._core.system import System
-from ...util import CommandShell
+from cloudai.core import BaseJob, File, Installable, System
+from cloudai.util import CommandShell
+
 from .slurm_node import SlurmNode, SlurmNodeState
 
 
@@ -178,17 +177,13 @@ class SlurmSystem(BaseModel, System):
             self.supports_gpu_directives_cache = True
             return True
 
-        has_gres_gpu = False
-        has_gpu_gres_type = False
-
         for line in stdout.splitlines():
-            if "AccountingStorageTRES" in line and "gres/gpu" in line:
-                has_gres_gpu = True
-            if "GresTypes" in line and "gpu" in line and "(null)" not in line:
-                has_gpu_gres_type = True
+            if "GresTypes" in line and "gpu" in line:
+                self.supports_gpu_directives_cache = True
+                return True
 
-        self.supports_gpu_directives_cache = has_gres_gpu and has_gpu_gres_type
-        return self.supports_gpu_directives_cache
+        self.supports_gpu_directives_cache = False
+        return False
 
     @field_serializer("install_path", "output_path")
     def _path_serializer(self, v: Path) -> str:

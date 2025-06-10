@@ -21,10 +21,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai import DockerImage, File, GitRepo, Installable, InstallStatusResult, PythonExecutable
-from cloudai.installer.slurm_installer import SlurmInstaller
+from cloudai.core import DockerImage, File, GitRepo, Installable, InstallStatusResult, PythonExecutable
+from cloudai.systems.slurm.docker_image_cache_manager import DockerImageCacheResult
+from cloudai.systems.slurm.slurm_installer import SlurmInstaller
 from cloudai.systems.slurm.slurm_system import SlurmSystem
-from cloudai.util.docker_image_cache_manager import DockerImageCacheResult
 from cloudai.workloads.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
 
 
@@ -80,6 +80,13 @@ class TestInstallOneDocker:
         assert res.success
         assert res.message == f"Cached Docker image already exists at {cached_file}."
         assert d.installed_path == cached_file
+
+    def test_cache_disabled(self, installer: SlurmInstaller):
+        d = DockerImage("fake_url/img")
+        installer.system.cache_docker_images_locally = False
+        res = installer.is_installed_one(d)
+        assert res.success
+        assert d.installed_path == d.url
 
 
 class TestInstallOneGitRepo:
@@ -486,3 +493,16 @@ def test_mark_as_installed(slurm_system: SlurmSystem):
     assert res.success
     assert docker.installed_path == slurm_system.install_path / docker.cache_filename
     assert py_script.git_repo.installed_path == slurm_system.install_path / py_script.git_repo.repo_name
+
+
+@pytest.mark.parametrize("cache", [True, False])
+def test_mark_as_installed_docker_image_system_is_respected(slurm_system: SlurmSystem, cache: bool):
+    slurm_system.cache_docker_images_locally = cache
+    docker = DockerImage(url="fake_url/img")
+    installer = SlurmInstaller(slurm_system)
+    res = installer.mark_as_installed([docker])
+    assert res.success
+    if cache:
+        assert docker.installed_path == slurm_system.install_path / docker.cache_filename
+    else:
+        assert docker.installed_path == docker.url

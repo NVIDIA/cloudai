@@ -22,23 +22,23 @@ from unittest.mock import Mock, patch
 import pytest
 import toml
 
-from cloudai import (
+from cloudai.core import (
     CmdArgs,
     GitRepo,
     PredictorConfig,
     Registry,
+    ReportGenerationStrategy,
     Test,
     TestDefinition,
     TestRun,
     TestScenario,
     TestScenarioParser,
     TestScenarioParsingError,
+    TestTemplate,
 )
-from cloudai._core.report_generation_strategy import ReportGenerationStrategy
-from cloudai._core.test_scenario_parser import calculate_total_time_limit, get_reporters
-from cloudai._core.test_template import TestTemplate
 from cloudai.models.scenario import TestRunModel, TestScenarioModel
 from cloudai.systems.slurm.slurm_system import SlurmSystem
+from cloudai.test_scenario_parser import calculate_total_time_limit, get_reporters
 from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
@@ -63,6 +63,7 @@ from cloudai.workloads.nemo_run import (
     NeMoRunReportGenerationStrategy,
     NeMoRunTestDefinition,
 )
+from cloudai.workloads.nixl_bench import NIXLBenchReportGenerationStrategy, NIXLBenchTestDefinition
 from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
 from cloudai.workloads.slurm_container import SlurmContainerReportGenerationStrategy, SlurmContainerTestDefinition
 from cloudai.workloads.triton_inference import TritonInferenceReportGenerationStrategy, TritonInferenceTestDefinition
@@ -446,6 +447,24 @@ class TestInScenario:
         assert isinstance(tdef.cmd_args, MegatronRunCmdArgs)
         assert tdef.cmd_args.run_script == Path("run.sh")
 
+    def test_num_nodes_can_be_list(self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem):
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            name = "nccl"
+            test_template_name = "NcclTest"
+            description = "desc"
+            cmd_args = { any = 42 }
+            num_nodes = [1, 2]
+            """
+            )
+        )
+        assert model.tests[0].num_nodes == [1, 2]
+
 
 class TestReporters:
     def test_default(self):
@@ -456,7 +475,7 @@ class TestReporters:
         assert len(reporters) == 0
 
     def test_default_reporters_size(self):
-        assert len(Registry().reports_map) == 12
+        assert len(Registry().reports_map) == 13
 
     @pytest.mark.parametrize(
         "tdef,expected_reporters",
@@ -473,6 +492,7 @@ class TestReporters:
             (SlurmContainerTestDefinition, {SlurmContainerReportGenerationStrategy}),
             (UCCTestDefinition, {UCCTestReportGenerationStrategy}),
             (TritonInferenceTestDefinition, {TritonInferenceReportGenerationStrategy}),
+            (NIXLBenchTestDefinition, {NIXLBenchReportGenerationStrategy}),
         ],
     )
     def test_custom_reporters(self, tdef: Type[TestDefinition], expected_reporters: Set[ReportGenerationStrategy]):
@@ -536,7 +556,7 @@ class TestReportMetricsDSE:
         assert caplog.records[1].levelname == "ERROR"
         assert caplog.records[1].message == msg
 
-    @patch("cloudai._core.test_scenario_parser.get_reporters", return_value=set())
+    @patch("cloudai.test_scenario_parser.get_reporters", return_value=set())
     def test_raises_if_no_reports_defined(self, _, ts_parser: TestScenarioParser, test_info: TestRunModel, tname: str):
         tdef = ts_parser.test_mapping[tname].test_definition
         tdef.agent_metric = "default"

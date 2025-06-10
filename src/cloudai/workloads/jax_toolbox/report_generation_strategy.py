@@ -18,7 +18,7 @@ import logging
 import statistics
 from typing import List
 
-from cloudai import ReportGenerationStrategy
+from cloudai.core import ReportGenerationStrategy
 
 
 class JaxToolboxReportGenerationStrategy(ReportGenerationStrategy):

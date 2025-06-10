@@ -20,12 +20,12 @@ from unittest.mock import patch
 
 import pytest
 
-from cloudai.systems.slurm.slurm_system import SlurmSystem
-from cloudai.util.docker_image_cache_manager import (
+from cloudai.systems.slurm.docker_image_cache_manager import (
     DockerImageCacheManager,
     DockerImageCacheResult,
     PrerequisiteCheckResult,
 )
+from cloudai.systems.slurm.slurm_system import SlurmSystem
 
 
 @patch("pathlib.Path.is_file")
@@ -68,7 +68,7 @@ def test_ensure_docker_image_url_cache_enabled(mock_access, mock_exists, mock_is
 @patch("pathlib.Path.exists")
 @patch("os.access")
 @patch("subprocess.run")
-@patch("cloudai.util.docker_image_cache_manager.DockerImageCacheManager._check_prerequisites")
+@patch("cloudai.systems.slurm.docker_image_cache_manager.DockerImageCacheManager._check_prerequisites")
 def test_cache_docker_image(
     mock_check_prerequisites, mock_run, mock_access, mock_exists, mock_is_file, slurm_system: SlurmSystem
 ):
@@ -192,9 +192,7 @@ def test_ensure_docker_image_no_local_cache(slurm_system: SlurmSystem):
     result = manager.ensure_docker_image("docker.io/hello-world", "docker_image.sqsh")
 
     assert result.success
-    assert result.docker_image_path is not None
-    assert str(result.docker_image_path) == "docker.io/hello-world"
-    assert not result.docker_image_path.is_absolute()
+    assert result.docker_image_path is None
     assert result.message == ""
 
 

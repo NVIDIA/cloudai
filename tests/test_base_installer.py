@@ -22,10 +22,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai import BaseInstaller, InstallStatusResult
-from cloudai._core.installables import DockerImage, File, GitRepo, Installable
-from cloudai.installer.slurm_installer import SlurmInstaller
-from cloudai.systems import SlurmSystem
+from cloudai.core import BaseInstaller, DockerImage, File, GitRepo, Installable, InstallStatusResult
+from cloudai.systems.slurm import SlurmInstaller, SlurmSystem
 from cloudai.util import prepare_output_dir
 
 
@@ -208,7 +206,7 @@ def test_system_installables_are_used(slurm_system: SlurmSystem):
     installer.uninstall_one = Mock(return_value=InstallStatusResult(True))
     installer.is_installed_one = Mock(return_value=InstallStatusResult(True))
     installer.mark_as_installed_one = Mock(return_value=InstallStatusResult(True))
-    installer._populate_sucessful_install = Mock()
+    installer._populate_successful_install = Mock()
 
     installer.install([])
     assert installer.install_one.call_count == len(slurm_system.system_installables())
@@ -253,3 +251,26 @@ class TestSuccessIsPopulated:
         assert f1._installed_path is not None, "First file is not installed"
         assert f2._installed_path is not None, "Second file is not installed"
         assert f1._installed_path == f2._installed_path, "Files are installed to different paths"
+
+    def test_order_of_items_does_not_matter(self, installer: SlurmInstaller):
+        f = installer.system.install_path / "file"
+        f1, f2 = File(src=f), File(src=f)
+        assert f1._installed_path is None, "First file is installed before testing"
+        assert f2._installed_path is None, "Second file is installed before testing"
+
+        installer._populate_successful_install([f1, f2], {})
+        assert f1._installed_path is None, "First file was marked as installed, but should not be"
+        assert f2._installed_path is None, "Second file was marked as installed, but should not be"
+
+        installer._populate_successful_install([f1, f2], {f1: InstallStatusResult(success=True)})
+        assert f1._installed_path is not None, (
+            "First ('self', present in the statuses) file was not marked as installed"
+        )
+        assert f2._installed_path is not None, "Second file was not marked as installed"
+
+        f1._installed_path, f2._installed_path = None, None
+        installer._populate_successful_install([f2, f1], {f1: InstallStatusResult(success=True)})
+        assert f1._installed_path is not None, (
+            "First ('self', present in the statuses) file was not marked as installed"
+        )
+        assert f2._installed_path is not None, "Second file was not marked as installed"

@@ -21,11 +21,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai import BaseJob, Test, TestRun, TestTemplate
-from cloudai.systems import SlurmSystem
-from cloudai.systems.slurm import SlurmNode, SlurmNodeState
-from cloudai.systems.slurm.slurm_system import parse_node_list
-from cloudai.systems.slurm.strategy.slurm_command_gen_strategy import SlurmCommandGenStrategy
+from cloudai.core import BaseJob, Test, TestRun, TestTemplate
+from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmNode, SlurmNodeState, SlurmSystem, parse_node_list
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 
@@ -95,7 +92,7 @@ def test_parse_sinfo_output(slurm_system: SlurmSystem) -> None:
         assert node.state == SlurmNodeState.IDLE
 
 
-@patch("cloudai.systems.SlurmSystem.fetch_command_output")
+@patch("cloudai.systems.slurm.SlurmSystem.fetch_command_output")
 def test_update_with_mocked_outputs(mock_fetch_command_output: Mock, slurm_system: SlurmSystem):
     mock_fetch_command_output.side_effect = [
         ("node-033|user1", ""),
@@ -535,33 +532,29 @@ class TestSlurmCommandGenStrategyCache:
 @pytest.mark.parametrize(
     "scontrol_output,expected_support",
     [
-        # Case 1: gres/gpu in AccountingStorageTRES and gpu in GresTypes - should be supported
+        # Case 1: GresTypes includes gpu - should be supported
         (
             """Configuration data as of 2023-06-14T16:28:09
-AccountingStorageTRES   = cpu,mem,energy,node,billing,fs/disk,vmem,pages,gres/gpu,gres/gpumem,gres/gpuutil
 GresTypes               = gpu""",
             True,
         ),
-        # Case 2: gres/gpu in AccountingStorageTRES but GresTypes is (null) - should NOT be supported
+        # Case 2: GresTypes is (null) - should NOT be supported
         (
             """Configuration data as of 2023-06-14T16:28:09
-AccountingStorageTRES   = cpu,mem,energy,node,billing,fs/disk,vmem,pages,gres/gpu,gres/gpumem,gres/gpuutil
 GresTypes               = (null)""",
             False,
         ),
-        # Case 3: No gres/gpu in AccountingStorageTRES - should NOT be supported
+        # Case 3: GresTypes does not include gpu - should NOT be supported
         (
             """Configuration data as of 2023-06-14T16:28:09
-AccountingStorageTRES   = cpu,mem,energy,node,billing,fs/disk,vmem,pages
-GresTypes               = gpu""",
+GresTypes               = cpu""",
             False,
         ),
-        # Case 4: No gres/gpu in AccountingStorageTRES and GresTypes is (null) - should NOT be supported
+        # Case 4: GresTypes includes multiple types including gpu - should be supported
         (
             """Configuration data as of 2023-06-14T16:28:09
-AccountingStorageTRES   = cpu,mem,energy,node,billing,fs/disk,vmem,pages
-GresTypes               = (null)""",
-            False,
+GresTypes               = cpu,gpu,fpga""",
+            True,
         ),
     ],
 )
@@ -571,3 +564,14 @@ def test_supports_gpu_directives(
 ):
     mock_fetch_command_output.return_value = (scontrol_output, "")
     assert slurm_system.supports_gpu_directives == expected_support
+
+
+@pytest.mark.parametrize(
+    "cache_value",
+    [True, False],
+)
+@patch("cloudai.systems.slurm.slurm_system.SlurmSystem.fetch_command_output")
+def test_supports_gpu_directives_cache(mock_fetch_command_output, cache_value: bool, slurm_system: SlurmSystem):
+    slurm_system.supports_gpu_directives_cache = cache_value
+    assert slurm_system.supports_gpu_directives is cache_value
+    mock_fetch_command_output.assert_not_called()
