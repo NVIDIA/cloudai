@@ -18,9 +18,7 @@ from typing import cast
 
 import pytest
 
-from cloudai._core.test import Test
-from cloudai._core.test_scenario import TestRun
-from cloudai._core.test_template import TestTemplate
+from cloudai.core import Test, TestRun, TestTemplate
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nixl_bench.nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
 from cloudai.workloads.nixl_bench.slurm_command_gen_strategy import NIXLBenchSlurmCommandGenStrategy

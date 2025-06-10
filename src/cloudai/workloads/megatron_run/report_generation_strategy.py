@@ -17,7 +17,7 @@
 import logging
 import re
 
-from cloudai import ReportGenerationStrategy
+from cloudai.core import ReportGenerationStrategy
 
 CHECKPOINT_REGEX = re.compile(r"(save|load)-checkpoint\s.*:\s\((\d+\.\d+),\s(\d+\.\d+)\)")
 

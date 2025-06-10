@@ -16,9 +16,8 @@
 
 from typing import Literal, Optional, Union
 
-from cloudai import DockerImage, Installable
-
-from ...models.workload import CmdArgs, TestDefinition
+from cloudai.core import DockerImage, Installable
+from cloudai.models.workload import CmdArgs, TestDefinition
 
 
 class NCCLCmdArgs(CmdArgs):

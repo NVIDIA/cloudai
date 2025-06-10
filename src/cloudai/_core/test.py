@@ -14,10 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Union
+from __future__ import annotations
 
-from ..models.workload import TestDefinition
+from typing import TYPE_CHECKING, Dict, List, Union
+
 from .test_template import TestTemplate
+
+if TYPE_CHECKING:
+    from cloudai.models.workload import TestDefinition
 
 
 class Test:
@@ -25,7 +29,7 @@ class Test:
 
     __test__ = False
 
-    def __init__(self, test_definition: "TestDefinition", test_template: TestTemplate) -> None:
+    def __init__(self, test_definition: TestDefinition, test_template: TestTemplate) -> None:
         """
         Initialize a Test instance.
 

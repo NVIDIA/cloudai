@@ -25,8 +25,7 @@ from typing import TYPE_CHECKING, ClassVar, Optional
 if TYPE_CHECKING:
     import pandas as pd
 
-from cloudai import ReportGenerationStrategy
-from cloudai._core.test_scenario import METRIC_ERROR
+from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.report_generator.util import add_human_readable_sizes
 from cloudai.util.lazy_imports import lazy

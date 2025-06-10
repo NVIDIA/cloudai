@@ -16,7 +16,7 @@
 
 from typing import cast
 
-from cloudai import CommandGenStrategy, TestRun
+from cloudai.core import CommandGenStrategy, TestRun
 
 from .sleep import SleepCmdArgs, SleepTestDefinition
 

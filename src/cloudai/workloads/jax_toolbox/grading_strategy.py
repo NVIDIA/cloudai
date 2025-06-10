@@ -15,7 +15,7 @@
 # limitations under the License.
 from pathlib import Path
 
-from cloudai import GradingStrategy
+from cloudai.core import GradingStrategy
 
 
 class JaxToolboxGradingStrategy(GradingStrategy):

@@ -15,7 +15,7 @@
 # limitations under the License.
 
 
-from cloudai import ReportGenerationStrategy
+from cloudai.core import ReportGenerationStrategy
 
 
 class SleepReportGenerationStrategy(ReportGenerationStrategy):

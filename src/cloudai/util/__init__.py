@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Optional
 
 from .command_shell import CommandShell
+from .utils import format_time_limit, parse_time_limit
 
 
 def prepare_output_dir(path: Path) -> Optional[Path]:
@@ -45,5 +46,7 @@ def prepare_output_dir(path: Path) -> Optional[Path]:
 
 __all__ = [
     "CommandShell",
+    "format_time_limit",
+    "parse_time_limit",
     "prepare_output_dir",
 ]

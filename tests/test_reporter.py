@@ -22,11 +22,12 @@ import pytest
 import toml
 
 from cloudai import Test, TestRun, TestScenario
-from cloudai._core.command_gen_strategy import CommandGenStrategy
-from cloudai._core.reporter import PerTestReporter, StatusReporter, TarballReporter
-from cloudai._core.test_template import TestTemplate
+from cloudai._core.system import System
+from cloudai.core import CommandGenStrategy, TestTemplate
 from cloudai.models.scenario import TestRunDetails
+from cloudai.reporter import PerTestReporter, StatusReporter, TarballReporter
 from cloudai.systems.slurm.slurm_system import SlurmSystem
+from cloudai.systems.standalone.standalone_system import StandaloneSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 
@@ -137,3 +138,15 @@ def test_best_dse_config(dse_tr: TestRun, slurm_system: SlurmSystem) -> None:
     nccl = NCCLTestDefinition.model_validate(toml.load(best_config_path))
     assert isinstance(nccl.cmd_args, NCCLCmdArgs)
     assert nccl.agent_steps == 12
+
+
+@pytest.mark.parametrize(
+    "system",
+    [
+        SlurmSystem(name="slurm", install_path=Path.cwd(), output_path=Path.cwd(), partitions=[], default_partition=""),
+        StandaloneSystem(name="standalone", install_path=Path.cwd(), output_path=Path.cwd()),
+    ],
+)
+def test_template_file_path(system: System) -> None:
+    reporter = StatusReporter(system, TestScenario(name="test_scenario", test_runs=[]), system.output_path)
+    assert (reporter.template_file_path / reporter.template_file).exists()

@@ -17,9 +17,10 @@
 from pathlib import Path
 from typing import Dict, List, Union, cast
 
-from cloudai import TestRun
-from cloudai.systems.slurm.strategy import SlurmCommandGenStrategy
-from cloudai.workloads.nccl_test import NCCLTestDefinition
+from cloudai.core import TestRun
+from cloudai.systems.slurm import SlurmCommandGenStrategy
+
+from .nccl import NCCLTestDefinition
 
 
 class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
