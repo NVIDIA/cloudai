@@ -26,6 +26,8 @@ from cloudai.models.workload import CmdArgs, TestDefinition
 class FrontendArgs(BaseModel):
     """Arguments for the frontend node."""
 
+    model_config = {"populate_by_name": True}
+
     endpoint: str = "dynamo.Processor.chat/completions"
     port: int = 8000
     port_etcd: int = Field(2379, alias="port_etcd")
@@ -35,6 +37,8 @@ class FrontendArgs(BaseModel):
 class ProcessorArgs(BaseModel):
     """Arguments for the processor node."""
 
+    model_config = {"populate_by_name": True}
+
     block_size: int = Field(64, alias="block-size")
     max_model_len: int = Field(8192, alias="max-model-len")
     router: str = "kv"
@@ -43,11 +47,15 @@ class ProcessorArgs(BaseModel):
 class RouterArgs(BaseModel):
     """Arguments for the router."""
 
+    model_config = {"populate_by_name": True}
+
     min_workers: int = Field(1, alias="min-workers")
 
 
 class PrefillWorkerArgs(BaseModel):
     """Arguments for the prefill worker node."""
+
+    model_config = {"populate_by_name": True}
 
     num_nodes: Union[int, list[int]]
     kv_transfer_config: str = Field('{"kv_connector":"DynamoNixlConnector"}', alias="kv-transfer-config")
@@ -62,6 +70,8 @@ class PrefillWorkerArgs(BaseModel):
 
 class VllmWorkerArgs(BaseModel):
     """Arguments for the VllmWorker node."""
+
+    model_config = {"populate_by_name": True}
 
     num_nodes: Union[int, list[int]]
     kv_transfer_config: str = Field('{"kv_connector":"DynamoNixlConnector"}', alias="kv-transfer-config")
