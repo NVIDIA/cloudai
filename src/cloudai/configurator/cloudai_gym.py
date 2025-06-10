@@ -144,12 +144,12 @@ class CloudAIGymEnv(BaseGym):
         Returns:
             float: Reward value.
         """
-        if not observation:
+        if not observation or all(o == 0.0 for o in observation):
             return 0.0
 
         res = 1.0
         for o in observation:
-            if o != 0:
+            if o != 0.0:
                 res *= 1.0 / o
         return res
 
