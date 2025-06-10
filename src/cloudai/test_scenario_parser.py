@@ -213,7 +213,7 @@ class TestScenarioParser:
         )
 
         if tr.is_dse_job and not tr.metric_reporter:
-            report_metrics_map = {r: r.metrics for r in tr.reports}
+            report_metrics_map = {r.__name__: r.metrics for r in tr.reports}
             logging.error(f"Failed to parse Test Scenario definition: {self.file_path}")
             msg = (
                 f"Test '{test_info.id}' is a DSE job with agent_metrics='{test.test_definition.agent_metrics}', "
