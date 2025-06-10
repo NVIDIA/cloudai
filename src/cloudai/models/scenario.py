@@ -19,7 +19,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_serializer, field_validator, model_validator
 
 from cloudai.core import CmdArgs, GitRepo, NsysConfiguration, Registry, TestDefinition, TestRun
 
@@ -151,7 +151,10 @@ class TestScenarioModel(BaseModel):
                     f"Report configuration '{name}' not found in the registry. "
                     f"Available reports: {', '.join(Registry().report_configs.keys())}"
                 )
-            parsed[name] = report_cls.model_validate(report_data)
+            try:
+                parsed[name] = report_cls.model_validate(report_data)
+            except ValidationError as e:
+                raise ValueError(f"Error validating report configuration '{name}': {e}") from e
         return parsed
 
     @model_validator(mode="after")
