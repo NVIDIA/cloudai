@@ -832,7 +832,6 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
             resume_past_end=True,
         ),
     )
-    recipe.model.config.vocab_size = 128256
     recipe.trainer.callbacks.append(
         run.Config(
             FLOPsMeasurementCallback,
