@@ -307,6 +307,6 @@ def register_all():
     Registry().add_report(TritonInferenceTestDefinition, TritonInferenceReportGenerationStrategy)
     Registry().add_report(NIXLBenchTestDefinition, NIXLBenchReportGenerationStrategy)
 
-    Registry().add_scenario_report("case", PerTestReporter, ReportConfig())
+    Registry().add_scenario_report("per_test", PerTestReporter, ReportConfig())
     Registry().add_scenario_report("status", StatusReporter, ReportConfig())
     Registry().add_scenario_report("tarball", TarballReporter, TarballReportConfig())

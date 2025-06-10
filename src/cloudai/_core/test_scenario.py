@@ -185,7 +185,7 @@ class TestScenario:
         name: str,
         test_runs: List[TestRun],
         job_status_check: bool = True,
-        reports: Optional[dict[str, ReportConfig]] = None,
+        report_configs: Optional[dict[str, ReportConfig]] = None,
     ) -> None:
         """
         Initialize a TestScenario instance.
@@ -194,12 +194,12 @@ class TestScenario:
             name (str): Name of the test scenario.
             test_runs (List[TestRun]): List of tests in the scenario with custom run options.
             job_status_check (bool): Flag indicating whether to check the job status or not.
-            reports (Optional[dict[str, ReportConfig]]): Optional dictionary of report configurations.
+            report_configs (Optional[dict[str, ReportConfig]]): Optional dictionary of report configurations.
         """
         self.name = name
         self.test_runs = test_runs
         self.job_status_check = job_status_check
-        self.reports = reports
+        self.report_configs = report_configs
 
     def __repr__(self) -> str:
         """

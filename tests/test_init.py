@@ -224,4 +224,5 @@ def test_definitions():
 def test_scenario_reports():
     scenario_reports = Registry().scenario_reports
     assert len(scenario_reports) == 3
-    assert [PerTestReporter, StatusReporter, TarballReporter] == list(scenario_reports.values())
+    assert list(scenario_reports.keys()) == ["per_test", "status", "tarball"]
+    assert list(scenario_reports.values()) == [PerTestReporter, StatusReporter, TarballReporter]

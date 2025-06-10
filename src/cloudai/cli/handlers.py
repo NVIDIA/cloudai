@@ -148,8 +148,8 @@ def generate_reports(system: System, test_scenario: TestScenario, result_dir: Pa
         logging.debug(f"Generating report with {name} ({reporter_class.__name__})")
 
         cfg = ReportConfig()
-        if test_scenario.reports and name in test_scenario.reports:
-            cfg = test_scenario.reports[name]
+        if test_scenario.report_configs and name in test_scenario.report_configs:
+            cfg = test_scenario.report_configs[name]
 
         try:
             reporter = reporter_class(system, test_scenario, result_dir, cfg)
