@@ -80,7 +80,7 @@ class VllmWorkerArgs(BaseModel):
     max_num_seqs: int = Field(16, alias="max-num-seqs")
     remote_prefill: bool = Field(True, alias="remote-prefill")
     conditional_disagg: bool = Field(True, alias="conditional-disagg")
-    max_local_prefill_length: int = Field(10, alias="max-local-prefill-length")
+    max_local_prefill_length: int = Field(10)
     max_prefill_queue_size: int = Field(2, alias="max-prefill-queue-size")
     gpu_memory_utilization: float = Field(0.95, alias="gpu-memory-utilization")
     tensor_parallel_size: Union[int, list[int]] = Field(8, alias="tensor-parallel-size")
