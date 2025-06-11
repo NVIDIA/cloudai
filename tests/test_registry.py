@@ -44,6 +44,7 @@ def registry():
 
     strategies_map = copy.copy(registry.strategies_map)
     scenario_reports = copy.copy(registry.scenario_reports)
+    report_configs = copy.copy(registry.report_configs)
 
     registry.scenario_reports.clear()
 
@@ -53,7 +54,7 @@ def registry():
     if MyTestDefinition in registry.reports_map:
         del registry.reports_map[MyTestDefinition]
     for name, report in scenario_reports.items():
-        registry.update_scenario_report(name, report, ReportConfig())
+        registry.update_scenario_report(name, report, report_configs[name])
 
     registry.strategies_map.clear()
     registry.strategies_map.update(strategies_map)

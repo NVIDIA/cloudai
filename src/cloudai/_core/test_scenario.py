@@ -26,7 +26,6 @@ from .system import System
 from .test_template_strategy import TestTemplateStrategy
 
 if TYPE_CHECKING:
-    from ..models.scenario import ReportConfig
     from .report_generation_strategy import ReportGenerationStrategy
     from .test import Test
 
@@ -185,7 +184,6 @@ class TestScenario:
         name: str,
         test_runs: List[TestRun],
         job_status_check: bool = True,
-        report_configs: Optional[dict[str, ReportConfig]] = None,
     ) -> None:
         """
         Initialize a TestScenario instance.
@@ -194,12 +192,10 @@ class TestScenario:
             name (str): Name of the test scenario.
             test_runs (List[TestRun]): List of tests in the scenario with custom run options.
             job_status_check (bool): Flag indicating whether to check the job status or not.
-            report_configs (Optional[dict[str, ReportConfig]]): Optional dictionary of report configurations.
         """
         self.name = name
         self.test_runs = test_runs
         self.job_status_check = job_status_check
-        self.report_configs = report_configs
 
     def __repr__(self) -> str:
         """

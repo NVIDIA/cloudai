@@ -17,11 +17,34 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_serializer, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_serializer, model_validator
 
-from cloudai.core import CmdArgs, GitRepo, NsysConfiguration, Registry, TestDefinition, TestRun
+from cloudai.core import CmdArgs, GitRepo, NsysConfiguration, Registry, Reporter, TestDefinition, TestRun
+
+
+def parse_reports_spec(
+    value: dict[str, Any] | None, allow_scenario_reports: bool = True
+) -> dict[str, ReportConfig] | None:
+    if value is None:
+        return None
+
+    parsed: dict[str, ReportConfig] = {}
+    for name, report_cfg in value.items():
+        report_cfg_cls = Registry().report_configs.get(name)
+        if not report_cfg_cls:
+            raise ValueError(
+                f"Report configuration for '{name}' not found in the registry. "
+                f"Available reports: {', '.join(Registry().report_configs.keys())}"
+            )
+        if not allow_scenario_reports and issubclass(Registry().scenario_reports[name], Reporter):
+            raise ValueError(f"Scenario level report '{name}' is not allowed here.")
+        try:
+            parsed[name] = report_cfg_cls.model_validate(report_cfg)
+        except ValidationError as e:
+            raise ValueError(f"Error validating report configuration '{name}' as {report_cfg_cls.__name__}: {e}") from e
+    return parsed
 
 
 class TestRunDependencyModel(BaseModel):
@@ -113,13 +136,7 @@ class ReportConfig(BaseModel):
     """Model for report configuration in test scenario."""
 
     model_config = ConfigDict(extra="forbid")
-    enable: bool = True
-
-
-class TarballReportConfig(ReportConfig):
-    """Model for tarball report creator configuration in test scenario."""
-
-    only_on_failure: bool = True
+    enable: bool = False
 
 
 class TestScenarioModel(BaseModel):
@@ -135,27 +152,6 @@ class TestScenarioModel(BaseModel):
     tests: list[TestRunModel] = Field(alias="Tests", min_length=1)
     pre_test: Optional[str] = None
     post_test: Optional[str] = None
-    reports: Optional[dict[str, ReportConfig]] = None
-
-    @field_validator("reports", mode="before")
-    @classmethod
-    def parse_reports(cls, value):
-        if value is None:
-            return value
-
-        parsed = {}
-        for name, report_data in value.items():
-            report_cls = Registry().report_configs.get(name)
-            if not report_cls:
-                raise ValueError(
-                    f"Report configuration '{name}' not found in the registry. "
-                    f"Available reports: {', '.join(Registry().report_configs.keys())}"
-                )
-            try:
-                parsed[name] = report_cls.model_validate(report_data)
-            except ValidationError as e:
-                raise ValueError(f"Error validating report configuration '{name}': {e}") from e
-        return parsed
 
     @model_validator(mode="after")
     def check_no_self_dependency(self):

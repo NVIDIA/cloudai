@@ -15,9 +15,6 @@
 # limitations under the License.
 
 
-from cloudai.models.scenario import ReportConfig, TarballReportConfig
-
-
 def register_all():
     """Register all workloads, systems, runners, installers, and strategies."""
     from cloudai.configurator.grid_search import GridSearchAgent
@@ -29,6 +26,7 @@ def register_all():
         JsonGenStrategy,
         Registry,
     )
+    from cloudai.models.scenario import ReportConfig
     from cloudai.reporter import PerTestReporter, StatusReporter, TarballReporter
 
     # Import systems
@@ -307,6 +305,6 @@ def register_all():
     Registry().add_report(TritonInferenceTestDefinition, TritonInferenceReportGenerationStrategy)
     Registry().add_report(NIXLBenchTestDefinition, NIXLBenchReportGenerationStrategy)
 
-    Registry().add_scenario_report("per_test", PerTestReporter, ReportConfig())
-    Registry().add_scenario_report("status", StatusReporter, ReportConfig())
-    Registry().add_scenario_report("tarball", TarballReporter, TarballReportConfig())
+    Registry().add_scenario_report("per_test", PerTestReporter, ReportConfig(enable=True))
+    Registry().add_scenario_report("status", StatusReporter, ReportConfig(enable=True))
+    Registry().add_scenario_report("tarball", TarballReporter, ReportConfig(enable=True))

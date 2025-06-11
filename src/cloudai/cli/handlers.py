@@ -147,9 +147,14 @@ def generate_reports(system: System, test_scenario: TestScenario, result_dir: Pa
     for name, reporter_class in registry.scenario_reports.items():
         logging.debug(f"Generating report with {name} ({reporter_class.__name__})")
 
-        cfg = ReportConfig()
-        if test_scenario.report_configs and name in test_scenario.report_configs:
-            cfg = test_scenario.report_configs[name]
+        cfg = registry.report_configs.get(name, ReportConfig(enable=False))
+        if isinstance(system, SlurmSystem) and system.reports and name in system.reports:
+            cfg = system.reports[name]
+            logging.debug(f"Report {name} config is: {cfg.model_dump_json(indent=None)}")
+
+        if not cfg.enable:
+            logging.debug(f"Skipping report {name} because it is disabled.")
+            continue
 
         try:
             reporter = reporter_class(system, test_scenario, result_dir, cfg)
@@ -483,7 +488,10 @@ def handle_list_registered_items(args: argparse.Namespace) -> int:
     if item_type == "reports":
         print("Registered scenario reports:")
         for name, report in sorted(registry.scenario_reports.items()):
-            print(f"- {name}: {report.__name__}")
+            str = f"- {name}: {report.__name__}"
+            if args.verbose:
+                str += f" (config={registry.report_configs[name].model_dump_json(indent=None)})"
+            print(str)
 
         print("\nRegistered test reports:")
         for tdef_type, reporter in sorted(registry.reports_map.items(), key=lambda x: x[0].__name__):

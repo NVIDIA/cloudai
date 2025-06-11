@@ -24,8 +24,8 @@ import jinja2
 import pandas as pd
 import toml
 
-from .core import CommandGenStrategy, Reporter, System, TestRun, TestScenario, case_name
-from .models.scenario import TarballReportConfig, TestRunDetails
+from .core import CommandGenStrategy, Reporter, TestRun, case_name
+from .models.scenario import TestRunDetails
 from .systems.slurm import SlurmSystem, SlurmSystemMetadata
 
 
@@ -175,12 +175,6 @@ class StatusReporter(Reporter):
 
 class TarballReporter(Reporter):
     """Creates tarballs of results for failed test runs."""
-
-    def __init__(
-        self, system: System, test_scenario: TestScenario, results_root: Path, config: TarballReportConfig
-    ) -> None:
-        super().__init__(system, test_scenario, results_root, config)
-        self.config = config
 
     def generate(self) -> None:
         self.load_test_runs()

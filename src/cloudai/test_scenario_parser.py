@@ -166,7 +166,6 @@ class TestScenarioParser:
             name=ts_model.name,
             test_runs=list(test_runs_by_id.values()),
             job_status_check=ts_model.job_status_check,
-            report_configs=ts_model.reports,
         )
 
     def _create_test_run(

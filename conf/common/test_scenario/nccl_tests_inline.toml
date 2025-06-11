@@ -16,10 +16,6 @@
 
 name = "nccl-tests"
 
-[reports]
-status = { enable = true }
-tarball = { enable = true, only_on_failure = false }
-
 [[Tests]]
 id = "nccl.all_reduce"
 num_nodes = 2

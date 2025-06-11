@@ -124,6 +124,7 @@ class CloudAICLI:
         if "list" in self.DEFAULT_MODES:
             p = self.add_command("list", "List registered items.", handle_list_registered_items)
             p.add_argument("type", choices=["reports"], help="Type of items to list.")
+            p.add_argument("-v", "--verbose", action="store_true", help="Verbose output.")
 
         return self.parser
 

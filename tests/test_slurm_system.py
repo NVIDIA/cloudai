@@ -20,8 +20,10 @@ from typing import Dict, List
 from unittest.mock import Mock, patch
 
 import pytest
+import toml
 
 from cloudai.core import BaseJob, Test, TestRun, TestTemplate
+from cloudai.models.scenario import ReportConfig
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmNode, SlurmNodeState, SlurmSystem, parse_node_list
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
@@ -575,3 +577,22 @@ def test_supports_gpu_directives_cache(mock_fetch_command_output, cache_value: b
     slurm_system.supports_gpu_directives_cache = cache_value
     assert slurm_system.supports_gpu_directives is cache_value
     mock_fetch_command_output.assert_not_called()
+
+
+def test_reports_spec_is_parsed():
+    spec = """
+name = "example-cluster"
+scheduler = "slurm"
+install_path = "i"
+output_path = "r"
+default_partition = "p"
+[[partitions]]
+name = "p"
+
+[reports]
+per_test = { enable = false }
+"""
+    slurm = SlurmSystem.model_validate(toml.loads(spec))
+    assert slurm.reports is not None
+    assert isinstance(slurm.reports["per_test"], ReportConfig)
+    assert slurm.reports["per_test"].enable is False
