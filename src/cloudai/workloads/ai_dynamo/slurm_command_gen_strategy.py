@@ -94,6 +94,9 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         prefill_n = td.cmd_args.dynamo.prefill_worker.num_nodes
         decode_n = td.cmd_args.dynamo.vllm_worker.num_nodes
 
+        assert isinstance(prefill_n, int), "prefill_worker.num_nodes must be an integer"
+        assert isinstance(decode_n, int), "vllm_worker.num_nodes must be an integer"
+
         dispatch = [
             'ROLE="frontend"',
             f'if [ "$SLURM_NODEID" -ge 1 ] && [ "$SLURM_NODEID" -le {prefill_n} ]; then',
@@ -267,14 +270,20 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             return self._node_spec_cache[cache_key]
 
         td = cast(AIDynamoTestDefinition, tr.test.test_definition)
-        total_nodes = 1 + td.cmd_args.dynamo.prefill_worker.num_nodes + td.cmd_args.dynamo.vllm_worker.num_nodes
+        prefill_n = td.cmd_args.dynamo.prefill_worker.num_nodes
+        decode_n = td.cmd_args.dynamo.vllm_worker.num_nodes
+
+        assert isinstance(prefill_n, int), "prefill_worker.num_nodes must be an integer"
+        assert isinstance(decode_n, int), "vllm_worker.num_nodes must be an integer"
+
+        total_nodes = 1 + prefill_n + decode_n
 
         requested_nodes, node_list = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes)
         if requested_nodes != total_nodes:
             logging.warning(
                 f"Node count mismatch: expected {total_nodes} total nodes "
-                f"(1 frontend + {td.cmd_args.dynamo.prefill_worker.num_nodes} prefill + "
-                f"{td.cmd_args.dynamo.vllm_worker.num_nodes} decode), but got {requested_nodes}. "
+                f"(1 frontend + {prefill_n} prefill + "
+                f"{decode_n} decode), but got {requested_nodes}. "
                 f"Overriding to use {total_nodes} nodes."
             )
 
