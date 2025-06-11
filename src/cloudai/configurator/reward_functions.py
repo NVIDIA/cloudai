@@ -14,14 +14,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base_agent import BaseAgent
-from .base_gym import BaseGym
-from .cloudai_gym import CloudAIGymEnv
-from .grid_search import GridSearchAgent
+from typing import List
 
-__all__ = [
-    "BaseAgent",
-    "BaseGym",
-    "CloudAIGymEnv",
-    "GridSearchAgent",
-]
+
+def inverse_reward(observation: List[float]) -> float:
+    if observation and observation[0] != 0:
+        return 1.0 / observation[0]
+    return 0.0
+
+
+def negative_reward(observation: List[float]) -> float:
+    if observation:
+        return -observation[0]
+    return 0.0
+
+
+def identity_reward(observation: List[float]) -> float:
+    if observation:
+        return observation[0]
+    return 0.0

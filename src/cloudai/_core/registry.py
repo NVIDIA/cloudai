@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING, ClassVar, List, Set, Tuple, Type, Union
+from typing import TYPE_CHECKING, Callable, ClassVar, List, Set, Tuple, Type, Union
 
 if TYPE_CHECKING:
     from ..configurator.base_agent import BaseAgent
@@ -31,6 +31,8 @@ if TYPE_CHECKING:
     from .report_generation_strategy import ReportGenerationStrategy
     from .system import System
     from .test_template_strategy import TestTemplateStrategy
+
+RewardFunction = Callable[[List[float]], float]
 
 
 class Singleton(type):
@@ -78,6 +80,7 @@ class Registry(metaclass=Singleton):
     agents_map: ClassVar[dict[str, Type[BaseAgent]]] = {}
     reports_map: ClassVar[dict[Type[TestDefinition], Set[Type[ReportGenerationStrategy]]]] = {}
     scenario_reports: ClassVar[List[Type[Reporter]]] = []
+    reward_functions_map: ClassVar[dict[str, RewardFunction]] = {}
 
     def add_runner(self, name: str, value: Type[BaseRunner]) -> None:
         """
@@ -274,3 +277,18 @@ class Registry(metaclass=Singleton):
     def update_scenario_report(self, reports: List[Type[Reporter]]) -> None:
         self.scenario_reports.clear()
         self.scenario_reports.extend(reports)
+
+    def add_reward_function(self, name: str, value: RewardFunction) -> None:
+        if name in self.reward_functions_map:
+            raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
+        self.update_reward_function(name, value)
+
+    def update_reward_function(self, name: str, value: RewardFunction) -> None:
+        self.reward_functions_map[name] = value
+
+    def get_reward_function(self, name: str) -> RewardFunction:
+        if name not in self.reward_functions_map:
+            raise KeyError(
+                f"Reward function '{name}' not found. Available functions: {list(self.reward_functions_map.keys())}"
+            )
+        return self.reward_functions_map[name]

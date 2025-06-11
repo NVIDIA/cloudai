@@ -106,6 +106,7 @@ class TestDefinition(BaseModel, ABC):
     agent: str = "grid_search"
     agent_steps: int = 1
     agent_metric: str = "default"
+    agent_reward_function: str = "inverse"
 
     @property
     def cmd_args_dict(self) -> Dict[str, Union[str, List[str]]]:

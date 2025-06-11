@@ -20,7 +20,7 @@ import csv
 import logging
 from typing import Any, Dict, Optional, Tuple
 
-from cloudai.core import METRIC_ERROR, Runner, TestRun
+from cloudai.core import METRIC_ERROR, Registry, Runner, TestRun
 from cloudai.util.lazy_imports import lazy
 
 from .base_gym import BaseGym
@@ -44,6 +44,7 @@ class CloudAIGymEnv(BaseGym):
         self.test_run = test_run
         self.runner = runner
         self.max_steps = test_run.test.test_definition.agent_steps
+        self.reward_function = Registry().get_reward_function(test_run.test.test_definition.agent_reward_function)
         super().__init__()
 
     def define_action_space(self) -> Dict[str, Any]:
@@ -144,9 +145,7 @@ class CloudAIGymEnv(BaseGym):
         Returns:
             float: Reward value.
         """
-        if observation and observation[0] != 0:
-            return 1.0 / observation[0]
-        return 0.0
+        return self.reward_function(observation)
 
     def get_observation(self, action: Any) -> list:
         """
