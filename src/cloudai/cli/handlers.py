@@ -495,14 +495,10 @@ def handle_list_registered_items(args: argparse.Namespace) -> int:
     registry = Registry()
     if item_type == "reports":
         print("Registered scenario reports:")
-        for name, report in sorted(registry.scenario_reports.items()):
-            str = f"- {name}: {report.__name__}"
+        for idx, (name, report) in enumerate(sorted(registry.scenario_reports.items()), start=1):
+            str = f'{idx}. "{name}" {report.__name__}'
             if args.verbose:
                 str += f" (config={registry.report_configs[name].model_dump_json(indent=None)})"
             print(str)
-
-        print("\nRegistered test reports:")
-        for tdef_type, reporter in sorted(registry.reports_map.items(), key=lambda x: x[0].__name__):
-            print(f"- {tdef_type.__name__}: {[reporter.__name__ for reporter in reporter]}")
 
     return 0
