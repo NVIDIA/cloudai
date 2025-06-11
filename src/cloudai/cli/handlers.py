@@ -116,6 +116,8 @@ def prepare_installation(
 def handle_dse_job(runner: Runner, args: argparse.Namespace):
     registry = Registry()
 
+    original_test_runs = copy.deepcopy(runner.runner.test_scenario.test_runs)
+
     for tr in runner.runner.test_scenario.test_runs:
         test_run = copy.deepcopy(tr)
         env = CloudAIGymEnv(test_run=test_run, runner=runner)
@@ -140,6 +142,12 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
             feedback = {"trial_index": step, "value": reward}
             agent.update_policy(feedback)
             logging.info(f"Step {step}: Observation: {observation}, Reward: {reward}")
+
+    if args.mode == "run":
+        runner.runner.test_scenario.test_runs = original_test_runs
+        generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
+
+    logging.info("All jobs are complete.")
 
 
 def generate_reports(system: System, test_scenario: TestScenario, result_dir: Path) -> None:
