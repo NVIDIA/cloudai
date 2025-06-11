@@ -179,12 +179,7 @@ class TestScenario:
 
     __test__ = False
 
-    def __init__(
-        self,
-        name: str,
-        test_runs: List[TestRun],
-        job_status_check: bool = True,
-    ) -> None:
+    def __init__(self, name: str, test_runs: List[TestRun], job_status_check: bool = True) -> None:
         """
         Initialize a TestScenario instance.
 

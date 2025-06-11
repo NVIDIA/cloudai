@@ -31,9 +31,9 @@ def parse_reports_spec(
         return None
 
     parsed: dict[str, ReportConfig] = {}
-    for name, report_cfg in value.items():
-        report_cfg_cls = Registry().report_configs.get(name)
-        if not report_cfg_cls:
+    for name, dict_cfg in value.items():
+        report_cfg = Registry().report_configs.get(name)
+        if not report_cfg:
             raise ValueError(
                 f"Report configuration for '{name}' not found in the registry. "
                 f"Available reports: {', '.join(Registry().report_configs.keys())}"
@@ -41,9 +41,11 @@ def parse_reports_spec(
         if not allow_scenario_reports and issubclass(Registry().scenario_reports[name], Reporter):
             raise ValueError(f"Scenario level report '{name}' is not allowed here.")
         try:
-            parsed[name] = report_cfg_cls.model_validate(report_cfg)
+            parsed[name] = report_cfg.model_validate(dict_cfg)
         except ValidationError as e:
-            raise ValueError(f"Error validating report configuration '{name}' as {report_cfg_cls.__name__}: {e}") from e
+            raise ValueError(
+                f"Error validating report configuration '{name}' as {report_cfg.__class__.__name__}: {e}"
+            ) from e
     return parsed
 
 

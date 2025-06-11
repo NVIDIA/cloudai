@@ -579,8 +579,9 @@ def test_supports_gpu_directives_cache(mock_fetch_command_output, cache_value: b
     mock_fetch_command_output.assert_not_called()
 
 
-def test_reports_spec_is_parsed():
-    spec = """
+@pytest.mark.parametrize("enable,expected", [("true", True), ("false", False)])
+def test_reports_spec_is_parsed(enable: str, expected: bool):
+    spec = f"""
 name = "example-cluster"
 scheduler = "slurm"
 install_path = "i"
@@ -590,9 +591,9 @@ default_partition = "p"
 name = "p"
 
 [reports]
-per_test = { enable = false }
+per_test = {{ enable = {enable} }}
 """
     slurm = SlurmSystem.model_validate(toml.loads(spec))
     assert slurm.reports is not None
     assert isinstance(slurm.reports["per_test"], ReportConfig)
-    assert slurm.reports["per_test"].enable is False
+    assert slurm.reports["per_test"].enable is expected
