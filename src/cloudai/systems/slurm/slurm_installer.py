@@ -263,7 +263,7 @@ class SlurmInstaller(BaseInstaller):
             logging.debug(msg)
             return InstallStatusResult(True, msg)
 
-        cmd = ["python", "-m", "venv", "--copies", str(venv_path)]
+        cmd = ["python", "-m", "venv", str(venv_path)]
         logging.debug(f"Creating venv using cmd: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True)
         logging.debug(f"venv creation STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}")

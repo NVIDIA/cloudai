@@ -188,9 +188,7 @@ class TestInstallOnePythonExecutable:
             mock_run.return_value = CompletedProcess(args=[], returncode=0)
             res = installer._create_venv(py)
         assert res.success
-        mock_run.assert_called_once_with(
-            ["python", "-m", "venv", "--copies", str(venv_path)], capture_output=True, text=True
-        )
+        mock_run.assert_called_once_with(["python", "-m", "venv", str(venv_path)], capture_output=True, text=True)
 
     @pytest.mark.parametrize("failure_on_venv_creation,reqs_install_failure", [(True, False), (False, True)])
     def test_error_creating_venv(
