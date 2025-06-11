@@ -880,6 +880,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
         )
     )
     recipe.model.config.expert_tensor_parallel_size = None
+    recipe.model.config.seq_length = 8192
     enable_fsdp = os.getenv("CLOUDAI_ENABLE_FSDP", "0") == "1"
     disable_tp_commd_overlap = os.getenv("CLOUDAI_DISABLE_TP_COMM_OVERLAP", "0") == "1"
     if enable_fsdp:
