@@ -93,9 +93,9 @@ class VllmWorkerArgs(BaseModel):
 class AIDynamoArgs(BaseModel):
     """Arguments for AI Dynamo setup."""
 
-    frontend: FrontendArgs
-    processor: ProcessorArgs
-    router: RouterArgs
+    frontend: FrontendArgs = Field(default_factory=FrontendArgs)
+    processor: ProcessorArgs = Field(default_factory=ProcessorArgs)
+    router: RouterArgs = Field(default_factory=RouterArgs)
     prefill_worker: PrefillWorkerArgs
     vllm_worker: VllmWorkerArgs
 
