@@ -153,12 +153,12 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
 def generate_reports(system: System, test_scenario: TestScenario, result_dir: Path) -> None:
     registry = Registry()
     for name, reporter_class in registry.scenario_reports.items():
-        logging.debug(f"Generating report with {name} ({reporter_class.__name__})")
+        logging.debug(f"Generating report '{name}' ({reporter_class.__name__})")
 
         cfg = registry.report_configs.get(name, ReportConfig(enable=False))
         if isinstance(system, SlurmSystem) and system.reports and name in system.reports:
             cfg = system.reports[name]
-            logging.debug(f"Report {name} config is: {cfg.model_dump_json(indent=None)}")
+        logging.debug(f"Report '{name}' config is: {cfg.model_dump_json(indent=None)}")
 
         if not cfg.enable:
             logging.debug(f"Skipping report {name} because it is disabled.")

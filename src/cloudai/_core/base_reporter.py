@@ -47,6 +47,7 @@ class Reporter(ABC):
         self.test_scenario = test_scenario
         self.results_root = results_root
         self.trs: list[TestRun] = []
+        self.config = config
 
     def load_test_runs(self):
         """Load test runs from the results directory."""
