@@ -77,9 +77,11 @@ class SlurmRunner(BaseRunner):
             submit_line="dry-run test",
         )
 
-    def _get_job_metadata(self, job: SlurmJob, steps_metadata: list[SlurmStepMetadata]) -> SlurmJobMetadata:
+    def _get_job_metadata(
+        self, job: SlurmJob, steps_metadata: list[SlurmStepMetadata]
+    ) -> tuple[Path, SlurmJobMetadata]:
         cmd_gen = cast(SlurmCommandGenStrategy, job.test_run.test.test_template.command_gen_strategy)
-        return SlurmJobMetadata(
+        return job.test_run.output_path / "slurm-job.toml", SlurmJobMetadata(
             job_id=int(job.id),
             name=steps_metadata[0].name,
             state=steps_metadata[0].state,
@@ -95,9 +97,8 @@ class SlurmRunner(BaseRunner):
     def store_job_metadata(self, job: SlurmJob):
         system = cast(SlurmSystem, self.system)
         steps_metadata = [self._mock_job_metadata()] if self.mode == "dry-run" else system.get_job_status(job)
-        job_meta = self._get_job_metadata(job, steps_metadata)
+        slurm_job_file, job_meta = self._get_job_metadata(job, steps_metadata)
 
-        slurm_job_file = job.test_run.output_path / "slurm-job.toml"
         logging.debug(f"Storing job metadata for job {job.id} to {slurm_job_file}")
         with slurm_job_file.open("w") as job_file:
             toml.dump(job_meta.model_dump(), job_file)

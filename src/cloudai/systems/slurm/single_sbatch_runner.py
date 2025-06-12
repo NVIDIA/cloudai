@@ -205,8 +205,10 @@ class SingleSbatchRunner(SlurmRunner):
         logging.info(f"Submitted slurm job: {job_id}")
         return SlurmJob(tr, id=job_id)
 
-    def _get_job_metadata(self, job: SlurmJob, steps_metadata: list[SlurmStepMetadata]) -> SlurmJobMetadata:
-        return SlurmJobMetadata(
+    def _get_job_metadata(
+        self, job: SlurmJob, steps_metadata: list[SlurmStepMetadata]
+    ) -> tuple[Path, SlurmJobMetadata]:
+        return self.scenario_root / "slurm-job.toml", SlurmJobMetadata(
             job_id=int(job.id),
             name=steps_metadata[0].name,
             state=steps_metadata[0].state,
