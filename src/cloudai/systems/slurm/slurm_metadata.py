@@ -67,6 +67,7 @@ class SlurmJobMetadata(_SlurmStepMetadataBase):
 
     srun_cmd: str
     test_cmd: str
+    is_single_sbatch: bool = False
     job_steps: list[SlurmStepMetadata]
 
     @classmethod

@@ -219,4 +219,5 @@ class SingleSbatchRunner(SlurmRunner):
             job_steps=steps_metadata[1:],
             srun_cmd="n/a for single sbatch run",
             test_cmd="n/a for single sbatch run",
+            is_single_sbatch=True,
         )
