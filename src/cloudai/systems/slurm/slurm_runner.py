@@ -60,7 +60,7 @@ class SlurmRunner(BaseRunner):
         logging.info(f"Submitted slurm job: {job_id}")
         return SlurmJob(tr, id=job_id)
 
-    async def job_completion_callback(self, job: BaseJob) -> None:
+    def on_job_completion(self, job: BaseJob) -> None:
         logging.debug(f"Job completion callback for job {job.id}")
         self.store_job_metadata(cast(SlurmJob, job))
 

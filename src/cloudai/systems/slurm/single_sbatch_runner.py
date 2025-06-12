@@ -183,7 +183,7 @@ class SingleSbatchRunner(SlurmRunner):
             is_completed = True if self.mode == "dry-run" else self.system.is_job_completed(job)
             await asyncio.sleep(self.system.monitor_interval)
 
-        await self.job_completion_callback(job)
+        self.on_job_completion(job)
 
     def _submit_test(self, tr: TestRun) -> SlurmJob:
         with open(self.scenario_root / "cloudai_sbatch_script.sh", "w") as f:
