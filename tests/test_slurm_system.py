@@ -24,7 +24,14 @@ import toml
 
 from cloudai.core import BaseJob, Test, TestRun, TestTemplate
 from cloudai.models.scenario import ReportConfig
-from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmNode, SlurmNodeState, SlurmSystem, parse_node_list
+from cloudai.systems.slurm import (
+    SlurmCommandGenStrategy,
+    SlurmJobMetadata,
+    SlurmNode,
+    SlurmNodeState,
+    SlurmSystem,
+    parse_node_list,
+)
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 
@@ -287,35 +294,6 @@ def test_is_job_running(stdout: str, stderr: str, is_running: bool, slurm_system
             slurm_system.is_job_running(job)
     else:
         assert slurm_system.is_job_running(job) is is_running
-
-
-@pytest.mark.parametrize(
-    "stdout,stderr, expected",
-    [
-        ("", "error", None),
-        (  # a real stdout example
-            """coreai_dlalgo_llm-TestTemplate.20250414_004818,COMPLETED,144,
-batch,COMPLETED,144,
-extern,COMPLETED,144,
-bash,COMPLETED,23,
-bash,COMPLETED,29,
-all_reduce_perf_mpi,COMPLETED,46,""",
-            "",
-            ("coreai_dlalgo_llm-TestTemplate.20250414_004818", "COMPLETED", "144"),
-        ),
-    ],
-)
-def test_get_job_status(slurm_system: SlurmSystem, stdout: str, stderr: str, expected: tuple):
-    job = BaseJob(test_run=Mock(), id=1)
-    pp = Mock()
-    pp.communicate = Mock(return_value=(stdout, stderr))
-    slurm_system.cmd_shell.execute = Mock(return_value=pp)
-
-    if stderr:
-        with pytest.raises(RuntimeError):
-            slurm_system.get_job_status(job)
-    else:
-        assert slurm_system.get_job_status(job) == expected
 
 
 def test_is_job_running_with_retries(slurm_system: SlurmSystem):
@@ -597,3 +575,40 @@ per_test = {{ enable = {enable} }}
     assert slurm.reports is not None
     assert isinstance(slurm.reports["per_test"], ReportConfig)
     assert slurm.reports["per_test"].enable is expected
+
+
+@pytest.mark.parametrize("stdout,stderr, expected", [("", "error", None)])
+def test_get_job_status(slurm_system: SlurmSystem, stdout: str, stderr: str, expected: tuple):
+    job = BaseJob(test_run=Mock(), id=1)
+    pp = Mock()
+    pp.communicate = Mock(return_value=(stdout, stderr))
+    slurm_system.cmd_shell.execute = Mock(return_value=pp)
+
+    if stderr:
+        with pytest.raises(RuntimeError):
+            slurm_system.get_job_status(job)
+    else:
+        assert slurm_system.get_job_status(job) == expected
+
+
+def test_slurm_job_metadata_from_sacct_output():
+    sacct_output = """
+2623913,cloudai-single-sbatch,COMPLETED,0:0,2025-05-09T01:34:52,2025-05-09T01:59:27,1475,sbatch sbatch_script.sh,
+2623913.batch,batch,COMPLETED,0:0,2025-05-09T01:34:52,2025-05-09T01:59:27,1475,,
+2623913.extern,extern,COMPLETED,0:0,2025-05-09T01:34:52,2025-05-09T01:59:27,1475,,
+2623913.0,bash,COMPLETED,0:0,2025-05-09T01:35:24,2025-05-09T01:35:58,34,srun --export=ALL --mpi=pmix ...,
+2623913.1,bash,COMPLETED,0:0,2025-05-09T01:35:58,2025-05-09T01:36:16,18,srun --export=ALL --mpi=pmix ...,
+2623913.2,all_reduce_perf_mpi,COMPLETED,0:0,2025-05-09T01:36:16,2025-05-09T01:37:02,46,srun -N2 ...,
+2623913.3,all_reduce_perf_mpi,COMPLETED,0:0,2025-05-09T01:37:02,2025-05-09T01:37:59,57,srun -N2 ...,
+"""
+    job_metadata = SlurmJobMetadata.from_sacct_output(sacct_output, delimiter=",")
+    assert job_metadata.job_id == 2623913
+    assert job_metadata.name == "cloudai-single-sbatch"
+    assert job_metadata.state == "COMPLETED"
+    assert job_metadata.start_time == "2025-05-09T01:34:52"
+    assert job_metadata.end_time == "2025-05-09T01:59:27"
+    assert job_metadata.exit_code == "0:0"
+    assert job_metadata.elapsed_time_sec == 1475
+    assert len(job_metadata.job_steps) == 6
+    with Path("ttt.toml").open("w") as f:
+        f.write(toml.dumps(job_metadata.model_dump()))

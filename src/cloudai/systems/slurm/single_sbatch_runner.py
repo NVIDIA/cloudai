@@ -27,8 +27,9 @@ from cloudai.core import JobIdRetrievalError, System, TestRun, TestScenario
 from cloudai.util import CommandShell, format_time_limit, parse_time_limit
 
 from .slurm_command_gen_strategy import SlurmCommandGenStrategy
+from .slurm_metadata import SlurmJobMetadata
 from .slurm_runner import SlurmJob, SlurmRunner
-from .slurm_system import SlurmJobMetadata, SlurmSystem
+from .slurm_system import SlurmSystem
 
 
 class SingleSbatchRunner(SlurmRunner):
@@ -207,24 +208,20 @@ class SingleSbatchRunner(SlurmRunner):
         return SlurmJob(tr, id=job_id)
 
     def store_job_metadata(self, job: SlurmJob):
-        logging.debug(f"Storing job metadata for job {job.id}")
-        res = None if self.mode == "dry-run" else self.system.get_job_status(job)
-        logging.debug(f"Job status ra: {res}")
-
-        job_name, job_state, time_sec = "unknown", "UNKNOWN", 0
-        if res:
-            job_name, job_state, time_sec = res[0], res[1], int(res[2])
-
+        res = [self._mock_job_metadata()] if self.mode == "dry-run" else self.system.get_job_status(job)
         job_meta = SlurmJobMetadata(
             job_id=int(job.id),
-            job_name=job_name,
-            job_state=job_state,
-            elapsed_time_sec=time_sec,
+            name=res[0].name,
+            state=res[0].state,
+            exit_code=res[0].exit_code,
+            start_time=res[0].start_time,
+            end_time=res[0].end_time,
+            elapsed_time_sec=res[0].elapsed_time_sec,
+            job_steps=res[1:],
             srun_cmd="n/a for single sbatch run",
             test_cmd="n/a for single sbatch run",
         )
 
-        job_res = self.scenario_root / "slurm-job.toml"
-        with job_res.open("w") as job_file:
+        with open(job.test_run.output_path / "slurm-job.toml", "w") as job_file:
             toml.dump(job_meta.model_dump(), job_file)
-        logging.debug(f"Saved job metadata: {job_res}")
+        logging.debug(f"Saved job metadata: {job_meta}")
