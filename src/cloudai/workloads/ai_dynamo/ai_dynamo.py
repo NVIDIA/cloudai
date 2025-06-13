@@ -93,11 +93,9 @@ class VllmWorkerArgs(BaseModel):
 class AIDynamoArgs(BaseModel):
     """Arguments for AI Dynamo setup."""
 
-    frontend: FrontendArgs = Field(default_factory=lambda: FrontendArgs(port_etcd=2379, port_nats=4222))
-    processor: ProcessorArgs = Field(
-        default_factory=lambda: ProcessorArgs(**{"block-size": 64, "max-model-len": 8192, "router": "kv"})
-    )
-    router: RouterArgs = Field(default_factory=lambda: RouterArgs(**{"min-workers": 1}))
+    frontend: FrontendArgs = FrontendArgs(port_etcd=2379, port_nats=4222)
+    processor: ProcessorArgs = ProcessorArgs(**{"block-size": 64, "max-model-len": 8192, "router": "kv"})
+    router: RouterArgs = RouterArgs(**{"min-workers": 1})
     prefill_worker: PrefillWorkerArgs
     vllm_worker: VllmWorkerArgs
 
