@@ -30,8 +30,8 @@ class FrontendArgs(BaseModel):
 
     endpoint: str = "dynamo.Processor.chat/completions"
     port: int = 8000
-    port_etcd: int = Field(2379, alias="port_etcd")
-    port_nats: int = Field(4222, alias="port_nats")
+    port_etcd: int = 2379
+    port_nats: int = 4222
 
 
 class ProcessorArgs(BaseModel):
