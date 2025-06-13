@@ -536,17 +536,17 @@ class TestReportMetricsDSE:
     def test_raises_on_unknown_metric(
         self, ts_parser: TestScenarioParser, tname: str, test_info: TestRunModel, caplog: pytest.LogCaptureFixture
     ):
-        tdef = ts_parser.test_mapping[tname].test_definition
-        tdef.agent_metric = "unknown"
+        test_info.agent_metrics = ["unknown"]
 
         with pytest.raises(TestScenarioParsingError) as exc_info:
             ts_parser._create_test_run(test_info=test_info, normalized_weight=1.0)
 
         mapping_str = (
-            f"{NcclTestPerformanceReportGenerationStrategy}: {NcclTestPerformanceReportGenerationStrategy.metrics}"
+            f"'{NcclTestPerformanceReportGenerationStrategy.__name__}': "
+            f"{NcclTestPerformanceReportGenerationStrategy.metrics}"
         )
         msg = (
-            f"Test '{test_info.id}' is a DSE job with agent_metric='{tdef.agent_metric}', "
+            f"Test '{test_info.id}' is a DSE job with agent_metrics='{test_info.agent_metrics}', "
             "but no report generation strategy is defined for it. "
             f"Available report-metrics mapping: {{{mapping_str}}}"
         )
@@ -559,13 +559,13 @@ class TestReportMetricsDSE:
     @patch("cloudai.test_scenario_parser.get_reporters", return_value=set())
     def test_raises_if_no_reports_defined(self, _, ts_parser: TestScenarioParser, test_info: TestRunModel, tname: str):
         tdef = ts_parser.test_mapping[tname].test_definition
-        tdef.agent_metric = "default"
+        tdef.agent_metrics = ["default"]
 
         with pytest.raises(TestScenarioParsingError) as exc_info:
             ts_parser._create_test_run(test_info=test_info, normalized_weight=1.0)
 
         assert str(exc_info.value) == (
-            f"Test '{test_info.id}' is a DSE job with agent_metric='{tdef.agent_metric}', "
+            f"Test '{test_info.id}' is a DSE job with agent_metrics='{tdef.agent_metrics}', "
             "but no report generation strategy is defined for it. "
             "Available report-metrics mapping: {}"
         )

@@ -89,7 +89,7 @@ class TestRunModel(BaseModel):
     nsys: Optional[NsysConfiguration] = None
     agent: Optional[str] = None
     agent_steps: Optional[int] = None
-    agent_metric: Optional[str] = None
+    agent_metrics: list[str] = Field(default=["default"])
 
     def tdef_model_dump(self) -> dict:
         """Return a dictionary with non-None values that correspond to the test definition fields."""
@@ -99,7 +99,7 @@ class TestRunModel(BaseModel):
             "test_template_name": self.test_template_name,
             "agent": self.agent,
             "agent_steps": self.agent_steps,
-            "agent_metric": self.agent_metric,
+            "agent_metrics": self.agent_metrics,
             "extra_container_mounts": self.extra_container_mounts,
             "extra_env_vars": self.extra_env_vars if self.extra_env_vars else None,
             "cmd_args": self.cmd_args.model_dump() if self.cmd_args else None,

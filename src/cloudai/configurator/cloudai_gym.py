@@ -158,10 +158,17 @@ class CloudAIGymEnv(BaseGym):
         Returns:
             list: The observation.
         """
-        v = self.test_run.get_metric_value(self.runner.runner.system)
-        if v == METRIC_ERROR:
-            return [-1.0]
-        return [v]
+        all_metrics = self.test_run.test.test_definition.agent_metrics
+        if not all_metrics:
+            raise ValueError("No agent metrics defined for the test run")
+
+        observation = []
+        for metric in all_metrics:
+            v = self.test_run.get_metric_value(self.runner.runner.system, metric)
+            if v == METRIC_ERROR:
+                v = -1.0
+            observation.append(v)
+        return observation
 
     def write_trajectory(self, step: int, action: Any, reward: float, observation: list):
         """
