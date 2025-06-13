@@ -108,18 +108,6 @@ def csv_content() -> str:
     return get_csv_content()
 
 
-@pytest.fixture
-def slurm_system() -> SlurmSystem:
-    return SlurmSystem(
-        name="test_system",
-        install_path=Path("/mock/path"),
-        output_path=Path("/mock/output"),
-        default_partition="default",
-        partitions=[],
-        gpus_per_node=8,
-    )
-
-
 def test_ai_dynamo_can_handle_directory(slurm_system: SlurmSystem, ai_dynamo_tr: TestRun) -> None:
     strategy = AIDynamoReportGenerationStrategy(slurm_system, ai_dynamo_tr)
     assert strategy.can_handle_directory() is True
