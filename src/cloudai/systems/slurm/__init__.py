@@ -18,7 +18,7 @@ from .single_sbatch_runner import SingleSbatchRunner
 from .slurm_command_gen_strategy import SlurmCommandGenStrategy
 from .slurm_installer import SlurmInstaller
 from .slurm_job import SlurmJob
-from .slurm_metadata import SlurmJobMetadata, SlurmSystemMetadata
+from .slurm_metadata import SlurmJobMetadata, SlurmStepMetadata, SlurmSystemMetadata
 from .slurm_node import SlurmNode, SlurmNodeState
 from .slurm_runner import SlurmRunner
 from .slurm_system import SlurmGroup, SlurmPartition, SlurmSystem, parse_node_list
@@ -34,6 +34,7 @@ __all__ = [
     "SlurmNodeState",
     "SlurmPartition",
     "SlurmRunner",
+    "SlurmStepMetadata",
     "SlurmSystem",
     "SlurmSystemMetadata",
     "parse_node_list",

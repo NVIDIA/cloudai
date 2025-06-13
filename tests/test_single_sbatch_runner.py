@@ -484,6 +484,8 @@ def test_store_job_metadata(nccl_tr: TestRun, slurm_system: SlurmSystem) -> None
     assert sjm.srun_cmd == "n/a for single sbatch run"
     assert sjm.test_cmd == "n/a for single sbatch run"
 
+    assert sjm == SlurmJobMetadata.model_validate(toml.loads(toml.dumps(sjm.model_dump())))
+
 
 def test_pre_test(nccl_tr: TestRun, sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
     nccl_tr.pre_test = TestScenario(name="pre_test", test_runs=[sleep_tr])

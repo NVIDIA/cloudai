@@ -26,12 +26,12 @@ from cloudai.core import BaseJob, Test, TestRun, TestTemplate
 from cloudai.models.scenario import ReportConfig
 from cloudai.systems.slurm import (
     SlurmCommandGenStrategy,
-    SlurmJobMetadata,
     SlurmNode,
     SlurmNodeState,
     SlurmSystem,
     parse_node_list,
 )
+from cloudai.systems.slurm.slurm_metadata import SlurmStepMetadata
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 
@@ -591,9 +591,7 @@ def test_get_job_status(slurm_system: SlurmSystem, stdout: str, stderr: str, exp
         assert slurm_system.get_job_status(job) == expected
 
 
-def test_slurm_job_metadata_from_sacct_output():
-    sacct_output = """
-2623913,cloudai-single-sbatch,COMPLETED,0:0,2025-05-09T01:34:52,2025-05-09T01:59:27,1475,sbatch sbatch_script.sh,
+sacct_output = """2623913,job,COMPLETED,0:0,2025-05-09T01:34:52,2025-05-09T01:59:27,1475,sbatch sbatch_script.sh,
 2623913.batch,batch,COMPLETED,0:0,2025-05-09T01:34:52,2025-05-09T01:59:27,1475,,
 2623913.extern,extern,COMPLETED,0:0,2025-05-09T01:34:52,2025-05-09T01:59:27,1475,,
 2623913.0,bash,COMPLETED,0:0,2025-05-09T01:35:24,2025-05-09T01:35:58,34,srun --export=ALL --mpi=pmix ...,
@@ -601,14 +599,9 @@ def test_slurm_job_metadata_from_sacct_output():
 2623913.2,all_reduce_perf_mpi,COMPLETED,0:0,2025-05-09T01:36:16,2025-05-09T01:37:02,46,srun -N2 ...,
 2623913.3,all_reduce_perf_mpi,COMPLETED,0:0,2025-05-09T01:37:02,2025-05-09T01:37:59,57,srun -N2 ...,
 """
-    job_metadata = SlurmJobMetadata.from_sacct_output(sacct_output, delimiter=",")
-    assert job_metadata.job_id == 2623913
-    assert job_metadata.name == "cloudai-single-sbatch"
-    assert job_metadata.state == "COMPLETED"
-    assert job_metadata.start_time == "2025-05-09T01:34:52"
-    assert job_metadata.end_time == "2025-05-09T01:59:27"
-    assert job_metadata.exit_code == "0:0"
-    assert job_metadata.elapsed_time_sec == 1475
-    assert len(job_metadata.job_steps) == 6
-    with Path("ttt.toml").open("w") as f:
-        f.write(toml.dumps(job_metadata.model_dump()))
+
+
+@pytest.mark.parametrize("sacct_line", sacct_output.splitlines())
+def test_slurm_job_metadata_from_sacct_output(sacct_line: str):
+    job_metadata = SlurmStepMetadata.from_sacct_single_line(sacct_line, delimiter=",")
+    assert job_metadata is not None

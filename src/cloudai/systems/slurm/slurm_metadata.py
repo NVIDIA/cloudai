@@ -70,26 +70,6 @@ class SlurmJobMetadata(_SlurmStepMetadataBase):
     is_single_sbatch: bool = False
     job_steps: list[SlurmStepMetadata]
 
-    @classmethod
-    def from_sacct_output(cls, sacct_output: str, delimiter: str = "|") -> SlurmJobMetadata:
-        """Parse sacct output into SlurmJobMetadata with job steps."""
-        lines = [line for line in sacct_output.strip().splitlines() if line.strip()]
-
-        steps = [SlurmStepMetadata.from_sacct_single_line(line, delimiter) for line in lines]
-
-        return cls(
-            job_id=steps[0].job_id,
-            name=steps[0].name,
-            state=steps[0].state,
-            exit_code=steps[0].exit_code,
-            start_time=steps[0].start_time,
-            end_time=steps[0].end_time,
-            elapsed_time_sec=steps[0].elapsed_time_sec,
-            srun_cmd=steps[0].submit_line,
-            test_cmd="n/a",
-            job_steps=steps[1:],
-        )
-
 
 class MetadataSystem(BaseModel):
     """Represents the system metadata."""
