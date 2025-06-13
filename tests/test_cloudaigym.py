@@ -92,18 +92,56 @@ def test_observation_space(setup_env):
 
 
 @pytest.mark.parametrize(
-    "observation,expected_reward",
+    "reward_function,test_cases",
     [
-        ([0.34827126874999986], pytest.approx(2.871, 0.001)),
-        ([0.0], 0.0),
-        ([], 0.0),
-        ([2.0, 2.0], 0.5),
+        (
+            "inverse",
+            [
+                ([0.34827126874999986], pytest.approx(2.871, 0.001)),
+                ([0.0], 0.0),
+                ([], 0.0),
+                ([2.0, 2.0], 0.5),
+            ],
+        ),
+        (
+            "negative",
+            [
+                ([2.0], -2.0),
+                ([-1.5], 1.5),
+                ([0.0], 0.0),
+                ([], 0.0),
+            ],
+        ),
+        (
+            "identity",
+            [
+                ([2.0], 2.0),
+                ([-1.5], -1.5),
+                ([0.0], 0.0),
+                ([], 0.0),
+            ],
+        ),
     ],
 )
-def test_compute_reward(observation: list[float], expected_reward: float):
-    env = CloudAIGymEnv(test_run=MagicMock(), runner=MagicMock())
-    reward = env.compute_reward(observation)
-    assert reward == expected_reward
+def test_compute_reward(reward_function, test_cases):
+    test_run = MagicMock()
+    test_run.test.test_definition.agent_reward_function = reward_function
+    env = CloudAIGymEnv(test_run=test_run, runner=MagicMock())
+
+    for input_value, expected_reward in test_cases:
+        reward = env.compute_reward(input_value)
+        assert reward == expected_reward
+
+
+def test_compute_reward_invalid():
+    test_run = MagicMock()
+    test_run.test.test_definition.agent_reward_function = "nonexistent"
+
+    with pytest.raises(KeyError) as exc_info:
+        CloudAIGymEnv(test_run=test_run, runner=MagicMock())
+
+    assert "Reward function 'nonexistent' not found" in str(exc_info.value)
+    assert "Available functions: ['inverse', 'negative', 'identity']" in str(exc_info.value)
 
 
 def test_tr_output_path(setup_env: tuple[TestRun, Runner]):
