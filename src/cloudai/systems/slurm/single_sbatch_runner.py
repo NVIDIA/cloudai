@@ -21,14 +21,13 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Generator, Optional, cast
 
-import toml
-
 from cloudai.core import JobIdRetrievalError, System, TestRun, TestScenario
+from cloudai.systems.slurm.slurm_metadata import SlurmJobMetadata, SlurmStepMetadata
 from cloudai.util import CommandShell, format_time_limit, parse_time_limit
 
 from .slurm_command_gen_strategy import SlurmCommandGenStrategy
 from .slurm_runner import SlurmJob, SlurmRunner
-from .slurm_system import SlurmJobMetadata, SlurmSystem
+from .slurm_system import SlurmSystem
 
 
 class SingleSbatchRunner(SlurmRunner):
@@ -184,7 +183,7 @@ class SingleSbatchRunner(SlurmRunner):
             is_completed = True if self.mode == "dry-run" else self.system.is_job_completed(job)
             await asyncio.sleep(self.system.monitor_interval)
 
-        await self.job_completion_callback(job)
+        self.on_job_completion(job)
 
     def _submit_test(self, tr: TestRun) -> SlurmJob:
         with open(self.scenario_root / "cloudai_sbatch_script.sh", "w") as f:
@@ -206,25 +205,20 @@ class SingleSbatchRunner(SlurmRunner):
         logging.info(f"Submitted slurm job: {job_id}")
         return SlurmJob(tr, id=job_id)
 
-    def store_job_metadata(self, job: SlurmJob):
-        logging.debug(f"Storing job metadata for job {job.id}")
-        res = None if self.mode == "dry-run" else self.system.get_job_status(job)
-        logging.debug(f"Job status ra: {res}")
-
-        job_name, job_state, time_sec = "unknown", "UNKNOWN", 0
-        if res:
-            job_name, job_state, time_sec = res[0], res[1], int(res[2])
-
-        job_meta = SlurmJobMetadata(
+    def _get_job_metadata(
+        self, job: SlurmJob, steps_metadata: list[SlurmStepMetadata]
+    ) -> tuple[Path, SlurmJobMetadata]:
+        return self.scenario_root / "slurm-job.toml", SlurmJobMetadata(
             job_id=int(job.id),
-            job_name=job_name,
-            job_state=job_state,
-            elapsed_time_sec=time_sec,
+            name=steps_metadata[0].name,
+            state=steps_metadata[0].state,
+            exit_code=steps_metadata[0].exit_code,
+            start_time=steps_metadata[0].start_time,
+            end_time=steps_metadata[0].end_time,
+            elapsed_time_sec=steps_metadata[0].elapsed_time_sec,
+            job_steps=steps_metadata[1:],
             srun_cmd="n/a for single sbatch run",
             test_cmd="n/a for single sbatch run",
+            is_single_sbatch=True,
+            job_root=self.scenario_root.absolute(),
         )
-
-        job_res = self.scenario_root / "slurm-job.toml"
-        with job_res.open("w") as job_file:
-            toml.dump(job_meta.model_dump(), job_file)
-        logging.debug(f"Saved job metadata: {job_res}")

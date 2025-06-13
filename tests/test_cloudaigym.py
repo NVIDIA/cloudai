@@ -54,6 +54,7 @@ def setup_env(slurm_system: SlurmSystem, nemorun: NeMoRunTestDefinition) -> tupl
         ),
     )
     tdef.cmd_args.data = Data(micro_batch_size=[1, 2])
+    tdef.agent_metrics = ["default"]
 
     mock_command_gen = MagicMock()
     mock_command_gen.gen_srun_command.return_value = "srun mock command"
@@ -90,20 +91,19 @@ def test_observation_space(setup_env):
     assert observation_space == expected_observation_space
 
 
-def test_compute_reward():
+@pytest.mark.parametrize(
+    "observation,expected_reward",
+    [
+        ([0.34827126874999986], pytest.approx(2.871, 0.001)),
+        ([0.0], 0.0),
+        ([], 0.0),
+        ([2.0, 2.0], 0.5),
+    ],
+)
+def test_compute_reward(observation: list[float], expected_reward: float):
     env = CloudAIGymEnv(test_run=MagicMock(), runner=MagicMock())
-
-    observation = [0.34827126874999986]
     reward = env.compute_reward(observation)
-    assert reward == pytest.approx(2.871, 0.001)
-
-    observation = [0.0]
-    reward = env.compute_reward(observation)
-    assert reward == 0.0
-
-    observation = []
-    reward = env.compute_reward(observation)
-    assert reward == 0.0
+    assert reward == expected_reward
 
 
 def test_tr_output_path(setup_env: tuple[TestRun, Runner]):

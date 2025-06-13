@@ -24,8 +24,7 @@ import jinja2
 import pandas as pd
 import toml
 
-from ._core.base_reporter import case_name
-from .core import CommandGenStrategy, Reporter, TestRun
+from .core import CommandGenStrategy, Reporter, TestRun, case_name
 from .models.scenario import TestRunDetails
 from .systems.slurm import SlurmSystem, SlurmSystemMetadata
 

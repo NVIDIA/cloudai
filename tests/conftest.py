@@ -20,8 +20,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from cloudai.systems.runai.runai_system import RunAISystem
-from cloudai.systems.slurm.slurm_system import SlurmGroup, SlurmPartition, SlurmSystem
+from cloudai.systems.runai import RunAISystem
+from cloudai.systems.slurm import SlurmGroup, SlurmPartition, SlurmSystem
 
 
 def create_autospec_dataclass(dataclass: type) -> Mock:
@@ -32,7 +32,7 @@ def create_autospec_dataclass(dataclass: type) -> Mock:
 def cleanup():
     yield
 
-    for f in {"env_vars.sh", "hostfile.txt"}:
+    for f in {"env_vars.sh", "hostfile.txt", "start_server_wrapper.sh"}:
         (Path.cwd() / f).unlink(missing_ok=True)
 
 

@@ -20,9 +20,18 @@ from typing import Dict, List
 from unittest.mock import Mock, patch
 
 import pytest
+import toml
 
 from cloudai.core import BaseJob, Test, TestRun, TestTemplate
-from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmNode, SlurmNodeState, SlurmSystem, parse_node_list
+from cloudai.models.scenario import ReportConfig
+from cloudai.systems.slurm import (
+    SlurmCommandGenStrategy,
+    SlurmNode,
+    SlurmNodeState,
+    SlurmSystem,
+    parse_node_list,
+)
+from cloudai.systems.slurm.slurm_metadata import SlurmStepMetadata
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 
@@ -287,35 +296,6 @@ def test_is_job_running(stdout: str, stderr: str, is_running: bool, slurm_system
         assert slurm_system.is_job_running(job) is is_running
 
 
-@pytest.mark.parametrize(
-    "stdout,stderr, expected",
-    [
-        ("", "error", None),
-        (  # a real stdout example
-            """coreai_dlalgo_llm-TestTemplate.20250414_004818,COMPLETED,144,
-batch,COMPLETED,144,
-extern,COMPLETED,144,
-bash,COMPLETED,23,
-bash,COMPLETED,29,
-all_reduce_perf_mpi,COMPLETED,46,""",
-            "",
-            ("coreai_dlalgo_llm-TestTemplate.20250414_004818", "COMPLETED", "144"),
-        ),
-    ],
-)
-def test_get_job_status(slurm_system: SlurmSystem, stdout: str, stderr: str, expected: tuple):
-    job = BaseJob(test_run=Mock(), id=1)
-    pp = Mock()
-    pp.communicate = Mock(return_value=(stdout, stderr))
-    slurm_system.cmd_shell.execute = Mock(return_value=pp)
-
-    if stderr:
-        with pytest.raises(RuntimeError):
-            slurm_system.get_job_status(job)
-    else:
-        assert slurm_system.get_job_status(job) == expected
-
-
 def test_is_job_running_with_retries(slurm_system: SlurmSystem):
     job = BaseJob(test_run=Mock(), id=1)
     command = f"sacct -j {job.id} --format=State --noheader"
@@ -575,3 +555,53 @@ def test_supports_gpu_directives_cache(mock_fetch_command_output, cache_value: b
     slurm_system.supports_gpu_directives_cache = cache_value
     assert slurm_system.supports_gpu_directives is cache_value
     mock_fetch_command_output.assert_not_called()
+
+
+@pytest.mark.parametrize("enable,expected", [("true", True), ("false", False)])
+def test_reports_spec_is_parsed(enable: str, expected: bool):
+    spec = f"""
+name = "example-cluster"
+scheduler = "slurm"
+install_path = "i"
+output_path = "r"
+default_partition = "p"
+[[partitions]]
+name = "p"
+
+[reports]
+per_test = {{ enable = {enable} }}
+"""
+    slurm = SlurmSystem.model_validate(toml.loads(spec))
+    assert slurm.reports is not None
+    assert isinstance(slurm.reports["per_test"], ReportConfig)
+    assert slurm.reports["per_test"].enable is expected
+
+
+@pytest.mark.parametrize("stdout,stderr, expected", [("", "error", None)])
+def test_get_job_status(slurm_system: SlurmSystem, stdout: str, stderr: str, expected: tuple):
+    job = BaseJob(test_run=Mock(), id=1)
+    pp = Mock()
+    pp.communicate = Mock(return_value=(stdout, stderr))
+    slurm_system.cmd_shell.execute = Mock(return_value=pp)
+
+    if stderr:
+        with pytest.raises(RuntimeError):
+            slurm_system.get_job_status(job)
+    else:
+        assert slurm_system.get_job_status(job) == expected
+
+
+sacct_output = """2623913,job,COMPLETED,0:0,2025-05-09T01:34:52,2025-05-09T01:59:27,1475,sbatch sbatch_script.sh,
+2623913.batch,batch,COMPLETED,0:0,2025-05-09T01:34:52,2025-05-09T01:59:27,1475,,
+2623913.extern,extern,COMPLETED,0:0,2025-05-09T01:34:52,2025-05-09T01:59:27,1475,,
+2623913.0,bash,COMPLETED,0:0,2025-05-09T01:35:24,2025-05-09T01:35:58,34,srun --export=ALL --mpi=pmix ...,
+2623913.1,bash,COMPLETED,0:0,2025-05-09T01:35:58,2025-05-09T01:36:16,18,srun --export=ALL --mpi=pmix ...,
+2623913.2,all_reduce_perf_mpi,COMPLETED,0:0,2025-05-09T01:36:16,2025-05-09T01:37:02,46,srun -N2 ...,
+2623913.3,all_reduce_perf_mpi,COMPLETED,0:0,2025-05-09T01:37:02,2025-05-09T01:37:59,57,srun -N2 ...,
+"""
+
+
+@pytest.mark.parametrize("sacct_line", sacct_output.splitlines())
+def test_slurm_job_metadata_from_sacct_output(sacct_line: str):
+    job_metadata = SlurmStepMetadata.from_sacct_single_line(sacct_line, delimiter=",")
+    assert job_metadata is not None
