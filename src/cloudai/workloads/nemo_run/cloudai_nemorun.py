@@ -890,10 +890,10 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
         recipe.trainer.strategy.ddp.average_in_collective = False
         recipe.trainer.strategy.ddp.keep_fp8_transpose_cache_when_using_custom_fsdp = False
         recipe.model.config.gradient_accumulation_fusion = False
-        recipe.trainer.callbacks[0].defer_embedding_wgrad_compute = False
+        recipe.trainer.callbacks[2].defer_embedding_wgrad_compute = False
 
         if disable_tp_commd_overlap:
-            recipe.trainer.callbacks[0].tp_comm_overlap = False
+            recipe.trainer.callbacks[2].tp_comm_overlap = False
 
     recompute_layers = int(os.getenv("CLOUDAI_RECOMPUTE_LAYERS", "0"))
     if recompute_layers > 0:
