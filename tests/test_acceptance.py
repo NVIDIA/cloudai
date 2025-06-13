@@ -400,13 +400,19 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     served_model_name="llama2-7b",
                     dynamo=AIDynamoArgs(
                         frontend=FrontendArgs(),
-                        processor=ProcessorArgs(),
-                        router=RouterArgs(),
+                        processor=ProcessorArgs(**{"block-size": 64, "max-model-len": 8192, "router": "kv"}),
+                        router=RouterArgs(**{"min-workers": 1}),
                         prefill_worker=PrefillWorkerArgs(
-                            num_nodes=1,
+                            **{
+                                "num_nodes": 1,
+                                "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
+                            }
                         ),
                         vllm_worker=VllmWorkerArgs(
-                            num_nodes=1,
+                            **{
+                                "num_nodes": 1,
+                                "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
+                            }
                         ),
                     ),
                     genai_perf=GenAIPerfArgs(
