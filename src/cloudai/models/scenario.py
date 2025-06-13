@@ -14,14 +14,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_serializer, model_validator
 
-from cloudai.core import GitRepo, Registry, TestRun
+from cloudai.core import CmdArgs, GitRepo, NsysConfiguration, Registry, Reporter, TestDefinition, TestRun
 
-from .workload import CmdArgs, NsysConfiguration, TestDefinition
+
+def parse_reports_spec(
+    value: dict[str, Any] | None, allow_scenario_reports: bool = True
+) -> dict[str, ReportConfig] | None:
+    if value is None:
+        return None
+
+    parsed: dict[str, ReportConfig] = {}
+    for name, dict_cfg in value.items():
+        report_cfg = Registry().report_configs.get(name)
+        if not report_cfg:
+            raise ValueError(
+                f"Report configuration for '{name}' not found in the registry. "
+                f"Available reports: {', '.join(Registry().report_configs.keys())}"
+            )
+        if not allow_scenario_reports and issubclass(Registry().scenario_reports[name], Reporter):
+            raise ValueError(f"Scenario level report '{name}' is not allowed here.")
+        try:
+            parsed[name] = report_cfg.model_validate(dict_cfg)
+        except ValidationError as e:
+            raise ValueError(
+                f"Error validating report configuration '{name}' as {report_cfg.__class__.__name__}: {e}"
+            ) from e
+    return parsed
 
 
 class TestRunDependencyModel(BaseModel):
@@ -109,6 +134,13 @@ class TestRunModel(BaseModel):
         return self
 
 
+class ReportConfig(BaseModel):
+    """Model for report configuration in test scenario."""
+
+    model_config = ConfigDict(extra="forbid")
+    enable: bool = False
+
+
 class TestScenarioModel(BaseModel):
     """Model for test scenario."""
 
@@ -182,7 +214,7 @@ class TestRunDetails(BaseModel):
         return str(v.absolute())
 
     @classmethod
-    def from_test_run(cls, tr: TestRun, test_cmd: str, full_cmd: str) -> "TestRunDetails":
+    def from_test_run(cls, tr: TestRun, test_cmd: str, full_cmd: str) -> TestRunDetails:
         return cls(
             name=tr.name,
             nnodes=tr.nnodes,

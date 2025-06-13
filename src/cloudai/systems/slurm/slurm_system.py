@@ -19,9 +19,10 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
 from cloudai.core import BaseJob, File, Installable, System
+from cloudai.models.scenario import ReportConfig, parse_reports_spec
 from cloudai.util import CommandShell
 
 from .slurm_node import SlurmNode, SlurmNodeState
@@ -142,6 +143,12 @@ class SlurmSystem(BaseModel, System):
     container_mount_home: bool = False
 
     data_repository: Optional[DataRepositoryConfig] = None
+    reports: Optional[dict[str, ReportConfig]] = None
+
+    @field_validator("reports", mode="before")
+    @classmethod
+    def parse_reports(cls, value: dict[str, Any] | None) -> dict[str, ReportConfig] | None:
+        return parse_reports_spec(value)
 
     @property
     def groups(self) -> Dict[str, Dict[str, List[SlurmNode]]]:

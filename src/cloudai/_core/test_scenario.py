@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import copy
 import itertools
 from dataclasses import dataclass, field
@@ -68,9 +70,9 @@ class TestRun:
     weight: float = 0.0
     ideal_perf: float = 1.0
     dependencies: dict[str, TestDependency] = field(default_factory=dict)
-    pre_test: Optional["TestScenario"] = None
-    post_test: Optional["TestScenario"] = None
-    reports: Set[Type["ReportGenerationStrategy"]] = field(default_factory=set)
+    pre_test: Optional[TestScenario] = None
+    post_test: Optional[TestScenario] = None
+    reports: Set[Type[ReportGenerationStrategy]] = field(default_factory=set)
 
     def __hash__(self) -> int:
         return hash(self.name + self.test.name + str(self.iterations) + str(self.current_iteration))
@@ -85,7 +87,7 @@ class TestRun:
         return self.current_iteration + 1 < self.iterations
 
     @property
-    def metric_reporter(self) -> Optional[Type["ReportGenerationStrategy"]]:
+    def metric_reporter(self) -> Optional[Type[ReportGenerationStrategy]]:
         if not self.reports:
             return None
 

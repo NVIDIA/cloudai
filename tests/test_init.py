@@ -223,7 +223,12 @@ def test_definitions():
 
 def test_scenario_reports():
     scenario_reports = Registry().scenario_reports
-    assert len(scenario_reports) == 3
-    assert PerTestReporter in scenario_reports
-    assert StatusReporter in scenario_reports
-    assert TarballReporter in scenario_reports
+    assert list(scenario_reports.keys()) == ["per_test", "status", "tarball"]
+    assert list(scenario_reports.values()) == [PerTestReporter, StatusReporter, TarballReporter]
+
+
+def test_report_configs():
+    configs = Registry().report_configs
+    assert list(configs.keys()) == ["per_test", "status", "tarball"]
+    for name, rep_config in configs.items():
+        assert rep_config.enable is True, f"Report {name} is not enabled by default"

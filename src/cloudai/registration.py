@@ -26,6 +26,7 @@ def register_all():
         JsonGenStrategy,
         Registry,
     )
+    from cloudai.models.scenario import ReportConfig
     from cloudai.reporter import PerTestReporter, StatusReporter, TarballReporter
 
     # Import systems
@@ -304,6 +305,6 @@ def register_all():
     Registry().add_report(TritonInferenceTestDefinition, TritonInferenceReportGenerationStrategy)
     Registry().add_report(NIXLBenchTestDefinition, NIXLBenchReportGenerationStrategy)
 
-    Registry().add_scenario_report(PerTestReporter)
-    Registry().add_scenario_report(StatusReporter)
-    Registry().add_scenario_report(TarballReporter)
+    Registry().add_scenario_report("per_test", PerTestReporter, ReportConfig(enable=True))
+    Registry().add_scenario_report("status", StatusReporter, ReportConfig(enable=True))
+    Registry().add_scenario_report("tarball", TarballReporter, ReportConfig(enable=True))

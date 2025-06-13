@@ -14,13 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import copy
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .system import System
 from .test_scenario import TestRun, TestScenario
+
+if TYPE_CHECKING:
+    from ..models.scenario import ReportConfig
 
 
 def case_name(tr: TestRun) -> str:
@@ -36,11 +42,12 @@ def case_name(tr: TestRun) -> str:
 class Reporter(ABC):
     """Abstract base class for all reporters."""
 
-    def __init__(self, system: System, test_scenario: TestScenario, results_root: Path) -> None:
+    def __init__(self, system: System, test_scenario: TestScenario, results_root: Path, config: ReportConfig) -> None:
         self.system = system
         self.test_scenario = test_scenario
         self.results_root = results_root
         self.trs: list[TestRun] = []
+        self.config = config
 
     def load_test_runs(self):
         """Load test runs from the results directory."""

@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import csv
 import tarfile
 from pathlib import Path
@@ -22,9 +23,12 @@ import pytest
 import toml
 
 from cloudai import Test, TestRun, TestScenario
+from cloudai._core.base_reporter import Reporter
+from cloudai._core.registry import Registry
 from cloudai._core.system import System
+from cloudai.cli.handlers import generate_reports
 from cloudai.core import CommandGenStrategy, TestTemplate
-from cloudai.models.scenario import TestRunDetails
+from cloudai.models.scenario import ReportConfig, TestRunDetails
 from cloudai.reporter import PerTestReporter, StatusReporter, TarballReporter
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.standalone.standalone_system import StandaloneSystem
@@ -83,7 +87,10 @@ def dse_tr(slurm_system: SlurmSystem) -> TestRun:
 class TestLoadTestTuns:
     def test_load_test_runs_behcnmark_sorted(self, slurm_system: SlurmSystem, benchmark_tr: TestRun) -> None:
         reporter = PerTestReporter(
-            slurm_system, TestScenario(name="test_scenario", test_runs=[benchmark_tr]), slurm_system.output_path
+            slurm_system,
+            TestScenario(name="test_scenario", test_runs=[benchmark_tr]),
+            slurm_system.output_path,
+            ReportConfig(),
         )
         reporter.load_test_runs()
 
@@ -96,7 +103,10 @@ class TestLoadTestTuns:
 
     def test_load_test_runs_dse_sorted(self, slurm_system: SlurmSystem, dse_tr: TestRun) -> None:
         reporter = PerTestReporter(
-            slurm_system, TestScenario(name="test_scenario", test_runs=[dse_tr]), slurm_system.output_path
+            slurm_system,
+            TestScenario(name="test_scenario", test_runs=[dse_tr]),
+            slurm_system.output_path,
+            ReportConfig(),
         )
         reporter.load_test_runs()
 
@@ -115,7 +125,7 @@ def test_create_tarball_preserves_full_name(tmp_path: Path, slurm_system: SlurmS
     results_dir.mkdir(parents=True, exist_ok=True)
     (results_dir / "dummy.txt").write_text("test content")
 
-    reporter = TarballReporter(slurm_system, TestScenario(name="dummy", test_runs=[]), results_dir)
+    reporter = TarballReporter(slurm_system, TestScenario(name="dummy", test_runs=[]), results_dir, ReportConfig())
     reporter.create_tarball(results_dir)
 
     tarball_path = tmp_path / "nemo2.0_llama3_70b_fp8_2025-04-16_14-27-45.tgz"
@@ -128,7 +138,7 @@ def test_create_tarball_preserves_full_name(tmp_path: Path, slurm_system: SlurmS
 
 def test_best_dse_config(dse_tr: TestRun, slurm_system: SlurmSystem) -> None:
     reporter = StatusReporter(
-        slurm_system, TestScenario(name="test_scenario", test_runs=[dse_tr]), slurm_system.output_path
+        slurm_system, TestScenario(name="test_scenario", test_runs=[dse_tr]), slurm_system.output_path, ReportConfig()
     )
     reporter.report_best_dse_config()
     best_config_path = (
@@ -148,5 +158,50 @@ def test_best_dse_config(dse_tr: TestRun, slurm_system: SlurmSystem) -> None:
     ],
 )
 def test_template_file_path(system: System) -> None:
-    reporter = StatusReporter(system, TestScenario(name="test_scenario", test_runs=[]), system.output_path)
+    reporter = StatusReporter(
+        system, TestScenario(name="test_scenario", test_runs=[]), system.output_path, ReportConfig()
+    )
     assert (reporter.template_file_path / reporter.template_file).exists()
+
+
+MY_REPORT_CALLED = 0
+
+
+class MyReporter(Reporter):
+    def generate(self) -> None:
+        global MY_REPORT_CALLED
+        MY_REPORT_CALLED += 1
+
+
+class TestGenerateReport:
+    @pytest.fixture(autouse=True, scope="class")
+    def setup(self):
+        reg = Registry()
+        orig_reports = copy.deepcopy(reg.scenario_reports)
+        reg.scenario_reports.clear()
+
+        reg.add_scenario_report("sr1", MyReporter, ReportConfig(enable=True))
+
+        yield
+
+        reg.scenario_reports.clear()
+        reg.scenario_reports.update(orig_reports)
+
+    @pytest.fixture(autouse=True)
+    def reset(self):
+        global MY_REPORT_CALLED
+        MY_REPORT_CALLED = 0
+
+    def test_default_flow(self, slurm_system: SlurmSystem) -> None:
+        generate_reports(slurm_system, TestScenario(name="ts", test_runs=[]), slurm_system.output_path)
+        assert MY_REPORT_CALLED == 1
+
+    def test_disabled_by_default(self, slurm_system: SlurmSystem) -> None:
+        Registry().update_scenario_report("sr1", MyReporter, ReportConfig(enable=False))
+        generate_reports(slurm_system, TestScenario(name="ts", test_runs=[]), slurm_system.output_path)
+        assert MY_REPORT_CALLED == 0
+
+    def test_disabled_on_system_level(self, slurm_system: SlurmSystem) -> None:
+        slurm_system.reports = {"sr1": ReportConfig(enable=False)}
+        generate_reports(slurm_system, TestScenario(name="ts", test_runs=[]), slurm_system.output_path)
+        assert MY_REPORT_CALLED == 0
