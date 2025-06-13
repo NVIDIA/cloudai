@@ -97,7 +97,7 @@ def test_observation_space(setup_env):
         ([0.34827126874999986], pytest.approx(2.871, 0.001)),
         ([0.0], 0.0),
         ([], 0.0),
-        ([2.0, 2.0], 0.25),
+        ([2.0, 2.0], 0.5),
     ],
 )
 def test_compute_reward(observation: list[float], expected_reward: float):

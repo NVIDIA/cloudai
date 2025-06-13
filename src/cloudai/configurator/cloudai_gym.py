@@ -144,14 +144,9 @@ class CloudAIGymEnv(BaseGym):
         Returns:
             float: Reward value.
         """
-        if not observation or all(o == 0.0 for o in observation):
-            return 0.0
-
-        res = 1.0
-        for o in observation:
-            if o != 0.0:
-                res *= 1.0 / o
-        return res
+        if observation and observation[0] != 0:
+            return 1.0 / observation[0]
+        return 0.0
 
     def get_observation(self, action: Any) -> list:
         """
