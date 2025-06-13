@@ -18,7 +18,7 @@
 
 from ._core.base_installer import BaseInstaller, InstallStatusResult
 from ._core.base_job import BaseJob
-from ._core.base_reporter import Reporter
+from ._core.base_reporter import Reporter, case_name
 from ._core.base_runner import BaseRunner
 from ._core.base_system_parser import BaseSystemParser
 from ._core.command_gen_strategy import CommandGenStrategy
@@ -100,5 +100,6 @@ __all__ = [
     "TestScenarioParsingError",
     "TestTemplate",
     "TestTemplateStrategy",
+    "case_name",
     "format_validation_error",
 ]

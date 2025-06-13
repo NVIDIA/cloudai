@@ -16,11 +16,11 @@
 
 from __future__ import annotations
 
-import copy
 from typing import TYPE_CHECKING, Callable, ClassVar, List, Set, Tuple, Type, Union
 
 if TYPE_CHECKING:
     from ..configurator.base_agent import BaseAgent
+    from ..models.scenario import ReportConfig
     from ..models.workload import TestDefinition
     from ..reporter import Reporter
     from .base_installer import BaseInstaller
@@ -79,7 +79,8 @@ class Registry(metaclass=Singleton):
     test_definitions_map: ClassVar[dict[str, Type[TestDefinition]]] = {}
     agents_map: ClassVar[dict[str, Type[BaseAgent]]] = {}
     reports_map: ClassVar[dict[Type[TestDefinition], Set[Type[ReportGenerationStrategy]]]] = {}
-    scenario_reports: ClassVar[List[Type[Reporter]]] = []
+    scenario_reports: ClassVar[dict[str, type[Reporter]]] = {}
+    report_configs: ClassVar[dict[str, ReportConfig]] = {}
     reward_functions_map: ClassVar[dict[str, RewardFunction]] = {}
 
     def add_runner(self, name: str, value: Type[BaseRunner]) -> None:
@@ -268,15 +269,16 @@ class Registry(metaclass=Singleton):
     def update_report(self, tdef_type: Type[TestDefinition], reports: Set[Type[ReportGenerationStrategy]]) -> None:
         self.reports_map[tdef_type] = reports
 
-    def add_scenario_report(self, value: Type[Reporter]) -> None:
-        if value not in self.scenario_reports:
-            existing_reports = copy.copy(self.scenario_reports)
-            existing_reports.append(value)
-            self.update_scenario_report(existing_reports)
+    def add_scenario_report(self, name: str, report: type[Reporter], config: ReportConfig) -> None:
+        if name in self.scenario_reports:
+            raise ValueError(
+                f"Duplicating scenario report implementation for '{name}', use 'update()' for replacement."
+            )
+        self.update_scenario_report(name, report, config)
 
-    def update_scenario_report(self, reports: List[Type[Reporter]]) -> None:
-        self.scenario_reports.clear()
-        self.scenario_reports.extend(reports)
+    def update_scenario_report(self, name: str, report: type[Reporter], config: ReportConfig) -> None:
+        self.scenario_reports[name] = report
+        self.report_configs[name] = config
 
     def add_reward_function(self, name: str, value: RewardFunction) -> None:
         if name in self.reward_functions_map:

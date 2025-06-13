@@ -30,6 +30,7 @@ from cloudai.core import (
     System,
     TestTemplateStrategy,
 )
+from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import TestDefinition
 
 
@@ -43,6 +44,7 @@ def registry():
 
     strategies_map = copy.copy(registry.strategies_map)
     scenario_reports = copy.copy(registry.scenario_reports)
+    report_configs = copy.copy(registry.report_configs)
 
     registry.scenario_reports.clear()
 
@@ -51,7 +53,8 @@ def registry():
     # Clean up the registry after the test, we check exact list of reports in other tests
     if MyTestDefinition in registry.reports_map:
         del registry.reports_map[MyTestDefinition]
-    registry.update_scenario_report(scenario_reports)
+    for name, report in scenario_reports.items():
+        registry.update_scenario_report(name, report, report_configs[name])
 
     registry.strategies_map.clear()
     registry.strategies_map.update(strategies_map)
@@ -273,11 +276,13 @@ class TestRegistry__ReportsMap:
 
 
 class MyReporter(Reporter):
-    pass
+    def generate(self) -> None:
+        pass
 
 
 class AnotherReporter(Reporter):
-    pass
+    def generate(self) -> None:
+        pass
 
 
 class TestRegistry__ScenarioReports:
@@ -288,19 +293,19 @@ class TestRegistry__ScenarioReports:
     """
 
     def test_add_scenario_report(self, registry: Registry):
-        registry.add_scenario_report(MyReporter)
-        assert registry.scenario_reports == [MyReporter]
+        registry.add_scenario_report("my", MyReporter, ReportConfig())
+        assert registry.scenario_reports == {"my": MyReporter}
 
-    def test_duplicate_is_fine(self, registry: Registry):
-        registry.add_scenario_report(MyReporter)
-        registry.add_scenario_report(MyReporter)
-        assert registry.scenario_reports == [MyReporter]
-
-    def test_can_add_multiple_reports(self, registry: Registry):
-        registry.add_scenario_report(MyReporter)
-        registry.add_scenario_report(AnotherReporter)
-        assert registry.scenario_reports == [MyReporter, AnotherReporter]
+    def test_duplicate_is_must_use_update(self, registry: Registry):
+        with pytest.raises(ValueError) as exc_info:
+            registry.add_scenario_report("my", MyReporter, ReportConfig())
+        assert (
+            str(exc_info.value)
+            == "Duplicating scenario report implementation for 'my', use 'update()' for replacement."
+        )
+        registry.update_scenario_report("my", MyReporter, ReportConfig())
+        assert registry.scenario_reports == {"my": MyReporter}
 
     def test_update_scenario_report(self, registry: Registry):
-        registry.update_scenario_report([AnotherReporter])
-        assert registry.scenario_reports == [AnotherReporter]
+        registry.update_scenario_report("another", AnotherReporter, ReportConfig())
+        assert registry.scenario_reports["another"] == AnotherReporter

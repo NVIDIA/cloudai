@@ -39,6 +39,7 @@ from cloudai.core import (
     TestParser,
     TestScenario,
 )
+from cloudai.models.scenario import ReportConfig
 from cloudai.parser import HOOK_ROOT
 from cloudai.systems.slurm import SingleSbatchRunner, SlurmSystem
 from cloudai.util import prepare_output_dir
@@ -151,10 +152,20 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
 
 def generate_reports(system: System, test_scenario: TestScenario, result_dir: Path) -> None:
     registry = Registry()
-    for reporter_class in registry.scenario_reports:
-        logging.debug(f"Generating report with {reporter_class.__name__}")
+    for name, reporter_class in registry.scenario_reports.items():
+        logging.debug(f"Generating report '{name}' ({reporter_class.__name__})")
+
+        cfg = registry.report_configs.get(name, ReportConfig(enable=False))
+        if isinstance(system, SlurmSystem) and system.reports and name in system.reports:
+            cfg = system.reports[name]
+        logging.debug(f"Report '{name}' config is: {cfg.model_dump_json(indent=None)}")
+
+        if not cfg.enable:
+            logging.debug(f"Skipping report {name} because it is disabled.")
+            continue
+
         try:
-            reporter = reporter_class(system, test_scenario, result_dir)
+            reporter = reporter_class(system, test_scenario, result_dir, cfg)
             reporter.generate()
         except Exception as e:
             logging.warning(f"Error generating report: {e}")
@@ -477,3 +488,17 @@ def load_tomls_by_type(tomls: List[Path]) -> dict[str, List[Path]]:
             files["unknown"].append(toml_file)
 
     return files
+
+
+def handle_list_registered_items(args: argparse.Namespace) -> int:
+    item_type = args.type
+    registry = Registry()
+    if item_type == "reports":
+        print("Registered scenario reports:")
+        for idx, (name, report) in enumerate(sorted(registry.scenario_reports.items()), start=1):
+            str = f'{idx}. "{name}" {report.__name__}'
+            if args.verbose:
+                str += f" (config={registry.report_configs[name].model_dump_json(indent=None)})"
+            print(str)
+
+    return 0

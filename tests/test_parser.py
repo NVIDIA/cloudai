@@ -15,13 +15,14 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import cast
+from typing import Generator, cast
 from unittest.mock import Mock, patch
 
 import pytest
 from pydantic_core import ErrorDetails
 
-from cloudai.core import Parser, format_validation_error
+from cloudai.core import Parser, Registry, Reporter, format_validation_error
+from cloudai.models.scenario import ReportConfig, parse_reports_spec
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 
 
@@ -172,3 +173,34 @@ class Test_Parser:
     def test_log_validation_errors_with_required_field_error(self, error: ErrorDetails, expected_msg: str):
         err_msg = format_validation_error(error)
         assert err_msg == expected_msg
+
+
+class TestParseReportsSpec:
+    @pytest.fixture(autouse=True, scope="class")
+    def scenario_report(self) -> Generator[str, None, None]:
+        class MyReporter(Reporter):
+            def generate(self) -> None: ...
+
+        rname = "scenario-test"
+        Registry().add_scenario_report(rname, MyReporter, ReportConfig())
+
+        yield rname
+
+        Registry().scenario_reports.pop(rname)
+        Registry().report_configs.pop(rname)
+
+    def test_report_not_in_registry(self):
+        with pytest.raises(ValueError) as exc_info:
+            parse_reports_spec({"unknown": {}})
+        assert "Report configuration for 'unknown' not found in the registry." in str(exc_info.value)
+        assert "Available reports: " in str(exc_info.value)
+
+    def test_scenario_reports_can_be_disallowed(self, scenario_report: str):
+        with pytest.raises(ValueError) as exc_info:
+            parse_reports_spec({scenario_report: {}}, allow_scenario_reports=False)
+        assert f"Scenario level report '{scenario_report}' is not allowed here." in str(exc_info.value)
+
+    def test_malformed_config_reported(self, scenario_report: str):
+        with pytest.raises(ValueError) as exc_info:
+            parse_reports_spec({scenario_report: {"enable": "invalid"}})
+        assert f"Error validating report configuration '{scenario_report}' as ReportConfig: " in str(exc_info.value)
