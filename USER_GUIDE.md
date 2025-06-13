@@ -798,7 +798,7 @@ The total number of nodes required must be:
 1 (frontend) + num_prefill_nodes + num_decode_nodes
 ```
 
-This total must match the `nodes` field in your test scenario schema. If the schema specifies a different number, CloudAI will not launch the job correctly. Be sure to update the test scenario accordingly when adjusting `num_prefill_nodes` or `num_decode_nodes`.
+If there is a mismatch in the number of nodes between the schema and the test scenario, CloudAI will use the number of nodes specified in the test schema, ignoring the value in the test scenario.
 
 All node role assignments and orchestration are automatically managed by CloudAI.
 
