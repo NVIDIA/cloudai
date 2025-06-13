@@ -815,7 +815,7 @@ $ python cloudaix.py run --system-config conf/staging/ai_dynamo/system/oci.toml 
 #### Option 1: Monitor via Slurm
 
 ```bash
-$ watch squeue -u $(whoami)
+$ watch squeue --me
 ```
 
 #### Option 2: Monitor Output Logs
