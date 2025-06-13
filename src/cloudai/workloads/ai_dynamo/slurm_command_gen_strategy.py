@@ -47,16 +47,12 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _generate_yaml_config(self, td: AIDynamoTestDefinition, yaml_path: Path) -> Path:
         config = {
-            "Frontend": td.cmd_args.dynamo.frontend.model_dump(by_alias=True),
+            "Frontend": td.cmd_args.dynamo.frontend.model_dump(by_alias=True, exclude={"port_etcd", "port_nats"}),
             "Processor": td.cmd_args.dynamo.processor.model_dump(by_alias=True),
             "Router": td.cmd_args.dynamo.router.model_dump(by_alias=True),
-            "VllmWorker": td.cmd_args.dynamo.vllm_worker.model_dump(by_alias=True),
-            "PrefillWorker": td.cmd_args.dynamo.prefill_worker.model_dump(by_alias=True),
+            "VllmWorker": td.cmd_args.dynamo.vllm_worker.model_dump(by_alias=True, exclude={"num_nodes"}),
+            "PrefillWorker": td.cmd_args.dynamo.prefill_worker.model_dump(by_alias=True, exclude={"num_nodes"}),
         }
-        for section in config.values():
-            section.pop("port_etcd", None)
-            section.pop("port_nats", None)
-            section.pop("num_nodes", None)
         model_name = td.cmd_args.served_model_name
         config["Frontend"]["served_model_name"] = model_name
         for section_name in ["Processor", "Router", "PrefillWorker", "VllmWorker"]:
