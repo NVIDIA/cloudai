@@ -16,7 +16,6 @@
 
 import logging
 import shutil
-from typing import cast
 
 from cloudai.core import ReportGenerationStrategy
 from cloudai.systems.slurm.slurm_system import SlurmSystem
@@ -38,29 +37,29 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
 
         shutil.copy2(source_csv, target_csv)
 
+        gpus_per_node = None
+        if isinstance(self.system, SlurmSystem):
+            gpus_per_node = self.system.gpus_per_node
+
+        if gpus_per_node is None:
+            logging.warning("gpus_per_node is None, skipping Overall Output Tokens per Second per GPU calculation.")
+            return
+
         num_frontend_nodes = 1
         num_prefill_nodes = self.test_run.test.test_definition.cmd_args.dynamo.prefill_worker.num_nodes
         num_decode_nodes = self.test_run.test.test_definition.cmd_args.dynamo.vllm_worker.num_nodes
 
-        slurm_system = cast(SlurmSystem, self.system)
-        gpus_per_node = slurm_system.gpus_per_node
+        total_gpus = (num_frontend_nodes + num_prefill_nodes + num_decode_nodes) * gpus_per_node
 
-        if gpus_per_node is not None:
-            total_gpus = (num_frontend_nodes + num_prefill_nodes + num_decode_nodes) * gpus_per_node
+        with open(source_csv, "r") as f:
+            lines = f.readlines()
+            output_token_throughput_line = next(
+                (line for line in lines if "Output Token Throughput (tokens/sec)" in line), None
+            )
+            if output_token_throughput_line:
+                output_token_throughput = float(output_token_throughput_line.split(",")[1].strip())
 
-            with open(source_csv, "r") as f:
-                lines = f.readlines()
-                output_token_throughput_line = next(
-                    (line for line in lines if "Output Token Throughput (tokens/sec)" in line), None
-                )
-                if output_token_throughput_line:
-                    output_token_throughput = float(output_token_throughput_line.split(",")[1].strip())
+                overall_output_tokens_per_second_per_gpu = output_token_throughput / total_gpus
 
-                    overall_output_tokens_per_second_per_gpu = output_token_throughput / total_gpus
-
-                    with open(target_csv, "a") as f:
-                        f.write(
-                            f"Overall Output Tokens per Second per GPU,{overall_output_tokens_per_second_per_gpu}\n"
-                        )
-        else:
-            logging.warning("gpus_per_node is None, skipping Overall Output Tokens per Second per GPU calculation.")
+                with open(target_csv, "a") as f:
+                    f.write(f"Overall Output Tokens per Second per GPU,{overall_output_tokens_per_second_per_gpu}\n")
