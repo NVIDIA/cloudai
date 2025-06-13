@@ -43,7 +43,7 @@ def nccl_tr(slurm_system: SlurmSystem) -> TestRun:
         ),
         num_nodes=2,
         nodes=[],
-        output_path=slurm_system.output_path,
+        output_path=slurm_system.output_path / "nccl_test",
     )
     tr.test.test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(slurm_system, {})
     return tr
@@ -61,7 +61,7 @@ def sleep_tr(slurm_system: SlurmSystem) -> TestRun:
         ),
         num_nodes=1,
         nodes=[],
-        output_path=slurm_system.output_path,
+        output_path=slurm_system.output_path / "sleep_test",
     )
     tr.test.test_template.command_gen_strategy = SleepSlurmCommandGenStrategy(slurm_system, {})
     tr.output_path.mkdir(parents=True, exist_ok=True)
@@ -480,8 +480,12 @@ def test_store_job_metadata(nccl_tr: TestRun, slurm_system: SlurmSystem) -> None
     assert out_file.exists()
     sjm = SlurmJobMetadata.model_validate(toml.load(out_file))
     assert sjm.job_id == 1
+    assert sjm.is_single_sbatch is True
     assert sjm.srun_cmd == "n/a for single sbatch run"
     assert sjm.test_cmd == "n/a for single sbatch run"
+    assert sjm.job_root == runner.scenario_root.absolute()
+
+    assert sjm == SlurmJobMetadata.model_validate(toml.loads(toml.dumps(sjm.model_dump())))
 
 
 def test_pre_test(nccl_tr: TestRun, sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:

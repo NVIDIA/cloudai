@@ -25,7 +25,8 @@ from cloudai.util import CommandShell
 
 from .slurm_command_gen_strategy import SlurmCommandGenStrategy
 from .slurm_job import SlurmJob
-from .slurm_system import SlurmJobMetadata, SlurmSystem
+from .slurm_metadata import SlurmJobMetadata, SlurmStepMetadata
+from .slurm_system import SlurmSystem
 
 
 class SlurmRunner(BaseRunner):
@@ -59,25 +60,46 @@ class SlurmRunner(BaseRunner):
         logging.info(f"Submitted slurm job: {job_id}")
         return SlurmJob(tr, id=job_id)
 
-    async def job_completion_callback(self, job: BaseJob) -> None:
-        self.store_job_metadata(job)
+    def on_job_completion(self, job: BaseJob) -> None:
+        logging.debug(f"Job completion callback for job {job.id}")
+        self.store_job_metadata(cast(SlurmJob, job))
 
-    def store_job_metadata(self, job):
-        jb = cast(SlurmJob, job)
-        system = cast(SlurmSystem, self.system)
-        cmd_gen = cast(SlurmCommandGenStrategy, jb.test_run.test.test_template.command_gen_strategy)
-        res = None if self.mode == "dry-run" else system.get_job_status(jb)
-        job_name, job_state, time_sec = "unknown", "UNKNOWN", 0
-        if res:
-            job_name, job_state, time_sec = res[0], res[1], int(res[2])
-        job_meta = SlurmJobMetadata(
-            job_id=int(jb.id),
-            job_name=job_name,
-            job_state=job_state,
-            elapsed_time_sec=time_sec,
-            srun_cmd=cmd_gen.gen_srun_command(jb.test_run),
-            test_cmd=" ".join(cmd_gen.generate_test_command({}, {}, jb.test_run)),
+    def _mock_job_metadata(self) -> SlurmStepMetadata:
+        return SlurmStepMetadata(
+            job_id=0,
+            step_id="",
+            name="unknown",
+            state="UNKNOWN",
+            exit_code="0",
+            start_time="",
+            end_time="",
+            elapsed_time_sec=0,
+            submit_line="dry-run test",
         )
 
-        with open(jb.test_run.output_path / "slurm-job.toml", "w") as job_file:
+    def _get_job_metadata(
+        self, job: SlurmJob, steps_metadata: list[SlurmStepMetadata]
+    ) -> tuple[Path, SlurmJobMetadata]:
+        cmd_gen = cast(SlurmCommandGenStrategy, job.test_run.test.test_template.command_gen_strategy)
+        return job.test_run.output_path / "slurm-job.toml", SlurmJobMetadata(
+            job_id=int(job.id),
+            name=steps_metadata[0].name,
+            state=steps_metadata[0].state,
+            exit_code=steps_metadata[0].exit_code,
+            start_time=steps_metadata[0].start_time,
+            end_time=steps_metadata[0].end_time,
+            elapsed_time_sec=steps_metadata[0].elapsed_time_sec,
+            job_steps=steps_metadata[1:],
+            srun_cmd=cmd_gen.gen_srun_command(job.test_run),
+            test_cmd=" ".join(cmd_gen.generate_test_command({}, {}, job.test_run)),
+            job_root=job.test_run.output_path.absolute(),
+        )
+
+    def store_job_metadata(self, job: SlurmJob):
+        system = cast(SlurmSystem, self.system)
+        steps_metadata = [self._mock_job_metadata()] if self.mode == "dry-run" else system.get_job_status(job)
+        slurm_job_file, job_meta = self._get_job_metadata(job, steps_metadata)
+
+        logging.debug(f"Storing job metadata for job {job.id} to {slurm_job_file}")
+        with slurm_job_file.open("w") as job_file:
             toml.dump(job_meta.model_dump(), job_file)

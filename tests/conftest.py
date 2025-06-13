@@ -32,7 +32,7 @@ def create_autospec_dataclass(dataclass: type) -> Mock:
 def cleanup():
     yield
 
-    for f in {"env_vars.sh", "hostfile.txt"}:
+    for f in {"env_vars.sh", "hostfile.txt", "start_server_wrapper.sh"}:
         (Path.cwd() / f).unlink(missing_ok=True)
 
 
