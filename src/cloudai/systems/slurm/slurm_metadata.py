@@ -14,7 +14,68 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pydantic import BaseModel
+from __future__ import annotations
+
+from pathlib import Path
+
+from pydantic import BaseModel, ConfigDict, field_serializer
+
+
+class _SlurmStepMetadataBase(BaseModel):
+    """Represents the metadata of a Slurm job step."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    job_id: int
+    name: str
+    state: str
+    start_time: str
+    end_time: str
+    elapsed_time_sec: int
+    exit_code: str
+
+
+class SlurmStepMetadata(_SlurmStepMetadataBase):
+    """Represents the metadata of a Slurm job step."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    step_id: str
+    submit_line: str
+
+    @classmethod
+    def from_sacct_single_line(cls, line: str, delimiter: str) -> SlurmStepMetadata:
+        data = line.split(delimiter)
+        if len(data) < 8:
+            raise ValueError(f"Invalid line: {line}")
+
+        job_id, step_id = data[0].split(".") if "." in data[0] else (data[0], "")
+
+        return cls(
+            job_id=int(job_id),
+            step_id=step_id,
+            name=data[1],
+            state=data[2],
+            exit_code=data[3],
+            start_time=data[4],
+            end_time=data[5],
+            elapsed_time_sec=int(data[6]),
+            submit_line=data[7],
+        )
+
+
+class SlurmJobMetadata(_SlurmStepMetadataBase):
+    """Represents the metadata of a Slurm job."""
+
+    srun_cmd: str
+    test_cmd: str
+    is_single_sbatch: bool = False
+    job_root: Path
+    job_steps: list[SlurmStepMetadata]
+
+    @field_serializer("job_root")
+    def _path_serializer(self, v: Path) -> str:
+        return str(v)
 
 
 class MetadataSystem(BaseModel):

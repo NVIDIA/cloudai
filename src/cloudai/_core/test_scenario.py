@@ -91,18 +91,21 @@ class TestRun:
         if not self.reports:
             return None
 
+        if not self.test.test_definition.agent_metrics:
+            return None
+
         for r in self.reports:
-            if self.test.test_definition.agent_metric in r.metrics:
+            if all(metric in r.metrics for metric in self.test.test_definition.agent_metrics):
                 return r
 
         return None
 
-    def get_metric_value(self, system: System) -> float:
+    def get_metric_value(self, system: System, metric: str) -> float:
         report = self.metric_reporter
         if report is None:
             return METRIC_ERROR
 
-        return report(system, self).get_metric(self.test.test_definition.agent_metric)
+        return report(system, self).get_metric(metric)
 
     @property
     def is_dse_job(self) -> bool:

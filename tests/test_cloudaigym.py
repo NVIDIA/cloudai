@@ -54,6 +54,7 @@ def setup_env(slurm_system: SlurmSystem, nemorun: NeMoRunTestDefinition) -> tupl
         ),
     )
     tdef.cmd_args.data = Data(micro_batch_size=[1, 2])
+    tdef.agent_metrics = ["default"]
 
     mock_command_gen = MagicMock()
     mock_command_gen.gen_srun_command.return_value = "srun mock command"
@@ -96,9 +97,10 @@ def test_observation_space(setup_env):
         (
             "inverse",
             [
-                ([2.0], 0.5),
+                ([0.34827126874999986], pytest.approx(2.871, 0.001)),
                 ([0.0], 0.0),
                 ([], 0.0),
+                ([2.0, 2.0], 0.5),
             ],
         ),
         (

@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import logging
 import re
 from pathlib import Path
@@ -25,18 +27,8 @@ from cloudai.core import BaseJob, File, Installable, System
 from cloudai.models.scenario import ReportConfig, parse_reports_spec
 from cloudai.util import CommandShell
 
+from .slurm_metadata import SlurmStepMetadata
 from .slurm_node import SlurmNode, SlurmNodeState
-
-
-class SlurmJobMetadata(BaseModel):
-    """Represents the metadata of a Slurm job."""
-
-    job_id: int
-    job_name: str
-    job_state: str
-    elapsed_time_sec: int
-    srun_cmd: str
-    test_cmd: str
 
 
 class DataRepositoryConfig(BaseModel):
@@ -308,9 +300,12 @@ class SlurmSystem(BaseModel, System):
 
         return False
 
-    def get_job_status(self, job: BaseJob, retry_threshold: int = 3) -> Optional[tuple[str, str, str]]:
+    def get_job_status(self, job: BaseJob, retry_threshold: int = 3) -> list[SlurmStepMetadata]:
         retry_count = 0
-        command = f"sacct -j {job.id} --format=JobName,State,ElapsedRAW --delimiter=',' -p --noheader"
+        command = (
+            f"sacct -j {job.id} --format=JobID,JobName,State,ExitCode,Start,End,ElapsedRAW,SubmitLine "
+            "--delimiter='|' -p --noheader"
+        )
 
         while retry_count < retry_threshold:
             stdout, stderr = self.cmd_shell.execute(command).communicate()
@@ -326,12 +321,9 @@ class SlurmSystem(BaseModel, System):
                 logging.error(error_message)
                 raise RuntimeError(error_message)
 
-            # sacct produces a single line per job, first line is for overall job
-            job_states = stdout.strip().splitlines()[0]
-            data = job_states.split(",")
-            return data[0], data[1], data[2]
+            return [SlurmStepMetadata.from_sacct_single_line(line, "|") for line in stdout.splitlines()]
 
-        return None
+        return []
 
     def kill(self, job: BaseJob) -> None:
         """

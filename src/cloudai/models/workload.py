@@ -18,7 +18,7 @@ from abc import ABC
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from cloudai.core import GitRepo, Installable, PythonExecutable, TestRun
 
@@ -105,7 +105,7 @@ class TestDefinition(BaseModel, ABC):
     predictor: Optional[PredictorConfig] = None
     agent: str = "grid_search"
     agent_steps: int = 1
-    agent_metric: str = "default"
+    agent_metrics: list[str] = Field(default=["default"])
     agent_reward_function: str = "inverse"
 
     @property
