@@ -92,6 +92,7 @@ class SlurmRunner(BaseRunner):
             job_steps=steps_metadata[1:],
             srun_cmd=cmd_gen.gen_srun_command(job.test_run),
             test_cmd=" ".join(cmd_gen.generate_test_command({}, {}, job.test_run)),
+            job_root=job.test_run.output_path.absolute(),
         )
 
     def store_job_metadata(self, job: SlurmJob):

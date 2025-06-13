@@ -16,7 +16,9 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
+from pathlib import Path
+
+from pydantic import BaseModel, ConfigDict, field_serializer
 
 
 class _SlurmStepMetadataBase(BaseModel):
@@ -68,7 +70,12 @@ class SlurmJobMetadata(_SlurmStepMetadataBase):
     srun_cmd: str
     test_cmd: str
     is_single_sbatch: bool = False
+    job_root: Path
     job_steps: list[SlurmStepMetadata]
+
+    @field_serializer("job_root")
+    def _path_serializer(self, v: Path) -> str:
+        return str(v)
 
 
 class MetadataSystem(BaseModel):
