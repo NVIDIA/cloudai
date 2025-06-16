@@ -64,6 +64,7 @@ class PrefillWorkerArgs(BaseModel):
     max_num_seqs: int = Field(16, alias="max-num-seqs")
     gpu_memory_utilization: float = Field(0.95, alias="gpu-memory-utilization")
     tensor_parallel_size: Union[int, list[int]] = Field(8, alias="tensor-parallel-size")
+    pipeline_parallel_size: Union[int, list[int]] = Field(1, alias="pipeline-parallel-size")
     quantization: str = "modelopt"
     service_args: dict = Field({"workers": 1, "resources": {"gpu": "8"}}, alias="ServiceArgs")
 
@@ -84,6 +85,7 @@ class VllmWorkerArgs(BaseModel):
     max_prefill_queue_size: int = Field(2, alias="max-prefill-queue-size")
     gpu_memory_utilization: float = Field(0.95, alias="gpu-memory-utilization")
     tensor_parallel_size: Union[int, list[int]] = Field(8, alias="tensor-parallel-size")
+    pipeline_parallel_size: Union[int, list[int]] = Field(1, alias="pipeline-parallel-size")
     router: str = "kv"
     quantization: str = "modelopt"
     enable_prefix_caching: bool = Field(True, alias="enable-prefix-caching")
