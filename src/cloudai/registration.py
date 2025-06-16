@@ -19,6 +19,7 @@ def register_all():
     """Register all workloads, systems, runners, installers, and strategies."""
     from cloudai.configurator.grid_search import GridSearchAgent
     from cloudai.configurator.reward_functions import (
+        ai_dynamo_reward,
         identity_reward,
         inverse_reward,
         negative_reward,
@@ -211,3 +212,4 @@ def register_all():
     Registry().add_reward_function("inverse", inverse_reward)
     Registry().add_reward_function("negative", negative_reward)
     Registry().add_reward_function("identity", identity_reward)
+    Registry().add_reward_function("ai_dynamo", ai_dynamo_reward)
