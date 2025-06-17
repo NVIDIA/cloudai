@@ -17,43 +17,34 @@
 name = "ucc_test"
 
 [[Tests]]
-id = "Tests.1"
+id = "Tests.alltoall"
 test_name = "ucc_test_alltoall"
 time_limit = "00:20:00"
-num_nodes = "2"
+num_nodes = 2
 
 [[Tests]]
-id = "Tests.2"
-test_name = "ucc_test_alltoall"
+id = "Tests.allgather"
+test_name = "ucc_test_allgather"
 time_limit = "00:20:00"
-num_nodes = "2"
+num_nodes = 2
   [[Tests.dependencies]]
   type = "start_post_comp"
-  id = "Tests.1"
+  id = "Tests.alltoall"
 
 [[Tests]]
-id = "Tests.3"
-test_name = "ucc_test_alltoall"
+id = "Tests.allreduce"
+test_name = "ucc_test_allreduce"
 time_limit = "00:20:00"
-num_nodes = "2"
+num_nodes = 2
   [[Tests.dependencies]]
   type = "start_post_comp"
-  id = "Tests.2"
+  id = "Tests.allgather"
 
 [[Tests]]
-id = "Tests.4"
-test_name = "ucc_test_alltoall"
+id = "Tests.reduce_scatter"
+test_name = "ucc_test_reduce_scatter"
 time_limit = "00:20:00"
-num_nodes = "2"
+num_nodes = 2
   [[Tests.dependencies]]
   type = "start_post_comp"
-  id = "Tests.3"
-
-[[Tests]]
-id = "Tests.5"
-test_name = "ucc_test_alltoall"
-time_limit = "00:20:00"
-num_nodes = "2"
-  [[Tests.dependencies]]
-  type = "start_post_comp"
-  id = "Tests.4"
+  id = "Tests.allreduce"
