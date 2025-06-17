@@ -23,8 +23,10 @@ weight = 100
 
 [[Tests]]
 id = "Tests.2"
-test_name = "nccl_test_all_reduce"
+test_name = "nccl_base_test"
 num_nodes = "16"
+  [Tests.cmd_args]
+  subtest_name = "all_reduce_perf_mpi"
   [[Tests.dependencies]]
   type = "start_post_init"
   id = "Tests.1"
