@@ -275,12 +275,11 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         total_nodes = 1 + prefill_n + decode_n
 
         requested_nodes, node_list = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes)
-        if requested_nodes != total_nodes:
-            logging.warning(
-                f"Node count mismatch: expected {total_nodes} total nodes "
-                f"(1 frontend + {prefill_n} prefill + "
-                f"{decode_n} decode), but got {requested_nodes}. "
-                f"Overriding to use {total_nodes} nodes."
+        if total_nodes > requested_nodes:
+            raise ValueError(
+                f"Not enough nodes requested: need {total_nodes} total nodes "
+                f"(1 frontend + {prefill_n} prefill + {decode_n} decode), "
+                f"but only got {requested_nodes}"
             )
 
         result = (total_nodes, node_list)
