@@ -190,6 +190,7 @@ def test_yaml_config_generation(strategy: AIDynamoSlurmCommandGenStrategy, test_
                 "max-prefill-queue-size": 2,
                 "gpu-memory-utilization": 0.95,
                 "tensor-parallel-size": 8,
+                "pipeline-parallel-size": 1,
                 "router": "kv",
                 "quantization": "modelopt",
                 "enable-prefix-caching": True,
@@ -208,6 +209,7 @@ def test_yaml_config_generation(strategy: AIDynamoSlurmCommandGenStrategy, test_
                 "max-num-seqs": 16,
                 "gpu-memory-utilization": 0.95,
                 "tensor-parallel-size": 8,
+                "pipeline-parallel-size": 1,
                 "quantization": "modelopt",
                 "ServiceArgs": {
                     "workers": 1,
