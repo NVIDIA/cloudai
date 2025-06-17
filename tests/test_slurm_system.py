@@ -599,9 +599,17 @@ sacct_output = """2623913,job,COMPLETED,0:0,2025-05-09T01:34:52,2025-05-09T01:59
 2623913.2,all_reduce_perf_mpi,COMPLETED,0:0,2025-05-09T01:36:16,2025-05-09T01:37:02,46,srun -N2 ...,
 2623913.3,all_reduce_perf_mpi,COMPLETED,0:0,2025-05-09T01:37:02,2025-05-09T01:37:59,57,srun -N2 ...,
 """
+sacct_output2 = """2968718|job:run|COMPLETED|0:0|2025-06-16T07:40:16|2025-06-16T07:49:08|532|sbatch run_submission.sh|
+2968718.batch|batch|COMPLETED|0:0|2025-06-16T07:40:16|2025-06-16T07:49:08|532||
+2968718.extern|extern|COMPLETED|0:0|2025-06-16T07:40:16|2025-06-16T07:49:08|532||
+2968718.0|bash|COMPLETED|0:0|2025-06-16T07:40:54|2025-06-16T07:49:11|497|srun long cmd
+with
+  multiple
+  lines |
+"""
 
 
-@pytest.mark.parametrize("sacct_line", sacct_output.splitlines())
-def test_slurm_job_metadata_from_sacct_output(sacct_line: str):
-    job_metadata = SlurmStepMetadata.from_sacct_single_line(sacct_line, delimiter=",")
-    assert job_metadata is not None
+@pytest.mark.parametrize("sacct_output,delimiter,expected_nsteps", [(sacct_output, ",", 7), (sacct_output2, "|", 4)])
+def test_slurm_job_metadata_from_sacct_output(sacct_output: str, delimiter: str, expected_nsteps: int):
+    job_metadata = SlurmStepMetadata.from_sacct_output(sacct_output, delimiter=delimiter)
+    assert len(job_metadata) == expected_nsteps
