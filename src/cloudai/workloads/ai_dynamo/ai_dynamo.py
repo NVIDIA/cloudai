@@ -17,7 +17,7 @@
 from pathlib import Path
 from typing import List, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from cloudai.core import DockerImage, Installable
 from cloudai.models.workload import CmdArgs, TestDefinition
@@ -26,7 +26,7 @@ from cloudai.models.workload import CmdArgs, TestDefinition
 class FrontendArgs(BaseModel):
     """Arguments for the frontend node."""
 
-    model_config = {"populate_by_name": True}
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     endpoint: str = "dynamo.Processor.chat/completions"
     port: int = 8000
@@ -37,7 +37,7 @@ class FrontendArgs(BaseModel):
 class ProcessorArgs(BaseModel):
     """Arguments for the processor node."""
 
-    model_config = {"populate_by_name": True}
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     block_size: int = Field(64, alias="block-size")
     max_model_len: int = Field(8192, alias="max-model-len")
@@ -47,7 +47,7 @@ class ProcessorArgs(BaseModel):
 class RouterArgs(BaseModel):
     """Arguments for the router."""
 
-    model_config = {"populate_by_name": True}
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     min_workers: int = Field(1, alias="min-workers")
 
@@ -55,7 +55,7 @@ class RouterArgs(BaseModel):
 class PrefillWorkerArgs(BaseModel):
     """Arguments for the prefill worker node."""
 
-    model_config = {"populate_by_name": True}
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     num_nodes: Union[int, list[int]]
     kv_transfer_config: str = Field('{"kv_connector":"DynamoNixlConnector"}', alias="kv-transfer-config")
@@ -72,7 +72,7 @@ class PrefillWorkerArgs(BaseModel):
 class VllmWorkerArgs(BaseModel):
     """Arguments for the VllmWorker node."""
 
-    model_config = {"populate_by_name": True}
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     num_nodes: Union[int, list[int]]
     kv_transfer_config: str = Field('{"kv_connector":"DynamoNixlConnector"}', alias="kv-transfer-config")
@@ -95,6 +95,8 @@ class VllmWorkerArgs(BaseModel):
 class AIDynamoArgs(BaseModel):
     """Arguments for AI Dynamo setup."""
 
+    model_config = ConfigDict(extra="forbid")
+
     frontend: FrontendArgs = FrontendArgs(port_etcd=2379, port_nats=4222)
     processor: ProcessorArgs = ProcessorArgs(**{"block-size": 64, "max-model-len": 8192, "router": "kv"})
     router: RouterArgs = RouterArgs(**{"min-workers": 1})
@@ -104,6 +106,8 @@ class AIDynamoArgs(BaseModel):
 
 class GenAIPerfArgs(BaseModel):
     """Arguments for GenAI performance profiling."""
+
+    model_config = ConfigDict(extra="forbid")
 
     port: int = 8000
     endpoint: Optional[str] = None
