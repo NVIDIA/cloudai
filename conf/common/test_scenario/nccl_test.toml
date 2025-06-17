@@ -49,7 +49,7 @@ time_limit = "00:10:00"
 
 [[Tests]]
 id = "Tests.alltoall"
-test_name = "nccl_test_alltoall"
+test_name = "nccl_base_test"
 num_nodes = 2
 time_limit = "00:10:00"
   [Tests.cmd_args]
