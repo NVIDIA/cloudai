@@ -43,10 +43,14 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             if arg in {"docker_image_url", "subtest_name"}:
                 continue
 
+            value = getattr(tdef.cmd_args, arg)
+            if value is None:
+                continue
+
             if len(arg) > 1:
-                srun_command_parts.append(f"--{arg} {getattr(tdef.cmd_args, arg)}")
+                srun_command_parts.append(f"--{arg} {value}")
             else:
-                srun_command_parts.append(f"-{arg} {getattr(tdef.cmd_args, arg)}")
+                srun_command_parts.append(f"-{arg} {value}")
 
         if tr.test.extra_cmd_args:
             srun_command_parts.append(tr.test.extra_cmd_args)
