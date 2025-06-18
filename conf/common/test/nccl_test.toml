@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,9 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "nccl_test_scatter"
-description = "scatter"
+name = "nccl_base_test"
+description = "NCCL base test configuration"
 test_template_name = "NcclTest"
 
 [cmd_args]
-"subtest_name" = "scatter_perf_mpi"
+ngpus = 1
+minbytes = "128"
+maxbytes = "4G"
+iters = 100
+warmup_iters = 50
+stepfactor = 2
