@@ -79,6 +79,8 @@ def test_sbatch_default(sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
         f"#SBATCH --output={runner.scenario_root.absolute() / 'common.out'}",
         f"#SBATCH --error={runner.scenario_root.absolute() / 'common.err'}",
         f"#SBATCH --partition={slurm_system.default_partition}",
+        f"#SBATCH --gpus-per-node={slurm_system.gpus_per_node}",
+        f"#SBATCH --gres=gpu:{slurm_system.gpus_per_node}",
     ]
 
 
