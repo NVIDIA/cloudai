@@ -44,10 +44,18 @@ class SlurmStepMetadata(_SlurmStepMetadataBase):
     submit_line: str
 
     @classmethod
-    def from_sacct_single_line(cls, line: str, delimiter: str) -> SlurmStepMetadata:
+    def from_sacct_output(cls, output: str, delimiter: str) -> list[SlurmStepMetadata]:
+        jobs: list[SlurmStepMetadata] = []
+        for line in output.splitlines():
+            if job := cls._from_sacct_single_line(line, delimiter):
+                jobs.append(job)
+        return jobs
+
+    @classmethod
+    def _from_sacct_single_line(cls, line: str, delimiter: str) -> SlurmStepMetadata | None:
         data = line.split(delimiter)
         if len(data) < 8:
-            raise ValueError(f"Invalid line: {line}")
+            return None
 
         job_id, step_id = data[0].split(".") if "." in data[0] else (data[0], "")
 
