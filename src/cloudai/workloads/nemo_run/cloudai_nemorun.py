@@ -899,8 +899,11 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
         recipe.trainer.callbacks[2].wgrad_deferral_limit = 50
     
         vp_size = recipe.trainer.strategy.virtual_pipeline_model_parallel_size
-        dp_size = recipe.trainer.strategy.data_parallel_size
         pp_size = recipe.trainer.strategy.pipeline_model_parallel_size
+        cp_size = recipe.trainer.strategy.context_parallel_size
+        tp_size = recipe.trainer.strategy.tensor_model_parallel_size
+
+        dp_size = (recipe.trainer.num_nodes * recipe.trainer.devices) / (tp_size * pp_size * cp_size)
         
         print("[CloudAI_Debug]: vp_size, dp_size, pp_size:", vp_size, dp_size, pp_size)
 
