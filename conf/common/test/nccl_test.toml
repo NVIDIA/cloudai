@@ -15,7 +15,7 @@
 # limitations under the License.
 
 name = "nccl_base_test"
-description = "base test"
+description = "NCCL base test configuration"
 test_template_name = "NcclTest"
 
 [cmd_args]
