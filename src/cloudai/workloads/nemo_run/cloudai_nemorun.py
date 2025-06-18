@@ -788,6 +788,9 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
                 expert_model_parallel_size=1,
                 expert_tensor_parallel_size=None,
                 pipeline_dtype=torch.bfloat16,
+                gradient_as_bucket_view=True,
+                ckpt_async_save=True,
+                ckpt_parallel_load=True,
                 ddp=run.Config(
                     DistributedDataParallelConfig,
                     check_for_nan_in_grad=True,
@@ -797,6 +800,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
                 ),
             ),
             num_sanity_val_steps=0,
+            use_distributed_sampler=False,
             val_check_interval=1000,
             max_epochs=10,
             callbacks=[
