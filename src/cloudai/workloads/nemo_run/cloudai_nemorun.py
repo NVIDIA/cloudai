@@ -897,19 +897,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
         recipe.model.config.gradient_accumulation_fusion = False
         recipe.trainer.callbacks[2].defer_embedding_wgrad_compute = False
         recipe.trainer.callbacks[2].wgrad_deferral_limit = 50
-    
-        vp_size = recipe.trainer.strategy.virtual_pipeline_model_parallel_size
-        pp_size = recipe.trainer.strategy.pipeline_model_parallel_size
-        cp_size = recipe.trainer.strategy.context_parallel_size
-        tp_size = recipe.trainer.strategy.tensor_model_parallel_size
-
-        dp_size = (recipe.trainer.num_nodes * recipe.trainer.devices) / (tp_size * pp_size * cp_size)
-        
-        print("[CloudAI_Debug]: vp_size, dp_size, pp_size:", vp_size, dp_size, pp_size)
-
-        recipe.trainer.callbacks[2].overlap_param_gather_with_optimizer_step = bool(
-            dp_size > 1 and pp_size > 1 and vp_size and vp_size > 1
-        )
+        recipe.trainer.callbacks[2].overlap_param_gather_with_optimizer_step = False
 
         if disable_tp_commd_overlap:
             recipe.trainer.callbacks[2].tp_comm_overlap = False
