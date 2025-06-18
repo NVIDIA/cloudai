@@ -884,6 +884,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
     enable_fsdp = os.getenv("CLOUDAI_ENABLE_FSDP", "0") == "1"
     disable_tp_commd_overlap = os.getenv("CLOUDAI_DISABLE_TP_COMM_OVERLAP", "0") == "1"
     if enable_fsdp:
+        recipe.trainer.limit_val_batches = 0
         recipe.model.config.init_model_with_meta_device = True
         recipe.trainer.strategy.fsdp = "megatron"
         recipe.trainer.strategy.ddp.data_parallel_sharding_strategy = "optim_grads_params"
