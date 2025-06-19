@@ -132,9 +132,20 @@ class SingleSbatchRunner(SlurmRunner):
             if next_tr.test.test_definition.constraint_check(next_tr):
                 yield next_tr
 
+    def get_global_env_vars(self) -> str:
+        vars: list[str] = []
+        tr = self.test_scenario.test_runs[0]
+        env_vars = self.system.global_env_vars | tr.test.test_definition.extra_env_vars
+        for key, value in env_vars.items():
+            vars.append(f"export {key}={value}")
+        return "\n".join(vars)
+
     def gen_sbatch_content(self) -> str:
         content: list[str] = ["#!/bin/bash", *self.get_sbatch_directives(), ""]
         content.extend(self.aux_commands())
+        content.append("")
+
+        content.append(self.get_global_env_vars())
         content.append("")
 
         tr = self.test_scenario.test_runs[0]

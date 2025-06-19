@@ -35,7 +35,9 @@ def nixl_bench_tr(slurm_system: SlurmSystem):
             test_definition=NIXLBenchTestDefinition(
                 etcd_image_url="docker.io/library/etcd:3.5.1",
                 cmd_args=NIXLBenchCmdArgs(
-                    docker_image_url="docker.io/library/ubuntu:22.04", etcd_endpoint="http://127.0.0.1:2379"
+                    docker_image_url="docker.io/library/ubuntu:22.04",
+                    etcd_endpoint="http://127.0.0.1:2379",
+                    path_to_benchmark="./nixlbench",
                 ),
                 name="nixl-bench",
                 description="NIXL Bench",
@@ -54,7 +56,12 @@ class TestNIXLBenchCommand:
     def test_can_set_any_cmd_arg(self, nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
         in_args = {"backend": "MPI", "dashed-opt": "DRAM", "under_score_opt": "VRAM"}
         cmd_args = NIXLBenchCmdArgs.model_validate(
-            {"docker_image_url": "docker.io/library/ubuntu:22.04", "etcd_endpoint": "http://127.0.0.1:2379", **in_args}
+            {
+                "docker_image_url": "docker.io/library/ubuntu:22.04",
+                "etcd_endpoint": "http://127.0.0.1:2379",
+                "path_to_benchmark": "/p",
+                **in_args,
+            }
         )
         strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, {})
         nixl_bench_tr.test.test_definition.cmd_args = cmd_args
