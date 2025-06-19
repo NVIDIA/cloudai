@@ -71,6 +71,7 @@ from cloudai.workloads.nemo_run import (
 from cloudai.workloads.nixl_bench import (
     NIXLBenchJobStatusRetrievalStrategy,
     NIXLBenchSlurmCommandGenStrategy,
+    NIXLBenchSummaryReport,
     NIXLBenchTestDefinition,
 )
 from cloudai.workloads.sleep import (
@@ -223,12 +224,12 @@ def test_definitions():
 
 def test_scenario_reports():
     scenario_reports = Registry().scenario_reports
-    assert list(scenario_reports.keys()) == ["per_test", "status", "tarball"]
-    assert list(scenario_reports.values()) == [PerTestReporter, StatusReporter, TarballReporter]
+    assert list(scenario_reports.keys()) == ["per_test", "status", "tarball", "nixl_bench_summary"]
+    assert list(scenario_reports.values()) == [PerTestReporter, StatusReporter, TarballReporter, NIXLBenchSummaryReport]
 
 
 def test_report_configs():
     configs = Registry().report_configs
-    assert list(configs.keys()) == ["per_test", "status", "tarball"]
+    assert list(configs.keys()) == ["per_test", "status", "tarball", "nixl_bench_summary"]
     for name, rep_config in configs.items():
         assert rep_config.enable is True, f"Report {name} is not enabled by default"

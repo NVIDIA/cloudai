@@ -16,11 +16,13 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import toml
+from jinja2 import Template
 from rich.console import Console
 from rich.table import Table
 
@@ -31,6 +33,7 @@ from cloudai.util.lazy_imports import lazy
 from .nixl_bench import NIXLBenchTestDefinition
 
 if TYPE_CHECKING:
+    import bokeh.plotting as bk
     import pandas as pd
 
 
@@ -48,6 +51,43 @@ class NIXLBenchSummaryReport(Reporter):
     def __init__(self, system: System, test_scenario: TestScenario, results_root: Path, config: ReportConfig) -> None:
         super().__init__(system, test_scenario, results_root, config)
         self.tdef_res: list[TdefResult] = []
+        self.metric2col = {
+            "avg_lat": "Avg. Latency (us)",
+            "bw_gb_sec": "Bandwidth (GB/sec)",
+        }
+        self.report_configs = [
+            ("READ", "bw_gb_sec"),
+            ("WRITE", "bw_gb_sec"),
+            ("READ", "avg_lat"),
+            ("WRITE", "avg_lat"),
+        ]
+
+    def generate(self) -> None:
+        self.load_tdef_res()
+
+        console = Console(record=True)
+        for op_type, metric in self.report_configs:
+            table = self.create_table(op_type, metric)
+            console.print(table)
+            console.print()
+
+        template_path = Path(__file__).parent.parent.parent / "util" / "nixl_report_template.jinja2"
+        with open(template_path, "r") as f:
+            template = Template(f.read())
+
+        bokeh_script, bokeh_div = self.get_bokeh_html()
+        html_content = template.render(
+            title=f"{self.test_scenario.name} NIXL Bench Report",
+            bokeh_script=bokeh_script,
+            bokeh_div=bokeh_div,
+            rich_html=console.export_html(),
+        )
+
+        html_file = self.results_root / "nixl_summary.html"
+        with open(html_file, "w") as f:
+            f.write(html_content)
+
+        logging.info(f"Interactive HTML report created: {html_file}")
 
     def load_tdef_res(self):
         super().load_test_runs()
@@ -59,7 +99,7 @@ class NIXLBenchSummaryReport(Reporter):
             tdef = NIXLBenchTestDefinition.model_validate(tr_file["test_definition"])
             self.tdef_res.append(TdefResult(tdef, lazy.pd.read_csv(tr.output_path / "nixlbench.csv")))
 
-    def _construct_df(self, op_type: str, metric: str) -> pd.DataFrame:
+    def construct_df(self, op_type: str, metric: str) -> pd.DataFrame:
         final_df = lazy.pd.DataFrame()
 
         for tdef_res in self.tdef_res:
@@ -77,14 +117,57 @@ class NIXLBenchSummaryReport(Reporter):
 
         return final_df
 
-    def create_table(self, op_type: str, metric: str) -> Table:
-        metric2col = {
-            "avg_lat": "Avg. Latency (us)",
-            "bw_gb_sec": "Bandwidth (GB/sec)",
-        }
+    def create_chart(self, op_type: str, metric: str) -> bk.figure | None:
+        df = self.construct_df(op_type, metric)
+        if df.empty:
+            logging.warning(f"Empty DataFrame for {op_type} {metric}")
+            return None
 
-        df = self._construct_df(op_type, metric)
-        table = Table(title=f"{self.test_scenario.name}: {op_type} {metric2col[metric]}")
+        numeric_cols = [col for col in df.columns if col not in ["block_size", "batch_size"]]
+        grouped_df = df.groupby("block_size")[numeric_cols].mean()
+        grouped_df = grouped_df.reset_index()
+
+        colors = ["blue", "red", "green", "orange", "purple", "brown", "pink", "gray"]
+        y_columns = [(col, colors[i % len(colors)]) for i, col in enumerate(numeric_cols)]
+
+        p = lazy.bokeh_plotting.figure(
+            title=f"{op_type} {self.metric2col[metric]} vs Block Size",
+            x_axis_label="Block Size",
+            y_axis_label=self.metric2col[metric],
+            width=800,
+            height=500,
+            tools="pan,box_zoom,wheel_zoom,reset,save",
+            x_axis_type="log",
+        )
+
+        hover = lazy.bokeh_models.HoverTool(
+            tooltips=[("Block Size", "@x"), ("Value", "@y"), ("Segment Type", "@segment_type")]
+        )
+        p.add_tools(hover)
+
+        for col, color in y_columns:
+            source = lazy.bokeh_models.ColumnDataSource(
+                data={
+                    "x": grouped_df["block_size"].tolist(),
+                    "y": grouped_df[col].tolist(),
+                    "segment_type": [col] * len(grouped_df),
+                }
+            )
+
+            p.line("x", "y", source=source, line_color=color, line_width=2, legend_label=col)
+            p.scatter("x", "y", source=source, fill_color=color, size=8, legend_label=col)
+
+        p.legend.location = "top_left"
+        p.legend.click_policy = "hide"
+
+        y_max = grouped_df[numeric_cols].max().max()
+        p.y_range = lazy.bokeh_models.Range1d(start=0.0, end=y_max * 1.1)
+
+        return p
+
+    def create_table(self, op_type: str, metric: str) -> Table:
+        df = self.construct_df(op_type, metric)
+        table = Table(title=f"{self.test_scenario.name}: {op_type} {self.metric2col[metric]}")
         for col in df.columns:
             table.add_column(col, justify="right", style="cyan")
 
@@ -94,11 +177,21 @@ class NIXLBenchSummaryReport(Reporter):
             table.add_row(str(block_size), str(batch_size), *[str(x) for x in row.values[2:]])
         return table
 
-    def generate(self) -> None:
-        self.load_tdef_res()
+    def get_bokeh_html(self) -> tuple[str, str]:
+        charts: list[bk.figure] = []
+        for op_type, metric in self.report_configs:
+            chart = self.create_chart(op_type, metric)
+            if chart:
+                charts.append(chart)
 
-        console = Console()
-        for op_type in ["READ", "WRITE"]:
-            for metric in ["avg_lat", "bw_gb_sec"]:
-                table = self.create_table(op_type, metric)
-                console.print(table)
+        # layout with 2 charts per row
+        rows = []
+        for i in range(0, len(charts), 2):
+            if i + 1 < len(charts):
+                rows.append(lazy.bokeh_layouts.row(charts[i], charts[i + 1]))
+            else:
+                rows.append(lazy.bokeh_layouts.row(charts[i]))
+        layout = lazy.bokeh_layouts.column(*rows, name="charts_layout")
+
+        bokeh_script, bokeh_div = lazy.bokeh_embed.components(layout)
+        return bokeh_script, bokeh_div

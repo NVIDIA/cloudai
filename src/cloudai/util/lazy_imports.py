@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     import bokeh
+    import bokeh.embed as bokeh_embed
     import bokeh.layouts as bokeh_layouts
     import bokeh.models as bokeh_models
     import bokeh.palettes as bokeh_pallettes
@@ -44,6 +45,7 @@ class LazyImports:
         self._bokeh_layouts: ModuleType | None = None
         self._bokeh_transform: ModuleType | None = None
         self._bokeh_pallettes: ModuleType | None = None
+        self._bokeh_embed: ModuleType | None = None
 
     @property
     def np(self) -> np:  # type: ignore[no-any-return]
@@ -132,6 +134,16 @@ class LazyImports:
             self._bokeh_pallettes = bokeh_pallettes
 
         return cast("bokeh_pallettes", self._bokeh_pallettes)
+
+    @property
+    def bokeh_embed(self) -> bokeh_embed:  # type: ignore[no-any-return]
+        """Lazy import of bokeh.embed."""
+        if self._bokeh_embed is None:
+            import bokeh.embed as bokeh_embed
+
+            self._bokeh_embed = bokeh_embed
+
+        return cast("bokeh_embed", self._bokeh_embed)
 
 
 lazy = LazyImports()
