@@ -26,6 +26,7 @@ dependencies = [
   "pydantic==2.8.2",
   "jinja2==3.1.6",
   "websockets==15.0.1",
+  "rich==14.0.0",
 ]
 requires-python = ">=3.10"
 scripts = { cloudai = "cloudai.__main__:main" }
