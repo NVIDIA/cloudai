@@ -59,43 +59,46 @@ class NIXLBenchSummaryReport(Reporter):
             tdef = NIXLBenchTestDefinition.model_validate(tr_file["test_definition"])
             self.tdef_res.append(TdefResult(tdef, lazy.pd.read_csv(tr.output_path / "nixlbench.csv")))
 
+    def _construct_df(self, op_type: str, metric: str) -> pd.DataFrame:
+        final_df = lazy.pd.DataFrame()
+
+        for tdef_res in self.tdef_res:
+            if tdef_res.tdef.cmd_args_dict.get("op_type", "unset") != op_type:
+                continue
+            if final_df.empty:
+                final_df["block_size"] = tdef_res.results["block_size"].astype(int)
+                final_df["batch_size"] = tdef_res.results["batch_size"].astype(int)
+
+            col_name = (
+                f"{tdef_res.tdef.cmd_args_dict.get('initiator_seg_type', 'unset')}->"
+                f"{tdef_res.tdef.cmd_args_dict.get('target_seg_type', 'unset')}"
+            )
+            final_df[col_name] = tdef_res.results[metric].astype(float)
+
+        return final_df
+
+    def create_table(self, op_type: str, metric: str) -> Table:
+        metric2col = {
+            "avg_lat": "Avg. Latency (us)",
+            "bw_gb_sec": "Bandwidth (GB/sec)",
+        }
+
+        df = self._construct_df(op_type, metric)
+        table = Table(title=f"{self.test_scenario.name}: {op_type} {metric2col[metric]}")
+        for col in df.columns:
+            table.add_column(col, justify="right", style="cyan")
+
+        for _, row in df.iterrows():
+            block_size = row["block_size"].astype(int)
+            batch_size = row["batch_size"].astype(int)
+            table.add_row(str(block_size), str(batch_size), *[str(x) for x in row.values[2:]])
+        return table
+
     def generate(self) -> None:
         self.load_tdef_res()
 
-        for op_type in ["read", "write"]:
-            self.generate_table(op_type.upper(), "Avg. Latency (us)")
-            self.generate_table(op_type.upper(), "Bandwidth (GB/sec)")
-
-    def generate_table(self, op_type: str, metric: str):
-        table = Table(title=f"{self.test_scenario.name}: {op_type}, {metric}")
-
-        table.add_column("Block Size", justify="right", style="cyan")
-        table.add_column("Batch Size", justify="right", style="cyan")
-
-        data: dict[str, list] = {}
-
-        for tdef_res in self.tdef_res:
-            case_op_type = tdef_res.tdef.cmd_args_dict.get("op_type", "unset")
-            if op_type != case_op_type:
-                continue
-
-            in_seg_type = tdef_res.tdef.cmd_args_dict.get("initiator_seg_type", "unset")
-            target_seg_type = tdef_res.tdef.cmd_args_dict.get("target_seg_type", "unset")
-            bname = f"{in_seg_type}->{target_seg_type}"
-
-            table.add_column(f"{bname}")
-
-            metric_field = {"Avg. Latency (us)": "avg_lat", "Bandwidth (GB/sec)": "bw_gb_sec"}[metric]
-
-            for _, row in tdef_res.results.iterrows():
-                key = str(row["block_size"].astype(int)) + "--" + str(row["batch_size"].astype(int))
-                if key not in data:
-                    data[key] = []
-                data[key].extend([str(row[metric_field])])
-
-        for k, v in data.items():
-            block_size, batch_size = k.split("--")
-            table.add_row(block_size, batch_size, *v)
-
         console = Console()
-        console.print(table)
+        for op_type in ["READ", "WRITE"]:
+            for metric in ["avg_lat", "bw_gb_sec"]:
+                table = self.create_table(op_type, metric)
+                console.print(table)
