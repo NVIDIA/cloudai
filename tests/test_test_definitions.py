@@ -21,7 +21,12 @@ import pytest
 import toml
 from pydantic import ValidationError
 
+from cloudai._core.test import Test
+from cloudai._core.test_scenario import TestRun
+from cloudai._core.test_template import TestTemplate
 from cloudai.core import File, NsysConfiguration, Parser, Registry, TestConfigParsingError, TestDefinition, TestParser
+from cloudai.models.scenario import TestRunDetails
+from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
@@ -35,6 +40,7 @@ from cloudai.workloads.megatron_run import MegatronRunCmdArgs, MegatronRunTestDe
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.workloads.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
 from cloudai.workloads.nemo_run import Data, NeMoRunCmdArgs, NeMoRunTestDefinition, Trainer
+from cloudai.workloads.nixl_bench.nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
 from cloudai.workloads.slurm_container import SlurmContainerCmdArgs, SlurmContainerTestDefinition
 from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition
 
@@ -414,3 +420,28 @@ def test_nemorun_num_train_samples(data: Data, trainer: Trainer, expected_num_tr
     )
     test_def.cmd_args.data.num_train_samples = test_def.update_num_train_samples
     assert test_def.cmd_args.data.num_train_samples == expected_num_train_samples
+
+
+def test_workload_can_be_restored_from_test_run_details(slurm_system: SlurmSystem):
+    tdef = NIXLBenchTestDefinition(
+        name="n",
+        description="d",
+        test_template_name="NIXLBench",
+        etcd_image_url="fake://url/etcd",
+        cmd_args=NIXLBenchCmdArgs(docker_image_url="fake://url/nemo", etcd_endpoint="http://localhost:2379"),
+    )
+    trd = TestRunDetails.from_test_run(
+        TestRun(
+            name="test",
+            test=Test(test_definition=tdef, test_template=TestTemplate(slurm_system)),
+            num_nodes=1,
+            nodes=[],
+        ),
+        "test cmd",
+        "full cmd",
+    )
+
+    slurm_system.output_path.mkdir(parents=True, exist_ok=True)
+    serialized = toml.dumps(trd.model_dump())
+    recreated = NIXLBenchTestDefinition.model_validate(toml.loads(serialized)["test_definition"])
+    assert recreated == tdef
