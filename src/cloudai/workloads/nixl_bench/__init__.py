@@ -16,6 +16,7 @@
 
 from .job_status_retrieval_strategy import NIXLBenchJobStatusRetrievalStrategy
 from .nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
+from .nixl_summary_report import NIXLBenchSummaryReport
 from .report_generation_strategy import NIXLBenchReportGenerationStrategy
 from .slurm_command_gen_strategy import NIXLBenchSlurmCommandGenStrategy
 
@@ -24,5 +25,6 @@ __all__ = [
     "NIXLBenchJobStatusRetrievalStrategy",
     "NIXLBenchReportGenerationStrategy",
     "NIXLBenchSlurmCommandGenStrategy",
+    "NIXLBenchSummaryReport",
     "NIXLBenchTestDefinition",
 ]
