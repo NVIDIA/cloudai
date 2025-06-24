@@ -19,6 +19,7 @@ def register_all():
     """Register all workloads, systems, runners, installers, and strategies."""
     from cloudai.configurator.grid_search import GridSearchAgent
     from cloudai.configurator.reward_functions import (
+        ai_dynamo_reward,
         identity_reward,
         inverse_reward,
         negative_reward,
@@ -40,6 +41,11 @@ def register_all():
     from cloudai.systems.runai import RunAIInstaller, RunAIRunner, RunAISystem
     from cloudai.systems.slurm import SlurmInstaller, SlurmRunner, SlurmSystem
     from cloudai.systems.standalone import StandaloneInstaller, StandaloneRunner, StandaloneSystem
+    from cloudai.workloads.ai_dynamo import (
+        AIDynamoReportGenerationStrategy,
+        AIDynamoSlurmCommandGenStrategy,
+        AIDynamoTestDefinition,
+    )
 
     # Import all workloads and their strategies
     from cloudai.workloads.chakra_replay import (
@@ -189,6 +195,7 @@ def register_all():
             MegatronRunTestDefinition,
             TritonInferenceTestDefinition,
             NIXLBenchTestDefinition,
+            AIDynamoTestDefinition,
         ],
         SlurmJobIdRetrievalStrategy,
     )
@@ -232,6 +239,7 @@ def register_all():
             SlurmContainerTestDefinition,
             MegatronRunTestDefinition,
             TritonInferenceTestDefinition,
+            AIDynamoTestDefinition,
         ],
         DefaultJobStatusRetrievalStrategy,
     )
@@ -267,6 +275,10 @@ def register_all():
         CommandGenStrategy, [SlurmSystem], [TritonInferenceTestDefinition], TritonInferenceSlurmCommandGenStrategy
     )
 
+    Registry().add_strategy(
+        CommandGenStrategy, [SlurmSystem], [AIDynamoTestDefinition], AIDynamoSlurmCommandGenStrategy
+    )
+
     Registry().add_installer("slurm", SlurmInstaller)
     Registry().add_installer("standalone", StandaloneInstaller)
     Registry().add_installer("kubernetes", KubernetesInstaller)
@@ -292,6 +304,7 @@ def register_all():
     Registry().add_test_definition("MegatronRun", MegatronRunTestDefinition)
     Registry().add_test_definition("TritonInference", TritonInferenceTestDefinition)
     Registry().add_test_definition("NIXLBench", NIXLBenchTestDefinition)
+    Registry().add_test_definition("AIDynamo", AIDynamoTestDefinition)
 
     Registry().add_agent("grid_search", GridSearchAgent)
 
@@ -309,6 +322,7 @@ def register_all():
     Registry().add_report(UCCTestDefinition, UCCTestReportGenerationStrategy)
     Registry().add_report(TritonInferenceTestDefinition, TritonInferenceReportGenerationStrategy)
     Registry().add_report(NIXLBenchTestDefinition, NIXLBenchReportGenerationStrategy)
+    Registry().add_report(AIDynamoTestDefinition, AIDynamoReportGenerationStrategy)
 
     Registry().add_scenario_report("per_test", PerTestReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("status", StatusReporter, ReportConfig(enable=True))
@@ -317,3 +331,4 @@ def register_all():
     Registry().add_reward_function("inverse", inverse_reward)
     Registry().add_reward_function("negative", negative_reward)
     Registry().add_reward_function("identity", identity_reward)
+    Registry().add_reward_function("ai_dynamo", ai_dynamo_reward)
