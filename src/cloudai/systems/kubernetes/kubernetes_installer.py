@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 
-from cloudai.core import BaseInstaller, Installable, InstallStatusResult
+from cloudai.core import BaseInstaller, DockerImage, Installable, InstallStatusResult
 from cloudai.util.lazy_imports import lazy
 
 
@@ -118,10 +118,21 @@ class KubernetesInstaller(BaseInstaller):
         return InstallStatusResult(True)
 
     def install_one(self, item: Installable) -> InstallStatusResult:
+        if isinstance(item, DockerImage):
+            return InstallStatusResult(True, f"Docker image {item} installed")
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
     def uninstall_one(self, item: Installable) -> InstallStatusResult:
+        if isinstance(item, DockerImage):
+            return InstallStatusResult(True, f"Docker image {item} uninstalled")
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
     def is_installed_one(self, item: Installable) -> InstallStatusResult:
+        if isinstance(item, DockerImage):
+            return InstallStatusResult(True, f"Docker image {item} is installed")
+        return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
+
+    def mark_as_installed_one(self, item: Installable) -> InstallStatusResult:
+        if isinstance(item, DockerImage):
+            return InstallStatusResult(True, f"Docker image {item} marked as installed")
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
