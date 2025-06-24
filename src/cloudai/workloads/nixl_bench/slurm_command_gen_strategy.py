@@ -39,9 +39,13 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _gen_srun_command(
         self, env_vars: dict[str, str | list[str]], cmd_args: dict[str, str | list[str]], tr: TestRun
     ) -> str:
+        with (tr.output_path / "env_vars.sh").open("w") as f:
+            for key, value in env_vars.items():
+                f.write(f"export {key}={value}\n")
+
         etcd_command: list[str] = self.gen_etcd_srun_command(tr)
         nixl_command: list[str] = self.gen_nixl_srun_command(tr)
-        return " ".join(etcd_command) + "\nsleep 5\n" + " ".join(nixl_command)
+        return " ".join(etcd_command) + "\netcd_pid=$!\nsleep 5\n" + " ".join(nixl_command) + "\nkill -9 $etcd_pid\n"
 
     def gen_etcd_srun_command(self, tr: TestRun) -> list[str]:
         tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, tr.test.test_definition)
@@ -69,9 +73,9 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def gen_nixlbench_command(self, tr: TestRun) -> list[str]:
         tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, tr.test.test_definition)
-        cmd = ["./nixlbench", f"--etcd-endpoints {tdef.cmd_args.etcd_endpoint}"]
+        cmd = [tdef.cmd_args.path_to_benchmark, f"--etcd-endpoints {tdef.cmd_args.etcd_endpoint}"]
 
-        other_args = tdef.cmd_args.model_dump(exclude={"docker_image_url", "etcd_endpoint"})
+        other_args = tdef.cmd_args.model_dump(exclude={"docker_image_url", "etcd_endpoint", "path_to_benchmark"})
         for k, v in other_args.items():
             cmd.append(f"--{k} {v}")
 
@@ -92,7 +96,7 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f"-N{nnodes}",
             "bash",
             "-c",
-            f'"{" ".join(self.gen_nixlbench_command(tr))}"',
+            f'"source {(tr.output_path / "env_vars.sh").absolute()}; {" ".join(self.gen_nixlbench_command(tr))}"',
         ]
         self._current_image_url = None
         return cmd

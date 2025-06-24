@@ -15,5 +15,7 @@ srun --export=ALL --mpi=pmix --output=__OUTPUT_DIR__/output/mapping-stdout.txt -
 srun --export=ALL --mpi=pmix --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash __INSTALL_DIR__/slurm-metadata.sh
 
 srun --export=ALL --mpi=pmix --container-image=url.com/docker:1 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output --overlap --ntasks-per-node=1 --ntasks=1 --nodelist=$SLURM_JOB_MASTER_NODE -N1 bash -c "/usr/local/bin/etcd --listen-client-urls http://0.0.0.0:2379 --advertise-client-urls http://$(hostname -I | awk '{print $1}'):2379" &
+etcd_pid=$!
 sleep 5
-srun --export=ALL --mpi=pmix --container-image=url.com/docker:2 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output --overlap --ntasks-per-node=1 --ntasks=2 -N2 bash -c "./nixlbench --etcd-endpoints http://$SLURM_JOB_MASTER_NODE:2379"
+srun --export=ALL --mpi=pmix --container-image=url.com/docker:2 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output --overlap --ntasks-per-node=1 --ntasks=2 -N2 bash -c "source __OUTPUT_DIR__/output/env_vars.sh; ./nixlbench --etcd-endpoints http://$SLURM_JOB_MASTER_NODE:2379"
+kill -9 $etcd_pid
