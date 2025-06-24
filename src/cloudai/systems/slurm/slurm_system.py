@@ -744,7 +744,7 @@ class SlurmSystem(BaseModel, System):
         if parsed_nodes:
             num_nodes = len(parsed_nodes)
             node_list = parsed_nodes
-        return num_nodes, node_list
+        return num_nodes, sorted(node_list)
 
     def system_installables(self) -> list[Installable]:
         return [File(Path(__file__).parent.absolute() / "slurm-metadata.sh")]
