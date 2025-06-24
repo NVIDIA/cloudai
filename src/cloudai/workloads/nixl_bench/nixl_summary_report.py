@@ -198,6 +198,7 @@ class NIXLBenchSummaryReport(Reporter):
         p.legend.click_policy = "hide"
 
         y_max = grouped_df[numeric_cols].max().max()
-        p.y_range = lazy.bokeh_models.Range1d(start=0.0, end=y_max * 1.1)
+        y_min = grouped_df[numeric_cols].min().min()
+        p.y_range = lazy.bokeh_models.Range1d(start=y_min * -1 * y_max * 0.01, end=y_max * 1.1)
 
         return p
