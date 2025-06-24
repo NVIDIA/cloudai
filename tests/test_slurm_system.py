@@ -35,127 +35,93 @@ from cloudai.systems.slurm.slurm_metadata import SlurmStepMetadata
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 
-def test_parse_squeue_output(slurm_system):
-    squeue_output = "nodeA001|root\nnodeA002|user"
-    expected_map = {"nodeA001": "root", "nodeA002": "user"}
-    result = slurm_system.parse_squeue_output(squeue_output)
-    assert result == expected_map
-
-
-def test_parse_squeue_output_with_node_ranges_and_root_user(slurm_system):
-    squeue_output = "nodeA[001-008]|root\nnodeB[001-008]|root"
-    user_map = slurm_system.parse_squeue_output(squeue_output)
-
-    expected_nodes = [f"nodeA{str(i).zfill(3)}" for i in range(1, 9)] + [f"nodeB{str(i).zfill(3)}" for i in range(1, 9)]
-    expected_map = {node: "root" for node in expected_nodes}
-
-    assert user_map == expected_map, "All nodes should be mapped to 'root'"
-
-
-def test_parse_sinfo_output(slurm_system: SlurmSystem) -> None:
-    sinfo_output = """PARTITION AVAIL  TIMELIMIT  NODES  STATE NODELIST
-    main    up    3:00:00      1  inval node-036
-    main    up    3:00:00      5  drain node-[045-046,059,061-062]
-    main    up    3:00:00      2   resv node-[034-035]
-    main    up    3:00:00     24  alloc node-[033,037-044,047-058,060,063-064]
-    backup    up   12:00:00     8  idle node[01-08]
-    empty_queue up infinite     0    n/a
-    """
-    node_user_map = {
-        "": "user1",
-        "node-033": "user2",
-        "node-037": "user3",
-        "node-038": "user3",
-        "node-039": "user3",
-        "node-040": "user3",
-        "node-041": "user3",
-        "node-042": "user4",
-        "node-043": "user4",
-        "node-044": "user4",
-        "node01": "user5",
-        "node02": "user5",
-        "node03": "user5",
-        "node04": "user5",
-        "node05": "user5",
-        "node06": "user5",
-        "node07": "user5",
-        "node08": "user5",
-    }
-    slurm_system.parse_sinfo_output(sinfo_output, node_user_map)
-    inval_nodes = set(["node-036"])
-    drain_nodes = set(["node-045", "node-046", "node-059", "node-061", "node-062"])
-    resv_nodes = set(["node-034", "node-035"])
-
-    parts_by_name = {part.name: part for part in slurm_system.partitions}
-
-    for node in parts_by_name["main"].slurm_nodes:
-        if node.name in inval_nodes:
-            assert node.state == SlurmNodeState.INVALID_REGISTRATION
-        elif node.name in drain_nodes:
-            assert node.state == SlurmNodeState.DRAINED
-        elif node.name in resv_nodes:
-            assert node.state == SlurmNodeState.RESERVED
-        else:
-            assert node.state == SlurmNodeState.ALLOCATED
-    for node in parts_by_name["backup"].slurm_nodes:
-        assert node.state == SlurmNodeState.IDLE
-
-
-@patch("cloudai.systems.slurm.SlurmSystem.fetch_command_output")
-def test_update_with_mocked_outputs(mock_fetch_command_output: Mock, slurm_system: SlurmSystem):
-    mock_fetch_command_output.side_effect = [
-        ("node-033|user1", ""),
-        ("PARTITION AVAIL TIMELIMIT NODES STATE NODELIST\nmain up infinite 1 idle node-033", ""),
-    ]
-
-    parts_by_name = {part.name: part for part in slurm_system.partitions}
-
-    slurm_system.update()
-    assert "node-033" in {node.name for node in parts_by_name["main"].slurm_nodes}
-    for node in parts_by_name["main"].slurm_nodes:
-        if node.name == "node-033":
-            assert node.state == SlurmNodeState.IDLE
-            assert node.user == "user1"
-
-    mock_fetch_command_output.side_effect = [
-        ("node01|root", ""),
-        ("PARTITION AVAIL TIMELIMIT NODES STATE NODELIST\nbackup up infinite 1 allocated node01", ""),
-    ]
-
-    slurm_system.update()
-    for node in parts_by_name["backup"].slurm_nodes:
-        if node.name == "node01":
-            assert node.state == SlurmNodeState.ALLOCATED
-            assert node.user == "root"
-
-
 @pytest.mark.parametrize(
-    "node_list,expected_parsed_node_list",
+    "squeue_output,expected_nodes",
     [
-        ("node-[048-051]", ["node-048", "node-049", "node-050", "node-051"]),
-        ("node-[055,114]", ["node-055", "node-114"]),
-        ("node-[055,114],node-[056,115]", ["node-055", "node-114", "node-056", "node-115"]),
         ("", []),
-        ("node-001", ["node-001"]),
-        ("node[1-4]", ["node1", "node2", "node3", "node4"]),
+        ("partition|RUNNING|nodeA[001-002]|user", ["nodeA001", "nodeA002"]),
         (
-            "node-name[01-03,05-08,10]",
-            [
-                "node-name01",
-                "node-name02",
-                "node-name03",
-                "node-name05",
-                "node-name06",
-                "node-name07",
-                "node-name08",
-                "node-name10",
-            ],
+            "p|RUNNING|nodeA[001-002]|user\np|RUNNING|nodeA[003-004]|user",
+            ["nodeA001", "nodeA002", "nodeA003", "nodeA004"],
         ),
+        ("partition|||user", []),  # nodes were not assigned yet
     ],
 )
-def test_parse_node_list(node_list: str, expected_parsed_node_list: List[str]):
-    parsed_node_list = parse_node_list(node_list)
-    assert parsed_node_list == expected_parsed_node_list
+def test_nodes_from_squeue(slurm_system: SlurmSystem, squeue_output: str, expected_nodes: list[str]):
+    with patch("cloudai.systems.slurm.SlurmSystem.fetch_command_output", return_value=(squeue_output, "")):
+        nodes = slurm_system.nodes_from_squeue()
+        assert [n.name for n in nodes] == expected_nodes
+        assert all(n.state == SlurmNodeState.ALLOCATED for n in nodes)
+        assert all(n.user == "user" for n in nodes)
+
+
+def test_nodes_from_sinfo(slurm_system: SlurmSystem) -> None:
+    sinfo_output = """main|inval||node-036
+    main|drain||node-[045-046,059,061-062]
+    main|resv||node-[034-035]
+    main|alloc|user|node-[033,037-044,047-058,060,063-064]
+    backup|idle|Unknown|node[01-08]
+    empty_queue|||
+    invalid_line
+    """
+    with patch("cloudai.systems.slurm.SlurmSystem.fetch_command_output", return_value=(sinfo_output, "")):
+        all_nodes = slurm_system.nodes_from_sinfo()
+
+    all_nodes_set = set(all_nodes)
+
+    specs = {
+        "inval": ("node-036", SlurmNodeState.INVALID_REGISTRATION, "", "main"),
+        "drain": ("node-[045-046,059,061-062]", SlurmNodeState.DRAINED, "", "main"),
+        "resv": ("node-[034-035]", SlurmNodeState.RESERVED, "", "main"),
+        "alloc": ("node-[033,037-044,047-058,060,063-064]", SlurmNodeState.ALLOCATED, "user", "main"),
+        "idle": ("node[01-08]", SlurmNodeState.IDLE, "Unknown", "backup"),
+    }
+    node_count = 0
+    diff = all_nodes_set
+    for key, (nodelist, state, user, partition) in specs.items():
+        nodes = [
+            SlurmNode(name=name, partition=partition, state=state, user=user) for name in parse_node_list(nodelist)
+        ]
+        node_count += len(nodes)
+        for node in nodes:
+            assert node in all_nodes_set, f"{key} node {node} not found in nodes"
+        diff -= set(nodes)
+
+    assert len(diff) == 0, f"Nodes not found in specs: {diff}"
+    assert len(all_nodes) == node_count, f"Parsed {len(all_nodes)} nodes, expected {node_count}"
+
+
+def test_update_nodes_state_and_user(slurm_system: SlurmSystem) -> None:
+    for partition in slurm_system.partitions:
+        partition.slurm_nodes.clear()
+
+    assert len(slurm_system.partitions) == 2
+    assert len(slurm_system.partitions[0].slurm_nodes) == 0
+    assert len(slurm_system.partitions[1].slurm_nodes) == 0
+
+    # insert new is False by default
+    node = SlurmNode(name="node-036", partition="main", state=SlurmNodeState.IDLE)
+    slurm_system.update_nodes_state_and_user([node])
+    assert len(slurm_system.partitions[0].slurm_nodes) == 0
+    assert len(slurm_system.partitions[1].slurm_nodes) == 0
+
+    slurm_system.update_nodes_state_and_user([node], insert_new=True)
+    assert len(slurm_system.partitions[0].slurm_nodes) == 1
+    assert slurm_system.partitions[0].slurm_nodes[0] == node
+
+    # existing is updated by default
+    upd_node = SlurmNode(name="node-036", partition="main", state=SlurmNodeState.DRAINED)
+    assert slurm_system.partitions[0].slurm_nodes[0].state != upd_node.state
+    slurm_system.update_nodes_state_and_user([upd_node])
+    assert slurm_system.partitions[0].slurm_nodes[0].state == upd_node.state
+
+    # update non-default partition, previous state is preserved
+    node2 = SlurmNode(name="node-backup-001", partition="backup", state=SlurmNodeState.IDLE)
+    slurm_system.update_nodes_state_and_user([node2], insert_new=True)
+    assert len(slurm_system.partitions[0].slurm_nodes) == 1
+    assert slurm_system.partitions[0].slurm_nodes[0] == node
+    assert len(slurm_system.partitions[1].slurm_nodes) == 1
+    assert slurm_system.partitions[1].slurm_nodes[0] == node2
 
 
 @pytest.fixture
@@ -613,3 +579,44 @@ with
 def test_slurm_job_metadata_from_sacct_output(sacct_output: str, delimiter: str, expected_nsteps: int):
     job_metadata = SlurmStepMetadata.from_sacct_output(sacct_output, delimiter=delimiter)
     assert len(job_metadata) == expected_nsteps
+
+
+@pytest.mark.parametrize(
+    "sinfo_nodes,squeue_nodes,expected_nodes",
+    [
+        ([], [], []),
+        # sinfo nodes are always added
+        (
+            [SlurmNode(name="node01", partition="main", state=SlurmNodeState.IDLE)],
+            [],
+            [SlurmNode(name="node01", partition="main", state=SlurmNodeState.IDLE)],
+        ),
+        # squeue nodes only update the state
+        ([], [SlurmNode(name="node01", partition="main", state=SlurmNodeState.ALLOCATED)], []),
+        (
+            [SlurmNode(name="node01", partition="main", state=SlurmNodeState.ALLOCATED)],
+            [SlurmNode(name="node01", partition="main", state=SlurmNodeState.DRAINED)],
+            [SlurmNode(name="node01", partition="main", state=SlurmNodeState.DRAINED)],
+        ),
+    ],
+)
+def test_update(
+    slurm_system: SlurmSystem,
+    sinfo_nodes: list[SlurmNode],
+    squeue_nodes: list[SlurmNode],
+    expected_nodes: list[SlurmNode],
+):
+    for partition in slurm_system.partitions:
+        partition.slurm_nodes.clear()
+
+    mod_path = "cloudai.systems.slurm.slurm_system.SlurmSystem"
+    with (
+        patch(f"{mod_path}.nodes_from_sinfo", return_value=sinfo_nodes) as mock_nodes_from_sinfo,
+        patch(f"{mod_path}.nodes_from_squeue", return_value=squeue_nodes) as mock_nodes_from_squeue,
+    ):
+        slurm_system.update()
+        mock_nodes_from_sinfo.assert_called_once()
+        mock_nodes_from_squeue.assert_called_once()
+
+        all_nodes_set = set([node for p in slurm_system.partitions for node in p.slurm_nodes])
+        assert all_nodes_set == set(expected_nodes)

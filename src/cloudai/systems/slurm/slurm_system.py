@@ -196,10 +196,59 @@ class SlurmSystem(BaseModel, System):
         commands, and correlating this information to determine the state of each node and the user running jobs on
         each node.
         """
-        squeue_output, _ = self.fetch_command_output("squeue -o '%N|%u' --noheader")
-        sinfo_output, _ = self.fetch_command_output("sinfo")
-        node_user_map = self.parse_squeue_output(squeue_output)
-        self.parse_sinfo_output(sinfo_output, node_user_map)
+        all_nodes = self.nodes_from_sinfo()
+        self.update_nodes_state_and_user(all_nodes, insert_new=True)
+        self.update_nodes_state_and_user(self.nodes_from_squeue())
+
+    def nodes_from_sinfo(self) -> list[SlurmNode]:
+        sinfo_output, _ = self.fetch_command_output("sinfo -o '%P|%t|%u|%N'")
+        nodes: list[SlurmNode] = []
+        for line in sinfo_output.split("\n"):
+            if not line.strip():
+                continue
+            parts = line.split("|")
+            if len(parts) < 4:
+                continue
+            partition, state, user, nodelist = parts[:4]
+            partition = partition.rstrip("*").strip()
+            node_names = parse_node_list(nodelist)
+            logging.debug(f"{partition=}, {state=}, {nodelist=}, {node_names=}")
+            for node_name in node_names:
+                nodes.append(
+                    SlurmNode(name=node_name, partition=partition, state=self.convert_state_to_enum(state), user=user)
+                )
+        return nodes
+
+    def nodes_from_squeue(self) -> list[SlurmNode]:
+        squeue_output, _ = self.fetch_command_output("squeue --states=running,pending --noheader -o '%P|%T|%N|%u'")
+        nodes: list[SlurmNode] = []
+        for line in squeue_output.split("\n"):
+            parts = line.split("|")
+            if len(parts) < 4:
+                continue
+            partition, _, nodelist, user = parts[:4]
+            node_names = parse_node_list(nodelist)
+            for node in node_names:
+                nodes.append(SlurmNode(name=node, partition=partition, state=SlurmNodeState.ALLOCATED, user=user))
+        return nodes
+
+    def update_nodes_state_and_user(self, nodes: list[SlurmNode], insert_new: bool = False) -> None:
+        for node in nodes:
+            for part in self.partitions:
+                if part.name != node.partition:
+                    continue
+
+                found = False
+                for pnode in part.slurm_nodes:
+                    if pnode.name != node.name:
+                        continue
+                    pnode.state = node.state
+                    pnode.user = node.user
+                    found = True
+                    break
+
+                if not found and insert_new:
+                    part.slurm_nodes.append(node)
 
     def is_job_running(self, job: BaseJob, retry_threshold: int = 3) -> bool:
         """
@@ -579,79 +628,6 @@ class SlurmSystem(BaseModel, System):
         if stderr:
             logging.error(f"Error executing command '{command}': {stderr}")
         return stdout, stderr
-
-    def parse_squeue_output(self, squeue_output: str) -> Dict[str, str]:
-        """
-        Parse the output from the 'squeue' command to map nodes to users.
-
-        The expected format of squeue_output is lines of 'node_spec|user', where node_spec can include comma-separated
-        node names or ranges.
-
-        Args:
-            squeue_output (str): The raw output from the squeue command.
-
-        Returns:
-            Dict[str, str]: A dictionary mapping node names to usernames.
-        """
-        node_user_map = {}
-        for line in squeue_output.split("\n"):
-            if line.strip():
-                # Split the line into node list and user, handling only the first '|'
-                parts = line.split("|")
-                if len(parts) < 2:
-                    continue  # Skip malformed lines
-
-                node_list_part, user = parts[0], "|".join(parts[1:])
-                # Handle cases where multiple node groups or ranges are specified
-                for node in parse_node_list(node_list_part):
-                    node_user_map[node] = user.strip()
-
-        return node_user_map
-
-    def parse_sinfo_output(self, sinfo_output: str, node_user_map: Dict[str, str]) -> None:
-        """
-        Parse the output from the 'sinfo' command to update node states.
-
-        Args:
-            sinfo_output (str): The output from the sinfo command.
-            node_user_map (dict): A dictionary mapping node names to users.
-        """
-        for line in sinfo_output.split("\n")[1:]:  # Skip the header line
-            if not line.strip():
-                continue
-            parts = line.split()
-            if len(parts) < 6:
-                continue
-            partition, _, _, _, state, nodelist = parts[:6]
-            partition = partition.rstrip("*")
-            node_names = parse_node_list(nodelist)
-
-            # Convert state to enum, handling states with suffixes
-            state_enum = self.convert_state_to_enum(state)
-
-            for node_name in node_names:
-                # Find the partition and node to update the state
-                for part in self.partitions:
-                    if part.name != partition:
-                        continue
-
-                    found = False
-                    for node in part.slurm_nodes:
-                        if node.name == node_name:
-                            found = True
-                            node.state = state_enum
-                            node.user = node_user_map.get(node_name, "N/A")
-                            break
-
-                    if not found:
-                        part.slurm_nodes.append(
-                            SlurmNode(
-                                name=node_name,
-                                partition=partition,
-                                state=state_enum,
-                                user=node_user_map.get(node_name, "N/A"),
-                            )
-                        )
 
     def convert_state_to_enum(self, state_str: str) -> SlurmNodeState:
         """
