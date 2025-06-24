@@ -143,7 +143,9 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _etcd_cmd(self, port_etcd: int) -> str:
         return (
-            f"etcd --listen-client-urls http://0.0.0.0:{port_etcd} --advertise-client-urls http://0.0.0.0:{port_etcd}"
+            f"etcd --listen-client-urls http://0.0.0.0:{port_etcd} "
+            f"--advertise-client-urls http://0.0.0.0:{port_etcd} "
+            "--log-level debug"
         )
 
     def _nats_cmd(self) -> str:
