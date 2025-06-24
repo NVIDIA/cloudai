@@ -19,9 +19,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_serializer, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_serializer, field_validator, model_validator
 
-from cloudai.core import CmdArgs, GitRepo, NsysConfiguration, Registry, Reporter, TestDefinition, TestRun
+from cloudai.core import CmdArgs, GitRepo, NsysConfiguration, Registry, Reporter, TestRun
+from cloudai.models.workload import TestDefinition
 
 
 def parse_reports_spec(
@@ -207,11 +208,25 @@ class TestRunDetails(BaseModel):
     step: int
     test_cmd: str
     full_cmd: str
-    test_definition: TestDefinition
+    test_definition: Any
 
     @field_serializer("output_path")
     def _path_serializer(self, v: Path) -> str:
         return str(v.absolute())
+
+    @field_validator("test_definition", mode="before")
+    @classmethod
+    def load_tdef(cls, value: Any | None) -> TestDefinition | None:
+        if value is None:
+            return None
+        if isinstance(value, TestDefinition):
+            return value
+        if isinstance(value, dict):
+            workload_type = value["test_template_name"]
+            workload_cls = Registry().test_definitions_map[workload_type]
+            return workload_cls.model_validate(value)
+
+        raise ValueError(f"Invalid test definition: {value}")
 
     @classmethod
     def from_test_run(cls, tr: TestRun, test_cmd: str, full_cmd: str) -> TestRunDetails:

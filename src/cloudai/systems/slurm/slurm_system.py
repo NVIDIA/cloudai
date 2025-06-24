@@ -321,7 +321,7 @@ class SlurmSystem(BaseModel, System):
                 logging.error(error_message)
                 raise RuntimeError(error_message)
 
-            return [SlurmStepMetadata.from_sacct_single_line(line, "|") for line in stdout.splitlines()]
+            return SlurmStepMetadata.from_sacct_output(stdout, delimiter="|")
 
         return []
 

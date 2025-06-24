@@ -76,6 +76,7 @@ class TestNcclTestSlurmCommandGenStrategy:
         [
             {"nthreads": "4", "ngpus": "2"},
             {"R": "1", "G": "0"},
+            {"stepfactor": None},
         ],
     )
     def test_generate_test_command(
@@ -86,8 +87,11 @@ class TestNcclTestSlurmCommandGenStrategy:
         t = Test(test_definition=nccl, test_template=Mock())
         tr = TestRun(name="t1", test=t, nodes=[], num_nodes=1)
 
-        cmd = cmd_gen_strategy.generate_test_command({}, {}, tr)
+        cmd = " ".join(cmd_gen_strategy.generate_test_command({}, {}, tr))
 
         for arg in args:
-            cli_key = f"--{arg}" if len(arg) > 1 else f"-{arg}"
-            assert f"{cli_key} {args[arg]}" in cmd
+            if args[arg] is None:
+                assert arg not in cmd
+            else:
+                cli_key = f"--{arg}" if len(arg) > 1 else f"-{arg}"
+                assert f"{cli_key} {args[arg]}" in cmd

@@ -96,6 +96,7 @@ class NCCLCmdArgs(CmdArgs):
     check: Union[int, list[int]] = 1
     blocking: Union[int, list[int]] = 0
     cudagraph: Union[int, list[int]] = 0
+    stepfactor: Optional[Union[int, list[int]]] = None
 
 
 class NCCLTestDefinition(TestDefinition):

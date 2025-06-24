@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,23 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "dse_jaxtoolbox_grok"
-description = "DSE JaxToolbox Grok"
-test_template_name = "JaxToolboxGrok"
+from .bash_cmd import BashCmdArgs, BashCmdCommandGenStrategy, BashCmdTestDefinition
 
-[cmd_args]
-docker_image_url = "ghcr.io/nvidia/jax:pax-2025-01-09"
-  [cmd_args.fdl]
-  num_gpus = 8
-  num_groups = "16"
-  use_fp8 = "1"
-  use_repeated_layer = ["True", "False"]
-  ici_mesh_shape = "'[1, 1, 8, 1]'"
-  dcn_mesh_shape = "'[1, 1, 1, 1]'"
-  num_layers = "2"
-
-[extra_env_vars]
-"ENABLE_TE" = "0"
-"NVTE_FUSED_ATTN" = "1"
-"COMBINE_THRESHOLD" = "301989888"
-"XLA_PYTHON_CLIENT_MEM_FRACTION" = "0.9"
+__all__ = [
+    "BashCmdArgs",
+    "BashCmdCommandGenStrategy",
+    "BashCmdTestDefinition",
+]

@@ -28,6 +28,3 @@ test_template_name = "NcclTest"
 
 [extra_cmd_args]
 "--stepfactor" = "2"
-
-[extra_env_vars]
-"NCCL_TESTS_SPLIT_MASK" = ["0x7", "0x0"]
