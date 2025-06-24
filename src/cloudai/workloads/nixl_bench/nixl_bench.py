@@ -25,6 +25,7 @@ class NIXLBenchCmdArgs(CmdArgs):
 
     docker_image_url: str
     etcd_endpoint: str
+    path_to_benchmark: str
 
 
 class NIXLBenchTestDefinition(TestDefinition):

@@ -428,7 +428,9 @@ def test_workload_can_be_restored_from_test_run_details(slurm_system: SlurmSyste
         description="d",
         test_template_name="NIXLBench",
         etcd_image_url="fake://url/etcd",
-        cmd_args=NIXLBenchCmdArgs(docker_image_url="fake://url/nemo", etcd_endpoint="http://localhost:2379"),
+        cmd_args=NIXLBenchCmdArgs(
+            docker_image_url="fake://url/nemo", etcd_endpoint="http://localhost:2379", path_to_benchmark="./nixlbench"
+        ),
     )
     trd = TestRunDetails.from_test_run(
         TestRun(
