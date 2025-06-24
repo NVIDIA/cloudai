@@ -21,8 +21,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import jinja2
 import toml
-from jinja2 import Template
 from rich.console import Console
 from rich.table import Table
 
@@ -63,7 +63,7 @@ class NIXLBenchSummaryReport(Reporter):
         ]
 
     def generate(self) -> None:
-        self.load_tdef_res()
+        self.load_tdef_with_results()
 
         console = Console(record=True)
         for op_type, metric in self.report_configs:
@@ -71,11 +71,11 @@ class NIXLBenchSummaryReport(Reporter):
             console.print(table)
             console.print()
 
-        template_path = Path(__file__).parent.parent.parent / "util" / "nixl_report_template.jinja2"
-        with open(template_path, "r") as f:
-            template = Template(f.read())
-
         bokeh_script, bokeh_div = self.get_bokeh_html()
+
+        template = jinja2.Environment(
+            loader=jinja2.FileSystemLoader(Path(__file__).parent.parent.parent / "util")
+        ).get_template("nixl_report_template.jinja2")
         html_content = template.render(
             title=f"{self.test_scenario.name} NIXL Bench Report",
             bokeh_script=bokeh_script,
@@ -87,11 +87,10 @@ class NIXLBenchSummaryReport(Reporter):
         with open(html_file, "w") as f:
             f.write(html_content)
 
-        logging.info(f"Interactive HTML report created: {html_file}")
+        logging.info(f"NIXL summary report created: {html_file}")
 
-    def load_tdef_res(self):
+    def load_tdef_with_results(self) -> None:
         super().load_test_runs()
-        self.tdef_res: list[TdefResult] = []
         self.trs = [tr for tr in self.trs if isinstance(tr.test.test_definition, NIXLBenchTestDefinition)]
 
         for tr in self.trs:
@@ -99,7 +98,43 @@ class NIXLBenchSummaryReport(Reporter):
             tdef = NIXLBenchTestDefinition.model_validate(tr_file["test_definition"])
             self.tdef_res.append(TdefResult(tdef, lazy.pd.read_csv(tr.output_path / "nixlbench.csv")))
 
+    def create_table(self, op_type: str, metric: str) -> Table:
+        df = self.construct_df(op_type, metric)
+        table = Table(title=f"{self.test_scenario.name}: {op_type} {self.metric2col[metric]}", title_justify="left")
+        for col in df.columns:
+            table.add_column(col, justify="right", style="cyan")
+
+        for _, row in df.iterrows():
+            block_size = row["block_size"].astype(int)
+            batch_size = row["batch_size"].astype(int)
+            table.add_row(str(block_size), str(batch_size), *[str(x) for x in row.values[2:]])
+        return table
+
+    def get_bokeh_html(self) -> tuple[str, str]:
+        charts: list[bk.figure] = []
+        for op_type, metric in self.report_configs:
+            if chart := self.create_chart(op_type, metric):
+                charts.append(chart)
+
+        # layout with 2 charts per row
+        rows = []
+        for i in range(0, len(charts), 2):
+            if i + 1 < len(charts):
+                rows.append(lazy.bokeh_layouts.row(charts[i], charts[i + 1]))
+            else:
+                rows.append(lazy.bokeh_layouts.row(charts[i]))
+        layout = lazy.bokeh_layouts.column(*rows, name="charts_layout")
+
+        bokeh_script, bokeh_div = lazy.bokeh_embed.components(layout)
+        return bokeh_script, bokeh_div
+
     def construct_df(self, op_type: str, metric: str) -> pd.DataFrame:
+        """
+        Construct a `DataFrame` with results for all test runs.
+
+        Block size and Batch size are taken only once assuming they are the same across all test runs.
+        `op_type` is used to filter the test runs.
+        """
         final_df = lazy.pd.DataFrame()
 
         for tdef_res in self.tdef_res:
@@ -137,6 +172,8 @@ class NIXLBenchSummaryReport(Reporter):
             width=800,
             height=500,
             tools="pan,box_zoom,wheel_zoom,reset,save",
+            active_drag="pan",
+            active_scroll="wheel_zoom",
             x_axis_type="log",
         )
 
@@ -164,34 +201,3 @@ class NIXLBenchSummaryReport(Reporter):
         p.y_range = lazy.bokeh_models.Range1d(start=0.0, end=y_max * 1.1)
 
         return p
-
-    def create_table(self, op_type: str, metric: str) -> Table:
-        df = self.construct_df(op_type, metric)
-        table = Table(title=f"{self.test_scenario.name}: {op_type} {self.metric2col[metric]}")
-        for col in df.columns:
-            table.add_column(col, justify="right", style="cyan")
-
-        for _, row in df.iterrows():
-            block_size = row["block_size"].astype(int)
-            batch_size = row["batch_size"].astype(int)
-            table.add_row(str(block_size), str(batch_size), *[str(x) for x in row.values[2:]])
-        return table
-
-    def get_bokeh_html(self) -> tuple[str, str]:
-        charts: list[bk.figure] = []
-        for op_type, metric in self.report_configs:
-            chart = self.create_chart(op_type, metric)
-            if chart:
-                charts.append(chart)
-
-        # layout with 2 charts per row
-        rows = []
-        for i in range(0, len(charts), 2):
-            if i + 1 < len(charts):
-                rows.append(lazy.bokeh_layouts.row(charts[i], charts[i + 1]))
-            else:
-                rows.append(lazy.bokeh_layouts.row(charts[i]))
-        layout = lazy.bokeh_layouts.column(*rows, name="charts_layout")
-
-        bokeh_script, bokeh_div = lazy.bokeh_embed.components(layout)
-        return bokeh_script, bokeh_div
