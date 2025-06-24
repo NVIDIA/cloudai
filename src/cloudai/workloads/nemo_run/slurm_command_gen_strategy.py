@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import logging
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Union, cast
 
@@ -52,6 +52,16 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if pipeline_model_parallel_size > 1:
             logging.debug("Setting NCCL_P2P_NET_CHUNKSIZE to 2097152 as pipeline_model_parallel_size is greater than 1")
             env_vars["NCCL_P2P_NET_CHUNKSIZE"] = "2097152"
+
+        enable_fsdp = os.getenv("CLOUDAI_ENABLE_FSDP", "0")
+        if enable_fsdp == "1":
+            logging.info(
+                (
+                    "CLOUDAI_ENABLE_FSDP is set to 1. Currently, NemoRun does not support FSDP "
+                    "with TP communication overlap."
+                )
+            )
+            env_vars["CLOUDAI_DISABLE_TP_COMM_OVERLAP"] = "1"
 
     def _run_script(self, tr: TestRun) -> Path:
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
