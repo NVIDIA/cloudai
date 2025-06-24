@@ -140,6 +140,10 @@ class SlurmNode(BaseModel):
                 SlurmNodeState.RESERVED,
             ]
 
+    def __hash__(self) -> int:
+        """Provide a hash of the Slurm node, including its name, state, and partition."""
+        return hash((self.name, self.partition, self.state, self.user))
+
     def __repr__(self) -> str:
         """
         Provide a structured string representation of the Slurm node, including its name, state, and partition.
