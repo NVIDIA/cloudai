@@ -186,7 +186,7 @@ def test_yaml_config_generation(strategy: AIDynamoSlurmCommandGenStrategy, test_
                 "max-num-seqs": 16,
                 "remote-prefill": True,
                 "conditional-disagg": True,
-                "max_local_prefill_length": 10,
+                "max-local-prefill-length": 10,
                 "max-prefill-queue-size": 2,
                 "gpu-memory-utilization": 0.95,
                 "tensor-parallel-size": 8,
