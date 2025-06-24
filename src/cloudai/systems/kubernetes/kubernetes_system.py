@@ -320,7 +320,7 @@ class KubernetesSystem(BaseModel, System):
                 namespace=self.default_namespace,
                 plural="mpijobs",
                 name=job_name,
-                body=k8s.client.V1DeleteOptions(propagation_policy="Foreground", grace_period_seconds=5),
+                body=lazy.k8s.client.V1DeleteOptions(propagation_policy="Foreground", grace_period_seconds=5),
             )
             logging.debug(f"MPIJob '{job_name}' deleted successfully")
         except lazy.k8s.client.ApiException as e:
