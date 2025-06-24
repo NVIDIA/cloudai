@@ -40,13 +40,7 @@ class KubernetesRunner(BaseRunner):
 
         return KubernetesJob(tr, id=job_name, name=job_name, kind=job_kind)
 
-    async def job_completion_callback(self, job: BaseJob) -> None:
-        """
-        Handle job completion by storing job logs and deleting the job.
-
-        Args:
-            job (BaseJob): The job that has completed.
-        """
+    def on_job_completion(self, job: BaseJob) -> None:
         k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)
         k_job = cast(KubernetesJob, job)
         k8s_system.store_logs_for_job(k_job.name, k_job.test_run.output_path)
