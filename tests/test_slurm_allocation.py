@@ -14,9 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from unittest.mock import Mock, patch
+
 import pytest
 
-from cloudai.systems.slurm import SlurmGroup, SlurmNode, SlurmNodeState, SlurmPartition, SlurmSystem, parse_node_list
+from cloudai.systems.slurm import (
+    SlurmGroup,
+    SlurmJob,
+    SlurmNode,
+    SlurmNodeState,
+    SlurmPartition,
+    SlurmSystem,
+    parse_node_list,
+)
 
 
 class TestGroupAllocation:
@@ -60,7 +70,6 @@ class TestGroupAllocation:
         assert nnodes == 5
         assert nodes_list == sorted([n.name for n in all_nodes])
 
-    @pytest.mark.xfail(reason="This is a bug in the code, RM4471870")
     def test_two_cases_one_group(self, slurm_system: SlurmSystem, monkeypatch: pytest.MonkeyPatch):
         # system has 5 nodes in the group
         system, *_ = self.prepare(slurm_system, [], monkeypatch)
@@ -73,4 +82,42 @@ class TestGroupAllocation:
         nnodes, nodes_list2 = system.get_nodes_by_spec(1, ["main:group1:2"])
         assert nnodes == 2
 
-        assert nodes_list1 != nodes_list2, "Same nodes we allocated for two different requests"
+        assert nodes_list1 != nodes_list2, "Same nodes were allocated for two different requests"
+
+    def test_completion_clears_group_allocation_state(self, slurm_system: SlurmSystem, monkeypatch: pytest.MonkeyPatch):
+        system, all_nodes, taken_nodes = self.prepare(slurm_system, ["node01", "node02"], monkeypatch)
+        system.group_allocated.clear()
+        _, nodes_list = system.get_nodes_by_spec(1, ["main:group1:3"])
+        assert system.group_allocated == set(all_nodes) - set(taken_nodes)
+
+        with patch(
+            "cloudai.systems.slurm.slurm_system.SlurmSystem.fetch_command_output",
+            return_value=(f"{','.join(nodes_list)}|", ""),
+        ):
+            system.complete_job(SlurmJob(id=1, test_run=Mock()))
+
+        assert len(system.group_allocated) == 0
+
+    def test_two_nodes_with_completion(self, slurm_system: SlurmSystem, monkeypatch: pytest.MonkeyPatch):
+        system, all_nodes, _ = self.prepare(slurm_system, [], monkeypatch)
+        system.group_allocated.clear()
+        _, nodes_list1 = system.get_nodes_by_spec(1, ["main:group1:2"])
+        _, nodes_list2 = system.get_nodes_by_spec(1, ["main:group1:3"])
+        assert nodes_list1 != nodes_list2, "Same nodes were allocated for two different requests"
+        assert system.group_allocated == set(all_nodes)
+
+        with patch(
+            "cloudai.systems.slurm.slurm_system.SlurmSystem.fetch_command_output",
+            return_value=(f"{','.join(nodes_list1)}|", ""),
+        ):
+            system.complete_job(SlurmJob(id=1, test_run=Mock()))
+
+        assert len(system.group_allocated) == len(nodes_list2)
+
+        with patch(
+            "cloudai.systems.slurm.slurm_system.SlurmSystem.fetch_command_output",
+            return_value=(f"{','.join(nodes_list2)}|", ""),
+        ):
+            system.complete_job(SlurmJob(id=2, test_run=Mock()))
+
+        assert len(system.group_allocated) == 0
