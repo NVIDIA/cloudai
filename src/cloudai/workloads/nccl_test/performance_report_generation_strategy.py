@@ -86,7 +86,7 @@ class NcclTestPerformanceReportGenerationStrategy(NcclTestReportGenerationStrate
                     host, device_index = match.groups()
                     device_indices[host] = max(device_indices.get(host, -1), int(device_index))
 
-                if match := re.search(r"NVIDIA\s+([A-Z0-9]+)", line):
+                if match := re.search(r"NVIDIA\s+(.+?)(?=\s*$|\s+\[|\s+device)", line):
                     gpu_type = match.group(1).strip()
 
         num_devices_per_node: int = max(device_indices.values(), default=-1) + 1 if device_indices else 0
