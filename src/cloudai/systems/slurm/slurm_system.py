@@ -761,6 +761,6 @@ class SlurmSystem(BaseModel, System):
 
     def complete_job(self, job: SlurmJob) -> None:
         out, _ = self.fetch_command_output(f"sacct -j {job.id} -p --noheader -X --format=NodeList")
-        nodelist = set(parse_node_list(out.strip().replace("|", "")))
+        nodelist = set(parse_node_list(out.splitlines()[0].strip().replace("|", "")))
         to_unlock = [node for node in self.group_allocated if node.name in nodelist]
         self.group_allocated.difference_update(to_unlock)
