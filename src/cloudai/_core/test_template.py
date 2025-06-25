@@ -55,7 +55,7 @@ class TestTemplate:
         """
         self.system = system
         self._command_gen_strategy: Optional[CommandGenStrategy] = None
-        self.json_gen_strategy: Optional[JsonGenStrategy] = None
+        self._json_gen_strategy: Optional[JsonGenStrategy] = None
         self.job_id_retrieval_strategy: Optional[JobIdRetrievalStrategy] = None
         self.job_status_retrieval_strategy: Optional[JobStatusRetrievalStrategy] = None
         self.grading_strategy: Optional[GradingStrategy] = None
@@ -72,6 +72,19 @@ class TestTemplate:
     @command_gen_strategy.setter
     def command_gen_strategy(self, value: CommandGenStrategy) -> None:
         self._command_gen_strategy = value
+
+    @property
+    def json_gen_strategy(self) -> JsonGenStrategy:
+        if self._json_gen_strategy is None:
+            raise ValueError(
+                "json_gen_strategy is missing. Ensure the strategy is registered in the Registry "
+                "by calling the appropriate registration function for the system type."
+            )
+        return self._json_gen_strategy
+
+    @json_gen_strategy.setter
+    def json_gen_strategy(self, value: JsonGenStrategy) -> None:
+        self._json_gen_strategy = value
 
     def gen_exec_command(self, tr: TestRun) -> str:
         """
