@@ -69,7 +69,7 @@ class KubernetesSystem(BaseModel, System):
         state = self.model_dump(exclude={"_core_v1", "_batch_v1", "_custom_objects_api"})
         return state
 
-    def __deepcopy__(self, memo: dict[int, Any] | None = None) -> "KubernetesSystem":
+    def __deepcopy__(self, memo: dict[int, Any] | None = None) -> "KubernetesSystem":  # noqa: Vulture
         """
         Create a deep copy of the KubernetesSystem instance.
 
@@ -79,15 +79,13 @@ class KubernetesSystem(BaseModel, System):
         Returns:
             A new KubernetesSystem instance with reinitialized Kubernetes clients.
         """
-        del memo
         state = self.__getstate__()
         new_instance = KubernetesSystem(**state)
         new_instance.model_post_init(None)
         return new_instance
 
-    def model_post_init(self, __context: Any = None) -> None:
+    def model_post_init(self, __context: Any = None) -> None:  # noqa: Vulture
         """Initialize the KubernetesSystem instance."""
-        del __context
         kube_config_path = self.kube_config_path
         if not kube_config_path.is_file():
             home_directory = Path.home()
