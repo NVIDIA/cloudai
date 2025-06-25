@@ -39,6 +39,7 @@ class SlurmRunner(BaseRunner):
 
     def __init__(self, mode: str, system: System, test_scenario: TestScenario, output_path: Path) -> None:
         super().__init__(mode, system, test_scenario, output_path)
+        self.system = cast(SlurmSystem, system)
         self.cmd_shell = CommandShell()
 
     def _submit_test(self, tr: TestRun) -> SlurmJob:
@@ -62,6 +63,7 @@ class SlurmRunner(BaseRunner):
 
     def on_job_completion(self, job: BaseJob) -> None:
         logging.debug(f"Job completion callback for job {job.id}")
+        self.system.complete_job(cast(SlurmJob, job))
         self.store_job_metadata(cast(SlurmJob, job))
 
     def _mock_job_metadata(self) -> SlurmStepMetadata:
