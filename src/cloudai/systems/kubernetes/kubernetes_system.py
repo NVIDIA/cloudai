@@ -69,16 +69,6 @@ class KubernetesSystem(BaseModel, System):
         state = self.model_dump(exclude={"_core_v1", "_batch_v1", "_custom_objects_api"})
         return state
 
-    def __setstate__(self, state: dict[str, Any]) -> None:
-        """
-        Restore the state from pickling and reinitialize Kubernetes client objects.
-
-        Args:
-            state: Dictionary containing the object's pickled state.
-        """
-        self.__dict__.update(state)
-        self.model_post_init(None)
-
     def __deepcopy__(self, memo: dict[int, Any] | None = None) -> "KubernetesSystem":
         """
         Create a deep copy of the KubernetesSystem instance.
