@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import re
+from copy import copy
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
@@ -609,7 +610,7 @@ class SlurmSystem(BaseModel, System):
 
         for node in allocated_nodes:
             node.state = SlurmNodeState.ALLOCATED
-        self.group_allocated.update(allocated_nodes)
+        self.group_allocated.update(copy(node) for node in allocated_nodes)
 
         return allocated_nodes
 

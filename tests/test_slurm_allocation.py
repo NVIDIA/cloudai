@@ -89,6 +89,7 @@ class TestGroupAllocation:
         system.group_allocated.clear()
         _, nodes_list = system.get_nodes_by_spec(1, ["main:group1:3"])
         assert system.group_allocated == set(all_nodes) - set(taken_nodes)
+        assert all(node.state == SlurmNodeState.ALLOCATED for node in system.group_allocated)
 
         with patch(
             "cloudai.systems.slurm.slurm_system.SlurmSystem.fetch_command_output",
@@ -98,26 +99,19 @@ class TestGroupAllocation:
 
         assert len(system.group_allocated) == 0
 
-    def test_two_nodes_with_completion(self, slurm_system: SlurmSystem, monkeypatch: pytest.MonkeyPatch):
+    def test_group_allocation_is_preserved_on_updated(self, slurm_system: SlurmSystem, monkeypatch: pytest.MonkeyPatch):
         system, all_nodes, _ = self.prepare(slurm_system, [], monkeypatch)
         system.group_allocated.clear()
-        _, nodes_list1 = system.get_nodes_by_spec(1, ["main:group1:2"])
-        _, nodes_list2 = system.get_nodes_by_spec(1, ["main:group1:3"])
-        assert nodes_list1 != nodes_list2, "Same nodes were allocated for two different requests"
+        _ = system.get_nodes_by_spec(1, ["main:group1:5"])
         assert system.group_allocated == set(all_nodes)
+        assert all(node.state == SlurmNodeState.ALLOCATED for node in system.group_allocated)
 
+        # Simulate scenario when sinfo still reports group allocated nodes as idle
         with patch(
-            "cloudai.systems.slurm.slurm_system.SlurmSystem.fetch_command_output",
-            return_value=(f"{','.join(nodes_list1)}|", ""),
+            "cloudai.systems.slurm.slurm_system.SlurmSystem.nodes_from_sinfo",
+            return_value=[
+                SlurmNode(name=node.name, partition=node.partition, state=SlurmNodeState.IDLE) for node in all_nodes
+            ],
         ):
-            system.complete_job(SlurmJob(id=1, test_run=Mock()))
-
-        assert len(system.group_allocated) == len(nodes_list2)
-
-        with patch(
-            "cloudai.systems.slurm.slurm_system.SlurmSystem.fetch_command_output",
-            return_value=(f"{','.join(nodes_list2)}|", ""),
-        ):
-            system.complete_job(SlurmJob(id=2, test_run=Mock()))
-
-        assert len(system.group_allocated) == 0
+            system.update()
+        assert all(node.state == SlurmNodeState.ALLOCATED for node in system.group_allocated)
