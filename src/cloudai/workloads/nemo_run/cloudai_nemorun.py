@@ -733,8 +733,6 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
         )
     )
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
-    gpu_type = os.getenv("CLOUDAI_GPU_TYPE")
-    compute_dtype = os.getenv("CLOUDAI_GPU_DTYPE")
     set_enable_cuda_graphs_params(recipe)
 
     tp_overlap_cfg, tp_comm_overlap = get_tp_overlap_config()
