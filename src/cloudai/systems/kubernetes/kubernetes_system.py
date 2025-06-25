@@ -64,8 +64,40 @@ class KubernetesSystem(BaseModel, System):
     _batch_v1: Optional[k8s.client.BatchV1Api] = None
     _custom_objects_api: Optional[k8s.client.CustomObjectsApi] = None
 
-    def model_post_init(self, __context):  # noqa: Vulture
+    def __getstate__(self) -> dict[str, Any]:
+        """Return the state for pickling, excluding non-picklable Kubernetes client objects."""
+        state = self.model_dump(exclude={"_core_v1", "_batch_v1", "_custom_objects_api"})
+        return state
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        """
+        Restore the state from pickling and reinitialize Kubernetes client objects.
+
+        Args:
+            state: Dictionary containing the object's pickled state.
+        """
+        self.__dict__.update(state)
+        self.model_post_init(None)
+
+    def __deepcopy__(self, memo: dict[int, Any] | None = None) -> "KubernetesSystem":
+        """
+        Create a deep copy of the KubernetesSystem instance.
+
+        Args:
+            memo: Dictionary to keep track of objects that have already been copied.
+
+        Returns:
+            A new KubernetesSystem instance with reinitialized Kubernetes clients.
+        """
+        del memo
+        state = self.__getstate__()
+        new_instance = KubernetesSystem(**state)
+        new_instance.model_post_init(None)
+        return new_instance
+
+    def model_post_init(self, __context: Any = None) -> None:
         """Initialize the KubernetesSystem instance."""
+        del __context
         kube_config_path = self.kube_config_path
         if not kube_config_path.is_file():
             home_directory = Path.home()
