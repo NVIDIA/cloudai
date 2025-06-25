@@ -515,6 +515,31 @@ def llama3_70b_fp8_h100_tp_overlap_config() -> run.Config[TransformerLayerTPOver
     )
 
 
+def get_tp_overlap_config():
+    gpu_type = os.getenv("CLOUDAI_GPU_TYPE")
+    compute_dtype = os.getenv("CLOUDAI_GPU_DTYPE")
+    if gpu_type == "h100" and compute_dtype == "bf16":
+        tp_overlap_cfg = llama3_70b_bf16_h100_tp_overlap_config()
+        tp_comm_overlap = True
+    elif gpu_type == "h100" and compute_dtype == "fp8":
+        tp_overlap_cfg = llama3_70b_fp8_h100_tp_overlap_config()
+        tp_comm_overlap = True
+    elif gpu_type == "b200" and compute_dtype == "bf16":
+        tp_overlap_cfg = llama3_70b_bf16_b200_tp_overlap_config()
+        tp_comm_overlap = True
+    elif gpu_type == "b200" and compute_dtype == "fp8":
+        tp_overlap_cfg = llama3_70b_fp8_b200_tp_overlap_config()
+        tp_comm_overlap = True
+    else:
+        print(
+            "Warning: Not using Default Comm Overlap Config.\n"
+            "Please set the GPU type and compute dtype in the environment variables."
+        )
+        tp_overlap_cfg = None
+        tp_comm_overlap = False
+    return tp_overlap_cfg, tp_comm_overlap
+
+
 # LLAMA3 8B Recipe
 @run.cli.factory(target=llm.pretrain)
 def cloudai_llama3_8b_recipe() -> run.Partial:
@@ -712,25 +737,7 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
     compute_dtype = os.getenv("CLOUDAI_GPU_DTYPE")
     set_enable_cuda_graphs_params(recipe)
 
-    if gpu_type == "h100" and compute_dtype == "bf16":
-        tp_overlap_cfg = llama3_70b_bf16_h100_tp_overlap_config()
-        tp_comm_overlap = True
-    elif gpu_type == "h100" and compute_dtype == "fp8":
-        tp_overlap_cfg = llama3_70b_fp8_h100_tp_overlap_config()
-        tp_comm_overlap = True
-    elif gpu_type == "b200" and compute_dtype == "bf16":
-        tp_overlap_cfg = llama3_70b_bf16_b200_tp_overlap_config()
-        tp_comm_overlap = True
-    elif gpu_type == "b200" and compute_dtype == "fp8":
-        tp_overlap_cfg = llama3_70b_fp8_b200_tp_overlap_config()
-        tp_comm_overlap = True
-    else:
-        print(
-            "Warning: Not using Default Comm Overlap Config.\n"
-            "Please set the GPU type and compute dtype in the environment variables."
-        )
-        tp_overlap_cfg = None
-        tp_comm_overlap = False
+    tp_overlap_cfg, tp_comm_overlap = get_tp_overlap_config()
 
     recipe.trainer.callbacks.append(
         run.Config(
@@ -836,52 +843,19 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
             resume_past_end=True,
         ),
     )
-    recipe.trainer.callbacks.append(
-        run.Config(
-            FLOPsMeasurementCallback,
-            model_config=recipe.model.config,
-            data_config=recipe.data,
-            model_name="llama3",
-        )
-    )
-
-    set_enable_cuda_graphs_params(recipe)
-    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
-
-    gpu_type = os.getenv("CLOUDAI_GPU_TYPE")
-    compute_dtype = os.getenv("CLOUDAI_GPU_DTYPE")
-    if gpu_type == "h100" and compute_dtype == "bf16":
-        tp_overlap_cfg = llama3_70b_bf16_h100_tp_overlap_config()
-        tp_comm_overlap = True
-    elif gpu_type == "h100" and compute_dtype == "fp8":
-        tp_overlap_cfg = llama3_70b_fp8_h100_tp_overlap_config()
-        tp_comm_overlap = True
-    elif gpu_type == "b200" and compute_dtype == "bf16":
-        tp_overlap_cfg = llama3_70b_bf16_b200_tp_overlap_config()
-        tp_comm_overlap = True
-    elif gpu_type == "b200" and compute_dtype == "fp8":
-        tp_overlap_cfg = llama3_70b_fp8_b200_tp_overlap_config()
-        tp_comm_overlap = True
-    else:
-        print(
-            "Warning: Not using Default Comm Overlap Config.\n"
-            "Please set the GPU type and compute dtype in the environment variables."
-        )
-        tp_overlap_cfg = None
-        tp_comm_overlap = False
-
-    recipe.trainer.callbacks.append(
-        run.Config(
-            MegatronCommOverlapCallback,
-            tp_comm_overlap=tp_comm_overlap,
-            tp_comm_overlap_cfg=tp_overlap_cfg,
-            overlap_param_gather_with_optimizer_step=True,
-            defer_embedding_wgrad_compute=True,
-            wgrad_deferral_limit=22,
-        )
-    )
     recipe.model.config.expert_tensor_parallel_size = None
     recipe.model.config.seq_length = 8192
+
+    tp_overlap_cfg, tp_comm_overlap = get_tp_overlap_config()
+    megatron_comm_overlap_callback = run.Config(
+        MegatronCommOverlapCallback,
+        tp_comm_overlap=tp_comm_overlap,
+        tp_comm_overlap_cfg=tp_overlap_cfg,
+        overlap_param_gather_with_optimizer_step=True,
+        defer_embedding_wgrad_compute=True,
+        wgrad_deferral_limit=22,
+    )
+
     enable_fsdp = os.getenv("CLOUDAI_ENABLE_FSDP", "0") == "1"
     disable_tp_commd_overlap = os.getenv("CLOUDAI_DISABLE_TP_COMM_OVERLAP", "0") == "1"
     if enable_fsdp:
@@ -892,12 +866,12 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
         recipe.trainer.strategy.ddp.average_in_collective = False
         recipe.trainer.strategy.ddp.keep_fp8_transpose_cache_when_using_custom_fsdp = False
         recipe.model.config.gradient_accumulation_fusion = False
-        recipe.trainer.callbacks[2].defer_embedding_wgrad_compute = False
-        recipe.trainer.callbacks[2].wgrad_deferral_limit = 50
-        recipe.trainer.callbacks[2].overlap_param_gather_with_optimizer_step = False
+        megatron_comm_overlap_callback.defer_embedding_wgrad_compute = False
+        megatron_comm_overlap_callback.wgrad_deferral_limit = 50
+        megatron_comm_overlap_callback.overlap_param_gather_with_optimizer_step = False
 
         if disable_tp_commd_overlap:
-            recipe.trainer.callbacks[2].tp_comm_overlap = False
+            megatron_comm_overlap_callback.tp_comm_overlap = False
 
     recompute_layers = int(os.getenv("CLOUDAI_RECOMPUTE_LAYERS", "0"))
     if recompute_layers > 0:
@@ -911,9 +885,18 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
         recipe.model.config.cpu_offloading_weights = False
         recipe.model.config.cpu_offloading_num_layers = activation_offload_layers
 
+    recipe.trainer.callbacks.append(
+        run.Config(
+            FLOPsMeasurementCallback,
+            model_config=recipe.model.config,
+            data_config=recipe.data,
+            model_name="llama3",
+        )
+    )
+    recipe.trainer.callbacks.append(megatron_comm_overlap_callback)
+    recipe.trainer.callbacks.append(run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100))
     recipe.trainer.strategy.account_for_embedding_in_pipeline_split = True
     recipe.trainer.strategy.account_for_loss_in_pipeline_split = True
-    recipe.trainer.callbacks.append(run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100))
     recipe.model.tokenizer = recipe.data.tokenizer
     return recipe
 
