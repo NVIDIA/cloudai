@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -23,73 +23,58 @@ from cloudai.core import DockerImage, Installable
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 
+class CommonConfig(BaseModel):
+    """Common configuration shared across components."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    model: str
+    kv_transfer_config: str = Field('{"kv_connector":"NixlConnector","kv_role":"kv_both"}', alias="kv-transfer-config")
+    served_model_name: str
+
+
 class FrontendArgs(BaseModel):
     """Arguments for the frontend node."""
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    endpoint: str = "dynamo.Processor.chat/completions"
+    endpoint: str = "dynamo.SimpleLoadBalancer.generate_disagg"
     port: int = 8000
     port_etcd: int = 2379
     port_nats: int = 4222
 
 
-class ProcessorArgs(BaseModel):
-    """Arguments for the processor node."""
+class SimpleLoadBalancerArgs(BaseModel):
+    """Arguments for the load balancer."""
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    block_size: int = Field(64, alias="block-size")
-    max_model_len: int = Field(8192, alias="max-model-len")
-    router: str = "kv"
+    enable_disagg: bool = True
 
 
-class RouterArgs(BaseModel):
-    """Arguments for the router."""
-
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-    min_workers: int = Field(1, alias="min-workers")
-
-
-class PrefillWorkerArgs(BaseModel):
-    """Arguments for the prefill worker node."""
+class VllmWorkerBaseArgs(BaseModel):
+    """Base arguments for VLLM workers."""
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     num_nodes: Union[int, list[int]]
-    kv_transfer_config: str = Field('{"kv_connector":"DynamoNixlConnector"}', alias="kv-transfer-config")
-    block_size: int = Field(64, alias="block-size")
-    max_model_len: int = Field(8192, alias="max-model-len")
-    max_num_seqs: int = Field(16, alias="max-num-seqs")
-    gpu_memory_utilization: float = Field(0.95, alias="gpu-memory-utilization")
-    tensor_parallel_size: Union[int, list[int]] = Field(8, alias="tensor-parallel-size")
-    pipeline_parallel_size: Union[int, list[int]] = Field(1, alias="pipeline-parallel-size")
-    quantization: Optional[str] = None
     service_args: dict = Field({"workers": 1, "resources": {"gpu": "8"}}, alias="ServiceArgs")
+    gpu_memory_utilization: float = Field(0.7, alias="gpu-memory-utilization")
+    tensor_parallel_size: int = Field(8, alias="tensor-parallel-size")
+    pipeline_parallel_size: int = Field(1, alias="pipeline-parallel-size")
+    enforce_eager: bool = Field(True, alias="enforce-eager")
 
 
-class VllmWorkerArgs(BaseModel):
-    """Arguments for the VllmWorker node."""
+class VllmPrefillWorkerArgs(VllmWorkerBaseArgs):
+    """Arguments for the VLLM prefill worker."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    pass
 
-    num_nodes: Union[int, list[int]]
-    kv_transfer_config: str = Field('{"kv_connector":"DynamoNixlConnector"}', alias="kv-transfer-config")
-    block_size: int = Field(64, alias="block-size")
-    max_model_len: int = Field(8192, alias="max-model-len")
-    max_num_seqs: int = Field(16, alias="max-num-seqs")
-    remote_prefill: bool = Field(True, alias="remote-prefill")
-    conditional_disagg: bool = Field(True, alias="conditional-disagg")
-    max_local_prefill_length: int = Field(10, alias="max-local-prefill-length")
-    max_prefill_queue_size: int = Field(2, alias="max-prefill-queue-size")
-    gpu_memory_utilization: float = Field(0.95, alias="gpu-memory-utilization")
-    tensor_parallel_size: Union[int, list[int]] = Field(8, alias="tensor-parallel-size")
-    pipeline_parallel_size: Union[int, list[int]] = Field(1, alias="pipeline-parallel-size")
-    router: str = "kv"
-    quantization: Optional[str] = None
-    enable_prefix_caching: bool = Field(True, alias="enable-prefix-caching")
-    service_args: dict = Field({"workers": 1, "resources": {"gpu": "8"}}, alias="ServiceArgs")
+
+class VllmDecodeWorkerArgs(VllmWorkerBaseArgs):
+    """Arguments for the VLLM decode worker."""
+
+    pass
 
 
 class AIDynamoArgs(BaseModel):
@@ -97,11 +82,11 @@ class AIDynamoArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    frontend: FrontendArgs = FrontendArgs(port_etcd=2379, port_nats=4222)
-    processor: ProcessorArgs = ProcessorArgs(**{"block-size": 64, "max-model-len": 8192, "router": "kv"})
-    router: RouterArgs = RouterArgs(**{"min-workers": 1})
-    prefill_worker: PrefillWorkerArgs
-    vllm_worker: VllmWorkerArgs
+    common: CommonConfig
+    frontend: FrontendArgs = FrontendArgs()
+    simple_load_balancer: SimpleLoadBalancerArgs = SimpleLoadBalancerArgs()
+    vllm_prefill_worker: VllmPrefillWorkerArgs
+    vllm_decode_worker: VllmDecodeWorkerArgs
 
 
 class GenAIPerfArgs(BaseModel):
