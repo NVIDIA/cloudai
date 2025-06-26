@@ -33,7 +33,6 @@ from ._core.grader import Grader
 from ._core.grading_strategy import GradingStrategy
 from ._core.installables import DockerImage, File, GitRepo, Installable, PythonExecutable
 from ._core.job_status_result import JobStatusResult
-from ._core.job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from ._core.json_gen_strategy import JsonGenStrategy
 from ._core.registry import Registry
 from ._core.report_generation_strategy import ReportGenerationStrategy
@@ -72,7 +71,6 @@ __all__ = [
     "Installable",
     "JobIdRetrievalError",
     "JobStatusResult",
-    "JobStatusRetrievalStrategy",
     "JsonGenStrategy",
     "NsysConfiguration",
     "Parser",
