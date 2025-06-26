@@ -30,7 +30,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _container_mounts(self) -> list[str]:
         td = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
         mounts = [
-            f"{td.hugging_face_home_path}:{td.hugging_face_home_path}",
+            f"{td.hugging_face_home_path}:/root/.cache/huggingface",
         ]
         script_host = (self.test_run.output_path / "run.sh").resolve()
         script_container = "/opt/run.sh"
@@ -44,25 +44,27 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return mounts
 
     def _generate_yaml_config(self, td: AIDynamoTestDefinition, yaml_path: Path) -> Path:
-        config = {
+        base_config = {
+            "Common": td.cmd_args.dynamo.common.model_dump(by_alias=True, exclude_none=True),
             "Frontend": td.cmd_args.dynamo.frontend.model_dump(
                 by_alias=True, exclude={"port_etcd", "port_nats"}, exclude_none=True
             ),
-            "Processor": td.cmd_args.dynamo.processor.model_dump(by_alias=True, exclude_none=True),
-            "Router": td.cmd_args.dynamo.router.model_dump(by_alias=True, exclude_none=True),
-            "VllmWorker": td.cmd_args.dynamo.vllm_worker.model_dump(
+            "SimpleLoadBalancer": td.cmd_args.dynamo.simple_load_balancer.model_dump(by_alias=True, exclude_none=True),
+            "VllmPrefillWorker": td.cmd_args.dynamo.vllm_prefill_worker.model_dump(
                 by_alias=True, exclude={"num_nodes"}, exclude_none=True
             ),
-            "PrefillWorker": td.cmd_args.dynamo.prefill_worker.model_dump(
+            "VllmDecodeWorker": td.cmd_args.dynamo.vllm_decode_worker.model_dump(
                 by_alias=True, exclude={"num_nodes"}, exclude_none=True
             ),
         }
-        model_name = td.cmd_args.served_model_name
-        config["Frontend"]["served_model_name"] = model_name
-        for section_name in ["Processor", "Router", "PrefillWorker", "VllmWorker"]:
-            config[section_name]["model"] = model_name
+
+        base_config["Frontend"]["common-configs"] = ["model", "kv-transfer-config", "served_model_name"]
+        base_config["SimpleLoadBalancer"]["common-configs"] = ["model", "kv-transfer-config", "served_model_name"]
+        base_config["VllmPrefillWorker"]["common-configs"] = ["model", "kv-transfer-config", "served_model_name"]
+        base_config["VllmDecodeWorker"]["common-configs"] = ["model", "kv-transfer-config", "served_model_name"]
+
         with open(yaml_path, "w") as yaml_file:
-            yaml.dump(config, yaml_file)
+            yaml.dump(base_config, yaml_file, default_flow_style=False)
         return yaml_path
 
     def image_path(self) -> str | None:
@@ -80,22 +82,25 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _common_header(self, hf_home: Path, port_nats: int, port_etcd: int) -> List[str]:
         return [
-            f"export HF_HOME={hf_home}",
+            f"export HF_HOME=/root/.cache/huggingface",
             "export DYNAMO_FRONTEND=$SLURM_JOB_MASTER_NODE",
+            "export VLLM_VERSION=0.9.0", # TODO: pass this as a parameter.
             f'export NATS_SERVER="nats://${{DYNAMO_FRONTEND}}:{port_nats}"',
             f'export ETCD_ENDPOINTS="http://${{DYNAMO_FRONTEND}}:{port_etcd}"',
-            "cd /workspace/examples/llm/",
+            "cd /workspace/examples/vllm_v1/",
             "CURRENT_HOST=$(hostname)",
+            "uv pip uninstall ai_dynamo_vllm || echo true",
+            "uv pip install vllm==$VLLM_VERSION || echo true",
             "export DONE_MARKER=/cloudai_run_results/frontend_done.marker",
             "",
         ]
 
     def _role_dispatch(self, td: AIDynamoTestDefinition, yaml_config_path: Path) -> List[str]:
-        prefill_n = td.cmd_args.dynamo.prefill_worker.num_nodes
-        decode_n = td.cmd_args.dynamo.vllm_worker.num_nodes
+        prefill_n = td.cmd_args.dynamo.vllm_prefill_worker.num_nodes
+        decode_n = td.cmd_args.dynamo.vllm_decode_worker.num_nodes
 
-        assert isinstance(prefill_n, int), "prefill_worker.num_nodes must be an integer"
-        assert isinstance(decode_n, int), "vllm_worker.num_nodes must be an integer"
+        assert isinstance(prefill_n, int), "vllm_prefill_worker.num_nodes must be an integer"
+        assert isinstance(decode_n, int), "vllm_decode_worker.num_nodes must be an integer"
 
         dispatch = [
             'ROLE="frontend"',
@@ -128,7 +133,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             self._bg(self._etcd_cmd(td.cmd_args.dynamo.frontend.port_etcd), "etcd_stdout", "etcd_stderr"),
             self._bg(self._nats_cmd(), "nats_stdout", "nats_stderr"),
             self._bg(
-                self._dynamo_cmd("graphs.agg_router:Frontend", yaml_config_path),
+                self._dynamo_cmd("graphs.agg:Frontend", yaml_config_path),
                 "frontend_stdout",
                 "frontend_stderr",
             ),
@@ -153,7 +158,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _prefill_block(self, td: AIDynamoTestDefinition, yaml_config_path: Path) -> List[str]:
         return [
             self._bg(
-                self._dynamo_cmd("components.prefill_worker:PrefillWorker", yaml_config_path, service_name=None),
+                self._dynamo_cmd("components.worker:VllmPrefillWorker", yaml_config_path),
                 "prefill_stdout_node${SLURM_NODEID}",
                 "prefill_stderr_node${SLURM_NODEID}",
             ),
@@ -166,7 +171,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _decode_block(self, td: AIDynamoTestDefinition, yaml_config_path: Path) -> List[str]:
         return [
             self._bg(
-                self._dynamo_cmd("components.worker:VllmWorker", yaml_config_path, service_name="VllmWorker"),
+                self._dynamo_cmd("components.worker:VllmDecodeWorker", yaml_config_path),
                 "decode_stdout_node${SLURM_NODEID}",
                 "decode_stderr_node${SLURM_NODEID}",
             ),
@@ -178,7 +183,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _dynamo_cmd(self, module: str, config: Path, service_name: Optional[str] = None) -> str:
         svc = f"--service-name {service_name} " if service_name else ""
-        return f"dynamo serve {module} -f {config} {svc}"
+        return f"cd /workspace/examples/vllm_v1 && dynamo serve {module} -f {config} {svc}"
 
     def _bg(self, cmd: str, stdout_tag: str, stderr_tag: str) -> str:
         return f"{cmd} > /cloudai_run_results/{stdout_tag}.txt 2> /cloudai_run_results/{stderr_tag}.txt &"
@@ -196,7 +201,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "-m",
             td.cmd_args.served_model_name,
             "--url",
-            f"${{CURRENT_HOST}}:{args.genai_perf.port}",
+            f"http://${{CURRENT_HOST}}:{args.genai_perf.port}",
             "--endpoint-type",
             args.genai_perf.endpoint_type,
         ]
@@ -271,12 +276,12 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         td = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
         prefill_n = td.cmd_args.dynamo.prefill_worker.num_nodes
-        decode_n = td.cmd_args.dynamo.vllm_worker.num_nodes
+        decode_n = td.cmd_args.dynamo.decode_worker.num_nodes
 
         assert isinstance(prefill_n, int), "prefill_worker.num_nodes must be an integer"
-        assert isinstance(decode_n, int), "vllm_worker.num_nodes must be an integer"
+        assert isinstance(decode_n, int), "decode_worker.num_nodes must be an integer"
 
-        total_nodes = 1 + prefill_n + decode_n
+        total_nodes = prefill_n + decode_n
 
         requested_nodes, node_list = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)
         if total_nodes > requested_nodes:
