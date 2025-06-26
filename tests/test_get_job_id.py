@@ -21,6 +21,8 @@ from unittest.mock import Mock
 import pytest
 
 from cloudai.core import JobIdRetrievalError, Test, TestRun, TestScenario, TestTemplate
+from cloudai.systems.lsf.lsf_runner import LSFRunner
+from cloudai.systems.lsf.lsf_system import LSFSystem
 from cloudai.systems.slurm import SlurmRunner, SlurmSystem
 from cloudai.util import CommandShell
 from cloudai.workloads.sleep.sleep import SleepCmdArgs, SleepTestDefinition
@@ -38,7 +40,7 @@ class MockCommandShell(CommandShell):
 
 
 @pytest.fixture
-def slurm_runner(slurm_system: SlurmSystem, tmp_path: Path) -> SlurmRunner:
+def test_scenario(slurm_system: SlurmSystem) -> TestScenario:
     test_scenario = TestScenario(
         name="Test Scenario",
         test_runs=[
@@ -58,7 +60,14 @@ def slurm_runner(slurm_system: SlurmSystem, tmp_path: Path) -> SlurmRunner:
     )
     test_scenario.test_runs[0].output_path.mkdir(parents=True, exist_ok=True)
     test_scenario.test_runs[0].test.test_template.command_gen_strategy = SleepSlurmCommandGenStrategy(slurm_system, {})
-    runner = SlurmRunner(mode="run", system=slurm_system, test_scenario=test_scenario, output_path=tmp_path)
+    return test_scenario
+
+
+@pytest.fixture
+def slurm_runner(slurm_system: SlurmSystem, test_scenario: TestScenario) -> SlurmRunner:
+    runner = SlurmRunner(
+        mode="run", system=slurm_system, test_scenario=test_scenario, output_path=slurm_system.output_path
+    )
     runner.cmd_shell = MockCommandShell()
     return runner
 
@@ -71,3 +80,36 @@ def test_job_id_retrieval_error(slurm_runner: SlurmRunner):
     assert "sbatch: error: Batch job submission failed: Requested node configuration is not available" in str(
         excinfo.value
     )
+
+
+@pytest.mark.parametrize(
+    "stdout, stderr, expected_job_id",
+    [
+        ("Submitted batch job 123456", "", 123456),
+        ("submitted with Job ID 123456", "", 123456),
+        ("", "sbatch: error: Batch job submission failed:...", None),
+    ],
+)
+def test_slurm_get_job_id(slurm_runner: SlurmRunner, stdout: str, stderr: str, expected_job_id: int | None):
+    res = slurm_runner.get_job_id(stdout, stderr)
+    assert res == expected_job_id
+
+
+@pytest.mark.parametrize(
+    "stdout, stderr, expected_job_id",
+    [
+        ("Job <123456> is submitted", "", 123456),
+        ("", "error: ...", None),
+    ],
+)
+def test_lsf_get_job_id(
+    test_scenario: TestScenario, tmp_path: Path, stdout: str, stderr: str, expected_job_id: int | None
+):
+    lsf_runner = LSFRunner(
+        mode="run",
+        system=LSFSystem(name="test_system", install_path=Path(), output_path=tmp_path),
+        test_scenario=test_scenario,
+        output_path=tmp_path,
+    )
+    res = lsf_runner.get_job_id(stdout, stderr)
+    assert res == expected_job_id
