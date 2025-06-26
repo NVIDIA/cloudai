@@ -26,7 +26,6 @@ if TYPE_CHECKING:
     from .base_installer import BaseInstaller
     from .base_runner import BaseRunner
     from .grading_strategy import GradingStrategy
-    from .job_id_retrieval_strategy import JobIdRetrievalStrategy
     from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
     from .report_generation_strategy import ReportGenerationStrategy
     from .system import System
@@ -56,7 +55,6 @@ class Registry(metaclass=Singleton):
                 Type[
                     Union[
                         TestTemplateStrategy,
-                        JobIdRetrievalStrategy,
                         JobStatusRetrievalStrategy,
                         GradingStrategy,
                     ]
@@ -67,7 +65,6 @@ class Registry(metaclass=Singleton):
             Type[
                 Union[
                     TestTemplateStrategy,
-                    JobIdRetrievalStrategy,
                     JobStatusRetrievalStrategy,
                     GradingStrategy,
                 ]
@@ -113,7 +110,6 @@ class Registry(metaclass=Singleton):
         strategy_interface: Type[
             Union[
                 TestTemplateStrategy,
-                JobIdRetrievalStrategy,
                 JobStatusRetrievalStrategy,
                 GradingStrategy,
             ]
@@ -123,7 +119,6 @@ class Registry(metaclass=Singleton):
         strategy: Type[
             Union[
                 TestTemplateStrategy,
-                JobIdRetrievalStrategy,
                 JobStatusRetrievalStrategy,
                 GradingStrategy,
             ]
@@ -142,7 +137,6 @@ class Registry(metaclass=Singleton):
             Type[
                 Union[
                     TestTemplateStrategy,
-                    JobIdRetrievalStrategy,
                     JobStatusRetrievalStrategy,
                     GradingStrategy,
                 ]
@@ -153,7 +147,6 @@ class Registry(metaclass=Singleton):
         value: Type[
             Union[
                 TestTemplateStrategy,
-                JobIdRetrievalStrategy,
                 JobStatusRetrievalStrategy,
                 GradingStrategy,
             ]

@@ -16,13 +16,15 @@
 
 import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock, Mock
+from unittest.mock import Mock
 
 import pytest
 
 from cloudai.core import JobIdRetrievalError, Test, TestRun, TestScenario, TestTemplate
-from cloudai.systems.slurm import SlurmPartition, SlurmRunner, SlurmSystem
+from cloudai.systems.slurm import SlurmRunner, SlurmSystem
 from cloudai.util import CommandShell
+from cloudai.workloads.sleep.sleep import SleepCmdArgs, SleepTestDefinition
+from cloudai.workloads.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 
 
 class MockCommandShell(CommandShell):
@@ -35,32 +37,27 @@ class MockCommandShell(CommandShell):
         return mock_popen
 
 
-class MockTest(Test):
-    def __init__(self, section_name):
-        self.test_template = MagicMock(spec=TestTemplate)
-        self.test_template.get_job_id.return_value = None
-        self.env_vars = {}
-        self.section_name = "Tests.1"
-        self.current_iteration = 0
-
-
 @pytest.fixture
-def slurm_system(tmp_path: Path):
-    system = SlurmSystem(
-        name="test_system",
-        install_path=tmp_path,
-        output_path=tmp_path,
-        default_partition="main",
-        partitions=[SlurmPartition(name="main")],
-    )
-    return system
-
-
-@pytest.fixture
-def slurm_runner(slurm_system, tmp_path: Path) -> SlurmRunner:
+def slurm_runner(slurm_system: SlurmSystem, tmp_path: Path) -> SlurmRunner:
     test_scenario = TestScenario(
-        name="Test Scenario", test_runs=[TestRun("tr-name", MockTest(section_name="Mock Test"), 1, [])]
+        name="Test Scenario",
+        test_runs=[
+            TestRun(
+                "tr-name",
+                Test(
+                    test_definition=SleepTestDefinition(
+                        name="n", description="d", test_template_name="Sleep", cmd_args=SleepCmdArgs()
+                    ),
+                    test_template=TestTemplate(slurm_system),
+                ),
+                1,
+                [],
+                output_path=slurm_system.output_path / "tr-name",
+            )
+        ],
     )
+    test_scenario.test_runs[0].output_path.mkdir(parents=True, exist_ok=True)
+    test_scenario.test_runs[0].test.test_template.command_gen_strategy = SleepSlurmCommandGenStrategy(slurm_system, {})
     runner = SlurmRunner(mode="run", system=slurm_system, test_scenario=test_scenario, output_path=tmp_path)
     runner.cmd_shell = MockCommandShell()
     return runner
@@ -70,7 +67,7 @@ def test_job_id_retrieval_error(slurm_runner: SlurmRunner):
     tr = slurm_runner.test_scenario.test_runs[0]
     with pytest.raises(JobIdRetrievalError) as excinfo:
         slurm_runner._submit_test(tr)
-    assert "Failed to retrieve job ID from command output." in str(excinfo.value)
+    assert "Failed to retrieve job ID." in str(excinfo.value)
     assert "sbatch: error: Batch job submission failed: Requested node configuration is not available" in str(
         excinfo.value
     )

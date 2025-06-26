@@ -26,7 +26,6 @@ def register_all():
     from cloudai.core import (
         CommandGenStrategy,
         GradingStrategy,
-        JobIdRetrievalStrategy,
         JobStatusRetrievalStrategy,
         JsonGenStrategy,
         Registry,
@@ -51,9 +50,6 @@ def register_all():
 
     # Import workload common strategies
     from cloudai.workloads.common import DefaultJobStatusRetrievalStrategy
-    from cloudai.workloads.common.lsf_job_id_retrieval_strategy import LSFJobIdRetrievalStrategy
-    from cloudai.workloads.common.slurm_job_id_retrieval_strategy import SlurmJobIdRetrievalStrategy
-    from cloudai.workloads.common.standalone_job_id_retrieval_strategy import StandaloneJobIdRetrievalStrategy
     from cloudai.workloads.jax_toolbox import (
         GPTTestDefinition,
         GrokTestDefinition,
@@ -81,7 +77,6 @@ def register_all():
         NeMoLauncherGradingStrategy,
         NeMoLauncherReportGenerationStrategy,
         NeMoLauncherSlurmCommandGenStrategy,
-        NeMoLauncherSlurmJobIdRetrievalStrategy,
         NeMoLauncherTestDefinition,
     )
     from cloudai.workloads.nemo_run import (
@@ -149,9 +144,6 @@ def register_all():
     Registry().add_strategy(GradingStrategy, [SlurmSystem], [SleepTestDefinition], SleepGradingStrategy)
 
     Registry().add_strategy(
-        JobIdRetrievalStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherSlurmJobIdRetrievalStrategy
-    )
-    Registry().add_strategy(
         CommandGenStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherSlurmCommandGenStrategy
     )
     Registry().add_strategy(CommandGenStrategy, [SlurmSystem], [NeMoRunTestDefinition], NeMoRunSlurmCommandGenStrategy)
@@ -173,30 +165,6 @@ def register_all():
         [GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition],
         JaxToolboxSlurmCommandGenStrategy,
     )
-
-    Registry().add_strategy(
-        JobIdRetrievalStrategy,
-        [SlurmSystem],
-        [
-            ChakraReplayTestDefinition,
-            GPTTestDefinition,
-            GrokTestDefinition,
-            NemotronTestDefinition,
-            NCCLTestDefinition,
-            UCCTestDefinition,
-            SleepTestDefinition,
-            NeMoRunTestDefinition,
-            SlurmContainerTestDefinition,
-            MegatronRunTestDefinition,
-            TritonInferenceTestDefinition,
-            NIXLBenchTestDefinition,
-        ],
-        SlurmJobIdRetrievalStrategy,
-    )
-    Registry().add_strategy(
-        JobIdRetrievalStrategy, [StandaloneSystem], [SleepTestDefinition], StandaloneJobIdRetrievalStrategy
-    )
-    Registry().add_strategy(JobIdRetrievalStrategy, [LSFSystem], [SleepTestDefinition], LSFJobIdRetrievalStrategy)
 
     Registry().add_strategy(
         JobStatusRetrievalStrategy,
