@@ -5,6 +5,8 @@
 #SBATCH --error=__OUTPUT_DIR__/output/stderr.txt
 #SBATCH --partition=main
 #SBATCH -N 1
+#SBATCH --gpus-per-node=8
+#SBATCH --gres=gpu:8
 
 export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 
