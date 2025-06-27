@@ -278,7 +278,12 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             partial_tr,
             slurm_system,
             "ucc",
-            UCCTestDefinition(name="ucc", description="ucc", test_template_name="ucc", cmd_args=UCCCmdArgs()),
+            UCCTestDefinition(
+                name="ucc",
+                description="ucc",
+                test_template_name="ucc",
+                cmd_args=UCCCmdArgs(docker_image_url="nvcr.io/nvidia/pytorch:24.02-py3"),
+            ),
             UCCTestSlurmCommandGenStrategy,
         ),
         "nccl": lambda: create_test_run(

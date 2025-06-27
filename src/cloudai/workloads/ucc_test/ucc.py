@@ -23,7 +23,7 @@ from cloudai.models.workload import CmdArgs, TestDefinition
 class UCCCmdArgs(CmdArgs):
     """UCC test command arguments."""
 
-    docker_image_url: str = "nvcr.io/nvidia/pytorch:24.02-py3"
+    docker_image_url: str
     collective: Union[
         Literal[
             "allgather",
