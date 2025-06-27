@@ -19,4 +19,5 @@ description = "reduce_scatter"
 test_template_name = "UCCTest"
 
 [cmd_args]
-"collective" = "reduce_scatter"
+docker_image_url = "nvcr.io/nvidia/pytorch:24.02-py3"
+collective = "reduce_scatter"

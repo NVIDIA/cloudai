@@ -19,5 +19,6 @@ description = "allreduce"
 test_template_name = "UCCTest"
 
 [cmd_args]
-"collective" = "allreduce"
-"e" = "4G"
+docker_image_url = "nvcr.io/nvidia/pytorch:24.02-py3"
+collective = "allreduce"
+e = "4G"
