@@ -43,13 +43,9 @@ class StandaloneRunner(BaseRunner):
         job_id = 0
         if self.mode == "run":
             pid = self.cmd_shell.execute(exec_cmd).pid
-            job_id = tr.test.test_template.get_job_id(str(pid), "")
+            job_id = pid
             if job_id is None:
                 raise JobIdRetrievalError(
-                    test_name=str(tr.name),
-                    command=exec_cmd,
-                    stdout="",
-                    stderr="",
-                    message="Failed to retrieve job ID from command output.",
+                    test_name=str(tr.name), command=exec_cmd, stdout="", stderr="", message="Failed to retrieve job ID."
                 )
         return StandaloneJob(tr, id=job_id)

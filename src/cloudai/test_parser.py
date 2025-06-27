@@ -24,7 +24,6 @@ from pydantic import BaseModel, ValidationError
 from .core import (
     CommandGenStrategy,
     GradingStrategy,
-    JobIdRetrievalStrategy,
     JobStatusRetrievalStrategy,
     JsonGenStrategy,
     Registry,
@@ -120,7 +119,6 @@ class TestParser:
         strategy_interface: Type[
             Union[
                 TestTemplateStrategy,
-                JobIdRetrievalStrategy,
                 JobStatusRetrievalStrategy,
                 GradingStrategy,
             ]
@@ -131,7 +129,6 @@ class TestParser:
     ) -> Optional[
         Union[
             TestTemplateStrategy,
-            JobIdRetrievalStrategy,
             JobStatusRetrievalStrategy,
             GradingStrategy,
         ]
@@ -140,8 +137,7 @@ class TestParser:
         Fetch a strategy from the registry based on system and template.
 
         Args:
-            strategy_interface (Type[Union[TestTemplateStrategy,
-                JobIdRetrievalStrategy, JobStatusRetrievalStrategy]]):
+            strategy_interface (Type[Union[TestTemplateStrategy, JobStatusRetrievalStrategy]]):
                 The strategy interface to fetch.
             system_type (Type[System]): The system type.
             test_template_type (Type[TestTemplate]): The test template type.
@@ -187,10 +183,6 @@ class TestParser:
         obj.json_gen_strategy = cast(
             JsonGenStrategy,
             self._fetch_strategy(JsonGenStrategy, type(obj.system), type(tdef), cmd_args),
-        )
-        obj.job_id_retrieval_strategy = cast(
-            JobIdRetrievalStrategy,
-            self._fetch_strategy(JobIdRetrievalStrategy, type(obj.system), type(tdef), cmd_args),
         )
         obj.job_status_retrieval_strategy = cast(
             JobStatusRetrievalStrategy,

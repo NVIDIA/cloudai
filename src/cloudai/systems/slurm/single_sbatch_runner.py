@@ -204,14 +204,14 @@ class SingleSbatchRunner(SlurmRunner):
         if self.mode == "run":
             exec_cmd = f"sbatch {self.scenario_root / 'cloudai_sbatch_script.sh'}"
             stdout, stderr = self.cmd_shell.execute(exec_cmd).communicate()
-            job_id = tr.test.test_template.get_job_id(stdout, stderr)
+            job_id = self.get_job_id(stdout, stderr)
             if job_id is None:
                 raise JobIdRetrievalError(
                     test_name=tr.name,
                     command=exec_cmd,
                     stdout=stdout,
                     stderr=stderr,
-                    message="Failed to retrieve job ID from command output.",
+                    message="Failed to retrieve job ID.",
                 )
         logging.info(f"Submitted slurm job: {job_id}")
         return SlurmJob(tr, id=job_id)
