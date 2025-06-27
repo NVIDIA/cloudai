@@ -26,7 +26,6 @@ if TYPE_CHECKING:
     from .base_installer import BaseInstaller
     from .base_runner import BaseRunner
     from .grading_strategy import GradingStrategy
-    from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
     from .report_generation_strategy import ReportGenerationStrategy
     from .system import System
     from .test_template_strategy import TestTemplateStrategy
@@ -52,23 +51,11 @@ class Registry(metaclass=Singleton):
     strategies_map: ClassVar[
         dict[
             Tuple[
-                Type[
-                    Union[
-                        TestTemplateStrategy,
-                        JobStatusRetrievalStrategy,
-                        GradingStrategy,
-                    ]
-                ],
+                Type[Union[TestTemplateStrategy, GradingStrategy]],
                 Type[System],
                 Type[TestDefinition],
             ],
-            Type[
-                Union[
-                    TestTemplateStrategy,
-                    JobStatusRetrievalStrategy,
-                    GradingStrategy,
-                ]
-            ],
+            Type[Union[TestTemplateStrategy, GradingStrategy]],
         ]
     ] = {}
     installers_map: ClassVar[dict[str, Type[BaseInstaller]]] = {}
@@ -107,22 +94,10 @@ class Registry(metaclass=Singleton):
 
     def add_strategy(
         self,
-        strategy_interface: Type[
-            Union[
-                TestTemplateStrategy,
-                JobStatusRetrievalStrategy,
-                GradingStrategy,
-            ]
-        ],
+        strategy_interface: Type[Union[TestTemplateStrategy, GradingStrategy]],
         system_types: List[Type[System]],
         definition_types: List[Type[TestDefinition]],
-        strategy: Type[
-            Union[
-                TestTemplateStrategy,
-                JobStatusRetrievalStrategy,
-                GradingStrategy,
-            ]
-        ],
+        strategy: Type[Union[TestTemplateStrategy, GradingStrategy]],
     ) -> None:
         for system_type in system_types:
             for def_type in definition_types:
@@ -134,23 +109,11 @@ class Registry(metaclass=Singleton):
     def update_strategy(
         self,
         key: Tuple[
-            Type[
-                Union[
-                    TestTemplateStrategy,
-                    JobStatusRetrievalStrategy,
-                    GradingStrategy,
-                ]
-            ],
+            Type[Union[TestTemplateStrategy, GradingStrategy]],
             Type[System],
             Type[TestDefinition],
         ],
-        value: Type[
-            Union[
-                TestTemplateStrategy,
-                JobStatusRetrievalStrategy,
-                GradingStrategy,
-            ]
-        ],
+        value: Type[Union[TestTemplateStrategy, GradingStrategy]],
     ) -> None:
         self.strategies_map[key] = value
 

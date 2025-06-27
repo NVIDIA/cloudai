@@ -14,28 +14,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
+from cloudai.core import TestRun
+from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
-from cloudai.workloads.nccl_test import NcclTestJobStatusRetrievalStrategy
 
-
-class TestNcclTestJobStatusRetrievalStrategy:
+class TestNcclSuccessCheck:
     def setup_method(self) -> None:
-        self.js = NcclTestJobStatusRetrievalStrategy()
+        self.nccl_tdef = NCCLTestDefinition(
+            name="n",
+            description="d",
+            test_template_name="tt",
+            cmd_args=NCCLCmdArgs(docker_image_url=""),
+        )
 
-    def test_no_stdout_file(self, tmp_path: Path) -> None:
-        result = self.js.get_job_status(tmp_path)
+    def test_no_stdout_file(self, base_tr: TestRun) -> None:
+        result = self.nccl_tdef.was_run_successful(base_tr)
         assert not result.is_successful
         assert result.error_message == (
-            f"stdout.txt file not found in the specified output directory {tmp_path}. "
+            f"stdout.txt file not found in the specified output directory {base_tr.output_path}. "
             "This file is expected to be created as a result of the NCCL test run. "
             "Please ensure the NCCL test was executed properly and that stdout.txt is generated. "
             "You can run the generated NCCL test command manually and verify the creation of "
-            f"{tmp_path / 'stdout.txt'}. If the issue persists, contact the system administrator."
+            f"{base_tr.output_path / 'stdout.txt'}. If the issue persists, contact the system administrator."
         )
 
-    def test_successful_job(self, tmp_path: Path) -> None:
-        stdout_file = tmp_path / "stdout.txt"
+    def test_successful_job(self, base_tr: TestRun) -> None:
+        base_tr.output_path.mkdir(parents=True, exist_ok=True)
+        stdout_file = base_tr.output_path / "stdout.txt"
         stdout_content = """
         # Some initialization output
         # More output
@@ -44,19 +49,20 @@ class TestNcclTestJobStatusRetrievalStrategy:
         # Some final output
         """
         stdout_file.write_text(stdout_content)
-        result = self.js.get_job_status(tmp_path)
+        result = self.nccl_tdef.was_run_successful(base_tr)
         assert result.is_successful
         assert result.error_message == ""
 
-    def test_failed_job(self, tmp_path: Path) -> None:
-        stdout_file = tmp_path / "stdout.txt"
+    def test_failed_job(self, base_tr: TestRun) -> None:
+        base_tr.output_path.mkdir(parents=True, exist_ok=True)
+        stdout_file = base_tr.output_path / "stdout.txt"
         stdout_content = """
         # Some initialization output
         # More output
         # Some final output without success indicators
         """
         stdout_file.write_text(stdout_content)
-        result = self.js.get_job_status(tmp_path)
+        result = self.nccl_tdef.was_run_successful(base_tr)
         assert not result.is_successful
         assert result.error_message == (
             f"Missing success indicators in {stdout_file}: '# Out of bounds values', '# Avg bus bandwidth'. "
@@ -67,8 +73,9 @@ class TestNcclTestJobStatusRetrievalStrategy:
             "If the issue persists, contact the system administrator."
         )
 
-    def test_nccl_failure_job(self, tmp_path: Path) -> None:
-        stdout_file = tmp_path / "stdout.txt"
+    def test_nccl_failure_job(self, base_tr: TestRun) -> None:
+        base_tr.output_path.mkdir(parents=True, exist_ok=True)
+        stdout_file = base_tr.output_path / "stdout.txt"
         stdout_content = """
         # Some initialization output
         node: Test NCCL failure common.cu:303 'remote process exited or there was a network error / '
@@ -80,7 +87,7 @@ class TestNcclTestJobStatusRetrievalStrategy:
         .. node pid: Test failure common.cu:844
         """
         stdout_file.write_text(stdout_content)
-        result = self.js.get_job_status(tmp_path)
+        result = self.nccl_tdef.was_run_successful(base_tr)
         assert not result.is_successful
         assert result.error_message == (
             f"NCCL test failure detected in {stdout_file}. "
@@ -89,14 +96,15 @@ class TestNcclTestJobStatusRetrievalStrategy:
             "If the issue persists, contact the system administrator."
         )
 
-    def test_generic_test_failure_job(self, tmp_path: Path) -> None:
-        stdout_file = tmp_path / "stdout.txt"
+    def test_generic_test_failure_job(self, base_tr: TestRun) -> None:
+        base_tr.output_path.mkdir(parents=True, exist_ok=True)
+        stdout_file = base_tr.output_path / "stdout.txt"
         stdout_content = """
         # Some initialization output
         .. node pid: Test failure common.cu:401
         """
         stdout_file.write_text(stdout_content)
-        result = self.js.get_job_status(tmp_path)
+        result = self.nccl_tdef.was_run_successful(base_tr)
         assert not result.is_successful
         assert result.error_message == (
             f"Test failure detected in {stdout_file}. "
