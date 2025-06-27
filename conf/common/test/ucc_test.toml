@@ -14,10 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "ucc_test_alltoall"
-description = "alltoall"
+name = "ucc_base_test"
+description = "Base config for UCC tests"
 test_template_name = "UCCTest"
 
 [cmd_args]
 docker_image_url = "nvcr.io/nvidia/pytorch:24.02-py3"
-collective = "alltoall"
