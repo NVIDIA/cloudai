@@ -64,6 +64,9 @@ class NIXLBenchSummaryReport(Reporter):
 
     def generate(self) -> None:
         self.load_tdef_with_results()
+        if not self.tdef_res:
+            logging.debug("No NIXL Bench test runs found, skipping report generation.")
+            return
 
         console = Console(record=True)
         for op_type, metric in self.report_configs:

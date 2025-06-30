@@ -183,7 +183,7 @@ class TarballReporter(Reporter):
             self.create_tarball(self.results_root)
 
     def is_successful(self, tr: TestRun) -> bool:
-        return tr.test.test_template.get_job_status(tr.output_path).is_successful
+        return tr.test.test_definition.was_run_successful(tr).is_successful
 
     def create_tarball(self, directory: Path) -> None:
         tarball_path = Path(str(directory) + ".tgz")

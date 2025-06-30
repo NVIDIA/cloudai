@@ -14,14 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .default_job_status_retrieval_strategy import DefaultJobStatusRetrievalStrategy
-from .lsf_job_id_retrieval_strategy import LSFJobIdRetrievalStrategy
-from .slurm_job_id_retrieval_strategy import SlurmJobIdRetrievalStrategy
-from .standalone_job_id_retrieval_strategy import StandaloneJobIdRetrievalStrategy
+name = "ucc_base_test"
+description = "Base config for UCC tests"
+test_template_name = "UCCTest"
 
-__all__ = [
-    "DefaultJobStatusRetrievalStrategy",
-    "LSFJobIdRetrievalStrategy",
-    "SlurmJobIdRetrievalStrategy",
-    "StandaloneJobIdRetrievalStrategy",
-]
+[cmd_args]
+docker_image_url = "nvcr.io/nvidia/pytorch:25.06-py3"

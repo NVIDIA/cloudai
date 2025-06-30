@@ -21,6 +21,8 @@ from unittest.mock import Mock
 import pytest
 import yaml
 
+from cloudai.core import Test, TestRun, TestTemplate
+from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.kubernetes import KubernetesSystem
 from cloudai.systems.runai import RunAISystem
 from cloudai.systems.slurm import SlurmGroup, SlurmPartition, SlurmSystem
@@ -111,3 +113,17 @@ def runai_system(tmp_path: Path) -> RunAISystem:
         user_email="test_user@example.com",
     )
     return system
+
+
+@pytest.fixture
+def base_tr(slurm_system: SlurmSystem) -> TestRun:
+    return TestRun(
+        name="tr-name",
+        test=Test(
+            test_definition=TestDefinition(name="n", description="d", test_template_name="tt", cmd_args=CmdArgs()),
+            test_template=TestTemplate(slurm_system),
+        ),
+        num_nodes=1,
+        nodes=[],
+        output_path=slurm_system.output_path / "tr-name",
+    )

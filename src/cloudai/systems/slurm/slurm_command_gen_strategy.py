@@ -152,8 +152,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         strategy = strategy_cls_typed(self.system, tr.test.cmd_args)
         return strategy
 
-    def _set_pre_test_output_path(self, tr: TestRun, base_output_path: Path) -> None:
-        tr.output_path = base_output_path / "pre_test" / tr.test.name
+    def _set_hook_output_path(self, tr: TestRun, base_output_path: Path) -> None:
+        tr.output_path = base_output_path / tr.test.name
         tr.output_path.mkdir(parents=True, exist_ok=True)
 
     def pre_test_srun_extra_args(self, tr: TestRun) -> list[str]:
@@ -181,7 +181,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         for idx, tr in enumerate(pre_test.test_runs):
             strategy = self._get_cmd_gen_strategy(tr)
-            strategy._set_pre_test_output_path(tr, base_output_path)
+            strategy._set_hook_output_path(tr, base_output_path / "pre_test")
             srun_command = strategy.gen_srun_command(tr)
             srun_command_with_output = srun_command.replace(
                 "srun ", f"srun --output={tr.output_path / 'stdout.txt'} --error={tr.output_path / 'stderr.txt'} "
@@ -209,13 +209,10 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         Returns:
             str: A string with all the Slurm srun commands generated for the post-test.
         """
-        post_test_output_dir = base_output_path / "post_test"
-        post_test_output_dir.mkdir(parents=True, exist_ok=True)
-
         post_test_commands = []
         for tr in post_test.test_runs:
             strategy = self._get_cmd_gen_strategy(tr)
-            strategy._set_pre_test_output_path(tr, post_test_output_dir)
+            strategy._set_hook_output_path(tr, base_output_path / "post_test")
             srun_command = strategy.gen_srun_command(tr)
             srun_command_with_output = srun_command.replace(
                 "srun ", f"srun --output={tr.output_path / 'stdout.txt'} --error={tr.output_path / 'stderr.txt'} "

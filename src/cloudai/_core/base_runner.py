@@ -273,6 +273,9 @@ class BaseRunner(ABC):
 
         return successful_jobs_count
 
+    def get_runner_job_status(self, job: BaseJob) -> JobStatusResult:
+        return JobStatusResult(is_successful=True)
+
     def get_job_status(self, job: BaseJob) -> JobStatusResult:
         """
         Retrieve the job status from a specified output directory.
@@ -283,7 +286,13 @@ class BaseRunner(ABC):
         Returns:
             JobStatusResult: The result containing the job status and an optional error message.
         """
-        return job.test_run.test.test_template.get_job_status(job.test_run.output_path)
+        runner_job_status_result = self.get_runner_job_status(job)
+        workload_run_results = job.test_run.test.test_definition.was_run_successful(job.test_run)
+        if not runner_job_status_result.is_successful:
+            return runner_job_status_result
+        if not workload_run_results.is_successful:
+            return workload_run_results
+        return JobStatusResult(is_successful=True)
 
     async def handle_job_completion(self, completed_job: BaseJob):
         """

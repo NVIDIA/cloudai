@@ -104,7 +104,12 @@ def test_chakra_docker_image_is_required():
 @pytest.mark.parametrize(
     "test",
     [
-        UCCTestDefinition(name="ucc", description="desc", test_template_name="ucc", cmd_args=UCCCmdArgs()),
+        UCCTestDefinition(
+            name="ucc",
+            description="desc",
+            test_template_name="ucc",
+            cmd_args=UCCCmdArgs(docker_image_url="fake://url/ucc"),
+        ),
         NCCLTestDefinition(name="nccl", description="desc", test_template_name="nccl", cmd_args=NCCLCmdArgs()),
         GPTTestDefinition(
             name="gpt",
