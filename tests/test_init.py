@@ -15,14 +15,7 @@
 # limitations under the License.
 
 
-from cloudai.core import (
-    CommandGenStrategy,
-    GradingStrategy,
-    JobIdRetrievalStrategy,
-    JobStatusRetrievalStrategy,
-    JsonGenStrategy,
-    Registry,
-)
+from cloudai.core import CommandGenStrategy, GradingStrategy, JsonGenStrategy, Registry
 from cloudai.reporter import PerTestReporter, StatusReporter, TarballReporter
 from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
 from cloudai.systems.lsf import LSFInstaller
@@ -41,14 +34,10 @@ from cloudai.workloads.chakra_replay import (
     ChakraReplaySlurmCommandGenStrategy,
     ChakraReplayTestDefinition,
 )
-from cloudai.workloads.common import SlurmJobIdRetrievalStrategy, StandaloneJobIdRetrievalStrategy
-from cloudai.workloads.common.default_job_status_retrieval_strategy import DefaultJobStatusRetrievalStrategy
-from cloudai.workloads.common.lsf_job_id_retrieval_strategy import LSFJobIdRetrievalStrategy
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
     JaxToolboxGradingStrategy,
-    JaxToolboxJobStatusRetrievalStrategy,
     JaxToolboxSlurmCommandGenStrategy,
     NemotronTestDefinition,
 )
@@ -56,7 +45,6 @@ from cloudai.workloads.megatron_run import MegatronRunSlurmCommandGenStrategy, M
 from cloudai.workloads.nccl_test import (
     NCCLTestDefinition,
     NcclTestGradingStrategy,
-    NcclTestJobStatusRetrievalStrategy,
     NcclTestKubernetesJsonGenStrategy,
     NcclTestRunAIJsonGenStrategy,
     NcclTestSlurmCommandGenStrategy,
@@ -64,17 +52,15 @@ from cloudai.workloads.nccl_test import (
 from cloudai.workloads.nemo_launcher import (
     NeMoLauncherGradingStrategy,
     NeMoLauncherSlurmCommandGenStrategy,
-    NeMoLauncherSlurmJobIdRetrievalStrategy,
     NeMoLauncherTestDefinition,
 )
 from cloudai.workloads.nemo_run import (
-    NeMoRunJobStatusRetrievalStrategy,
     NeMoRunSlurmCommandGenStrategy,
     NeMoRunTestDefinition,
 )
 from cloudai.workloads.nixl_bench import (
-    NIXLBenchJobStatusRetrievalStrategy,
     NIXLBenchSlurmCommandGenStrategy,
+    NIXLBenchSummaryReport,
     NIXLBenchTestDefinition,
 )
 from cloudai.workloads.sleep import (
@@ -142,41 +128,6 @@ ALL_STRATEGIES = {
     (GradingStrategy, SlurmSystem, NemotronTestDefinition): JaxToolboxGradingStrategy,
     (GradingStrategy, SlurmSystem, SleepTestDefinition): SleepGradingStrategy,
     (GradingStrategy, SlurmSystem, UCCTestDefinition): UCCTestGradingStrategy,
-    (JobIdRetrievalStrategy, SlurmSystem, ChakraReplayTestDefinition): SlurmJobIdRetrievalStrategy,
-    (JobIdRetrievalStrategy, SlurmSystem, GPTTestDefinition): SlurmJobIdRetrievalStrategy,
-    (JobIdRetrievalStrategy, SlurmSystem, GrokTestDefinition): SlurmJobIdRetrievalStrategy,
-    (JobIdRetrievalStrategy, SlurmSystem, NCCLTestDefinition): SlurmJobIdRetrievalStrategy,
-    (JobIdRetrievalStrategy, SlurmSystem, NeMoLauncherTestDefinition): NeMoLauncherSlurmJobIdRetrievalStrategy,
-    (JobIdRetrievalStrategy, SlurmSystem, NeMoRunTestDefinition): SlurmJobIdRetrievalStrategy,
-    (JobIdRetrievalStrategy, SlurmSystem, NemotronTestDefinition): SlurmJobIdRetrievalStrategy,
-    (JobIdRetrievalStrategy, SlurmSystem, SleepTestDefinition): SlurmJobIdRetrievalStrategy,
-    (JobIdRetrievalStrategy, SlurmSystem, SlurmContainerTestDefinition): SlurmJobIdRetrievalStrategy,
-    (JobIdRetrievalStrategy, SlurmSystem, UCCTestDefinition): SlurmJobIdRetrievalStrategy,
-    (JobIdRetrievalStrategy, SlurmSystem, MegatronRunTestDefinition): SlurmJobIdRetrievalStrategy,
-    (JobIdRetrievalStrategy, SlurmSystem, TritonInferenceTestDefinition): SlurmJobIdRetrievalStrategy,
-    (JobIdRetrievalStrategy, SlurmSystem, NIXLBenchTestDefinition): SlurmJobIdRetrievalStrategy,
-    (JobIdRetrievalStrategy, SlurmSystem, AIDynamoTestDefinition): SlurmJobIdRetrievalStrategy,
-    (JobIdRetrievalStrategy, StandaloneSystem, SleepTestDefinition): StandaloneJobIdRetrievalStrategy,
-    (JobIdRetrievalStrategy, LSFSystem, SleepTestDefinition): LSFJobIdRetrievalStrategy,
-    (JobStatusRetrievalStrategy, KubernetesSystem, NCCLTestDefinition): DefaultJobStatusRetrievalStrategy,
-    (JobStatusRetrievalStrategy, KubernetesSystem, SleepTestDefinition): DefaultJobStatusRetrievalStrategy,
-    (JobStatusRetrievalStrategy, SlurmSystem, ChakraReplayTestDefinition): DefaultJobStatusRetrievalStrategy,
-    (JobStatusRetrievalStrategy, SlurmSystem, GPTTestDefinition): JaxToolboxJobStatusRetrievalStrategy,
-    (JobStatusRetrievalStrategy, SlurmSystem, GrokTestDefinition): JaxToolboxJobStatusRetrievalStrategy,
-    (JobStatusRetrievalStrategy, SlurmSystem, NCCLTestDefinition): NcclTestJobStatusRetrievalStrategy,
-    (JobStatusRetrievalStrategy, SlurmSystem, NeMoLauncherTestDefinition): DefaultJobStatusRetrievalStrategy,
-    (JobStatusRetrievalStrategy, SlurmSystem, NeMoRunTestDefinition): NeMoRunJobStatusRetrievalStrategy,
-    (JobStatusRetrievalStrategy, SlurmSystem, NemotronTestDefinition): JaxToolboxJobStatusRetrievalStrategy,
-    (JobStatusRetrievalStrategy, SlurmSystem, SleepTestDefinition): DefaultJobStatusRetrievalStrategy,
-    (JobStatusRetrievalStrategy, SlurmSystem, SlurmContainerTestDefinition): DefaultJobStatusRetrievalStrategy,
-    (JobStatusRetrievalStrategy, SlurmSystem, UCCTestDefinition): DefaultJobStatusRetrievalStrategy,
-    (JobStatusRetrievalStrategy, SlurmSystem, MegatronRunTestDefinition): DefaultJobStatusRetrievalStrategy,
-    (JobStatusRetrievalStrategy, SlurmSystem, TritonInferenceTestDefinition): DefaultJobStatusRetrievalStrategy,
-    (JobStatusRetrievalStrategy, SlurmSystem, NIXLBenchTestDefinition): NIXLBenchJobStatusRetrievalStrategy,
-    (JobStatusRetrievalStrategy, SlurmSystem, AIDynamoTestDefinition): DefaultJobStatusRetrievalStrategy,
-    (JobStatusRetrievalStrategy, StandaloneSystem, SleepTestDefinition): DefaultJobStatusRetrievalStrategy,
-    (JobStatusRetrievalStrategy, LSFSystem, SleepTestDefinition): DefaultJobStatusRetrievalStrategy,
-    (JobStatusRetrievalStrategy, RunAISystem, NCCLTestDefinition): DefaultJobStatusRetrievalStrategy,
     (JsonGenStrategy, KubernetesSystem, NCCLTestDefinition): NcclTestKubernetesJsonGenStrategy,
     (JsonGenStrategy, KubernetesSystem, SleepTestDefinition): SleepKubernetesJsonGenStrategy,
     (JsonGenStrategy, RunAISystem, NCCLTestDefinition): NcclTestRunAIJsonGenStrategy,
@@ -231,12 +182,12 @@ def test_definitions():
 
 def test_scenario_reports():
     scenario_reports = Registry().scenario_reports
-    assert list(scenario_reports.keys()) == ["per_test", "status", "tarball"]
-    assert list(scenario_reports.values()) == [PerTestReporter, StatusReporter, TarballReporter]
+    assert list(scenario_reports.keys()) == ["per_test", "status", "tarball", "nixl_bench_summary"]
+    assert list(scenario_reports.values()) == [PerTestReporter, StatusReporter, TarballReporter, NIXLBenchSummaryReport]
 
 
 def test_report_configs():
     configs = Registry().report_configs
-    assert list(configs.keys()) == ["per_test", "status", "tarball"]
+    assert list(configs.keys()) == ["per_test", "status", "tarball", "nixl_bench_summary"]
     for name, rep_config in configs.items():
         assert rep_config.enable is True, f"Report {name} is not enabled by default"

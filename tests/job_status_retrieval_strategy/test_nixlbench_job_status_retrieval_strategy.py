@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
 
-from cloudai.workloads.nixl_bench import NIXLBenchJobStatusRetrievalStrategy
+from cloudai.core import TestRun
+from cloudai.workloads.nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
 
 LOG_EXTRACT = """
 Num threads (--num_threads=N)                               : 1
@@ -29,29 +29,41 @@ Block Size (B)      Batch Size     Avg Lat. (us)  B/W (MiB/Sec)  B/W (GiB/Sec)  
 """
 
 
-class TestNIXLBenchJobStatusRetrievalStrategy:
+class TestNIXLBenchSuccessCheck:
     def setup_method(self) -> None:
-        self.js = NIXLBenchJobStatusRetrievalStrategy()
+        self.nixl_tdef = NIXLBenchTestDefinition(
+            name="n",
+            description="d",
+            test_template_name="tt",
+            cmd_args=NIXLBenchCmdArgs(docker_image_url="", etcd_endpoint="", path_to_benchmark=""),
+            etcd_image_url="e",
+        )
 
-    def test_no_file(self, tmp_path: Path) -> None:
-        result = self.js.get_job_status(tmp_path)
+    def test_no_file(self, base_tr: TestRun) -> None:
+        result = self.nixl_tdef.was_run_successful(base_tr)
         assert not result.is_successful
-        assert result.error_message == f"stdout.txt file not found in the specified output directory {tmp_path}."
+        assert (
+            result.error_message
+            == f"stdout.txt file not found in the specified output directory {base_tr.output_path}."
+        )
 
-    def test_no_header(self, tmp_path: Path) -> None:
-        (tmp_path / "stdout.txt").write_text(LOG_EXTRACT.splitlines()[-1])
-        result = self.js.get_job_status(tmp_path)
+    def test_no_header(self, base_tr: TestRun) -> None:
+        base_tr.output_path.mkdir(parents=True, exist_ok=True)
+        (base_tr.output_path / "stdout.txt").write_text(LOG_EXTRACT.splitlines()[-1])
+        result = self.nixl_tdef.was_run_successful(base_tr)
         assert not result.is_successful
-        assert result.error_message == f"NIXLBench results table not found in {tmp_path / 'stdout.txt'}."
+        assert result.error_message == f"NIXLBench results table not found in {base_tr.output_path / 'stdout.txt'}."
 
-    def test_no_data(self, tmp_path: Path) -> None:
-        (tmp_path / "stdout.txt").write_text("\n".join(LOG_EXTRACT.splitlines()[:-2]))
-        result = self.js.get_job_status(tmp_path)
+    def test_no_data(self, base_tr: TestRun) -> None:
+        base_tr.output_path.mkdir(parents=True, exist_ok=True)
+        (base_tr.output_path / "stdout.txt").write_text("\n".join(LOG_EXTRACT.splitlines()[:-2]))
+        result = self.nixl_tdef.was_run_successful(base_tr)
         assert not result.is_successful
-        assert result.error_message == f"NIXLBench data not found in {tmp_path / 'stdout.txt'}."
+        assert result.error_message == f"NIXLBench data not found in {base_tr.output_path / 'stdout.txt'}."
 
-    def test_successfull_job(self, tmp_path: Path) -> None:
-        (tmp_path / "stdout.txt").write_text(LOG_EXTRACT)
-        result = self.js.get_job_status(tmp_path)
+    def test_successfull_job(self, base_tr: TestRun) -> None:
+        base_tr.output_path.mkdir(parents=True, exist_ok=True)
+        (base_tr.output_path / "stdout.txt").write_text(LOG_EXTRACT)
+        result = self.nixl_tdef.was_run_successful(base_tr)
         assert result.is_successful
         assert result.error_message == ""

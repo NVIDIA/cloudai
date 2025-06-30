@@ -33,7 +33,7 @@ class TestUCCTestSlurmCommandGenStrategy:
         "cmd_args_data, extra_cmd_args, expected_command",
         [
             (
-                {"collective": "allgather", "b": 8, "e": "256M"},
+                {"collective": "allgather", "b": 8, "e": "256M", "docker_image_url": "url://fake/ucc"},
                 {"--max-steps": "100"},
                 [
                     "/opt/hpcx/ucc/bin/ucc_perftest",
@@ -46,7 +46,7 @@ class TestUCCTestSlurmCommandGenStrategy:
                 ],
             ),
             (
-                {"collective": "allreduce", "b": 4, "e": "8M"},
+                {"collective": "allreduce", "b": 4, "e": "8M", "docker_image_url": "url://fake/ucc"},
                 {},
                 [
                     "/opt/hpcx/ucc/bin/ucc_perftest",
@@ -68,6 +68,7 @@ class TestUCCTestSlurmCommandGenStrategy:
         expected_command: list[str],
     ) -> None:
         ucc_cmd_args = UCCCmdArgs(
+            docker_image_url=cmd_args_data["docker_image_url"],
             collective=cmd_args_data["collective"],
             b=cmd_args_data["b"],
             e=cmd_args_data.get("e", "8M"),

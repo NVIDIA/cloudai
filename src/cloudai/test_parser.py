@@ -24,8 +24,6 @@ from pydantic import BaseModel, ValidationError
 from .core import (
     CommandGenStrategy,
     GradingStrategy,
-    JobIdRetrievalStrategy,
-    JobStatusRetrievalStrategy,
     JsonGenStrategy,
     Registry,
     System,
@@ -117,31 +115,16 @@ class TestParser:
 
     def _fetch_strategy(  # noqa: D417
         self,
-        strategy_interface: Type[
-            Union[
-                TestTemplateStrategy,
-                JobIdRetrievalStrategy,
-                JobStatusRetrievalStrategy,
-                GradingStrategy,
-            ]
-        ],
+        strategy_interface: Type[Union[TestTemplateStrategy, GradingStrategy]],
         system_type: Type[System],
         test_definition_type: Type[TestDefinition],
         cmd_args: Dict[str, Any],
-    ) -> Optional[
-        Union[
-            TestTemplateStrategy,
-            JobIdRetrievalStrategy,
-            JobStatusRetrievalStrategy,
-            GradingStrategy,
-        ]
-    ]:
+    ) -> Optional[Union[TestTemplateStrategy, GradingStrategy]]:
         """
         Fetch a strategy from the registry based on system and template.
 
         Args:
-            strategy_interface (Type[Union[TestTemplateStrategy,
-                JobIdRetrievalStrategy, JobStatusRetrievalStrategy]]):
+            strategy_interface (Type[Union[TestTemplateStrategy, GradingStrategy]]):
                 The strategy interface to fetch.
             system_type (Type[System]): The system type.
             test_template_type (Type[TestTemplate]): The test template type.
@@ -187,14 +170,6 @@ class TestParser:
         obj.json_gen_strategy = cast(
             JsonGenStrategy,
             self._fetch_strategy(JsonGenStrategy, type(obj.system), type(tdef), cmd_args),
-        )
-        obj.job_id_retrieval_strategy = cast(
-            JobIdRetrievalStrategy,
-            self._fetch_strategy(JobIdRetrievalStrategy, type(obj.system), type(tdef), cmd_args),
-        )
-        obj.job_status_retrieval_strategy = cast(
-            JobStatusRetrievalStrategy,
-            self._fetch_strategy(JobStatusRetrievalStrategy, type(obj.system), type(tdef), cmd_args),
         )
         obj.grading_strategy = cast(
             GradingStrategy, self._fetch_strategy(GradingStrategy, type(obj.system), type(tdef), cmd_args)

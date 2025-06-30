@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import logging
+import re
 from pathlib import Path
 from typing import cast
 
@@ -39,7 +40,19 @@ class SlurmRunner(BaseRunner):
 
     def __init__(self, mode: str, system: System, test_scenario: TestScenario, output_path: Path) -> None:
         super().__init__(mode, system, test_scenario, output_path)
+        self.system = cast(SlurmSystem, system)
         self.cmd_shell = CommandShell()
+
+    def get_job_id(self, stdout: str, stderr: str) -> int | None:
+        match = re.search(r"Submitted batch job (\d+)", stdout)
+        if match:
+            return int(match.group(1))
+
+        match = re.search(r"submitted with Job ID (\d+)", stdout)  # NemoLauncher specific
+        if match:
+            return int(match.group(1))
+
+        return None
 
     def _submit_test(self, tr: TestRun) -> SlurmJob:
         logging.info(f"Running test: {tr.name}")
@@ -48,20 +61,21 @@ class SlurmRunner(BaseRunner):
         job_id = 0
         if self.mode == "run":
             stdout, stderr = self.cmd_shell.execute(exec_cmd).communicate()
-            job_id = tr.test.test_template.get_job_id(stdout, stderr)
+            job_id = self.get_job_id(stdout, stderr)
             if job_id is None:
                 raise JobIdRetrievalError(
                     test_name=str(tr.name),
                     command=exec_cmd,
                     stdout=stdout,
                     stderr=stderr,
-                    message="Failed to retrieve job ID from command output.",
+                    message="Failed to retrieve job ID.",
                 )
         logging.info(f"Submitted slurm job: {job_id}")
         return SlurmJob(tr, id=job_id)
 
     def on_job_completion(self, job: BaseJob) -> None:
         logging.debug(f"Job completion callback for job {job.id}")
+        self.system.complete_job(cast(SlurmJob, job))
         self.store_job_metadata(cast(SlurmJob, job))
 
     def _mock_job_metadata(self) -> SlurmStepMetadata:

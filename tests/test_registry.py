@@ -22,8 +22,6 @@ from cloudai.configurator import BaseAgent
 from cloudai.core import (
     BaseInstaller,
     BaseRunner,
-    JobIdRetrievalStrategy,
-    JobStatusRetrievalStrategy,
     Registry,
     Reporter,
     ReportGenerationStrategy,
@@ -105,14 +103,6 @@ class AnotherStrategy(TestTemplateStrategy):
     pass
 
 
-class MyJobIdRetrievalStrategy(JobIdRetrievalStrategy):
-    pass
-
-
-class MyJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
-    pass
-
-
 class TestRegistry__StrategiesMap:
     """This test verifies Registry class functionality.
 
@@ -122,19 +112,8 @@ class TestRegistry__StrategiesMap:
 
     def test_add_strategy(self, registry: Registry):
         registry.add_strategy(MyStrategy, [MySystem], [MyTestDefinition], MyStrategy)
-        registry.add_strategy(MyJobIdRetrievalStrategy, [MySystem], [MyTestDefinition], MyJobIdRetrievalStrategy)
-        registry.add_strategy(
-            MyJobStatusRetrievalStrategy, [MySystem], [MyTestDefinition], MyJobStatusRetrievalStrategy
-        )
 
         assert registry.strategies_map[(MyStrategy, MySystem, MyTestDefinition)] == MyStrategy
-        assert (
-            registry.strategies_map[(MyJobIdRetrievalStrategy, MySystem, MyTestDefinition)] == MyJobIdRetrievalStrategy
-        )
-        assert (
-            registry.strategies_map[(MyJobStatusRetrievalStrategy, MySystem, MyTestDefinition)]
-            == MyJobStatusRetrievalStrategy
-        )
 
     def test_add_strategy_duplicate(self, registry: Registry):
         with pytest.raises(ValueError) as exc_info:

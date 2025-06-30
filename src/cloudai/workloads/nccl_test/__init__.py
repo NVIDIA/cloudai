@@ -15,7 +15,6 @@
 # limitations under the License.
 
 from .grading_strategy import NcclTestGradingStrategy
-from .job_status_retrieval_strategy import NcclTestJobStatusRetrievalStrategy
 from .kubernetes_json_gen_strategy import NcclTestKubernetesJsonGenStrategy
 from .nccl import NCCLCmdArgs, NCCLTestDefinition
 from .performance_report_generation_strategy import NcclTestPerformanceReportGenerationStrategy
@@ -27,7 +26,6 @@ __all__ = [
     "NCCLCmdArgs",
     "NCCLTestDefinition",
     "NcclTestGradingStrategy",
-    "NcclTestJobStatusRetrievalStrategy",
     "NcclTestKubernetesJsonGenStrategy",
     "NcclTestPerformanceReportGenerationStrategy",
     "NcclTestPredictionReportGenerationStrategy",
