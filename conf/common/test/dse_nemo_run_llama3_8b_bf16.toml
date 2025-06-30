@@ -39,7 +39,6 @@ num_layers = 32
     pipeline_model_parallel_size = [1]
     context_parallel_size = [2]
 
-
     [cmd_args.trainer.plugins]
     grad_reduce_in_fp32 = false
 

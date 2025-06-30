@@ -204,8 +204,9 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         for key, value in args.items():
             if key.startswith("env_vars."):
                 if isinstance(value, str) and "," in value:
-                    value = f"\\'{value}\\'"
-                env_var_str_parts.append(f'+{key}="{value}"')
+                    env_var_str_parts.append(f"+{key}=\\'{value}\\'")
+                else:
+                    env_var_str_parts.append(f'+{key}="{value}"')
             else:
                 if isinstance(value, list):
                     value = ",".join(map(str, value))
