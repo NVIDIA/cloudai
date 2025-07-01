@@ -32,7 +32,7 @@ from cloudai.workloads.triton_inference import (
 
 @pytest.fixture
 def strategy(slurm_system: SlurmSystem) -> TritonInferenceSlurmCommandGenStrategy:
-    return TritonInferenceSlurmCommandGenStrategy(slurm_system, {})
+    return TritonInferenceSlurmCommandGenStrategy(slurm_system)
 
 
 @pytest.fixture

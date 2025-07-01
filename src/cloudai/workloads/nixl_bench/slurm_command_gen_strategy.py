@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, cast
+from typing import cast
 
 from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmSystem
@@ -25,8 +25,8 @@ from .nixl_bench import NIXLBenchTestDefinition
 class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for NIXL Bench tests."""
 
-    def __init__(self, system: SlurmSystem, cmd_args: dict[str, Any]) -> None:
-        super().__init__(system, cmd_args)
+    def __init__(self, system: SlurmSystem) -> None:
+        super().__init__(system)
 
         self._current_image_url: str | None = None
 
