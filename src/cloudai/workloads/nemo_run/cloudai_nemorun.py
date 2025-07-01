@@ -896,6 +896,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
     recipe.trainer.strategy.account_for_embedding_in_pipeline_split = True
     recipe.trainer.strategy.account_for_loss_in_pipeline_split = True
     recipe.model.tokenizer = recipe.data.tokenizer
+    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     return recipe
 
 
