@@ -26,7 +26,7 @@ from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTes
 class TestNcclTestRunAIJsonGenStrategy:
     @pytest.fixture
     def json_gen_strategy(self, runai_system: RunAISystem) -> NcclTestRunAIJsonGenStrategy:
-        return NcclTestRunAIJsonGenStrategy(runai_system, {})
+        return NcclTestRunAIJsonGenStrategy(runai_system)
 
     def test_gen_json(self, json_gen_strategy: NcclTestRunAIJsonGenStrategy) -> None:
         cmd_args = NCCLCmdArgs.model_validate({"subtest_name": "all_reduce_perf", "docker_image_url": "fake_image_url"})

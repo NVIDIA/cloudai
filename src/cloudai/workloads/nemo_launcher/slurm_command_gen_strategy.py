@@ -127,7 +127,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """
         self.final_env_vars = self._override_env_vars(self.system.global_env_vars, extra_env_vars)
 
-        overriden_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
+        overriden_cmd_args = self._flatten_dict(cmd_args)
         overriden_cmd_args.pop("launcher_script", None)
         self.final_cmd_args = {k: self._handle_special_keys(k, v) for k, v in sorted(overriden_cmd_args.items())}
 

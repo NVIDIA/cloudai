@@ -38,17 +38,15 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             properties and methods.
     """
 
-    def __init__(self, system: SlurmSystem, cmd_args: Dict[str, Any]) -> None:
+    def __init__(self, system: SlurmSystem) -> None:
         """
         Initialize a new SlurmCommandGenStrategy instance.
 
         Args:
             system (SlurmSystem): The system schema object.
-            cmd_args (Dict[str, Any]): Command-line arguments.
         """
-        super().__init__(system, cmd_args)
+        super().__init__(system)
         self.system = system
-        self.docker_image_url = self.cmd_args.get("docker_image_url", "")
 
         self._node_spec_cache: dict[str, tuple[int, list[str]]] = {}
 
@@ -97,7 +95,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
     def gen_exec_command(self, tr: TestRun) -> str:
         env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
-        cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
+        cmd_args = self._flatten_dict(tr.test.cmd_args)
 
         srun_command = self._gen_srun_command(env_vars, cmd_args, tr)
         command_list = []
@@ -122,7 +120,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
     def gen_srun_command(self, tr: TestRun) -> str:
         env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
-        cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
+        cmd_args = self._flatten_dict(tr.test.cmd_args)
         return self._gen_srun_command(env_vars, cmd_args, tr)
 
     def job_name_prefix(self, tr: TestRun) -> str:
@@ -149,7 +147,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         key = (CommandGenStrategy, type(self.system), type(tr.test.test_definition))
         strategy_cls = registry.strategies_map[key]
         strategy_cls_typed = cast(type[SlurmCommandGenStrategy], strategy_cls)
-        strategy = strategy_cls_typed(self.system, tr.test.cmd_args)
+        strategy = strategy_cls_typed(self.system)
         return strategy
 
     def _set_hook_output_path(self, tr: TestRun, base_output_path: Path) -> None:

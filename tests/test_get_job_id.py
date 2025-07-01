@@ -59,7 +59,7 @@ def test_scenario(slurm_system: SlurmSystem) -> TestScenario:
         ],
     )
     test_scenario.test_runs[0].output_path.mkdir(parents=True, exist_ok=True)
-    test_scenario.test_runs[0].test.test_template.command_gen_strategy = SleepSlurmCommandGenStrategy(slurm_system, {})
+    test_scenario.test_runs[0].test.test_template.command_gen_strategy = SleepSlurmCommandGenStrategy(slurm_system)
     return test_scenario
 
 
