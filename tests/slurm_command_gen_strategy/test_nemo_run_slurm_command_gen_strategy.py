@@ -58,8 +58,8 @@ class TestNeMoRunSlurmCommandGenStrategy:
         return tr
 
     @pytest.fixture
-    def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> NeMoRunSlurmCommandGenStrategy:
-        return NeMoRunSlurmCommandGenStrategy(slurm_system)
+    def cmd_gen_strategy(self, slurm_system: SlurmSystem, test_run: TestRun) -> NeMoRunSlurmCommandGenStrategy:
+        return NeMoRunSlurmCommandGenStrategy(slurm_system, test_run)
 
     def test_generate_test_command(self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy, test_run: TestRun) -> None:
         cmd_args = NeMoRunCmdArgs(

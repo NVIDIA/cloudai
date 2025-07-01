@@ -16,6 +16,7 @@
 
 from abc import ABC, abstractmethod
 
+from .system import System
 from .test_scenario import TestRun
 from .test_template_strategy import TestTemplateStrategy
 
@@ -24,6 +25,10 @@ class CommandGenStrategy(TestTemplateStrategy, ABC):
     """Abstract base class defining the interface for command generation strategies across different systems."""
 
     TEST_RUN_DUMP_FILE_NAME: str = "test-run.toml"
+
+    def __init__(self, system: System, test_run: TestRun) -> None:
+        super().__init__(system)
+        self.test_run = test_run
 
     @abstractmethod
     def gen_exec_command(self, tr: TestRun) -> str:

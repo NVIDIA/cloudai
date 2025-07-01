@@ -25,8 +25,8 @@ from .nixl_bench import NIXLBenchTestDefinition
 class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for NIXL Bench tests."""
 
-    def __init__(self, system: SlurmSystem) -> None:
-        super().__init__(system)
+    def __init__(self, system: SlurmSystem, test_run: TestRun) -> None:
+        super().__init__(system, test_run)
 
         self._current_image_url: str | None = None
 

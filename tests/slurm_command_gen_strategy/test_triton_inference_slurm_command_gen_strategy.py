@@ -31,11 +31,6 @@ from cloudai.workloads.triton_inference import (
 
 
 @pytest.fixture
-def strategy(slurm_system: SlurmSystem) -> TritonInferenceSlurmCommandGenStrategy:
-    return TritonInferenceSlurmCommandGenStrategy(slurm_system)
-
-
-@pytest.fixture
 def test_run(tmp_path: Path) -> TestRun:
     args = TritonInferenceCmdArgs(
         server_docker_image_url="nvcr.io/nim/deepseek-ai/deepseek-r1:1.7.2",
@@ -58,6 +53,11 @@ def test_run(tmp_path: Path) -> TestRun:
 
     test = Test(test_definition=tdef, test_template=Mock())
     return TestRun(name="run", test=test, nodes=["nodeA", "nodeB", "nodeC"], num_nodes=3)
+
+
+@pytest.fixture
+def strategy(slurm_system: SlurmSystem, test_run: TestRun) -> TritonInferenceSlurmCommandGenStrategy:
+    return TritonInferenceSlurmCommandGenStrategy(slurm_system, test_run)
 
 
 def test_container_mounts_invalid_model(

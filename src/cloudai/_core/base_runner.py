@@ -22,8 +22,10 @@ from pathlib import Path
 from typing import Dict, List
 
 from .base_job import BaseJob
+from .command_gen_strategy import CommandGenStrategy
 from .exceptions import JobFailureError, JobSubmissionError
 from .job_status_result import JobStatusResult
+from .registry import Registry
 from .system import System
 from .test_scenario import TestRun, TestScenario
 
@@ -113,9 +115,8 @@ class BaseRunner(ABC):
             exit(1)
 
     def on_job_submit(self, tr: TestRun) -> None:
-        if tr.test.test_template._command_gen_strategy is not None:
-            cmd_gen = tr.test.test_template.command_gen_strategy
-            cmd_gen.store_test_run(tr)
+        cmd_gen = self.get_cmd_gen_strategy(self.system, tr)
+        cmd_gen.store_test_run(tr)
 
     async def delayed_submit_test(self, tr: TestRun, delay: int = 5):
         """
@@ -372,3 +373,7 @@ class BaseRunner(ABC):
         await asyncio.sleep(delay)
         job.terminated_by_dependency = True
         self.system.kill(job)
+
+    def get_cmd_gen_strategy(self, system: System, test_run: TestRun) -> CommandGenStrategy:
+        strategy_cls = Registry().get_command_gen_strategy(type(system), type(test_run.test.test_definition))
+        return strategy_cls(system, test_run)

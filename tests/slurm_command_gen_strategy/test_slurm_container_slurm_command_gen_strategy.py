@@ -43,7 +43,7 @@ def test_run(slurm_system: SlurmSystem) -> TestRun:
 
 
 def test_default(slurm_system: SlurmSystem, test_run: TestRun) -> None:
-    cgs = SlurmContainerCommandGenStrategy(slurm_system)
+    cgs = SlurmContainerCommandGenStrategy(slurm_system, test_run)
     cmd = cgs.gen_srun_command(test_run)
     srun_part = (
         f"srun --export=ALL --mpi={slurm_system.mpi} "
@@ -58,7 +58,7 @@ def test_default(slurm_system: SlurmSystem, test_run: TestRun) -> None:
 
 
 def test_with_nsys(slurm_system: SlurmSystem, test_run: TestRun) -> None:
-    cgs = SlurmContainerCommandGenStrategy(slurm_system)
+    cgs = SlurmContainerCommandGenStrategy(slurm_system, test_run)
     nsys = NsysConfiguration()
     test_run.test.test_definition.nsys = nsys
     cmd = cgs.gen_srun_command(test_run)
@@ -80,7 +80,7 @@ def test_with_extra_srun_args(slurm_system: SlurmSystem, test_run: TestRun) -> N
     tdef = cast(SlurmContainerTestDefinition, test_run.test.test_definition)
     tdef.extra_srun_args = extra_args
 
-    cgs = SlurmContainerCommandGenStrategy(slurm_system)
+    cgs = SlurmContainerCommandGenStrategy(slurm_system, test_run)
     cmd = cgs.gen_srun_command(test_run)
 
     srun_part = (

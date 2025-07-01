@@ -26,7 +26,6 @@ from cloudai.systems.lsf.lsf_system import LSFSystem
 from cloudai.systems.slurm import SlurmRunner, SlurmSystem
 from cloudai.util import CommandShell
 from cloudai.workloads.sleep.sleep import SleepCmdArgs, SleepTestDefinition
-from cloudai.workloads.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
 
 
 class MockCommandShell(CommandShell):
@@ -59,7 +58,6 @@ def test_scenario(slurm_system: SlurmSystem) -> TestScenario:
         ],
     )
     test_scenario.test_runs[0].output_path.mkdir(parents=True, exist_ok=True)
-    test_scenario.test_runs[0].test.test_template.command_gen_strategy = SleepSlurmCommandGenStrategy(slurm_system)
     return test_scenario
 
 

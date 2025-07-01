@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional, Union, cast, final
 
 import toml
 
-from cloudai.core import CommandGenStrategy, Registry, TestRun, TestScenario
+from cloudai.core import CommandGenStrategy, Registry, System, TestRun, TestScenario
 from cloudai.models.scenario import TestRunDetails
 
 from .slurm_system import SlurmSystem
@@ -38,15 +38,16 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             properties and methods.
     """
 
-    def __init__(self, system: SlurmSystem) -> None:
+    def __init__(self, system: System, test_run: TestRun) -> None:
         """
         Initialize a new SlurmCommandGenStrategy instance.
 
         Args:
             system (SlurmSystem): The system schema object.
+            test_run (TestRun): The test run object.
         """
-        super().__init__(system)
-        self.system = system
+        super().__init__(system, test_run)
+        self.system = cast(SlurmSystem, system)
 
         self._node_spec_cache: dict[str, tuple[int, list[str]]] = {}
 
@@ -143,11 +144,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         Returns:
             CommandGenStrategy: The strategy instance.
         """
-        registry = Registry()
-        key = (CommandGenStrategy, type(self.system), type(tr.test.test_definition))
-        strategy_cls = registry.strategies_map[key]
-        strategy_cls_typed = cast(type[SlurmCommandGenStrategy], strategy_cls)
-        strategy = strategy_cls_typed(self.system)
+        strategy_cls = Registry().get_command_gen_strategy(type(self.system), type(tr.test.test_definition))
+        strategy = cast(SlurmCommandGenStrategy, strategy_cls(self.system, tr))
         return strategy
 
     def _set_hook_output_path(self, tr: TestRun, base_output_path: Path) -> None:

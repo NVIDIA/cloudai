@@ -17,7 +17,6 @@
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from .command_gen_strategy import CommandGenStrategy
 from .grading_strategy import GradingStrategy
 from .json_gen_strategy import JsonGenStrategy
 from .system import System
@@ -30,13 +29,6 @@ class TestTemplate:
 
     Providing a framework for test execution, including installation, uninstallation, and execution command generation
     based on system configurations and test parameters.
-
-    Attributes
-        cmd_args (Dict[str, Any]): Default command-line arguments.
-        logger (logging.Logger): Logger for the test template.
-        command_gen_strategy (CommandGenStrategy): Strategy for generating execution commands.
-        json_gen_strategy (JsonGenStrategy): Strategy for generating json string.
-        grading_strategy (GradingStrategy): Strategy for grading performance based on test outcomes.
     """
 
     __test__ = False
@@ -49,22 +41,8 @@ class TestTemplate:
             system (System): System configuration for the test template.
         """
         self.system = system
-        self._command_gen_strategy: Optional[CommandGenStrategy] = None
         self._json_gen_strategy: Optional[JsonGenStrategy] = None
         self.grading_strategy: Optional[GradingStrategy] = None
-
-    @property
-    def command_gen_strategy(self) -> CommandGenStrategy:
-        if self._command_gen_strategy is None:
-            raise ValueError(
-                "command_gen_strategy is missing. Ensure the strategy is registered in the Registry "
-                "by calling the appropriate registration function for the system type."
-            )
-        return self._command_gen_strategy
-
-    @command_gen_strategy.setter
-    def command_gen_strategy(self, value: CommandGenStrategy) -> None:
-        self._command_gen_strategy = value
 
     @property
     def json_gen_strategy(self) -> JsonGenStrategy:
@@ -78,18 +56,6 @@ class TestTemplate:
     @json_gen_strategy.setter
     def json_gen_strategy(self, value: JsonGenStrategy) -> None:
         self._json_gen_strategy = value
-
-    def gen_exec_command(self, tr: TestRun) -> str:
-        """
-        Generate an execution command for a test using this template.
-
-        Args:
-            tr (TestRun): Contains the test and its run-specific configurations.
-
-        Returns:
-            str: The generated execution command.
-        """
-        return self.command_gen_strategy.gen_exec_command(tr)
 
     def gen_json(self, tr: TestRun) -> Dict[Any, Any]:
         """
