@@ -59,7 +59,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
 
     @pytest.fixture
     def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> NeMoLauncherSlurmCommandGenStrategy:
-        return NeMoLauncherSlurmCommandGenStrategy(slurm_system, {})
+        return NeMoLauncherSlurmCommandGenStrategy(slurm_system)
 
     @pytest.mark.parametrize(
         "expected_content, nodes",
@@ -69,7 +69,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
                     'TEST_VAR_1="value1"',
                     '+env_vars.TEST_VAR_1="value1"',
                     'stages=["training"]',
-                    "cluster.gpus_per_node=null",
+                    "cluster.gpus_per_node=8",
                     "cluster.partition=main",
                     "numa_mapping.enable=True",
                     "training.exp_manager.create_checkpoint_callback=False",

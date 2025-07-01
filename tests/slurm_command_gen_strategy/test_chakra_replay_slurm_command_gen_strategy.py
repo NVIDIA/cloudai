@@ -27,7 +27,7 @@ from tests.conftest import create_autospec_dataclass
 class TestChakraReplaySlurmCommandGenStrategy:
     @pytest.fixture
     def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> ChakraReplaySlurmCommandGenStrategy:
-        return ChakraReplaySlurmCommandGenStrategy(slurm_system, {})
+        return ChakraReplaySlurmCommandGenStrategy(slurm_system)
 
     @pytest.mark.parametrize(
         "cmd_args, extra_cmd_args, expected_result",

@@ -28,8 +28,8 @@ from .nemotron import NemotronTestDefinition
 class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for JaxToolbox tests on Slurm systems."""
 
-    def __init__(self, system: SlurmSystem, cmd_args: Dict[str, Any]) -> None:
-        super().__init__(system, cmd_args)
+    def __init__(self, system: SlurmSystem) -> None:
+        super().__init__(system)
         self.test_name = ""
 
     def image_path(self, tr: TestRun) -> Optional[str]:
@@ -231,12 +231,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return script_lines
 
-    def _generate_python_command(
-        self,
-        stage: str,
-        cmd_args: Dict[str, Any],
-        extra_cmd_args: str,
-    ) -> str:
+    def _generate_python_command(self, stage: str, cmd_args: Dict[str, Any], extra_cmd_args: str) -> str:
         """
         Construct the PAXML Python command for execution in the Slurm environment.
 

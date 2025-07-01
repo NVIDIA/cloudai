@@ -32,8 +32,7 @@ class MySlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
 @pytest.fixture
 def strategy_fixture(slurm_system: SlurmSystem) -> SlurmCommandGenStrategy:
-    cmd_args: Dict[str, Union[str, List[str]]] = {"test_arg": "test_value"}
-    strategy = MySlurmCommandGenStrategy(slurm_system, cmd_args)
+    strategy = MySlurmCommandGenStrategy(slurm_system)
     return strategy
 
 
@@ -141,7 +140,7 @@ def make_test_run(slurm_system: SlurmSystem, name: str, output_dir: Path) -> Tes
         extra_env_vars={"TEST_VAR": "VALUE"},
     )
     test_template = TestTemplate(slurm_system)
-    test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(slurm_system, test_def.cmd_args_dict)
+    test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(slurm_system)
     test = Test(test_definition=test_def, test_template=test_template)
     return TestRun(name=name, test=test, num_nodes=1, nodes=["node1"], output_path=output_dir / name)
 
@@ -344,7 +343,7 @@ def test_gen_srun_prefix_with_pretest_extras(
         def pre_test_srun_extra_args(self, tr: TestRun) -> List[str]:
             return ["--pre-arg1", "--pre-arg2"]
 
-    with patch.object(strategy_fixture, "_get_cmd_gen_strategy", return_value=PreTestCmdGenStrategy(slurm_system, {})):
+    with patch.object(strategy_fixture, "_get_cmd_gen_strategy", return_value=PreTestCmdGenStrategy(slurm_system)):
         srun_prefix_with_extras = strategy_fixture.gen_srun_prefix(tr, use_pretest_extras=use_pretest_extras)
 
     assert ("--pre-arg1" in srun_prefix_with_extras) is use_pretest_extras

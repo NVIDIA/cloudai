@@ -118,7 +118,6 @@ class TestParser:
         strategy_interface: Type[Union[TestTemplateStrategy, GradingStrategy]],
         system_type: Type[System],
         test_definition_type: Type[TestDefinition],
-        cmd_args: Dict[str, Any],
     ) -> Optional[Union[TestTemplateStrategy, GradingStrategy]]:
         """
         Fetch a strategy from the registry based on system and template.
@@ -128,7 +127,6 @@ class TestParser:
                 The strategy interface to fetch.
             system_type (Type[System]): The system type.
             test_template_type (Type[TestTemplate]): The test template type.
-            cmd_args (Dict[str, Any]): Command-line arguments.
 
         Returns:
             An instance of the requested strategy, or None.
@@ -138,7 +136,7 @@ class TestParser:
         strategy_type = registry.strategies_map.get(key)
         if strategy_type:
             if issubclass(strategy_type, TestTemplateStrategy):
-                return strategy_type(self.system, cmd_args)
+                return strategy_type(self.system)
             else:
                 return strategy_type()
 
@@ -160,19 +158,17 @@ class TestParser:
         Returns:
             Type[TestTemplate]: A subclass of TestTemplate corresponding to the given name.
         """
-        cmd_args = tdef.cmd_args_dict
-
         obj = TestTemplate(system=self.system)
         obj.command_gen_strategy = cast(
             CommandGenStrategy,
-            self._fetch_strategy(CommandGenStrategy, type(obj.system), type(tdef), cmd_args),
+            self._fetch_strategy(CommandGenStrategy, type(obj.system), type(tdef)),
         )
         obj.json_gen_strategy = cast(
             JsonGenStrategy,
-            self._fetch_strategy(JsonGenStrategy, type(obj.system), type(tdef), cmd_args),
+            self._fetch_strategy(JsonGenStrategy, type(obj.system), type(tdef)),
         )
         obj.grading_strategy = cast(
-            GradingStrategy, self._fetch_strategy(GradingStrategy, type(obj.system), type(tdef), cmd_args)
+            GradingStrategy, self._fetch_strategy(GradingStrategy, type(obj.system), type(tdef))
         )
         return obj
 

@@ -25,6 +25,10 @@ from cloudai.systems.runai.runai_system import RunAISystem
 from cloudai.systems.slurm import SlurmInstaller
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.standalone import StandaloneInstaller, StandaloneSystem
+from cloudai.workloads.ai_dynamo import (
+    AIDynamoSlurmCommandGenStrategy,
+    AIDynamoTestDefinition,
+)
 from cloudai.workloads.chakra_replay import (
     ChakraReplayGradingStrategy,
     ChakraReplaySlurmCommandGenStrategy,
@@ -111,6 +115,7 @@ ALL_STRATEGIES = {
     (CommandGenStrategy, SlurmSystem, SlurmContainerTestDefinition): SlurmContainerCommandGenStrategy,
     (CommandGenStrategy, SlurmSystem, UCCTestDefinition): UCCTestSlurmCommandGenStrategy,
     (CommandGenStrategy, SlurmSystem, MegatronRunTestDefinition): MegatronRunSlurmCommandGenStrategy,
+    (CommandGenStrategy, SlurmSystem, AIDynamoTestDefinition): AIDynamoSlurmCommandGenStrategy,
     (CommandGenStrategy, StandaloneSystem, SleepTestDefinition): SleepStandaloneCommandGenStrategy,
     (CommandGenStrategy, LSFSystem, SleepTestDefinition): SleepLSFCommandGenStrategy,
     (CommandGenStrategy, SlurmSystem, TritonInferenceTestDefinition): TritonInferenceSlurmCommandGenStrategy,
@@ -155,7 +160,7 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 13
+    assert len(test_defs) == 14
     for tdef in [
         ("UCCTest", UCCTestDefinition),
         ("NcclTest", NCCLTestDefinition),
@@ -170,6 +175,7 @@ def test_definitions():
         ("MegatronRun", MegatronRunTestDefinition),
         ("TritonInference", TritonInferenceTestDefinition),
         ("NIXLBench", NIXLBenchTestDefinition),
+        ("AIDynamo", AIDynamoTestDefinition),
     ]:
         assert test_defs[tdef[0]] == tdef[1]
 
