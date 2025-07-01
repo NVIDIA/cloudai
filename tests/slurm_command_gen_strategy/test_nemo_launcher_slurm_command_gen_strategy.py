@@ -253,3 +253,16 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         cmd = cmd_gen_strategy._gen_env_vars_str(env)
 
         assert cmd == 'VAR1="value with spaces" \\\nVAR2="$(cmd \\$vv| cmd)" \\\n'
+
+    @pytest.mark.parametrize(
+        "args,expected",
+        [
+            ({"env_vars.VAR1": "value1"}, '+env_vars.VAR1="value1"'),
+            ({"env_vars.VAR1": "value1,v2"}, "+env_vars.VAR1=\\'value1,v2\\'"),
+        ],
+    )
+    def test_generate_cmd_args_str_handles_env_vars(
+        self, cmd_gen_strategy: NeMoLauncherSlurmCommandGenStrategy, args: dict[str, str | list[str]], expected: str
+    ) -> None:
+        cmd = cmd_gen_strategy._generate_cmd_args_str(args, [])
+        assert cmd == expected
