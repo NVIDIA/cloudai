@@ -41,7 +41,7 @@ from cloudai.workloads.ai_dynamo import (
 
 @pytest.fixture
 def strategy(slurm_system: SlurmSystem) -> AIDynamoSlurmCommandGenStrategy:
-    return AIDynamoSlurmCommandGenStrategy(slurm_system, {})
+    return AIDynamoSlurmCommandGenStrategy(slurm_system)
 
 
 @pytest.fixture
