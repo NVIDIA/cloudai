@@ -45,7 +45,7 @@ def bash_tr(slurm_system: SlurmSystem) -> TestRun:
 
 @pytest.fixture
 def bash_cmd_gen(slurm_system: SlurmSystem) -> BashCmdCommandGenStrategy:
-    return BashCmdCommandGenStrategy(slurm_system, {})
+    return BashCmdCommandGenStrategy(slurm_system)
 
 
 def test_gen_srun_success_check(bash_cmd_gen: BashCmdCommandGenStrategy, bash_tr: TestRun):

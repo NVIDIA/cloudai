@@ -27,7 +27,7 @@ from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTes
 class TestNcclTestSlurmCommandGenStrategy:
     @pytest.fixture
     def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> NcclTestSlurmCommandGenStrategy:
-        return NcclTestSlurmCommandGenStrategy(slurm_system, {})
+        return NcclTestSlurmCommandGenStrategy(slurm_system)
 
     @pytest.mark.parametrize(
         "job_name_prefix, env_vars, cmd_args, num_nodes, nodes, expected_result",

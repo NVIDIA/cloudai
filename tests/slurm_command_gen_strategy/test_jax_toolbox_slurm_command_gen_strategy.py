@@ -34,7 +34,7 @@ from cloudai.workloads.jax_toolbox import (
 class TestJaxToolboxSlurmCommandGenStrategy:
     @pytest.fixture
     def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> JaxToolboxSlurmCommandGenStrategy:
-        return JaxToolboxSlurmCommandGenStrategy(slurm_system, {})
+        return JaxToolboxSlurmCommandGenStrategy(slurm_system)
 
     @pytest.fixture
     def gpt_test(self) -> GPTTestDefinition:
@@ -159,22 +159,16 @@ class TestJaxToolboxSlurmCommandGenStrategy:
     ):
         grok_test.cmd_args.enable_pgle = enable_pgle
         cargs = {"output_path": str(tmp_path), **grok_test.cmd_args_dict}
-        cmd_gen = JaxToolboxSlurmCommandGenStrategy(slurm_system, cargs)
+        cmd_gen = JaxToolboxSlurmCommandGenStrategy(slurm_system)
         cmd_gen.test_name = "Grok"
         cmd_gen._script_content = MagicMock(return_value="")
         cmd_gen._create_run_script({}, cargs, "")
         assert cmd_gen._script_content.call_count == expected_ncalls
 
     def test_generate_python_command(
-        self,
-        slurm_system: SlurmSystem,
-        cmd_gen_strategy: JaxToolboxSlurmCommandGenStrategy,
-        gpt_test: GPTTestDefinition,
-        tmp_path: Path,
+        self, cmd_gen_strategy: JaxToolboxSlurmCommandGenStrategy, gpt_test: GPTTestDefinition
     ) -> None:
-        cmd_gen_strategy = JaxToolboxSlurmCommandGenStrategy(slurm_system, gpt_test.cmd_args_dict)
-        cargs = {"output_path": "/path/to/output", **gpt_test.cmd_args_dict}
-        cargs = cmd_gen_strategy._override_cmd_args(cmd_gen_strategy.default_cmd_args, cargs)
+        cargs = cmd_gen_strategy._flatten_dict({"output_path": "/path/to/output", **gpt_test.cmd_args_dict})
 
         cmd_gen_strategy.test_name = "GPT"
 

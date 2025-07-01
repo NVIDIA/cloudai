@@ -30,7 +30,7 @@ class TestSleepSlurmCommandGenStrategy:
 
     @pytest.fixture
     def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> SleepSlurmCommandGenStrategy:
-        return SleepSlurmCommandGenStrategy(slurm_system, {})
+        return SleepSlurmCommandGenStrategy(slurm_system)
 
     @pytest.mark.parametrize(
         "cmd_args_data, expected_command",

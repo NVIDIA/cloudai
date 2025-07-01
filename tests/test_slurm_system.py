@@ -404,7 +404,7 @@ class TestSlurmCommandGenStrategyCache:
     def test_strategy_caching(self, mock_get_nodes: Mock, slurm_system: SlurmSystem, test_run: TestRun):
         mock_get_nodes.return_value = (2, ["node01", "node02"])
 
-        strategy = ConcreteSlurmStrategy(slurm_system, {})
+        strategy = ConcreteSlurmStrategy(slurm_system)
 
         # First call to get nodes
         res = strategy.get_cached_nodes_spec(test_run)
@@ -432,7 +432,7 @@ class TestSlurmCommandGenStrategyCache:
         mock_get_nodes.side_effect = [(2, ["node01", "node02"]), (2, ["node03", "node04"])]
 
         # Simulate two different test cases
-        strategy1, strategy2 = ConcreteSlurmStrategy(slurm_system, {}), ConcreteSlurmStrategy(slurm_system, {})
+        strategy1, strategy2 = ConcreteSlurmStrategy(slurm_system), ConcreteSlurmStrategy(slurm_system)
 
         res = strategy1.get_cached_nodes_spec(test_run)
         assert mock_get_nodes.call_count == 1
@@ -448,7 +448,7 @@ class TestSlurmCommandGenStrategyCache:
     def test_per_iteration_isolation(self, mock_get_nodes: Mock, slurm_system: SlurmSystem, test_run: TestRun):
         mock_get_nodes.side_effect = [(2, ["node01", "node02"]), (2, ["node03", "node04"])]
 
-        strategy = ConcreteSlurmStrategy(slurm_system, {})
+        strategy = ConcreteSlurmStrategy(slurm_system)
 
         res = strategy.get_cached_nodes_spec(test_run)
         assert mock_get_nodes.call_count == 1
@@ -463,7 +463,7 @@ class TestSlurmCommandGenStrategyCache:
     def test_per_step_isolation(self, mock_get_nodes: Mock, slurm_system: SlurmSystem, test_run: TestRun):
         mock_get_nodes.side_effect = [(2, ["node01", "node02"]), (2, ["node03", "node04"])]
 
-        strategy = ConcreteSlurmStrategy(slurm_system, {})
+        strategy = ConcreteSlurmStrategy(slurm_system)
 
         res = strategy.get_cached_nodes_spec(test_run)
         assert mock_get_nodes.call_count == 1

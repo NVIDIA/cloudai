@@ -31,17 +31,15 @@ class LSFCommandGenStrategy(CommandGenStrategy):
             properties and methods.
     """
 
-    def __init__(self, system: LSFSystem, cmd_args: Dict[str, Any]) -> None:
+    def __init__(self, system: LSFSystem) -> None:
         """
         Initialize a new LSFCommandGenStrategy instance.
 
         Args:
             system (LSFSystem): The system schema object.
-            cmd_args (Dict[str, Any]): Command-line arguments.
         """
-        super().__init__(system, cmd_args)
+        super().__init__(system)
         self.system = system
-        self.docker_image_url = self.cmd_args.get("docker_image_url", "")
 
     def gen_exec_command(self, tr: TestRun) -> str:
         """
@@ -54,7 +52,7 @@ class LSFCommandGenStrategy(CommandGenStrategy):
             str: The generated LSF command.
         """
         env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
-        cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
+        cmd_args = self._flatten_dict(tr.test.cmd_args)
         lsf_args = self._parse_lsf_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
 
         bsub_command = self._gen_bsub_command(lsf_args, env_vars, cmd_args, tr)

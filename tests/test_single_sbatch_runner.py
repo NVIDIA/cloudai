@@ -45,7 +45,7 @@ def nccl_tr(slurm_system: SlurmSystem) -> TestRun:
         nodes=[],
         output_path=slurm_system.output_path / "nccl_test",
     )
-    tr.test.test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(slurm_system, {})
+    tr.test.test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(slurm_system)
     return tr
 
 
@@ -63,7 +63,7 @@ def sleep_tr(slurm_system: SlurmSystem) -> TestRun:
         nodes=[],
         output_path=slurm_system.output_path / "sleep_test",
     )
-    tr.test.test_template.command_gen_strategy = SleepSlurmCommandGenStrategy(slurm_system, {})
+    tr.test.test_template.command_gen_strategy = SleepSlurmCommandGenStrategy(slurm_system)
     tr.output_path.mkdir(parents=True, exist_ok=True)
     return tr
 
