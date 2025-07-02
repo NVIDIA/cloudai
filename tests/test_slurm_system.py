@@ -372,7 +372,7 @@ class ConcreteSlurmStrategy(SlurmCommandGenStrategy):
     def _container_mounts(self) -> list[str]:
         return []
 
-    def generate_test_command(self, env_vars, cmd_args):
+    def generate_test_command(self):
         return ["test_command"]
 
     def job_name(self) -> str:

@@ -32,9 +32,7 @@ class MegatronRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _container_mounts(self) -> list[str]:
         return []
 
-    def generate_test_command(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: dict[str, Union[str, list[str]]]
-    ) -> list[str]:
+    def generate_test_command(self) -> list[str]:
         tdef: MegatronRunTestDefinition = cast(MegatronRunTestDefinition, self.test_run.test.test_definition)
 
         command = [

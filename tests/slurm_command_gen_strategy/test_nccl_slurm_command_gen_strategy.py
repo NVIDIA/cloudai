@@ -77,7 +77,7 @@ class TestNcclTestSlurmCommandGenStrategy:
         tr = TestRun(name="t1", test=t, nodes=[], num_nodes=1)
 
         cmd_gen_strategy = NcclTestSlurmCommandGenStrategy(slurm_system, tr)
-        cmd = " ".join(cmd_gen_strategy.generate_test_command({}, {}))
+        cmd = " ".join(cmd_gen_strategy.generate_test_command())
 
         for arg in args:
             if args[arg] is None:

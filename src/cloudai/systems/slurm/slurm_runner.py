@@ -105,7 +105,7 @@ class SlurmRunner(BaseRunner):
             elapsed_time_sec=steps_metadata[0].elapsed_time_sec,
             job_steps=steps_metadata[1:],
             srun_cmd=cmd_gen.gen_srun_command(),
-            test_cmd=" ".join(cmd_gen.generate_test_command({}, {})),
+            test_cmd=" ".join(cmd_gen.generate_test_command()),
             job_root=job.test_run.output_path.absolute(),
         )
 

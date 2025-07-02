@@ -54,6 +54,6 @@ class TestSleepSlurmCommandGenStrategy:
         tr = TestRun(test=test_obj, num_nodes=1, nodes=[], output_path=tmp_path / "output", name="sleep-job")
 
         cmd_gen_strategy = SleepSlurmCommandGenStrategy(slurm_system, tr)
-        command = cmd_gen_strategy.generate_test_command(test_def.extra_env_vars, test_def.cmd_args_dict)
+        command = cmd_gen_strategy.generate_test_command()
 
         assert command == expected_command

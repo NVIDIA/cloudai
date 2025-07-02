@@ -54,7 +54,7 @@ def test_gen_srun_success_check(bash_cmd_gen: BashCmdCommandGenStrategy):
 
 
 def test_generate_test_command(bash_cmd_gen: BashCmdCommandGenStrategy):
-    res = bash_cmd_gen.generate_test_command({}, {})
+    res = bash_cmd_gen.generate_test_command()
     assert res == ["echo 'Hello, world!'"]
 
 

@@ -58,10 +58,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         ...
 
     def store_test_run(self) -> None:
-        test_cmd, srun_cmd = (
-            " ".join(self.generate_test_command(env_vars={}, cmd_args={})),
-            self.gen_srun_command(),
-        )
+        test_cmd, srun_cmd = (" ".join(self.generate_test_command()), self.gen_srun_command())
         with (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).open("w") as f:
             trd = TestRunDetails.from_test_run(self.test_run, test_cmd=test_cmd, full_cmd=srun_cmd)
             toml.dump(trd.model_dump(), f)
@@ -230,7 +227,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     ) -> str:
         srun_command_parts = self.gen_srun_prefix(use_pretest_extras=True)
         nsys_command_parts = self.gen_nsys_command()
-        test_command_parts = self.generate_test_command(env_vars, cmd_args)
+        test_command_parts = self.generate_test_command()
 
         with (self.test_run.output_path / "env_vars.sh").open("w") as f:
             for key, value in env_vars.items():
@@ -267,9 +264,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         return srun_command_parts
 
-    def generate_test_command(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]]
-    ) -> List[str]:
+    def generate_test_command(self) -> List[str]:
         return []
 
     def _add_reservation(self, batch_script_content: List[str]):

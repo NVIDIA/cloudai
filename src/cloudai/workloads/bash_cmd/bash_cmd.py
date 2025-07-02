@@ -49,9 +49,7 @@ class BashCmdCommandGenStrategy(SlurmCommandGenStrategy):
     def gen_srun_prefix(self, use_pretest_extras: bool = False) -> list[str]:  # noqa: Vulture
         return []
 
-    def generate_test_command(
-        self, env_vars: dict[str, str | list[str]], cmd_args: dict[str, str | list[str]]
-    ) -> list[str]:
+    def generate_test_command(self) -> list[str]:
         tdef: BashCmdTestDefinition = cast(BashCmdTestDefinition, self.test_run.test.test_definition)
         srun_command_parts: list[str] = [*super().gen_nsys_command(), tdef.cmd_args.cmd]
         return [" ".join(srun_command_parts)]

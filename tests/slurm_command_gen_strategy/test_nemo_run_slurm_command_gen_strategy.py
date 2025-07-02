@@ -75,10 +75,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
 
         recipe_name = cmd_gen_strategy._validate_recipe_name(cmd_args.recipe_name)
 
-        cmd = cmd_gen_strategy.generate_test_command(
-            cmd_gen_strategy.test_run.test.test_definition.extra_env_vars,
-            cmd_gen_strategy.test_run.test.test_definition.cmd_args.model_dump(),
-        )
+        cmd = cmd_gen_strategy.generate_test_command()
         assert cmd is not None
         assert cmd[:5] == [
             "python",
@@ -97,9 +94,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
         cmd_args_dict = cmd_gen_strategy.test_run.test.test_definition.cmd_args.model_dump()
         cmd_args_dict["trainer"]["num_nodes"] = len(cmd_gen_strategy.test_run.nodes)
 
-        cmd = cmd_gen_strategy.generate_test_command(
-            cmd_gen_strategy.test_run.test.test_definition.extra_env_vars, cmd_args_dict
-        )
+        cmd = cmd_gen_strategy.generate_test_command()
 
         assert any("trainer.num_nodes=1" in param for param in cmd)
 
@@ -116,8 +111,5 @@ class TestNeMoRunSlurmCommandGenStrategy:
         cmd_gen_strategy.test_run.test.test_definition.cmd_args = cmd_args
 
         with caplog.at_level(logging.WARNING):
-            cmd_gen_strategy.generate_test_command(
-                cmd_gen_strategy.test_run.test.test_definition.extra_env_vars,
-                cmd_gen_strategy.test_run.test.test_definition.cmd_args.model_dump(),
-            )
+            cmd_gen_strategy.generate_test_command()
         assert "Mismatch in num_nodes" in caplog.text

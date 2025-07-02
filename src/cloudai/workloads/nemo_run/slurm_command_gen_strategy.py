@@ -105,9 +105,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return recipe_name
 
-    def generate_test_command(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]]
-    ) -> List[str]:
+    def generate_test_command(self) -> List[str]:
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, self.test_run.test.test_definition)
 
         tdef.cmd_args.data.num_train_samples = tdef.update_num_train_samples

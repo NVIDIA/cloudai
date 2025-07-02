@@ -40,9 +40,7 @@ class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, self.test_run.test.test_definition)
         return [*cmd, *tdef.extra_srun_args]
 
-    def generate_test_command(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]]
-    ) -> list[str]:
+    def generate_test_command(self) -> list[str]:
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, self.test_run.test.test_definition)
         command_parts: list[str] = [*super().gen_nsys_command(), tdef.cmd_args.cmd]
         if self.test_run.test.extra_cmd_args:
