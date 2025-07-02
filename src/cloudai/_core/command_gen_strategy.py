@@ -29,14 +29,12 @@ class CommandGenStrategy(TestTemplateStrategy, ABC):
     def __init__(self, system: System, test_run: TestRun) -> None:
         super().__init__(system)
         self.test_run = test_run
+        self._final_env_vars: dict[str, str | list[str]] = {}
 
     @abstractmethod
-    def gen_exec_command(self, tr: TestRun) -> str:
+    def gen_exec_command(self) -> str:
         """
         Generate the execution command for a test based on the given parameters.
-
-        Args:
-            tr (TestRun): Contains the test and its run-specific configurations.
 
         Returns:
             str: The generated execution command.
@@ -44,13 +42,22 @@ class CommandGenStrategy(TestTemplateStrategy, ABC):
         pass
 
     @abstractmethod
-    def store_test_run(self, tr: TestRun) -> None:
+    def store_test_run(self) -> None:
         """
         Store the test run information in output folder.
 
         Only at command generation time, CloudAI has all the information to store the test run.
-
-        Args:
-            tr (TestRun): The test run object to be stored.
         """
         pass
+
+    @property
+    def final_env_vars(self) -> dict[str, str | list[str]]:
+        if not self._final_env_vars:
+            final_env_vars = self.system.global_env_vars.copy()
+            final_env_vars.update(self.test_run.test.extra_env_vars)
+            self._final_env_vars = final_env_vars
+        return self._final_env_vars
+
+    @final_env_vars.setter
+    def final_env_vars(self, value: dict[str, str | list[str]]) -> None:
+        self._final_env_vars = value

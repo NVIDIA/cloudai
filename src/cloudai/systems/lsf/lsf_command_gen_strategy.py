@@ -42,7 +42,7 @@ class LSFCommandGenStrategy(CommandGenStrategy):
         super().__init__(system, test_run)
         self.system = cast(LSFSystem, system)
 
-    def gen_exec_command(self, tr: TestRun) -> str:
+    def gen_exec_command(self) -> str:
         """
         Generate the execution command for the test run.
 
@@ -52,11 +52,13 @@ class LSFCommandGenStrategy(CommandGenStrategy):
         Returns:
             str: The generated LSF command.
         """
-        env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
-        cmd_args = self._flatten_dict(tr.test.cmd_args)
-        lsf_args = self._parse_lsf_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
+        env_vars = self.final_env_vars
+        cmd_args = self._flatten_dict(self.test_run.test.cmd_args)
+        lsf_args = self._parse_lsf_args(
+            self.test_run.test.test_template.__class__.__name__, env_vars, cmd_args, self.test_run
+        )
 
-        bsub_command = self._gen_bsub_command(lsf_args, env_vars, cmd_args, tr)
+        bsub_command = self._gen_bsub_command(lsf_args, env_vars, cmd_args, self.test_run)
 
         return bsub_command.strip()
 

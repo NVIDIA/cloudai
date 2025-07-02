@@ -64,7 +64,7 @@ class TestNcclTestSlurmCommandGenStrategy:
         t = Test(test_definition=nccl, test_template=Mock())
         tr = TestRun(name="t1", test=t, nodes=nodes, num_nodes=num_nodes)
         cmd_gen_strategy = NcclTestSlurmCommandGenStrategy(slurm_system, tr)
-        assert expected_result["container_mounts"] in cmd_gen_strategy.container_mounts(tr)
+        assert expected_result["container_mounts"] in cmd_gen_strategy.container_mounts()
 
     @pytest.mark.parametrize(
         "args",
@@ -81,7 +81,7 @@ class TestNcclTestSlurmCommandGenStrategy:
         tr = TestRun(name="t1", test=t, nodes=[], num_nodes=1)
 
         cmd_gen_strategy = NcclTestSlurmCommandGenStrategy(slurm_system, tr)
-        cmd = " ".join(cmd_gen_strategy.generate_test_command({}, {}, tr))
+        cmd = " ".join(cmd_gen_strategy.generate_test_command())
 
         for arg in args:
             if args[arg] is None:

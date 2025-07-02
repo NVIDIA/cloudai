@@ -17,9 +17,8 @@
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Union, cast
+from typing import Any, Dict, List, cast
 
-from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 from .nemo_run import NeMoRunTestDefinition
@@ -28,21 +27,19 @@ from .nemo_run import NeMoRunTestDefinition
 class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for NeMo 2.0 on Slurm systems."""
 
-    def image_path(self, tr: TestRun) -> str | None:
-        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
+    def image_path(self) -> str | None:
+        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, self.test_run.test.test_definition)
         return str(tdef.docker_image.installed_path)
 
-    def _gen_srun_command(
-        self, env_vars: Dict[str, str | List[str]], cmd_args: Dict[str, str | List[str]], tr: TestRun
-    ) -> str:
-        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
-        self._set_additional_env_vars(env_vars, tdef)
-        return super()._gen_srun_command(env_vars, cmd_args, tr)
+    def _gen_srun_command(self) -> str:
+        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, self.test_run.test.test_definition)
+        self._set_additional_env_vars(tdef)
+        return super()._gen_srun_command()
 
-    def _set_additional_env_vars(self, env_vars: Dict[str, Union[str, List[str]]], tdef: NeMoRunTestDefinition):
+    def _set_additional_env_vars(self, tdef: NeMoRunTestDefinition):
         """Set environment variables based on NeMoRunTestDefinition."""
-        env_vars["CLOUDAI_NEMO_TASK"] = tdef.cmd_args.task
-        env_vars["CLOUDAI_NEMO_RECIPE"] = tdef.cmd_args.recipe_name
+        self.final_env_vars["CLOUDAI_NEMO_TASK"] = tdef.cmd_args.task
+        self.final_env_vars["CLOUDAI_NEMO_RECIPE"] = tdef.cmd_args.recipe_name
 
         pipeline_model_parallel_size = tdef.cmd_args.trainer.strategy.pipeline_model_parallel_size
         if isinstance(pipeline_model_parallel_size, list):
@@ -51,7 +48,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         if pipeline_model_parallel_size > 1:
             logging.debug("Setting NCCL_P2P_NET_CHUNKSIZE to 2097152 as pipeline_model_parallel_size is greater than 1")
-            env_vars["NCCL_P2P_NET_CHUNKSIZE"] = "2097152"
+            self.final_env_vars["NCCL_P2P_NET_CHUNKSIZE"] = "2097152"
 
         enable_fsdp = os.getenv("CLOUDAI_ENABLE_FSDP", "0")
         if enable_fsdp == "1":
@@ -61,14 +58,14 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     "with TP communication overlap."
                 )
             )
-            env_vars["CLOUDAI_DISABLE_TP_COMM_OVERLAP"] = "1"
+            self.final_env_vars["CLOUDAI_DISABLE_TP_COMM_OVERLAP"] = "1"
 
-    def _run_script(self, tr: TestRun) -> Path:
-        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
+    def _run_script(self) -> Path:
+        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, self.test_run.test.test_definition)
         return tdef.script.installed_path
 
-    def _container_mounts(self, tr: TestRun) -> List[str]:
-        return [f"{self._run_script(tr).parent.absolute()}:/cloudai_workspace"]
+    def _container_mounts(self) -> List[str]:
+        return [f"{self._run_script().parent.absolute()}:/cloudai_workspace"]
 
     def flatten_dict(self, d: dict[str, str], parent_key: str = "", sep: str = "."):
         items = []
@@ -108,10 +105,8 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return recipe_name
 
-    def generate_test_command(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
-    ) -> List[str]:
-        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
+    def generate_test_command(self) -> List[str]:
+        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, self.test_run.test.test_definition)
 
         tdef.cmd_args.data.num_train_samples = tdef.update_num_train_samples
 
@@ -122,9 +117,9 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         recipe_name = self._validate_recipe_name(tdef.cmd_args.recipe_name)
 
-        command = ["python", f"/cloudai_install/{self._run_script(tr).name}", "--factory", recipe_name, "-y"]
+        command = ["python", f"/cloudai_install/{self._run_script().name}", "--factory", recipe_name, "-y"]
 
-        num_nodes, _ = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes)
+        num_nodes, _ = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)
 
         if tdef.cmd_args.trainer.num_nodes is not None and tdef.cmd_args.trainer.num_nodes > num_nodes:
             logging.warning(
@@ -149,7 +144,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         self.append_flattened_dict("", cmd_args_dict, command)
 
-        if tr.test.extra_cmd_args:
-            command.append(tr.test.extra_cmd_args)
+        if self.test_run.test.extra_cmd_args:
+            command.append(self.test_run.test.extra_cmd_args)
 
         return command

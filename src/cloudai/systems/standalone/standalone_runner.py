@@ -38,7 +38,7 @@ class StandaloneRunner(BaseRunner):
     def _submit_test(self, tr: TestRun) -> StandaloneJob:
         logging.info(f"Running test: {tr.name}")
         tr.output_path = self.get_job_output_path(tr)
-        exec_cmd = self.get_cmd_gen_strategy(self.system, tr).gen_exec_command(tr)
+        exec_cmd = self.get_cmd_gen_strategy(self.system, tr).gen_exec_command()
         logging.info(f"Executing command for test {tr.name}: {exec_cmd}")
         job_id = 0
         if self.mode == "run":

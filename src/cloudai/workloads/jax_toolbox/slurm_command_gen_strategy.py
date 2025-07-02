@@ -32,28 +32,28 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         super().__init__(system, test_run)
         self.test_name = ""
 
-    def image_path(self, tr: TestRun) -> Optional[str]:
+    def image_path(self) -> Optional[str]:
         tdef: Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition] = cast(
-            Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition], tr.test.test_definition
+            Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition], self.test_run.test.test_definition
         )
         return str(tdef.docker_image.installed_path)
 
-    def _container_mounts(self, tr: TestRun) -> list[str]:
+    def _container_mounts(self) -> list[str]:
         mounts: list[str] = []
 
         tdef: Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition] = cast(
-            Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition], tr.test.test_definition
+            Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition], self.test_run.test.test_definition
         )
         docker_workspace_dir = tdef.cmd_args.setup_flags.docker_workspace_dir
-        mounts.append(f"{tr.output_path.resolve()}:{docker_workspace_dir}")
+        mounts.append(f"{self.test_run.output_path.resolve()}:{docker_workspace_dir}")
 
         return mounts
 
-    def gen_exec_command(self, tr: TestRun) -> str:
-        self.test_name = self._extract_test_name(tr.test.cmd_args)
-        self._update_env_vars(tr)
-        tr.test.test_definition.cmd_args.output_path = str(tr.output_path)
-        return super().gen_exec_command(tr)
+    def gen_exec_command(self) -> str:
+        self.test_name = self._extract_test_name(self.test_run.test.cmd_args)
+        self._update_env_vars()
+        self.test_run.test.test_definition.cmd_args.output_path = str(self.test_run.output_path)
+        return super().gen_exec_command()
 
     def _extract_test_name(self, cmd_args: Dict[str, Any]) -> str:
         """
@@ -75,16 +75,16 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     return name.upper() if name.lower() == "gpt" else name.capitalize()
         return ""
 
-    def _update_env_vars(self, tr: TestRun):
+    def _update_env_vars(self):
         """Update environment variables."""
-        env_vars = tr.test.test_definition.extra_env_vars
-        cmd_args = tr.test.test_definition.cmd_args_dict
-        num_nodes = len(tr.nodes) if tr.nodes else tr.nnodes
+        env_vars = self.test_run.test.test_definition.extra_env_vars
+        cmd_args = self.test_run.test.test_definition.cmd_args_dict
+        num_nodes = len(self.test_run.nodes) if self.test_run.nodes else self.test_run.nnodes
 
         self._update_per_gpu_combine_threshold(env_vars, cmd_args, num_nodes)
         self._update_xla_flags(env_vars, cmd_args)
 
-        tr.test.test_definition.extra_env_vars.update(env_vars)
+        self.test_run.test.test_definition.extra_env_vars.update(env_vars)
 
     def _update_per_gpu_combine_threshold(
         self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Any], num_nodes: int
@@ -142,25 +142,19 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return " ".join(sorted(xla_flags))
 
-    def _gen_srun_command(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Any], tr: TestRun
-    ) -> str:
-        self._create_run_script(env_vars, cmd_args, tr.test.extra_cmd_args)
+    def _gen_srun_command(self) -> str:
+        cmd_args = self._flatten_dict(self.test_run.test.cmd_args)
+        self._create_run_script(cmd_args)
 
         commands = []
         load_container = cmd_args.get("load_container", False)
         if load_container:
-            commands += self._generate_container_load_command(tr)
-        commands += self._generate_run_command(tr)
+            commands += self._generate_container_load_command()
+        commands += self._generate_run_command()
 
         return "\n".join(commands)
 
-    def _create_run_script(
-        self,
-        env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, Any],
-        extra_cmd_args: str,
-    ) -> Path:
+    def _create_run_script(self, cmd_args: Dict[str, Any]) -> Path:
         """
         Generate and write the run.sh script to the specified output directory.
 
@@ -177,15 +171,15 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         do_pgle = cmd_args.get(f"{self.test_name}.enable_pgle", True)
 
         if do_pgle:
-            env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "profile")}"'
-            run_script_content += self._script_content("profile", env_vars, cmd_args, extra_cmd_args)
+            self.final_env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "profile")}"'
+            run_script_content += self._script_content("profile", cmd_args)
 
-            env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
-            run_script_content += self._script_content("perf", env_vars, cmd_args, extra_cmd_args)
+            self.final_env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
+            run_script_content += self._script_content("perf", cmd_args)
         else:
             cmd_args[f"{self.test_name}.perf"]["XLA_FLAGS"]["xla_gpu_pgle_profile_file_or_directory_path"] = '""'
-            env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
-            run_script_content += self._script_content("perf", env_vars, cmd_args, extra_cmd_args)
+            self.final_env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
+            run_script_content += self._script_content("perf", cmd_args)
 
         run_script_path = Path(cmd_args["output_path"]) / "run.sh"
         with open(run_script_path, "w") as run_file:
@@ -193,13 +187,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         run_script_path.chmod(0o755)
         return run_script_path
 
-    def _script_content(
-        self,
-        stage: str,
-        env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, str],
-        extra_cmd_args: str,
-    ) -> list:
+    def _script_content(self, stage: str, cmd_args: Dict[str, str]) -> list:
         """
         Generate the content of the run script for a given stage.
 
@@ -217,11 +205,11 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         script_lines = [
             "#!/bin/bash" if stage == "profile" else "",
             "",
-            self._format_env_vars(env_vars),
+            self._format_env_vars(self.final_env_vars),
             "",
         ]
 
-        script_lines.append(self._generate_python_command(stage, cmd_args, extra_cmd_args))
+        script_lines.append(self._generate_python_command(stage, cmd_args))
         if self.test_name == "Grok" or self.test_name == "GPT" or self.test_name == "Nemotron":
             script_lines.extend(
                 [
@@ -231,14 +219,13 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return script_lines
 
-    def _generate_python_command(self, stage: str, cmd_args: Dict[str, Any], extra_cmd_args: str) -> str:
+    def _generate_python_command(self, stage: str, cmd_args: Dict[str, Any]) -> str:
         """
         Construct the PAXML Python command for execution in the Slurm environment.
 
         Args:
             stage (str): The stage of processing (e.g., 'profile', 'perf').
             cmd_args (Dict[str, str]): Command-line arguments.
-            extra_cmd_args (str): Additional command-line arguments to be included in the Python command.
 
         Returns:
             str: The formatted Python command string to be executed within a Slurm job.
@@ -265,8 +252,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         for key, value in sorted(fdl_args.items()):
             parts.append(f"--fdl.{key.upper()}={value}")
-        if extra_cmd_args:
-            parts.append(extra_cmd_args)
+        if self.test_run.test.extra_cmd_args:
+            parts.append(self.test_run.test.extra_cmd_args)
         python_command = " \\\n    ".join(parts)
 
         if stage == "profile":
@@ -318,9 +305,9 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             ["", 'if [ "$SLURM_NODEID" -eq 0 ] && [ "$SLURM_PROCID" -eq 0 ]; then', f"    {command}", "fi"]
         )
 
-    def _generate_container_load_command(self, tr: TestRun) -> List[str]:
+    def _generate_container_load_command(self) -> List[str]:
         """Generate the command for loading a container."""
-        container_image = self.image_path(tr)
+        container_image = self.image_path()
         if not container_image:
             raise ValueError("image_path in slurm_args must be a valid path")
 
@@ -329,10 +316,10 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f"    srun --mpi=none --container-image={container_image} --container-name=cont true",
         ]
 
-    def _generate_run_command(self, tr: TestRun) -> List[str]:
+    def _generate_run_command(self) -> List[str]:
         """Generate the srun command for executing the test."""
-        output_path = tr.output_path.resolve()
-        env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
+        output_path = self.test_run.output_path.resolve()
+        env_vars = self.final_env_vars
         output_suffix = "-%j.txt" if env_vars.get("UNIFIED_STDOUT_STDERR") == "1" else "-%j-%n-%t.txt"
         output, error = output_path / f"output{output_suffix}", output_path / f"error{output_suffix}"
         return [
@@ -344,6 +331,6 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f"    -o {output.absolute()} \\",
             f"    -e {error.absolute()} \\",
             "    --container-name=cont \\",
-            f"    --container-mounts={','.join(self.container_mounts(tr))} \\",
+            f"    --container-mounts={','.join(self.container_mounts())} \\",
             "    /opt/paxml/workspace/run.sh",
         ]

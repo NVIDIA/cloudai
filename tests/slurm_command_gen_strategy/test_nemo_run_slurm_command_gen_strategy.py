@@ -61,7 +61,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
     def cmd_gen_strategy(self, slurm_system: SlurmSystem, test_run: TestRun) -> NeMoRunSlurmCommandGenStrategy:
         return NeMoRunSlurmCommandGenStrategy(slurm_system, test_run)
 
-    def test_generate_test_command(self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy, test_run: TestRun) -> None:
+    def test_generate_test_command(self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy) -> None:
         cmd_args = NeMoRunCmdArgs(
             docker_image_url="nvcr.io/nvidia/nemo:24.09",
             task="fine_tune",
@@ -71,17 +71,15 @@ class TestNeMoRunSlurmCommandGenStrategy:
             ),
             data=Data(micro_batch_size=1),
         )
-        test_run.test.test_definition.cmd_args = cmd_args
+        cmd_gen_strategy.test_run.test.test_definition.cmd_args = cmd_args
 
         recipe_name = cmd_gen_strategy._validate_recipe_name(cmd_args.recipe_name)
 
-        cmd = cmd_gen_strategy.generate_test_command(
-            test_run.test.test_definition.extra_env_vars, test_run.test.test_definition.cmd_args.model_dump(), test_run
-        )
+        cmd = cmd_gen_strategy.generate_test_command()
         assert cmd is not None
         assert cmd[:5] == [
             "python",
-            f"/cloudai_install/{cmd_gen_strategy._run_script(test_run).name}",
+            f"/cloudai_install/{cmd_gen_strategy._run_script().name}",
             "--factory",
             recipe_name,
             "-y",
@@ -91,35 +89,27 @@ class TestNeMoRunSlurmCommandGenStrategy:
         )
         assert f"data.micro_batch_size={cmd_args.data.micro_batch_size}" in cmd
 
-    def test_num_nodes(self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy, test_run: TestRun) -> None:
-        test_run.nodes = ["node1"]
-        cmd_args_dict = test_run.test.test_definition.cmd_args.model_dump()
-        cmd_args_dict["trainer"]["num_nodes"] = len(test_run.nodes)
+    def test_num_nodes(self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy) -> None:
+        cmd_gen_strategy.test_run.nodes = ["node1"]
+        cmd_args_dict = cmd_gen_strategy.test_run.test.test_definition.cmd_args.model_dump()
+        cmd_args_dict["trainer"]["num_nodes"] = len(cmd_gen_strategy.test_run.nodes)
 
-        cmd = cmd_gen_strategy.generate_test_command(
-            test_run.test.test_definition.extra_env_vars,
-            cmd_args_dict,
-            test_run,
-        )
+        cmd = cmd_gen_strategy.generate_test_command()
 
         assert any("trainer.num_nodes=1" in param for param in cmd)
 
     def test_trainer_num_nodes_greater_than_num_nodes(
-        self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy, test_run: TestRun, caplog
+        self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy, caplog: pytest.LogCaptureFixture
     ) -> None:
-        test_run.num_nodes = 1
+        cmd_gen_strategy.test_run.num_nodes = 1
         cmd_args = NeMoRunCmdArgs(
             docker_image_url="nvcr.io/nvidia/nemo:24.09",
             task="fine_tune",
             recipe_name="llama7_13b",
             trainer=Trainer(num_nodes=4),
         )
-        test_run.test.test_definition.cmd_args = cmd_args
+        cmd_gen_strategy.test_run.test.test_definition.cmd_args = cmd_args
 
         with caplog.at_level(logging.WARNING):
-            cmd_gen_strategy.generate_test_command(
-                test_run.test.test_definition.extra_env_vars,
-                test_run.test.test_definition.cmd_args.model_dump(),
-                test_run,
-            )
+            cmd_gen_strategy.generate_test_command()
         assert "Mismatch in num_nodes" in caplog.text

@@ -14,9 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Union, cast
+from typing import List, cast
 
-from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 from .ucc import UCCCmdArgs, UCCTestDefinition
@@ -25,17 +24,15 @@ from .ucc import UCCCmdArgs, UCCTestDefinition
 class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for UCC tests on Slurm systems."""
 
-    def _container_mounts(self, tr: TestRun) -> List[str]:
+    def _container_mounts(self) -> List[str]:
         return []
 
-    def image_path(self, tr: TestRun) -> str | None:
-        tdef: UCCTestDefinition = cast(UCCTestDefinition, tr.test.test_definition)
+    def image_path(self) -> str | None:
+        tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test.test_definition)
         return str(tdef.docker_image.installed_path)
 
-    def generate_test_command(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
-    ) -> List[str]:
-        tdef: UCCTestDefinition = cast(UCCTestDefinition, tr.test.test_definition)
+    def generate_test_command(self) -> List[str]:
+        tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test.test_definition)
         tdef_cmd_args: UCCCmdArgs = tdef.cmd_args
 
         srun_command_parts = ["/opt/hpcx/ucc/bin/ucc_perftest"]
@@ -45,7 +42,7 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         srun_command_parts.append("-m cuda")
         srun_command_parts.append("-F")
 
-        if tr.test.extra_cmd_args:
-            srun_command_parts.append(tr.test.extra_cmd_args)
+        if self.test_run.test.extra_cmd_args:
+            srun_command_parts.append(self.test_run.test.extra_cmd_args)
 
         return srun_command_parts
