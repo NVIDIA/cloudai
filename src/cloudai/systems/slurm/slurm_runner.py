@@ -73,6 +73,10 @@ class SlurmRunner(BaseRunner):
         logging.info(f"Submitted slurm job: {job_id}")
         return SlurmJob(tr, id=job_id)
 
+    def on_job_submit(self, tr: TestRun) -> None:
+        cmd_gen = self.get_cmd_gen_strategy(self.system, tr)
+        cmd_gen.store_test_run(tr)
+
     def on_job_completion(self, job: BaseJob) -> None:
         logging.debug(f"Job completion callback for job {job.id}")
         self.system.complete_job(cast(SlurmJob, job))
