@@ -36,7 +36,7 @@ def testrun_fixture(tmp_path: Path, slurm_system: SlurmSystem) -> TestRun:
         name="test_job",
         description="Test description",
         test_template_name="d",
-        cmd_args=NCCLCmdArgs(),
+        cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
         extra_env_vars={"TEST_VAR": "VALUE"},
     )
 
@@ -125,7 +125,7 @@ def make_test_run(slurm_system: SlurmSystem, name: str, output_dir: Path) -> Tes
         name=name,
         description=name,
         test_template_name="nccl",
-        cmd_args=NCCLCmdArgs(),
+        cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
         extra_env_vars={"TEST_VAR": "VALUE"},
     )
     test_template = TestTemplate(slurm_system)

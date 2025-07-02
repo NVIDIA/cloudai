@@ -77,7 +77,11 @@ def test_extra_args_str(input: dict, expected: str):
 )
 def test_extra_args_str_nccl(input: dict, expected: str):
     t = NCCLTestDefinition(
-        name="test", description="test", test_template_name="test", cmd_args=NCCLCmdArgs(), extra_cmd_args=input
+        name="nccl",
+        description="test",
+        test_template_name="NcclTest",
+        cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+        extra_cmd_args=input,
     )
     assert t.extra_args_str == expected
 
@@ -110,7 +114,12 @@ def test_chakra_docker_image_is_required():
             test_template_name="ucc",
             cmd_args=UCCCmdArgs(docker_image_url="fake://url/ucc"),
         ),
-        NCCLTestDefinition(name="nccl", description="desc", test_template_name="nccl", cmd_args=NCCLCmdArgs()),
+        NCCLTestDefinition(
+            name="nccl",
+            description="desc",
+            test_template_name="nccl",
+            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+        ),
         GPTTestDefinition(
             name="gpt",
             description="desc",
