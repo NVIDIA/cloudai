@@ -76,5 +76,5 @@ class TestChakraReplaySlurmCommandGenStrategy:
         tr.test.test_definition.cmd_args = ChakraReplayCmdArgs(docker_image_url="", **cmd_args)
         tr.test.extra_cmd_args = extra_cmd_args
         cmd_gen_strategy = ChakraReplaySlurmCommandGenStrategy(slurm_system, tr)
-        command = cmd_gen_strategy.generate_test_command({}, {}, tr)
+        command = cmd_gen_strategy.generate_test_command({}, {})
         assert command == expected_result

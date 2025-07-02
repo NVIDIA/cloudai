@@ -76,12 +76,12 @@ class TestNeMoRunSlurmCommandGenStrategy:
         recipe_name = cmd_gen_strategy._validate_recipe_name(cmd_args.recipe_name)
 
         cmd = cmd_gen_strategy.generate_test_command(
-            test_run.test.test_definition.extra_env_vars, test_run.test.test_definition.cmd_args.model_dump(), test_run
+            test_run.test.test_definition.extra_env_vars, test_run.test.test_definition.cmd_args.model_dump()
         )
         assert cmd is not None
         assert cmd[:5] == [
             "python",
-            f"/cloudai_install/{cmd_gen_strategy._run_script(test_run).name}",
+            f"/cloudai_install/{cmd_gen_strategy._run_script().name}",
             "--factory",
             recipe_name,
             "-y",
@@ -96,11 +96,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
         cmd_args_dict = test_run.test.test_definition.cmd_args.model_dump()
         cmd_args_dict["trainer"]["num_nodes"] = len(test_run.nodes)
 
-        cmd = cmd_gen_strategy.generate_test_command(
-            test_run.test.test_definition.extra_env_vars,
-            cmd_args_dict,
-            test_run,
-        )
+        cmd = cmd_gen_strategy.generate_test_command(test_run.test.test_definition.extra_env_vars, cmd_args_dict)
 
         assert any("trainer.num_nodes=1" in param for param in cmd)
 
@@ -118,8 +114,6 @@ class TestNeMoRunSlurmCommandGenStrategy:
 
         with caplog.at_level(logging.WARNING):
             cmd_gen_strategy.generate_test_command(
-                test_run.test.test_definition.extra_env_vars,
-                test_run.test.test_definition.cmd_args.model_dump(),
-                test_run,
+                test_run.test.test_definition.extra_env_vars, test_run.test.test_definition.cmd_args.model_dump()
             )
         assert "Mismatch in num_nodes" in caplog.text

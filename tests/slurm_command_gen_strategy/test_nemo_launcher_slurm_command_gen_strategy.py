@@ -100,7 +100,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         nodes: List[str],
     ) -> None:
         test_run.nodes = nodes
-        cmd = cmd_gen_strategy.gen_exec_command(test_run)
+        cmd = cmd_gen_strategy.gen_exec_command()
 
         for content in expected_content:
             assert any(content in part for part in cmd.split())
@@ -118,7 +118,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         tokenizer_path.touch()
 
         test_run.test.test_definition.extra_cmd_args = {f"training.model.tokenizer.model={tokenizer_path}": ""}
-        cmd = cmd_gen_strategy.gen_exec_command(test_run)
+        cmd = cmd_gen_strategy.gen_exec_command()
 
         assert f'container_mounts=["{tokenizer_path}:{tokenizer_path}"]' in cmd
 
@@ -137,7 +137,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         expected_reservation: str,
     ) -> None:
         cmd_gen_strategy.system.extra_srun_args = extra_srun_args
-        cmd = cmd_gen_strategy.gen_exec_command(test_run)
+        cmd = cmd_gen_strategy.gen_exec_command()
 
         if expected_reservation:
             assert expected_reservation in cmd
@@ -153,7 +153,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         }
 
         with pytest.raises(ValueError, match=r"The provided tokenizer path '/invalid/path/to/tokenizer' is not valid"):
-            cmd_gen_strategy.gen_exec_command(test_run)
+            cmd_gen_strategy.gen_exec_command()
 
     @pytest.mark.parametrize(
         "account, expected_prefix_pattern",
@@ -170,7 +170,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         expected_prefix_pattern: str,
     ) -> None:
         cmd_gen_strategy.system.account = account
-        cmd = cmd_gen_strategy.gen_exec_command(test_run)
+        cmd = cmd_gen_strategy.gen_exec_command()
 
         if account:
             assert f"cluster.account={account}" in cmd
@@ -196,7 +196,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         expected_gpus: str,
     ) -> None:
         cmd_gen_strategy.system.gpus_per_node = gpus_per_node
-        cmd = cmd_gen_strategy.gen_exec_command(test_run)
+        cmd = cmd_gen_strategy.gen_exec_command()
 
         assert expected_gpus in cmd
 
@@ -208,7 +208,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         tdef.cmd_args.training.model.data.data_prefix = "[]"
 
         with pytest.raises(ValueError, match="The 'data_prefix' field of the NeMo launcher test is missing or empty."):
-            cmd_gen_strategy.gen_exec_command(test_run)
+            cmd_gen_strategy.gen_exec_command()
 
     @patch("pathlib.Path.open", new_callable=mock_open)
     def test_log_command_to_file(
@@ -221,7 +221,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, test_run.test.test_definition)
         tdef.python_executable.git_repo.installed_path = repo_path
         tdef.python_executable.venv_path = repo_path.parent / f"{repo_path.name}-venv"
-        cmd_gen_strategy.gen_exec_command(test_run)
+        cmd_gen_strategy.gen_exec_command()
 
         written_content = mock_file().write.call_args[0][0]
 
@@ -241,7 +241,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         nccl_topo_file_path = "/opt/topo.toml"
         test_run.test.test_definition.extra_env_vars["NCCL_TOPO_FILE"] = nccl_topo_file_path
 
-        cmd = cmd_gen_strategy.gen_exec_command(test_run)
+        cmd = cmd_gen_strategy.gen_exec_command()
 
         expected_mount = f'container_mounts=["{nccl_topo_file_path}:{nccl_topo_file_path}"]'
         assert expected_mount in cmd

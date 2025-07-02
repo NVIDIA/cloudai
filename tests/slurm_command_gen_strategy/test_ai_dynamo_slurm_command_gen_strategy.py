@@ -139,7 +139,7 @@ def test_hugging_face_home_path_missing(test_run: TestRun) -> None:
 
 
 def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: TestRun) -> None:
-    mounts = strategy._container_mounts(test_run)
+    mounts = strategy._container_mounts()
     td = cast(AIDynamoTestDefinition, test_run.test.test_definition)
     script_host = test_run.output_path / "run.sh"
     yaml_config_path = test_run.output_path / "dynamo_config.yaml"

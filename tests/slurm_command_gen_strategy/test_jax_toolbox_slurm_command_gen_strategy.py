@@ -84,16 +84,10 @@ class TestJaxToolboxSlurmCommandGenStrategy:
         slurm_system.output_path.mkdir(parents=True, exist_ok=True)
 
         test = Test(test_definition=test_def, test_template=TestTemplate(slurm_system))
-        test_run = TestRun(
-            test=test,
-            num_nodes=1,
-            nodes=["node1"],
-            output_path=tmp_path / "output",
-            name="test-job",
-        )
+        test_run = TestRun(test=test, num_nodes=1, nodes=["node1"], output_path=tmp_path / "output", name="test-job")
 
         cmd_gen_strategy = JaxToolboxSlurmCommandGenStrategy(slurm_system, test_run)
-        cmd = cmd_gen_strategy.gen_exec_command(test_run)
+        cmd = cmd_gen_strategy.gen_exec_command()
         assert cmd == f"sbatch {test_run.output_path}/cloudai_sbatch_script.sh"
         assert (test_run.output_path / "run.sh").exists()
 

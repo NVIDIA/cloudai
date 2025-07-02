@@ -31,12 +31,9 @@ class CommandGenStrategy(TestTemplateStrategy, ABC):
         self.test_run = test_run
 
     @abstractmethod
-    def gen_exec_command(self, tr: TestRun) -> str:
+    def gen_exec_command(self) -> str:
         """
         Generate the execution command for a test based on the given parameters.
-
-        Args:
-            tr (TestRun): Contains the test and its run-specific configurations.
 
         Returns:
             str: The generated execution command.
@@ -44,13 +41,10 @@ class CommandGenStrategy(TestTemplateStrategy, ABC):
         pass
 
     @abstractmethod
-    def store_test_run(self, tr: TestRun) -> None:
+    def store_test_run(self) -> None:
         """
         Store the test run information in output folder.
 
         Only at command generation time, CloudAI has all the information to store the test run.
-
-        Args:
-            tr (TestRun): The test run object to be stored.
         """
         pass

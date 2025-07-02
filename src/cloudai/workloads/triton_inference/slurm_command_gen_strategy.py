@@ -30,25 +30,25 @@ class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         super().__init__(system, test_run)
         self._current_container_image: str | None = None
 
-    def _container_mounts(self, tr: TestRun) -> list[str]:
-        td = cast(TritonInferenceTestDefinition, tr.test.test_definition)
+    def _container_mounts(self) -> list[str]:
+        td = cast(TritonInferenceTestDefinition, self.test_run.test.test_definition)
         mounts = [
             f"{td.nim_model_path}:{td.nim_model_path}:ro",
             f"{td.nim_cache_path}:{td.nim_cache_path}:rw",
         ]
 
-        wrapper_host = (tr.output_path / "start_server_wrapper.sh").resolve()
+        wrapper_host = (self.test_run.output_path / "start_server_wrapper.sh").resolve()
         wrapper_container = "/opt/nim/start_server_wrapper.sh"
         self._generate_start_wrapper_script(wrapper_host, td.extra_env_vars)
         mounts.append(f"{wrapper_host}:{wrapper_container}:ro")
 
         return mounts
 
-    def _append_sbatch_directives(self, batch_script_content: List[str], tr: TestRun) -> None:
-        super()._append_sbatch_directives(batch_script_content, tr)
+    def _append_sbatch_directives(self, batch_script_content: List[str]) -> None:
+        super()._append_sbatch_directives(batch_script_content)
         batch_script_content.append("export HEAD_NODE=$SLURM_JOB_MASTER_NODE")
         batch_script_content.append("export NIM_LEADER_IP_ADDRESS=$SLURM_JOB_MASTER_NODE")
-        batch_script_content.append(f"export NIM_NUM_COMPUTE_NODES={tr.nnodes - 1}")
+        batch_script_content.append(f"export NIM_NUM_COMPUTE_NODES={self.test_run.nnodes - 1}")
         batch_script_content.append("export NIM_MODEL_TOKENIZER='deepseek-ai/DeepSeek-R1'")
 
     def _generate_start_wrapper_script(self, script_path: Path, env_vars: Dict[str, Any]) -> None:
@@ -76,40 +76,40 @@ class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         script_path.chmod(0o755)
 
     def _gen_srun_command(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
+        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]]
     ) -> str:
-        num_server_nodes, num_client_nodes = self._get_server_client_split(tr)
-        server_line = self._build_server_srun(tr, num_server_nodes)
-        client_line = self._build_client_srun(tr, num_client_nodes)
-        sleep_sec = cast(TritonInferenceTestDefinition, tr.test.test_definition).cmd_args.sleep_seconds
+        num_server_nodes, num_client_nodes = self._get_server_client_split()
+        server_line = self._build_server_srun(num_server_nodes)
+        client_line = self._build_client_srun(num_client_nodes)
+        sleep_sec = cast(TritonInferenceTestDefinition, self.test_run.test.test_definition).cmd_args.sleep_seconds
         return f"{server_line} &\n\nsleep {sleep_sec}\n\n{client_line}"
 
-    def _get_server_client_split(self, tr: TestRun) -> Tuple[int, int]:
-        num_nodes, _ = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes)
+    def _get_server_client_split(self) -> Tuple[int, int]:
+        num_nodes, _ = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)
         if num_nodes < 3:
             raise ValueError("DeepSeekR1 requires at least 3 nodes: 2 server and 1 client.")
         return num_nodes - 1, 1
 
-    def image_path(self, tr: TestRun) -> str | None:
+    def image_path(self) -> str | None:
         return self._current_container_image
 
-    def _build_server_srun(self, tr: TestRun, num_server_nodes: int) -> str:
-        test_definition = cast(TritonInferenceTestDefinition, tr.test.test_definition)
+    def _build_server_srun(self, num_server_nodes: int) -> str:
+        test_definition = cast(TritonInferenceTestDefinition, self.test_run.test.test_definition)
         self._current_container_image = str(test_definition.server_docker_image.installed_path)
-        srun_prefix = self.gen_srun_prefix(tr)
+        srun_prefix = self.gen_srun_prefix()
         self._current_container_image = None
 
         srun_prefix.append(f"--nodes={num_server_nodes}")
         srun_prefix.append(f"--ntasks={num_server_nodes}")
         srun_prefix.append("--ntasks-per-node=1")
-        nsys_command = self.gen_nsys_command(tr)
+        nsys_command = self.gen_nsys_command()
         server_launch_command = ["/opt/nim/start_server_wrapper.sh"]
         return " ".join(srun_prefix + nsys_command + server_launch_command)
 
-    def _build_client_srun(self, tr: TestRun, num_client_nodes: int) -> str:
-        test_definition = cast(TritonInferenceTestDefinition, tr.test.test_definition)
+    def _build_client_srun(self, num_client_nodes: int) -> str:
+        test_definition = cast(TritonInferenceTestDefinition, self.test_run.test.test_definition)
         self._current_container_image = str(test_definition.client_docker_image.installed_path)
-        srun_prefix = self.gen_srun_prefix(tr)
+        srun_prefix = self.gen_srun_prefix()
         self._current_container_image = None
 
         srun_prefix.append(f"--nodes={num_client_nodes}")

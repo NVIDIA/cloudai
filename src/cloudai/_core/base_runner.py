@@ -116,7 +116,7 @@ class BaseRunner(ABC):
 
     def on_job_submit(self, tr: TestRun) -> None:
         cmd_gen = self.get_cmd_gen_strategy(self.system, tr)
-        cmd_gen.store_test_run(tr)
+        cmd_gen.store_test_run()
 
     async def delayed_submit_test(self, tr: TestRun, delay: int = 5):
         """

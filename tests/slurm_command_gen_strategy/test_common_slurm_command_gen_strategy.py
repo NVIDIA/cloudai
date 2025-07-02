@@ -26,7 +26,7 @@ from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 
 class MySlurmCommandGenStrategy(SlurmCommandGenStrategy):
-    def _container_mounts(self, tr: TestRun) -> List[str]:
+    def _container_mounts(self) -> List[str]:
         return []
 
 
@@ -55,9 +55,9 @@ def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, testrun_
     env_vars: Dict[str, Union[str, List[str]]] = {"TEST_VAR": "VALUE"}
     cmd_args: Dict[str, Union[str, List[str]]] = {"test_arg": "test_value"}
 
-    srun_command = strategy_fixture._gen_srun_command(env_vars, cmd_args, testrun_fixture)
+    srun_command = strategy_fixture._gen_srun_command(env_vars, cmd_args)
 
-    sbatch_command = strategy_fixture._write_sbatch_script(env_vars, srun_command, testrun_fixture)
+    sbatch_command = strategy_fixture._write_sbatch_script(env_vars, srun_command)
     filepath_from_command = sbatch_command.split()[-1]
 
     assert testrun_fixture.output_path.joinpath("cloudai_sbatch_script.sh").exists()
@@ -79,24 +79,20 @@ def test_num_nodes_and_nodes(strategy_fixture: SlurmCommandGenStrategy):
     tr.output_path.mkdir(parents=True, exist_ok=True)
 
     lines: list[str] = []
-    strategy_fixture._append_sbatch_directives(lines, tr)
+    strategy_fixture._append_sbatch_directives(lines)
 
     assert f"#SBATCH -N {tr.num_nodes}" not in lines
     assert f"#SBATCH --nodelist={','.join(tr.nodes)}" in lines
 
 
 def test_only_num_nodes(strategy_fixture: SlurmCommandGenStrategy):
-    tr = make_test_run(
-        slurm_system=strategy_fixture.system, name="test_job", output_dir=strategy_fixture.system.output_path
-    )
-    tr.nodes = []
-    tr.num_nodes = 3
-
     lines: list[str] = []
-    strategy_fixture._append_sbatch_directives(lines, tr)
+    strategy_fixture.test_run.nodes = []
+    strategy_fixture.test_run.num_nodes = 3
+    strategy_fixture._append_sbatch_directives(lines)
 
-    assert f"#SBATCH -N {tr.num_nodes}" in lines
-    assert f"#SBATCH --nodelist={','.join(tr.nodes)}" not in lines
+    assert f"#SBATCH -N {strategy_fixture.test_run.num_nodes}" in lines
+    assert f"#SBATCH --nodelist={','.join(strategy_fixture.test_run.nodes)}" not in lines
 
 
 def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
@@ -108,7 +104,7 @@ def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
     tr.output_path.mkdir(parents=True, exist_ok=True)
 
     lines: list[str] = []
-    strategy_fixture._append_sbatch_directives(lines, tr)
+    strategy_fixture._append_sbatch_directives(lines)
 
     assert f"#SBATCH --nodelist={','.join(tr.nodes)}" in lines
     assert f"#SBATCH -N {tr.num_nodes}" not in lines
@@ -116,14 +112,10 @@ def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
 
 @pytest.mark.parametrize("time_limit", [None, "1:00:00"])
 def test_time_limit(time_limit: Optional[str], strategy_fixture: SlurmCommandGenStrategy):
-    tr = make_test_run(
-        slurm_system=strategy_fixture.system, name="test_job", output_dir=strategy_fixture.system.output_path
-    )
-    tr.nodes = []
-    tr.time_limit = time_limit
-
     lines: list[str] = []
-    strategy_fixture._append_sbatch_directives(lines, tr)
+    strategy_fixture.test_run.nodes = []
+    strategy_fixture.test_run.time_limit = time_limit
+    strategy_fixture._append_sbatch_directives(lines)
 
     if time_limit is not None:
         assert any("#SBATCH --time=" in line for line in lines)
@@ -243,7 +235,7 @@ def test_pre_post_combinations(
         else:
             testrun_fixture.post_test = None
 
-        sbatch_command = strategy_fixture.gen_exec_command(testrun_fixture)
+        sbatch_command = strategy_fixture.gen_exec_command()
         script_path = sbatch_command.split()[-1]
         content = Path(script_path).read_text()
 
@@ -253,7 +245,7 @@ def test_pre_post_combinations(
 
 def test_default_container_mounts(strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun):
     testrun_fixture.output_path = Path("./")
-    mounts = strategy_fixture.container_mounts(testrun_fixture)
+    mounts = strategy_fixture.container_mounts()
     assert len(mounts) == 3
     assert mounts[0] == f"{testrun_fixture.output_path.absolute()}:/cloudai_run_results"
     assert mounts[1] == f"{strategy_fixture.system.install_path.absolute()}:/cloudai_install"
@@ -263,7 +255,7 @@ def test_default_container_mounts(strategy_fixture: SlurmCommandGenStrategy, tes
 def test_append_sbatch_directives(strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun):
     content: list[str] = []
     strategy_fixture.system.extra_sbatch_args = ["--section=4", "--other-arg 1"]
-    strategy_fixture._append_sbatch_directives(content, testrun_fixture)
+    strategy_fixture._append_sbatch_directives(content)
 
     assert f"#SBATCH --partition={strategy_fixture.system.default_partition}" in content
     for arg in strategy_fixture.system.extra_sbatch_args:
@@ -271,40 +263,26 @@ def test_append_sbatch_directives(strategy_fixture: SlurmCommandGenStrategy, tes
 
 
 def test_default_container_mounts_with_extra_mounts(strategy_fixture: SlurmCommandGenStrategy):
-    nccl = NCCLTestDefinition(
-        name="name",
-        description="desc",
-        test_template_name="tt",
-        cmd_args=NCCLCmdArgs(),
-        extra_container_mounts=["/host:/container"],
-    )
-    t = Test(test_definition=nccl, test_template=Mock())
-    tr = TestRun(name="t1", test=t, num_nodes=1, nodes=[], output_path=Path("./"))
-    mounts = strategy_fixture.container_mounts(tr)
+    strategy_fixture.test_run.test.test_definition.extra_container_mounts = ["/host:/container"]
+    mounts = strategy_fixture.container_mounts()
     assert len(mounts) == 4
-    assert mounts[0] == f"{tr.output_path.absolute()}:/cloudai_run_results"
+    assert mounts[0] == f"{strategy_fixture.test_run.output_path.absolute()}:/cloudai_run_results"
     assert mounts[1] == f"{strategy_fixture.system.install_path.absolute()}:/cloudai_install"
-    assert mounts[2] == f"{tr.output_path.absolute()}"
+    assert mounts[2] == f"{strategy_fixture.test_run.output_path.absolute()}"
     assert mounts[3] == "/host:/container"
 
 
 def test_default_container_mounts_with_git_repos(strategy_fixture: SlurmCommandGenStrategy):
     repo1 = GitRepo(url="./git_repo", commit="commit", mount_as="/git/r1", installed_path=Path.cwd())
     repo2 = GitRepo(url="./git_repo2", commit="commit", mount_as="/git/r2", installed_path=Path.cwd())
-    nccl = NCCLTestDefinition(
-        name="name",
-        description="desc",
-        test_template_name="tt",
-        cmd_args=NCCLCmdArgs(),
-        git_repos=[repo1, repo2],
-    )
-    t = Test(test_definition=nccl, test_template=Mock())
-    tr = TestRun(name="t1", test=t, num_nodes=1, nodes=[], output_path=Path("./"))
-    mounts = strategy_fixture.container_mounts(tr)
+    strategy_fixture.test_run.test.test_definition.git_repos = [repo1, repo2]
+
+    mounts = strategy_fixture.container_mounts()
+
     assert len(mounts) == 5
-    assert mounts[0] == f"{tr.output_path.absolute()}:/cloudai_run_results"
+    assert mounts[0] == f"{strategy_fixture.test_run.output_path.absolute()}:/cloudai_run_results"
     assert mounts[1] == f"{strategy_fixture.system.install_path.absolute()}:/cloudai_install"
-    assert mounts[2] == f"{tr.output_path.absolute()}"
+    assert mounts[2] == f"{strategy_fixture.test_run.output_path.absolute()}"
     assert mounts[3] == f"{repo1.installed_path}:{repo1.container_mount}"
     assert mounts[4] == f"{repo2.installed_path}:{repo2.container_mount}"
 
@@ -318,13 +296,13 @@ def test_ranks_mapping_cmd(strategy_fixture: SlurmCommandGenStrategy, testrun_fi
         r'"echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."'
     )
 
-    result = strategy_fixture._ranks_mapping_cmd(testrun_fixture)
+    result = strategy_fixture._ranks_mapping_cmd()
     assert result == expected_command
 
 
 def test_nccl_topo_mount(strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun):
     testrun_fixture.test.extra_env_vars["NCCL_TOPO_FILE"] = "/tmp/nccl_topo.txt"
-    mounts = strategy_fixture.container_mounts(testrun_fixture)
+    mounts = strategy_fixture.container_mounts()
     expected_mount = f"{Path('/tmp/nccl_topo.txt').resolve()}:{Path('/tmp/nccl_topo.txt').resolve()}"
     assert expected_mount in mounts
 
@@ -335,15 +313,17 @@ def test_gen_srun_prefix_with_pretest_extras(
 ):
     pre_test = TestScenario(name="pre", test_runs=[make_test_run(slurm_system, "pre", tmp_path)])
 
-    tr = make_test_run(slurm_system, "test_with_pre", tmp_path)
-    tr.pre_test = pre_test
-
     class PreTestCmdGenStrategy(MySlurmCommandGenStrategy):
         def pre_test_srun_extra_args(self, tr: TestRun) -> List[str]:
             return ["--pre-arg1", "--pre-arg2"]
 
-    with patch.object(strategy_fixture, "_get_cmd_gen_strategy", return_value=PreTestCmdGenStrategy(slurm_system, tr)):
-        srun_prefix_with_extras = strategy_fixture.gen_srun_prefix(tr, use_pretest_extras=use_pretest_extras)
+    strategy_fixture.test_run.pre_test = pre_test
+    with patch.object(
+        strategy_fixture,
+        "_get_cmd_gen_strategy",
+        return_value=PreTestCmdGenStrategy(slurm_system, strategy_fixture.test_run),
+    ):
+        srun_prefix_with_extras = strategy_fixture.gen_srun_prefix(use_pretest_extras=use_pretest_extras)
 
     assert ("--pre-arg1" in srun_prefix_with_extras) is use_pretest_extras
     assert ("--pre-arg2" in srun_prefix_with_extras) is use_pretest_extras
@@ -355,7 +335,7 @@ def test_gen_srun_prefix_with_container_mount_home(
 ):
     strategy_fixture.system.container_mount_home = container_mount_home
     strategy_fixture.image_path = Mock(return_value="path")
-    srun_prefix = strategy_fixture.gen_srun_prefix(testrun_fixture)
+    srun_prefix = strategy_fixture.gen_srun_prefix()
     assert ("--no-container-mount-home" in srun_prefix) is not container_mount_home
 
 
@@ -365,7 +345,7 @@ def test_append_distribution_and_hostfile_with_nodes(
     strategy_fixture.system.distribution = "block"
     strategy_fixture.system.ntasks_per_node = 2
     content: List[str] = []
-    strategy_fixture._append_nodes_related_directives(content, testrun_fixture)
+    strategy_fixture._append_nodes_related_directives(content)
 
     assert "#SBATCH --distribution=arbitrary" in content
     assert "#SBATCH --nodelist=node1,node2" in content
@@ -382,7 +362,7 @@ def test_distribution_fallback_when_no_nodes(
     testrun_fixture.nodes = []
     strategy_fixture.system.distribution = "cyclic"
     content: List[str] = []
-    strategy_fixture._append_nodes_related_directives(content, testrun_fixture)
+    strategy_fixture._append_nodes_related_directives(content)
 
     assert "#SBATCH --distribution=cyclic" in content
     assert "#SBATCH --nodelist=" not in content

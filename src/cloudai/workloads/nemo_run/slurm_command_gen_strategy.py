@@ -19,7 +19,6 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Union, cast
 
-from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 from .nemo_run import NeMoRunTestDefinition
@@ -28,16 +27,14 @@ from .nemo_run import NeMoRunTestDefinition
 class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for NeMo 2.0 on Slurm systems."""
 
-    def image_path(self, tr: TestRun) -> str | None:
-        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
+    def image_path(self) -> str | None:
+        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, self.test_run.test.test_definition)
         return str(tdef.docker_image.installed_path)
 
-    def _gen_srun_command(
-        self, env_vars: Dict[str, str | List[str]], cmd_args: Dict[str, str | List[str]], tr: TestRun
-    ) -> str:
-        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
+    def _gen_srun_command(self, env_vars: Dict[str, str | List[str]], cmd_args: Dict[str, str | List[str]]) -> str:
+        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, self.test_run.test.test_definition)
         self._set_additional_env_vars(env_vars, tdef)
-        return super()._gen_srun_command(env_vars, cmd_args, tr)
+        return super()._gen_srun_command(env_vars, cmd_args)
 
     def _set_additional_env_vars(self, env_vars: Dict[str, Union[str, List[str]]], tdef: NeMoRunTestDefinition):
         """Set environment variables based on NeMoRunTestDefinition."""
@@ -63,12 +60,12 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             )
             env_vars["CLOUDAI_DISABLE_TP_COMM_OVERLAP"] = "1"
 
-    def _run_script(self, tr: TestRun) -> Path:
-        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
+    def _run_script(self) -> Path:
+        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, self.test_run.test.test_definition)
         return tdef.script.installed_path
 
-    def _container_mounts(self, tr: TestRun) -> List[str]:
-        return [f"{self._run_script(tr).parent.absolute()}:/cloudai_workspace"]
+    def _container_mounts(self) -> List[str]:
+        return [f"{self._run_script().parent.absolute()}:/cloudai_workspace"]
 
     def flatten_dict(self, d: dict[str, str], parent_key: str = "", sep: str = "."):
         items = []
@@ -109,9 +106,9 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return recipe_name
 
     def generate_test_command(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
+        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]]
     ) -> List[str]:
-        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, tr.test.test_definition)
+        tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, self.test_run.test.test_definition)
 
         tdef.cmd_args.data.num_train_samples = tdef.update_num_train_samples
 
@@ -122,9 +119,9 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         recipe_name = self._validate_recipe_name(tdef.cmd_args.recipe_name)
 
-        command = ["python", f"/cloudai_install/{self._run_script(tr).name}", "--factory", recipe_name, "-y"]
+        command = ["python", f"/cloudai_install/{self._run_script().name}", "--factory", recipe_name, "-y"]
 
-        num_nodes, _ = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes)
+        num_nodes, _ = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)
 
         if tdef.cmd_args.trainer.num_nodes is not None and tdef.cmd_args.trainer.num_nodes > num_nodes:
             logging.warning(
@@ -149,7 +146,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         self.append_flattened_dict("", cmd_args_dict, command)
 
-        if tr.test.extra_cmd_args:
-            command.append(tr.test.extra_cmd_args)
+        if self.test_run.test.extra_cmd_args:
+            command.append(self.test_run.test.extra_cmd_args)
 
         return command

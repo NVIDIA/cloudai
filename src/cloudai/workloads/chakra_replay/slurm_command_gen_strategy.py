@@ -24,20 +24,20 @@ from cloudai.workloads.chakra_replay import ChakraReplayTestDefinition
 class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for ChakraReplay on Slurm systems."""
 
-    def _container_mounts(self, tr: TestRun) -> list[str]:
-        tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, tr.test.test_definition)
+    def _container_mounts(self) -> list[str]:
+        tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, self.test_run.test.test_definition)
         if tdef.cmd_args.trace_path:
             return [f"{tdef.cmd_args.trace_path}:{tdef.cmd_args.trace_path}"]
         return []
 
-    def image_path(self, tr: TestRun) -> str | None:
-        tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, tr.test.test_definition)
+    def image_path(self) -> str | None:
+        tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, self.test_run.test.test_definition)
         return str(tdef.docker_image.installed_path)
 
     def generate_test_command(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
+        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]]
     ) -> List[str]:
-        tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, tr.test.test_definition)
+        tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, self.test_run.test.test_definition)
 
         additional_cmd_args_dict = tdef.cmd_args.model_extra or {}
 
@@ -47,6 +47,6 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f"--trace-path {tdef.cmd_args.trace_path}",
             f"--num-replays {tdef.cmd_args.num_replays}",
             *[f"--{k.replace('_', '-')} {v}" for k, v in additional_cmd_args_dict.items()],
-            tr.test.extra_cmd_args,
+            self.test_run.test.extra_cmd_args,
         ]
         return srun_command_parts

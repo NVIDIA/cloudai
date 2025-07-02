@@ -56,7 +56,7 @@ class SlurmRunner(BaseRunner):
 
     def _submit_test(self, tr: TestRun) -> SlurmJob:
         logging.info(f"Running test: {tr.name}")
-        exec_cmd = self.get_cmd_gen_strategy(self.system, tr).gen_exec_command(tr)
+        exec_cmd = self.get_cmd_gen_strategy(self.system, tr).gen_exec_command()
         logging.debug(f"Executing command for test {tr.name}: {exec_cmd}")
         job_id = 0
         if self.mode == "run":
@@ -104,8 +104,8 @@ class SlurmRunner(BaseRunner):
             end_time=steps_metadata[0].end_time,
             elapsed_time_sec=steps_metadata[0].elapsed_time_sec,
             job_steps=steps_metadata[1:],
-            srun_cmd=cmd_gen.gen_srun_command(job.test_run),
-            test_cmd=" ".join(cmd_gen.generate_test_command({}, {}, job.test_run)),
+            srun_cmd=cmd_gen.gen_srun_command(),
+            test_cmd=" ".join(cmd_gen.generate_test_command({}, {})),
             job_root=job.test_run.output_path.absolute(),
         )
 

@@ -16,7 +16,6 @@
 
 from typing import Dict, List, Union, cast
 
-from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 from .sleep import SleepCmdArgs, SleepTestDefinition
@@ -25,12 +24,12 @@ from .sleep import SleepCmdArgs, SleepTestDefinition
 class SleepSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for Sleep on Slurm systems."""
 
-    def _container_mounts(self, tr: TestRun) -> list[str]:
+    def _container_mounts(self) -> list[str]:
         return []
 
     def generate_test_command(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
+        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]]
     ) -> List[str]:
-        tdef: SleepTestDefinition = cast(SleepTestDefinition, tr.test.test_definition)
+        tdef: SleepTestDefinition = cast(SleepTestDefinition, self.test_run.test.test_definition)
         tdef_cmd_args: SleepCmdArgs = tdef.cmd_args
         return [f"sleep {tdef_cmd_args.seconds}"]

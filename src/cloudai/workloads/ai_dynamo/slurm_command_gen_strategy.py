@@ -28,14 +28,14 @@ from .ai_dynamo import AIDynamoTestDefinition
 class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for AI Dynamo on Slurm systems."""
 
-    def _container_mounts(self, tr: TestRun) -> list[str]:
-        td = cast(AIDynamoTestDefinition, tr.test.test_definition)
+    def _container_mounts(self) -> list[str]:
+        td = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
         mounts = [
             f"{td.hugging_face_home_path}:{td.hugging_face_home_path}",
         ]
-        script_host = (tr.output_path / "run.sh").resolve()
+        script_host = (self.test_run.output_path / "run.sh").resolve()
         script_container = "/opt/run.sh"
-        yaml_path = (tr.output_path / "dynamo_config.yaml").resolve()
+        yaml_path = (self.test_run.output_path / "dynamo_config.yaml").resolve()
         self._generate_wrapper_script(script_host, td, yaml_path)
         mounts.append(f"{script_host}:{script_container}")
 
@@ -66,8 +66,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             yaml.dump(config, yaml_file)
         return yaml_path
 
-    def image_path(self, tr: TestRun) -> str | None:
-        tdef: AIDynamoTestDefinition = cast(AIDynamoTestDefinition, tr.test.test_definition)
+    def image_path(self) -> str | None:
+        tdef: AIDynamoTestDefinition = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
         return str(tdef.docker_image.installed_path)
 
     def _generate_wrapper_script(self, script_path: Path, td: AIDynamoTestDefinition, yaml_path: Path) -> None:
@@ -245,13 +245,10 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return " ".join(cmd)
 
     def _gen_srun_command(
-        self,
-        env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, Union[str, List[str]]],
-        tr: TestRun,
+        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]]
     ) -> str:
-        num_nodes, _ = self.get_cached_nodes_spec(tr)
-        srun_prefix = self.gen_srun_prefix(tr)
+        num_nodes, _ = self.get_cached_nodes_spec()
+        srun_prefix = self.gen_srun_prefix()
         srun_prefix.extend(
             [
                 f"--nodes={num_nodes}",
@@ -261,13 +258,13 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         )
         return " ".join([*srun_prefix, "/opt/run.sh"])
 
-    def get_cached_nodes_spec(self, tr: TestRun) -> tuple[int, list[str]]:
-        cache_key = f"{tr.current_iteration}:{tr.step}:{tr.num_nodes}:{','.join(tr.nodes)}"
+    def get_cached_nodes_spec(self) -> tuple[int, list[str]]:
+        cache_key = f"{self.test_run.current_iteration}:{self.test_run.step}:{self.test_run.num_nodes}:{','.join(self.test_run.nodes)}"
 
         if cache_key in self._node_spec_cache:
             return self._node_spec_cache[cache_key]
 
-        td = cast(AIDynamoTestDefinition, tr.test.test_definition)
+        td = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
         prefill_n = td.cmd_args.dynamo.prefill_worker.num_nodes
         decode_n = td.cmd_args.dynamo.vllm_worker.num_nodes
 
@@ -276,7 +273,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         total_nodes = 1 + prefill_n + decode_n
 
-        requested_nodes, node_list = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes)
+        requested_nodes, node_list = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)
         if total_nodes > requested_nodes:
             raise ValueError(
                 f"Not enough nodes requested: need {total_nodes} total nodes "

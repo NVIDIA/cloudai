@@ -50,7 +50,7 @@ def nixl_bench_tr(slurm_system: SlurmSystem) -> TestRun:
 class TestNIXLBenchCommand:
     def test_default(self, nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
         strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
-        cmd = strategy.gen_nixlbench_command(nixl_bench_tr)
+        cmd = strategy.gen_nixlbench_command()
         assert cmd == ["./nixlbench", "--etcd-endpoints http://127.0.0.1:2379"]
 
     def test_can_set_any_cmd_arg(self, nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
@@ -66,7 +66,7 @@ class TestNIXLBenchCommand:
         strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
         nixl_bench_tr.test.test_definition.cmd_args = cmd_args
 
-        cmd = " ".join(strategy.gen_nixlbench_command(nixl_bench_tr))
+        cmd = " ".join(strategy.gen_nixlbench_command())
 
         for k, v in in_args.items():
             assert f"--{k} {v}" in cmd
@@ -74,7 +74,7 @@ class TestNIXLBenchCommand:
 
 def test_gen_etcd_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
     strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
-    cmd = " ".join(strategy.gen_etcd_srun_command(nixl_bench_tr))
+    cmd = " ".join(strategy.gen_etcd_srun_command())
     assert (
         "/usr/local/bin/etcd --listen-client-urls http://0.0.0.0:2379 "
         "--advertise-client-urls http://$(hostname -I | awk '{print $1}'):2379"
@@ -94,7 +94,7 @@ def test_gen_etcd_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem
 def test_gen_nixl_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem, nnodes: int):
     strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
     nixl_bench_tr.num_nodes = nnodes
-    cmd = " ".join(strategy.gen_nixl_srun_command(nixl_bench_tr))
+    cmd = " ".join(strategy.gen_nixl_srun_command())
 
     tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, nixl_bench_tr.test.test_definition)
 
@@ -110,5 +110,5 @@ def test_gen_nixl_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem
 
 def test_gen_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
     strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
-    cmd = strategy._gen_srun_command({}, {}, nixl_bench_tr)
+    cmd = strategy._gen_srun_command({}, {})
     assert "sleep 5" in cmd

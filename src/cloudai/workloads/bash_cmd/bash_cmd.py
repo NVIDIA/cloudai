@@ -39,22 +39,22 @@ class BashCmdTestDefinition(TestDefinition):
 class BashCmdCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for generic Slurm container tests."""
 
-    def _container_mounts(self, tr: TestRun) -> list[str]:
+    def _container_mounts(self) -> list[str]:
         return []
 
-    def gen_nsys_command(self, tr: TestRun) -> list[str]:
+    def gen_nsys_command(self) -> list[str]:
         """NSYS command is generated as part of the test command and disabled here."""
         return []
 
-    def gen_srun_prefix(self, tr: TestRun, use_pretest_extras: bool = False) -> list[str]:  # noqa: Vulture
+    def gen_srun_prefix(self, use_pretest_extras: bool = False) -> list[str]:  # noqa: Vulture
         return []
 
     def generate_test_command(
-        self, env_vars: dict[str, str | list[str]], cmd_args: dict[str, str | list[str]], tr: TestRun
+        self, env_vars: dict[str, str | list[str]], cmd_args: dict[str, str | list[str]]
     ) -> list[str]:
-        tdef: BashCmdTestDefinition = cast(BashCmdTestDefinition, tr.test.test_definition)
-        srun_command_parts: list[str] = [*super().gen_nsys_command(tr), tdef.cmd_args.cmd]
+        tdef: BashCmdTestDefinition = cast(BashCmdTestDefinition, self.test_run.test.test_definition)
+        srun_command_parts: list[str] = [*super().gen_nsys_command(), tdef.cmd_args.cmd]
         return [" ".join(srun_command_parts)]
 
-    def gen_srun_success_check(self, tr: TestRun) -> str:
+    def gen_srun_success_check(self) -> str:
         return "[ $? -eq 0 ] && echo 1 || echo 0"

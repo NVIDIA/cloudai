@@ -109,11 +109,11 @@ class SingleSbatchRunner(SlurmRunner):
         max_nodes, _ = self.extract_sbatch_nodes_spec()
         tr.num_nodes = max_nodes
         cmd_gen = cast(SlurmCommandGenStrategy, self.get_cmd_gen_strategy(self.system, tr))
-        return [cmd_gen._metadata_cmd(tr), cmd_gen._ranks_mapping_cmd(tr)]
+        return [cmd_gen._metadata_cmd(), cmd_gen._ranks_mapping_cmd()]
 
     def get_single_tr_block(self, tr: TestRun) -> str:
         cmd_gen = cast(SlurmCommandGenStrategy, self.get_cmd_gen_strategy(self.system, tr))
-        srun_cmd = cmd_gen.gen_srun_command(tr)
+        srun_cmd = cmd_gen.gen_srun_command()
         nnodes, node_list = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes)
         node_arg = f"--nodelist={','.join(node_list)}" if node_list else f"-N{nnodes}"
         extra_args = (

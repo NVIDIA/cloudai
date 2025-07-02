@@ -471,7 +471,7 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
         cmd_gen.job_name = Mock(return_value="job_name")
     if isinstance(cmd_gen, NeMoLauncherSlurmCommandGenStrategy):
         cmd_gen.job_prefix = "test_account-cloudai.nemo"
-    sbatch_script = cmd_gen.gen_exec_command(tr).split()[-1]
+    sbatch_script = cmd_gen.gen_exec_command().split()[-1]
     if "nemo-launcher" in test_req[1]:
         sbatch_script = slurm_system.output_path / "generated_command.sh"
     curr = Path(sbatch_script).read_text().strip()
