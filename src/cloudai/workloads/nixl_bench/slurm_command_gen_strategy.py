@@ -36,9 +36,9 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _container_mounts(self) -> list[str]:
         return []
 
-    def _gen_srun_command(self, env_vars: dict[str, str | list[str]]) -> str:
+    def _gen_srun_command(self) -> str:
         with (self.test_run.output_path / "env_vars.sh").open("w") as f:
-            for key, value in env_vars.items():
+            for key, value in self.final_env_vars.items():
                 f.write(f"export {key}={value}\n")
 
         etcd_command: list[str] = self.gen_etcd_srun_command()

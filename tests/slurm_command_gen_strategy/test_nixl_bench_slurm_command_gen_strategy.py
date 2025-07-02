@@ -110,5 +110,5 @@ def test_gen_nixl_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem
 
 def test_gen_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
     strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
-    cmd = strategy._gen_srun_command({})
+    cmd = strategy._gen_srun_command()
     assert "sleep 5" in cmd

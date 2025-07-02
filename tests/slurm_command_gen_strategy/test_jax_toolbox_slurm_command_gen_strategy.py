@@ -183,7 +183,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
         )
         cmd_gen.test_name = "Grok"
         cmd_gen._script_content = MagicMock(return_value="")
-        cmd_gen._create_run_script({}, cargs, "")
+        cmd_gen._create_run_script(cargs)
         assert cmd_gen._script_content.call_count == expected_ncalls
 
     def test_generate_python_command(
@@ -195,7 +195,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
         cmd_gen_strategy.test_name = "GPT"
 
         stage = "training"
-        python_cli = cmd_gen_strategy._generate_python_command(stage, cargs, "").splitlines()
+        python_cli = cmd_gen_strategy._generate_python_command(stage, cargs).splitlines()
 
         fdl_args = gpt_test.cmd_args.fdl.model_dump()
         fdl_args_list = [f"    --fdl.{k.upper()}={v} \\" for k, v in sorted(fdl_args.items())]

@@ -142,9 +142,9 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return " ".join(sorted(xla_flags))
 
-    def _gen_srun_command(self, env_vars: Dict[str, Union[str, List[str]]]) -> str:
+    def _gen_srun_command(self) -> str:
         cmd_args = self._flatten_dict(self.test_run.test.cmd_args)
-        self._create_run_script(env_vars, cmd_args, self.test_run.test.extra_cmd_args)
+        self._create_run_script(cmd_args)
 
         commands = []
         load_container = cmd_args.get("load_container", False)
@@ -154,12 +154,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return "\n".join(commands)
 
-    def _create_run_script(
-        self,
-        env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, Any],
-        extra_cmd_args: str,
-    ) -> Path:
+    def _create_run_script(self, cmd_args: Dict[str, Any]) -> Path:
         """
         Generate and write the run.sh script to the specified output directory.
 
@@ -176,15 +171,15 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         do_pgle = cmd_args.get(f"{self.test_name}.enable_pgle", True)
 
         if do_pgle:
-            env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "profile")}"'
-            run_script_content += self._script_content("profile", env_vars, cmd_args, extra_cmd_args)
+            self.final_env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "profile")}"'
+            run_script_content += self._script_content("profile", cmd_args)
 
-            env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
-            run_script_content += self._script_content("perf", env_vars, cmd_args, extra_cmd_args)
+            self.final_env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
+            run_script_content += self._script_content("perf", cmd_args)
         else:
             cmd_args[f"{self.test_name}.perf"]["XLA_FLAGS"]["xla_gpu_pgle_profile_file_or_directory_path"] = '""'
-            env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
-            run_script_content += self._script_content("perf", env_vars, cmd_args, extra_cmd_args)
+            self.final_env_vars["XLA_FLAGS"] = f'"{self._format_xla_flags(cmd_args, "perf")}"'
+            run_script_content += self._script_content("perf", cmd_args)
 
         run_script_path = Path(cmd_args["output_path"]) / "run.sh"
         with open(run_script_path, "w") as run_file:
@@ -192,13 +187,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         run_script_path.chmod(0o755)
         return run_script_path
 
-    def _script_content(
-        self,
-        stage: str,
-        env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, str],
-        extra_cmd_args: str,
-    ) -> list:
+    def _script_content(self, stage: str, cmd_args: Dict[str, str]) -> list:
         """
         Generate the content of the run script for a given stage.
 
@@ -216,11 +205,11 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         script_lines = [
             "#!/bin/bash" if stage == "profile" else "",
             "",
-            self._format_env_vars(env_vars),
+            self._format_env_vars(self.final_env_vars),
             "",
         ]
 
-        script_lines.append(self._generate_python_command(stage, cmd_args, extra_cmd_args))
+        script_lines.append(self._generate_python_command(stage, cmd_args))
         if self.test_name == "Grok" or self.test_name == "GPT" or self.test_name == "Nemotron":
             script_lines.extend(
                 [
@@ -230,14 +219,13 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return script_lines
 
-    def _generate_python_command(self, stage: str, cmd_args: Dict[str, Any], extra_cmd_args: str) -> str:
+    def _generate_python_command(self, stage: str, cmd_args: Dict[str, Any]) -> str:
         """
         Construct the PAXML Python command for execution in the Slurm environment.
 
         Args:
             stage (str): The stage of processing (e.g., 'profile', 'perf').
             cmd_args (Dict[str, str]): Command-line arguments.
-            extra_cmd_args (str): Additional command-line arguments to be included in the Python command.
 
         Returns:
             str: The formatted Python command string to be executed within a Slurm job.
@@ -264,8 +252,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         for key, value in sorted(fdl_args.items()):
             parts.append(f"--fdl.{key.upper()}={value}")
-        if extra_cmd_args:
-            parts.append(extra_cmd_args)
+        if self.test_run.test.extra_cmd_args:
+            parts.append(self.test_run.test.extra_cmd_args)
         python_command = " \\\n    ".join(parts)
 
         if stage == "profile":

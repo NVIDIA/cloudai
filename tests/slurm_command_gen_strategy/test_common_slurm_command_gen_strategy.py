@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import List, Optional
 from unittest.mock import Mock, patch
 
 import pytest
@@ -52,11 +52,9 @@ def strategy_fixture(slurm_system: SlurmSystem, testrun_fixture: TestRun) -> Slu
 
 
 def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy):
-    env_vars: Dict[str, Union[str, List[str]]] = {"TEST_VAR": "VALUE"}
+    srun_command = strategy_fixture._gen_srun_command()
 
-    srun_command = strategy_fixture._gen_srun_command(env_vars)
-
-    sbatch_command = strategy_fixture._write_sbatch_script(env_vars, srun_command)
+    sbatch_command = strategy_fixture._write_sbatch_script(srun_command)
     filepath_from_command = sbatch_command.split()[-1]
 
     assert strategy_fixture.test_run.output_path.joinpath("cloudai_sbatch_script.sh").exists()

@@ -19,7 +19,7 @@ from abc import abstractmethod
 from datetime import datetime
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, cast, final
+from typing import Any, Dict, List, Optional, cast, final
 
 import toml
 
@@ -93,9 +93,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return mounts
 
     def gen_exec_command(self) -> str:
-        env_vars = self.final_env_vars
-
-        srun_command = self._gen_srun_command(env_vars)
+        srun_command = self._gen_srun_command()
         command_list = []
         indent = ""
 
@@ -114,11 +112,10 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             command_list.append("fi")
 
         full_command = "\n".join(command_list).strip()
-        return self._write_sbatch_script(env_vars, full_command)
+        return self._write_sbatch_script(full_command)
 
     def gen_srun_command(self) -> str:
-        env_vars = self.final_env_vars
-        return self._gen_srun_command(env_vars)
+        return self._gen_srun_command()
 
     def job_name_prefix(self) -> str:
         return self.test_run.test.test_template.__class__.__name__
@@ -220,13 +217,13 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         return nsys.cmd_args
 
-    def _gen_srun_command(self, env_vars: Dict[str, Union[str, List[str]]]) -> str:
+    def _gen_srun_command(self) -> str:
         srun_command_parts = self.gen_srun_prefix(use_pretest_extras=True)
         nsys_command_parts = self.gen_nsys_command()
         test_command_parts = self.generate_test_command()
 
         with (self.test_run.output_path / "env_vars.sh").open("w") as f:
-            for key, value in env_vars.items():
+            for key, value in self.final_env_vars.items():
                 f.write(f'export {key}="{value}"\n')
 
         full_test_cmd = (
@@ -335,7 +332,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             ]
         )
 
-    def _write_sbatch_script(self, env_vars: Dict[str, Union[str, List[str]]], srun_command: str) -> str:
+    def _write_sbatch_script(self, srun_command: str) -> str:
         """
         Write the batch script for Slurm submission and return the sbatch command.
 
@@ -356,11 +353,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         self._append_sbatch_directives(batch_script_content)
 
-        batch_script_content.extend([self._format_env_vars(env_vars)])
+        batch_script_content.extend([self._format_env_vars(self.final_env_vars)])
 
-        if env_vars.get("ENABLE_VBOOST") == "1":
+        if self.final_env_vars.get("ENABLE_VBOOST") == "1":
             batch_script_content.extend([self._enable_vboost_cmd(), ""])
-        if env_vars.get("ENABLE_NUMA_CONTROL") == "1":
+        if self.final_env_vars.get("ENABLE_NUMA_CONTROL") == "1":
             batch_script_content.extend([self._enable_numa_control_cmd(), ""])
         batch_script_content.extend([self._ranks_mapping_cmd(), ""])
         batch_script_content.extend([self._metadata_cmd(), ""])

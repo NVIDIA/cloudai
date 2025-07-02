@@ -17,7 +17,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Union, cast
+from typing import Any, Dict, List, cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
@@ -31,15 +31,15 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, self.test_run.test.test_definition)
         return str(tdef.docker_image.installed_path)
 
-    def _gen_srun_command(self, env_vars: Dict[str, str | List[str]]) -> str:
+    def _gen_srun_command(self) -> str:
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, self.test_run.test.test_definition)
-        self._set_additional_env_vars(env_vars, tdef)
-        return super()._gen_srun_command(env_vars)
+        self._set_additional_env_vars(tdef)
+        return super()._gen_srun_command()
 
-    def _set_additional_env_vars(self, env_vars: Dict[str, Union[str, List[str]]], tdef: NeMoRunTestDefinition):
+    def _set_additional_env_vars(self, tdef: NeMoRunTestDefinition):
         """Set environment variables based on NeMoRunTestDefinition."""
-        env_vars["CLOUDAI_NEMO_TASK"] = tdef.cmd_args.task
-        env_vars["CLOUDAI_NEMO_RECIPE"] = tdef.cmd_args.recipe_name
+        self.final_env_vars["CLOUDAI_NEMO_TASK"] = tdef.cmd_args.task
+        self.final_env_vars["CLOUDAI_NEMO_RECIPE"] = tdef.cmd_args.recipe_name
 
         pipeline_model_parallel_size = tdef.cmd_args.trainer.strategy.pipeline_model_parallel_size
         if isinstance(pipeline_model_parallel_size, list):
@@ -48,7 +48,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         if pipeline_model_parallel_size > 1:
             logging.debug("Setting NCCL_P2P_NET_CHUNKSIZE to 2097152 as pipeline_model_parallel_size is greater than 1")
-            env_vars["NCCL_P2P_NET_CHUNKSIZE"] = "2097152"
+            self.final_env_vars["NCCL_P2P_NET_CHUNKSIZE"] = "2097152"
 
         enable_fsdp = os.getenv("CLOUDAI_ENABLE_FSDP", "0")
         if enable_fsdp == "1":
@@ -58,7 +58,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     "with TP communication overlap."
                 )
             )
-            env_vars["CLOUDAI_DISABLE_TP_COMM_OVERLAP"] = "1"
+            self.final_env_vars["CLOUDAI_DISABLE_TP_COMM_OVERLAP"] = "1"
 
     def _run_script(self) -> Path:
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, self.test_run.test.test_definition)
