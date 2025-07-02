@@ -19,7 +19,6 @@ from typing import Dict, List, Optional, Union, cast
 
 import yaml
 
-from cloudai.models.workload import TestRun
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 from .ai_dynamo import AIDynamoTestDefinition
@@ -259,7 +258,15 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return " ".join([*srun_prefix, "/opt/run.sh"])
 
     def get_cached_nodes_spec(self) -> tuple[int, list[str]]:
-        cache_key = f"{self.test_run.current_iteration}:{self.test_run.step}:{self.test_run.num_nodes}:{','.join(self.test_run.nodes)}"
+        cache_key = ":".join(
+            [
+                self.test_run.name,
+                str(self.test_run.current_iteration),
+                str(self.test_run.step),
+                str(self.test_run.num_nodes),
+                ",".join(self.test_run.nodes),
+            ]
+        )
 
         if cache_key in self._node_spec_cache:
             return self._node_spec_cache[cache_key]

@@ -14,10 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
 from typing import Dict, List, Union, cast
 
-from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 from .nccl import NCCLTestDefinition

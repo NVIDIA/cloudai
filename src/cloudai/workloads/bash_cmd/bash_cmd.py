@@ -16,7 +16,7 @@
 
 from typing import cast
 
-from cloudai.core import CmdArgs, Installable, TestDefinition, TestRun
+from cloudai.core import CmdArgs, Installable, TestDefinition
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 

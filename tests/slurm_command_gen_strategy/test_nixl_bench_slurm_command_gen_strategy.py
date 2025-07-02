@@ -63,8 +63,8 @@ class TestNIXLBenchCommand:
                 **in_args,
             }
         )
-        strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
         nixl_bench_tr.test.test_definition.cmd_args = cmd_args
+        strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
 
         cmd = " ".join(strategy.gen_nixlbench_command())
 
@@ -92,8 +92,8 @@ def test_gen_etcd_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem
 
 @pytest.mark.parametrize("nnodes", (1, 2))
 def test_gen_nixl_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem, nnodes: int):
-    strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
     nixl_bench_tr.num_nodes = nnodes
+    strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
     cmd = " ".join(strategy.gen_nixl_srun_command())
 
     tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, nixl_bench_tr.test.test_definition)

@@ -16,7 +16,6 @@
 
 from typing import Dict, List, Union, cast
 
-from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 from cloudai.workloads.chakra_replay import ChakraReplayTestDefinition
 

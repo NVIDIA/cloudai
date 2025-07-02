@@ -96,7 +96,8 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f"-N{nnodes}",
             "bash",
             "-c",
-            f'"source {(self.test_run.output_path / "env_vars.sh").absolute()}; {" ".join(self.gen_nixlbench_command())}"',
+            f'"source {(self.test_run.output_path / "env_vars.sh").absolute()}; '
+            f'{" ".join(self.gen_nixlbench_command())}"',
         ]
         self._current_image_url = None
         return cmd
