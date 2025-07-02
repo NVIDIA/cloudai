@@ -188,7 +188,6 @@ def build_special_test_run(
                 ),
                 extra_env_vars={"COMBINE_THRESHOLD": "1"},
             ),
-            # JaxToolboxSlurmCommandGenStrategy,
         )
     elif "grok" in param:
         test_type = "grok"
@@ -205,7 +204,6 @@ def build_special_test_run(
                 ),
                 extra_env_vars={"COMBINE_THRESHOLD": "1"},
             ),
-            # JaxToolboxSlurmCommandGenStrategy,
         )
     elif "nemo-run" in param:
         test_type = "nemo-run"
@@ -221,7 +219,6 @@ def build_special_test_run(
                     docker_image_url="nvcr.io/nvidia/nemo:24.09", task="pretrain", recipe_name="llama_3b"
                 ),
             ),
-            # NeMoRunSlurmCommandGenStrategy,
         )
     elif "nemo-launcher" in param:
         test_type = "nemo-launcher"
@@ -280,21 +277,18 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 test_template_name="ucc",
                 cmd_args=UCCCmdArgs(docker_image_url="nvcr.io/nvidia/pytorch:24.02-py3"),
             ),
-            # UCCTestSlurmCommandGenStrategy,
         ),
         "nccl": lambda: create_test_run(
             partial_tr,
             slurm_system,
             "nccl",
             NCCLTestDefinition(name="nccl", description="nccl", test_template_name="nccl", cmd_args=NCCLCmdArgs()),
-            # NcclTestSlurmCommandGenStrategy,
         ),
         "sleep": lambda: create_test_run(
             partial_tr,
             slurm_system,
             "sleep",
             SleepTestDefinition(name="sleep", description="sleep", test_template_name="sleep", cmd_args=SleepCmdArgs()),
-            # SleepSlurmCommandGenStrategy,
         ),
         "slurm_container": lambda: create_test_run(
             partial_tr,
@@ -306,7 +300,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 test_template_name="slurm_container",
                 cmd_args=SlurmContainerCmdArgs(docker_image_url="https://docker/url", cmd="pwd ; ls"),
             ),
-            # SlurmContainerCommandGenStrategy,
         ),
         "megatron-run": lambda: create_test_run(
             partial_tr,
@@ -325,7 +318,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 ),
                 extra_container_mounts=["$PWD"],
             ),
-            # MegatronRunSlurmCommandGenStrategy,
         ),
         "nemo-run": lambda: create_test_run(
             partial_tr,
@@ -341,7 +333,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     recipe_name="llama_3b",
                 ),
             ),
-            # NeMoRunSlurmCommandGenStrategy,
         ),
         "triton-inference": lambda: create_test_run(
             partial_tr,
@@ -358,7 +349,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     tokenizer="tok",
                 ),
             ),
-            # TritonInferenceSlurmCommandGenStrategy,
         ),
         "nixl_bench": lambda: create_test_run(
             partial_tr,
@@ -375,7 +365,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     path_to_benchmark="./nixlbench",
                 ),
             ),
-            # NIXLBenchSlurmCommandGenStrategy,
         ),
         "ai-dynamo": lambda: create_test_run(
             partial_tr,
