@@ -75,9 +75,7 @@ class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f.write("\n".join(lines))
         script_path.chmod(0o755)
 
-    def _gen_srun_command(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]]
-    ) -> str:
+    def _gen_srun_command(self, env_vars: Dict[str, Union[str, List[str]]]) -> str:
         num_server_nodes, num_client_nodes = self._get_server_client_split()
         server_line = self._build_server_srun(num_server_nodes)
         client_line = self._build_client_srun(num_client_nodes)

@@ -243,9 +243,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             cmd.append(f"--request-rate {args.genai_perf.request_rate}")
         return " ".join(cmd)
 
-    def _gen_srun_command(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]]
-    ) -> str:
+    def _gen_srun_command(self, env_vars: Dict[str, Union[str, List[str]]]) -> str:
         num_nodes, _ = self.get_cached_nodes_spec()
         srun_prefix = self.gen_srun_prefix()
         srun_prefix.extend(

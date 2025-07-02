@@ -53,9 +53,8 @@ def strategy_fixture(slurm_system: SlurmSystem, testrun_fixture: TestRun) -> Slu
 
 def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy):
     env_vars: Dict[str, Union[str, List[str]]] = {"TEST_VAR": "VALUE"}
-    cmd_args: Dict[str, Union[str, List[str]]] = {"test_arg": "test_value"}
 
-    srun_command = strategy_fixture._gen_srun_command(env_vars, cmd_args)
+    srun_command = strategy_fixture._gen_srun_command(env_vars)
 
     sbatch_command = strategy_fixture._write_sbatch_script(env_vars, srun_command)
     filepath_from_command = sbatch_command.split()[-1]

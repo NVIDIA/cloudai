@@ -142,7 +142,8 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return " ".join(sorted(xla_flags))
 
-    def _gen_srun_command(self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Any]) -> str:
+    def _gen_srun_command(self, env_vars: Dict[str, Union[str, List[str]]]) -> str:
+        cmd_args = self._flatten_dict(self.test_run.test.cmd_args)
         self._create_run_script(env_vars, cmd_args, self.test_run.test.extra_cmd_args)
 
         commands = []

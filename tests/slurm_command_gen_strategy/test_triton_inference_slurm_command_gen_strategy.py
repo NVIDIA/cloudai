@@ -153,5 +153,5 @@ def test_build_client_srun(strategy: TritonInferenceSlurmCommandGenStrategy, str
 def test_gen_srun_command(strategy: TritonInferenceSlurmCommandGenStrategy) -> None:
     strategy._build_server_srun = Mock(return_value="S")
     strategy._build_client_srun = Mock(return_value="C")
-    cmd = strategy._gen_srun_command({}, {})
+    cmd = strategy._gen_srun_command({})
     assert cmd == f"S &\n\nsleep {strategy.test_run.test.test_definition.cmd_args.sleep_seconds}\n\nC"

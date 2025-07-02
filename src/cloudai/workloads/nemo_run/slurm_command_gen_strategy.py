@@ -31,10 +31,10 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, self.test_run.test.test_definition)
         return str(tdef.docker_image.installed_path)
 
-    def _gen_srun_command(self, env_vars: Dict[str, str | List[str]], cmd_args: Dict[str, str | List[str]]) -> str:
+    def _gen_srun_command(self, env_vars: Dict[str, str | List[str]]) -> str:
         tdef: NeMoRunTestDefinition = cast(NeMoRunTestDefinition, self.test_run.test.test_definition)
         self._set_additional_env_vars(env_vars, tdef)
-        return super()._gen_srun_command(env_vars, cmd_args)
+        return super()._gen_srun_command(env_vars)
 
     def _set_additional_env_vars(self, env_vars: Dict[str, Union[str, List[str]]], tdef: NeMoRunTestDefinition):
         """Set environment variables based on NeMoRunTestDefinition."""

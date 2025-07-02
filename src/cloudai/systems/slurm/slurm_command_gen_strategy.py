@@ -94,9 +94,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
     def gen_exec_command(self) -> str:
         env_vars = self._override_env_vars(self.system.global_env_vars, self.test_run.test.extra_env_vars)
-        cmd_args = self._flatten_dict(self.test_run.test.cmd_args)
 
-        srun_command = self._gen_srun_command(env_vars, cmd_args)
+        srun_command = self._gen_srun_command(env_vars)
         command_list = []
         indent = ""
 
@@ -119,8 +118,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
     def gen_srun_command(self) -> str:
         env_vars = self._override_env_vars(self.system.global_env_vars, self.test_run.test.extra_env_vars)
-        cmd_args = self._flatten_dict(self.test_run.test.cmd_args)
-        return self._gen_srun_command(env_vars, cmd_args)
+        return self._gen_srun_command(env_vars)
 
     def job_name_prefix(self) -> str:
         return self.test_run.test.test_template.__class__.__name__
@@ -222,9 +220,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         return nsys.cmd_args
 
-    def _gen_srun_command(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]]
-    ) -> str:
+    def _gen_srun_command(self, env_vars: Dict[str, Union[str, List[str]]]) -> str:
         srun_command_parts = self.gen_srun_prefix(use_pretest_extras=True)
         nsys_command_parts = self.gen_nsys_command()
         test_command_parts = self.generate_test_command()
