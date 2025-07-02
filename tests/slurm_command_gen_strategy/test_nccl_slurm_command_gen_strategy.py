@@ -25,17 +25,11 @@ from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTes
 
 
 class TestNcclTestSlurmCommandGenStrategy:
-    @pytest.fixture
-    def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> NcclTestSlurmCommandGenStrategy:
-        return NcclTestSlurmCommandGenStrategy(slurm_system)
-
     @pytest.mark.parametrize(
-        "job_name_prefix, env_vars, cmd_args, num_nodes, nodes, expected_result",
+        "env_vars, num_nodes, nodes, expected_result",
         [
             (
-                "nccl_test",
                 {"NCCL_TOPO_FILE": "/path/to/topo"},
-                {"subtest_name": "all_reduce_perf", "docker_image_url": "fake_image_url"},
                 2,
                 ["node1", "node2"],
                 {
@@ -43,9 +37,7 @@ class TestNcclTestSlurmCommandGenStrategy:
                 },
             ),
             (
-                "nccl_test",
                 {"NCCL_TOPO_FILE": "/path/to/topo"},
-                {"subtest_name": "all_reduce_perf", "docker_image_url": "another_image_url"},
                 1,
                 ["node1"],
                 {
@@ -56,10 +48,8 @@ class TestNcclTestSlurmCommandGenStrategy:
     )
     def test_parse_slurm_args(
         self,
-        cmd_gen_strategy: NcclTestSlurmCommandGenStrategy,
-        job_name_prefix: str,
+        slurm_system: SlurmSystem,
         env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, Union[str, List[str]]],
         num_nodes: int,
         nodes: List[str],
         expected_result: Dict[str, Any],
@@ -73,6 +63,7 @@ class TestNcclTestSlurmCommandGenStrategy:
         )
         t = Test(test_definition=nccl, test_template=Mock())
         tr = TestRun(name="t1", test=t, nodes=nodes, num_nodes=num_nodes)
+        cmd_gen_strategy = NcclTestSlurmCommandGenStrategy(slurm_system, tr)
         assert expected_result["container_mounts"] in cmd_gen_strategy.container_mounts(tr)
 
     @pytest.mark.parametrize(
@@ -83,14 +74,13 @@ class TestNcclTestSlurmCommandGenStrategy:
             {"stepfactor": None},
         ],
     )
-    def test_generate_test_command(
-        self, cmd_gen_strategy: NcclTestSlurmCommandGenStrategy, args: dict[str, Union[str, list[str]]]
-    ) -> None:
+    def test_generate_test_command(self, slurm_system: SlurmSystem, args: dict[str, Union[str, list[str]]]) -> None:
         cmd_args: NCCLCmdArgs = NCCLCmdArgs.model_validate({**{"docker_image_url": "fake_image_url"}, **args})
         nccl = NCCLTestDefinition(name="name", description="desc", test_template_name="NcclTest", cmd_args=cmd_args)
         t = Test(test_definition=nccl, test_template=Mock())
         tr = TestRun(name="t1", test=t, nodes=[], num_nodes=1)
 
+        cmd_gen_strategy = NcclTestSlurmCommandGenStrategy(slurm_system, tr)
         cmd = " ".join(cmd_gen_strategy.generate_test_command({}, {}, tr))
 
         for arg in args:

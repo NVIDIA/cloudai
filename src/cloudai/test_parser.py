@@ -22,7 +22,6 @@ import toml
 from pydantic import BaseModel, ValidationError
 
 from .core import (
-    CommandGenStrategy,
     GradingStrategy,
     JsonGenStrategy,
     Registry,
@@ -159,10 +158,6 @@ class TestParser:
             Type[TestTemplate]: A subclass of TestTemplate corresponding to the given name.
         """
         obj = TestTemplate(system=self.system)
-        obj.command_gen_strategy = cast(
-            CommandGenStrategy,
-            self._fetch_strategy(CommandGenStrategy, type(obj.system), type(tdef)),
-        )
         obj.json_gen_strategy = cast(
             JsonGenStrategy,
             self._fetch_strategy(JsonGenStrategy, type(obj.system), type(tdef)),

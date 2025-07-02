@@ -58,8 +58,8 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         return tr
 
     @pytest.fixture
-    def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> NeMoLauncherSlurmCommandGenStrategy:
-        return NeMoLauncherSlurmCommandGenStrategy(slurm_system)
+    def cmd_gen_strategy(self, slurm_system: SlurmSystem, test_run: TestRun) -> NeMoLauncherSlurmCommandGenStrategy:
+        return NeMoLauncherSlurmCommandGenStrategy(slurm_system, test_run)
 
     @pytest.mark.parametrize(
         "expected_content, nodes",

@@ -22,18 +22,12 @@ import pytest
 
 from cloudai.core import GitRepo, Test, TestRun, TestScenario, TestTemplate
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmSystem
-from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestSlurmCommandGenStrategy
+from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 
 class MySlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _container_mounts(self, tr: TestRun) -> List[str]:
         return []
-
-
-@pytest.fixture
-def strategy_fixture(slurm_system: SlurmSystem) -> SlurmCommandGenStrategy:
-    strategy = MySlurmCommandGenStrategy(slurm_system)
-    return strategy
 
 
 @pytest.fixture
@@ -49,6 +43,12 @@ def testrun_fixture(tmp_path: Path, slurm_system: SlurmSystem) -> TestRun:
     test = Test(test_definition=tdef, test_template=TestTemplate(slurm_system))
 
     return TestRun(name="test_job", test=test, output_path=tmp_path, num_nodes=2, nodes=["node1", "node2"])
+
+
+@pytest.fixture
+def strategy_fixture(slurm_system: SlurmSystem, testrun_fixture: TestRun) -> SlurmCommandGenStrategy:
+    strategy = MySlurmCommandGenStrategy(slurm_system, testrun_fixture)
+    return strategy
 
 
 def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy, testrun_fixture: TestRun):
@@ -140,7 +140,6 @@ def make_test_run(slurm_system: SlurmSystem, name: str, output_dir: Path) -> Tes
         extra_env_vars={"TEST_VAR": "VALUE"},
     )
     test_template = TestTemplate(slurm_system)
-    test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(slurm_system)
     test = Test(test_definition=test_def, test_template=test_template)
     return TestRun(name=name, test=test, num_nodes=1, nodes=["node1"], output_path=output_dir / name)
 
@@ -343,7 +342,7 @@ def test_gen_srun_prefix_with_pretest_extras(
         def pre_test_srun_extra_args(self, tr: TestRun) -> List[str]:
             return ["--pre-arg1", "--pre-arg2"]
 
-    with patch.object(strategy_fixture, "_get_cmd_gen_strategy", return_value=PreTestCmdGenStrategy(slurm_system)):
+    with patch.object(strategy_fixture, "_get_cmd_gen_strategy", return_value=PreTestCmdGenStrategy(slurm_system, tr)):
         srun_prefix_with_extras = strategy_fixture.gen_srun_prefix(tr, use_pretest_extras=use_pretest_extras)
 
     assert ("--pre-arg1" in srun_prefix_with_extras) is use_pretest_extras

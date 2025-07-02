@@ -15,15 +15,12 @@
 # limitations under the License.
 
 
-from cloudai.core import CommandGenStrategy, GradingStrategy, JsonGenStrategy, Registry
+from cloudai.core import GradingStrategy, JsonGenStrategy, Registry
 from cloudai.reporter import PerTestReporter, StatusReporter, TarballReporter
-from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
-from cloudai.systems.lsf import LSFInstaller
-from cloudai.systems.lsf.lsf_system import LSFSystem
-from cloudai.systems.runai import RunAIInstaller
-from cloudai.systems.runai.runai_system import RunAISystem
-from cloudai.systems.slurm import SlurmInstaller
-from cloudai.systems.slurm.slurm_system import SlurmSystem
+from cloudai.systems.kubernetes import KubernetesSystem
+from cloudai.systems.lsf import LSFInstaller, LSFSystem
+from cloudai.systems.runai import RunAIInstaller, RunAISystem
+from cloudai.systems.slurm import SlurmInstaller, SlurmSystem
 from cloudai.systems.standalone import StandaloneInstaller, StandaloneSystem
 from cloudai.workloads.ai_dynamo import (
     AIDynamoSlurmCommandGenStrategy,
@@ -103,23 +100,25 @@ def test_runners():
     assert len(runners) == 5
 
 
+CMD_GEN_STRATEGIES = {
+    (SlurmSystem, ChakraReplayTestDefinition): ChakraReplaySlurmCommandGenStrategy,
+    (SlurmSystem, GPTTestDefinition): JaxToolboxSlurmCommandGenStrategy,
+    (SlurmSystem, GrokTestDefinition): JaxToolboxSlurmCommandGenStrategy,
+    (SlurmSystem, NCCLTestDefinition): NcclTestSlurmCommandGenStrategy,
+    (SlurmSystem, NeMoLauncherTestDefinition): NeMoLauncherSlurmCommandGenStrategy,
+    (SlurmSystem, NeMoRunTestDefinition): NeMoRunSlurmCommandGenStrategy,
+    (SlurmSystem, NemotronTestDefinition): JaxToolboxSlurmCommandGenStrategy,
+    (SlurmSystem, SleepTestDefinition): SleepSlurmCommandGenStrategy,
+    (SlurmSystem, SlurmContainerTestDefinition): SlurmContainerCommandGenStrategy,
+    (SlurmSystem, UCCTestDefinition): UCCTestSlurmCommandGenStrategy,
+    (SlurmSystem, MegatronRunTestDefinition): MegatronRunSlurmCommandGenStrategy,
+    (StandaloneSystem, SleepTestDefinition): SleepStandaloneCommandGenStrategy,
+    (LSFSystem, SleepTestDefinition): SleepLSFCommandGenStrategy,
+    (SlurmSystem, TritonInferenceTestDefinition): TritonInferenceSlurmCommandGenStrategy,
+    (SlurmSystem, NIXLBenchTestDefinition): NIXLBenchSlurmCommandGenStrategy,
+    (SlurmSystem, AIDynamoTestDefinition): AIDynamoSlurmCommandGenStrategy,
+}
 ALL_STRATEGIES = {
-    (CommandGenStrategy, SlurmSystem, ChakraReplayTestDefinition): ChakraReplaySlurmCommandGenStrategy,
-    (CommandGenStrategy, SlurmSystem, GPTTestDefinition): JaxToolboxSlurmCommandGenStrategy,
-    (CommandGenStrategy, SlurmSystem, GrokTestDefinition): JaxToolboxSlurmCommandGenStrategy,
-    (CommandGenStrategy, SlurmSystem, NCCLTestDefinition): NcclTestSlurmCommandGenStrategy,
-    (CommandGenStrategy, SlurmSystem, NeMoLauncherTestDefinition): NeMoLauncherSlurmCommandGenStrategy,
-    (CommandGenStrategy, SlurmSystem, NeMoRunTestDefinition): NeMoRunSlurmCommandGenStrategy,
-    (CommandGenStrategy, SlurmSystem, NemotronTestDefinition): JaxToolboxSlurmCommandGenStrategy,
-    (CommandGenStrategy, SlurmSystem, SleepTestDefinition): SleepSlurmCommandGenStrategy,
-    (CommandGenStrategy, SlurmSystem, SlurmContainerTestDefinition): SlurmContainerCommandGenStrategy,
-    (CommandGenStrategy, SlurmSystem, UCCTestDefinition): UCCTestSlurmCommandGenStrategy,
-    (CommandGenStrategy, SlurmSystem, MegatronRunTestDefinition): MegatronRunSlurmCommandGenStrategy,
-    (CommandGenStrategy, SlurmSystem, AIDynamoTestDefinition): AIDynamoSlurmCommandGenStrategy,
-    (CommandGenStrategy, StandaloneSystem, SleepTestDefinition): SleepStandaloneCommandGenStrategy,
-    (CommandGenStrategy, LSFSystem, SleepTestDefinition): SleepLSFCommandGenStrategy,
-    (CommandGenStrategy, SlurmSystem, TritonInferenceTestDefinition): TritonInferenceSlurmCommandGenStrategy,
-    (CommandGenStrategy, SlurmSystem, NIXLBenchTestDefinition): NIXLBenchSlurmCommandGenStrategy,
     (GradingStrategy, SlurmSystem, ChakraReplayTestDefinition): ChakraReplayGradingStrategy,
     (GradingStrategy, SlurmSystem, GPTTestDefinition): JaxToolboxGradingStrategy,
     (GradingStrategy, SlurmSystem, GrokTestDefinition): JaxToolboxGradingStrategy,
@@ -134,10 +133,14 @@ ALL_STRATEGIES = {
 }
 
 
-def test_strategies():
-    def strategy2str(key: tuple) -> str:
-        return f"({key[0].__name__}, {key[1].__name__}, {key[2].__name__})"
+def strategy2str(key: tuple) -> str:
+    if len(key) == 2:
+        return f"({key[0].__name__}, {key[1].__name__})"
 
+    return f"({key[0].__name__}, {key[1].__name__}, {key[2].__name__})"
+
+
+def test_strategies():
     strategies = Registry().strategies_map
     real = [strategy2str(k) for k in strategies]
     expected = [strategy2str(k) for k in ALL_STRATEGIES]
@@ -147,6 +150,18 @@ def test_strategies():
     assert len(extra) == 0, f"Extra: {extra}"
     for key, value in ALL_STRATEGIES.items():
         assert strategies[key] == value, f"Strategy {strategy2str(key)} is not {value}"
+
+
+def test_command_gen_strategies():
+    command_gen_strategies = Registry().command_gen_strategies_map
+    real = [strategy2str(k) for k in command_gen_strategies]
+    expected = [strategy2str(k) for k in CMD_GEN_STRATEGIES]
+    missing = set(expected) - set(real)
+    extra = set(real) - set(expected)
+    assert len(missing) == 0, f"Missing: {missing}"
+    assert len(extra) == 0, f"Extra: {extra}"
+    for key, value in CMD_GEN_STRATEGIES.items():
+        assert command_gen_strategies[key] == value, f"Command gen strategy {strategy2str(key)} is not {value}"
 
 
 def test_installers():

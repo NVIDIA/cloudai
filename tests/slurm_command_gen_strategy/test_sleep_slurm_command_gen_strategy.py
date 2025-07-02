@@ -28,10 +28,6 @@ from cloudai.workloads.sleep import SleepCmdArgs, SleepSlurmCommandGenStrategy, 
 class TestSleepSlurmCommandGenStrategy:
     """Test the SleepSlurmCommandGenStrategy class."""
 
-    @pytest.fixture
-    def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> SleepSlurmCommandGenStrategy:
-        return SleepSlurmCommandGenStrategy(slurm_system)
-
     @pytest.mark.parametrize(
         "cmd_args_data, expected_command",
         [
@@ -40,11 +36,7 @@ class TestSleepSlurmCommandGenStrategy:
         ],
     )
     def test_generate_test_command(
-        self,
-        tmp_path: Path,
-        cmd_gen_strategy: SleepSlurmCommandGenStrategy,
-        cmd_args_data: Dict[str, int],
-        expected_command: List[str],
+        self, tmp_path: Path, slurm_system: SlurmSystem, cmd_args_data: Dict[str, int], expected_command: List[str]
     ) -> None:
         sleep_cmd_args = SleepCmdArgs(seconds=cmd_args_data["seconds"])
 
@@ -67,10 +59,7 @@ class TestSleepSlurmCommandGenStrategy:
             name="sleep-job",
         )
 
-        command = cmd_gen_strategy.generate_test_command(
-            test_def.extra_env_vars,
-            test_def.cmd_args_dict,
-            tr,
-        )
+        cmd_gen_strategy = SleepSlurmCommandGenStrategy(slurm_system, tr)
+        command = cmd_gen_strategy.generate_test_command(test_def.extra_env_vars, test_def.cmd_args_dict, tr)
 
         assert command == expected_command

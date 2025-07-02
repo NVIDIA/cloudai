@@ -16,16 +16,18 @@
 
 import copy
 import re
-from typing import cast
+from typing import Generator, cast
 from unittest.mock import Mock
 
 import pytest
 import toml
 
+from cloudai._core.registry import Registry
 from cloudai.core import Test, TestRun, TestScenario, TestTemplate
 from cloudai.systems.slurm import SingleSbatchRunner, SlurmJob, SlurmJobMetadata, SlurmSystem
-from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestSlurmCommandGenStrategy
-from cloudai.workloads.sleep import SleepCmdArgs, SleepSlurmCommandGenStrategy, SleepTestDefinition
+from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
+from cloudai.workloads.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
+from cloudai.workloads.sleep import SleepCmdArgs, SleepTestDefinition
 
 
 class MyNCCL(NCCLTestDefinition):
@@ -34,14 +36,14 @@ class MyNCCL(NCCLTestDefinition):
 
 
 @pytest.fixture
-def nccl_tr(slurm_system: SlurmSystem) -> TestRun:
+def nccl_tr(slurm_system: SlurmSystem) -> Generator[TestRun, None, None]:
     tr = TestRun(
         name="nccl_test",
         test=Test(
             test_definition=MyNCCL(
                 name="nccl",
                 description="desc",
-                test_template_name="t",
+                test_template_name="NcclTest",
                 cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
             ),
             test_template=TestTemplate(slurm_system),
@@ -50,8 +52,9 @@ def nccl_tr(slurm_system: SlurmSystem) -> TestRun:
         nodes=[],
         output_path=slurm_system.output_path / "nccl_test",
     )
-    tr.test.test_template.command_gen_strategy = NcclTestSlurmCommandGenStrategy(slurm_system)
-    return tr
+    Registry().add_command_gen_strategy(SlurmSystem, MyNCCL, NcclTestSlurmCommandGenStrategy)
+    yield tr
+    del Registry().command_gen_strategies_map[(SlurmSystem, MyNCCL)]
 
 
 @pytest.fixture
@@ -68,7 +71,6 @@ def sleep_tr(slurm_system: SlurmSystem) -> TestRun:
         nodes=[],
         output_path=slurm_system.output_path / "sleep_test",
     )
-    tr.test.test_template.command_gen_strategy = SleepSlurmCommandGenStrategy(slurm_system)
     tr.output_path.mkdir(parents=True, exist_ok=True)
     return tr
 

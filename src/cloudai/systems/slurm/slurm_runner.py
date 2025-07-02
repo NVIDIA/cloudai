@@ -56,7 +56,7 @@ class SlurmRunner(BaseRunner):
 
     def _submit_test(self, tr: TestRun) -> SlurmJob:
         logging.info(f"Running test: {tr.name}")
-        exec_cmd = tr.test.test_template.gen_exec_command(tr)
+        exec_cmd = self.get_cmd_gen_strategy(self.system, tr).gen_exec_command(tr)
         logging.debug(f"Executing command for test {tr.name}: {exec_cmd}")
         job_id = 0
         if self.mode == "run":
@@ -72,6 +72,10 @@ class SlurmRunner(BaseRunner):
                 )
         logging.info(f"Submitted slurm job: {job_id}")
         return SlurmJob(tr, id=job_id)
+
+    def on_job_submit(self, tr: TestRun) -> None:
+        cmd_gen = self.get_cmd_gen_strategy(self.system, tr)
+        cmd_gen.store_test_run(tr)
 
     def on_job_completion(self, job: BaseJob) -> None:
         logging.debug(f"Job completion callback for job {job.id}")
@@ -94,7 +98,7 @@ class SlurmRunner(BaseRunner):
     def _get_job_metadata(
         self, job: SlurmJob, steps_metadata: list[SlurmStepMetadata]
     ) -> tuple[Path, SlurmJobMetadata]:
-        cmd_gen = cast(SlurmCommandGenStrategy, job.test_run.test.test_template.command_gen_strategy)
+        cmd_gen = cast(SlurmCommandGenStrategy, self.get_cmd_gen_strategy(self.system, job.test_run))
         return job.test_run.output_path / "slurm-job.toml", SlurmJobMetadata(
             job_id=int(job.id),
             name=steps_metadata[0].name,

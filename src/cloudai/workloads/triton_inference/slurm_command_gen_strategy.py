@@ -26,8 +26,8 @@ from .triton_inference import TritonInferenceTestDefinition
 class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for TritonInference server and client."""
 
-    def __init__(self, system: SlurmSystem) -> None:
-        super().__init__(system)
+    def __init__(self, system: SlurmSystem, test_run: TestRun) -> None:
+        super().__init__(system, test_run)
         self._current_container_image: str | None = None
 
     def _container_mounts(self, tr: TestRun) -> list[str]:
