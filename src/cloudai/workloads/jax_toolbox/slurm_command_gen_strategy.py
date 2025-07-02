@@ -28,8 +28,8 @@ from .nemotron import NemotronTestDefinition
 class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for JaxToolbox tests on Slurm systems."""
 
-    def __init__(self, system: SlurmSystem) -> None:
-        super().__init__(system)
+    def __init__(self, system: SlurmSystem, test_run: TestRun) -> None:
+        super().__init__(system, test_run)
         self.test_name = ""
 
     def image_path(self, tr: TestRun) -> Optional[str]:

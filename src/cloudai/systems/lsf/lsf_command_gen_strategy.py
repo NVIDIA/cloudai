@@ -15,9 +15,9 @@
 # limitations under the License.
 
 from datetime import datetime
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Union, cast
 
-from cloudai.core import CommandGenStrategy, TestRun
+from cloudai.core import CommandGenStrategy, System, TestRun
 
 from .lsf_system import LSFSystem
 
@@ -31,15 +31,16 @@ class LSFCommandGenStrategy(CommandGenStrategy):
             properties and methods.
     """
 
-    def __init__(self, system: LSFSystem) -> None:
+    def __init__(self, system: System, test_run: TestRun) -> None:
         """
         Initialize a new LSFCommandGenStrategy instance.
 
         Args:
             system (LSFSystem): The system schema object.
+            test_run (TestRun): The test run object.
         """
-        super().__init__(system)
-        self.system = system
+        super().__init__(system, test_run)
+        self.system = cast(LSFSystem, system)
 
     def gen_exec_command(self, tr: TestRun) -> str:
         """

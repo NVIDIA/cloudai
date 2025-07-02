@@ -40,11 +40,6 @@ from cloudai.workloads.ai_dynamo import (
 
 
 @pytest.fixture
-def strategy(slurm_system: SlurmSystem) -> AIDynamoSlurmCommandGenStrategy:
-    return AIDynamoSlurmCommandGenStrategy(slurm_system)
-
-
-@pytest.fixture
 def cmd_args() -> AIDynamoCmdArgs:
     return AIDynamoCmdArgs(
         docker_image_url="url",
@@ -122,6 +117,11 @@ def test_run(tmp_path: Path, cmd_args: AIDynamoCmdArgs) -> TestRun:
     )
     test = Test(test_definition=tdef, test_template=Mock())
     return TestRun(name="run", test=test, nodes=["n0", "n1", "n2"], num_nodes=3, output_path=tmp_path)
+
+
+@pytest.fixture
+def strategy(slurm_system: SlurmSystem, test_run: TestRun) -> AIDynamoSlurmCommandGenStrategy:
+    return AIDynamoSlurmCommandGenStrategy(slurm_system, test_run)
 
 
 def test_hugging_face_home_path_valid(test_run: TestRun) -> None:
