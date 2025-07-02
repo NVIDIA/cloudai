@@ -27,9 +27,18 @@ import toml
 from cloudai.cli import handle_dry_run_and_run, setup_logging
 from cloudai.core import CommandGenStrategy, Test, TestDefinition, TestRun, TestScenario, TestTemplate
 from cloudai.models.scenario import TestRunDetails
-from cloudai.systems.slurm import SlurmSystem
-from cloudai.systems.slurm.slurm_command_gen_strategy import SlurmCommandGenStrategy
-from cloudai.systems.slurm.slurm_runner import SlurmRunner
+from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmRunner, SlurmSystem
+from cloudai.workloads.ai_dynamo import (
+    AIDynamoArgs,
+    AIDynamoCmdArgs,
+    AIDynamoTestDefinition,
+    FrontendArgs,
+    GenAIPerfArgs,
+    PrefillWorkerArgs,
+    ProcessorArgs,
+    RouterArgs,
+    VllmWorkerArgs,
+)
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
     GPTTestDefinition,
@@ -43,9 +52,9 @@ from cloudai.workloads.megatron_run import (
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.workloads.nemo_launcher import (
     NeMoLauncherCmdArgs,
+    NeMoLauncherSlurmCommandGenStrategy,
     NeMoLauncherTestDefinition,
 )
-from cloudai.workloads.nemo_launcher.slurm_command_gen_strategy import NeMoLauncherSlurmCommandGenStrategy
 from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
 from cloudai.workloads.nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
 from cloudai.workloads.sleep import SleepCmdArgs, SleepTestDefinition
@@ -256,6 +265,7 @@ def build_special_test_run(
         "megatron-run",
         "triton-inference",
         "nixl_bench",
+        "ai-dynamo",
     ]
 )
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> Tuple[TestRun, str, Optional[str]]:
@@ -367,6 +377,46 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             ),
             # NIXLBenchSlurmCommandGenStrategy,
         ),
+        "ai-dynamo": lambda: create_test_run(
+            partial_tr,
+            slurm_system,
+            "ai-dynamo",
+            AIDynamoTestDefinition(
+                name="ai-dynamo",
+                description="AI Dynamo test",
+                test_template_name="ai-dynamo",
+                cmd_args=AIDynamoCmdArgs(
+                    docker_image_url="nvcr.io/nvidia/ai-dynamo:24.09",
+                    served_model_name="llama2-7b",
+                    dynamo=AIDynamoArgs(
+                        frontend=FrontendArgs(),
+                        processor=ProcessorArgs(**{"block-size": 64, "max-model-len": 8192, "router": "kv"}),
+                        router=RouterArgs(**{"min-workers": 1}),
+                        prefill_worker=PrefillWorkerArgs(
+                            **{
+                                "num_nodes": 1,
+                                "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
+                            }
+                        ),
+                        vllm_worker=VllmWorkerArgs(
+                            **{
+                                "num_nodes": 1,
+                                "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
+                            }
+                        ),
+                    ),
+                    genai_perf=GenAIPerfArgs(
+                        streaming=True,
+                        extra_inputs='{"temperature": 0.7, "max_tokens": 128}',
+                        output_tokens_mean=128,
+                        random_seed=42,
+                        request_count=100,
+                        synthetic_input_tokens_mean=550,
+                        warmup_request_count=10,
+                    ),
+                ),
+            ),
+        ),
     }
 
     if request.param.startswith(("gpt-", "grok-", "nemo-run-", "nemo-launcher")):
@@ -385,6 +435,11 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             tr.test.test_definition.extra_env_vars["NIM_CACHE_PATH"] = str(tr.output_path)
         if request.param == "nixl_bench":
             tr.num_nodes = 2
+        if request.param == "ai-dynamo":
+            tr.num_nodes = 3
+            hf_home = tr.output_path / "hf_home"
+            hf_home.mkdir(parents=True, exist_ok=True)
+            tr.test.test_definition.extra_env_vars["HF_HOME"] = str(hf_home)
         return tr, f"{request.param}.sbatch", None
 
     raise ValueError(f"Unknown test: {request.param}")

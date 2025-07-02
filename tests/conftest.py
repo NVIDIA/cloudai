@@ -19,9 +19,11 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+import yaml
 
 from cloudai.core import Test, TestRun, TestTemplate
 from cloudai.models.workload import CmdArgs, TestDefinition
+from cloudai.systems.kubernetes import KubernetesSystem
 from cloudai.systems.runai import RunAISystem
 from cloudai.systems.slurm import SlurmGroup, SlurmPartition, SlurmSystem
 
@@ -46,6 +48,7 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
         output_path=tmp_path / "output",
         cache_docker_images_locally=True,
         default_partition="main",
+        gpus_per_node=8,
         partitions=[
             SlurmPartition(
                 name="main",
@@ -65,6 +68,32 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
     )
     system.scheduler = "slurm"
     system.monitor_interval = 0
+    return system
+
+
+@pytest.fixture
+def kubernetes_system(tmp_path: Path) -> KubernetesSystem:
+    kube_config = tmp_path / "kubeconfig"
+    config = {
+        "apiVersion": "v1",
+        "kind": "Config",
+        "current-context": "test-context",
+        "clusters": [{"name": "test-cluster", "cluster": {"server": "https://test-server:6443"}}],
+        "contexts": [{"name": "test-context", "context": {"cluster": "test-cluster", "user": "test-user"}}],
+        "users": [{"name": "test-user", "user": {"token": "test-token"}}],
+    }
+    kube_config.write_text(yaml.dump(config))
+
+    system = KubernetesSystem(
+        name="test_kubernetes_system",
+        install_path=tmp_path / "install",
+        output_path=tmp_path / "output",
+        scheduler="kubernetes",
+        global_env_vars={},
+        monitor_interval=60,
+        default_namespace="test-namespace",
+        kube_config_path=kube_config,
+    )
     return system
 
 
