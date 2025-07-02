@@ -34,9 +34,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return []
 
     def gen_exec_command(self) -> str:
-        self._prepare_environment(
-            self.test_run.test.cmd_args, self.test_run.test.extra_env_vars, self.test_run.output_path
-        )
+        self._prepare_environment()
 
         _, nodes = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)
         self._set_node_config(nodes, self.test_run.nnodes)
@@ -112,12 +110,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             env_vars_str += " \\\n"
         return env_vars_str
 
-    def _prepare_environment(
-        self,
-        cmd_args: Dict[str, Union[str, List[str]]],
-        extra_env_vars: Dict[str, Union[str, List[str]]],
-        output_path: Path,
-    ) -> None:
+    def _prepare_environment(self) -> None:
         """
         Prepare the environment variables and command arguments.
 
@@ -126,9 +119,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             extra_env_vars (Dict[str, Union[str, List[str]]]): Additional environment variables.
             output_path (Path): Path to the output directory.
         """
-        self.final_env_vars = self._override_env_vars(self.system.global_env_vars, extra_env_vars)
-
-        overriden_cmd_args = self._flatten_dict(cmd_args)
+        overriden_cmd_args = self._flatten_dict(self.test_run.test.cmd_args)
         overriden_cmd_args.pop("launcher_script", None)
         self.final_cmd_args = {k: self._handle_special_keys(k, v) for k, v in sorted(overriden_cmd_args.items())}
 

@@ -93,7 +93,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return mounts
 
     def gen_exec_command(self) -> str:
-        env_vars = self._override_env_vars(self.system.global_env_vars, self.test_run.test.extra_env_vars)
+        env_vars = self.final_env_vars
 
         srun_command = self._gen_srun_command(env_vars)
         command_list = []
@@ -117,7 +117,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return self._write_sbatch_script(env_vars, full_command)
 
     def gen_srun_command(self) -> str:
-        env_vars = self._override_env_vars(self.system.global_env_vars, self.test_run.test.extra_env_vars)
+        env_vars = self.final_env_vars
         return self._gen_srun_command(env_vars)
 
     def job_name_prefix(self) -> str:

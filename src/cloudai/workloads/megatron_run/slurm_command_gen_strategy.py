@@ -15,7 +15,7 @@
 # limitations under the License.
 
 
-from typing import Dict, List, Union, cast
+from typing import cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 

@@ -52,7 +52,7 @@ class LSFCommandGenStrategy(CommandGenStrategy):
         Returns:
             str: The generated LSF command.
         """
-        env_vars = self._override_env_vars(self.system.global_env_vars, self.test_run.test.extra_env_vars)
+        env_vars = self.final_env_vars
         cmd_args = self._flatten_dict(self.test_run.test.cmd_args)
         lsf_args = self._parse_lsf_args(
             self.test_run.test.test_template.__class__.__name__, env_vars, cmd_args, self.test_run

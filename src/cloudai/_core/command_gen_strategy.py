@@ -48,3 +48,9 @@ class CommandGenStrategy(TestTemplateStrategy, ABC):
         Only at command generation time, CloudAI has all the information to store the test run.
         """
         pass
+
+    @property
+    def final_env_vars(self) -> dict[str, str | list[str]]:
+        final_env_vars = self.system.global_env_vars.copy()
+        final_env_vars.update(self.test_run.test.extra_env_vars)
+        return final_env_vars

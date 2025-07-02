@@ -331,7 +331,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _generate_run_command(self) -> List[str]:
         """Generate the srun command for executing the test."""
         output_path = self.test_run.output_path.resolve()
-        env_vars = self._override_env_vars(self.system.global_env_vars, self.test_run.test.extra_env_vars)
+        env_vars = self.final_env_vars
         output_suffix = "-%j.txt" if env_vars.get("UNIFIED_STDOUT_STDERR") == "1" else "-%j-%n-%t.txt"
         output, error = output_path / f"output{output_suffix}", output_path / f"error{output_suffix}"
         return [
