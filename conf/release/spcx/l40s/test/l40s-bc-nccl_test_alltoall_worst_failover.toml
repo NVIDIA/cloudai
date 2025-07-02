@@ -19,6 +19,7 @@ description = "alltoall_tested_job"
 test_template_name = "NcclTest"
 
 [cmd_args]
+docker_image_url = "nvcr.io/nvidia/pytorch:24.02-py3"
 subtest_name = "alltoall_perf_mpi"
 minbytes = "128M"
 maxbytes = "128M"

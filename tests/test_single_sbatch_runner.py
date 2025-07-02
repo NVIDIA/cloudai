@@ -38,7 +38,12 @@ def nccl_tr(slurm_system: SlurmSystem) -> TestRun:
     tr = TestRun(
         name="nccl_test",
         test=Test(
-            test_definition=MyNCCL(name="nccl", description="desc", test_template_name="t", cmd_args=NCCLCmdArgs()),
+            test_definition=MyNCCL(
+                name="nccl",
+                description="desc",
+                test_template_name="t",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            ),
             test_template=TestTemplate(slurm_system),
         ),
         num_nodes=2,

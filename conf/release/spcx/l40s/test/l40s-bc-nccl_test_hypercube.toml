@@ -19,4 +19,5 @@ description = "hypercube"
 test_template_name = "NcclTest"
 
 [cmd_args]
+"docker_image_url" = "nvcr.io/nvidia/pytorch:24.02-py3"
 "subtest_name" = "hypercube_perf_mpi"

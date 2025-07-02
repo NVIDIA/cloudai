@@ -42,7 +42,7 @@ def testrun_fixture(tmp_path: Path, slurm_system: SlurmSystem) -> TestRun:
         name="test_job",
         description="Test description",
         test_template_name="d",
-        cmd_args=NCCLCmdArgs(),
+        cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
         extra_env_vars={"TEST_VAR": "VALUE"},
     )
 
@@ -136,7 +136,7 @@ def make_test_run(slurm_system: SlurmSystem, name: str, output_dir: Path) -> Tes
         name=name,
         description=name,
         test_template_name="nccl",
-        cmd_args=NCCLCmdArgs(),
+        cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
         extra_env_vars={"TEST_VAR": "VALUE"},
     )
     test_template = TestTemplate(slurm_system)
@@ -276,7 +276,7 @@ def test_default_container_mounts_with_extra_mounts(strategy_fixture: SlurmComma
         name="name",
         description="desc",
         test_template_name="tt",
-        cmd_args=NCCLCmdArgs(),
+        cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
         extra_container_mounts=["/host:/container"],
     )
     t = Test(test_definition=nccl, test_template=Mock())
@@ -296,7 +296,7 @@ def test_default_container_mounts_with_git_repos(strategy_fixture: SlurmCommandG
         name="name",
         description="desc",
         test_template_name="tt",
-        cmd_args=NCCLCmdArgs(),
+        cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
         git_repos=[repo1, repo2],
     )
     t = Test(test_definition=nccl, test_template=Mock())

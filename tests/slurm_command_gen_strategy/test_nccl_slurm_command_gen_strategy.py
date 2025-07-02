@@ -65,7 +65,11 @@ class TestNcclTestSlurmCommandGenStrategy:
         expected_result: Dict[str, Any],
     ) -> None:
         nccl = NCCLTestDefinition(
-            name="name", description="desc", test_template_name="tt", cmd_args=NCCLCmdArgs(), extra_env_vars=env_vars
+            name="name",
+            description="desc",
+            test_template_name="NcclTest",
+            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            extra_env_vars=env_vars,
         )
         t = Test(test_definition=nccl, test_template=Mock())
         tr = TestRun(name="t1", test=t, nodes=nodes, num_nodes=num_nodes)
@@ -83,7 +87,7 @@ class TestNcclTestSlurmCommandGenStrategy:
         self, cmd_gen_strategy: NcclTestSlurmCommandGenStrategy, args: dict[str, Union[str, list[str]]]
     ) -> None:
         cmd_args: NCCLCmdArgs = NCCLCmdArgs.model_validate({**{"docker_image_url": "fake_image_url"}, **args})
-        nccl = NCCLTestDefinition(name="name", description="desc", test_template_name="tt", cmd_args=cmd_args)
+        nccl = NCCLTestDefinition(name="name", description="desc", test_template_name="NcclTest", cmd_args=cmd_args)
         t = Test(test_definition=nccl, test_template=Mock())
         tr = TestRun(name="t1", test=t, nodes=[], num_nodes=1)
 
