@@ -57,7 +57,10 @@ def create_test_directories(slurm_system: SlurmSystem, test_run: TestRun) -> Non
 @pytest.fixture
 def benchmark_tr(slurm_system: SlurmSystem) -> TestRun:
     test_definition = NCCLTestDefinition(
-        name="nccl", description="NCCL test", test_template_name="NcclTest", cmd_args=NCCLCmdArgs()
+        name="nccl",
+        description="NCCL test",
+        test_template_name="NcclTest",
+        cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
     )
     test_template = TestTemplate(system=slurm_system)
     test = Test(test_definition=test_definition, test_template=test_template)
@@ -72,7 +75,7 @@ def dse_tr(slurm_system: SlurmSystem) -> TestRun:
         name="nccl",
         description="NCCL test",
         test_template_name="NcclTest",
-        cmd_args=NCCLCmdArgs(),
+        cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
         extra_env_vars={"VAR1": ["value1", "value2"]},
         agent_steps=12,
     )

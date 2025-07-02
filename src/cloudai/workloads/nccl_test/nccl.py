@@ -23,7 +23,7 @@ from cloudai.models.workload import CmdArgs, TestDefinition
 class NCCLCmdArgs(CmdArgs):
     """NCCL test command arguments."""
 
-    docker_image_url: str = "nvcr.io/nvidia/pytorch:24.02-py3"
+    docker_image_url: str
     subtest_name: Union[
         Literal[
             "all_reduce_perf_mpi",

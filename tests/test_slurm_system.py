@@ -385,7 +385,10 @@ def test_run(slurm_system: SlurmSystem) -> TestRun:
         name="test_run",
         test=Test(
             test_definition=NCCLTestDefinition(
-                name="test_run", description="test_run", test_template_name="nccl", cmd_args=NCCLCmdArgs()
+                name="test_run",
+                description="test_run",
+                test_template_name="nccl",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
             ),
             test_template=TestTemplate(slurm_system),
         ),

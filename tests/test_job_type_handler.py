@@ -23,7 +23,12 @@ from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 @pytest.fixture
 def tr(slurm_system: SlurmSystem) -> TestRun:
-    tdef = NCCLTestDefinition(name="nccl", description="NCCL Test", test_template_name="nccl", cmd_args=NCCLCmdArgs())
+    tdef = NCCLTestDefinition(
+        name="nccl",
+        description="NCCL Test",
+        test_template_name="NcclTest",
+        cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+    )
     return TestRun(
         name="test_run",
         test=Test(test_definition=tdef, test_template=TestTemplate(system=slurm_system)),
