@@ -18,11 +18,11 @@ from .ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoTestDefinition,
+    DecodeWorkerArgs,
     FrontendArgs,
     GenAIPerfArgs,
+    PrefillWorkerArgs,
     SimpleLoadBalancerArgs,
-    VllmDecodeWorkerArgs,
-    VllmPrefillWorkerArgs,
 )
 from .report_generation_strategy import AIDynamoReportGenerationStrategy
 from .slurm_command_gen_strategy import AIDynamoSlurmCommandGenStrategy
@@ -33,9 +33,9 @@ __all__ = [
     "AIDynamoReportGenerationStrategy",
     "AIDynamoSlurmCommandGenStrategy",
     "AIDynamoTestDefinition",
+    "DecodeWorkerArgs",
     "FrontendArgs",
     "GenAIPerfArgs",
+    "PrefillWorkerArgs",
     "SimpleLoadBalancerArgs",
-    "VllmDecodeWorkerArgs",
-    "VllmPrefillWorkerArgs",
 ]

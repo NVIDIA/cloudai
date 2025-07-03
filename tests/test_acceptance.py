@@ -32,12 +32,12 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoTestDefinition,
+    DecodeWorkerArgs,
     FrontendArgs,
     GenAIPerfArgs,
     PrefillWorkerArgs,
     ProcessorArgs,
     RouterArgs,
-    VllmWorkerArgs,
 )
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
@@ -392,7 +392,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                                 "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
                             }
                         ),
-                        vllm_worker=VllmWorkerArgs(
+                        decode_worker=DecodeWorkerArgs(
                             **{
                                 "num_nodes": 1,
                                 "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},

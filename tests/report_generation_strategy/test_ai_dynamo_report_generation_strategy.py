@@ -28,10 +28,10 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoTestDefinition,
     FrontendArgs,
     GenAIPerfArgs,
-    PrefillWorkerArgs,
     ProcessorArgs,
     RouterArgs,
-    VllmWorkerArgs,
+    DecodeWorkerArgs,
+    PrefillWorkerArgs,
 )
 from cloudai.workloads.ai_dynamo.report_generation_strategy import AIDynamoReportGenerationStrategy
 
@@ -73,7 +73,7 @@ def ai_dynamo_tr(tmp_path: Path) -> TestRun:
                             "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
                         }
                     ),
-                    vllm_worker=VllmWorkerArgs(
+                    decode_worker=DecodeWorkerArgs(
                         **{
                             "num_nodes": 1,
                             "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},

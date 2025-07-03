@@ -70,7 +70,7 @@ served_model_name = "nvidia/Llama-3.1-405B-Instruct-FP8"
   [cmd_args.dynamo.prefill_worker]
   num_nodes = 1
 
-  [cmd_args.dynamo.vllm_worker]
+  [cmd_args.dynamo.decode_worker]
   num_nodes = 0
 
   [cmd_args.genai_perf]
