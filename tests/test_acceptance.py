@@ -32,12 +32,12 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoTestDefinition,
+    CommonConfig,
     DecodeWorkerArgs,
     FrontendArgs,
     GenAIPerfArgs,
     PrefillWorkerArgs,
-    ProcessorArgs,
-    RouterArgs,
+    SimpleLoadBalancerArgs,
 )
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
@@ -383,9 +383,15 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     docker_image_url="nvcr.io/nvidia/ai-dynamo:24.09",
                     served_model_name="llama2-7b",
                     dynamo=AIDynamoArgs(
+                        common=CommonConfig(
+                            **{
+                                "model": "llama2-7b",
+                                "kv-transfer-config": '{"kv_connector":"NixlConnector","kv_role":"kv_both"}',
+                                "served_model_name": "llama2-7b",
+                            }
+                        ),
                         frontend=FrontendArgs(),
-                        processor=ProcessorArgs(**{"block-size": 64, "max-model-len": 8192, "router": "kv"}),
-                        router=RouterArgs(**{"min-workers": 1}),
+                        simple_load_balancer=SimpleLoadBalancerArgs(**{"enable-disagg": True}),
                         prefill_worker=PrefillWorkerArgs(
                             **{
                                 "num_nodes": 1,

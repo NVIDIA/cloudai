@@ -30,12 +30,12 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoCmdArgs,
     AIDynamoSlurmCommandGenStrategy,
     AIDynamoTestDefinition,
+    CommonConfig,
     DecodeWorkerArgs,
     FrontendArgs,
     GenAIPerfArgs,
     PrefillWorkerArgs,
-    ProcessorArgs,
-    RouterArgs,
+    SimpleLoadBalancerArgs,
 )
 
 
@@ -45,18 +45,23 @@ def cmd_args() -> AIDynamoCmdArgs:
         docker_image_url="url",
         served_model_name="nvidia/Llama-3.1-405B-Instruct-FP8",
         dynamo=AIDynamoArgs(
+            common=CommonConfig(
+                **{
+                    "model": "nvidia/Llama-3.1-405B-Instruct-FP8",
+                    "kv-transfer-config": '{"kv_connector":"NixlConnector","kv_role":"kv_both"}',
+                    "served_model_name": "nvidia/Llama-3.1-405B-Instruct-FP8",
+                }
+            ),
             frontend=FrontendArgs(
                 endpoint="dynamo.Processor.chat/completions",
                 port=8000,
                 port_etcd=1234,
                 port_nats=5678,
             ),
-            processor=ProcessorArgs(**{"block-size": 64, "max-model-len": 8192, "router": "kv"}),
-            router=RouterArgs(**{"min-workers": 1}),
+            simple_load_balancer=SimpleLoadBalancerArgs(**{"enable-disagg": True}),
             prefill_worker=PrefillWorkerArgs(
                 **{
                     "num_nodes": 1,
-                    "kv-transfer-config": '{"kv_connector":"DynamoNixlConnector"}',
                     "block-size": 64,
                     "max-model-len": 8192,
                     "max-num-seqs": 16,
@@ -69,7 +74,6 @@ def cmd_args() -> AIDynamoCmdArgs:
             decode_worker=DecodeWorkerArgs(
                 **{
                     "num_nodes": 1,
-                    "kv-transfer-config": '{"kv_connector":"DynamoNixlConnector"}',
                     "block-size": 64,
                     "max-model-len": 8192,
                     "max-num-seqs": 16,
