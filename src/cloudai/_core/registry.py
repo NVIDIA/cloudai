@@ -27,9 +27,9 @@ if TYPE_CHECKING:
     from .base_runner import BaseRunner
     from .command_gen_strategy import CommandGenStrategy
     from .grading_strategy import GradingStrategy
+    from .json_gen_strategy import JsonGenStrategy
     from .report_generation_strategy import ReportGenerationStrategy
     from .system import System
-    from .test_template_strategy import TestTemplateStrategy
 
 RewardFunction = Callable[[List[float]], float]
 
@@ -52,11 +52,11 @@ class Registry(metaclass=Singleton):
     strategies_map: ClassVar[
         dict[
             Tuple[
-                Type[Union[TestTemplateStrategy, GradingStrategy]],
+                Type[Union[JsonGenStrategy, GradingStrategy]],
                 Type[System],
                 Type[TestDefinition],
             ],
-            Type[Union[TestTemplateStrategy, GradingStrategy]],
+            Type[Union[JsonGenStrategy, GradingStrategy]],
         ]
     ] = {}
     installers_map: ClassVar[dict[str, Type[BaseInstaller]]] = {}
@@ -96,10 +96,10 @@ class Registry(metaclass=Singleton):
 
     def add_strategy(
         self,
-        strategy_interface: Type[Union[TestTemplateStrategy, GradingStrategy]],
+        strategy_interface: Type[Union[JsonGenStrategy, GradingStrategy]],
         system_types: List[Type[System]],
         definition_types: List[Type[TestDefinition]],
-        strategy: Type[Union[TestTemplateStrategy, GradingStrategy]],
+        strategy: Type[Union[JsonGenStrategy, GradingStrategy]],
     ) -> None:
         for system_type in system_types:
             for def_type in definition_types:
@@ -111,11 +111,11 @@ class Registry(metaclass=Singleton):
     def update_strategy(
         self,
         key: Tuple[
-            Type[Union[TestTemplateStrategy, GradingStrategy]],
+            Type[Union[JsonGenStrategy, GradingStrategy]],
             Type[System],
             Type[TestDefinition],
         ],
-        value: Type[Union[TestTemplateStrategy, GradingStrategy]],
+        value: Type[Union[JsonGenStrategy, GradingStrategy]],
     ) -> None:
         self.strategies_map[key] = value
 
