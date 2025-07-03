@@ -50,10 +50,10 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 by_alias=True, exclude={"port_etcd", "port_nats"}, exclude_none=True
             ),
             "SimpleLoadBalancer": td.cmd_args.dynamo.simple_load_balancer.model_dump(by_alias=True, exclude_none=True),
-            "VllmPrefillWorker": td.cmd_args.dynamo.vllm_prefill_worker.model_dump(
+            "VllmPrefillWorker": td.cmd_args.dynamo.prefill_worker.model_dump(
                 by_alias=True, exclude={"num_nodes"}, exclude_none=True
             ),
-            "VllmDecodeWorker": td.cmd_args.dynamo.vllm_decode_worker.model_dump(
+            "VllmDecodeWorker": td.cmd_args.dynamo.decode_worker.model_dump(
                 by_alias=True, exclude={"num_nodes"}, exclude_none=True
             ),
         }
@@ -82,7 +82,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _common_header(self, hf_home: Path, port_nats: int, port_etcd: int) -> List[str]:
         return [
-            f"export HF_HOME=/root/.cache/huggingface",
+            "export HF_HOME=/root/.cache/huggingface",
             "export DYNAMO_FRONTEND=$SLURM_JOB_MASTER_NODE",
             "export VLLM_VERSION=0.9.0", # TODO: pass this as a parameter.
             f'export NATS_SERVER="nats://${{DYNAMO_FRONTEND}}:{port_nats}"',
@@ -96,11 +96,11 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ]
 
     def _role_dispatch(self, td: AIDynamoTestDefinition, yaml_config_path: Path) -> List[str]:
-        prefill_n = td.cmd_args.dynamo.vllm_prefill_worker.num_nodes
-        decode_n = td.cmd_args.dynamo.vllm_decode_worker.num_nodes
+        prefill_n = td.cmd_args.dynamo.prefill_worker.num_nodes
+        decode_n = td.cmd_args.dynamo.decode_worker.num_nodes
 
-        assert isinstance(prefill_n, int), "vllm_prefill_worker.num_nodes must be an integer"
-        assert isinstance(decode_n, int), "vllm_decode_worker.num_nodes must be an integer"
+        assert isinstance(prefill_n, int), "prefill_worker.num_nodes must be an integer"
+        assert isinstance(decode_n, int), "decode_worker.num_nodes must be an integer"
 
         dispatch = [
             'ROLE="frontend"',
@@ -181,9 +181,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "exit 0",
         ]
 
-    def _dynamo_cmd(self, module: str, config: Path, service_name: Optional[str] = None) -> str:
-        svc = f"--service-name {service_name} " if service_name else ""
-        return f"cd /workspace/examples/vllm_v1 && dynamo serve {module} -f {config} {svc}"
+    def _dynamo_cmd(self, module: str, config: Path) -> str:
+        return f"cd /workspace/examples/vllm_v1 && dynamo serve {module} -f {config}"
 
     def _bg(self, cmd: str, stdout_tag: str, stderr_tag: str) -> str:
         return f"{cmd} > /cloudai_run_results/{stdout_tag}.txt 2> /cloudai_run_results/{stderr_tag}.txt &"

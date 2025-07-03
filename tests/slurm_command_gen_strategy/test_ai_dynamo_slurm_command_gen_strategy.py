@@ -30,12 +30,12 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoCmdArgs,
     AIDynamoSlurmCommandGenStrategy,
     AIDynamoTestDefinition,
+    DecodeWorkerArgs,
     FrontendArgs,
     GenAIPerfArgs,
     PrefillWorkerArgs,
     ProcessorArgs,
     RouterArgs,
-    VllmWorkerArgs,
 )
 
 
@@ -66,7 +66,7 @@ def cmd_args() -> AIDynamoCmdArgs:
                     "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
                 }
             ),
-            vllm_worker=VllmWorkerArgs(
+            decode_worker=DecodeWorkerArgs(
                 **{
                     "num_nodes": 1,
                     "kv-transfer-config": '{"kv_connector":"DynamoNixlConnector"}',
@@ -178,7 +178,7 @@ def test_yaml_config_generation(strategy: AIDynamoSlurmCommandGenStrategy, test_
                 "model": "nvidia/Llama-3.1-405B-Instruct-FP8",
                 "min-workers": 1,
             },
-            "VllmWorker": {
+            "VllmDecodeWorker": {
                 "model": "nvidia/Llama-3.1-405B-Instruct-FP8",
                 "kv-transfer-config": '{"kv_connector":"DynamoNixlConnector"}',
                 "block-size": 64,
@@ -201,7 +201,7 @@ def test_yaml_config_generation(strategy: AIDynamoSlurmCommandGenStrategy, test_
                     },
                 },
             },
-            "PrefillWorker": {
+            "VllmPrefillWorker": {
                 "model": "nvidia/Llama-3.1-405B-Instruct-FP8",
                 "kv-transfer-config": '{"kv_connector":"DynamoNixlConnector"}',
                 "block-size": 64,
@@ -223,20 +223,18 @@ def test_yaml_config_generation(strategy: AIDynamoSlurmCommandGenStrategy, test_
 
 
 @pytest.mark.parametrize(
-    "module, config, service_name, expected",
+    "module, config, expected",
     [
-        ("graphs.agg_router:Frontend", "cfg.yaml", None, "dynamo serve graphs.agg_router:Frontend -f cfg.yaml"),
+        ("graphs.agg_router:Frontend", "cfg.yaml", "dynamo serve graphs.agg_router:Frontend -f cfg.yaml"),
         (
-            "components.prefill_worker:PrefillWorker",
+            "components.worker:VllmPrefillWorker",
             "prefill.yaml",
-            None,
-            "dynamo serve components.prefill_worker:PrefillWorker -f prefill.yaml",
+            "dynamo serve components.worker:VllmPrefillWorker -f prefill.yaml",
         ),
         (
-            "components.worker:VllmWorker",
+            "components.worker:VllmDecodeWorker",
             "decode.yaml",
-            "VllmWorker",
-            "dynamo serve components.worker:VllmWorker -f decode.yaml --service-name VllmWorker",
+            "dynamo serve components.worker:VllmDecodeWorker -f decode.yaml",
         ),
     ],
 )
@@ -244,8 +242,7 @@ def test_dynamo_cmd(
     strategy: AIDynamoSlurmCommandGenStrategy,
     module: str,
     config: str,
-    service_name: str | None,
     expected: str,
 ) -> None:
-    result = strategy._dynamo_cmd(module, Path(config), service_name)
+    result = strategy._dynamo_cmd(module, Path(config))
     assert result.strip() == expected

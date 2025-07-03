@@ -102,7 +102,7 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
 
         num_frontend_nodes = 1
         num_prefill_nodes = self.test_run.test.test_definition.cmd_args.dynamo.prefill_worker.num_nodes
-        num_decode_nodes = self.test_run.test.test_definition.cmd_args.dynamo.vllm_worker.num_nodes
+        num_decode_nodes = self.test_run.test.test_definition.cmd_args.dynamo.decode_worker.num_nodes
 
         total_gpus = (num_frontend_nodes + num_prefill_nodes + num_decode_nodes) * gpus_per_node
 

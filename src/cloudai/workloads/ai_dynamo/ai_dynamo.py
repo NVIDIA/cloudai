@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -52,7 +52,7 @@ class SimpleLoadBalancerArgs(BaseModel):
     enable_disagg: bool = True
 
 
-class VllmWorkerBaseArgs(BaseModel):
+class WorkerBaseArgs(BaseModel):
     """Base arguments for VLLM workers."""
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
@@ -65,13 +65,13 @@ class VllmWorkerBaseArgs(BaseModel):
     enforce_eager: bool = Field(True, alias="enforce-eager")
 
 
-class VllmPrefillWorkerArgs(VllmWorkerBaseArgs):
+class PrefillWorkerArgs(WorkerBaseArgs):
     """Arguments for the VLLM prefill worker."""
 
     pass
 
 
-class VllmDecodeWorkerArgs(VllmWorkerBaseArgs):
+class DecodeWorkerArgs(WorkerBaseArgs):
     """Arguments for the VLLM decode worker."""
 
     pass
@@ -85,8 +85,8 @@ class AIDynamoArgs(BaseModel):
     common: CommonConfig
     frontend: FrontendArgs = FrontendArgs()
     simple_load_balancer: SimpleLoadBalancerArgs = SimpleLoadBalancerArgs()
-    vllm_prefill_worker: VllmPrefillWorkerArgs
-    vllm_decode_worker: VllmDecodeWorkerArgs
+    prefill_worker: PrefillWorkerArgs
+    decode_worker: DecodeWorkerArgs
 
 
 class GenAIPerfArgs(BaseModel):
