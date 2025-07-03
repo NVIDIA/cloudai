@@ -391,7 +391,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                             }
                         ),
                         frontend=FrontendArgs(),
-                        simple_load_balancer=SimpleLoadBalancerArgs(**{"enable-disagg": True}),
+                        simple_load_balancer=SimpleLoadBalancerArgs(**{"enable_disagg": True}),
                         prefill_worker=PrefillWorkerArgs(
                             **{
                                 "num_nodes": 1,
@@ -436,7 +436,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         if request.param == "nixl_bench":
             tr.num_nodes = 2
         if request.param == "ai-dynamo":
-            tr.num_nodes = 3
+            tr.num_nodes = 2
             hf_home = tr.output_path / "hf_home"
             hf_home.mkdir(parents=True, exist_ok=True)
             tr.test.test_definition.extra_env_vars["HF_HOME"] = str(hf_home)

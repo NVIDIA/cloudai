@@ -182,7 +182,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ]
 
     def _dynamo_cmd(self, module: str, config: Path) -> str:
-        return f"cd /workspace/examples/vllm_v1 && dynamo serve {module} -f {config}"
+        return f"dynamo serve {module} -f {config}"
 
     def _bg(self, cmd: str, stdout_tag: str, stderr_tag: str) -> str:
         return f"{cmd} > /cloudai_run_results/{stdout_tag}.txt 2> /cloudai_run_results/{stderr_tag}.txt &"
