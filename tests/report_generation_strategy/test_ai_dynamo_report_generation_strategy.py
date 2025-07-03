@@ -26,12 +26,12 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoTestDefinition,
+    DecodeWorkerArgs,
     FrontendArgs,
     GenAIPerfArgs,
+    PrefillWorkerArgs,
     ProcessorArgs,
     RouterArgs,
-    DecodeWorkerArgs,
-    PrefillWorkerArgs,
 )
 from cloudai.workloads.ai_dynamo.report_generation_strategy import AIDynamoReportGenerationStrategy
 
