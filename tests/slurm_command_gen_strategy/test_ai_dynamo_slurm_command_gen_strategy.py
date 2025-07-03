@@ -44,6 +44,7 @@ def cmd_args() -> AIDynamoCmdArgs:
     return AIDynamoCmdArgs(
         docker_image_url="url",
         served_model_name="nvidia/Llama-3.1-405B-Instruct-FP8",
+        huggingface_home=Path("/root/.cache/huggingface"),
         dynamo=AIDynamoArgs(
             common=CommonConfig(
                 **{
@@ -96,14 +97,14 @@ def cmd_args() -> AIDynamoCmdArgs:
 
 @pytest.fixture
 def test_run(tmp_path: Path, cmd_args: AIDynamoCmdArgs) -> TestRun:
-    home = tmp_path / "huggingface"
-    home.mkdir()
+    hf_home = tmp_path / "huggingface"
+    hf_home.mkdir()
+    cmd_args.huggingface_home = hf_home
     tdef = AIDynamoTestDefinition(
         name="test",
         description="desc",
         test_template_name="template",
         cmd_args=cmd_args,
-        extra_env_vars={"HF_HOME": "/root/.cache/huggingface"},
     )
     test = Test(test_definition=tdef, test_template=Mock())
     return TestRun(name="run", test=test, nodes=["n0", "n1"], num_nodes=2, output_path=tmp_path)
@@ -114,13 +115,20 @@ def strategy(slurm_system: SlurmSystem, test_run: TestRun) -> AIDynamoSlurmComma
     return AIDynamoSlurmCommandGenStrategy(slurm_system, test_run)
 
 
+def test_hugging_face_home_path_valid(test_run: TestRun) -> None:
+    td = cast(AIDynamoTestDefinition, test_run.test.test_definition)
+    path = td.cmd_args.huggingface_home
+    assert path.exists()
+    assert path.is_dir()
+
+
 def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: TestRun) -> None:
     mounts = strategy._container_mounts()
     td = cast(AIDynamoTestDefinition, test_run.test.test_definition)
     script_host = test_run.output_path / "run.sh"
     yaml_config_path = test_run.output_path / "dynamo_config.yaml"
     assert mounts == [
-        f"{td.hugging_face_home_path}:/root/.cache/huggingface",
+        f"{td.cmd_args.huggingface_home}:/root/.cache/huggingface",
         f"{script_host}:/opt/run.sh",
         f"{yaml_config_path}:{yaml_config_path}",
     ]

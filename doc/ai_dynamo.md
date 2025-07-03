@@ -64,8 +64,6 @@ test_template_name = "AIDynamo"
 docker_image_url = "/path/to/docker/image"
 served_model_name = "nvidia/Llama-3.1-405B-Instruct-FP8"
 
-  [cmd_args.dynamo.processor]
-  [cmd_args.dynamo.router]
   [cmd_args.dynamo.frontend]
   [cmd_args.dynamo.prefill_worker]
   num_nodes = 1

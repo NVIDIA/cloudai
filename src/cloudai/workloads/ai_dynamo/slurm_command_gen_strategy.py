@@ -30,7 +30,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _container_mounts(self) -> list[str]:
         td = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
         mounts = [
-            f"{td.hugging_face_home_path}:/root/.cache/huggingface",
+            f"{td.cmd_args.huggingface_home}:/root/.cache/huggingface",
         ]
         script_host = (self.test_run.output_path / "run.sh").resolve()
         script_container = "/opt/run.sh"
@@ -72,15 +72,14 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return str(tdef.docker_image.installed_path)
 
     def _generate_wrapper_script(self, script_path: Path, td: AIDynamoTestDefinition, yaml_path: Path) -> None:
-        hf_home = td.hugging_face_home_path
         port_nats = td.cmd_args.dynamo.frontend.port_nats
         port_etcd = td.cmd_args.dynamo.frontend.port_etcd
         lines = ["#!/bin/bash", ""]
-        lines += self._common_header(hf_home, port_nats, port_etcd)
+        lines += self._common_header(port_nats, port_etcd)
         lines += self._role_dispatch(td, yaml_path)
         self._write_script(script_path, lines)
 
-    def _common_header(self, hf_home: Path, port_nats: int, port_etcd: int) -> List[str]:
+    def _common_header(self, port_nats: int, port_etcd: int) -> List[str]:
         return [
             "export HF_HOME=/root/.cache/huggingface",
             "export DYNAMO_FRONTEND=$SLURM_JOB_MASTER_NODE",
