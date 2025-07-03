@@ -84,7 +84,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return [
             "export HF_HOME=/root/.cache/huggingface",
             "export DYNAMO_FRONTEND=$SLURM_JOB_MASTER_NODE",
-            "export VLLM_VERSION=0.9.0", # TODO: pass this as a parameter.
+            "export VLLM_VERSION=0.9.0",  # TODO: pass this as a parameter.
             f'export NATS_SERVER="nats://${{DYNAMO_FRONTEND}}:{port_nats}"',
             f'export ETCD_ENDPOINTS="http://${{DYNAMO_FRONTEND}}:{port_etcd}"',
             "cd /workspace/examples/vllm_v1/",
