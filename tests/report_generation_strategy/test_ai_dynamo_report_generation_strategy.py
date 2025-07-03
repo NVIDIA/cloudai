@@ -72,7 +72,7 @@ def ai_dynamo_tr(tmp_path: Path) -> TestRun:
                         }
                     ),
                     frontend=FrontendArgs(port_nats=4222, port_etcd=2379),
-                    simple_load_balancer=SimpleLoadBalancerArgs(**{"enable-disagg": True}),
+                    simple_load_balancer=SimpleLoadBalancerArgs(**{"enable_disagg": True}),
                     prefill_worker=PrefillWorkerArgs(
                         **{
                             "num_nodes": 1,

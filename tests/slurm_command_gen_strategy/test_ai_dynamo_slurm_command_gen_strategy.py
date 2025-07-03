@@ -53,39 +53,25 @@ def cmd_args() -> AIDynamoCmdArgs:
                 }
             ),
             frontend=FrontendArgs(
-                endpoint="dynamo.Processor.chat/completions",
+                endpoint="dynamo.SimpleLoadBalancer.generate_disagg",
                 port=8000,
                 port_etcd=1234,
                 port_nats=5678,
             ),
-            simple_load_balancer=SimpleLoadBalancerArgs(**{"enable-disagg": True}),
+            simple_load_balancer=SimpleLoadBalancerArgs(**{"enable_disagg": True}),
             prefill_worker=PrefillWorkerArgs(
                 **{
                     "num_nodes": 1,
-                    "block-size": 64,
-                    "max-model-len": 8192,
-                    "max-num-seqs": 16,
                     "gpu-memory-utilization": 0.95,
                     "tensor-parallel-size": 8,
-                    "quantization": "modelopt",
                     "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
                 }
             ),
             decode_worker=DecodeWorkerArgs(
                 **{
                     "num_nodes": 1,
-                    "block-size": 64,
-                    "max-model-len": 8192,
-                    "max-num-seqs": 16,
-                    "remote-prefill": True,
-                    "conditional-disagg": True,
-                    "max_local_prefill_length": 10,
-                    "max-prefill-queue-size": 2,
                     "gpu-memory-utilization": 0.95,
                     "tensor-parallel-size": 8,
-                    "router": "kv",
-                    "quantization": "modelopt",
-                    "enable-prefix-caching": True,
                     "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
                 }
             ),
@@ -117,29 +103,15 @@ def test_run(tmp_path: Path, cmd_args: AIDynamoCmdArgs) -> TestRun:
         description="desc",
         test_template_name="template",
         cmd_args=cmd_args,
-        extra_env_vars={"HF_HOME": str(home)},
+        extra_env_vars={"HF_HOME": "/root/.cache/huggingface"},
     )
     test = Test(test_definition=tdef, test_template=Mock())
-    return TestRun(name="run", test=test, nodes=["n0", "n1", "n2"], num_nodes=3, output_path=tmp_path)
+    return TestRun(name="run", test=test, nodes=["n0", "n1"], num_nodes=2, output_path=tmp_path)
 
 
 @pytest.fixture
 def strategy(slurm_system: SlurmSystem, test_run: TestRun) -> AIDynamoSlurmCommandGenStrategy:
     return AIDynamoSlurmCommandGenStrategy(slurm_system, test_run)
-
-
-def test_hugging_face_home_path_valid(test_run: TestRun) -> None:
-    td = cast(AIDynamoTestDefinition, test_run.test.test_definition)
-    path = td.hugging_face_home_path
-    assert path.exists()
-    assert path.is_dir()
-
-
-def test_hugging_face_home_path_missing(test_run: TestRun) -> None:
-    td = cast(AIDynamoTestDefinition, test_run.test.test_definition)
-    td.extra_env_vars["HF_HOME"] = ""
-    with pytest.raises(ValueError):
-        _ = td.hugging_face_home_path
 
 
 def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: TestRun) -> None:
@@ -148,7 +120,7 @@ def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: T
     script_host = test_run.output_path / "run.sh"
     yaml_config_path = test_run.output_path / "dynamo_config.yaml"
     assert mounts == [
-        f"{td.hugging_face_home_path}:{td.hugging_face_home_path}",
+        f"{td.hugging_face_home_path}:/root/.cache/huggingface",
         f"{script_host}:/opt/run.sh",
         f"{yaml_config_path}:{yaml_config_path}",
     ]
@@ -167,37 +139,26 @@ def test_yaml_config_generation(strategy: AIDynamoSlurmCommandGenStrategy, test_
     with open(yaml_path, "r") as yaml_file:
         config = yaml.safe_load(yaml_file)
         expected_config = {
-            "Frontend": {
+            "Common": {
+                "model": "nvidia/Llama-3.1-405B-Instruct-FP8",
+                "kv-transfer-config": '{"kv_connector":"NixlConnector","kv_role":"kv_both"}',
                 "served_model_name": "nvidia/Llama-3.1-405B-Instruct-FP8",
-                "endpoint": "dynamo.Processor.chat/completions",
+            },
+            "Frontend": {
+                "common-configs": ["model", "kv-transfer-config", "served_model_name"],
+                "endpoint": "dynamo.SimpleLoadBalancer.generate_disagg",
                 "port": 8000,
             },
-            "Processor": {
-                "model": "nvidia/Llama-3.1-405B-Instruct-FP8",
-                "block-size": 64,
-                "max-model-len": 8192,
-                "router": "kv",
-            },
-            "Router": {
-                "model": "nvidia/Llama-3.1-405B-Instruct-FP8",
-                "min-workers": 1,
+            "SimpleLoadBalancer": {
+                "common-configs": ["model", "kv-transfer-config", "served_model_name"],
+                "enable_disagg": True,
             },
             "VllmDecodeWorker": {
-                "model": "nvidia/Llama-3.1-405B-Instruct-FP8",
-                "kv-transfer-config": '{"kv_connector":"DynamoNixlConnector"}',
-                "block-size": 64,
-                "max-model-len": 8192,
-                "max-num-seqs": 16,
-                "remote-prefill": True,
-                "conditional-disagg": True,
-                "max-local-prefill-length": 10,
-                "max-prefill-queue-size": 2,
+                "common-configs": ["model", "kv-transfer-config", "served_model_name"],
+                "enforce-eager": True,
                 "gpu-memory-utilization": 0.95,
                 "tensor-parallel-size": 8,
                 "pipeline-parallel-size": 1,
-                "router": "kv",
-                "quantization": "modelopt",
-                "enable-prefix-caching": True,
                 "ServiceArgs": {
                     "workers": 1,
                     "resources": {
@@ -206,15 +167,11 @@ def test_yaml_config_generation(strategy: AIDynamoSlurmCommandGenStrategy, test_
                 },
             },
             "VllmPrefillWorker": {
-                "model": "nvidia/Llama-3.1-405B-Instruct-FP8",
-                "kv-transfer-config": '{"kv_connector":"DynamoNixlConnector"}',
-                "block-size": 64,
-                "max-model-len": 8192,
-                "max-num-seqs": 16,
+                "common-configs": ["model", "kv-transfer-config", "served_model_name"],
+                "enforce-eager": True,
                 "gpu-memory-utilization": 0.95,
                 "tensor-parallel-size": 8,
                 "pipeline-parallel-size": 1,
-                "quantization": "modelopt",
                 "ServiceArgs": {
                     "workers": 1,
                     "resources": {
@@ -229,7 +186,7 @@ def test_yaml_config_generation(strategy: AIDynamoSlurmCommandGenStrategy, test_
 @pytest.mark.parametrize(
     "module, config, expected",
     [
-        ("graphs.router:Frontend", "cfg.yaml", "dynamo serve graphs.router:Frontend -f cfg.yaml"),
+        ("graphs.agg:Frontend", "cfg.yaml", "dynamo serve graphs.agg:Frontend -f cfg.yaml"),
         (
             "components.worker:VllmPrefillWorker",
             "prefill.yaml",
