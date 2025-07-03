@@ -692,7 +692,7 @@ class SlurmSystem(BaseModel, System):
             if abbrev in state_abbreviations:
                 return state_abbreviations[abbrev]
             else:
-                logging.warning(f"Unknown state: {core_state}")
+                logging.debug(f"Unknown node state: {core_state}")
                 return SlurmNodeState.UNKNOWN_STATE
 
     def parse_nodes(self, nodes: List[str]) -> List[str]:
