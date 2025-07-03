@@ -225,7 +225,7 @@ def test_yaml_config_generation(strategy: AIDynamoSlurmCommandGenStrategy, test_
 @pytest.mark.parametrize(
     "module, config, expected",
     [
-        ("graphs.agg_router:Frontend", "cfg.yaml", "dynamo serve graphs.agg_router:Frontend -f cfg.yaml"),
+        ("graphs.router:Frontend", "cfg.yaml", "dynamo serve graphs.router:Frontend -f cfg.yaml"),
         (
             "components.worker:VllmPrefillWorker",
             "prefill.yaml",
