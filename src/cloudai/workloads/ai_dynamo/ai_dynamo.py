@@ -118,6 +118,7 @@ class AIDynamoCmdArgs(CmdArgs):
 
     docker_image_url: str
     served_model_name: str
+    huggingface_home: Path = Path("/root/.cache/huggingface")
     dynamo: AIDynamoArgs
     sleep_seconds: int = 660
     genai_perf: GenAIPerfArgs
@@ -138,13 +139,3 @@ class AIDynamoTestDefinition(TestDefinition):
     @property
     def installables(self) -> List[Installable]:
         return [self.docker_image]
-
-    @property
-    def hugging_face_home_path(self) -> Path:
-        raw = self.extra_env_vars.get("HF_HOME")
-        if not isinstance(raw, str) or not raw.strip():
-            raise ValueError("HF_HOME must be set and non-empty")
-        path = Path(raw)
-        if not path.is_dir():
-            raise FileNotFoundError(f"HF_HOME path not found at {path}")
-        return path
