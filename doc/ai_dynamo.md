@@ -51,9 +51,9 @@ The path to the downloaded weights should be consistent with the structure expec
 
 ---
 
-### Step 2: Configure `HF_HOME` in the Test Schema
+### Step 2: Configure `huggingface_home` in the Test Schema
 
-Set the `HF_HOME` environment variable in the test schema file (e.g., `test.toml`) so that CloudAI can locate the model weights:
+Set the `huggingface_home` variable in the test schema file (e.g., `test.toml`) so that CloudAI can locate the model weights:
 
 ```toml
 name = "llama3.1_405b_fp8"
@@ -63,6 +63,7 @@ test_template_name = "AIDynamo"
 [cmd_args]
 docker_image_url = "/path/to/docker/image"
 served_model_name = "nvidia/Llama-3.1-405B-Instruct-FP8"
+huggingface_home = "/your/path/to/hf_home"
 
   [cmd_args.dynamo.frontend]
   [cmd_args.dynamo.prefill_worker]
@@ -76,11 +77,9 @@ served_model_name = "nvidia/Llama-3.1-405B-Instruct-FP8"
   endpoint_type = "chat"
   streaming = true
 
-[extra_env_vars]
-HF_HOME = "/your/path/to/hf_home"
 ```
 
-This environment variable should point to the root directory used with `--local-dir` in the download step. CloudAI will use this directory to locate and load the appropriate model weights.
+This location should point to the root directory used with `--local-dir` in the download step. CloudAI will use this directory to locate and load the appropriate model weights.
 
 ---
 
@@ -88,14 +87,14 @@ This environment variable should point to the root directory used with `--local-
 
 AI Dynamo jobs use three distinct types of nodes:
 
-- **Frontend node**: Hosts the coordination services (`etcd`, `nats`) as well as the **frontend server** and the **request generator** (`genai-perf`)
+- **Frontend node**: Hosts the coordination services (`etcd`, `nats`), the **frontend server**, the **request generator** (`genai-perf`), and the first decode worker.
 - **Prefill node(s)**: Handle the prefill stage of inference
 - **Decode node(s)**: Handle the decode stage of inference (optional, depending on model and setup)
 
 The total number of nodes required must be:
 
 ```
-1 (frontend) + num_prefill_nodes + num_decode_nodes
+num_prefill_nodes + num_decode_nodes
 ```
 
 If there is a mismatch in the number of nodes between the schema and the test scenario, CloudAI will use the number of nodes specified in the test schema, ignoring the value in the test scenario.
