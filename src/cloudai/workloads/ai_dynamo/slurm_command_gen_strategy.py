@@ -197,7 +197,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "genai-perf",
             "profile",
             "-m",
-            td.cmd_args.served_model_name,
+            td.cmd_args.dynamo.common.served_model_name,
             "--url",
             f"http://${{CURRENT_HOST}}:{args.genai_perf.port}",
             "--endpoint-type",

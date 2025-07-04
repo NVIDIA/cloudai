@@ -62,7 +62,6 @@ def ai_dynamo_tr(tmp_path: Path) -> TestRun:
             test_template_name="t",
             cmd_args=AIDynamoCmdArgs(
                 docker_image_url="http://url",
-                served_model_name="mock_model",
                 dynamo=AIDynamoArgs(
                     common=CommonConfig(
                         **{

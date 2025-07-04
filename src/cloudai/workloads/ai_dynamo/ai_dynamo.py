@@ -117,7 +117,6 @@ class AIDynamoCmdArgs(CmdArgs):
     """Arguments for AI Dynamo."""
 
     docker_image_url: str
-    served_model_name: str
     huggingface_home: Path = Path("/root/.cache/huggingface")
     dynamo: AIDynamoArgs
     sleep_seconds: int = 660
