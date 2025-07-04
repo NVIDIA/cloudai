@@ -132,7 +132,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             self._bg(self._etcd_cmd(td.cmd_args.dynamo.frontend.port_etcd), "etcd_stdout", "etcd_stderr"),
             self._bg(self._nats_cmd(), "nats_stdout", "nats_stderr"),
             self._bg(
-                self._dynamo_cmd("graphs.agg:Frontend", yaml_config_path),
+                self._dynamo_cmd("graphs.agg:Frontend", yaml_config_path, td.cmd_args.extra_args),
                 "frontend_stdout",
                 "frontend_stderr",
             ),
@@ -157,7 +157,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _prefill_block(self, td: AIDynamoTestDefinition, yaml_config_path: Path) -> List[str]:
         return [
             self._bg(
-                self._dynamo_cmd("components.worker:VllmPrefillWorker", yaml_config_path),
+                self._dynamo_cmd("components.worker:VllmPrefillWorker", yaml_config_path, td.cmd_args.extra_args),
                 "prefill_stdout_node${SLURM_NODEID}",
                 "prefill_stderr_node${SLURM_NODEID}",
             ),
@@ -170,7 +170,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _decode_block(self, td: AIDynamoTestDefinition, yaml_config_path: Path) -> List[str]:
         return [
             self._bg(
-                self._dynamo_cmd("components.worker:VllmDecodeWorker", yaml_config_path),
+                self._dynamo_cmd("components.worker:VllmDecodeWorker", yaml_config_path, td.cmd_args.extra_args),
                 "decode_stdout_node${SLURM_NODEID}",
                 "decode_stderr_node${SLURM_NODEID}",
             ),
@@ -180,8 +180,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "exit 0",
         ]
 
-    def _dynamo_cmd(self, module: str, config: Path) -> str:
-        return f"dynamo serve {module} -f {config}"
+    def _dynamo_cmd(self, module: str, config: Path, extra_args: str) -> str:
+        return f"dynamo serve {module} -f {config} {extra_args}"
 
     def _bg(self, cmd: str, stdout_tag: str, stderr_tag: str) -> str:
         return f"{cmd} > /cloudai_run_results/{stdout_tag}.txt 2> /cloudai_run_results/{stderr_tag}.txt &"
