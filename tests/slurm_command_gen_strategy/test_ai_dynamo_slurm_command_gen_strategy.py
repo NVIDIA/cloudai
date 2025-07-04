@@ -43,7 +43,6 @@ from cloudai.workloads.ai_dynamo import (
 def cmd_args() -> AIDynamoCmdArgs:
     return AIDynamoCmdArgs(
         docker_image_url="url",
-        served_model_name="nvidia/Llama-3.1-405B-Instruct-FP8",
         huggingface_home=Path("/root/.cache/huggingface"),
         dynamo=AIDynamoArgs(
             common=CommonConfig(
