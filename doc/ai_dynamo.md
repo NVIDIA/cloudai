@@ -39,10 +39,10 @@ You can verify the model cache using:
 ```bash
 $ huggingface-cli scan-cache -vvv
 
-REPO ID                             REPO TYPE REVISION                                 SIZE ON DISK NB FILES LAST_MODIFIED REFS LOCAL PATH
------------------------------------ --------- ---------------------------------------- ------------ -------- ------------- ---------------------------------------------------------------------------------------------------------------------------------------------------------
-hf-internal-testing/llama-tokenizer model     d02ad6cb9dd2c2296a6332199fa2fdca5938fef0         2.3M        5 3 days ago    main /path/to/hf_home/hub/models--hf-internal-testing--llama-tokenizer/snapshots/d02ad6cb9dd2c2296a6332199fa2fdca5938fef0
-nvidia/Llama-3.1-405B-Instruct-FP8  model     a0a0bc4e698fbbe4eb184bbd62067ff195a65a39       410.1G       96 4 days ago    main /path/to/hf_home/hub/models--nvidia--Llama-3.1-405B-Instruct-FP8/snapshots/a0a0bc4e698fbbe4eb184bbd62067ff195a65a39
+REPO ID                             REPO TYPE SIZE ON DISK
+----------------------------------- --------- ------------
+hf-internal-testing/llama-tokenizer model     2.3M
+nvidia/Llama-3.1-405B-Instruct-FP8  model     410.1G
 
 Done in 0.3s. Scanned 2 repo(s) for a total of 410.1G.
 ```
