@@ -259,7 +259,7 @@ class DockerImageCacheManager:
         srun_prefix = f"srun --export=ALL --partition={self.system.default_partition}"
         if self.system.account:
             srun_prefix += f" --account={self.system.account}"
-        if self.system.gpus_per_node:
+        if self.system.supports_gpu_directives:
             srun_prefix += " --gres=gpu:1"
 
         return self._import_docker_image(srun_prefix, docker_image_url, docker_image_path)
