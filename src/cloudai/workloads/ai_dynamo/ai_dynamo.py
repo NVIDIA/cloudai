@@ -121,6 +121,7 @@ class AIDynamoCmdArgs(CmdArgs):
     dynamo: AIDynamoArgs
     sleep_seconds: int = 660
     genai_perf: GenAIPerfArgs
+    extra_args: str = ""
 
 
 class AIDynamoTestDefinition(TestDefinition):
