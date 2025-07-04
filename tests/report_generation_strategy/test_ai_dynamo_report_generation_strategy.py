@@ -26,12 +26,12 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoTestDefinition,
+    CommonConfig,
+    DecodeWorkerArgs,
     FrontendArgs,
     GenAIPerfArgs,
     PrefillWorkerArgs,
-    ProcessorArgs,
-    RouterArgs,
-    VllmWorkerArgs,
+    SimpleLoadBalancerArgs,
 )
 from cloudai.workloads.ai_dynamo.report_generation_strategy import AIDynamoReportGenerationStrategy
 
@@ -62,18 +62,23 @@ def ai_dynamo_tr(tmp_path: Path) -> TestRun:
             test_template_name="t",
             cmd_args=AIDynamoCmdArgs(
                 docker_image_url="http://url",
-                served_model_name="mock_model",
                 dynamo=AIDynamoArgs(
+                    common=CommonConfig(
+                        **{
+                            "model": "mock_model",
+                            "kv-transfer-config": '{"kv_connector":"NixlConnector","kv_role":"kv_both"}',
+                            "served_model_name": "mock_model",
+                        }
+                    ),
                     frontend=FrontendArgs(port_nats=4222, port_etcd=2379),
-                    processor=ProcessorArgs(**{"block-size": 64, "max-model-len": 8192, "router": "kv"}),
-                    router=RouterArgs(**{"min-workers": 1}),
+                    simple_load_balancer=SimpleLoadBalancerArgs(**{"enable_disagg": True}),
                     prefill_worker=PrefillWorkerArgs(
                         **{
                             "num_nodes": 1,
                             "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
                         }
                     ),
-                    vllm_worker=VllmWorkerArgs(
+                    decode_worker=DecodeWorkerArgs(
                         **{
                             "num_nodes": 1,
                             "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
