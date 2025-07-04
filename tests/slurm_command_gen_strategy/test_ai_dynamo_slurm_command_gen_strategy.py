@@ -44,6 +44,7 @@ def cmd_args() -> AIDynamoCmdArgs:
     return AIDynamoCmdArgs(
         docker_image_url="url",
         huggingface_home=Path("/root/.cache/huggingface"),
+        extra_args="",
         dynamo=AIDynamoArgs(
             common=CommonConfig(
                 **{

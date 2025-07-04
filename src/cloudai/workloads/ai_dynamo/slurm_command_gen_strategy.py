@@ -180,7 +180,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "exit 0",
         ]
 
-    def _dynamo_cmd(self, module: str, config: Path, extra_args: str) -> str:
+    def _dynamo_cmd(self, module: str, config: Path, extra_args: str = "") -> str:
         return f"dynamo serve {module} -f {config} {extra_args}"
 
     def _bg(self, cmd: str, stdout_tag: str, stderr_tag: str) -> str:
