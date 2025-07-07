@@ -32,12 +32,12 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoTestDefinition,
+    CommonConfig,
+    DecodeWorkerArgs,
     FrontendArgs,
     GenAIPerfArgs,
     PrefillWorkerArgs,
-    ProcessorArgs,
-    RouterArgs,
-    VllmWorkerArgs,
+    SimpleLoadBalancerArgs,
 )
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
@@ -381,18 +381,24 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 test_template_name="ai-dynamo",
                 cmd_args=AIDynamoCmdArgs(
                     docker_image_url="nvcr.io/nvidia/ai-dynamo:24.09",
-                    served_model_name="llama2-7b",
+                    huggingface_home_host_path=Path.home() / ".cache/huggingface",
                     dynamo=AIDynamoArgs(
+                        common=CommonConfig(
+                            **{
+                                "model": "llama2-7b",
+                                "kv-transfer-config": '{"kv_connector":"NixlConnector","kv_role":"kv_both"}',
+                                "served_model_name": "llama2-7b",
+                            }
+                        ),
                         frontend=FrontendArgs(),
-                        processor=ProcessorArgs(**{"block-size": 64, "max-model-len": 8192, "router": "kv"}),
-                        router=RouterArgs(**{"min-workers": 1}),
+                        simple_load_balancer=SimpleLoadBalancerArgs(**{"enable_disagg": True}),
                         prefill_worker=PrefillWorkerArgs(
                             **{
                                 "num_nodes": 1,
                                 "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
                             }
                         ),
-                        vllm_worker=VllmWorkerArgs(
+                        decode_worker=DecodeWorkerArgs(
                             **{
                                 "num_nodes": 1,
                                 "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
@@ -430,10 +436,10 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         if request.param == "nixl_bench":
             tr.num_nodes = 2
         if request.param == "ai-dynamo":
-            tr.num_nodes = 3
+            tr.num_nodes = 2
             hf_home = tr.output_path / "hf_home"
             hf_home.mkdir(parents=True, exist_ok=True)
-            tr.test.test_definition.extra_env_vars["HF_HOME"] = str(hf_home)
+            tr.test.test_definition.cmd_args.huggingface_home_host_path = str(hf_home)
         return tr, f"{request.param}.sbatch", None
 
     raise ValueError(f"Unknown test: {request.param}")
