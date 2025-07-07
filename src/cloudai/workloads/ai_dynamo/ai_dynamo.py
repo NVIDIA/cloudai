@@ -117,10 +117,12 @@ class AIDynamoCmdArgs(CmdArgs):
     """Arguments for AI Dynamo."""
 
     docker_image_url: str
-    huggingface_home: Path = Path("/root/.cache/huggingface")
+    huggingface_home_host_path: Path = Path.home() / ".cache/huggingface"
+    huggingface_home_container_path: Path = Path("/root/.cache/huggingface")
     dynamo: AIDynamoArgs
     sleep_seconds: int = 660
     genai_perf: GenAIPerfArgs
+    node_setup_cmd: str = ""
     extra_args: str = ""
 
 

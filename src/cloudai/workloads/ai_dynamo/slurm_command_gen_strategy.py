@@ -30,7 +30,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _container_mounts(self) -> list[str]:
         td = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
         mounts = [
-            f"{td.cmd_args.huggingface_home}:/root/.cache/huggingface",
+            f"{td.cmd_args.huggingface_home_host_path}:{td.cmd_args.huggingface_home_container_path}",
         ]
         script_host = (self.test_run.output_path / "run.sh").resolve()
         script_container = "/opt/run.sh"
@@ -72,24 +72,22 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return str(tdef.docker_image.installed_path)
 
     def _generate_wrapper_script(self, script_path: Path, td: AIDynamoTestDefinition, yaml_path: Path) -> None:
-        port_nats = td.cmd_args.dynamo.frontend.port_nats
-        port_etcd = td.cmd_args.dynamo.frontend.port_etcd
         lines = ["#!/bin/bash", ""]
-        lines += self._common_header(port_nats, port_etcd)
+        lines += self._common_header(td)
         lines += self._role_dispatch(td, yaml_path)
         self._write_script(script_path, lines)
 
-    def _common_header(self, port_nats: int, port_etcd: int) -> List[str]:
+    def _common_header(self, td: AIDynamoTestDefinition) -> List[str]:
         return [
-            "export HF_HOME=/root/.cache/huggingface",
+            self._bg(
+                self._node_setup_cmd(td), "node_setup_stdout_${SLURM_NODEID}", "node_setup_stderr_${SLURM_NODEID}"
+            ),
+            f"export HF_HOME={td.cmd_args.huggingface_home_container_path}",
             "export DYNAMO_FRONTEND=$SLURM_JOB_MASTER_NODE",
-            "export VLLM_VERSION=0.9.0",  # TODO: pass this as a parameter.
-            f'export NATS_SERVER="nats://${{DYNAMO_FRONTEND}}:{port_nats}"',
-            f'export ETCD_ENDPOINTS="http://${{DYNAMO_FRONTEND}}:{port_etcd}"',
+            f'export NATS_SERVER="nats://${{DYNAMO_FRONTEND}}:{td.cmd_args.dynamo.frontend.port_nats}"',
+            f'export ETCD_ENDPOINTS="http://${{DYNAMO_FRONTEND}}:{td.cmd_args.dynamo.frontend.port_etcd}"',
             "cd /workspace/examples/vllm_v1/",
             "CURRENT_HOST=$(hostname)",
-            "uv pip uninstall ai_dynamo_vllm || echo true",
-            "uv pip install vllm==$VLLM_VERSION || echo true",
             "export DONE_MARKER=/cloudai_run_results/frontend_done.marker",
             "",
         ]
@@ -153,6 +151,9 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _nats_cmd(self) -> str:
         return "nats-server -js"
+
+    def _node_setup_cmd(self, td: AIDynamoTestDefinition) -> str:
+        return td.cmd_args.node_setup_cmd
 
     def _prefill_block(self, td: AIDynamoTestDefinition, yaml_config_path: Path) -> List[str]:
         return [
