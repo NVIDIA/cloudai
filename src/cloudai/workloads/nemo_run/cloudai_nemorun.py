@@ -432,6 +432,82 @@ def llama3_70b_fp8_b200_tp_overlap_config() -> run.Config[TransformerLayerTPOver
         ),
     )
 
+@run.cli.factory
+@run.autoconvert
+def llama3_405b_fp8_b200_tp_overlap_config() -> run.Config[TransformerLayerTPOverlapCfg]:
+    return run.Config(
+        TransformerLayerTPOverlapCfg,
+        qkv_dgrad=run.Config(
+            BulkOverlapCfg,
+            cga_size=2,
+            method="bulk",
+            num_sm=8,
+            set_sm_margin=False,
+        ),
+        qkv_wgrad=run.Config(
+            BulkOverlapCfg,
+            cga_size=2,
+            method="bulk",
+            num_sm=32,
+            set_sm_margin=False,
+        ),
+        qkv_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        proj_dgrad=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        proj_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=True,
+        ),
+        fc1_dgrad=run.Config(
+            BulkOverlapCfg,
+            num_sm=2,
+            cga_size=2,
+            set_sm_margin=False,
+            method="bulk",
+        ),
+        fc1_wgrad=run.Config(
+            BulkOverlapCfg,
+            num_sm=8,
+            cga_size=2,
+            set_sm_margin=False,
+            method="bulk",
+        ),
+        fc1_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        fc2_dgrad=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        fc2_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=True,
+        ),
+    )
 
 @run.cli.factory
 @run.autoconvert
@@ -528,7 +604,7 @@ def get_tp_overlap_config():
         tp_overlap_cfg = llama3_70b_bf16_b200_tp_overlap_config()
         tp_comm_overlap = True
     elif gpu_type == "b200" and compute_dtype == "fp8":
-        tp_overlap_cfg = llama3_70b_fp8_b200_tp_overlap_config()
+        tp_overlap_cfg = llama3_405b_fp8_b200_tp_overlap_config()
         tp_comm_overlap = True
     else:
         print(
@@ -851,7 +927,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
         tp_comm_overlap_cfg=tp_overlap_cfg,
         overlap_param_gather_with_optimizer_step=True,
         defer_embedding_wgrad_compute=True,
-        wgrad_deferral_limit=22,
+        wgrad_deferral_limit=50,
     )
 
     enable_fsdp = os.getenv("CLOUDAI_ENABLE_FSDP", "0") == "1"
