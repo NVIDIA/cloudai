@@ -381,7 +381,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 test_template_name="ai-dynamo",
                 cmd_args=AIDynamoCmdArgs(
                     docker_image_url="nvcr.io/nvidia/ai-dynamo:24.09",
-                    huggingface_home_host_path=Path("/root/.cache/huggingface"),
+                    huggingface_home_host_path=Path.home() / ".cache/huggingface",
                     dynamo=AIDynamoArgs(
                         common=CommonConfig(
                             **{
@@ -439,7 +439,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             tr.num_nodes = 2
             hf_home = tr.output_path / "hf_home"
             hf_home.mkdir(parents=True, exist_ok=True)
-            tr.test.test_definition.cmd_args.huggingface_home = str(hf_home)
+            tr.test.test_definition.cmd_args.huggingface_home_host_path = str(hf_home)
         return tr, f"{request.param}.sbatch", None
 
     raise ValueError(f"Unknown test: {request.param}")
