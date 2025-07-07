@@ -43,8 +43,10 @@ from cloudai.workloads.ai_dynamo import (
 def cmd_args() -> AIDynamoCmdArgs:
     return AIDynamoCmdArgs(
         docker_image_url="url",
-        huggingface_home=Path("/root/.cache/huggingface"),
+        huggingface_home_host_path=Path.home() / ".cache/huggingface",
+        huggingface_home_container_path=Path("/root/.cache/huggingface"),
         extra_args="",
+        node_setup_cmd="",
         dynamo=AIDynamoArgs(
             common=CommonConfig(
                 **{
@@ -99,7 +101,7 @@ def cmd_args() -> AIDynamoCmdArgs:
 def test_run(tmp_path: Path, cmd_args: AIDynamoCmdArgs) -> TestRun:
     hf_home = tmp_path / "huggingface"
     hf_home.mkdir()
-    cmd_args.huggingface_home = hf_home
+    cmd_args.huggingface_home_host_path = hf_home
     tdef = AIDynamoTestDefinition(
         name="test",
         description="desc",
@@ -117,9 +119,16 @@ def strategy(slurm_system: SlurmSystem, test_run: TestRun) -> AIDynamoSlurmComma
 
 def test_hugging_face_home_path_valid(test_run: TestRun) -> None:
     td = cast(AIDynamoTestDefinition, test_run.test.test_definition)
-    path = td.cmd_args.huggingface_home
+    path = td.huggingface_home_host_path
     assert path.exists()
     assert path.is_dir()
+
+
+def test_hugging_face_home_path_missing(test_run: TestRun) -> None:
+    td = cast(AIDynamoTestDefinition, test_run.test.test_definition)
+    td.cmd_args.huggingface_home_host_path = Path("/nonexistent")
+    with pytest.raises(FileNotFoundError):
+        _ = td.huggingface_home_host_path
 
 
 def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: TestRun) -> None:
@@ -128,7 +137,7 @@ def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: T
     script_host = test_run.output_path / "run.sh"
     yaml_config_path = test_run.output_path / "dynamo_config.yaml"
     assert mounts == [
-        f"{td.cmd_args.huggingface_home}:/root/.cache/huggingface",
+        f"{td.huggingface_home_host_path}:{td.cmd_args.huggingface_home_container_path}",
         f"{script_host}:/opt/run.sh",
         f"{yaml_config_path}:{yaml_config_path}",
     ]

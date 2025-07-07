@@ -141,3 +141,10 @@ class AIDynamoTestDefinition(TestDefinition):
     @property
     def installables(self) -> List[Installable]:
         return [self.docker_image]
+
+    @property
+    def huggingface_home_host_path(self) -> Path:
+        path = Path(self.cmd_args.huggingface_home_host_path)
+        if not path.is_dir():
+            raise FileNotFoundError(f"HuggingFace home path not found at {path}")
+        return path

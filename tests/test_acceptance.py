@@ -381,7 +381,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 test_template_name="ai-dynamo",
                 cmd_args=AIDynamoCmdArgs(
                     docker_image_url="nvcr.io/nvidia/ai-dynamo:24.09",
-                    huggingface_home=Path("/root/.cache/huggingface"),
+                    huggingface_home_host_path=Path("/root/.cache/huggingface"),
                     dynamo=AIDynamoArgs(
                         common=CommonConfig(
                             **{

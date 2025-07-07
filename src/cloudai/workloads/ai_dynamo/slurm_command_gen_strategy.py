@@ -30,7 +30,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _container_mounts(self) -> list[str]:
         td = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
         mounts = [
-            f"{td.cmd_args.huggingface_home_host_path}:{td.cmd_args.huggingface_home_container_path}",
+            f"{td.huggingface_home_host_path}:{td.cmd_args.huggingface_home_container_path}",
         ]
         script_host = (self.test_run.output_path / "run.sh").resolve()
         script_container = "/opt/run.sh"
