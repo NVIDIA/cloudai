@@ -79,7 +79,9 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _common_header(self, td: AIDynamoTestDefinition) -> List[str]:
         return [
+            "echo 'Launching node setup cmd'",
             self._node_setup_cmd(td),
+            "echo 'Done executing node setup cmd'",
             f"export HF_HOME={td.cmd_args.huggingface_home_container_path}",
             "export DYNAMO_FRONTEND=$SLURM_JOB_MASTER_NODE",
             f'export NATS_SERVER="nats://${{DYNAMO_FRONTEND}}:{td.cmd_args.dynamo.frontend.port_nats}"',
@@ -150,12 +152,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _nats_cmd(self) -> str:
         return "nats-server -js"
 
-    def _node_setup_cmd(self, td: AIDynamoTestDefinition) -> List[str]:
-        return [
-            "echo 'Launching node setup cmd'",
-            td.cmd_args.node_setup_cmd,
-            "echo 'Done executing node setup cmd'",
-        ]
+    def _node_setup_cmd(self, td: AIDynamoTestDefinition) -> str:
+        return td.cmd_args.node_setup_cmd
 
     def _prefill_block(self, td: AIDynamoTestDefinition, yaml_config_path: Path) -> List[str]:
         return [
