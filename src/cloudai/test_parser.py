@@ -29,7 +29,6 @@ from .core import (
     Test,
     TestConfigParsingError,
     TestTemplate,
-    TestTemplateStrategy,
     format_validation_error,
 )
 from .models.workload import TestDefinition
@@ -114,15 +113,15 @@ class TestParser:
 
     def _fetch_strategy(  # noqa: D417
         self,
-        strategy_interface: Type[Union[TestTemplateStrategy, GradingStrategy]],
+        strategy_interface: Type[Union[JsonGenStrategy, GradingStrategy]],
         system_type: Type[System],
         test_definition_type: Type[TestDefinition],
-    ) -> Optional[Union[TestTemplateStrategy, GradingStrategy]]:
+    ) -> Optional[Union[JsonGenStrategy, GradingStrategy]]:
         """
         Fetch a strategy from the registry based on system and template.
 
         Args:
-            strategy_interface (Type[Union[TestTemplateStrategy, GradingStrategy]]):
+            strategy_interface (Type[Union[JsonGenStrategy, GradingStrategy]]):
                 The strategy interface to fetch.
             system_type (Type[System]): The system type.
             test_template_type (Type[TestTemplate]): The test template type.
@@ -134,7 +133,7 @@ class TestParser:
         registry = Registry()
         strategy_type = registry.strategies_map.get(key)
         if strategy_type:
-            if issubclass(strategy_type, TestTemplateStrategy):
+            if issubclass(strategy_type, JsonGenStrategy):
                 return strategy_type(self.system)
             else:
                 return strategy_type()

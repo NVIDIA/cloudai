@@ -39,10 +39,10 @@ You can verify the model cache using:
 ```bash
 $ huggingface-cli scan-cache -vvv
 
-REPO ID                             REPO TYPE REVISION                                 SIZE ON DISK NB FILES LAST_MODIFIED REFS LOCAL PATH
------------------------------------ --------- ---------------------------------------- ------------ -------- ------------- ---------------------------------------------------------------------------------------------------------------------------------------------------------
-hf-internal-testing/llama-tokenizer model     d02ad6cb9dd2c2296a6332199fa2fdca5938fef0         2.3M        5 3 days ago    main /path/to/hf_home/hub/models--hf-internal-testing--llama-tokenizer/snapshots/d02ad6cb9dd2c2296a6332199fa2fdca5938fef0
-nvidia/Llama-3.1-405B-Instruct-FP8  model     a0a0bc4e698fbbe4eb184bbd62067ff195a65a39       410.1G       96 4 days ago    main /path/to/hf_home/hub/models--nvidia--Llama-3.1-405B-Instruct-FP8/snapshots/a0a0bc4e698fbbe4eb184bbd62067ff195a65a39
+REPO ID                             REPO TYPE SIZE ON DISK
+----------------------------------- --------- ------------
+hf-internal-testing/llama-tokenizer model     2.3M
+nvidia/Llama-3.1-405B-Instruct-FP8  model     410.1G
 
 Done in 0.3s. Scanned 2 repo(s) for a total of 410.1G.
 ```
@@ -51,9 +51,9 @@ The path to the downloaded weights should be consistent with the structure expec
 
 ---
 
-### Step 2: Configure `HF_HOME` in the Test Schema
+### Step 2: Configure `huggingface_home` in the Test Schema
 
-Set the `HF_HOME` environment variable in the test schema file (e.g., `test.toml`) so that CloudAI can locate the model weights:
+Set the `huggingface_home` variable in the test schema file (e.g., `test.toml`) so that CloudAI can locate the model weights:
 
 ```toml
 name = "llama3.1_405b_fp8"
@@ -63,14 +63,14 @@ test_template_name = "AIDynamo"
 [cmd_args]
 docker_image_url = "/path/to/docker/image"
 served_model_name = "nvidia/Llama-3.1-405B-Instruct-FP8"
+huggingface_home_host_path = "/your/path/to/hf_home"
+huggingface_home_container_path = "/root/.cache/huggingface"
 
-  [cmd_args.dynamo.processor]
-  [cmd_args.dynamo.router]
   [cmd_args.dynamo.frontend]
   [cmd_args.dynamo.prefill_worker]
   num_nodes = 1
 
-  [cmd_args.dynamo.vllm_worker]
+  [cmd_args.dynamo.decode_worker]
   num_nodes = 0
 
   [cmd_args.genai_perf]
@@ -78,11 +78,9 @@ served_model_name = "nvidia/Llama-3.1-405B-Instruct-FP8"
   endpoint_type = "chat"
   streaming = true
 
-[extra_env_vars]
-HF_HOME = "/your/path/to/hf_home"
 ```
 
-This environment variable should point to the root directory used with `--local-dir` in the download step. CloudAI will use this directory to locate and load the appropriate model weights.
+This location should point to the root directory used with `--local-dir` in the download step. CloudAI will use this directory to locate and load the appropriate model weights.
 
 ---
 
@@ -90,14 +88,14 @@ This environment variable should point to the root directory used with `--local-
 
 AI Dynamo jobs use three distinct types of nodes:
 
-- **Frontend node**: Hosts the coordination services (`etcd`, `nats`) as well as the **frontend server** and the **request generator** (`genai-perf`)
+- **Frontend node**: Hosts the coordination services (`etcd`, `nats`), the **frontend server**, the **request generator** (`genai-perf`), and the first decode worker.
 - **Prefill node(s)**: Handle the prefill stage of inference
 - **Decode node(s)**: Handle the decode stage of inference (optional, depending on model and setup)
 
 The total number of nodes required must be:
 
 ```
-1 (frontend) + num_prefill_nodes + num_decode_nodes
+num_prefill_nodes + num_decode_nodes
 ```
 
 If there is a mismatch in the number of nodes between the schema and the test scenario, CloudAI will use the number of nodes specified in the test schema, ignoring the value in the test scenario.

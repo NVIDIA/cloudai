@@ -90,7 +90,6 @@ def register_all():
         SleepGradingStrategy,
         SleepKubernetesJsonGenStrategy,
         SleepLSFCommandGenStrategy,
-        SleepReportGenerationStrategy,
         SleepSlurmCommandGenStrategy,
         SleepStandaloneCommandGenStrategy,
         SleepTestDefinition,
@@ -197,7 +196,6 @@ def register_all():
     Registry().add_report(NeMoRunTestDefinition, NeMoRunReportGenerationStrategy)
     Registry().add_report(NeMoRunTestDefinition, NeMoRunDataStoreReportGenerationStrategy)
     Registry().add_report(NemotronTestDefinition, JaxToolboxReportGenerationStrategy)
-    Registry().add_report(SleepTestDefinition, SleepReportGenerationStrategy)
     Registry().add_report(SlurmContainerTestDefinition, SlurmContainerReportGenerationStrategy)
     Registry().add_report(UCCTestDefinition, UCCTestReportGenerationStrategy)
     Registry().add_report(TritonInferenceTestDefinition, TritonInferenceReportGenerationStrategy)

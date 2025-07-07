@@ -18,16 +18,16 @@ import copy
 
 import pytest
 
-from cloudai._core.command_gen_strategy import CommandGenStrategy
 from cloudai.configurator import BaseAgent
 from cloudai.core import (
     BaseInstaller,
     BaseRunner,
+    CommandGenStrategy,
+    JsonGenStrategy,
     Registry,
     Reporter,
     ReportGenerationStrategy,
     System,
-    TestTemplateStrategy,
 )
 from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import TestDefinition
@@ -88,7 +88,7 @@ class TestRegistry__RunnersMap:
         assert registry.runners_map["runner"] == AnotherRunner
 
 
-class MyStrategy(TestTemplateStrategy):
+class MyStrategy(JsonGenStrategy):
     pass
 
 
@@ -100,7 +100,7 @@ class AnotherSystem(System):
     pass
 
 
-class AnotherStrategy(TestTemplateStrategy):
+class AnotherStrategy(JsonGenStrategy):
     pass
 
 

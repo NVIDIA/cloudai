@@ -197,11 +197,13 @@ def test_ensure_docker_image_no_local_cache(slurm_system: SlurmSystem):
 
 
 @pytest.mark.parametrize(
-    "account, gpus_per_node", [(None, None), ("test_account", None), (None, 8), ("test_account", 8)]
+    "account, supports_gpu_directives", [(None, False), ("test_account", True), (None, False), ("test_account", True)]
 )
-def test_docker_import_with_extra_system_config(slurm_system: SlurmSystem, account, gpus_per_node):
+def test_docker_import_with_extra_system_config(
+    slurm_system: SlurmSystem, account: str | None, supports_gpu_directives: bool | None
+):
     slurm_system.account = account
-    slurm_system.gpus_per_node = gpus_per_node
+    slurm_system.supports_gpu_directives_cache = supports_gpu_directives
     slurm_system.install_path.mkdir(parents=True, exist_ok=True)
 
     manager = DockerImageCacheManager(slurm_system)
@@ -224,7 +226,7 @@ def test_docker_import_with_extra_system_config(slurm_system: SlurmSystem, accou
     else:
         assert "--job-name=CloudAI_install_docker_image_" in actual_command
 
-    if gpus_per_node:
+    if supports_gpu_directives:
         assert "--gres=gpu:1" in actual_command
 
     assert (
