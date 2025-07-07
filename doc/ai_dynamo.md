@@ -63,7 +63,8 @@ test_template_name = "AIDynamo"
 [cmd_args]
 docker_image_url = "/path/to/docker/image"
 served_model_name = "nvidia/Llama-3.1-405B-Instruct-FP8"
-huggingface_home = "/your/path/to/hf_home"
+huggingface_home_host_path = "/your/path/to/hf_home"
+huggingface_home_container_path = "/root/.cache/huggingface"
 
   [cmd_args.dynamo.frontend]
   [cmd_args.dynamo.prefill_worker]
