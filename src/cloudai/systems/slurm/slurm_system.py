@@ -206,7 +206,7 @@ class SlurmSystem(BaseModel, System):
         self.update_nodes_state_and_user(self.group_allocated)
 
     def nodes_from_sinfo(self) -> list[SlurmNode]:
-        sinfo_output, _ = self.fetch_command_output("sinfo -o '%P|%t|%u|%N'")
+        sinfo_output, _ = self.fetch_command_output("sinfo --noheader -o '%P|%t|%u|%N'")
         nodes: list[SlurmNode] = []
         for line in sinfo_output.split("\n"):
             if not line.strip():
