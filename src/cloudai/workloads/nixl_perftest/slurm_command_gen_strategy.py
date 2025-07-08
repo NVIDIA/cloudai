@@ -82,7 +82,7 @@ class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ]
 
         if self.tdef.cmd_args.model:
-            cmd.append("--model=" + self.tdef.cmd_args.model)
+            cmd.append(f"--model={self.tdef.cmd_args.model}")
         else:
             args = ["hidden_size", "num_layers", "num_heads", "num_kv_heads", "dtype_size"]
             for arg in args:

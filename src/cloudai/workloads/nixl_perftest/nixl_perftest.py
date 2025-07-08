@@ -18,19 +18,21 @@ class NixlPerftestCmdArgs(CmdArgs):
     python_executable: str
     etcd_path: str
 
-    num_user_requests: int
-    batch_size: int
-    num_prefill_nodes: int
-    num_decode_nodes: int
-    isl_mean: float | None = None
-    isl_scale: float | None = None
-    prefill_tp: int | None = None
-    prefill_pp: int | None = None
-    prefill_cp: int | None = None
-    decode_tp: int | None = None
-    decode_pp: int | None = None
-    decode_cp: int | None = None
-    model: str | None = None
+    num_user_requests: int | list[int]
+    batch_size: int | list[int]
+    num_prefill_nodes: int | list[int]
+    num_decode_nodes: int | list[int]
+    isl_mean: float | list[float] | None = None
+    isl_scale: float | list[float] | None = None
+    prefill_tp: int | list[int] | None = None
+    prefill_pp: int | list[int] | None = None
+    prefill_cp: int | list[int] | None = None
+    decode_tp: int | list[int] | None = None
+    decode_pp: int | list[int] | None = None
+    decode_cp: int | list[int] | None = None
+
+    # model or model configuration
+    model: str | list[str] | None = None
     hidden_size: int | None = None
     num_layers: int | None = None
     num_heads: int | None = None
