@@ -40,6 +40,7 @@ def register_all():
     )
 
     # Import all workloads and their strategies
+    from cloudai.workloads.bash_cmd.bash_cmd import BashCmdCommandGenStrategy, BashCmdTestDefinition
     from cloudai.workloads.chakra_replay import (
         ChakraReplayGradingStrategy,
         ChakraReplayReportGenerationStrategy,
@@ -156,6 +157,7 @@ def register_all():
     )
 
     Registry().add_command_gen_strategy(SlurmSystem, AIDynamoTestDefinition, AIDynamoSlurmCommandGenStrategy)
+    Registry().add_command_gen_strategy(SlurmSystem, BashCmdTestDefinition, BashCmdCommandGenStrategy)
 
     Registry().add_installer("slurm", SlurmInstaller)
     Registry().add_installer("standalone", StandaloneInstaller)
@@ -183,6 +185,7 @@ def register_all():
     Registry().add_test_definition("TritonInference", TritonInferenceTestDefinition)
     Registry().add_test_definition("NIXLBench", NIXLBenchTestDefinition)
     Registry().add_test_definition("AIDynamo", AIDynamoTestDefinition)
+    Registry().add_test_definition("BashCmd", BashCmdTestDefinition)
 
     Registry().add_agent("grid_search", GridSearchAgent)
 
