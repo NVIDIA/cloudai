@@ -16,6 +16,7 @@ class NixlPerftestCmdArgs(CmdArgs):
     perftest_script: str
     matgen_script: str
     python_executable: str
+    etcd_path: str
 
     num_user_requests: int
     batch_size: int

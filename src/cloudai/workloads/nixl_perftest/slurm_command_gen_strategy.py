@@ -104,7 +104,7 @@ class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         tdef: NixlPerftestTestDefinition = cast(NixlPerftestTestDefinition, self.test_run.test.test_definition)
         self._current_image_url = str(tdef.docker_image.installed_path)
         etcd_cmd = [
-            "/usr/local/bin/etcd",
+            tdef.cmd_args.etcd_path,
             "--listen-client-urls",
             "http://0.0.0.0:2379",
             "--advertise-client-urls",
