@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from typing import cast
 
 from cloudai.core import TestRun
@@ -28,10 +29,16 @@ class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def __init__(self, system: SlurmSystem, test_run: TestRun) -> None:
         super().__init__(system, test_run)
 
-        self._current_image_url: str | None = None
+    @property
+    def matrix_gen_path(self) -> Path:
+        return self.test_run.output_path / "matrices"
+
+    @property
+    def tdef(self) -> NixlPerftestTestDefinition:
+        return cast(NixlPerftestTestDefinition, self.test_run.test.test_definition)
 
     def image_path(self) -> str | None:
-        return self._current_image_url
+        return str(self.tdef.docker_image.installed_path)
 
     def _container_mounts(self) -> list[str]:
         return [str(self.test_run.output_path.absolute())]
@@ -47,8 +54,6 @@ class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return " ".join(matrix_gen_command) + "\n" + " ".join(etcd_command) + "\n" + " ".join(perftest_command)
 
     def gen_matrix_gen_srun_command(self) -> list[str]:
-        tdef: NixlPerftestTestDefinition = cast(NixlPerftestTestDefinition, self.test_run.test.test_definition)
-        self._current_image_url = str(tdef.docker_image.installed_path)
         cmd = [
             *self.gen_srun_prefix(),
             "--ntasks-per-node=1",
@@ -58,28 +63,31 @@ class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "-c",
             f'"{" ".join(self.gen_matrix_gen_command())}"',
         ]
-        self._current_image_url = None
         return cmd
 
+    @staticmethod
+    def prop_to_cli_arg(prop: str) -> str:
+        return "--" + prop.replace("_", "-")
+
     def gen_matrix_gen_command(self) -> list[str]:
-        tdef: NixlPerftestTestDefinition = cast(NixlPerftestTestDefinition, self.test_run.test.test_definition)
         cmd = [
-            tdef.cmd_args.python_executable,
-            tdef.cmd_args.matgen_script,
+            self.tdef.cmd_args.python_executable,
+            self.tdef.cmd_args.matgen_script,
             "generate",
-            "--num-user-requests=" + str(tdef.cmd_args.num_user_requests),
-            "--batch-size=" + str(tdef.cmd_args.batch_size),
-            "--num-prefill-nodes=" + str(tdef.cmd_args.num_prefill_nodes),
-            "--num-decode-nodes=" + str(tdef.cmd_args.num_decode_nodes),
+            "--num-user-requests=" + str(self.tdef.cmd_args.num_user_requests),
+            "--batch-size=" + str(self.tdef.cmd_args.batch_size),
+            "--num-prefill-nodes=" + str(self.tdef.cmd_args.num_prefill_nodes),
+            "--num-decode-nodes=" + str(self.tdef.cmd_args.num_decode_nodes),
+            "--results-dir=" + str(self.matrix_gen_path.absolute()),
         ]
 
-        if tdef.cmd_args.model:
-            cmd.append("--model=" + tdef.cmd_args.model)
+        if self.tdef.cmd_args.model:
+            cmd.append("--model=" + self.tdef.cmd_args.model)
         else:
             args = ["hidden_size", "num_layers", "num_heads", "num_kv_heads", "dtype_size"]
             for arg in args:
-                if getattr(tdef.cmd_args, arg) is not None:
-                    cmd.append(f"--{arg}={getattr(tdef.cmd_args, arg)}")
+                if getattr(self.tdef.cmd_args, arg) is not None:
+                    cmd.append(f"{self.prop_to_cli_arg(arg)}={getattr(self.tdef.cmd_args, arg)}")
 
         opt_args = [
             "isl_mean",
@@ -92,19 +100,16 @@ class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "decode_cp",
         ]
         for arg in opt_args:
-            if getattr(tdef.cmd_args, arg) is not None:
-                cmd.append(f"--{arg}={getattr(tdef.cmd_args, arg)}")
+            if getattr(self.tdef.cmd_args, arg) is not None:
+                cmd.append(f"{self.prop_to_cli_arg(arg)}={getattr(self.tdef.cmd_args, arg)}")
 
-        (self.test_run.output_path / "matrices").mkdir(parents=True, exist_ok=True)
-        cmd.append("--results-dir=" + str(self.test_run.output_path.absolute() / "matrices"))
+        (self.matrix_gen_path).mkdir(parents=True, exist_ok=True)
 
         return cmd
 
     def gen_etcd_srun_command(self) -> list[str]:
-        tdef: NixlPerftestTestDefinition = cast(NixlPerftestTestDefinition, self.test_run.test.test_definition)
-        self._current_image_url = str(tdef.docker_image.installed_path)
         etcd_cmd = [
-            tdef.cmd_args.etcd_path,
+            self.tdef.cmd_args.etcd_path,
             "--listen-client-urls",
             "http://0.0.0.0:2379",
             "--advertise-client-urls",
@@ -121,21 +126,17 @@ class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "-c",
             f'"{" ".join(etcd_cmd)}" &',
         ]
-        self._current_image_url = None
         return cmd
 
     def gen_perftest_srun_command(self) -> list[str]:
-        tdef: NixlPerftestTestDefinition = cast(NixlPerftestTestDefinition, self.test_run.test.test_definition)
-        self._current_image_url = str(tdef.docker_image.installed_path)
         cmd = [
             *self.gen_srun_prefix(),
             "--overlap",
             "--ntasks-per-node=$SLURM_GPUS_PER_NODE",
-            tdef.cmd_args.python_executable,
-            tdef.cmd_args.perftest_script,
-            tdef.cmd_args.subtest,
-            str(self.test_run.output_path.absolute() / "matrices" / "metadata.yaml"),
-            "--json-output-path=" + str(self.test_run.output_path.absolute() / "results" / "results.json"),
+            self.tdef.cmd_args.python_executable,
+            self.tdef.cmd_args.perftest_script,
+            self.tdef.cmd_args.subtest,
+            str(self.matrix_gen_path.absolute() / "metadata.yaml"),
+            "--json-output-path=" + str(self.test_run.output_path.absolute() / "results.json"),
         ]
-        self._current_image_url = None
         return cmd

@@ -4,7 +4,7 @@ from typing import Literal, Optional
 
 from pydantic import model_validator
 
-from cloudai.core import CmdArgs, DockerImage, Installable, PythonExecutable, TestDefinition
+from cloudai.core import CmdArgs, DockerImage, Installable, TestDefinition
 
 
 class NixlPerftestCmdArgs(CmdArgs):
