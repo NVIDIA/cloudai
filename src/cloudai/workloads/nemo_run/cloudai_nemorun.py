@@ -894,7 +894,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
                 OptimizerConfig,
                 lr=0.0003,
                 bf16=True,
-                use_precision_aware_optimizer=True,
+                use_precision_aware_optimizer=False,
                 params_dtype=torch.bfloat16,
                 use_distributed_optimizer=True,
                 weight_decay=0.1,
