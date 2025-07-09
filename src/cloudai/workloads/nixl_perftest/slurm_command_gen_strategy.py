@@ -41,7 +41,7 @@ class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return str(self.tdef.docker_image.installed_path)
 
     def _container_mounts(self) -> list[str]:
-        return [str(self.test_run.output_path.absolute())]
+        return []
 
     def _gen_srun_command(self) -> str:
         with (self.test_run.output_path / "env_vars.sh").open("w") as f:
@@ -51,7 +51,15 @@ class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         matrix_gen_command: list[str] = self.gen_matrix_gen_srun_command()
         etcd_command: list[str] = self.gen_etcd_srun_command()
         perftest_command: list[str] = self.gen_perftest_srun_command()
-        return " ".join(matrix_gen_command) + "\n" + " ".join(etcd_command) + "\n" + " ".join(perftest_command)
+        return "\n".join(
+            [
+                "echo SLURM_JOB_MASTER_NODE=$SLURM_JOB_MASTER_NODE",
+                " ".join(matrix_gen_command),
+                " ".join(etcd_command),
+                f"\nsleep {self.tdef.cmd_args.wait_etcd_for}\n",
+                " ".join(perftest_command),
+            ]
+        )
 
     def gen_matrix_gen_srun_command(self) -> list[str]:
         cmd = [
@@ -110,21 +118,23 @@ class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def gen_etcd_srun_command(self) -> list[str]:
         etcd_cmd = [
             self.tdef.cmd_args.etcd_path,
-            "--listen-client-urls",
-            "http://0.0.0.0:2379",
-            "--advertise-client-urls",
-            "http://$(hostname -I | awk '{print $1}'):2379",
+            "--listen-client-urls=http://0.0.0.0:2379",
+            "--advertise-client-urls=http://$SLURM_JOB_MASTER_NODE:2379",
+            "--listen-peer-urls=http://0.0.0.0:2380",
+            "--initial-advertise-peer-urls=http://$SLURM_JOB_MASTER_NODE:2380",
+            '--initial-cluster="default=http://$SLURM_JOB_MASTER_NODE:2380"',
+            "--initial-cluster-state=new",
         ]
         cmd = [
             *self.gen_srun_prefix(),
+            f"--output={self.test_run.output_path.absolute() / 'etcd.log'}",
             "--overlap",
             "--ntasks-per-node=1",
             "--ntasks=1",
             "--nodelist=$SLURM_JOB_MASTER_NODE",
             "-N1",
-            "bash",
-            "-c",
-            f'"{" ".join(etcd_cmd)}" &',
+            *etcd_cmd,
+            " &",
         ]
         return cmd
 

@@ -31,13 +31,14 @@ class NixlPerftestCmdArgs(CmdArgs):
     matgen_script: str
     python_executable: str
     etcd_path: str
+    wait_etcd_for: int = 5
 
     num_user_requests: int | list[int]
     batch_size: int | list[int]
     num_prefill_nodes: int | list[int]
     num_decode_nodes: int | list[int]
-    isl_mean: float | list[float] | None = None
-    isl_scale: float | list[float] | None = None
+    isl_mean: int | list[int] | None = None
+    isl_scale: int | list[int] | None = None
     prefill_tp: int | list[int] | None = None
     prefill_pp: int | list[int] | None = None
     prefill_cp: int | list[int] | None = None
