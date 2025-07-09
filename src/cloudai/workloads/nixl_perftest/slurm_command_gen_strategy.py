@@ -59,7 +59,7 @@ class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 "echo SLURM_JOB_MASTER_NODE=$SLURM_JOB_MASTER_NODE",
                 " ".join(matrix_gen_command),
                 " ".join(etcd_command),
-                f"\nsleep {self.tdef.cmd_args.wait_etcd_for}\n",
+                " ".join(self.gen_wait_for_etcd_command()),
                 " ".join(perftest_command),
             ]
         )
@@ -150,5 +150,18 @@ class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             self.tdef.cmd_args.subtest,
             str(self.matrix_gen_path.absolute() / "metadata.yaml"),
             "--json-output-path=" + str(self.test_run.output_path.absolute() / "results.json"),
+        ]
+        return cmd
+
+    def gen_wait_for_etcd_command(self) -> list[str]:
+        cmd = [
+            "timeout",
+            str(self.tdef.cmd_args.wait_etcd_for),
+            "bash",
+            "-c",
+            '"until curl -s $NIXL_ETCD_ENDPOINTS/health > /dev/null 2>&1; do sleep 1; done" || {\n',
+            f'  echo "ETCD ($NIXL_ETCD_ENDPOINTS) was unreachable after {self.tdef.cmd_args.wait_etcd_for} seconds";\n',
+            "  exit 1\n",
+            "}",
         ]
         return cmd

@@ -30,8 +30,8 @@ class NixlPerftestCmdArgs(CmdArgs):
     perftest_script: str
     matgen_script: str
     python_executable: str
-    etcd_path: str
-    wait_etcd_for: int = 5
+    etcd_path: str = "etcd"
+    wait_etcd_for: int = 60
 
     num_user_requests: int | list[int]
     batch_size: int | list[int]
