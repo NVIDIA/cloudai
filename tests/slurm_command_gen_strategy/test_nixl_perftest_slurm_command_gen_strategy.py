@@ -63,7 +63,7 @@ def test_run(nixl_perftest: NixlPerftestTestDefinition, slurm_system: SlurmSyste
 
 def test_gen_matrix_gen_srun_command(test_run: TestRun, slurm_system: SlurmSystem) -> None:
     strategy = NixlPerftestSlurmCommandGenStrategy(slurm_system, test_run)
-    strategy.gen_matrix_gen_command = lambda *a, **kw: ["cmd"]
+    strategy.gen_matrix_gen_command = lambda: ["cmd"]
     cmd = strategy.gen_matrix_gen_srun_command()
     assert cmd == [
         *strategy.gen_srun_prefix(),
@@ -136,7 +136,6 @@ def test_gen_perftest_srun_command(test_run: TestRun, slurm_system: SlurmSystem)
     assert cmd == [
         *strategy.gen_srun_prefix(),
         "--overlap",
-        "--ntasks-per-node=$SLURM_GPUS_PER_NODE",
         tdef.cmd_args.python_executable,
         tdef.cmd_args.perftest_script,
         tdef.cmd_args.subtest,
