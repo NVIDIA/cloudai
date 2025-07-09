@@ -44,6 +44,9 @@ class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return []
 
     def _gen_srun_command(self) -> str:
+        self.final_env_vars["NIXL_ETCD_NAMESPACE"] = "/nixl/kvbench/$(uuidgen)"
+        self.final_env_vars["NIXL_ETCD_ENDPOINTS"] = '"$SLURM_JOB_MASTER_NODE:2379"'
+
         with (self.test_run.output_path / "env_vars.sh").open("w") as f:
             for key, value in self.final_env_vars.items():
                 f.write(f"export {key}={value}\n")
@@ -142,7 +145,6 @@ class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd = [
             *self.gen_srun_prefix(),
             "--overlap",
-            "--ntasks-per-node=$SLURM_GPUS_PER_NODE",
             self.tdef.cmd_args.python_executable,
             self.tdef.cmd_args.perftest_script,
             self.tdef.cmd_args.subtest,
