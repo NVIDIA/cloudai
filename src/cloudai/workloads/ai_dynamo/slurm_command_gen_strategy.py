@@ -157,6 +157,9 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _prefill_block(self, td: AIDynamoTestDefinition, yaml_config_path: Path) -> List[str]:
         return [
+            "echo 'Waiting for etcd to be ready...'",
+            'while [ "`curl -ks ${ETCD_ENDPOINTS}/readyz`" != "ok" ]; do sleep 10; done',
+            "echo 'etcd is ready'",
             self._bg(
                 self._dynamo_cmd("components.worker:VllmPrefillWorker", yaml_config_path, td.cmd_args.extra_args),
                 "prefill_stdout_node${SLURM_NODEID}",
@@ -170,6 +173,9 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _decode_block(self, td: AIDynamoTestDefinition, yaml_config_path: Path) -> List[str]:
         return [
+            "echo 'Waiting for etcd to be ready...'",
+            'while [ "`curl -ks ${ETCD_ENDPOINTS}/readyz`" != "ok" ]; do sleep 10; done',
+            "echo 'etcd is ready'",
             self._bg(
                 self._dynamo_cmd("components.worker:VllmDecodeWorker", yaml_config_path, td.cmd_args.extra_args),
                 "decode_stdout_node${SLURM_NODEID}",
