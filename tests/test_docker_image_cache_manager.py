@@ -235,3 +235,28 @@ def test_docker_import_with_extra_system_config(
     )
 
     assert mock_run.call_args[1] == {"shell": True, "check": True, "capture_output": True, "text": True}
+
+
+def test_docker_import_with_extra_srun_args(slurm_system: SlurmSystem):
+    slurm_system.extra_srun_args = "--reservation test_reservation --w hgx-isr1-pre-09"
+    slurm_system.install_path.mkdir(parents=True, exist_ok=True)
+
+    manager = DockerImageCacheManager(slurm_system)
+    manager._check_prerequisites = lambda: PrerequisiteCheckResult(True, "All prerequisites are met.")
+
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=0, stderr="")
+        res = manager.cache_docker_image("docker.io/hello-world", "docker_image.sqsh")
+        assert res.success
+
+    assert mock_run.call_count == 1
+    actual_command = mock_run.call_args[0][0]
+
+    # Check that extra_srun_args are included
+    assert "--reservation test_reservation" in actual_command
+    assert "--w hgx-isr1-pre-09" in actual_command
+
+    # Check that the command still has the basic structure
+    expected_prefix = f"srun --export=ALL --partition={slurm_system.default_partition}"
+    assert expected_prefix in actual_command
+    assert "enroot import -o" in actual_command

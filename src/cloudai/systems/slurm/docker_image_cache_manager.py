@@ -261,6 +261,8 @@ class DockerImageCacheManager:
             srun_prefix += f" --account={self.system.account}"
         if self.system.supports_gpu_directives:
             srun_prefix += " --gres=gpu:1"
+        if self.system.extra_srun_args:
+            srun_prefix += f" {self.system.extra_srun_args}"
 
         return self._import_docker_image(srun_prefix, docker_image_url, docker_image_path)
 
