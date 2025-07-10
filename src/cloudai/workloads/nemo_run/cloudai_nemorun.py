@@ -432,6 +432,7 @@ def llama3_70b_fp8_b200_tp_overlap_config() -> run.Config[TransformerLayerTPOver
         ),
     )
 
+
 @run.cli.factory
 @run.autoconvert
 def llama3_405b_fp8_b200_tp_overlap_config() -> run.Config[TransformerLayerTPOverlapCfg]:
@@ -508,6 +509,7 @@ def llama3_405b_fp8_b200_tp_overlap_config() -> run.Config[TransformerLayerTPOve
             set_sm_margin=True,
         ),
     )
+
 
 @run.cli.factory
 @run.autoconvert
