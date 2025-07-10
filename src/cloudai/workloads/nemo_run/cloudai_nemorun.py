@@ -605,7 +605,7 @@ def get_tp_overlap_config():
     elif gpu_type == "b200" and compute_dtype == "bf16":
         tp_overlap_cfg = llama3_70b_bf16_b200_tp_overlap_config()
         tp_comm_overlap = True
-    elif gpu_type == "b200" and compute_dtype == "fp8":
+    elif gpu_type in ["b200", "gb200"] and compute_dtype == "fp8":
         tp_overlap_cfg = llama3_405b_fp8_b200_tp_overlap_config()
         tp_comm_overlap = True
     else:
@@ -977,7 +977,8 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     recipe.model.config.cross_entropy_fusion_impl = "te"
 
-    if os.getenv("CLOUDAI_GPU_TYPE") == "gb200" and os.getenv("CLOUDAI_GPU_DTYPE") == "fp8":
+    if os.getenv("CLOUDAI_GPU_TYPE") in ["b200", "gb200"] and os.getenv("CLOUDAI_GPU_DTYPE") == "fp8":
+        print("Info: use_precision_aware_optimizer is set to False for fp8 on b200/gb200 GPUs.")
         recipe.optim.config.use_precision_aware_optimizer = False
     return recipe
 
@@ -1261,6 +1262,10 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     recipe.model.config.cross_entropy_fusion_impl = "te"
     set_enable_cuda_graphs_params(recipe)
+
+    if os.getenv("CLOUDAI_GPU_TYPE") in ["b200", "gb200"] and os.getenv("CLOUDAI_GPU_DTYPE") == "fp8":
+        recipe.optim.config.use_precision_aware_optimizer = False
+
     return recipe
 
 
