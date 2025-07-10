@@ -894,7 +894,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
                 OptimizerConfig,
                 lr=0.0003,
                 bf16=True,
-                use_precision_aware_optimizer=False,
+                use_precision_aware_optimizer=True,
                 params_dtype=torch.bfloat16,
                 use_distributed_optimizer=True,
                 weight_decay=0.1,
@@ -974,6 +974,9 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
     recipe.model.tokenizer = recipe.data.tokenizer
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     recipe.model.config.cross_entropy_fusion_impl = "te"
+
+    if os.getenv("CLOUDAI_GPU_TYPE") == "gb200" and os.getenv("CLOUDAI_GPU_DTYPE") == "fp8":
+        recipe.optim.config.use_precision_aware_optimizer = False
     return recipe
 
 
