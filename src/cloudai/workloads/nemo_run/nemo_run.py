@@ -20,7 +20,7 @@ from typing import List, Optional, Union, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cloudai.core import DockerImage, File, Installable, TestRun
+from cloudai.core import DockerImage, File, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 
@@ -191,3 +191,38 @@ class NeMoRunTestDefinition(TestDefinition):
         if isinstance(gbs, int) and isinstance(max_steps, int):
             return gbs * max_steps
         return None
+
+    def was_run_successful(self, tr: TestRun) -> JobStatusResult:
+        stderr_path = tr.output_path / "stderr.txt"
+        if stderr_path.is_file():
+            with stderr_path.open("r") as file:
+                content = file.read()
+
+                if "max_steps=" in content and "reached" in content:
+                    return JobStatusResult(is_successful=True)
+
+                missing_indicators = []
+                if "max_steps=" not in content:
+                    missing_indicators.append("'max_steps='")
+                if "reached" not in content:
+                    missing_indicators.append("'reached'")
+
+                error_message = (
+                    f"Missing success indicators in {stderr_path}: {', '.join(missing_indicators)}. "
+                    "These keywords are expected to be present in stderr.txt when the NeMo training job "
+                    "completes successfully. Please review the full stderr output. "
+                    "Ensure that the NeMo training ran to completion and the logger output wasn't suppressed. "
+                    "If the issue persists, contact the system administrator."
+                )
+                return JobStatusResult(is_successful=False, error_message=error_message)
+
+        return JobStatusResult(
+            is_successful=False,
+            error_message=(
+                f"stderr.txt file not found in the specified output directory {tr.output_path}. "
+                "This file is expected to be created as part of the NeMo training job. "
+                "Please ensure the job was submitted and executed properly. "
+                f"You can try re-running the job manually and verify that {stderr_path} is created "
+                "with the expected output. If the issue persists, contact the system administrator."
+            ),
+        )

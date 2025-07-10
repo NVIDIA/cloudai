@@ -15,9 +15,9 @@
 # limitations under the License.
 
 from datetime import datetime
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Union, cast
 
-from cloudai.core import CommandGenStrategy, TestRun
+from cloudai.core import CommandGenStrategy, System, TestRun
 
 from .lsf_system import LSFSystem
 
@@ -31,19 +31,18 @@ class LSFCommandGenStrategy(CommandGenStrategy):
             properties and methods.
     """
 
-    def __init__(self, system: LSFSystem, cmd_args: Dict[str, Any]) -> None:
+    def __init__(self, system: System, test_run: TestRun) -> None:
         """
         Initialize a new LSFCommandGenStrategy instance.
 
         Args:
             system (LSFSystem): The system schema object.
-            cmd_args (Dict[str, Any]): Command-line arguments.
+            test_run (TestRun): The test run object.
         """
-        super().__init__(system, cmd_args)
-        self.system = system
-        self.docker_image_url = self.cmd_args.get("docker_image_url", "")
+        super().__init__(system, test_run)
+        self.system = cast(LSFSystem, system)
 
-    def gen_exec_command(self, tr: TestRun) -> str:
+    def gen_exec_command(self) -> str:
         """
         Generate the execution command for the test run.
 
@@ -53,11 +52,13 @@ class LSFCommandGenStrategy(CommandGenStrategy):
         Returns:
             str: The generated LSF command.
         """
-        env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
-        cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
-        lsf_args = self._parse_lsf_args(tr.test.test_template.__class__.__name__, env_vars, cmd_args, tr)
+        env_vars = self.final_env_vars
+        cmd_args = self._flatten_dict(self.test_run.test.cmd_args)
+        lsf_args = self._parse_lsf_args(
+            self.test_run.test.test_template.__class__.__name__, env_vars, cmd_args, self.test_run
+        )
 
-        bsub_command = self._gen_bsub_command(lsf_args, env_vars, cmd_args, tr)
+        bsub_command = self._gen_bsub_command(lsf_args, env_vars, cmd_args, self.test_run)
 
         return bsub_command.strip()
 

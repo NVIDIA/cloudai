@@ -18,7 +18,7 @@ import argparse
 from functools import partial
 from importlib.metadata import version
 from pathlib import Path
-from typing import Callable, Dict, Optional, Tuple, Type
+from typing import Callable, Dict, Optional, Tuple
 from unittest.mock import Mock, patch
 
 import pytest
@@ -27,39 +27,46 @@ import toml
 from cloudai.cli import handle_dry_run_and_run, setup_logging
 from cloudai.core import CommandGenStrategy, Test, TestDefinition, TestRun, TestScenario, TestTemplate
 from cloudai.models.scenario import TestRunDetails
-from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmSystem
+from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmRunner, SlurmSystem
+from cloudai.workloads.ai_dynamo import (
+    AIDynamoArgs,
+    AIDynamoCmdArgs,
+    AIDynamoTestDefinition,
+    CommonConfig,
+    DecodeWorkerArgs,
+    FrontendArgs,
+    GenAIPerfArgs,
+    PrefillWorkerArgs,
+    SimpleLoadBalancerArgs,
+)
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
     GPTTestDefinition,
     GrokCmdArgs,
     GrokTestDefinition,
-    JaxToolboxSlurmCommandGenStrategy,
 )
 from cloudai.workloads.megatron_run import (
     MegatronRunCmdArgs,
-    MegatronRunSlurmCommandGenStrategy,
     MegatronRunTestDefinition,
 )
-from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestSlurmCommandGenStrategy
+from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.workloads.nemo_launcher import (
     NeMoLauncherCmdArgs,
     NeMoLauncherSlurmCommandGenStrategy,
     NeMoLauncherTestDefinition,
 )
-from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunSlurmCommandGenStrategy, NeMoRunTestDefinition
-from cloudai.workloads.nixl_bench import NIXLBenchCmdArgs, NIXLBenchSlurmCommandGenStrategy, NIXLBenchTestDefinition
-from cloudai.workloads.sleep import SleepCmdArgs, SleepSlurmCommandGenStrategy, SleepTestDefinition
+from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
+from cloudai.workloads.nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
+from cloudai.workloads.sleep import SleepCmdArgs, SleepTestDefinition
 from cloudai.workloads.slurm_container import (
     SlurmContainerCmdArgs,
-    SlurmContainerCommandGenStrategy,
     SlurmContainerTestDefinition,
 )
 from cloudai.workloads.triton_inference import (
     TritonInferenceCmdArgs,
-    TritonInferenceSlurmCommandGenStrategy,
     TritonInferenceTestDefinition,
 )
-from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition, UCCTestSlurmCommandGenStrategy
+from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition
 
 SLURM_TEST_SCENARIOS = [
     {"path": Path("conf/common/test_scenario/sleep.toml"), "expected_dirs_number": 4, "log_file": "sleep_debug.log"},
@@ -151,21 +158,12 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
 
 
 def create_test_run(
-    partial_tr: partial[TestRun],
-    slurm_system: SlurmSystem,
-    name: str,
-    test_definition: TestDefinition,
-    command_gen_strategy: Type[CommandGenStrategy],
+    partial_tr: partial[TestRun], slurm_system: SlurmSystem, name: str, test_definition: TestDefinition
 ) -> TestRun:
     tr = partial_tr(
         name=name,
         test=Test(test_definition=test_definition, test_template=TestTemplate(slurm_system)),
     )
-    tr.test.test_template.command_gen_strategy = command_gen_strategy(
-        slurm_system, tr.test.test_definition.cmd_args_dict
-    )
-    if isinstance(tr.test.test_template.command_gen_strategy, SlurmCommandGenStrategy):
-        tr.test.test_template.command_gen_strategy.job_name = Mock(return_value="job_name")
     return tr
 
 
@@ -190,7 +188,6 @@ def build_special_test_run(
                 ),
                 extra_env_vars={"COMBINE_THRESHOLD": "1"},
             ),
-            JaxToolboxSlurmCommandGenStrategy,
         )
     elif "grok" in param:
         test_type = "grok"
@@ -207,7 +204,6 @@ def build_special_test_run(
                 ),
                 extra_env_vars={"COMBINE_THRESHOLD": "1"},
             ),
-            JaxToolboxSlurmCommandGenStrategy,
         )
     elif "nemo-run" in param:
         test_type = "nemo-run"
@@ -223,7 +219,6 @@ def build_special_test_run(
                     docker_image_url="nvcr.io/nvidia/nemo:24.09", task="pretrain", recipe_name="llama_3b"
                 ),
             ),
-            NeMoRunSlurmCommandGenStrategy,
         )
     elif "nemo-launcher" in param:
         test_type = "nemo-launcher"
@@ -238,10 +233,7 @@ def build_special_test_run(
                 cmd_args=NeMoLauncherCmdArgs(),
                 extra_env_vars={"VAR": r"$(scontrol show hostname \"${SLURM_STEP_NODELIST}\" | head -n1)"},
             ),
-            NeMoLauncherSlurmCommandGenStrategy,
         )
-        assert isinstance(tr.test.test_template.command_gen_strategy, NeMoLauncherSlurmCommandGenStrategy)
-        tr.test.test_template.command_gen_strategy.job_prefix = "test_account-cloudai.nemo"
     else:
         raise ValueError(f"Unknown test type: {param}")
 
@@ -270,6 +262,7 @@ def build_special_test_run(
         "megatron-run",
         "triton-inference",
         "nixl_bench",
+        "ai-dynamo",
     ]
 )
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> Tuple[TestRun, str, Optional[str]]:
@@ -278,22 +271,29 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             partial_tr,
             slurm_system,
             "ucc",
-            UCCTestDefinition(name="ucc", description="ucc", test_template_name="ucc", cmd_args=UCCCmdArgs()),
-            UCCTestSlurmCommandGenStrategy,
+            UCCTestDefinition(
+                name="ucc",
+                description="ucc",
+                test_template_name="ucc",
+                cmd_args=UCCCmdArgs(docker_image_url="nvcr.io/nvidia/pytorch:24.02-py3"),
+            ),
         ),
         "nccl": lambda: create_test_run(
             partial_tr,
             slurm_system,
             "nccl",
-            NCCLTestDefinition(name="nccl", description="nccl", test_template_name="nccl", cmd_args=NCCLCmdArgs()),
-            NcclTestSlurmCommandGenStrategy,
+            NCCLTestDefinition(
+                name="nccl",
+                description="nccl",
+                test_template_name="nccl",
+                cmd_args=NCCLCmdArgs(docker_image_url="nvcr.io/nvidia/pytorch:24.02-py3"),
+            ),
         ),
         "sleep": lambda: create_test_run(
             partial_tr,
             slurm_system,
             "sleep",
             SleepTestDefinition(name="sleep", description="sleep", test_template_name="sleep", cmd_args=SleepCmdArgs()),
-            SleepSlurmCommandGenStrategy,
         ),
         "slurm_container": lambda: create_test_run(
             partial_tr,
@@ -305,7 +305,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 test_template_name="slurm_container",
                 cmd_args=SlurmContainerCmdArgs(docker_image_url="https://docker/url", cmd="pwd ; ls"),
             ),
-            SlurmContainerCommandGenStrategy,
         ),
         "megatron-run": lambda: create_test_run(
             partial_tr,
@@ -324,7 +323,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 ),
                 extra_container_mounts=["$PWD"],
             ),
-            MegatronRunSlurmCommandGenStrategy,
         ),
         "nemo-run": lambda: create_test_run(
             partial_tr,
@@ -340,7 +338,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     recipe_name="llama_3b",
                 ),
             ),
-            NeMoRunSlurmCommandGenStrategy,
         ),
         "triton-inference": lambda: create_test_run(
             partial_tr,
@@ -357,7 +354,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     tokenizer="tok",
                 ),
             ),
-            TritonInferenceSlurmCommandGenStrategy,
         ),
         "nixl_bench": lambda: create_test_run(
             partial_tr,
@@ -374,7 +370,52 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     path_to_benchmark="./nixlbench",
                 ),
             ),
-            NIXLBenchSlurmCommandGenStrategy,
+        ),
+        "ai-dynamo": lambda: create_test_run(
+            partial_tr,
+            slurm_system,
+            "ai-dynamo",
+            AIDynamoTestDefinition(
+                name="ai-dynamo",
+                description="AI Dynamo test",
+                test_template_name="ai-dynamo",
+                cmd_args=AIDynamoCmdArgs(
+                    docker_image_url="nvcr.io/nvidia/ai-dynamo:24.09",
+                    huggingface_home_host_path=Path.home() / ".cache/huggingface",
+                    dynamo=AIDynamoArgs(
+                        common=CommonConfig(
+                            **{
+                                "model": "llama2-7b",
+                                "kv-transfer-config": '{"kv_connector":"NixlConnector","kv_role":"kv_both"}',
+                                "served_model_name": "llama2-7b",
+                            }
+                        ),
+                        frontend=FrontendArgs(),
+                        simple_load_balancer=SimpleLoadBalancerArgs(**{"enable_disagg": True}),
+                        prefill_worker=PrefillWorkerArgs(
+                            **{
+                                "num_nodes": 1,
+                                "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
+                            }
+                        ),
+                        decode_worker=DecodeWorkerArgs(
+                            **{
+                                "num_nodes": 1,
+                                "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
+                            }
+                        ),
+                    ),
+                    genai_perf=GenAIPerfArgs(
+                        streaming=True,
+                        extra_inputs='{"temperature": 0.7, "max_tokens": 128}',
+                        output_tokens_mean=128,
+                        random_seed=42,
+                        request_count=100,
+                        synthetic_input_tokens_mean=550,
+                        warmup_request_count=10,
+                    ),
+                ),
+            ),
         ),
     }
 
@@ -394,6 +435,11 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             tr.test.test_definition.extra_env_vars["NIM_CACHE_PATH"] = str(tr.output_path)
         if request.param == "nixl_bench":
             tr.num_nodes = 2
+        if request.param == "ai-dynamo":
+            tr.num_nodes = 2
+            hf_home = tr.output_path / "hf_home"
+            hf_home.mkdir(parents=True, exist_ok=True)
+            tr.test.test_definition.cmd_args.huggingface_home_host_path = str(hf_home)
         return tr, f"{request.param}.sbatch", None
 
     raise ValueError(f"Unknown test: {request.param}")
@@ -414,7 +460,18 @@ def test_sbatch_generation(slurm_system: SlurmSystem, test_req: tuple[TestRun, s
     )
     ref = ref.replace("__CLOUDAI_VERSION__", version("cloudai"))
 
-    sbatch_script = tr.test.test_template.gen_exec_command(tr).split()[-1]
+    runner = SlurmRunner(
+        mode="run",
+        system=slurm_system,
+        test_scenario=TestScenario(name="tc", test_runs=[tr]),
+        output_path=slurm_system.output_path,
+    )
+    cmd_gen = runner.get_cmd_gen_strategy(slurm_system, tr)
+    if isinstance(cmd_gen, SlurmCommandGenStrategy):
+        cmd_gen.job_name = Mock(return_value="job_name")
+    if isinstance(cmd_gen, NeMoLauncherSlurmCommandGenStrategy):
+        cmd_gen.job_prefix = "test_account-cloudai.nemo"
+    sbatch_script = cmd_gen.gen_exec_command().split()[-1]
     if "nemo-launcher" in test_req[1]:
         sbatch_script = slurm_system.output_path / "generated_command.sh"
     curr = Path(sbatch_script).read_text().strip()

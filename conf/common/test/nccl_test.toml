@@ -19,6 +19,7 @@ description = "NCCL base test configuration"
 test_template_name = "NcclTest"
 
 [cmd_args]
+docker_image_url = "nvcr.io/nvidia/pytorch:24.02-py3"
 ngpus = 1
 minbytes = "128"
 maxbytes = "4G"

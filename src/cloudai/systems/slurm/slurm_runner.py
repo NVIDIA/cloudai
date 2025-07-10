@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import logging
+import re
 from pathlib import Path
 from typing import cast
 
@@ -42,24 +43,39 @@ class SlurmRunner(BaseRunner):
         self.system = cast(SlurmSystem, system)
         self.cmd_shell = CommandShell()
 
+    def get_job_id(self, stdout: str, stderr: str) -> int | None:
+        match = re.search(r"Submitted batch job (\d+)", stdout)
+        if match:
+            return int(match.group(1))
+
+        match = re.search(r"submitted with Job ID (\d+)", stdout)  # NemoLauncher specific
+        if match:
+            return int(match.group(1))
+
+        return None
+
     def _submit_test(self, tr: TestRun) -> SlurmJob:
         logging.info(f"Running test: {tr.name}")
-        exec_cmd = tr.test.test_template.gen_exec_command(tr)
+        exec_cmd = self.get_cmd_gen_strategy(self.system, tr).gen_exec_command()
         logging.debug(f"Executing command for test {tr.name}: {exec_cmd}")
         job_id = 0
         if self.mode == "run":
             stdout, stderr = self.cmd_shell.execute(exec_cmd).communicate()
-            job_id = tr.test.test_template.get_job_id(stdout, stderr)
+            job_id = self.get_job_id(stdout, stderr)
             if job_id is None:
                 raise JobIdRetrievalError(
                     test_name=str(tr.name),
                     command=exec_cmd,
                     stdout=stdout,
                     stderr=stderr,
-                    message="Failed to retrieve job ID from command output.",
+                    message="Failed to retrieve job ID.",
                 )
         logging.info(f"Submitted slurm job: {job_id}")
         return SlurmJob(tr, id=job_id)
+
+    def on_job_submit(self, tr: TestRun) -> None:
+        cmd_gen = self.get_cmd_gen_strategy(self.system, tr)
+        cmd_gen.store_test_run()
 
     def on_job_completion(self, job: BaseJob) -> None:
         logging.debug(f"Job completion callback for job {job.id}")
@@ -82,7 +98,7 @@ class SlurmRunner(BaseRunner):
     def _get_job_metadata(
         self, job: SlurmJob, steps_metadata: list[SlurmStepMetadata]
     ) -> tuple[Path, SlurmJobMetadata]:
-        cmd_gen = cast(SlurmCommandGenStrategy, job.test_run.test.test_template.command_gen_strategy)
+        cmd_gen = cast(SlurmCommandGenStrategy, self.get_cmd_gen_strategy(self.system, job.test_run))
         return job.test_run.output_path / "slurm-job.toml", SlurmJobMetadata(
             job_id=int(job.id),
             name=steps_metadata[0].name,
@@ -92,8 +108,8 @@ class SlurmRunner(BaseRunner):
             end_time=steps_metadata[0].end_time,
             elapsed_time_sec=steps_metadata[0].elapsed_time_sec,
             job_steps=steps_metadata[1:],
-            srun_cmd=cmd_gen.gen_srun_command(job.test_run),
-            test_cmd=" ".join(cmd_gen.generate_test_command({}, {}, job.test_run)),
+            srun_cmd=cmd_gen.gen_srun_command(),
+            test_cmd=" ".join(cmd_gen.generate_test_command()),
             job_root=job.test_run.output_path.absolute(),
         )
 

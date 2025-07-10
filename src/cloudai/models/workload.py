@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cloudai.core import GitRepo, Installable, PythonExecutable, TestRun
+from cloudai.core import GitRepo, Installable, JobStatusResult, PythonExecutable, TestRun
 
 
 class CmdArgs(BaseModel):
@@ -136,3 +136,6 @@ class TestDefinition(BaseModel, ABC):
             return False
 
         return check_dict(self.cmd_args_dict) or check_dict(self.extra_env_vars)
+
+    def was_run_successful(self, tr: TestRun) -> JobStatusResult:
+        return JobStatusResult(is_successful=True)

@@ -25,12 +25,11 @@ if TYPE_CHECKING:
     from ..reporter import Reporter
     from .base_installer import BaseInstaller
     from .base_runner import BaseRunner
+    from .command_gen_strategy import CommandGenStrategy
     from .grading_strategy import GradingStrategy
-    from .job_id_retrieval_strategy import JobIdRetrievalStrategy
-    from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
+    from .json_gen_strategy import JsonGenStrategy
     from .report_generation_strategy import ReportGenerationStrategy
     from .system import System
-    from .test_template_strategy import TestTemplateStrategy
 
 RewardFunction = Callable[[List[float]], float]
 
@@ -53,25 +52,11 @@ class Registry(metaclass=Singleton):
     strategies_map: ClassVar[
         dict[
             Tuple[
-                Type[
-                    Union[
-                        TestTemplateStrategy,
-                        JobIdRetrievalStrategy,
-                        JobStatusRetrievalStrategy,
-                        GradingStrategy,
-                    ]
-                ],
+                Type[Union[JsonGenStrategy, GradingStrategy]],
                 Type[System],
                 Type[TestDefinition],
             ],
-            Type[
-                Union[
-                    TestTemplateStrategy,
-                    JobIdRetrievalStrategy,
-                    JobStatusRetrievalStrategy,
-                    GradingStrategy,
-                ]
-            ],
+            Type[Union[JsonGenStrategy, GradingStrategy]],
         ]
     ] = {}
     installers_map: ClassVar[dict[str, Type[BaseInstaller]]] = {}
@@ -82,6 +67,7 @@ class Registry(metaclass=Singleton):
     scenario_reports: ClassVar[dict[str, type[Reporter]]] = {}
     report_configs: ClassVar[dict[str, ReportConfig]] = {}
     reward_functions_map: ClassVar[dict[str, RewardFunction]] = {}
+    command_gen_strategies_map: ClassVar[dict[tuple[Type[System], Type[TestDefinition]], Type[CommandGenStrategy]]] = {}
 
     def add_runner(self, name: str, value: Type[BaseRunner]) -> None:
         """
@@ -110,24 +96,10 @@ class Registry(metaclass=Singleton):
 
     def add_strategy(
         self,
-        strategy_interface: Type[
-            Union[
-                TestTemplateStrategy,
-                JobIdRetrievalStrategy,
-                JobStatusRetrievalStrategy,
-                GradingStrategy,
-            ]
-        ],
+        strategy_interface: Type[Union[JsonGenStrategy, GradingStrategy]],
         system_types: List[Type[System]],
         definition_types: List[Type[TestDefinition]],
-        strategy: Type[
-            Union[
-                TestTemplateStrategy,
-                JobIdRetrievalStrategy,
-                JobStatusRetrievalStrategy,
-                GradingStrategy,
-            ]
-        ],
+        strategy: Type[Union[JsonGenStrategy, GradingStrategy]],
     ) -> None:
         for system_type in system_types:
             for def_type in definition_types:
@@ -139,25 +111,11 @@ class Registry(metaclass=Singleton):
     def update_strategy(
         self,
         key: Tuple[
-            Type[
-                Union[
-                    TestTemplateStrategy,
-                    JobIdRetrievalStrategy,
-                    JobStatusRetrievalStrategy,
-                    GradingStrategy,
-                ]
-            ],
+            Type[Union[JsonGenStrategy, GradingStrategy]],
             Type[System],
             Type[TestDefinition],
         ],
-        value: Type[
-            Union[
-                TestTemplateStrategy,
-                JobIdRetrievalStrategy,
-                JobStatusRetrievalStrategy,
-                GradingStrategy,
-            ]
-        ],
+        value: Type[Union[JsonGenStrategy, GradingStrategy]],
     ) -> None:
         self.strategies_map[key] = value
 
@@ -294,3 +252,25 @@ class Registry(metaclass=Singleton):
                 f"Reward function '{name}' not found. Available functions: {list(self.reward_functions_map.keys())}"
             )
         return self.reward_functions_map[name]
+
+    def add_command_gen_strategy(
+        self, system_type: Type[System], tdef_type: Type[TestDefinition], value: Type[CommandGenStrategy]
+    ) -> None:
+        if (system_type, tdef_type) in self.command_gen_strategies_map:
+            raise ValueError(
+                f"Duplicating implementation for '{system_type.__name__}, {tdef_type.__name__}', use 'update()' "
+                "for replacement."
+            )
+        self.update_command_gen_strategy(system_type, tdef_type, value)
+
+    def update_command_gen_strategy(
+        self, system_type: Type[System], tdef_type: Type[TestDefinition], value: Type[CommandGenStrategy]
+    ) -> None:
+        self.command_gen_strategies_map[(system_type, tdef_type)] = value
+
+    def get_command_gen_strategy(
+        self, system_type: Type[System], tdef_type: Type[TestDefinition]
+    ) -> Type[CommandGenStrategy]:
+        if (system_type, tdef_type) not in self.command_gen_strategies_map:
+            raise KeyError(f"Command gen strategy for '{system_type.__name__}, {tdef_type.__name__}' not found.")
+        return self.command_gen_strategies_map[(system_type, tdef_type)]

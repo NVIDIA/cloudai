@@ -32,7 +32,7 @@ def nccl_tr(tmp_path: Path) -> TestRun:
             name="nccl",
             description="desc",
             test_template_name="t",
-            cmd_args=NCCLCmdArgs(),
+            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
         ),
         test_template=Mock(),
     )

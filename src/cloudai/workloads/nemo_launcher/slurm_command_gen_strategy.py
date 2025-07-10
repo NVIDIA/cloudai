@@ -19,7 +19,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, cast
 
-from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 from .nemo_launcher import NeMoLauncherTestDefinition
@@ -30,17 +29,17 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     job_prefix: Optional[str] = None
 
-    def _container_mounts(self, tr: TestRun) -> list[str]:
+    def _container_mounts(self) -> list[str]:
         # this strategy handles container mounts in a different way, so it is OK to return an empty list
         return []
 
-    def gen_exec_command(self, tr: TestRun) -> str:
-        self._prepare_environment(tr.test.cmd_args, tr.test.extra_env_vars, tr.output_path)
+    def gen_exec_command(self) -> str:
+        self._prepare_environment()
 
-        _, nodes = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes)
-        self._set_node_config(nodes, tr.nnodes)
+        _, nodes = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)
+        self._set_node_config(nodes, self.test_run.nnodes)
 
-        tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, tr.test.test_definition)
+        tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, self.test_run.test.test_definition)
 
         if self.system.account:
             self.final_cmd_args["cluster.account"] = self.system.account
@@ -80,7 +79,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         py_bin = (venv_path / "bin" / "python").absolute()
         self.final_cmd_args.update(
             {
-                "base_results_dir": str(tr.output_path.absolute()),
+                "base_results_dir": str(self.test_run.output_path.absolute()),
                 "launcher_scripts_path": str((repo_path / tdef.cmd_args.launcher_script).parent.absolute()),
             }
         )
@@ -93,15 +92,15 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         cmd_args_str = self._generate_cmd_args_str(self.final_cmd_args, nodes)
         full_cmd = f"{py_bin} \\\n {repo_path / tdef.cmd_args.launcher_script} \\\n {cmd_args_str}"
-        if tr.test.extra_cmd_args:
-            full_cmd += f" {tr.test.extra_cmd_args}"
+        if self.test_run.test.extra_cmd_args:
+            full_cmd += f" {self.test_run.test.extra_cmd_args}"
         full_cmd = self._update_container_mounts_with_tokenizer_path(full_cmd)
 
         env_vars_str = self._gen_env_vars_str(self.final_env_vars)
         full_cmd = f"{env_vars_str}{full_cmd}" if env_vars_str else full_cmd
 
         # Log the generated command to a bash file
-        self._log_command_to_file(full_cmd, tr.output_path)
+        self._log_command_to_file(full_cmd, self.test_run.output_path)
 
         return full_cmd.strip()
 
@@ -111,12 +110,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             env_vars_str += " \\\n"
         return env_vars_str
 
-    def _prepare_environment(
-        self,
-        cmd_args: Dict[str, Union[str, List[str]]],
-        extra_env_vars: Dict[str, Union[str, List[str]]],
-        output_path: Path,
-    ) -> None:
+    def _prepare_environment(self) -> None:
         """
         Prepare the environment variables and command arguments.
 
@@ -125,9 +119,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             extra_env_vars (Dict[str, Union[str, List[str]]]): Additional environment variables.
             output_path (Path): Path to the output directory.
         """
-        self.final_env_vars = self._override_env_vars(self.system.global_env_vars, extra_env_vars)
-
-        overriden_cmd_args = self._override_cmd_args(self.default_cmd_args, cmd_args)
+        overriden_cmd_args = self._flatten_dict(self.test_run.test.cmd_args)
         overriden_cmd_args.pop("launcher_script", None)
         self.final_cmd_args = {k: self._handle_special_keys(k, v) for k, v in sorted(overriden_cmd_args.items())}
 
@@ -204,8 +196,9 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         for key, value in args.items():
             if key.startswith("env_vars."):
                 if isinstance(value, str) and "," in value:
-                    value = f"\\'{value}\\'"
-                env_var_str_parts.append(f'+{key}="{value}"')
+                    env_var_str_parts.append(f"+{key}=\\'{value}\\'")
+                else:
+                    env_var_str_parts.append(f'+{key}="{value}"')
             else:
                 if isinstance(value, list):
                     value = ",".join(map(str, value))

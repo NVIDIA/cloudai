@@ -39,6 +39,7 @@ from cloudai.core import (
 from cloudai.models.scenario import TestRunModel, TestScenarioModel
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.test_scenario_parser import calculate_total_time_limit, get_reporters
+from cloudai.workloads.ai_dynamo import AIDynamoReportGenerationStrategy, AIDynamoTestDefinition
 from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
@@ -64,7 +65,6 @@ from cloudai.workloads.nemo_run import (
     NeMoRunTestDefinition,
 )
 from cloudai.workloads.nixl_bench import NIXLBenchReportGenerationStrategy, NIXLBenchTestDefinition
-from cloudai.workloads.sleep import SleepReportGenerationStrategy, SleepTestDefinition
 from cloudai.workloads.slurm_container import SlurmContainerReportGenerationStrategy, SlurmContainerTestDefinition
 from cloudai.workloads.triton_inference import TritonInferenceReportGenerationStrategy, TritonInferenceTestDefinition
 from cloudai.workloads.ucc_test import UCCTestDefinition, UCCTestReportGenerationStrategy
@@ -83,7 +83,7 @@ def test(slurm_system: SlurmSystem) -> Test:
             name="t1",
             description="desc1",
             test_template_name="NcclTest",
-            cmd_args=NCCLCmdArgs(),
+            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
         ),
         test_template=TestTemplate(system=slurm_system),
     )
@@ -354,7 +354,10 @@ class TestInScenario:
         test_scenario_parser.test_mapping = {
             "nccl": Test(
                 test_definition=NCCLTestDefinition(
-                    name="nccl", description="desc", test_template_name="NcclTest", cmd_args=NCCLCmdArgs()
+                    name="nccl",
+                    description="desc",
+                    test_template_name="NcclTest",
+                    cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
                 ),
                 test_template=TestTemplate(system=slurm_system),
             )
@@ -380,7 +383,10 @@ class TestInScenario:
         test_scenario_parser.test_mapping = {
             "nccl": Test(
                 test_definition=NCCLTestDefinition(
-                    name="nccl", description="desc", test_template_name="NcclTest", cmd_args=NCCLCmdArgs()
+                    name="nccl",
+                    description="desc",
+                    test_template_name="NcclTest",
+                    cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
                 ),
                 test_template=TestTemplate(system=slurm_system),
             )
@@ -411,7 +417,7 @@ class TestInScenario:
             name = "nccl"
             test_template_name = "NcclTest"
             description = "desc"
-            cmd_args = { unknown = 42 }
+            cmd_args = { unknown = 42, docker_image_url = "fake://url/nccl" }
             """
             )
         )
@@ -488,11 +494,11 @@ class TestReporters:
             (NeMoLauncherTestDefinition, {NeMoLauncherReportGenerationStrategy}),
             (NeMoRunTestDefinition, {NeMoRunReportGenerationStrategy, NeMoRunDataStoreReportGenerationStrategy}),
             (NemotronTestDefinition, {JaxToolboxReportGenerationStrategy}),
-            (SleepTestDefinition, {SleepReportGenerationStrategy}),
             (SlurmContainerTestDefinition, {SlurmContainerReportGenerationStrategy}),
             (UCCTestDefinition, {UCCTestReportGenerationStrategy}),
             (TritonInferenceTestDefinition, {TritonInferenceReportGenerationStrategy}),
             (NIXLBenchTestDefinition, {NIXLBenchReportGenerationStrategy}),
+            (AIDynamoTestDefinition, {AIDynamoReportGenerationStrategy}),
         ],
     )
     def test_custom_reporters(self, tdef: Type[TestDefinition], expected_reporters: Set[ReportGenerationStrategy]):
@@ -500,7 +506,12 @@ class TestReporters:
 
     def test_get_reporters_nccl(self):
         tr_model = TestRunModel(id="id", test_name="nccl", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1)
-        tdef = NCCLTestDefinition(name="nccl", description="desc", test_template_name="tt", cmd_args=NCCLCmdArgs())
+        tdef = NCCLTestDefinition(
+            name="nccl",
+            description="desc",
+            test_template_name="tt",
+            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+        )
         reporters = get_reporters(tr_model, tdef)
         assert len(reporters) == 1
         assert NcclTestPerformanceReportGenerationStrategy in reporters
@@ -527,7 +538,7 @@ class TestReportMetricsDSE:
             name="nccl",
             description="desc",
             test_template_name="NcclTest",
-            cmd_args=NCCLCmdArgs(),
+            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
             extra_env_vars={"DSE": ["v1", "v2"]},
         )
         test_scenario_parser.test_mapping["nccl"] = Test(test_definition=nccl, test_template=Mock())

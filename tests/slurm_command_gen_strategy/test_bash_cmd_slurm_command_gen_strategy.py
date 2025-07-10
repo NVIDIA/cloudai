@@ -44,32 +44,32 @@ def bash_tr(slurm_system: SlurmSystem) -> TestRun:
 
 
 @pytest.fixture
-def bash_cmd_gen(slurm_system: SlurmSystem) -> BashCmdCommandGenStrategy:
-    return BashCmdCommandGenStrategy(slurm_system, {})
+def bash_cmd_gen(slurm_system: SlurmSystem, bash_tr: TestRun) -> BashCmdCommandGenStrategy:
+    return BashCmdCommandGenStrategy(slurm_system, bash_tr)
 
 
-def test_gen_srun_success_check(bash_cmd_gen: BashCmdCommandGenStrategy, bash_tr: TestRun):
-    res = bash_cmd_gen.gen_srun_success_check(bash_tr)
+def test_gen_srun_success_check(bash_cmd_gen: BashCmdCommandGenStrategy):
+    res = bash_cmd_gen.gen_srun_success_check()
     assert res == "[ $? -eq 0 ] && echo 1 || echo 0"
 
 
-def test_generate_test_command(bash_cmd_gen: BashCmdCommandGenStrategy, bash_tr: TestRun):
-    res = bash_cmd_gen.generate_test_command({}, {}, bash_tr)
+def test_generate_test_command(bash_cmd_gen: BashCmdCommandGenStrategy):
+    res = bash_cmd_gen.generate_test_command()
     assert res == ["echo 'Hello, world!'"]
 
 
-def test_gen_srun_prefix(bash_cmd_gen: BashCmdCommandGenStrategy, bash_tr: TestRun):
-    res = bash_cmd_gen.gen_srun_prefix(bash_tr)
+def test_gen_srun_prefix(bash_cmd_gen: BashCmdCommandGenStrategy):
+    res = bash_cmd_gen.gen_srun_prefix()
     assert res == []
 
 
-def test_gen_nsys_command(bash_cmd_gen: BashCmdCommandGenStrategy, bash_tr: TestRun):
-    res = bash_cmd_gen.gen_nsys_command(bash_tr)
+def test_gen_nsys_command(bash_cmd_gen: BashCmdCommandGenStrategy):
+    res = bash_cmd_gen.gen_nsys_command()
     assert res == []
 
 
-def test_gen_container_mounts(bash_cmd_gen: BashCmdCommandGenStrategy, bash_tr: TestRun):
-    res = bash_cmd_gen._container_mounts(bash_tr)
+def test_gen_container_mounts(bash_cmd_gen: BashCmdCommandGenStrategy):
+    res = bash_cmd_gen._container_mounts()
     assert res == []
 
 

@@ -14,239 +14,151 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Union, cast
 
 from cloudai.core import JsonGenStrategy, TestRun
+
+from .nccl import NCCLTestDefinition
 
 
 class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
     """JSON generation strategy for NCCL tests on Kubernetes systems."""
 
+    SSH_PORT: int = 2222
+
     def gen_json(self, tr: TestRun) -> Dict[Any, Any]:
-        final_env_vars = self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
-        final_cmd_args = self._override_cmd_args(self.default_cmd_args, tr.test.cmd_args)
-        final_num_nodes = self._determine_num_nodes(tr.nnodes, tr.nodes)
-        sanitized_job_name = self.sanitize_k8s_job_name("nccl-test")
-        job_spec = self._create_job_spec(
-            sanitized_job_name, final_num_nodes, tr.nodes, final_env_vars, final_cmd_args, tr.test.extra_cmd_args
-        )
-
-        return job_spec
-
-    def _determine_num_nodes(self, num_nodes: int, nodes: List[str]) -> int:
-        """
-        Determine the final number of nodes based on provided nodes or num_nodes.
-
-        Args:
-            num_nodes (int): The initial number of nodes specified.
-            nodes (List[str]): A list of specific nodes provided.
-
-        Returns:
-            int: The final number of nodes to be used for the job.
-        """
-        return len(nodes) if nodes else num_nodes
-
-    def _create_job_spec(
-        self,
-        job_name: str,
-        final_num_nodes: int,
-        nodes: List[str],
-        env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, Union[str, List[str]]],
-        extra_cmd_args: str,
-    ) -> Dict[Any, Any]:
-        """
-        Create the MPIJob specification for running NCCL tests on a Kubernetes cluster.
-
-        Args:
-            job_name (str): The name of the Kubernetes job.
-            final_num_nodes (int): The final number of nodes determined.
-            nodes (List[str]): A list of specific nodes to run the job on.
-            env_vars (Dict[str, Union[str, List[str]]]): A dictionary of environment variables for the job.
-            cmd_args (Dict[str, Union[str, List[str]]]): A dictionary of command-line arguments for the NCCL test.
-            extra_cmd_args (str): Additional command-line arguments for the NCCL test.
-
-        Returns:
-            Dict[Any, Any]: A dictionary representing the Kubernetes MPIJob specification.
-        """
         return {
             "apiVersion": "kubeflow.org/v2beta1",
             "kind": "MPIJob",
             "metadata": {
-                "name": job_name,
+                "name": self.sanitize_k8s_job_name("nccl-test"),
             },
             "spec": {
                 "slotsPerWorker": 1,
                 "runPolicy": {"cleanPodPolicy": "Running"},
                 "mpiReplicaSpecs": {
-                    "Launcher": {
-                        "replicas": 1,
-                        "template": {
-                            "spec": {
-                                "containers": [
-                                    {
-                                        "image": cmd_args["docker_image_url"],
-                                        "name": "nccl-launcher",
-                                        "env": self._generate_env_list(env_vars),
-                                        "command": ["/bin/bash"],
-                                        "args": [
-                                            "-c",
-                                            self._generate_launcher_command(
-                                                final_num_nodes, nodes, env_vars, cmd_args, extra_cmd_args
-                                            ),
-                                        ],
-                                        "resources": self._prepare_launcher_resources(),
-                                    }
-                                ],
-                                "restartPolicy": "Never",
-                            },
-                        },
-                    },
-                    "Worker": {
-                        "replicas": final_num_nodes,
-                        "template": {
-                            "spec": {
-                                "hostNetwork": True,
-                                "containers": [
-                                    {
-                                        "image": cmd_args["docker_image_url"],
-                                        "name": "nccl-worker",
-                                        "env": self._generate_env_list(env_vars),
-                                        "command": ["/bin/bash"],
-                                        "args": ["-c", "/usr/sbin/sshd -p 2222; sleep infinity"],
-                                        "resources": self._prepare_worker_resources(),
-                                        "volumeMounts": [
-                                            {"mountPath": "/dev/shm", "name": "dshm"},
-                                        ],
-                                    }
-                                ],
-                                "volumes": [
-                                    {"name": "dshm", "emptyDir": {"medium": "Memory"}},
-                                    {"name": "hugepage-2mi", "emptyDir": {"medium": "HugePages"}},
-                                ],
-                            },
-                        },
-                    },
+                    "Launcher": self._create_launcher_spec(tr),
+                    "Worker": self._create_worker_spec(tr),
                 },
             },
         }
 
+    def _create_launcher_spec(self, tr: TestRun) -> Dict[str, Any]:
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, tr.test.test_definition)
+        env_vars = self._get_merged_env_vars(tr)
+        return {
+            "replicas": 1,
+            "template": {
+                "spec": {
+                    "hostNetwork": True,
+                    "containers": [
+                        {
+                            "image": tdef.cmd_args.docker_image_url,
+                            "name": "nccl-test-launcher",
+                            "imagePullPolicy": "IfNotPresent",
+                            "securityContext": {"privileged": True},
+                            "env": self._generate_env_list(env_vars),
+                            "command": ["/bin/bash", "-c"],
+                            "args": [self._generate_launcher_command(tr, env_vars)],
+                        }
+                    ],
+                },
+            },
+        }
+
+    def _create_worker_spec(self, tr: TestRun) -> Dict[str, Any]:
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, tr.test.test_definition)
+        env_vars = self._get_merged_env_vars(tr)
+        return {
+            "replicas": tr.num_nodes,
+            "template": {
+                "spec": {
+                    "hostNetwork": True,
+                    "containers": [
+                        {
+                            "image": tdef.cmd_args.docker_image_url,
+                            "name": "nccl-test-worker",
+                            "imagePullPolicy": "IfNotPresent",
+                            "securityContext": {"privileged": True},
+                            "ports": [{"containerPort": self.SSH_PORT, "name": "ssh"}],
+                            "env": self._generate_env_list(env_vars),
+                            "command": ["/bin/bash"],
+                            "args": ["-c", f"/usr/sbin/sshd -p {self.SSH_PORT}; sleep infinity"],
+                            "resources": self._prepare_worker_resources(),
+                            "volumeMounts": [
+                                {"mountPath": "/dev/shm", "name": "dev-shm"},
+                            ],
+                        }
+                    ],
+                    "volumes": [{"name": "dev-shm", "emptyDir": {"medium": "Memory", "sizeLimit": "1Gi"}}],
+                },
+            },
+        }
+
+    def _get_merged_env_vars(self, tr: TestRun) -> Dict[str, Union[str, List[str]]]:
+        return self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
+
     def _generate_env_list(self, env_vars: Dict[str, Union[str, List[str]]]) -> List[Dict[str, str]]:
-        """
-        Generate the environment variables list for the Kubernetes container.
-
-        Args:
-            env_vars (Dict[str, Union[str, List[str]]]): A dictionary of environment variables to include.
-
-        Returns:
-            List[Dict[str, str]]: A list of dictionaries representing the environment variables.
-        """
         env_list = [{"name": "OMPI_ALLOW_RUN_AS_ROOT", "value": "1"}]
-        # Include additional environment variables from env_vars
         for key, value in env_vars.items():
             if isinstance(value, list):
                 value = ",".join(value)
             env_list.append({"name": key, "value": value})
         return env_list
 
-    def _generate_launcher_command(
-        self,
-        final_num_nodes: int,
-        nodes: List[str],
-        env_vars: Dict[str, Union[str, List[str]]],
-        cmd_args: Dict[str, Union[str, List[str]]],
-        extra_cmd_args: str,
-    ) -> str:
-        """
-        Generate the launcher command for the Kubernetes container.
-
-        Args:
-            final_num_nodes (int): The final number of nodes determined.
-            nodes (List[str]): A list of specific nodes to run the job on.
-            env_vars (Dict[str, Union[str, List[str]]]): A dictionary of environment variables for the job.
-            cmd_args (Dict[str, Union[str, List[str]]]): A dictionary of command-line arguments for the NCCL test.
-            extra_cmd_args (str): Additional command-line arguments for the NCCL test.
-
-        Returns:
-            str: The launcher command to be executed.
-        """
-        subtest_name = cmd_args.get("subtest_name")
-        if subtest_name is None:
-            raise ValueError(
-                "The NCCL test's 'subtest_name' is not provided. Please ensure 'subtest_name' "
-                "is included in the command arguments. Valid subtest names include: "
-                "all_reduce_perf, all_gather_perf, alltoall_perf, broadcast_perf, "
-                "gather_perf, hypercube_perf, reduce_perf, reduce_scatter_perf, "
-                "scatter_perf, and sendrecv_perf."
-            )
-
-        nccl_test_args = [
-            "nthreads",
-            "ngpus",
-            "minbytes",
-            "maxbytes",
-            "stepbytes",
-            "op",
-            "datatype",
-            "root",
-            "iters",
-            "warmup_iters",
-            "agg_iters",
-            "average",
-            "parallel_init",
-            "check",
-            "blocking",
-            "cudagraph",
+    def _generate_mpi_args(self, env_vars: Dict[str, Union[str, List[str]]]) -> List[str]:
+        mpi_args = [
+            "--allow-run-as-root",
+            f"--mca plm_rsh_args '-p {self.SSH_PORT}'",
+            "-c 2",
+            "-bind-to none -map-by slot",
+            "-mca btl tcp,self",
         ]
 
-        command_parts = [f"/opt/nccl_tests/build/{subtest_name}"]
-        for arg in nccl_test_args:
-            if arg in cmd_args:
-                command_parts.append(f"--{arg} {cmd_args[arg]}")
+        if "NCCL_SOCKET_IFNAME" in env_vars:
+            mpi_args.append(f"-mca btl_tcp_if_include {env_vars['NCCL_SOCKET_IFNAME']}")
 
-        if extra_cmd_args:
-            command_parts.append(extra_cmd_args)
+        return mpi_args
 
-        return (
-            f"mpirun -v --allow-run-as-root -np {final_num_nodes} "
-            "--hostfile /etc/mpi/hostfile "
-            "-mca coll ^hcoll -mca plm_rsh_args '-p 2222' -bind-to none "
-            f"{' '.join([f'-x {key}={value}' for key, value in env_vars.items()])} "
-            f"{' '.join(command_parts)}"
-        )
+    def _generate_nccl_args(self, cmd_args_dict: Dict[str, Any]) -> List[str]:
+        nccl_args = []
+        for arg, value in cmd_args_dict.items():
+            if value is not None:
+                nccl_args.append(f"--{arg} {value}")
+        return nccl_args
+
+    def _generate_extra_args(self, extra_cmd_args: Dict[str, str]) -> List[str]:
+        extra_args = []
+        for key, value in extra_cmd_args.items():
+            key = key if key.startswith("--") else f"--{key}"
+            extra_args.append(f"{key} {value}" if value else key)
+        return extra_args
+
+    def _generate_launcher_command(self, tr: TestRun, env_vars: Dict[str, Union[str, List[str]]]) -> str:
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, tr.test.test_definition)
+        tdef_cmd_args = tdef.cmd_args
+
+        cmd_args_dict = {
+            k: v for k, v in tdef_cmd_args.model_dump().items() if k not in {"docker_image_url", "subtest_name"}
+        }
+
+        command_parts = [
+            "mpirun",
+            " ".join(self._generate_mpi_args(env_vars)),
+            tdef_cmd_args.subtest_name,
+            " ".join(self._generate_nccl_args(cmd_args_dict)),
+        ]
+
+        if tr.test.extra_cmd_args:
+            command_parts.append(" ".join(self._generate_extra_args(tdef.extra_cmd_args)))
+
+        return " \\\n".join(command_parts)
 
     def _prepare_launcher_resources(self) -> Dict[str, Dict[str, str]]:
-        """
-        Prepare resource requests and limits for the launcher container.
-
-        Returns
-            Dict[str, Dict[str, str]]: A dictionary representing the resource requests and limits.
-        """
         return {
             "requests": {"cpu": "2", "memory": "8Gi"},
             "limits": {"cpu": "2", "memory": "8Gi"},
         }
 
     def _prepare_worker_resources(self) -> Dict[str, Dict[str, str]]:
-        """
-        Prepare resource requests and limits for the worker containers.
-
-        Returns
-            Dict[str, Dict[str, str]]: A dictionary representing the resource requests and limits.
-        """
-        return {
-            "requests": {
-                "cpu": "24",
-                "memory": "32Gi",
-                "nvidia.com/gpu": "1",
-                "rdma/rdma_ib": "1",
-                "hugepages-2Mi": "2Gi",
-            },
-            "limits": {
-                "cpu": "48",
-                "memory": "32Gi",
-                "nvidia.com/gpu": "1",
-                "rdma/rdma_ib": "1",
-                "hugepages-2Mi": "2Gi",
-            },
-        }
+        return {"requests": {"nvidia.com/gpu": "8"}, "limits": {"nvidia.com/gpu": "8"}}

@@ -72,7 +72,7 @@ def ucc_tr(slurm_system: SlurmSystem) -> TestRun:
                 name="ucc_test",
                 description="ucc_test",
                 test_template_name="ucc_test",
-                cmd_args=UCCCmdArgs(),
+                cmd_args=UCCCmdArgs(docker_image_url="url://fake/ucc"),
             ),
             test_template=TestTemplate(system=slurm_system),
         ),

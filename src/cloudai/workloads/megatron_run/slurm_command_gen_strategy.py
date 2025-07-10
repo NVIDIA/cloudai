@@ -15,9 +15,8 @@
 # limitations under the License.
 
 
-from typing import Dict, List, Union, cast
+from typing import cast
 
-from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 from .megatron_run import MegatronRunTestDefinition
@@ -26,17 +25,15 @@ from .megatron_run import MegatronRunTestDefinition
 class MegatronRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for MegatronRun on Slurm systems."""
 
-    def image_path(self, tr: TestRun) -> str | None:
-        tdef: MegatronRunTestDefinition = cast(MegatronRunTestDefinition, tr.test.test_definition)
+    def image_path(self) -> str | None:
+        tdef: MegatronRunTestDefinition = cast(MegatronRunTestDefinition, self.test_run.test.test_definition)
         return str(tdef.docker_image.installed_path)
 
-    def _container_mounts(self, tr: TestRun) -> list[str]:
+    def _container_mounts(self) -> list[str]:
         return []
 
-    def generate_test_command(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: dict[str, Union[str, list[str]]], tr: TestRun
-    ) -> list[str]:
-        tdef: MegatronRunTestDefinition = cast(MegatronRunTestDefinition, tr.test.test_definition)
+    def generate_test_command(self) -> list[str]:
+        tdef: MegatronRunTestDefinition = cast(MegatronRunTestDefinition, self.test_run.test.test_definition)
 
         command = [
             "python",
@@ -44,7 +41,7 @@ class MegatronRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             *[f"{k} {v}" for k, v in tdef.cmd_args_dict.items()],
         ]
 
-        if tr.test.extra_cmd_args:
-            command.append(tr.test.extra_cmd_args)
+        if self.test_run.test.extra_cmd_args:
+            command.append(self.test_run.test.extra_cmd_args)
 
         return command
