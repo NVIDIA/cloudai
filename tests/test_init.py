@@ -26,6 +26,7 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoSlurmCommandGenStrategy,
     AIDynamoTestDefinition,
 )
+from cloudai.workloads.bash_cmd import BashCmdCommandGenStrategy, BashCmdTestDefinition
 from cloudai.workloads.chakra_replay import (
     ChakraReplayGradingStrategy,
     ChakraReplaySlurmCommandGenStrategy,
@@ -117,6 +118,7 @@ CMD_GEN_STRATEGIES = {
     (SlurmSystem, TritonInferenceTestDefinition): TritonInferenceSlurmCommandGenStrategy,
     (SlurmSystem, NIXLBenchTestDefinition): NIXLBenchSlurmCommandGenStrategy,
     (SlurmSystem, AIDynamoTestDefinition): AIDynamoSlurmCommandGenStrategy,
+    (SlurmSystem, BashCmdTestDefinition): BashCmdCommandGenStrategy,
 }
 ALL_STRATEGIES = {
     (GradingStrategy, SlurmSystem, ChakraReplayTestDefinition): ChakraReplayGradingStrategy,
@@ -175,7 +177,7 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 14
+    assert len(test_defs) == 15
     for tdef in [
         ("UCCTest", UCCTestDefinition),
         ("NcclTest", NCCLTestDefinition),
@@ -191,6 +193,7 @@ def test_definitions():
         ("TritonInference", TritonInferenceTestDefinition),
         ("NIXLBench", NIXLBenchTestDefinition),
         ("AIDynamo", AIDynamoTestDefinition),
+        ("BashCmd", BashCmdTestDefinition),
     ]:
         assert test_defs[tdef[0]] == tdef[1]
 
