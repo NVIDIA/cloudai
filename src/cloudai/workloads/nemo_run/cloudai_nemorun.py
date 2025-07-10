@@ -874,7 +874,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
                 ckpt_parallel_load=True,
                 ddp=run.Config(
                     DistributedDataParallelConfig,
-                    check_for_nan_in_grad=True,
+                    check_for_nan_in_grad=False,
                     grad_reduce_in_fp32=True,
                     overlap_grad_reduce=True,
                     overlap_param_gather=True,
@@ -973,6 +973,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
     recipe.trainer.strategy.account_for_loss_in_pipeline_split = True
     recipe.model.tokenizer = recipe.data.tokenizer
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
+    recipe.model.config.cross_entropy_fusion_impl = "te"
     return recipe
 
 
