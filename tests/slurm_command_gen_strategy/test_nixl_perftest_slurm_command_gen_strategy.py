@@ -78,17 +78,7 @@ def test_gen_matrix_gen_srun_command(test_run: TestRun, slurm_system: SlurmSyste
 
 @pytest.mark.parametrize(
     "opt_arg,value",
-    [
-        (None, None),
-        ("isl_mean", 1),
-        ("isl_scale", 1),
-        ("prefill_tp", 1),
-        ("prefill_pp", 1),
-        ("prefill_cp", 1),
-        ("decode_tp", 1),
-        ("decode_pp", 1),
-        ("decode_cp", 1),
-    ],
+    [(None, None), ("isl_mean", 1), ("isl_scale", 1)],
 )
 def test_gen_matrix_gen_command_with_model(
     test_run: TestRun, slurm_system: SlurmSystem, opt_arg: str | None, value: int | None
@@ -107,6 +97,12 @@ def test_gen_matrix_gen_command_with_model(
         f"--num-prefill-nodes={tdef.cmd_args.num_prefill_nodes}",
         f"--num-decode-nodes={tdef.cmd_args.num_decode_nodes}",
         "--results-dir=" + str(strategy.matrix_gen_path.absolute()),
+        f"--prefill-tp={tdef.cmd_args.prefill_tp}",
+        f"--prefill-pp={tdef.cmd_args.prefill_pp}",
+        f"--prefill-cp={tdef.cmd_args.prefill_cp}",
+        f"--decode-tp={tdef.cmd_args.decode_tp}",
+        f"--decode-pp={tdef.cmd_args.decode_pp}",
+        f"--decode-cp={tdef.cmd_args.decode_cp}",
         f"--model={tdef.cmd_args.model}",
     ]
     if opt_arg:

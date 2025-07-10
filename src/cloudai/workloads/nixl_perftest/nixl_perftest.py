@@ -27,9 +27,9 @@ class NixlPerftestCmdArgs(CmdArgs):
     docker_image_url: str
 
     subtest: Literal["sequential-ct-perftest"]
-    perftest_script: str
-    matgen_script: str
-    python_executable: str
+    perftest_script: str = "/workspace/nixl/benchmark/kvbench/main.py"
+    matgen_script: str = "/workspace/nixl/benchmark/kvbench/test/inference_workload_matgen.py"
+    python_executable: str = "/workspace/nixl/.venv/bin/python"
     etcd_path: str = "etcd"
     wait_etcd_for: int = 60
 
@@ -39,12 +39,12 @@ class NixlPerftestCmdArgs(CmdArgs):
     num_decode_nodes: int | list[int]
     isl_mean: int | list[int] | None = None
     isl_scale: int | list[int] | None = None
-    prefill_tp: int | list[int] | None = None
-    prefill_pp: int | list[int] | None = None
-    prefill_cp: int | list[int] | None = None
-    decode_tp: int | list[int] | None = None
-    decode_pp: int | list[int] | None = None
-    decode_cp: int | list[int] | None = None
+    prefill_tp: int | list[int] = 1
+    prefill_pp: int | list[int] = 1
+    prefill_cp: int | list[int] = 1
+    decode_tp: int | list[int] = 1
+    decode_pp: int | list[int] = 1
+    decode_cp: int | list[int] = 1
 
     # model or model configuration
     model: str | list[str] | None = None

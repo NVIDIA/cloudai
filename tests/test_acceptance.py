@@ -384,9 +384,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 cmd_args=NixlPerftestCmdArgs(
                     docker_image_url="url.com/docker:tag",
                     subtest="sequential-ct-perftest",
-                    perftest_script="/workspace/nixl/benchmark/kvbench/main.py",
-                    matgen_script="/workspace/nixl/benchmark/kvbench/test/inference_workload_matgen.py",
-                    python_executable="/workspace/nixl/.venv/bin/python",
                     etcd_path="etcd",
                     num_user_requests=2,
                     batch_size=1,

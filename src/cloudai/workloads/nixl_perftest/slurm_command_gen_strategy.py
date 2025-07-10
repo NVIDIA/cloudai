@@ -90,6 +90,12 @@ class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "--num-prefill-nodes=" + str(self.tdef.cmd_args.num_prefill_nodes),
             "--num-decode-nodes=" + str(self.tdef.cmd_args.num_decode_nodes),
             "--results-dir=" + str(self.matrix_gen_path.absolute()),
+            f"--prefill-tp={self.tdef.cmd_args.prefill_tp}",
+            f"--prefill-pp={self.tdef.cmd_args.prefill_pp}",
+            f"--prefill-cp={self.tdef.cmd_args.prefill_cp}",
+            f"--decode-tp={self.tdef.cmd_args.decode_tp}",
+            f"--decode-pp={self.tdef.cmd_args.decode_pp}",
+            f"--decode-cp={self.tdef.cmd_args.decode_cp}",
         ]
 
         if self.tdef.cmd_args.model:
@@ -100,16 +106,7 @@ class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 if getattr(self.tdef.cmd_args, arg) is not None:
                     cmd.append(f"{self.prop_to_cli_arg(arg)}={getattr(self.tdef.cmd_args, arg)}")
 
-        opt_args = [
-            "isl_mean",
-            "isl_scale",
-            "prefill_tp",
-            "prefill_pp",
-            "prefill_cp",
-            "decode_tp",
-            "decode_pp",
-            "decode_cp",
-        ]
+        opt_args = ["isl_mean", "isl_scale"]
         for arg in opt_args:
             if getattr(self.tdef.cmd_args, arg) is not None:
                 cmd.append(f"{self.prop_to_cli_arg(arg)}={getattr(self.tdef.cmd_args, arg)}")
