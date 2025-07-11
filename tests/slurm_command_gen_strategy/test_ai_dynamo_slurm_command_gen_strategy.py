@@ -131,6 +131,15 @@ def test_hugging_face_home_path_missing(test_run: TestRun) -> None:
         _ = td.huggingface_home_host_path
 
 
+def test_hugging_face_home_path_skip_validation(test_run: TestRun) -> None:
+    td = cast(AIDynamoTestDefinition, test_run.test.test_definition)
+    td.cmd_args.huggingface_home_host_path = Path("/nonexistent")
+    td.cmd_args.skip_huggingface_home_host_path_validation = True
+    # Should not raise an exception when validation is skipped
+    path = td.huggingface_home_host_path
+    assert path == Path("/nonexistent")
+
+
 def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: TestRun) -> None:
     mounts = strategy._container_mounts()
     td = cast(AIDynamoTestDefinition, test_run.test.test_definition)

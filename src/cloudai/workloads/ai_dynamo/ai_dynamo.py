@@ -119,6 +119,7 @@ class AIDynamoCmdArgs(CmdArgs):
     docker_image_url: str
     huggingface_home_host_path: Path = Path.home() / ".cache/huggingface"
     huggingface_home_container_path: Path = Path("/root/.cache/huggingface")
+    skip_huggingface_home_host_path_validation: bool = False
     dynamo: AIDynamoArgs
     sleep_seconds: int = 660
     genai_perf: GenAIPerfArgs
@@ -145,6 +146,6 @@ class AIDynamoTestDefinition(TestDefinition):
     @property
     def huggingface_home_host_path(self) -> Path:
         path = Path(self.cmd_args.huggingface_home_host_path)
-        if not path.is_dir():
+        if not self.cmd_args.skip_huggingface_home_host_path_validation and not path.is_dir():
             raise FileNotFoundError(f"HuggingFace home path not found at {path}")
         return path
