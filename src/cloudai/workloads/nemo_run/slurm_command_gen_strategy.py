@@ -67,7 +67,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return [f"{self._run_script().parent.absolute()}:/cloudai_workspace"]
 
     def _enable_numa_control_cmd(self) -> str:
-        divisor = 2 if self.final_env_vars.get("ENABLE_NUMA_CONTROL") == "gb200" else 4
+        divisor = 2 if self.final_env_vars.get("CLOUDAI_GPU_TYPE") == "gb200" else 4
         return (
             f"srun --mpi={self.system.mpi} numactl "
             f"--cpunodebind=$((SLURM_LOCALID/{divisor})) --membind=$((SLURM_LOCALID/{divisor}))"
