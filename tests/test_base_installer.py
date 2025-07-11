@@ -135,6 +135,7 @@ class TestBaseInstaller:
         ("http://fake_url/img", "fake_url__img__notag.sqsh"),
         ("nvcr.io/nvidia/pytorch:24.02-py3", "nvcr.io_nvidia__pytorch__24.02-py3.sqsh"),
         ("/local/disk/file", "file__notag.sqsh"),
+        ("gitlab.com#org/team/image:latest", "gitlab.com_org_team__image__latest.sqsh"),
     ],
 )
 def test_docker_cache_filename(url: str, expected: str):

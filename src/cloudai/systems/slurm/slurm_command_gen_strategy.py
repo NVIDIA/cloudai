@@ -379,8 +379,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         """
         batch_script_content = self._add_reservation(batch_script_content)
 
-        batch_script_content.append(f"#SBATCH --output={self.test_run.output_path / 'stdout.txt'}")
-        batch_script_content.append(f"#SBATCH --error={self.test_run.output_path / 'stderr.txt'}")
+        batch_script_content.append(f"#SBATCH --output={self.test_run.output_path.absolute() / 'stdout.txt'}")
+        batch_script_content.append(f"#SBATCH --error={self.test_run.output_path.absolute() / 'stderr.txt'}")
         batch_script_content.append(f"#SBATCH --partition={self.system.default_partition}")
         if self.system.account:
             batch_script_content.append(f"#SBATCH --account={self.system.account}")

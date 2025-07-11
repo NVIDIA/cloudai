@@ -195,9 +195,8 @@ class DockerImageCacheManager:
         else:
             job_name = f"{job_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
-        enroot_import_cmd = (
-            f"{srun_prefix} --job-name={job_name} enroot import -o {docker_image_path} docker://{docker_image_url}"
-        )
+        # Use -N1 --ntasks=1 to ensure only one compute node downloads the image
+        enroot_import_cmd = f"{srun_prefix} -N1 --ntasks=1 --job-name={job_name} enroot import -o {docker_image_path} docker://{docker_image_url}"
         logging.debug(f"Importing Docker image: {enroot_import_cmd}")
         try:
             p = subprocess.run(enroot_import_cmd, shell=True, check=True, capture_output=True, text=True)

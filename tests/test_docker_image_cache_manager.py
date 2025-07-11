@@ -112,6 +112,8 @@ def test_cache_docker_image(
     assert mock_run.call_count == 1
     actual_command = mock_run.call_args[0][0]
     assert f"srun --export=ALL --partition={slurm_system.default_partition}" in actual_command
+    assert "--ntasks=1" in actual_command
+    assert "-N1" in actual_command
     assert "--job-name=CloudAI_install_docker_image_" in actual_command
     assert f"enroot import -o {slurm_system.install_path}/image.tar.gz docker://docker.io/hello-world" in actual_command
     assert mock_run.call_args[1] == {"shell": True, "check": True, "capture_output": True, "text": True}
@@ -219,6 +221,7 @@ def test_docker_import_with_extra_system_config(
 
     expected_prefix = f"srun --export=ALL --partition={slurm_system.default_partition}"
     assert expected_prefix in actual_command
+    assert "-N1" in actual_command
 
     if account:
         assert f"--account={account}" in actual_command

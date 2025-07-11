@@ -61,6 +61,7 @@ from cloudai.workloads.nixl_bench import (
     NIXLBenchSummaryReport,
     NIXLBenchTestDefinition,
 )
+from cloudai.workloads.nixl_perftest import NixlPerftestSlurmCommandGenStrategy, NixlPerftestTestDefinition
 from cloudai.workloads.sleep import (
     SleepGradingStrategy,
     SleepKubernetesJsonGenStrategy,
@@ -119,6 +120,7 @@ CMD_GEN_STRATEGIES = {
     (SlurmSystem, NIXLBenchTestDefinition): NIXLBenchSlurmCommandGenStrategy,
     (SlurmSystem, AIDynamoTestDefinition): AIDynamoSlurmCommandGenStrategy,
     (SlurmSystem, BashCmdTestDefinition): BashCmdCommandGenStrategy,
+    (SlurmSystem, NixlPerftestTestDefinition): NixlPerftestSlurmCommandGenStrategy,
 }
 ALL_STRATEGIES = {
     (GradingStrategy, SlurmSystem, ChakraReplayTestDefinition): ChakraReplayGradingStrategy,
@@ -177,7 +179,7 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 15
+    assert len(test_defs) == 16
     for tdef in [
         ("UCCTest", UCCTestDefinition),
         ("NcclTest", NCCLTestDefinition),
@@ -194,6 +196,7 @@ def test_definitions():
         ("NIXLBench", NIXLBenchTestDefinition),
         ("AIDynamo", AIDynamoTestDefinition),
         ("BashCmd", BashCmdTestDefinition),
+        ("NixlPerftest", NixlPerftestTestDefinition),
     ]:
         assert test_defs[tdef[0]] == tdef[1]
 

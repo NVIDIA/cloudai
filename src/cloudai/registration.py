@@ -86,6 +86,7 @@ def register_all():
         NIXLBenchSummaryReport,
         NIXLBenchTestDefinition,
     )
+    from cloudai.workloads.nixl_perftest import NixlPerftestSlurmCommandGenStrategy, NixlPerftestTestDefinition
     from cloudai.workloads.sleep import (
         SleepGradingStrategy,
         SleepKubernetesJsonGenStrategy,
@@ -155,6 +156,7 @@ def register_all():
     Registry().add_command_gen_strategy(
         SlurmSystem, TritonInferenceTestDefinition, TritonInferenceSlurmCommandGenStrategy
     )
+    Registry().add_command_gen_strategy(SlurmSystem, NixlPerftestTestDefinition, NixlPerftestSlurmCommandGenStrategy)
 
     Registry().add_command_gen_strategy(SlurmSystem, AIDynamoTestDefinition, AIDynamoSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, BashCmdTestDefinition, BashCmdCommandGenStrategy)
@@ -186,6 +188,7 @@ def register_all():
     Registry().add_test_definition("NIXLBench", NIXLBenchTestDefinition)
     Registry().add_test_definition("AIDynamo", AIDynamoTestDefinition)
     Registry().add_test_definition("BashCmd", BashCmdTestDefinition)
+    Registry().add_test_definition("NixlPerftest", NixlPerftestTestDefinition)
 
     Registry().add_agent("grid_search", GridSearchAgent)
 
