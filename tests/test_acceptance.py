@@ -57,6 +57,7 @@ from cloudai.workloads.nemo_launcher import (
 )
 from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
 from cloudai.workloads.nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
+from cloudai.workloads.nixl_perftest.nixl_perftest import NixlPerftestCmdArgs, NixlPerftestTestDefinition
 from cloudai.workloads.sleep import SleepCmdArgs, SleepTestDefinition
 from cloudai.workloads.slurm_container import (
     SlurmContainerCmdArgs,
@@ -263,6 +264,7 @@ def build_special_test_run(
         "triton-inference",
         "nixl_bench",
         "ai-dynamo",
+        "nixl-perftest",
     ]
 )
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> Tuple[TestRun, str, Optional[str]]:
@@ -368,6 +370,26 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     docker_image_url="url.com/docker:2",
                     etcd_endpoint="http://$SLURM_JOB_MASTER_NODE:2379",
                     path_to_benchmark="./nixlbench",
+                ),
+            ),
+        ),
+        "nixl-perftest": lambda: create_test_run(
+            partial_tr,
+            slurm_system,
+            "nixl-perftest",
+            NixlPerftestTestDefinition(
+                name="nixl-perftest",
+                description="nixl-perftest",
+                test_template_name="nixl-perftest",
+                cmd_args=NixlPerftestCmdArgs(
+                    docker_image_url="url.com/docker:tag",
+                    subtest="sequential-ct-perftest",
+                    etcd_path="etcd",
+                    num_user_requests=2,
+                    batch_size=1,
+                    num_prefill_nodes=1,
+                    num_decode_nodes=1,
+                    model="model-name",
                 ),
             ),
         ),
