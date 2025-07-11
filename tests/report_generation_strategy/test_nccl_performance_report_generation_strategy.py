@@ -32,7 +32,7 @@ def nccl_tr(tmp_path: Path) -> TestRun:
             name="nccl",
             description="desc",
             test_template_name="t",
-            cmd_args=NCCLCmdArgs(),
+            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
         ),
         test_template=Mock(),
     )
@@ -110,3 +110,28 @@ def test_generate_performance_report(
     assert df["GPU Type"].iloc[0] == "H100", "GPU Type was not extracted correctly."
     assert df["Devices per Node"].iloc[0] == 8, "Devices per Node is incorrect."
     assert df["Ranks"].iloc[0] == 16, "Ranks is incorrect."
+
+
+def test_parse_gpu_types(report_strategy: NcclTestPerformanceReportGenerationStrategy, tmp_path: Path) -> None:
+    test_cases = [
+        ("NVIDIA Tesla V100-PCIE-32GB", "Tesla V100-PCIE-32GB"),
+        ("NVIDIA H100-SXM5-80GB", "H100-SXM5-80GB"),
+        ("NVIDIA A100-SXM4-40GB", "A100-SXM4-40GB"),
+        ("NVIDIA Tesla T4", "Tesla T4"),
+        ("NVIDIA H100", "H100"),
+    ]
+
+    for gpu_line, expected_type in test_cases:
+        stdout_content = f"""# Rank  0 Group  0 Pid 1000 on node1 device  0 [0xaa] {gpu_line}
+#
+#                                                              out-of-place                       in-place
+#       size         count      type   redop    root     time   algbw   busbw #wrong     time   algbw   busbw #wrong
+         128            32     float     sum      -1    21.89    0.01    0.01      0    17.61    0.01    0.01      0
+# Avg bus bandwidth    : 111.111
+"""
+        test_file = tmp_path / "test_stdout.txt"
+        test_file.write_text(stdout_content)
+
+        with test_file.open("r", encoding="utf-8") as file:
+            _, gpu_type, _ = report_strategy._parse_device_info(file)
+            assert gpu_type == expected_type, f"Failed to parse GPU type for {gpu_line}"

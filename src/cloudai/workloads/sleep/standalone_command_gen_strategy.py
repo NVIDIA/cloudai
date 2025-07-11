@@ -16,7 +16,7 @@
 
 from typing import cast
 
-from cloudai.core import CommandGenStrategy, TestRun
+from cloudai.core import CommandGenStrategy
 
 from .sleep import SleepCmdArgs, SleepTestDefinition
 
@@ -24,8 +24,8 @@ from .sleep import SleepCmdArgs, SleepTestDefinition
 class SleepStandaloneCommandGenStrategy(CommandGenStrategy):
     """Command generation strategy for the Sleep test on standalone systems."""
 
-    def gen_exec_command(self, tr: TestRun) -> str:
-        tdef: SleepTestDefinition = cast(SleepTestDefinition, tr.test.test_definition)
+    def gen_exec_command(self) -> str:
+        tdef: SleepTestDefinition = cast(SleepTestDefinition, self.test_run.test.test_definition)
         tdef_cmd_args: SleepCmdArgs = tdef.cmd_args
         sec = tdef_cmd_args.seconds
         return f"sleep {sec}"

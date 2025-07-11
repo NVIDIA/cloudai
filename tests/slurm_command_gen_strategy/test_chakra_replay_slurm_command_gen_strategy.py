@@ -25,10 +25,6 @@ from tests.conftest import create_autospec_dataclass
 
 
 class TestChakraReplaySlurmCommandGenStrategy:
-    @pytest.fixture
-    def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> ChakraReplaySlurmCommandGenStrategy:
-        return ChakraReplaySlurmCommandGenStrategy(slurm_system, {})
-
     @pytest.mark.parametrize(
         "cmd_args, extra_cmd_args, expected_result",
         [
@@ -74,19 +70,11 @@ class TestChakraReplaySlurmCommandGenStrategy:
         ],
     )
     def test_generate_test_command(
-        self,
-        cmd_gen_strategy: ChakraReplaySlurmCommandGenStrategy,
-        cmd_args: Dict[str, Any],
-        extra_cmd_args: str,
-        expected_result: List[str],
-        slurm_system: SlurmSystem,
+        self, cmd_args: Dict[str, Any], extra_cmd_args: str, expected_result: List[str], slurm_system: SlurmSystem
     ) -> None:
         tr = create_autospec_dataclass(TestRun)
-
-        tr.test.test_definition.cmd_args = ChakraReplayCmdArgs(
-            docker_image_url="",
-            **cmd_args,
-        )
+        tr.test.test_definition.cmd_args = ChakraReplayCmdArgs(docker_image_url="", **cmd_args)
         tr.test.extra_cmd_args = extra_cmd_args
-        command = cmd_gen_strategy.generate_test_command({}, {}, tr)
+        cmd_gen_strategy = ChakraReplaySlurmCommandGenStrategy(slurm_system, tr)
+        command = cmd_gen_strategy.generate_test_command()
         assert command == expected_result

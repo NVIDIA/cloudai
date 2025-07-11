@@ -18,7 +18,6 @@ from .gpt import GPTCmdArgs, GPTTestDefinition
 from .grading_strategy import JaxToolboxGradingStrategy
 from .grok import GrokCmdArgs, GrokTestDefinition
 from .jax_toolbox import JaxFdl, JaxToolboxCmdArgs, JaxToolboxTestDefinition
-from .job_status_retrieval_strategy import JaxToolboxJobStatusRetrievalStrategy
 from .nemotron import NemotronCmdArgs, NemotronTestDefinition
 from .report_generation_strategy import JaxToolboxReportGenerationStrategy
 from .slurm_command_gen_strategy import JaxToolboxSlurmCommandGenStrategy
@@ -31,7 +30,6 @@ __all__ = [
     "JaxFdl",
     "JaxToolboxCmdArgs",
     "JaxToolboxGradingStrategy",
-    "JaxToolboxJobStatusRetrievalStrategy",
     "JaxToolboxReportGenerationStrategy",
     "JaxToolboxSlurmCommandGenStrategy",
     "JaxToolboxTestDefinition",

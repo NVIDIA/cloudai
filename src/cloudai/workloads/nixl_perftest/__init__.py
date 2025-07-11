@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,14 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .default_job_status_retrieval_strategy import DefaultJobStatusRetrievalStrategy
-from .lsf_job_id_retrieval_strategy import LSFJobIdRetrievalStrategy
-from .slurm_job_id_retrieval_strategy import SlurmJobIdRetrievalStrategy
-from .standalone_job_id_retrieval_strategy import StandaloneJobIdRetrievalStrategy
+from .nixl_perftest import NixlPerftestCmdArgs, NixlPerftestTestDefinition
+from .slurm_command_gen_strategy import NixlPerftestSlurmCommandGenStrategy
 
 __all__ = [
-    "DefaultJobStatusRetrievalStrategy",
-    "LSFJobIdRetrievalStrategy",
-    "SlurmJobIdRetrievalStrategy",
-    "StandaloneJobIdRetrievalStrategy",
+    "NixlPerftestCmdArgs",
+    "NixlPerftestSlurmCommandGenStrategy",
+    "NixlPerftestTestDefinition",
 ]

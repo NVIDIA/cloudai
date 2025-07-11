@@ -38,18 +38,14 @@ class StandaloneRunner(BaseRunner):
     def _submit_test(self, tr: TestRun) -> StandaloneJob:
         logging.info(f"Running test: {tr.name}")
         tr.output_path = self.get_job_output_path(tr)
-        exec_cmd = tr.test.test_template.gen_exec_command(tr)
+        exec_cmd = self.get_cmd_gen_strategy(self.system, tr).gen_exec_command()
         logging.info(f"Executing command for test {tr.name}: {exec_cmd}")
         job_id = 0
         if self.mode == "run":
             pid = self.cmd_shell.execute(exec_cmd).pid
-            job_id = tr.test.test_template.get_job_id(str(pid), "")
+            job_id = pid
             if job_id is None:
                 raise JobIdRetrievalError(
-                    test_name=str(tr.name),
-                    command=exec_cmd,
-                    stdout="",
-                    stderr="",
-                    message="Failed to retrieve job ID from command output.",
+                    test_name=str(tr.name), command=exec_cmd, stdout="", stderr="", message="Failed to retrieve job ID."
                 )
         return StandaloneJob(tr, id=job_id)

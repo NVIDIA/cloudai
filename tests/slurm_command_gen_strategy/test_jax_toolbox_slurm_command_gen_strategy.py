@@ -33,10 +33,6 @@ from cloudai.workloads.jax_toolbox import (
 
 class TestJaxToolboxSlurmCommandGenStrategy:
     @pytest.fixture
-    def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> JaxToolboxSlurmCommandGenStrategy:
-        return JaxToolboxSlurmCommandGenStrategy(slurm_system, {})
-
-    @pytest.fixture
     def gpt_test(self) -> GPTTestDefinition:
         return GPTTestDefinition(
             name="gpt",
@@ -56,11 +52,30 @@ class TestJaxToolboxSlurmCommandGenStrategy:
             extra_env_vars={"COMBINE_THRESHOLD": "1"},
         )
 
+    @pytest.fixture
+    def gpt_tr(self, gpt_test: GPTTestDefinition, slurm_system: SlurmSystem) -> TestRun:
+        return TestRun(
+            test=Test(test_definition=gpt_test, test_template=TestTemplate(slurm_system)),
+            num_nodes=1,
+            nodes=["node1"],
+            output_path=slurm_system.output_path,
+            name="test-job",
+        )
+
+    @pytest.fixture
+    def grok_tr(self, grok_test: GrokTestDefinition, slurm_system: SlurmSystem) -> TestRun:
+        return TestRun(
+            test=Test(test_definition=grok_test, test_template=TestTemplate(slurm_system)),
+            num_nodes=1,
+            nodes=["node1"],
+            output_path=slurm_system.output_path,
+            name="test-job",
+        )
+
     @pytest.mark.parametrize("test_fixture", ["gpt_test", "grok_test"])
     def test_gen_exec_command(
         self,
         slurm_system: SlurmSystem,
-        cmd_gen_strategy: JaxToolboxSlurmCommandGenStrategy,
         tmp_path: Path,
         request,
         test_fixture,
@@ -69,15 +84,10 @@ class TestJaxToolboxSlurmCommandGenStrategy:
         slurm_system.output_path.mkdir(parents=True, exist_ok=True)
 
         test = Test(test_definition=test_def, test_template=TestTemplate(slurm_system))
-        test_run = TestRun(
-            test=test,
-            num_nodes=1,
-            nodes=["node1"],
-            output_path=tmp_path / "output",
-            name="test-job",
-        )
+        test_run = TestRun(test=test, num_nodes=1, nodes=["node1"], output_path=tmp_path / "output", name="test-job")
 
-        cmd = cmd_gen_strategy.gen_exec_command(test_run)
+        cmd_gen_strategy = JaxToolboxSlurmCommandGenStrategy(slurm_system, test_run)
+        cmd = cmd_gen_strategy.gen_exec_command()
         assert cmd == f"sbatch {test_run.output_path}/cloudai_sbatch_script.sh"
         assert (test_run.output_path / "run.sh").exists()
 
@@ -90,15 +100,15 @@ class TestJaxToolboxSlurmCommandGenStrategy:
             ({"unknown": "value"}, ""),
         ],
     )
-    def test_extract_test_name(
-        self, cmd_gen_strategy: JaxToolboxSlurmCommandGenStrategy, cmd_args: dict, expected: str
-    ) -> None:
+    def test_extract_test_name(self, slurm_system: SlurmSystem, gpt_tr: TestRun, cmd_args: dict, expected: str) -> None:
+        cmd_gen_strategy = JaxToolboxSlurmCommandGenStrategy(slurm_system, gpt_tr)
         test_name = cmd_gen_strategy._extract_test_name(cmd_args)
         assert test_name == expected
 
     def test_format_xla_flags_grok(
-        self, cmd_gen_strategy: JaxToolboxSlurmCommandGenStrategy, grok_test: GrokTestDefinition
+        self, slurm_system: SlurmSystem, grok_tr: TestRun, grok_test: GrokTestDefinition
     ) -> None:
+        cmd_gen_strategy = JaxToolboxSlurmCommandGenStrategy(slurm_system, grok_tr)
         cmd_gen_strategy.test_name = "Grok"
         xla_flags = cmd_gen_strategy._format_xla_flags(grok_test.cmd_args_dict, "profile")
         actual_flags_list = sorted(xla_flags.split())
@@ -113,8 +123,9 @@ class TestJaxToolboxSlurmCommandGenStrategy:
         assert actual_flags_list == expected_flags_list
 
     def test_format_xla_flags_gpt(
-        self, cmd_gen_strategy: JaxToolboxSlurmCommandGenStrategy, gpt_test: GPTTestDefinition
+        self, slurm_system: SlurmSystem, gpt_tr: TestRun, gpt_test: GPTTestDefinition
     ) -> None:
+        cmd_gen_strategy = JaxToolboxSlurmCommandGenStrategy(slurm_system, gpt_tr)
         cmd_gen_strategy.test_name = "GPT"
         xla_flags = cmd_gen_strategy._format_xla_flags(gpt_test.cmd_args_dict, "profile")
         actual_flags_list = sorted(xla_flags.split())
@@ -128,7 +139,8 @@ class TestJaxToolboxSlurmCommandGenStrategy:
         )
         assert actual_flags_list == expected_flags_list
 
-    def test_format_xla_flags_boolean_are_lowcased(self, cmd_gen_strategy: JaxToolboxSlurmCommandGenStrategy) -> None:
+    def test_format_xla_flags_boolean_are_lowcased(self, slurm_system: SlurmSystem, gpt_tr: TestRun) -> None:
+        cmd_gen_strategy = JaxToolboxSlurmCommandGenStrategy(slurm_system, gpt_tr)
         cmd_gen_strategy.test_name = "GPT"
 
         cmd_args_dict = {"GPT.profile.XLA_FLAGS.xla_gpu_enable_while_loop_double_buffering": True}
@@ -159,27 +171,31 @@ class TestJaxToolboxSlurmCommandGenStrategy:
     ):
         grok_test.cmd_args.enable_pgle = enable_pgle
         cargs = {"output_path": str(tmp_path), **grok_test.cmd_args_dict}
-        cmd_gen = JaxToolboxSlurmCommandGenStrategy(slurm_system, cargs)
+        cmd_gen = JaxToolboxSlurmCommandGenStrategy(
+            slurm_system,
+            TestRun(
+                name="test-job",
+                test=Test(test_definition=grok_test, test_template=TestTemplate(slurm_system)),
+                num_nodes=1,
+                nodes=[],
+                output_path=tmp_path,
+            ),
+        )
         cmd_gen.test_name = "Grok"
         cmd_gen._script_content = MagicMock(return_value="")
-        cmd_gen._create_run_script({}, cargs, "")
+        cmd_gen._create_run_script(cargs)
         assert cmd_gen._script_content.call_count == expected_ncalls
 
     def test_generate_python_command(
-        self,
-        slurm_system: SlurmSystem,
-        cmd_gen_strategy: JaxToolboxSlurmCommandGenStrategy,
-        gpt_test: GPTTestDefinition,
-        tmp_path: Path,
+        self, slurm_system: SlurmSystem, gpt_tr: TestRun, gpt_test: GPTTestDefinition
     ) -> None:
-        cmd_gen_strategy = JaxToolboxSlurmCommandGenStrategy(slurm_system, gpt_test.cmd_args_dict)
-        cargs = {"output_path": "/path/to/output", **gpt_test.cmd_args_dict}
-        cargs = cmd_gen_strategy._override_cmd_args(cmd_gen_strategy.default_cmd_args, cargs)
+        cmd_gen_strategy = JaxToolboxSlurmCommandGenStrategy(slurm_system, gpt_tr)
+        cargs = cmd_gen_strategy._flatten_dict({"output_path": "/path/to/output", **gpt_test.cmd_args_dict})
 
         cmd_gen_strategy.test_name = "GPT"
 
         stage = "training"
-        python_cli = cmd_gen_strategy._generate_python_command(stage, cargs, "").splitlines()
+        python_cli = cmd_gen_strategy._generate_python_command(stage, cargs).splitlines()
 
         fdl_args = gpt_test.cmd_args.fdl.model_dump()
         fdl_args_list = [f"    --fdl.{k.upper()}={v} \\" for k, v in sorted(fdl_args.items())]

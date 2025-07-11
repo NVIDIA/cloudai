@@ -17,11 +17,7 @@
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from .command_gen_strategy import CommandGenStrategy
 from .grading_strategy import GradingStrategy
-from .job_id_retrieval_strategy import JobIdRetrievalStrategy
-from .job_status_result import JobStatusResult
-from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
 from .json_gen_strategy import JsonGenStrategy
 from .system import System
 from .test_scenario import TestRun
@@ -33,15 +29,6 @@ class TestTemplate:
 
     Providing a framework for test execution, including installation, uninstallation, and execution command generation
     based on system configurations and test parameters.
-
-    Attributes
-        cmd_args (Dict[str, Any]): Default command-line arguments.
-        logger (logging.Logger): Logger for the test template.
-        command_gen_strategy (CommandGenStrategy): Strategy for generating execution commands.
-        json_gen_strategy (JsonGenStrategy): Strategy for generating json string.
-        job_id_retrieval_strategy (JobIdRetrievalStrategy): Strategy for retrieving job IDs.
-        grading_strategy (GradingStrategy): Strategy for grading performance based on test outcomes.
-        job_status_retrieval_strategy (JobStatusRetrievalStrategy): Strategy for determining job statuses.
     """
 
     __test__ = False
@@ -54,36 +41,21 @@ class TestTemplate:
             system (System): System configuration for the test template.
         """
         self.system = system
-        self._command_gen_strategy: Optional[CommandGenStrategy] = None
-        self.json_gen_strategy: Optional[JsonGenStrategy] = None
-        self.job_id_retrieval_strategy: Optional[JobIdRetrievalStrategy] = None
-        self.job_status_retrieval_strategy: Optional[JobStatusRetrievalStrategy] = None
+        self._json_gen_strategy: Optional[JsonGenStrategy] = None
         self.grading_strategy: Optional[GradingStrategy] = None
 
     @property
-    def command_gen_strategy(self) -> CommandGenStrategy:
-        if self._command_gen_strategy is None:
+    def json_gen_strategy(self) -> JsonGenStrategy:
+        if self._json_gen_strategy is None:
             raise ValueError(
-                "command_gen_strategy is missing. Ensure the strategy is registered in the Registry "
+                "json_gen_strategy is missing. Ensure the strategy is registered in the Registry "
                 "by calling the appropriate registration function for the system type."
             )
-        return self._command_gen_strategy
+        return self._json_gen_strategy
 
-    @command_gen_strategy.setter
-    def command_gen_strategy(self, value: CommandGenStrategy) -> None:
-        self._command_gen_strategy = value
-
-    def gen_exec_command(self, tr: TestRun) -> str:
-        """
-        Generate an execution command for a test using this template.
-
-        Args:
-            tr (TestRun): Contains the test and its run-specific configurations.
-
-        Returns:
-            str: The generated execution command.
-        """
-        return self.command_gen_strategy.gen_exec_command(tr)
+    @json_gen_strategy.setter
+    def json_gen_strategy(self, value: JsonGenStrategy) -> None:
+        self._json_gen_strategy = value
 
     def gen_json(self, tr: TestRun) -> Dict[Any, Any]:
         """
@@ -101,41 +73,6 @@ class TestTemplate:
                 "by calling the appropriate registration function for the system type."
             )
         return self.json_gen_strategy.gen_json(tr)
-
-    def get_job_id(self, stdout: str, stderr: str) -> Optional[int]:
-        """
-        Retrieve the job ID from the execution output using the job ID retrieval strategy.
-
-        Args:
-            stdout (str): Standard output from the test execution.
-            stderr (str): Standard error from the test execution.
-
-        Returns:
-            Optional[int]: The retrieved job ID, or None if not found.
-        """
-        if self.job_id_retrieval_strategy is None:
-            raise ValueError(
-                "job_id_retrieval_strategy is missing. Ensure the strategy is registered in the Registry "
-                "by calling the appropriate registration function for the system type."
-            )
-        return self.job_id_retrieval_strategy.get_job_id(stdout, stderr)
-
-    def get_job_status(self, output_path: Path) -> JobStatusResult:
-        """
-        Determine the job status by evaluating the contents or results in a specified output directory.
-
-        Args:
-            output_path (Path): Path to the output directory.
-
-        Returns:
-            JobStatusResult: The result containing the job status and an optional error message.
-        """
-        if self.job_status_retrieval_strategy is None:
-            raise ValueError(
-                "job_status_retrieval_strategy is missing. Ensure the strategy is registered in "
-                "the Registry by calling the appropriate registration function for the system type."
-            )
-        return self.job_status_retrieval_strategy.get_job_status(output_path)
 
     def grade(self, directory_path: Path, ideal_perf: float) -> Optional[float]:
         """

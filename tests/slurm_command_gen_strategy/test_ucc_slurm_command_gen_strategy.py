@@ -25,15 +25,11 @@ from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition, UCCTestSlu
 
 
 class TestUCCTestSlurmCommandGenStrategy:
-    @pytest.fixture
-    def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> UCCTestSlurmCommandGenStrategy:
-        return UCCTestSlurmCommandGenStrategy(slurm_system, {})
-
     @pytest.mark.parametrize(
         "cmd_args_data, extra_cmd_args, expected_command",
         [
             (
-                {"collective": "allgather", "b": 8, "e": "256M"},
+                {"collective": "allgather", "b": 8, "e": "256M", "docker_image_url": "url://fake/ucc"},
                 {"--max-steps": "100"},
                 [
                     "/opt/hpcx/ucc/bin/ucc_perftest",
@@ -46,7 +42,7 @@ class TestUCCTestSlurmCommandGenStrategy:
                 ],
             ),
             (
-                {"collective": "allreduce", "b": 4, "e": "8M"},
+                {"collective": "allreduce", "b": 4, "e": "8M", "docker_image_url": "url://fake/ucc"},
                 {},
                 [
                     "/opt/hpcx/ucc/bin/ucc_perftest",
@@ -62,12 +58,13 @@ class TestUCCTestSlurmCommandGenStrategy:
     def test_generate_test_command(
         self,
         tmp_path: Path,
-        cmd_gen_strategy: UCCTestSlurmCommandGenStrategy,
         cmd_args_data: dict,
         extra_cmd_args: dict,
         expected_command: list[str],
+        slurm_system: SlurmSystem,
     ) -> None:
         ucc_cmd_args = UCCCmdArgs(
+            docker_image_url=cmd_args_data["docker_image_url"],
             collective=cmd_args_data["collective"],
             b=cmd_args_data["b"],
             e=cmd_args_data.get("e", "8M"),
@@ -84,17 +81,8 @@ class TestUCCTestSlurmCommandGenStrategy:
 
         test_obj = Test(test_definition=test_def, test_template=Mock())
 
-        tr = TestRun(
-            test=test_obj,
-            num_nodes=1,
-            nodes=[],
-            output_path=tmp_path / "output",
-            name="test-job",
-        )
+        tr = TestRun(test=test_obj, num_nodes=1, nodes=[], output_path=tmp_path / "output", name="test-job")
 
-        command = cmd_gen_strategy.generate_test_command(
-            test_def.extra_env_vars,
-            test_def.cmd_args_dict,
-            tr,
-        )
+        cmd_gen_strategy = UCCTestSlurmCommandGenStrategy(slurm_system, tr)
+        command = cmd_gen_strategy.generate_test_command()
         assert command == expected_command

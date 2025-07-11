@@ -14,9 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Union, cast
+from typing import cast
 
-from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 from .slurm_container import SlurmContainerTestDefinition
@@ -25,28 +24,26 @@ from .slurm_container import SlurmContainerTestDefinition
 class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for generic Slurm container tests."""
 
-    def _container_mounts(self, tr: TestRun) -> list[str]:
+    def _container_mounts(self) -> list[str]:
         return []
 
-    def gen_nsys_command(self, tr: TestRun) -> list[str]:
+    def gen_nsys_command(self) -> list[str]:
         """NSYS command is generated as part of the test command and disabled here."""
         return []
 
-    def image_path(self, tr: TestRun) -> str | None:
-        tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
+    def image_path(self) -> str | None:
+        tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, self.test_run.test.test_definition)
         return str(tdef.docker_image.installed_path)
 
-    def gen_srun_prefix(self, tr: TestRun, use_pretest_extras: bool = False) -> list[str]:
-        cmd = super().gen_srun_prefix(tr)
-        tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
+    def gen_srun_prefix(self, use_pretest_extras: bool = False) -> list[str]:
+        cmd = super().gen_srun_prefix()
+        tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, self.test_run.test.test_definition)
         return [*cmd, *tdef.extra_srun_args]
 
-    def generate_test_command(
-        self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
-    ) -> list[str]:
-        tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, tr.test.test_definition)
-        command_parts: list[str] = [*super().gen_nsys_command(tr), tdef.cmd_args.cmd]
-        if tr.test.extra_cmd_args:
-            command_parts.append(tr.test.extra_cmd_args)
+    def generate_test_command(self) -> list[str]:
+        tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, self.test_run.test.test_definition)
+        command_parts: list[str] = [*super().gen_nsys_command(), tdef.cmd_args.cmd]
+        if self.test_run.test.extra_cmd_args:
+            command_parts.append(self.test_run.test.extra_cmd_args)
 
         return command_parts

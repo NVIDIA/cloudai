@@ -67,6 +67,9 @@ class DockerImage(Installable):
             parts = wo_tag.split("/")
             img_name = "_".join(parts[:-1]) + "__" + parts[-1]
 
+        # Replace # with _ in img_name to avoid filesystem issues
+        img_name = img_name.replace("#", "_")
+
         return f"{img_name}__{tag}.sqsh"
 
     @property

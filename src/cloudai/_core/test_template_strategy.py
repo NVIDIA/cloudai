@@ -34,45 +34,14 @@ class TestTemplateStrategy:
 
     __test__ = False
 
-    def __init__(self, system: System, cmd_args: Dict[str, Union[str, List[str]]]) -> None:
+    def __init__(self, system: System) -> None:
         """
         Initialize a TestTemplateStrategy instance with system configuration, env variables, and command-line arguments.
 
         Args:
             system (System): The system configuration for the test.
-            cmd_args (Dict[str, Union[str, List[str]]]): Default command-line arguments with possible ranges.
         """
         self.system = system
-        self.cmd_args = cmd_args
-        self.default_cmd_args = self._construct_default_cmd_args()
-
-    def _construct_default_cmd_args(self) -> Dict[str, Union[str, List[str]]]:
-        """
-        Construct the default arguments for the test template recursively, flattening ranges.
-
-        Returns:
-            Dict[str, Union[str, List[str]]]: A dictionary containing the combined default arguments
-            with ranges flattened.
-        """
-
-        def construct_args(
-            cmd_args: Dict[str, Union[str, List[str]]], parent_key: str = ""
-        ) -> Dict[str, Union[str, List[str]]]:
-            args: Dict[str, Union[str, List[str]]] = {}
-            for key, value in cmd_args.items():
-                full_key = f"{parent_key}.{key}" if parent_key else key
-
-                if isinstance(value, dict):
-                    nested_args = construct_args(
-                        {k: v for k, v in value.items() if k not in ["type", "default", "values"]},
-                        full_key,
-                    )
-                    args.update(nested_args)
-                else:
-                    args[full_key] = value
-            return args
-
-        return construct_args(self.cmd_args)
 
     @classmethod
     def _flatten_dict(cls, d: Dict[str, Any], parent_key: str = "", sep: str = ".") -> Dict[str, Any]:
@@ -114,27 +83,3 @@ class TestTemplateStrategy:
         final_env_vars = default_env_vars.copy()
         final_env_vars.update(provided_env_vars)
         return final_env_vars
-
-    def _override_cmd_args(
-        self,
-        default_cmd_args: Dict[str, Union[str, List[str]]],
-        provided_cmd_args: Dict[str, Union[str, List[str]]],
-    ) -> Dict[str, Union[str, List[str]]]:
-        """
-        Override the default command-line arguments with provided values.
-
-        Args:
-            default_cmd_args (Dict[str, str]): The default command-line arguments.
-            provided_cmd_args (Dict[str, Union[str, List[str]]]): The provided command-line arguments
-            to override defaults.
-
-        Returns:
-            Dict[str, str]: A dictionary of command-line arguments with overrides applied and ranges flattened.
-        """
-        final_cmd_args = default_cmd_args.copy()
-        flattened_args = self._flatten_dict(provided_cmd_args)
-
-        for key, value in flattened_args.items():
-            final_cmd_args[key] = value
-
-        return final_cmd_args

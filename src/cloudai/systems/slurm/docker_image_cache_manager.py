@@ -195,9 +195,8 @@ class DockerImageCacheManager:
         else:
             job_name = f"{job_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
-        enroot_import_cmd = (
-            f"{srun_prefix} --job-name={job_name} enroot import -o {docker_image_path} docker://{docker_image_url}"
-        )
+        # Use -N1 --ntasks=1 to ensure only one compute node downloads the image
+        enroot_import_cmd = f"{srun_prefix} -N1 --ntasks=1 --job-name={job_name} enroot import -o {docker_image_path} docker://{docker_image_url}"
         logging.debug(f"Importing Docker image: {enroot_import_cmd}")
         try:
             p = subprocess.run(enroot_import_cmd, shell=True, check=True, capture_output=True, text=True)
@@ -259,8 +258,10 @@ class DockerImageCacheManager:
         srun_prefix = f"srun --export=ALL --partition={self.system.default_partition}"
         if self.system.account:
             srun_prefix += f" --account={self.system.account}"
-        if self.system.gpus_per_node:
+        if self.system.supports_gpu_directives:
             srun_prefix += " --gres=gpu:1"
+        if self.system.extra_srun_args:
+            srun_prefix += f" {self.system.extra_srun_args}"
 
         return self._import_docker_image(srun_prefix, docker_image_url, docker_image_path)
 

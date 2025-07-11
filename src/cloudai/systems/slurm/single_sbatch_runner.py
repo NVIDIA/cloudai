@@ -108,12 +108,12 @@ class SingleSbatchRunner(SlurmRunner):
         tr.output_path = self.scenario_root
         max_nodes, _ = self.extract_sbatch_nodes_spec()
         tr.num_nodes = max_nodes
-        cmd_gen = cast(SlurmCommandGenStrategy, tr.test.test_template.command_gen_strategy)
-        return [cmd_gen._metadata_cmd(tr), cmd_gen._ranks_mapping_cmd(tr)]
+        cmd_gen = cast(SlurmCommandGenStrategy, self.get_cmd_gen_strategy(self.system, tr))
+        return [cmd_gen._metadata_cmd(), cmd_gen._ranks_mapping_cmd()]
 
     def get_single_tr_block(self, tr: TestRun) -> str:
-        cmd_gen = cast(SlurmCommandGenStrategy, tr.test.test_template.command_gen_strategy)
-        srun_cmd = cmd_gen.gen_srun_command(tr)
+        cmd_gen = cast(SlurmCommandGenStrategy, self.get_cmd_gen_strategy(self.system, tr))
+        srun_cmd = cmd_gen.gen_srun_command()
         nnodes, node_list = self.system.get_nodes_by_spec(tr.nnodes, tr.nodes)
         node_arg = f"--nodelist={','.join(node_list)}" if node_list else f"-N{nnodes}"
         extra_args = (
@@ -161,7 +161,7 @@ class SingleSbatchRunner(SlurmRunner):
 
     def add_pre_tests(self, pre_tc: TestScenario, base_tr: TestRun) -> str:
         content = []
-        cmd_gen = cast(SlurmCommandGenStrategy, base_tr.test.test_template.command_gen_strategy)
+        cmd_gen = cast(SlurmCommandGenStrategy, self.get_cmd_gen_strategy(self.system, base_tr))
         content.append(cmd_gen.gen_pre_test(pre_tc, self.scenario_root))
         content.append("if [ $PRE_TEST_SUCCESS -ne 1 ]; then")
         content.append("    exit 1")
@@ -204,14 +204,14 @@ class SingleSbatchRunner(SlurmRunner):
         if self.mode == "run":
             exec_cmd = f"sbatch {self.scenario_root / 'cloudai_sbatch_script.sh'}"
             stdout, stderr = self.cmd_shell.execute(exec_cmd).communicate()
-            job_id = tr.test.test_template.get_job_id(stdout, stderr)
+            job_id = self.get_job_id(stdout, stderr)
             if job_id is None:
                 raise JobIdRetrievalError(
                     test_name=tr.name,
                     command=exec_cmd,
                     stdout=stdout,
                     stderr=stderr,
-                    message="Failed to retrieve job ID from command output.",
+                    message="Failed to retrieve job ID.",
                 )
         logging.info(f"Submitted slurm job: {job_id}")
         return SlurmJob(tr, id=job_id)

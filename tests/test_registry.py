@@ -22,13 +22,12 @@ from cloudai.configurator import BaseAgent
 from cloudai.core import (
     BaseInstaller,
     BaseRunner,
-    JobIdRetrievalStrategy,
-    JobStatusRetrievalStrategy,
+    CommandGenStrategy,
+    JsonGenStrategy,
     Registry,
     Reporter,
     ReportGenerationStrategy,
     System,
-    TestTemplateStrategy,
 )
 from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import TestDefinition
@@ -89,7 +88,7 @@ class TestRegistry__RunnersMap:
         assert registry.runners_map["runner"] == AnotherRunner
 
 
-class MyStrategy(TestTemplateStrategy):
+class MyStrategy(JsonGenStrategy):
     pass
 
 
@@ -101,15 +100,7 @@ class AnotherSystem(System):
     pass
 
 
-class AnotherStrategy(TestTemplateStrategy):
-    pass
-
-
-class MyJobIdRetrievalStrategy(JobIdRetrievalStrategy):
-    pass
-
-
-class MyJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
+class AnotherStrategy(JsonGenStrategy):
     pass
 
 
@@ -122,19 +113,8 @@ class TestRegistry__StrategiesMap:
 
     def test_add_strategy(self, registry: Registry):
         registry.add_strategy(MyStrategy, [MySystem], [MyTestDefinition], MyStrategy)
-        registry.add_strategy(MyJobIdRetrievalStrategy, [MySystem], [MyTestDefinition], MyJobIdRetrievalStrategy)
-        registry.add_strategy(
-            MyJobStatusRetrievalStrategy, [MySystem], [MyTestDefinition], MyJobStatusRetrievalStrategy
-        )
 
         assert registry.strategies_map[(MyStrategy, MySystem, MyTestDefinition)] == MyStrategy
-        assert (
-            registry.strategies_map[(MyJobIdRetrievalStrategy, MySystem, MyTestDefinition)] == MyJobIdRetrievalStrategy
-        )
-        assert (
-            registry.strategies_map[(MyJobStatusRetrievalStrategy, MySystem, MyTestDefinition)]
-            == MyJobStatusRetrievalStrategy
-        )
 
     def test_add_strategy_duplicate(self, registry: Registry):
         with pytest.raises(ValueError) as exc_info:
@@ -309,3 +289,36 @@ class TestRegistry__ScenarioReports:
     def test_update_scenario_report(self, registry: Registry):
         registry.update_scenario_report("another", AnotherReporter, ReportConfig())
         assert registry.scenario_reports["another"] == AnotherReporter
+
+
+class AnotherCommandGenStrategy(CommandGenStrategy):
+    pass
+
+
+class TestRegistry__CommandGenStrategiesMap:
+    """This test verifies Registry class functionality.
+
+    Since Registry is a Singleton, the order of cases is important.
+    Only covers the command_gen_strategies_map attribute.
+    """
+
+    def test_add_command_gen_strategy(self, registry: Registry):
+        registry.add_command_gen_strategy(MySystem, MyTestDefinition, CommandGenStrategy)
+        assert registry.command_gen_strategies_map[(MySystem, MyTestDefinition)] == CommandGenStrategy
+        assert registry.get_command_gen_strategy(MySystem, MyTestDefinition) == CommandGenStrategy
+
+    def test_add_command_gen_strategy_duplicate(self, registry: Registry):
+        with pytest.raises(ValueError) as exc_info:
+            registry.add_command_gen_strategy(MySystem, MyTestDefinition, CommandGenStrategy)
+        assert str(exc_info.value) == (
+            "Duplicating implementation for 'MySystem, MyTestDefinition', use 'update()' for replacement."
+        )
+
+    def test_update_command_gen_strategy(self, registry: Registry):
+        registry.update_command_gen_strategy(MySystem, MyTestDefinition, AnotherCommandGenStrategy)
+        assert registry.command_gen_strategies_map[(MySystem, MyTestDefinition)] == AnotherCommandGenStrategy
+
+    def test_get_command_gen_strategy_not_found(self, registry: Registry):
+        with pytest.raises(KeyError) as exc_info:
+            registry.get_command_gen_strategy(MySystem, AnotherTestDefinition)
+        assert exc_info.match("Command gen strategy for 'MySystem, AnotherTestDefinition' not found.")

@@ -14,15 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+name = "ucc_base_test"
+description = "Base config for UCC tests"
+test_template_name = "UCCTest"
 
-from cloudai.core import ReportGenerationStrategy
-
-
-class SleepReportGenerationStrategy(ReportGenerationStrategy):
-    """Strategy for generating reports from sleep directories."""
-
-    def can_handle_directory(self) -> bool:
-        return False
-
-    def generate_report(self) -> None:
-        pass
+[cmd_args]
+docker_image_url = "nvcr.io/nvidia/pytorch:25.06-py3"

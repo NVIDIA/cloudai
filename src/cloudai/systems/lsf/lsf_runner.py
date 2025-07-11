@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import logging
+import re
 from pathlib import Path
 
 from cloudai.core import BaseRunner, JobIdRetrievalError, System, TestRun, TestScenario
@@ -44,22 +45,28 @@ class LSFRunner(BaseRunner):
         super().__init__(mode, system, test_scenario, output_path)
         self.cmd_shell = CommandShell()
 
+    def get_job_id(self, stdout: str, stderr: str) -> int | None:
+        match = re.search(r"Job <(\d+)> is submitted", stdout)
+        if match:
+            return int(match.group(1))
+        return None
+
     def _submit_test(self, tr: TestRun) -> LSFJob:
         logging.info(f"Running test: {tr.name}")
         tr.output_path = self.get_job_output_path(tr)
-        exec_cmd = tr.test.test_template.gen_exec_command(tr)
+        exec_cmd = self.get_cmd_gen_strategy(self.system, tr).gen_exec_command()
         logging.debug(f"Executing command for test {tr.name}: {exec_cmd}")
         job_id = 0
         if self.mode == "run":
             stdout, stderr = self.cmd_shell.execute(exec_cmd).communicate()
-            job_id = tr.test.test_template.get_job_id(stdout, stderr)
+            job_id = self.get_job_id(stdout, stderr)
             if job_id is None:
                 raise JobIdRetrievalError(
                     test_name=str(tr.name),
                     command=exec_cmd,
                     stdout=stdout,
                     stderr=stderr,
-                    message="Failed to retrieve job ID from command output.",
+                    message="Failed to retrieve job ID.",
                 )
         logging.info(f"Submitted LSF job: {job_id}")
         return LSFJob(tr, id=job_id)

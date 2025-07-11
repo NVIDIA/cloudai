@@ -18,8 +18,9 @@ from __future__ import annotations
 
 import logging
 import re
+from copy import copy
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
@@ -27,6 +28,7 @@ from cloudai.core import BaseJob, File, Installable, System
 from cloudai.models.scenario import ReportConfig, parse_reports_spec
 from cloudai.util import CommandShell
 
+from .slurm_job import SlurmJob
 from .slurm_metadata import SlurmStepMetadata
 from .slurm_node import SlurmNode, SlurmNodeState
 
@@ -137,6 +139,8 @@ class SlurmSystem(BaseModel, System):
     data_repository: Optional[DataRepositoryConfig] = None
     reports: Optional[dict[str, ReportConfig]] = None
 
+    group_allocated: set[SlurmNode] = Field(default_factory=set, exclude=True)
+
     @field_validator("reports", mode="before")
     @classmethod
     def parse_reports(cls, value: dict[str, Any] | None) -> dict[str, ReportConfig] | None:
@@ -199,9 +203,10 @@ class SlurmSystem(BaseModel, System):
         all_nodes = self.nodes_from_sinfo()
         self.update_nodes_state_and_user(all_nodes, insert_new=True)
         self.update_nodes_state_and_user(self.nodes_from_squeue())
+        self.update_nodes_state_and_user(self.group_allocated)
 
     def nodes_from_sinfo(self) -> list[SlurmNode]:
-        sinfo_output, _ = self.fetch_command_output("sinfo -o '%P|%t|%u|%N'")
+        sinfo_output, _ = self.fetch_command_output("sinfo --noheader -o '%P|%t|%u|%N'")
         nodes: list[SlurmNode] = []
         for line in sinfo_output.split("\n"):
             if not line.strip():
@@ -232,7 +237,7 @@ class SlurmSystem(BaseModel, System):
                 nodes.append(SlurmNode(name=node, partition=partition, state=SlurmNodeState.ALLOCATED, user=user))
         return nodes
 
-    def update_nodes_state_and_user(self, nodes: list[SlurmNode], insert_new: bool = False) -> None:
+    def update_nodes_state_and_user(self, nodes: Iterable[SlurmNode], insert_new: bool = False) -> None:
         for node in nodes:
             for part in self.partitions:
                 if part.name != node.partition:
@@ -595,12 +600,17 @@ class SlurmSystem(BaseModel, System):
                     f"and ensure there are enough resources to meet the requested node count. Additionally, "
                     f"verify that the system can accommodate the number of nodes required by the test scenario."
                 )
+
         else:
             raise ValueError(
                 f"The 'number_of_nodes' argument must be either an integer specifying the number of nodes to allocate,"
                 f" or 'max_avail' to allocate all available nodes. Received: '{number_of_nodes}'. "
                 "Please correct the input."
             )
+
+        for node in allocated_nodes:
+            node.state = SlurmNodeState.ALLOCATED
+        self.group_allocated.update(copy(node) for node in allocated_nodes)
 
         return allocated_nodes
 
@@ -682,7 +692,7 @@ class SlurmSystem(BaseModel, System):
             if abbrev in state_abbreviations:
                 return state_abbreviations[abbrev]
             else:
-                logging.warning(f"Unknown state: {core_state}")
+                logging.debug(f"Unknown node state: {core_state}")
                 return SlurmNodeState.UNKNOWN_STATE
 
     def parse_nodes(self, nodes: List[str]) -> List[str]:
@@ -748,3 +758,10 @@ class SlurmSystem(BaseModel, System):
 
     def system_installables(self) -> list[Installable]:
         return [File(Path(__file__).parent.absolute() / "slurm-metadata.sh")]
+
+    def complete_job(self, job: SlurmJob) -> None:
+        out, _ = self.fetch_command_output(f"sacct -j {job.id} -p --noheader -X --format=NodeList")
+        spec = out.splitlines()[0] if out.splitlines() else out
+        nodelist = set(parse_node_list(spec.strip().replace("|", "")))
+        to_unlock = [node for node in self.group_allocated if node.name in nodelist]
+        self.group_allocated.difference_update(to_unlock)

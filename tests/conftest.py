@@ -19,7 +19,11 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+import yaml
 
+from cloudai.core import Test, TestRun, TestTemplate
+from cloudai.models.workload import CmdArgs, TestDefinition
+from cloudai.systems.kubernetes import KubernetesSystem
 from cloudai.systems.runai import RunAISystem
 from cloudai.systems.slurm import SlurmGroup, SlurmPartition, SlurmSystem
 
@@ -44,6 +48,7 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
         output_path=tmp_path / "output",
         cache_docker_images_locally=True,
         default_partition="main",
+        gpus_per_node=8,
         partitions=[
             SlurmPartition(
                 name="main",
@@ -67,6 +72,32 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
 
 
 @pytest.fixture
+def kubernetes_system(tmp_path: Path) -> KubernetesSystem:
+    kube_config = tmp_path / "kubeconfig"
+    config = {
+        "apiVersion": "v1",
+        "kind": "Config",
+        "current-context": "test-context",
+        "clusters": [{"name": "test-cluster", "cluster": {"server": "https://test-server:6443"}}],
+        "contexts": [{"name": "test-context", "context": {"cluster": "test-cluster", "user": "test-user"}}],
+        "users": [{"name": "test-user", "user": {"token": "test-token"}}],
+    }
+    kube_config.write_text(yaml.dump(config))
+
+    system = KubernetesSystem(
+        name="test_kubernetes_system",
+        install_path=tmp_path / "install",
+        output_path=tmp_path / "output",
+        scheduler="kubernetes",
+        global_env_vars={},
+        monitor_interval=60,
+        default_namespace="test-namespace",
+        kube_config_path=kube_config,
+    )
+    return system
+
+
+@pytest.fixture
 def runai_system(tmp_path: Path) -> RunAISystem:
     system = RunAISystem(
         name="test_runai_system",
@@ -83,3 +114,17 @@ def runai_system(tmp_path: Path) -> RunAISystem:
         user_email="test_user@example.com",
     )
     return system
+
+
+@pytest.fixture
+def base_tr(slurm_system: SlurmSystem) -> TestRun:
+    return TestRun(
+        name="tr-name",
+        test=Test(
+            test_definition=TestDefinition(name="n", description="d", test_template_name="tt", cmd_args=CmdArgs()),
+            test_template=TestTemplate(slurm_system),
+        ),
+        num_nodes=1,
+        nodes=[],
+        output_path=slurm_system.output_path / "tr-name",
+    )
