@@ -435,6 +435,84 @@ def llama3_70b_fp8_b200_tp_overlap_config() -> run.Config[TransformerLayerTPOver
 
 @run.cli.factory
 @run.autoconvert
+def llama3_405b_fp8_b200_tp_overlap_config() -> run.Config[TransformerLayerTPOverlapCfg]:
+    return run.Config(
+        TransformerLayerTPOverlapCfg,
+        qkv_dgrad=run.Config(
+            BulkOverlapCfg,
+            cga_size=2,
+            method="bulk",
+            num_sm=8,
+            set_sm_margin=False,
+        ),
+        qkv_wgrad=run.Config(
+            BulkOverlapCfg,
+            cga_size=2,
+            method="bulk",
+            num_sm=32,
+            set_sm_margin=False,
+        ),
+        qkv_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        proj_dgrad=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        proj_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=True,
+        ),
+        fc1_dgrad=run.Config(
+            BulkOverlapCfg,
+            num_sm=2,
+            cga_size=2,
+            set_sm_margin=False,
+            method="bulk",
+        ),
+        fc1_wgrad=run.Config(
+            BulkOverlapCfg,
+            num_sm=8,
+            cga_size=2,
+            set_sm_margin=False,
+            method="bulk",
+        ),
+        fc1_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        fc2_dgrad=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=False,
+        ),
+        fc2_fprop=run.Config(
+            RingExchangeOverlapCfg,
+            aggregate=False,
+            method="ring_exchange",
+            num_sm=1,
+            set_sm_margin=True,
+        ),
+    )
+
+
+@run.cli.factory
+@run.autoconvert
 def llama3_70b_fp8_h100_tp_overlap_config() -> run.Config[TransformerLayerTPOverlapCfg]:
     return run.Config(
         TransformerLayerTPOverlapCfg,
@@ -527,8 +605,8 @@ def get_tp_overlap_config():
     elif gpu_type == "b200" and compute_dtype == "bf16":
         tp_overlap_cfg = llama3_70b_bf16_b200_tp_overlap_config()
         tp_comm_overlap = True
-    elif gpu_type == "b200" and compute_dtype == "fp8":
-        tp_overlap_cfg = llama3_70b_fp8_b200_tp_overlap_config()
+    elif gpu_type in ["b200", "gb200"] and compute_dtype == "fp8":
+        tp_overlap_cfg = llama3_405b_fp8_b200_tp_overlap_config()
         tp_comm_overlap = True
     else:
         print(
@@ -798,7 +876,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
                 ckpt_parallel_load=True,
                 ddp=run.Config(
                     DistributedDataParallelConfig,
-                    check_for_nan_in_grad=True,
+                    check_for_nan_in_grad=False,
                     grad_reduce_in_fp32=True,
                     overlap_grad_reduce=True,
                     overlap_param_gather=True,
@@ -851,7 +929,7 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
         tp_comm_overlap_cfg=tp_overlap_cfg,
         overlap_param_gather_with_optimizer_step=True,
         defer_embedding_wgrad_compute=True,
-        wgrad_deferral_limit=22,
+        wgrad_deferral_limit=50,
     )
 
     enable_fsdp = os.getenv("CLOUDAI_ENABLE_FSDP", "0") == "1"
@@ -896,6 +974,12 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
     recipe.trainer.strategy.account_for_embedding_in_pipeline_split = True
     recipe.trainer.strategy.account_for_loss_in_pipeline_split = True
     recipe.model.tokenizer = recipe.data.tokenizer
+    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
+    recipe.model.config.cross_entropy_fusion_impl = "te"
+
+    if os.getenv("CLOUDAI_GPU_TYPE") in ["b200", "gb200"] and os.getenv("CLOUDAI_GPU_DTYPE") == "fp8":
+        print("Info: use_precision_aware_optimizer is set to False for fp8 on b200/gb200 GPUs.")
+        recipe.optim.config.use_precision_aware_optimizer = False
     return recipe
 
 
@@ -1178,6 +1262,10 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
     recipe.model.config.cross_entropy_fusion_impl = "te"
     set_enable_cuda_graphs_params(recipe)
+
+    if os.getenv("CLOUDAI_GPU_TYPE") in ["b200", "gb200"] and os.getenv("CLOUDAI_GPU_DTYPE") == "fp8":
+        recipe.optim.config.use_precision_aware_optimizer = False
+
     return recipe
 
 
