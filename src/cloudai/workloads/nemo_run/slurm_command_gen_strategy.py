@@ -16,6 +16,7 @@
 
 
 import logging
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Union, cast
 
@@ -59,6 +60,13 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _container_mounts(self, tr: TestRun) -> List[str]:
         return [f"{self._run_script(tr).parent.absolute()}:/cloudai_workspace"]
+
+    def _enable_numa_control_cmd(self, tr: TestRun) -> str:
+        divisor = 2 if os.getenv("CLOUDAI_GPU_TYPE") == "gb200" else 4
+        return (
+            f"srun --mpi={self.system.mpi} numactl "
+            f"--cpunodebind=$((SLURM_LOCALID/{divisor})) --membind=$((SLURM_LOCALID/{divisor}))"
+        )
 
     def flatten_dict(self, d: dict[str, str], parent_key: str = "", sep: str = "."):
         items = []
@@ -141,5 +149,8 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         if tr.test.extra_cmd_args:
             command.append(tr.test.extra_cmd_args)
+
+        if env_vars.get("ENABLE_NUMA_CONTROL") == "1":
+            command = self._enable_numa_control_cmd(tr).split() + command
 
         return command

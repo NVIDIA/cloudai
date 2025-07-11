@@ -339,17 +339,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             ]
         )
 
-    def _enable_numa_control_cmd(self, tr: TestRun) -> str:
-        return " ".join(
-            [
-                "srun",
-                f"--mpi={self.system.mpi}",
-                "numactl",
-                "--cpunodebind=$((SLURM_LOCALID/4))",
-                "--membind=$((SLURM_LOCALID/4))",
-            ]
-        )
-
     def _write_sbatch_script(self, env_vars: Dict[str, Union[str, List[str]]], srun_command: str, tr: TestRun) -> str:
         """
         Write the batch script for Slurm submission and return the sbatch command.
@@ -375,8 +364,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         if env_vars.get("ENABLE_VBOOST") == "1":
             batch_script_content.extend([self._enable_vboost_cmd(tr), ""])
-        if env_vars.get("ENABLE_NUMA_CONTROL") == "1":
-            batch_script_content.extend([self._enable_numa_control_cmd(tr), ""])
         batch_script_content.extend([self._ranks_mapping_cmd(tr), ""])
         batch_script_content.extend([self._metadata_cmd(tr), ""])
 
