@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import logging
-import os
 from pathlib import Path
 from typing import Any, Dict, List, cast
 
@@ -50,7 +49,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             logging.debug("Setting NCCL_P2P_NET_CHUNKSIZE to 2097152 as pipeline_model_parallel_size is greater than 1")
             self.final_env_vars["NCCL_P2P_NET_CHUNKSIZE"] = "2097152"
 
-        enable_fsdp = os.getenv("CLOUDAI_ENABLE_FSDP", "0")
+        enable_fsdp = self.final_env_vars.get("CLOUDAI_ENABLE_FSDP", "0")
         if enable_fsdp == "1":
             logging.info(
                 (
@@ -68,7 +67,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return [f"{self._run_script().parent.absolute()}:/cloudai_workspace"]
 
     def _enable_numa_control_cmd(self) -> str:
-        divisor = 2 if os.getenv("CLOUDAI_GPU_TYPE") == "gb200" else 4
+        divisor = 2 if self.final_env_vars.get("ENABLE_NUMA_CONTROL") == "gb200" else 4
         return (
             f"srun --mpi={self.system.mpi} numactl "
             f"--cpunodebind=$((SLURM_LOCALID/{divisor})) --membind=$((SLURM_LOCALID/{divisor}))"
