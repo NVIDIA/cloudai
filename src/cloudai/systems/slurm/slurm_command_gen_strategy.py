@@ -321,16 +321,12 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             ]
         )
 
-
     def _write_sbatch_script(self, srun_command: str) -> str:
         """
         Write the batch script for Slurm submission and return the sbatch command.
 
         Args:
-            slurm_args (Dict[str, Any]): Slurm-specific arguments.
-            env_vars (Dict[str, Union[str, List[str]]]): Environment variables.
             srun_command (str): srun command.
-            tr (TestRun): Test run object.
 
         Returns:
             str: sbatch command to submit the job.
@@ -345,10 +341,10 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         batch_script_content.extend([self._format_env_vars(self.final_env_vars)])
 
-        if env_vars.get("ENABLE_VBOOST") == "1":
-            batch_script_content.extend([self._enable_vboost_cmd(tr), ""])
-        batch_script_content.extend([self._ranks_mapping_cmd(tr), ""])
-        batch_script_content.extend([self._metadata_cmd(tr), ""])
+        if self.final_env_vars.get("ENABLE_VBOOST") == "1":
+            batch_script_content.extend([self._enable_vboost_cmd(), ""])
+        batch_script_content.extend([self._ranks_mapping_cmd(), ""])
+        batch_script_content.extend([self._metadata_cmd(), ""])
 
         batch_script_content.append(srun_command)
 
@@ -454,7 +450,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
                 self.test_run.name,
                 str(self.test_run.current_iteration),
                 str(self.test_run.step),
-                str(self.test_run.num_nodes),
+                str(self.test_run.nnodes),
                 ",".join(self.test_run.nodes),
             ]
         )

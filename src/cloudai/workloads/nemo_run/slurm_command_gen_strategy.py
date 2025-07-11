@@ -67,7 +67,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _container_mounts(self) -> List[str]:
         return [f"{self._run_script().parent.absolute()}:/cloudai_workspace"]
 
-    def _enable_numa_control_cmd(self, tr: TestRun) -> str:
+    def _enable_numa_control_cmd(self) -> str:
         divisor = 2 if os.getenv("CLOUDAI_GPU_TYPE") == "gb200" else 4
         return (
             f"srun --mpi={self.system.mpi} numactl "
@@ -154,7 +154,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if self.test_run.test.extra_cmd_args:
             command.append(self.test_run.test.extra_cmd_args)
 
-        if env_vars.get("ENABLE_NUMA_CONTROL") == "1":
-            command = self._enable_numa_control_cmd(tr).split() + command
+        if self.final_env_vars.get("ENABLE_NUMA_CONTROL") == "1":
+            command = self._enable_numa_control_cmd().split() + command
 
         return command
