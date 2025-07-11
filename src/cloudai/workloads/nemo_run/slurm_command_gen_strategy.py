@@ -68,10 +68,7 @@ class NeMoRunSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _enable_numa_control_cmd(self) -> str:
         divisor = 2 if self.final_env_vars.get("CLOUDAI_GPU_TYPE") == "gb200" else 4
-        return (
-            f"srun --mpi={self.system.mpi} numactl "
-            f"--cpunodebind=$((SLURM_LOCALID/{divisor})) --membind=$((SLURM_LOCALID/{divisor}))"
-        )
+        return f"numactl --cpunodebind=$((SLURM_LOCALID/{divisor})) --membind=$((SLURM_LOCALID/{divisor}))"
 
     def flatten_dict(self, d: dict[str, str], parent_key: str = "", sep: str = "."):
         items = []
