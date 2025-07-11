@@ -60,8 +60,8 @@ class WorkerBaseArgs(BaseModel):
     num_nodes: Union[int, list[int]]
     service_args: dict = Field({"workers": 1, "resources": {"gpu": "8"}}, alias="ServiceArgs")
     gpu_memory_utilization: float = Field(0.7, alias="gpu-memory-utilization")
-    tensor_parallel_size: int = Field(8, alias="tensor-parallel-size")
-    pipeline_parallel_size: int = Field(1, alias="pipeline-parallel-size")
+    tensor_parallel_size: Union[int, list[int]] = Field(8, alias="tensor-parallel-size")
+    pipeline_parallel_size: Union[int, list[int]] = Field(1, alias="pipeline-parallel-size")
     enforce_eager: bool = Field(True, alias="enforce-eager")
 
 
