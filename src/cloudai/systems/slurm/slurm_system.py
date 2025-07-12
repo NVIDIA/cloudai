@@ -119,6 +119,7 @@ class SlurmSystem(BaseModel, System):
     name: str
     install_path: Path
     output_path: Path
+    container_cache_path: Path
     default_partition: str
     partitions: List[SlurmPartition]
     account: Optional[str] = None
@@ -145,6 +146,13 @@ class SlurmSystem(BaseModel, System):
     @classmethod
     def parse_reports(cls, value: dict[str, Any] | None) -> dict[str, ReportConfig] | None:
         return parse_reports_spec(value)
+
+    @field_validator("container_cache_path", mode="before")
+    @classmethod
+    def set_container_cache_path_default(cls, value: Path, info) -> Path:
+        if value is None and info.data.get("install_path"):
+            return info.data["install_path"]
+        return value
 
     @property
     def groups(self) -> Dict[str, Dict[str, List[SlurmNode]]]:
@@ -188,7 +196,7 @@ class SlurmSystem(BaseModel, System):
         self.supports_gpu_directives_cache = False
         return False
 
-    @field_serializer("install_path", "output_path")
+    @field_serializer("install_path", "output_path", "container_cache_path")
     def _path_serializer(self, v: Path) -> str:
         return str(v)
 

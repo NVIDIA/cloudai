@@ -147,7 +147,7 @@ class SlurmInstaller(BaseInstaller):
     def mark_as_installed_one(self, item: Installable) -> InstallStatusResult:
         if isinstance(item, DockerImage):
             if self.system.cache_docker_images_locally:
-                item.installed_path = self.system.install_path / item.cache_filename
+                item.installed_path = self.system.container_cache_path / item.cache_filename
             return InstallStatusResult(True)
         elif isinstance(item, GitRepo):
             item.installed_path = self.system.install_path / item.repo_name
