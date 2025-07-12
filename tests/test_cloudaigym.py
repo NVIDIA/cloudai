@@ -141,7 +141,7 @@ def test_compute_reward_invalid():
         CloudAIGymEnv(test_run=test_run, runner=MagicMock())
 
     assert "Reward function 'nonexistent' not found" in str(exc_info.value)
-    assert "Available functions: ['inverse', 'negative', 'identity']" in str(exc_info.value)
+    assert "Available functions: ['inverse', 'negative', 'identity', 'ai_dynamo']" in str(exc_info.value)
 
 
 def test_tr_output_path(setup_env: tuple[TestRun, Runner]):
