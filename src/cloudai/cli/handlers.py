@@ -134,7 +134,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
         agent = agent_class(env)
         for step in range(agent.max_steps):
             result = agent.select_action()
-            if result is None:
+            if args.mode != "run" or result is None:
                 break
             step, action = result
             env.test_run.step = step
