@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 from typing import List
 
 
@@ -33,3 +34,38 @@ def identity_reward(observation: List[float]) -> float:
     if observation:
         return observation[0]
     return 0.0
+
+
+def ai_dynamo_reward(observation: List[float]) -> float:
+    # Metric indices
+    TTFT_IDX = 0
+    ITL_IDX = 1
+
+    # Baseline expected values (for normalization)
+    TTFT_BASELINE = 0.3  # seconds
+    ITL_BASELINE = 0.02  # seconds
+
+    # Latency thresholds (for hard penalties)
+    TTFT_SLA = 0.8  # seconds
+    ITL_SLA = 0.1  # seconds
+
+    # Weighting between TTFT and ITL in the final reward
+    TTFT_WEIGHT = 0.4
+    ITL_WEIGHT = 0.6
+
+    # Extract metric values and guard against zero or negative values
+    ttft = max(observation[TTFT_IDX], 1e-4)
+    itl = max(observation[ITL_IDX], 1e-4)
+
+    # Enforce SLA thresholds with hard penalties
+    if ttft > TTFT_SLA or itl > ITL_SLA:
+        return -10.0
+
+    # Compute normalized log penalties
+    ttft_penalty = math.log(ttft / TTFT_BASELINE + 1)
+    itl_penalty = math.log(itl / ITL_BASELINE + 1)
+
+    # Weighted combined reward (lower is better, hence negative)
+    reward = -(TTFT_WEIGHT * ttft_penalty + ITL_WEIGHT * itl_penalty)
+
+    return reward
