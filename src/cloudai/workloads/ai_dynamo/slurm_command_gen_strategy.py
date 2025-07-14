@@ -177,7 +177,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             'while [ "`curl -ks ${ETCD_ENDPOINTS}/readyz`" != "ok" ]; do sleep 10; done',
             "echo 'etcd is ready'",
             self._bg(
-                self._dynamo_cmd("components.worker:VllmDecodeWorker", yaml_config_path, td.cmd_args.extra_args),
+                self._dynamo_cmd("graphs.agg:SimpleLoadBalancer", yaml_config_path, td.cmd_args.extra_args),
                 "decode_stdout_node${SLURM_NODEID}",
                 "decode_stderr_node${SLURM_NODEID}",
             ),
