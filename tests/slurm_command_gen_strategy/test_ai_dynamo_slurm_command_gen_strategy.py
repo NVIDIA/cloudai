@@ -30,12 +30,9 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoCmdArgs,
     AIDynamoSlurmCommandGenStrategy,
     AIDynamoTestDefinition,
-    CommonConfig,
     DecodeWorkerArgs,
-    FrontendArgs,
     GenAIPerfArgs,
     PrefillWorkerArgs,
-    SimpleLoadBalancerArgs,
 )
 
 
@@ -48,20 +45,10 @@ def cmd_args() -> AIDynamoCmdArgs:
         extra_args="",
         node_setup_cmd="",
         dynamo=AIDynamoArgs(
-            common=CommonConfig(
-                **{
-                    "model": "nvidia/Llama-3.1-405B-Instruct-FP8",
-                    "kv-transfer-config": '{"kv_connector":"NixlConnector","kv_role":"kv_both"}',
-                    "served_model_name": "nvidia/Llama-3.1-405B-Instruct-FP8",
-                }
-            ),
-            frontend=FrontendArgs(
-                endpoint="dynamo.SimpleLoadBalancer.generate_disagg",
-                port=8000,
-                port_etcd=1234,
-                port_nats=5678,
-            ),
-            simple_load_balancer=SimpleLoadBalancerArgs(**{"enable_disagg": True}),
+            model="nvidia/Llama-3.1-405B-Instruct-FP8",
+            port=8000,
+            etcd_port=1234,
+            nats_port=5678,
             prefill_worker=PrefillWorkerArgs(
                 **{
                     "num_nodes": 1,
@@ -81,7 +68,6 @@ def cmd_args() -> AIDynamoCmdArgs:
         ),
         sleep_seconds=100,
         genai_perf=GenAIPerfArgs(
-            endpoint="/chat",
             endpoint_type="chat",
             streaming=True,
             warmup_request_count=10,
@@ -153,61 +139,6 @@ def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: T
     assert script_host.exists()
     mode = script_host.stat().st_mode
     assert bool(mode & stat.S_IXUSR)
-
-
-def test_yaml_config_generation(strategy: AIDynamoSlurmCommandGenStrategy, test_run: TestRun) -> None:
-    td = cast(AIDynamoTestDefinition, test_run.test.test_definition)
-    yaml_path = (test_run.output_path / "dynamo_config.yaml").resolve()
-    yaml_path = strategy._generate_yaml_config(td, yaml_path)
-
-    assert yaml_path.exists()
-
-    with open(yaml_path, "r") as yaml_file:
-        config = yaml.safe_load(yaml_file)
-        expected_config = {
-            "Common": {
-                "model": "nvidia/Llama-3.1-405B-Instruct-FP8",
-                "kv-transfer-config": '{"kv_connector":"NixlConnector","kv_role":"kv_both"}',
-                "served_model_name": "nvidia/Llama-3.1-405B-Instruct-FP8",
-            },
-            "Frontend": {
-                "common-configs": ["model", "kv-transfer-config", "served_model_name"],
-                "endpoint": "dynamo.SimpleLoadBalancer.generate_disagg",
-                "port": 8000,
-            },
-            "SimpleLoadBalancer": {
-                "common-configs": ["model", "kv-transfer-config", "served_model_name"],
-                "enable_disagg": True,
-            },
-            "VllmDecodeWorker": {
-                "common-configs": ["model", "kv-transfer-config", "served_model_name"],
-                "enforce-eager": True,
-                "gpu-memory-utilization": 0.95,
-                "tensor-parallel-size": 8,
-                "pipeline-parallel-size": 1,
-                "ServiceArgs": {
-                    "workers": 1,
-                    "resources": {
-                        "gpu": "8",
-                    },
-                },
-            },
-            "VllmPrefillWorker": {
-                "common-configs": ["model", "kv-transfer-config", "served_model_name"],
-                "enforce-eager": True,
-                "gpu-memory-utilization": 0.95,
-                "tensor-parallel-size": 8,
-                "pipeline-parallel-size": 1,
-                "ServiceArgs": {
-                    "workers": 1,
-                    "resources": {
-                        "gpu": "8",
-                    },
-                },
-            },
-        }
-        assert config == expected_config
-
 
 @pytest.mark.parametrize(
     "module, config, expected",

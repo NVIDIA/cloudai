@@ -16,12 +16,13 @@
 
 from pathlib import Path
 from typing import List, cast
+from textwrap import indent
 
 import yaml
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
-from .ai_dynamo import AIDynamoTestDefinition
+from .ai_dynamo import AIDynamoTestDefinition, WorkerBaseArgs, PrefillWorkerArgs, DecodeWorkerArgs
 
 
 class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -38,34 +39,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self._generate_wrapper_script(script_host, td, yaml_path)
         mounts.append(f"{script_host}:{script_container}")
 
-        self._generate_yaml_config(td, yaml_path)
-        mounts.append(f"{yaml_path}:{yaml_path}")
-
         return mounts
-
-    def _generate_yaml_config(self, td: AIDynamoTestDefinition, yaml_path: Path) -> Path:
-        base_config = {
-            "Common": td.cmd_args.dynamo.common.model_dump(by_alias=True, exclude_none=True),
-            "Frontend": td.cmd_args.dynamo.frontend.model_dump(
-                by_alias=True, exclude={"port_etcd", "port_nats"}, exclude_none=True
-            ),
-            "SimpleLoadBalancer": td.cmd_args.dynamo.simple_load_balancer.model_dump(by_alias=True, exclude_none=True),
-            "VllmPrefillWorker": td.cmd_args.dynamo.prefill_worker.model_dump(
-                by_alias=True, exclude={"num_nodes"}, exclude_none=True
-            ),
-            "VllmDecodeWorker": td.cmd_args.dynamo.decode_worker.model_dump(
-                by_alias=True, exclude={"num_nodes"}, exclude_none=True
-            ),
-        }
-
-        base_config["Frontend"]["common-configs"] = ["model", "kv-transfer-config", "served_model_name"]
-        base_config["SimpleLoadBalancer"]["common-configs"] = ["model", "kv-transfer-config", "served_model_name"]
-        base_config["VllmPrefillWorker"]["common-configs"] = ["model", "kv-transfer-config", "served_model_name"]
-        base_config["VllmDecodeWorker"]["common-configs"] = ["model", "kv-transfer-config", "served_model_name"]
-
-        with open(yaml_path, "w") as yaml_file:
-            yaml.dump(base_config, yaml_file, default_flow_style=False)
-        return yaml_path
 
     def image_path(self) -> str | None:
         tdef: AIDynamoTestDefinition = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
@@ -77,6 +51,64 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         lines += self._role_dispatch(td, yaml_path)
         self._write_script(script_path, lines)
 
+    def _bg(self, cmd: str, stdout_tag: str, stderr_tag: str) -> str:
+        cmd: List[str] = [
+            f"{cmd}",
+            f"> /cloudai_run_results/{stdout_tag}.txt",
+            f"2> /cloudai_run_results/{stderr_tag}.txt &",
+        ]
+        return " \\\n  ".join(cmd)
+
+    def _wait_for_frontend_marker(self) -> str:
+        return (
+            'echo "Waiting for frontend completion marker...";\n'
+            'while [ ! -f "$DONE_MARKER" ]; do sleep 10; done;\n'
+            'echo "Done marker found. Exiting prefill node.";\n'
+        )
+
+    def _etcd_cmd(self, etcd_cmd: str, etcd_port: int) -> str:
+        return (
+            f"{etcd_cmd} \\\n"
+            f"--listen-client-urls http://0.0.0.0:{etcd_port} \\\n"
+            f"--advertise-client-urls http://0.0.0.0:{etcd_port}"
+        )
+
+    def _nats_cmd(self, nats_cmd: str, nats_port: int) -> str:
+        return f"{nats_cmd} -p {nats_port}"
+
+    def _build_genai_perf_command(self, td: AIDynamoTestDefinition) -> str:
+        args = td.cmd_args
+        cmd: List[str] = [
+            "genai-perf profile",
+            f"-m {td.cmd_args.dynamo.model}",
+            f"--url http://${{CURRENT_HOST}}:{args.genai_perf.port}",
+            f"--endpoint-type {args.genai_perf.endpoint_type}",
+            f"--output-tokens-mean {str(args.genai_perf.output_tokens_mean)}",
+            f"--output-tokens-stddev {str(args.genai_perf.output_tokens_stddev)}",
+            f"--random-seed {str(args.genai_perf.random_seed)}",
+            f"--request-count {str(args.genai_perf.request_count)}",
+            f"--synthetic-input-tokens-mean {str(args.genai_perf.synthetic_input_tokens_mean)}",
+            f"--synthetic-input-tokens-stddev {str(args.genai_perf.synthetic_input_tokens_stddev)}",
+            f"--warmup-request-count {str(args.genai_perf.warmup_request_count)}",
+            "--profile-export-file profile.json",
+            "--artifact-dir /cloudai_run_results/",
+        ]
+        if args.genai_perf.endpoint:
+            cmd.append(f"--endpoint {args.genai_perf.endpoint}")
+        if args.genai_perf.streaming:
+            cmd.append("--streaming")
+        if args.genai_perf.extra_inputs:
+            cmd += [args.genai_perf.extra_inputs]
+        if args.genai_perf.input_file:
+            cmd.append(f"--input-file {args.genai_perf.input_file}")
+        if args.genai_perf.concurrency:
+            cmd.append(f"--concurrency {args.genai_perf.concurrency}")
+        if args.genai_perf.request_rate:
+            cmd.append(f"--request-rate {args.genai_perf.request_rate}")
+        cmd += [ "-- -v --async" ]
+
+        return " \\\n  ".join(cmd)
+
     def _common_header(self, td: AIDynamoTestDefinition) -> List[str]:
         return [
             "echo 'Launching node setup cmd'",
@@ -84,13 +116,46 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "echo 'Done executing node setup cmd'",
             f"export HF_HOME={td.cmd_args.huggingface_home_container_path}",
             "export DYNAMO_FRONTEND=$SLURM_JOB_MASTER_NODE",
-            f'export NATS_SERVER="nats://${{DYNAMO_FRONTEND}}:{td.cmd_args.dynamo.frontend.port_nats}"',
-            f'export ETCD_ENDPOINTS="http://${{DYNAMO_FRONTEND}}:{td.cmd_args.dynamo.frontend.port_etcd}"',
-            "cd /workspace/examples/vllm_v1/",
+            f'export NATS_SERVER="nats://${{DYNAMO_FRONTEND}}:{td.cmd_args.dynamo.nats_port}"',
+            f'export ETCD_ENDPOINTS="http://${{DYNAMO_FRONTEND}}:{td.cmd_args.dynamo.etcd_port}"',
             "CURRENT_HOST=$(hostname)",
             "export DONE_MARKER=/cloudai_run_results/frontend_done.marker",
+            f"cd {td.cmd_args.dynamo.workspace_path}",
+            "",
+            "function launch_etcd() {",
+            indent(self._bg(self._etcd_cmd(td.cmd_args.dynamo.etcd_cmd, td.cmd_args.dynamo.etcd_port), "etcd_stdout", "etcd_stderr"), '  '),
+            "}",
+            "",
+            "function launch_nats() {",
+            indent(self._bg(self._nats_cmd(td.cmd_args.dynamo.nats_cmd, td.cmd_args.dynamo.nats_port), "nats_stdout", "nats_stderr"), '  '),
+            "}",
+            "",
+            "function wait_for_etcd() {",
+            '  echo "Waiting for etcd to be ready...";\n'
+            '  while [ "`curl -ks ${ETCD_ENDPOINTS}/readyz`" != "ok" ]; do sleep 10; done;\n'
+            '  echo "etcd is ready";\n'
+            "}",
+            "",
+            'function wait_for_dynamo_frontend() {',
+            '  echo "Waiting for dynamo frontend to be ready..."',
+            '  while [ "`curl -I -w \"%{http_code}\" -o /dev/null -sk http://${DYNAMO_FRONTEND}:8080/health`" != "200" ]; do sleep 10; done',
+            '  echo "Dynamo frontend is ready"',
+            '}',
+            "",
+            "function wait_for_frontend_marker() {",
+            '  echo "Waiting for frontend completion marker...";\n'
+            '  while [ ! -f "$DONE_MARKER" ]; do sleep 10; done;\n'
+            '  echo "Done marker found. Exiting prefill node.";\n'
+            "}",
+            "",
+            "function launch_genai_perf() {",
+            indent(self._build_genai_perf_command(td), '  '),
+            "}",
             "",
         ]
+
+    def _indent(self, text: List[str], indent_level: int = 0) -> List[str]:
+        return [indent(c, '  ' * indent_level) for c in text]
 
     def _role_dispatch(self, td: AIDynamoTestDefinition, yaml_config_path: Path) -> List[str]:
         prefill_n = td.cmd_args.dynamo.prefill_worker.num_nodes
@@ -111,11 +176,11 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "",
             'if [ "$ROLE" == "frontend" ]; then',
         ]
-        dispatch += self._frontend_block(td, yaml_config_path)
+        dispatch += self._indent(self._frontend_block(td), 1)
         dispatch += ['elif [ "$ROLE" == "prefill" ]; then']
-        dispatch += self._prefill_block(td, yaml_config_path)
+        dispatch += self._indent(self._prefill_block(td), 1)
         dispatch += ['elif [ "$ROLE" == "decode" ]; then']
-        dispatch += self._decode_block(td, yaml_config_path)
+        dispatch += self._indent(self._decode_block(td), 1)
         dispatch += [
             "else",
             "  echo 'Unknown role! Exiting.'",
@@ -124,134 +189,89 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ]
         return dispatch
 
-    def _frontend_block(self, td: AIDynamoTestDefinition, yaml_config_path: Path) -> List[str]:
-        cmd = self._build_genai_perf_command(td)
+    def _node_setup_cmd(self, td: AIDynamoTestDefinition) -> str:
+        return td.cmd_args.node_setup_cmd
+
+    def _frontend_block(self, td: AIDynamoTestDefinition) -> List[str]:
         return [
-            self._bg(self._etcd_cmd(td.cmd_args.dynamo.frontend.port_etcd), "etcd_stdout", "etcd_stderr"),
-            self._bg(self._nats_cmd(), "nats_stdout", "nats_stderr"),
+            "launch_etcd",
+            "launch_nats",
+            "wait_for_etcd",
+            "",
+            self._bg(td.cmd_args.dynamo.ingress_cmd, "ingress_stdout", "ingress_stderr"),
+            "",
             self._bg(
-                self._dynamo_cmd("graphs.agg:Frontend", yaml_config_path, td.cmd_args.extra_args),
-                "frontend_stdout",
-                "frontend_stderr",
+                self._dynamo_cmd(td, td.cmd_args.dynamo.decode_worker),
+                "decode_stdout_node${SLURM_NODEID}",
+                "decode_stderr_node${SLURM_NODEID}",
             ),
-            f"sleep {td.cmd_args.sleep_seconds}",
-            "echo 'Starting second genai-perf run'",
-            cmd,
-            "echo 'genai-perf finished. Writing done marker'",
+            "",
+            "wait_for_dynamo_frontend",
+            "",
+            f"for i in {{1..{td.cmd_args.genai_perf.iterations}}}; do",
+            "  echo 'Starting genai-perf run $i'",
+            "  sleep 300",
+            "  echo 'done sleeping genai-perf run $i'",
+            "  launch_genai_perf",
+            "done",
+            "",
+            "echo 'genai-perf runs finished'",
             'touch "$DONE_MARKER"',
             "exit 0",
         ]
 
-    def _etcd_cmd(self, port_etcd: int) -> str:
-        return (
-            f"etcd --listen-client-urls http://0.0.0.0:{port_etcd} "
-            f"--advertise-client-urls http://0.0.0.0:{port_etcd} "
-            "--log-level debug"
-        )
-
-    def _nats_cmd(self) -> str:
-        return "nats-server -js"
-
-    def _node_setup_cmd(self, td: AIDynamoTestDefinition) -> str:
-        return td.cmd_args.node_setup_cmd
-
-    def _prefill_block(self, td: AIDynamoTestDefinition, yaml_config_path: Path) -> List[str]:
-        return [
-            "echo 'Waiting for etcd to be ready...'",
-            'while [ "`curl -ks ${ETCD_ENDPOINTS}/readyz`" != "ok" ]; do sleep 10; done',
-            "echo 'etcd is ready'",
+    def _prefill_block(self, td: AIDynamoTestDefinition, indent_level: int = 0) -> List[str]:
+        cmd = [
+            "wait_for_etcd",
+            "",
             self._bg(
-                self._dynamo_cmd("components.worker:VllmPrefillWorker", yaml_config_path, td.cmd_args.extra_args),
+                self._dynamo_cmd(td, td.cmd_args.dynamo.prefill_worker),
                 "prefill_stdout_node${SLURM_NODEID}",
                 "prefill_stderr_node${SLURM_NODEID}",
             ),
-            "echo 'Waiting for frontend completion marker...'",
-            'while [ ! -f "$DONE_MARKER" ]; do sleep 10; done',
-            "echo 'Done marker found. Exiting prefill node.'",
+            "",
+            "wait_for_frontend_marker",
             "exit 0",
         ]
+        return [indent(c, '  ' * indent_level) for c in cmd]
 
-    def _decode_block(self, td: AIDynamoTestDefinition, yaml_config_path: Path) -> List[str]:
+    def _decode_block(self, td: AIDynamoTestDefinition) -> List[str]:
         return [
-            "echo 'Waiting for etcd to be ready...'",
-            'while [ "`curl -ks ${ETCD_ENDPOINTS}/readyz`" != "ok" ]; do sleep 10; done',
-            "echo 'etcd is ready'",
+            "wait_for_etcd",
+            "",
             self._bg(
-                self._dynamo_cmd("graphs.agg:SimpleLoadBalancer", yaml_config_path, td.cmd_args.extra_args),
+                self._dynamo_cmd(td, td.cmd_args.dynamo.decode_worker),
                 "decode_stdout_node${SLURM_NODEID}",
                 "decode_stderr_node${SLURM_NODEID}",
             ),
-            "echo 'Waiting for frontend completion marker...'",
-            'while [ ! -f "$DONE_MARKER" ]; do sleep 10; done',
-            "echo 'Done marker found. Exiting decode node.'",
+            "wait_for_frontend_marker",
+            "",
             "exit 0",
         ]
 
-    def _dynamo_cmd(self, module: str, config: Path, extra_args: str = "") -> str:
-        return f"dynamo serve {module} -f {config} {extra_args}"
+    def _dynamo_cmd(self, td: AIDynamoTestDefinition, worker: WorkerBaseArgs) -> str:
+        cmd: List[str] = [
+            f"{worker.cmd}",
+            f"--model {td.cmd_args.dynamo.model}",
+            f"--tensor-parallel-size {worker.tensor_parallel_size}",
+            f"--pipeline-parallel-size {worker.pipeline_parallel_size}",
+            f"--data-parallel-size {worker.data_parallel_size}",
+            f"--gpu-memory-utilization {worker.gpu_memory_utilization}",
+            f"{'--enforce-eager' if worker.enforce_eager else ''}",
+        ]
 
-    def _bg(self, cmd: str, stdout_tag: str, stderr_tag: str) -> str:
-        return f"{cmd} > /cloudai_run_results/{stdout_tag}.txt 2> /cloudai_run_results/{stderr_tag}.txt &"
+        if worker.enable_expert_parallel:
+            cmd.append("--enable-expert-parallel")
+        if worker.extra_args:
+            cmd.append(worker.extra_args)
+        if td.cmd_args.extra_args:
+            cmd.append(td.cmd_args.extra_args)
+        return " \\\n  ".join(cmd)
 
     def _write_script(self, script_path: Path, lines: List[str]) -> None:
         script_path.parent.mkdir(parents=True, exist_ok=True)
         script_path.write_text("\n".join(lines), encoding="utf-8")
         script_path.chmod(0o755)
-
-    def _build_genai_perf_command(self, td: AIDynamoTestDefinition) -> str:
-        args = td.cmd_args
-        cmd: List[str] = [
-            "genai-perf",
-            "profile",
-            "-m",
-            td.cmd_args.dynamo.common.served_model_name,
-            "--url",
-            f"http://${{CURRENT_HOST}}:{args.genai_perf.port}",
-            "--endpoint-type",
-            args.genai_perf.endpoint_type,
-        ]
-        if args.genai_perf.endpoint:
-            cmd.append(f"--endpoint {args.genai_perf.endpoint}")
-        if args.genai_perf.streaming:
-            cmd.append("--streaming")
-        if args.genai_perf.extra_inputs:
-            cmd += [args.genai_perf.extra_inputs]
-        if args.genai_perf.input_file:
-            cmd.append(f"--input-file {args.genai_perf.input_file}")
-        cmd += [
-            "--output-tokens-mean",
-            str(args.genai_perf.output_tokens_mean),
-            "--osl",
-            str(args.genai_perf.osl),
-            "--output-tokens-stddev",
-            str(args.genai_perf.output_tokens_stddev),
-            "--random-seed",
-            str(args.genai_perf.random_seed),
-            "--request-count",
-            str(args.genai_perf.request_count),
-            "--synthetic-input-tokens-mean",
-            str(args.genai_perf.synthetic_input_tokens_mean),
-            "--isl",
-            str(args.genai_perf.isl),
-            "--synthetic-input-tokens-stddev",
-            str(args.genai_perf.synthetic_input_tokens_stddev),
-            "--warmup-request-count",
-            str(args.genai_perf.warmup_request_count),
-        ]
-        if args.genai_perf.concurrency:
-            cmd.append(f"--concurrency {args.genai_perf.concurrency}")
-        cmd += [
-            "--profile-export-file",
-            "profile.json",
-            "--artifact-dir",
-            "/cloudai_run_results/",
-            "--",
-            "-v",
-            "--async",
-        ]
-        if args.genai_perf.request_rate:
-            cmd.append(f"--request-rate {args.genai_perf.request_rate}")
-        return " ".join(cmd)
 
     def _gen_srun_command(self) -> str:
         num_nodes, _ = self.get_cached_nodes_spec()
@@ -263,7 +283,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 "--ntasks-per-node=1",
             ]
         )
-        return " ".join([*srun_prefix, "/opt/run.sh"])
+        return " \\\n  ".join([*srun_prefix, "/opt/run.sh"])
 
     def get_cached_nodes_spec(self) -> tuple[int, list[str]]:
         cache_key = ":".join(
@@ -292,7 +312,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if total_nodes > requested_nodes:
             raise ValueError(
                 f"Not enough nodes requested: need {total_nodes} total nodes "
-                f"(1 frontend + {prefill_n} prefill + {decode_n} decode), "
+                f"({prefill_n} prefill + {decode_n} decode), "
                 f"but only got {requested_nodes}"
             )
 

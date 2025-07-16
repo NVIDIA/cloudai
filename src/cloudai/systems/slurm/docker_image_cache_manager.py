@@ -178,10 +178,11 @@ class DockerImageCacheManager:
             logging.debug(message)
             return DockerImageCacheResult(True, docker_image_path.absolute(), message)
 
-        return DockerImageCacheResult(True, docker_image_path.absolute(), "")
         message = f"Docker image does not exist at the specified path: {docker_image_path}."
+        message += f" Will check on compute node and import it if needed."
         logging.debug(message)
-        return DockerImageCacheResult(False, Path(), message)
+
+        return self.cache_docker_image(docker_image_url, docker_image_filename)
 
     def _import_docker_image(
         self, srun_prefix: str, docker_image_url: str, docker_image_path: Path
@@ -227,7 +228,8 @@ class DockerImageCacheManager:
             return DockerImageCacheResult(True, docker_image_path.absolute(), success_message)
         except subprocess.CalledProcessError as e:
             error_message = (
-                f"Failed to import Docker image {docker_image_url}. Command: {enroot_import_cmd}. Error: {e.stderr}"
+                f"Failed to import Docker image {docker_image_url}. Command: {enroot_import_cmd}. "
+                f"Stdout: {e.stdout}, Error: {e.stderr}"
             )
             logging.debug(error_message)
             return DockerImageCacheResult(False, message=error_message)
