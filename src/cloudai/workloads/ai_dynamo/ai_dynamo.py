@@ -72,7 +72,7 @@ class GenAIPerfArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    port: int = 8000
+    port: int = 8000 # Unused
     endpoint: Optional[str] = None
     endpoint_type: str = "kserve"
     streaming: bool

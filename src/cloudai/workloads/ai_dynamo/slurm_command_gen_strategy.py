@@ -81,7 +81,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd: List[str] = [
             "genai-perf profile",
             f"-m {td.cmd_args.dynamo.model}",
-            f"--url http://${{CURRENT_HOST}}:{args.genai_perf.port}",
+            "--url ${DYNAMO_URL}",
             f"--endpoint-type {args.genai_perf.endpoint_type}",
             f"--output-tokens-mean {str(args.genai_perf.output_tokens_mean)}",
             f"--output-tokens-stddev {str(args.genai_perf.output_tokens_stddev)}",
@@ -118,7 +118,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "export DYNAMO_FRONTEND=$SLURM_JOB_MASTER_NODE",
             f'export NATS_SERVER="nats://${{DYNAMO_FRONTEND}}:{td.cmd_args.dynamo.nats_port}"',
             f'export ETCD_ENDPOINTS="http://${{DYNAMO_FRONTEND}}:{td.cmd_args.dynamo.etcd_port}"',
-            "CURRENT_HOST=$(hostname)",
+            f"export DYNAMO_URL=http://${{DYNAMO_FRONTEND}}:{td.cmd_args.dynamo.port}",
+            f"export DYNAMO_HEALTH_URL=${{DYNAMO_URL}}/health",
             "export DONE_MARKER=/cloudai_run_results/frontend_done.marker",
             f"cd {td.cmd_args.dynamo.workspace_path}",
             "",
@@ -138,7 +139,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "",
             'function wait_for_dynamo_frontend() {',
             '  echo "Waiting for dynamo frontend to be ready..."',
-            '  while [ "`curl -I -w \"%{http_code}\" -o /dev/null -sk http://${DYNAMO_FRONTEND}:8080/health`" != "200" ]; do sleep 10; done',
+            '  while [ "`curl -I -w \"%{http_code}\" -o /dev/null -sk ${DYNAMO_HEALTH_URL}`" != "200" ]; do sleep 10; done',
             '  echo "Dynamo frontend is ready"',
             '}',
             "",
@@ -171,9 +172,9 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f'elif [ "$SLURM_NODEID" -ge $(( {prefill_n} + 1 )) ] '
             f'&& [ "$SLURM_NODEID" -le $(( {prefill_n} + {decode_n} )) ]; then',
             '  ROLE="decode"',
-            "fi",
+            'fi',
             'echo "Node ID: $SLURM_NODEID, Role: $ROLE"',
-            "",
+            '',
             'if [ "$ROLE" == "frontend" ]; then',
         ]
         dispatch += self._indent(self._frontend_block(td), 1)
@@ -182,10 +183,10 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         dispatch += ['elif [ "$ROLE" == "decode" ]; then']
         dispatch += self._indent(self._decode_block(td), 1)
         dispatch += [
-            "else",
-            "  echo 'Unknown role! Exiting.'",
-            "  exit 1",
-            "fi",
+            'else',
+            '  echo "Unknown role! Exiting."',
+            '  exit 1',
+            'fi',
         ]
         return dispatch
 
@@ -194,30 +195,30 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _frontend_block(self, td: AIDynamoTestDefinition) -> List[str]:
         return [
-            "launch_etcd",
-            "launch_nats",
-            "wait_for_etcd",
-            "",
-            self._bg(td.cmd_args.dynamo.ingress_cmd, "ingress_stdout", "ingress_stderr"),
-            "",
+            'launch_etcd',
+            'launch_nats',
+            'wait_for_etcd',
+            'launch_ingress',
+            self._bg(td.cmd_args.dynamo.ingress_cmd, 'ingress_stdout', 'ingress_stderr'),
+            '',
             self._bg(
                 self._dynamo_cmd(td, td.cmd_args.dynamo.decode_worker),
-                "decode_stdout_node${SLURM_NODEID}",
-                "decode_stderr_node${SLURM_NODEID}",
+                'decode_stdout_node${SLURM_NODEID}',
+                'decode_stderr_node${SLURM_NODEID}',
             ),
-            "",
-            "wait_for_dynamo_frontend",
-            "",
-            f"for i in {{1..{td.cmd_args.genai_perf.iterations}}}; do",
-            "  echo 'Starting genai-perf run $i'",
-            "  sleep 300",
-            "  echo 'done sleeping genai-perf run $i'",
-            "  launch_genai_perf",
-            "done",
-            "",
-            "echo 'genai-perf runs finished'",
+            '',
+            'wait_for_dynamo_frontend',
+            '',
+            f'for i in {{1..{td.cmd_args.genai_perf.iterations}}}; do',
+            '  echo "Starting genai-perf run $i"',
+            '  sleep 300',
+            '  echo "done sleeping genai-perf run $i"',
+            '  launch_genai_perf',
+            'done',
+            '',
+            'echo "genai-perf runs finished"',
             'touch "$DONE_MARKER"',
-            "exit 0",
+            'exit 0',
         ]
 
     def _prefill_block(self, td: AIDynamoTestDefinition, indent_level: int = 0) -> List[str]:
