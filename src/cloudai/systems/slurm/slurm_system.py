@@ -22,7 +22,7 @@ from copy import copy
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
+from pydantic import BaseModel, ConfigDict, Field, FieldValidationInfo, field_serializer, field_validator
 
 from cloudai.core import BaseJob, File, Installable, System
 from cloudai.models.scenario import ReportConfig, parse_reports_spec
@@ -119,7 +119,7 @@ class SlurmSystem(BaseModel, System):
     name: str
     install_path: Path
     output_path: Path
-    container_cache_path: Optional[Path] = None
+    container_cache_path: Optional[Path] = Field(default=None, validate_default=True)
     default_partition: str
     partitions: List[SlurmPartition]
     account: Optional[str] = None
@@ -149,7 +149,7 @@ class SlurmSystem(BaseModel, System):
 
     @field_validator("container_cache_path", mode="before")
     @classmethod
-    def set_container_cache_path_default(cls, value: Path, info) -> Path:
+    def set_container_cache_path_default(cls, value: Path, info: FieldValidationInfo) -> Path:
         if value is None and info.data.get("install_path"):
             return info.data["install_path"]
         return value

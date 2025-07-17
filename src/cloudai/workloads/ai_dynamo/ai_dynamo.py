@@ -17,7 +17,7 @@
 from pathlib import Path
 from typing import List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, FieldValidationInfo
 
 from cloudai.core import DockerImage, Installable
 from cloudai.models.workload import CmdArgs, TestDefinition
@@ -108,11 +108,11 @@ class AIDynamoTestDefinition(TestDefinition):
     """Test definition for AI Dynamo."""
 
     cmd_args: AIDynamoCmdArgs
-    docker_image: Optional[DockerImage] = Field(default = None)
+    docker_image: Optional[DockerImage] = Field(default=None, validate_default=True)
 
     @field_validator("docker_image", mode="before")
     @classmethod
-    def set_docker_image_default(cls, value: DockerImage, info) -> DockerImage:
+    def set_docker_image_default(cls, value: DockerImage, info: FieldValidationInfo) -> DockerImage:
         if value is None and info.data.get("cmd_args"):
             return DockerImage(url=info.data["cmd_args"].docker_image_url)
         return value
