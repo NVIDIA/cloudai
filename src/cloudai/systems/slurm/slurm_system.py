@@ -119,7 +119,7 @@ class SlurmSystem(BaseModel, System):
     name: str
     install_path: Path
     output_path: Path
-    container_cache_path: Path
+    container_cache_path: Optional[Path] = None
     default_partition: str
     partitions: List[SlurmPartition]
     account: Optional[str] = None
@@ -153,6 +153,10 @@ class SlurmSystem(BaseModel, System):
         if value is None and info.data.get("install_path"):
             return info.data["install_path"]
         return value
+
+    @property
+    def get_container_cache_path(self) -> Path:
+        return self.container_cache_path if self.container_cache_path is not None else self.install_path
 
     @property
     def groups(self) -> Dict[str, Dict[str, List[SlurmNode]]]:

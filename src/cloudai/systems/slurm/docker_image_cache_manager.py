@@ -151,7 +151,7 @@ class DockerImageCacheManager:
         Returns:
             DockerImageCacheResult: Result of the Docker image existence check.
         """
-        cache_path = self.system.container_cache_path
+        cache_path = self.system.get_container_cache_path
         logging.debug(
             f"Checking if Docker image exists: docker_image_url={docker_image_url}, "
             f"cache_path={cache_path}, "
@@ -245,7 +245,7 @@ class DockerImageCacheManager:
         Returns:
             DockerImageCacheResult: Result of the Docker image caching operation.
         """
-        docker_image_path = self.system.container_cache_path / docker_image_filename
+        docker_image_path = self.system.get_container_cache_path / docker_image_filename
 
         prerequisite_check = self._check_prerequisites()
         if not prerequisite_check:
@@ -292,7 +292,7 @@ class DockerImageCacheManager:
         Returns:
             DockerImageCacheResult: Result of the removal operation.
         """
-        docker_image_path = self.system.container_cache_path / docker_image_filename
+        docker_image_path = self.system.get_container_cache_path / docker_image_filename
         if docker_image_path.is_file():
             try:
                 docker_image_path.unlink()
