@@ -69,8 +69,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _etcd_cmd(self, etcd_cmd: str, etcd_port: int) -> str:
         return (
             f"{etcd_cmd} \\\n"
-            f"--listen-client-urls http://0.0.0.0:{etcd_port} \\\n"
-            f"--advertise-client-urls http://0.0.0.0:{etcd_port}"
+            f"  --listen-client-urls http://0.0.0.0:{etcd_port} \\\n"
+            f"  --advertise-client-urls http://0.0.0.0:{etcd_port}"
         )
 
     def _nats_cmd(self, nats_cmd: str, nats_port: int) -> str:
@@ -137,6 +137,10 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             '  echo "etcd is ready";\n'
             "}",
             "",
+            "function launch_ingress() {",
+            indent(self._bg(td.cmd_args.dynamo.ingress_cmd, 'ingress_stdout', 'ingress_stderr'), '  '),
+            "}",
+            "",
             'function wait_for_dynamo_frontend() {',
             '  echo "Waiting for dynamo frontend to be ready..."',
             '  while [ "`curl -I -w \"%{http_code}\" -o /dev/null -sk ${DYNAMO_HEALTH_URL}`" != "200" ]; do sleep 10; done',
@@ -199,7 +203,6 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             'launch_nats',
             'wait_for_etcd',
             'launch_ingress',
-            self._bg(td.cmd_args.dynamo.ingress_cmd, 'ingress_stdout', 'ingress_stderr'),
             '',
             self._bg(
                 self._dynamo_cmd(td, td.cmd_args.dynamo.decode_worker),
