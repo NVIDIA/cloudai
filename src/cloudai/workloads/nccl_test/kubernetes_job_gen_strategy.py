@@ -16,17 +16,25 @@
 
 from typing import Any, Dict, List, Union, cast
 
-from cloudai.core import JsonGenStrategy, TestRun
+from cloudai._core.kubernetes_job_gen_strategy import JobSpec, JobStep, KubernetesJobGenStrategy
+from cloudai._core.test_scenario import TestRun
 
 from .nccl import NCCLTestDefinition
 
 
-class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
-    """JSON generation strategy for NCCL tests on Kubernetes systems."""
+class NCCLTestKubernetesJobGenStrategy(KubernetesJobGenStrategy):
+    """Job generation strategy for NCCL tests on Kubernetes systems."""
 
     SSH_PORT: int = 2222
 
-    def gen_json(self, tr: TestRun) -> Dict[Any, Any]:
+    def generate_spec(self, tr: TestRun) -> JobSpec:
+        manifest = self._generate_manifest(tr)
+        return JobSpec(
+            steps=[JobStep(name="submit_job", command_type="kubectl", args={"action": "apply", "manifest": manifest})],
+            manifest=manifest,
+        )
+
+    def _generate_manifest(self, tr: TestRun) -> Dict[Any, Any]:
         return {
             "apiVersion": "kubeflow.org/v2beta1",
             "kind": "MPIJob",
