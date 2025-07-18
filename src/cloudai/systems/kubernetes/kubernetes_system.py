@@ -16,10 +16,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+
+import yaml
 
 if TYPE_CHECKING:
     import kubernetes as k8s
@@ -631,3 +635,79 @@ class KubernetesSystem(BaseModel, System):
         except lazy.k8s.client.ApiException as e:
             logging.error(f"Error retrieving pods for job '{job_name}': {e}")
         return pod_names
+
+    async def apply_manifest(self, manifest: Dict[str, Any]) -> str:
+        if manifest.get("kind", "").lower() == "mpijob":
+            return await self._create_mpi_job(manifest)
+        return await self._create_batch_job(manifest)
+
+    async def apply_file(self, file_path: Path) -> None:
+        cmd = ["kubectl", "apply", "-f", str(file_path)]
+        process = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+
+        if process.returncode != 0:
+            raise RuntimeError(f"kubectl apply failed: {stderr.decode()}")
+
+    async def helm_upgrade(
+        self, release: str, chart: Path, namespace: str, values: Dict[str, Any] | None = None
+    ) -> None:
+        try:
+            cmd = ["helm", "upgrade", "--install", release, str(chart), "--namespace", namespace, "--wait", "--atomic"]
+
+            if values:
+                with TemporaryDirectory() as tmpdir:
+                    values_file = Path(tmpdir) / "values.yaml"
+                    values_file.write_text(yaml.dump(values))
+                    cmd.extend(["-f", str(values_file)])
+
+            process = await asyncio.create_subprocess_exec(
+                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+
+            if process.returncode != 0:
+                raise RuntimeError(f"Helm command failed: {stderr.decode()}")
+
+        except Exception as e:
+            raise RuntimeError(f"Helm upgrade failed: {e!s}") from e
+
+    async def wait_for_resource(self, resource: str, selector: str, condition: str, namespace: str) -> None:
+        try:
+            cmd = [
+                "kubectl",
+                "wait",
+                f"--for=condition={condition}",
+                f"{resource}",
+                f"-l{selector}",
+                f"--namespace={namespace}",
+                "--timeout=5m",
+            ]
+            process = await asyncio.create_subprocess_exec(*cmd)
+            await process.wait()
+
+            if process.returncode != 0:
+                raise RuntimeError(f"Wait command failed for {resource}")
+
+        except Exception as e:
+            raise RuntimeError(f"Wait for resource failed: {e!s}") from e
+
+    async def setup_port_forward(self, pod_selector: str, local_port: int, remote_port: int, namespace: str) -> None:
+        try:
+            cmd = [
+                "kubectl",
+                "port-forward",
+                f"--namespace={namespace}",
+                f"$(kubectl get pods -l {pod_selector} -o name)",
+                f"{local_port}:{remote_port}",
+            ]
+            process = await asyncio.create_subprocess_exec(*cmd)
+            await asyncio.sleep(2)  # Give port-forward time to establish
+
+            if process.returncode is not None:
+                raise RuntimeError("Port-forward failed to start")
+
+        except Exception as e:
+            raise RuntimeError(f"Port-forward setup failed: {e!s}") from e

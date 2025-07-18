@@ -14,25 +14,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, cast
+from typing import cast
 
-from cloudai.core import JsonGenStrategy, TestRun
+from cloudai._core.kubernetes_job_gen_strategy import JobSpec, JobStep, KubernetesJobGenStrategy
+from cloudai._core.test_scenario import TestRun
 from cloudai.systems.kubernetes import KubernetesSystem
 
 from .sleep import SleepCmdArgs, SleepTestDefinition
 
 
-class SleepKubernetesJsonGenStrategy(JsonGenStrategy):
-    """JSON generation strategy for Sleep on Kubernetes systems."""
+class SleepKubernetesJobGenStrategy(KubernetesJobGenStrategy):
+    """Job generation strategy for Sleep on Kubernetes systems."""
 
-    def gen_json(self, tr: TestRun) -> Dict[Any, Any]:
+    def generate_spec(self, tr: TestRun) -> JobSpec:
         tdef: SleepTestDefinition = cast(SleepTestDefinition, tr.test.test_definition)
         tdef_cmd_args: SleepCmdArgs = tdef.cmd_args
         sec = tdef_cmd_args.seconds
 
         kubernetes_system = cast(KubernetesSystem, self.system)
 
-        job_spec = {
+        manifest = {
             "apiVersion": "batch/v1",
             "kind": "Job",
             "metadata": {"name": tr.name, "namespace": kubernetes_system.default_namespace},
@@ -53,4 +54,8 @@ class SleepKubernetesJsonGenStrategy(JsonGenStrategy):
                 },
             },
         }
-        return job_spec
+
+        return JobSpec(
+            steps=[JobStep(name="submit_job", command_type="kubectl", args={"action": "apply", "manifest": manifest})],
+            manifest=manifest,
+        )

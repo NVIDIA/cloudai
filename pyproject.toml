@@ -27,6 +27,7 @@ dependencies = [
   "jinja2==3.1.6",
   "websockets==15.0.1",
   "rich==14.0.0",
+  "aiohttp==3.12.14",
 ]
 requires-python = ">=3.10"
 scripts = { cloudai = "cloudai.__main__:main" }
