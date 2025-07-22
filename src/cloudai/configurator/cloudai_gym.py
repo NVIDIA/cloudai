@@ -22,7 +22,6 @@ from typing import Any, Dict, Optional, Tuple
 
 from cloudai.core import METRIC_ERROR, Registry, Runner, TestRun
 from cloudai.util.lazy_imports import lazy
-from cloudai._core.exceptions import JobFailureError
 
 from .base_gym import BaseGym
 
@@ -109,14 +108,17 @@ class CloudAIGymEnv(BaseGym):
         new_tr = copy.deepcopy(self.test_run)
         new_tr.output_path = self.runner.runner.get_job_output_path(new_tr)
         self.runner.runner.test_scenario.test_runs = [new_tr]
-        
+
         self.runner.runner.shutting_down = False
         self.runner.runner.jobs.clear()
         self.runner.runner.testrun_to_job_map.clear()
-        
+
         asyncio.run(self.runner.run())
-        
-        if self.runner.runner.test_scenario.test_runs and self.runner.runner.test_scenario.test_runs[0].output_path.exists():
+
+        if (
+            self.runner.runner.test_scenario.test_runs
+            and self.runner.runner.test_scenario.test_runs[0].output_path.exists()
+        ):
             self.test_run = self.runner.runner.test_scenario.test_runs[0]
         else:
             self.test_run = copy.deepcopy(self.original_test_run)
