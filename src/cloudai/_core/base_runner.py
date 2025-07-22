@@ -259,6 +259,7 @@ class BaseRunner(ABC):
                                 f"Job {job.id} for test {job.test_run.name} failed: {job_status_result.error_message}"
                             )
                             logging.error(error_message)
+                            await self.handle_job_completion(job)
                             await self.shutdown()
                             raise JobFailureError(job.test_run.name, error_message, job_status_result.error_message)
                     else:
