@@ -14,15 +14,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass, field
+from typing import Any, Dict, Optional
 
-from dataclasses import dataclass
-
-from cloudai.core import BaseJob
+from cloudai._core.kubernetes_job_gen_strategy import JobSpec
+from cloudai.core import BaseJob, TestRun
 
 
 @dataclass
 class KubernetesJob(BaseJob):
     """A job class for execution on a Kubernetes system."""
 
-    kind: str
+    test_run: TestRun
     name: str
+    kind: str
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def is_step_based(self) -> bool:
+        return self.kind == "step-based"
+
+    @property
+    def job_spec(self) -> Optional[JobSpec]:
+        return self.metadata.get("spec")

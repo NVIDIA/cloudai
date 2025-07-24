@@ -34,6 +34,7 @@ from ._core.grading_strategy import GradingStrategy
 from ._core.installables import DockerImage, File, GitRepo, Installable, PythonExecutable
 from ._core.job_status_result import JobStatusResult
 from ._core.json_gen_strategy import JsonGenStrategy
+from ._core.kubernetes_job_gen_strategy import KubernetesJobGenStrategy
 from ._core.registry import Registry
 from ._core.report_generation_strategy import ReportGenerationStrategy
 from ._core.runner import Runner
@@ -72,6 +73,7 @@ __all__ = [
     "JobIdRetrievalError",
     "JobStatusResult",
     "JsonGenStrategy",
+    "KubernetesJobGenStrategy",
     "NsysConfiguration",
     "Parser",
     "PerTestReporter",

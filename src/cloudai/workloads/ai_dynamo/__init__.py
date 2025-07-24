@@ -25,12 +25,14 @@ from .ai_dynamo import (
     PrefillWorkerArgs,
     SimpleLoadBalancerArgs,
 )
+from .kubernetes_job_gen_strategy import AIDynamoKubernetesJobGenStrategy
 from .report_generation_strategy import AIDynamoReportGenerationStrategy
 from .slurm_command_gen_strategy import AIDynamoSlurmCommandGenStrategy
 
 __all__ = [
     "AIDynamoArgs",
     "AIDynamoCmdArgs",
+    "AIDynamoKubernetesJobGenStrategy",
     "AIDynamoReportGenerationStrategy",
     "AIDynamoSlurmCommandGenStrategy",
     "AIDynamoTestDefinition",

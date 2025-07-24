@@ -15,6 +15,7 @@
 # limitations under the License.
 
 
+from cloudai._core.kubernetes_job_gen_strategy import KubernetesJobGenStrategy
 from cloudai.core import GradingStrategy, JsonGenStrategy, Registry
 from cloudai.reporter import PerTestReporter, StatusReporter, TarballReporter
 from cloudai.systems.kubernetes import KubernetesSystem
@@ -23,6 +24,7 @@ from cloudai.systems.runai import RunAIInstaller, RunAISystem
 from cloudai.systems.slurm import SlurmInstaller, SlurmSystem
 from cloudai.systems.standalone import StandaloneInstaller, StandaloneSystem
 from cloudai.workloads.ai_dynamo import (
+    AIDynamoKubernetesJobGenStrategy,
     AIDynamoSlurmCommandGenStrategy,
     AIDynamoTestDefinition,
 )
@@ -43,7 +45,7 @@ from cloudai.workloads.megatron_run import MegatronRunSlurmCommandGenStrategy, M
 from cloudai.workloads.nccl_test import (
     NCCLTestDefinition,
     NcclTestGradingStrategy,
-    NcclTestKubernetesJsonGenStrategy,
+    NCCLTestKubernetesJobGenStrategy,
     NcclTestRunAIJsonGenStrategy,
     NcclTestSlurmCommandGenStrategy,
 )
@@ -64,7 +66,7 @@ from cloudai.workloads.nixl_bench import (
 from cloudai.workloads.nixl_perftest import NixlPerftestSlurmCommandGenStrategy, NixlPerftestTestDefinition
 from cloudai.workloads.sleep import (
     SleepGradingStrategy,
-    SleepKubernetesJsonGenStrategy,
+    SleepKubernetesJobGenStrategy,
     SleepLSFCommandGenStrategy,
     SleepSlurmCommandGenStrategy,
     SleepStandaloneCommandGenStrategy,
@@ -131,9 +133,10 @@ ALL_STRATEGIES = {
     (GradingStrategy, SlurmSystem, NemotronTestDefinition): JaxToolboxGradingStrategy,
     (GradingStrategy, SlurmSystem, SleepTestDefinition): SleepGradingStrategy,
     (GradingStrategy, SlurmSystem, UCCTestDefinition): UCCTestGradingStrategy,
-    (JsonGenStrategy, KubernetesSystem, NCCLTestDefinition): NcclTestKubernetesJsonGenStrategy,
-    (JsonGenStrategy, KubernetesSystem, SleepTestDefinition): SleepKubernetesJsonGenStrategy,
     (JsonGenStrategy, RunAISystem, NCCLTestDefinition): NcclTestRunAIJsonGenStrategy,
+    (KubernetesJobGenStrategy, KubernetesSystem, NCCLTestDefinition): NCCLTestKubernetesJobGenStrategy,
+    (KubernetesJobGenStrategy, KubernetesSystem, SleepTestDefinition): SleepKubernetesJobGenStrategy,
+    (KubernetesJobGenStrategy, KubernetesSystem, AIDynamoTestDefinition): AIDynamoKubernetesJobGenStrategy,
 }
 
 

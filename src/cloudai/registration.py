@@ -17,6 +17,7 @@
 
 def register_all():
     """Register all workloads, systems, runners, installers, and strategies."""
+    from cloudai._core.kubernetes_job_gen_strategy import KubernetesJobGenStrategy
     from cloudai.configurator.grid_search import GridSearchAgent
     from cloudai.configurator.reward_functions import (
         identity_reward,
@@ -34,6 +35,7 @@ def register_all():
     from cloudai.systems.slurm import SlurmInstaller, SlurmRunner, SlurmSystem
     from cloudai.systems.standalone import StandaloneInstaller, StandaloneRunner, StandaloneSystem
     from cloudai.workloads.ai_dynamo import (
+        AIDynamoKubernetesJobGenStrategy,
         AIDynamoReportGenerationStrategy,
         AIDynamoSlurmCommandGenStrategy,
         AIDynamoTestDefinition,
@@ -63,7 +65,7 @@ def register_all():
     from cloudai.workloads.nccl_test import (
         NCCLTestDefinition,
         NcclTestGradingStrategy,
-        NcclTestKubernetesJsonGenStrategy,
+        NCCLTestKubernetesJobGenStrategy,
         NcclTestPerformanceReportGenerationStrategy,
         NcclTestRunAIJsonGenStrategy,
         NcclTestSlurmCommandGenStrategy,
@@ -89,7 +91,7 @@ def register_all():
     from cloudai.workloads.nixl_perftest import NixlPerftestSlurmCommandGenStrategy, NixlPerftestTestDefinition
     from cloudai.workloads.sleep import (
         SleepGradingStrategy,
-        SleepKubernetesJsonGenStrategy,
+        SleepKubernetesJobGenStrategy,
         SleepLSFCommandGenStrategy,
         SleepSlurmCommandGenStrategy,
         SleepStandaloneCommandGenStrategy,
@@ -121,10 +123,18 @@ def register_all():
     Registry().add_command_gen_strategy(StandaloneSystem, SleepTestDefinition, SleepStandaloneCommandGenStrategy)
     Registry().add_command_gen_strategy(LSFSystem, SleepTestDefinition, SleepLSFCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, SleepTestDefinition, SleepSlurmCommandGenStrategy)
-    Registry().add_strategy(JsonGenStrategy, [KubernetesSystem], [SleepTestDefinition], SleepKubernetesJsonGenStrategy)
     Registry().add_strategy(
-        JsonGenStrategy, [KubernetesSystem], [NCCLTestDefinition], NcclTestKubernetesJsonGenStrategy
+        KubernetesJobGenStrategy, [KubernetesSystem], [AIDynamoTestDefinition], AIDynamoKubernetesJobGenStrategy
     )
+
+    Registry().add_strategy(
+        KubernetesJobGenStrategy, [KubernetesSystem], [NCCLTestDefinition], NCCLTestKubernetesJobGenStrategy
+    )
+
+    Registry().add_strategy(
+        KubernetesJobGenStrategy, [KubernetesSystem], [SleepTestDefinition], SleepKubernetesJobGenStrategy
+    )
+
     Registry().add_strategy(JsonGenStrategy, [RunAISystem], [NCCLTestDefinition], NcclTestRunAIJsonGenStrategy)
     Registry().add_strategy(GradingStrategy, [SlurmSystem], [NCCLTestDefinition], NcclTestGradingStrategy)
 
