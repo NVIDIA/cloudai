@@ -28,7 +28,7 @@ class WorkerBaseArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    cmd: str = ""
+    cmd: str
     num_nodes: Union[int, list[int]]
     service_args: dict = Field({"workers": 1, "resources": {"gpu": "8"}}, alias="ServiceArgs")
     gpu_memory_utilization: float = Field(0.7, alias="gpu-memory-utilization")
@@ -42,12 +42,12 @@ class WorkerBaseArgs(BaseModel):
 
 class PrefillWorkerArgs(WorkerBaseArgs):
     """Arguments for the VLLM prefill worker."""
-    cmd: str = "python3 components/main.py --is-prefill-worker"
+    pass
 
 
 class DecodeWorkerArgs(WorkerBaseArgs):
     """Arguments for the VLLM decode worker."""
-    cmd: str = "python3 components/main.py"
+    pass
 
 
 class AIDynamoArgs(BaseModel):
@@ -56,12 +56,12 @@ class AIDynamoArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     model: str
-    workspace_path: Path = Path("/workspace/examples/vllm/")
+    workspace_path: Path = Path("/workspace/")
     etcd_cmd: str = "etcd --log-level debug"
     etcd_port: int = 2379
     nats_cmd: str = "nats-server -js"
     nats_port: int = 4222
-    ingress_cmd: str = "dynamo run in=http out=dyn --router-mode kv"
+    ingress_cmd: str
     port: int = 8000
     prefill_worker: PrefillWorkerArgs
     decode_worker: DecodeWorkerArgs
