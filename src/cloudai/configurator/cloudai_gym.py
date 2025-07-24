@@ -42,6 +42,7 @@ class CloudAIGymEnv(BaseGym):
             runner (Runner): The runner object to execute jobs.
         """
         self.test_run = test_run
+        self.original_test_run = copy.deepcopy(test_run) 
         self.runner = runner
         self.max_steps = test_run.test.test_definition.agent_steps
         self.reward_function = Registry().get_reward_function(test_run.test.test_definition.agent_reward_function)
@@ -105,9 +106,25 @@ class CloudAIGymEnv(BaseGym):
 
         logging.info(f"Running step {self.test_run.step} with action {action}")
         new_tr = copy.deepcopy(self.test_run)
+        new_tr.output_path = self.runner.runner.get_job_output_path(new_tr)
         self.runner.runner.test_scenario.test_runs = [new_tr]
+
+        self.runner.runner.shutting_down = False
+        self.runner.runner.jobs.clear()
+        self.runner.runner.testrun_to_job_map.clear()
+
         asyncio.run(self.runner.run())
         self.test_run = self.runner.runner.test_scenario.test_runs[0]
+
+        if (
+            self.runner.runner.test_scenario.test_runs
+            and self.runner.runner.test_scenario.test_runs[0].output_path.exists()
+        ):
+            self.test_run = self.runner.runner.test_scenario.test_runs[0]
+        else:
+            self.test_run = copy.deepcopy(self.original_test_run)
+            self.test_run.step = new_tr.step
+            self.test_run.output_path = new_tr.output_path
 
         observation = self.get_observation(action)
         reward = self.compute_reward(observation)

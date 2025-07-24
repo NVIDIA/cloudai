@@ -268,6 +268,7 @@ class BaseRunner(ABC):
                                 f"Job {job.id} for test {job.test_run.name} failed: {job_status_result.error_message}"
                             )
                             logging.error(error_message)
+                            await self.handle_job_completion(job)
                         successful_jobs_count += 1
                         await self.handle_job_completion(job)
 
