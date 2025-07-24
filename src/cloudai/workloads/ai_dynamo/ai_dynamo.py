@@ -23,58 +23,33 @@ from cloudai.core import DockerImage, Installable
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 
-class CommonConfig(BaseModel):
-    """Common configuration shared across components."""
-
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-    model: str
-    kv_transfer_config: str = Field('{"kv_connector":"NixlConnector","kv_role":"kv_both"}', alias="kv-transfer-config")
-    served_model_name: str
-
-
-class FrontendArgs(BaseModel):
-    """Arguments for the frontend node."""
-
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-    endpoint: str = "dynamo.SimpleLoadBalancer.generate_disagg"
-    port: int = 8000
-    port_etcd: int = 2379
-    port_nats: int = 4222
-
-
-class SimpleLoadBalancerArgs(BaseModel):
-    """Arguments for the load balancer."""
-
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-    enable_disagg: bool = True
-
-
 class WorkerBaseArgs(BaseModel):
     """Base arguments for VLLM workers."""
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
+    cmd: str = ""
     num_nodes: Union[int, list[int]]
     service_args: dict = Field({"workers": 1, "resources": {"gpu": "8"}}, alias="ServiceArgs")
     gpu_memory_utilization: float = Field(0.7, alias="gpu-memory-utilization")
-    tensor_parallel_size: int = Field(8, alias="tensor-parallel-size")
-    pipeline_parallel_size: int = Field(1, alias="pipeline-parallel-size")
+    tensor_parallel_size: Union[int, list[int]] = Field(8, alias="tensor-parallel-size")
+    pipeline_parallel_size: Union[int, list[int]] = Field(1, alias="pipeline-parallel-size")
+    data_parallel_size: Union[int, list[int]] = Field(1, alias="data-parallel-size")
+    enable_expert_parallel: Union[bool, list[bool]] = Field(False, alias="enable-expert-parallel")
+    extra_args: str = ""
     enforce_eager: bool = Field(True, alias="enforce-eager")
 
 
 class PrefillWorkerArgs(WorkerBaseArgs):
     """Arguments for the VLLM prefill worker."""
 
-    pass
+    cmd: str = "python3 components/main.py --is-prefill-worker"
 
 
 class DecodeWorkerArgs(WorkerBaseArgs):
     """Arguments for the VLLM decode worker."""
 
-    pass
+    cmd: str = "python3 components/main.py"
 
 
 class AIDynamoArgs(BaseModel):
@@ -82,9 +57,14 @@ class AIDynamoArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    common: CommonConfig
-    frontend: FrontendArgs = FrontendArgs()
-    simple_load_balancer: SimpleLoadBalancerArgs = SimpleLoadBalancerArgs()
+    model: str
+    workspace_path: Path = Path("/workspace/examples/vllm/")
+    etcd_cmd: str = "etcd --log-level debug"
+    etcd_port: int = 2379
+    nats_cmd: str = "nats-server -js"
+    nats_port: int = 4222
+    ingress_cmd: str = "dynamo run in=http out=dyn --router-mode kv"
+    port: int = 8000
     prefill_worker: PrefillWorkerArgs
     decode_worker: DecodeWorkerArgs
 
@@ -94,23 +74,22 @@ class GenAIPerfArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    port: int = 8000
+    port: int = 8000  # Unused
     endpoint: Optional[str] = None
     endpoint_type: str = "kserve"
     streaming: bool
     extra_inputs: Optional[str]
     input_file: Optional[str] = None
     output_tokens_mean: int
-    osl: int = -1
     output_tokens_stddev: int = 0
     random_seed: int
     request_count: int
-    synthetic_input_tokens_mean: int
-    isl: int = 550
+    synthetic_input_tokens_mean: int = 500
     synthetic_input_tokens_stddev: int = 0
     warmup_request_count: int
     concurrency: Optional[Union[int, list[int]]] = None
     request_rate: Optional[Union[float, list[float]]] = None
+    iterations: int = 1
 
 
 class AIDynamoCmdArgs(CmdArgs):
