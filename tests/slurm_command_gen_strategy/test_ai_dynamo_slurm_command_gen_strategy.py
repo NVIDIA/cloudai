@@ -20,7 +20,6 @@ from typing import cast
 from unittest.mock import Mock
 
 import pytest
-import yaml
 
 from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestRun
@@ -30,12 +29,9 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoCmdArgs,
     AIDynamoSlurmCommandGenStrategy,
     AIDynamoTestDefinition,
-    CommonConfig,
     DecodeWorkerArgs,
-    FrontendArgs,
     GenAIPerfArgs,
     PrefillWorkerArgs,
-    SimpleLoadBalancerArgs,
 )
 
 
@@ -48,20 +44,10 @@ def cmd_args() -> AIDynamoCmdArgs:
         extra_args="",
         node_setup_cmd="",
         dynamo=AIDynamoArgs(
-            common=CommonConfig(
-                **{
-                    "model": "nvidia/Llama-3.1-405B-Instruct-FP8",
-                    "kv-transfer-config": '{"kv_connector":"NixlConnector","kv_role":"kv_both"}',
-                    "served_model_name": "nvidia/Llama-3.1-405B-Instruct-FP8",
-                }
-            ),
-            frontend=FrontendArgs(
-                endpoint="dynamo.SimpleLoadBalancer.generate_disagg",
-                port=8000,
-                port_etcd=1234,
-                port_nats=5678,
-            ),
-            simple_load_balancer=SimpleLoadBalancerArgs(**{"enable_disagg": True}),
+            model="nvidia/Llama-3.1-405B-Instruct-FP8",
+            port=8000,
+            etcd_port=1234,
+            nats_port=5678,
             prefill_worker=PrefillWorkerArgs(
                 **{
                     "num_nodes": 1,
@@ -81,7 +67,6 @@ def cmd_args() -> AIDynamoCmdArgs:
         ),
         sleep_seconds=100,
         genai_perf=GenAIPerfArgs(
-            endpoint="/chat",
             endpoint_type="chat",
             streaming=True,
             warmup_request_count=10,
@@ -127,7 +112,7 @@ def test_hugging_face_home_path_valid(test_run: TestRun) -> None:
 def test_hugging_face_home_path_missing(test_run: TestRun) -> None:
     td = cast(AIDynamoTestDefinition, test_run.test.test_definition)
     td.cmd_args.huggingface_home_host_path = Path("/nonexistent")
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(FileNotFoundError, match="HuggingFace home path not found at /nonexistent"):
         _ = td.huggingface_home_host_path
 
 
@@ -135,92 +120,62 @@ def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: T
     mounts = strategy._container_mounts()
     td = cast(AIDynamoTestDefinition, test_run.test.test_definition)
     script_host = test_run.output_path / "run.sh"
-    yaml_config_path = test_run.output_path / "dynamo_config.yaml"
     assert mounts == [
         f"{td.huggingface_home_host_path}:{td.cmd_args.huggingface_home_container_path}",
         f"{script_host}:/opt/run.sh",
-        f"{yaml_config_path}:{yaml_config_path}",
     ]
     assert script_host.exists()
     mode = script_host.stat().st_mode
     assert bool(mode & stat.S_IXUSR)
 
 
-def test_yaml_config_generation(strategy: AIDynamoSlurmCommandGenStrategy, test_run: TestRun) -> None:
+def test_default_worker_cmd(
+    strategy: AIDynamoSlurmCommandGenStrategy,
+    test_run: TestRun,
+) -> None:
     td = cast(AIDynamoTestDefinition, test_run.test.test_definition)
-    yaml_path = (test_run.output_path / "dynamo_config.yaml").resolve()
-    yaml_path = strategy._generate_yaml_config(td, yaml_path)
-
-    assert yaml_path.exists()
-
-    with open(yaml_path, "r") as yaml_file:
-        config = yaml.safe_load(yaml_file)
-        expected_config = {
-            "Common": {
-                "model": "nvidia/Llama-3.1-405B-Instruct-FP8",
-                "kv-transfer-config": '{"kv_connector":"NixlConnector","kv_role":"kv_both"}',
-                "served_model_name": "nvidia/Llama-3.1-405B-Instruct-FP8",
-            },
-            "Frontend": {
-                "common-configs": ["model", "kv-transfer-config", "served_model_name"],
-                "endpoint": "dynamo.SimpleLoadBalancer.generate_disagg",
-                "port": 8000,
-            },
-            "SimpleLoadBalancer": {
-                "common-configs": ["model", "kv-transfer-config", "served_model_name"],
-                "enable_disagg": True,
-            },
-            "VllmDecodeWorker": {
-                "common-configs": ["model", "kv-transfer-config", "served_model_name"],
-                "enforce-eager": True,
-                "gpu-memory-utilization": 0.95,
-                "tensor-parallel-size": 8,
-                "pipeline-parallel-size": 1,
-                "ServiceArgs": {
-                    "workers": 1,
-                    "resources": {
-                        "gpu": "8",
-                    },
-                },
-            },
-            "VllmPrefillWorker": {
-                "common-configs": ["model", "kv-transfer-config", "served_model_name"],
-                "enforce-eager": True,
-                "gpu-memory-utilization": 0.95,
-                "tensor-parallel-size": 8,
-                "pipeline-parallel-size": 1,
-                "ServiceArgs": {
-                    "workers": 1,
-                    "resources": {
-                        "gpu": "8",
-                    },
-                },
-            },
-        }
-        assert config == expected_config
+    worker = DecodeWorkerArgs(
+        num_nodes=1,
+        **{
+            "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
+            "gpu-memory-utilization": 0.95,
+            "tensor-parallel-size": 8,
+            "pipeline-parallel-size": 1,
+            "data-parallel-size": 1,
+            "enable-expert-parallel": False,
+            "enforce-eager": True,
+        },
+    )
+    result = strategy._dynamo_cmd(td, worker)
+    assert "python3 components/main.py" in result
 
 
 @pytest.mark.parametrize(
-    "module, config, expected",
+    "expected",
     [
-        ("graphs.agg:Frontend", "cfg.yaml", "dynamo serve graphs.agg:Frontend -f cfg.yaml"),
-        (
-            "components.worker:VllmPrefillWorker",
-            "prefill.yaml",
-            "dynamo serve components.worker:VllmPrefillWorker -f prefill.yaml",
-        ),
-        (
-            "components.worker:VllmDecodeWorker",
-            "decode.yaml",
-            "dynamo serve components.worker:VllmDecodeWorker -f decode.yaml",
-        ),
+        "dynamo serve graphs.agg:Frontend -f cfg.yaml",
+        "dynamo serve components.worker:VllmPrefillWorker -f prefill.yaml",
+        "dynamo serve components.worker:VllmDecodeWorker -f decode.yaml",
     ],
 )
 def test_dynamo_cmd(
     strategy: AIDynamoSlurmCommandGenStrategy,
-    module: str,
-    config: str,
+    test_run: TestRun,
     expected: str,
 ) -> None:
-    result = strategy._dynamo_cmd(module, Path(config))
-    assert result.strip() == expected
+    td = cast(AIDynamoTestDefinition, test_run.test.test_definition)
+    worker = DecodeWorkerArgs(
+        num_nodes=1,
+        cmd=expected,
+        **{
+            "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
+            "gpu-memory-utilization": 0.95,
+            "tensor-parallel-size": 8,
+            "pipeline-parallel-size": 1,
+            "data-parallel-size": 1,
+            "enable-expert-parallel": False,
+            "enforce-eager": True,
+        },
+    )
+    result = strategy._dynamo_cmd(td, worker)
+    assert expected in result
