@@ -63,7 +63,7 @@ class AIDynamoArgs(BaseModel):
     etcd_port: int = 2379
     nats_cmd: str = "nats-server -js"
     nats_port: int = 4222
-    ingress_cmd: str = "dynamo run in=http out=dyn --router-mode kv"
+    ingress_cmd: str = "dynamo run in=http out=dyn --router-mode kv --http-port 8787"
     port: int = 8000
     prefill_worker: PrefillWorkerArgs
     decode_worker: DecodeWorkerArgs
