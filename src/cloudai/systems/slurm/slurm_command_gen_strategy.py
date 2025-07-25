@@ -246,8 +246,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         if image_path := self.image_path():
             srun_command_parts.append(f"--container-image={image_path}")
             mounts = self.container_mounts()
-            for mount in mounts:
-                srun_command_parts.append(f"--container-mounts={mount}")
+            if mounts:
+                srun_command_parts.append(f"--container-mounts={','.join(mounts)}")
 
             if not self.system.container_mount_home:
                 srun_command_parts.append("--no-container-mount-home")
