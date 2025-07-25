@@ -246,8 +246,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         if image_path := self.image_path():
             srun_command_parts.append(f"--container-image={image_path}")
             mounts = self.container_mounts()
-            if mounts:
-                srun_command_parts.append(f"--container-mounts={','.join(mounts)}")
+            for mount in mounts:
+                srun_command_parts.append(f"--container-mounts={mount}")
 
             if not self.system.container_mount_home:
                 srun_command_parts.append("--no-container-mount-home")
@@ -278,7 +278,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return batch_script_content
 
     def _ranks_mapping_cmd(self) -> str:
-        return " ".join(
+        return " \\\n  ".join(
             [
                 *self.gen_srun_prefix(),
                 f"--output={self.test_run.output_path.absolute() / 'mapping-stdout.txt'}",
@@ -295,7 +295,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         metadata_script_path = "/cloudai_install"
         if not self.image_path():
             metadata_script_path = str(self.system.install_path.absolute())
-        return " ".join(
+        return " \\\n  ".join(
             [
                 *self.gen_srun_prefix(),
                 f"--ntasks={num_nodes}",
@@ -309,7 +309,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
     def _enable_vboost_cmd(self) -> str:
         num_nodes, _ = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)
-        return " ".join(
+        return " \\\n  ".join(
             [
                 "srun",
                 f"--ntasks={num_nodes}",
@@ -322,7 +322,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         )
 
     def _enable_numa_control_cmd(self) -> str:
-        return " ".join(
+        return " \\\n  ".join(
             [
                 "srun",
                 f"--mpi={self.system.mpi}",

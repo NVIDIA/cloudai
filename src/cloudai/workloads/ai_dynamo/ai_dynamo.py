@@ -19,50 +19,31 @@ from typing import List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, FieldValidationInfo
 
-from cloudai.core import DockerImage, Installable
+from cloudai.core import DockerImage, Installable, File
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 
 class WorkerBaseArgs(BaseModel):
     """Base arguments for VLLM workers."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
 
-    cmd: str
     num_nodes: Union[int, list[int]]
-    service_args: dict = Field({"workers": 1, "resources": {"gpu": "8"}}, alias="ServiceArgs")
-    gpu_memory_utilization: float = Field(0.7, alias="gpu-memory-utilization")
-    tensor_parallel_size: Union[int, list[int]] = Field(8, alias="tensor-parallel-size")
-    pipeline_parallel_size: Union[int, list[int]] = Field(1, alias="pipeline-parallel-size")
-    data_parallel_size: Union[int, list[int]] = Field(1, alias="data-parallel-size")
-    enable_expert_parallel: Union[bool, list[bool]] = Field(False, alias="enable-expert-parallel")
     extra_args: str = ""
-    enforce_eager: bool = Field(True, alias="enforce-eager")
-
 
 class PrefillWorkerArgs(WorkerBaseArgs):
-    """Arguments for the VLLM prefill worker."""
+    """Arguments for prefill worker."""
     pass
-
 
 class DecodeWorkerArgs(WorkerBaseArgs):
-    """Arguments for the VLLM decode worker."""
+    """Arguments for decode worker."""
     pass
-
 
 class AIDynamoArgs(BaseModel):
     """Arguments for AI Dynamo setup."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
 
-    model: str
-    workspace_path: Path = Path("/workspace/")
-    etcd_cmd: str = "etcd --log-level debug"
-    etcd_port: int = 2379
-    nats_cmd: str = "nats-server -js"
-    nats_port: int = 4222
-    ingress_cmd: str
-    port: int = 8000
     prefill_worker: PrefillWorkerArgs
     decode_worker: DecodeWorkerArgs
 
@@ -70,24 +51,10 @@ class AIDynamoArgs(BaseModel):
 class GenAIPerfArgs(BaseModel):
     """Arguments for GenAI performance profiling."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
 
-    port: int = 8000 # Unused
-    endpoint: Optional[str] = None
-    endpoint_type: str = "kserve"
-    streaming: bool
-    extra_inputs: Optional[str]
-    input_file: Optional[str] = None
-    output_tokens_mean: int
-    output_tokens_stddev: int = 0
-    random_seed: int
-    request_count: int
-    synthetic_input_tokens_mean: int = 500
-    synthetic_input_tokens_stddev: int = 0
-    warmup_request_count: int
-    concurrency: Optional[Union[int, list[int]]] = None
-    request_rate: Optional[Union[float, list[float]]] = None
-    iterations: int = 1
+    extra_args: str = ""
+
 
 
 class AIDynamoCmdArgs(CmdArgs):
@@ -102,6 +69,7 @@ class AIDynamoCmdArgs(CmdArgs):
     genai_perf: GenAIPerfArgs
     node_setup_cmd: str = ""
     extra_args: str = ""
+    run_script: str = ""
 
 
 class AIDynamoTestDefinition(TestDefinition):
@@ -109,6 +77,7 @@ class AIDynamoTestDefinition(TestDefinition):
 
     cmd_args: AIDynamoCmdArgs
     docker_image: Optional[DockerImage] = Field(default=None, validate_default=True)
+    run_script: Optional[File] = Field(default=None, validate_default=True)
 
     @field_validator("docker_image", mode="before")
     @classmethod
@@ -117,9 +86,19 @@ class AIDynamoTestDefinition(TestDefinition):
             return DockerImage(url=info.data["cmd_args"].docker_image_url)
         return value
 
+    @field_validator("run_script", mode="before")
+    @classmethod
+    def set_run_script_default(cls, value: File, info: FieldValidationInfo) -> File:
+        if value is None and info.data.get("cmd_args"):
+            return File(src=info.data["cmd_args"].run_script)
+        return value
+
     @property
     def installables(self) -> List[Installable]:
-        return [self.docker_image] if self.docker_image else []
+        result = [self.run_script]
+        if self.docker_image:
+            result.append(self.docker_image)
+        return result
 
     @property
     def huggingface_home_host_path(self) -> Path:
