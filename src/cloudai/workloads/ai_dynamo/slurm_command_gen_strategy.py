@@ -57,7 +57,6 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f"--huggingface-home {td.cmd_args.huggingface_home_container_path}",
             f'--node-setup-cmd "{td.cmd_args.node_setup_cmd}"',
             "--results-dir /cloudai_run_results",
-            f"--dynamo-frontend-node $SLURM_JOB_MASTER_NODE",
             f"--dynamo-num-prefill-nodes {td.cmd_args.dynamo.prefill_worker.num_nodes}",
             f"--dynamo-num-decode-nodes {td.cmd_args.dynamo.decode_worker.num_nodes}",
             f'--dynamo-extra-args-prefill "{td.cmd_args.dynamo.prefill_worker.extra_args}"',
@@ -87,6 +86,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 f"--nodes={num_nodes}",
                 f"--ntasks={num_nodes}",
                 "--ntasks-per-node=1",
+                f"--output={self.test_run.output_path.absolute() / 'node-%n-stdout.txt'}",
+                f"--error={self.test_run.output_path.absolute() / 'node-%n-stderr.txt'}",
                 "bash",
                 "/opt/run.sh",
             ]
