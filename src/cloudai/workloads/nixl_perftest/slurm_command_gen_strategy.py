@@ -116,6 +116,8 @@ class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 self.tdef.cmd_args.matgen_args.ppn = self.system.ntasks_per_node
 
             for arg, value in self.tdef.cmd_args.matgen_args.model_dump().items():
+                if value is None:
+                    continue
                 cmd.append(f"{self.prop_to_cli_arg(arg)}={value}")
 
         (self.matrix_gen_path).mkdir(parents=True, exist_ok=True)

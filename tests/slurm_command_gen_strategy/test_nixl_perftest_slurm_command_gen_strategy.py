@@ -129,10 +129,11 @@ def test_gen_matrix_gen_command(test_run: TestRun, slurm_system: SlurmSystem) ->
 def test_gen_matrix_gen_command_with_matgen_args(test_run: TestRun, slurm_system: SlurmSystem) -> None:
     strategy = NixlPerftestSlurmCommandGenStrategy(slurm_system, test_run)
     tdef = cast(NixlPerftestTestDefinition, test_run.test.test_definition)
-    tdef.cmd_args.matgen_args = MatgenCmdArgs.model_validate({"ppn": 2, "unknown": "unknown"})
+    tdef.cmd_args.matgen_args = MatgenCmdArgs.model_validate({"unknown": "unknown"})
+    slurm_system.ntasks_per_node = 2
     cmd = strategy.gen_matrix_gen_command()
     assert cmd[:3] == [tdef.cmd_args.python_executable, tdef.cmd_args.matgen_script, "generate"]
-    assert "--ppn=2" in cmd
+    assert f"--ppn={slurm_system.ntasks_per_node}" in cmd
     assert "--unknown=unknown" in cmd
 
 
@@ -157,7 +158,10 @@ def test_gen_matrix_gen_command_with_matgen_args_ppn(
     tdef.cmd_args.matgen_args = MatgenCmdArgs(ppn=args_ppn)
     slurm_system.ntasks_per_node = system_ppn
     cmd = strategy.gen_matrix_gen_command()
-    assert f"--ppn={expected_ppn}" in cmd
+    if expected_ppn is not None:
+        assert f"--ppn={expected_ppn}" in cmd
+    else:
+        assert "--ppn=" not in cmd
 
 
 def test_gen_perftest_srun_command(test_run: TestRun, slurm_system: SlurmSystem) -> None:
