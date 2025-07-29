@@ -75,20 +75,30 @@ def sleep_tr(slurm_system: SlurmSystem) -> TestRun:
     return tr
 
 
-def test_sbatch_default(sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
+@pytest.mark.parametrize("gres_support", [True, False])
+def test_sbatch_default(sleep_tr: TestRun, slurm_system: SlurmSystem, gres_support: bool) -> None:
     tc = TestScenario(name="tc", test_runs=[sleep_tr])
     runner = SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
 
-    sbatch_lines = runner.get_sbatch_directives()
-    assert sbatch_lines == [
+    runner.system.supports_gpu_directives_cache = gres_support
+
+    expected = [
         f"#SBATCH -N {sleep_tr.num_nodes}",
         f"#SBATCH --job-name={runner.job_name}",
         f"#SBATCH --output={runner.scenario_root.absolute() / 'common.out'}",
         f"#SBATCH --error={runner.scenario_root.absolute() / 'common.err'}",
         f"#SBATCH --partition={slurm_system.default_partition}",
-        f"#SBATCH --gpus-per-node={slurm_system.gpus_per_node}",
-        f"#SBATCH --gres=gpu:{slurm_system.gpus_per_node}",
     ]
+    if gres_support:
+        expected.extend(
+            [
+                f"#SBATCH --gpus-per-node={slurm_system.gpus_per_node}",
+                f"#SBATCH --gres=gpu:{slurm_system.gpus_per_node}",
+            ]
+        )
+
+    sbatch_lines = runner.get_sbatch_directives()
+    assert sbatch_lines == expected
 
 
 def test_sbatch_system_fields(sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
