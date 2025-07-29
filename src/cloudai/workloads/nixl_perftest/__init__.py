@@ -14,10 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .nixl_perftest import NixlPerftestCmdArgs, NixlPerftestTestDefinition
+from .nixl_perftest import MatgenCmdArgs, NixlPerftestCmdArgs, NixlPerftestTestDefinition
 from .slurm_command_gen_strategy import NixlPerftestSlurmCommandGenStrategy
 
 __all__ = [
+    "MatgenCmdArgs",
     "NixlPerftestCmdArgs",
     "NixlPerftestSlurmCommandGenStrategy",
     "NixlPerftestTestDefinition",

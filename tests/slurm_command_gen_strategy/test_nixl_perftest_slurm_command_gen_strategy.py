@@ -26,6 +26,7 @@ from cloudai.workloads.nixl_perftest import (
     NixlPerftestSlurmCommandGenStrategy,
     NixlPerftestTestDefinition,
 )
+from cloudai.workloads.nixl_perftest.nixl_perftest import MatgenCmdArgs
 
 
 @pytest.fixture
@@ -123,6 +124,40 @@ def test_gen_matrix_gen_command(test_run: TestRun, slurm_system: SlurmSystem) ->
     cmd = strategy.gen_matrix_gen_command()
     for arg_val in ["--hidden-size=1", "--num-layers=2", "--num-heads=3", "--num-kv-heads=4", "--dtype-size=5"]:
         assert arg_val in cmd
+
+
+def test_gen_matrix_gen_command_with_matgen_args(test_run: TestRun, slurm_system: SlurmSystem) -> None:
+    strategy = NixlPerftestSlurmCommandGenStrategy(slurm_system, test_run)
+    tdef = cast(NixlPerftestTestDefinition, test_run.test.test_definition)
+    tdef.cmd_args.matgen_args = MatgenCmdArgs.model_validate({"ppn": 2, "unknown": "unknown"})
+    cmd = strategy.gen_matrix_gen_command()
+    assert cmd[:3] == [tdef.cmd_args.python_executable, tdef.cmd_args.matgen_script, "generate"]
+    assert "--ppn=2" in cmd
+    assert "--unknown=unknown" in cmd
+
+
+@pytest.mark.parametrize(
+    "system_ppn,args_ppn,expected_ppn",
+    [
+        (None, None, None),
+        (3, None, 3),
+        (None, 2, 2),
+        (3, 2, 2),
+    ],
+)
+def test_gen_matrix_gen_command_with_matgen_args_ppn(
+    test_run: TestRun, slurm_system: SlurmSystem, system_ppn: int | None, args_ppn: int | None, expected_ppn: int | None
+) -> None:
+    """Ensure that ppn setup logic follows these rules:
+    - If args.ppn is set, then ppn is set to args.ppn. Always. That is user's decision.
+    - If args.ppn is not set, then ppn is set to system.ntasks_per_node if it is defined.
+    """
+    strategy = NixlPerftestSlurmCommandGenStrategy(slurm_system, test_run)
+    tdef = cast(NixlPerftestTestDefinition, test_run.test.test_definition)
+    tdef.cmd_args.matgen_args = MatgenCmdArgs(ppn=args_ppn)
+    slurm_system.ntasks_per_node = system_ppn
+    cmd = strategy.gen_matrix_gen_command()
+    assert f"--ppn={expected_ppn}" in cmd
 
 
 def test_gen_perftest_srun_command(test_run: TestRun, slurm_system: SlurmSystem) -> None:
