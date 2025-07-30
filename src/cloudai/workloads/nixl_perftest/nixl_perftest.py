@@ -16,9 +16,15 @@
 
 from typing import Literal, Optional
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 
 from cloudai.core import CmdArgs, DockerImage, Installable, TestDefinition
+
+
+class MatgenCmdArgs(CmdArgs):
+    """Command args for matgen script."""
+
+    ppn: int | None = None
 
 
 class NixlPerftestCmdArgs(CmdArgs):
@@ -53,6 +59,8 @@ class NixlPerftestCmdArgs(CmdArgs):
     num_heads: int | None = None
     num_kv_heads: int | None = None
     dtype_size: int | None = None
+
+    matgen_args: MatgenCmdArgs = Field(default_factory=MatgenCmdArgs)
 
     @model_validator(mode="after")
     def model_vs_custom(self):
