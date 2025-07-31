@@ -9,9 +9,9 @@
 #SBATCH --gres=gpu:8
 
 export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
-export CLOUDAI_NEMO_RECIPE=llama_3b
-export CLOUDAI_NEMO_TASK=pretrain
 export ENABLE_VBOOST=1
+export CLOUDAI_NEMO_TASK=pretrain
+export CLOUDAI_NEMO_RECIPE=llama_3b
 srun --ntasks=1 --output=__OUTPUT_DIR__/output/vboost.out --error=__OUTPUT_DIR__/output/vboost.err bash -c "sudo nvidia-smi boost-slider --vboost 1"
 
 srun --export=ALL --mpi=pmix --container-image=nvcr.io/nvidia/nemo:24.09 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__CLOUDAI_DIR__/src/cloudai/workloads/nemo_run:/cloudai_workspace --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
