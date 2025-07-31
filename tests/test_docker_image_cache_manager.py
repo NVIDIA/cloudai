@@ -76,10 +76,18 @@ def test_cache_docker_image(
 
     # Test when cached file already exists
     mock_is_file.return_value = True
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=["cmd"],
+        returncode=0,
+        stdout=f"Docker image already exists at {slurm_system.install_path}/image.tar.gz, skipping import.",
+        stderr="",
+    )
     result = manager.cache_docker_image("docker.io/hello-world", "image.tar.gz")
     assert result.success
     assert result.docker_image_path == slurm_system.install_path / "image.tar.gz"
-    assert result.message == f"Cached Docker image already exists at {slurm_system.install_path}/image.tar.gz."
+    assert (
+        result.message == f"Docker image already exists at {slurm_system.install_path}/image.tar.gz, skipping import."
+    )
 
     # Test creating subdirectory when it doesn't exist
     mock_is_file.return_value = False
@@ -106,7 +114,12 @@ def test_cache_docker_image(
         True,
         True,
     ]  # Ensure all path checks return True
-    mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=0, stderr="")
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=["cmd"],
+        returncode=0,
+        stdout=f"Importing Docker image to {slurm_system.install_path}/image.tar.gz",
+        stderr="",
+    )
     result = manager.cache_docker_image("docker.io/hello-world", "image.tar.gz")
 
     assert mock_run.call_count == 1
@@ -115,7 +128,13 @@ def test_cache_docker_image(
     assert "--ntasks=1" in actual_command
     assert "-N1" in actual_command
     assert "--job-name=CloudAI_install_docker_image_" in actual_command
-    assert f"enroot import -o {slurm_system.install_path}/image.tar.gz docker://docker.io/hello-world" in actual_command
+
+    # Check that the enroot command is properly wrapped in a bash script
+    expected_enroot_cmd = f'enroot import -o "{slurm_system.install_path}/image.tar.gz" docker://docker.io/hello-world'
+    assert expected_enroot_cmd in actual_command
+    assert "if [ ! -f" in actual_command  # Check for file existence check
+    assert "else echo" in actual_command  # Check for else clause
+
     assert mock_run.call_args[1] == {"shell": True, "check": True, "capture_output": True, "text": True}
 
     assert result.success
@@ -123,20 +142,22 @@ def test_cache_docker_image(
 
     # Test caching failure due to subprocess error
     mock_is_file.return_value = False
-    mock_run.side_effect = subprocess.CalledProcessError(1, "cmd")
+    mock_run.side_effect = subprocess.CalledProcessError(1, "cmd", output="", stderr="Error occurred")
     result = manager.cache_docker_image("docker.io/hello-world", "image.tar.gz")
     assert not result.success
 
     # Test caching failure due to disk-related errors
     mock_is_file.return_value = False
     mock_run.side_effect = None
-    mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=1, stderr="Disk quota exceeded\n")
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=["cmd"], returncode=1, stdout="", stderr="Disk quota exceeded\n"
+    )
     mock_exists.side_effect = [True, True, True, True, True]
     result = manager.cache_docker_image("docker.io/hello-world", "image.tar.gz")
     assert not result.success
     assert "Disk quota exceeded" in result.message
 
-    mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=1, stderr="Write error\n")
+    mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=1, stdout="", stderr="Write error\n")
     result = manager.cache_docker_image("docker.io/hello-world", "image.tar.gz")
     assert not result.success
     assert "Write error" in result.message
@@ -232,10 +253,12 @@ def test_docker_import_with_extra_system_config(
     if supports_gpu_directives:
         assert "--gres=gpu:1" in actual_command
 
-    assert (
-        f"enroot import -o {slurm_system.install_path}/docker_image.sqsh docker://docker.io/hello-world"
-        in actual_command
+    expected_enroot_cmd = (
+        f'enroot import -o "{slurm_system.install_path}/docker_image.sqsh" docker://docker.io/hello-world'
     )
+    assert expected_enroot_cmd in actual_command
+    assert "if [ ! -f" in actual_command
+    assert "else echo" in actual_command
 
     assert mock_run.call_args[1] == {"shell": True, "check": True, "capture_output": True, "text": True}
 
@@ -248,7 +271,7 @@ def test_docker_import_with_extra_srun_args(slurm_system: SlurmSystem):
     manager._check_prerequisites = lambda: PrerequisiteCheckResult(True, "All prerequisites are met.")
 
     with patch("subprocess.run") as mock_run:
-        mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=0, stderr="")
+        mock_run.return_value = subprocess.CompletedProcess(args=["cmd"], returncode=0, stdout="", stderr="")
         res = manager.cache_docker_image("docker.io/hello-world", "docker_image.sqsh")
         assert res.success
 
@@ -262,4 +285,11 @@ def test_docker_import_with_extra_srun_args(slurm_system: SlurmSystem):
     # Check that the command still has the basic structure
     expected_prefix = f"srun --export=ALL --partition={slurm_system.default_partition}"
     assert expected_prefix in actual_command
-    assert "enroot import -o" in actual_command
+
+    # Check that the enroot command is properly wrapped in a bash script
+    expected_enroot_cmd = (
+        f'enroot import -o "{slurm_system.install_path}/docker_image.sqsh" docker://docker.io/hello-world'
+    )
+    assert expected_enroot_cmd in actual_command
+    assert "if [ ! -f" in actual_command
+    assert "else echo" in actual_command
