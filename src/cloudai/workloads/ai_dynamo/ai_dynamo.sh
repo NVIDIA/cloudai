@@ -1,0 +1,301 @@
+#!/bin/bash
+
+# CloudAI params
+RESULTS_DIR="/cloudai_run_results"
+HUGGINGFACE_HOME="/root/.cache/huggingface"
+DONE_MARKER="frontend_done.marker"
+
+export DYN_SDK_DISABLE_ANSI_LOGGING=1
+export VLLM_DISABLE_COLORED_OUTPUT=1
+export VLLM_NO_COLOR=1
+export ABSL_LOGGING_USE_COLOR=0
+export DYN_LOGGING_DISABLE_ANSI_COLORS=1
+
+export TERM=dumb
+export NO_COLOR=1
+
+export DEBIAN_FRONTEND=noninteractive
+export APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1
+
+declare -A prefill_args
+declare -A decode_args
+declare -A genai_perf_args
+
+declare -A dynamo_args
+dynamo_args["node-setup-cmd"]=""
+dynamo_args["prefill-cmd"]="python3 -m dynamo.vllm --is-prefill-worker"
+dynamo_args["decode-cmd"]="python3 -m dynamo.vllm"
+dynamo_args["ingress-cmd"]="python -m dynamo.frontend --router-mode kv"
+dynamo_args["port"]=8080
+dynamo_args["endpoint"]="v1/chat/completions"
+dynamo_args["model"]="deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
+dynamo_args["etcd-cmd"]="etcd --log-level debug"
+dynamo_args["nats-cmd"]="nats-server -js"
+dynamo_args["etcd-port"]=2379
+dynamo_args["nats-port"]=4222
+dynamo_args["workspace-path"]="/workspace"
+dynamo_args["frontend-node"]=""
+dynamo_args["num-prefill-nodes"]=1
+dynamo_args["num-decode-nodes"]=1
+dynamo_args["prefill-nodelist"]=""
+dynamo_args["decode-nodelist"]=""
+
+# GenAI Perf params
+GENAI_PERF_PROFILE_EXPORT_FILE="profile.json"
+GENAI_PERF_ARTIFACT_DIR="genai_perf_artifacts"
+
+function log()
+{
+  echo "[$(date --iso-8601=ns) $(hostname)]: $@"
+}
+
+function parse_args()
+{
+  log "Parsing args:"
+  while [[ $# -ge 2 ]]; do
+    echo "  $1 $2"
+    key="$1"
+    case $key in
+      --dynamo-*)
+        dynamo_args["${key#--dynamo-}"]="$2" ;;
+      --prefill-*)
+        prefill_args["--${key#--prefill-}"]="$2" ;;
+      --decode-*)
+        decode_args["--${key#--decode-}"]="$2" ;;
+      --genai-perf-*)
+        genai_perf_args["--${key#--genai-perf-}"]="$2" ;;
+      --huggingface-home)
+        HUGGINGFACE_HOME="$2" ;;
+      --results-dir)
+        RESULTS_DIR="$2" ;;
+    esac
+    shift; shift;
+  done
+
+  # Patch Dynamo args
+  if [[ -z "${dynamo_args["decode-nodelist"]}" ]]; then
+    dynamo_args["decode-nodelist"]=$(echo $DYNAMO_NODELIST | cut -d',' -f1-${dynamo_args["num-decode-nodes"]})
+  fi
+
+  if [[ -z "${dynamo_args["prefill-nodelist"]}" ]]; then
+    dynamo_args["prefill-nodelist"]=$(echo $DYNAMO_NODELIST | cut -d',' -f$(( ${dynamo_args["num-decode-nodes"]} + 1 ))-)
+  fi
+
+  if [[ -z "${dynamo_args["frontend-node"]}" ]]; then
+    dynamo_args["frontend-node"]=$(echo ${dynamo_args["decode-nodelist"]} | cut -d',' -f1)
+  fi
+
+  dynamo_args["url"]="http://${dynamo_args["frontend-node"]}:${dynamo_args["port"]}"
+
+  # Patch Prefill/Decode args
+  prefill_args["--model"]=${dynamo_args["model"]}
+  decode_args["--model"]=${dynamo_args["model"]}
+
+  # Patch GenAI Perf args
+  genai_perf_args["--model"]=${dynamo_args["model"]}
+  genai_perf_args["--url"]=${dynamo_args["url"]}
+  genai_perf_args["--endpoint"]=${dynamo_args["endpoint"]}
+  genai_perf_args["--artifact-dir"]="${RESULTS_DIR}/${GENAI_PERF_ARTIFACT_DIR}/"
+  genai_perf_args["--profile-export-file"]="${GENAI_PERF_PROFILE_EXPORT_FILE}"
+
+  log "Dynamo args: $(for key in "${!dynamo_args[@]}"; do echo -n "$key: ${dynamo_args[$key]}; "; done)"
+  log "Prefill args: $(for key in "${!prefill_args[@]}"; do echo -n "$key: ${prefill_args[$key]}; "; done)"
+  log "Decode args: $(for key in "${!decode_args[@]}"; do echo -n "$key: ${decode_args[$key]}; " ; done)"
+  log "GenAI perf args: $(for key in "${!genai_perf_args[@]}"; do echo -n "$key: ${genai_perf_args[$key]}; "; done)"
+}
+
+function array_to_args()
+{
+  local -n arr=$1
+  local result=""
+  for key in "${!arr[@]}"; do
+    if [[ "$key" == "--extra-args" ]]; then
+      continue
+    elif [[ "$key" == "--num-nodes" ]]; then
+      continue
+    else
+      result+="${key} ${arr[$key]} "
+    fi
+  done
+  echo "$result"
+}
+
+function launch_node_setup_cmd()
+{
+  if [[ -n "${dynamo_args["node-setup-cmd"]}" ]]; then
+    log "Launching node setup command: ${dynamo_args["node-setup-cmd"]}"
+    bash -c "${dynamo_args["node-setup-cmd"]}"
+    log "Node setup complete"
+  fi
+}
+
+function launch_etcd()
+{
+  log "Launching etcd"
+  ${dynamo_args["etcd-cmd"]} \
+    --listen-client-urls http://0.0.0.0:${dynamo_args["etcd-port"]} \
+    --advertise-client-urls http://0.0.0.0:${dynamo_args["etcd-port"]} \
+    > ${RESULTS_DIR}/etcd.log 2>&1
+}
+
+function launch_nats()
+{
+  log "Launching nats"
+  ${dynamo_args["nats-cmd"]} -p ${dynamo_args["nats-port"]} > ${RESULTS_DIR}/nats.log 2>&1
+}
+
+function wait_for_etcd()
+{
+  while [ "`curl -ks ${ETCD_ENDPOINTS}/readyz`" != "ok" ]; do
+    log "Waiting for etcd to be ready by polling ${ETCD_ENDPOINTS}/readyz";
+    sleep 10;
+  done
+  log "etcd is ready"
+}
+
+function launch_ingress()
+{
+  log "Launching ingress with cmd: ${dynamo_args["ingress-cmd"]} --http-port ${dynamo_args["port"]}"
+  ${dynamo_args["ingress-cmd"]} --http-port ${dynamo_args["port"]} > ${RESULTS_DIR}/dynamo_ingress.log 2>&1
+}
+
+function exit_on_error()
+{
+  num_failed_workers=$(grep "zmq.error.ZMQError: Address already in use" $RESULTS_DIR/dynamo_*.log -il 2> /dev/null |wc -l)
+  if [[ $num_failed_workers -gt 0 ]]; then
+    log "ZMQ ERROR: Found $num_failed_workers failed workers, exiting"
+    log "Killing all jobs"
+    kill $(jobs -p) 2> /dev/null
+    exit 1
+  fi
+
+  num_failed_workers=$(grep "UCX.*ERROR" $RESULTS_DIR/ucx_log_*.log -il 2> /dev/null |wc -l)
+  if [[ $num_failed_workers -gt 0 ]]; then
+    log "UCX ERROR: Found $num_failed_workers failed workers, exiting"
+    log "Killing all jobs"
+    kill $(jobs -p)
+    exit 1
+  fi
+}
+
+function wait_for_dynamo_frontend()
+{
+  while [[ 1 ]]; do
+    num_initialized_prefill=$(
+      grep ${dynamo_args["prefill-initialized-regex"]} $RESULTS_DIR/*prefill* -il 2> /dev/null |wc -l)
+    num_initialized_decode=$(
+      grep ${dynamo_args["decode-initialized-regex"]} $RESULTS_DIR/*decode* -il 2> /dev/null |wc -l)
+
+    if [[ $num_initialized_prefill == ${prefill_args["--num-nodes"]} ]] && \
+       [[ $num_initialized_decode == ${decode_args["--num-nodes"]} ]]; then
+      break
+    fi
+    log "Initialized: $num_initialized_prefill/${prefill_args["--num-nodes"]} prefill; and "\
+        "$num_initialized_decode/${decode_args["--num-nodes"]} decode workers."
+    exit_on_error
+    sleep 30
+  done
+
+  log "Dynamo frontend is ready"
+}
+
+function wait_for_frontend_marker()
+{
+  while [ ! -f "$DONE_MARKER" ]; do
+    exit_on_error
+    log "Waiting for frontend completion marker by polling $DONE_MARKER"
+    sleep 30
+  done
+
+  log "Done marker found."
+}
+
+function launch_genai_perf()
+{
+  wait_for_dynamo_frontend
+
+  JSON_PAYLOAD='{
+    "model": "'${dynamo_args["model"]}'",
+    "messages": [{"role": "user", "content": "The color of sky is"}],
+    "stream": false,
+    "max_tokens": 10
+  }'
+
+  RESPONSE=$(curl -s -X POST ${dynamo_args["url"]}/v1/chat/completions -H "Content-Type: application/json" -d "$JSON_PAYLOAD")
+  echo "Response: $RESPONSE"
+
+  local genai_perf_arguments=$(array_to_args genai_perf_args)
+  log "Launching genai-perf with args: $genai_perf_arguments ${genai_perf_args["--extra-args"]}"
+
+  ${dynamo_args["genai-perf-cmd"]} ${genai_perf_arguments} ${genai_perf_args["--extra-args"]} > ${RESULTS_DIR}/genai_perf.log 2>&1
+
+  log "Done with genai-perf run"
+}
+
+function launch_prefill()
+{
+  wait_for_etcd
+
+  local prefill_arguments=$(array_to_args prefill_args)
+  log "Launching prefill with args: $prefill_arguments ${prefill_args["--extra-args"]}"
+
+  ${dynamo_args["prefill-cmd"]} ${prefill_arguments} ${prefill_args["--extra-args"]} > ${RESULTS_DIR}/dynamo_prefill_${SLURM_NODEID}.log 2>&1
+}
+
+function launch_decode()
+{
+  wait_for_etcd
+
+  local decode_arguments=$(array_to_args decode_args)
+  log "Launching decode with args: $decode_arguments ${decode_args["--extra-args"]}"
+
+  ${dynamo_args["decode-cmd"]} ${decode_arguments} ${decode_args["--extra-args"]} > ${RESULTS_DIR}/dynamo_decode_${SLURM_NODEID}.log 2>&1
+}
+
+function main()
+{
+  export HF_HOME="${HUGGINGFACE_HOME}"
+  export NATS_SERVER="nats://${dynamo_args["frontend-node"]}:${dynamo_args["nats-port"]}"
+  export ETCD_ENDPOINTS="http://${dynamo_args["frontend-node"]}:${dynamo_args["etcd-port"]}"
+  export UCX_LOG_FILE="${RESULTS_DIR}/ucx_log_%h.log"
+
+  DONE_MARKER="${RESULTS_DIR}/${DONE_MARKER}"
+
+  launch_node_setup_cmd
+
+  cd ${dynamo_args["workspace-path"]}
+
+  if [[ "${dynamo_args["frontend-node"]}" == *"$SLURMD_NODENAME"* ]]; then
+    log "Node ID: $SLURM_NODEID, Role: frontend"
+    launch_etcd &
+    launch_nats &
+    wait_for_etcd
+    launch_ingress &
+  fi
+
+  if [[ "${dynamo_args["decode-nodelist"]}" == *"$SLURMD_NODENAME"* ]]; then
+    log "Node ID: $SLURM_NODEID, Role: decode"
+    launch_decode &
+  fi
+
+  if [[ "${dynamo_args["prefill-nodelist"]}" == *"$SLURMD_NODENAME"* ]]; then
+    log "Node ID: $SLURM_NODEID, Role: prefill"
+    launch_prefill &
+  fi
+
+  if [[ "${dynamo_args["frontend-node"]}" == *"$SLURMD_NODENAME"* ]]; then
+    launch_genai_perf
+
+    touch "$DONE_MARKER"
+  fi
+
+  wait_for_frontend_marker
+}
+
+parse_args "$@"
+
+log "env: $(env)"
+
+log "Starting main"
+main
+log "Done with main"
