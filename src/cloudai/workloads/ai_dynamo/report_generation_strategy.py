@@ -46,12 +46,21 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
 
     def _read_metric_from_csv(self, metric_name: str) -> float:
         output_path = self.test_run.output_path
-        source_csv = next(output_path.rglob("profile_genai_perf.csv"))
+        if not output_path.exists() or not output_path.is_dir():
+            return METRIC_ERROR
 
+        csv_file = list(output_path.rglob("profile_genai_perf.csv"))
+        if len(csv_file) == 0:
+            return METRIC_ERROR
+
+        source_csv = csv_file[0]
         if source_csv.stat().st_size == 0:
             return METRIC_ERROR
 
-        df = lazy.pd.read_csv(source_csv)
+        # TODO: Repplace the following read_csv with something that handles
+        # blocks of csv data in a single file. Alternatively, split the csv file
+        # into multiple files based on different blocks of metrics.
+        df = lazy.pd.read_csv(source_csv, nrows=11)
         metric_row = df[df["Metric"] == metric_name]
 
         if metric_row.empty:

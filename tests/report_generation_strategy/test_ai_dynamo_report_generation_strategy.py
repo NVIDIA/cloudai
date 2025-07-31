@@ -26,12 +26,9 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoTestDefinition,
-    CommonConfig,
     DecodeWorkerArgs,
-    FrontendArgs,
     GenAIPerfArgs,
     PrefillWorkerArgs,
-    SimpleLoadBalancerArgs,
 )
 from cloudai.workloads.ai_dynamo.report_generation_strategy import AIDynamoReportGenerationStrategy
 
@@ -63,39 +60,31 @@ def ai_dynamo_tr(tmp_path: Path) -> TestRun:
             cmd_args=AIDynamoCmdArgs(
                 docker_image_url="http://url",
                 dynamo=AIDynamoArgs(
-                    common=CommonConfig(
-                        **{
-                            "model": "mock_model",
-                            "kv-transfer-config": '{"kv_connector":"NixlConnector","kv_role":"kv_both"}',
-                            "served_model_name": "mock_model",
-                        }
-                    ),
-                    frontend=FrontendArgs(port_nats=4222, port_etcd=2379),
-                    simple_load_balancer=SimpleLoadBalancerArgs(**{"enable_disagg": True}),
                     prefill_worker=PrefillWorkerArgs(
                         **{
-                            "num_nodes": 1,
+                            "num-nodes": 1,
                             "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
                         }
                     ),
                     decode_worker=DecodeWorkerArgs(
                         **{
-                            "num_nodes": 1,
+                            "num-nodes": 1,
                             "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
                         }
                     ),
                 ),
                 genai_perf=GenAIPerfArgs(
-                    streaming=False,
-                    extra_inputs="mock_extra_inputs",
-                    input_file="mock_input_file",
-                    output_tokens_mean=100,
-                    random_seed=123,
-                    request_count=100,
-                    synthetic_input_tokens_mean=100,
-                    warmup_request_count=10,
+                    **{
+                        "streaming": False,
+                        "extra-inputs": "mock_extra_inputs",
+                        "input-file": "mock_input_file",
+                        "output-tokens-mean": 100,
+                        "random-seed": 123,
+                        "request-count": 100,
+                        "synthetic-input-tokens-mean": 100,
+                        "warmup-request-count": 10,
+                    }
                 ),
-                sleep_seconds=10,
             ),
         ),
         test_template=Mock(),
