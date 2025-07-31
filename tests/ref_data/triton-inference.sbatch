@@ -13,8 +13,8 @@ export HEAD_NODE=$SLURM_JOB_MASTER_NODE
 export NIM_LEADER_IP_ADDRESS=$SLURM_JOB_MASTER_NODE
 export NIM_NUM_COMPUTE_NODES=2
 export NIM_MODEL_TOKENIZER='deepseek-ai/DeepSeek-R1'
-export NIM_CACHE_PATH=__OUTPUT_DIR__/output
 export NIM_MODEL_NAME=__OUTPUT_DIR__/output
+export NIM_CACHE_PATH=__OUTPUT_DIR__/output
 srun --export=ALL --mpi=pmix --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
 
 srun --export=ALL --mpi=pmix --ntasks=3 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash __OUTPUT_DIR__/install/slurm-metadata.sh

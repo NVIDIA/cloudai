@@ -549,6 +549,43 @@ per_test = {{ enable = {enable} }}
     assert slurm.reports["per_test"].enable is expected
 
 
+def test_env_vars_order():
+    spec = """
+name = "example-cluster"
+scheduler = "slurm"
+install_path = "i"
+output_path = "r"
+default_partition = "p"
+global_env_vars = { "Z_VAR" = "z", "A_VAR" = "a", "M_VAR" = "m" }
+
+[[partitions]]
+name = "p"
+"""
+    slurm = SlurmSystem.model_validate(toml.loads(spec))
+    test_run = TestRun(
+        name="test_run",
+        test=Test(
+            test_definition=NCCLTestDefinition(
+                name="test_run",
+                description="test_run",
+                test_template_name="nccl",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            ),
+            test_template=TestTemplate(slurm),
+        ),
+        num_nodes=1,
+        nodes=[],
+        output_path=Path("r"),
+    )
+
+    strategy = ConcreteSlurmStrategy(slurm, test_run)
+    env_vars_str = strategy._format_env_vars(slurm.global_env_vars)
+
+    expected_order = ["Z_VAR", "A_VAR", "M_VAR"]
+    actual_order = [line.split("=")[0].replace("export ", "") for line in env_vars_str.split("\n")]
+    assert actual_order == expected_order
+
+
 @pytest.mark.parametrize("stdout,stderr, expected", [("", "error", None)])
 def test_get_job_status(slurm_system: SlurmSystem, stdout: str, stderr: str, expected: tuple):
     job = BaseJob(test_run=Mock(), id=1)
