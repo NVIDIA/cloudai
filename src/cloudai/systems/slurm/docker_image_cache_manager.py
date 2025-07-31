@@ -17,7 +17,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import shutil
 import subprocess
 from datetime import datetime
@@ -151,9 +150,10 @@ class DockerImageCacheManager:
         Returns:
             DockerImageCacheResult: Result of the Docker image existence check.
         """
+        cache_path = self.system.get_container_cache_path
         logging.debug(
             f"Checking if Docker image exists: docker_image_url={docker_image_url}, "
-            f"subdir_name={self.system.install_path}, "
+            f"cache_path={cache_path}, "
             f"docker_image_filename={docker_image_filename}, "
             f"cache_docker_images_locally={self.system.cache_docker_images_locally}"
         )
@@ -171,20 +171,17 @@ class DockerImageCacheManager:
             )
 
         # Check if the cache file exists
-        if not self.system.install_path.exists():
-            message = f"Install path {self.system.install_path.absolute()} does not exist."
-            logging.debug(message)
-            return DockerImageCacheResult(False, Path(), message)
-
-        docker_image_path = self.system.install_path / docker_image_filename
+        docker_image_path = cache_path / docker_image_filename
         if docker_image_path.is_file() and docker_image_path.exists():
             message = f"Cached Docker image already exists at {docker_image_path}."
             logging.debug(message)
             return DockerImageCacheResult(True, docker_image_path.absolute(), message)
 
         message = f"Docker image does not exist at the specified path: {docker_image_path}."
+        message += " Will check on compute node and import it if needed."
         logging.debug(message)
-        return DockerImageCacheResult(False, Path(), message)
+
+        return self.cache_docker_image(docker_image_url, docker_image_filename)
 
     def _import_docker_image(
         self, srun_prefix: str, docker_image_url: str, docker_image_path: Path
@@ -196,7 +193,14 @@ class DockerImageCacheManager:
             job_name = f"{job_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
         # Use -N1 --ntasks=1 to ensure only one compute node downloads the image
-        enroot_import_cmd = f"{srun_prefix} -N1 --ntasks=1 --job-name={job_name} enroot import -o {docker_image_path} docker://{docker_image_url}"
+        # Check if image exists on compute node first, only import if it doesn't exist
+        enroot_import_cmd = (
+            f"{srun_prefix} -N1 --ntasks=1 --job-name={job_name} "
+            f'bash -c \'if [ ! -f "{docker_image_path}" ]; then '
+            f'echo "Importing Docker image to {docker_image_path}"; '
+            f'enroot import -o "{docker_image_path}" docker://{docker_image_url}; '
+            f'else echo "Docker image already exists at {docker_image_path}, skipping import."; fi\''
+        )
         logging.debug(f"Importing Docker image: {enroot_import_cmd}")
         try:
             p = subprocess.run(enroot_import_cmd, shell=True, check=True, capture_output=True, text=True)
@@ -211,13 +215,20 @@ class DockerImageCacheManager:
                 logging.error(error_message)
                 return DockerImageCacheResult(False, Path(), error_message)
 
-            success_message = f"Docker image cached successfully at {docker_image_path}."
-            logging.debug(success_message)
+            # Check if the image was skipped or imported based on stdout
+            if "already exists" in p.stdout:
+                success_message = f"Docker image already exists at {docker_image_path}, skipping import."
+                logging.info(success_message)
+            else:
+                success_message = f"Docker image cached successfully at {docker_image_path}."
+                logging.debug(success_message)
+
             logging.debug(f"Command used: {enroot_import_cmd}, stdout: {p.stdout}, stderr: {p.stderr}")
             return DockerImageCacheResult(True, docker_image_path.absolute(), success_message)
         except subprocess.CalledProcessError as e:
             error_message = (
-                f"Failed to import Docker image {docker_image_url}. Command: {enroot_import_cmd}. Error: {e.stderr}"
+                f"Failed to import Docker image {docker_image_url}. Command: {enroot_import_cmd}. "
+                f"Stdout: {e.stdout}, Error: {e.stderr}"
             )
             logging.debug(error_message)
             return DockerImageCacheResult(False, message=error_message)
@@ -233,27 +244,12 @@ class DockerImageCacheManager:
         Returns:
             DockerImageCacheResult: Result of the Docker image caching operation.
         """
-        docker_image_path = self.system.install_path / docker_image_filename
-
-        if docker_image_path.is_file():
-            success_message = f"Cached Docker image already exists at {docker_image_path}."
-            logging.info(success_message)
-            return DockerImageCacheResult(True, docker_image_path.absolute(), success_message)
-
-        if not self.system.install_path.exists():
-            error_message = f"Install path {self.system.install_path.absolute()} does not exist."
-            logging.error(error_message)
-            return DockerImageCacheResult(False, Path(), error_message)
+        docker_image_path = self.system.get_container_cache_path / docker_image_filename
 
         prerequisite_check = self._check_prerequisites()
         if not prerequisite_check:
             logging.error(f"Prerequisite check failed: {prerequisite_check.message}")
             return DockerImageCacheResult(False, Path(), prerequisite_check.message)
-
-        if not os.access(self.system.install_path, os.W_OK):
-            error_message = f"No permission to write in install path {self.system.install_path}."
-            logging.error(error_message)
-            return DockerImageCacheResult(False, Path(), error_message)
 
         srun_prefix = f"srun --export=ALL --partition={self.system.default_partition}"
         if self.system.account:
@@ -295,7 +291,7 @@ class DockerImageCacheManager:
         Returns:
             DockerImageCacheResult: Result of the removal operation.
         """
-        docker_image_path = self.system.install_path / docker_image_filename
+        docker_image_path = self.system.get_container_cache_path / docker_image_filename
         if docker_image_path.is_file():
             try:
                 docker_image_path.unlink()
