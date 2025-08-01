@@ -24,7 +24,6 @@ from typing import ClassVar
 
 from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
 from cloudai.systems.slurm.slurm_system import SlurmSystem
-from cloudai.util.lazy_imports import lazy
 
 
 class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
@@ -46,33 +45,50 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
         json_files = list(output_path.rglob("profile_genai_perf.json"))
         return len(csv_files) > 0 and len(json_files) > 0
 
-    def _read_metric_from_csv(self, metric_name: str) -> float:
+    def _find_csv_file(self) -> Path | None:
         output_path = self.test_run.output_path
         if not output_path.exists() or not output_path.is_dir():
+            return None
+
+        csv_files = list(output_path.rglob("profile_genai_perf.csv"))
+        if not csv_files or csv_files[0].stat().st_size == 0:
+            return None
+
+        return csv_files[0]
+
+    def _extract_metric_value(self, header: list[str], row: list[str], metric_idx: int) -> float | None:
+        if "Value" in header:
+            value_idx = header.index("Value")
+            return float(row[value_idx].replace(",", ""))
+        elif "avg" in header:
+            avg_idx = header.index("avg")
+            return float(row[avg_idx].replace(",", ""))
+        return None
+
+    def _find_metric_in_section(self, section: list[list[str]], metric_name: str) -> float | None:
+        if not section:
+            return None
+
+        header = section[0]
+        if "Metric" not in header:
+            return None
+
+        metric_idx = header.index("Metric")
+        for row in section[1:]:
+            if row[metric_idx] == metric_name:
+                return self._extract_metric_value(header, row, metric_idx)
+        return None
+
+    def _read_metric_from_csv(self, metric_name: str) -> float:
+        source_csv = self._find_csv_file()
+        if not source_csv:
             return METRIC_ERROR
 
-        csv_file = list(output_path.rglob("profile_genai_perf.csv"))
-        if len(csv_file) == 0:
-            return METRIC_ERROR
-
-        source_csv = csv_file[0]
-        if source_csv.stat().st_size == 0:
-            return METRIC_ERROR
-
-        # TODO: Repplace the following read_csv with something that handles
-        # blocks of csv data in a single file. Alternatively, split the csv file
-        # into multiple files based on different blocks of metrics.
-        df = lazy.pd.read_csv(source_csv, nrows=11)
-        metric_row = df[df["Metric"] == metric_name]
-
-        if metric_row.empty:
-            return METRIC_ERROR
-
-        if "Value" in df.columns and not metric_row["Value"].empty:
-            return float(metric_row["Value"].iloc[0])
-
-        if "avg" in df.columns and not metric_row["avg"].empty:
-            return float(metric_row["avg"].iloc[0].replace(",", ""))
+        sections = self._read_csv_sections(source_csv)
+        for section in sections:
+            value = self._find_metric_in_section(section, metric_name)
+            if value is not None:
+                return value
 
         return METRIC_ERROR
 
