@@ -234,12 +234,12 @@ class TestScenarioParser:
                 raise ValueError(f"Test '{test_info.test_name}' is not defined. Was tests directory correctly set?")
             test = self.test_mapping[test_info.test_name]
 
-            test_defined = test.test_definition.model_dump()
-            tc_defined = test_info.tdef_model_dump()
+            test_defined = test.test_definition.model_dump(by_alias=True)
+            tc_defined = test_info.tdef_model_dump(by_alias=True)
             merged_data = deep_merge(test_defined, tc_defined)
             test.test_definition = tp.load_test_definition(merged_data, self.strict)
         elif test_info.test_template_name:  # test fully defined in the scenario
-            test = tp._parse_data(test_info.tdef_model_dump(), self.strict)
+            test = tp._parse_data(test_info.tdef_model_dump(by_alias=True), self.strict)
         else:
             # this should never happen, because we check for this in the modelvalidator
             raise ValueError(
