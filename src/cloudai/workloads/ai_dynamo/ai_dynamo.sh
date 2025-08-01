@@ -226,11 +226,19 @@ _sync_num_nodes_from_section_args() {
 
 _patch_dynamo_args() {
   if [[ -z "${dynamo_args["decode-nodelist"]}" ]]; then
-    dynamo_args["decode-nodelist"]=$(echo $DYNAMO_NODELIST | cut -d',' -f1-${dynamo_args["num-decode-nodes"]})
+    if [[ -n "${decode_args["--node-list"]}" ]]; then
+      dynamo_args["decode-nodelist"]="${decode_args["--node-list"]}"
+    else
+      dynamo_args["decode-nodelist"]=$(echo $DYNAMO_NODELIST | cut -d',' -f1-${dynamo_args["num-decode-nodes"]})
+    fi
   fi
 
   if [[ -z "${dynamo_args["prefill-nodelist"]}" ]]; then
-    dynamo_args["prefill-nodelist"]=$(echo $DYNAMO_NODELIST | cut -d',' -f$(( ${dynamo_args["num-decode-nodes"]} + 1 ))-)
+    if [[ -n "${prefill_args["--node-list"]}" ]]; then
+      dynamo_args["prefill-nodelist"]="${prefill_args["--node-list"]}"
+    else
+      dynamo_args["prefill-nodelist"]=$(echo $DYNAMO_NODELIST | cut -d',' -f$(( ${dynamo_args["num-decode-nodes"]} + 1 ))-)
+    fi
   fi
 
   if [[ -z "${dynamo_args["frontend-node"]}" ]]; then
@@ -342,9 +350,9 @@ function array_to_args()
   local -n arr=$1
   local result=""
   for key in "${!arr[@]}"; do
-    if [[ "$key" == "--extra-args" ]]; then
-      continue
-    elif [[ "$key" == "--num-nodes" ]]; then
+    if [[ "$key" == "--extra-args" ]] || \
+       [[ "$key" == "--num-nodes" ]] || \
+       [[ "$key" == "--node-list" ]]; then
       continue
     else
       result+="${key} ${arr[$key]} "
