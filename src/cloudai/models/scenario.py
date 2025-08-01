@@ -92,7 +92,7 @@ class TestRunModel(BaseModel):
     agent_steps: Optional[int] = None
     agent_metrics: list[str] = Field(default=["default"])
 
-    def tdef_model_dump(self) -> dict:
+    def tdef_model_dump(self, by_alias: bool) -> dict:
         """Return a dictionary with non-None values that correspond to the test definition fields."""
         data = {
             "name": self.name,
@@ -103,9 +103,9 @@ class TestRunModel(BaseModel):
             "agent_metrics": self.agent_metrics,
             "extra_container_mounts": self.extra_container_mounts,
             "extra_env_vars": self.extra_env_vars if self.extra_env_vars else None,
-            "cmd_args": self.cmd_args.model_dump() if self.cmd_args else None,
-            "git_repos": [repo.model_dump() for repo in self.git_repos] if self.git_repos else None,
-            "nsys": self.nsys.model_dump() if self.nsys else None,
+            "cmd_args": self.cmd_args.model_dump(by_alias=by_alias) if self.cmd_args else None,
+            "git_repos": [repo.model_dump(by_alias=by_alias) for repo in self.git_repos] if self.git_repos else None,
+            "nsys": self.nsys.model_dump(by_alias=by_alias) if self.nsys else None,
         }
         return {k: v for k, v in data.items() if v is not None}
 
