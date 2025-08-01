@@ -80,19 +80,44 @@ _parse_cli_pairs() {
 }
 
 _patch_dynamo_args() {
+  log "Initial DYNAMO_NODELIST: $DYNAMO_NODELIST"
+  log "Initial decode-nodelist: ${dynamo_args["decode-nodelist"]}"
+  log "Initial prefill-nodelist: ${dynamo_args["prefill-nodelist"]}"
+  log "decode_args[--node-list]: ${decode_args["--node-list"]}"
+  log "prefill_args[--node-list]: ${prefill_args["--node-list"]}"
+
   if [[ -z "${dynamo_args["decode-nodelist"]}" ]]; then
-    dynamo_args["decode-nodelist"]=$(echo $DYNAMO_NODELIST | cut -d',' -f1-${dynamo_args["num-decode-nodes"]})
+    log "Setting decode-nodelist..."
+    if [[ -n "${decode_args["--node-list"]}" ]]; then
+      log "Using decode_args[--node-list]"
+      dynamo_args["decode-nodelist"]="${decode_args["--node-list"]}"
+    else
+      log "Using DYNAMO_NODELIST cut to ${dynamo_args["num-decode-nodes"]} nodes"
+      dynamo_args["decode-nodelist"]=$(echo $DYNAMO_NODELIST | cut -d',' -f1-${dynamo_args["num-decode-nodes"]})
+    fi
+    log "Set decode-nodelist to: ${dynamo_args["decode-nodelist"]}"
   fi
 
   if [[ -z "${dynamo_args["prefill-nodelist"]}" ]]; then
-    dynamo_args["prefill-nodelist"]=$(echo $DYNAMO_NODELIST | cut -d',' -f$(( ${dynamo_args["num-decode-nodes"]} + 1 ))-)
+    log "Setting prefill-nodelist..."
+    if [[ -n "${prefill_args["--node-list"]}" ]]; then
+      log "Using prefill_args[--node-list]"
+      dynamo_args["prefill-nodelist"]="${prefill_args["--node-list"]}"
+    else
+      log "Using DYNAMO_NODELIST starting from node $((${dynamo_args["num-decode-nodes"]} + 1))"
+      dynamo_args["prefill-nodelist"]=$(echo $DYNAMO_NODELIST | cut -d',' -f$(( ${dynamo_args["num-decode-nodes"]} + 1 ))-)
+    fi
+    log "Set prefill-nodelist to: ${dynamo_args["prefill-nodelist"]}"
   fi
 
   if [[ -z "${dynamo_args["frontend-node"]}" ]]; then
+    log "Setting frontend-node from decode-nodelist"
     dynamo_args["frontend-node"]=$(echo ${dynamo_args["decode-nodelist"]} | cut -d',' -f1)
+    log "Set frontend-node to: ${dynamo_args["frontend-node"]}"
   fi
 
   dynamo_args["url"]="http://${dynamo_args["frontend-node"]}:${dynamo_args["port"]}"
+  log "Set URL to: ${dynamo_args["url"]}"
 }
 
 _patch_section_args() {
@@ -165,9 +190,9 @@ function array_to_args()
   local -n arr=$1
   local result=""
   for key in "${!arr[@]}"; do
-    if [[ "$key" == "--extra-args" ]]; then
-      continue
-    elif [[ "$key" == "--num-nodes" ]]; then
+    if [[ "$key" == "--extra-args" ]] || \
+       [[ "$key" == "--num-nodes" ]] || \
+       [[ "$key" == "--node-list" ]]; then
       continue
     else
       result+="${key} ${arr[$key]} "
