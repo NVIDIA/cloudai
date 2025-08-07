@@ -23,21 +23,21 @@ $ pip install -U "huggingface_hub[cli]"
 Log in using your Hugging Face token:
 
 ```bash
-$ huggingface-cli login
+$ hf login
 ```
 
 Download the model weights and tokenizer to a HF_HOME that will serve as the Hugging Face cache:
 
 ```bash
 $ export HF_HOME=/path/to/hf_home/
-$ huggingface-cli download nvidia/Llama-3.1-405B-Instruct-FP8
-$ huggingface-cli download hf-internal-testing/llama-tokenizer
+$ hf download nvidia/Llama-3.1-405B-Instruct-FP8
+$ hf download hf-internal-testing/llama-tokenizer
 ```
 
 You can verify the model cache using:
 
 ```bash
-$ huggingface-cli scan-cache -vvv
+$ hf scan-cache -vvv
 
 REPO ID                             REPO TYPE SIZE ON DISK
 ----------------------------------- --------- ------------
