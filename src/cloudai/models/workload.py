@@ -48,6 +48,12 @@ class BOAgentConfig(AgentConfig):
     # Allow for additional agent-specific parameters
     extra_params: Dict[str, Any] = Field(default_factory=dict)
 
+    def model_dump(self, **kwargs):
+        """Override model_dump to ensure all BO fields are preserved."""
+        # Force exclude_none=False to preserve all fields
+        kwargs['exclude_none'] = False
+        return super().model_dump(**kwargs)
+
 
 class CmdArgs(BaseModel):
     """Test command arguments."""
