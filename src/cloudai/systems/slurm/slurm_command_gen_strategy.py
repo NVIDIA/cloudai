@@ -423,8 +423,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             str: A string representation of the formatted environment variables.
         """
         formatted_vars = []
-        for key in sorted(env_vars.keys()):
-            value = env_vars[key]
+        for key, value in env_vars.items():
             formatted_value = str(value["default"]) if isinstance(value, dict) and "default" in value else str(value)
             formatted_vars.append(f"export {key}={formatted_value}")
         return "\n".join(formatted_vars)
