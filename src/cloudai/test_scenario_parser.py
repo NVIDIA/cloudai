@@ -243,6 +243,20 @@ class TestScenarioParser:
                 logging.info(f"🔍 MERGE DEBUG: Original agent_config type: {type(test.test_definition.agent_config)}")
                 logging.info(f"🔍 MERGE DEBUG: test_defined agent_config: {test_defined.get('agent_config')}")
             
+            # CRITICAL FIX: If tc_defined has a more complete agent_config, prioritize it
+            test_agent_config = test_defined.get('agent_config')
+            tc_agent_config = tc_defined.get('agent_config')
+            
+            if test_agent_config and tc_agent_config:
+                # Count non-None values in both configs
+                test_non_none = sum(1 for v in test_agent_config.values() if v is not None)
+                tc_non_none = sum(1 for v in tc_agent_config.values() if v is not None)
+                
+                # If tc_defined has more complete data, use it instead of merging
+                if tc_non_none > test_non_none:
+                    logging.info(f"PRIORITIZING tc_agent_config (non-None: {tc_non_none}) over test_agent_config (non-None: {test_non_none})")
+                    test_defined['agent_config'] = tc_agent_config
+            
             merged_data = deep_merge(test_defined, tc_defined)
             
             if 'agent_config' in merged_data:
