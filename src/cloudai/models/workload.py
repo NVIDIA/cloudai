@@ -140,42 +140,33 @@ class TestDefinition(BaseModel, ABC):
     def parse_agent_config(cls, v, info):
         """Parse agent_config based on the agent type."""
         import logging
-        import traceback
-        
-        # Add stack trace for the problematic call
-        if isinstance(v, dict) and v == {'random_seed': 42, 'extra_params': {}}:
-            logging.info(f"!!! PROBLEMATIC CALL DETECTED !!!")
-            logging.info(f"Stack trace:")
-            for line in traceback.format_stack():
-                logging.info(line.strip())
-        
-        logging.info(f"Field validator called with v = {v}, type = {type(v)}")
         
         if v is None:
-            logging.info("Field validator: v is None, returning None")
             return None
             
         if isinstance(v, AgentConfig):
-            logging.info("Field validator: v is already AgentConfig instance")
             return v
             
         if isinstance(v, dict):
             agent_type = info.data.get('agent', 'grid_search')
-            logging.info(f"Field validator: agent_type = {agent_type}")
-            logging.info(f"Field validator: input dict = {v}")
+            
+            # Critical debugging: Track when BO data is incomplete
+            if agent_type == 'bo_gp':
+                has_bo_fields = 'sobol_num_trials' in v or 'botorch_num_trials' in v or 'seed_parameters' in v
+                if not has_bo_fields:
+                    logging.warning(f"🚨 BO agent_config missing BO fields! Input: {v}")
+                else:
+                    logging.info(f"✅ BO agent_config has BO fields: {v}")
             
             agent_config_map = {
                 'bo_gp': BOAgentConfig
             }
             
             config_class = agent_config_map.get(agent_type, AgentConfig)
-            logging.info(f"Field validator: using config_class = {config_class}")
-            
             result = config_class.model_validate(v)
-            logging.info(f"Field validator: result = {result}")
+            
             return result
             
-        logging.info(f"Field validator: unexpected type {type(v)}, returning as-is")
         return v
 
     def resolve_seed_parameters(self, action_space: Dict[str, Any]) -> Optional[Dict[str, Any]]:
