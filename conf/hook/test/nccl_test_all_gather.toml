@@ -19,7 +19,7 @@ description = "all_gather"
 test_template_name = "NcclTest"
 
 [cmd_args]
-"docker_image_url" = "nvcr.io#nvidia/pytorch:24.02-py3"
+"docker_image_url" = "nvcr.io#nvidia/pytorch:25.06-py3"
 "subtest_name" = "all_gather_perf_mpi"
 "ngpus" = "1"
 "minbytes" = "128"

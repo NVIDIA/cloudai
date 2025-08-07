@@ -23,7 +23,7 @@ NCCL_P2P_DISABLE = "1"
 NCCL_SHM_DISABLE = "1"
 
 [cmd_args]
-"docker_image_url" = "nvcr.io#nvidia/pytorch:24.02-py3"
+"docker_image_url" = "nvcr.io#nvidia/pytorch:25.06-py3"
 "subtest_name" = "all_reduce_perf_mpi"
 "ngpus" = "1"
 "minbytes" = "8M"
