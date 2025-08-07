@@ -142,22 +142,16 @@ class TestDefinition(BaseModel, ABC):
         if v is None:
             return None
             
-        # If it's already an AgentConfig instance, return as-is
         if isinstance(v, AgentConfig):
             return v
             
-        # If it's a dict, parse based on agent type
         if isinstance(v, dict):
-            # Get the agent type from the model data
             agent_type = info.data.get('agent', 'grid_search')
             
-            # Map agent types to their config classes
             agent_config_map = {
-                'bo_gp': BOAgentConfig,
-                'random_walker': RandomWalkerAgentConfig,
+                'bo_gp': BOAgentConfig
             }
             
-            # Use the appropriate config class or fall back to base AgentConfig
             config_class = agent_config_map.get(agent_type, AgentConfig)
             return config_class.model_validate(v)
             
@@ -190,13 +184,10 @@ class TestDefinition(BaseModel, ABC):
                     elif value_spec in param_options:
                         resolved[param_name] = value_spec
                     else:
-                        # Default to first option if value not found
                         resolved[param_name] = param_options[0]
                 else:
-                    # Single value parameter
                     resolved[param_name] = param_options
             else:
-                # Parameter not in action space, use as-is (for backwards compatibility)
                 resolved[param_name] = value_spec
                 
         return resolved
