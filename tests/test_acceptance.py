@@ -277,7 +277,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 name="ucc",
                 description="ucc",
                 test_template_name="ucc",
-                cmd_args=UCCCmdArgs(docker_image_url="nvcr.io/nvidia/pytorch:24.02-py3"),
+                cmd_args=UCCCmdArgs(docker_image_url="nvcr.io#nvidia/pytorch:24.02-py3"),
             ),
         ),
         "nccl": lambda: create_test_run(
@@ -288,7 +288,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 name="nccl",
                 description="nccl",
                 test_template_name="nccl",
-                cmd_args=NCCLCmdArgs(docker_image_url="nvcr.io/nvidia/pytorch:24.02-py3"),
+                cmd_args=NCCLCmdArgs(docker_image_url="nvcr.io#nvidia/pytorch:24.02-py3"),
             ),
         ),
         "sleep": lambda: create_test_run(

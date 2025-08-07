@@ -36,7 +36,7 @@ def nixl_perftest() -> NixlPerftestTestDefinition:
         description="NixlPerftest",
         test_template_name="NixlPerftest",
         cmd_args=NixlPerftestCmdArgs(
-            docker_image_url="nvcr.io/nvidia/pytorch:24.02-py3",
+            docker_image_url="nvcr.io#nvidia/pytorch:24.02-py3",
             perftest_script="/workspace/nixl/benchmark/kvbench/main.py",
             subtest="sequential-ct-perftest",
             matgen_script="/workspace/nixl/benchmark/kvbench/main.py",
