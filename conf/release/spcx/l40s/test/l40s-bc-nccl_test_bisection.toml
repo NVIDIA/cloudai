@@ -19,7 +19,7 @@ description = "nccl_test_bisection"
 test_template_name = "NcclTest"
 
 [cmd_args]
-docker_image_url = "nvcr.io/nvidia/pytorch:24.02-py3"
+docker_image_url = "nvcr.io#nvidia/pytorch:24.02-py3"
 subtest_name = "bisection_perf_mpi"
 ngpus = "1"
 minbytes = "128"
