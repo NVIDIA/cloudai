@@ -95,6 +95,15 @@ class TestRunModel(BaseModel):
 
     def tdef_model_dump(self) -> dict:
         """Return a dictionary with non-None values that correspond to the test definition fields."""
+        import logging
+        
+        agent_config_dump = None
+        if self.agent_config:
+            agent_config_dump = self.agent_config.model_dump()
+            logging.info(f"tdef_model_dump: agent_config type = {type(self.agent_config)}")
+            logging.info(f"tdef_model_dump: agent_config = {self.agent_config}")
+            logging.info(f"tdef_model_dump: agent_config.model_dump() = {agent_config_dump}")
+            
         data = {
             "name": self.name,
             "description": self.description,
@@ -102,7 +111,7 @@ class TestRunModel(BaseModel):
             "agent": self.agent,
             "agent_steps": self.agent_steps,
             "agent_metrics": self.agent_metrics,
-            "agent_config": self.agent_config.model_dump() if self.agent_config else None,
+            "agent_config": agent_config_dump,
             "extra_container_mounts": self.extra_container_mounts,
             "extra_env_vars": self.extra_env_vars if self.extra_env_vars else None,
             "cmd_args": self.cmd_args.model_dump() if self.cmd_args else None,
