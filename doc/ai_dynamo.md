@@ -20,6 +20,16 @@ Install the Hugging Face CLI:
 $ pip install -U "huggingface_hub[cli]"
 ```
 
+You need to create a Hugging Face account and generate an access token:
+
+1. Visit https://huggingface.co/
+2. Click "Sign Up" to create a new account
+3. Fill in your personal information and complete the registration process
+4. Go to https://huggingface.co/settings/tokens
+5. Click "+ Create new token"
+6. Name your token and select appropriate permissions
+7. Save the generated token in a secure location - you'll need it for authentication
+
 Log in using your Hugging Face token:
 
 ```bash
