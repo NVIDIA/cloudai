@@ -139,22 +139,34 @@ class TestDefinition(BaseModel, ABC):
     @classmethod
     def parse_agent_config(cls, v, info):
         """Parse agent_config based on the agent type."""
+        import logging
+        logging.info(f"Field validator called with v = {v}, type = {type(v)}")
+        
         if v is None:
+            logging.info("Field validator: v is None, returning None")
             return None
             
         if isinstance(v, AgentConfig):
+            logging.info("Field validator: v is already AgentConfig instance")
             return v
             
         if isinstance(v, dict):
             agent_type = info.data.get('agent', 'grid_search')
+            logging.info(f"Field validator: agent_type = {agent_type}")
+            logging.info(f"Field validator: input dict = {v}")
             
             agent_config_map = {
                 'bo_gp': BOAgentConfig
             }
             
             config_class = agent_config_map.get(agent_type, AgentConfig)
-            return config_class.model_validate(v)
+            logging.info(f"Field validator: using config_class = {config_class}")
             
+            result = config_class.model_validate(v)
+            logging.info(f"Field validator: result = {result}")
+            return result
+            
+        logging.info(f"Field validator: unexpected type {type(v)}, returning as-is")
         return v
 
     def resolve_seed_parameters(self, action_space: Dict[str, Any]) -> Optional[Dict[str, Any]]:
