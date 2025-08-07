@@ -140,6 +140,15 @@ class TestDefinition(BaseModel, ABC):
     def parse_agent_config(cls, v, info):
         """Parse agent_config based on the agent type."""
         import logging
+        import traceback
+        
+        # Add stack trace for the problematic call
+        if isinstance(v, dict) and v == {'random_seed': 42, 'extra_params': {}}:
+            logging.info(f"!!! PROBLEMATIC CALL DETECTED !!!")
+            logging.info(f"Stack trace:")
+            for line in traceback.format_stack():
+                logging.info(line.strip())
+        
         logging.info(f"Field validator called with v = {v}, type = {type(v)}")
         
         if v is None:
