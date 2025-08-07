@@ -237,36 +237,12 @@ class TestScenarioParser:
             test_defined = test.test_definition.model_dump(exclude_none=False)
             tc_defined = test_info.tdef_model_dump()
             
-            # Focused debugging: Track agent_config through merge
-            import logging
-            if test.test_definition.agent_config:
-                logging.info(f"🔍 MERGE DEBUG: Original agent_config type: {type(test.test_definition.agent_config)}")
-                logging.info(f"🔍 MERGE DEBUG: test_defined agent_config: {test_defined.get('agent_config')}")
-            
-            # CRITICAL FIX: If tc_defined has a more complete agent_config, prioritize it
-            test_agent_config = test_defined.get('agent_config')
-            tc_agent_config = tc_defined.get('agent_config')
-            
-            if test_agent_config and tc_agent_config:
-                # Count non-None values in both configs
-                test_non_none = sum(1 for v in test_agent_config.values() if v is not None)
-                tc_non_none = sum(1 for v in tc_agent_config.values() if v is not None)
-                
-                # If tc_defined has more complete data, use it instead of merging
-                if tc_non_none > test_non_none:
-                    logging.info(f"PRIORITIZING tc_agent_config (non-None: {tc_non_none}) over test_agent_config (non-None: {test_non_none})")
-                    test_defined['agent_config'] = tc_agent_config
-            
             merged_data = deep_merge(test_defined, tc_defined)
             
-            if 'agent_config' in merged_data:
-                logging.info(f"🔍 MERGE DEBUG: merged_data agent_config: {merged_data.get('agent_config')}")
-            
             test.test_definition = tp.load_test_definition(merged_data, self.strict)
-        elif test_info.test_template_name:  # test fully defined in the scenario
+        elif test_info.test_template_name:  
             test = tp._parse_data(test_info.tdef_model_dump(), self.strict)
         else:
-            # this should never happen, because we check for this in the modelvalidator
             raise ValueError(
                 f"Cannot configure test case '{test_info.id}' with both 'test_name' and 'test_template_name'."
             )

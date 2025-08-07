@@ -154,7 +154,6 @@ class TestDefinition(BaseModel, ABC):
     @classmethod
     def parse_agent_config(cls, v, info):
         """Parse agent_config based on the agent type."""
-        import logging
         
         if v is None:
             return None
@@ -165,13 +164,12 @@ class TestDefinition(BaseModel, ABC):
         if isinstance(v, dict):
             agent_type = info.data.get('agent', 'grid_search')
             
-            # Critical debugging: Track when BO data is incomplete
             if agent_type == 'bo_gp':
                 has_bo_fields = 'sobol_num_trials' in v or 'botorch_num_trials' in v or 'seed_parameters' in v
                 if not has_bo_fields:
-                    logging.warning(f"🚨 BO agent_config missing BO fields! Input: {v}")
+                    pass 
                 else:
-                    logging.info(f"✅ BO agent_config has BO fields: {v}")
+                    pass 
             
             agent_config_map = {
                 'bo_gp': BOAgentConfig
