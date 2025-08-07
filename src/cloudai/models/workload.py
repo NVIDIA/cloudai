@@ -18,9 +18,35 @@ from abc import ABC
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from cloudai.core import GitRepo, Installable, JobStatusResult, PythonExecutable, TestRun
+
+
+class AgentConfig(BaseModel):
+    """Base configuration class for agents used in DSE."""
+    
+    model_config = ConfigDict(extra="forbid")
+    
+    # Common agent parameters
+    random_seed: Optional[int] = None
+    
+    # Allow for additional agent-specific parameters
+    extra_params: Dict[str, Any] = Field(default_factory=dict)
+
+
+class BOAgentConfig(AgentConfig):
+    """Configuration for Bayesian Optimization agent."""
+    
+    # BO-specific parameters
+    sobol_num_trials: Optional[int] = None
+    botorch_num_trials: Optional[int] = None
+    
+    # Seed parameters for starting optimization from known configuration
+    seed_parameters: Optional[Dict[str, Any]] = None
+    
+    # Allow for additional agent-specific parameters
+    extra_params: Dict[str, Any] = Field(default_factory=dict)
 
 
 class CmdArgs(BaseModel):
@@ -107,6 +133,73 @@ class TestDefinition(BaseModel, ABC):
     agent_steps: int = 1
     agent_metrics: list[str] = Field(default=["default"])
     agent_reward_function: str = "inverse"
+    agent_config: Optional[AgentConfig] = None
+
+    @field_validator('agent_config', mode='before')
+    @classmethod
+    def parse_agent_config(cls, v, info):
+        """Parse agent_config based on the agent type."""
+        if v is None:
+            return None
+            
+        # If it's already an AgentConfig instance, return as-is
+        if isinstance(v, AgentConfig):
+            return v
+            
+        # If it's a dict, parse based on agent type
+        if isinstance(v, dict):
+            # Get the agent type from the model data
+            agent_type = info.data.get('agent', 'grid_search')
+            
+            # Map agent types to their config classes
+            agent_config_map = {
+                'bo_gp': BOAgentConfig,
+                'random_walker': RandomWalkerAgentConfig,
+            }
+            
+            # Use the appropriate config class or fall back to base AgentConfig
+            config_class = agent_config_map.get(agent_type, AgentConfig)
+            return config_class.model_validate(v)
+            
+        return v
+
+    def resolve_seed_parameters(self, action_space: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Resolve seed parameters by extracting values from the action space.
+        
+        Args:
+            action_space: The flattened action space from cmd_args
+            
+        Returns:
+            Resolved seed parameters with actual values
+        """
+        if not self.agent_config or not hasattr(self.agent_config, 'seed_parameters'):
+            return None
+            
+        seed_params = self.agent_config.seed_parameters
+        if not seed_params:
+            return None
+            
+        resolved = {}
+        for param_name, value_spec in seed_params.items():
+            if param_name in action_space:
+                param_options = action_space[param_name]
+                if isinstance(param_options, list):
+                    if isinstance(value_spec, int) and 0 <= value_spec < len(param_options):
+                        resolved[param_name] = param_options[value_spec]
+                    elif value_spec in param_options:
+                        resolved[param_name] = value_spec
+                    else:
+                        # Default to first option if value not found
+                        resolved[param_name] = param_options[0]
+                else:
+                    # Single value parameter
+                    resolved[param_name] = param_options
+            else:
+                # Parameter not in action space, use as-is (for backwards compatibility)
+                resolved[param_name] = value_spec
+                
+        return resolved
 
     @property
     def cmd_args_dict(self) -> Dict[str, Union[str, List[str]]]:

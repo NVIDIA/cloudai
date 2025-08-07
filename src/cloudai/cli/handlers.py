@@ -131,7 +131,29 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
             )
             continue
 
-        agent = agent_class(env)
+        agent_config = test_run.test.test_definition.agent_config
+        
+        if agent_config:
+            agent_kwargs = {
+                k: v for k, v in agent_config.model_dump().items() 
+                if v is not None and k not in ['extra_params', 'seed_parameters']
+            }
+            
+            if hasattr(agent_config, 'seed_parameters') and agent_config.seed_parameters:
+                action_space = env.define_action_space()
+                resolved_seeds = test_run.test.test_definition.resolve_seed_parameters(action_space)
+                if resolved_seeds:
+                    agent_kwargs['seed_parameters'] = resolved_seeds
+            
+            agent_kwargs.update(agent_config.extra_params)
+            
+            try:
+                agent = agent_class(env, **agent_kwargs)
+            except TypeError as e:
+                logging.warning(f"Agent {agent_type} doesn't support some configuration parameters: {e}")
+                agent = agent_class(env)
+        else:
+            agent = agent_class(env)
         for step in range(agent.max_steps):
             result = agent.select_action()
             if result is None:

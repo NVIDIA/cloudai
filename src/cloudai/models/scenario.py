@@ -22,7 +22,7 @@ from typing import Any, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_serializer, field_validator, model_validator
 
 from cloudai.core import CmdArgs, GitRepo, NsysConfiguration, Registry, Reporter, TestRun
-from cloudai.models.workload import TestDefinition
+from cloudai.models.workload import AgentConfig, BOAgentConfig, TestDefinition
 
 
 def parse_reports_spec(
@@ -91,6 +91,7 @@ class TestRunModel(BaseModel):
     agent: Optional[str] = None
     agent_steps: Optional[int] = None
     agent_metrics: list[str] = Field(default=["default"])
+    agent_config: Optional[AgentConfig] = None
 
     def tdef_model_dump(self) -> dict:
         """Return a dictionary with non-None values that correspond to the test definition fields."""
@@ -101,6 +102,7 @@ class TestRunModel(BaseModel):
             "agent": self.agent,
             "agent_steps": self.agent_steps,
             "agent_metrics": self.agent_metrics,
+            "agent_config": self.agent_config.model_dump() if self.agent_config else None,
             "extra_container_mounts": self.extra_container_mounts,
             "extra_env_vars": self.extra_env_vars if self.extra_env_vars else None,
             "cmd_args": self.cmd_args.model_dump() if self.cmd_args else None,
