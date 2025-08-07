@@ -29,7 +29,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         td = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
         mounts = [
             f"{td.huggingface_home_host_path}:{td.cmd_args.huggingface_home_container_path}",
-            f"{td.script.installed_path.absolute()!s}:/opt/run.sh",
+            f"{td.script.installed_path.absolute()!s}:{td.script.installed_path.absolute()!s}",
         ]
         return mounts
 
@@ -82,7 +82,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 f"--output={self.test_run.output_path.absolute() / 'node-%n-stdout.txt'}",
                 f"--error={self.test_run.output_path.absolute() / 'node-%n-stderr.txt'}",
                 "bash",
-                "/opt/run.sh",
+                f"{td.script.installed_path.absolute()!s}",
             ]
         )
         srun_cmd.extend(self._gen_script_args(td))
