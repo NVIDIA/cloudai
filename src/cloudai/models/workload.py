@@ -48,11 +48,20 @@ class BOAgentConfig(AgentConfig):
     # Allow for additional agent-specific parameters
     extra_params: Dict[str, Any] = Field(default_factory=dict)
 
+    def __init__(self, **data):
+        super().__init__(**data)
+        import logging
+        logging.info(f"🆕 BOAgentConfig created with data: {data}")
+        logging.info(f"🆕 Final BOAgentConfig state: sobol={self.sobol_num_trials}, botorch={self.botorch_num_trials}, seeds={self.seed_parameters}")
+
     def model_dump(self, **kwargs):
         """Override model_dump to ensure all BO fields are preserved."""
         # Force exclude_none=False to preserve all fields
         kwargs['exclude_none'] = False
-        return super().model_dump(**kwargs)
+        result = super().model_dump(**kwargs)
+        import logging
+        logging.info(f"📤 BOAgentConfig.model_dump() called, result: {result}")
+        return result
 
 
 class CmdArgs(BaseModel):
