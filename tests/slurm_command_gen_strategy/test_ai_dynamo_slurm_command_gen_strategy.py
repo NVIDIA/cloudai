@@ -115,7 +115,7 @@ def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: T
     td = cast(AIDynamoTestDefinition, test_run.test.test_definition)
     assert mounts == [
         f"{td.huggingface_home_host_path}:{td.cmd_args.huggingface_home_container_path}",
-        f"{td.script.installed_path.absolute()!s}:/opt/run.sh",
+        f"{td.script.installed_path.absolute()!s}:{td.script.installed_path.absolute()!s}",
     ]
 
 
