@@ -198,7 +198,12 @@ class TestPrepareOutputDir:
     def test_parent_wo_access(self, no_access_dir: Path, caplog: pytest.LogCaptureFixture):
         subdir = no_access_dir / "subdir"
         assert prepare_output_dir(subdir) is None
-        assert f"Output path '{subdir.absolute()}' is not accessible:" in caplog.text
+        assert f"Output path '{subdir.absolute()}' is not writable." in caplog.text
+
+    def test_invalid_path_no_stacktrace(self, caplog: pytest.LogCaptureFixture):
+        invalid_path = Path("/non/existent/path")
+        assert prepare_output_dir(invalid_path) is None
+        assert "Traceback" not in caplog.text
 
 
 def test_system_installables_are_used(slurm_system: SlurmSystem):
