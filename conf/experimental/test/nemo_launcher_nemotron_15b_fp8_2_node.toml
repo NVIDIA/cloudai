@@ -19,7 +19,7 @@ description = "nemo_launcher_nemotron_15b_fp8_2_node"
 test_template_name = "NeMoLauncher"
 
 [cmd_args]
-docker_image_url = "nvcr.io/nvidia/nemo:25.04.rc2"
+docker_image_url = "nvcr.io#nvidia/nemo:25.07.rc3"
   [cmd_args.training]
   values = "nemotron/nemotron_15b"
 
