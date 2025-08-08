@@ -16,13 +16,14 @@
 
 from __future__ import annotations
 
+import csv
 import logging
 import shutil
+from pathlib import Path
 from typing import ClassVar
 
 from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
 from cloudai.systems.slurm.slurm_system import SlurmSystem
-from cloudai.util.lazy_imports import lazy
 
 
 class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
@@ -44,24 +45,50 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
         json_files = list(output_path.rglob("profile_genai_perf.json"))
         return len(csv_files) > 0 and len(json_files) > 0
 
-    def _read_metric_from_csv(self, metric_name: str) -> float:
+    def _find_csv_file(self) -> Path | None:
         output_path = self.test_run.output_path
-        source_csv = next(output_path.rglob("profile_genai_perf.csv"))
+        if not output_path.exists() or not output_path.is_dir():
+            return None
 
-        if source_csv.stat().st_size == 0:
+        csv_files = list(output_path.rglob("profile_genai_perf.csv"))
+        if not csv_files or csv_files[0].stat().st_size == 0:
+            return None
+
+        return csv_files[0]
+
+    def _extract_metric_value(self, header: list[str], row: list[str], metric_idx: int) -> float | None:
+        if "Value" in header:
+            value_idx = header.index("Value")
+            return float(row[value_idx].replace(",", ""))
+        elif "avg" in header:
+            avg_idx = header.index("avg")
+            return float(row[avg_idx].replace(",", ""))
+        return None
+
+    def _find_metric_in_section(self, section: list[list[str]], metric_name: str) -> float | None:
+        if not section:
+            return None
+
+        header = section[0]
+        if "Metric" not in header:
+            return None
+
+        metric_idx = header.index("Metric")
+        for row in section[1:]:
+            if row[metric_idx] == metric_name:
+                return self._extract_metric_value(header, row, metric_idx)
+        return None
+
+    def _read_metric_from_csv(self, metric_name: str) -> float:
+        source_csv = self._find_csv_file()
+        if not source_csv:
             return METRIC_ERROR
 
-        df = lazy.pd.read_csv(source_csv)
-        metric_row = df[df["Metric"] == metric_name]
-
-        if metric_row.empty:
-            return METRIC_ERROR
-
-        if "Value" in df.columns and not metric_row["Value"].empty:
-            return float(metric_row["Value"].iloc[0])
-
-        if "avg" in df.columns and not metric_row["avg"].empty:
-            return float(metric_row["avg"].iloc[0].replace(",", ""))
+        sections = self._read_csv_sections(source_csv)
+        for section in sections:
+            value = self._find_metric_in_section(section, metric_name)
+            if value is not None:
+                return value
 
         return METRIC_ERROR
 
@@ -85,36 +112,76 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
 
         return self._read_metric_from_csv(mapped_metric)
 
-    def generate_report(self) -> None:
-        output_path = self.test_run.output_path
-        source_csv = next(output_path.rglob("profile_genai_perf.csv"))
-        target_csv = output_path / "report.csv"
-
-        shutil.copy2(source_csv, target_csv)
-
+    def _calculate_total_gpus(self) -> int | None:
         gpus_per_node = None
         if isinstance(self.system, SlurmSystem):
             gpus_per_node = self.system.gpus_per_node
 
         if gpus_per_node is None:
-            logging.warning("gpus_per_node is None, skipping Overall Output Tokens per Second per GPU calculation.")
-            return
+            return None
 
         num_frontend_nodes = 1
         num_prefill_nodes = self.test_run.test.test_definition.cmd_args.dynamo.prefill_worker.num_nodes
         num_decode_nodes = self.test_run.test.test_definition.cmd_args.dynamo.decode_worker.num_nodes
 
-        total_gpus = (num_frontend_nodes + num_prefill_nodes + num_decode_nodes) * gpus_per_node
+        return (num_frontend_nodes + num_prefill_nodes + num_decode_nodes) * gpus_per_node
+
+    def _read_csv_sections(self, source_csv: Path) -> list[list[list[str]]]:
+        sections = []
+        current_section = []
 
         with open(source_csv, "r") as f:
-            lines = f.readlines()
-            output_token_throughput_line = next(
-                (line for line in lines if "Output Token Throughput (tokens/sec)" in line), None
-            )
-            if output_token_throughput_line:
-                output_token_throughput = float(output_token_throughput_line.split(",")[1].strip())
+            csv_reader = csv.reader(f)
+            for row in csv_reader:
+                if not any(row):  # Empty row indicates section break
+                    if current_section:
+                        sections.append(current_section)
+                        current_section = []
+                else:
+                    current_section.append(row)
+            if current_section:
+                sections.append(current_section)
 
-                overall_output_tokens_per_second_per_gpu = output_token_throughput / total_gpus
+        return sections
 
-                with open(target_csv, "a") as f:
-                    f.write(f"Overall Output Tokens per Second per GPU,{overall_output_tokens_per_second_per_gpu}\n")
+    def _write_sections_with_metric(
+        self, target_csv: Path, sections: list[list[list[str]]], total_gpus: int | None
+    ) -> None:
+        with open(target_csv, "w", newline="") as f:
+            writer = csv.writer(f)
+
+            # Write first section (statistical metrics)
+            if sections:
+                for row in sections[0]:
+                    writer.writerow(row)
+                writer.writerow([])  # Empty row for section break
+
+            # Write second section with additional metric if total_gpus is available
+            if len(sections) > 1:
+                for row in sections[1]:
+                    writer.writerow(row)
+                    if total_gpus and row and row[0] == "Output Token Throughput (tokens/sec)":
+                        throughput = float(row[1].replace(",", ""))
+                        per_gpu_throughput = throughput / total_gpus
+                        writer.writerow(["Overall Output Tokens per Second per GPU", per_gpu_throughput])
+                writer.writerow([])  # Empty row for section break
+
+            # Write remaining sections
+            for section in sections[2:]:
+                for row in section:
+                    writer.writerow(row)
+                writer.writerow([])  # Empty row for section break
+
+    def generate_report(self) -> None:
+        output_path = self.test_run.output_path
+        source_csv = next(output_path.rglob("profile_genai_perf.csv"))
+        target_csv = output_path / "report.csv"
+
+        total_gpus = self._calculate_total_gpus()
+        if total_gpus is None:
+            logging.warning("gpus_per_node is None, skipping Overall Output Tokens per Second per GPU calculation.")
+            shutil.copy2(source_csv, target_csv)
+            return
+
+        sections = self._read_csv_sections(source_csv)
+        self._write_sections_with_metric(target_csv, sections, total_gpus)
