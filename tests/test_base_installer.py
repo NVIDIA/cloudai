@@ -200,6 +200,11 @@ class TestPrepareOutputDir:
         assert prepare_output_dir(subdir) is None
         assert f"Output path '{subdir.absolute()}' is not writable." in caplog.text
 
+    def test_invalid_path_no_stacktrace(self, caplog: pytest.LogCaptureFixture):
+        invalid_path = Path("/non/existent/path")
+        assert prepare_output_dir(invalid_path) is None
+        assert "Traceback" not in caplog.text
+
 
 def test_system_installables_are_used(slurm_system: SlurmSystem):
     installer = MyInstaller(slurm_system)
