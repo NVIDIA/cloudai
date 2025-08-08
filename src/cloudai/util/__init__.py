@@ -16,7 +16,6 @@
 
 import logging
 import os
-import sys
 from pathlib import Path
 from typing import Optional
 
@@ -35,33 +34,27 @@ def _validate_path_format(path: Path) -> Optional[Path]:
 def _validate_parent_dir(path: Path, parent: Path) -> bool:
     try:
         if not parent.exists():
-            msg = f"{path} does not exist."
-            logging.error(msg)
-            sys.exit(1)
+            logging.error(f"Output path '{path.absolute()}' does not exist.")
+            return False
         if not parent.is_dir():
-            msg = f"{path} is not a directory."
-            logging.error(msg)
-            sys.exit(1)
+            logging.error(f"Output path '{path.absolute()}' is not a directory.")
+            return False
         if not os.access(parent, os.W_OK):
-            msg = f"{path} is not writable."
-            logging.error(msg)
-            sys.exit(1)
+            logging.error(f"Output path '{path.absolute()}' is not writable.")
+            return False
         return True
-    except PermissionError:
-        msg = f"Cannot access {path}: Permission denied."
-        logging.error(msg)
-        sys.exit(1)
+    except PermissionError as e:
+        logging.error(f"Output path '{path.absolute()}' is not accessible: {e}")
+        return False
 
 
 def _validate_existing_path(path: Path) -> Optional[Path]:
     if not path.is_dir():
-        msg = f"{path} is not a directory."
-        logging.error(msg)
-        sys.exit(1)
+        logging.error(f"Output path '{path.absolute()}' exists but is not a directory.")
+        return None
     if not os.access(path, os.W_OK):
-        msg = f"{path} is not writable."
-        logging.error(msg)
-        sys.exit(1)
+        logging.error(f"Output path '{path.absolute()}' exists but is not writable.")
+        return None
     return path
 
 
@@ -82,12 +75,11 @@ def prepare_output_dir(path: Path) -> Optional[Path]:
             resolved_path.mkdir(parents=True)
             return resolved_path
         except OSError as e:
-            msg = (
+            logging.error(
                 f"Failed to create directory '{resolved_path.absolute()}': {e}. "
                 "Please check directory permissions and available disk space."
             )
-            logging.error(msg)
-            sys.exit(1)
+            return None
     except PermissionError:
         logging.error(
             f"Cannot access path '{resolved_path.absolute()}': Permission denied. Please check directory permissions."
