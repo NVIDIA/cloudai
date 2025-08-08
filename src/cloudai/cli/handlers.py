@@ -133,33 +133,19 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
 
         agent_config = test_run.test.test_definition.agent_config
         
-        logging.info(f"Handler: agent_config type = {type(agent_config)}")
-        logging.info(f"Handler: agent_config = {agent_config}")
-        
         if agent_config:
             agent_kwargs = {
                 k: v for k, v in agent_config.model_dump().items() 
-                if v is not None and k not in ['extra_params', 'seed_parameters']
+                if v is not None and k not in ['extra_params', 'seed_parameters', 'agent_type']
             }
             
-            logging.info(f"Handler: checking seed_parameters - hasattr: {hasattr(agent_config, 'seed_parameters')}")
-            if hasattr(agent_config, 'seed_parameters'):
-                logging.info(f"Handler: agent_config.seed_parameters = {agent_config.seed_parameters}")
-                
             if hasattr(agent_config, 'seed_parameters') and agent_config.seed_parameters:
                 action_space = env.define_action_space()
-                logging.info(f"Handler: action_space = {action_space}")
-                logging.info(f"Handler: raw seed_parameters from config = {agent_config.seed_parameters}")
                 resolved_seeds = test_run.test.test_definition.resolve_seed_parameters(action_space)
-                logging.info(f"Handler: resolved seed_parameters = {resolved_seeds}")
                 if resolved_seeds:
                     agent_kwargs['seed_parameters'] = resolved_seeds
-            else:
-                logging.info(f"Handler: No seed_parameters found or seed_parameters is None")
             
             agent_kwargs.update(agent_config.extra_params)
-            
-            logging.info(f"Handler: final agent_kwargs = {agent_kwargs}")
             
             try:
                 agent = agent_class(env, **agent_kwargs)

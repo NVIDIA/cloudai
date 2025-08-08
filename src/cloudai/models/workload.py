@@ -56,10 +56,6 @@ class BOAgentConfig(AgentConfig):
         if 'agent_type' not in data:
             data['agent_type'] = 'bo_gp'
         super().__init__(**data)
-        import logging
-        logging.info(f"🆕 BOAgentConfig created with data: {data}")
-        logging.info(f"🆕 Final BOAgentConfig state: sobol={self.sobol_num_trials}, botorch={self.botorch_num_trials}, seeds={self.seed_parameters}")
-        logging.info(f"🆕 BOAgentConfig agent_type: {self.agent_type}")
 
     def model_dump(self, **kwargs):
         """Override model_dump to ensure all BO fields are preserved."""
@@ -68,8 +64,6 @@ class BOAgentConfig(AgentConfig):
         result = super().model_dump(**kwargs)
         # Ensure agent_type is always included to identify this as BO config
         result['agent_type'] = self.agent_type
-        import logging
-        logging.info(f"📤 BOAgentConfig.model_dump() called, result: {result}")
         return result
 
 
@@ -157,7 +151,7 @@ class TestDefinition(BaseModel, ABC):
     agent_steps: int = 1
     agent_metrics: list[str] = Field(default=["default"])
     agent_reward_function: str = "inverse"
-    agent_config: Optional[AgentConfig] = None
+    agent_config: Optional[Union[AgentConfig, BOAgentConfig]] = None
 
     @field_validator('agent_config', mode='before')
     @classmethod
@@ -209,16 +203,11 @@ class TestDefinition(BaseModel, ABC):
             if param_name in action_space:
                 param_options = action_space[param_name]
                 if isinstance(param_options, list):
-                    # First, try direct value match – this avoids ambiguity when the desired
-                    # literal value is itself an integer that could also be interpreted as an
-                    # index (e.g., 2 in [1, 2, 4]). Only if the value is not present in the
-                    # list do we fall back to interpreting it as an index.
                     if value_spec in param_options:
                         resolved[param_name] = value_spec
                     elif isinstance(value_spec, int) and 0 <= value_spec < len(param_options):
                         resolved[param_name] = param_options[value_spec]
                     else:
-                        # As a last resort, pick the first option to guarantee a valid seed.
                         resolved[param_name] = param_options[0]
                 else:
                     resolved[param_name] = param_options

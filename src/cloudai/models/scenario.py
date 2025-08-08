@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_serializer, field_validator, model_validator
 
@@ -91,13 +91,12 @@ class TestRunModel(BaseModel):
     agent: Optional[str] = None
     agent_steps: Optional[int] = None
     agent_metrics: list[str] = Field(default=["default"])
-    agent_config: Optional[AgentConfig] = None
+    agent_config: Optional[Union[AgentConfig, BOAgentConfig]] = None
 
     @field_validator('agent_config', mode='before')
     @classmethod
     def parse_agent_config(cls, v, info):
         """Parse agent_config based on the agent type."""
-        import logging
         
         if v is None:
             return None
@@ -106,20 +105,13 @@ class TestRunModel(BaseModel):
             return v
             
         if isinstance(v, dict):
-            # Check for BO-specific fields directly instead of relying on agent field
-            # since field validation order means agent might not be available yet
             has_bo_fields = {'sobol_num_trials', 'botorch_num_trials', 'seed_parameters'} & v.keys()
             
-            # Also check for agent_type discriminator field
             is_bo_agent = v.get('agent_type') == 'bo_gp'
             
             if has_bo_fields or is_bo_agent:
-                logging.info(f"SCENARIO BO agent_config has BO fields: {v}")
-                # Use BOAgentConfig when BO-specific fields are present or agent_type indicates BO
                 return BOAgentConfig.model_validate(v)
             else:
-                logging.warning(f"SCENARIO agent_config missing BO fields! Input: {v}")
-                # Fall back to base AgentConfig for other cases
                 return AgentConfig.model_validate(v)
             
         return v
