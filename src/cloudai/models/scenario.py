@@ -106,24 +106,18 @@ class TestRunModel(BaseModel):
             return v
             
         if isinstance(v, dict):
-            agent_type = info.data.get('agent', 'grid_search')
+            # Check for BO-specific fields directly instead of relying on agent field
+            # since field validation order means agent might not be available yet
+            has_bo_fields = {'sobol_num_trials', 'botorch_num_trials', 'seed_parameters'} & v.keys()
             
-            # Critical debugging: Track when BO data is incomplete
-            if agent_type == 'bo_gp':
-                has_bo_fields = 'sobol_num_trials' in v or 'botorch_num_trials' in v or 'seed_parameters' in v
-                if not has_bo_fields:
-                    logging.warning(f"SCENARIO BO agent_config missing BO fields! Input: {v}")
-                else:
-                    logging.info(f"SCENARIO BO agent_config has BO fields: {v}")
-            
-            agent_config_map = {
-                'bo_gp': BOAgentConfig
-            }
-            
-            config_class = agent_config_map.get(agent_type, AgentConfig)
-            result = config_class.model_validate(v)
-            
-            return result
+            if has_bo_fields:
+                logging.info(f"SCENARIO BO agent_config has BO fields: {v}")
+                # Use BOAgentConfig when BO-specific fields are present
+                return BOAgentConfig.model_validate(v)
+            else:
+                logging.warning(f"SCENARIO agent_config missing BO fields! Input: {v}")
+                # Fall back to base AgentConfig for other cases
+                return AgentConfig.model_validate(v)
             
         return v
 

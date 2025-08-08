@@ -162,23 +162,16 @@ class TestDefinition(BaseModel, ABC):
             return v
             
         if isinstance(v, dict):
-            agent_type = info.data.get('agent', 'grid_search')
+            # Check for BO-specific fields directly instead of relying on agent field
+            # since field validation order means agent might not be available yet
+            has_bo_fields = {'sobol_num_trials', 'botorch_num_trials', 'seed_parameters'} & v.keys()
             
-            if agent_type == 'bo_gp':
-                has_bo_fields = 'sobol_num_trials' in v or 'botorch_num_trials' in v or 'seed_parameters' in v
-                if not has_bo_fields:
-                    pass 
-                else:
-                    pass 
-            
-            agent_config_map = {
-                'bo_gp': BOAgentConfig
-            }
-            
-            config_class = agent_config_map.get(agent_type, AgentConfig)
-            result = config_class.model_validate(v)
-            
-            return result
+            if has_bo_fields:
+                # Use BOAgentConfig when BO-specific fields are present
+                return BOAgentConfig.model_validate(v)
+            else:
+                # Fall back to base AgentConfig for other cases
+                return AgentConfig.model_validate(v)
             
         return v
 
