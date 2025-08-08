@@ -110,9 +110,12 @@ class TestRunModel(BaseModel):
             # since field validation order means agent might not be available yet
             has_bo_fields = {'sobol_num_trials', 'botorch_num_trials', 'seed_parameters'} & v.keys()
             
-            if has_bo_fields:
+            # Also check for agent_type discriminator field
+            is_bo_agent = v.get('agent_type') == 'bo_gp'
+            
+            if has_bo_fields or is_bo_agent:
                 logging.info(f"SCENARIO BO agent_config has BO fields: {v}")
-                # Use BOAgentConfig when BO-specific fields are present
+                # Use BOAgentConfig when BO-specific fields are present or agent_type indicates BO
                 return BOAgentConfig.model_validate(v)
             else:
                 logging.warning(f"SCENARIO agent_config missing BO fields! Input: {v}")

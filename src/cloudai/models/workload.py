@@ -38,6 +38,9 @@ class AgentConfig(BaseModel):
 class BOAgentConfig(AgentConfig):
     """Configuration for Bayesian Optimization agent."""
     
+    # Add discriminator field to identify this as a BO config
+    agent_type: str = "bo_gp"
+    
     # BO-specific parameters
     sobol_num_trials: Optional[int] = None
     botorch_num_trials: Optional[int] = None
@@ -59,6 +62,8 @@ class BOAgentConfig(AgentConfig):
         # Force exclude_none=False to preserve all fields
         kwargs['exclude_none'] = False
         result = super().model_dump(**kwargs)
+        # Ensure agent_type is always included to identify this as BO config
+        result['agent_type'] = self.agent_type
         import logging
         logging.info(f"📤 BOAgentConfig.model_dump() called, result: {result}")
         return result
@@ -166,8 +171,11 @@ class TestDefinition(BaseModel, ABC):
             # since field validation order means agent might not be available yet
             has_bo_fields = {'sobol_num_trials', 'botorch_num_trials', 'seed_parameters'} & v.keys()
             
-            if has_bo_fields:
-                # Use BOAgentConfig when BO-specific fields are present
+            # Also check for agent_type discriminator field
+            is_bo_agent = v.get('agent_type') == 'bo_gp'
+            
+            if has_bo_fields or is_bo_agent:
+                # Use BOAgentConfig when BO-specific fields are present or agent_type indicates BO
                 return BOAgentConfig.model_validate(v)
             else:
                 # Fall back to base AgentConfig for other cases
