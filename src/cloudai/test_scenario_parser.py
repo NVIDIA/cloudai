@@ -237,7 +237,13 @@ class TestScenarioParser:
             test_defined = test.test_definition.model_dump(exclude_none=False)
             tc_defined = test_info.tdef_model_dump()
             
+            import logging
+            logging.info(f"🔄 MERGE test_defined agent_config: {test_defined.get('agent_config', 'NOT_PRESENT')}")
+            logging.info(f"🔄 MERGE tc_defined agent_config: {tc_defined.get('agent_config', 'NOT_PRESENT')}")
+            
             merged_data = deep_merge(test_defined, tc_defined)
+            
+            logging.info(f"🔄 MERGE merged agent_config: {merged_data.get('agent_config', 'NOT_PRESENT')}")
             
             test.test_definition = tp.load_test_definition(merged_data, self.strict)
         elif test_info.test_template_name:  
