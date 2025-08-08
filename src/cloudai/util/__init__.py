@@ -23,25 +23,71 @@ from .command_shell import CommandShell
 from .utils import format_time_limit, parse_time_limit
 
 
-def prepare_output_dir(path: Path) -> Optional[Path]:
-    exists = False
+def _validate_path_format(path: Path) -> Optional[Path]:
     try:
-        exists = path.exists()
-    except PermissionError as e:
-        logging.error(f"Output path '{path.absolute()}' is not accessible: {e}")
+        return path.resolve()
+    except (RuntimeError, OSError) as e:
+        logging.error(f"Invalid path format '{path}': {e}")
         return None
 
-    if exists:
-        if not os.access(path, os.W_OK):
-            logging.error(f"Output path '{path.absolute()}' exists but is not writable.")
-            return None
-        if not path.is_dir():
-            logging.error(f"Output path '{path.absolute()}' exists but is not a directory.")
-            return None
-        return path
 
-    path.mkdir(parents=True)
+def _validate_parent_dir(path: Path, parent: Path) -> bool:
+    try:
+        if not parent.exists():
+            logging.error(f"Output path '{path.absolute()}' does not exist.")
+            return False
+        if not parent.is_dir():
+            logging.error(f"Output path '{path.absolute()}' is not a directory.")
+            return False
+        if not os.access(parent, os.W_OK):
+            logging.error(f"Output path '{path.absolute()}' is not writable.")
+            return False
+        return True
+    except PermissionError as e:
+        logging.error(f"Output path '{path.absolute()}' is not accessible: {e}")
+        return False
+
+
+def _validate_existing_path(path: Path) -> Optional[Path]:
+    if not path.is_dir():
+        logging.error(f"Output path '{path.absolute()}' exists but is not a directory.")
+        return None
+    if not os.access(path, os.W_OK):
+        logging.error(f"Output path '{path.absolute()}' exists but is not writable.")
+        return None
     return path
+
+
+def prepare_output_dir(path: Path) -> Optional[Path]:
+    resolved_path = _validate_path_format(path)
+    if resolved_path is None:
+        return None
+
+    if not _validate_parent_dir(path, resolved_path.parent):
+        return None
+
+    try:
+        if resolved_path.exists():
+            return _validate_existing_path(resolved_path)
+
+        # Path doesn't exist, try to create it
+        try:
+            resolved_path.mkdir(parents=True)
+            return resolved_path
+        except OSError as e:
+            logging.error(
+                f"Failed to create directory '{resolved_path.absolute()}': {e}. "
+                "Please check directory permissions and available disk space."
+            )
+            return None
+    except PermissionError:
+        logging.error(
+            f"Cannot access path '{resolved_path.absolute()}': Permission denied. Please check directory permissions."
+        )
+        return None
+    except OSError as e:
+        logging.error(f"Cannot access path '{resolved_path.absolute()}': {e}")
+        return None
 
 
 __all__ = [
