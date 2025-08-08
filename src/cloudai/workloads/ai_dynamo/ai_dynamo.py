@@ -15,11 +15,11 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cloudai.core import DockerImage, File, Installable
+from cloudai.core import DockerImage, File, GitRepo, Installable
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 
@@ -75,6 +75,9 @@ class AIDynamoTestDefinition(TestDefinition):
     cmd_args: AIDynamoCmdArgs
     _docker_image: Optional[DockerImage] = None
     script: File = File(Path(__file__).parent.parent / "ai_dynamo/ai_dynamo.sh")
+    dynamo_repo: GitRepo = GitRepo(
+        url="https://github.com/ai-dynamo/dynamo.git", commit="f7e468c7e8ff0d1426db987564e60572167e8464"
+    )
 
     @property
     def docker_image(self) -> DockerImage:
@@ -83,8 +86,8 @@ class AIDynamoTestDefinition(TestDefinition):
         return self._docker_image
 
     @property
-    def installables(self) -> list[Installable]:
-        return [self.docker_image, self.script]
+    def installables(self) -> List[Installable]:
+        return [self.docker_image, self.script, self.dynamo_repo]
 
     @property
     def huggingface_home_host_path(self) -> Path:
