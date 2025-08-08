@@ -617,90 +617,26 @@ def get_tp_overlap_config():
         tp_comm_overlap = False
     return tp_overlap_cfg, tp_comm_overlap
 
+def set_perf_optimization_configs(recipe):
+    recipe.model.config.cross_entropy_fusion_impl = "te"
+
+    is_ddp_obj = hasattr(recipe.trainer.strategy, "ddp") and not isinstance(recipe.trainer.strategy.ddp, str)
+    if is_ddp_obj:
+        # Disable local gradient checker at non-debugging mode
+        recipe.trainer.strategy.ddp.check_for_nan_in_grad = False
+        recipe.trainer.strategy.ddp.check_for_large_grads = False
+
+    return recipe
 
 # LLAMA3 8B Recipe
 @run.cli.factory(target=llm.pretrain)
 def cloudai_llama3_8b_recipe() -> run.Partial:
-    recipe = run.Partial(
-        llm.pretrain,
-        model=run.Config(LlamaModel, config=Llama3Config8B()),
-        trainer=run.Config(
-            nl.Trainer,
-            devices=8,
-            num_nodes=1,
-            accelerator="gpu",
-            max_steps=10,
-            limit_test_batches=50,
-            limit_val_batches=32,
-            log_every_n_steps=10,
-            accumulate_grad_batches=1,
-            use_distributed_sampler=False,
-            plugins=run.Config(
-                nl.MegatronMixedPrecision,
-                precision="bf16-mixed",
-                params_dtype=torch.bfloat16,
-                pipeline_dtype=torch.bfloat16,
-                autocast_enabled=False,
-                grad_reduce_in_fp32=False,
-            ),
-            strategy=run.Config(
-                nl.MegatronStrategy,
-                tensor_model_parallel_size=1,
-                pipeline_model_parallel_size=1,
-                context_parallel_size=2,
-                virtual_pipeline_model_parallel_size=None,
-                sequence_parallel=False,
-                gradient_as_bucket_view=True,
-                ddp=run.Config(
-                    DistributedDataParallelConfig,
-                    check_for_nan_in_grad=True,
-                    grad_reduce_in_fp32=True,
-                    overlap_grad_reduce=True,
-                    overlap_param_gather=True,
-                    average_in_collective=True,
-                ),
-            ),
-            num_sanity_val_steps=0,
-            val_check_interval=1000,
-            max_epochs=10,
-            callbacks=[
-                run.Config(NsysCallback, start_step=5, end_step=10),
-                run.Config(TimingCallback),
-            ],
-        ),
-        data=run.Config(
-            MockDataModule,
-            seq_length=8192,
-            micro_batch_size=1,
-            global_batch_size=32,
-            tokenizer=null_tokenizer(vocab_size=128256),
-        ),
-        optim=run.Config(
-            nl.MegatronOptimizerModule,
-            config=run.Config(
-                OptimizerConfig,
-                optimizer="adam",
-                lr=3e-4,
-                bf16=True,
-                fp16=False,
-                params_dtype=torch.bfloat16,
-                use_distributed_optimizer=True,
-                weight_decay=0.1,
-                adam_beta1=0.9,
-                adam_beta2=0.95,
-                adam_eps=1e-05,
-                clip_grad=1.0,
-            ),
-            lr_scheduler=run.Config(
-                CosineAnnealingScheduler,
-                warmup_steps=2000,
-                constant_steps=0,
-                min_lr=2.9999999999999997e-05,
-            ),
-        ),
-        resume=default_resume(),
-        log=default_log(),
-    )
+    from nemo.collections.llm.recipes.llama3_8b import pretrain_recipe
+
+    recipe = pretrain_recipe(performance_mode=True)
+
+    recipe.data.tokenizer = null_tokenizer(vocab_size=128256)
+    recipe.log = default_log()
     recipe.trainer.callbacks.append(
         run.Config(
             FLOPsMeasurementCallback,
