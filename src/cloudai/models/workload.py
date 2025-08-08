@@ -204,11 +204,16 @@ class TestDefinition(BaseModel, ABC):
             if param_name in action_space:
                 param_options = action_space[param_name]
                 if isinstance(param_options, list):
-                    if isinstance(value_spec, int) and 0 <= value_spec < len(param_options):
-                        resolved[param_name] = param_options[value_spec]
-                    elif value_spec in param_options:
+                    # First, try direct value match – this avoids ambiguity when the desired
+                    # literal value is itself an integer that could also be interpreted as an
+                    # index (e.g., 2 in [1, 2, 4]). Only if the value is not present in the
+                    # list do we fall back to interpreting it as an index.
+                    if value_spec in param_options:
                         resolved[param_name] = value_spec
+                    elif isinstance(value_spec, int) and 0 <= value_spec < len(param_options):
+                        resolved[param_name] = param_options[value_spec]
                     else:
+                        # As a last resort, pick the first option to guarantee a valid seed.
                         resolved[param_name] = param_options[0]
                 else:
                     resolved[param_name] = param_options
