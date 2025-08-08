@@ -52,10 +52,14 @@ class BOAgentConfig(AgentConfig):
     extra_params: Dict[str, Any] = Field(default_factory=dict)
 
     def __init__(self, **data):
+        # Ensure agent_type is always set even if not in input data
+        if 'agent_type' not in data:
+            data['agent_type'] = 'bo_gp'
         super().__init__(**data)
         import logging
         logging.info(f"🆕 BOAgentConfig created with data: {data}")
         logging.info(f"🆕 Final BOAgentConfig state: sobol={self.sobol_num_trials}, botorch={self.botorch_num_trials}, seeds={self.seed_parameters}")
+        logging.info(f"🆕 BOAgentConfig agent_type: {self.agent_type}")
 
     def model_dump(self, **kwargs):
         """Override model_dump to ensure all BO fields are preserved."""
