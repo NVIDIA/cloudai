@@ -188,17 +188,23 @@ class TestPrepareOutputDir:
     def test_exists_but_file(self, tmp_path: Path, caplog: pytest.LogCaptureFixture):
         p = tmp_path / "file"
         p.touch()
-        assert prepare_output_dir(p) is None
-        assert f"Output path '{p.absolute()}' exists but is not a directory." in caplog.text
+        with pytest.raises(SystemExit) as exc_info:
+            prepare_output_dir(p)
+        assert exc_info.value.code == 1
+        assert f"{p} is not a directory." in caplog.text
 
     def test_not_writable(self, no_access_dir: Path, caplog: pytest.LogCaptureFixture):
-        assert prepare_output_dir(no_access_dir) is None
-        assert f"Output path '{no_access_dir.absolute()}' exists but is not writable." in caplog.text
+        with pytest.raises(SystemExit) as exc_info:
+            prepare_output_dir(no_access_dir)
+        assert exc_info.value.code == 1
+        assert f"{no_access_dir} is not writable." in caplog.text
 
     def test_parent_wo_access(self, no_access_dir: Path, caplog: pytest.LogCaptureFixture):
         subdir = no_access_dir / "subdir"
-        assert prepare_output_dir(subdir) is None
-        assert f"Output path '{subdir.absolute()}' is not accessible:" in caplog.text
+        with pytest.raises(SystemExit) as exc_info:
+            prepare_output_dir(subdir)
+        assert exc_info.value.code == 1
+        assert f"{subdir} is not writable." in caplog.text
 
 
 def test_system_installables_are_used(slurm_system: SlurmSystem):

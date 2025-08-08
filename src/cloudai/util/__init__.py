@@ -16,6 +16,7 @@
 
 import logging
 import os
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -23,25 +24,78 @@ from .command_shell import CommandShell
 from .utils import format_time_limit, parse_time_limit
 
 
-def prepare_output_dir(path: Path) -> Optional[Path]:
-    exists = False
+def _validate_path_format(path: Path) -> Optional[Path]:
     try:
-        exists = path.exists()
-    except PermissionError as e:
-        logging.error(f"Output path '{path.absolute()}' is not accessible: {e}")
+        return path.resolve()
+    except (RuntimeError, OSError) as e:
+        logging.error(f"Invalid path format '{path}': {e}")
         return None
 
-    if exists:
-        if not os.access(path, os.W_OK):
-            logging.error(f"Output path '{path.absolute()}' exists but is not writable.")
-            return None
-        if not path.is_dir():
-            logging.error(f"Output path '{path.absolute()}' exists but is not a directory.")
-            return None
-        return path
 
-    path.mkdir(parents=True)
+def _validate_parent_dir(path: Path, parent: Path) -> bool:
+    try:
+        if not parent.exists():
+            msg = f"{path} does not exist."
+            logging.error(msg)
+            sys.exit(1)
+        if not parent.is_dir():
+            msg = f"{path} is not a directory."
+            logging.error(msg)
+            sys.exit(1)
+        if not os.access(parent, os.W_OK):
+            msg = f"{path} is not writable."
+            logging.error(msg)
+            sys.exit(1)
+        return True
+    except PermissionError:
+        msg = f"Cannot access {path}: Permission denied."
+        logging.error(msg)
+        sys.exit(1)
+
+
+def _validate_existing_path(path: Path) -> Optional[Path]:
+    if not path.is_dir():
+        msg = f"{path} is not a directory."
+        logging.error(msg)
+        sys.exit(1)
+    if not os.access(path, os.W_OK):
+        msg = f"{path} is not writable."
+        logging.error(msg)
+        sys.exit(1)
     return path
+
+
+def prepare_output_dir(path: Path) -> Optional[Path]:
+    resolved_path = _validate_path_format(path)
+    if resolved_path is None:
+        return None
+
+    if not _validate_parent_dir(path, resolved_path.parent):
+        return None
+
+    try:
+        if resolved_path.exists():
+            return _validate_existing_path(resolved_path)
+
+        # Path doesn't exist, try to create it
+        try:
+            resolved_path.mkdir(parents=True)
+            return resolved_path
+        except OSError as e:
+            msg = (
+                f"Failed to create directory '{resolved_path.absolute()}': {e}. "
+                "Please check directory permissions and available disk space."
+            )
+            logging.error(msg)
+            sys.exit(1)
+    except PermissionError:
+        logging.error(
+            f"Cannot access path '{resolved_path.absolute()}': Permission denied. Please check directory permissions."
+        )
+        return None
+    except OSError as e:
+        logging.error(f"Cannot access path '{resolved_path.absolute()}': {e}")
+        return None
 
 
 __all__ = [
