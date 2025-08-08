@@ -17,8 +17,11 @@
 from __future__ import annotations
 
 import logging
+import shutil
+import subprocess
+from pathlib import Path
 
-from cloudai.core import BaseInstaller, DockerImage, Installable, InstallStatusResult
+from cloudai.core import BaseInstaller, DockerImage, GitRepo, Installable, InstallStatusResult
 from cloudai.util.lazy_imports import lazy
 
 
@@ -120,19 +123,87 @@ class KubernetesInstaller(BaseInstaller):
     def install_one(self, item: Installable) -> InstallStatusResult:
         if isinstance(item, DockerImage):
             return InstallStatusResult(True, f"Docker image {item} installed")
+        elif isinstance(item, GitRepo):
+            return self._install_one_git_repo(item)
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
     def uninstall_one(self, item: Installable) -> InstallStatusResult:
         if isinstance(item, DockerImage):
             return InstallStatusResult(True, f"Docker image {item} uninstalled")
+        elif isinstance(item, GitRepo):
+            return self._uninstall_git_repo(item)
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
     def is_installed_one(self, item: Installable) -> InstallStatusResult:
         if isinstance(item, DockerImage):
             return InstallStatusResult(True, f"Docker image {item} is installed")
+        elif isinstance(item, GitRepo):
+            repo_path = self.system.install_path / item.repo_name
+            if repo_path.exists():
+                item.installed_path = repo_path
+                return InstallStatusResult(True)
+            return InstallStatusResult(False, f"Git repository {item.url} not cloned")
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
     def mark_as_installed_one(self, item: Installable) -> InstallStatusResult:
         if isinstance(item, DockerImage):
             return InstallStatusResult(True, f"Docker image {item} marked as installed")
+        elif isinstance(item, GitRepo):
+            item.installed_path = self.system.install_path / item.repo_name
+            return InstallStatusResult(True)
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
+
+    def _install_one_git_repo(self, item: GitRepo) -> InstallStatusResult:
+        repo_path = self.system.install_path / item.repo_name
+        if repo_path.exists():
+            item.installed_path = repo_path
+            msg = f"Git repository already exists at {repo_path}."
+            logging.debug(msg)
+            return InstallStatusResult(True, msg)
+
+        res = self._clone_repository(item.url, repo_path)
+        if not res.success:
+            return res
+
+        res = self._checkout_commit(item.commit, repo_path)
+        if not res.success:
+            return res
+
+        item.installed_path = repo_path
+        return InstallStatusResult(True)
+
+    def _clone_repository(self, git_url: str, path: Path) -> InstallStatusResult:
+        logging.debug(f"Cloning repository {git_url} into {path}")
+        clone_cmd = ["git", "clone"]
+
+        if self.is_low_thread_environment:
+            clone_cmd.extend(["-c", "pack.threads=4"])
+
+        clone_cmd.extend([git_url, str(path)])
+
+        logging.debug(f"Running git clone command: {' '.join(clone_cmd)}")
+        result = subprocess.run(clone_cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            return InstallStatusResult(False, f"Failed to clone repository: {result.stderr}")
+        return InstallStatusResult(True)
+
+    def _checkout_commit(self, commit_hash: str, path: Path) -> InstallStatusResult:
+        logging.debug(f"Checking out specific commit in {path}: {commit_hash}")
+        checkout_cmd = ["git", "checkout", commit_hash]
+        result = subprocess.run(checkout_cmd, cwd=str(path), capture_output=True, text=True)
+        if result.returncode != 0:
+            return InstallStatusResult(False, f"Failed to checkout commit: {result.stderr}")
+        return InstallStatusResult(True)
+
+    def _uninstall_git_repo(self, item: GitRepo) -> InstallStatusResult:
+        logging.debug(f"Uninstalling git repository at {item.installed_path=}")
+        repo_path = item.installed_path if item.installed_path else self.system.install_path / item.repo_name
+        if not repo_path.exists():
+            msg = f"Repository {item.url} is not cloned."
+            return InstallStatusResult(True, msg)
+
+        logging.debug(f"Removing folder {repo_path}")
+        shutil.rmtree(repo_path)
+        item.installed_path = None
+
+        return InstallStatusResult(True)
