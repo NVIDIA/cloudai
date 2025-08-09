@@ -74,10 +74,11 @@ array_to_args() {
 }
 
 gpu_count() {
-  echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
   local v="${CUDA_VISIBLE_DEVICES:-}"
   [[ -z "$v" ]] && { echo 0; return; }
-  tr ',' '\n' <<<"$v" | wc -l
+  local arr
+  IFS=',' read -r -a arr <<< "$v"
+  echo "${#arr[@]}"
 }
 
 run_bg() {
@@ -162,8 +163,10 @@ derive_gpu_splits() {
   fi
 
   local ngpu
-  ngpu=$(gpu_count)
-  (( ngpu > 0 )) || die "No GPUs found in CUDA_VISIBLE_DEVICES"
+  ngpu="$(gpu_count)"
+  if (( ngpu == 0 )); then
+    die "No GPUs found in CUDA_VISIBLE_DEVICES"
+  fi
 
   if [[ "${dynamo_args["multiple-prefill-workers-per-node"]}" != "true" ]]; then
     dynamo_args["prefill-gpus-per-worker"]="$ngpu"
