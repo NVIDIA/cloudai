@@ -216,19 +216,17 @@ launch_node_setup_cmd() {
 }
 
 launch_etcd() {
-  log "Launching etcd on port ${dynamo_args["etcd-port"]}"
-  run_bg \
-    ${dynamo_args["etcd-cmd"]} \
-      --listen-client-urls "http://0.0.0.0:${dynamo_args["etcd-port"]}" \
-      --advertise-client-urls "http://0.0.0.0:${dynamo_args["etcd-port"]}" \
-      > "${RESULTS_DIR}/etcd.log" 2>&1 >/dev/null
+  log "Launching etcd"
+  bash -lc "${dynamo_args["etcd-cmd"]} \
+    --listen-client-urls http://0.0.0.0:${dynamo_args["etcd-port"]} \
+    --advertise-client-urls http://0.0.0.0:${dynamo_args["etcd-port"]}" \
+    > "${RESULTS_DIR}/etcd.log" 2>&1 &
 }
 
 launch_nats() {
-  log "Launching nats on port ${dynamo_args["nats-port"]}"
-  run_bg \
-    ${dynamo_args["nats-cmd"]} -p "${dynamo_args["nats-port"]}" \
-    > "${RESULTS_DIR}/nats.log" 2>&1 >/dev/null
+  log "Launching nats"
+  bash -lc "${dynamo_args["nats-cmd"]} -p ${dynamo_args["nats-port"]}" \
+    > "${RESULTS_DIR}/nats.log" 2>&1 &
 }
 
 wait_for_etcd() {
@@ -241,10 +239,9 @@ wait_for_etcd() {
 }
 
 launch_ingress() {
-  log "Launching ingress: ${dynamo_args["ingress-cmd"]} --http-port ${dynamo_args["port"]}"
-  run_bg \
-    ${dynamo_args["ingress-cmd"]} --http-port "${dynamo_args["port"]}" \
-    > "${RESULTS_DIR}/dynamo_ingress.log" 2>&1 >/dev/null
+  log "Launching ingress with cmd: ${dynamo_args["ingress-cmd"]} --http-port ${dynamo_args["port"]}"
+  bash -lc "${dynamo_args["ingress-cmd"]} --http-port ${dynamo_args["port"]}" \
+    > "${RESULTS_DIR}/dynamo_ingress.log" 2>&1 &
 }
 
 launch_workers() {
