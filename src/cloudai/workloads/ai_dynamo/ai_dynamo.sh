@@ -74,6 +74,7 @@ array_to_args() {
 }
 
 gpu_count() {
+  echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
   local v="${CUDA_VISIBLE_DEVICES:-}"
   [[ -z "$v" ]] && { echo 0; return; }
   tr ',' '\n' <<<"$v" | wc -l
