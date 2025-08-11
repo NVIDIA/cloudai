@@ -39,6 +39,12 @@ dynamo_args["num-prefill-nodes"]=1
 dynamo_args["num-decode-nodes"]=1
 dynamo_args["prefill-nodelist"]=""
 dynamo_args["decode-nodelist"]=""
+dynamo_args["tp-arg-name"]="tensor-parallel-size"
+dynamo_args["pp-arg-name"]="pipeline-parallel-size"
+dynamo_args["multiple-prefill-workers-per-node"]="true"
+dynamo_args["multiple-decode-workers-per-node"]="true"
+dynamo_args["prefill-initialized-regex"]="prefill.*initialized"
+dynamo_args["decode-initialized-regex"]="decode.*initialized"
 
 # GenAI Perf params
 GENAI_PERF_PROFILE_EXPORT_FILE="profile.json"
@@ -97,6 +103,43 @@ function parse_args()
   genai_perf_args["--endpoint"]=${dynamo_args["endpoint"]}
   genai_perf_args["--artifact-dir"]="${RESULTS_DIR}/${GENAI_PERF_ARTIFACT_DIR}/"
   genai_perf_args["--profile-export-file"]="${GENAI_PERF_PROFILE_EXPORT_FILE}"
+
+  # Worker GPU allocation logic
+  local tp_arg_name="--${dynamo_args["tp-arg-name"]}"
+  local pp_arg_name="--${dynamo_args["pp-arg-name"]}"
+
+  dynamo_args["prefill-gpus-per-worker"]=$(( prefill_args[$tp_arg_name] * prefill_args[$pp_arg_name] ))
+  dynamo_args["decode-gpus-per-worker"]=$(( decode_args[$tp_arg_name] * decode_args[$pp_arg_name] ))
+
+  if [[ ${dynamo_args["prefill-gpus-per-worker"]} -eq 0 ]] || [[ ${dynamo_args["decode-gpus-per-worker"]} -eq 0 ]]; then
+    log "ERROR: Invalid TP/PP configuration"
+    exit 1
+  fi
+
+  local num_gpus=$(echo $CUDA_VISIBLE_DEVICES | tr ',' '\n' | wc -l)
+  if [[ $num_gpus -eq 0 ]]; then
+    log "ERROR: No GPUs found in CUDA_VISIBLE_DEVICES"
+    exit 1
+  fi
+
+  if [[ "${dynamo_args["multiple-prefill-workers-per-node"]}" != "true" ]]; then
+    dynamo_args["prefill-gpus-per-worker"]=$num_gpus
+  fi
+
+  if [[ "${dynamo_args["multiple-decode-workers-per-node"]}" != "true" ]]; then
+    dynamo_args["decode-gpus-per-worker"]=$num_gpus
+  fi
+
+  dynamo_args["prefill-workers-per-node"]=$(( num_gpus / dynamo_args["prefill-gpus-per-worker"] ))
+  dynamo_args["decode-workers-per-node"]=$(( num_gpus / dynamo_args["decode-gpus-per-worker"] ))
+
+  if [[ -n "${prefill_args["--num-nodes"]}" ]]; then
+    dynamo_args["num-prefill-nodes"]=${prefill_args["--num-nodes"]}
+  fi
+
+  if [[ -n "${decode_args["--num-nodes"]}" ]]; then
+    dynamo_args["num-decode-nodes"]=${decode_args["--num-nodes"]}
+  fi
 
   log "Dynamo args: $(for key in "${!dynamo_args[@]}"; do echo -n "$key: ${dynamo_args[$key]}; "; done)"
   log "Prefill args: $(for key in "${!prefill_args[@]}"; do echo -n "$key: ${prefill_args[$key]}; "; done)"
@@ -180,18 +223,21 @@ function exit_on_error()
 
 function wait_for_dynamo_frontend()
 {
+  local num_prefill_workers=$(( dynamo_args["num-prefill-nodes"] * dynamo_args["prefill-workers-per-node"] ))
+  local num_decode_workers=$(( dynamo_args["num-decode-nodes"] * dynamo_args["decode-workers-per-node"] ))
+
   while [[ 1 ]]; do
     num_initialized_prefill=$(
       grep ${dynamo_args["prefill-initialized-regex"]} $RESULTS_DIR/*prefill* -il 2> /dev/null |wc -l)
     num_initialized_decode=$(
       grep ${dynamo_args["decode-initialized-regex"]} $RESULTS_DIR/*decode* -il 2> /dev/null |wc -l)
 
-    if [[ $num_initialized_prefill == ${prefill_args["--num-nodes"]} ]] && \
-       [[ $num_initialized_decode == ${decode_args["--num-nodes"]} ]]; then
+    if [[ $num_initialized_prefill == $num_prefill_workers ]] && \
+       [[ $num_initialized_decode == $num_decode_workers ]]; then
       break
     fi
-    log "Initialized: $num_initialized_prefill/${prefill_args["--num-nodes"]} prefill; and "\
-        "$num_initialized_decode/${decode_args["--num-nodes"]} decode workers."
+    log "Initialized: $num_initialized_prefill/$num_prefill_workers prefill; and "\
+        "$num_initialized_decode/$num_decode_workers decode workers."
     exit_on_error
     sleep 30
   done
@@ -236,20 +282,38 @@ function launch_prefill()
 {
   wait_for_etcd
 
-  local prefill_arguments=$(array_to_args prefill_args)
-  log "Launching prefill with args: $prefill_arguments ${prefill_args["--extra-args"]}"
+  local workers_per_node=${dynamo_args["prefill-workers-per-node"]}
 
-  ${dynamo_args["prefill-cmd"]} ${prefill_arguments} ${prefill_args["--extra-args"]} > ${RESULTS_DIR}/dynamo_prefill_${SLURM_NODEID}.log 2>&1
+  for i in $(seq 0 $(( $workers_per_node - 1 ))); do
+    local start=$(( 1 + (i * dynamo_args["prefill-gpus-per-worker"]) ))
+    local end=$(( start + dynamo_args["prefill-gpus-per-worker"] - 1 ))
+    local gpu_list=$(echo $CUDA_VISIBLE_DEVICES | cut -d',' -f${start}-${end})
+    local log_file=${RESULTS_DIR}/dynamo_prefill_${SLURM_NODEID}_${i}.log
+
+    log "Launching prefill worker $i on GPUs $gpu_list"
+    CUDA_VISIBLE_DEVICES=$gpu_list \
+      ${dynamo_args["prefill-cmd"]} \
+      $(array_to_args prefill_args) ${prefill_args["--extra-args"]} > $log_file 2>&1 &
+  done
 }
 
 function launch_decode()
 {
   wait_for_etcd
 
-  local decode_arguments=$(array_to_args decode_args)
-  log "Launching decode with args: $decode_arguments ${decode_args["--extra-args"]}"
+  local workers_per_node=${dynamo_args["decode-workers-per-node"]}
 
-  ${dynamo_args["decode-cmd"]} ${decode_arguments} ${decode_args["--extra-args"]} > ${RESULTS_DIR}/dynamo_decode_${SLURM_NODEID}.log 2>&1
+  for i in $(seq 0 $(( $workers_per_node - 1 ))); do
+    local start=$(( 1 + (i * dynamo_args["decode-gpus-per-worker"]) ))
+    local end=$(( start + dynamo_args["decode-gpus-per-worker"] - 1 ))
+    local gpu_list=$(echo $CUDA_VISIBLE_DEVICES | cut -d',' -f${start}-${end})
+    local log_file=${RESULTS_DIR}/dynamo_decode_${SLURM_NODEID}_${i}.log
+
+    log "Launching decode worker $i on GPUs $gpu_list"
+    CUDA_VISIBLE_DEVICES=$gpu_list \
+      ${dynamo_args["decode-cmd"]} \
+      $(array_to_args decode_args) ${decode_args["--extra-args"]} > $log_file 2>&1 &
+  done
 }
 
 function main()
