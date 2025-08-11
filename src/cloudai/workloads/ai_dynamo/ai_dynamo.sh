@@ -56,8 +56,7 @@ function log()
   echo "[$(date --iso-8601=ns) $(hostname)]: $@"
 }
 
-function parse_args()
-{
+_parse_cli_pairs() {
   log "Parsing args:"
   while [[ $# -ge 2 ]]; do
     echo "  $1 $2"
@@ -78,8 +77,9 @@ function parse_args()
     esac
     shift; shift;
   done
+}
 
-  # Patch Dynamo args
+_patch_dynamo_args() {
   if [[ -z "${dynamo_args["decode-nodelist"]}" ]]; then
     dynamo_args["decode-nodelist"]=$(echo $DYNAMO_NODELIST | cut -d',' -f1-${dynamo_args["num-decode-nodes"]})
   fi
@@ -93,19 +93,20 @@ function parse_args()
   fi
 
   dynamo_args["url"]="http://${dynamo_args["frontend-node"]}:${dynamo_args["port"]}"
+}
 
-  # Patch Prefill/Decode args
+_patch_section_args() {
   prefill_args["--model"]=${dynamo_args["model"]}
   decode_args["--model"]=${dynamo_args["model"]}
 
-  # Patch GenAI Perf args
   genai_perf_args["--model"]=${dynamo_args["model"]}
   genai_perf_args["--url"]=${dynamo_args["url"]}
   genai_perf_args["--endpoint"]=${dynamo_args["endpoint"]}
   genai_perf_args["--artifact-dir"]="${RESULTS_DIR}/${GENAI_PERF_ARTIFACT_DIR}/"
   genai_perf_args["--profile-export-file"]="${GENAI_PERF_PROFILE_EXPORT_FILE}"
+}
 
-  # Worker GPU allocation logic
+_compute_worker_allocation() {
   local tp_arg_name="--${dynamo_args["tp-arg-name"]}"
   local pp_arg_name="--${dynamo_args["pp-arg-name"]}"
 
@@ -137,15 +138,25 @@ function parse_args()
   if [[ -n "${prefill_args["--num-nodes"]}" ]]; then
     dynamo_args["num-prefill-nodes"]=${prefill_args["--num-nodes"]}
   fi
-
   if [[ -n "${decode_args["--num-nodes"]}" ]]; then
     dynamo_args["num-decode-nodes"]=${decode_args["--num-nodes"]}
   fi
+}
 
+_dump_args() {
   log "Dynamo args: $(for key in "${!dynamo_args[@]}"; do echo -n "$key: ${dynamo_args[$key]}; "; done)"
   log "Prefill args: $(for key in "${!prefill_args[@]}"; do echo -n "$key: ${prefill_args[$key]}; "; done)"
   log "Decode args: $(for key in "${!decode_args[@]}"; do echo -n "$key: ${decode_args[$key]}; " ; done)"
   log "GenAI perf args: $(for key in "${!genai_perf_args[@]}"; do echo -n "$key: ${genai_perf_args[$key]}; "; done)"
+}
+
+function parse_args()
+{
+  _parse_cli_pairs "$@"
+  _patch_dynamo_args
+  _patch_section_args
+  _compute_worker_allocation
+  _dump_args
 }
 
 function array_to_args()
@@ -361,7 +372,6 @@ function main()
 
   if [[ "${dynamo_args["frontend-node"]}" == *"$SLURMD_NODENAME"* ]]; then
     launch_genai_perf
-
     touch "$DONE_MARKER"
   fi
 
