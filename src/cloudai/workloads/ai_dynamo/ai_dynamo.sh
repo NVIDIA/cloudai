@@ -56,8 +56,7 @@ function log()
   echo "[$(date --iso-8601=ns) $(hostname)]: $@"
 }
 
-function parse_args()
-{
+_parse_cli_pairs() {
   log "Parsing args:"
   while [[ $# -ge 2 ]]; do
     echo "  $1 $2"
@@ -78,8 +77,9 @@ function parse_args()
     esac
     shift; shift;
   done
+}
 
-  # Patch Dynamo args
+_patch_dynamo_args() {
   if [[ -z "${dynamo_args["decode-nodelist"]}" ]]; then
     dynamo_args["decode-nodelist"]=$(echo $DYNAMO_NODELIST | cut -d',' -f1-${dynamo_args["num-decode-nodes"]})
   fi
@@ -93,19 +93,20 @@ function parse_args()
   fi
 
   dynamo_args["url"]="http://${dynamo_args["frontend-node"]}:${dynamo_args["port"]}"
+}
 
-  # Patch Prefill/Decode args
+_patch_section_args() {
   prefill_args["--model"]=${dynamo_args["model"]}
   decode_args["--model"]=${dynamo_args["model"]}
 
-  # Patch GenAI Perf args
   genai_perf_args["--model"]=${dynamo_args["model"]}
   genai_perf_args["--url"]=${dynamo_args["url"]}
   genai_perf_args["--endpoint"]=${dynamo_args["endpoint"]}
   genai_perf_args["--artifact-dir"]="${RESULTS_DIR}/${GENAI_PERF_ARTIFACT_DIR}/"
   genai_perf_args["--profile-export-file"]="${GENAI_PERF_PROFILE_EXPORT_FILE}"
+}
 
-  # Worker GPU allocation logic
+_compute_worker_allocation() {
   local tp_arg_name="--${dynamo_args["tp-arg-name"]}"
   local pp_arg_name="--${dynamo_args["pp-arg-name"]}"
 
@@ -141,11 +142,22 @@ function parse_args()
   if [[ -n "${decode_args["--num-nodes"]}" ]]; then
     dynamo_args["num-decode-nodes"]=${decode_args["--num-nodes"]}
   fi
+}
 
+_dump_args() {
   log "Dynamo args: $(for key in "${!dynamo_args[@]}"; do echo -n "$key: ${dynamo_args[$key]}; "; done)"
   log "Prefill args: $(for key in "${!prefill_args[@]}"; do echo -n "$key: ${prefill_args[$key]}; "; done)"
   log "Decode args: $(for key in "${!decode_args[@]}"; do echo -n "$key: ${decode_args[$key]}; " ; done)"
   log "GenAI perf args: $(for key in "${!genai_perf_args[@]}"; do echo -n "$key: ${genai_perf_args[$key]}; "; done)"
+}
+
+function parse_args()
+{
+  _parse_cli_pairs "$@"
+  _patch_dynamo_args
+  _patch_section_args
+  _compute_worker_allocation
+  _dump_args
 }
 
 function array_to_args()
@@ -222,16 +234,54 @@ function exit_on_error()
   fi
 }
 
+_total_workers_prefill() {
+  echo $(( dynamo_args["num-prefill-nodes"] * dynamo_args["prefill-workers-per-node"] ))
+}
+
+_total_workers_decode() {
+  echo $(( dynamo_args["num-decode-nodes"] * dynamo_args["decode-workers-per-node"] ))
+}
+
+_count_initialized_prefill() {
+  grep ${dynamo_args["prefill-initialized-regex"]} $RESULTS_DIR/*prefill* -il 2> /dev/null | wc -l
+}
+
+_count_initialized_decode() {
+  grep ${dynamo_args["decode-initialized-regex"]} $RESULTS_DIR/*decode* -il 2> /dev/null | wc -l
+}
+
+_gpu_list_for_worker() {
+  local per_worker=$1
+  local idx=$2
+  local start=$(( 1 + (idx * per_worker) ))
+  local end=$(( start + per_worker - 1 ))
+  echo "$(echo $CUDA_VISIBLE_DEVICES | cut -d',' -f${start}-${end})"
+}
+
+_log_file_for_worker() {
+  local role="$1"
+  local idx="$2"
+  echo "${RESULTS_DIR}/dynamo_${role}_${SLURM_NODEID}_${idx}.log"
+}
+
+_probe_frontend_once() {
+  local json='{
+    "model": "'${dynamo_args["model"]}'",
+    "messages": [{"role": "user", "content": "The color of sky is"}],
+    "stream": false,
+    "max_tokens": 10
+  }'
+  curl -s -X POST "${dynamo_args["url"]}/v1/chat/completions" -H "Content-Type: application/json" -d "$json"
+}
+
 function wait_for_dynamo_frontend()
 {
-  local num_prefill_workers=$(( dynamo_args["num-prefill-nodes"] * dynamo_args["prefill-workers-per-node"] ))
-  local num_decode_workers=$(( dynamo_args["num-decode-nodes"] * dynamo_args["decode-workers-per-node"] ))
+  local num_prefill_workers=$(_total_workers_prefill)
+  local num_decode_workers=$(_total_workers_decode)
 
   while [[ 1 ]]; do
-    num_initialized_prefill=$(
-      grep ${dynamo_args["prefill-initialized-regex"]} $RESULTS_DIR/*prefill* -il 2> /dev/null |wc -l)
-    num_initialized_decode=$(
-      grep ${dynamo_args["decode-initialized-regex"]} $RESULTS_DIR/*decode* -il 2> /dev/null |wc -l)
+    num_initialized_prefill=$(_count_initialized_prefill)
+    num_initialized_decode=$(_count_initialized_decode)
 
     if [[ $num_initialized_prefill == $num_prefill_workers ]] && \
        [[ $num_initialized_decode == $num_decode_workers ]]; then
@@ -261,15 +311,8 @@ function launch_genai_perf()
 {
   wait_for_dynamo_frontend
 
-  JSON_PAYLOAD='{
-    "model": "'${dynamo_args["model"]}'",
-    "messages": [{"role": "user", "content": "The color of sky is"}],
-    "stream": false,
-    "max_tokens": 10
-  }'
-
-  RESPONSE=$(curl -s -X POST ${dynamo_args["url"]}/v1/chat/completions -H "Content-Type: application/json" -d "$JSON_PAYLOAD")
-  echo "Response: $RESPONSE"
+  local resp=$(_probe_frontend_once)
+  echo "Response: $resp"
 
   local genai_perf_arguments=$(array_to_args genai_perf_args)
   log "Launching genai-perf with args: $genai_perf_arguments ${genai_perf_args["--extra-args"]}"
@@ -286,10 +329,8 @@ function launch_prefill()
   local workers_per_node=${dynamo_args["prefill-workers-per-node"]}
 
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
-    local start=$(( 1 + (i * dynamo_args["prefill-gpus-per-worker"]) ))
-    local end=$(( start + dynamo_args["prefill-gpus-per-worker"] - 1 ))
-    local gpu_list=$(echo $CUDA_VISIBLE_DEVICES | cut -d',' -f${start}-${end})
-    local log_file=${RESULTS_DIR}/dynamo_prefill_${SLURM_NODEID}_${i}.log
+    local gpu_list=$(_gpu_list_for_worker "${dynamo_args["prefill-gpus-per-worker"]}" "$i")
+    local log_file=$(_log_file_for_worker "prefill" "$i")
 
     log "Launching prefill worker $i on GPUs $gpu_list"
     CUDA_VISIBLE_DEVICES=$gpu_list \
@@ -305,10 +346,8 @@ function launch_decode()
   local workers_per_node=${dynamo_args["decode-workers-per-node"]}
 
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
-    local start=$(( 1 + (i * dynamo_args["decode-gpus-per-worker"]) ))
-    local end=$(( start + dynamo_args["decode-gpus-per-worker"] - 1 ))
-    local gpu_list=$(echo $CUDA_VISIBLE_DEVICES | cut -d',' -f${start}-${end})
-    local log_file=${RESULTS_DIR}/dynamo_decode_${SLURM_NODEID}_${i}.log
+    local gpu_list=$(_gpu_list_for_worker "${dynamo_args["decode-gpus-per-worker"]}" "$i")
+    local log_file=$(_log_file_for_worker "decode" "$i")
 
     log "Launching decode worker $i on GPUs $gpu_list"
     CUDA_VISIBLE_DEVICES=$gpu_list \
@@ -325,43 +364,64 @@ function log_node_role()
   echo "${node_name},${role}" >> "$roles_file"
 }
 
-function main()
-{
+_current_node_name() {
+  echo "${SLURMD_NODENAME:-$(hostname)}"
+}
+
+_is_frontend_node() {
+  local name="$(_current_node_name)"
+  [[ "${dynamo_args["frontend-node"]}" == *"$name"* ]]
+}
+
+_is_decode_node() {
+  local name="$(_current_node_name)"
+  [[ "${dynamo_args["decode-nodelist"]}" == *"$name"* ]]
+}
+
+_is_prefill_node() {
+  local name="$(_current_node_name)"
+  [[ "${dynamo_args["prefill-nodelist"]}" == *"$name"* ]]
+}
+
+_init_runtime_env() {
   export HF_HOME="${HUGGINGFACE_HOME}"
   export NATS_SERVER="nats://${dynamo_args["frontend-node"]}:${dynamo_args["nats-port"]}"
   export ETCD_ENDPOINTS="http://${dynamo_args["frontend-node"]}:${dynamo_args["etcd-port"]}"
   export UCX_LOG_FILE="${RESULTS_DIR}/ucx_log_%h.log"
-
   DONE_MARKER="${RESULTS_DIR}/${DONE_MARKER}"
+}
+
+function main()
+{
+  _init_runtime_env
 
   launch_node_setup_cmd
 
   cd ${dynamo_args["workspace-path"]}
 
-  if [[ "${dynamo_args["frontend-node"]}" == *"$SLURMD_NODENAME"* ]]; then
+  if _is_frontend_node; then
     log "Node ID: $SLURM_NODEID, Role: frontend"
-    log_node_role "$SLURMD_NODENAME" "frontend"
+    log_node_role "$(_current_node_name)" "frontend"
     launch_etcd &
     launch_nats &
     wait_for_etcd
     launch_ingress &
   fi
 
-  if [[ "${dynamo_args["decode-nodelist"]}" == *"$SLURMD_NODENAME"* ]]; then
+  if _is_decode_node; then
     log "Node ID: $SLURM_NODEID, Role: decode"
-    log_node_role "$SLURMD_NODENAME" "decode"
+    log_node_role "$(_current_node_name)" "decode"
     launch_decode &
   fi
 
-  if [[ "${dynamo_args["prefill-nodelist"]}" == *"$SLURMD_NODENAME"* ]]; then
+  if _is_prefill_node; then
     log "Node ID: $SLURM_NODEID, Role: prefill"
-    log_node_role "$SLURMD_NODENAME" "prefill"
+    log_node_role "$(_current_node_name)" "prefill"
     launch_prefill &
   fi
 
-  if [[ "${dynamo_args["frontend-node"]}" == *"$SLURMD_NODENAME"* ]]; then
+  if _is_frontend_node; then
     launch_genai_perf
-
     touch "$DONE_MARKER"
   fi
 
