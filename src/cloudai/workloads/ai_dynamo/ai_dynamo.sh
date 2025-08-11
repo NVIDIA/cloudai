@@ -4,6 +4,7 @@
 RESULTS_DIR="/cloudai_run_results"
 HUGGINGFACE_HOME="/root/.cache/huggingface"
 DONE_MARKER="frontend_done.marker"
+NODE_ROLES_FILE="node_roles.log"
 
 export DYN_SDK_DISABLE_ANSI_LOGGING=1
 export VLLM_DISABLE_COLORED_OUTPUT=1
@@ -316,6 +317,14 @@ function launch_decode()
   done
 }
 
+function log_node_role()
+{
+  local node_name=$1
+  local role=$2
+  local roles_file="${RESULTS_DIR}/${NODE_ROLES_FILE}"
+  echo "${node_name},${role}" >> "$roles_file"
+}
+
 function main()
 {
   export HF_HOME="${HUGGINGFACE_HOME}"
@@ -331,6 +340,7 @@ function main()
 
   if [[ "${dynamo_args["frontend-node"]}" == *"$SLURMD_NODENAME"* ]]; then
     log "Node ID: $SLURM_NODEID, Role: frontend"
+    log_node_role "$SLURMD_NODENAME" "frontend"
     launch_etcd &
     launch_nats &
     wait_for_etcd
@@ -339,11 +349,13 @@ function main()
 
   if [[ "${dynamo_args["decode-nodelist"]}" == *"$SLURMD_NODENAME"* ]]; then
     log "Node ID: $SLURM_NODEID, Role: decode"
+    log_node_role "$SLURMD_NODENAME" "decode"
     launch_decode &
   fi
 
   if [[ "${dynamo_args["prefill-nodelist"]}" == *"$SLURMD_NODENAME"* ]]; then
     log "Node ID: $SLURM_NODEID, Role: prefill"
+    log_node_role "$SLURMD_NODENAME" "prefill"
     launch_prefill &
   fi
 
