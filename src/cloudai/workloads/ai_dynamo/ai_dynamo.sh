@@ -138,6 +138,7 @@ _compute_worker_allocation() {
   if [[ -n "${prefill_args["--num-nodes"]}" ]]; then
     dynamo_args["num-prefill-nodes"]=${prefill_args["--num-nodes"]}
   fi
+
   if [[ -n "${decode_args["--num-nodes"]}" ]]; then
     dynamo_args["num-decode-nodes"]=${decode_args["--num-nodes"]}
   fi
@@ -233,16 +234,30 @@ function exit_on_error()
   fi
 }
 
+_total_workers_prefill() {
+  echo $(( dynamo_args["num-prefill-nodes"] * dynamo_args["prefill-workers-per-node"] ))
+}
+
+_total_workers_decode() {
+  echo $(( dynamo_args["num-decode-nodes"] * dynamo_args["decode-workers-per-node"] ))
+}
+
+_count_initialized_prefill() {
+  grep ${dynamo_args["prefill-initialized-regex"]} $RESULTS_DIR/*prefill* -il 2> /dev/null | wc -l
+}
+
+_count_initialized_decode() {
+  grep ${dynamo_args["decode-initialized-regex"]} $RESULTS_DIR/*decode* -il 2> /dev/null | wc -l
+}
+
 function wait_for_dynamo_frontend()
 {
-  local num_prefill_workers=$(( dynamo_args["num-prefill-nodes"] * dynamo_args["prefill-workers-per-node"] ))
-  local num_decode_workers=$(( dynamo_args["num-decode-nodes"] * dynamo_args["decode-workers-per-node"] ))
+  local num_prefill_workers=$(_total_workers_prefill)
+  local num_decode_workers=$(_total_workers_decode)
 
   while [[ 1 ]]; do
-    num_initialized_prefill=$(
-      grep ${dynamo_args["prefill-initialized-regex"]} $RESULTS_DIR/*prefill* -il 2> /dev/null |wc -l)
-    num_initialized_decode=$(
-      grep ${dynamo_args["decode-initialized-regex"]} $RESULTS_DIR/*decode* -il 2> /dev/null |wc -l)
+    num_initialized_prefill=$(_count_initialized_prefill)
+    num_initialized_decode=$(_count_initialized_decode)
 
     if [[ $num_initialized_prefill == $num_prefill_workers ]] && \
        [[ $num_initialized_decode == $num_decode_workers ]]; then
