@@ -95,11 +95,7 @@ def register_all():
         SleepStandaloneCommandGenStrategy,
         SleepTestDefinition,
     )
-    from cloudai.workloads.slurm_container import (
-        SlurmContainerCommandGenStrategy,
-        SlurmContainerReportGenerationStrategy,
-        SlurmContainerTestDefinition,
-    )
+    from cloudai.workloads.slurm_container import SlurmContainerCommandGenStrategy, SlurmContainerTestDefinition
     from cloudai.workloads.triton_inference import (
         TritonInferenceReportGenerationStrategy,
         TritonInferenceSlurmCommandGenStrategy,
@@ -201,7 +197,6 @@ def register_all():
     Registry().add_report(NeMoRunTestDefinition, NeMoRunReportGenerationStrategy)
     Registry().add_report(NeMoRunTestDefinition, NeMoRunDataStoreReportGenerationStrategy)
     Registry().add_report(NemotronTestDefinition, JaxToolboxReportGenerationStrategy)
-    Registry().add_report(SlurmContainerTestDefinition, SlurmContainerReportGenerationStrategy)
     Registry().add_report(UCCTestDefinition, UCCTestReportGenerationStrategy)
     Registry().add_report(TritonInferenceTestDefinition, TritonInferenceReportGenerationStrategy)
     Registry().add_report(NIXLBenchTestDefinition, NIXLBenchReportGenerationStrategy)
