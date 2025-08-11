@@ -22,6 +22,7 @@ from unittest.mock import Mock, patch
 import pytest
 import toml
 
+from cloudai._core.exceptions import MissingTestError
 from cloudai.core import (
     CmdArgs,
     GitRepo,
@@ -302,9 +303,16 @@ class TestInScenario:
         )
 
     def test_name_is_not_in_mapping(self, test_scenario_parser: TestScenarioParser):
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(MissingTestError) as exc_info:
             test_scenario_parser._prepare_tdef(TestRunModel(id="1", test_name="nccl"))
-        assert exc_info.match("Test 'nccl' is not defined. Was tests directory correctly set?")
+        expected_msg = (
+            "Test 'nccl' is not defined.\n"
+            "Please check:\n"
+            "1. The tests directory argument (--tests-dir) is set correctly\n"
+            "2. The test name in your test scenario matches the test name defined in the test file\n"
+            "3. The test file exists in your tests directory"
+        )
+        assert str(exc_info.value) == expected_msg
 
     @pytest.mark.parametrize("override_arg", ["name", "description"])
     def test_can_override_name_and_description(self, override_arg: str):

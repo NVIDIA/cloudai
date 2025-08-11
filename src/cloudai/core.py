@@ -24,6 +24,7 @@ from ._core.base_system_parser import BaseSystemParser
 from ._core.command_gen_strategy import CommandGenStrategy
 from ._core.exceptions import (
     JobIdRetrievalError,
+    MissingTestError,
     SystemConfigParsingError,
     TestConfigParsingError,
     TestScenarioParsingError,
@@ -72,6 +73,7 @@ __all__ = [
     "JobIdRetrievalError",
     "JobStatusResult",
     "JsonGenStrategy",
+    "MissingTestError",
     "NsysConfiguration",
     "Parser",
     "PerTestReporter",
