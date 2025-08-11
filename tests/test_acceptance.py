@@ -32,12 +32,9 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoTestDefinition,
-    CommonConfig,
     DecodeWorkerArgs,
-    FrontendArgs,
     GenAIPerfArgs,
     PrefillWorkerArgs,
-    SimpleLoadBalancerArgs,
 )
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
@@ -405,36 +402,29 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     docker_image_url="nvcr.io/nvidia/ai-dynamo:24.09",
                     huggingface_home_host_path=Path.home() / ".cache/huggingface",
                     dynamo=AIDynamoArgs(
-                        common=CommonConfig(
-                            **{
-                                "model": "llama2-7b",
-                                "kv-transfer-config": '{"kv_connector":"NixlConnector","kv_role":"kv_both"}',
-                                "served_model_name": "llama2-7b",
-                            }
-                        ),
-                        frontend=FrontendArgs(),
-                        simple_load_balancer=SimpleLoadBalancerArgs(**{"enable_disagg": True}),
                         prefill_worker=PrefillWorkerArgs(
                             **{
-                                "num_nodes": 1,
+                                "num-nodes": 1,
                                 "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
                             }
                         ),
                         decode_worker=DecodeWorkerArgs(
                             **{
-                                "num_nodes": 1,
+                                "num-nodes": 1,
                                 "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
                             }
                         ),
                     ),
                     genai_perf=GenAIPerfArgs(
-                        streaming=True,
-                        extra_inputs='{"temperature": 0.7, "max_tokens": 128}',
-                        output_tokens_mean=128,
-                        random_seed=42,
-                        request_count=100,
-                        synthetic_input_tokens_mean=550,
-                        warmup_request_count=10,
+                        **{
+                            "streaming": True,
+                            "extra-inputs": '{"temperature": 0.7, "max_tokens": 128}',
+                            "output-tokens-mean": 128,
+                            "random-seed": 42,
+                            "request-count": 100,
+                            "synthetic-input-tokens-mean": 550,
+                            "warmup-request-count": 10,
+                        }
                     ),
                 ),
             ),
