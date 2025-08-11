@@ -81,12 +81,18 @@ def test_run(tmp_path: Path, cmd_args: AIDynamoCmdArgs) -> TestRun:
     hf_home = tmp_path / "huggingface"
     hf_home.mkdir()
     cmd_args.huggingface_home_host_path = hf_home
+
+    dynamo_repo_path = tmp_path / "dynamo_repo"
+    dynamo_repo_path.mkdir()
+
     tdef = AIDynamoTestDefinition(
         name="test",
         description="desc",
         test_template_name="template",
         cmd_args=cmd_args,
     )
+    tdef.dynamo_repo.installed_path = dynamo_repo_path
+
     test = Test(test_definition=tdef, test_template=Mock())
     return TestRun(name="run", test=test, nodes=["n0", "n1"], num_nodes=2, output_path=tmp_path)
 
@@ -113,8 +119,12 @@ def test_hugging_face_home_path_missing(test_run: TestRun) -> None:
 def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: TestRun) -> None:
     mounts = strategy._container_mounts()
     td = cast(AIDynamoTestDefinition, test_run.test.test_definition)
+    dynamo_repo_path = td.dynamo_repo.installed_path
+    assert dynamo_repo_path is not None, "dynamo_repo_path should be set in the test fixture"
+
     assert mounts == [
-        f"{td.huggingface_home_host_path}:{td.cmd_args.huggingface_home_container_path}",
+        f"{dynamo_repo_path!s}:{dynamo_repo_path!s}",
+        f"{td.cmd_args.huggingface_home_host_path!s}:{td.cmd_args.huggingface_home_container_path!s}",
         f"{td.script.installed_path.absolute()!s}:{td.script.installed_path.absolute()!s}",
     ]
 

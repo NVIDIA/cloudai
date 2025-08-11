@@ -27,10 +27,33 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _container_mounts(self) -> list[str]:
         td = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
+
+        dynamo_repo_path = td.dynamo_repo.installed_path
+        if dynamo_repo_path is None:
+            raise ValueError("dynamo_repo_path is not set - repo may not be installed")
+        dynamo_repo_path = dynamo_repo_path.absolute()
+
         mounts = [
-            f"{td.huggingface_home_host_path}:{td.cmd_args.huggingface_home_container_path}",
+            f"{dynamo_repo_path}:{dynamo_repo_path}",
+            f"{td.cmd_args.huggingface_home_host_path}:{td.cmd_args.huggingface_home_container_path}"
+            if td.cmd_args.dynamo.backend == "vllm"
+            else f"{td.cmd_args.huggingface_home_host_path}:{td.cmd_args.huggingface_home_host_path}",
             f"{td.script.installed_path.absolute()!s}:{td.script.installed_path.absolute()!s}",
         ]
+
+        if td.cmd_args.dynamo.backend == "sglang":
+            deepep_path = (
+                dynamo_repo_path / "components/backends/sglang/configs/deepseek_r1/wideep/deepep.json"
+            ).absolute()
+            sgl_http_server_path = (
+                dynamo_repo_path / "components/backends/sglang/src/dynamo/sglang/utils/sgl_http_server.py"
+            ).absolute()
+            mounts.extend(
+                [
+                    f"{deepep_path!s}:{deepep_path!s}",
+                    f"{sgl_http_server_path!s}:{sgl_http_server_path!s}",
+                ]
+            )
         return mounts
 
     def image_path(self) -> str | None:
@@ -52,18 +75,45 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _gen_script_args(self, td: AIDynamoTestDefinition) -> List[str]:
         args = []
 
+        huggingface_path = (
+            td.cmd_args.huggingface_home_container_path
+            if td.cmd_args.dynamo.backend == "vllm"
+            else td.cmd_args.huggingface_home_host_path
+        )
         args.extend(
             [
-                f"--huggingface-home {td.cmd_args.huggingface_home_container_path}",
+                f"--huggingface-home {huggingface_path}",
                 "--results-dir /cloudai_run_results",
             ]
         )
 
+        # Get base dynamo args first
         args.extend(
             self._get_toml_args(
                 td.cmd_args.dynamo, "--dynamo-", exclude=["prefill_worker", "decode_worker", "genai_perf"]
             )
         )
+
+        # Add backend-specific args
+        if td.cmd_args.dynamo.backend == "sglang":
+            dynamo_repo_path = td.dynamo_repo.installed_path
+            if dynamo_repo_path is None:
+                raise ValueError("dynamo_repo_path is not set - repo may not be installed")
+
+            deepep_path = (
+                dynamo_repo_path / "components/backends/sglang/configs/deepseek_r1/wideep/deepep.json"
+            ).absolute()
+            sgl_http_server_path = (
+                dynamo_repo_path / "components/backends/sglang/src/dynamo/sglang/utils/sgl_http_server.py"
+            ).absolute()
+
+            args.extend(
+                [
+                    f'--dynamo-sgl-http-server-script "{sgl_http_server_path!s}"',
+                    f'--dynamo-deepep-config "{deepep_path!s}"',
+                ]
+            )
+
         args.extend(self._get_toml_args(td.cmd_args.dynamo.prefill_worker, "--prefill-"))
         args.extend(self._get_toml_args(td.cmd_args.dynamo.decode_worker, "--decode-"))
         args.extend(self._get_toml_args(td.cmd_args.genai_perf, "--genai-perf-"))

@@ -25,7 +25,7 @@ import pytest
 import toml
 
 from cloudai.cli import handle_dry_run_and_run, setup_logging
-from cloudai.core import CommandGenStrategy, Test, TestDefinition, TestRun, TestScenario, TestTemplate
+from cloudai.core import CommandGenStrategy, GitRepo, Test, TestDefinition, TestRun, TestScenario, TestTemplate
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmRunner, SlurmSystem
 from cloudai.workloads.ai_dynamo import (
@@ -398,10 +398,16 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 name="ai-dynamo",
                 description="AI Dynamo test",
                 test_template_name="ai-dynamo",
+                dynamo_repo=GitRepo(
+                    url="https://github.com/ai-dynamo/dynamo.git",
+                    commit="f7e468c7e8ff0d1426db987564e60572167e8464",
+                    installed_path=slurm_system.install_path,
+                ),
                 cmd_args=AIDynamoCmdArgs(
                     docker_image_url="nvcr.io/nvidia/ai-dynamo:24.09",
                     huggingface_home_host_path=Path.home() / ".cache/huggingface",
                     dynamo=AIDynamoArgs(
+                        backend="vllm",
                         prefill_worker=PrefillWorkerArgs(
                             **{
                                 "num-nodes": 1,
