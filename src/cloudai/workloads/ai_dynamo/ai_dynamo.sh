@@ -351,41 +351,63 @@ function log_node_role()
   echo "${node_name},${role}" >> "$roles_file"
 }
 
-function main()
-{
+_current_node_name() {
+  echo "${SLURMD_NODENAME:-$(hostname)}"
+}
+
+_is_frontend_node() {
+  local name="$(_current_node_name)"
+  [[ "${dynamo_args["frontend-node"]}" == *"$name"* ]]
+}
+
+_is_decode_node() {
+  local name="$(_current_node_name)"
+  [[ "${dynamo_args["decode-nodelist"]}" == *"$name"* ]]
+}
+
+_is_prefill_node() {
+  local name="$(_current_node_name)"
+  [[ "${dynamo_args["prefill-nodelist"]}" == *"$name"* ]]
+}
+
+_init_runtime_env() {
   export HF_HOME="${HUGGINGFACE_HOME}"
   export NATS_SERVER="nats://${dynamo_args["frontend-node"]}:${dynamo_args["nats-port"]}"
   export ETCD_ENDPOINTS="http://${dynamo_args["frontend-node"]}:${dynamo_args["etcd-port"]}"
   export UCX_LOG_FILE="${RESULTS_DIR}/ucx_log_%h.log"
-
   DONE_MARKER="${RESULTS_DIR}/${DONE_MARKER}"
+}
+
+function main()
+{
+  _init_runtime_env
 
   launch_node_setup_cmd
 
   cd ${dynamo_args["workspace-path"]}
 
-  if [[ "${dynamo_args["frontend-node"]}" == *"$SLURMD_NODENAME"* ]]; then
+  if _is_frontend_node; then
     log "Node ID: $SLURM_NODEID, Role: frontend"
-    log_node_role "$SLURMD_NODENAME" "frontend"
+    log_node_role "$(_current_node_name)" "frontend"
     launch_etcd &
     launch_nats &
     wait_for_etcd
     launch_ingress &
   fi
 
-  if [[ "${dynamo_args["decode-nodelist"]}" == *"$SLURMD_NODENAME"* ]]; then
+  if _is_decode_node; then
     log "Node ID: $SLURM_NODEID, Role: decode"
-    log_node_role "$SLURMD_NODENAME" "decode"
+    log_node_role "$(_current_node_name)" "decode"
     launch_decode &
   fi
 
-  if [[ "${dynamo_args["prefill-nodelist"]}" == *"$SLURMD_NODENAME"* ]]; then
+  if _is_prefill_node; then
     log "Node ID: $SLURM_NODEID, Role: prefill"
-    log_node_role "$SLURMD_NODENAME" "prefill"
+    log_node_role "$(_current_node_name)" "prefill"
     launch_prefill &
   fi
 
-  if [[ "${dynamo_args["frontend-node"]}" == *"$SLURMD_NODENAME"* ]]; then
+  if _is_frontend_node; then
     launch_genai_perf
     touch "$DONE_MARKER"
   fi
