@@ -65,7 +65,6 @@ from cloudai.workloads.nemo_run import (
     NeMoRunTestDefinition,
 )
 from cloudai.workloads.nixl_bench import NIXLBenchReportGenerationStrategy, NIXLBenchTestDefinition
-from cloudai.workloads.slurm_container import SlurmContainerTestDefinition
 from cloudai.workloads.triton_inference import TritonInferenceReportGenerationStrategy, TritonInferenceTestDefinition
 from cloudai.workloads.ucc_test import UCCTestDefinition, UCCTestReportGenerationStrategy
 
