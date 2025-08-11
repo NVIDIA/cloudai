@@ -250,6 +250,30 @@ _count_initialized_decode() {
   grep ${dynamo_args["decode-initialized-regex"]} $RESULTS_DIR/*decode* -il 2> /dev/null | wc -l
 }
 
+_gpu_list_for_worker() {
+  local per_worker=$1
+  local idx=$2
+  local start=$(( 1 + (idx * per_worker) ))
+  local end=$(( start + per_worker - 1 ))
+  echo "$(echo $CUDA_VISIBLE_DEVICES | cut -d',' -f${start}-${end})"
+}
+
+_log_file_for_worker() {
+  local role="$1"
+  local idx="$2"
+  echo "${RESULTS_DIR}/dynamo_${role}_${SLURM_NODEID}_${idx}.log"
+}
+
+_probe_frontend_once() {
+  local json='{
+    "model": "'${dynamo_args["model"]}'",
+    "messages": [{"role": "user", "content": "The color of sky is"}],
+    "stream": false,
+    "max_tokens": 10
+  }'
+  curl -s -X POST "${dynamo_args["url"]}/v1/chat/completions" -H "Content-Type: application/json" -d "$json"
+}
+
 function wait_for_dynamo_frontend()
 {
   local num_prefill_workers=$(_total_workers_prefill)
@@ -287,15 +311,8 @@ function launch_genai_perf()
 {
   wait_for_dynamo_frontend
 
-  JSON_PAYLOAD='{
-    "model": "'${dynamo_args["model"]}'",
-    "messages": [{"role": "user", "content": "The color of sky is"}],
-    "stream": false,
-    "max_tokens": 10
-  }'
-
-  RESPONSE=$(curl -s -X POST ${dynamo_args["url"]}/v1/chat/completions -H "Content-Type: application/json" -d "$JSON_PAYLOAD")
-  echo "Response: $RESPONSE"
+  local resp=$(_probe_frontend_once)
+  echo "Response: $resp"
 
   local genai_perf_arguments=$(array_to_args genai_perf_args)
   log "Launching genai-perf with args: $genai_perf_arguments ${genai_perf_args["--extra-args"]}"
@@ -312,10 +329,8 @@ function launch_prefill()
   local workers_per_node=${dynamo_args["prefill-workers-per-node"]}
 
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
-    local start=$(( 1 + (i * dynamo_args["prefill-gpus-per-worker"]) ))
-    local end=$(( start + dynamo_args["prefill-gpus-per-worker"] - 1 ))
-    local gpu_list=$(echo $CUDA_VISIBLE_DEVICES | cut -d',' -f${start}-${end})
-    local log_file=${RESULTS_DIR}/dynamo_prefill_${SLURM_NODEID}_${i}.log
+    local gpu_list=$(_gpu_list_for_worker "${dynamo_args["prefill-gpus-per-worker"]}" "$i")
+    local log_file=$(_log_file_for_worker "prefill" "$i")
 
     log "Launching prefill worker $i on GPUs $gpu_list"
     CUDA_VISIBLE_DEVICES=$gpu_list \
@@ -331,10 +346,8 @@ function launch_decode()
   local workers_per_node=${dynamo_args["decode-workers-per-node"]}
 
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
-    local start=$(( 1 + (i * dynamo_args["decode-gpus-per-worker"]) ))
-    local end=$(( start + dynamo_args["decode-gpus-per-worker"] - 1 ))
-    local gpu_list=$(echo $CUDA_VISIBLE_DEVICES | cut -d',' -f${start}-${end})
-    local log_file=${RESULTS_DIR}/dynamo_decode_${SLURM_NODEID}_${i}.log
+    local gpu_list=$(_gpu_list_for_worker "${dynamo_args["decode-gpus-per-worker"]}" "$i")
+    local log_file=$(_log_file_for_worker "decode" "$i")
 
     log "Launching decode worker $i on GPUs $gpu_list"
     CUDA_VISIBLE_DEVICES=$gpu_list \
