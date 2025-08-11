@@ -26,6 +26,7 @@ from pydantic import ValidationError
 from cloudai.util import format_time_limit, parse_time_limit
 
 from .core import (
+    MissingTestError,
     Registry,
     ReportGenerationStrategy,
     System,
@@ -231,7 +232,7 @@ class TestScenarioParser:
 
         if test_info.test_name:
             if test_info.test_name not in self.test_mapping:
-                raise ValueError(f"Test '{test_info.test_name}' is not defined. Was tests directory correctly set?")
+                raise MissingTestError(test_info.test_name)
             test = self.test_mapping[test_info.test_name]
 
             test_defined = test.test_definition.model_dump(by_alias=True)
