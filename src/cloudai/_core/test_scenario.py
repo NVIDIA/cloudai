@@ -163,10 +163,12 @@ class TestRun:
                     obj = getattr(obj, attr)
                 setattr(obj, attrs[-1], value)
 
+        type(tdef)(**tdef.model_dump())  # trigger validation
+
         new_tr = copy.deepcopy(self)
+        new_tr.test.test_definition = tdef
         if "NUM_NODES" in action:
             new_tr.num_nodes = action["NUM_NODES"]
-        new_tr.test.test_definition = type(tdef)(**tdef.model_dump())  # re-create the model to enable validation
         return new_tr
 
 
