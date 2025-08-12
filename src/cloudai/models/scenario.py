@@ -84,7 +84,7 @@ class TestRunModel(BaseModel):
     description: Optional[str] = None
     test_template_name: Optional[str] = None
     cmd_args: Optional[CmdArgs] = None
-    extra_env_vars: Optional[dict[str, str]] = None
+    extra_env_vars: dict[str, str | list[str]] | None = None
     extra_container_mounts: Optional[list[str]] = None
     git_repos: Optional[list[GitRepo]] = None
     nsys: Optional[NsysConfiguration] = None
