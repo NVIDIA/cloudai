@@ -82,7 +82,7 @@ class Trainer(BaseModel):
     max_steps: Union[int, List[int]] = 100
     val_check_interval: Union[int, float, list[Union[int, float]]] = 1000
     num_nodes: Optional[int] = None  # sweeps are done via TestRun.num_nodes
-    num_devices: Optional[int] = None
+    devices: Optional[int] = None
     strategy: TrainerStrategy = Field(default_factory=TrainerStrategy)
     plugins: Optional[Plugin] = None
     callbacks: Optional[Union[str, list[str]]] = None
@@ -151,7 +151,7 @@ class NeMoRunTestDefinition(TestDefinition):
         pp = cast(int, self.cmd_args.trainer.strategy.pipeline_model_parallel_size)
         cp = cast(int, self.cmd_args.trainer.strategy.context_parallel_size)
         vp = cast(Optional[int], self.cmd_args.trainer.strategy.virtual_pipeline_model_parallel_size)
-        num_gpus = tr.nnodes * (self.cmd_args.trainer.num_devices if self.cmd_args.trainer.num_devices else 8)
+        num_gpus = tr.nnodes * (self.cmd_args.trainer.devices if self.cmd_args.trainer.devices else 8)
         num_layers = cast(int, self.cmd_args.num_layers)
         dp = num_gpus // (tp * pp * cp)
         mbs = cast(int, self.cmd_args.data.micro_batch_size)
