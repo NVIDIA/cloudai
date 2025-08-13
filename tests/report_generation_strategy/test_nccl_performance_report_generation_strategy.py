@@ -21,8 +21,11 @@ import pandas as pd
 import pytest
 
 from cloudai import Test, TestRun
+from cloudai.core import METRIC_ERROR
 from cloudai.systems.slurm.slurm_system import SlurmSystem
+from cloudai.util.lazy_imports import lazy
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestPerformanceReportGenerationStrategy
+from cloudai.workloads.nccl_test.performance_report_generation_strategy import _parse_device_info
 
 
 @pytest.fixture
@@ -133,5 +136,21 @@ def test_parse_gpu_types(report_strategy: NcclTestPerformanceReportGenerationStr
         test_file.write_text(stdout_content)
 
         with test_file.open("r", encoding="utf-8") as file:
-            _, gpu_type, _ = report_strategy._parse_device_info(file)
+            _, gpu_type, _ = _parse_device_info(file)
             assert gpu_type == expected_type, f"Failed to parse GPU type for {gpu_line}"
+
+
+@pytest.mark.parametrize(
+    "metric,ref_values",
+    [
+        ("default", [1.12, 2.23, 13.14]),
+        ("latency-in-place", [1.12, 2.23, 13.14]),
+        ("latency-out-of-place", [1.11, 2.22, 13.13]),
+    ],
+)
+def test_get_metric(
+    report_strategy: NcclTestPerformanceReportGenerationStrategy, metric: str, ref_values: list[float]
+) -> None:
+    res = report_strategy.get_metric(metric)
+    assert res is not None and res != METRIC_ERROR
+    assert res == lazy.np.mean(ref_values)
