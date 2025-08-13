@@ -16,6 +16,48 @@
 
 name = "nccl-test"
 
+pre_test = "nccl_test"
+post_test = "nccl_test"
+
+[[Tests]]
+id = "Tests.all_reduce"
+test_name = "nccl_base_test"
+num_nodes = 2
+time_limit = "00:10:00"
+  [Tests.cmd_args]
+  subtest_name = "all_reduce_perf_mpi"
+
+[[Tests]]
+id = "Tests.all_gather"
+test_name = "nccl_test_all_gather"
+num_nodes = 2
+time_limit = "00:10:00"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.all_reduce"
+
+[[Tests]]
+id = "Tests.reduce_scatter"
+test_name = "nccl_base_test"
+num_nodes = 2
+time_limit = "00:10:00"
+  [Tests.cmd_args]
+  subtest_name = "reduce_scatter_perf_mpi"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.all_gather"
+
+[[Tests]]
+id = "Tests.alltoall"
+test_name = "nccl_base_test"
+num_nodes = 2
+time_limit = "00:10:00"
+  [Tests.cmd_args]
+  subtest_name = "alltoall_perf_mpi"
+  [[Tests.dependencies]]
+  type = "start_post_comp"
+  id = "Tests.reduce_scatter"
+
 [[Tests]]
 id = "nccl.scatter_perf"
 num_nodes = 2
@@ -34,6 +76,3 @@ test_template_name = "NcclTest"
   iters = 50
   warmup_iters = 10
   stepfactor = 2
-
-  [Tests.extra_env_vars]
-  NCCL_TESTS_SPLIT_MASK = ["0x0", "0x3", "0x7"]
