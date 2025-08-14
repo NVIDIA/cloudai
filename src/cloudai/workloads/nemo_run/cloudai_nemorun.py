@@ -20,8 +20,6 @@ from typing import Optional
 import lightning.pytorch as pl
 import nemo_run as run
 import torch
-import fiddle as fdl
-import fiddle.dataclasses as fdl_dc
 from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.loggers.wandb import WandbLogger
 from megatron.core.distributed import DistributedDataParallelConfig
@@ -635,8 +633,6 @@ def get_comm_overlap_callback_idx(callbacks: list) -> Optional[int]:
 
 # Convert dataclass-based TP overlap cfgs to run.Config when needed
 def to_run_config(obj):
-    if hasattr(obj, "__dataclass_fields__"):
-        return fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(obj))
     return obj
 
 
