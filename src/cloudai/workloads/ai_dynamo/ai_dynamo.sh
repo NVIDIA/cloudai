@@ -592,6 +592,122 @@ _init_runtime_env() {
   DONE_MARKER="${RESULTS_DIR}/${DONE_MARKER}"
 }
 
+_require_cmd() {
+  local cmd="$1"
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    log "ERROR: Required command '$cmd' not found in PATH"
+    exit 1
+  fi
+}
+
+_ensure_dir_writable() {
+  local dir="$1"
+  if [[ ! -d "$dir" ]]; then
+    log "Creating directory: $dir"
+    mkdir -p "$dir" || { log "ERROR: Failed to create $dir"; exit 1; }
+  fi
+  if [[ ! -w "$dir" ]]; then
+    log "ERROR: Directory not writable: $dir"
+    exit 1
+  fi
+}
+
+_port_in_use() {
+  local port="$1"
+  # Prefer ss. Fallback to netstat or lsof. Final fallback is nc.
+  if command -v ss >/dev/null 2>&1; then
+    ss -lnt "( sport = :$port )" | awk 'NR>1{exit 0} END{exit 1}'
+    return $?
+  elif command -v netstat >/dev/null 2>&1; then
+    netstat -lnt 2>/dev/null | awk -v p=":$port" '$4 ~ p {found=1} END{exit !found}'
+    return $?
+  elif command -v lsof >/dev/null 2>&1; then
+    lsof -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1
+    return $?
+  elif command -v nc >/dev/null 2>&1; then
+    nc -z 127.0.0.1 "$port" >/dev/null 2>&1
+    return $?
+  fi
+  # If we cannot check, assume free
+  return 1
+}
+
+_check_free_port_or_die() {
+  local name="$1" port="$2"
+  if _port_in_use "$port"; then
+    log "ERROR: Port $port for $name is already in use on $(hostname)"
+    exit 1
+  fi
+}
+
+validate_environment() {
+  log "Validating environment..."
+
+  # Core commands needed by this script
+  _require_cmd bash
+  _require_cmd awk
+  _require_cmd grep
+  _require_cmd cut
+  _require_cmd curl
+
+  # Runtime commands invoked later
+  _require_cmd python3
+  _require_cmd ${dynamo_args["etcd-cmd"]%% *}     # first token if args included
+  _require_cmd ${dynamo_args["nats-cmd"]%% *}
+
+  # Basic env presence
+  if [[ -z "${CUDA_VISIBLE_DEVICES:-}" ]]; then
+    log "ERROR: CUDA_VISIBLE_DEVICES is not set"
+    exit 1
+  fi
+
+  # If both nodelists are empty then DYNAMO_NODELIST must be provided
+  if [[ -z "${dynamo_args["decode-nodelist"]}" && -z "${dynamo_args["prefill-nodelist"]}" && -z "${DYNAMO_NODELIST:-}" ]]; then
+    log "ERROR: Provide --dynamo-decode-nodelist/--dynamo-prefill-nodelist or set DYNAMO_NODELIST"
+    exit 1
+  fi
+
+  # Directories
+  _ensure_dir_writable "$RESULTS_DIR"
+  if _is_vllm; then
+    _ensure_dir_writable "$HUGGINGFACE_HOME"
+  fi
+
+  # Disk space check for RESULTS_DIR. Require at least ~1 GB free.
+  local avail_kb
+  avail_kb=$(df -Pk "$RESULTS_DIR" | awk 'NR==2{print $4}')
+  if [[ -n "$avail_kb" && "$avail_kb" -lt 1048576 ]]; then
+    log "ERROR: Less than 1 GB free in $RESULTS_DIR"
+    exit 1
+  fi
+
+  # SLURM hints
+  if [[ -z "${SLURM_NODEID:-}" ]]; then
+    log "WARN: SLURM_NODEID is not set"
+  fi
+  if [[ -z "${SLURMD_NODENAME:-}" ]]; then
+    log "WARN: SLURMD_NODENAME is not set. Falling back to hostname where applicable"
+  fi
+
+  # Frontend node only checks
+  if _is_frontend_node; then
+    # Ports must be free before we launch services
+    _check_free_port_or_die "etcd"  "${dynamo_args["etcd-port"]}"
+    _check_free_port_or_die "nats"  "${dynamo_args["nats-port"]}"
+    _check_free_port_or_die "ingress http" "${dynamo_args["port"]}"
+  fi
+
+  # GPU count sanity
+  local num_gpus
+  num_gpus=$(echo "${CUDA_VISIBLE_DEVICES}" | tr ',' '\n' | grep -c . || true)
+  if [[ "$num_gpus" -le 0 ]]; then
+    log "ERROR: Parsed zero GPUs from CUDA_VISIBLE_DEVICES='${CUDA_VISIBLE_DEVICES}'"
+    exit 1
+  fi
+
+  log "Environment validation complete"
+}
+
 launch_sgl_http_server() {
   local script_path="${dynamo_args["sgl-http-server-script"]}"
   local port="${dynamo_args["sgl-http-port"]}"
@@ -609,6 +725,8 @@ function main()
   _init_runtime_env
 
   launch_node_setup_cmd
+
+  validate_environment
 
   if _is_vllm; then
     cd ${dynamo_args["workspace-path"]}
