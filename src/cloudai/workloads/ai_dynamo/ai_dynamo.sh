@@ -5,6 +5,7 @@ RESULTS_DIR="/cloudai_run_results"
 HUGGINGFACE_HOME="/root/.cache/huggingface"
 DONE_MARKER="frontend_done.marker"
 NODE_ROLES_FILE="node_roles.log"
+FATAL_ERROR_MARKER="fatal_error.marker"
 
 export DYN_SDK_DISABLE_ANSI_LOGGING=1
 export VLLM_DISABLE_COLORED_OUTPUT=1
@@ -47,6 +48,11 @@ dynamo_args["multiple-prefill-workers-per-node"]="true"
 dynamo_args["multiple-decode-workers-per-node"]="true"
 dynamo_args["prefill-initialized-regex"]="prefill.*initialized"
 dynamo_args["decode-initialized-regex"]="decode.*initialized"
+
+# Retry & error plumbing (defaults)
+# Broad pattern: ZMQ bind issues, engine start failures, worker exceptions, async gen errors, engine core issues, etc.
+dynamo_args["worker-error-pattern"]="zmq.error.ZMQError:.Address.already.in.use|ERROR.core.run_engine_core:.EngineCore.failed.to.start|ERROR.multiproc_executor.worker_busy_loop:.WorkerProc.hit.an.exception|ValueError:.a.python.*async.generator|EngineDeadError:.EngineCore.encountered.an.issue"
+dynamo_args["num-retry-on-failure"]=3
 
 # sglang-specific optional ports. Ignored by vllm.
 dynamo_args["sgl-http-port"]=9001
@@ -347,7 +353,7 @@ function array_to_args()
     elif [[ "$key" == "--num-nodes" ]]; then
       continue
     else
-      result+="${key} ${arr[$key]} "
+        result+="${key} ${arr[$key]} "
     fi
   done
   echo "$result"
@@ -392,21 +398,81 @@ function launch_ingress()
   ${dynamo_args["ingress-cmd"]} --http-port ${dynamo_args["port"]} > ${RESULTS_DIR}/dynamo_ingress.log 2>&1
 }
 
-function exit_on_error()
+check_worker_error() {
+  local error_pattern="$1"
+  local log_glob="$2"
+  # Return count via echo. Always echo a number.
+  local n
+  n=$(grep -E "$error_pattern" $log_glob -il 2>/dev/null | wc -l || true)
+  echo "${n:-0}"
+}
+
+monitor_worker_for_errors() {
+  local log_file="$1"
+  local count="0"
+  while [[ "$count" == "0" ]]; do
+    # If the process died cleanly, break out so retry loop can proceed.
+    if ! kill -0 $(jobs -p | tail -n1) 2>/dev/null; then
+      break
+    fi
+    count=$(check_worker_error "${dynamo_args["worker-error-pattern"]}" "$log_file")
+    if [[ "$count" != "0" ]]; then
+      break
+    fi
+    sleep 10
+  done
+}
+
+launch_dynamo_worker() {
+  local role="$1"          # prefill|decode
+  local idx="$2"
+  shift; shift
+  local cmdline=( "$@" )
+
+  local gpus_per_worker=${dynamo_args["${role}-gpus-per-worker"]}
+  local gpu_list=$(_gpu_list_for_worker "$gpus_per_worker" "$idx")
+  local log_file=$(_log_file_for_worker "$role" "$idx")
+  local retries=${dynamo_args["num-retry-on-failure"]}
+
+  for attempt in $(seq 1 "$retries"); do
+    log "Launching ${role} worker ${idx} (attempt ${attempt}/${retries}) on GPUs ${gpu_list}: ${cmdline[*]} > ${log_file} 2>&1"
+    CUDA_VISIBLE_DEVICES="$gpu_list" "${cmdline[@]}" > "$log_file" 2>&1 &
+    local pid=$!
+
+    # Monitor log for worker error signatures; exit early on fatal marker.
+    monitor_worker_for_errors "$log_file"
+
+    # If a fatal marker was set elsewhere (e.g., UCX), bail out.
+    if [[ -f "$FATAL_ERROR_MARKER" ]]; then
+      log "Fatal error marker present; stopping retries for ${role} ${idx}"
+      return 1
+    fi
+
+    log "Detected failure for ${role} ${idx} (pid $pid). Killing all child jobs to retry."
+    log "Jobs before kill: $(jobs -p)"
+    kill $(jobs -p) 2>/dev/null || true
+    sleep 2
+    log "Jobs after kill: $(jobs -p)"
+  done
+
+  log "All retries exhausted for ${role} ${idx}. Touching fatal error marker."
+  touch "$FATAL_ERROR_MARKER"
+  return 1
+}
+
+exit_on_error()
 {
-  num_failed_workers=$(grep "zmq.error.ZMQError: Address already in use" $RESULTS_DIR/dynamo_*.log -il 2> /dev/null |wc -l)
-  if [[ $num_failed_workers -gt 0 ]]; then
-    log "ZMQ ERROR: Found $num_failed_workers failed workers, exiting"
-    log "Killing all jobs"
-    kill $(jobs -p) 2> /dev/null
-    exit 1
+  # Monitor UCX logs for hard errors and set fatal marker
+  local ucx_count
+  ucx_count=$(check_worker_error "UCX.*ERROR" "${RESULTS_DIR}/ucx_log_*.log")
+  if [[ "$ucx_count" -gt 0 ]]; then
+    log "UCX ERROR detected ($ucx_count). Creating fatal error marker."
+    touch "$FATAL_ERROR_MARKER"
   fi
 
-  num_failed_workers=$(grep "UCX.*ERROR" $RESULTS_DIR/ucx_log_*.log -il 2> /dev/null |wc -l)
-  if [[ $num_failed_workers -gt 0 ]]; then
-    log "UCX ERROR: Found $num_failed_workers failed workers, exiting"
-    log "Killing all jobs"
-    kill $(jobs -p)
+  if [[ -f "$FATAL_ERROR_MARKER" ]]; then
+    log "Fatal error marker found. Killing all jobs and exiting."
+    kill $(jobs -p) 2>/dev/null || true
     exit 1
   fi
 }
@@ -450,6 +516,7 @@ _expected_ready_decode() {
     echo "$(_total_workers_decode)"
   fi
 }
+
 _gpu_list_for_worker() {
   local per_worker=$1
   local idx=$2
@@ -527,14 +594,10 @@ function launch_prefill()
 
   local workers_per_node=${dynamo_args["prefill-workers-per-node"]}
 
-  for i in $(seq 0 $(( $workers_per_node - 1 ))); do
-    local gpu_list=$(_gpu_list_for_worker "${dynamo_args["prefill-gpus-per-worker"]}" "$i")
-    local log_file=$(_log_file_for_worker "prefill" "$i")
-
-    log "Launching prefill worker $i on GPUs $gpu_list"
-    CUDA_VISIBLE_DEVICES=$gpu_list \
+  for i in $(seq 0 $(( workers_per_node - 1 ))); do
+    launch_dynamo_worker prefill "$i" \
       ${dynamo_args["prefill-cmd"]} \
-      $(array_to_args prefill_args) ${prefill_args["--extra-args"]} > $log_file 2>&1 &
+      $(array_to_args prefill_args) ${prefill_args["--extra-args"]} &
   done
 }
 
@@ -544,14 +607,10 @@ function launch_decode()
 
   local workers_per_node=${dynamo_args["decode-workers-per-node"]}
 
-  for i in $(seq 0 $(( $workers_per_node - 1 ))); do
-    local gpu_list=$(_gpu_list_for_worker "${dynamo_args["decode-gpus-per-worker"]}" "$i")
-    local log_file=$(_log_file_for_worker "decode" "$i")
-
-    log "Launching decode worker $i on GPUs $gpu_list"
-    CUDA_VISIBLE_DEVICES=$gpu_list \
+  for i in $(seq 0 $(( workers_per_node - 1 ))); do
+    launch_dynamo_worker decode "$i" \
       ${dynamo_args["decode-cmd"]} \
-      $(array_to_args decode_args) ${decode_args["--extra-args"]} > $log_file 2>&1 &
+      $(array_to_args decode_args) ${decode_args["--extra-args"]} &
   done
 }
 
@@ -590,6 +649,7 @@ _init_runtime_env() {
   export ETCD_ENDPOINTS="http://${dynamo_args["frontend-node"]}:${dynamo_args["etcd-port"]}"
   export UCX_LOG_FILE="${RESULTS_DIR}/ucx_log_%h.log"
   DONE_MARKER="${RESULTS_DIR}/${DONE_MARKER}"
+  FATAL_ERROR_MARKER="${RESULTS_DIR}/${FATAL_ERROR_MARKER}"
 }
 
 _require_cmd() {
