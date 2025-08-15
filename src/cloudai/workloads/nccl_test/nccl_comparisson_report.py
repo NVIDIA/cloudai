@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import jinja2
+from pydantic import Field
 from rich.console import Console
 from rich.table import Table
 
@@ -42,6 +43,12 @@ if TYPE_CHECKING:
     import pandas as pd
 
 
+class NcclComparissonReportConfig(ReportConfig):
+    """Configuration for NCCL comparisson report."""
+
+    group_by: list[str] = Field(default_factory=lambda: ["subtest_name"])
+
+
 class NcclComparissonReport(Reporter):
     """Comparisson report for NCCL Test."""
 
@@ -49,12 +56,11 @@ class NcclComparissonReport(Reporter):
     LATENCY_DATA_COLUMNS = ("Time (us) Out-of-place", "Time (us) In-place")
     BANDWIDTH_DATA_COLUMNS = ("Busbw (GB/s) Out-of-place", "Busbw (GB/s) In-place")
 
-    def __init__(self, system: System, test_scenario: TestScenario, results_root: Path, config: ReportConfig) -> None:
+    def __init__(
+        self, system: System, test_scenario: TestScenario, results_root: Path, config: NcclComparissonReportConfig
+    ) -> None:
         super().__init__(system, test_scenario, results_root, config)
-        self.group_by: list[str] = [
-            # "extra_env_vars.NCCL_TESTS_SPLIT_MASK",
-            "subtest_name",
-        ]
+        self.group_by: list[str] = config.group_by
 
     def generate(self) -> None:
         self.load_test_runs()
