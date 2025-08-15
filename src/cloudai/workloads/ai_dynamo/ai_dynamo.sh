@@ -532,10 +532,12 @@ validate_environment() {
     exit 1
   fi
 
-  # If both nodelists are empty then DYNAMO_NODELIST must be provided
-  if [[ -z "${dynamo_args["decode-nodelist"]}" && -z "${dynamo_args["prefill-nodelist"]}" && -z "${DYNAMO_NODELIST:-}" ]]; then
-    log "ERROR: Provide --dynamo-decode-nodelist/--dynamo-prefill-nodelist or set DYNAMO_NODELIST"
-    exit 1
+  # If both nodelists are empty, DYNAMO_NODELIST must be provided
+  if [[ -z "${dynamo_args["decode-nodelist"]}" && -z "${dynamo_args["prefill-nodelist"]}" ]]; then
+    if [[ -z "${DYNAMO_NODELIST:-}" ]]; then
+      log "ERROR: When neither --dynamo-decode-nodelist nor --dynamo-prefill-nodelist is provided, DYNAMO_NODELIST must be set"
+      exit 1
+    fi
   fi
 
   # Directories
