@@ -254,7 +254,7 @@ _patch_section_args() {
 }
 
 _compute_worker_allocation_sglang() {
-  local num_gpus=$(echo "${CUDA_VISIBLE_DEVICES:-}" | tr ',' '\n' | grep -c .)
+  local num_gpus="$(_gpus_per_node)"
   if [[ $num_gpus -eq 0 ]]; then
     log "ERROR: No GPUs found in CUDA_VISIBLE_DEVICES"
     exit 1
