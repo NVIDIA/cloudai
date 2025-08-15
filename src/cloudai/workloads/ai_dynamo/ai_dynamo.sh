@@ -23,6 +23,7 @@ declare -A decode_args
 declare -A genai_perf_args
 
 declare -A dynamo_args
+dynamo_args["backend"]="vllm"
 dynamo_args["node-setup-cmd"]=""
 dynamo_args["prefill-cmd"]="python3 -m dynamo.vllm --is-prefill-worker"
 dynamo_args["decode-cmd"]="python3 -m dynamo.vllm"
@@ -46,6 +47,11 @@ dynamo_args["multiple-prefill-workers-per-node"]="true"
 dynamo_args["multiple-decode-workers-per-node"]="true"
 dynamo_args["prefill-initialized-regex"]="prefill.*initialized"
 dynamo_args["decode-initialized-regex"]="decode.*initialized"
+
+# sglang-specific optional ports. Ignored by vllm.
+dynamo_args["sgl-http-port"]=9001
+dynamo_args["prefill-port"]=30011
+dynamo_args["decode-port"]=30021
 
 # GenAI Perf params
 GENAI_PERF_PROFILE_EXPORT_FILE="profile.json"
@@ -79,6 +85,74 @@ _parse_cli_pairs() {
   done
 }
 
+_set_backend_defaults() {
+  case "${dynamo_args["backend"]}" in
+    vllm)
+      :
+      ;;
+    sglang)
+      dynamo_args["prefill-cmd"]="python3 -m dynamo.sglang.worker"
+      dynamo_args["decode-cmd"]="python3 -m dynamo.sglang.decode_worker"
+      dynamo_args["ingress-cmd"]="python3 -m dynamo.frontend"
+      ;;
+    *)
+      log "ERROR: Unknown backend '${dynamo_args["backend"]}'"
+      exit 1
+      ;;
+  esac
+}
+
+_is_vllm() { [[ "${dynamo_args["backend"]}" == "vllm" ]]; }
+_is_sglang() { [[ "${dynamo_args["backend"]}" == "sglang" ]]; }
+
+_sync_num_nodes_from_section_args() {
+  if [[ -n "${prefill_args["--num-nodes"]:-}" ]]; then
+    dynamo_args["num-prefill-nodes"]="${prefill_args["--num-nodes"]}"
+  fi
+  if [[ -n "${decode_args["--num-nodes"]:-}" ]]; then
+    dynamo_args["num-decode-nodes"]="${decode_args["--num-nodes"]}"
+  fi
+}
+
+_csv_len() { grep -oE '[^,]+' <<< "$1" | wc -l; }
+
+_first_in_csv() { echo "$1" | cut -d',' -f1; }
+
+_csv_index_of() {
+  local list="$1" name="$2"
+  local IFS=',' arr i
+  read -ra arr <<< "$list"
+  for i in "${!arr[@]}"; do
+    if [[ "${arr[$i]}" == "$name" || "${arr[$i]}" == *"$name"* || "$name" == *"${arr[$i]}"* ]]; then
+      echo "$i"; return 0
+    fi
+  done
+  echo "-1"
+}
+
+_validate_or_build_nodelists() {
+  local dl_len=$(_csv_len "${dynamo_args["decode-nodelist"]}")
+  local pl_len=$(_csv_len "${dynamo_args["prefill-nodelist"]}")
+  if (( dl_len > 0 )); then dynamo_args["num-decode-nodes"]="$dl_len"; fi
+  if (( pl_len > 0 )); then dynamo_args["num-prefill-nodes"]="$pl_len"; fi
+
+  if [[ -z "${dynamo_args["decode-nodelist"]}" || -z "${dynamo_args["prefill-nodelist"]}" ]]; then
+    if [[ -z "${DYNAMO_NODELIST:-}" ]]; then
+      log "ERROR: Provide --dynamo-decode-nodelist/--dynamo-prefill-nodelist or set DYNAMO_NODELIST"; exit 1
+    fi
+    local d="${dynamo_args["num-decode-nodes"]}"
+    local p="${dynamo_args["num-prefill-nodes"]}"
+    local total=$(_csv_len "${DYNAMO_NODELIST}")
+    if (( total < d + p )); then
+      log "ERROR: DYNAMO_NODELIST has ${total} entries; need decode(${d})+prefill(${p})"; exit 1
+    fi
+    [[ -z "${dynamo_args["decode-nodelist"]}" ]] && \
+      dynamo_args["decode-nodelist"]=$(echo "$DYNAMO_NODELIST" | cut -d',' -f1-"$d")
+    [[ -z "${dynamo_args["prefill-nodelist"]}" ]] && \
+      dynamo_args["prefill-nodelist"]=$(echo "$DYNAMO_NODELIST" | cut -d',' -f$(( d + 1 ))-)
+  fi
+}
+
 _patch_dynamo_args() {
   if [[ -z "${dynamo_args["decode-nodelist"]}" ]]; then
     dynamo_args["decode-nodelist"]=$(echo $DYNAMO_NODELIST | cut -d',' -f1-${dynamo_args["num-decode-nodes"]})
@@ -93,34 +167,128 @@ _patch_dynamo_args() {
   fi
 
   dynamo_args["url"]="http://${dynamo_args["frontend-node"]}:${dynamo_args["port"]}"
+
+  _validate_or_build_nodelists
 }
 
-_patch_section_args() {
-  prefill_args["--model"]=${dynamo_args["model"]}
-  decode_args["--model"]=${dynamo_args["model"]}
+_gpus_per_node() {
+  local n=$(echo "${CUDA_VISIBLE_DEVICES:-}" | tr ',' '\n' | grep -c . || true)
+  [[ "$n" -gt 0 ]] && echo "$n" || echo "1"
+}
 
-  genai_perf_args["--model"]=${dynamo_args["model"]}
-  genai_perf_args["--url"]=${dynamo_args["url"]}
-  genai_perf_args["--endpoint"]=${dynamo_args["endpoint"]}
+_resolve_host_ip() {
+  local host="$1"
+  local ip
+  ip="$(getent ahosts "$host" | grep STREAM | head -n1 | awk '{print $1}')"
+  if [[ -z "$ip" ]]; then
+    log "ERROR: Could not resolve IP for host $host"
+    exit 1
+  fi
+  echo "$ip"
+}
+
+_apply_sglang_section_args() {
+  prefill_args["--port"]=${dynamo_args["prefill-port"]}
+  decode_args["--port"]=${dynamo_args["decode-port"]}
+  prefill_args["--served-model-name"]=${dynamo_args["model"]}
+  decode_args["--served-model-name"]=${dynamo_args["model"]}
+
+  # model-path must point to HF cache for sglang
+  prefill_args["--model-path"]="${HUGGINGFACE_HOME}"
+  decode_args["--model-path"]="${HUGGINGFACE_HOME}"
+
+  local self="$(_current_node_name)"
+  local gpn="$(_gpus_per_node)"
+
+  # prefill group
+  local prefill_nodes="${dynamo_args["num-prefill-nodes"]}"
+  local prefill_master_host="$(_first_in_csv "${dynamo_args["prefill-nodelist"]}")"
+  local prefill_master_ip="$(_resolve_host_ip "${prefill_master_host}")"
+  local prefill_rank="$(_csv_index_of "${dynamo_args["prefill-nodelist"]}" "$self")"
+  local prefill_total_gpus=$(( gpn * prefill_nodes ))
+  prefill_args["--dist-init-addr"]="${prefill_master_ip}:${dynamo_args["prefill-port"]}"
+  prefill_args["--nnodes"]="${prefill_nodes}"
+  prefill_args["--node-rank"]="$([[ "$prefill_rank" -ge 0 ]] && echo "$prefill_rank" || echo 0)"
+  prefill_args["--tp-size"]="${prefill_total_gpus}"
+  prefill_args["--dp-size"]="${prefill_total_gpus}"
+
+  # decode group
+  local decode_nodes="${dynamo_args["num-decode-nodes"]}"
+  local decode_master_host="$(_first_in_csv "${dynamo_args["decode-nodelist"]}")"
+  local decode_master_ip="$(_resolve_host_ip "${decode_master_host}")"
+  local decode_rank="$(_csv_index_of "${dynamo_args["decode-nodelist"]}" "$self")"
+  local decode_total_gpus=$(( gpn * decode_nodes ))
+  decode_args["--dist-init-addr"]="${decode_master_ip}:${dynamo_args["decode-port"]}"
+  decode_args["--nnodes"]="${decode_nodes}"
+  decode_args["--node-rank"]="$([[ "$decode_rank" -ge 0 ]] && echo "$decode_rank" || echo 0)"
+  decode_args["--tp-size"]="${decode_total_gpus}"
+  decode_args["--dp-size"]="${decode_total_gpus}"
+
+  if [[ -n "${dynamo_args["deepep-config"]:-}" ]]; then
+    [[ -f "${dynamo_args["deepep-config"]}" ]] || log "WARN: deepep-config not found: ${dynamo_args["deepep-config"]}"
+    prefill_args["--deepep-config"]="${dynamo_args["deepep-config"]}"
+    decode_args["--deepep-config"]="${dynamo_args["deepep-config"]}"
+  fi
+
+  unset 'prefill_args["--model"]'
+  unset 'decode_args["--model"]'
+}
+
+_apply_genai_perf_section_args() {
+  genai_perf_args["--model"]="${dynamo_args["model"]}"
+  genai_perf_args["--url"]="${dynamo_args["url"]}"
+  genai_perf_args["--endpoint"]="${dynamo_args["endpoint"]}"
   genai_perf_args["--artifact-dir"]="${RESULTS_DIR}/${GENAI_PERF_ARTIFACT_DIR}/"
   genai_perf_args["--profile-export-file"]="${GENAI_PERF_PROFILE_EXPORT_FILE}"
 }
 
-_compute_worker_allocation() {
+_patch_section_args() {
+  prefill_args["--model"]="${dynamo_args["model"]}"
+  decode_args["--model"]="${dynamo_args["model"]}"
+
+  if _is_sglang; then
+    _apply_sglang_section_args
+  fi
+
+  _apply_genai_perf_section_args
+}
+
+_compute_worker_allocation_sglang() {
+  local num_gpus=$(echo "${CUDA_VISIBLE_DEVICES:-}" | tr ',' '\n' | grep -c .)
+  if [[ $num_gpus -eq 0 ]]; then
+    log "ERROR: No GPUs found in CUDA_VISIBLE_DEVICES"
+    exit 1
+  fi
+
+  # sglang: one worker per node using all GPUs
+  dynamo_args["prefill-gpus-per-worker"]=$num_gpus
+  dynamo_args["decode-gpus-per-worker"]=$num_gpus
+  dynamo_args["prefill-workers-per-node"]=1
+  dynamo_args["decode-workers-per-node"]=1
+
+  if [[ -n "${prefill_args["--num-nodes"]}" ]]; then
+    dynamo_args["num-prefill-nodes"]=${prefill_args["--num-nodes"]}
+  fi
+  if [[ -n "${decode_args["--num-nodes"]}" ]]; then
+    dynamo_args["num-decode-nodes"]=${decode_args["--num-nodes"]}
+  fi
+}
+
+_compute_worker_allocation_vllm() {
   local tp_arg_name="--${dynamo_args["tp-arg-name"]}"
   local pp_arg_name="--${dynamo_args["pp-arg-name"]}"
+  local num_gpus=$(echo "${CUDA_VISIBLE_DEVICES:-}" | tr ',' '\n' | grep -c .)
+
+  if [[ $num_gpus -eq 0 ]]; then
+    log "ERROR: No GPUs found in CUDA_VISIBLE_DEVICES"
+    exit 1
+  fi
 
   dynamo_args["prefill-gpus-per-worker"]=$(( prefill_args[$tp_arg_name] * prefill_args[$pp_arg_name] ))
   dynamo_args["decode-gpus-per-worker"]=$(( decode_args[$tp_arg_name] * decode_args[$pp_arg_name] ))
 
   if [[ ${dynamo_args["prefill-gpus-per-worker"]} -eq 0 ]] || [[ ${dynamo_args["decode-gpus-per-worker"]} -eq 0 ]]; then
     log "ERROR: Invalid TP/PP configuration"
-    exit 1
-  fi
-
-  local num_gpus=$(echo $CUDA_VISIBLE_DEVICES | tr ',' '\n' | wc -l)
-  if [[ $num_gpus -eq 0 ]]; then
-    log "ERROR: No GPUs found in CUDA_VISIBLE_DEVICES"
     exit 1
   fi
 
@@ -138,9 +306,16 @@ _compute_worker_allocation() {
   if [[ -n "${prefill_args["--num-nodes"]}" ]]; then
     dynamo_args["num-prefill-nodes"]=${prefill_args["--num-nodes"]}
   fi
-
   if [[ -n "${decode_args["--num-nodes"]}" ]]; then
     dynamo_args["num-decode-nodes"]=${decode_args["--num-nodes"]}
+  fi
+}
+
+_compute_worker_allocation() {
+  if _is_sglang; then
+    _compute_worker_allocation_sglang
+  else
+    _compute_worker_allocation_vllm
   fi
 }
 
@@ -154,6 +329,8 @@ _dump_args() {
 function parse_args()
 {
   _parse_cli_pairs "$@"
+  _set_backend_defaults
+  _sync_num_nodes_from_section_args
   _patch_dynamo_args
   _patch_section_args
   _compute_worker_allocation
@@ -243,13 +420,36 @@ _total_workers_decode() {
 }
 
 _count_initialized_prefill() {
-  grep ${dynamo_args["prefill-initialized-regex"]} $RESULTS_DIR/*prefill* -il 2> /dev/null | wc -l
+  if _is_sglang; then
+    grep -l "Request handler initialized" "${RESULTS_DIR}"/dynamo_*prefill* 2>/dev/null | wc -l
+  else
+    grep -i -l -E "${dynamo_args["prefill-initialized-regex"]}" "${RESULTS_DIR}"/dynamo_*prefill* 2>/dev/null | wc -l
+  fi
 }
 
 _count_initialized_decode() {
-  grep ${dynamo_args["decode-initialized-regex"]} $RESULTS_DIR/*decode* -il 2> /dev/null | wc -l
+  if _is_sglang; then
+    grep -l "Decode request handler initialized" "${RESULTS_DIR}"/dynamo_*decode* 2>/dev/null | wc -l
+  else
+    grep -i -l -E "${dynamo_args["decode-initialized-regex"]}" "${RESULTS_DIR}"/dynamo_*decode* 2>/dev/null | wc -l
+  fi
 }
 
+_expected_ready_prefill() {
+  if _is_sglang; then
+    echo 1
+  else
+    echo "$(_total_workers_prefill)"
+  fi
+}
+
+_expected_ready_decode() {
+  if _is_sglang; then
+    echo 1
+  else
+    echo "$(_total_workers_decode)"
+  fi
+}
 _gpu_list_for_worker() {
   local per_worker=$1
   local idx=$2
@@ -276,19 +476,18 @@ _probe_frontend_once() {
 
 function wait_for_dynamo_frontend()
 {
-  local num_prefill_workers=$(_total_workers_prefill)
-  local num_decode_workers=$(_total_workers_decode)
+  local want_prefill=$(_expected_ready_prefill)
+  local want_decode=$(_expected_ready_decode)
 
-  while [[ 1 ]]; do
-    num_initialized_prefill=$(_count_initialized_prefill)
-    num_initialized_decode=$(_count_initialized_decode)
+  while :; do
+    local have_prefill=$(_count_initialized_prefill)
+    local have_decode=$(_count_initialized_decode)
 
-    if [[ $num_initialized_prefill == $num_prefill_workers ]] && \
-       [[ $num_initialized_decode == $num_decode_workers ]]; then
+    if [[ $have_prefill -ge $want_prefill && $have_decode -ge $want_decode ]]; then
       break
     fi
-    log "Initialized: $num_initialized_prefill/$num_prefill_workers prefill; and "\
-        "$num_initialized_decode/$num_decode_workers decode workers."
+
+    log "Initialized: prefill ${have_prefill}/${want_prefill}; decode ${have_decode}/${want_decode}"
     exit_on_error
     sleep 30
   done
@@ -384,11 +583,25 @@ _is_prefill_node() {
 }
 
 _init_runtime_env() {
-  export HF_HOME="${HUGGINGFACE_HOME}"
+  if _is_vllm; then
+    export HF_HOME="${HUGGINGFACE_HOME}"
+  fi
   export NATS_SERVER="nats://${dynamo_args["frontend-node"]}:${dynamo_args["nats-port"]}"
   export ETCD_ENDPOINTS="http://${dynamo_args["frontend-node"]}:${dynamo_args["etcd-port"]}"
   export UCX_LOG_FILE="${RESULTS_DIR}/ucx_log_%h.log"
   DONE_MARKER="${RESULTS_DIR}/${DONE_MARKER}"
+}
+
+launch_sgl_http_server() {
+  local script_path="${dynamo_args["sgl-http-server-script"]}"
+  local port="${dynamo_args["sgl-http-port"]}"
+  if [[ -n "${script_path}" && -f "${script_path}" ]]; then
+    log "Starting SGL HTTP server: ${script_path} --ns dynamo --port ${port}"
+    nohup python3 "${script_path}" --ns dynamo --port "${port}" \
+      > "${RESULTS_DIR}/sgl_http_server.${SLURM_NODEID:-0}.log" 2>&1 &
+  else
+    log "SGL HTTP server script not set or missing. Skipping. Value='${script_path}'"
+  fi
 }
 
 function main()
@@ -397,7 +610,9 @@ function main()
 
   launch_node_setup_cmd
 
-  cd ${dynamo_args["workspace-path"]}
+  if _is_vllm; then
+    cd ${dynamo_args["workspace-path"]}
+  fi
 
   if _is_frontend_node; then
     log "Node ID: $SLURM_NODEID, Role: frontend"
@@ -406,6 +621,9 @@ function main()
     launch_nats &
     wait_for_etcd
     launch_ingress &
+    if _is_sglang; then
+      launch_sgl_http_server
+    fi
   fi
 
   if _is_decode_node; then
