@@ -38,6 +38,10 @@ from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
     PipelineOverlapCfg,
     RingExchangeOverlapCfg,
     TransformerLayerTPOverlapCfg,
+    userbuffers_bf16_b200_h16384_tp4_cp2_mbs1_seqlen8192,
+    userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192,
+    userbuffers_fp8_b200_h16384_tp4_cp2_mbs1_seqlen8192,
+    userbuffers_fp8_h100_h16384_tp8_cp2_mbs1_seqlen8192,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import AutoResume, NeMoLogger
@@ -597,6 +601,39 @@ def llama3_70b_fp8_h100_tp_overlap_config() -> run.Config[TransformerLayerTPOver
 def get_tp_overlap_config():
     gpu_type = os.getenv("CLOUDAI_GPU_TYPE")
     compute_dtype = os.getenv("CLOUDAI_GPU_DTYPE")
+    recipe_name = os.getenv("CLOUDAI_NEMO_RECIPE", "")
+    is_405b = "405b" in recipe_name.lower()
+
+    # Use upstream userbuffer presets for Llama3.1 405B
+    if is_405b:
+        ub_cfg = {
+            "h100": {
+                "bf16": userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192,
+                "fp8": userbuffers_fp8_h100_h16384_tp8_cp2_mbs1_seqlen8192,
+            },
+            "b200": {
+                "bf16": userbuffers_bf16_b200_h16384_tp4_cp2_mbs1_seqlen8192,
+                "fp8": userbuffers_fp8_b200_h16384_tp4_cp2_mbs1_seqlen8192,
+            },
+            "gb200": {
+                "bf16": userbuffers_bf16_b200_h16384_tp4_cp2_mbs1_seqlen8192,
+                "fp8": userbuffers_fp8_b200_h16384_tp4_cp2_mbs1_seqlen8192,
+            },
+        }
+        fn = (ub_cfg.get(gpu_type, {}) or {}).get(compute_dtype)
+        if fn is not None:
+            tp_overlap_cfg = fn()
+            tp_comm_overlap = True
+        else:
+            print(
+                "Warning: Not using Default Comm Overlap Config.\n"
+                "Please set the GPU type and compute dtype in the environment variables."
+            )
+            tp_overlap_cfg = None
+            tp_comm_overlap = False
+        return tp_overlap_cfg, tp_comm_overlap
+
+    # Fallback: retain 70B-oriented configs for non-405B runs
     if gpu_type == "h100" and compute_dtype == "bf16":
         tp_overlap_cfg = llama3_70b_bf16_h100_tp_overlap_config()
         tp_comm_overlap = True
