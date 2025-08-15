@@ -254,7 +254,7 @@ _patch_section_args() {
 }
 
 _compute_worker_allocation_sglang() {
-  local num_gpus=$(echo "${CUDA_VISIBLE_DEVICES:-}" | tr ',' '\n' | grep -c .)
+  local num_gpus="$(_gpus_per_node)"
   if [[ $num_gpus -eq 0 ]]; then
     log "ERROR: No GPUs found in CUDA_VISIBLE_DEVICES"
     exit 1
@@ -420,19 +420,11 @@ _total_workers_decode() {
 }
 
 _count_initialized_prefill() {
-  if _is_sglang; then
-    grep -l "Request handler initialized" "${RESULTS_DIR}"/dynamo_*prefill* 2>/dev/null | wc -l
-  else
-    grep -i -l -E "${dynamo_args["prefill-initialized-regex"]}" "${RESULTS_DIR}"/dynamo_*prefill* 2>/dev/null | wc -l
-  fi
+  grep -i -l -E "${dynamo_args["prefill-initialized-regex"]}" "${RESULTS_DIR}"/dynamo_*prefill* 2>/dev/null | wc -l
 }
 
 _count_initialized_decode() {
-  if _is_sglang; then
-    grep -l "Decode request handler initialized" "${RESULTS_DIR}"/dynamo_*decode* 2>/dev/null | wc -l
-  else
-    grep -i -l -E "${dynamo_args["decode-initialized-regex"]}" "${RESULTS_DIR}"/dynamo_*decode* 2>/dev/null | wc -l
-  fi
+  grep -i -l -E "${dynamo_args["decode-initialized-regex"]}" "${RESULTS_DIR}"/dynamo_*decode* 2>/dev/null | wc -l
 }
 
 _expected_ready_prefill() {
