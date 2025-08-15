@@ -170,7 +170,7 @@ def generate_reports(system: System, test_scenario: TestScenario, result_dir: Pa
             reporter.generate()
         except Exception as e:
             logging.warning(f"Error generating report '{name}', see debug log for details")
-            logging.debug(e, stack_info=True)
+            logging.debug(e, exc_info=True)
 
 
 def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> None:

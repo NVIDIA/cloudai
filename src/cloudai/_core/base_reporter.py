@@ -22,6 +22,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import toml
+
 from .system import System
 from .test_scenario import TestRun, TestScenario
 
@@ -62,6 +64,10 @@ class Reporter(ABC):
                         tr.current_iteration = int(iter.name)
                         tr.step = int(step.name)
                         tr.output_path = tr_root / f"{tr.current_iteration}" / f"{tr.step}"
+                        tr_file = tr.output_path / "test-run.toml"
+                        if tr_file.exists():
+                            tr_file = toml.load(tr_file)
+                            tr.test.test_definition = tr.test.test_definition.model_validate(tr_file["test_definition"])
                         self.trs.append(copy.deepcopy(tr))
                 else:
                     tr.current_iteration = int(iter.name)
