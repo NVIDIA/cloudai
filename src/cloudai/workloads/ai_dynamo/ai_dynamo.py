@@ -66,7 +66,6 @@ class AIDynamoCmdArgs(CmdArgs):
     docker_image_url: str
     huggingface_home_host_path: Path = Path.home() / ".cache/huggingface"
     huggingface_home_container_path: Path = Path("/root/.cache/huggingface")
-    hf_model_path: Optional[Path] = None
     dynamo: AIDynamoArgs
     genai_perf: GenAIPerfArgs
     run_script: str = ""

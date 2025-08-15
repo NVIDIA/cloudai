@@ -39,10 +39,6 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f"{td.script.installed_path.absolute()!s}:{td.script.installed_path.absolute()!s}",
         ]
 
-        if td.cmd_args.hf_model_path:
-            model_path = Path(td.cmd_args.hf_model_path).absolute()
-            mounts.append(f"{model_path}:{model_path}")
-
         if td.cmd_args.dynamo.backend == "sglang":
             deepep_path = (
                 dynamo_repo_path / "components/backends/sglang/configs/deepseek_r1/wideep/deepep.json"
@@ -84,9 +80,6 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 td.cmd_args.dynamo, "--dynamo-", exclude=["prefill_worker", "decode_worker", "genai_perf"]
             )
         )
-
-        if td.cmd_args.hf_model_path:
-            args.append(f"--model-path {td.cmd_args.hf_model_path}")
 
         # Add backend-specific args
         if td.cmd_args.dynamo.backend == "sglang":
