@@ -4,6 +4,8 @@
 RESULTS_DIR="/cloudai_run_results"
 HUGGINGFACE_HOME="/root/.cache/huggingface"
 DONE_MARKER="frontend_done.marker"
+FATAL_ERROR_MARKER="fatal_error.marker"
+: "${DYNAMO_WORKER_ERROR_PATTERN:=zmq\.error\.ZMQError:.*Address already in use|UCX.*ERROR|ERROR core\.run_engine_core:.*EngineCore failed to start|ERROR multiproc_executor\.worker_busy_loop:.*WorkerProc hit an exception|EngineDeadError|EngineCore encountered an issue}"
 NODE_ROLES_FILE="node_roles.log"
 
 export DYN_SDK_DISABLE_ANSI_LOGGING=1
@@ -361,21 +363,24 @@ function array_to_args()
   echo "$result"
 }
 
-function exit_on_error()
-{
-  num_failed_workers=$(grep "zmq.error.ZMQError: Address already in use" $RESULTS_DIR/dynamo_*.log -il 2> /dev/null |wc -l)
-  if [[ $num_failed_workers -gt 0 ]]; then
-    log "ZMQ ERROR: Found $num_failed_workers failed workers, exiting"
-    log "Killing all jobs"
-    kill $(jobs -p) 2> /dev/null
-    exit 1
-  fi
+_detect_fatal_once() {
+  # Only treat as fatal on vllm
+  _is_vllm || return 0
+  local n=0
+  # Worker logs and UCX logs
+  n=$(( n + $(grep -E "${DYNAMO_WORKER_ERROR_PATTERN}" "${RESULTS_DIR}"/dynamo_*.log 2>/dev/null | wc -l || true) ))
+  n=$(( n + $(grep -E "UCX.*ERROR" "${RESULTS_DIR}"/ucx_log_*.log 2>/dev/null | wc -l || true) ))
+  echo "${n}"
+}
 
-  num_failed_workers=$(grep "UCX.*ERROR" $RESULTS_DIR/ucx_log_*.log -il 2> /dev/null |wc -l)
-  if [[ $num_failed_workers -gt 0 ]]; then
-    log "UCX ERROR: Found $num_failed_workers failed workers, exiting"
-    log "Killing all jobs"
-    kill $(jobs -p)
+exit_on_error() {
+  local fatal=$(_detect_fatal_once)
+  if [[ "${fatal}" -gt 0 ]]; then
+    log "FATAL: detected ${fatal} fatal error line(s). Writing ${FATAL_ERROR_MARKER} and terminating."
+    touch "${FATAL_ERROR_MARKER}"
+    # Try to stop background jobs for a cleaner exit, but do not loop
+    kill $(jobs -p) 2>/dev/null || true
+    # Exit non-zero so srun can retry
     exit 1
   fi
 }
@@ -460,6 +465,8 @@ _init_runtime_env() {
   export ETCD_ENDPOINTS="http://${dynamo_args["frontend-node"]}:${dynamo_args["etcd-port"]}"
   export UCX_LOG_FILE="${RESULTS_DIR}/ucx_log_%h.log"
   DONE_MARKER="${RESULTS_DIR}/${DONE_MARKER}"
+  FATAL_ERROR_MARKER="${RESULTS_DIR}/${FATAL_ERROR_MARKER}"
+  rm -f "${FATAL_ERROR_MARKER}" 2>/dev/null || true
 }
 
 function launch_node_setup_cmd()
