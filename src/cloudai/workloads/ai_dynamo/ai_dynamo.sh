@@ -453,7 +453,9 @@ _is_prefill_node() {
 }
 
 _init_runtime_env() {
-  export HF_HOME="${HUGGINGFACE_HOME}"
+  if _is_vllm; then
+    export HF_HOME="${HUGGINGFACE_HOME}"
+  fi
   export NATS_SERVER="nats://${dynamo_args["frontend-node"]}:${dynamo_args["nats-port"]}"
   export ETCD_ENDPOINTS="http://${dynamo_args["frontend-node"]}:${dynamo_args["etcd-port"]}"
   export UCX_LOG_FILE="${RESULTS_DIR}/ucx_log_%h.log"
