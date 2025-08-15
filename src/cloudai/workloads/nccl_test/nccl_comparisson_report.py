@@ -35,6 +35,7 @@ from cloudai.report_generator.util import (
     calculate_power_of_two_ticks,
 )
 from cloudai.util.lazy_imports import lazy
+from cloudai.workloads.nccl_test.nccl import NCCLTestDefinition
 
 from .performance_report_generation_strategy import extract_nccl_data
 
@@ -64,6 +65,7 @@ class NcclComparissonReport(Reporter):
 
     def generate(self) -> None:
         self.load_test_runs()
+        self.trs = [tr for tr in self.trs if isinstance(tr.test.test_definition, NCCLTestDefinition)]
         if not self.trs:
             logging.debug(f"No NCCL results found, skipping {self.__class__.__name__} report generation.")
             return
