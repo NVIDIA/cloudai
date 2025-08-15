@@ -620,9 +620,9 @@ def get_tp_overlap_config():
                 "fp8": userbuffers_fp8_b200_h16384_tp4_cp2_mbs1_seqlen8192,
             },
         }
-        fn = (ub_cfg.get(gpu_type, {}) or {}).get(compute_dtype)
-        if fn is not None:
-            tp_overlap_cfg = fn()
+        cfg_or_factory = (ub_cfg.get(gpu_type, {}) or {}).get(compute_dtype)
+        if cfg_or_factory is not None:
+            tp_overlap_cfg = cfg_or_factory() if callable(cfg_or_factory) else cfg_or_factory
             tp_comm_overlap = True
         else:
             print(
