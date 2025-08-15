@@ -64,6 +64,7 @@ function log()
 
 _is_vllm() { [[ "${dynamo_args["backend"]}" == "vllm" ]]; }
 _is_sglang() { [[ "${dynamo_args["backend"]}" == "sglang" ]]; }
+_is_trtllm() { [[ "${dynamo_args["backend"]}" == "trtllm" ]]; }
 
 _csv_len() { grep -oE '[^,]+' <<< "$1" | wc -l; }
 
@@ -167,6 +168,18 @@ _apply_sglang_section_args() {
   unset 'decode_args["--model"]'
 }
 
+_apply_trtllm_section_args() {
+  if [[ -n "${dynamo_args["prefill-engine-config"]:-}" ]]; then
+    [[ -f "${dynamo_args["prefill-engine-config"]}" ]] || log "WARN: prefill-engine-config not found: ${dynamo_args["prefill-engine-config"]}"
+    prefill_args["--engine-config"]="${dynamo_args["prefill-engine-config"]}"
+  fi
+
+  if [[ -n "${dynamo_args["decode-engine-config"]:-}" ]]; then
+    [[ -f "${dynamo_args["decode-engine-config"]}" ]] || log "WARN: decode-engine-config not found: ${dynamo_args["decode-engine-config"]}"
+    decode_args["--engine-config"]="${dynamo_args["decode-engine-config"]}"
+  fi
+}
+
 _apply_genai_perf_section_args() {
   genai_perf_args["--model"]="${dynamo_args["model"]}"
   genai_perf_args["--url"]="${dynamo_args["url"]}"
@@ -256,6 +269,8 @@ _patch_section_args() {
 
   if _is_sglang; then
     _apply_sglang_section_args
+  elif _is_trtllm; then
+    _apply_trtllm_section_args
   fi
 
   _apply_genai_perf_section_args
