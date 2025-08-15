@@ -209,8 +209,8 @@ _apply_sglang_section_args() {
   prefill_args["--dist-init-addr"]="${prefill_master_ip}:${dynamo_args["prefill-port"]}"
   prefill_args["--nnodes"]="${prefill_nodes}"
   prefill_args["--node-rank"]="$([[ "$prefill_rank" -ge 0 ]] && echo "$prefill_rank" || echo 0)"
-  prefill_args["--tp-size"]="${prefill_total_gpus}"
-  prefill_args["--dp-size"]="${prefill_total_gpus}"
+  prefill_args["--tp-size"]="${prefill_args["--tp-size"]:-${prefill_total_gpus}}"
+  prefill_args["--dp-size"]="${prefill_args["--dp-size"]:-${prefill_total_gpus}}"
 
   # decode group
   local decode_nodes="${dynamo_args["num-decode-nodes"]}"
@@ -221,8 +221,8 @@ _apply_sglang_section_args() {
   decode_args["--dist-init-addr"]="${decode_master_ip}:${dynamo_args["decode-port"]}"
   decode_args["--nnodes"]="${decode_nodes}"
   decode_args["--node-rank"]="$([[ "$decode_rank" -ge 0 ]] && echo "$decode_rank" || echo 0)"
-  decode_args["--tp-size"]="${decode_total_gpus}"
-  decode_args["--dp-size"]="${decode_total_gpus}"
+  decode_args["--tp-size"]="${decode_args["--tp-size"]:-${decode_total_gpus}}"
+  decode_args["--dp-size"]="${decode_args["--dp-size"]:-${decode_total_gpus}}"
 
   if [[ -n "${dynamo_args["deepep-config"]:-}" ]]; then
     [[ -f "${dynamo_args["deepep-config"]}" ]] || log "WARN: deepep-config not found: ${dynamo_args["deepep-config"]}"
