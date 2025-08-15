@@ -26,7 +26,7 @@ from cloudai.core import METRIC_ERROR
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.util.lazy_imports import lazy
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestPerformanceReportGenerationStrategy
-from cloudai.workloads.nccl_test.nccl_comparisson_report import diff_trs, group_for_comparison
+from cloudai.workloads.nccl_test.nccl_comparisson_report import ResultsGrouper, diff_test_runs
 from cloudai.workloads.nccl_test.performance_report_generation_strategy import _parse_device_info
 
 
@@ -163,24 +163,24 @@ class TestGrouping:
         return pd.DataFrame()
 
     def test_single_tr(self, nccl_tr: TestRun) -> None:
-        groups = group_for_comparison([nccl_tr], [], self._mock_extract_data)
+        groups = ResultsGrouper(trs=[nccl_tr], group_by=[], extract_data=self._mock_extract_data).groups()
         assert len(groups) == 1
         assert groups[0].name == "all-in-one"
-        assert groups[0].items[0].name == "0"
+        assert groups[0].items[0].name == "0.0"
 
     def test_multiple_trs_no_group_by_fields_same_trs(self, nccl_tr: TestRun) -> None:
-        groups = group_for_comparison([nccl_tr, nccl_tr], [], self._mock_extract_data)
+        groups = ResultsGrouper(trs=[nccl_tr, nccl_tr], group_by=[], extract_data=self._mock_extract_data).groups()
         assert len(groups) == 1
         assert groups[0].name == "all-in-one"
-        assert groups[0].items[0].name == "0"
-        assert groups[0].items[1].name == "1"
+        assert groups[0].items[0].name == "0.0"
+        assert groups[0].items[1].name == "0.1"
 
     def test_multiple_trs_no_group_by_fields(self, nccl_tr: TestRun) -> None:
         nccl1 = copy.deepcopy(nccl_tr)
         nccl2 = copy.deepcopy(nccl_tr)
         nccl1.test.test_definition.cmd_args.subtest_name = "all_gather_perf"
         nccl2.test.test_definition.cmd_args.subtest_name = "all_reduce_perf"
-        groups = group_for_comparison([nccl1, nccl2], [], self._mock_extract_data)
+        groups = ResultsGrouper(trs=[nccl1, nccl2], group_by=[], extract_data=self._mock_extract_data).groups()
         assert len(groups) == 1
         assert groups[0].name == "all-in-one"
         assert groups[0].items[0].name == "subtest_name=all_gather_perf"
@@ -192,22 +192,26 @@ class TestGrouping:
         nccl1.test.test_definition.cmd_args.subtest_name = "all_gather_perf"
         nccl2.test.test_definition.cmd_args.subtest_name = "all_reduce_perf"
 
-        groups = group_for_comparison([nccl1, nccl2], ["subtest_name"], self._mock_extract_data)
+        groups = ResultsGrouper(
+            trs=[nccl1, nccl2], group_by=["subtest_name"], extract_data=self._mock_extract_data
+        ).groups()
 
         assert len(groups) == 2
         assert groups[0].name == "subtest_name=all_gather_perf"
         assert groups[1].name == "subtest_name=all_reduce_perf"
-        assert groups[0].items[0].name == "0"
-        assert groups[1].items[0].name == "1"
+        assert groups[0].items[0].name == "0.0"
+        assert groups[1].items[0].name == "1.0"
 
     def test_group_by_two_fields(self, nccl_tr: TestRun) -> None:
         nccl_tr.test.test_definition.cmd_args.subtest_name = ["all_gather_perf", "all_reduce_perf"]
         nccl_tr.test.test_definition.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = ["0", "1"]
         trs: list[TestRun] = [nccl_tr.apply_params_set(combination) for combination in nccl_tr.all_combinations]
 
-        groups = group_for_comparison(
-            trs, ["subtest_name", "extra_env_vars.NCCL_IB_SPLIT_DATA_ON_QPS"], self._mock_extract_data
-        )
+        groups = ResultsGrouper(
+            trs=trs,
+            group_by=["subtest_name", "extra_env_vars.NCCL_IB_SPLIT_DATA_ON_QPS"],
+            extract_data=self._mock_extract_data,
+        ).groups()
 
         assert len(groups) == 4
         assert all(len(group.items) == 1 for group in groups)
@@ -221,7 +225,7 @@ class TestGrouping:
         nccl_tr.test.test_definition.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = ["0", "1"]
         trs: list[TestRun] = [nccl_tr.apply_params_set(combination) for combination in nccl_tr.all_combinations]
 
-        groups = group_for_comparison(trs, ["subtest_name"], self._mock_extract_data)
+        groups = ResultsGrouper(trs=trs, group_by=["subtest_name"], extract_data=self._mock_extract_data).groups()
 
         assert len(groups) == 2
 
@@ -243,7 +247,7 @@ class TestDiffTrs:
         nccl1.test.test_definition.cmd_args.subtest_name = "all_gather_perf"
         nccl2.test.test_definition.cmd_args.subtest_name = "all_reduce_perf"
 
-        diff = diff_trs([nccl1, nccl2])
+        diff = diff_test_runs([nccl1, nccl2])
 
         assert diff == {"subtest_name": ["all_gather_perf", "all_reduce_perf"]}
 
@@ -253,7 +257,7 @@ class TestDiffTrs:
         nccl1.num_nodes = 1
         nccl2.num_nodes = 2
 
-        diff = diff_trs([nccl1, nccl2])
+        diff = diff_test_runs([nccl1, nccl2])
         assert diff == {"NUM_NODES": [1, 2]}
 
     def test_diff_extra_env_vars(self, nccl_tr: TestRun) -> None:
@@ -262,5 +266,5 @@ class TestDiffTrs:
         nccl1.test.test_definition.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = "0"
         nccl2.test.test_definition.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = "1"
 
-        diff = diff_trs([nccl1, nccl2])
+        diff = diff_test_runs([nccl1, nccl2])
         assert diff == {"extra_env_vars.NCCL_IB_SPLIT_DATA_ON_QPS": ["0", "1"]}

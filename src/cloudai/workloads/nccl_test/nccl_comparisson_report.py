@@ -56,7 +56,7 @@ class GroupedfResult:
     items: list[GroupItem]
 
 
-def diff_trs(trs: list[TestRun]) -> dict[str, list[str]]:
+def diff_test_runs(trs: list[TestRun]) -> dict[str, list[str]]:
     """Acts like .action_space for a DSE TestRun, but for a list of TestRuns."""
     dicts: list[dict] = []
     for tr in trs:
@@ -78,61 +78,68 @@ def diff_trs(trs: list[TestRun]) -> dict[str, list[str]]:
     return diff
 
 
-def group_for_comparison(
-    trs: list[TestRun], group_by: list[str], extract_data: Callable[[TestRun], pd.DataFrame]
-) -> list[GroupedfResult]:
-    def _grp_name() -> str:
-        if not group_by:
-            return "all-in-one"
-        parts = [f"{field}={_get_value(tr.test.test_definition, field)}" for field in group_by]
-        return " ".join(parts).replace("extra_env_vars.", "")
+@dataclass
+class ResultsGrouper:
+    """Group TestRuns based on cmd_args or/and extra_env_vars."""
 
-    if len(trs) == 1 or not group_by:
-        items: list[GroupItem] = []
-        diff = diff_trs(trs)
-        for idx, _ in enumerate(trs):
-            item_name_parts = [f"{field}={vals[idx]}" for field, vals in diff.items()]
-            name = " ".join(item_name_parts).replace("extra_env_vars.", "")
-            if not diff:
-                name = f"{idx}"
-            items.append(GroupItem(name=name, tr=trs[idx], result=extract_data(trs[idx])))
-        return [GroupedfResult(name=_grp_name(), items=items)]
+    trs: list[TestRun]
+    group_by: list[str]
+    extract_data: Callable[[TestRun], pd.DataFrame]
 
-    def _get_value(tdef: TestDefinition, field: str) -> str:
+    def get_value(self, tdef: TestDefinition, field: str) -> str:
+        """Get field value for cmd_args or extra_env_vars."""
         if field.startswith("extra_env_vars."):
             f_name = field[len("extra_env_vars.") :]
             v = str(tdef.extra_env_vars.get(f_name))
         else:
             v = getattr(tdef.cmd_args, field)
-
         return v
 
-    groups: list[list[TestRun]] = []
-    for tr in trs:
-        for group in groups:
-            matched = all(
-                _get_value(tr.test.test_definition, field) == _get_value(group[0].test.test_definition, field)
-                for field in group_by
-            )
+    def group_name(self, trs: list[TestRun]) -> str:
+        """
+        Get group name for a list of TestRuns.
 
-            if matched:
-                group.append(tr)
-                break
-        else:  # runs only if no break happened
-            groups.append([tr])
+        Assume all test runs are grouped by the group_by fields, so take all the values from the first test run.
+        """
+        if not self.group_by:
+            return "all-in-one"
+        parts = [f"{field}={self.get_value(trs[0].test.test_definition, field)}" for field in self.group_by]
+        return " ".join(parts).replace("extra_env_vars.", "")
 
-    res: list[GroupedfResult] = []
-    for grp_idx, group in enumerate(groups):
+    def create_group(self, trs: list[TestRun], group_idx: str = "0") -> GroupedfResult:
+        diff = diff_test_runs(trs)
         items: list[GroupItem] = []
-        diff = diff_trs(group)
-        for idx, tr in enumerate(group):
-            item_name_parts = [f"{field}={vals[idx]}" for field, vals in diff.items()]
-            name = " ".join(item_name_parts).replace("extra_env_vars.", "")
-            if not diff:
-                name = f"{grp_idx}"
-            items.append(GroupItem(name=name, tr=tr, result=extract_data(tr)))
-        res.append(GroupedfResult(name=_grp_name(), items=items))
-    return res
+        for idx, _ in enumerate(trs):
+            name = f"{group_idx}.{idx}"
+            if diff:
+                item_name_parts = [f"{field}={vals[idx]}" for field, vals in diff.items()]
+                name = " ".join(item_name_parts).replace("extra_env_vars.", "")
+            items.append(GroupItem(name=name, tr=trs[idx], result=self.extract_data(trs[idx])))
+        return GroupedfResult(name=self.group_name(trs), items=items)
+
+    def groups(self) -> list[GroupedfResult]:
+        if not self.group_by:
+            return [self.create_group(self.trs)]
+
+        groups: list[list[TestRun]] = []
+        for tr in self.trs:
+            for group in groups:
+                matched = all(
+                    self.get_value(tr.test.test_definition, field)
+                    == self.get_value(group[0].test.test_definition, field)
+                    for field in self.group_by
+                )
+
+                if matched:
+                    group.append(tr)
+                    break
+            else:  # runs only if no break happened
+                groups.append([tr])
+
+        res: list[GroupedfResult] = []
+        for grp_idx, group in enumerate(groups):
+            res.append(self.create_group(group, group_idx=str(grp_idx)))
+        return res
 
 
 class NcclComparissonReport(Reporter):
