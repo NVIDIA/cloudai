@@ -105,6 +105,24 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     f'--dynamo-deepep-config "{deepep_path!s}"',
                 ]
             )
+        elif td.cmd_args.dynamo.backend == "trtllm":
+            prefill_engine_config = getattr(td.cmd_args.dynamo, "prefill_engine_config", None)
+            decode_engine_config = getattr(td.cmd_args.dynamo, "decode_engine_config", None)
+
+            if not prefill_engine_config:
+                raise ValueError("prefill_engine_config is required for trtllm backend")
+            if not decode_engine_config:
+                raise ValueError("decode_engine_config is required for trtllm backend")
+
+            prefill_engine_config = Path(prefill_engine_config).absolute()
+            decode_engine_config = Path(decode_engine_config).absolute()
+
+            args.extend(
+                [
+                    f'--dynamo-prefill-engine-config "{prefill_engine_config!s}"',
+                    f'--dynamo-decode-engine-config "{decode_engine_config!s}"',
+                ]
+            )
 
         args.extend(self._get_toml_args(td.cmd_args.dynamo.prefill_worker, "--prefill-"))
         args.extend(self._get_toml_args(td.cmd_args.dynamo.decode_worker, "--decode-"))
