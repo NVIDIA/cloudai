@@ -20,7 +20,7 @@ import logging
 from dataclasses import dataclass
 from itertools import cycle
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Callable
 
 import jinja2
 from rich.console import Console
@@ -47,6 +47,7 @@ if TYPE_CHECKING:
 class GroupItem:
     name: str
     tr: TestRun
+    result: pd.DataFrame
 
 
 @dataclass
@@ -77,7 +78,9 @@ def diff_trs(trs: list[TestRun]) -> dict[str, list[str]]:
     return diff
 
 
-def group_for_comparison(trs: list[TestRun], group_by: list[str]) -> list[GroupedfResult]:
+def group_for_comparison(
+    trs: list[TestRun], group_by: list[str], extract_data: Callable[[TestRun], pd.DataFrame]
+) -> list[GroupedfResult]:
     def _grp_name() -> str:
         if not group_by:
             return "all-in-one"
@@ -92,7 +95,7 @@ def group_for_comparison(trs: list[TestRun], group_by: list[str]) -> list[Groupe
             name = " ".join(item_name_parts).replace("extra_env_vars.", "")
             if not diff:
                 name = f"{idx}"
-            items.append(GroupItem(name=name, tr=trs[idx]))
+            items.append(GroupItem(name=name, tr=trs[idx], result=extract_data(trs[idx])))
         return [GroupedfResult(name=_grp_name(), items=items)]
 
     def _get_value(tdef: TestDefinition, field: str) -> str:
@@ -127,7 +130,7 @@ def group_for_comparison(trs: list[TestRun], group_by: list[str]) -> list[Groupe
             name = " ".join(item_name_parts).replace("extra_env_vars.", "")
             if not diff:
                 name = f"{grp_idx}"
-            items.append(GroupItem(name=name, tr=tr))
+            items.append(GroupItem(name=name, tr=tr, result=extract_data(tr)))
         res.append(GroupedfResult(name=_grp_name(), items=items))
     return res
 
@@ -153,17 +156,23 @@ class NcclComparissonReport(Reporter):
             return
 
         console = Console(record=True)
-        cmp_groups = group_for_comparison(self.trs, self.group_by)
+        cmp_groups = group_for_comparison(self.trs, self.group_by, self._extract_data)
 
         for group in cmp_groups:
             table = self.create_table(
-                group, title="Latecy", info_columns=self.INFO_COLUMNS, data_columns=self.LATENCY_DATA_COLUMNS
+                group,
+                title="Latecy",
+                info_columns=list(self.INFO_COLUMNS),
+                data_columns=list(self.LATENCY_DATA_COLUMNS),
             )
             console.print(table)
             console.print()
 
             table = self.create_table(
-                group, title="Bandwidth", info_columns=self.INFO_COLUMNS, data_columns=self.BANDWIDTH_DATA_COLUMNS
+                group,
+                title="Bandwidth",
+                info_columns=list(self.INFO_COLUMNS),
+                data_columns=list(self.BANDWIDTH_DATA_COLUMNS),
             )
             console.print(table)
             console.print()
@@ -187,7 +196,7 @@ class NcclComparissonReport(Reporter):
         logging.info(f"NCCL comparisson report created: {html_file}")
 
     def create_table(
-        self, group: GroupedfResult, title: str, info_columns: tuple[str], data_columns: Iterable[str]
+        self, group: GroupedfResult, title: str, info_columns: list[str], data_columns: list[str]
     ) -> Table:
         dfs = [self._extract_data(item.tr) for item in group.items]
 
@@ -251,13 +260,15 @@ class NcclComparissonReport(Reporter):
         return df
 
     def get_bokeh_html(self) -> tuple[str, str]:
-        cmp_groups = group_for_comparison(self.trs, self.group_by)
+        cmp_groups = group_for_comparison(self.trs, self.group_by, self._extract_data)
         charts: list[bk.figure] = []
         for group in cmp_groups:
-            if chart := self.create_chart(group, "Latecy", self.INFO_COLUMNS, self.LATENCY_DATA_COLUMNS, "Time (us)"):
+            if chart := self.create_chart(
+                group, "Latecy", list(self.INFO_COLUMNS), list(self.LATENCY_DATA_COLUMNS), "Time (us)"
+            ):
                 charts.append(chart)
             if chart := self.create_chart(
-                group, "Bandwidth", self.INFO_COLUMNS, self.BANDWIDTH_DATA_COLUMNS, "Busbw (GB/s)"
+                group, "Bandwidth", list(self.INFO_COLUMNS), list(self.BANDWIDTH_DATA_COLUMNS), "Busbw (GB/s)"
             ):
                 charts.append(chart)
 
@@ -277,11 +288,11 @@ class NcclComparissonReport(Reporter):
         self,
         group: GroupedfResult,
         title: str,
-        info_columns: tuple[str],
-        data_columns: Iterable[str],
+        info_columns: list[str],
+        data_columns: list[str],
         y_axis_label: str,
     ) -> bk.figure | None:
-        dfs = [self._extract_data(item.tr) for item in group.items]
+        dfs = [item.result for item in group.items]
 
         style_cycle = cycle(["green", "cyan", "magenta", "blue", "yellow"])
 
