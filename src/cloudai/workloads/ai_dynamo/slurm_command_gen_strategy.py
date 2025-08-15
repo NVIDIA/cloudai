@@ -100,9 +100,14 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             if dynamo_repo_path is None:
                 raise ValueError("dynamo_repo_path is not set - repo may not be installed")
 
-            deepep_path = (
-                dynamo_repo_path / "components/backends/sglang/configs/deepseek_r1/wideep/deepep.json"
-            ).absolute()
+            deepep_path = getattr(td.cmd_args.dynamo, "deepep_path", None)
+            if not deepep_path:
+                deepep_path = (
+                    dynamo_repo_path / "components/backends/sglang/configs/deepseek_r1/wideep/deepep.json"
+                ).absolute()
+            else:
+                deepep_path = Path(deepep_path).absolute()
+
             sgl_http_server_path = (
                 dynamo_repo_path / "components/backends/sglang/src/dynamo/sglang/utils/sgl_http_server.py"
             ).absolute()
