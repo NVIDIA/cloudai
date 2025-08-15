@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -25,6 +26,7 @@ from cloudai.core import METRIC_ERROR
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.util.lazy_imports import lazy
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestPerformanceReportGenerationStrategy
+from cloudai.workloads.nccl_test.nccl_comparisson_report import GroupItem, diff_trs, group_for_comparison
 from cloudai.workloads.nccl_test.performance_report_generation_strategy import _parse_device_info
 
 
@@ -154,3 +156,106 @@ def test_get_metric(
     res = report_strategy.get_metric(metric)
     assert res is not None and res != METRIC_ERROR
     assert res == lazy.np.mean(ref_values)
+
+
+class TestGrouping:
+    def test_single_tr(self, nccl_tr: TestRun) -> None:
+        groups = group_for_comparison([nccl_tr], [])
+        assert len(groups) == 1
+        assert groups[0].name == "all-in-one"
+        assert groups[0].items == [GroupItem(name="0", tr=nccl_tr)]
+
+    def test_multiple_trs_no_group_by_fields_same_trs(self, nccl_tr: TestRun) -> None:
+        groups = group_for_comparison([nccl_tr, nccl_tr], [])
+        assert len(groups) == 1
+        assert groups[0].name == "all-in-one"
+        assert groups[0].items[0].name == "0"
+        assert groups[0].items[1].name == "1"
+
+    def test_multiple_trs_no_group_by_fields(self, nccl_tr: TestRun) -> None:
+        nccl1 = copy.deepcopy(nccl_tr)
+        nccl2 = copy.deepcopy(nccl_tr)
+        nccl1.test.test_definition.cmd_args.subtest_name = "all_gather_perf"
+        nccl2.test.test_definition.cmd_args.subtest_name = "all_reduce_perf"
+        groups = group_for_comparison([nccl1, nccl2], [])
+        assert len(groups) == 1
+        assert groups[0].name == "all-in-one"
+        assert groups[0].items[0].name == "subtest_name=all_gather_perf"
+        assert groups[0].items[1].name == "subtest_name=all_reduce_perf"
+
+    def test_group_by_one_field(self, nccl_tr: TestRun) -> None:
+        nccl1 = copy.deepcopy(nccl_tr)
+        nccl2 = copy.deepcopy(nccl_tr)
+        nccl1.test.test_definition.cmd_args.subtest_name = "all_gather_perf"
+        nccl2.test.test_definition.cmd_args.subtest_name = "all_reduce_perf"
+
+        groups = group_for_comparison([nccl1, nccl2], ["subtest_name"])
+
+        assert len(groups) == 2
+        assert groups[0].name == "subtest_name=all_gather_perf"
+        assert groups[1].name == "subtest_name=all_reduce_perf"
+        assert groups[0].items[0].name == "0"
+        assert groups[1].items[0].name == "1"
+
+    def test_group_by_two_fields(self, nccl_tr: TestRun) -> None:
+        nccl_tr.test.test_definition.cmd_args.subtest_name = ["all_gather_perf", "all_reduce_perf"]
+        nccl_tr.test.test_definition.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = ["0", "1"]
+        trs: list[TestRun] = [nccl_tr.apply_params_set(combination) for combination in nccl_tr.all_combinations]
+
+        groups = group_for_comparison(trs, ["subtest_name", "extra_env_vars.NCCL_IB_SPLIT_DATA_ON_QPS"])
+
+        assert len(groups) == 4
+        assert all(len(group.items) == 1 for group in groups)
+        assert groups[0].name == "subtest_name=all_gather_perf NCCL_IB_SPLIT_DATA_ON_QPS=0"
+        assert groups[1].name == "subtest_name=all_gather_perf NCCL_IB_SPLIT_DATA_ON_QPS=1"
+        assert groups[2].name == "subtest_name=all_reduce_perf NCCL_IB_SPLIT_DATA_ON_QPS=0"
+        assert groups[3].name == "subtest_name=all_reduce_perf NCCL_IB_SPLIT_DATA_ON_QPS=1"
+
+    def test_multiple_trs_in_a_group(self, nccl_tr: TestRun) -> None:
+        nccl_tr.test.test_definition.cmd_args.subtest_name = ["all_gather_perf", "all_reduce_perf"]
+        nccl_tr.test.test_definition.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = ["0", "1"]
+        trs: list[TestRun] = [nccl_tr.apply_params_set(combination) for combination in nccl_tr.all_combinations]
+
+        groups = group_for_comparison(trs, ["subtest_name"])
+
+        assert len(groups) == 2
+
+        assert groups[0].name == "subtest_name=all_gather_perf"
+        assert len(groups[0].items) == 2
+        assert groups[0].items[0].name == "NCCL_IB_SPLIT_DATA_ON_QPS=0"
+        assert groups[0].items[1].name == "NCCL_IB_SPLIT_DATA_ON_QPS=1"
+
+        assert groups[1].name == "subtest_name=all_reduce_perf"
+        assert len(groups[1].items) == 2
+        assert groups[1].items[0].name == "NCCL_IB_SPLIT_DATA_ON_QPS=0"
+        assert groups[1].items[1].name == "NCCL_IB_SPLIT_DATA_ON_QPS=1"
+
+
+class TestDiffTrs:
+    def test_diff_cmd_args_field(self, nccl_tr: TestRun) -> None:
+        nccl1 = copy.deepcopy(nccl_tr)
+        nccl2 = copy.deepcopy(nccl_tr)
+        nccl1.test.test_definition.cmd_args.subtest_name = "all_gather_perf"
+        nccl2.test.test_definition.cmd_args.subtest_name = "all_reduce_perf"
+
+        diff = diff_trs([nccl1, nccl2])
+
+        assert diff == {"subtest_name": ["all_gather_perf", "all_reduce_perf"]}
+
+    def test_diff_num_nodes(self, nccl_tr: TestRun) -> None:
+        nccl1 = copy.deepcopy(nccl_tr)
+        nccl2 = copy.deepcopy(nccl_tr)
+        nccl1.num_nodes = 1
+        nccl2.num_nodes = 2
+
+        diff = diff_trs([nccl1, nccl2])
+        assert diff == {"NUM_NODES": [1, 2]}
+
+    def test_diff_extra_env_vars(self, nccl_tr: TestRun) -> None:
+        nccl1 = copy.deepcopy(nccl_tr)
+        nccl2 = copy.deepcopy(nccl_tr)
+        nccl1.test.test_definition.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = "0"
+        nccl2.test.test_definition.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = "1"
+
+        diff = diff_trs([nccl1, nccl2])
+        assert diff == {"extra_env_vars.NCCL_IB_SPLIT_DATA_ON_QPS": ["0", "1"]}

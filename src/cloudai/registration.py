@@ -68,6 +68,7 @@ def register_all():
         NcclTestRunAIJsonGenStrategy,
         NcclTestSlurmCommandGenStrategy,
     )
+    from cloudai.workloads.nccl_test.nccl_comparisson_report import NcclComparissonReport
     from cloudai.workloads.nemo_launcher import (
         NeMoLauncherGradingStrategy,
         NeMoLauncherReportGenerationStrategy,
@@ -206,6 +207,7 @@ def register_all():
     Registry().add_scenario_report("status", StatusReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("tarball", TarballReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("nixl_bench_summary", NIXLBenchSummaryReport, ReportConfig(enable=True))
+    Registry().add_scenario_report("nccl_comparisson", NcclComparissonReport, ReportConfig(enable=True))
 
     Registry().add_reward_function("inverse", inverse_reward)
     Registry().add_reward_function("negative", negative_reward)
