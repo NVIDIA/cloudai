@@ -127,8 +127,8 @@ _apply_sglang_section_args() {
   decode_args["--served-model-name"]=${dynamo_args["model"]}
 
   # model-path must point to HF cache for sglang
-  prefill_args["--model-path"]="${HUGGINGFACE_HOME}"
-  decode_args["--model-path"]="${HUGGINGFACE_HOME}"
+  prefill_args["--model-path"]="${MODEL_PATH}"
+  decode_args["--model-path"]="${MODEL_PATH}"
 
   local self="$(_current_node_name)"
   local gpn="$(_gpus_per_node)"
@@ -191,6 +191,8 @@ _parse_cli_pairs() {
         genai_perf_args["--${key#--genai-perf-}"]="$2" ;;
       --huggingface-home)
         HUGGINGFACE_HOME="$2" ;;
+      --model-path)
+        MODEL_PATH="$2" ;;
       --results-dir)
         RESULTS_DIR="$2" ;;
     esac
@@ -453,9 +455,7 @@ _is_prefill_node() {
 }
 
 _init_runtime_env() {
-  if _is_vllm; then
-    export HF_HOME="${HUGGINGFACE_HOME}"
-  fi
+  export HF_HOME="${HUGGINGFACE_HOME}"
   export NATS_SERVER="nats://${dynamo_args["frontend-node"]}:${dynamo_args["nats-port"]}"
   export ETCD_ENDPOINTS="http://${dynamo_args["frontend-node"]}:${dynamo_args["etcd-port"]}"
   export UCX_LOG_FILE="${RESULTS_DIR}/ucx_log_%h.log"
