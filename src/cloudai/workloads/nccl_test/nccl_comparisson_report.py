@@ -23,17 +23,19 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Iterable
 
 import jinja2
-import toml
 from rich.console import Console
 from rich.table import Table
 
 from cloudai.core import Reporter, System, TestRun, TestScenario
 from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import TestDefinition
-from cloudai.report_generator.util import add_human_readable_sizes
+from cloudai.report_generator.util import (
+    add_human_readable_sizes,
+    bokeh_size_unit_js_tick_formatter,
+    calculate_power_of_two_ticks,
+)
 from cloudai.util.lazy_imports import lazy
 
-from .nccl import NCCLTestDefinition
 from .performance_report_generation_strategy import extract_nccl_data
 
 if TYPE_CHECKING:
@@ -185,7 +187,7 @@ class NcclComparissonReport(Reporter):
         logging.info(f"NCCL comparisson report created: {html_file}")
 
     def create_table(
-        self, group: GroupedfResult, title: str, info_columns: Iterable[str], data_columns: Iterable[str]
+        self, group: GroupedfResult, title: str, info_columns: tuple[str], data_columns: Iterable[str]
     ) -> Table:
         dfs = [self._extract_data(item.tr) for item in group.items]
 
@@ -275,7 +277,7 @@ class NcclComparissonReport(Reporter):
         self,
         group: GroupedfResult,
         title: str,
-        info_columns: Iterable[str],
+        info_columns: tuple[str],
         data_columns: Iterable[str],
         y_axis_label: str,
     ) -> bk.figure | None:
@@ -318,5 +320,11 @@ class NcclComparissonReport(Reporter):
         y_max = max(df[col].max() for df in dfs for col in data_columns)
         y_min = min(df[col].min() for df in dfs for col in data_columns)
         p.y_range = lazy.bokeh_models.Range1d(start=y_min * -1 * y_max * 0.01, end=y_max * 1.1)
+
+        x_min = dfs[0][info_columns[0]].min().min()
+        x_max = dfs[0][info_columns[0]].max().max()
+        p.xaxis.ticker = calculate_power_of_two_ticks(x_min, x_max)
+        p.xaxis.formatter = lazy.bokeh_models.CustomJSTickFormatter(code=bokeh_size_unit_js_tick_formatter)
+        p.xaxis.major_label_orientation = lazy.np.pi / 4
 
         return p
