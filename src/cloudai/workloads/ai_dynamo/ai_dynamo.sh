@@ -277,7 +277,7 @@ _compute_worker_allocation_sglang() {
 _compute_worker_allocation_vllm() {
   local tp_arg_name="--${dynamo_args["tp-arg-name"]}"
   local pp_arg_name="--${dynamo_args["pp-arg-name"]}"
-  local num_gpus=$(echo "${CUDA_VISIBLE_DEVICES:-}" | tr ',' '\n' | grep -c .)
+  local num_gpus="$(_gpus_per_node)"
 
   if [[ $num_gpus -eq 0 ]]; then
     log "ERROR: No GPUs found in CUDA_VISIBLE_DEVICES"
@@ -569,8 +569,7 @@ validate_environment() {
   fi
 
   # GPU count sanity
-  local num_gpus
-  num_gpus=$(echo "${CUDA_VISIBLE_DEVICES}" | tr ',' '\n' | grep -c . || true)
+  local num_gpus="$(_gpus_per_node)"
   if [[ "$num_gpus" -le 0 ]]; then
     log "ERROR: Parsed zero GPUs from CUDA_VISIBLE_DEVICES='${CUDA_VISIBLE_DEVICES}'"
     exit 1
