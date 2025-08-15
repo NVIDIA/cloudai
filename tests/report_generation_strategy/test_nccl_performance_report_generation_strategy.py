@@ -14,62 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 from pathlib import Path
-from unittest.mock import Mock
 
 import pandas as pd
 import pytest
 
-from cloudai import Test, TestRun
+from cloudai import TestRun
 from cloudai.core import METRIC_ERROR
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.util.lazy_imports import lazy
-from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestPerformanceReportGenerationStrategy
-from cloudai.workloads.nccl_test.nccl_comparisson_report import ResultsGrouper, diff_test_runs
+from cloudai.workloads.nccl_test import NcclTestPerformanceReportGenerationStrategy
 from cloudai.workloads.nccl_test.performance_report_generation_strategy import _parse_device_info
-
-
-@pytest.fixture
-def nccl_tr(tmp_path: Path) -> TestRun:
-    test = Test(
-        test_definition=NCCLTestDefinition(
-            name="nccl",
-            description="desc",
-            test_template_name="t",
-            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-        ),
-        test_template=Mock(),
-    )
-    tr = TestRun(name="nccl_test", test=test, num_nodes=2, nodes=[], output_path=tmp_path)
-
-    stdout_content = """# Rank  0 Group  0 Pid 1000 on node1 device  0 [0xaa] NVIDIA H100
-# Rank  1 Group  0 Pid 1001 on node1 device  1 [0xbb] NVIDIA H100
-# Rank  2 Group  0 Pid 1002 on node1 device  2 [0xcc] NVIDIA H100
-# Rank  3 Group  0 Pid 1003 on node1 device  3 [0xdd] NVIDIA H100
-# Rank  4 Group  0 Pid 1004 on node1 device  4 [0xee] NVIDIA H100
-# Rank  5 Group  0 Pid 1005 on node1 device  5 [0xff] NVIDIA H100
-# Rank  6 Group  0 Pid 1006 on node1 device  6 [0x11] NVIDIA H100
-# Rank  7 Group  0 Pid 1007 on node1 device  7 [0x22] NVIDIA H100
-# Rank  8 Group  0 Pid 2000 on node2 device  0 [0xaa] NVIDIA H100
-# Rank  9 Group  0 Pid 2001 on node2 device  1 [0xbb] NVIDIA H100
-# Rank 10 Group  0 Pid 2002 on node2 device  2 [0xcc] NVIDIA H100
-# Rank 11 Group  0 Pid 2003 on node2 device  3 [0xdd] NVIDIA H100
-# Rank 12 Group  0 Pid 2004 on node2 device  4 [0xee] NVIDIA H100
-# Rank 13 Group  0 Pid 2005 on node2 device  5 [0xff] NVIDIA H100
-# Rank 14 Group  0 Pid 2006 on node2 device  6 [0x11] NVIDIA H100
-# Rank 15 Group  0 Pid 2007 on node2 device  7 [0x22] NVIDIA H100
-#
-#                                                              out-of-place                       in-place
-#       size         count      type   redop    root     time   algbw   busbw #wrong     time   algbw   busbw #wrong
-     1000000       1000000     float     sum      -1    1.11   10.10   20.20      0    1.12   10.11   20.21      0
-     2000000       2000000     float     sum      -1    2.22   20.20   30.30      0    2.23   20.21   30.31      0
-     12000000      12000000     float     sum      -1   13.13  120.30  130.40      0   13.14  120.31  130.41      0
-# Avg bus bandwidth    : 111.111
-"""
-    (tr.output_path / "stdout.txt").write_text(stdout_content)
-
-    return tr
 
 
 @pytest.fixture
@@ -156,115 +111,3 @@ def test_get_metric(
     res = report_strategy.get_metric(metric)
     assert res is not None and res != METRIC_ERROR
     assert res == lazy.np.mean(ref_values)
-
-
-class TestGrouping:
-    def _mock_extract_data(self, tr: TestRun) -> pd.DataFrame:
-        return pd.DataFrame()
-
-    def test_single_tr(self, nccl_tr: TestRun) -> None:
-        groups = ResultsGrouper(trs=[nccl_tr], group_by=[], extract_data=self._mock_extract_data).groups()
-        assert len(groups) == 1
-        assert groups[0].name == "all-in-one"
-        assert groups[0].items[0].name == "0.0"
-
-    def test_multiple_trs_no_group_by_fields_same_trs(self, nccl_tr: TestRun) -> None:
-        groups = ResultsGrouper(trs=[nccl_tr, nccl_tr], group_by=[], extract_data=self._mock_extract_data).groups()
-        assert len(groups) == 1
-        assert groups[0].name == "all-in-one"
-        assert groups[0].items[0].name == "0.0"
-        assert groups[0].items[1].name == "0.1"
-
-    def test_multiple_trs_no_group_by_fields(self, nccl_tr: TestRun) -> None:
-        nccl1 = copy.deepcopy(nccl_tr)
-        nccl2 = copy.deepcopy(nccl_tr)
-        nccl1.test.test_definition.cmd_args.subtest_name = "all_gather_perf"
-        nccl2.test.test_definition.cmd_args.subtest_name = "all_reduce_perf"
-        groups = ResultsGrouper(trs=[nccl1, nccl2], group_by=[], extract_data=self._mock_extract_data).groups()
-        assert len(groups) == 1
-        assert groups[0].name == "all-in-one"
-        assert groups[0].items[0].name == "subtest_name=all_gather_perf"
-        assert groups[0].items[1].name == "subtest_name=all_reduce_perf"
-
-    def test_group_by_one_field(self, nccl_tr: TestRun) -> None:
-        nccl1 = copy.deepcopy(nccl_tr)
-        nccl2 = copy.deepcopy(nccl_tr)
-        nccl1.test.test_definition.cmd_args.subtest_name = "all_gather_perf"
-        nccl2.test.test_definition.cmd_args.subtest_name = "all_reduce_perf"
-
-        groups = ResultsGrouper(
-            trs=[nccl1, nccl2], group_by=["subtest_name"], extract_data=self._mock_extract_data
-        ).groups()
-
-        assert len(groups) == 2
-        assert groups[0].name == "subtest_name=all_gather_perf"
-        assert groups[1].name == "subtest_name=all_reduce_perf"
-        assert groups[0].items[0].name == "0.0"
-        assert groups[1].items[0].name == "1.0"
-
-    def test_group_by_two_fields(self, nccl_tr: TestRun) -> None:
-        nccl_tr.test.test_definition.cmd_args.subtest_name = ["all_gather_perf", "all_reduce_perf"]
-        nccl_tr.test.test_definition.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = ["0", "1"]
-        trs: list[TestRun] = [nccl_tr.apply_params_set(combination) for combination in nccl_tr.all_combinations]
-
-        groups = ResultsGrouper(
-            trs=trs,
-            group_by=["subtest_name", "extra_env_vars.NCCL_IB_SPLIT_DATA_ON_QPS"],
-            extract_data=self._mock_extract_data,
-        ).groups()
-
-        assert len(groups) == 4
-        assert all(len(group.items) == 1 for group in groups)
-        assert groups[0].name == "subtest_name=all_gather_perf NCCL_IB_SPLIT_DATA_ON_QPS=0"
-        assert groups[1].name == "subtest_name=all_gather_perf NCCL_IB_SPLIT_DATA_ON_QPS=1"
-        assert groups[2].name == "subtest_name=all_reduce_perf NCCL_IB_SPLIT_DATA_ON_QPS=0"
-        assert groups[3].name == "subtest_name=all_reduce_perf NCCL_IB_SPLIT_DATA_ON_QPS=1"
-
-    def test_multiple_trs_in_a_group(self, nccl_tr: TestRun) -> None:
-        nccl_tr.test.test_definition.cmd_args.subtest_name = ["all_gather_perf", "all_reduce_perf"]
-        nccl_tr.test.test_definition.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = ["0", "1"]
-        trs: list[TestRun] = [nccl_tr.apply_params_set(combination) for combination in nccl_tr.all_combinations]
-
-        groups = ResultsGrouper(trs=trs, group_by=["subtest_name"], extract_data=self._mock_extract_data).groups()
-
-        assert len(groups) == 2
-
-        assert groups[0].name == "subtest_name=all_gather_perf"
-        assert len(groups[0].items) == 2
-        assert groups[0].items[0].name == "NCCL_IB_SPLIT_DATA_ON_QPS=0"
-        assert groups[0].items[1].name == "NCCL_IB_SPLIT_DATA_ON_QPS=1"
-
-        assert groups[1].name == "subtest_name=all_reduce_perf"
-        assert len(groups[1].items) == 2
-        assert groups[1].items[0].name == "NCCL_IB_SPLIT_DATA_ON_QPS=0"
-        assert groups[1].items[1].name == "NCCL_IB_SPLIT_DATA_ON_QPS=1"
-
-
-class TestDiffTrs:
-    def test_diff_cmd_args_field(self, nccl_tr: TestRun) -> None:
-        nccl1 = copy.deepcopy(nccl_tr)
-        nccl2 = copy.deepcopy(nccl_tr)
-        nccl1.test.test_definition.cmd_args.subtest_name = "all_gather_perf"
-        nccl2.test.test_definition.cmd_args.subtest_name = "all_reduce_perf"
-
-        diff = diff_test_runs([nccl1, nccl2])
-
-        assert diff == {"subtest_name": ["all_gather_perf", "all_reduce_perf"]}
-
-    def test_diff_num_nodes(self, nccl_tr: TestRun) -> None:
-        nccl1 = copy.deepcopy(nccl_tr)
-        nccl2 = copy.deepcopy(nccl_tr)
-        nccl1.num_nodes = 1
-        nccl2.num_nodes = 2
-
-        diff = diff_test_runs([nccl1, nccl2])
-        assert diff == {"NUM_NODES": [1, 2]}
-
-    def test_diff_extra_env_vars(self, nccl_tr: TestRun) -> None:
-        nccl1 = copy.deepcopy(nccl_tr)
-        nccl2 = copy.deepcopy(nccl_tr)
-        nccl1.test.test_definition.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = "0"
-        nccl2.test.test_definition.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = "1"
-
-        diff = diff_test_runs([nccl1, nccl2])
-        assert diff == {"extra_env_vars.NCCL_IB_SPLIT_DATA_ON_QPS": ["0", "1"]}

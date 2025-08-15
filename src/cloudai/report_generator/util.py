@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, List, Tuple
 
+from cloudai.core import TestRun
 from cloudai.util.lazy_imports import lazy
 
 if TYPE_CHECKING:
@@ -152,3 +153,25 @@ def adjust_scale(df: pd.DataFrame, input_column: str, output_column: str) -> Tup
 
     df[output_column] = size / factor
     return df, unit
+
+
+def diff_test_runs(trs: list[TestRun]) -> dict[str, list[str]]:
+    """Acts like .action_space for a DSE TestRun, but for a list of TestRuns."""
+    dicts: list[dict] = []
+    for tr in trs:
+        dicts.append(
+            {
+                "NUM_NODES": tr.num_nodes,
+                **tr.test.test_definition.cmd_args.model_dump(),
+                **{f"extra_env_vars.{k}": v for k, v in tr.test.test_definition.extra_env_vars.items()},
+            }
+        )
+    all_keys = set().union(*[d.keys() for d in dicts])
+
+    diff = {}
+    for key in all_keys:
+        all_values = [d[key] for d in dicts]
+        if len(set(all_values)) > 1:
+            diff[key] = all_values
+
+    return diff

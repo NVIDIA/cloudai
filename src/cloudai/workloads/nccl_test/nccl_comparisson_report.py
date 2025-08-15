@@ -17,10 +17,9 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 from itertools import cycle
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 import jinja2
 from rich.console import Console
@@ -28,7 +27,7 @@ from rich.table import Table
 
 from cloudai.core import Reporter, System, TestRun, TestScenario
 from cloudai.models.scenario import ReportConfig
-from cloudai.models.workload import TestDefinition
+from cloudai.report_generator.groups import GroupedTestRuns, TestRunsGrouper
 from cloudai.report_generator.util import (
     add_human_readable_sizes,
     bokeh_size_unit_js_tick_formatter,
@@ -41,105 +40,6 @@ from .performance_report_generation_strategy import extract_nccl_data
 if TYPE_CHECKING:
     import bokeh.plotting as bk
     import pandas as pd
-
-
-@dataclass
-class GroupItem:
-    name: str
-    tr: TestRun
-    result: pd.DataFrame
-
-
-@dataclass
-class GroupedfResult:
-    name: str
-    items: list[GroupItem]
-
-
-def diff_test_runs(trs: list[TestRun]) -> dict[str, list[str]]:
-    """Acts like .action_space for a DSE TestRun, but for a list of TestRuns."""
-    dicts: list[dict] = []
-    for tr in trs:
-        dicts.append(
-            {
-                "NUM_NODES": tr.num_nodes,
-                **tr.test.test_definition.cmd_args.model_dump(),
-                **{f"extra_env_vars.{k}": v for k, v in tr.test.test_definition.extra_env_vars.items()},
-            }
-        )
-    all_keys = set().union(*[d.keys() for d in dicts])
-
-    diff = {}
-    for key in all_keys:
-        all_values = [d[key] for d in dicts]
-        if len(set(all_values)) > 1:
-            diff[key] = all_values
-
-    return diff
-
-
-@dataclass
-class ResultsGrouper:
-    """Group TestRuns based on cmd_args or/and extra_env_vars."""
-
-    trs: list[TestRun]
-    group_by: list[str]
-    extract_data: Callable[[TestRun], pd.DataFrame]
-
-    def get_value(self, tdef: TestDefinition, field: str) -> str:
-        """Get field value for cmd_args or extra_env_vars."""
-        if field.startswith("extra_env_vars."):
-            f_name = field[len("extra_env_vars.") :]
-            v = str(tdef.extra_env_vars.get(f_name))
-        else:
-            v = getattr(tdef.cmd_args, field)
-        return v
-
-    def group_name(self, trs: list[TestRun]) -> str:
-        """
-        Get group name for a list of TestRuns.
-
-        Assume all test runs are grouped by the group_by fields, so take all the values from the first test run.
-        """
-        if not self.group_by:
-            return "all-in-one"
-        parts = [f"{field}={self.get_value(trs[0].test.test_definition, field)}" for field in self.group_by]
-        return " ".join(parts).replace("extra_env_vars.", "")
-
-    def create_group(self, trs: list[TestRun], group_idx: str = "0") -> GroupedfResult:
-        diff = diff_test_runs(trs)
-        items: list[GroupItem] = []
-        for idx, _ in enumerate(trs):
-            name = f"{group_idx}.{idx}"
-            if diff:
-                item_name_parts = [f"{field}={vals[idx]}" for field, vals in diff.items()]
-                name = " ".join(item_name_parts).replace("extra_env_vars.", "")
-            items.append(GroupItem(name=name, tr=trs[idx], result=self.extract_data(trs[idx])))
-        return GroupedfResult(name=self.group_name(trs), items=items)
-
-    def groups(self) -> list[GroupedfResult]:
-        if not self.group_by:
-            return [self.create_group(self.trs)]
-
-        groups: list[list[TestRun]] = []
-        for tr in self.trs:
-            for group in groups:
-                matched = all(
-                    self.get_value(tr.test.test_definition, field)
-                    == self.get_value(group[0].test.test_definition, field)
-                    for field in self.group_by
-                )
-
-                if matched:
-                    group.append(tr)
-                    break
-            else:  # runs only if no break happened
-                groups.append([tr])
-
-        res: list[GroupedfResult] = []
-        for grp_idx, group in enumerate(groups):
-            res.append(self.create_group(group, group_idx=str(grp_idx)))
-        return res
 
 
 class NcclComparissonReport(Reporter):
@@ -163,11 +63,13 @@ class NcclComparissonReport(Reporter):
             return
 
         console = Console(record=True)
-        cmp_groups = group_for_comparison(self.trs, self.group_by, self._extract_data)
+        cmp_groups = TestRunsGrouper(self.trs, self.group_by).groups()
 
         for group in cmp_groups:
+            dfs = [self._extract_data(item.tr) for item in group.items]
             table = self.create_table(
                 group,
+                dfs=dfs,
                 title="Latecy",
                 info_columns=list(self.INFO_COLUMNS),
                 data_columns=list(self.LATENCY_DATA_COLUMNS),
@@ -177,6 +79,7 @@ class NcclComparissonReport(Reporter):
 
             table = self.create_table(
                 group,
+                dfs=dfs,
                 title="Bandwidth",
                 info_columns=list(self.INFO_COLUMNS),
                 data_columns=list(self.BANDWIDTH_DATA_COLUMNS),
@@ -203,10 +106,13 @@ class NcclComparissonReport(Reporter):
         logging.info(f"NCCL comparisson report created: {html_file}")
 
     def create_table(
-        self, group: GroupedfResult, title: str, info_columns: list[str], data_columns: list[str]
+        self,
+        group: GroupedTestRuns,
+        dfs: list[pd.DataFrame],
+        title: str,
+        info_columns: list[str],
+        data_columns: list[str],
     ) -> Table:
-        dfs = [self._extract_data(item.tr) for item in group.items]
-
         style_cycle = cycle(["green", "cyan", "magenta", "blue", "yellow"])
 
         table = Table(title=f"{title}: {group.name}", title_justify="left", expand=True)
@@ -267,15 +173,16 @@ class NcclComparissonReport(Reporter):
         return df
 
     def get_bokeh_html(self) -> tuple[str, str]:
-        cmp_groups = group_for_comparison(self.trs, self.group_by, self._extract_data)
+        cmp_groups = TestRunsGrouper(self.trs, self.group_by).groups()
         charts: list[bk.figure] = []
         for group in cmp_groups:
+            dfs = [self._extract_data(item.tr) for item in group.items]
             if chart := self.create_chart(
-                group, "Latecy", list(self.INFO_COLUMNS), list(self.LATENCY_DATA_COLUMNS), "Time (us)"
+                group, dfs, "Latecy", list(self.INFO_COLUMNS), list(self.LATENCY_DATA_COLUMNS), "Time (us)"
             ):
                 charts.append(chart)
             if chart := self.create_chart(
-                group, "Bandwidth", list(self.INFO_COLUMNS), list(self.BANDWIDTH_DATA_COLUMNS), "Busbw (GB/s)"
+                group, dfs, "Bandwidth", list(self.INFO_COLUMNS), list(self.BANDWIDTH_DATA_COLUMNS), "Busbw (GB/s)"
             ):
                 charts.append(chart)
 
@@ -293,14 +200,13 @@ class NcclComparissonReport(Reporter):
 
     def create_chart(
         self,
-        group: GroupedfResult,
+        group: GroupedTestRuns,
+        dfs: list[pd.DataFrame],
         title: str,
         info_columns: list[str],
         data_columns: list[str],
         y_axis_label: str,
     ) -> bk.figure | None:
-        dfs = [item.result for item in group.items]
-
         style_cycle = cycle(["green", "cyan", "magenta", "blue", "yellow"])
 
         p = lazy.bokeh_plotting.figure(
