@@ -35,9 +35,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         mounts = [
             f"{dynamo_repo_path}:{dynamo_repo_path}",
-            f"{td.cmd_args.huggingface_home_host_path}:{td.cmd_args.huggingface_home_container_path}"
-            if td.cmd_args.dynamo.backend == "vllm"
-            else f"{td.cmd_args.huggingface_home_host_path}:{td.cmd_args.huggingface_home_host_path}",
+            f"{td.cmd_args.huggingface_home_host_path}:{td.cmd_args.huggingface_home_container_path}",
             f"{td.script.installed_path.absolute()!s}:{td.script.installed_path.absolute()!s}",
         ]
 
@@ -73,21 +71,10 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return args
 
     def _gen_script_args(self, td: AIDynamoTestDefinition) -> List[str]:
-        args = []
-
-        huggingface_path = (
-            td.cmd_args.huggingface_home_container_path
-            if td.cmd_args.dynamo.backend == "vllm"
-            else td.cmd_args.huggingface_home_host_path
-        )
-        args.extend(
-            [
-                f"--huggingface-home {huggingface_path}",
-                "--results-dir /cloudai_run_results",
-            ]
-        )
-
-        # Get base dynamo args first
+        args = [
+            f"--huggingface-home {td.cmd_args.huggingface_home_container_path}",
+            "--results-dir /cloudai_run_results",
+        ]
         args.extend(
             self._get_toml_args(
                 td.cmd_args.dynamo, "--dynamo-", exclude=["prefill_worker", "decode_worker", "genai_perf"]
