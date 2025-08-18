@@ -47,6 +47,7 @@ if TYPE_CHECKING:
 class NcclComparissonReportConfig(ReportConfig):
     """Configuration for NCCL comparisson report."""
 
+    enable: bool = True
     group_by: list[str] = Field(default_factory=lambda: ["subtest_name"])
 
 

@@ -15,13 +15,16 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, cast
 from unittest.mock import create_autospec
 
 import pytest
+import toml
 
 from cloudai.core import Test, TestDefinition, TestRun, TestScenario
+from cloudai.models.scenario import TestScenarioModel
 from cloudai.test_scenario_parser import calculate_total_time_limit
+from cloudai.workloads.nccl_test.nccl_comparisson_report import NcclComparissonReportConfig
 
 
 class DummyTestRun(TestRun):
@@ -71,3 +74,27 @@ def test_calculate_total_time_limit(
     test_hooks: List[TestScenario], time_limit: Optional[str], expected: Optional[str]
 ) -> None:
     assert calculate_total_time_limit(test_hooks, time_limit) == expected
+
+
+def test_report_spec_is_parsed() -> None:
+    model = TestScenarioModel.model_validate(
+        toml.loads("""
+    name = "scenario"
+
+    [reports]
+    nccl_comparisson = { enable = false, group_by = ["my_field"] }
+
+    [[Tests]]
+    id = "1"
+    num_nodes = 2
+
+    name = "name"
+    description = "desc"
+    test_template_name = "NcclTest"
+    """)
+    )
+
+    assert len(model.reports) == 1
+    cfg = cast(NcclComparissonReportConfig, model.reports["nccl_comparisson"])
+    assert cfg.enable is False
+    assert cfg.group_by == ["my_field"]
