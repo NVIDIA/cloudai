@@ -208,3 +208,49 @@ class TestGenerateReport:
         slurm_system.reports = {"sr1": ReportConfig(enable=False)}
         generate_reports(slurm_system, TestScenario(name="ts", test_runs=[]), slurm_system.output_path)
         assert MY_REPORT_CALLED == 0
+
+
+class TestGenerateReportPriority:
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        reg = Registry()
+        orig_reports = copy.deepcopy(reg.scenario_reports)
+        reg.scenario_reports.clear()
+
+        global MY_REPORT_CALLED
+        MY_REPORT_CALLED = 0
+
+        yield
+
+        reg.scenario_reports.clear()
+        reg.scenario_reports.update(orig_reports)
+
+    def test_non_registered_report_is_ignored(self, slurm_system: SlurmSystem) -> None:
+        generate_reports(slurm_system, TestScenario(name="ts", test_runs=[]), slurm_system.output_path)
+        assert MY_REPORT_CALLED == 0
+
+    def test_report_is_enabled_on_system_level(self, slurm_system: SlurmSystem) -> None:
+        Registry().add_scenario_report("sr1", MyReporter, ReportConfig(enable=True))
+        slurm_system.reports = {"sr1": ReportConfig(enable=True)}
+        generate_reports(slurm_system, TestScenario(name="ts", test_runs=[]), slurm_system.output_path)
+        assert MY_REPORT_CALLED == 1
+
+    def test_report_is_enabled_on_scenario_level(self, slurm_system: SlurmSystem) -> None:
+        Registry().add_scenario_report("sr1", MyReporter, ReportConfig(enable=True))
+        slurm_system.reports = {}
+        generate_reports(
+            slurm_system,
+            TestScenario(name="ts", test_runs=[], reports={"sr1": ReportConfig(enable=True)}),
+            slurm_system.output_path,
+        )
+        assert MY_REPORT_CALLED == 1
+
+    def test_report_scenario_has_highest_priority(self, slurm_system: SlurmSystem) -> None:
+        Registry().add_scenario_report("sr1", MyReporter, ReportConfig(enable=True))
+        slurm_system.reports = {"sr1": ReportConfig(enable=False)}
+        generate_reports(
+            slurm_system,
+            TestScenario(name="ts", test_runs=[], reports={"sr1": ReportConfig(enable=True)}),
+            slurm_system.output_path,
+        )
+        assert MY_REPORT_CALLED == 1
