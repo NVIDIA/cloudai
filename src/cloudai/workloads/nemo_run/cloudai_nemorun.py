@@ -29,7 +29,7 @@ from nemo.collections import llm
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.model.llama import Llama3Config8B, Llama3Config70B, Llama31Config405B, LlamaModel
+from nemo.collections.llm.gpt.model.llama import Llama3Config70B, Llama31Config405B, LlamaModel
 from nemo.collections.llm.gpt.model.nemotron import Nemotron4Config15B, Nemotron4Config340B, NemotronModel
 from nemo.collections.llm.recipes.nemotron3_8b import pretrain_recipe as nemotron3_8b_recipe
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
@@ -617,6 +617,7 @@ def get_tp_overlap_config():
         tp_comm_overlap = False
     return tp_overlap_cfg, tp_comm_overlap
 
+
 def set_perf_optimization_configs(recipe):
     recipe.model.config.cross_entropy_fusion_impl = "te"
 
@@ -627,6 +628,7 @@ def set_perf_optimization_configs(recipe):
         recipe.trainer.strategy.ddp.check_for_large_grads = False
 
     return recipe
+
 
 # LLAMA3 8B Recipe
 @run.cli.factory(target=llm.pretrain)
@@ -1215,6 +1217,7 @@ if __name__ == "__main__":
         "cloudai_nemotron3_8b_recipe",
         "cloudai_nemotron4_15b_recipe",
         "cloudai_nemotron4_340b_recipe",
+        "cloudai_deepseek_v3_recipe",
     ]
 
     recipe_name = os.getenv("CLOUDAI_NEMO_RECIPE")
