@@ -44,22 +44,22 @@ if TYPE_CHECKING:
     import pandas as pd
 
 
-class NcclComparissonReportConfig(ReportConfig):
-    """Configuration for NCCL comparisson report."""
+class NcclComparisonReportConfig(ReportConfig):
+    """Configuration for NCCL comparison report."""
 
     enable: bool = True
     group_by: list[str] = Field(default_factory=lambda: ["subtest_name"])
 
 
-class NcclComparissonReport(Reporter):
-    """Comparisson report for NCCL Test."""
+class NcclComparisonReport(Reporter):
+    """Comparison report for NCCL Test."""
 
     INFO_COLUMNS = ("Size (B)", "Count", "Type", "Redop")
     LATENCY_DATA_COLUMNS = ("Time (us) Out-of-place", "Time (us) In-place")
     BANDWIDTH_DATA_COLUMNS = ("Busbw (GB/s) Out-of-place", "Busbw (GB/s) In-place")
 
     def __init__(
-        self, system: System, test_scenario: TestScenario, results_root: Path, config: NcclComparissonReportConfig
+        self, system: System, test_scenario: TestScenario, results_root: Path, config: NcclComparisonReportConfig
     ) -> None:
         super().__init__(system, test_scenario, results_root, config)
         self.group_by: list[str] = config.group_by
@@ -79,7 +79,7 @@ class NcclComparissonReport(Reporter):
             table = self.create_table(
                 group,
                 dfs=dfs,
-                title="Latecy",
+                title="Latency",
                 info_columns=list(self.INFO_COLUMNS),
                 data_columns=list(self.LATENCY_DATA_COLUMNS),
             )
@@ -108,7 +108,7 @@ class NcclComparissonReport(Reporter):
             rich_html=console.export_html(),
         )
 
-        html_file = self.results_root / "nccl_comparisson.html"
+        html_file = self.results_root / "nccl_comparison.html"
         with open(html_file, "w") as f:
             f.write(html_content)
 
@@ -254,8 +254,8 @@ class NcclComparissonReport(Reporter):
         y_min = min(df[col].min() for df in dfs for col in data_columns)
         p.y_range = lazy.bokeh_models.Range1d(start=y_min * -1 * y_max * 0.01, end=y_max * 1.1)
 
-        x_min = dfs[0][info_columns[0]].min().min()
-        x_max = dfs[0][info_columns[0]].max().max()
+        x_min = dfs[0][info_columns[0]].min()
+        x_max = dfs[0][info_columns[0]].max()
         p.xaxis.ticker = calculate_power_of_two_ticks(x_min, x_max)
         p.xaxis.formatter = lazy.bokeh_models.CustomJSTickFormatter(code=bokeh_size_unit_js_tick_formatter)
         p.xaxis.major_label_orientation = lazy.np.pi / 4
