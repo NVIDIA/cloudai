@@ -61,6 +61,8 @@ def register_all():
         MegatronRunTestDefinition,
     )
     from cloudai.workloads.nccl_test import (
+        NcclComparissonReport,
+        NcclComparissonReportConfig,
         NCCLTestDefinition,
         NcclTestGradingStrategy,
         NcclTestKubernetesJsonGenStrategy,
@@ -206,6 +208,7 @@ def register_all():
     Registry().add_scenario_report("status", StatusReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("tarball", TarballReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("nixl_bench_summary", NIXLBenchSummaryReport, ReportConfig(enable=True))
+    Registry().add_scenario_report("nccl_comparisson", NcclComparissonReport, NcclComparissonReportConfig(enable=True))
 
     Registry().add_reward_function("inverse", inverse_reward)
     Registry().add_reward_function("negative", negative_reward)
