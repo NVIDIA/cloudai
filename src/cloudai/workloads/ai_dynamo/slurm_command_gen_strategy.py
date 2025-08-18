@@ -65,7 +65,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         exclude = exclude or []
         toml_args = base_model.model_dump(by_alias=True)
         for k, v in toml_args.items():
-            if k not in exclude:
+            if k not in exclude and v is not None:
                 args.append(f'{prefix}{k} "{v}"')
 
         return args
@@ -114,11 +114,12 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _gen_srun_command(self) -> str:
         td = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
-        num_nodes, _ = self.get_cached_nodes_spec()
+        num_nodes, node_list = self.get_cached_nodes_spec()
         srun_cmd = self.gen_srun_prefix()
         srun_cmd.extend(
             [
                 f"--nodes={num_nodes}",
+                *([] if not node_list else [f"--nodelist={','.join(node_list)}"]),
                 f"--ntasks={num_nodes}",
                 "--ntasks-per-node=1",
                 f"--output={self.test_run.output_path.absolute() / 'node-%n-stdout.txt'}",
@@ -129,6 +130,28 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         )
         srun_cmd.extend(self._gen_script_args(td))
         return " \\\n  ".join(srun_cmd)
+
+    def _validate_worker_nodes(
+        self, node_list: list[str], worker_nodes: str | None, num_nodes: int, worker_type: str
+    ) -> None:
+        """Validate node list for a specific worker type."""
+        if not worker_nodes:
+            return
+
+        worker_node_list = worker_nodes.split(",")
+        if len(worker_node_list) != num_nodes:
+            raise ValueError(
+                f"Number of {worker_type} nodes ({len(worker_node_list)}) does not match num_nodes ({num_nodes})"
+            )
+        if not all(node in node_list for node in worker_node_list):
+            raise ValueError(f"Some {worker_type} nodes are not in the allocated node list")
+
+    def _validate_node_overlap(self, prefill_nodes: str, decode_nodes: str) -> None:
+        """Validate that there is no overlap between prefill and decode nodes."""
+        prefill_set = set(prefill_nodes.split(","))
+        decode_set = set(decode_nodes.split(","))
+        if prefill_set & decode_set:
+            raise ValueError("Overlap found between prefill and decode node lists")
 
     def get_cached_nodes_spec(self) -> tuple[int, list[str]]:
         cache_key = ":".join(
@@ -147,6 +170,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         td = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
         prefill_n = td.cmd_args.dynamo.prefill_worker.num_nodes
         decode_n = td.cmd_args.dynamo.decode_worker.num_nodes
+        prefill_nodes = td.cmd_args.dynamo.prefill_worker.nodes
+        decode_nodes = td.cmd_args.dynamo.decode_worker.nodes
 
         assert isinstance(prefill_n, int), "prefill_worker.num_nodes must be an integer"
         assert isinstance(decode_n, int), "decode_worker.num_nodes must be an integer"
@@ -154,6 +179,13 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         total_nodes = prefill_n + decode_n
 
         requested_nodes, node_list = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)
+
+        if prefill_nodes or decode_nodes:
+            self._validate_worker_nodes(node_list, prefill_nodes, prefill_n, "prefill")
+            self._validate_worker_nodes(node_list, decode_nodes, decode_n, "decode")
+            if prefill_nodes and decode_nodes:
+                self._validate_node_overlap(prefill_nodes, decode_nodes)
+
         if total_nodes > requested_nodes:
             raise ValueError(
                 f"Not enough nodes requested: need {total_nodes} total nodes "
