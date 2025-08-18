@@ -170,8 +170,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         td = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
         prefill_n = td.cmd_args.dynamo.prefill_worker.num_nodes
         decode_n = td.cmd_args.dynamo.decode_worker.num_nodes
-        prefill_nodes = td.cmd_args.dynamo.prefill_worker.node_list
-        decode_nodes = td.cmd_args.dynamo.decode_worker.node_list
+        prefill_nodes = td.cmd_args.dynamo.prefill_worker.nodes
+        decode_nodes = td.cmd_args.dynamo.decode_worker.nodes
 
         assert isinstance(prefill_n, int), "prefill_worker.num_nodes must be an integer"
         assert isinstance(decode_n, int), "decode_worker.num_nodes must be an integer"

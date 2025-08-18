@@ -39,8 +39,8 @@ dynamo_args["workspace-path"]="/workspace"
 dynamo_args["frontend-node"]=""
 dynamo_args["num-prefill-nodes"]=1
 dynamo_args["num-decode-nodes"]=1
-dynamo_args["prefill-nodelist"]=""
-dynamo_args["decode-nodelist"]=""
+dynamo_args["prefill-nodes"]=""
+dynamo_args["decode-nodes"]=""
 dynamo_args["tp-arg-name"]="tensor-parallel-size"
 dynamo_args["pp-arg-name"]="pipeline-parallel-size"
 dynamo_args["multiple-prefill-workers-per-node"]="true"
@@ -82,14 +82,14 @@ _csv_index_of() {
 }
 
 _validate_or_build_nodelists() {
-  local dl_len=$(_csv_len "${dynamo_args["decode-nodelist"]}")
-  local pl_len=$(_csv_len "${dynamo_args["prefill-nodelist"]}")
+  local dl_len=$(_csv_len "${dynamo_args["decode-nodes"]}")
+  local pl_len=$(_csv_len "${dynamo_args["prefill-nodes"]}")
   if (( dl_len > 0 )); then dynamo_args["num-decode-nodes"]="$dl_len"; fi
   if (( pl_len > 0 )); then dynamo_args["num-prefill-nodes"]="$pl_len"; fi
 
-  if [[ -z "${dynamo_args["decode-nodelist"]}" || -z "${dynamo_args["prefill-nodelist"]}" ]]; then
+  if [[ -z "${dynamo_args["decode-nodes"]}" || -z "${dynamo_args["prefill-nodes"]}" ]]; then
     if [[ -z "${DYNAMO_NODELIST:-}" ]]; then
-      log "ERROR: Provide --dynamo-decode-nodelist/--dynamo-prefill-nodelist or set DYNAMO_NODELIST"; exit 1
+      log "ERROR: Provide --dynamo-decode-nodes/--dynamo-prefill-nodes or set DYNAMO_NODELIST"; exit 1
     fi
     local d="${dynamo_args["num-decode-nodes"]}"
     local p="${dynamo_args["num-prefill-nodes"]}"
@@ -97,10 +97,10 @@ _validate_or_build_nodelists() {
     if (( total < d + p )); then
       log "ERROR: DYNAMO_NODELIST has ${total} entries; need decode(${d})+prefill(${p})"; exit 1
     fi
-    [[ -z "${dynamo_args["decode-nodelist"]}" ]] && \
-      dynamo_args["decode-nodelist"]=$(echo "$DYNAMO_NODELIST" | cut -d',' -f1-"$d")
-    [[ -z "${dynamo_args["prefill-nodelist"]}" ]] && \
-      dynamo_args["prefill-nodelist"]=$(echo "$DYNAMO_NODELIST" | cut -d',' -f$(( d + 1 ))-)
+    [[ -z "${dynamo_args["decode-nodes"]}" ]] && \
+      dynamo_args["decode-nodes"]=$(echo "$DYNAMO_NODELIST" | cut -d',' -f1-"$d")
+    [[ -z "${dynamo_args["prefill-nodes"]}" ]] && \
+      dynamo_args["prefill-nodes"]=$(echo "$DYNAMO_NODELIST" | cut -d',' -f$(( d + 1 ))-)
   fi
 }
 
@@ -135,9 +135,9 @@ _apply_sglang_section_args() {
 
   # prefill group
   local prefill_nodes="${dynamo_args["num-prefill-nodes"]}"
-  local prefill_master_host="$(_first_in_csv "${dynamo_args["prefill-nodelist"]}")"
+  local prefill_master_host="$(_first_in_csv "${dynamo_args["prefill-nodes"]}")"
   local prefill_master_ip="$(_resolve_host_ip "${prefill_master_host}")"
-  local prefill_rank="$(_csv_index_of "${dynamo_args["prefill-nodelist"]}" "$self")"
+  local prefill_rank="$(_csv_index_of "${dynamo_args["prefill-nodes"]}" "$self")"
   local prefill_total_gpus=$(( gpn * prefill_nodes ))
   prefill_args["--dist-init-addr"]="${prefill_master_ip}:${dynamo_args["prefill-port"]}"
   prefill_args["--nnodes"]="${prefill_nodes}"
@@ -147,9 +147,9 @@ _apply_sglang_section_args() {
 
   # decode group
   local decode_nodes="${dynamo_args["num-decode-nodes"]}"
-  local decode_master_host="$(_first_in_csv "${dynamo_args["decode-nodelist"]}")"
+  local decode_master_host="$(_first_in_csv "${dynamo_args["decode-nodes"]}")"
   local decode_master_ip="$(_resolve_host_ip "${decode_master_host}")"
-  local decode_rank="$(_csv_index_of "${dynamo_args["decode-nodelist"]}" "$self")"
+  local decode_rank="$(_csv_index_of "${dynamo_args["decode-nodes"]}" "$self")"
   local decode_total_gpus=$(( gpn * decode_nodes ))
   decode_args["--dist-init-addr"]="${decode_master_ip}:${dynamo_args["decode-port"]}"
   decode_args["--nnodes"]="${decode_nodes}"
@@ -225,24 +225,24 @@ _sync_num_nodes_from_section_args() {
 }
 
 _patch_dynamo_args() {
-  if [[ -z "${dynamo_args["decode-nodelist"]}" ]]; then
+  if [[ -z "${dynamo_args["decode-nodes"]}" ]]; then
     if [[ -n "${decode_args["--node-list"]}" ]]; then
-      dynamo_args["decode-nodelist"]="${decode_args["--node-list"]}"
+      dynamo_args["decode-nodes"]="${decode_args["--node-list"]}"
     else
-      dynamo_args["decode-nodelist"]=$(echo $DYNAMO_NODELIST | cut -d',' -f1-${dynamo_args["num-decode-nodes"]})
+      dynamo_args["decode-nodes"]=$(echo $DYNAMO_NODELIST | cut -d',' -f1-${dynamo_args["num-decode-nodes"]})
     fi
   fi
 
-  if [[ -z "${dynamo_args["prefill-nodelist"]}" ]]; then
+  if [[ -z "${dynamo_args["prefill-nodes"]}" ]]; then
     if [[ -n "${prefill_args["--node-list"]}" ]]; then
-      dynamo_args["prefill-nodelist"]="${prefill_args["--node-list"]}"
+      dynamo_args["prefill-nodes"]="${prefill_args["--node-list"]}"
     else
-      dynamo_args["prefill-nodelist"]=$(echo $DYNAMO_NODELIST | cut -d',' -f$(( ${dynamo_args["num-decode-nodes"]} + 1 ))-)
+      dynamo_args["prefill-nodes"]=$(echo $DYNAMO_NODELIST | cut -d',' -f$(( ${dynamo_args["num-decode-nodes"]} + 1 ))-)
     fi
   fi
 
   if [[ -z "${dynamo_args["frontend-node"]}" ]]; then
-    dynamo_args["frontend-node"]=$(echo ${dynamo_args["decode-nodelist"]} | cut -d',' -f1)
+    dynamo_args["frontend-node"]=$(echo ${dynamo_args["decode-nodes"]} | cut -d',' -f1)
   fi
 
   dynamo_args["url"]="http://${dynamo_args["frontend-node"]}:${dynamo_args["port"]}"
@@ -352,7 +352,7 @@ function array_to_args()
   for key in "${!arr[@]}"; do
     if [[ "$key" == "--extra-args" ]] || \
        [[ "$key" == "--num-nodes" ]] || \
-       [[ "$key" == "--node-list" ]]; then
+       [[ "$key" == "--nodes" ]]; then
       continue
     else
       result+="${key} ${arr[$key]} "
@@ -444,12 +444,12 @@ _is_frontend_node() {
 
 _is_decode_node() {
   local name="$(_current_node_name)"
-  [[ "${dynamo_args["decode-nodelist"]}" == *"$name"* ]]
+  [[ "${dynamo_args["decode-nodes"]}" == *"$name"* ]]
 }
 
 _is_prefill_node() {
   local name="$(_current_node_name)"
-  [[ "${dynamo_args["prefill-nodelist"]}" == *"$name"* ]]
+  [[ "${dynamo_args["prefill-nodes"]}" == *"$name"* ]]
 }
 
 _init_runtime_env() {
@@ -541,9 +541,9 @@ validate_environment() {
   fi
 
   # If both nodelists are empty, DYNAMO_NODELIST must be provided
-  if [[ -z "${dynamo_args["decode-nodelist"]}" && -z "${dynamo_args["prefill-nodelist"]}" ]]; then
+  if [[ -z "${dynamo_args["decode-nodes"]}" && -z "${dynamo_args["prefill-nodes"]}" ]]; then
     if [[ -z "${DYNAMO_NODELIST:-}" ]]; then
-      log "ERROR: When neither --dynamo-decode-nodelist nor --dynamo-prefill-nodelist is provided, DYNAMO_NODELIST must be set"
+      log "ERROR: When neither --dynamo-decode-nodes nor --dynamo-prefill-nodes is provided, DYNAMO_NODELIST must be set"
       exit 1
     fi
   fi
