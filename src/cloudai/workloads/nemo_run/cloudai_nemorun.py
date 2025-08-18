@@ -622,7 +622,7 @@ def get_tp_overlap_config():
         }
         cfg_or_factory = (ub_cfg.get(gpu_type, {}) or {}).get(compute_dtype)
         if cfg_or_factory is not None:
-            tp_overlap_cfg = cfg_or_factory() if callable(cfg_or_factory) else cfg_or_factory
+            tp_overlap_cfg = cfg_or_factory
             tp_comm_overlap = True
         else:
             print(
@@ -922,7 +922,6 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
         recipe.model.config.gradient_accumulation_fusion = False
 
         cb.defer_embedding_wgrad_compute = False
-        cb.wgrad_deferral_limit = 50
         cb.overlap_param_gather_with_optimizer_step = False
 
         if disable_tp_commd_overlap:
@@ -958,6 +957,16 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
     if os.getenv("CLOUDAI_GPU_TYPE") in ["b200", "gb200"] and os.getenv("CLOUDAI_GPU_DTYPE") == "fp8":
         print("Info: use_precision_aware_optimizer is set to False for fp8 on b200/gb200 GPUs.")
         recipe.optim.config.use_precision_aware_optimizer = False
+
+    recipe.trainer.callbacks[comm_overlap_callback_idx] = cb
+
+    gpu_type = os.getenv("CLOUDAI_GPU_TYPE")
+    gpu_type = gpu_type.lower() if gpu_type else None
+    use_mcore_fsdp = bool(int(os.getenv("CLOUDAI_ENABLE_FSDP", "0")))
+
+    if use_mcore_fsdp and gpu_type == "gb200":
+        recipe.trainer.strategy.num_distributed_optimizer_instances = (recipe.trainer.num_nodes * 4) // 64
+
     return recipe
 
 
