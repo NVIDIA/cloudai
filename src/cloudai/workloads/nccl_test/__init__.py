@@ -17,7 +17,7 @@
 from .grading_strategy import NcclTestGradingStrategy
 from .kubernetes_json_gen_strategy import NcclTestKubernetesJsonGenStrategy
 from .nccl import NCCLCmdArgs, NCCLTestDefinition
-from .nccl_comparisson_report import NcclComparissonReport, NcclComparissonReportConfig
+from .nccl_comparison_report import NcclComparisonReport, NcclComparisonReportConfig
 from .performance_report_generation_strategy import NcclTestPerformanceReportGenerationStrategy
 from .prediction_report_generation_strategy import NcclTestPredictionReportGenerationStrategy
 from .runai_json_gen_strategy import NcclTestRunAIJsonGenStrategy
@@ -26,8 +26,8 @@ from .slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
 __all__ = [
     "NCCLCmdArgs",
     "NCCLTestDefinition",
-    "NcclComparissonReport",
-    "NcclComparissonReportConfig",
+    "NcclComparisonReport",
+    "NcclComparisonReportConfig",
     "NcclTestGradingStrategy",
     "NcclTestKubernetesJsonGenStrategy",
     "NcclTestPerformanceReportGenerationStrategy",

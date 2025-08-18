@@ -24,7 +24,7 @@ import toml
 from cloudai.core import Test, TestDefinition, TestRun, TestScenario
 from cloudai.models.scenario import TestScenarioModel
 from cloudai.test_scenario_parser import calculate_total_time_limit
-from cloudai.workloads.nccl_test.nccl_comparisson_report import NcclComparissonReportConfig
+from cloudai.workloads.nccl_test.nccl_comparison_report import NcclComparisonReportConfig
 
 
 class DummyTestRun(TestRun):
@@ -82,7 +82,7 @@ def test_report_spec_is_parsed() -> None:
     name = "scenario"
 
     [reports]
-    nccl_comparisson = { enable = false, group_by = ["my_field"] }
+    nccl_comparison = { enable = false, group_by = ["my_field"] }
 
     [[Tests]]
     id = "1"
@@ -95,6 +95,6 @@ def test_report_spec_is_parsed() -> None:
     )
 
     assert len(model.reports) == 1
-    cfg = cast(NcclComparissonReportConfig, model.reports["nccl_comparisson"])
+    cfg = cast(NcclComparisonReportConfig, model.reports["nccl_comparison"])
     assert cfg.enable is False
     assert cfg.group_by == ["my_field"]

@@ -59,6 +59,9 @@ def calculate_power_of_two_ticks(min_val: float, max_val: float) -> List[float]:
     Returns:
         List[float]: A list of tick locations that are powers of 2.
     """
+    if lazy.pd.isna(min_val) or lazy.pd.isna(max_val):
+        return []
+
     min_val = float(max(min_val, 1.0))
     min_exp = lazy.np.floor(lazy.np.log2(min_val))
     max_exp = lazy.np.ceil(lazy.np.log2(max_val))
