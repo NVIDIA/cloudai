@@ -22,6 +22,7 @@ from unittest.mock import Mock, patch
 import pytest
 import toml
 
+from cloudai._core.exceptions import MissingTestError
 from cloudai.core import (
     CmdArgs,
     GitRepo,
@@ -65,7 +66,6 @@ from cloudai.workloads.nemo_run import (
     NeMoRunTestDefinition,
 )
 from cloudai.workloads.nixl_bench import NIXLBenchReportGenerationStrategy, NIXLBenchTestDefinition
-from cloudai.workloads.slurm_container import SlurmContainerReportGenerationStrategy, SlurmContainerTestDefinition
 from cloudai.workloads.triton_inference import TritonInferenceReportGenerationStrategy, TritonInferenceTestDefinition
 from cloudai.workloads.ucc_test import UCCTestDefinition, UCCTestReportGenerationStrategy
 
@@ -302,9 +302,16 @@ class TestInScenario:
         )
 
     def test_name_is_not_in_mapping(self, test_scenario_parser: TestScenarioParser):
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(MissingTestError) as exc_info:
             test_scenario_parser._prepare_tdef(TestRunModel(id="1", test_name="nccl"))
-        assert exc_info.match("Test 'nccl' is not defined. Was tests directory correctly set?")
+        expected_msg = (
+            "Test 'nccl' is not defined.\n"
+            "Please check:\n"
+            "1. The tests directory argument (--tests-dir) is set correctly\n"
+            "2. The test name in your test scenario matches the test name defined in the test file\n"
+            "3. The test file exists in your tests directory"
+        )
+        assert str(exc_info.value) == expected_msg
 
     @pytest.mark.parametrize("override_arg", ["name", "description"])
     def test_can_override_name_and_description(self, override_arg: str):
@@ -481,7 +488,7 @@ class TestReporters:
         assert len(reporters) == 0
 
     def test_default_reporters_size(self):
-        assert len(Registry().reports_map) == 13
+        assert len(Registry().reports_map) == 12
 
     @pytest.mark.parametrize(
         "tdef,expected_reporters",
@@ -494,7 +501,6 @@ class TestReporters:
             (NeMoLauncherTestDefinition, {NeMoLauncherReportGenerationStrategy}),
             (NeMoRunTestDefinition, {NeMoRunReportGenerationStrategy, NeMoRunDataStoreReportGenerationStrategy}),
             (NemotronTestDefinition, {JaxToolboxReportGenerationStrategy}),
-            (SlurmContainerTestDefinition, {SlurmContainerReportGenerationStrategy}),
             (UCCTestDefinition, {UCCTestReportGenerationStrategy}),
             (TritonInferenceTestDefinition, {TritonInferenceReportGenerationStrategy}),
             (NIXLBenchTestDefinition, {NIXLBenchReportGenerationStrategy}),

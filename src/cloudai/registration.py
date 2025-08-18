@@ -61,6 +61,8 @@ def register_all():
         MegatronRunTestDefinition,
     )
     from cloudai.workloads.nccl_test import (
+        NcclComparisonReport,
+        NcclComparisonReportConfig,
         NCCLTestDefinition,
         NcclTestGradingStrategy,
         NcclTestKubernetesJsonGenStrategy,
@@ -95,11 +97,7 @@ def register_all():
         SleepStandaloneCommandGenStrategy,
         SleepTestDefinition,
     )
-    from cloudai.workloads.slurm_container import (
-        SlurmContainerCommandGenStrategy,
-        SlurmContainerReportGenerationStrategy,
-        SlurmContainerTestDefinition,
-    )
+    from cloudai.workloads.slurm_container import SlurmContainerCommandGenStrategy, SlurmContainerTestDefinition
     from cloudai.workloads.triton_inference import (
         TritonInferenceReportGenerationStrategy,
         TritonInferenceSlurmCommandGenStrategy,
@@ -201,7 +199,6 @@ def register_all():
     Registry().add_report(NeMoRunTestDefinition, NeMoRunReportGenerationStrategy)
     Registry().add_report(NeMoRunTestDefinition, NeMoRunDataStoreReportGenerationStrategy)
     Registry().add_report(NemotronTestDefinition, JaxToolboxReportGenerationStrategy)
-    Registry().add_report(SlurmContainerTestDefinition, SlurmContainerReportGenerationStrategy)
     Registry().add_report(UCCTestDefinition, UCCTestReportGenerationStrategy)
     Registry().add_report(TritonInferenceTestDefinition, TritonInferenceReportGenerationStrategy)
     Registry().add_report(NIXLBenchTestDefinition, NIXLBenchReportGenerationStrategy)
@@ -211,6 +208,7 @@ def register_all():
     Registry().add_scenario_report("status", StatusReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("tarball", TarballReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("nixl_bench_summary", NIXLBenchSummaryReport, ReportConfig(enable=True))
+    Registry().add_scenario_report("nccl_comparison", NcclComparisonReport, NcclComparisonReportConfig(enable=True))
 
     Registry().add_reward_function("inverse", inverse_reward)
     Registry().add_reward_function("negative", negative_reward)

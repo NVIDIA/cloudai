@@ -17,11 +17,12 @@
 from __future__ import annotations
 
 import re
+from functools import cache
 from io import TextIOWrapper
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Tuple
+from typing import TYPE_CHECKING, ClassVar, List, Tuple
 
-from cloudai.core import System, TestRun
+from cloudai.core import METRIC_ERROR, System, TestRun
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.report_generator.tool.csv_report_tool import CSVReportTool
 from cloudai.report_generator.util import add_human_readable_sizes
@@ -33,8 +34,57 @@ if TYPE_CHECKING:
 from .report_generation_strategy import NcclTestReportGenerationStrategy
 
 
+def _parse_data_rows(file: TextIOWrapper) -> List[List[str]]:
+    parsed_data_rows: List[List[str]] = []
+    for line in file:
+        line: str = line.strip()
+        if re.match(r"^\d", line):
+            parsed_data_rows.append(re.split(r"\s+", line))
+    return parsed_data_rows
+
+
+def _parse_device_info(file: TextIOWrapper) -> Tuple[int, str, int]:
+    device_indices: dict = {}
+    gpu_type: str = "Unknown"
+    num_ranks: int = 0
+
+    for line in file:
+        if "Rank" in line and "device" in line and "NVIDIA" in line:
+            num_ranks += 1
+
+            if match := re.search(r"on\s+([\w\d\-.]+)\s+device\s+(\d+)", line):
+                host, device_index = match.groups()
+                device_indices[host] = max(device_indices.get(host, -1), int(device_index))
+
+            if match := re.search(r"NVIDIA\s+(.+?)(?=\s*$|\s+\[|\s+device)", line):
+                gpu_type = match.group(1).strip()
+
+    num_devices_per_node: int = max(device_indices.values(), default=-1) + 1 if device_indices else 0
+    return num_devices_per_node, gpu_type, num_ranks
+
+
+@cache
+def extract_nccl_data(stdout_path: Path) -> Tuple[List[List[str]], str, int, int]:
+    parsed_data_rows: List[List[str]] = []
+    gpu_type: str = "Unknown"
+    num_ranks: int = 0
+    num_devices_per_node: int = 0
+
+    if not stdout_path.is_file():
+        return parsed_data_rows, gpu_type, num_devices_per_node, num_ranks
+
+    with stdout_path.open("r", encoding="utf-8") as file:
+        parsed_data_rows = _parse_data_rows(file)
+        file.seek(0)
+        num_devices_per_node, gpu_type, num_ranks = _parse_device_info(file)
+
+    return parsed_data_rows, gpu_type, num_devices_per_node, num_ranks
+
+
 class NcclTestPerformanceReportGenerationStrategy(NcclTestReportGenerationStrategy):
     """Strategy for generating performance reports from NCCL test outputs."""
+
+    metrics: ClassVar[list[str]] = ["default", "latency-in-place", "latency-out-of-place"]
 
     def __init__(self, system: System, tr: TestRun) -> None:
         super().__init__(system, tr)
@@ -48,49 +98,7 @@ class NcclTestPerformanceReportGenerationStrategy(NcclTestReportGenerationStrate
         self._generate_bokeh_report(df)
 
     def _parse_stdout(self) -> Tuple[List[List[str]], str, int, int]:
-        parsed_data_rows: List[List[str]] = []
-        gpu_type: str = "Unknown"
-        num_ranks: int = 0
-        num_devices_per_node: int = 0
-
-        stdout_path = self.test_run.output_path / "stdout.txt"
-
-        if not stdout_path.is_file():
-            return parsed_data_rows, gpu_type, num_devices_per_node, num_ranks
-
-        with stdout_path.open("r", encoding="utf-8") as file:
-            parsed_data_rows = self._parse_data_rows(file)
-            file.seek(0)
-            num_devices_per_node, gpu_type, num_ranks = self._parse_device_info(file)
-
-        return parsed_data_rows, gpu_type, num_devices_per_node, num_ranks
-
-    def _parse_data_rows(self, file: TextIOWrapper) -> List[List[str]]:
-        parsed_data_rows: List[List[str]] = []
-        for line in file:
-            line: str = line.strip()
-            if re.match(r"^\d", line):
-                parsed_data_rows.append(re.split(r"\s+", line))
-        return parsed_data_rows
-
-    def _parse_device_info(self, file: TextIOWrapper) -> Tuple[int, str, int]:
-        device_indices: dict = {}
-        gpu_type: str = "Unknown"
-        num_ranks: int = 0
-
-        for line in file:
-            if "Rank" in line and "device" in line and "NVIDIA" in line:
-                num_ranks += 1
-
-                if match := re.search(r"on\s+([\w\d\-.]+)\s+device\s+(\d+)", line):
-                    host, device_index = match.groups()
-                    device_indices[host] = max(device_indices.get(host, -1), int(device_index))
-
-                if match := re.search(r"NVIDIA\s+(.+?)(?=\s*$|\s+\[|\s+device)", line):
-                    gpu_type = match.group(1).strip()
-
-        num_devices_per_node: int = max(device_indices.values(), default=-1) + 1 if device_indices else 0
-        return num_devices_per_node, gpu_type, num_ranks
+        return extract_nccl_data(self.test_run.output_path / "stdout.txt")
 
     def _extract_data(self) -> pd.DataFrame:
         parsed_data_rows, gpu_type, num_devices_per_node, num_ranks = self._parse_stdout()
@@ -121,8 +129,8 @@ class NcclTestPerformanceReportGenerationStrategy(NcclTestReportGenerationStrate
         df["Ranks"] = num_ranks
 
         df["Size (B)"] = df["Size (B)"].astype(int)
-        df["Time (us) Out-of-place"] = df["Time (us) Out-of-place"].astype(float).round(1)
-        df["Time (us) In-place"] = df["Time (us) In-place"].astype(float).round(1)
+        df["Time (us) Out-of-place"] = df["Time (us) Out-of-place"].astype(float).round(2)
+        df["Time (us) In-place"] = df["Time (us) In-place"].astype(float).round(2)
         df["Algbw (GB/s) Out-of-place"] = df["Algbw (GB/s) Out-of-place"].astype(float)
         df["Busbw (GB/s) Out-of-place"] = df["Busbw (GB/s) Out-of-place"].astype(float)
         df["Algbw (GB/s) In-place"] = df["Algbw (GB/s) In-place"].astype(float)
@@ -170,3 +178,21 @@ class NcclTestPerformanceReportGenerationStrategy(NcclTestReportGenerationStrate
         )
 
         report_tool.finalize_report(Path("cloudai_nccl_test_bokeh_report.html"))
+
+    def get_metric(self, metric: str) -> float:
+        df: pd.DataFrame = self._extract_data()
+        if df.empty:
+            return METRIC_ERROR
+
+        metric_to_field = {
+            "default": "Time (us) In-place",
+            "latency-in-place": "Time (us) In-place",
+            "latency-out-of-place": "Time (us) Out-of-place",
+        }
+
+        if metric not in metric_to_field:
+            return METRIC_ERROR
+
+        data = df[metric_to_field[metric]].astype(float).tolist()
+
+        return float(lazy.np.mean(data))

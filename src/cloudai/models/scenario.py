@@ -84,7 +84,7 @@ class TestRunModel(BaseModel):
     description: Optional[str] = None
     test_template_name: Optional[str] = None
     cmd_args: Optional[CmdArgs] = None
-    extra_env_vars: Optional[dict[str, str]] = None
+    extra_env_vars: dict[str, str | list[str]] | None = None
     extra_container_mounts: Optional[list[str]] = None
     git_repos: Optional[list[GitRepo]] = None
     nsys: Optional[NsysConfiguration] = None
@@ -92,7 +92,7 @@ class TestRunModel(BaseModel):
     agent_steps: Optional[int] = None
     agent_metrics: list[str] = Field(default=["default"])
 
-    def tdef_model_dump(self) -> dict:
+    def tdef_model_dump(self, by_alias: bool) -> dict:
         """Return a dictionary with non-None values that correspond to the test definition fields."""
         data = {
             "name": self.name,
@@ -103,7 +103,7 @@ class TestRunModel(BaseModel):
             "agent_metrics": self.agent_metrics,
             "extra_container_mounts": self.extra_container_mounts,
             "extra_env_vars": self.extra_env_vars if self.extra_env_vars else None,
-            "cmd_args": self.cmd_args.model_dump() if self.cmd_args else None,
+            "cmd_args": self.cmd_args.model_dump(by_alias=by_alias) if self.cmd_args else None,
             "git_repos": [repo.model_dump() for repo in self.git_repos] if self.git_repos else None,
             "nsys": self.nsys.model_dump() if self.nsys else None,
         }
@@ -155,6 +155,7 @@ class TestScenarioModel(BaseModel):
     tests: list[TestRunModel] = Field(alias="Tests", min_length=1)
     pre_test: Optional[str] = None
     post_test: Optional[str] = None
+    reports: dict[str, ReportConfig] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def check_no_self_dependency(self):
@@ -187,6 +188,11 @@ class TestScenarioModel(BaseModel):
                     raise ValueError(f"Dependency section '{dep.id}' not found for test '{tr.id}'.")
 
         return self
+
+    @field_validator("reports", mode="before")
+    @classmethod
+    def parse_reports(cls, value: dict[str, Any] | None) -> dict[str, ReportConfig] | None:
+        return parse_reports_spec(value)
 
 
 class TestRunDetails(BaseModel):

@@ -31,6 +31,7 @@ from cloudai.core import (
     BaseInstaller,
     CloudAIGymEnv,
     Installable,
+    MissingTestError,
     Parser,
     Registry,
     Runner,
@@ -156,7 +157,9 @@ def generate_reports(system: System, test_scenario: TestScenario, result_dir: Pa
         logging.debug(f"Generating report '{name}' ({reporter_class.__name__})")
 
         cfg = registry.report_configs.get(name, ReportConfig(enable=False))
-        if isinstance(system, SlurmSystem) and system.reports and name in system.reports:
+        if scenario_cfg := test_scenario.reports.get(name):
+            cfg = scenario_cfg
+        elif isinstance(system, SlurmSystem) and system.reports and name in system.reports:
             cfg = system.reports[name]
         logging.debug(f"Report '{name}' config is: {cfg.model_dump_json(indent=None)}")
 
@@ -169,7 +172,7 @@ def generate_reports(system: System, test_scenario: TestScenario, result_dir: Pa
             reporter.generate()
         except Exception as e:
             logging.warning(f"Error generating report '{name}', see debug log for details")
-            logging.debug(e, stack_info=True)
+            logging.debug(e, exc_info=True)
 
 
 def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> None:
@@ -195,9 +198,15 @@ def register_signal_handlers(signal_handler: Callable) -> None:
         signal.signal(sig, signal_handler)
 
 
-def handle_dry_run_and_run(args: argparse.Namespace) -> int:
+def _setup_system_and_scenario(
+    args: argparse.Namespace,
+) -> tuple[Optional[System], Optional[TestScenario], Optional[list[Test]]]:
     parser = Parser(args.system_config)
-    system, tests, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
+    try:
+        system, tests, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
+    except MissingTestError as e:
+        logging.error(e.message)
+        return None, None, None
 
     assert test_scenario is not None
 
@@ -205,24 +214,31 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
         system.output_path = args.output_dir.absolute()
 
     if not prepare_output_dir(system.output_path):
-        return 1
+        return None, None, None
+
     if args.mode == "dry-run":
         system.monitor_interval = 1
     system.update()
 
-    if args.single_sbatch:
-        if not isinstance(system, SlurmSystem):
-            logging.error("Single sbatch is only supported for Slurm systems.")
-            return 1
+    return system, test_scenario, tests
 
-        Registry().update_runner("slurm", SingleSbatchRunner)
 
-    logging.info(f"System Name: {system.name}")
-    logging.info(f"Scheduler: {system.scheduler}")
-    logging.info(f"Test Scenario Name: {test_scenario.name}")
+def _handle_single_sbatch(args: argparse.Namespace, system: System) -> bool:
+    if not args.single_sbatch:
+        return True
 
+    if not isinstance(system, SlurmSystem):
+        logging.error("Single sbatch is only supported for Slurm systems.")
+        return False
+
+    Registry().update_runner("slurm", SingleSbatchRunner)
+    return True
+
+
+def _check_installation(
+    args: argparse.Namespace, system: System, tests: list[Test], test_scenario: TestScenario
+) -> bool:
     logging.info("Checking if test templates are installed.")
-
     installables, installer = prepare_installation(system, tests, test_scenario)
 
     if args.enable_cache_without_check:
@@ -233,6 +249,29 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     if args.mode == "run" and not result.success:
         logging.error("CloudAI has not been installed. Please run install mode first.")
         logging.error(result.message)
+        return False
+
+    return True
+
+
+def handle_dry_run_and_run(args: argparse.Namespace) -> int:
+    setup_result = _setup_system_and_scenario(args)
+    if setup_result == (None, None, None):
+        return 1
+
+    system, test_scenario, tests = setup_result
+    assert system is not None
+    assert test_scenario is not None
+    assert tests is not None
+
+    if not _handle_single_sbatch(args, system):
+        return 1
+
+    logging.info(f"System Name: {system.name}")
+    logging.info(f"Scheduler: {system.scheduler}")
+    logging.info(f"Test Scenario Name: {test_scenario.name}")
+
+    if not _check_installation(args, system, tests, test_scenario):
         return 1
 
     logging.info(test_scenario.pretty_print())
@@ -247,11 +286,10 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
 
     if all(tr.is_dse_job for tr in test_scenario.test_runs):
         handle_dse_job(runner, args)
-    else:
-        logging.error("Mixing DSE and non-DSE jobs is not allowed.")
-        return 1
+        return 0
 
-    return 0
+    logging.error("Mixing DSE and non-DSE jobs is not allowed.")
+    return 1
 
 
 def handle_generate_report(args: argparse.Namespace) -> int:

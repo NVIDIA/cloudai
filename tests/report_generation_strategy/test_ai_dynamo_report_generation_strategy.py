@@ -26,12 +26,9 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoTestDefinition,
-    CommonConfig,
     DecodeWorkerArgs,
-    FrontendArgs,
     GenAIPerfArgs,
     PrefillWorkerArgs,
-    SimpleLoadBalancerArgs,
 )
 from cloudai.workloads.ai_dynamo.report_generation_strategy import AIDynamoReportGenerationStrategy
 
@@ -45,11 +42,18 @@ def get_csv_content() -> str:
         '"7777.77","8888.88","9999.99"\n'
         "Inter Token Latency (ms),12.34,23.45,34.56,45.67,56.78,67.89,78.90,89.01,90.12\n"
         "Output Sequence Length (tokens),101.01,202.02,303.03,404.04,505.05,606.06,707.07,808.08,909.09\n"
-        "Input Sequence Length (tokens),123.45,234.56,345.67,456.78,567.89,678.90,789.01,890.12,901.23\n\n"
+        "Input Sequence Length (tokens),123.45,234.56,345.67,456.78,567.89,678.90,789.01,890.12,901.23\n"
+        "\n"
         "Metric,Value\n"
         "Output Token Throughput (tokens/sec),24\n"
         "Request Throughput (per sec),1.23\n"
         "Request Count (count),40.00\n"
+        "\n"
+        "Metric,GPU,avg,min,max,p99,p95,p90,p75,p50,p25\n"
+        "GPU Power Usage (W),0,119.93,117.61,120.81,120.81,120.81,120.81,120.81,120.60,119.85\n"
+        "GPU Power Usage (W),1,120.50,120.49,120.52,120.52,120.52,120.52,120.52,120.50,120.49\n"
+        "GPU Memory Used (GB),0,84.11,82.41,84.68,84.68,84.68,84.68,84.68,84.67,84.11\n"
+        "GPU Memory Used (GB),1,82.44,82.44,82.44,82.44,82.44,82.44,82.44,82.44,82.44\n"
     )
 
 
@@ -63,39 +67,31 @@ def ai_dynamo_tr(tmp_path: Path) -> TestRun:
             cmd_args=AIDynamoCmdArgs(
                 docker_image_url="http://url",
                 dynamo=AIDynamoArgs(
-                    common=CommonConfig(
-                        **{
-                            "model": "mock_model",
-                            "kv-transfer-config": '{"kv_connector":"NixlConnector","kv_role":"kv_both"}',
-                            "served_model_name": "mock_model",
-                        }
-                    ),
-                    frontend=FrontendArgs(port_nats=4222, port_etcd=2379),
-                    simple_load_balancer=SimpleLoadBalancerArgs(**{"enable_disagg": True}),
                     prefill_worker=PrefillWorkerArgs(
                         **{
-                            "num_nodes": 1,
+                            "num-nodes": 1,
                             "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
                         }
                     ),
                     decode_worker=DecodeWorkerArgs(
                         **{
-                            "num_nodes": 1,
+                            "num-nodes": 1,
                             "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
                         }
                     ),
                 ),
                 genai_perf=GenAIPerfArgs(
-                    streaming=False,
-                    extra_inputs="mock_extra_inputs",
-                    input_file="mock_input_file",
-                    output_tokens_mean=100,
-                    random_seed=123,
-                    request_count=100,
-                    synthetic_input_tokens_mean=100,
-                    warmup_request_count=10,
+                    **{
+                        "streaming": False,
+                        "extra-inputs": "mock_extra_inputs",
+                        "input-file": "mock_input_file",
+                        "output-tokens-mean": 100,
+                        "random-seed": 123,
+                        "request-count": 100,
+                        "synthetic-input-tokens-mean": 100,
+                        "warmup-request-count": 10,
+                    }
                 ),
-                sleep_seconds=10,
             ),
         ),
         test_template=Mock(),
@@ -127,8 +123,31 @@ def test_ai_dynamo_generate_report(slurm_system: SlurmSystem, ai_dynamo_tr: Test
     assert report_file.is_file(), "Report CSV was not generated."
 
     report_content = report_file.read_text()
-    expected_content = csv_content + "Overall Output Tokens per Second per GPU,1.0\n"
-    assert report_content == expected_content, "Report content does not match expected."
+
+    def split_into_sections(content: str) -> list[str]:
+        sections = content.split("\n\n")
+        return [s.strip() for s in sections if s.strip()]
+
+    def normalize_csv_section(section: str) -> str:
+        return section.replace('"', "").strip()
+
+    actual_sections = [normalize_csv_section(s) for s in split_into_sections(report_content)]
+    expected_sections = [normalize_csv_section(s) for s in split_into_sections(csv_content)]
+
+    # First section should match after normalization
+    assert actual_sections[0] == expected_sections[0], "First section (metrics) does not match"
+
+    # Second section should have our additional metric
+    second_section_lines = actual_sections[1].split("\n")
+    assert second_section_lines[0] == "Metric,Value", "Second section header does not match"
+    assert second_section_lines[1] == "Output Token Throughput (tokens/sec),24", "Throughput line does not match"
+    assert second_section_lines[2] == "Overall Output Tokens per Second per GPU,1.0", "Added metric line is incorrect"
+    assert second_section_lines[3:] == ["Request Throughput (per sec),1.23", "Request Count (count),40.00"], (
+        "Remaining lines do not match"
+    )
+
+    # Third section (GPU metrics) should be identical
+    assert actual_sections[2] == expected_sections[2], "Third section (GPU metrics) does not match"
 
 
 def test_ai_dynamo_get_metric_single_values(slurm_system: SlurmSystem, ai_dynamo_tr: TestRun) -> None:
