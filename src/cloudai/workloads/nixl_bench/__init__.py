@@ -15,14 +15,14 @@
 # limitations under the License.
 
 from .nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
-from .nixl_summary_report import NIXLBenchSummaryReport
+from .nixl_summary_report import NIXLBenchComparisonReport
 from .report_generation_strategy import NIXLBenchReportGenerationStrategy
 from .slurm_command_gen_strategy import NIXLBenchSlurmCommandGenStrategy
 
 __all__ = [
     "NIXLBenchCmdArgs",
+    "NIXLBenchComparisonReport",
     "NIXLBenchReportGenerationStrategy",
     "NIXLBenchSlurmCommandGenStrategy",
-    "NIXLBenchSummaryReport",
     "NIXLBenchTestDefinition",
 ]
