@@ -202,6 +202,14 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         assert isinstance(prefill_n, int), "prefill_worker.num_nodes must be an integer"
         assert isinstance(decode_n, int), "decode_worker.num_nodes must be an integer"
 
+        if prefill_nodes and decode_nodes:
+            self.test_run.nodes = prefill_nodes.split(",") + decode_nodes.split(",") + self.test_run.nodes
+            self.test_run.num_nodes = len(self.test_run.nodes)
+            prefill_n = len(prefill_nodes.split(","))
+            decode_n = len(decode_nodes.split(","))
+        else:
+            self.test_run.num_nodes = prefill_n + decode_n
+
         total_nodes = prefill_n + decode_n
 
         requested_nodes, node_list = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)

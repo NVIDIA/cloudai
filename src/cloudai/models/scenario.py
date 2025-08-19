@@ -155,6 +155,7 @@ class TestScenarioModel(BaseModel):
     tests: list[TestRunModel] = Field(alias="Tests", min_length=1)
     pre_test: Optional[str] = None
     post_test: Optional[str] = None
+    reports: dict[str, ReportConfig] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def check_no_self_dependency(self):
@@ -187,6 +188,11 @@ class TestScenarioModel(BaseModel):
                     raise ValueError(f"Dependency section '{dep.id}' not found for test '{tr.id}'.")
 
         return self
+
+    @field_validator("reports", mode="before")
+    @classmethod
+    def parse_reports(cls, value: dict[str, Any] | None) -> dict[str, ReportConfig] | None:
+        return parse_reports_spec(value)
 
 
 class TestRunDetails(BaseModel):

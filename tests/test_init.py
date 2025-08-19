@@ -41,7 +41,7 @@ from cloudai.workloads.jax_toolbox import (
 )
 from cloudai.workloads.megatron_run import MegatronRunSlurmCommandGenStrategy, MegatronRunTestDefinition
 from cloudai.workloads.nccl_test import (
-    NcclComparissonReport,
+    NcclComparisonReport,
     NCCLTestDefinition,
     NcclTestGradingStrategy,
     NcclTestKubernetesJsonGenStrategy,
@@ -58,8 +58,8 @@ from cloudai.workloads.nemo_run import (
     NeMoRunTestDefinition,
 )
 from cloudai.workloads.nixl_bench import (
+    NIXLBenchComparisonReport,
     NIXLBenchSlurmCommandGenStrategy,
-    NIXLBenchSummaryReport,
     NIXLBenchTestDefinition,
 )
 from cloudai.workloads.nixl_perftest import NixlPerftestSlurmCommandGenStrategy, NixlPerftestTestDefinition
@@ -204,18 +204,18 @@ def test_definitions():
 
 def test_scenario_reports():
     scenario_reports = Registry().scenario_reports
-    assert list(scenario_reports.keys()) == ["per_test", "status", "tarball", "nixl_bench_summary", "nccl_comparisson"]
+    assert list(scenario_reports.keys()) == ["per_test", "status", "tarball", "nixl_bench_summary", "nccl_comparison"]
     assert list(scenario_reports.values()) == [
         PerTestReporter,
         StatusReporter,
         TarballReporter,
-        NIXLBenchSummaryReport,
-        NcclComparissonReport,
+        NIXLBenchComparisonReport,
+        NcclComparisonReport,
     ]
 
 
 def test_report_configs():
     configs = Registry().report_configs
-    assert list(configs.keys()) == ["per_test", "status", "tarball", "nixl_bench_summary", "nccl_comparisson"]
+    assert list(configs.keys()) == ["per_test", "status", "tarball", "nixl_bench_summary", "nccl_comparison"]
     for name, rep_config in configs.items():
         assert rep_config.enable is True, f"Report {name} is not enabled by default"

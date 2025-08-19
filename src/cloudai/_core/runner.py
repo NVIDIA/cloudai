@@ -85,6 +85,10 @@ class Runner:
         try:
             await self.runner.run()
             logging.debug("All jobs finished successfully.")
+        except asyncio.CancelledError:
+            logging.info("Runner cancelled, performing cleanup...")
+            await self.runner.shutdown()
+            return
         except JobFailureError as exc:
             logging.debug(f"Runner failed JobFailure exception: {exc}", exc_info=True)
 

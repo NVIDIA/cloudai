@@ -57,14 +57,19 @@ class SlurmReportItem:
     nodes: Optional[str] = None
 
     @classmethod
-    def get_metadata(cls, run_dir: Path) -> Optional[SlurmSystemMetadata]:
-        if not (run_dir / "metadata").exists():
-            logging.debug(f"No metadata folder found in {run_dir}")
-            return None
+    def get_metadata(cls, run_dir: Path, results_root: Path) -> Optional[SlurmSystemMetadata]:
+        metadata_path = run_dir / "metadata"
+        if not metadata_path.exists():
+            logging.debug(f"No metadata folder found in {run_dir=}")
+            if not (results_root / "metadata").exists():
+                logging.debug(f"No metadata folder found in {results_root=}")
+                return None
+            else:  # single-sbatch case
+                metadata_path = results_root / "metadata"
 
-        node_files = list(run_dir.glob("metadata/node-*.toml"))
+        node_files = list(metadata_path.glob("node-*.toml"))
         if not node_files:
-            logging.debug(f"No node files found in {run_dir}/metadata")
+            logging.debug(f"No node files found in {metadata_path}")
             return None
 
         node_file = node_files[0]
@@ -83,7 +88,7 @@ class SlurmReportItem:
             ri = SlurmReportItem(case_name(tr), tr.test.description)
             if tr.output_path.exists():
                 ri.logs_path = f"./{tr.output_path.relative_to(results_root)}"
-            if metadata := cls.get_metadata(tr.output_path):
+            if metadata := cls.get_metadata(tr.output_path, results_root):
                 ri.nodes = metadata.slurm.node_list
             report_items.append(ri)
 
