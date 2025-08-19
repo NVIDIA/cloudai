@@ -16,12 +16,12 @@
 
 from .kubernetes_installer import KubernetesInstaller
 from .kubernetes_job import KubernetesJob
-from .kubernetes_runner import KubernetesRunner
-from .kubernetes_system import KubernetesSystem
+from .kubernetes_yaml_runner import KubernetesYAMLRunner
+from .kubernetes_yaml_system import KubernetesYAMLSystem
 
 __all__ = [
     "KubernetesInstaller",
     "KubernetesJob",
-    "KubernetesRunner",
-    "KubernetesSystem",
+    "KubernetesYAMLRunner",
+    "KubernetesYAMLSystem",
 ]
