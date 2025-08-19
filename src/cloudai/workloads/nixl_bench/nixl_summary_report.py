@@ -16,18 +16,14 @@
 
 from __future__ import annotations
 
-import logging
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import jinja2
-import toml
-from rich.console import Console
 from rich.table import Table
 
-from cloudai.core import Reporter, System, TestScenario
-from cloudai.models.scenario import ReportConfig
+from cloudai.core import System, TestRun, TestScenario
+from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig
+from cloudai.report_generator.groups import GroupedTestRuns
 from cloudai.util.lazy_imports import lazy
 
 from .nixl_bench import NIXLBenchTestDefinition
@@ -37,171 +33,65 @@ if TYPE_CHECKING:
     import pandas as pd
 
 
-@dataclass
-class TdefResult:
-    """Convenience class for storing test definition and dataframe results."""
+class NIXLBenchComparisonReport(ComparisonReport):
+    """Comparison report for NIXL Bench."""
 
-    tdef: NIXLBenchTestDefinition
-    results: pd.DataFrame
+    INFO_COLUMNS = ("block_size", "batch_size")
 
-
-class NIXLBenchSummaryReport(Reporter):
-    """Summary report for NIXL Bench."""
-
-    def __init__(self, system: System, test_scenario: TestScenario, results_root: Path, config: ReportConfig) -> None:
+    def __init__(
+        self, system: System, test_scenario: TestScenario, results_root: Path, config: ComparisonReportConfig
+    ) -> None:
         super().__init__(system, test_scenario, results_root, config)
-        self.tdef_res: list[TdefResult] = []
-        self.metric2col = {
-            "avg_lat": "Avg. Latency (us)",
-            "bw_gb_sec": "Bandwidth (GB/sec)",
-        }
-        self.report_configs = [
-            ("READ", "bw_gb_sec"),
-            ("WRITE", "bw_gb_sec"),
-            ("READ", "avg_lat"),
-            ("WRITE", "avg_lat"),
-        ]
+        self.report_file_name = "nixl_comparison.html"
 
-    def generate(self) -> None:
-        self.load_tdef_with_results()
-        if not self.tdef_res:
-            logging.debug("No NIXL Bench test runs found, skipping report generation.")
-            return
-
-        console = Console(record=True)
-        for op_type, metric in self.report_configs:
-            table = self.create_table(op_type, metric)
-            console.print(table)
-            console.print()
-
-        bokeh_script, bokeh_div = self.get_bokeh_html()
-
-        template = jinja2.Environment(
-            loader=jinja2.FileSystemLoader(Path(__file__).parent.parent.parent / "util")
-        ).get_template("nixl_report_template.jinja2")
-        html_content = template.render(
-            title=f"{self.test_scenario.name} NIXL Bench Report",
-            bokeh_script=bokeh_script,
-            bokeh_div=bokeh_div,
-            rich_html=console.export_html(),
-        )
-
-        html_file = self.results_root / "nixl_summary.html"
-        with open(html_file, "w") as f:
-            f.write(html_content)
-
-        logging.info(f"NIXL summary report created: {html_file}")
-
-    def load_tdef_with_results(self) -> None:
+    def load_test_runs(self):
         super().load_test_runs()
         self.trs = [tr for tr in self.trs if isinstance(tr.test.test_definition, NIXLBenchTestDefinition)]
 
-        for tr in self.trs:
-            tr_file = toml.load(tr.output_path / "test-run.toml")
-            tdef = NIXLBenchTestDefinition.model_validate(tr_file["test_definition"])
-            self.tdef_res.append(TdefResult(tdef, lazy.pd.read_csv(tr.output_path / "nixlbench.csv")))
+    def create_tables(self, cmp_groups: list[GroupedTestRuns]) -> list[Table]:
+        tables: list[Table] = []
+        for group in cmp_groups:
+            dfs = [self.extract_data_as_df(item.tr) for item in group.items]
+            tables.extend(
+                [
+                    self.create_table(
+                        group,
+                        dfs=dfs,
+                        title="Latency",
+                        info_columns=list(self.INFO_COLUMNS),
+                        data_columns=["avg_lat"],
+                    ),
+                    self.create_table(
+                        group,
+                        dfs=dfs,
+                        title="Bandwidth",
+                        info_columns=list(self.INFO_COLUMNS),
+                        data_columns=["bw_gb_sec"],
+                    ),
+                ]
+            )
+        return tables
 
-    def create_table(self, op_type: str, metric: str) -> Table:
-        df = self.construct_df(op_type, metric)
-        table = Table(title=f"{self.test_scenario.name}: {op_type} {self.metric2col[metric]}", title_justify="left")
-        for col in df.columns:
-            table.add_column(col, justify="right", style="cyan")
-
-        for _, row in df.iterrows():
-            block_size = row["block_size"].astype(int)
-            batch_size = row["batch_size"].astype(int)
-            table.add_row(str(block_size), str(batch_size), *[str(x) for x in row.values[2:]])
-        return table
-
-    def get_bokeh_html(self) -> tuple[str, str]:
+    def create_charts(self, cmp_groups: list[GroupedTestRuns]) -> list[bk.figure]:
         charts: list[bk.figure] = []
-        for op_type, metric in self.report_configs:
-            if chart := self.create_chart(op_type, metric):
-                charts.append(chart)
-
-        # layout with 2 charts per row
-        rows = []
-        for i in range(0, len(charts), 2):
-            if i + 1 < len(charts):
-                rows.append(lazy.bokeh_layouts.row(charts[i], charts[i + 1]))
-            else:
-                rows.append(lazy.bokeh_layouts.row(charts[i]))
-        layout = lazy.bokeh_layouts.column(*rows, name="charts_layout")
-
-        bokeh_script, bokeh_div = lazy.bokeh_embed.components(layout)
-        return bokeh_script, bokeh_div
-
-    def construct_df(self, op_type: str, metric: str) -> pd.DataFrame:
-        """
-        Construct a `DataFrame` with results for all test runs.
-
-        Block size and Batch size are taken only once assuming they are the same across all test runs.
-        `op_type` is used to filter the test runs.
-        """
-        final_df = lazy.pd.DataFrame()
-
-        for tdef_res in self.tdef_res:
-            if tdef_res.tdef.cmd_args_dict.get("op_type", "unset") != op_type:
-                continue
-            if final_df.empty:
-                final_df["block_size"] = tdef_res.results["block_size"].astype(int)
-                final_df["batch_size"] = tdef_res.results["batch_size"].astype(int)
-
-            col_name = (
-                f"{tdef_res.tdef.cmd_args_dict.get('initiator_seg_type', 'unset')}->"
-                f"{tdef_res.tdef.cmd_args_dict.get('target_seg_type', 'unset')}"
+        for group in cmp_groups:
+            dfs = [self.extract_data_as_df(item.tr) for item in group.items]
+            charts.extend(
+                [
+                    self.create_chart(group, dfs, "Latecy", list(self.INFO_COLUMNS), ["avg_lat"], "Time (us)"),
+                    self.create_chart(group, dfs, "Bandwidth", list(self.INFO_COLUMNS), ["bw_gb_sec"], "Busbw (GB/s)"),
+                ]
             )
-            final_df[col_name] = tdef_res.results[metric].astype(float)
+        return charts
 
-        return final_df
-
-    def create_chart(self, op_type: str, metric: str) -> bk.figure | None:
-        df = self.construct_df(op_type, metric)
-        if df.empty:
-            logging.warning(f"Empty DataFrame for {op_type} {metric}")
-            return None
-
-        numeric_cols = [col for col in df.columns if col not in ["block_size", "batch_size"]]
-        grouped_df = df.groupby("block_size")[numeric_cols].mean()
-        grouped_df = grouped_df.reset_index()
-
-        colors = ["blue", "red", "green", "orange", "purple", "brown", "pink", "gray"]
-        y_columns = [(col, colors[i % len(colors)]) for i, col in enumerate(numeric_cols)]
-
-        p = lazy.bokeh_plotting.figure(
-            title=f"{op_type} {self.metric2col[metric]} vs Block Size",
-            x_axis_label="Block Size",
-            y_axis_label=self.metric2col[metric],
-            width=800,
-            height=500,
-            tools="pan,box_zoom,wheel_zoom,reset,save",
-            active_drag="pan",
-            active_scroll="wheel_zoom",
-            x_axis_type="log",
+    def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame:
+        if (tr.output_path / "nixlbench.csv").exists():
+            return lazy.pd.read_csv(tr.output_path / "nixlbench.csv")
+        return lazy.pd.DataFrame(
+            {
+                "block_size": lazy.pd.Series([], dtype=int),
+                "batch_size": lazy.pd.Series([], dtype=int),
+                "avg_lat": lazy.pd.Series([], dtype=float),
+                "bw_gb_sec": lazy.pd.Series([], dtype=float),
+            }
         )
-
-        hover = lazy.bokeh_models.HoverTool(
-            tooltips=[("Block Size", "@x"), ("Value", "@y"), ("Segment Type", "@segment_type")]
-        )
-        p.add_tools(hover)
-
-        for col, color in y_columns:
-            source = lazy.bokeh_models.ColumnDataSource(
-                data={
-                    "x": grouped_df["block_size"].tolist(),
-                    "y": grouped_df[col].tolist(),
-                    "segment_type": [col] * len(grouped_df),
-                }
-            )
-
-            p.line("x", "y", source=source, line_color=color, line_width=2, legend_label=col)
-            p.scatter("x", "y", source=source, fill_color=color, size=8, legend_label=col)
-
-        p.legend.location = "top_left"
-        p.legend.click_policy = "hide"
-
-        y_max = grouped_df[numeric_cols].max().max()
-        y_min = grouped_df[numeric_cols].min().min()
-        p.y_range = lazy.bokeh_models.Range1d(start=y_min * -1 * y_max * 0.01, end=y_max * 1.1)
-
-        return p

@@ -58,8 +58,8 @@ from cloudai.workloads.nemo_run import (
     NeMoRunTestDefinition,
 )
 from cloudai.workloads.nixl_bench import (
+    NIXLBenchComparisonReport,
     NIXLBenchSlurmCommandGenStrategy,
-    NIXLBenchSummaryReport,
     NIXLBenchTestDefinition,
 )
 from cloudai.workloads.nixl_perftest import NixlPerftestSlurmCommandGenStrategy, NixlPerftestTestDefinition
@@ -209,7 +209,7 @@ def test_scenario_reports():
         PerTestReporter,
         StatusReporter,
         TarballReporter,
-        NIXLBenchSummaryReport,
+        NIXLBenchComparisonReport,
         NcclComparisonReport,
     ]
 
