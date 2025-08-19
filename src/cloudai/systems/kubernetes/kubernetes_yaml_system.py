@@ -27,12 +27,11 @@ if TYPE_CHECKING:
 from pydantic import BaseModel, ConfigDict
 
 from cloudai.core import BaseJob, System
+from cloudai.systems.kubernetes.kubernetes_yaml_job import KubernetesYAMLJob
 from cloudai.util.lazy_imports import lazy
 
-from .kubernetes_job import KubernetesJob
 
-
-class KubernetesSystem(BaseModel, System):
+class KubernetesYAMLSystem(BaseModel, System):
     """
     Represents a Kubernetes system.
 
@@ -69,23 +68,23 @@ class KubernetesSystem(BaseModel, System):
         state = self.model_dump(exclude={"_core_v1", "_batch_v1", "_custom_objects_api"})
         return state
 
-    def __deepcopy__(self, memo: dict[int, Any] | None = None) -> "KubernetesSystem":  # noqa: Vulture
+    def __deepcopy__(self, memo: dict[int, Any] | None = None) -> "KubernetesYAMLSystem":  # noqa: Vulture
         """
-        Create a deep copy of the KubernetesSystem instance.
+        Create a deep copy of the KubernetesYAMLSystem instance.
 
         Args:
             memo: Dictionary to keep track of objects that have already been copied.
 
         Returns:
-            A new KubernetesSystem instance with reinitialized Kubernetes clients.
+            A new KubernetesYAMLSystem instance with reinitialized Kubernetes clients.
         """
         state = self.__getstate__()
-        new_instance = KubernetesSystem(**state)
+        new_instance = KubernetesYAMLSystem(**state)
         new_instance.model_post_init(None)
         return new_instance
 
     def model_post_init(self, __context: Any = None) -> None:  # noqa: Vulture
-        """Initialize the KubernetesSystem instance."""
+        """Initialize the KubernetesYAMLSystem instance."""
         kube_config_path = self.kube_config_path
         if not kube_config_path.is_file():
             home_directory = Path.home()
@@ -161,7 +160,7 @@ class KubernetesSystem(BaseModel, System):
         Returns:
             bool: True if the job is running, False otherwise.
         """
-        k_job: KubernetesJob = cast(KubernetesJob, job)
+        k_job: KubernetesYAMLJob = cast(KubernetesYAMLJob, job)
         return self._is_job_running(k_job.name, k_job.kind)
 
     def is_job_completed(self, job: BaseJob) -> bool:
@@ -174,7 +173,7 @@ class KubernetesSystem(BaseModel, System):
         Returns:
             bool: True if the job is completed, False otherwise.
         """
-        k_job: KubernetesJob = cast(KubernetesJob, job)
+        k_job: KubernetesYAMLJob = cast(KubernetesYAMLJob, job)
         return not self._is_job_running(k_job.name, k_job.kind)
 
     def _is_job_running(self, job_name: str, job_kind: str) -> bool:
@@ -302,7 +301,7 @@ class KubernetesSystem(BaseModel, System):
         Args:
             job (BaseJob): The job to be terminated.
         """
-        k_job: KubernetesJob = cast(KubernetesJob, job)
+        k_job: KubernetesYAMLJob = cast(KubernetesYAMLJob, job)
         self.delete_job(k_job.name, k_job.kind)
 
     def delete_job(self, job_name: str, job_kind: str) -> None:

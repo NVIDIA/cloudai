@@ -21,7 +21,7 @@ from cloudai.core import BaseJob
 
 
 @dataclass
-class KubernetesJob(BaseJob):
+class KubernetesYAMLJob(BaseJob):
     """A job class for execution on a Kubernetes system."""
 
     kind: str

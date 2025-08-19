@@ -31,7 +31,11 @@ def register_all():
     from cloudai.reporter import PerTestReporter, StatusReporter, TarballReporter
 
     # Import systems
-    from cloudai.systems.kubernetes import KubernetesInstaller, KubernetesRunner, KubernetesSystem
+    from cloudai.systems.kubernetes import (
+        KubernetesInstaller,
+        KubernetesYAMLRunner,
+        KubernetesYAMLSystem,
+    )
     from cloudai.systems.lsf import LSFInstaller, LSFRunner, LSFSystem
     from cloudai.systems.runai import RunAIInstaller, RunAIRunner, RunAISystem
     from cloudai.systems.slurm import SlurmInstaller, SlurmRunner, SlurmSystem
@@ -119,7 +123,7 @@ def register_all():
     )
 
     Registry().add_runner("slurm", SlurmRunner)
-    Registry().add_runner("kubernetes", KubernetesRunner)
+    Registry().add_runner("kubernetes_yaml", KubernetesYAMLRunner)
     Registry().add_runner("standalone", StandaloneRunner)
     Registry().add_runner("lsf", LSFRunner)
     Registry().add_runner("runai", RunAIRunner)
@@ -127,9 +131,11 @@ def register_all():
     Registry().add_command_gen_strategy(StandaloneSystem, SleepTestDefinition, SleepStandaloneCommandGenStrategy)
     Registry().add_command_gen_strategy(LSFSystem, SleepTestDefinition, SleepLSFCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, SleepTestDefinition, SleepSlurmCommandGenStrategy)
-    Registry().add_strategy(JsonGenStrategy, [KubernetesSystem], [SleepTestDefinition], SleepKubernetesJsonGenStrategy)
     Registry().add_strategy(
-        JsonGenStrategy, [KubernetesSystem], [NCCLTestDefinition], NcclTestKubernetesJsonGenStrategy
+        JsonGenStrategy, [KubernetesYAMLSystem], [SleepTestDefinition], SleepKubernetesJsonGenStrategy
+    )
+    Registry().add_strategy(
+        JsonGenStrategy, [KubernetesYAMLSystem], [NCCLTestDefinition], NcclTestKubernetesJsonGenStrategy
     )
     Registry().add_strategy(JsonGenStrategy, [RunAISystem], [NCCLTestDefinition], NcclTestRunAIJsonGenStrategy)
     Registry().add_strategy(GradingStrategy, [SlurmSystem], [NCCLTestDefinition], NcclTestGradingStrategy)
@@ -170,13 +176,13 @@ def register_all():
 
     Registry().add_installer("slurm", SlurmInstaller)
     Registry().add_installer("standalone", StandaloneInstaller)
-    Registry().add_installer("kubernetes", KubernetesInstaller)
+    Registry().add_installer("kubernetes_yaml", KubernetesInstaller)
     Registry().add_installer("lsf", LSFInstaller)
     Registry().add_installer("runai", RunAIInstaller)
 
     Registry().add_system("slurm", SlurmSystem)
     Registry().add_system("standalone", StandaloneSystem)
-    Registry().add_system("kubernetes", KubernetesSystem)
+    Registry().add_system("kubernetes_yaml", KubernetesYAMLSystem)
     Registry().add_system("lsf", LSFSystem)
     Registry().add_system("runai", RunAISystem)
 

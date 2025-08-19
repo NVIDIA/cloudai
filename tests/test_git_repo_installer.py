@@ -23,13 +23,13 @@ import pytest
 
 from cloudai.core import GitRepo, InstallStatusResult
 from cloudai.systems.kubernetes.kubernetes_installer import KubernetesInstaller
-from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
+from cloudai.systems.kubernetes.kubernetes_yaml_system import KubernetesYAMLSystem
 from cloudai.systems.slurm.slurm_installer import SlurmInstaller
 from cloudai.systems.slurm.slurm_system import SlurmGroup, SlurmPartition, SlurmSystem
 
 
 @pytest.fixture
-def k8s_system(tmp_path: Path) -> KubernetesSystem:
+def k8s_system(tmp_path: Path) -> KubernetesYAMLSystem:
     # Create a mock kube config file
     kube_config = tmp_path / "kube_config"
     kube_config.write_text(
@@ -53,7 +53,7 @@ users:
     """.strip()
     )
 
-    system = KubernetesSystem(
+    system = KubernetesYAMLSystem(
         name="test-k8s",
         scheduler="kubernetes",
         install_path=tmp_path / "install",
@@ -84,7 +84,7 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
 
 @pytest.fixture(params=["k8s", "slurm"])
 def installer(
-    request: Any, k8s_system: KubernetesSystem, slurm_system: SlurmSystem
+    request: Any, k8s_system: KubernetesYAMLSystem, slurm_system: SlurmSystem
 ) -> Union[KubernetesInstaller, SlurmInstaller]:
     installer = KubernetesInstaller(k8s_system) if request.param == "k8s" else SlurmInstaller(slurm_system)
 
