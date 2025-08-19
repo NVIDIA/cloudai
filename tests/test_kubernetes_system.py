@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 from kubernetes import client
 
-from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
+from cloudai.systems.kubernetes.kubernetes_yaml_system import KubernetesYAMLSystem
 
 
 @pytest.fixture
@@ -58,7 +58,7 @@ def kube_config_tempfile():
 
 @pytest.fixture
 def k8s_system(kube_config_tempfile):
-    """Fixture to create a KubernetesSystem instance with a valid kube config."""
+    """Fixture to create a KubernetesYAMLSystem instance with a valid kube config."""
     system_data = {
         "name": "test-system",
         "install_path": "/fake/install/path",
@@ -70,10 +70,10 @@ def k8s_system(kube_config_tempfile):
         "monitor_interval": 1,
     }
 
-    k8s_system = KubernetesSystem(**system_data)
+    k8s_system = KubernetesYAMLSystem(**system_data)
     k8s_system.model_post_init(None)
 
-    validated_system = KubernetesSystem.model_validate(system_data)
+    validated_system = KubernetesYAMLSystem.model_validate(system_data)
 
     yield validated_system
 
