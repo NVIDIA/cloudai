@@ -29,7 +29,16 @@ from cloudai._core.system import System
 from cloudai.cli.handlers import generate_reports
 from cloudai.core import CommandGenStrategy, TestTemplate
 from cloudai.models.scenario import ReportConfig, TestRunDetails
-from cloudai.reporter import PerTestReporter, StatusReporter, TarballReporter
+from cloudai.reporter import PerTestReporter, SlurmReportItem, StatusReporter, TarballReporter
+from cloudai.systems.slurm.slurm_metadata import (
+    MetadataCUDA,
+    MetadataMPI,
+    MetadataNCCL,
+    MetadataNetwork,
+    MetadataSlurm,
+    MetadataSystem,
+    SlurmSystemMetadata,
+)
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.standalone.standalone_system import StandaloneSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
@@ -254,3 +263,84 @@ class TestGenerateReportPriority:
             slurm_system.output_path,
         )
         assert MY_REPORT_CALLED == 1
+
+
+@pytest.fixture
+def slurm_metadata() -> SlurmSystemMetadata:
+    return SlurmSystemMetadata(
+        user="user",
+        system=MetadataSystem(
+            os_type="os_type",
+            os_version="os_version",
+            linux_kernel_version="linux_kernel_version",
+            gpu_arch_type="gpu_arch_type",
+            cpu_model_name="cpu_model_name",
+            cpu_arch_type="cpu_arch_type",
+        ),
+        mpi=MetadataMPI(
+            mpi_type="mpi_type",
+            mpi_version="mpi_version",
+            hpcx_version="hpcx_version",
+        ),
+        cuda=MetadataCUDA(
+            cuda_build_version="cuda_build_version",
+            cuda_runtime_version="cuda_runtime_version",
+            cuda_driver_version="cuda_driver_version",
+        ),
+        network=MetadataNetwork(
+            nics="nics",
+            switch_type="switch_type",
+            network_name="network_name",
+            mofed_version="mofed_version",
+            libfabric_version="libfabric_version",
+        ),
+        nccl=MetadataNCCL(
+            version="1.1.1",
+            commit_sha="abcdef15",
+        ),
+        slurm=MetadataSlurm(
+            cluster_name="cluster_name",
+            node_list="node1,node2",
+            num_nodes="2",
+            ntasks_per_node="8",
+            ntasks="16",
+            job_id="123456",
+        ),
+    )
+
+
+class TestSlurmReportItem:
+    def test_no_metadata_folder(self, slurm_system: SlurmSystem) -> None:
+        run_dir = slurm_system.output_path / "run_dir"
+        run_dir.mkdir(parents=True, exist_ok=True)
+
+        meta = SlurmReportItem.get_metadata(run_dir, slurm_system.output_path)
+        assert meta is None
+
+    def test_no_metadata_files(self, slurm_system: SlurmSystem) -> None:
+        run_dir = slurm_system.output_path / "run_dir"
+        (run_dir / "metadata").mkdir(parents=True, exist_ok=True)
+
+        meta = SlurmReportItem.get_metadata(run_dir, slurm_system.output_path)
+        assert meta is None
+
+    def test_metadata_file_in_run_dir(self, slurm_system: SlurmSystem, slurm_metadata: SlurmSystemMetadata) -> None:
+        run_dir = slurm_system.output_path / "run_dir"
+        (run_dir / "metadata").mkdir(parents=True, exist_ok=True)
+        with open(run_dir / "metadata" / "node-0.toml", "w") as f:
+            toml.dump(slurm_metadata.model_dump(), f)
+
+        meta = SlurmReportItem.get_metadata(run_dir, slurm_system.output_path)
+        assert meta is not None
+        assert meta.slurm.node_list == slurm_metadata.slurm.node_list
+
+    def test_metadata_for_single_sbatch(self, slurm_system: SlurmSystem, slurm_metadata: SlurmSystemMetadata) -> None:
+        run_dir = slurm_system.output_path / "run_dir"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (slurm_system.output_path / "metadata").mkdir(parents=True, exist_ok=True)
+        with open(slurm_system.output_path / "metadata" / "node-0.toml", "w") as f:
+            toml.dump(slurm_metadata.model_dump(), f)
+
+        meta = SlurmReportItem.get_metadata(run_dir, slurm_system.output_path)
+        assert meta is not None
+        assert meta.slurm.node_list == slurm_metadata.slurm.node_list
