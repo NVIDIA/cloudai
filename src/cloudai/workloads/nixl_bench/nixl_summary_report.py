@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 from rich.table import Table
 
 from cloudai.core import System, TestRun, TestScenario
-from cloudai.report_generator.comparison_report import ChartsAndTablesReport, ComparisonReportConfig
+from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig
 from cloudai.report_generator.groups import GroupedTestRuns
 from cloudai.util.lazy_imports import lazy
 
@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     import pandas as pd
 
 
-class NIXLBenchComparisonReport(ChartsAndTablesReport):
+class NIXLBenchComparisonReport(ComparisonReport):
     """Comparison report for NIXL Bench."""
 
     INFO_COLUMNS = ("block_size", "batch_size")
@@ -76,12 +76,12 @@ class NIXLBenchComparisonReport(ChartsAndTablesReport):
         charts: list[bk.figure] = []
         for group in cmp_groups:
             dfs = [self.extract_data_as_df(item.tr) for item in group.items]
-            if chart := self.create_chart(group, dfs, "Latecy", list(self.INFO_COLUMNS), ["avg_lat"], "Time (us)"):
-                charts.append(chart)
-            if chart := self.create_chart(
-                group, dfs, "Bandwidth", list(self.INFO_COLUMNS), ["bw_gb_sec"], "Busbw (GB/s)"
-            ):
-                charts.append(chart)
+            charts.extend(
+                [
+                    self.create_chart(group, dfs, "Latecy", list(self.INFO_COLUMNS), ["avg_lat"], "Time (us)"),
+                    self.create_chart(group, dfs, "Bandwidth", list(self.INFO_COLUMNS), ["bw_gb_sec"], "Busbw (GB/s)"),
+                ]
+            )
         return charts
 
     def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame:

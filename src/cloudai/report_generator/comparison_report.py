@@ -49,13 +49,15 @@ class ComparisonReportConfig(ReportConfig):
     group_by: list[str] = Field(default_factory=list)
 
 
-class ChartsAndTablesReport(Reporter, ABC):
+class ComparisonReport(Reporter, ABC):
     """Base class for comparison reports that generate both charts and tables."""
 
     def __init__(
         self, system: System, test_scenario: TestScenario, results_root: Path, config: ComparisonReportConfig
     ) -> None:
         super().__init__(system, test_scenario, results_root, config)
+        self.template_path = Path(__file__).parent.parent / "util"
+        self.template_name = "nixl_report_template.jinja2"
         self.report_file_name: str = "comparison_report.html"
         self.group_by: list[str] = config.group_by
 
@@ -100,9 +102,9 @@ class ChartsAndTablesReport(Reporter, ABC):
 
         bokeh_script, bokeh_div = self.get_bokeh_html()
 
-        template = jinja2.Environment(
-            loader=jinja2.FileSystemLoader(Path(__file__).parent.parent.parent / "util")
-        ).get_template("nixl_report_template.jinja2")
+        template = jinja2.Environment(loader=jinja2.FileSystemLoader(self.template_path)).get_template(
+            self.template_name
+        )
         html_content = template.render(
             title=f"{self.test_scenario.name} Comparison Report",
             bokeh_script=bokeh_script,
@@ -151,7 +153,7 @@ class ChartsAndTablesReport(Reporter, ABC):
         info_columns: list[str],
         data_columns: list[str],
         y_axis_label: str,
-    ) -> bk.figure | None:
+    ) -> bk.figure:
         style_cycle = cycle(["green", "cyan", "magenta", "blue", "yellow"])
 
         p = lazy.bokeh_plotting.figure(

@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 from rich.table import Table
 
 from cloudai.core import System, TestRun, TestScenario
-from cloudai.report_generator.comparison_report import ChartsAndTablesReport, ComparisonReportConfig
+from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig
 from cloudai.report_generator.groups import GroupedTestRuns
 from cloudai.report_generator.util import (
     add_human_readable_sizes,
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     import pandas as pd
 
 
-class NcclComparisonReport(ChartsAndTablesReport):
+class NcclComparisonReport(ComparisonReport):
     """Comparison report for NCCL Test."""
 
     INFO_COLUMNS = ("Size (B)", "Count", "Type", "Redop")
