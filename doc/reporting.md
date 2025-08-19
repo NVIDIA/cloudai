@@ -10,6 +10,13 @@ Per-test reports are linked to a particular workload type (e.g. `NcclTest`). All
 To list all available reports, one can use `cloudai list-reports` command. Use verbose output to also print report configurations.
 
 
+## Notes and general flow
+1. All reports should be registered via `Registry()` (`.add_report()` or `.add_scenario_report()`).
+1. Scenario reports are configurable via system config (Slurm-only for now) and scenario config.
+1. Configuration in a scenario config has the highest priority. Next, system config is checked. Then it defaults to report config from the registry.
+1. Then report is generated (or not) according to this final config.
+
+
 ## Enable, disable and configure reports
 **NOTE** Only scenario-level reports can be configured today.
 

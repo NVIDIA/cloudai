@@ -19,7 +19,7 @@ description = "all_reduce_worst_alloc_test"
 test_template_name = "NcclTest"
 
 [cmd_args]
-docker_image_url = "nvcr.io#nvidia/pytorch:24.02-py3"
+docker_image_url = "nvcr.io#nvidia/pytorch:25.06-py3"
 "subtest_name" = "all_reduce_perf_mpi"
 minbytes = "1K"
 maxbytes = "16G"

@@ -129,6 +129,21 @@ class SystemConfigParsingError(Exception):
     pass
 
 
+class MissingTestError(Exception):
+    """Exception raised when a test specified in a test scenario is not found in the test directory."""
+
+    def __init__(self, test_name: str):
+        self.test_name = test_name
+        self.message = (
+            f"Test '{test_name}' is not defined.\n"
+            "Please check:\n"
+            "1. The tests directory argument (--tests-dir) is set correctly\n"
+            "2. The test name in your test scenario matches the test name defined in the test file\n"
+            "3. The test file exists in your tests directory"
+        )
+        super().__init__(self.message)
+
+
 def format_validation_error(err: ErrorDetails) -> str:
     flattened_field = ".".join(str(v) for v in err["loc"])
 

@@ -39,6 +39,8 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _gen_srun_command(self) -> str:
         with (self.test_run.output_path / "env_vars.sh").open("w") as f:
             for key, value in self.final_env_vars.items():
+                if key == "SLURM_JOB_MASTER_NODE":  # this is an sbatch-level variable, not needed per-node
+                    continue
                 f.write(f"export {key}={value}\n")
 
         etcd_command: list[str] = self.gen_etcd_srun_command()

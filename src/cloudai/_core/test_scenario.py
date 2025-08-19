@@ -26,6 +26,7 @@ from .system import System
 from .test_template_strategy import TestTemplateStrategy
 
 if TYPE_CHECKING:
+    from ..models.scenario import ReportConfig
     from .report_generation_strategy import ReportGenerationStrategy
     from .test import Test
 
@@ -163,10 +164,12 @@ class TestRun:
                     obj = getattr(obj, attr)
                 setattr(obj, attrs[-1], value)
 
+        type(tdef)(**tdef.model_dump())  # trigger validation
+
         new_tr = copy.deepcopy(self)
+        new_tr.test.test_definition = tdef
         if "NUM_NODES" in action:
             new_tr.num_nodes = action["NUM_NODES"]
-        new_tr.test.test_definition = type(tdef)(**tdef.model_dump())  # re-create the model to enable validation
         return new_tr
 
 
@@ -182,7 +185,13 @@ class TestScenario:
 
     __test__ = False
 
-    def __init__(self, name: str, test_runs: List[TestRun], job_status_check: bool = True) -> None:
+    def __init__(
+        self,
+        name: str,
+        test_runs: List[TestRun],
+        job_status_check: bool = True,
+        reports: dict[str, ReportConfig] | None = None,
+    ) -> None:
         """
         Initialize a TestScenario instance.
 
@@ -190,10 +199,12 @@ class TestScenario:
             name (str): Name of the test scenario.
             test_runs (List[TestRun]): List of tests in the scenario with custom run options.
             job_status_check (bool): Flag indicating whether to check the job status or not.
+            reports (Optional[dict[str, ReportConfig]]): Reports to be generated for the scenario.
         """
         self.name = name
         self.test_runs = test_runs
         self.job_status_check = job_status_check
+        self.reports = reports or {}
 
     def __repr__(self) -> str:
         """

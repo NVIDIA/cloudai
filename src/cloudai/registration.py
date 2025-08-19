@@ -61,6 +61,8 @@ def register_all():
         MegatronRunTestDefinition,
     )
     from cloudai.workloads.nccl_test import (
+        ComparisonReportConfig,
+        NcclComparisonReport,
         NCCLTestDefinition,
         NcclTestGradingStrategy,
         NcclTestKubernetesJsonGenStrategy,
@@ -81,9 +83,9 @@ def register_all():
         NeMoRunTestDefinition,
     )
     from cloudai.workloads.nixl_bench import (
+        NIXLBenchComparisonReport,
         NIXLBenchReportGenerationStrategy,
         NIXLBenchSlurmCommandGenStrategy,
-        NIXLBenchSummaryReport,
         NIXLBenchTestDefinition,
     )
     from cloudai.workloads.nixl_perftest import NixlPerftestSlurmCommandGenStrategy, NixlPerftestTestDefinition
@@ -95,11 +97,7 @@ def register_all():
         SleepStandaloneCommandGenStrategy,
         SleepTestDefinition,
     )
-    from cloudai.workloads.slurm_container import (
-        SlurmContainerCommandGenStrategy,
-        SlurmContainerReportGenerationStrategy,
-        SlurmContainerTestDefinition,
-    )
+    from cloudai.workloads.slurm_container import SlurmContainerCommandGenStrategy, SlurmContainerTestDefinition
     from cloudai.workloads.triton_inference import (
         TritonInferenceReportGenerationStrategy,
         TritonInferenceSlurmCommandGenStrategy,
@@ -201,7 +199,6 @@ def register_all():
     Registry().add_report(NeMoRunTestDefinition, NeMoRunReportGenerationStrategy)
     Registry().add_report(NeMoRunTestDefinition, NeMoRunDataStoreReportGenerationStrategy)
     Registry().add_report(NemotronTestDefinition, JaxToolboxReportGenerationStrategy)
-    Registry().add_report(SlurmContainerTestDefinition, SlurmContainerReportGenerationStrategy)
     Registry().add_report(UCCTestDefinition, UCCTestReportGenerationStrategy)
     Registry().add_report(TritonInferenceTestDefinition, TritonInferenceReportGenerationStrategy)
     Registry().add_report(NIXLBenchTestDefinition, NIXLBenchReportGenerationStrategy)
@@ -210,7 +207,14 @@ def register_all():
     Registry().add_scenario_report("per_test", PerTestReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("status", StatusReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("tarball", TarballReporter, ReportConfig(enable=True))
-    Registry().add_scenario_report("nixl_bench_summary", NIXLBenchSummaryReport, ReportConfig(enable=True))
+    Registry().add_scenario_report(
+        "nixl_bench_summary",
+        NIXLBenchComparisonReport,
+        ComparisonReportConfig(enable=True, group_by=["backend", "op_type"]),
+    )
+    Registry().add_scenario_report(
+        "nccl_comparison", NcclComparisonReport, ComparisonReportConfig(enable=True, group_by=["subtest_name"])
+    )
 
     Registry().add_reward_function("inverse", inverse_reward)
     Registry().add_reward_function("negative", negative_reward)

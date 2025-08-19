@@ -85,9 +85,8 @@ mpi = "pmix"
 gpus_per_node = 8
 ntasks_per_node = 8
 
-[partitions]
-  [partitions.<YOUR PARTITION NAME>]
-  name = "<YOUR PARTITION NAME>"
+[[partitions]]
+name = "partition_1"
 ```
 Replace `<YOUR PARTITION NAME>` with the name of the partition you want to use. You can find the partition name by running `sinfo` on the cluster.
 
@@ -193,31 +192,19 @@ ntasks_per_node = 8
 
 cache_docker_images_locally = true
 
-[partitions]
-  [partitions.partition_1]
-  name = "partition_1"
-  nodes = ["node-[001-100]"]
+[[partitions]]
+name = "partition_1"
 
-  [partitions.partition_2]
-  name = "partition_2"
-  nodes = ["node-[101-200]"]
+  [[partitions.groups]]
+  name = "group_a"
+  nodes = ["node-[001-025]"]
 
-  [partitions.partition_1.groups]
-    [partitions.partition_1.groups.group_1]
-    name = "group_1"
-    nodes = ["node-[001-025]"]
+  [[partitions.groups]]
+  name = "group_b"
+  nodes = ["node-[026-050]"]
 
-    [partitions.partition_1.groups.group_2]
-    name = "group_2"
-    nodes = ["node-[026-050]"]
-
-    [partitions.partition_1.groups.group_3]
-    name = "group_3"
-    nodes = ["node-[051-075]"]
-
-    [partitions.partition_1.groups.group_4]
-    name = "group_4"
-    nodes = ["node-[076-100]"]
+[[partitions]]
+name = "partition_2"
 
 [global_env_vars]
   # NCCL Specific Configurations
@@ -405,7 +392,7 @@ rm_extracted: False # Preprocess script will remove extracted files after prepro
 You can update the fields to adjust the behavior. For example, you can update the file_numbers field to adjust the number of dataset files to download. This will allow you to save disk space.
 
 ### Note: For running Nemo Llama model, it is important to follow these additional steps:
-1. Go to https://huggingface.co/docs/transformers/en/model_doc/llama#usage-tips.
+1. Go to https://huggingface.co/docs/transformers/en/model_doc/llama.
 2. Follow the instructions under 'Usage Tips' on how to download the tokenizer.
 3. Replace "training.model.tokenizer.model=TOKENIZER_MODEL" with "training.model.tokenizer.model=YOUR_TOKENIZER_PATH" (the tokenizer should be a .model file) in conf/common/test/llama.toml.
 

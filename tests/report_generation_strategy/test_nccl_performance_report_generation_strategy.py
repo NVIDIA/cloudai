@@ -15,56 +15,16 @@
 # limitations under the License.
 
 from pathlib import Path
-from unittest.mock import Mock
 
 import pandas as pd
 import pytest
 
-from cloudai import Test, TestRun
+from cloudai import TestRun
+from cloudai.core import METRIC_ERROR
 from cloudai.systems.slurm.slurm_system import SlurmSystem
-from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestPerformanceReportGenerationStrategy
-
-
-@pytest.fixture
-def nccl_tr(tmp_path: Path) -> TestRun:
-    test = Test(
-        test_definition=NCCLTestDefinition(
-            name="nccl",
-            description="desc",
-            test_template_name="t",
-            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-        ),
-        test_template=Mock(),
-    )
-    tr = TestRun(name="nccl_test", test=test, num_nodes=2, nodes=[], output_path=tmp_path)
-
-    stdout_content = """# Rank  0 Group  0 Pid 1000 on node1 device  0 [0xaa] NVIDIA H100
-# Rank  1 Group  0 Pid 1001 on node1 device  1 [0xbb] NVIDIA H100
-# Rank  2 Group  0 Pid 1002 on node1 device  2 [0xcc] NVIDIA H100
-# Rank  3 Group  0 Pid 1003 on node1 device  3 [0xdd] NVIDIA H100
-# Rank  4 Group  0 Pid 1004 on node1 device  4 [0xee] NVIDIA H100
-# Rank  5 Group  0 Pid 1005 on node1 device  5 [0xff] NVIDIA H100
-# Rank  6 Group  0 Pid 1006 on node1 device  6 [0x11] NVIDIA H100
-# Rank  7 Group  0 Pid 1007 on node1 device  7 [0x22] NVIDIA H100
-# Rank  8 Group  0 Pid 2000 on node2 device  0 [0xaa] NVIDIA H100
-# Rank  9 Group  0 Pid 2001 on node2 device  1 [0xbb] NVIDIA H100
-# Rank 10 Group  0 Pid 2002 on node2 device  2 [0xcc] NVIDIA H100
-# Rank 11 Group  0 Pid 2003 on node2 device  3 [0xdd] NVIDIA H100
-# Rank 12 Group  0 Pid 2004 on node2 device  4 [0xee] NVIDIA H100
-# Rank 13 Group  0 Pid 2005 on node2 device  5 [0xff] NVIDIA H100
-# Rank 14 Group  0 Pid 2006 on node2 device  6 [0x11] NVIDIA H100
-# Rank 15 Group  0 Pid 2007 on node2 device  7 [0x22] NVIDIA H100
-#
-#                                                              out-of-place                       in-place
-#       size         count      type   redop    root     time   algbw   busbw #wrong     time   algbw   busbw #wrong
-     1000000       1000000     float     sum      -1    1.11   10.10   20.20      0    1.12   10.11   20.21      0
-     2000000       2000000     float     sum      -1    2.22   20.20   30.30      0    2.23   20.21   30.31      0
-     12000000      12000000     float     sum      -1   13.13  120.30  130.40      0   13.14  120.31  130.41      0
-# Avg bus bandwidth    : 111.111
-"""
-    (tr.output_path / "stdout.txt").write_text(stdout_content)
-
-    return tr
+from cloudai.util.lazy_imports import lazy
+from cloudai.workloads.nccl_test import NcclTestPerformanceReportGenerationStrategy
+from cloudai.workloads.nccl_test.performance_report_generation_strategy import _parse_device_info
 
 
 @pytest.fixture
@@ -133,5 +93,21 @@ def test_parse_gpu_types(report_strategy: NcclTestPerformanceReportGenerationStr
         test_file.write_text(stdout_content)
 
         with test_file.open("r", encoding="utf-8") as file:
-            _, gpu_type, _ = report_strategy._parse_device_info(file)
+            _, gpu_type, _ = _parse_device_info(file)
             assert gpu_type == expected_type, f"Failed to parse GPU type for {gpu_line}"
+
+
+@pytest.mark.parametrize(
+    "metric,ref_values",
+    [
+        ("default", [1.12, 2.23, 13.14]),
+        ("latency-in-place", [1.12, 2.23, 13.14]),
+        ("latency-out-of-place", [1.11, 2.22, 13.13]),
+    ],
+)
+def test_get_metric(
+    report_strategy: NcclTestPerformanceReportGenerationStrategy, metric: str, ref_values: list[float]
+) -> None:
+    res = report_strategy.get_metric(metric)
+    assert res is not None and res != METRIC_ERROR
+    assert res == lazy.np.mean(ref_values)
