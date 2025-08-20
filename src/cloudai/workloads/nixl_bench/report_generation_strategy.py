@@ -37,20 +37,22 @@ def extract_data(stdout_file: Path) -> pd.DataFrame:
 
     header_present, data = False, []
     for line in stdout_file.read_text().splitlines():
-        if "Block Size (B)      Batch Size     Avg Lat. (us)  B/W (MiB/Sec)  B/W (GiB/Sec)  B/W (GB/Sec)" in line:
+        if not header_present and (
+            "Block Size (B)      Batch Size     " in line and "Avg Lat. (us)" in line and "B/W (GB/Sec)" in line
+        ):
             header_present = True
             continue
-        if header_present and len(line.split()) == 6:
-            data.append(line.split())
+        parts = line.split()
+        if header_present and (len(parts) == 6 or len(parts) == 10):
+            if len(parts) == 6:
+                data.append([parts[0], parts[1], parts[2], parts[-1]])
+            else:
+                data.append([parts[0], parts[1], parts[3], parts[2]])
 
-    df = lazy.pd.DataFrame(
-        data, columns=["block_size", "batch_size", "avg_lat", "bw_mib_sec", "bw_gib_sec", "bw_gb_sec"]
-    )
+    df = lazy.pd.DataFrame(data, columns=["block_size", "batch_size", "avg_lat", "bw_gb_sec"])
     df["block_size"] = df["block_size"].astype(int)
     df["batch_size"] = df["batch_size"].astype(int)
     df["avg_lat"] = df["avg_lat"].astype(float)
-    df["bw_mib_sec"] = df["bw_mib_sec"].astype(float)
-    df["bw_gib_sec"] = df["bw_gib_sec"].astype(float)
     df["bw_gb_sec"] = df["bw_gb_sec"].astype(float)
 
     return df
