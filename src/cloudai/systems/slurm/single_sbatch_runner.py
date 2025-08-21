@@ -125,7 +125,6 @@ class SingleSbatchRunner(SlurmRunner):
         return srun_cmd
 
     def unroll_dse(self, tr: TestRun) -> Generator[TestRun, None, None]:
-        gym = CloudAIGymEnv(tr, self)
         for idx, combination in enumerate(tr.all_combinations):
             next_tr = tr.apply_params_set(combination)
             next_tr.step = idx + 1
@@ -133,9 +132,6 @@ class SingleSbatchRunner(SlurmRunner):
 
             if next_tr.test.test_definition.constraint_check(next_tr):
                 yield next_tr
-                observation = gym.get_observation(combination)
-                reward = gym.compute_reward(observation)
-                gym.write_trajectory(idx, combination, reward, observation)
 
     def get_global_env_vars(self) -> str:
         vars: list[str] = []
@@ -198,6 +194,19 @@ class SingleSbatchRunner(SlurmRunner):
                 break
             is_completed = True if self.mode == "dry-run" else self.system.is_job_completed(job)
             await asyncio.sleep(self.system.monitor_interval)
+
+        gym = CloudAIGymEnv(tr, self)
+        for tr in self.test_scenario.test_runs:
+            if tr.is_dse_job:
+                for idx, combination in enumerate(tr.all_combinations):
+                    next_tr = tr.apply_params_set(combination)
+                    next_tr.step = idx + 1
+                    next_tr.output_path = self.get_job_output_path(next_tr)
+
+                    gym.test_run = next_tr
+                    observation = gym.get_observation({})
+                    reward = gym.compute_reward(observation)
+                    gym.write_trajectory(idx, combination, reward, observation)
 
         self.on_job_completion(job)
 
