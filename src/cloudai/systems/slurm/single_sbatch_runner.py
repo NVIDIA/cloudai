@@ -23,10 +23,10 @@ from typing import Generator, Optional, cast
 
 from cloudai.configurator.cloudai_gym import CloudAIGymEnv
 from cloudai.core import JobIdRetrievalError, System, TestRun, TestScenario
-from cloudai.systems.slurm.slurm_metadata import SlurmJobMetadata, SlurmStepMetadata
 from cloudai.util import CommandShell, format_time_limit, parse_time_limit
 
 from .slurm_command_gen_strategy import SlurmCommandGenStrategy
+from .slurm_metadata import SlurmJobMetadata, SlurmStepMetadata
 from .slurm_runner import SlurmJob, SlurmRunner
 from .slurm_system import SlurmSystem
 
