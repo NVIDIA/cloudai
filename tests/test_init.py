@@ -17,7 +17,7 @@
 
 from cloudai.core import GradingStrategy, JsonGenStrategy, Registry
 from cloudai.reporter import PerTestReporter, StatusReporter, TarballReporter
-from cloudai.systems.kubernetes import KubernetesSystem
+from cloudai.systems.kubernetes import KubernetesYAMLSystem
 from cloudai.systems.lsf import LSFInstaller, LSFSystem
 from cloudai.systems.runai import RunAIInstaller, RunAISystem
 from cloudai.systems.slurm import SlurmInstaller, SlurmSystem
@@ -87,7 +87,7 @@ def test_systems():
     parsers = Registry().systems_map.keys()
     assert "standalone" in parsers
     assert "slurm" in parsers
-    assert "kubernetes" in parsers
+    assert "kubernetes_yaml" in parsers
     assert "lsf" in parsers
     assert "runai" in parsers
     assert len(parsers) == 5
@@ -97,7 +97,7 @@ def test_runners():
     runners = Registry().runners_map.keys()
     assert "standalone" in runners
     assert "slurm" in runners
-    assert "kubernetes" in runners
+    assert "kubernetes_yaml" in runners
     assert "lsf" in runners
     assert "runai" in runners
     assert len(runners) == 5
@@ -132,8 +132,8 @@ ALL_STRATEGIES = {
     (GradingStrategy, SlurmSystem, NemotronTestDefinition): JaxToolboxGradingStrategy,
     (GradingStrategy, SlurmSystem, SleepTestDefinition): SleepGradingStrategy,
     (GradingStrategy, SlurmSystem, UCCTestDefinition): UCCTestGradingStrategy,
-    (JsonGenStrategy, KubernetesSystem, NCCLTestDefinition): NcclTestKubernetesJsonGenStrategy,
-    (JsonGenStrategy, KubernetesSystem, SleepTestDefinition): SleepKubernetesJsonGenStrategy,
+    (JsonGenStrategy, KubernetesYAMLSystem, NCCLTestDefinition): NcclTestKubernetesJsonGenStrategy,
+    (JsonGenStrategy, KubernetesYAMLSystem, SleepTestDefinition): SleepKubernetesJsonGenStrategy,
     (JsonGenStrategy, RunAISystem, NCCLTestDefinition): NcclTestRunAIJsonGenStrategy,
 }
 

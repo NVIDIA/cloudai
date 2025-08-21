@@ -23,7 +23,7 @@ import yaml
 
 from cloudai.core import Test, TestRun, TestTemplate
 from cloudai.models.workload import CmdArgs, TestDefinition
-from cloudai.systems.kubernetes import KubernetesSystem
+from cloudai.systems.kubernetes import KubernetesYAMLSystem
 from cloudai.systems.runai import RunAISystem
 from cloudai.systems.slurm import SlurmGroup, SlurmPartition, SlurmSystem
 
@@ -72,7 +72,7 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
 
 
 @pytest.fixture
-def kubernetes_system(tmp_path: Path) -> KubernetesSystem:
+def kubernetes_system(tmp_path: Path) -> KubernetesYAMLSystem:
     kube_config = tmp_path / "kubeconfig"
     config = {
         "apiVersion": "v1",
@@ -84,7 +84,7 @@ def kubernetes_system(tmp_path: Path) -> KubernetesSystem:
     }
     kube_config.write_text(yaml.dump(config))
 
-    system = KubernetesSystem(
+    system = KubernetesYAMLSystem(
         name="test_kubernetes_system",
         install_path=tmp_path / "install",
         output_path=tmp_path / "output",
