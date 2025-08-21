@@ -21,6 +21,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Generator, Optional, cast
 
+from cloudai.configurator.cloudai_gym import CloudAIGymEnv
 from cloudai.core import JobIdRetrievalError, System, TestRun, TestScenario
 from cloudai.systems.slurm.slurm_metadata import SlurmJobMetadata, SlurmStepMetadata
 from cloudai.util import CommandShell, format_time_limit, parse_time_limit
@@ -124,6 +125,7 @@ class SingleSbatchRunner(SlurmRunner):
         return srun_cmd
 
     def unroll_dse(self, tr: TestRun) -> Generator[TestRun, None, None]:
+        gym = CloudAIGymEnv(tr, self)
         for idx, combination in enumerate(tr.all_combinations):
             next_tr = tr.apply_params_set(combination)
             next_tr.step = idx + 1
@@ -131,6 +133,9 @@ class SingleSbatchRunner(SlurmRunner):
 
             if next_tr.test.test_definition.constraint_check(next_tr):
                 yield next_tr
+                observation = gym.get_observation(combination)
+                reward = gym.compute_reward(observation)
+                gym.write_trajectory(idx, combination, reward, observation)
 
     def get_global_env_vars(self) -> str:
         vars: list[str] = []
