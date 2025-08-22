@@ -121,7 +121,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
 
     for tr in runner.runner.test_scenario.test_runs:
         test_run = copy.deepcopy(tr)
-        env = CloudAIGymEnv(test_run=test_run, runner=runner)
+        env = CloudAIGymEnv(test_run=test_run, runner=runner.runner)
         agent_type = test_run.test.test_definition.agent
 
         agent_class = registry.agents_map.get(agent_type)
