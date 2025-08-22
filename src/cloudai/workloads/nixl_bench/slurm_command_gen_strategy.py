@@ -85,7 +85,7 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def gen_nixl_srun_command(self) -> list[str]:
         tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, self.test_run.test.test_definition)
-        backend = tdef.cmd_args.model_dump().get("backend", "unset").upper()
+        backend = str(tdef.cmd_args_dict.get("backend", "unset")).upper()
         self._current_image_url = str(tdef.docker_image.installed_path)
         nnodes, _ = self.get_cached_nodes_spec()
         tpn, ntasks = 1, nnodes
