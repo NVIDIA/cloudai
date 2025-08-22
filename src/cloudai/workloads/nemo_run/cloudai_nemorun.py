@@ -22,16 +22,16 @@ import nemo_run as run
 import torch
 from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.loggers.wandb import WandbLogger
-from megatron.core.distributed import DistributedDataParallelConfig
-from megatron.core.optimizer import OptimizerConfig
+# from megatron.core.distributed import DistributedDataParallelConfig
+# from megatron.core.optimizer import OptimizerConfig
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.model.llama import Llama3Config70B, Llama31Config405B, LlamaModel
-from nemo.collections.llm.gpt.model.nemotron import Nemotron4Config15B, Nemotron4Config340B, NemotronModel
-from nemo.collections.llm.recipes.nemotron3_8b import pretrain_recipe as nemotron3_8b_recipe
+# from nemo.collections.llm.gpt.data.mock import MockDataModule
+# from nemo.collections.llm.gpt.model.llama import Llama3Config70B, Llama31Config405B, LlamaModel
+# from nemo.collections.llm.gpt.model.nemotron import Nemotron4Config15B, Nemotron4Config340B, NemotronModel
+# from nemo.collections.llm.recipes.nemotron3_8b import pretrain_recipe as nemotron3_8b_recipe
 from nemo.collections.llm.recipes.llama31_405b import pretrain_recipe as llama31_405_pretrain_recipe
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
     BulkOverlapCfg,
@@ -49,7 +49,7 @@ from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCall
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
-from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
+# from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.utils.exp_manager import TimingCallback
 
 
@@ -685,142 +685,142 @@ def set_perf_optimization_configs(recipe):
 
 
 
-# LLAMA3 8B Recipe
-@run.cli.factory(target=llm.pretrain)
-def cloudai_llama3_8b_recipe() -> run.Partial:
-    from nemo.collections.llm.recipes.llama3_8b import pretrain_recipe
+# # LLAMA3 8B Recipe
+# @run.cli.factory(target=llm.pretrain)
+# def cloudai_llama3_8b_recipe() -> run.Partial:
+#     from nemo.collections.llm.recipes.llama3_8b import pretrain_recipe
 
-    recipe = pretrain_recipe(performance_mode=True)
+#     recipe = pretrain_recipe(performance_mode=True)
 
-    recipe.data.tokenizer = null_tokenizer(vocab_size=128256)
-    recipe.log = default_log()
-    recipe.trainer.callbacks.append(
-        run.Config(
-            FLOPsMeasurementCallback,
-            model_config=recipe.model.config,
-            data_config=recipe.data,
-            model_name="llama3",
-        )
-    )
-    set_enable_cuda_graphs_params(recipe)
-    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
-    return recipe
+#     recipe.data.tokenizer = null_tokenizer(vocab_size=128256)
+#     recipe.log = default_log()
+#     recipe.trainer.callbacks.append(
+#         run.Config(
+#             FLOPsMeasurementCallback,
+#             model_config=recipe.model.config,
+#             data_config=recipe.data,
+#             model_name="llama3",
+#         )
+#     )
+#     set_enable_cuda_graphs_params(recipe)
+#     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
+#     return recipe
 
 
-# LLAMA3 70B Recipe
-@run.cli.factory(target=llm.pretrain)
-def cloudai_llama3_70b_recipe() -> run.Partial:
-    recipe = run.Partial(
-        llm.pretrain,
-        model=run.Config(LlamaModel, config=Llama3Config70B()),
-        data=run.Config(
-            MockDataModule,
-            seq_length=8192,
-            micro_batch_size=1,
-            global_batch_size=8,
-            tokenizer=hf_tokenizer_llama3_70b(),
-        ),
-        trainer=run.Config(
-            nl.Trainer,
-            devices=8,
-            num_nodes=1,
-            accelerator="gpu",
-            max_steps=10,
-            limit_test_batches=50,
-            limit_val_batches=32,
-            log_every_n_steps=10,
-            accumulate_grad_batches=1,
-            plugins=run.Config(
-                nl.MegatronMixedPrecision,
-                precision="bf16-mixed",
-                params_dtype=torch.bfloat16,
-                pipeline_dtype=torch.bfloat16,
-                autocast_enabled=False,
-                grad_reduce_in_fp32=False,
-            ),
-            strategy=run.Config(
-                nl.MegatronStrategy,
-                ckpt_async_save=True,
-                ckpt_parallel_load=True,
-                tensor_model_parallel_size=4,
-                pipeline_model_parallel_size=1,
-                context_parallel_size=1,
-                virtual_pipeline_model_parallel_size=None,
-                sequence_parallel=True,
-                pipeline_dtype=torch.bfloat16,
-                ddp=run.Config(
-                    DistributedDataParallelConfig,
-                    check_for_nan_in_grad=True,
-                    grad_reduce_in_fp32=True,
-                    overlap_grad_reduce=True,
-                    overlap_param_gather=True,
-                    average_in_collective=True,
-                ),
-                gradient_as_bucket_view=True,
-            ),
-            num_sanity_val_steps=0,
-            val_check_interval=1000,
-            max_epochs=10,
-            callbacks=[
-                timing_callback(),
-            ],
-        ),
-        optim=run.Config(
-            nl.MegatronOptimizerModule,
-            config=run.Config(
-                OptimizerConfig,
-                lr=3e-4,
-                bf16=True,
-                params_dtype=torch.bfloat16,
-                use_distributed_optimizer=True,
-                weight_decay=0.1,
-                adam_beta1=0.9,
-                adam_beta2=0.95,
-                adam_eps=1e-05,
-                clip_grad=1.0,
-                fp16=False,
-            ),
-            lr_scheduler=run.Config(
-                CosineAnnealingScheduler,
-                warmup_steps=2000,
-                constant_steps=0,
-                min_lr=2.9999999999999997e-05,
-            ),
-        ),
-        resume=run.Config(
-            nl.AutoResume,
-            resume_if_exists=True,
-            resume_ignore_no_checkpoint=True,
-            resume_past_end=True,
-        ),
-    )
-    recipe.model.config.vocab_size = 128256
-    recipe.trainer.callbacks.append(
-        run.Config(
-            FLOPsMeasurementCallback,
-            model_config=recipe.model.config,
-            data_config=recipe.data,
-            model_name="llama3",
-        )
-    )
-    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
-    set_enable_cuda_graphs_params(recipe)
+# # LLAMA3 70B Recipe
+# @run.cli.factory(target=llm.pretrain)
+# def cloudai_llama3_70b_recipe() -> run.Partial:
+#     recipe = run.Partial(
+#         llm.pretrain,
+#         model=run.Config(LlamaModel, config=Llama3Config70B()),
+#         data=run.Config(
+#             MockDataModule,
+#             seq_length=8192,
+#             micro_batch_size=1,
+#             global_batch_size=8,
+#             tokenizer=hf_tokenizer_llama3_70b(),
+#         ),
+#         trainer=run.Config(
+#             nl.Trainer,
+#             devices=8,
+#             num_nodes=1,
+#             accelerator="gpu",
+#             max_steps=10,
+#             limit_test_batches=50,
+#             limit_val_batches=32,
+#             log_every_n_steps=10,
+#             accumulate_grad_batches=1,
+#             plugins=run.Config(
+#                 nl.MegatronMixedPrecision,
+#                 precision="bf16-mixed",
+#                 params_dtype=torch.bfloat16,
+#                 pipeline_dtype=torch.bfloat16,
+#                 autocast_enabled=False,
+#                 grad_reduce_in_fp32=False,
+#             ),
+#             strategy=run.Config(
+#                 nl.MegatronStrategy,
+#                 ckpt_async_save=True,
+#                 ckpt_parallel_load=True,
+#                 tensor_model_parallel_size=4,
+#                 pipeline_model_parallel_size=1,
+#                 context_parallel_size=1,
+#                 virtual_pipeline_model_parallel_size=None,
+#                 sequence_parallel=True,
+#                 pipeline_dtype=torch.bfloat16,
+#                 ddp=run.Config(
+#                     DistributedDataParallelConfig,
+#                     check_for_nan_in_grad=True,
+#                     grad_reduce_in_fp32=True,
+#                     overlap_grad_reduce=True,
+#                     overlap_param_gather=True,
+#                     average_in_collective=True,
+#                 ),
+#                 gradient_as_bucket_view=True,
+#             ),
+#             num_sanity_val_steps=0,
+#             val_check_interval=1000,
+#             max_epochs=10,
+#             callbacks=[
+#                 timing_callback(),
+#             ],
+#         ),
+#         optim=run.Config(
+#             nl.MegatronOptimizerModule,
+#             config=run.Config(
+#                 OptimizerConfig,
+#                 lr=3e-4,
+#                 bf16=True,
+#                 params_dtype=torch.bfloat16,
+#                 use_distributed_optimizer=True,
+#                 weight_decay=0.1,
+#                 adam_beta1=0.9,
+#                 adam_beta2=0.95,
+#                 adam_eps=1e-05,
+#                 clip_grad=1.0,
+#                 fp16=False,
+#             ),
+#             lr_scheduler=run.Config(
+#                 CosineAnnealingScheduler,
+#                 warmup_steps=2000,
+#                 constant_steps=0,
+#                 min_lr=2.9999999999999997e-05,
+#             ),
+#         ),
+#         resume=run.Config(
+#             nl.AutoResume,
+#             resume_if_exists=True,
+#             resume_ignore_no_checkpoint=True,
+#             resume_past_end=True,
+#         ),
+#     )
+#     recipe.model.config.vocab_size = 128256
+#     recipe.trainer.callbacks.append(
+#         run.Config(
+#             FLOPsMeasurementCallback,
+#             model_config=recipe.model.config,
+#             data_config=recipe.data,
+#             model_name="llama3",
+#         )
+#     )
+#     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
+#     set_enable_cuda_graphs_params(recipe)
 
-    tp_overlap_cfg, tp_comm_overlap = get_tp_overlap_config()
+#     tp_overlap_cfg, tp_comm_overlap = get_tp_overlap_config()
 
-    recipe.trainer.callbacks.append(
-        run.Config(
-            MegatronCommOverlapCallback,
-            tp_comm_overlap=tp_comm_overlap,
-            tp_comm_overlap_cfg=tp_overlap_cfg,
-            overlap_param_gather_with_optimizer_step=True,
-            defer_embedding_wgrad_compute=True,
-            wgrad_deferral_limit=22,
-        )
-    )
-    recipe.trainer.callbacks.append(run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100))
-    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
-    return recipe
+#     recipe.trainer.callbacks.append(
+#         run.Config(
+#             MegatronCommOverlapCallback,
+#             tp_comm_overlap=tp_comm_overlap,
+#             tp_comm_overlap_cfg=tp_overlap_cfg,
+#             overlap_param_gather_with_optimizer_step=True,
+#             defer_embedding_wgrad_compute=True,
+#             wgrad_deferral_limit=22,
+#         )
+#     )
+#     recipe.trainer.callbacks.append(run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100))
+#     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
+#     return recipe
 
 
 # LLAMA3 405B Recipe
@@ -908,290 +908,290 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
     return recipe
 
 
-# NEMOTRON3 8B Recipe
-@run.cli.factory(target=llm.pretrain)
-def cloudai_nemotron3_8b_recipe() -> run.Partial:
-    recipe = run.Partial(
-        llm.pretrain,
-        model=run.Config(nemotron3_8b_recipe(performance_mode=True)),
-        data=run.Config(
-            MockDataModule,
-            seq_length=2048,
-            micro_batch_size=4,
-            global_batch_size=8,
-            tokenizer=null_tokenizer(vocab_size=256000),
-        ),
-        trainer=run.Config(
-            nl.Trainer,
-            devices=8,
-            num_nodes=1,
-            accelerator="gpu",
-            max_steps=10,
-            limit_test_batches=50,
-            limit_val_batches=32,
-            log_every_n_steps=10,
-            strategy=run.Config(
-                nl.MegatronStrategy,
-                tensor_model_parallel_size=2,
-                pipeline_model_parallel_size=1,
-                context_parallel_size=1,
-                virtual_pipeline_model_parallel_size=None,
-                sequence_parallel=False,
-                pipeline_dtype=torch.bfloat16,
-                ddp=run.Config(
-                    DistributedDataParallelConfig,
-                    check_for_nan_in_grad=True,
-                    grad_reduce_in_fp32=True,
-                    overlap_grad_reduce=True,
-                    overlap_param_gather=True,
-                ),
-            ),
-            num_sanity_val_steps=0,
-            val_check_interval=1000,
-            max_epochs=10,
-        ),
-        optim=run.Config(
-            nl.MegatronOptimizerModule,
-            config=run.Config(
-                OptimizerConfig,
-                lr=1e-4,
-                bf16=True,
-                params_dtype=torch.bfloat16,
-                use_distributed_optimizer=True,
-                weight_decay=0,
-            ),
-        ),
-        resume=run.Config(
-            nl.AutoResume,
-            resume_if_exists=True,
-            resume_ignore_no_checkpoint=True,
-            resume_past_end=True,
-        ),
-    )
-    recipe.model.config.vocab_size = 256000
-    recipe.trainer.callbacks.append(
-        run.Config(
-            FLOPsMeasurementCallback,
-            model_config=recipe.model.config,
-            data_config=recipe.data,
-            model_name="nemotron",
-        )
-    )
-    set_enable_cuda_graphs_params(recipe)
-    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
-    return recipe
+# # NEMOTRON3 8B Recipe
+# @run.cli.factory(target=llm.pretrain)
+# def cloudai_nemotron3_8b_recipe() -> run.Partial:
+#     recipe = run.Partial(
+#         llm.pretrain,
+#         model=run.Config(nemotron3_8b_recipe(performance_mode=True)),
+#         data=run.Config(
+#             MockDataModule,
+#             seq_length=2048,
+#             micro_batch_size=4,
+#             global_batch_size=8,
+#             tokenizer=null_tokenizer(vocab_size=256000),
+#         ),
+#         trainer=run.Config(
+#             nl.Trainer,
+#             devices=8,
+#             num_nodes=1,
+#             accelerator="gpu",
+#             max_steps=10,
+#             limit_test_batches=50,
+#             limit_val_batches=32,
+#             log_every_n_steps=10,
+#             strategy=run.Config(
+#                 nl.MegatronStrategy,
+#                 tensor_model_parallel_size=2,
+#                 pipeline_model_parallel_size=1,
+#                 context_parallel_size=1,
+#                 virtual_pipeline_model_parallel_size=None,
+#                 sequence_parallel=False,
+#                 pipeline_dtype=torch.bfloat16,
+#                 ddp=run.Config(
+#                     DistributedDataParallelConfig,
+#                     check_for_nan_in_grad=True,
+#                     grad_reduce_in_fp32=True,
+#                     overlap_grad_reduce=True,
+#                     overlap_param_gather=True,
+#                 ),
+#             ),
+#             num_sanity_val_steps=0,
+#             val_check_interval=1000,
+#             max_epochs=10,
+#         ),
+#         optim=run.Config(
+#             nl.MegatronOptimizerModule,
+#             config=run.Config(
+#                 OptimizerConfig,
+#                 lr=1e-4,
+#                 bf16=True,
+#                 params_dtype=torch.bfloat16,
+#                 use_distributed_optimizer=True,
+#                 weight_decay=0,
+#             ),
+#         ),
+#         resume=run.Config(
+#             nl.AutoResume,
+#             resume_if_exists=True,
+#             resume_ignore_no_checkpoint=True,
+#             resume_past_end=True,
+#         ),
+#     )
+#     recipe.model.config.vocab_size = 256000
+#     recipe.trainer.callbacks.append(
+#         run.Config(
+#             FLOPsMeasurementCallback,
+#             model_config=recipe.model.config,
+#             data_config=recipe.data,
+#             model_name="nemotron",
+#         )
+#     )
+#     set_enable_cuda_graphs_params(recipe)
+#     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
+#     return recipe
 
 
-# NEMOTRON4 15B Recipe
-@run.cli.factory(target=llm.pretrain)
-def cloudai_nemotron4_15b_recipe() -> run.Partial:
-    recipe = run.Partial(
-        llm.pretrain,
-        model=run.Config(NemotronModel, config=Nemotron4Config15B()),
-        data=run.Config(
-            MockDataModule,
-            seq_length=4096,
-            micro_batch_size=1,
-            global_batch_size=8,
-            tokenizer=null_tokenizer(vocab_size=256000),
-        ),
-        trainer=run.Config(
-            nl.Trainer,
-            devices=8,
-            num_nodes=2,
-            accelerator="gpu",
-            max_steps=10,
-            limit_test_batches=50,
-            limit_val_batches=32,
-            log_every_n_steps=10,
-            use_distributed_sampler=False,
-            val_check_interval=150,
-            plugins=run.Config(
-                nl.MegatronMixedPrecision,
-                autocast_enabled=False,
-                grad_reduce_in_fp32=False,
-                params_dtype=torch.bfloat16,
-                pipeline_dtype=torch.bfloat16,
-                precision="bf16-mixed",
-            ),
-            strategy=run.Config(
-                nl.MegatronStrategy,
-                tensor_model_parallel_size=4,
-                pipeline_model_parallel_size=1,
-                context_parallel_size=1,
-                virtual_pipeline_model_parallel_size=None,
-                sequence_parallel=True,
-                pipeline_dtype=None,
-                gradient_as_bucket_view=True,
-                ckpt_async_save=True,
-                ckpt_include_optimizer=True,
-                ckpt_parallel_load=True,
-                ddp=run.Config(
-                    DistributedDataParallelConfig,
-                    check_for_nan_in_grad=True,
-                    grad_reduce_in_fp32=True,
-                    overlap_grad_reduce=True,
-                    overlap_param_gather=True,
-                    average_in_collective=True,
-                ),
-            ),
-            num_sanity_val_steps=0,
-            max_epochs=10,
-            callbacks=[timing_callback()],
-        ),
-        optim=run.Config(
-            nl.MegatronOptimizerModule,
-            config=run.Config(
-                OptimizerConfig,
-                lr=1e-4,
-                bf16=True,
-                params_dtype=torch.bfloat16,
-                use_distributed_optimizer=True,
-                weight_decay=0,
-            ),
-        ),
-        resume=run.Config(
-            nl.AutoResume,
-            resume_if_exists=True,
-            resume_ignore_no_checkpoint=True,
-            resume_past_end=True,
-        ),
-    )
-    recipe.model.config.vocab_size = 256000
-    recipe.trainer.callbacks.append(
-        run.Config(
-            FLOPsMeasurementCallback,
-            model_config=recipe.model.config,
-            data_config=recipe.data,
-            model_name="nemotron",
-        )
-    )
-    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
-    set_enable_cuda_graphs_params(recipe)
-    return recipe
+# # NEMOTRON4 15B Recipe
+# @run.cli.factory(target=llm.pretrain)
+# def cloudai_nemotron4_15b_recipe() -> run.Partial:
+#     recipe = run.Partial(
+#         llm.pretrain,
+#         model=run.Config(NemotronModel, config=Nemotron4Config15B()),
+#         data=run.Config(
+#             MockDataModule,
+#             seq_length=4096,
+#             micro_batch_size=1,
+#             global_batch_size=8,
+#             tokenizer=null_tokenizer(vocab_size=256000),
+#         ),
+#         trainer=run.Config(
+#             nl.Trainer,
+#             devices=8,
+#             num_nodes=2,
+#             accelerator="gpu",
+#             max_steps=10,
+#             limit_test_batches=50,
+#             limit_val_batches=32,
+#             log_every_n_steps=10,
+#             use_distributed_sampler=False,
+#             val_check_interval=150,
+#             plugins=run.Config(
+#                 nl.MegatronMixedPrecision,
+#                 autocast_enabled=False,
+#                 grad_reduce_in_fp32=False,
+#                 params_dtype=torch.bfloat16,
+#                 pipeline_dtype=torch.bfloat16,
+#                 precision="bf16-mixed",
+#             ),
+#             strategy=run.Config(
+#                 nl.MegatronStrategy,
+#                 tensor_model_parallel_size=4,
+#                 pipeline_model_parallel_size=1,
+#                 context_parallel_size=1,
+#                 virtual_pipeline_model_parallel_size=None,
+#                 sequence_parallel=True,
+#                 pipeline_dtype=None,
+#                 gradient_as_bucket_view=True,
+#                 ckpt_async_save=True,
+#                 ckpt_include_optimizer=True,
+#                 ckpt_parallel_load=True,
+#                 ddp=run.Config(
+#                     DistributedDataParallelConfig,
+#                     check_for_nan_in_grad=True,
+#                     grad_reduce_in_fp32=True,
+#                     overlap_grad_reduce=True,
+#                     overlap_param_gather=True,
+#                     average_in_collective=True,
+#                 ),
+#             ),
+#             num_sanity_val_steps=0,
+#             max_epochs=10,
+#             callbacks=[timing_callback()],
+#         ),
+#         optim=run.Config(
+#             nl.MegatronOptimizerModule,
+#             config=run.Config(
+#                 OptimizerConfig,
+#                 lr=1e-4,
+#                 bf16=True,
+#                 params_dtype=torch.bfloat16,
+#                 use_distributed_optimizer=True,
+#                 weight_decay=0,
+#             ),
+#         ),
+#         resume=run.Config(
+#             nl.AutoResume,
+#             resume_if_exists=True,
+#             resume_ignore_no_checkpoint=True,
+#             resume_past_end=True,
+#         ),
+#     )
+#     recipe.model.config.vocab_size = 256000
+#     recipe.trainer.callbacks.append(
+#         run.Config(
+#             FLOPsMeasurementCallback,
+#             model_config=recipe.model.config,
+#             data_config=recipe.data,
+#             model_name="nemotron",
+#         )
+#     )
+#     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
+#     set_enable_cuda_graphs_params(recipe)
+#     return recipe
 
 
-# NEMOTRON4 340B Recipe
-@run.cli.factory(target=llm.pretrain)
-def cloudai_nemotron4_340b_recipe() -> run.Partial:
-    recipe = run.Partial(
-        llm.pretrain,
-        model=run.Config(NemotronModel, config=Nemotron4Config340B()),
-        data=run.Config(
-            MockDataModule,
-            seq_length=4096,
-            micro_batch_size=1,
-            global_batch_size=8,
-            tokenizer=null_tokenizer(vocab_size=256000),
-        ),
-        trainer=run.Config(
-            nl.Trainer,
-            devices=8,
-            num_nodes=32,
-            accelerator="gpu",
-            max_steps=10,
-            limit_test_batches=32,
-            limit_val_batches=0,
-            log_every_n_steps=10,
-            use_distributed_sampler=False,
-            plugins=run.Config(
-                nl.MegatronMixedPrecision,
-                autocast_enabled=False,
-                grad_reduce_in_fp32=False,
-                params_dtype=torch.bfloat16,
-                pipeline_dtype=torch.bfloat16,
-                precision="bf16-mixed",
-            ),
-            strategy=run.Config(
-                nl.MegatronStrategy,
-                tensor_model_parallel_size=8,
-                pipeline_model_parallel_size=8,
-                context_parallel_size=2,
-                virtual_pipeline_model_parallel_size=12,
-                expert_model_parallel_size=1,
-                expert_tensor_parallel_size=None,
-                sequence_parallel=True,
-                pipeline_dtype=torch.bfloat16,
-                gradient_as_bucket_view=True,
-                ckpt_async_save=True,
-                ckpt_include_optimizer=True,
-                ckpt_parallel_load=True,
-                ddp=run.Config(
-                    DistributedDataParallelConfig,
-                    check_for_nan_in_grad=True,
-                    grad_reduce_in_fp32=True,
-                    overlap_grad_reduce=True,
-                    overlap_param_gather=True,
-                    average_in_collective=True,
-                ),
-                cross_entropy_fusion_impl="te",
-            ),
-            num_sanity_val_steps=0,
-            val_check_interval=500,
-            max_epochs=10,
-            callbacks=[
-                run.Config(
-                    MegatronCommOverlapCallback,
-                    tp_comm_overlap=True,
-                    overlap_grad_reduce=True,
-                    overlap_param_gather=True,
-                    overlap_param_gather_with_optimizer_step=True,
-                    defer_embedding_wgrad_compute=True,
-                    wgrad_deferral_limit=22,
-                ),
-                timing_callback(),
-            ],
-        ),
-        optim=run.Config(
-            nl.MegatronOptimizerModule,
-            config=run.Config(
-                OptimizerConfig,
-                optimizer="adam",
-                lr=0.0001,
-                weight_decay=0.1,
-                fp16=False,
-                bf16=True,
-                use_precision_aware_optimizer=True,
-                adam_beta1=0.9,
-                adam_beta2=0.95,
-                adam_eps=1e-05,
-                use_distributed_optimizer=True,
-                clip_grad=1.0,
-                params_dtype=torch.bfloat16,
-            ),
-            lr_scheduler=run.Config(
-                CosineAnnealingScheduler,
-                warmup_steps=500,
-                constant_steps=0,
-                min_lr=1e-5,
-            ),
-        ),
-        resume=run.Config(
-            nl.AutoResume,
-            resume_if_exists=True,
-            resume_ignore_no_checkpoint=True,
-            resume_past_end=True,
-        ),
-        log=default_log(),
-    )
-    recipe.model.config.vocab_size = 256000
-    recipe.trainer.callbacks.append(
-        run.Config(
-            FLOPsMeasurementCallback,
-            model_config=recipe.model.config,
-            data_config=recipe.data,
-            model_name="nemotron",
-        )
-    )
-    recipe.trainer.callbacks.append(run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100))
-    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
-    recipe.model.config.cross_entropy_fusion_impl = "te"
-    set_enable_cuda_graphs_params(recipe)
+# # NEMOTRON4 340B Recipe
+# @run.cli.factory(target=llm.pretrain)
+# def cloudai_nemotron4_340b_recipe() -> run.Partial:
+#     recipe = run.Partial(
+#         llm.pretrain,
+#         model=run.Config(NemotronModel, config=Nemotron4Config340B()),
+#         data=run.Config(
+#             MockDataModule,
+#             seq_length=4096,
+#             micro_batch_size=1,
+#             global_batch_size=8,
+#             tokenizer=null_tokenizer(vocab_size=256000),
+#         ),
+#         trainer=run.Config(
+#             nl.Trainer,
+#             devices=8,
+#             num_nodes=32,
+#             accelerator="gpu",
+#             max_steps=10,
+#             limit_test_batches=32,
+#             limit_val_batches=0,
+#             log_every_n_steps=10,
+#             use_distributed_sampler=False,
+#             plugins=run.Config(
+#                 nl.MegatronMixedPrecision,
+#                 autocast_enabled=False,
+#                 grad_reduce_in_fp32=False,
+#                 params_dtype=torch.bfloat16,
+#                 pipeline_dtype=torch.bfloat16,
+#                 precision="bf16-mixed",
+#             ),
+#             strategy=run.Config(
+#                 nl.MegatronStrategy,
+#                 tensor_model_parallel_size=8,
+#                 pipeline_model_parallel_size=8,
+#                 context_parallel_size=2,
+#                 virtual_pipeline_model_parallel_size=12,
+#                 expert_model_parallel_size=1,
+#                 expert_tensor_parallel_size=None,
+#                 sequence_parallel=True,
+#                 pipeline_dtype=torch.bfloat16,
+#                 gradient_as_bucket_view=True,
+#                 ckpt_async_save=True,
+#                 ckpt_include_optimizer=True,
+#                 ckpt_parallel_load=True,
+#                 ddp=run.Config(
+#                     DistributedDataParallelConfig,
+#                     check_for_nan_in_grad=True,
+#                     grad_reduce_in_fp32=True,
+#                     overlap_grad_reduce=True,
+#                     overlap_param_gather=True,
+#                     average_in_collective=True,
+#                 ),
+#                 cross_entropy_fusion_impl="te",
+#             ),
+#             num_sanity_val_steps=0,
+#             val_check_interval=500,
+#             max_epochs=10,
+#             callbacks=[
+#                 run.Config(
+#                     MegatronCommOverlapCallback,
+#                     tp_comm_overlap=True,
+#                     overlap_grad_reduce=True,
+#                     overlap_param_gather=True,
+#                     overlap_param_gather_with_optimizer_step=True,
+#                     defer_embedding_wgrad_compute=True,
+#                     wgrad_deferral_limit=22,
+#                 ),
+#                 timing_callback(),
+#             ],
+#         ),
+#         optim=run.Config(
+#             nl.MegatronOptimizerModule,
+#             config=run.Config(
+#                 OptimizerConfig,
+#                 optimizer="adam",
+#                 lr=0.0001,
+#                 weight_decay=0.1,
+#                 fp16=False,
+#                 bf16=True,
+#                 use_precision_aware_optimizer=True,
+#                 adam_beta1=0.9,
+#                 adam_beta2=0.95,
+#                 adam_eps=1e-05,
+#                 use_distributed_optimizer=True,
+#                 clip_grad=1.0,
+#                 params_dtype=torch.bfloat16,
+#             ),
+#             lr_scheduler=run.Config(
+#                 CosineAnnealingScheduler,
+#                 warmup_steps=500,
+#                 constant_steps=0,
+#                 min_lr=1e-5,
+#             ),
+#         ),
+#         resume=run.Config(
+#             nl.AutoResume,
+#             resume_if_exists=True,
+#             resume_ignore_no_checkpoint=True,
+#             resume_past_end=True,
+#         ),
+#         log=default_log(),
+#     )
+#     recipe.model.config.vocab_size = 256000
+#     recipe.trainer.callbacks.append(
+#         run.Config(
+#             FLOPsMeasurementCallback,
+#             model_config=recipe.model.config,
+#             data_config=recipe.data,
+#             model_name="nemotron",
+#         )
+#     )
+#     recipe.trainer.callbacks.append(run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100))
+#     recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
+#     recipe.model.config.cross_entropy_fusion_impl = "te"
+#     set_enable_cuda_graphs_params(recipe)
 
-    if os.getenv("CLOUDAI_GPU_TYPE") in ["b200", "gb200"] and os.getenv("CLOUDAI_GPU_DTYPE") == "fp8":
-        recipe.optim.config.use_precision_aware_optimizer = False
+#     if os.getenv("CLOUDAI_GPU_TYPE") in ["b200", "gb200"] and os.getenv("CLOUDAI_GPU_DTYPE") == "fp8":
+#         recipe.optim.config.use_precision_aware_optimizer = False
 
-    return recipe
+#     return recipe
 
 
 if __name__ == "__main__":
