@@ -102,7 +102,7 @@ class CloudAIGymEnv(BaseGym):
 
         if not self.test_run.test.test_definition.constraint_check(self.test_run):
             logging.info("Constraint check failed. Skipping step.")
-            return [-1.0], -1.0, True, {}
+            return [-1.0], -1e-6, True, {}
 
         logging.info(f"Running step {self.test_run.step} with action {action}")
         new_tr = copy.deepcopy(self.test_run)
