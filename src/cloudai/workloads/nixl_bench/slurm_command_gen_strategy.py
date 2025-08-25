@@ -50,7 +50,7 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             " ".join(etcd_command),
             "etcd_pid=$!",
             "sleep 5",
-            *[" ".join(cmd) + " &" for cmd in nixl_commands[:-1]],
+            *[" ".join(cmd) + " &\nsleep 15" for cmd in nixl_commands[:-1]],
             " ".join(nixl_commands[-1]),
             "kill -9 $etcd_pid",
         ]

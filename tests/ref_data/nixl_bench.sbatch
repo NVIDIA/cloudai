@@ -18,5 +18,6 @@ srun --export=ALL --mpi=pmix --container-image=url.com/docker:1 --container-moun
 etcd_pid=$!
 sleep 5
 srun --export=ALL --mpi=pmix --container-image=url.com/docker:2 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output --overlap --relative=0 --ntasks-per-node=1 --ntasks=1 -N1 bash -c "source __OUTPUT_DIR__/output/env_vars.sh; ./nixlbench --etcd-endpoints http://$SLURM_JOB_MASTER_NODE:2379 --backend UCX" &
+sleep 15
 srun --export=ALL --mpi=pmix --container-image=url.com/docker:2 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output --overlap --relative=1 --ntasks-per-node=1 --ntasks=1 -N1 bash -c "source __OUTPUT_DIR__/output/env_vars.sh; ./nixlbench --etcd-endpoints http://$SLURM_JOB_MASTER_NODE:2379 --backend UCX"
 kill -9 $etcd_pid
