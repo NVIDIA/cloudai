@@ -91,17 +91,17 @@ def test_gen_etcd_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem
 
 
 @pytest.mark.parametrize(
-    "backend,nnodes,exp_tpn,exp_ntasks",
+    "backend,nnodes,exp_ntasks",
     [
-        ("UCX", 1, 2, 2),  # UCX single node requires two processes, both are on the same node
-        ("UCX", 2, 1, 2),  # UCX multi node requires two processes, one on each node
-        ("OBJ", 1, 1, 1),
-        ("GPUNETIO", 1, 1, 1),
-        ("GDS", 1, 1, 1),
+        ("UCX", 1, 2),  # UCX single node requires two processes, both are on the same node
+        ("UCX", 2, 2),  # UCX multi node requires two processes, one on each node
+        ("OBJ", 1, 1),
+        ("GPUNETIO", 1, 1),
+        ("GDS", 1, 1),
     ],
 )
 def test_gen_nixl_srun_command(
-    nixl_bench_tr: TestRun, slurm_system: SlurmSystem, backend: str, nnodes: int, exp_tpn: int, exp_ntasks: int
+    nixl_bench_tr: TestRun, slurm_system: SlurmSystem, backend: str, nnodes: int, exp_ntasks: int
 ):
     nixl_bench_tr.num_nodes = nnodes
     nixl_bench_tr.test.test_definition.cmd_args.backend = backend
