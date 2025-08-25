@@ -107,7 +107,7 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         tpn_part = ["--ntasks-per-node=1", "--ntasks=1", "-N1"]
 
         cmds = [
-            [*prefix_part, "--overlap", *tpn_part, *bash_part],
+            [*prefix_part, "--overlap", "--nodelist=$SLURM_JOB_MASTER_NODE", *tpn_part, *bash_part],
         ]
 
         backend = str(tdef.cmd_args_dict.get("backend", "unset")).upper()

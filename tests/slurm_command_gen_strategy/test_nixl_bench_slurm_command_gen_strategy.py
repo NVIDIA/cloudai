@@ -122,6 +122,7 @@ def test_gen_nixl_srun_command(
                 assert f"--relative={idx}" in cmd
             else:
                 assert "--relative" not in cmd
+                assert "--nodelist=$SLURM_JOB_MASTER_NODE" in cmd
 
 
 def test_gen_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
