@@ -36,7 +36,7 @@ def identity_reward(observation: List[float]) -> float:
     return 0.0
 
 
-def weighted_normalized_reward(observation: List[float]) -> float:
+def ai_dynamo_weighted_normalized_reward(observation: List[float]) -> float:
     """Calculate reward using AI Dynamo's custom metrics."""
     ttft_idx = 0
     itl_idx = 1
@@ -70,7 +70,7 @@ def weighted_normalized_reward(observation: List[float]) -> float:
     return reward
 
 
-def ratio_normalized_reward(observation: List[float]) -> float:
+def ai_dynamo_ratio_normalized_reward(observation: List[float]) -> float:
     """Calculate reward as normalized throughput divided by latency metrics."""
     ttft_idx = 0
     itl_idx = 1
@@ -99,7 +99,7 @@ def ratio_normalized_reward(observation: List[float]) -> float:
     return reward
 
 
-def log_scale_reward(observation: List[float]) -> float:
+def ai_dynamo_log_scale_reward(observation: List[float]) -> float:
     """
     Calculate reward using log-scale metrics focused on throughput and TTFT.
 

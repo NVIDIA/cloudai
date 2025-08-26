@@ -146,7 +146,7 @@ def test_compute_reward_invalid():
     assert "Reward function 'nonexistent' not found" in str(exc_info.value)
     assert (
         "Available functions: ['inverse', 'negative', 'identity', "
-        "'weighted_normalized', 'ratio_normalized', 'log_scale']" in str(exc_info.value)
+        "'ai_dynamo_weighted_normalized', 'ai_dynamo_ratio_normalized', 'ai_dynamo_log_scale']" in str(exc_info.value)
     )
 
 
