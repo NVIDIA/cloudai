@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 from typing import List
 
 
@@ -33,3 +34,95 @@ def identity_reward(observation: List[float]) -> float:
     if observation:
         return observation[0]
     return 0.0
+
+
+def ai_dynamo_weighted_normalized_reward(observation: List[float]) -> float:
+    """Calculate reward using AI Dynamo's custom metrics."""
+    ttft_idx = 0
+    itl_idx = 1
+    throughput_idx = 2
+
+    # Normalization
+    ttft_baseline = 0.3  # seconds
+    itl_baseline = 0.02  # seconds
+    throughput_baseline = 50.0  # tokens/s
+
+    # Weighting between metrics - equal focus on TTFT and throughput
+    ttft_weight = 0.45
+    itl_weight = 0.1
+    throughput_weight = 0.45
+
+    if len(observation) < 3:
+        return -1.0
+
+    ttft = observation[ttft_idx]
+    itl = observation[itl_idx]
+    throughput = observation[throughput_idx]
+
+    ttft_reward = ttft_baseline / ttft
+    itl_reward = itl_baseline / itl
+
+    throughput_reward = throughput / throughput_baseline
+
+    # Weighted combined reward
+    reward = ttft_weight * ttft_reward + itl_weight * itl_reward + throughput_weight * throughput_reward
+
+    return reward
+
+
+def ai_dynamo_ratio_normalized_reward(observation: List[float]) -> float:
+    """Calculate reward as normalized throughput divided by latency metrics."""
+    ttft_idx = 0
+    itl_idx = 1
+    throughput_idx = 2
+
+    ttft_baseline = 1.0  # seconds (1000ms)
+    itl_baseline = 0.03  # seconds (30ms)
+    throughput_baseline = 1000.0  # tokens/s
+
+    if len(observation) < 3:
+        return 0.0
+
+    ttft = observation[ttft_idx]
+    itl = observation[itl_idx]
+    throughput = observation[throughput_idx]
+
+    if ttft <= 0 or itl <= 0 or throughput <= 0:
+        return 0.0
+
+    ttft_norm = ttft / ttft_baseline
+    itl_norm = itl / itl_baseline
+    throughput_norm = throughput / throughput_baseline
+
+    reward = throughput_norm / (ttft_norm * itl_norm)
+
+    return reward
+
+
+def ai_dynamo_log_scale_reward(observation: List[float]) -> float:
+    """
+    Calculate reward using log-scale metrics focused on throughput and TTFT.
+
+    Since ITL is already optimized, we focus on the primary metrics.
+    """
+    ttft_idx = 0
+    itl_idx = 1
+    throughput_idx = 2
+
+    if len(observation) < 3:
+        return 0.0
+
+    ttft = observation[ttft_idx]
+    itl = observation[itl_idx]
+    throughput = observation[throughput_idx]
+
+    if ttft <= 0 or itl <= 0 or throughput <= 0:
+        return -1e-3
+
+    throughput_reward = math.log(throughput + 1)
+    ttft_penalty = math.log(ttft + 1)
+    itl_penalty = math.log(itl + 1)
+
+    reward = throughput_reward - 0.7 * ttft_penalty - 0.1 * itl_penalty
+
+    return reward
