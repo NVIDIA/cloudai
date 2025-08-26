@@ -14,7 +14,11 @@ srun --export=ALL --mpi=pmix --container-image=nvcr.io/nvidia/ai-dynamo:24.09 --
 
 srun --export=ALL --mpi=pmix --container-image=nvcr.io/nvidia/ai-dynamo:24.09 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__:__INSTALL_DIR__,__OUTPUT_DIR__/output/hf_home:/root/.cache/huggingface,__CLOUDAI_DIR__/src/cloudai/workloads/ai_dynamo/ai_dynamo.sh:__CLOUDAI_DIR__/src/cloudai/workloads/ai_dynamo/ai_dynamo.sh --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
-srun \
+num_retries=${DYNAMO_NUM_RETRY_ON_FAILURE:-0}
+for try in $(seq 0 $num_retries); do
+  echo "Try $try of $num_retries"
+  rm -f __OUTPUT_DIR__/output/fatal_error.marker 2>/dev/null || true
+  srun \
   --export=ALL \
   --mpi=pmix \
   --container-image=nvcr.io/nvidia/ai-dynamo:24.09 \
@@ -22,6 +26,7 @@ srun \
   --nodes=2 \
   --ntasks=2 \
   --ntasks-per-node=1 \
+  --export=ALL,DYNAMO_FATAL_ERROR_FILE=fatal_error.marker \
   --output=__OUTPUT_DIR__/output/node-%n-stdout.txt \
   --error=__OUTPUT_DIR__/output/node-%n-stderr.txt \
   bash \
@@ -40,3 +45,14 @@ srun \
   --genai-perf-request-count "100" \
   --genai-perf-synthetic-input-tokens-mean "550" \
   --genai-perf-warmup-request-count "10"
+  if [ $try -eq $num_retries ] || [ ! -f __OUTPUT_DIR__/output/fatal_error.marker ]; then
+    break
+  fi
+  echo "Fatal error detected. Archiving logs then retrying..."
+  mkdir -p __OUTPUT_DIR__/output/error.$try
+  mv __OUTPUT_DIR__/output/*.log __OUTPUT_DIR__/output/error.$try/ 2>/dev/null || true
+  mv __OUTPUT_DIR__/output/node-*-stdout.txt __OUTPUT_DIR__/output/error.$try/ 2>/dev/null || true
+  mv __OUTPUT_DIR__/output/node-*-stderr.txt __OUTPUT_DIR__/output/error.$try/ 2>/dev/null || true
+  mv __OUTPUT_DIR__/output/fatal_error.marker __OUTPUT_DIR__/output/error.$try/ 2>/dev/null || true
+  sleep ${DYNAMO_RETRY_BACKOFF_SEC:-10}
+done

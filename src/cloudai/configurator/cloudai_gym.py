@@ -20,7 +20,7 @@ import csv
 import logging
 from typing import Any, Dict, Optional, Tuple
 
-from cloudai.core import METRIC_ERROR, Registry, Runner, TestRun
+from cloudai.core import METRIC_ERROR, BaseRunner, Registry, TestRun
 from cloudai.util.lazy_imports import lazy
 
 from .base_gym import BaseGym
@@ -33,13 +33,13 @@ class CloudAIGymEnv(BaseGym):
     Uses the TestRun object and actual runner methods to execute jobs.
     """
 
-    def __init__(self, test_run: TestRun, runner: Runner):
+    def __init__(self, test_run: TestRun, runner: BaseRunner):
         """
         Initialize the Gym environment using the TestRun object.
 
         Args:
             test_run (TestRun): A test run object that encapsulates cmd_args, extra_cmd_args, etc.
-            runner (Runner): The runner object to execute jobs.
+            runner (BaseRunner): The runner object to execute jobs.
         """
         self.test_run = test_run
         self.original_test_run = copy.deepcopy(test_run)  # Preserve clean state for DSE
@@ -106,20 +106,20 @@ class CloudAIGymEnv(BaseGym):
 
         logging.info(f"Running step {self.test_run.step} with action {action}")
         new_tr = copy.deepcopy(self.test_run)
-        new_tr.output_path = self.runner.runner.get_job_output_path(new_tr)
-        self.runner.runner.test_scenario.test_runs = [new_tr]
+        new_tr.output_path = self.runner.get_job_output_path(new_tr)
+        self.runner.test_scenario.test_runs = [new_tr]
 
-        self.runner.runner.shutting_down = False
-        self.runner.runner.jobs.clear()
-        self.runner.runner.testrun_to_job_map.clear()
+        self.runner.shutting_down = False
+        self.runner.jobs.clear()
+        self.runner.testrun_to_job_map.clear()
 
-        asyncio.run(self.runner.run())
+        try:
+            asyncio.run(self.runner.run())
+        except Exception as e:
+            logging.error(f"Error running step {self.test_run.step}: {e}")
 
-        if (
-            self.runner.runner.test_scenario.test_runs
-            and self.runner.runner.test_scenario.test_runs[0].output_path.exists()
-        ):
-            self.test_run = self.runner.runner.test_scenario.test_runs[0]
+        if self.runner.test_scenario.test_runs and self.runner.test_scenario.test_runs[0].output_path.exists():
+            self.test_run = self.runner.test_scenario.test_runs[0]
         else:
             self.test_run = copy.deepcopy(self.original_test_run)
             self.test_run.step = new_tr.step
@@ -179,7 +179,7 @@ class CloudAIGymEnv(BaseGym):
 
         observation = []
         for metric in all_metrics:
-            v = self.test_run.get_metric_value(self.runner.runner.system, metric)
+            v = self.test_run.get_metric_value(self.runner.system, metric)
             if v == METRIC_ERROR:
                 v = -1.0
             observation.append(v)
@@ -196,10 +196,7 @@ class CloudAIGymEnv(BaseGym):
             observation (list): The observation after taking the action.
         """
         trajectory_file_path = (
-            self.runner.runner.scenario_root
-            / self.test_run.name
-            / f"{self.test_run.current_iteration}"
-            / "trajectory.csv"
+            self.runner.scenario_root / self.test_run.name / f"{self.test_run.current_iteration}" / "trajectory.csv"
         )
 
         file_exists = trajectory_file_path.exists()

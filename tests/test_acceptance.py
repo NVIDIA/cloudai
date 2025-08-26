@@ -363,10 +363,13 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 description="nixl_bench",
                 test_template_name="nixl_bench",
                 etcd_image_url="url.com/docker:1",
-                cmd_args=NIXLBenchCmdArgs(
-                    docker_image_url="url.com/docker:2",
-                    etcd_endpoint="http://$SLURM_JOB_MASTER_NODE:2379",
-                    path_to_benchmark="./nixlbench",
+                cmd_args=NIXLBenchCmdArgs.model_validate(
+                    {
+                        "docker_image_url": "url.com/docker:2",
+                        "etcd_endpoint": "http://$SLURM_JOB_MASTER_NODE:2379",
+                        "path_to_benchmark": "./nixlbench",
+                        "backend": "UCX",
+                    }
                 ),
             ),
         ),

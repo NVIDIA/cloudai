@@ -18,7 +18,10 @@ from pathlib import Path
 
 import pytest
 
-from cloudai.workloads.nixl_bench.report_generation_strategy import extract_data
+from cloudai.core import Test, TestRun, TestTemplate
+from cloudai.systems.slurm import SlurmSystem
+from cloudai.workloads.nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
+from cloudai.workloads.nixl_bench.nixl_bench import extract_nixl_data
 
 LEGACY_FORMAT = """
 Block Size (B)      Batch Size     Avg Lat. (us)  B/W (MiB/Sec)  B/W (GiB/Sec)  B/W (GB/Sec)
@@ -39,6 +42,26 @@ Block Size (B)      Batch Size     B/W (GB/Sec)   Avg Lat. (us)  Avg Prep (us)  
 """  # noqa: E501
 
 
+@pytest.fixture
+def nixl_tr(tmp_path: Path, slurm_system: SlurmSystem) -> TestRun:
+    test = Test(
+        test_definition=NIXLBenchTestDefinition(
+            name="nixl",
+            description="desc",
+            test_template_name="t",
+            cmd_args=NIXLBenchCmdArgs(
+                docker_image_url="fake://url/nixl",
+                etcd_endpoint="fake://url/etcd",
+                path_to_benchmark="fake://url/nixl_bench",
+            ),
+            etcd_image_url="fake://url/etcd",
+        ),
+        test_template=TestTemplate(system=slurm_system),
+    )
+    tr = TestRun(name="nixl_test", test=test, num_nodes=2, nodes=[], output_path=tmp_path)
+    return tr
+
+
 @pytest.mark.parametrize(
     "sample,exp_latency,exp_bw",
     [
@@ -49,9 +72,25 @@ Block Size (B)      Batch Size     B/W (GB/Sec)   Avg Lat. (us)  Avg Prep (us)  
 )
 def test_nixl_bench_report_parsing(tmp_path: Path, sample: str, exp_latency: list[float], exp_bw: list[float]):
     (tmp_path / "nixl_bench.log").write_text(sample)
-    df = extract_data(tmp_path / "nixl_bench.log")
+    df = extract_nixl_data(tmp_path / "nixl_bench.log")
     assert df.shape == (4, 4)
     assert df["block_size"].tolist() == [4096, 8192, 33554432, 67108864]
     assert df["batch_size"].tolist() == [1, 1, 1, 1]
     assert df["avg_lat"].tolist() == exp_latency
     assert df["bw_gb_sec"].tolist() == exp_bw
+
+
+class TestWasRunSuccessful:
+    def test_no_file(self, nixl_tr: TestRun):
+        assert not nixl_tr.test.test_definition.was_run_successful(nixl_tr).is_successful
+
+    def test_no_data(self, nixl_tr: TestRun):
+        nixl_tr.output_path.mkdir(parents=True, exist_ok=True)
+        nixl_tr.output_path.joinpath("stdout.txt").write_text("")
+        assert not nixl_tr.test.test_definition.was_run_successful(nixl_tr).is_successful
+
+    @pytest.mark.parametrize("sample", [LEGACY_FORMAT, NEW_FORMAT], ids=["LegacyFormat", "NewFormat"])
+    def test_was_run_successful(self, nixl_tr: TestRun, sample: str):
+        nixl_tr.output_path.mkdir(parents=True, exist_ok=True)
+        nixl_tr.output_path.joinpath("stdout.txt").write_text(sample)
+        assert nixl_tr.test.test_definition.was_run_successful(nixl_tr).is_successful

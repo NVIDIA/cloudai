@@ -115,6 +115,11 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _gen_srun_command(self) -> str:
         td = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
         num_nodes, node_list = self.get_cached_nodes_spec()
+
+        fatal_file_name = "fatal_error.marker"
+        out_dir = self.test_run.output_path.absolute()
+        fatal_path = f"{out_dir}/{fatal_file_name}"
+
         srun_cmd = self.gen_srun_prefix()
         srun_cmd.extend(
             [
@@ -122,14 +127,35 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 *([] if not node_list else [f"--nodelist={','.join(node_list)}"]),
                 f"--ntasks={num_nodes}",
                 "--ntasks-per-node=1",
-                f"--output={self.test_run.output_path.absolute() / 'node-%n-stdout.txt'}",
-                f"--error={self.test_run.output_path.absolute() / 'node-%n-stderr.txt'}",
+                f"--export=ALL,DYNAMO_FATAL_ERROR_FILE={fatal_file_name}",
+                f"--output={out_dir / 'node-%n-stdout.txt'}",
+                f"--error={out_dir / 'node-%n-stderr.txt'}",
                 "bash",
                 f"{td.script.installed_path.absolute()!s}",
             ]
         )
         srun_cmd.extend(self._gen_script_args(td))
-        return " \\\n  ".join(srun_cmd)
+        srun_line = " \\\n  ".join(srun_cmd)
+
+        wrapper = [
+            "num_retries=${DYNAMO_NUM_RETRY_ON_FAILURE:-0}",
+            "for try in $(seq 0 $num_retries); do",
+            '  echo "Try $try of $num_retries"',
+            f"  rm -f {fatal_path} 2>/dev/null || true",
+            f"  {srun_line}",
+            f"  if [ $try -eq $num_retries ] || [ ! -f {fatal_path} ]; then",
+            "    break",
+            "  fi",
+            '  echo "Fatal error detected. Archiving logs then retrying..."',
+            f"  mkdir -p {out_dir}/error.$try",
+            f"  mv {out_dir}/*.log {out_dir}/error.$try/ 2>/dev/null || true",
+            f"  mv {out_dir}/node-*-stdout.txt {out_dir}/error.$try/ 2>/dev/null || true",
+            f"  mv {out_dir}/node-*-stderr.txt {out_dir}/error.$try/ 2>/dev/null || true",
+            f"  mv {fatal_path} {out_dir}/error.$try/ 2>/dev/null || true",
+            "  sleep ${DYNAMO_RETRY_BACKOFF_SEC:-10}",
+            "done",
+        ]
+        return "\n".join(wrapper)
 
     def _validate_worker_nodes(
         self, node_list: list[str], worker_nodes: str | None, num_nodes: int, worker_type: str

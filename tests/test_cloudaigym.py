@@ -21,7 +21,7 @@ from unittest.mock import MagicMock, PropertyMock, patch
 import pytest
 
 from cloudai.configurator import CloudAIGymEnv, GridSearchAgent
-from cloudai.core import Runner, Test, TestRun, TestScenario, TestTemplateStrategy
+from cloudai.core import BaseRunner, Runner, Test, TestRun, TestScenario, TestTemplateStrategy
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.nemo_run import (
     Data,
@@ -45,7 +45,7 @@ def nemorun() -> NeMoRunTestDefinition:
 
 
 @pytest.fixture
-def setup_env(slurm_system: SlurmSystem, nemorun: NeMoRunTestDefinition) -> tuple[TestRun, Runner]:
+def setup_env(slurm_system: SlurmSystem, nemorun: NeMoRunTestDefinition) -> tuple[TestRun, BaseRunner]:
     tdef = nemorun.model_copy(deep=True)
     tdef.cmd_args.trainer = Trainer(
         max_steps=[1000, 2000],
@@ -81,10 +81,10 @@ def setup_env(slurm_system: SlurmSystem, nemorun: NeMoRunTestDefinition) -> tupl
 
     runner = Runner(mode="dry-run", system=slurm_system, test_scenario=test_scenario)
 
-    return test_run, runner
+    return test_run, runner.runner
 
 
-def test_observation_space(setup_env):
+def test_observation_space(setup_env: tuple[TestRun, BaseRunner]):
     test_run, runner = setup_env
     env = CloudAIGymEnv(test_run=test_run, runner=runner)
     observation_space = env.define_observation_space()
@@ -147,7 +147,7 @@ def test_compute_reward_invalid():
     assert "Available functions: ['inverse', 'negative', 'identity']" in str(exc_info.value)
 
 
-def test_tr_output_path(setup_env: tuple[TestRun, Runner]):
+def test_tr_output_path(setup_env: tuple[TestRun, BaseRunner]):
     test_run, runner = setup_env
     test_run.test.test_definition.cmd_args.data.global_batch_size = 8  # avoid constraint check failure
     env = CloudAIGymEnv(test_run=test_run, runner=runner)
@@ -160,7 +160,7 @@ def test_tr_output_path(setup_env: tuple[TestRun, Runner]):
     assert env.test_run.output_path.name == "42"
 
 
-def test_action_space(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, Runner]):
+def test_action_space(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, BaseRunner]):
     tr, _ = setup_env
     nemorun.cmd_args.trainer = Trainer(
         max_steps=[1000, 2000], strategy=TrainerStrategy(tensor_model_parallel_size=[1, 2])
@@ -185,7 +185,7 @@ def test_action_space(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, 
 
 
 @pytest.mark.parametrize("num_nodes", (1, [1, 2], [3]))
-def test_all_combinations(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, Runner], num_nodes: int):
+def test_all_combinations(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, BaseRunner], num_nodes: int):
     tr, _ = setup_env
     nemorun.cmd_args.trainer = Trainer(max_steps=[1000], strategy=TrainerStrategy(tensor_model_parallel_size=[1, 2]))
     nemorun.extra_env_vars["DSE_VAR"] = ["1", "2", "3"]
@@ -224,7 +224,7 @@ def test_all_combinations(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestR
         assert expected in real_combinations, f"Expected {expected} in all_combinations"
 
 
-def test_all_combinations_non_dse(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, Runner]):
+def test_all_combinations_non_dse(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, BaseRunner]):
     tr, _ = setup_env
     tr.test.test_definition = nemorun
     assert len(tr.all_combinations) == 0

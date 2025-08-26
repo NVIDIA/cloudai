@@ -21,11 +21,12 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Generator, Optional, cast
 
+from cloudai.configurator.cloudai_gym import CloudAIGymEnv
 from cloudai.core import JobIdRetrievalError, System, TestRun, TestScenario
-from cloudai.systems.slurm.slurm_metadata import SlurmJobMetadata, SlurmStepMetadata
 from cloudai.util import CommandShell, format_time_limit, parse_time_limit
 
 from .slurm_command_gen_strategy import SlurmCommandGenStrategy
+from .slurm_metadata import SlurmJobMetadata, SlurmStepMetadata
 from .slurm_runner import SlurmJob, SlurmRunner
 from .slurm_system import SlurmSystem
 
@@ -194,7 +195,24 @@ class SingleSbatchRunner(SlurmRunner):
             is_completed = True if self.mode == "dry-run" else self.system.is_job_completed(job)
             await asyncio.sleep(self.system.monitor_interval)
 
+        self.handle_dse()
+
         self.on_job_completion(job)
+
+    def handle_dse(self):
+        for tr in self.test_scenario.test_runs:
+            if not tr.is_dse_job:
+                continue
+
+            for idx, combination in enumerate(tr.all_combinations):
+                next_tr = tr.apply_params_set(combination)
+                next_tr.step = idx + 1
+                next_tr.output_path = self.get_job_output_path(next_tr)
+
+                gym = CloudAIGymEnv(next_tr, self)
+                observation = gym.get_observation({})
+                reward = gym.compute_reward(observation)
+                gym.write_trajectory(idx, combination, reward, observation)
 
     def _submit_test(self, tr: TestRun) -> SlurmJob:
         with open(self.scenario_root / "cloudai_sbatch_script.sh", "w") as f:
