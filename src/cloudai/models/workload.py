@@ -18,9 +18,53 @@ from abc import ABC
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from cloudai.core import GitRepo, Installable, JobStatusResult, PythonExecutable, TestRun
+
+
+class AgentConfig(BaseModel):
+    """Base configuration class for agents used in DSE."""
+    
+    model_config = ConfigDict(extra="forbid")
+    
+    # Common agent parameters
+    random_seed: Optional[int] = None
+    
+    # Allow for additional agent-specific parameters
+    extra_params: Dict[str, Any] = Field(default_factory=dict)
+
+
+class BOAgentConfig(AgentConfig):
+    """Configuration for Bayesian Optimization agent."""
+    
+    # Add discriminator field to identify this as a BO config
+    agent_type: str = "bo_gp"
+    
+    # BO-specific parameters
+    sobol_num_trials: Optional[int] = None
+    botorch_num_trials: Optional[int] = None
+    
+    # Seed parameters for starting optimization from known configuration
+    seed_parameters: Optional[Dict[str, Any]] = None
+    
+    # Allow for additional agent-specific parameters
+    extra_params: Dict[str, Any] = Field(default_factory=dict)
+
+    def __init__(self, **data):
+        # Ensure agent_type is always set even if not in input data
+        if 'agent_type' not in data:
+            data['agent_type'] = 'bo_gp'
+        super().__init__(**data)
+
+    def model_dump(self, **kwargs):
+        """Override model_dump to ensure all BO fields are preserved."""
+        # Force exclude_none=False to preserve all fields
+        kwargs['exclude_none'] = False
+        result = super().model_dump(**kwargs)
+        # Ensure agent_type is always included to identify this as BO config
+        result['agent_type'] = self.agent_type
+        return result
 
 
 class CmdArgs(BaseModel):
@@ -107,6 +151,70 @@ class TestDefinition(BaseModel, ABC):
     agent_steps: int = 1
     agent_metrics: list[str] = Field(default=["default"])
     agent_reward_function: str = "inverse"
+    agent_config: Optional[Union[AgentConfig, BOAgentConfig]] = None
+
+    @field_validator('agent_config', mode='before')
+    @classmethod
+    def parse_agent_config(cls, v, info):
+        """Parse agent_config based on the agent type."""
+        
+        if v is None:
+            return None
+            
+        if isinstance(v, AgentConfig):
+            return v
+            
+        if isinstance(v, dict):
+            # Check for BO-specific fields directly instead of relying on agent field
+            # since field validation order means agent might not be available yet
+            has_bo_fields = {'sobol_num_trials', 'botorch_num_trials', 'seed_parameters'} & v.keys()
+            
+            # Also check for agent_type discriminator field
+            is_bo_agent = v.get('agent_type') == 'bo_gp'
+            
+            if has_bo_fields or is_bo_agent:
+                # Use BOAgentConfig when BO-specific fields are present or agent_type indicates BO
+                return BOAgentConfig.model_validate(v)
+            else:
+                # Fall back to base AgentConfig for other cases
+                return AgentConfig.model_validate(v)
+            
+        return v
+
+    def resolve_seed_parameters(self, action_space: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Resolve seed parameters by extracting values from the action space.
+        
+        Args:
+            action_space: The flattened action space from cmd_args
+            
+        Returns:
+            Resolved seed parameters with actual values
+        """
+        if not self.agent_config or not hasattr(self.agent_config, 'seed_parameters'):
+            return None
+            
+        seed_params = self.agent_config.seed_parameters
+        if not seed_params:
+            return None
+            
+        resolved = {}
+        for param_name, value_spec in seed_params.items():
+            if param_name in action_space:
+                param_options = action_space[param_name]
+                if isinstance(param_options, list):
+                    if value_spec in param_options:
+                        resolved[param_name] = value_spec
+                    elif isinstance(value_spec, int) and 0 <= value_spec < len(param_options):
+                        resolved[param_name] = param_options[value_spec]
+                    else:
+                        resolved[param_name] = param_options[0]
+                else:
+                    resolved[param_name] = param_options
+            else:
+                resolved[param_name] = value_spec
+                
+        return resolved
 
     @property
     def cmd_args_dict(self) -> Dict[str, Union[str, List[str]]]:

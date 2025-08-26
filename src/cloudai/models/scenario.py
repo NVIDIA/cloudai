@@ -17,12 +17,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_serializer, field_validator, model_validator
 
 from cloudai.core import CmdArgs, GitRepo, NsysConfiguration, Registry, Reporter, TestRun
-from cloudai.models.workload import TestDefinition
+from cloudai.models.workload import AgentConfig, BOAgentConfig, TestDefinition
 
 
 def parse_reports_spec(
@@ -91,9 +91,34 @@ class TestRunModel(BaseModel):
     agent: Optional[str] = None
     agent_steps: Optional[int] = None
     agent_metrics: list[str] = Field(default=["default"])
+    agent_config: Optional[Union[AgentConfig, BOAgentConfig]] = None
+
+    @field_validator('agent_config', mode='before')
+    @classmethod
+    def parse_agent_config(cls, v, info):
+        """Parse agent_config based on the agent type."""
+        
+        if v is None:
+            return None
+            
+        if isinstance(v, AgentConfig):
+            return v
+            
+        if isinstance(v, dict):
+            has_bo_fields = {'sobol_num_trials', 'botorch_num_trials', 'seed_parameters'} & v.keys()
+            
+            is_bo_agent = v.get('agent_type') == 'bo_gp'
+            
+            if has_bo_fields or is_bo_agent:
+                return BOAgentConfig.model_validate(v)
+            else:
+                return AgentConfig.model_validate(v)
+            
+        return v
 
     def tdef_model_dump(self, by_alias: bool) -> dict:
         """Return a dictionary with non-None values that correspond to the test definition fields."""
+        agent_config_dump = self.agent_config.model_dump() if self.agent_config else None
         data = {
             "name": self.name,
             "description": self.description,
@@ -101,6 +126,7 @@ class TestRunModel(BaseModel):
             "agent": self.agent,
             "agent_steps": self.agent_steps,
             "agent_metrics": self.agent_metrics,
+            "agent_config": agent_config_dump,
             "extra_container_mounts": self.extra_container_mounts,
             "extra_env_vars": self.extra_env_vars if self.extra_env_vars else None,
             "cmd_args": self.cmd_args.model_dump(by_alias=by_alias) if self.cmd_args else None,
