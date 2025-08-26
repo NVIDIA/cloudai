@@ -182,7 +182,6 @@ class BaseInstaller(ABC):
             return InstallStatusResult(False, f"Error preparing install dir '{self.system.install_path.absolute()}'")
 
         logging.debug(f"Going to install {len(set(items))} uniq item(s) (total is {len(list(items))})")
-        logging.info(f"Going to install {len(set(items))} item(s)")
 
         install_results: dict[Installable, InstallStatusResult] = {}
         with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
