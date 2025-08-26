@@ -90,22 +90,39 @@ def test_gen_etcd_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem
     assert "-N1" in cmd
 
 
-@pytest.mark.parametrize("nnodes", (1, 2))
-def test_gen_nixl_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem, nnodes: int):
+@pytest.mark.parametrize(
+    "backend,nnodes,exp_ntasks",
+    [
+        ("UCX", 1, 2),  # UCX single node requires two processes, both are on the same node
+        ("UCX", 2, 2),  # UCX multi node requires two processes, one on each node
+        ("OBJ", 1, 1),
+        ("GPUNETIO", 1, 1),
+        ("GDS", 1, 1),
+    ],
+)
+def test_gen_nixl_srun_command(
+    nixl_bench_tr: TestRun, slurm_system: SlurmSystem, backend: str, nnodes: int, exp_ntasks: int
+):
     nixl_bench_tr.num_nodes = nnodes
+    nixl_bench_tr.test.test_definition.cmd_args.backend = backend
     strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
-    cmd = " ".join(strategy.gen_nixl_srun_command())
+    cmds = strategy.gen_nixl_srun_commands()
+    assert len(cmds) == exp_ntasks
 
     tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, nixl_bench_tr.test.test_definition)
 
-    exp_tpn, exp_ntasks, exp_nnodes = 1, nnodes, nnodes
-    if nnodes == 1:  # at least two processes of nixlbench should run
-        exp_tpn, exp_ntasks = 2, 2
-    assert f"--container-image={tdef.docker_image.installed_path}" in cmd
-    assert "--overlap" in cmd
-    assert f"--ntasks-per-node={exp_tpn}" in cmd
-    assert f"--ntasks={exp_ntasks}" in cmd
-    assert f"-N{exp_nnodes}" in cmd
+    for idx, cmd in enumerate(cmds):
+        assert f"--container-image={tdef.docker_image.installed_path}" in cmd
+        assert "--overlap" in cmd
+        assert "--ntasks-per-node=1" in cmd
+        assert "--ntasks=1" in cmd
+        assert "-N1" in cmd
+        if backend == "UCX":
+            if nnodes > 1:
+                assert f"--relative={idx}" in cmd
+            else:
+                assert "--relative" not in cmd
+                assert "--nodelist=$SLURM_JOB_MASTER_NODE" in cmd
 
 
 def test_gen_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
