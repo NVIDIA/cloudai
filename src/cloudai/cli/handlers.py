@@ -239,7 +239,7 @@ def _handle_single_sbatch(args: argparse.Namespace, system: System) -> bool:
 def _check_installation(
     args: argparse.Namespace, system: System, tests: list[Test], test_scenario: TestScenario
 ) -> InstallStatusResult:
-    logging.info("Checking if workloads' components are installed.")
+    logging.info("Checking if workloads components are installed.")
     installables, installer = prepare_installation(system, tests, test_scenario)
 
     if args.enable_cache_without_check:
@@ -269,7 +269,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
 
     result = _check_installation(args, system, tests, test_scenario)
     if not result.success:
-        logging.info("Not all workloads' components are installed. Installing...")
+        logging.info("Not all workloads components are installed. Installing...")
         installables, installer = prepare_installation(system, tests, test_scenario)
 
         result = installer.install(installables)
