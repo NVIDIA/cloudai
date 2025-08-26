@@ -31,6 +31,7 @@ from cloudai.core import (
     BaseInstaller,
     CloudAIGymEnv,
     Installable,
+    InstallStatusResult,
     MissingTestError,
     Parser,
     Registry,
@@ -237,8 +238,8 @@ def _handle_single_sbatch(args: argparse.Namespace, system: System) -> bool:
 
 def _check_installation(
     args: argparse.Namespace, system: System, tests: list[Test], test_scenario: TestScenario
-) -> bool:
-    logging.info("Checking if test templates are installed.")
+) -> InstallStatusResult:
+    logging.info("Checking if workloads components are installed.")
     installables, installer = prepare_installation(system, tests, test_scenario)
 
     if args.enable_cache_without_check:
@@ -246,12 +247,7 @@ def _check_installation(
     else:
         result = installer.is_installed(installables)
 
-    if args.mode == "run" and not result.success:
-        logging.error("CloudAI has not been installed. Please run install mode first.")
-        logging.error(result.message)
-        return False
-
-    return True
+    return result
 
 
 def handle_dry_run_and_run(args: argparse.Namespace) -> int:
@@ -271,8 +267,18 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     logging.info(f"Scheduler: {system.scheduler}")
     logging.info(f"Test Scenario Name: {test_scenario.name}")
 
-    if not _check_installation(args, system, tests, test_scenario):
-        return 1
+    result = _check_installation(args, system, tests, test_scenario)
+    if args.mode == "run" and not result.success:
+        logging.info("Not all workloads components are installed. Installing...")
+        installables, installer = prepare_installation(system, tests, test_scenario)
+
+        result = installer.install(installables)
+        if result.success:
+            logging.info(f"CloudAI is successfully installed into '{system.install_path.absolute()}'.")
+        else:
+            logging.error("Failed to install workloads components.")
+            logging.error(result.message)
+            return 1
 
     logging.info(test_scenario.pretty_print())
 
