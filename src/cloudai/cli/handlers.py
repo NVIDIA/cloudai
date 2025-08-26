@@ -268,7 +268,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     logging.info(f"Test Scenario Name: {test_scenario.name}")
 
     result = _check_installation(args, system, tests, test_scenario)
-    if not result.success:
+    if args.mode == "run" and not result.success:
         logging.info("Not all workloads components are installed. Installing...")
         installables, installer = prepare_installation(system, tests, test_scenario)
 
@@ -276,7 +276,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
         if result.success:
             logging.info(f"CloudAI is successfully installed into '{system.install_path.absolute()}'.")
         else:
-            logging.error("Failed to install workloads' components.")
+            logging.error("Failed to install workloads components.")
             logging.error(result.message)
             return 1
 
