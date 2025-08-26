@@ -15,7 +15,16 @@
 # limitations under the License.
 
 
-def register_all():
+def _register_isolation_workload() -> None:
+    from cloudai.core import Registry
+    from cloudai.systems.slurm import SlurmSystem
+    from cloudai.workloads.isolation import IsolationSlurmCommandGenStrategy, IsolationTestDefinition
+
+    Registry().add_test_definition("Isolation", IsolationTestDefinition)
+    Registry().add_command_gen_strategy(SlurmSystem, IsolationTestDefinition, IsolationSlurmCommandGenStrategy)
+
+
+def register_all() -> None:
     """Register all workloads, systems, runners, installers, and strategies."""
     from cloudai.configurator.grid_search import GridSearchAgent
     from cloudai.configurator.reward_functions import (
@@ -219,3 +228,5 @@ def register_all():
     Registry().add_reward_function("inverse", inverse_reward)
     Registry().add_reward_function("negative", negative_reward)
     Registry().add_reward_function("identity", identity_reward)
+
+    _register_isolation_workload()

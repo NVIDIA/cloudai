@@ -36,6 +36,7 @@ from cloudai.workloads.ai_dynamo import (
     GenAIPerfArgs,
     PrefillWorkerArgs,
 )
+from cloudai.workloads.isolation import IsolationCmdArgs, IsolationTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
     GPTTestDefinition,
@@ -262,6 +263,7 @@ def build_special_test_run(
         "nixl_bench",
         "ai-dynamo",
         "nixl-perftest",
+        "isolation",
     ]
 )
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> Tuple[TestRun, str, Optional[str]]:
@@ -434,6 +436,31 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                             "synthetic-input-tokens-mean": 550,
                             "warmup-request-count": 10,
                         }
+                    ),
+                ),
+            ),
+        ),
+        "isolation": lambda: create_test_run(
+            partial_tr,
+            slurm_system,
+            "isolation",
+            IsolationTestDefinition(
+                name="isolation",
+                description="Isolation test",
+                test_template_name="Isolation",
+                cmd_args=IsolationCmdArgs(
+                    nodes_split_rule="even",
+                    main_job=NeMoRunTestDefinition(
+                        name="main_job",
+                        description="Main job",
+                        test_template_name="NeMoRun",
+                        cmd_args=NeMoRunCmdArgs(docker_image_url="", task="", recipe_name=""),
+                    ),
+                    noise_job=NCCLTestDefinition(
+                        name="noise_job",
+                        description="Noise job",
+                        test_template_name="NcclTest",
+                        cmd_args=NCCLCmdArgs(docker_image_url=""),
                     ),
                 ),
             ),
