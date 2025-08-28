@@ -811,8 +811,8 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
         cb.defer_embedding_wgrad_compute = False
         cb.overlap_param_gather_with_optimizer_step = False
 
-        if disable_tp_commd_overlap:
-            cb.tp_comm_overlap = False
+        # if disable_tp_commd_overlap:
+        #     cb.tp_comm_overlap = False
 
     recompute_layers = int(os.getenv("CLOUDAI_RECOMPUTE_LAYERS", "0"))
     if recompute_layers > 0:
