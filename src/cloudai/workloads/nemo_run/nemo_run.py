@@ -150,7 +150,7 @@ class NeMoRunTestDefinition(TestDefinition):
         pp = cast(int, self.cmd_args.trainer.strategy.pipeline_model_parallel_size)
         cp = cast(int, self.cmd_args.trainer.strategy.context_parallel_size)
         vp = cast(Optional[int], self.cmd_args.trainer.strategy.virtual_pipeline_model_parallel_size)
-        num_gpus = tr.nnodes * 8
+        num_gpus = tr.nnodes * cast(int, self.cmd_args.trainer.devices)
         num_layers = cast(int, self.cmd_args.num_layers)
         dp = num_gpus // (tp * pp * cp)
         mbs = cast(int, self.cmd_args.data.micro_batch_size)
