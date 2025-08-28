@@ -43,7 +43,7 @@ def setup_logging(log_file: str, log_level: str) -> None:
         "handlers": {
             "rich": {
                 "class": "rich.logging.RichHandler",
-                "level": "INFO",
+                "level": log_level.upper(),
                 "formatter": "rich",
                 "rich_tracebacks": True,
                 "show_path": False,
