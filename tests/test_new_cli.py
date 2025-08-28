@@ -59,9 +59,9 @@ def test_result_dir_exists_for_generate_report(tmp_path: Path):
         main,
         [
             "generate-report",
-            f"--system={system_cfg}",
+            f"--system-config={system_cfg}",
             f"--tests-dir={tmp_path}",
-            f"--scenario={scenario_cfg}",
+            f"--test-scenario={scenario_cfg}",
             f"--result-dir={result_dir}",
         ],
     )
@@ -69,11 +69,11 @@ def test_result_dir_exists_for_generate_report(tmp_path: Path):
     assert "Invalid value for '--result-dir'" in result.output and "does not exist" in result.output
 
 
-@pytest.mark.parametrize("opt", ["--system", "--scenario", "--tests-dir"])
+@pytest.mark.parametrize("opt", ["--system-config", "--test-scenario", "--tests-dir"])
 @pytest.mark.parametrize("subcommand", ["run", "dry-run", "install", "uninstall", "generate-report"])
 def test_mandatory_path_args(subcommand: str, opt: str, tmp_path: Path):
     system_cfg, scenario_cfg, tests_dir = tmp_path / "system.toml", tmp_path / "scenario.toml", tmp_path / "tests"
-    opt2path = {"--system": system_cfg, "--tests-dir": tests_dir, "--scenario": scenario_cfg}
+    opt2path = {"--system-config": system_cfg, "--tests-dir": tests_dir, "--test-scenario": scenario_cfg}
     for k, v in opt2path.items():
         if k == opt:
             continue

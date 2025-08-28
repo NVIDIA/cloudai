@@ -31,7 +31,7 @@ from cloudai.cli.handlers import (
 
 def common_options(f):
     f = click.option(
-        "--system",
+        "--system-config",
         "system_cfg",
         required=True,
         type=click.Path(exists=True, resolve_path=True, path_type=Path),
@@ -44,7 +44,7 @@ def common_options(f):
         help="Directory with Test configs",
     )(f)
     f = click.option(
-        "--scenario",
+        "--test-scenario",
         "scenario_cfg",
         required=True,
         type=click.Path(exists=True, resolve_path=True, path_type=Path),
