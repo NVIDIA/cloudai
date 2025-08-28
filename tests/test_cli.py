@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,313 +14,75 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
+from click.testing import CliRunner
 
-from cloudai.cli import CloudAICLI, handle_generate_report, handle_install_and_uninstall
-from cloudai.cli.handlers import handle_verify_all_configs
-
-
-def test_help_message(capsys: pytest.CaptureFixture[str]) -> None:
-    cli = CloudAICLI()
-    with patch("sys.argv", ["cloudai", "--help"]):
-        with pytest.raises(SystemExit) as e:
-            cli.run()
-        assert e.value.code == 0
-
-    captured = capsys.readouterr()
-    assert "CloudAI" in captured.out
+from cloudai.cli import main
 
 
-def test_command_is_mandatory(capsys: pytest.CaptureFixture[str]) -> None:
-    cli = CloudAICLI()
-    with patch("sys.argv", ["cloudai"]):
-        with pytest.raises(SystemExit) as e:
-            cli.run()
-        assert e.value.code == 2
-
-    captured = capsys.readouterr()
-    assert "the following arguments are required: mode" in captured.err
+@pytest.mark.parametrize("cli", ["-h", "--help"])
+def test_help(cli: str):
+    runner = CliRunner()
+    result = runner.invoke(main, [cli])
+    assert result.exit_code == 0
+    assert "Usage:" in result.output
 
 
-def test_can_add_and_use_command() -> None:
-    cli = CloudAICLI()
-
-    called = False
-
-    def handler(args):
-        nonlocal called
-        called = True
-        return 0
-
-    cli.add_command("test", "Test command", handler)
-    assert "test" in cli.handlers
-
-    with patch("sys.argv", ["cloudai", "test"]):
-        assert cli.run() == 0
-        assert called
+def test_version():
+    runner = CliRunner()
+    result = runner.invoke(main, ["--version"])
+    assert result.exit_code == 0
+    assert "CloudAI, version" in result.output
 
 
-def test_no_default_args() -> None:
-    cli = CloudAICLI()
-
-    cli.add_command("test", "Test command", lambda _: 0)
-    args = cli.parser.parse_args(["test"])
-    assert args == argparse.Namespace(log_file="debug.log", log_level="INFO", mode="test")
-
-
-def test_default_args() -> None:
-    cli = CloudAICLI()
-
-    with patch.object(cli, "add_command") as add_command:
-        cli.init_default_args()
-
-    assert add_command.call_count == len(cli.DEFAULT_MODES)
-
-    enabled_modes = set()
-    for idx in range(len(cli.DEFAULT_MODES)):
-        enabled_modes.add(add_command.call_args_list[idx][0][0])
-
-    assert enabled_modes == cli.DEFAULT_MODES
+@pytest.mark.parametrize(
+    "subcommand", ["dry-run", "generate-report", "install", "list", "run", "uninstall", "verify-configs"]
+)
+def test_help_subcommands(subcommand: str):
+    runner = CliRunner()
+    result = runner.invoke(main, [subcommand, "--help"])
+    assert result.exit_code == 0
+    assert "Usage:" in result.output
 
 
-def test_disable_default_modes() -> None:
-    cli = CloudAICLI()
+def test_result_dir_exists_for_generate_report(tmp_path: Path):
+    system_cfg, scenario_cfg = tmp_path / "system.toml", tmp_path / "scenario.toml"
+    system_cfg.touch()
+    scenario_cfg.touch()
 
-    cli.DEFAULT_MODES.clear()
+    result_dir = tmp_path / "results"
 
-    with patch.object(cli, "add_command") as add_command:
-        cli.init_default_args()
-
-    assert add_command.call_count == 0
-    assert cli.handlers == {}
-
-
-def test_add_command_all_optional():
-    cli = CloudAICLI()
-
-    cli.add_command(
-        "test",
-        "Test command",
-        lambda _: 0,
-        system_config=False,
-        tests_dir=False,
-        test_scenario=False,
-        output_dir=False,
-    )
-    args = cli.parser.parse_args(["test"])
-    assert args == argparse.Namespace(
-        log_file="debug.log",
-        log_level="INFO",
-        mode="test",
-        system_config=None,
-        tests_dir=None,
-        test_scenario=None,
-        output_dir=None,
-    )
-
-
-def test_add_command_all_required():
-    cli = CloudAICLI()
-
-    cli.add_command(
-        "test",
-        "Test command",
-        lambda _: 0,
-        system_config=True,
-        tests_dir=True,
-        test_scenario=True,
-        output_dir=True,
-    )
-    args = cli.parser.parse_args(
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
         [
-            "test",
-            "--system-config",
-            f"{Path(__file__)}",
-            "--tests-dir",
-            f"{Path.cwd()}",
-            "--test-scenario",
-            f"{Path(__file__)}",
-            "--output-dir",
-            "output_dir",
-        ]
-    )
-    assert args == argparse.Namespace(
-        log_file="debug.log",
-        log_level="INFO",
-        mode="test",
-        system_config=Path(__file__),
-        tests_dir=Path.cwd(),
-        test_scenario=Path(__file__),
-        output_dir=Path("output_dir"),
-    )
-
-
-def test_real_uninstall():
-    cli = CloudAICLI()
-    cli.init_default_args()
-
-    args = cli.parser.parse_args(
-        [
-            "uninstall",
-            "--system-config",
-            "conf/common/system/example_slurm_cluster.toml",
-            "--tests-dir",
-            "conf/common/test",
-        ]
-    )
-    cli.handlers["uninstall"](args)
-
-
-class TestCLIDefaultModes:
-    @pytest.fixture()
-    def cli(self) -> CloudAICLI:
-        cli = CloudAICLI()
-        cli.init_default_args()
-        return cli
-
-    def test_install_uninstall_modes(self, cli: CloudAICLI):
-        assert "install" in cli.handlers
-        assert "uninstall" in cli.handlers
-
-        assert cli.handlers["install"] is handle_install_and_uninstall
-        assert cli.handlers["uninstall"] is handle_install_and_uninstall
-
-        for mode in {"install", "uninstall"}:
-            args = cli.parser.parse_args(
-                [
-                    mode,
-                    "--system-config",
-                    f"{Path(__file__)}",
-                    "--tests-dir",
-                    f"{Path.cwd()}",
-                ]
-            )
-
-            assert args == argparse.Namespace(
-                log_file="debug.log",
-                log_level="INFO",
-                mode=mode,
-                system_config=Path(__file__),
-                tests_dir=Path.cwd(),
-                test_scenario=None,
-                output_dir=None,
-            )
-
-    def test_verify_all_configs_mode(self, cli: CloudAICLI):
-        assert "verify-configs" in cli.handlers
-        assert cli.handlers["verify-configs"] is handle_verify_all_configs
-
-        args = cli.parser.parse_args(["verify-configs", "--tests-dir", f"{Path.cwd()}", "configs_dir"])
-        assert args == argparse.Namespace(
-            log_file="debug.log",
-            log_level="INFO",
-            mode="verify-configs",
-            tests_dir=Path.cwd(),
-            strict=False,
-            **{"configs_dir": Path("configs_dir")},
-        )
-
-        args = cli.parser.parse_args(["verify-configs", "configs_dir"])
-        assert args == argparse.Namespace(
-            log_file="debug.log",
-            log_level="INFO",
-            mode="verify-configs",
-            tests_dir=None,
-            strict=False,
-            **{"configs_dir": Path("configs_dir")},
-        )
-
-    def test_report_generation_mode(self, cli: CloudAICLI):
-        assert "generate-report" in cli.handlers
-        assert cli.handlers["generate-report"] is handle_generate_report
-
-        args = cli.parser.parse_args(
-            [
-                "generate-report",
-                "--system-config",
-                f"{Path(__file__)}",
-                "--tests-dir",
-                f"{Path.cwd()}",
-                "--test-scenario",
-                f"{Path(__file__)}",
-                "--result-dir",
-                f"{Path.cwd()}",
-            ]
-        )
-        assert args == argparse.Namespace(
-            log_file="debug.log",
-            log_level="INFO",
-            mode="generate-report",
-            test_scenario=Path(__file__),
-            result_dir=Path.cwd(),
-            system_config=Path(__file__),
-            tests_dir=Path.cwd(),
-        )
-
-    @pytest.mark.parametrize("single_sbatch", [True, False])
-    def test_run_dry_run_modes(self, cli: CloudAICLI, single_sbatch: bool):
-        assert "dry-run" in cli.handlers
-        assert "run" in cli.handlers
-
-        cmd = [
-            "--system-config",
-            f"{Path(__file__)}",
-            "--tests-dir",
-            f"{Path.cwd()}",
-            "--test-scenario",
-            f"{Path(__file__)}",
-        ]
-        if single_sbatch:
-            cmd.append("--single-sbatch")
-
-        for mode in {"dry-run", "run"}:
-            args = cli.parser.parse_args([mode, *cmd])
-
-            assert args == argparse.Namespace(
-                log_file="debug.log",
-                log_level="INFO",
-                mode=mode,
-                system_config=Path(__file__),
-                tests_dir=Path.cwd(),
-                test_scenario=Path(__file__),
-                output_dir=None,
-                enable_cache_without_check=False,
-                single_sbatch=single_sbatch,
-            )
-
-    @pytest.mark.parametrize(
-        "mode_and_missing_options",
-        [
-            (
-                "generate-report",
-                ["--system-config", "--tests-dir", "--test-scenario", "--output-dir"],
-            ),
-            ("install", ["--system-config", "--tests-dir"]),
-            ("uninstall", ["--system-config", "--tests-dir"]),
-            ("dry-run", ["--system-config", "--tests-dir", "--test-scenario"]),
-            ("run", ["--system-config", "--tests-dir", "--test-scenario"]),
+            "generate-report",
+            f"--system-config={system_cfg}",
+            f"--tests-dir={tmp_path}",
+            f"--test-scenario={scenario_cfg}",
+            f"--result-dir={result_dir}",
         ],
     )
-    def test_required_args(
-        self, mode_and_missing_options: tuple[str, list[str]], cli: CloudAICLI, capsys: pytest.CaptureFixture[str]
-    ):
-        opts = {
-            "--system-config": f"{Path(__file__)}",
-            "--tests-dir": f"{Path.cwd()}",
-            "--test-scenario": f"{Path(__file__)}",
-            "--output-dir": "output_dir",
-        }
-        mode, missing_options = mode_and_missing_options
+    assert result.exit_code == 2
+    assert "Invalid value for '--result-dir'" in result.output and "does not exist" in result.output
 
-        for missing_option in missing_options:
-            opts.pop(missing_option)
 
-            with pytest.raises(SystemExit) as e:
-                cli.parser.parse_args([mode, *[f"{k} {v}" for k, v in opts.items()]])
+@pytest.mark.parametrize("opt", ["--system-config", "--test-scenario", "--tests-dir"])
+@pytest.mark.parametrize("subcommand", ["run", "dry-run", "install", "uninstall", "generate-report"])
+def test_mandatory_path_args(subcommand: str, opt: str, tmp_path: Path):
+    system_cfg, scenario_cfg, tests_dir = tmp_path / "system.toml", tmp_path / "scenario.toml", tmp_path / "tests"
+    opt2path = {"--system-config": system_cfg, "--tests-dir": tests_dir, "--test-scenario": scenario_cfg}
+    for k, v in opt2path.items():
+        if k == opt:
+            continue
+        if k == "--tests-dir":
+            v.mkdir()
+        else:
+            v.touch()
 
-            assert e.value.code == 2
-            assert f"{mode}: error: the following arguments are required" in capsys.readouterr().err
+    runner = CliRunner()
+    result = runner.invoke(main, [subcommand, *[f"{k}={v}" for k, v in opt2path.items()]])
+    assert result.exit_code == 2
+    assert f"Invalid value for '{opt}'" in result.output and "does not exist" in result.output

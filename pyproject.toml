@@ -30,7 +30,7 @@ dependencies = [
   "click>=8.2.1",
 ]
 requires-python = ">=3.10"
-scripts = { cloudai = "cloudai.__main__:main", cla = "cloudai.new_cli:main" }
+scripts = { cloudai = "cloudai.cli:main" }
 
   [project.optional-dependencies]
   dev = [
