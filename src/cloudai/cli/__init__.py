@@ -38,14 +38,16 @@ def setup_logging(log_file: str, log_level: str) -> None:
         "disable_existing_loggers": True,
         "formatters": {
             "standard": {"format": "%(asctime)s - %(levelname)s - %(message)s"},
-            "short": {"format": "[%(levelname)s] %(message)s"},
+            "rich": {"format": "%(message)s", "datefmt": "[%X]"},
         },
         "handlers": {
-            "default": {
-                "level": log_level.upper(),
-                "formatter": "short",
-                "class": "logging.StreamHandler",
-                "stream": "ext://sys.stdout",
+            "rich": {
+                "class": "rich.logging.RichHandler",
+                "level": "INFO",
+                "formatter": "rich",
+                "rich_tracebacks": True,
+                "show_path": False,
+                "enable_link_path": True,
             },
             "debug_file": {
                 "level": "DEBUG",
@@ -57,7 +59,7 @@ def setup_logging(log_file: str, log_level: str) -> None:
         },
         "loggers": {
             "": {
-                "handlers": ["default", "debug_file"],
+                "handlers": ["rich", "debug_file"],
                 "level": "DEBUG",
                 "propagate": False,
             },
