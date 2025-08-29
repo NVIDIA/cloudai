@@ -24,7 +24,8 @@ from unittest.mock import Mock, patch
 import pytest
 import toml
 
-from cloudai.cli import handle_dry_run_and_run, setup_logging
+from cloudai.cli import setup_logging
+from cloudai.cli.handlers import handle_dry_run_and_run
 from cloudai.core import CommandGenStrategy, GitRepo, Test, TestDefinition, TestRun, TestScenario, TestTemplate
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmRunner, SlurmSystem
