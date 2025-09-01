@@ -128,13 +128,20 @@ class ComparisonReport(Reporter, ABC):
     ) -> Table:
         style_cycle = cycle(["green", "cyan", "magenta", "blue", "yellow"])
 
-        table = Table(title=f"{title}: {group.name}", title_justify="left", expand=True)
+        table = Table(title=f"{title}: {group.name}", title_justify="left")
         for col in info_columns:
             table.add_column(col)
         for item in group.items:
             style = next(style_cycle)
             for col in data_columns:
-                table.add_column(f"{item.name}\n{col}", overflow="fold", style=style, header_style=style)
+                name_str = "\n".join(item.name.split())
+                table.add_column(
+                    f"{name_str}\n[white on {style}]{col}",
+                    overflow="fold",
+                    style=style,
+                    header_style=style,
+                    no_wrap=False,
+                )
 
         for row_idx in range(len(dfs[0][info_columns[0]])):
             data = []
