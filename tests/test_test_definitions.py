@@ -24,7 +24,7 @@ from pydantic import ValidationError
 from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestRun
 from cloudai._core.test_template import TestTemplate
-from cloudai.core import File, NsysConfiguration, Parser, Registry, TestConfigParsingError, TestDefinition, TestParser
+from cloudai.core import File, NsysConfiguration, Parser, Registry, TestDefinition, TestParser
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition

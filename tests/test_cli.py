@@ -220,7 +220,6 @@ class TestCLIDefaultModes:
             log_level="INFO",
             mode="verify-configs",
             tests_dir=Path.cwd(),
-            strict=False,
             **{"configs_dir": Path("configs_dir")},
         )
 
@@ -230,7 +229,6 @@ class TestCLIDefaultModes:
             log_level="INFO",
             mode="verify-configs",
             tests_dir=None,
-            strict=False,
             **{"configs_dir": Path("configs_dir")},
         )
 
