@@ -167,13 +167,16 @@ def test_gen_matrix_gen_command_with_matgen_args_ppn(
 def test_gen_perftest_srun_command(test_run: TestRun, slurm_system: SlurmSystem) -> None:
     strategy = NixlPerftestSlurmCommandGenStrategy(slurm_system, test_run)
     tdef = cast(NixlPerftestTestDefinition, test_run.test.test_definition)
+    test_run.output_path.mkdir(parents=True, exist_ok=True)
     cmd = strategy.gen_perftest_srun_command()
     assert cmd == [
         *strategy.gen_srun_prefix(),
         "--overlap",
+        f'bash -c "source {(test_run.output_path / "env_vars.sh").absolute()}; ',
         tdef.cmd_args.python_executable,
         tdef.cmd_args.perftest_script,
         tdef.cmd_args.subtest,
         str(strategy.matrix_gen_path.absolute() / "metadata.yaml"),
         "--json-output-path=" + str(test_run.output_path.absolute() / "results.json"),
+        '"',
     ]
