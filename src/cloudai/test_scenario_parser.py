@@ -83,18 +83,12 @@ class TestScenarioParser:
     __test__ = False
 
     def __init__(
-        self,
-        file_path: Path,
-        system: System,
-        test_mapping: Dict[str, Test],
-        hook_mapping: Dict[str, TestScenario],
-        strict: bool = False,
+        self, file_path: Path, system: System, test_mapping: Dict[str, Test], hook_mapping: Dict[str, TestScenario]
     ) -> None:
         self.file_path = file_path
         self.system = system
         self.test_mapping = test_mapping
         self.hook_mapping = hook_mapping
-        self.strict = strict
 
     def parse(self) -> TestScenario:
         """
@@ -239,9 +233,9 @@ class TestScenarioParser:
             test_defined = test.test_definition.model_dump(by_alias=True)
             tc_defined = test_info.tdef_model_dump(by_alias=True)
             merged_data = deep_merge(test_defined, tc_defined)
-            test.test_definition = tp.load_test_definition(merged_data, self.strict)
+            test.test_definition = tp.load_test_definition(merged_data)
         elif test_info.test_template_name:  # test fully defined in the scenario
-            test = tp._parse_data(test_info.tdef_model_dump(by_alias=True), self.strict)
+            test = tp._parse_data(test_info.tdef_model_dump(by_alias=True))
         else:
             # this should never happen, because we check for this in the modelvalidator
             raise ValueError(
