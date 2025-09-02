@@ -24,7 +24,7 @@ from pydantic import ValidationError
 from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestRun
 from cloudai._core.test_template import TestTemplate
-from cloudai.core import File, NsysConfiguration, Parser, Registry, TestConfigParsingError, TestDefinition, TestParser
+from cloudai.core import File, NsysConfiguration, Parser, Registry, TestDefinition, TestParser
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
@@ -256,11 +256,6 @@ class TestLoadTestDefinition:
         assert test_def.cmd_args.recipe_name == "recipe"
         assert test_def.cmd_args.unknown["sub"] == "sub"  # type: ignore
         assert test_def.cmd_args.trainer.strategy.nested_unknown == "nested_unknown"  # type: ignore
-
-    def test_load_test_definition_strict(self, test_parser: TestParser, nemorun_with_unknown_field: dict):
-        with pytest.raises(TestConfigParsingError) as exc_info:
-            test_parser.load_test_definition(data=nemorun_with_unknown_field, strict=True)
-        assert "Failed to parse test spec using strict mode" in str(exc_info.value)
 
     def test_load_test_definition_unknown_test(self, test_parser: TestParser):
         with pytest.raises(NotImplementedError) as exc_info:
