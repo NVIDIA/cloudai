@@ -180,3 +180,27 @@ def test_gen_perftest_srun_command(test_run: TestRun, slurm_system: SlurmSystem)
         "--json-output-path=" + str(test_run.output_path.absolute() / "results.json"),
         '"',
     ]
+
+
+@pytest.mark.parametrize(
+    "decode_tp,dec_nodes,prefill_tp,prefill_nodes,res",
+    [
+        (1, 1, 1, 1, True),  # decode/prefill ratio is 1:1
+        (1, 2, 4, 8, True),  # decode/prefill ratio is 2:2
+        (1, 2, 1, 1, False),  # decode/prefill ratio is 1:2
+    ],
+)
+def test_constraint_check(
+    nixl_perftest: NixlPerftestTestDefinition,
+    test_run: TestRun,
+    decode_tp: int,
+    dec_nodes: int,
+    prefill_tp: int,
+    prefill_nodes: int,
+    res: bool,
+) -> None:
+    nixl_perftest.cmd_args.decode_tp = decode_tp
+    nixl_perftest.cmd_args.num_decode_nodes = dec_nodes
+    nixl_perftest.cmd_args.prefill_tp = prefill_tp
+    nixl_perftest.cmd_args.num_prefill_nodes = prefill_nodes
+    assert nixl_perftest.constraint_check(test_run) is res
