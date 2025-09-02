@@ -14,18 +14,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import csv
 from dataclasses import fields
 from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+import toml
 import yaml
 
-from cloudai.core import Test, TestRun, TestTemplate
+from cloudai.core import CommandGenStrategy, Test, TestRun, TestTemplate
+from cloudai.models.scenario import TestRunDetails
 from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.kubernetes import KubernetesSystem
 from cloudai.systems.runai import RunAISystem
 from cloudai.systems.slurm import SlurmGroup, SlurmPartition, SlurmSystem
+from cloudai.workloads.nccl_test.nccl import NCCLCmdArgs, NCCLTestDefinition
 
 
 def create_autospec_dataclass(dataclass: type) -> Mock:
@@ -128,3 +132,55 @@ def base_tr(slurm_system: SlurmSystem) -> TestRun:
         nodes=[],
         output_path=slurm_system.output_path / "tr-name",
     )
+
+
+def create_test_directories(slurm_system: SlurmSystem, test_run: TestRun) -> None:
+    test_dir = slurm_system.output_path / test_run.name
+    for iteration in range(test_run.iterations):
+        folder = test_dir / str(iteration)
+        folder.mkdir(exist_ok=True, parents=True)
+        if test_run.is_dse_job:
+            with open(folder / "trajectory.csv", "w") as _f_csv:
+                csw_writer = csv.writer(_f_csv)
+                csw_writer.writerow(["step", "action", "reward", "observation"])
+
+                for step in range(test_run.test.test_definition.agent_steps):
+                    step_folder = folder / str(step)
+                    step_folder.mkdir(exist_ok=True, parents=True)
+                    trd = TestRunDetails.from_test_run(test_run, "", "")
+                    csw_writer.writerow([step, {}, step * 2.1, [step]])
+                    with open(step_folder / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME, "w") as _f_trd:
+                        toml.dump(trd.model_dump(), _f_trd)
+
+
+@pytest.fixture
+def benchmark_tr(slurm_system: SlurmSystem) -> TestRun:
+    test_definition = NCCLTestDefinition(
+        name="nccl",
+        description="NCCL test",
+        test_template_name="NcclTest",
+        cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+    )
+    test_template = TestTemplate(system=slurm_system)
+    test = Test(test_definition=test_definition, test_template=test_template)
+    tr = TestRun(name="benchmark", test=test, num_nodes=1, nodes=["node1"], iterations=3)
+    create_test_directories(slurm_system, tr)
+    return tr
+
+
+@pytest.fixture
+def dse_tr(slurm_system: SlurmSystem) -> TestRun:
+    test_definition = NCCLTestDefinition(
+        name="nccl",
+        description="NCCL test",
+        test_template_name="NcclTest",
+        cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+        extra_env_vars={"VAR1": ["value1", "value2"]},
+        agent_steps=12,
+    )
+    test_template = TestTemplate(system=slurm_system)
+    test = Test(test_definition=test_definition, test_template=test_template)
+
+    tr = TestRun(name="dse", test=test, num_nodes=1, nodes=["node1"], iterations=12)
+    create_test_directories(slurm_system, tr)
+    return tr

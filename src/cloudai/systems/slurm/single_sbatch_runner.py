@@ -204,9 +204,9 @@ class SingleSbatchRunner(SlurmRunner):
             if not tr.is_dse_job:
                 continue
 
-            for idx, combination in enumerate(tr.all_combinations):
+            for idx, combination in enumerate(tr.all_combinations, start=1):
                 next_tr = tr.apply_params_set(combination)
-                next_tr.step = idx + 1
+                next_tr.step = idx
                 next_tr.output_path = self.get_job_output_path(next_tr)
 
                 gym = CloudAIGymEnv(next_tr, self)

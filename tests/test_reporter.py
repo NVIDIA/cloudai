@@ -15,20 +15,16 @@
 # limitations under the License.
 
 import copy
-import csv
 import tarfile
 from pathlib import Path
 
 import pytest
 import toml
 
-from cloudai import Test, TestRun, TestScenario
-from cloudai._core.base_reporter import Reporter
-from cloudai._core.registry import Registry
-from cloudai._core.system import System
+from cloudai import TestRun, TestScenario
 from cloudai.cli.handlers import generate_reports
-from cloudai.core import CommandGenStrategy, TestTemplate
-from cloudai.models.scenario import ReportConfig, TestRunDetails
+from cloudai.core import Registry, Reporter, System
+from cloudai.models.scenario import ReportConfig
 from cloudai.reporter import PerTestReporter, SlurmReportItem, StatusReporter, TarballReporter
 from cloudai.systems.slurm.slurm_metadata import (
     MetadataCUDA,
@@ -42,58 +38,6 @@ from cloudai.systems.slurm.slurm_metadata import (
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.systems.standalone.standalone_system import StandaloneSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
-
-
-def create_test_directories(slurm_system: SlurmSystem, test_run: TestRun) -> None:
-    test_dir = slurm_system.output_path / test_run.name
-    for iteration in range(test_run.iterations):
-        folder = test_dir / str(iteration)
-        folder.mkdir(exist_ok=True, parents=True)
-        if test_run.is_dse_job:
-            with open(folder / "trajectory.csv", "w") as _f_csv:
-                csw_writer = csv.writer(_f_csv)
-                csw_writer.writerow(["step", "action", "reward", "observation"])
-
-                for step in range(test_run.test.test_definition.agent_steps):
-                    step_folder = folder / str(step)
-                    step_folder.mkdir(exist_ok=True, parents=True)
-                    trd = TestRunDetails.from_test_run(test_run, "", "")
-                    csw_writer.writerow([step, {}, step * 2.1, [step]])
-                    with open(step_folder / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME, "w") as _f_trd:
-                        toml.dump(trd.model_dump(), _f_trd)
-
-
-@pytest.fixture
-def benchmark_tr(slurm_system: SlurmSystem) -> TestRun:
-    test_definition = NCCLTestDefinition(
-        name="nccl",
-        description="NCCL test",
-        test_template_name="NcclTest",
-        cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-    )
-    test_template = TestTemplate(system=slurm_system)
-    test = Test(test_definition=test_definition, test_template=test_template)
-    tr = TestRun(name="benchmark", test=test, num_nodes=1, nodes=["node1"], iterations=3)
-    create_test_directories(slurm_system, tr)
-    return tr
-
-
-@pytest.fixture
-def dse_tr(slurm_system: SlurmSystem) -> TestRun:
-    test_definition = NCCLTestDefinition(
-        name="nccl",
-        description="NCCL test",
-        test_template_name="NcclTest",
-        cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-        extra_env_vars={"VAR1": ["value1", "value2"]},
-        agent_steps=12,
-    )
-    test_template = TestTemplate(system=slurm_system)
-    test = Test(test_definition=test_definition, test_template=test_template)
-
-    tr = TestRun(name="dse", test=test, num_nodes=1, nodes=["node1"], iterations=12)
-    create_test_directories(slurm_system, tr)
-    return tr
 
 
 class TestLoadTestTuns:
