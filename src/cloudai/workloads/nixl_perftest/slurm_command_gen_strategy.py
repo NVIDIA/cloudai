@@ -43,10 +43,18 @@ class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _container_mounts(self) -> list[str]:
         return []
 
-    def _gen_srun_command(self) -> str:
-        self.final_env_vars["NIXL_ETCD_NAMESPACE"] = "/nixl/kvbench/$(uuidgen)"
-        self.final_env_vars["NIXL_ETCD_ENDPOINTS"] = '"$SLURM_JOB_MASTER_NODE:2379"'
+    @property
+    def final_env_vars(self) -> dict[str, str | list[str]]:
+        env_vars = super().final_env_vars
+        env_vars["NIXL_ETCD_NAMESPACE"] = "/nixl/kvbench/$(uuidgen)"
+        env_vars["NIXL_ETCD_ENDPOINTS"] = '"$SLURM_JOB_MASTER_NODE:2379"'
+        return env_vars
 
+    @final_env_vars.setter
+    def final_env_vars(self, value: dict[str, str | list[str]]) -> None:
+        super().final_env_vars = value
+
+    def _gen_srun_command(self) -> str:
         matrix_gen_command: list[str] = self.gen_matrix_gen_srun_command()
         etcd_command: list[str] = self.gen_etcd_srun_command()
         perftest_command: list[str] = self.gen_perftest_srun_command()
