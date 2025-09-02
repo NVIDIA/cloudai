@@ -410,16 +410,15 @@ def verify_system_configs(system_tomls: List[Path]) -> int:
     return nfailed
 
 
-def verify_test_configs(test_tomls: List[Path], strict: bool) -> int:
+def verify_test_configs(test_tomls: List[Path]) -> int:
     nfailed = 0
     tp = TestParser([], None)  # type: ignore
-    logging.info(f"Strict test verification: {strict}")
     for test_toml in test_tomls:
         logging.debug(f"Verifying Test: {test_toml}...")
         try:
             with test_toml.open() as fh:
                 tp.current_file = test_toml
-                tp.load_test_definition(toml.load(fh), strict)
+                tp.load_test_definition(toml.load(fh))
         except Exception:
             nfailed += 1
 
@@ -432,11 +431,7 @@ def verify_test_configs(test_tomls: List[Path], strict: bool) -> int:
 
 
 def verify_test_scenarios(
-    scenario_tomls: List[Path],
-    test_tomls: list[Path],
-    hook_tomls: List[Path],
-    hook_test_tomls: list[Path],
-    strict: bool = False,
+    scenario_tomls: List[Path], test_tomls: list[Path], hook_tomls: List[Path], hook_test_tomls: list[Path]
 ) -> int:
     system = Mock(spec=System)
     nfailed = 0
@@ -446,7 +441,7 @@ def verify_test_scenarios(
             tests = Parser.parse_tests(test_tomls, system)
             hook_tests = Parser.parse_tests(hook_test_tomls, system)
             hooks = Parser.parse_hooks(hook_tomls, system, {t.name: t for t in hook_tests})
-            Parser.parse_test_scenario(scenario_file, system, {t.name: t for t in tests}, hooks, strict)
+            Parser.parse_test_scenario(scenario_file, system, {t.name: t for t in tests}, hooks)
         except Exception:
             nfailed += 1
 
@@ -482,9 +477,9 @@ def handle_verify_all_configs(args: argparse.Namespace) -> int:
     if files["system"]:
         nfailed += verify_system_configs(files["system"])
     if files["test"]:
-        nfailed += verify_test_configs(files["test"], args.strict)
+        nfailed += verify_test_configs(files["test"])
     if files["scenario"]:
-        nfailed += verify_test_scenarios(files["scenario"], test_tomls, files["hook"], files["hook_test"], args.strict)
+        nfailed += verify_test_scenarios(files["scenario"], test_tomls, files["hook"], files["hook_test"])
     if files["unknown"]:
         logging.error(f"Unknown configuration files: {[str(f) for f in files['unknown']]}")
         nfailed += len(files["unknown"])

@@ -19,6 +19,7 @@ import re
 from typing import Generator, cast
 from unittest.mock import Mock
 
+import pandas as pd
 import pytest
 import toml
 
@@ -535,3 +536,19 @@ def test_pre_test(nccl_tr: TestRun, sleep_tr: TestRun, slurm_system: SlurmSystem
             "",
         ]
     )
+
+
+def test_trajectory_saved(dse_tr: TestRun, slurm_system: SlurmSystem) -> None:
+    tc = TestScenario(name="tc", test_runs=[dse_tr])
+    runner = SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
+    dse_tr.output_path = slurm_system.output_path / dse_tr.name
+    dse_tr.output_path.mkdir(parents=True, exist_ok=True)
+
+    trajectory_path = runner.scenario_root / dse_tr.name / f"{dse_tr.current_iteration}" / "trajectory.csv"
+    trajectory_path.unlink(missing_ok=True)
+    runner.handle_dse()
+
+    assert trajectory_path.exists()
+    df = pd.read_csv(trajectory_path)
+    assert df.shape[0] == len(dse_tr.all_combinations)
+    assert df["step"].tolist() == list(range(1, len(dse_tr.all_combinations) + 1))

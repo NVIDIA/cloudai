@@ -86,7 +86,7 @@ class TestParser:
                 extras |= TestParser.model_extras(m.__dict__[field], prefix=f"{prefix}.{field}")
         return extras | set([f"{prefix}.{k}" for k in m.model_extra])
 
-    def load_test_definition(self, data: dict, strict: bool = False) -> TestDefinition:
+    def load_test_definition(self, data: dict) -> TestDefinition:
         test_template_name = data.get("test_template_name")
         registry = Registry()
         if not test_template_name or test_template_name not in registry.test_definitions_map:
@@ -102,12 +102,6 @@ class TestParser:
                 err_msg = format_validation_error(err)
                 logging.error(err_msg)
             raise TestConfigParsingError("Failed to parse test spec") from e
-
-        if strict and self.model_extras(test_def.cmd_args):
-            logging.error(f"Strict check failed for test spec: '{self.current_file}'")
-            for field in self.model_extras(test_def.cmd_args):
-                logging.error(f"Unexpected field '{field}' in test spec.")
-            raise TestConfigParsingError("Failed to parse test spec using strict mode")
 
         return test_def
 
@@ -166,7 +160,7 @@ class TestParser:
         )
         return obj
 
-    def _parse_data(self, data: Dict[str, Any], strict: bool = False) -> Test:
+    def _parse_data(self, data: Dict[str, Any]) -> Test:
         """
         Parse data for a Test object.
 
@@ -177,6 +171,6 @@ class TestParser:
         Returns:
             Test: Parsed Test object.
         """
-        test_def = self.load_test_definition(data, strict)
+        test_def = self.load_test_definition(data)
         test_template = self._get_test_template(test_def.test_template_name, test_def)
         return Test(test_definition=test_def, test_template=test_template)
