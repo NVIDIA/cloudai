@@ -14,14 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .nixl_perftest import MatgenCmdArgs, NixlPerftestCmdArgs, NixlPerftestTestDefinition
-from .report_generation_strategy import NIXLKVBenchDummyReport
-from .slurm_command_gen_strategy import NixlPerftestSlurmCommandGenStrategy
+from typing import ClassVar
 
-__all__ = [
-    "MatgenCmdArgs",
-    "NIXLKVBenchDummyReport",
-    "NixlPerftestCmdArgs",
-    "NixlPerftestSlurmCommandGenStrategy",
-    "NixlPerftestTestDefinition",
-]
+from cloudai.core import ReportGenerationStrategy
+
+
+class NIXLKVBenchDummyReport(ReportGenerationStrategy):
+    """Dummy report to support sweeps as it requires "default" metric."""
+
+    metrics: ClassVar[list[str]] = ["default"]
+
+    def can_handle_directory(self) -> bool:
+        return True
+
+    def generate_report(self) -> None:
+        pass

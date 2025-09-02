@@ -22,4 +22,4 @@ timeout 60 bash -c "until curl -s $NIXL_ETCD_ENDPOINTS/health > /dev/null 2>&1; 
    echo "ETCD ($NIXL_ETCD_ENDPOINTS) was unreachable after 60 seconds";
    exit 1
  }
-srun --export=ALL --mpi=pmix --container-image=url.com/docker:tag --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --overlap /workspace/nixl/.venv/bin/python /workspace/nixl/benchmark/kvbench/main.py sequential-ct-perftest __OUTPUT_DIR__/output/matrices/metadata.yaml --json-output-path=__OUTPUT_DIR__/output/results.json
+srun --export=ALL --mpi=pmix --container-image=url.com/docker:tag --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --overlap bash -c "source __OUTPUT_DIR__/output/env_vars.sh;  /workspace/nixl/.venv/bin/python /workspace/nixl/benchmark/kvbench/main.py sequential-ct-perftest __OUTPUT_DIR__/output/matrices/metadata.yaml --json-output-path=__OUTPUT_DIR__/output/results.json "
