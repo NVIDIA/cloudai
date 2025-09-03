@@ -47,12 +47,13 @@ class NIXLKVBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _gen_srun_command(self) -> str:
         etcd_command: list[str] = self.gen_etcd_srun_command()
-        kvbench_command: list[str] = self.gen_kvbench_srun_command()
+        kvbench_commands = self.gen_kvbench_srun_commands()
 
         final_cmd: list[str] = [
             " ".join(etcd_command),
             " ".join(self.gen_wait_for_etcd_command()),
-            " ".join(kvbench_command),
+            *[" ".join(cmd) + " &\nsleep 15" for cmd in kvbench_commands[:-1]],
+            " ".join(kvbench_commands[-1]),
         ]
         return "\n".join(final_cmd)
 
@@ -69,21 +70,41 @@ class NIXLKVBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return command
 
-    def gen_kvbench_srun_command(self) -> list[str]:
+    def gen_kvbench_srun_commands(self) -> list[list[str]]:
         with (self.test_run.output_path / "env_vars.sh").open("w") as f:
             for key, value in self.final_env_vars.items():
                 if key in {"NIXL_ETCD_ENDPOINTS", "NIXL_ETCD_NAMESPACE"}:
                     continue
                 f.write(f"export {key}={value}\n")
 
-        cmd = [
-            *self.gen_srun_prefix(),
-            "--overlap",
-            f'bash -c "source {(self.test_run.output_path / "env_vars.sh").absolute()}; ',
-            *self.gen_kvbench_command(),
-            '"',
+        tdef: NIXLKVBenchTestDefinition = cast(NIXLKVBenchTestDefinition, self.test_run.test.test_definition)
+        self._current_image_url = str(tdef.docker_image.installed_path)
+        prefix_part = self.gen_srun_prefix()
+        self._current_image_url = None
+
+        bash_part = [
+            "bash",
+            "-c",
+            f'"source {(self.test_run.output_path / "env_vars.sh").absolute()}; '
+            f'{" ".join(self.gen_kvbench_command())}"',
         ]
-        return cmd
+        tpn_part = ["--ntasks-per-node=1", "--ntasks=1", "-N1"]
+
+        cmds = [
+            [*prefix_part, "--overlap", "--nodelist=$SLURM_JOB_MASTER_NODE", *tpn_part, *bash_part],
+        ]
+
+        backend = str(tdef.cmd_args_dict.get("backend", "unset")).upper()
+        if backend == "UCX":
+            nnodes, _ = self.get_cached_nodes_spec()
+            if nnodes > 1:
+                cmds = [
+                    [*prefix_part, "--overlap", f"--relative={idx}", *tpn_part, *bash_part] for idx in range(nnodes)
+                ]
+            else:
+                cmds *= max(2, nnodes)
+
+        return cmds
 
     def gen_etcd_srun_command(self) -> list[str]:
         etcd_cmd = [

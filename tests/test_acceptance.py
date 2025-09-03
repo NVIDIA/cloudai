@@ -474,7 +474,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             tr.num_nodes = 3
             tr.test.test_definition.extra_env_vars["NIM_MODEL_NAME"] = str(tr.output_path)
             tr.test.test_definition.extra_env_vars["NIM_CACHE_PATH"] = str(tr.output_path)
-        if request.param == "nixl_bench":
+        if request.param in {"nixl_bench", "nixl-kvbench"}:
             tr.num_nodes = 2
         if request.param == "ai-dynamo":
             tr.num_nodes = 2
