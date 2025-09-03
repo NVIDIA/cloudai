@@ -30,7 +30,7 @@ class NIXLKVBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if filepath := self.tdef.cmd_args_dict.get("filepath"):
             local_dir = self.test_run.output_path / Path(f"{filepath}").name
             local_dir.mkdir(exist_ok=True)
-            mounts.append(f"{local_dir}:/{filepath}")
+            mounts.append(f"{local_dir.absolute()}:/{filepath}")
         return mounts
 
     @property
