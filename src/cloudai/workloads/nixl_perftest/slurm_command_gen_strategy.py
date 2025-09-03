@@ -43,14 +43,18 @@ class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _container_mounts(self) -> list[str]:
         return []
 
+    @property
+    def final_env_vars(self) -> dict[str, str | list[str]]:
+        env_vars = super().final_env_vars
+        env_vars["NIXL_ETCD_NAMESPACE"] = "/nixl/kvbench/$(uuidgen)"
+        env_vars["NIXL_ETCD_ENDPOINTS"] = '"$SLURM_JOB_MASTER_NODE:2379"'
+        return env_vars
+
+    @final_env_vars.setter
+    def final_env_vars(self, value: dict[str, str | list[str]]) -> None:
+        super().final_env_vars = value
+
     def _gen_srun_command(self) -> str:
-        self.final_env_vars["NIXL_ETCD_NAMESPACE"] = "/nixl/kvbench/$(uuidgen)"
-        self.final_env_vars["NIXL_ETCD_ENDPOINTS"] = '"$SLURM_JOB_MASTER_NODE:2379"'
-
-        with (self.test_run.output_path / "env_vars.sh").open("w") as f:
-            for key, value in self.final_env_vars.items():
-                f.write(f"export {key}={value}\n")
-
         matrix_gen_command: list[str] = self.gen_matrix_gen_srun_command()
         etcd_command: list[str] = self.gen_etcd_srun_command()
         perftest_command: list[str] = self.gen_perftest_srun_command()
@@ -148,14 +152,22 @@ class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return cmd
 
     def gen_perftest_srun_command(self) -> list[str]:
+        with (self.test_run.output_path / "env_vars.sh").open("w") as f:
+            for key, value in self.final_env_vars.items():
+                if key in {"NIXL_ETCD_ENDPOINTS", "NIXL_ETCD_NAMESPACE"}:
+                    continue
+                f.write(f"export {key}={value}\n")
+
         cmd = [
             *self.gen_srun_prefix(),
             "--overlap",
+            f'bash -c "source {(self.test_run.output_path / "env_vars.sh").absolute()}; ',
             self.tdef.cmd_args.python_executable,
             self.tdef.cmd_args.perftest_script,
             self.tdef.cmd_args.subtest,
             str(self.matrix_gen_path.absolute() / "metadata.yaml"),
             "--json-output-path=" + str(self.test_run.output_path.absolute() / "results.json"),
+            '"',
         ]
         return cmd
 

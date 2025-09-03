@@ -91,7 +91,11 @@ def register_all():
         NIXLBenchSlurmCommandGenStrategy,
         NIXLBenchTestDefinition,
     )
-    from cloudai.workloads.nixl_perftest import NixlPerftestSlurmCommandGenStrategy, NixlPerftestTestDefinition
+    from cloudai.workloads.nixl_perftest import (
+        NIXLKVBenchDummyReport,
+        NixlPerftestSlurmCommandGenStrategy,
+        NixlPerftestTestDefinition,
+    )
     from cloudai.workloads.sleep import (
         SleepGradingStrategy,
         SleepKubernetesJsonGenStrategy,
@@ -206,6 +210,7 @@ def register_all():
     Registry().add_report(TritonInferenceTestDefinition, TritonInferenceReportGenerationStrategy)
     Registry().add_report(NIXLBenchTestDefinition, NIXLBenchReportGenerationStrategy)
     Registry().add_report(AIDynamoTestDefinition, AIDynamoReportGenerationStrategy)
+    Registry().add_report(NixlPerftestTestDefinition, NIXLKVBenchDummyReport)
 
     Registry().add_scenario_report("per_test", PerTestReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("status", StatusReporter, ReportConfig(enable=True))
