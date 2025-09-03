@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from typing import cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
@@ -25,7 +26,12 @@ class NIXLKVBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for NIXLKVBench tests."""
 
     def _container_mounts(self) -> list[str]:
-        return []
+        mounts = []
+        if filepath := self.tdef.cmd_args_dict.get("filepath"):
+            local_dir = self.test_run.output_path / Path(f"{filepath}").name
+            local_dir.mkdir(exist_ok=True)
+            mounts.append(f"{local_dir}:/filepath")
+        return mounts
 
     @property
     def tdef(self) -> NIXLKVBenchTestDefinition:
