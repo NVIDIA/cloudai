@@ -18,7 +18,9 @@ from __future__ import annotations
 
 from typing import Literal
 
-from cloudai.core import CmdArgs, DockerImage, Installable, TestDefinition
+from cloudai.core import CmdArgs, DockerImage, Installable, JobStatusResult, TestDefinition, TestRun
+
+from ..nixl_bench.nixl_bench import extract_nixl_data
 
 
 class NIXLKVBenchCmdArgs(CmdArgs):
@@ -63,3 +65,10 @@ class NIXLKVBenchTestDefinition(TestDefinition):
                 "command",
             }
         )
+
+    def was_run_successful(self, tr: TestRun) -> JobStatusResult:
+        df = extract_nixl_data(tr.output_path / "stdout.txt")
+        if df.empty:
+            return JobStatusResult(is_successful=False, error_message=f"NIXLBench data not found in {tr.output_path}.")
+
+        return JobStatusResult(is_successful=True)
