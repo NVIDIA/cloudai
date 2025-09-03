@@ -91,6 +91,7 @@ def register_all():
         NIXLBenchSlurmCommandGenStrategy,
         NIXLBenchTestDefinition,
     )
+    from cloudai.workloads.nixl_kvbench import NIXLKVBenchSlurmCommandGenStrategy, NIXLKVBenchTestDefinition
     from cloudai.workloads.nixl_perftest import (
         NIXLKVBenchDummyReport,
         NixlPerftestSlurmCommandGenStrategy,
@@ -165,6 +166,7 @@ def register_all():
 
     Registry().add_command_gen_strategy(SlurmSystem, AIDynamoTestDefinition, AIDynamoSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, BashCmdTestDefinition, BashCmdCommandGenStrategy)
+    Registry().add_command_gen_strategy(SlurmSystem, NIXLKVBenchTestDefinition, NIXLKVBenchSlurmCommandGenStrategy)
 
     Registry().add_installer("slurm", SlurmInstaller)
     Registry().add_installer("standalone", StandaloneInstaller)
@@ -194,6 +196,7 @@ def register_all():
     Registry().add_test_definition("AIDynamo", AIDynamoTestDefinition)
     Registry().add_test_definition("BashCmd", BashCmdTestDefinition)
     Registry().add_test_definition("NixlPerftest", NixlPerftestTestDefinition)
+    Registry().add_test_definition("NIXLKVBench", NIXLKVBenchTestDefinition)
 
     Registry().add_agent("grid_search", GridSearchAgent)
 
