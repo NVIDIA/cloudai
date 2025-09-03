@@ -18,8 +18,6 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import model_validator
-
 from cloudai.core import CmdArgs, DockerImage, Installable, TestDefinition
 
 
@@ -27,7 +25,6 @@ class NIXLKVBenchCmdArgs(CmdArgs):
     """Command line arguments for NIXLKVBench."""
 
     command: Literal["profile"] = "profile"
-    with_etcd: bool | None = None
     etcd_path: str = "etcd"
     wait_etcd_for: int = 60
 
@@ -36,12 +33,6 @@ class NIXLKVBenchCmdArgs(CmdArgs):
     python_executable: str = "/workspace/nixl/.venv/bin/python"
 
     backend: str | None = None
-
-    @model_validator(mode="after")
-    def set_with_etcd(self) -> NIXLKVBenchCmdArgs:
-        if self.with_etcd is None and self.backend == "UCX":
-            self.with_etcd = True
-        return self
 
 
 class NIXLKVBenchTestDefinition(TestDefinition):
@@ -66,7 +57,6 @@ class NIXLKVBenchTestDefinition(TestDefinition):
             exclude={
                 "kvbench_script",
                 "python_executable",
-                "with_etcd",
                 "etcd_path",
                 "wait_etcd_for",
                 "docker_image_url",

@@ -31,22 +31,6 @@ def kvbench_tr(slurm_system: SlurmSystem, kvbench: NIXLKVBenchTestDefinition) ->
     )
 
 
-@pytest.mark.parametrize(
-    "flag,backend,expected",
-    [
-        (None, "UCX", True),
-        (False, "UCX", False),
-        (None, "POSIX", None),
-        (True, "POSIX", True),
-    ],
-)
-def test_with_etcd(kvbench: NIXLKVBenchTestDefinition, flag: bool | None, backend: str | None, expected: bool | None):
-    kvbench.cmd_args = NIXLKVBenchCmdArgs.model_validate(
-        {"docker_image_url": "docker://image/url", "with_etcd": flag, "backend": backend}
-    )
-    assert kvbench.cmd_args.with_etcd is expected
-
-
 def test_gen_kvbench_ucx(kvbench_tr: TestRun, slurm_system: SlurmSystem):
     kvbench_tr.test.test_definition.cmd_args = NIXLKVBenchCmdArgs.model_validate(
         {
@@ -71,36 +55,4 @@ def test_gen_kvbench_ucx(kvbench_tr: TestRun, slurm_system: SlurmSystem):
         "--source src",
         "--op_type READ",
         "--etcd-endpoints http://$NIXL_ETCD_ENDPOINTS:2379",
-    ]
-
-
-def test_gen_kvbench_posix(kvbench_tr: TestRun, slurm_system: SlurmSystem):
-    kvbench_tr.test.test_definition.cmd_args = NIXLKVBenchCmdArgs.model_validate(
-        {
-            "docker_image_url": "docker://image/url",
-            "model": "./model.yaml",
-            "model_config": "./cfg.yaml",
-            "backend": "POSIX",
-            "num_requests": 1,
-            "source": "file",
-            "num_iter": 16,
-            "page_size": 256,
-            "filepath": "/data",
-        }
-    )
-    kvbench = cast(NIXLKVBenchTestDefinition, kvbench_tr.test.test_definition)
-    cmd_gen = NIXLKVBenchSlurmCommandGenStrategy(slurm_system, kvbench_tr)
-    cmd = cmd_gen.gen_kvbench_command()
-    assert cmd == [
-        f"{kvbench.cmd_args.python_executable}",
-        f"{kvbench.cmd_args.kvbench_script}",
-        kvbench.cmd_args.command,
-        "--backend POSIX",
-        "--model ./model.yaml",
-        "--model_config ./cfg.yaml",
-        "--num_requests 1",
-        "--source file",
-        "--num_iter 16",
-        "--page_size 256",
-        "--filepath /data",
     ]

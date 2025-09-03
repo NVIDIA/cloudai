@@ -49,12 +49,11 @@ class NIXLKVBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         etcd_command: list[str] = self.gen_etcd_srun_command()
         kvbench_command: list[str] = self.gen_kvbench_srun_command()
 
-        final_cmd: list[str] = []
-        if self.tdef.cmd_args.with_etcd:
-            final_cmd.append(" ".join(etcd_command))
-            final_cmd.append(" ".join(self.gen_wait_for_etcd_command()))
-
-        final_cmd.append(" ".join(kvbench_command))
+        final_cmd: list[str] = [
+            " ".join(etcd_command),
+            " ".join(self.gen_wait_for_etcd_command()),
+            " ".join(kvbench_command),
+        ]
         return "\n".join(final_cmd)
 
     def gen_kvbench_command(self) -> list[str]:
@@ -66,8 +65,7 @@ class NIXLKVBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         for k, v in self.test_run.test.test_definition.cmd_args_dict.items():
             command.append(f"--{k} {v}")
 
-        if self.tdef.cmd_args.with_etcd:
-            command.append("--etcd-endpoints http://$NIXL_ETCD_ENDPOINTS:2379")
+        command.append("--etcd-endpoints http://$NIXL_ETCD_ENDPOINTS:2379")
 
         return command
 
