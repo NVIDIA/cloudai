@@ -14,7 +14,10 @@ from cloudai.workloads.nixl_kvbench import (
 @pytest.fixture
 def kvbench() -> NIXLKVBenchTestDefinition:
     return NIXLKVBenchTestDefinition(
-        name="n", description="d", test_template_name="NIXLKVBench", cmd_args=NIXLKVBenchCmdArgs()
+        name="n",
+        description="d",
+        test_template_name="NIXLKVBench",
+        cmd_args=NIXLKVBenchCmdArgs(docker_image_url="docker://image/url"),
     )
 
 
@@ -38,13 +41,22 @@ def kvbench_tr(slurm_system: SlurmSystem, kvbench: NIXLKVBenchTestDefinition) ->
     ],
 )
 def test_with_etcd(kvbench: NIXLKVBenchTestDefinition, flag: bool | None, backend: str | None, expected: bool | None):
-    kvbench.cmd_args = NIXLKVBenchCmdArgs.model_validate({"with_etcd": flag, "backend": backend})
+    kvbench.cmd_args = NIXLKVBenchCmdArgs.model_validate(
+        {"docker_image_url": "docker://image/url", "with_etcd": flag, "backend": backend}
+    )
     assert kvbench.cmd_args.with_etcd is expected
 
 
 def test_gen_kvbench_ucx(kvbench_tr: TestRun, slurm_system: SlurmSystem):
     kvbench_tr.test.test_definition.cmd_args = NIXLKVBenchCmdArgs.model_validate(
-        {"model": "./model.yaml", "model_config": "./cfg.yaml", "backend": "UCX", "source": "src", "op_type": "READ"}
+        {
+            "docker_image_url": "docker://image/url",
+            "model": "./model.yaml",
+            "model_config": "./cfg.yaml",
+            "backend": "UCX",
+            "source": "src",
+            "op_type": "READ",
+        }
     )
     kvbench = cast(NIXLKVBenchTestDefinition, kvbench_tr.test.test_definition)
     cmd_gen = NIXLKVBenchSlurmCommandGenStrategy(slurm_system, kvbench_tr)
@@ -52,18 +64,20 @@ def test_gen_kvbench_ucx(kvbench_tr: TestRun, slurm_system: SlurmSystem):
     assert cmd == [
         f"{kvbench.cmd_args.python_executable}",
         f"{kvbench.cmd_args.kvbench_script}",
+        kvbench.cmd_args.command,
         "--backend UCX",
         "--model ./model.yaml",
         "--model_config ./cfg.yaml",
         "--source src",
         "--op_type READ",
-        "--etcd-endpoints http://$SERVER:2379",
+        "--etcd-endpoints http://$NIXL_ETCD_ENDPOINTS:2379",
     ]
 
 
 def test_gen_kvbench_posix(kvbench_tr: TestRun, slurm_system: SlurmSystem):
     kvbench_tr.test.test_definition.cmd_args = NIXLKVBenchCmdArgs.model_validate(
         {
+            "docker_image_url": "docker://image/url",
             "model": "./model.yaml",
             "model_config": "./cfg.yaml",
             "backend": "POSIX",
@@ -80,6 +94,7 @@ def test_gen_kvbench_posix(kvbench_tr: TestRun, slurm_system: SlurmSystem):
     assert cmd == [
         f"{kvbench.cmd_args.python_executable}",
         f"{kvbench.cmd_args.kvbench_script}",
+        kvbench.cmd_args.command,
         "--backend POSIX",
         "--model ./model.yaml",
         "--model_config ./cfg.yaml",

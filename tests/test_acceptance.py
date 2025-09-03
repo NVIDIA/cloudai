@@ -405,7 +405,8 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 test_template_name="nixl-perftest",
                 cmd_args=NIXLKVBenchCmdArgs.model_validate(
                     {
-                        "backend": "POSIX",
+                        "docker_image_url": "url.com/docker:tag",
+                        "backend": "UCX",
                         "kvbench_script": "path/to/kvbench_script.sh",
                         "python_executable": "path/to/python",
                     }

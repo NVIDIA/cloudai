@@ -16,18 +16,25 @@
 
 from __future__ import annotations
 
-from pydantic import ValidationInfo, field_validator, model_validator
+from typing import Literal
 
-from cloudai.core import CmdArgs, TestDefinition
+from pydantic import model_validator
+
+from cloudai.core import CmdArgs, DockerImage, Installable, TestDefinition
 
 
 class NIXLKVBenchCmdArgs(CmdArgs):
     """Command line arguments for NIXLKVBench."""
 
-    # subtest: Literal["sequential-ct-perftest"]
+    command: Literal["profile"] = "profile"
     with_etcd: bool | None = None
+    etcd_path: str = "etcd"
+    wait_etcd_for: int = 60
+
+    docker_image_url: str
     kvbench_script: str = "/workspace/nixl/benchmark/kvbench/main.py"
     python_executable: str = "/workspace/nixl/.venv/bin/python"
+
     backend: str | None = None
 
     @model_validator(mode="after")
@@ -40,8 +47,29 @@ class NIXLKVBenchCmdArgs(CmdArgs):
 class NIXLKVBenchTestDefinition(TestDefinition):
     """Test definition for NIXLKVBench."""
 
+    _docker_image: DockerImage | None = None
     cmd_args: NIXLKVBenchCmdArgs
 
     @property
+    def docker_image(self) -> DockerImage:
+        if not self._docker_image:
+            self._docker_image = DockerImage(url=self.cmd_args.docker_image_url)
+        return self._docker_image
+
+    @property
+    def installables(self) -> list[Installable]:
+        return [*self.git_repos, self.docker_image]
+
+    @property
     def cmd_args_dict(self) -> dict[str, str | list[str]]:
-        return self.cmd_args.model_dump(exclude={"kvbench_script", "python_executable", "with_etcd"})
+        return self.cmd_args.model_dump(
+            exclude={
+                "kvbench_script",
+                "python_executable",
+                "with_etcd",
+                "etcd_path",
+                "wait_etcd_for",
+                "docker_image_url",
+                "command",
+            }
+        )
