@@ -243,9 +243,9 @@ def generate_report(system_cfg: Path, tests_dir: Path, scenario_cfg: Path, resul
     type=click.Path(exists=True, resolve_path=True, path_type=Path, file_okay=False, dir_okay=True),
     help="Directory with Test configs.",
 )
-def verify_configs(configs_dir: Path, tests_dir: Path, strict: bool):
+def verify_configs(configs_dir: Path, tests_dir: Path):
     """Verify the configuration TOML files."""
-    args = argparse.Namespace(configs_dir=configs_dir, tests_dir=tests_dir, strict=strict)
+    args = argparse.Namespace(configs_dir=configs_dir, tests_dir=tests_dir)
     handle_verify_all_configs(args)
 
 
