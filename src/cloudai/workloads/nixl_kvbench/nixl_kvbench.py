@@ -34,7 +34,7 @@ class NIXLKVBenchCmdArgs(CmdArgs):
     kvbench_script: str = "/workspace/nixl/benchmark/kvbench/main.py"
     python_executable: str = "/workspace/nixl/.venv/bin/python"
 
-    backend: str | None = None
+    backend: str | list[str] | None = None
 
 
 class NIXLKVBenchTestDefinition(TestDefinition):
