@@ -753,22 +753,79 @@ def cloudai_llama3_70b_recipe() -> run.Partial:
             model_name="llama3",
         )
     )
-    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
+
+    # Optional tokenizer override for CloudAI runs
+    recipe.data.tokenizer = null_tokenizer(vocab_size=128256)
+
     set_enable_cuda_graphs_params(recipe)
 
     tp_overlap_cfg, tp_comm_overlap = get_tp_overlap_config()
 
-    recipe.trainer.callbacks.append(
-        run.Config(
-            MegatronCommOverlapCallback,
-            tp_comm_overlap=tp_comm_overlap,
-            tp_comm_overlap_cfg=tp_overlap_cfg,
-            overlap_param_gather_with_optimizer_step=False,
-            defer_embedding_wgrad_compute=True,
-            wgrad_deferral_limit=22,
-        )
-    )
-    recipe.trainer.callbacks.append(run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100))
+    # Locate and update the existing comm-overlap callback to match our env
+    comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
+    assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
+
+    tp_comm_overlap_cfg = to_run_config(tp_overlap_cfg)
+    cb = recipe.trainer.callbacks[comm_overlap_callback_idx]
+    cb.tp_comm_overlap = tp_comm_overlap
+    cb.tp_comm_overlap_cfg = tp_comm_overlap_cfg
+    cb.overlap_param_gather_with_optimizer_step = False
+    cb.defer_embedding_wgrad_compute = True
+    cb.wgrad_deferral_limit = 22
+
+    enable_fsdp = os.getenv("CLOUDAI_ENABLE_FSDP", "0") == "1"
+    disable_tp_commd_overlap = os.getenv("CLOUDAI_DISABLE_TP_COMM_OVERLAP", "0") == "1"
+    if enable_fsdp:
+        recipe.trainer.limit_val_batches = 0
+        recipe.model.config.init_model_with_meta_device = True
+        recipe.trainer.strategy.fsdp = "megatron"
+        recipe.trainer.strategy.ddp.data_parallel_sharding_strategy = "optim_grads_params"
+        recipe.trainer.strategy.ddp.average_in_collective = False
+        recipe.trainer.strategy.ddp.keep_fp8_transpose_cache_when_using_custom_fsdp = False
+        recipe.model.config.gradient_accumulation_fusion = False
+
+        cb.defer_embedding_wgrad_compute = False
+        cb.overlap_param_gather_with_optimizer_step = False
+
+        # if disable_tp_commd_overlap:
+        #     cb.tp_comm_overlap = False
+
+    recompute_layers = int(os.getenv("CLOUDAI_RECOMPUTE_LAYERS", "0"))
+    if recompute_layers > 0:
+        recipe.model.config.recompute_granularity = "full"
+        recipe.model.config.recompute_method = "block"
+        recipe.model.config.recompute_num_layers = recompute_layers
+
+    activation_offload_layers = int(os.getenv("CLOUDAI_ACTIVATION_OFFLOAD_LAYERS", "0"))
+    if activation_offload_layers > 0:
+        recipe.model.config.cpu_offloading = True
+        recipe.model.config.cpu_offloading_weights = False
+        recipe.model.config.cpu_offloading_num_layers = activation_offload_layers
+
+    # recipe.trainer.callbacks.append(run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100))
+
+    recipe.model.tokenizer = recipe.data.tokenizer
+    recipe.trainer.strategy.cross_entropy_fusion_impl = "te"
+    recipe.model.config.cross_entropy_fusion_impl = "te"
+
+    if os.getenv("CLOUDAI_GPU_TYPE") in ["b200", "gb200"] and os.getenv("CLOUDAI_GPU_DTYPE") == "fp8":
+        print("Info: use_precision_aware_optimizer is set to False for fp8 on b200/gb200 GPUs.")
+        recipe.optim.config.use_precision_aware_optimizer = False
+
+    recipe.trainer.callbacks[comm_overlap_callback_idx] = cb
+
+    gpu_type = os.getenv("CLOUDAI_GPU_TYPE")
+    gpu_type = gpu_type.lower() if gpu_type else None
+    use_mcore_fsdp = bool(int(os.getenv("CLOUDAI_ENABLE_FSDP", "0")))
+
+    # if use_mcore_fsdp and gpu_type == "gb200":
+    recipe.trainer.strategy.num_distributed_optimizer_instances = 1
+    recipe.log.ckpt = None
+    recipe.log.tensorboard = None
+    recipe.trainer.logger = False
+
+    recipe.trainer.strategy.sequence_parallel = False
+
     return recipe
 
 
@@ -834,7 +891,6 @@ def cloudai_llama3_405b_recipe() -> run.Partial:
             model_name="llama3",
         )
     )
-    recipe.trainer.callbacks.append(run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100))
     recipe.trainer.strategy.account_for_embedding_in_pipeline_split = True
     recipe.trainer.strategy.account_for_loss_in_pipeline_split = True
     recipe.model.tokenizer = recipe.data.tokenizer
