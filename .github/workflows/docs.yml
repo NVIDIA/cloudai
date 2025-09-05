@@ -2,7 +2,7 @@ name: Build and Deploy Documentation
 
 on:
   push:
-    branches: [ am/doc ]
+    branches: [ main ]
   workflow_dispatch:    # Allow manual triggering
 
 # Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
