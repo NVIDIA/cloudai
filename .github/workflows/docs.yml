@@ -5,11 +5,6 @@ on:
     branches: [ am/doc ]
   workflow_dispatch:    # Allow manual triggering
 
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-
 # Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
 # However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
 concurrency:
@@ -55,6 +50,10 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     needs: build
+
+    permissions:
+      pages: write
+      id-token: write
 
     environment:
       name: github-pages
