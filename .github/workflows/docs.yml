@@ -11,7 +11,7 @@ on:
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
-  contents: read
+  contents: write  # Changed to write for direct gh-pages branch deployment
   pages: write
   id-token: write
 
@@ -57,16 +57,34 @@ jobs:
       with:
         path: ./doc/_build/html
 
-  # Deployment job
+  # Deployment job - alternative approach using gh-pages branch
   deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: build
     # Only deploy on am/doc branch pushes, not PRs or other events
     if: github.ref == 'refs/heads/am/doc' && github.event_name == 'push'
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[docs]'
+
+      - name: Build documentation
+        run: |
+          cd doc
+          make html
+
       - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./doc/_build/html
+          force_orphan: true
