@@ -45,6 +45,14 @@ scripts = { cloudai = "cloudai.__main__:main" }
     "pytest-deadfixtures==2.2.*",
     "taplo==0.9.3",
   ]
+  docs = [
+    "sphinx>=7.0",
+    "nvidia-sphinx-theme",
+    "myst-parser",
+    "sphinxext-opengraph",
+    "sphinx-design",
+    "sphinxcontrib-mermaid",
+  ]
 
 [build-system]
 requires = ["pdm-backend"]

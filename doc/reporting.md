@@ -5,7 +5,7 @@ This document describes the reporting system in CloudAI.
 ## Overview
 CloudAI has two reporting levels: per-test (per each case in a test scenario) and per-scenario (per each test scenario). All reports are generated after the test scenario is completed as part of main CloudAI process. For Slurm this means that login node is used to generate reports.
 
-Per-test reports are linked to a particular workload type (e.g. `NcclTest`). All per-test reports are implemented as part of `per_test` scenario report and can be enabled/disabled via single configuration option, see [Enable, disable and configure reports](#enable-disable-and-configure-reports) section.
+Per-test reports are linked to a particular workload type (e.g. `NcclTest`). All per-test reports are implemented as part of `per_test` scenario report and can be enabled/disabled via single configuration option, see [Enable, disable and configure reports](enable-disable-and-configure-reports) section.
 
 To list all available reports, one can use `cloudai list-reports` command. Use verbose output to also print report configurations.
 
@@ -17,6 +17,7 @@ To list all available reports, one can use `cloudai list-reports` command. Use v
 1. Then report is generated (or not) according to this final config.
 
 
+(enable-disable-and-configure-reports)=
 ## Enable, disable and configure reports
 **NOTE** Only scenario-level reports can be configured today.
 
