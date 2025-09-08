@@ -49,7 +49,7 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         commands: list[str] = [
             " ".join(etcd_command),
             "etcd_pid=$!",
-            "sleep 5",
+            " ".join(self.gen_wait_for_etcd_command()),
             *[" ".join(cmd) + " &\nsleep 15" for cmd in nixl_commands[:-1]],
             " ".join(nixl_commands[-1]),
             "kill -9 $etcd_pid",
@@ -57,27 +57,39 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return "\n".join(commands)
 
     def gen_etcd_srun_command(self) -> list[str]:
-        tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, self.test_run.test.test_definition)
-        self._current_image_url = str(tdef.etcd_image.installed_path)
         etcd_cmd = [
-            "/usr/local/bin/etcd",
-            "--listen-client-urls",
-            "http://0.0.0.0:2379",
-            "--advertise-client-urls",
-            "http://$(hostname -I | awk '{print $1}'):2379",
+            "etcd",
+            "--listen-client-urls=http://0.0.0.0:2379",
+            "--advertise-client-urls=http://$SLURM_JOB_MASTER_NODE:2379",
+            "--listen-peer-urls=http://0.0.0.0:2380",
+            "--initial-advertise-peer-urls=http://$SLURM_JOB_MASTER_NODE:2380",
+            '--initial-cluster="default=http://$SLURM_JOB_MASTER_NODE:2380"',
+            "--initial-cluster-state=new",
         ]
         cmd = [
             *self.gen_srun_prefix(),
+            f"--output={self.test_run.output_path.absolute() / 'etcd.log'}",
             "--overlap",
             "--ntasks-per-node=1",
             "--ntasks=1",
             "--nodelist=$SLURM_JOB_MASTER_NODE",
             "-N1",
+            *etcd_cmd,
+            " &",
+        ]
+        return cmd
+
+    def gen_wait_for_etcd_command(self, timeout: int = 60) -> list[str]:
+        cmd = [
+            "timeout",
+            str(timeout),
             "bash",
             "-c",
-            f'"{" ".join(etcd_cmd)}" &',
+            '"until curl -s $NIXL_ETCD_ENDPOINTS/health > /dev/null 2>&1; do sleep 1; done" || {\n',
+            f'  echo "ETCD ($NIXL_ETCD_ENDPOINTS) was unreachable after {timeout} seconds";\n',
+            "  exit 1\n",
+            "}",
         ]
-        self._current_image_url = None
         return cmd
 
     def gen_nixlbench_command(self) -> list[str]:
