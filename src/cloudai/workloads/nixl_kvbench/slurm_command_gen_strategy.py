@@ -52,9 +52,11 @@ class NIXLKVBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
 
         final_cmd: list[str] = [
             " ".join(etcd_command),
+            "etcd_pid=$!",
             " ".join(self.gen_wait_for_etcd_command(self.tdef.cmd_args.wait_etcd_for)),
             *[" ".join(cmd) + " &\nsleep 15" for cmd in kvbench_commands[:-1]],
             " ".join(kvbench_commands[-1]),
+            "kill -9 $etcd_pid",
         ]
         return "\n".join(final_cmd)
 

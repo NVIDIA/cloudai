@@ -50,11 +50,12 @@ class NixlPerftestSlurmCommandGenStrategy(NIXLCmdGenBase):
         perftest_command: list[str] = self.gen_perftest_srun_command()
         return "\n".join(
             [
-                "echo SLURM_JOB_MASTER_NODE=$SLURM_JOB_MASTER_NODE",
                 " ".join(matrix_gen_command),
                 " ".join(etcd_command),
+                "etcd_pid=$!",
                 " ".join(self.gen_wait_for_etcd_command(self.tdef.cmd_args.wait_etcd_for)),
                 " ".join(perftest_command),
+                "kill -9 $etcd_pid",
             ]
         )
 
