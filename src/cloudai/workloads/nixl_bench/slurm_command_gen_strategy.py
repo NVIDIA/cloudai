@@ -68,6 +68,8 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return "\n".join(commands)
 
     def gen_etcd_srun_command(self) -> list[str]:
+        tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, self.test_run.test.test_definition)
+        self._current_image_url = str(tdef.docker_image.installed_path)
         etcd_cmd = [
             "etcd",
             "--listen-client-urls=http://0.0.0.0:2379",
@@ -88,6 +90,7 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             *etcd_cmd,
             " &",
         ]
+        self._current_image_url = None
         return cmd
 
     def gen_wait_for_etcd_command(self, timeout: int = 60) -> list[str]:
