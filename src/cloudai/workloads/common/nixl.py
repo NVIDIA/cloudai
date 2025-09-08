@@ -13,9 +13,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
 
+import logging
+from functools import cache
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
+from cloudai.util.lazy_imports import lazy
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 class NIXLCmdGenBase(SlurmCommandGenStrategy):
@@ -101,3 +110,32 @@ class NIXLCmdGenBase(SlurmCommandGenStrategy):
                 if key == "SLURM_JOB_MASTER_NODE":  # this is an sbatch-level variable, not needed per-node
                     continue
                 f.write(f"export {key}={value}\n")
+
+
+@cache
+def extract_nixlbench_data(stdout_file: Path) -> pd.DataFrame:
+    if not stdout_file.exists():
+        logging.debug(f"{stdout_file} not found")
+        return lazy.pd.DataFrame()
+
+    header_present, data = False, []
+    for line in stdout_file.read_text().splitlines():
+        if not header_present and (
+            "Block Size (B)      Batch Size     " in line and "Avg Lat. (us)" in line and "B/W (GB/Sec)" in line
+        ):
+            header_present = True
+            continue
+        parts = line.split()
+        if header_present and (len(parts) == 6 or len(parts) == 10):
+            if len(parts) == 6:
+                data.append([parts[0], parts[1], parts[2], parts[-1]])
+            else:
+                data.append([parts[0], parts[1], parts[3], parts[2]])
+
+    df = lazy.pd.DataFrame(data, columns=["block_size", "batch_size", "avg_lat", "bw_gb_sec"])
+    df["block_size"] = df["block_size"].astype(int)
+    df["batch_size"] = df["batch_size"].astype(int)
+    df["avg_lat"] = df["avg_lat"].astype(float)
+    df["bw_gb_sec"] = df["bw_gb_sec"].astype(float)
+
+    return df
