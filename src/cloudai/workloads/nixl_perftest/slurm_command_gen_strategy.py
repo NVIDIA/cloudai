@@ -119,11 +119,7 @@ class NixlPerftestSlurmCommandGenStrategy(NIXLCmdGenBase):
         return cmd
 
     def gen_perftest_srun_command(self) -> list[str]:
-        with (self.test_run.output_path / "env_vars.sh").open("w") as f:
-            for key, value in self.final_env_vars.items():
-                if key in {"NIXL_ETCD_ENDPOINTS", "NIXL_ETCD_NAMESPACE"}:
-                    continue
-                f.write(f"export {key}={value}\n")
+        self.create_env_vars_file()
 
         cmd = [
             *self.gen_srun_prefix(),

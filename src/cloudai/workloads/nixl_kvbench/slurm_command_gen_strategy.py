@@ -48,11 +48,7 @@ class NIXLKVBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
         )
         self._current_image_url = None
 
-        with (self.test_run.output_path / "env_vars.sh").open("w") as f:
-            for key, value in self.final_env_vars.items():
-                if key in {"NIXL_ETCD_ENDPOINTS", "NIXL_ETCD_NAMESPACE"}:
-                    continue
-                f.write(f"export {key}={value}\n")
+        self.create_env_vars_file()
 
         final_cmd: list[str] = [
             " ".join(etcd_command),
