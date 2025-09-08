@@ -71,8 +71,8 @@ class TestNIXLBenchCommand:
 
 def test_gen_etcd_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
     strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
-    cmd = " ".join(strategy.gen_etcd_srun_command())
     tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, nixl_bench_tr.test.test_definition)
+    cmd = " ".join(strategy.gen_etcd_srun_command(tdef.cmd_args.etcd_path))
     assert (
         f"{tdef.cmd_args.etcd_path} --listen-client-urls=http://0.0.0.0:2379 --advertise-client-urls=http://$SLURM_JOB_MASTER_NODE:2379"
         " --listen-peer-urls=http://0.0.0.0:2380 --initial-advertise-peer-urls=http://$SLURM_JOB_MASTER_NODE:2380"
@@ -80,13 +80,18 @@ def test_gen_etcd_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem
     ) in cmd
 
     tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, nixl_bench_tr.test.test_definition)
-    assert f"--container-image={tdef.docker_image.installed_path}" in cmd
-    assert "--container-mounts" in cmd
     assert "--overlap" in cmd
     assert "--ntasks-per-node=1" in cmd
     assert "--ntasks=1" in cmd
     assert "--nodelist=$SLURM_JOB_MASTER_NODE" in cmd
     assert "-N1" in cmd
+    assert "--container-image=" not in cmd
+    assert "--container-mounts" not in cmd
+
+    strategy._current_image_url = str(tdef.docker_image.installed_path)
+    cmd = " ".join(strategy.gen_etcd_srun_command(tdef.cmd_args.etcd_path))
+    assert f"--container-image={tdef.docker_image.installed_path}" in cmd
+    assert "--container-mounts" in cmd
 
 
 @pytest.mark.parametrize(

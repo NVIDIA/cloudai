@@ -17,12 +17,13 @@
 from typing import cast
 
 from cloudai.core import TestRun
-from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmSystem
+from cloudai.systems.slurm import SlurmSystem
+from cloudai.workloads.common.nixl import NIXLCmdGenBase
 
 from .nixl_bench import NIXLBenchTestDefinition
 
 
-class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
+class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
     """Command generation strategy for NIXL Bench tests."""
 
     def __init__(self, system: SlurmSystem, test_run: TestRun) -> None:
@@ -30,22 +31,15 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         self._current_image_url: str | None = None
 
-    @property
-    def final_env_vars(self) -> dict[str, str | list[str]]:
-        env_vars = super().final_env_vars
-        env_vars["NIXL_ETCD_NAMESPACE"] = "/nixl/kvbench/$(uuidgen)"
-        env_vars["NIXL_ETCD_ENDPOINTS"] = '"$SLURM_JOB_MASTER_NODE:2379"'
-        return env_vars
-
-    @final_env_vars.setter
-    def final_env_vars(self, value: dict[str, str | list[str]]) -> None:
-        super().final_env_vars = value
-
     def image_path(self) -> str | None:
         return self._current_image_url
 
     def _container_mounts(self) -> list[str]:
         return []
+
+    @property
+    def tdef(self) -> NIXLBenchTestDefinition:
+        return cast(NIXLBenchTestDefinition, self.test_run.test.test_definition)
 
     def _gen_srun_command(self) -> str:
         with (self.test_run.output_path / "env_vars.sh").open("w") as f:
@@ -54,7 +48,9 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     continue
                 f.write(f"export {key}={value}\n")
 
-        etcd_command: list[str] = self.gen_etcd_srun_command()
+        self._current_image_url = str(self.tdef.docker_image.installed_path)
+        etcd_command: list[str] = self.gen_etcd_srun_command(self.tdef.cmd_args.etcd_path)
+        self._current_image_url = None
         nixl_commands = self.gen_nixl_srun_commands()
 
         commands: list[str] = [
@@ -66,45 +62,6 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "kill -9 $etcd_pid",
         ]
         return "\n".join(commands)
-
-    def gen_etcd_srun_command(self) -> list[str]:
-        tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, self.test_run.test.test_definition)
-        self._current_image_url = str(tdef.docker_image.installed_path)
-        etcd_cmd = [
-            f"{tdef.cmd_args.etcd_path}",
-            "--listen-client-urls=http://0.0.0.0:2379",
-            "--advertise-client-urls=http://$SLURM_JOB_MASTER_NODE:2379",
-            "--listen-peer-urls=http://0.0.0.0:2380",
-            "--initial-advertise-peer-urls=http://$SLURM_JOB_MASTER_NODE:2380",
-            '--initial-cluster="default=http://$SLURM_JOB_MASTER_NODE:2380"',
-            "--initial-cluster-state=new",
-        ]
-        cmd = [
-            *self.gen_srun_prefix(),
-            f"--output={self.test_run.output_path.absolute() / 'etcd.log'}",
-            "--overlap",
-            "--ntasks-per-node=1",
-            "--ntasks=1",
-            "--nodelist=$SLURM_JOB_MASTER_NODE",
-            "-N1",
-            *etcd_cmd,
-            " &",
-        ]
-        self._current_image_url = None
-        return cmd
-
-    def gen_wait_for_etcd_command(self, timeout: int = 60) -> list[str]:
-        cmd = [
-            "timeout",
-            str(timeout),
-            "bash",
-            "-c",
-            '"until curl -s $NIXL_ETCD_ENDPOINTS/health > /dev/null 2>&1; do sleep 1; done" || {\n',
-            f'  echo "ETCD ($NIXL_ETCD_ENDPOINTS) was unreachable after {timeout} seconds";\n',
-            "  exit 1\n",
-            "}",
-        ]
-        return cmd
 
     def gen_nixlbench_command(self) -> list[str]:
         tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, self.test_run.test.test_definition)
