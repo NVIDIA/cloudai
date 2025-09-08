@@ -20,8 +20,8 @@ import pytest
 
 from cloudai.core import Test, TestRun, TestTemplate
 from cloudai.systems.slurm import SlurmSystem
+from cloudai.workloads.common.nixl import extract_nixlbench_data
 from cloudai.workloads.nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
-from cloudai.workloads.nixl_bench.nixl_bench import extract_nixl_data
 
 LEGACY_FORMAT = """
 Block Size (B)      Batch Size     Avg Lat. (us)  B/W (MiB/Sec)  B/W (GiB/Sec)  B/W (GB/Sec)
@@ -49,12 +49,7 @@ def nixl_tr(tmp_path: Path, slurm_system: SlurmSystem) -> TestRun:
             name="nixl",
             description="desc",
             test_template_name="t",
-            cmd_args=NIXLBenchCmdArgs(
-                docker_image_url="fake://url/nixl",
-                etcd_endpoint="fake://url/etcd",
-                path_to_benchmark="fake://url/nixl_bench",
-            ),
-            etcd_image_url="fake://url/etcd",
+            cmd_args=NIXLBenchCmdArgs(docker_image_url="fake://url/nixl", path_to_benchmark="fake://url/nixl_bench"),
         ),
         test_template=TestTemplate(system=slurm_system),
     )
@@ -72,7 +67,7 @@ def nixl_tr(tmp_path: Path, slurm_system: SlurmSystem) -> TestRun:
 )
 def test_nixl_bench_report_parsing(tmp_path: Path, sample: str, exp_latency: list[float], exp_bw: list[float]):
     (tmp_path / "nixl_bench.log").write_text(sample)
-    df = extract_nixl_data(tmp_path / "nixl_bench.log")
+    df = extract_nixlbench_data(tmp_path / "nixl_bench.log")
     assert df.shape == (4, 4)
     assert df["block_size"].tolist() == [4096, 8192, 33554432, 67108864]
     assert df["batch_size"].tolist() == [1, 1, 1, 1]

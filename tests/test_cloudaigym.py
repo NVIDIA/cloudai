@@ -290,14 +290,11 @@ def test_apply_params_set__preserves_installables_state(setup_env: tuple[TestRun
         name="NIXLBench",
         description="NIXL Bench",
         test_template_name="NIXLBench",
-        etcd_image_url="https://etcd/image/url",
         cmd_args=NIXLBenchCmdArgs(
             docker_image_url="https://docker/url",
-            etcd_endpoint="https://etcd/endpoint",
             path_to_benchmark="https://benchmark/path",
         ),
     )
-    tr.test.test_definition.etcd_image.installed_path = tmp_path
     tr.test.test_definition.docker_image.installed_path = tmp_path
 
     new_tr = tr.apply_params_set({"backend": "VRAM"})
@@ -305,4 +302,3 @@ def test_apply_params_set__preserves_installables_state(setup_env: tuple[TestRun
     upd_tdef = cast(NIXLBenchTestDefinition, new_tr.test.test_definition)
 
     assert upd_tdef.docker_image.installed_path == tmp_path
-    assert upd_tdef.etcd_image.installed_path == tmp_path
