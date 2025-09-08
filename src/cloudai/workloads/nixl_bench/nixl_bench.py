@@ -33,17 +33,16 @@ class NIXLBenchCmdArgs(CmdArgs):
     """Command line arguments for a NIXL Bench test."""
 
     docker_image_url: str
-    etcd_endpoint: str
     path_to_benchmark: str
+    etcd_path: str = "etcd"
+    etcd_endpoints: str = "http://$NIXL_ETCD_ENDPOINTS"
 
 
 class NIXLBenchTestDefinition(TestDefinition):
     """Test definition for a NIXL Bench test."""
 
     cmd_args: NIXLBenchCmdArgs
-    etcd_image_url: str
     _nixl_image: Optional[DockerImage] = None
-    _etcd_image: Optional[DockerImage] = None
 
     @property
     def docker_image(self) -> DockerImage:
@@ -52,14 +51,12 @@ class NIXLBenchTestDefinition(TestDefinition):
         return self._nixl_image
 
     @property
-    def etcd_image(self) -> DockerImage:
-        if not self._etcd_image:
-            self._etcd_image = DockerImage(url=self.etcd_image_url)
-        return self._etcd_image
+    def installables(self) -> list[Installable]:
+        return [self.docker_image, *self.git_repos]
 
     @property
-    def installables(self) -> list[Installable]:
-        return [self.docker_image, *self.git_repos, self.etcd_image]
+    def cmd_args_dict(self) -> dict[str, str | list[str]]:
+        return self.cmd_args.model_dump(exclude={"docker_image_url", "path_to_benchmark", "cmd_args", "etcd_path"})
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         df = extract_nixl_data(tr.output_path / "stdout.txt")

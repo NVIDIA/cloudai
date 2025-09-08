@@ -71,7 +71,7 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, self.test_run.test.test_definition)
         self._current_image_url = str(tdef.docker_image.installed_path)
         etcd_cmd = [
-            "etcd",
+            f"{tdef.cmd_args.etcd_path}",
             "--listen-client-urls=http://0.0.0.0:2379",
             "--advertise-client-urls=http://$SLURM_JOB_MASTER_NODE:2379",
             "--listen-peer-urls=http://0.0.0.0:2380",
@@ -108,12 +108,11 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def gen_nixlbench_command(self) -> list[str]:
         tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, self.test_run.test.test_definition)
-        cmd = [tdef.cmd_args.path_to_benchmark, f"--etcd-endpoints {tdef.cmd_args.etcd_endpoint}"]
+        cmd = [tdef.cmd_args.path_to_benchmark]
 
-        other_args = tdef.cmd_args.model_dump(
-            exclude={"docker_image_url", "etcd_endpoint", "path_to_benchmark", "cmd_args"}
-        )
-        for k, v in other_args.items():
+        for k, v in tdef.cmd_args_dict.items():
+            if k == "etcd_endpoints":
+                k = "etcd-endpoints"
             cmd.append(f"--{k} {v}")
 
         return cmd

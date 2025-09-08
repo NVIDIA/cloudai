@@ -49,12 +49,7 @@ def nixl_tr(tmp_path: Path, slurm_system: SlurmSystem) -> TestRun:
             name="nixl",
             description="desc",
             test_template_name="t",
-            cmd_args=NIXLBenchCmdArgs(
-                docker_image_url="fake://url/nixl",
-                etcd_endpoint="fake://url/etcd",
-                path_to_benchmark="fake://url/nixl_bench",
-            ),
-            etcd_image_url="fake://url/etcd",
+            cmd_args=NIXLBenchCmdArgs(docker_image_url="fake://url/nixl", path_to_benchmark="fake://url/nixl_bench"),
         ),
         test_template=TestTemplate(system=slurm_system),
     )

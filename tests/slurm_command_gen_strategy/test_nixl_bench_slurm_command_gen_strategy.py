@@ -33,11 +33,8 @@ def nixl_bench_tr(slurm_system: SlurmSystem) -> TestRun:
         test=Test(
             test_template=TestTemplate(slurm_system),
             test_definition=NIXLBenchTestDefinition(
-                etcd_image_url="docker.io/library/etcd:3.5.1",
                 cmd_args=NIXLBenchCmdArgs(
-                    docker_image_url="docker.io/library/ubuntu:22.04",
-                    etcd_endpoint="http://127.0.0.1:2379",
-                    path_to_benchmark="./nixlbench",
+                    docker_image_url="docker.io/library/ubuntu:22.04", path_to_benchmark="./nixlbench"
                 ),
                 name="nixl-bench",
                 description="NIXL Bench",
@@ -51,14 +48,14 @@ class TestNIXLBenchCommand:
     def test_default(self, nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
         strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
         cmd = strategy.gen_nixlbench_command()
-        assert cmd == ["./nixlbench", "--etcd-endpoints http://127.0.0.1:2379"]
+        tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, nixl_bench_tr.test.test_definition)
+        assert cmd == ["./nixlbench", f"--etcd-endpoints {tdef.cmd_args.etcd_endpoints}"]
 
     def test_can_set_any_cmd_arg(self, nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
         in_args = {"backend": "MPI", "dashed-opt": "DRAM", "under_score_opt": "VRAM"}
         cmd_args = NIXLBenchCmdArgs.model_validate(
             {
                 "docker_image_url": "docker.io/library/ubuntu:22.04",
-                "etcd_endpoint": "http://127.0.0.1:2379",
                 "path_to_benchmark": "/p",
                 **in_args,
             }
@@ -75,13 +72,15 @@ class TestNIXLBenchCommand:
 def test_gen_etcd_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
     strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
     cmd = " ".join(strategy.gen_etcd_srun_command())
+    tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, nixl_bench_tr.test.test_definition)
     assert (
-        "/usr/local/bin/etcd --listen-client-urls http://0.0.0.0:2379 "
-        "--advertise-client-urls http://$(hostname -I | awk '{print $1}'):2379"
+        f"{tdef.cmd_args.etcd_path} --listen-client-urls=http://0.0.0.0:2379 --advertise-client-urls=http://$SLURM_JOB_MASTER_NODE:2379"
+        " --listen-peer-urls=http://0.0.0.0:2380 --initial-advertise-peer-urls=http://$SLURM_JOB_MASTER_NODE:2380"
+        ' --initial-cluster="default=http://$SLURM_JOB_MASTER_NODE:2380"'
     ) in cmd
 
     tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, nixl_bench_tr.test.test_definition)
-    assert f"--container-image={tdef.etcd_image.installed_path}" in cmd
+    assert f"--container-image={tdef.docker_image.installed_path}" in cmd
     assert "--container-mounts" in cmd
     assert "--overlap" in cmd
     assert "--ntasks-per-node=1" in cmd
@@ -127,5 +126,14 @@ def test_gen_nixl_srun_command(
 
 def test_gen_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
     strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
-    cmd = strategy._gen_srun_command()
-    assert "sleep 5" in cmd
+    cmd = strategy.gen_wait_for_etcd_command()
+    assert cmd == [
+        "timeout",
+        "60",
+        "bash",
+        "-c",
+        '"until curl -s $NIXL_ETCD_ENDPOINTS/health > /dev/null 2>&1; do sleep 1; done" || {\n',
+        '  echo "ETCD ($NIXL_ETCD_ENDPOINTS) was unreachable after 60 seconds";\n',
+        "  exit 1\n",
+        "}",
+    ]

@@ -9,15 +9,19 @@
 #SBATCH --gres=gpu:8
 
 export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
-
+export NIXL_ETCD_NAMESPACE=/nixl/kvbench/$(uuidgen)
+export NIXL_ETCD_ENDPOINTS="$SLURM_JOB_MASTER_NODE:2379"
 srun --export=ALL --mpi=pmix --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
 
 srun --export=ALL --mpi=pmix --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash __INSTALL_DIR__/slurm-metadata.sh
 
-srun --export=ALL --mpi=pmix --container-image=url.com/docker:1 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output --overlap --ntasks-per-node=1 --ntasks=1 --nodelist=$SLURM_JOB_MASTER_NODE -N1 bash -c "/usr/local/bin/etcd --listen-client-urls http://0.0.0.0:2379 --advertise-client-urls http://$(hostname -I | awk '{print $1}'):2379" &
+srun --export=ALL --mpi=pmix --container-image=url.com/docker:2 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --output=__OUTPUT_DIR__/output/etcd.log --overlap --ntasks-per-node=1 --ntasks=1 --nodelist=$SLURM_JOB_MASTER_NODE -N1 etcd --listen-client-urls=http://0.0.0.0:2379 --advertise-client-urls=http://$SLURM_JOB_MASTER_NODE:2379 --listen-peer-urls=http://0.0.0.0:2380 --initial-advertise-peer-urls=http://$SLURM_JOB_MASTER_NODE:2380 --initial-cluster="default=http://$SLURM_JOB_MASTER_NODE:2380" --initial-cluster-state=new  &
 etcd_pid=$!
-sleep 5
-srun --export=ALL --mpi=pmix --container-image=url.com/docker:2 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output --overlap --relative=0 --ntasks-per-node=1 --ntasks=1 -N1 bash -c "source __OUTPUT_DIR__/output/env_vars.sh; ./nixlbench --etcd-endpoints http://$SLURM_JOB_MASTER_NODE:2379 --backend UCX" &
+timeout 60 bash -c "until curl -s $NIXL_ETCD_ENDPOINTS/health > /dev/null 2>&1; do sleep 1; done" || {
+   echo "ETCD ($NIXL_ETCD_ENDPOINTS) was unreachable after 60 seconds";
+   exit 1
+ }
+srun --export=ALL --mpi=pmix --container-image=url.com/docker:2 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output --overlap --relative=0 --ntasks-per-node=1 --ntasks=1 -N1 bash -c "source __OUTPUT_DIR__/output/env_vars.sh; ./nixlbench --etcd-endpoints http://$NIXL_ETCD_ENDPOINTS --backend UCX" &
 sleep 15
-srun --export=ALL --mpi=pmix --container-image=url.com/docker:2 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output --overlap --relative=1 --ntasks-per-node=1 --ntasks=1 -N1 bash -c "source __OUTPUT_DIR__/output/env_vars.sh; ./nixlbench --etcd-endpoints http://$SLURM_JOB_MASTER_NODE:2379 --backend UCX"
+srun --export=ALL --mpi=pmix --container-image=url.com/docker:2 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output --overlap --relative=1 --ntasks-per-node=1 --ntasks=1 -N1 bash -c "source __OUTPUT_DIR__/output/env_vars.sh; ./nixlbench --etcd-endpoints http://$NIXL_ETCD_ENDPOINTS --backend UCX"
 kill -9 $etcd_pid
