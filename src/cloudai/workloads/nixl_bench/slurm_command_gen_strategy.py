@@ -30,6 +30,17 @@ class NIXLBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         self._current_image_url: str | None = None
 
+    @property
+    def final_env_vars(self) -> dict[str, str | list[str]]:
+        env_vars = super().final_env_vars
+        env_vars["NIXL_ETCD_NAMESPACE"] = "/nixl/kvbench/$(uuidgen)"
+        env_vars["NIXL_ETCD_ENDPOINTS"] = '"$SLURM_JOB_MASTER_NODE:2379"'
+        return env_vars
+
+    @final_env_vars.setter
+    def final_env_vars(self, value: dict[str, str | list[str]]) -> None:
+        super().final_env_vars = value
+
     def image_path(self) -> str | None:
         return self._current_image_url
 
