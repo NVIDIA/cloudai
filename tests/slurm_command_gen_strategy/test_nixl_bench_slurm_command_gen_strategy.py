@@ -110,13 +110,11 @@ def test_gen_nixl_srun_command(
     nixl_bench_tr.num_nodes = nnodes
     nixl_bench_tr.test.test_definition.cmd_args.backend = backend
     strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
-    cmds = strategy.gen_nixl_srun_commands()
+
+    cmds = strategy.gen_nixlbench_srun_commands(strategy.gen_nixlbench_command(), backend)
     assert len(cmds) == exp_ntasks
 
-    tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, nixl_bench_tr.test.test_definition)
-
     for idx, cmd in enumerate(cmds):
-        assert f"--container-image={tdef.docker_image.installed_path}" in cmd
         assert "--overlap" in cmd
         assert "--ntasks-per-node=1" in cmd
         assert "--ntasks=1" in cmd

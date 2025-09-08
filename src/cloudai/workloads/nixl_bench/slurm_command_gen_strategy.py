@@ -50,8 +50,10 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
 
         self._current_image_url = str(self.tdef.docker_image.installed_path)
         etcd_command: list[str] = self.gen_etcd_srun_command(self.tdef.cmd_args.etcd_path)
+        nixl_commands = self.gen_nixlbench_srun_commands(
+            self.gen_nixlbench_command(), str(self.tdef.cmd_args_dict.get("backend", "unset"))
+        )
         self._current_image_url = None
-        nixl_commands = self.gen_nixl_srun_commands()
 
         commands: list[str] = [
             " ".join(etcd_command),
@@ -73,33 +75,3 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
             cmd.append(f"--{k} {v}")
 
         return cmd
-
-    def gen_nixl_srun_commands(self) -> list[list[str]]:
-        tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, self.test_run.test.test_definition)
-        self._current_image_url = str(tdef.docker_image.installed_path)
-        prefix_part = self.gen_srun_prefix()
-        self._current_image_url = None
-
-        bash_part = [
-            "bash",
-            "-c",
-            f'"source {(self.test_run.output_path / "env_vars.sh").absolute()}; '
-            f'{" ".join(self.gen_nixlbench_command())}"',
-        ]
-        tpn_part = ["--ntasks-per-node=1", "--ntasks=1", "-N1"]
-
-        cmds = [
-            [*prefix_part, "--overlap", "--nodelist=$SLURM_JOB_MASTER_NODE", *tpn_part, *bash_part],
-        ]
-
-        backend = str(tdef.cmd_args_dict.get("backend", "unset")).upper()
-        if backend == "UCX":
-            nnodes, _ = self.get_cached_nodes_spec()
-            if nnodes > 1:
-                cmds = [
-                    [*prefix_part, "--overlap", f"--relative={idx}", *tpn_part, *bash_part] for idx in range(nnodes)
-                ]
-            else:
-                cmds *= max(2, nnodes)
-
-        return cmds
