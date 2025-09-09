@@ -18,7 +18,7 @@ jobs:
         uses: actions/setup-python@v5
 
       - name: Install dependencies
-        run: pip install '.[dev]'
+        run: pip install '.[dev,docs]'
 
       - name: Run ruff linter
         run: ruff check
@@ -41,6 +41,14 @@ jobs:
           set -o pipefail
 
           taplo fmt --check --diff
+
+      - name: Build documentation
+        run: |
+          set -eE
+          set -o pipefail
+
+          cd doc
+          make html
 
   test:
     name: Run pytest
