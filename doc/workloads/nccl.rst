@@ -1,5 +1,5 @@
-NCCL benchmarks Workload
-========================
+NCCL
+====
 
 This workload (`test_template_name` is ``NcclTest``) allows you to execute NCCL benchmarks within the CloudAI framework.
 

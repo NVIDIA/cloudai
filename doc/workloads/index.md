@@ -8,8 +8,16 @@ This section contains automatically generated documentation for all CloudAI work
 :maxdepth: 1
 :caption: Workloads:
 
+ai_dynamo
 bash_cmd
+chakra_replay
 nccl
+nemo_run
+nixl_bench
+nixl_kvbench
+nixl_perftest
+sleep
+slurm_container
 ```
 
 ## Adding New Workloads

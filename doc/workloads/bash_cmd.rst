@@ -1,5 +1,5 @@
-Bash Command Workload
-======================
+Bash Command
+============
 
 This workload (`test_template_name` is ``BashCmd``) allows you to execute arbitrary bash commands within the CloudAI framework. This is useful for simple scripts, custom testing commands, or integrating external tools.
 
