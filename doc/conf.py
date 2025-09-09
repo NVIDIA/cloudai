@@ -4,8 +4,8 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 import os
-import sys
 import re
+import sys
 
 # Add the project source to Python path for autodoc
 sys.path.insert(0, os.path.abspath("../src"))
@@ -14,7 +14,6 @@ sys.path.insert(0, os.path.abspath("../src"))
 # Custom autodoc processing to clean up Pydantic classes
 def autodoc_skip_member(app, what, name, obj, skip, options):
     """Skip unwanted Pydantic and other internal members."""
-
     exclude_patterns = {re.compile(r"model_.*")}
 
     if any(pattern.match(name) for pattern in exclude_patterns):
@@ -61,7 +60,6 @@ autodoc_default_options = {
     "member-order": "bysource",
     "special-members": "__init__",
     "undoc-members": False,  # Don't show undocumented members
-    "exclude-members": "__weakref__,model_config,model_fields,model_computed_fields,model_extra,model_fields_set,model_rebuild,model_copy,model_dump,model_dump_json,model_json_schema,model_validate,model_validate_json,model_validate_strings,copy,dict,json,parse_obj,parse_raw,parse_file,schema,schema_json,update_forward_refs,construct,from_orm,validate",
 }
 
 # Generate autosummary even if no references
