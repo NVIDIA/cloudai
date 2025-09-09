@@ -172,4 +172,5 @@ For more detailed instructions and guidance, including advanced usage and troubl
 DEV
 ai_dynamo
 reporting
+workloads/index
 ```

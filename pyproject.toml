@@ -52,6 +52,7 @@ scripts = { cloudai = "cloudai.__main__:main" }
     "sphinxext-opengraph",
     "sphinx-design",
     "sphinxcontrib-mermaid",
+    "sphinx-copybutton>=0.5.2",
   ]
 
 [build-system]
