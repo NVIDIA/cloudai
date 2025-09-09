@@ -50,6 +50,7 @@ extensions = [
     "sphinx.ext.autosummary",
     "myst_parser",
     "sphinxcontrib.mermaid",
+    "sphinx_copybutton",
 ]
 
 exclude_patterns = ["_build"]
