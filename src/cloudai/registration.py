@@ -50,14 +50,6 @@ def register_all():
         ChakraReplaySlurmCommandGenStrategy,
         ChakraReplayTestDefinition,
     )
-    from cloudai.workloads.jax_toolbox import (
-        GPTTestDefinition,
-        GrokTestDefinition,
-        JaxToolboxGradingStrategy,
-        JaxToolboxReportGenerationStrategy,
-        JaxToolboxSlurmCommandGenStrategy,
-        NemotronTestDefinition,
-    )
     from cloudai.workloads.megatron_run import (
         CheckpointTimingReportGenerationStrategy,
         MegatronRunSlurmCommandGenStrategy,
@@ -143,16 +135,7 @@ def register_all():
     Registry().add_command_gen_strategy(SlurmSystem, NIXLBenchTestDefinition, NIXLBenchSlurmCommandGenStrategy)
 
     Registry().add_strategy(GradingStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherGradingStrategy)
-    Registry().add_strategy(
-        GradingStrategy,
-        [SlurmSystem],
-        [GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition],
-        JaxToolboxGradingStrategy,
-    )
     Registry().add_strategy(GradingStrategy, [SlurmSystem], [UCCTestDefinition], UCCTestGradingStrategy)
-    Registry().add_command_gen_strategy(SlurmSystem, GPTTestDefinition, JaxToolboxSlurmCommandGenStrategy)
-    Registry().add_command_gen_strategy(SlurmSystem, GrokTestDefinition, JaxToolboxSlurmCommandGenStrategy)
-    Registry().add_command_gen_strategy(SlurmSystem, NemotronTestDefinition, JaxToolboxSlurmCommandGenStrategy)
 
     Registry().add_command_gen_strategy(SlurmSystem, UCCTestDefinition, UCCTestSlurmCommandGenStrategy)
 
@@ -186,9 +169,6 @@ def register_all():
     Registry().add_test_definition("Sleep", SleepTestDefinition)
     Registry().add_test_definition("NeMoLauncher", NeMoLauncherTestDefinition)
     Registry().add_test_definition("NeMoRun", NeMoRunTestDefinition)
-    Registry().add_test_definition("JaxToolboxGPT", GPTTestDefinition)
-    Registry().add_test_definition("JaxToolboxGrok", GrokTestDefinition)
-    Registry().add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)
     Registry().add_test_definition("SlurmContainer", SlurmContainerTestDefinition)
     Registry().add_test_definition("MegatronRun", MegatronRunTestDefinition)
     Registry().add_test_definition("TritonInference", TritonInferenceTestDefinition)
@@ -201,14 +181,11 @@ def register_all():
     Registry().add_agent("grid_search", GridSearchAgent)
 
     Registry().add_report(ChakraReplayTestDefinition, ChakraReplayReportGenerationStrategy)
-    Registry().add_report(GPTTestDefinition, JaxToolboxReportGenerationStrategy)
-    Registry().add_report(GrokTestDefinition, JaxToolboxReportGenerationStrategy)
     Registry().add_report(MegatronRunTestDefinition, CheckpointTimingReportGenerationStrategy)
     Registry().add_report(NCCLTestDefinition, NcclTestPerformanceReportGenerationStrategy)
     Registry().add_report(NeMoLauncherTestDefinition, NeMoLauncherReportGenerationStrategy)
     Registry().add_report(NeMoRunTestDefinition, NeMoRunReportGenerationStrategy)
     Registry().add_report(NeMoRunTestDefinition, NeMoRunDataStoreReportGenerationStrategy)
-    Registry().add_report(NemotronTestDefinition, JaxToolboxReportGenerationStrategy)
     Registry().add_report(UCCTestDefinition, UCCTestReportGenerationStrategy)
     Registry().add_report(TritonInferenceTestDefinition, TritonInferenceReportGenerationStrategy)
     Registry().add_report(NIXLBenchTestDefinition, NIXLBenchReportGenerationStrategy)

@@ -32,13 +32,6 @@ from cloudai.workloads.chakra_replay import (
     ChakraReplaySlurmCommandGenStrategy,
     ChakraReplayTestDefinition,
 )
-from cloudai.workloads.jax_toolbox import (
-    GPTTestDefinition,
-    GrokTestDefinition,
-    JaxToolboxGradingStrategy,
-    JaxToolboxSlurmCommandGenStrategy,
-    NemotronTestDefinition,
-)
 from cloudai.workloads.megatron_run import MegatronRunSlurmCommandGenStrategy, MegatronRunTestDefinition
 from cloudai.workloads.nccl_test import (
     NcclComparisonReport,
@@ -106,12 +99,9 @@ def test_runners():
 
 CMD_GEN_STRATEGIES = {
     (SlurmSystem, ChakraReplayTestDefinition): ChakraReplaySlurmCommandGenStrategy,
-    (SlurmSystem, GPTTestDefinition): JaxToolboxSlurmCommandGenStrategy,
-    (SlurmSystem, GrokTestDefinition): JaxToolboxSlurmCommandGenStrategy,
     (SlurmSystem, NCCLTestDefinition): NcclTestSlurmCommandGenStrategy,
     (SlurmSystem, NeMoLauncherTestDefinition): NeMoLauncherSlurmCommandGenStrategy,
     (SlurmSystem, NeMoRunTestDefinition): NeMoRunSlurmCommandGenStrategy,
-    (SlurmSystem, NemotronTestDefinition): JaxToolboxSlurmCommandGenStrategy,
     (SlurmSystem, SleepTestDefinition): SleepSlurmCommandGenStrategy,
     (SlurmSystem, SlurmContainerTestDefinition): SlurmContainerCommandGenStrategy,
     (SlurmSystem, UCCTestDefinition): UCCTestSlurmCommandGenStrategy,
@@ -127,11 +117,8 @@ CMD_GEN_STRATEGIES = {
 }
 ALL_STRATEGIES = {
     (GradingStrategy, SlurmSystem, ChakraReplayTestDefinition): ChakraReplayGradingStrategy,
-    (GradingStrategy, SlurmSystem, GPTTestDefinition): JaxToolboxGradingStrategy,
-    (GradingStrategy, SlurmSystem, GrokTestDefinition): JaxToolboxGradingStrategy,
     (GradingStrategy, SlurmSystem, NCCLTestDefinition): NcclTestGradingStrategy,
     (GradingStrategy, SlurmSystem, NeMoLauncherTestDefinition): NeMoLauncherGradingStrategy,
-    (GradingStrategy, SlurmSystem, NemotronTestDefinition): JaxToolboxGradingStrategy,
     (GradingStrategy, SlurmSystem, SleepTestDefinition): SleepGradingStrategy,
     (GradingStrategy, SlurmSystem, UCCTestDefinition): UCCTestGradingStrategy,
     (JsonGenStrategy, KubernetesSystem, NCCLTestDefinition): NcclTestKubernetesJsonGenStrategy,
@@ -182,7 +169,7 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 17
+    assert len(test_defs) == 14
     for tdef in [
         ("UCCTest", UCCTestDefinition),
         ("NcclTest", NCCLTestDefinition),
@@ -190,9 +177,6 @@ def test_definitions():
         ("Sleep", SleepTestDefinition),
         ("NeMoLauncher", NeMoLauncherTestDefinition),
         ("NeMoRun", NeMoRunTestDefinition),
-        ("JaxToolboxGPT", GPTTestDefinition),
-        ("JaxToolboxGrok", GrokTestDefinition),
-        ("JaxToolboxNemotron", NemotronTestDefinition),
         ("SlurmContainer", SlurmContainerTestDefinition),
         ("MegatronRun", MegatronRunTestDefinition),
         ("TritonInference", TritonInferenceTestDefinition),

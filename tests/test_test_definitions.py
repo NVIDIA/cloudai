@@ -28,14 +28,6 @@ from cloudai.core import File, NsysConfiguration, Parser, Registry, TestDefiniti
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
-from cloudai.workloads.jax_toolbox import (
-    GPTCmdArgs,
-    GPTTestDefinition,
-    GrokCmdArgs,
-    GrokTestDefinition,
-    NemotronCmdArgs,
-    NemotronTestDefinition,
-)
 from cloudai.workloads.megatron_run import MegatronRunCmdArgs, MegatronRunTestDefinition
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.workloads.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
@@ -120,24 +112,6 @@ def test_chakra_docker_image_is_required():
             test_template_name="nccl",
             cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
         ),
-        GPTTestDefinition(
-            name="gpt",
-            description="desc",
-            test_template_name="gpt",
-            cmd_args=GPTCmdArgs(fdl_config="", docker_image_url="fake://url/gpt"),
-        ),
-        GrokTestDefinition(
-            name="grok",
-            description="desc",
-            test_template_name="grok",
-            cmd_args=GrokCmdArgs(docker_image_url="fake://url/grok"),
-        ),
-        NemotronTestDefinition(
-            name="nemotron",
-            description="desc",
-            test_template_name="nemotron",
-            cmd_args=NemotronCmdArgs(docker_image_url="fake://url/nemotron"),
-        ),
         NeMoLauncherTestDefinition(
             name="nemo", description="desc", test_template_name="nemo", cmd_args=NeMoLauncherCmdArgs()
         ),
@@ -158,11 +132,7 @@ def test_chakra_docker_image_is_required():
 def test_docker_installable_persists(
     test: Union[
         ChakraReplayTestDefinition,
-        GPTTestDefinition,
-        GrokTestDefinition,
         NCCLTestDefinition,
-        NeMoLauncherTestDefinition,
-        NemotronTestDefinition,
         UCCTestDefinition,
         SlurmContainerTestDefinition,
     ],
