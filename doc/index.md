@@ -156,21 +156,13 @@ cloudai verify-configs conf/common/system/example_slurm_cluster.toml
 cloudai verify-configs --tests-dir conf/release/spcx/l40s/test conf/release/spcx/l40s/test_scenario
 ```
 
-## Contribution
-Please feel free to contribute to the CloudAI project and share your insights. Your contributions are highly appreciated.
-
-## License
-This project is licensed under Apache 2.0. See the LICENSE file for detailed information.
-
-## Additional Documentation
-For more detailed instructions and guidance, including advanced usage and troubleshooting, please refer to the [USER_GUIDE.md](https://github.com/NVIDIA/cloudai/blob/main/USER_GUIDE.md)
 
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 1
 :caption: Contents:
 
-DEV
-ai_dynamo
-reporting
 workloads/index
+DEV
+reporting
+USER_GUIDE
 ```

@@ -18,6 +18,7 @@ nixl_kvbench
 nixl_perftest
 sleep
 slurm_container
+ucc
 ```
 
 ## Adding New Workloads
