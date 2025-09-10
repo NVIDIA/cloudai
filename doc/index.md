@@ -26,7 +26,7 @@ CloudAI benchmark framework aims to develop an industry standard benchmark focus
 
     For development please use the following command:
     ```bash
-    pip install -e '.[dev]'  
+    pip install -e '.[dev]'
     ```
 
 ## Key Concepts
@@ -43,12 +43,9 @@ These schemas enable CloudAI to be flexible and compatible with different system
 |Test|Slurm|Kubernetes|RunAI|Standalone|
 |---|---|---|---|---|
 |ChakraReplay|✅|❌|❌|❌|
-|GPT|✅|❌|❌|❌|
-|Grok|✅|❌|❌|❌|
 |NCCL|✅|✅|✅|❌|
 |NeMo Launcher|✅|❌|❌|❌|
 |NeMo Run|✅|❌|❌|❌|
-|Nemotron|✅|❌|❌|❌|
 |Sleep|✅|✅|❌|✅|
 |UCC|✅|❌|❌|❌|
 |SlurmContainer|✅|❌|❌|❌|
@@ -89,7 +86,7 @@ uv pip install -U pip
 ## CloudAI Modes Usage Examples
 
 CloudAI supports five modes:
-- [install](install) - Use the install mode to install all test templates in the specified installation path 
+- [install](install) - Use the install mode to install all test templates in the specified installation path
 - [dry-run](dry-run) - Use the dry-run mode to simulate running experiments without actually executing them. This is useful for verifying configurations and testing experiment setups
 - [run](run) - Use the run mode to run experiments
 - [generate-report](generate-report) - Use the generate-report mode to generate reports under the test directories alongside the raw data

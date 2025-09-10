@@ -36,12 +36,6 @@ from cloudai.workloads.ai_dynamo import (
     GenAIPerfArgs,
     PrefillWorkerArgs,
 )
-from cloudai.workloads.jax_toolbox import (
-    GPTCmdArgs,
-    GPTTestDefinition,
-    GrokCmdArgs,
-    GrokTestDefinition,
-)
 from cloudai.workloads.megatron_run import (
     MegatronRunCmdArgs,
     MegatronRunTestDefinition,
@@ -172,39 +166,7 @@ def build_special_test_run(
     param: str,
     test_mapping: Dict[str, Callable[[], TestRun]],
 ) -> Tuple[TestRun, str, Optional[str]]:
-    if "gpt" in param:
-        test_type = "gpt"
-        tr = create_test_run(
-            partial_tr,
-            slurm_system,
-            test_type,
-            GPTTestDefinition(
-                name=test_type,
-                description=test_type,
-                test_template_name=test_type,
-                cmd_args=GPTCmdArgs(
-                    fdl_config="fdl/config", docker_image_url="https://docker/url", output_path="/some/output/path"
-                ),
-                extra_env_vars={"COMBINE_THRESHOLD": "1"},
-            ),
-        )
-    elif "grok" in param:
-        test_type = "grok"
-        tr = create_test_run(
-            partial_tr,
-            slurm_system,
-            test_type,
-            GrokTestDefinition(
-                name=test_type,
-                description=test_type,
-                test_template_name=test_type,
-                cmd_args=GrokCmdArgs(
-                    fdl_config="fdl/config", docker_image_url="https://docker/url", output_path="/some/output/path"
-                ),
-                extra_env_vars={"COMBINE_THRESHOLD": "1"},
-            ),
-        )
-    elif "nemo-run" in param:
+    if "nemo-run" in param:
         test_type = "nemo-run"
         tr = create_test_run(
             partial_tr,
@@ -249,10 +211,6 @@ def build_special_test_run(
         "ucc",
         "nccl",
         "sleep",
-        "gpt-pre-test",
-        "gpt-no-hook",
-        "grok-pre-test",
-        "grok-no-hook",
         "nemo-launcher",
         "nemo-run-pre-test",
         "nemo-run-no-hook",
@@ -458,7 +416,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         ),
     }
 
-    if request.param.startswith(("gpt-", "grok-", "nemo-run-", "nemo-launcher")):
+    if request.param.startswith(("nemo-run-", "nemo-launcher")):
         tr, sbatch_file, run_script = build_special_test_run(partial_tr, slurm_system, request.param, test_mapping)
 
         if request.param == "nemo-run-vboost":

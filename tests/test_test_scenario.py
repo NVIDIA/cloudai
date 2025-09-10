@@ -42,12 +42,6 @@ from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.test_scenario_parser import calculate_total_time_limit, get_reporters
 from cloudai.workloads.ai_dynamo import AIDynamoReportGenerationStrategy, AIDynamoTestDefinition
 from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
-from cloudai.workloads.jax_toolbox import (
-    GPTTestDefinition,
-    GrokTestDefinition,
-    JaxToolboxReportGenerationStrategy,
-    NemotronTestDefinition,
-)
 from cloudai.workloads.megatron_run import (
     CheckpointTimingReportGenerationStrategy,
     MegatronRunCmdArgs,
@@ -489,19 +483,16 @@ class TestReporters:
         assert len(reporters) == 0
 
     def test_default_reporters_size(self):
-        assert len(Registry().reports_map) == 13
+        assert len(Registry().reports_map) == 10
 
     @pytest.mark.parametrize(
         "tdef,expected_reporters",
         [
             (ChakraReplayTestDefinition, {ChakraReplayReportGenerationStrategy}),
-            (GPTTestDefinition, {JaxToolboxReportGenerationStrategy}),
-            (GrokTestDefinition, {JaxToolboxReportGenerationStrategy}),
             (MegatronRunTestDefinition, {CheckpointTimingReportGenerationStrategy}),
             (NCCLTestDefinition, {NcclTestPerformanceReportGenerationStrategy}),
             (NeMoLauncherTestDefinition, {NeMoLauncherReportGenerationStrategy}),
             (NeMoRunTestDefinition, {NeMoRunReportGenerationStrategy, NeMoRunDataStoreReportGenerationStrategy}),
-            (NemotronTestDefinition, {JaxToolboxReportGenerationStrategy}),
             (UCCTestDefinition, {UCCTestReportGenerationStrategy}),
             (TritonInferenceTestDefinition, {TritonInferenceReportGenerationStrategy}),
             (NIXLBenchTestDefinition, {NIXLBenchReportGenerationStrategy}),
