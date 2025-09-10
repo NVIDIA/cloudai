@@ -104,7 +104,7 @@ Block Size (B)      Batch Size     B/W (GB/Sec)   Avg Lat. (us)  Avg Prep (us)  
 67108864            1              1636.801561    41.0           5.0            5.0            11.7           36.0           29.2           38.0
 [1757492049.615857] [ptyche0321:627915:0]   |                      8177..inf | multi-frag copy-in                                    | tcp/enP6p3s0f1np1 |
 [1757492049.615862] [ptyche0321:627915:0]   +--------------------------------+-------------------------------------------------------+-------------------+
-"""
+"""  # noqa: E501
     (tmp_path / "stdout.txt").write_text(sample)
     df = extract_nixlbench_data(tmp_path / "stdout.txt")
     assert df.shape == (15, 4)
