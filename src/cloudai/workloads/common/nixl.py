@@ -127,6 +127,13 @@ def extract_nixlbench_data(stdout_file: Path) -> pd.DataFrame:
             continue
         parts = line.split()
         if header_present and (len(parts) == 6 or len(parts) == 10):
+            try:
+                int(parts[0])  # block size
+                int(parts[1])  # batch size
+            except ValueError:
+                # doesn't look like a data line, skip
+                continue
+
             if len(parts) == 6:
                 data.append([parts[0], parts[1], parts[2], parts[-1]])
             else:
