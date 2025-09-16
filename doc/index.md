@@ -3,9 +3,9 @@
 CloudAI benchmark framework aims to develop an industry standard benchmark focused on grading Data Center (DC) scale AI systems in the Cloud. The primary motivation is to provide automated benchmarking on various systems.
 
 ## Get Started
-**Note**: instructions for installing a custom python version are available [here](#install-custom-python-version).
+**Note**: instructions for installing a custom python version are available [here](install-custom-python-version).
 
-**Note**: instructions for setting up access for `enroot` are available [here](#set-up-access-to-the-private-ngc-registry).
+**Note**: instructions for setting up access for `enroot` are available [here](set-up-access-to-the-private-ngc-registry).
 
 1. Clone the CloudAI repository to your local machine:
     ```bash
@@ -54,9 +54,8 @@ These schemas enable CloudAI to be flexible and compatible with different system
 |SlurmContainer|✅|❌|❌|❌|
 |MegatronRun (experimental)|✅|❌|❌|❌|
 
-For more detailed information, please refer to the [official documentation](https://nvidia.github.io/cloudai/workloads/index.html).
-
 ## Details
+(set-up-access-to-the-private-ngc-registry)=
 ###  Set Up Access to the Private NGC Registry
 First, ensure you have access to the Docker repository. Follow the following steps:
 
@@ -75,6 +74,7 @@ machine nvcr.io login $oauthtoken password <api-key>
 Replace `<api-key>` with your respective credentials. Keep `$oauthtoken` as is.
 
 
+(install-custom-python-version)=
 ### Install custom python version
 If your system python version is not supported, you can install a custom version using [uv](https://docs.astral.sh/uv/getting-started/installation/) tool:
 ```bash
@@ -89,12 +89,13 @@ uv pip install -U pip
 ## CloudAI Modes Usage Examples
 
 CloudAI supports five modes:
-- [install](#install) - Use the install mode to install all test templates in the specified installation path 
-- [dry-run](#dry-run) - Use the dry-run mode to simulate running experiments without actually executing them. This is useful for verifying configurations and testing experiment setups
-- [run](#run) - Use the run mode to run experiments
-- [generate-report](#generate-report) - Use the generate-report mode to generate reports under the test directories alongside the raw data
-- [uninstall](#uninstall) - Use the uninstall mode to remove installed test templates
+- [install](install) - Use the install mode to install all test templates in the specified installation path 
+- [dry-run](dry-run) - Use the dry-run mode to simulate running experiments without actually executing them. This is useful for verifying configurations and testing experiment setups
+- [run](run) - Use the run mode to run experiments
+- [generate-report](generate-report) - Use the generate-report mode to generate reports under the test directories alongside the raw data
+- [uninstall](uninstall) - Use the uninstall mode to remove installed test templates
 
+(install)=
 ### install
 
 To install test prerequisites, run CloudAI CLI in install mode.
@@ -105,6 +106,7 @@ cloudai install\
     --system-config conf/common/system/example_slurm_cluster.toml\
     --tests-dir conf/common/test
 ```
+(dry-run)=
 ### dry-run
 To simulate running experiments without execution, use the dry-run mode:
 ```bash
@@ -113,6 +115,7 @@ cloudai dry-run\
     --tests-dir conf/common/test\
     --test-scenario conf/common/test_scenario/sleep.toml
 ```
+(run)=
 ### run
 To run experiments, execute CloudAI CLI in run mode:
 ```bash
@@ -121,6 +124,7 @@ cloudai run\
     --tests-dir conf/common/test\
     --test-scenario conf/common/test_scenario/sleep.toml
 ```
+(generate-report)=
 ### generate-report
 To generate reports, execute CloudAI CLI in generate-report mode:
 ```bash
@@ -132,6 +136,7 @@ cloudai generate-report\
 ```
 In the generate-report mode, use the --result-dir argument to specify a subdirectory under the output directory.
 This subdirectory is usually named with a timestamp for unique identification.
+(uninstall)=
 ### uninstall
 To uninstall test prerequisites, run CloudAI CLI in uninstall mode:
 ```bash
@@ -151,11 +156,13 @@ cloudai verify-configs conf/common/system/example_slurm_cluster.toml
 cloudai verify-configs --tests-dir conf/release/spcx/l40s/test conf/release/spcx/l40s/test_scenario
 ```
 
-## Additional Documentation
-For more detailed instructions and guidance, including advanced usage and troubleshooting, please refer to the [official documentation](https://nvidia.github.io/cloudai/).
 
-## Contribution
-Please feel free to contribute to the CloudAI project and share your insights. Your contributions are highly appreciated.
+```{toctree}
+:maxdepth: 1
+:caption: Contents:
 
-## License
-This project is licensed under Apache 2.0. See the LICENSE file for detailed information.
+workloads/index
+DEV
+reporting
+USER_GUIDE
+```

@@ -115,24 +115,34 @@ def prepare_installation(
     return installables, installer
 
 
-def handle_dse_job(runner: Runner, args: argparse.Namespace):
+def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
     registry = Registry()
 
     original_test_runs = copy.deepcopy(runner.runner.test_scenario.test_runs)
 
+    has_dependencies = any(tr.dependencies for tr in runner.runner.test_scenario.test_runs)
+    if has_dependencies:
+        logging.error(
+            "Dependencies are not supported for DSE jobs, all cases run consecutively. "
+            "Please remove dependencies and re-run."
+        )
+        return 1
+
+    err = 0
     for tr in runner.runner.test_scenario.test_runs:
         test_run = copy.deepcopy(tr)
-        env = CloudAIGymEnv(test_run=test_run, runner=runner.runner)
-        agent_type = test_run.test.test_definition.agent
 
+        agent_type = test_run.test.test_definition.agent
         agent_class = registry.agents_map.get(agent_type)
         if agent_class is None:
             logging.error(
                 f"No agent available for type: {agent_type}. Please make sure {agent_type} "
                 f"is a valid agent type. Available agents: {registry.agents_map.keys()}"
             )
+            err = 1
             continue
 
+        env = CloudAIGymEnv(test_run=test_run, runner=runner.runner)
         agent = agent_class(env)
         for step in range(agent.max_steps):
             result = agent.select_action()
@@ -150,6 +160,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
         generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
 
     logging.info("All jobs are complete.")
+    return err
 
 
 def generate_reports(system: System, test_scenario: TestScenario, result_dir: Path) -> None:
@@ -291,8 +302,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
         return 0
 
     if all(tr.is_dse_job for tr in test_scenario.test_runs):
-        handle_dse_job(runner, args)
-        return 0
+        return handle_dse_job(runner, args)
 
     logging.error("Mixing DSE and non-DSE jobs is not allowed.")
     return 1

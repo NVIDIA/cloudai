@@ -16,39 +16,54 @@
 
 from __future__ import annotations
 
-from cloudai.core import DockerImage, Installable, JobStatusResult, TestRun
-from cloudai.models.workload import CmdArgs, TestDefinition
+from typing import Literal
+
+from cloudai.core import CmdArgs, DockerImage, Installable, JobStatusResult, TestDefinition, TestRun
 from cloudai.workloads.common.nixl import extract_nixlbench_data
 
 
-class NIXLBenchCmdArgs(CmdArgs):
-    """Command line arguments for a NIXL Bench test."""
+class NIXLKVBenchCmdArgs(CmdArgs):
+    """Command line arguments for NIXLKVBench."""
+
+    command: Literal["profile"] = "profile"
+    etcd_path: str = "etcd"
+    wait_etcd_for: int = 60
 
     docker_image_url: str
-    path_to_benchmark: str
-    etcd_path: str = "etcd"
-    etcd_endpoints: str = "http://$NIXL_ETCD_ENDPOINTS"
+    kvbench_script: str = "/workspace/nixl/benchmark/kvbench/main.py"
+    python_executable: str = "/workspace/nixl/.venv/bin/python"
+
+    backend: str | list[str] | None = None
 
 
-class NIXLBenchTestDefinition(TestDefinition):
-    """Test definition for a NIXL Bench test."""
+class NIXLKVBenchTestDefinition(TestDefinition):
+    """Test definition for NIXLKVBench."""
 
-    cmd_args: NIXLBenchCmdArgs
-    _nixl_image: DockerImage | None = None
+    _docker_image: DockerImage | None = None
+    cmd_args: NIXLKVBenchCmdArgs
 
     @property
     def docker_image(self) -> DockerImage:
-        if not self._nixl_image:
-            self._nixl_image = DockerImage(url=self.cmd_args.docker_image_url)
-        return self._nixl_image
+        if not self._docker_image:
+            self._docker_image = DockerImage(url=self.cmd_args.docker_image_url)
+        return self._docker_image
 
     @property
     def installables(self) -> list[Installable]:
-        return [self.docker_image, *self.git_repos]
+        return [*self.git_repos, self.docker_image]
 
     @property
     def cmd_args_dict(self) -> dict[str, str | list[str]]:
-        return self.cmd_args.model_dump(exclude={"docker_image_url", "path_to_benchmark", "cmd_args", "etcd_path"})
+        return self.cmd_args.model_dump(
+            exclude={
+                "kvbench_script",
+                "python_executable",
+                "etcd_path",
+                "wait_etcd_for",
+                "docker_image_url",
+                "command",
+            }
+        )
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         df = extract_nixlbench_data(tr.output_path / "stdout.txt")

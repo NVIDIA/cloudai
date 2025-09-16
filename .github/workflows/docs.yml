@@ -1,0 +1,66 @@
+name: Build and Deploy Documentation
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:    # Allow manual triggering
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+
+    - name: Set up environment
+      run: |
+        set -eE
+        set -o pipefail
+
+        uv sync --extra docs
+
+    - name: Build documentation
+      run: |
+        set -eE
+        set -o pipefail
+
+        source .venv/bin/activate
+        cd doc
+        make html
+
+    - name: Add .nojekyll file
+      run: touch doc/_build/html/.nojekyll
+
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: ./doc/_build/html
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    runs-on: ubuntu-latest
+    steps:
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4

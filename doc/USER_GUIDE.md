@@ -1,7 +1,7 @@
 # CloudAI User Guide
 This is a CloudAI user guide to help users use CloudAI, covering topics such as adding new tests and downloading datasets for running NeMo-launcher.
 
-#### Step 1: Create a Docker Image
+## Step 1: Create a Docker Image
 1. **Set Up the GitLab Repository:**
   Start by setting up a repository on GitLab to host your docker image. For this example, use `gitlab-url.com/cloudai/nccl-test`.
 
@@ -44,14 +44,14 @@ This is a CloudAI user guide to help users use CloudAI, covering topics such as 
       --stepfactor 2
    ```
 
-#### Step 2: Prepare Configuration Files
+## Step 2: Prepare Configuration Files
 CloudAI is fully configurable via set of TOML configuration files. You can find examples of these files under `conf/common`. In this guide, we will use the following configuration files:
 1. `myconfig/system.toml` - Describes the system configuration.
 1. `myconfig/tests/nccl_test.toml` - Describes the test to run.
 1. `myconfig/scenario.toml` - Describes the test scenario configuration.
 
 
-#### Step 3: Test Definition
+## Step 3: Test Definition
 Test definition is a Pydantic model that describes the arguments of a test. Such models should be inherited from the `TestDefinition` class:
 ```py
 class MyTestCmdArgs(CmdArgs):
@@ -70,7 +70,7 @@ Registry().add_test_template("MyTest", MyTest)
 ```
 Relevant Test Configs should specify `test_template_name = MyTest` to use the custom test definition.
 
-#### Step 3: System Configuration
+## Step 3: System Configuration
 System configuration describes the system configuration. You can find more examples of system configs under `conf/common/system/`. Our example will be small for demonstration purposes. Below is the `myconfig/system.toml` file:
 ```toml
 name = "my-cluster"
@@ -90,7 +90,7 @@ name = "partition_1"
 ```
 Replace `<YOUR PARTITION NAME>` with the name of the partition you want to use. You can find the partition name by running `sinfo` on the cluster.
 
-#### Step 4: Install Test Requirements
+## Step 4: Install Test Requirements
 Once all configs are ready, it is time to install test requirements. It is done once so that you can run multiple experiments without reinstalling the requirements. This step requires the system config file from the step 3.
 ```bash
 cloudai install \
@@ -98,7 +98,7 @@ cloudai install \
    --tests-dir myconfig/tests/
 ```
 
-#### Step 5: Test Configuration
+## Step 5: Test Configuration
 Test Configuration describes a particular test configuration to be run. It is based on Test definition and will be used in Test Sceanrio. Below is the `myconfig/tests/nccl_test.toml` file, definition is based on built-in `NcclTest` definition:
 ```toml
 name = "nccl_test_all_reduce_single_node"
@@ -116,7 +116,7 @@ extra_cmd_args = "--stepfactor 2"
 ```
 You can find more examples under `conf/common/test`. In a test schema file, you can adjust arguments as shown above. In the `cmd_args` section, you can provide different values other than the default values for each argument. In `extra_cmd_args`, you can provide additional arguments that will be appended after the NCCL test command. You can specify additional environment variables in the `extra_env_vars` section.
 
-#### Step 6: Run Experiments
+## Step 6: Run Experiments
 Test Scenario uses Test description from step 5. Below is the `myconfig/scenario.toml` file:
 ```toml
 name = "nccl-test"
@@ -163,7 +163,7 @@ cloudai run \
     --tests-dir myconfig/tests/
 ```
 
-#### Step 7: Generate Reports
+## Step 7: Generate Reports
 Once the test scenario is completed, you can generate reports using the following command:
 ```bash
 cloudai generate-report \
@@ -175,7 +175,7 @@ cloudai generate-report \
 
 `--result-dir` accepts one scenario run result directory.
 
-## Describing a System in the System Schema
+# Describing a System in the System Schema
 In this section, we introduce the concept of the system schema, explain the meaning of each field, and describe how the fields should be used. The system schema is a TOML file that allows users to define a system's configuration.
 
 ```
@@ -217,7 +217,7 @@ name = "partition_2"
   CUDA_VISIBLE_DEVICES = "0,1,2,3,4,5,6,7"
 ```
 
-### Field Descriptions
+## Field Descriptions
 - **name**: Specifies the name of the system. Users can choose any name that is convenient for them.
 - **scheduler**: Indicates the type of system. It should be one of the supported types, currently `slurm` or `standalone`. `slurm` refers to a system with the Slurm scheduler, while `standalone` refers to a single-node system without any slave nodes.
 - **install_path**: Specifies the path where test prerequisites are installed. Docker images are downloaded to this path if the user chooses to cache Docker images.
@@ -251,7 +251,7 @@ cluster_id = "your_cluster_id"              # Cluster ID in UUID format (e.g., a
 * Use your assigned project and cluster IDs. Contact your administrator if they are not available.
 * All other fields follow the same semantics as in the Slurm system schema (e.g., install_path, output_path).
 
-## Describing a Test Scenario in the Test Scenario Schema
+# Describing a Test Scenario in the Test Scenario Schema
 A test scenario is a set of tests with specific dependencies between them. A test scenario is described in a TOML schema file. This is an example of a test scenario file:
 ```toml
 name = "nccl-test"
@@ -305,10 +305,10 @@ Dependencies of a test can be described as a subsection of the test. It requires
 - `end_post_comp` means the test ends when the prior test completes
 
 
-## Configuring HTTP Data Repository
+# Configuring HTTP Data Repository
 The HTTP Data Repository is currently supported for Slurm systems only. To enable access, you must update your system schema file and create a credential file in your CloudAI project's root directory.
 
-### Step 1: Update the System Schema File
+## Step 1: Update the System Schema File
 Add the following section to your system schema TOML file (e.g., `system_schema.toml`):
 
 ```toml
@@ -318,7 +318,7 @@ endpoint = "https://my-data-endpoint.com"
 
 Replace the endpoint with your actual data repository URL.
 
-### Step 2: Create the Credential File
+## Step 2: Create the Credential File
 In the root of your CloudAI project (i.e., the current working directory), create a file named `.cloudai.toml` with the following content:
 
 ```toml
@@ -328,11 +328,11 @@ token = "<your-api-token-here>"
 
 Replace `<your-api-token-here>` with your actual token.
 
-### Step 3: Usage
+## Step 3: Usage
 Both the endpoint and token must be valid for the HTTP Data Repository to function correctly. If either is missing or incorrect, data will not be posted.
 
 
-## Downloading and Installing the NeMo Dataset (The Pile Dataset)
+# Downloading and Installing the NeMo Dataset (The Pile Dataset)
 This section describes how you can download the NeMo datasets on your server. The install mode of CloudAI handles the installation of all test prerequisites, but downloading and installing datasets is not the responsibility of the install mode. This is because any large datasets should be installed globally by the administrator and shared with multiple users, even if a user does not use CloudAI.
 
 For CloudAI users, we provide a detailed guide about downloading and installing the NeMo datasets in this section. By default, the NeMo launcher uses mock datasets for testing purposes. If you want to run tests using real datasets, you must download the datasets and update the test `.toml` files accordingly to locate the datasets and provide appropriate prefixes.
@@ -391,13 +391,13 @@ rm_extracted: False # Preprocess script will remove extracted files after prepro
 
 You can update the fields to adjust the behavior. For example, you can update the file_numbers field to adjust the number of dataset files to download. This will allow you to save disk space.
 
-### Note: For running Nemo Llama model, it is important to follow these additional steps:
+## Note: For running Nemo Llama model, it is important to follow these additional steps:
 1. Go to https://huggingface.co/docs/transformers/en/model_doc/llama.
 2. Follow the instructions under 'Usage Tips' on how to download the tokenizer.
 3. Replace "training.model.tokenizer.model=TOKENIZER_MODEL" with "training.model.tokenizer.model=YOUR_TOKENIZER_PATH" (the tokenizer should be a .model file) in conf/common/test/llama.toml.
 
 
-## Using Test Hooks in CloudAI
+# Using Test Hooks in CloudAI
 
 A test hook in CloudAI is a specialized test that runs either before or after each main test in a scenario, providing flexibility to prepare the environment or clean up resources. Hooks are defined as pre-test or post-test and referenced in the test scenario’s TOML file using `pre_test` and `post_test` fields.
 ```
@@ -429,10 +429,10 @@ test_name = "nccl_test_all_reduce"
 time_limit = "00:20:00"
 ```
 
-## Downloading DeepSeek Weights
+# Downloading DeepSeek Weights
 To run DeepSeek R1 tests in CloudAI, you must download the model weights in advance. These weights are distributed via the NVIDIA NGC Registry and must be manually downloaded using the NGC CLI.
 
-### Step 1: Install NGC CLI
+## Step 1: Install NGC CLI
 Download and install the NGC CLI using the following commands:
 
 ```bash
@@ -444,7 +444,7 @@ echo "export PATH=\"$PATH:$(pwd)/ngc-cli\"" >> ~/.bash_profile && source ~/.bash
 
 This will make the `ngc` command available in your terminal.
 
-### Step 2: Configure NGC CLI
+## Step 2: Configure NGC CLI
 Authenticate your CLI with your NGC API key by running:
 
 ```bash
@@ -453,7 +453,7 @@ ngc config set
 
 When prompted, paste your API key, which you can obtain from [https://org.ngc.nvidia.com/setup](https://org.ngc.nvidia.com/setup).
 
-### Step 3: Download the Weights
+## Step 3: Download the Weights
 Navigate to the directory where you want the DeepSeek model weights to be stored, then run:
 
 ```bash
@@ -468,7 +468,7 @@ deepseek-r1-instruct_vhf-5dde110-nim-fp8/
 
 inside your current directory.
 
-### Step 4: Verify the Download
+## Step 4: Verify the Download
 Ensure the full model has been downloaded by checking the folder size:
 
 ```bash
@@ -478,9 +478,9 @@ du -sh deepseek-r1-instruct_vhf-5dde110-nim-fp8
 The expected size is approximately 642 GB. If it’s significantly smaller, remove the folder and re-run the download.
 
 
-## Slurm specifics
+# Slurm specifics
 
-### Single sbatch vs per-case sbatch
+## Single sbatch vs per-case sbatch
 CloudAI supports two modes for submitting Slurm jobs:
 
 1. (default) Per-case sbatch mode: each case is submitted as a separate sbatch job, allows flexible scheduling and dependency management.
@@ -552,7 +552,7 @@ results/scenario
 Most of the files are the same: output files, env vars script, test run metadata. Difference for single sbatch mode is that `slurm-job.toml` is created for entires job as well as `cloudai_sbatch_script.sh`. Plus extra `common.err`/`common.out` files are created for general sbatch outputs.
 
 
-### Extra srun and sbatch arguments
+## Extra srun and sbatch arguments
 CloudAI forms sbatch script and srun commands following internal rules. Users can affect the generation but setting special arguments in System TOML file.
 
 For example (in a System TOML file):,
@@ -579,7 +579,7 @@ will result in srun command inside sbatch script like this:
 srun ... --arg=val --other-arg=other-val ...
 ```
 
-### Container mounts
+## Container mounts
 CloudAI runs all slurm jobs using containers. To simplify file system related tasks, CloudAI mounts the following directories into the container:
 1. Test output directory (`<output_path>/<scenario_name_with_timestamp>/<test_name>/<iteration>`, like `results/scenario_2024-06-18_17-40-13/Tests.1/0`) is mounted as `/cloudai_run_results`.
 1. Test specific mounts can be specified in TOML files:
@@ -595,7 +595,7 @@ CloudAI runs all slurm jobs using containers. To simplify file system related ta
     These mounts are not verified for validity and do not override default mounts.
 1. Test specific mounts can be mounted in-code.
 
-### Head node without shared storage available on compute nodes
+## Head node without shared storage available on compute nodes
 When compute nodes don't share file system with head node, `--enable-cache-without-check` for `run` and `dry-run` skips real check for cache existence, but still builds all paths correctly. The flow is like this:
 
 1. _[on the head node]_ run `cloudai install`
@@ -603,10 +603,10 @@ When compute nodes don't share file system with head node, `--enable-cache-witho
 1. Modify system.toml to set compute nodes' installation root
 1. Run `cloudai run --enable-cache-without-check ...`
 
-#### Dev details
+# Dev details
 `SlurmCommandGenStrategy` defines abstract method `_container_mounts(tr: TestRun)` that must be implemented by every subclass. This method is used in `SlurmCommandGenStrategy.container_mounts(tr: TestRun)` (defined as `@final`) where mounts like `/cloudai_run_results` (default mount), `TestDefinition.extra_container_mounts` (from Test TOML) and test specific mounts (defined in-code) are added.
 
-### Nsys tracing
+# Nsys tracing
 Users can enable Nsys tracing for any workload when running via Slurm. Note, that `nsys` should be available on the compute nodes, CloudAI doesn't manage it.
 
 Configuration fields are:
@@ -626,13 +626,13 @@ extra_args: list[str] = []
 ```
 Fields with `None` value are not passed to `nsys` command.
 
-## Troubleshooting
+# Troubleshooting
 In this section, we will guide you through identifying the root cause of issues, determining whether they stem from system infrastructure or a bug in CloudAI. Users should closely follow the USER_GUIDE.md and README.md for installation, tests, and test scenarios.
 
-### Identifying the Root Cause
+## Identifying the Root Cause
 If you encounter issues running a command, start by reading the error message to understand the root cause. We strive to make our error messages and exception messages as readable and interpretable as possible.
 
-### System Infrastructure vs. CloudAI Bugs
+## System Infrastructure vs. CloudAI Bugs
 To determine whether an issue is due to system infrastructure or a CloudAI bug, follow these steps:
 
 1. **Check stdout Messages:**
@@ -655,15 +655,15 @@ To determine whether an issue is due to system infrastructure or a CloudAI bug, 
 
 If the problem persists, please report the issue at [https://github.com/NVIDIA/cloudai/issues/new/choose](https://github.com/NVIDIA/cloudai/issues/new/choose). When you report an issue, ensure it is reproducible. Follow the issue template and provide any necessary details, such as the hash commit used, system settings, any changes in the schema files, and the command.
 
-### Test Specific Troubleshooting Guides
+## Test Specific Troubleshooting Guides
 In addition to the general troubleshooting steps, this section provides specific troubleshooting guides for each test used in CloudAI. These guides help you identify and resolve issues unique to each template.
 
-#### NeMo Launcher
+### NeMo Launcher
 * If your run is not successful, please review the stderr and stdout files generated under the results directory. Within the output directory, locate the run directory, and under the run directory, you will find stderr files like log-nemo-megatron-run_[job_id].err. Please review these files for any meaningful error messages
 * Trying the CloudAI-generated NeMo launcher command can be helpful as well. You can find the executed command in your stdout and in your log file (debug.log) in your current working directory. Review and run the command, and you can modify the arguments to troubleshoot the issue
 
-#### JaxToolbox (Grok)
-##### Troubleshooting Steps
+### JaxToolbox (Grok)
+#### Troubleshooting Steps
 If an error occurs, follow these steps sequentially:
 
 1. **Read the Error Messages**:
@@ -674,7 +674,7 @@ If an error occurs, follow these steps sequentially:
 3. **Check the Actual Run Phase**:
    If the profiling stage completes successfully, CloudAI moves on to the actual run phase. The actual run generates stdout and stderr messages in separate files for each rank. Review these files to diagnose any issues during this phase.
 
-##### Common Errors
+#### Common Errors
  **DEADLINE_EXCEEDED**:
    - When running JaxToolbox on multiple nodes, the nodes must be able to communicate to execute a training job collaboratively. The DEADLINE_EXCEEDED error indicates a failure in the connection during the initialization stage. Potential causes include:
      - Hostname resolution failure by the slave nodes
