@@ -17,7 +17,7 @@
 from typing import Any, Dict, cast
 
 from cloudai.core import JsonGenStrategy, TestRun
-from cloudai.systems.kubernetes import KubernetesSystem
+from cloudai.systems.kubernetes import KubernetesYAMLSystem
 
 from .sleep import SleepCmdArgs, SleepTestDefinition
 
@@ -30,7 +30,7 @@ class SleepKubernetesJsonGenStrategy(JsonGenStrategy):
         tdef_cmd_args: SleepCmdArgs = tdef.cmd_args
         sec = tdef_cmd_args.seconds
 
-        kubernetes_system = cast(KubernetesSystem, self.system)
+        kubernetes_system = cast(KubernetesYAMLSystem, self.system)
 
         job_spec = {
             "apiVersion": "batch/v1",
