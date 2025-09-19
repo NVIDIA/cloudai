@@ -37,7 +37,7 @@ def main():
     # Resolve results directory
     results_dir = Path(args.results_dir).resolve()
 
-    app = create_app(str(results_dir))
+    app = create_app(results_dir)
 
     print("=" * 60)
     print("CloudAI Web UI")

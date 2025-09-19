@@ -9,9 +9,6 @@
             <h1 class="h2">
                 <i class="fas fa-chart-line me-2"></i>CloudAI Results
             </h1>
-            <div class="text-muted">
-                <i class="fas fa-database me-1"></i>{{ scenarios|length }} scenarios
-            </div>
         </div>
 
         <!-- Results Directory Info -->
@@ -20,164 +17,42 @@
             <strong>Results Directory:</strong> <code>{{ results_root }}</code>
         </div>
 
-        {% if not scenarios %}
+        {% if dashboards %}
+        <div class="alert alert-primary">
+            <h5><i class="fas fa-info-circle me-2"></i>Available Dashboards</h5>
+            <p>Choose a dashboard to view your CloudAI results:</p>
+            <div class="row">
+                {% for dashboard in dashboards %}
+                <div class="col-md-4 mb-3">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <i
+                                class="fas fa-{% if dashboard == 'debug' %}bug{% else %}chart-bar{% endif %} fa-3x text-primary mb-3"></i>
+                            <h5 class="card-title">{{ dashboard.title() }}</h5>
+                            <p class="card-text">
+                                {% if dashboard == 'debug' %}
+                                Detailed view of all scenarios with error tracking and categorization.
+                                {% else %}
+                                {{ dashboard.title() }} dashboard for analyzing CloudAI results.
+                                {% endif %}
+                            </p>
+                            <a href="{{ url_for('dashboard', dashboard_type=dashboard) }}" class="btn btn-primary">
+                                <i class="fas fa-arrow-right me-1"></i>Open Dashboard
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+
+        {% else %}
         <div class="alert alert-warning text-center">
             <i class="fas fa-exclamation-triangle me-2"></i>
-            No test scenarios found. Run some CloudAI tests to see results here.
+            No dashboards available. No scenarios found in the results directory.
         </div>
-        {% else %}
-
-        <!-- Categorize scenarios -->
-        {% set scenarios_with_runs = scenarios|selectattr('test_runs')|selectattr('error', 'none')|list %}
-        {% set scenarios_empty = scenarios|rejectattr('test_runs')|selectattr('error', 'none')|list %}
-        {% set scenarios_error = scenarios|selectattr('error')|list %}
-
-        <!-- Scenarios with Test Runs -->
-        {% if scenarios_with_runs %}
-        <div class="card mb-4">
-            <div class="card-header bg-success text-white">
-                <h5 class="mb-0">
-                    <i class="fas fa-check-circle me-2"></i>Scenarios ({{ scenarios_with_runs|length }})
-                </h5>
-            </div>
-            <div class="card-body p-0">
-                <div class="list-group list-group-flush">
-                    {% for scenario in scenarios_with_runs %}
-                    <div class="list-group-item p-0">
-                        <!-- Scenario Header -->
-                        <div class="p-3 border-bottom bg-light">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div>
-                                    <h6 class="mb-1">
-                                        {{ scenario.name }}
-                                        <i class="fas fa-chevron-right ms-2 text-muted" id="icon-with-{{ loop.index }}"
-                                            style="cursor: pointer; font-size: 0.8em;" data-bs-toggle="collapse"
-                                            data-bs-target="#scenario-with-{{ loop.index }}" aria-expanded="false"></i>
-                                    </h6>
-                                    <small class="text-muted">
-                                        <i class="fas fa-clock me-1"></i>
-                                        {{ scenario.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}
-                                    </small>
-                                </div>
-                                <div class="d-flex align-items-center">
-                                    <span class="badge bg-info">{{ scenario.test_runs|length }} runs</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Collapsible Test Runs -->
-                        <div class="collapse" id="scenario-with-{{ loop.index }}">
-                            <div class="p-0">
-                                <div class="list-group list-group-flush">
-                                    {% for test_run in scenario.test_runs %}
-                                    <div class="list-group-item">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div>
-                                                <h6 class="mb-1">{{ test_run.name }}</h6>
-                                                <div class="d-flex align-items-center">
-                                                    <span class="badge bg-primary me-2">{{ test_run.test_type }}</span>
-                                                    <small class="text-muted">{{ test_run.iterations }}
-                                                        iterations</small>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {% endfor %}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Empty Scenarios -->
-        {% if scenarios_empty %}
-        <div class="card mb-4">
-            <div class="card-header bg-warning text-dark">
-                <h5 class="mb-0">
-                    <i class="fas fa-exclamation-triangle me-2"></i>Empty Scenarios ({{ scenarios_empty|length }})
-                </h5>
-            </div>
-            <div class="card-body p-0">
-                <div class="list-group list-group-flush">
-                    {% for scenario in scenarios_empty %}
-                    <div class="list-group-item">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div>
-                                <h6 class="mb-1">{{ scenario.name }}</h6>
-                                <small class="text-muted">
-                                    <i class="fas fa-clock me-1"></i>
-                                    {{ scenario.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}
-                                </small>
-                            </div>
-                            <span class="badge bg-secondary">0 runs</span>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Error Scenarios -->
-        {% if scenarios_error %}
-        <div class="card mb-4">
-            <div class="card-header bg-danger text-white">
-                <h5 class="mb-0">
-                    <i class="fas fa-exclamation-circle me-2"></i>Scenarios with Errors ({{ scenarios_error|length }})
-                </h5>
-            </div>
-            <div class="card-body p-0">
-                <div class="list-group list-group-flush">
-                    {% for scenario in scenarios_error %}
-                    <div class="list-group-item">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div class="flex-grow-1">
-                                <h6 class="mb-1">{{ scenario.name }}</h6>
-                                <small class="text-muted d-block mb-2">
-                                    <i class="fas fa-clock me-1"></i>
-                                    {{ scenario.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}
-                                </small>
-                                <div class="alert alert-danger alert-sm mb-0 p-2">
-                                    <i class="fas fa-bug me-1"></i>
-                                    <strong>Error:</strong> {{ scenario.error }}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
         {% endif %}
     </div>
 </div>
-
-<!-- JavaScript for collapsible behavior -->
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        // Handle collapse events to rotate the chevron icon for scenarios with runs
-        {% for scenario in scenarios_with_runs %}
-        var scenarioElement = document.getElementById('scenario-with-{{ loop.index }}');
-        var iconElement = document.getElementById('icon-with-{{ loop.index }}');
-
-        if (scenarioElement && iconElement) {
-            scenarioElement.addEventListener('show.bs.collapse', function () {
-                iconElement.classList.remove('fa-chevron-right');
-                iconElement.classList.add('fa-chevron-down');
-            });
-
-            scenarioElement.addEventListener('hide.bs.collapse', function () {
-                iconElement.classList.remove('fa-chevron-down');
-                iconElement.classList.add('fa-chevron-right');
-            });
-        }
-        {% endfor %}
-    });
-</script>
 {% endblock %}

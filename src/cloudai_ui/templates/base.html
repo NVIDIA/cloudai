@@ -29,11 +29,36 @@
 </head>
 
 <body>
-    <nav class="navbar navbar-dark bg-dark">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
-            <span class="navbar-brand">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
                 <i class="fas fa-chart-line me-2"></i>CloudAI Results
-            </span>
+            </a>
+
+            {% if dashboards %}
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link {% if not current_dashboard %}active{% endif %}"
+                            href="{{ url_for('index') }}">
+                            <i class="fas fa-home me-1"></i>Home
+                        </a>
+                    </li>
+                    {% for dashboard in dashboards %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_dashboard == dashboard %}active{% endif %}"
+                            href="{{ url_for('dashboard', dashboard_type=dashboard) }}">
+                            <i class="fas fa-{% if dashboard == 'debug' %}bug{% else %}chart-bar{% endif %} me-1"></i>
+                            {{ dashboard.title() }}
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
         </div>
     </nav>
 
