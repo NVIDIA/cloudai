@@ -29,7 +29,7 @@ dependencies = [
   "rich==14.0.0",
 ]
 requires-python = ">=3.10"
-scripts = { cloudai = "cloudai.__main__:main" }
+scripts = { cloudai = "cloudai.__main__:main", "cloudai-ui" = "cloudai_ui.cli:main" }
 
   [project.optional-dependencies]
   dev = [
@@ -44,6 +44,9 @@ scripts = { cloudai = "cloudai.__main__:main" }
     "import-linter==2.3.*",
     "pytest-deadfixtures==2.2.*",
     "taplo==0.9.3",
+  ]
+  ui = [
+    "flask>=2.3.0",
   ]
   docs = [
     "sphinx>=7.0",

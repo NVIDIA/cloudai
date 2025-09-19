@@ -1,0 +1,133 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Data abstraction layer for CloudAI UI."""
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import List, Optional
+
+import toml
+
+from cloudai.models.scenario import TestRunDetails
+
+
+@dataclass
+class TestScenarioInfo:
+    """Information about a test scenario run."""
+
+    id: str
+    name: str
+    timestamp: datetime
+    test_runs: List["TestRunInfo"]
+    error: Optional[str] = None
+
+
+@dataclass
+class TestRunInfo:
+    """Information about individual test runs within a scenario."""
+
+    name: str
+    test_type: str
+    iterations: int
+
+
+class DataProvider(ABC):
+    """Abstract base class for data providers."""
+
+    @abstractmethod
+    def get_scenarios(self) -> List[TestScenarioInfo]:
+        """Get list of all test scenarios."""
+        pass
+
+
+class LocalFileDataProvider(DataProvider):
+    """Data provider that reads from local filesystem."""
+
+    def __init__(self, results_root: Path):
+        self.results_root = Path(results_root)
+
+    def get_scenarios(self) -> List[TestScenarioInfo]:
+        """Get list of all test scenarios from the results directory."""
+        scenarios = []
+
+        if not self.results_root.exists():
+            return scenarios
+
+        for scenario_dir in self.results_root.iterdir():
+            if not scenario_dir.is_dir():
+                continue
+
+            # Parse scenario name and timestamp from directory name
+            # Format: {scenario_name}_{timestamp}
+            dir_name = scenario_dir.name
+            if "_" in dir_name:
+                parts = dir_name.rsplit("_", 2)  # Split on last 2 underscores for date_time
+                if len(parts) >= 3:
+                    scenario_name = "_".join(parts[:-2])
+                    date_part = parts[-2]
+                    time_part = parts[-1]
+                    try:
+                        timestamp = datetime.strptime(f"{date_part}_{time_part}", "%Y-%m-%d_%H-%M-%S")
+                    except ValueError:
+                        # Fallback to directory modification time
+                        timestamp = datetime.fromtimestamp(scenario_dir.stat().st_mtime)
+                        scenario_name = dir_name
+                else:
+                    scenario_name = dir_name
+                    timestamp = datetime.fromtimestamp(scenario_dir.stat().st_mtime)
+            else:
+                scenario_name = dir_name
+                timestamp = datetime.fromtimestamp(scenario_dir.stat().st_mtime)
+
+            try:
+                test_runs = self._get_test_runs(scenario_dir)
+                error = None
+            except Exception as e:
+                test_runs = []
+                error = str(e)
+
+            scenarios.append(
+                TestScenarioInfo(
+                    id=scenario_dir.name,
+                    name=scenario_name,
+                    timestamp=timestamp,
+                    test_runs=test_runs,
+                    error=error,
+                )
+            )
+
+        # Sort by timestamp, newest first
+        scenarios.sort(key=lambda x: x.timestamp, reverse=True)
+        return scenarios
+
+    def _get_test_runs(self, scenario_dir: Path) -> List[TestRunInfo]:
+        """Get test runs for a scenario."""
+        test_runs = []
+
+        for tr_dump in scenario_dir.rglob("test-run.toml"):
+            trd = TestRunDetails.model_validate(toml.load(tr_dump))
+            test_runs.append(
+                TestRunInfo(
+                    name=trd.name,
+                    test_type=trd.test_definition.test_template_name,
+                    iterations=trd.iterations,
+                )
+            )
+
+        return test_runs
