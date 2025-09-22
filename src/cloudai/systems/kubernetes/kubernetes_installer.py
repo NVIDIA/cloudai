@@ -21,7 +21,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from cloudai.core import BaseInstaller, DockerImage, GitRepo, Installable, InstallStatusResult
+from cloudai.core import BaseInstaller, DockerImage, File, GitRepo, Installable, InstallStatusResult
 from cloudai.util.lazy_imports import lazy
 
 
@@ -63,6 +63,10 @@ class KubernetesInstaller(BaseInstaller):
             return InstallStatusResult(True, f"Docker image {item} installed")
         elif isinstance(item, GitRepo):
             return self._install_one_git_repo(item)
+        elif isinstance(item, File):
+            item.installed_path = self.system.install_path / item.src.name
+            shutil.copyfile(item.src, item.installed_path, follow_symlinks=False)
+            return InstallStatusResult(True)
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
     def uninstall_one(self, item: Installable) -> InstallStatusResult:
@@ -70,6 +74,13 @@ class KubernetesInstaller(BaseInstaller):
             return InstallStatusResult(True, f"Docker image {item} uninstalled")
         elif isinstance(item, GitRepo):
             return self._uninstall_git_repo(item)
+        elif isinstance(item, File):
+            if item.installed_path != item.src:
+                item.installed_path.unlink()
+                item._installed_path = None
+                return InstallStatusResult(True)
+            logging.debug(f"File {item.installed_path} does not exist.")
+            return InstallStatusResult(True)
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
     def is_installed_one(self, item: Installable) -> InstallStatusResult:
