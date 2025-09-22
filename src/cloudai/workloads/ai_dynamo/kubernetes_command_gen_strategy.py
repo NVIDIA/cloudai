@@ -14,26 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .ai_dynamo import (
-    AIDynamoArgs,
-    AIDynamoCmdArgs,
-    AIDynamoTestDefinition,
-    DecodeWorkerArgs,
-    GenAIPerfArgs,
-    PrefillWorkerArgs,
-)
-from .kubernetes_command_gen_strategy import AIDynamoKubernetesCommandGenStrategy
-from .report_generation_strategy import AIDynamoReportGenerationStrategy
-from .slurm_command_gen_strategy import AIDynamoSlurmCommandGenStrategy
 
-__all__ = [
-    "AIDynamoArgs",
-    "AIDynamoCmdArgs",
-    "AIDynamoKubernetesCommandGenStrategy",
-    "AIDynamoReportGenerationStrategy",
-    "AIDynamoSlurmCommandGenStrategy",
-    "AIDynamoTestDefinition",
-    "DecodeWorkerArgs",
-    "GenAIPerfArgs",
-    "PrefillWorkerArgs",
-]
+from cloudai.core import CommandGenStrategy
+
+
+class AIDynamoKubernetesCommandGenStrategy(CommandGenStrategy):
+    """Command generation strategy for AI Dynamo on Slurm systems."""
+
+    def gen_exec_command(self) -> str:
+        return "ls -la"
+
+    def store_test_run(self) -> None:
+        pass

@@ -14,20 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .kubernetes_cmd_job import KubernetesCMDJob
-from .kubernetes_cmd_runner import KubernetesCMDRunner
-from .kubernetes_cmd_system import KubernetesCMDSystem
-from .kubernetes_installer import KubernetesInstaller
-from .kubernetes_yaml_job import KubernetesYAMLJob
-from .kubernetes_yaml_runner import KubernetesYAMLRunner
-from .kubernetes_yaml_system import KubernetesYAMLSystem
 
-__all__ = [
-    "KubernetesCMDJob",
-    "KubernetesCMDRunner",
-    "KubernetesCMDSystem",
-    "KubernetesInstaller",
-    "KubernetesYAMLJob",
-    "KubernetesYAMLRunner",
-    "KubernetesYAMLSystem",
-]
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+from cloudai.core import BaseJob
+
+if TYPE_CHECKING:
+    pass
+
+
+@dataclass
+class KubernetesCMDJob(BaseJob):
+    """Job class for Kubernetes command-line based jobs."""
+
+    pass

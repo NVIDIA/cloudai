@@ -32,6 +32,8 @@ def register_all():
 
     # Import systems
     from cloudai.systems.kubernetes import (
+        KubernetesCMDRunner,
+        KubernetesCMDSystem,
         KubernetesInstaller,
         KubernetesYAMLRunner,
         KubernetesYAMLSystem,
@@ -41,6 +43,7 @@ def register_all():
     from cloudai.systems.slurm import SlurmInstaller, SlurmRunner, SlurmSystem
     from cloudai.systems.standalone import StandaloneInstaller, StandaloneRunner, StandaloneSystem
     from cloudai.workloads.ai_dynamo import (
+        AIDynamoKubernetesCommandGenStrategy,
         AIDynamoReportGenerationStrategy,
         AIDynamoSlurmCommandGenStrategy,
         AIDynamoTestDefinition,
@@ -124,6 +127,7 @@ def register_all():
 
     Registry().add_runner("slurm", SlurmRunner)
     Registry().add_runner("kubernetes_yaml", KubernetesYAMLRunner)
+    Registry().add_runner("kubernetes_cmd", KubernetesCMDRunner)
     Registry().add_runner("standalone", StandaloneRunner)
     Registry().add_runner("lsf", LSFRunner)
     Registry().add_runner("runai", RunAIRunner)
@@ -173,16 +177,21 @@ def register_all():
     Registry().add_command_gen_strategy(SlurmSystem, AIDynamoTestDefinition, AIDynamoSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, BashCmdTestDefinition, BashCmdCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NIXLKVBenchTestDefinition, NIXLKVBenchSlurmCommandGenStrategy)
+    Registry().add_command_gen_strategy(
+        KubernetesCMDSystem, AIDynamoTestDefinition, AIDynamoKubernetesCommandGenStrategy
+    )
 
     Registry().add_installer("slurm", SlurmInstaller)
     Registry().add_installer("standalone", StandaloneInstaller)
     Registry().add_installer("kubernetes_yaml", KubernetesInstaller)
+    Registry().add_installer("kubernetes_cmd", KubernetesInstaller)
     Registry().add_installer("lsf", LSFInstaller)
     Registry().add_installer("runai", RunAIInstaller)
 
     Registry().add_system("slurm", SlurmSystem)
     Registry().add_system("standalone", StandaloneSystem)
     Registry().add_system("kubernetes_yaml", KubernetesYAMLSystem)
+    Registry().add_system("kubernetes_cmd", KubernetesCMDSystem)
     Registry().add_system("lsf", LSFSystem)
     Registry().add_system("runai", RunAISystem)
 
