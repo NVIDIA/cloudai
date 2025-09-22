@@ -21,7 +21,7 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_serializer, field_validator, model_validator
 
-from cloudai.core import CmdArgs, GitRepo, NsysConfiguration, Registry, Reporter, TestRun
+from cloudai.core import CmdArgs, GitRepo, NsysConfiguration, Registry, Reporter, System, Test, TestRun, TestTemplate
 from cloudai.models.workload import TestDefinition
 
 
@@ -249,4 +249,16 @@ class TestRunDetails(BaseModel):
             test_cmd=test_cmd,
             full_cmd=full_cmd,
             test_definition=tr.test.test_definition,
+        )
+
+    def to_test_run(self, system: System) -> TestRun:
+        return TestRun(
+            name=self.name,
+            test=Test(test_definition=self.test_definition, test_template=TestTemplate(system=system)),
+            num_nodes=self.nnodes,
+            nodes=self.nodes,
+            output_path=self.output_path,
+            iterations=self.iterations,
+            current_iteration=self.current_iteration,
+            step=self.step,
         )

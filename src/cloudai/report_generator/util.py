@@ -173,7 +173,7 @@ def diff_test_runs(trs: list[TestRun]) -> dict[str, list[str]]:
 
     diff = {}
     for key in all_keys:
-        all_values = [d[key] for d in dicts]
+        all_values = [d.get(key) for d in dicts]
         if len(set(all_values)) > 1:
             diff[key] = all_values
 

@@ -75,7 +75,9 @@
                                             <div>
                                                 <h6 class="mb-1">{{ test_run.name }}</h6>
                                                 <div class="d-flex align-items-center">
-                                                    <span class="badge bg-primary me-2">{{ test_run.test_type }}</span>
+                                                    <span class="badge bg-primary me-2">{{
+                                                        test_run.test.test_definition.test_template_name
+                                                        }}</span>
                                                     <small class="text-muted">{{ test_run.iterations }}
                                                         iterations</small>
                                                 </div>

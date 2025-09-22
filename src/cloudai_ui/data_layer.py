@@ -24,7 +24,9 @@ from typing import List, Optional
 
 import toml
 
+from cloudai._core.test_scenario import TestRun
 from cloudai.models.scenario import TestRunDetails
+from cloudai.systems.slurm.slurm_system import SlurmSystem
 
 
 @dataclass
@@ -34,17 +36,8 @@ class TestScenarioInfo:
     id: str
     name: str
     timestamp: datetime
-    test_runs: List["TestRunInfo"]
+    test_runs: List[TestRun]
     error: Optional[str] = None
-
-
-@dataclass
-class TestRunInfo:
-    """Information about individual test runs within a scenario."""
-
-    name: str
-    test_type: str
-    iterations: int
 
 
 class DataProvider(ABC):
@@ -116,18 +109,18 @@ class LocalFileDataProvider(DataProvider):
         scenarios.sort(key=lambda x: x.timestamp, reverse=True)
         return scenarios
 
-    def _get_test_runs(self, scenario_dir: Path) -> List[TestRunInfo]:
+    def _get_test_runs(self, scenario_dir: Path) -> List[TestRun]:
         """Get test runs for a scenario."""
         test_runs = []
 
+        system = SlurmSystem(
+            name="slurm", install_path=Path("/"), output_path=Path("/"), default_partition="default", partitions=[]
+        )
+
         for tr_dump in scenario_dir.rglob("test-run.toml"):
             trd = TestRunDetails.model_validate(toml.load(tr_dump))
-            test_runs.append(
-                TestRunInfo(
-                    name=trd.name,
-                    test_type=trd.test_definition.test_template_name,
-                    iterations=trd.iterations,
-                )
-            )
+            test_run = trd.to_test_run(system)
+            test_run.output_path = tr_dump.parent
+            test_runs.append(test_run)
 
         return test_runs

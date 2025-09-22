@@ -20,11 +20,29 @@ from pathlib import Path
 
 from flask import Flask, render_template
 
+from cloudai.workloads.nccl_test import NCCLTestDefinition
+from cloudai.workloads.nixl_bench import NIXLBenchTestDefinition
+
 from .data_layer import LocalFileDataProvider, TestScenarioInfo
+from .nccl_dashboard import NCCLDashboard
 
 
 def available_dashboards(scenarios: list[TestScenarioInfo]) -> list[str]:
-    return ["debug"]
+    dash_types: list[str] = ["debug"]
+    num_nccl, num_nixl = 0, 0
+    for scenario in scenarios:
+        for test_run in scenario.test_runs:
+            if isinstance(test_run.test.test_definition, NCCLTestDefinition):
+                num_nccl += 1
+            elif isinstance(test_run.test.test_definition, NIXLBenchTestDefinition):
+                num_nixl += 1
+
+    if num_nccl > 1:
+        dash_types.append("nccl")
+    if num_nixl > 1:
+        dash_types.append("nixl")
+
+    return dash_types
 
 
 def create_app(results_root: Path):
@@ -44,7 +62,7 @@ def create_app(results_root: Path):
             current_dashboard=None,  # Set to None to indicate we're on home page
         )
 
-    @app.route("/dashboard/<dashboard_type>")
+    @app.route("/<dashboard_type>")
     def dashboard(dashboard_type):
         """Show specific dashboard type."""
         scenarios = data_provider.get_scenarios()
@@ -60,6 +78,18 @@ def create_app(results_root: Path):
                 results_root=results_root,
                 dashboards=dashboards,
                 current_dashboard=dashboard_type,
+            )
+        elif dashboard_type == "nccl":
+            # Generate NCCL dashboard using existing comparison report logic
+            dashboard = NCCLDashboard(scenarios, results_root)
+            dashboard_data = dashboard.get_dashboard_data()
+
+            return render_template(
+                "dashboards/nccl.html",
+                results_root=results_root,
+                dashboards=dashboards,
+                current_dashboard=dashboard_type,
+                **dashboard_data,
             )
 
         # No other dashboard types currently supported
