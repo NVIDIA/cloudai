@@ -70,5 +70,5 @@ def test_gen_kvbench_ucx(kvbench_tr: TestRun, slurm_system: SlurmSystem):
         "--model_config ./cfg.yaml",
         "--source src",
         "--op_type READ",
-        "--etcd-endpoints http://$NIXL_ETCD_ENDPOINTS",
+        "--etcd_endpoints http://$NIXL_ETCD_ENDPOINTS",
     ]

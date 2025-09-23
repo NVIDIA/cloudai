@@ -69,6 +69,6 @@ class NIXLKVBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
         for k, v in self.test_run.test.test_definition.cmd_args_dict.items():
             command.append(f"--{k} {v}")
 
-        command.append("--etcd-endpoints http://$NIXL_ETCD_ENDPOINTS")
+        command.append("--etcd_endpoints http://$NIXL_ETCD_ENDPOINTS")
 
         return command
