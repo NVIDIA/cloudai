@@ -17,7 +17,6 @@
 
 from pathlib import Path
 from typing import Set, Type
-from unittest.mock import Mock, patch
 
 import pytest
 import toml
@@ -34,7 +33,6 @@ from cloudai.core import (
     TestRun,
     TestScenario,
     TestScenarioParser,
-    TestScenarioParsingError,
     TestTemplate,
 )
 from cloudai.models.scenario import TestRunModel, TestScenarioModel
