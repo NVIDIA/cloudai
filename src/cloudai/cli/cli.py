@@ -85,7 +85,7 @@ def common_options(f):
     )(f)
     f = click.option(
         "--tests-dir",
-        required=True,
+        required=False,
         type=click.Path(exists=True, resolve_path=True, path_type=Path, file_okay=False, dir_okay=True),
         help="Directory with Test configs.",
     )(f)

@@ -37,6 +37,15 @@ def test_version():
     assert "CloudAI, version" in result.output
 
 
+def test_tests_dir_is_optional(tmp_path: Path):
+    system_cfg, scenario_cfg = tmp_path / "system.toml", tmp_path / "scenario.toml"
+    system_cfg.touch()
+    scenario_cfg.touch()
+    runner = CliRunner()
+    result = runner.invoke(main, ["run", "--system-config", str(system_cfg), "--test-scenario", str(scenario_cfg)])
+    assert "Missing option '--tests-dir'" not in result.output
+
+
 @pytest.mark.parametrize(
     "subcommand", ["dry-run", "generate-report", "install", "list", "run", "uninstall", "verify-configs"]
 )
