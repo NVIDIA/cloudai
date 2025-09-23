@@ -104,7 +104,7 @@ class CloudAIGymEnv(BaseGym):
             logging.info("Constraint check failed. Skipping step.")
             return [-1.0], -1.0, True, {}
 
-        logging.info(f"Running step {self.test_run.step} with action {action}")
+        logging.info(f"Running step {self.test_run.step} (of {self.test_run.test.test_definition.agent_steps}) with action {action}")
         new_tr = copy.deepcopy(self.test_run)
         new_tr.output_path = self.runner.get_job_output_path(new_tr)
         self.runner.test_scenario.test_runs = [new_tr]

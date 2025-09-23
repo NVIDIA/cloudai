@@ -153,7 +153,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
             observation, reward, done, info = env.step(action)
             feedback = {"trial_index": step, "value": reward}
             agent.update_policy(feedback)
-            logging.info(f"Step {step}: Observation: {observation}, Reward: {reward}")
+            logging.info(f"Step {step}: Observation: {observation:.4f}, Reward: {reward:.4f}")
 
     if args.mode == "run":
         runner.runner.test_scenario.test_runs = original_test_runs
