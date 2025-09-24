@@ -152,15 +152,6 @@ class KubernetesSystem(BaseModel, System):
         pass
 
     def is_job_running(self, job: BaseJob) -> bool:
-        """
-        Check if a given Kubernetes job is currently running.
-
-        Args:
-            job (BaseJob): The job to check.
-
-        Returns:
-            bool: True if the job is running, False otherwise.
-        """
         k_job: KubernetesJob = cast(KubernetesJob, job)
         return self._is_job_running(k_job.name, k_job.kind)
 
@@ -178,40 +169,20 @@ class KubernetesSystem(BaseModel, System):
         return not self._is_job_running(k_job.name, k_job.kind)
 
     def _is_job_running(self, job_name: str, job_kind: str) -> bool:
-        """
-        Check if a job is currently running.
-
-        Args:
-            job_name (str): The name of the job.
-            job_kind (str): The kind of the job ('MPIJob' or 'Job').
-
-        Returns:
-            bool: True if the job is running, False if the job has completed or is not found.
-        """
         logging.debug(f"Checking for job '{job_name}' of kind '{job_kind}' to determine if it is running.")
 
         if "mpijob" in job_kind.lower():
             return self._is_mpijob_running(job_name)
         elif "job" in job_kind.lower():
             return self._is_batch_job_running(job_name)
+        elif "dynamographdeployment" in job_kind.lower():
+            return self._is_dynamo_graph_deployment_running(job_name)
         else:
-            error_message = (
-                f"Unsupported job kind: '{job_kind}'. Supported kinds are 'MPIJob' for MPI workloads and 'Job' for "
-                f"batch jobs. Please verify that the 'job_kind' field is correctly set in the job specification."
-            )
+            error_message = f"Unsupported job kind: '{job_kind}'."
             logging.error(error_message)
             raise ValueError(error_message)
 
     def _is_mpijob_running(self, job_name: str) -> bool:
-        """
-        Check if an MPIJob is currently running.
-
-        Args:
-            job_name (str): The name of the MPIJob.
-
-        Returns:
-            bool: True if the MPIJob is running, False if the MPIJob has completed or is not found.
-        """
         try:
             mpijob = self.custom_objects_api.get_namespaced_custom_object(
                 group="kubeflow.org",
@@ -252,15 +223,6 @@ class KubernetesSystem(BaseModel, System):
                 raise
 
     def _is_batch_job_running(self, job_name: str) -> bool:
-        """
-        Check if a batch job is currently running.
-
-        Args:
-            job_name (str): The name of the batch job.
-
-        Returns:
-            bool: True if the batch job is running, False if the job has completed or is not found.
-        """
         try:
             k8s_job: Any = self.batch_v1.read_namespaced_job_status(name=job_name, namespace=self.default_namespace)
 
@@ -292,6 +254,44 @@ class KubernetesSystem(BaseModel, System):
                 logging.error(
                     f"Error occurred while retrieving status for batch job '{job_name}'."
                     f"Error code: {e.status}. Message: {e.reason}. Please check the job name and Kubernetes API server."
+                )
+                raise
+
+    def _is_dynamo_graph_deployment_running(self, job_name: str) -> bool:
+        try:
+            deployment = self.custom_objects_api.get_namespaced_custom_object(
+                group="nvidia.com",
+                version="v1alpha1",
+                namespace=self.default_namespace,
+                plural="dynamographdeployments",
+                name=job_name,
+            )
+
+            assert isinstance(deployment, dict)
+            status: dict = cast(dict, deployment.get("status", {}))
+            conditions = status.get("conditions", [])
+
+            # Consider an empty conditions list as running
+            if not conditions:
+                return True
+
+            for condition in conditions:
+                if condition["type"] == "Ready" and condition["status"] == "True":
+                    return True
+                if condition["type"] == "Failed" and condition["status"] == "True":
+                    return False
+
+            # If no terminal conditions found, consider it running
+            return True
+
+        except lazy.k8s.client.ApiException as e:
+            if e.status == 404:
+                logging.debug(f"DynamoGraphDeployment '{job_name}' not found.")
+                return False
+            else:
+                logging.error(
+                    f"Error occurred while retrieving status for DynamoGraphDeployment '{job_name}'. "
+                    f"Error code: {e.status}. Message: {e.reason}."
                 )
                 raise
 
