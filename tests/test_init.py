@@ -17,13 +17,12 @@
 
 from cloudai.core import GradingStrategy, JsonGenStrategy, Registry
 from cloudai.reporter import PerTestReporter, StatusReporter, TarballReporter
-from cloudai.systems.kubernetes import KubernetesCMDSystem, KubernetesYAMLSystem
+from cloudai.systems.kubernetes import KubernetesSystem
 from cloudai.systems.lsf import LSFInstaller, LSFSystem
 from cloudai.systems.runai import RunAIInstaller, RunAISystem
 from cloudai.systems.slurm import SlurmInstaller, SlurmSystem
 from cloudai.systems.standalone import StandaloneInstaller, StandaloneSystem
 from cloudai.workloads.ai_dynamo import (
-    AIDynamoKubernetesCommandGenStrategy,
     AIDynamoSlurmCommandGenStrategy,
     AIDynamoTestDefinition,
 )
@@ -89,22 +88,20 @@ def test_systems():
     parsers = Registry().systems_map.keys()
     assert "standalone" in parsers
     assert "slurm" in parsers
-    assert "kubernetes_yaml" in parsers
-    assert "kubernetes_cmd" in parsers
+    assert "kubernetes" in parsers
     assert "lsf" in parsers
     assert "runai" in parsers
-    assert len(parsers) == 6
+    assert len(parsers) == 5
 
 
 def test_runners():
     runners = Registry().runners_map.keys()
     assert "standalone" in runners
     assert "slurm" in runners
-    assert "kubernetes_yaml" in runners
-    assert "kubernetes_cmd" in runners
+    assert "kubernetes" in runners
     assert "lsf" in runners
     assert "runai" in runners
-    assert len(runners) == 6
+    assert len(runners) == 5
 
 
 CMD_GEN_STRATEGIES = {
@@ -127,7 +124,6 @@ CMD_GEN_STRATEGIES = {
     (SlurmSystem, BashCmdTestDefinition): BashCmdCommandGenStrategy,
     (SlurmSystem, NixlPerftestTestDefinition): NixlPerftestSlurmCommandGenStrategy,
     (SlurmSystem, NIXLKVBenchTestDefinition): NIXLKVBenchSlurmCommandGenStrategy,
-    (KubernetesCMDSystem, AIDynamoTestDefinition): AIDynamoKubernetesCommandGenStrategy,
 }
 ALL_STRATEGIES = {
     (GradingStrategy, SlurmSystem, ChakraReplayTestDefinition): ChakraReplayGradingStrategy,
@@ -138,8 +134,8 @@ ALL_STRATEGIES = {
     (GradingStrategy, SlurmSystem, NemotronTestDefinition): JaxToolboxGradingStrategy,
     (GradingStrategy, SlurmSystem, SleepTestDefinition): SleepGradingStrategy,
     (GradingStrategy, SlurmSystem, UCCTestDefinition): UCCTestGradingStrategy,
-    (JsonGenStrategy, KubernetesYAMLSystem, NCCLTestDefinition): NcclTestKubernetesJsonGenStrategy,
-    (JsonGenStrategy, KubernetesYAMLSystem, SleepTestDefinition): SleepKubernetesJsonGenStrategy,
+    (JsonGenStrategy, KubernetesSystem, NCCLTestDefinition): NcclTestKubernetesJsonGenStrategy,
+    (JsonGenStrategy, KubernetesSystem, SleepTestDefinition): SleepKubernetesJsonGenStrategy,
     (JsonGenStrategy, RunAISystem, NCCLTestDefinition): NcclTestRunAIJsonGenStrategy,
 }
 
@@ -177,7 +173,7 @@ def test_command_gen_strategies():
 
 def test_installers():
     installers = Registry().installers_map
-    assert len(installers) == 6
+    assert len(installers) == 5
     assert installers["standalone"] == StandaloneInstaller
     assert installers["slurm"] == SlurmInstaller
     assert installers["lsf"] == LSFInstaller

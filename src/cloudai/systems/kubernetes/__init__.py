@@ -14,20 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .kubernetes_cmd_job import KubernetesCMDJob
-from .kubernetes_cmd_runner import KubernetesCMDRunner
-from .kubernetes_cmd_system import KubernetesCMDSystem
 from .kubernetes_installer import KubernetesInstaller
-from .kubernetes_yaml_job import KubernetesYAMLJob
-from .kubernetes_yaml_runner import KubernetesYAMLRunner
-from .kubernetes_yaml_system import KubernetesYAMLSystem
+from .kubernetes_job import KubernetesJob
+from .kubernetes_runner import KubernetesRunner
+from .kubernetes_system import KubernetesSystem
 
 __all__ = [
-    "KubernetesCMDJob",
-    "KubernetesCMDRunner",
-    "KubernetesCMDSystem",
     "KubernetesInstaller",
-    "KubernetesYAMLJob",
-    "KubernetesYAMLRunner",
-    "KubernetesYAMLSystem",
+    "KubernetesJob",
+    "KubernetesRunner",
+    "KubernetesSystem",
 ]

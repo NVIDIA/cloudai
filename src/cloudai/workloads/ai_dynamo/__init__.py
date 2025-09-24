@@ -22,14 +22,12 @@ from .ai_dynamo import (
     GenAIPerfArgs,
     PrefillWorkerArgs,
 )
-from .kubernetes_command_gen_strategy import AIDynamoKubernetesCommandGenStrategy
 from .report_generation_strategy import AIDynamoReportGenerationStrategy
 from .slurm_command_gen_strategy import AIDynamoSlurmCommandGenStrategy
 
 __all__ = [
     "AIDynamoArgs",
     "AIDynamoCmdArgs",
-    "AIDynamoKubernetesCommandGenStrategy",
     "AIDynamoReportGenerationStrategy",
     "AIDynamoSlurmCommandGenStrategy",
     "AIDynamoTestDefinition",
