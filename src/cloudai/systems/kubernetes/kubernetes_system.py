@@ -402,18 +402,6 @@ class KubernetesSystem(BaseModel, System):
         raise TimeoutError(f"Job '{job_name}' was not observable within {timeout} seconds.")
 
     def _create_job(self, job_spec: Dict[Any, Any]) -> str:
-        """
-        Submit a job.
-
-        Args:
-            job_spec (Dict[Any, Any]): The job specification.
-
-        Returns:
-            str: The job name.
-
-        Raises:
-            ValueError: If the job specification does not contain a valid 'kind' field.
-        """
         api_version = job_spec.get("apiVersion", "")
         kind = job_spec.get("kind", "").lower()
 
@@ -421,10 +409,11 @@ class KubernetesSystem(BaseModel, System):
             return self._create_mpi_job(job_spec)
         elif ("batch" in api_version) and ("job" in kind):
             return self._create_batch_job(job_spec)
+        elif "dynamographdeployment" in kind:
+            return self._create_dynamo_graph_deployment(job_spec)
         else:
             error_message = (
                 f"Unsupported job kind: '{job_spec.get('kind')}'.\n"
-                "The supported kinds are: 'MPIJob' for MPI workloads and 'Job' for batch jobs.\n"
                 "Please review the job specification generation logic to ensure that the 'kind' field is set "
                 "correctly.\n"
             )
@@ -432,15 +421,6 @@ class KubernetesSystem(BaseModel, System):
             raise ValueError(error_message)
 
     def _create_batch_job(self, job_spec: Dict[Any, Any]) -> str:
-        """
-        Submit a batch job.
-
-        Args:
-            job_spec (Dict[Any, Any]): The job specification.
-
-        Returns:
-            str: The job name.
-        """
         api_response = self.batch_v1.create_namespaced_job(body=job_spec, namespace=self.default_namespace)
 
         if not isinstance(api_response, lazy.k8s.client.V1Job) or api_response.metadata is None:
@@ -451,15 +431,6 @@ class KubernetesSystem(BaseModel, System):
         return job_name
 
     def _create_mpi_job(self, job_spec: Dict[Any, Any]) -> str:
-        """
-        Submit an MPIJob.
-
-        Args:
-            job_spec (Dict[Any, Any]): The MPIJob specification.
-
-        Returns:
-            str: The job name.
-        """
         api_response = self.custom_objects_api.create_namespaced_custom_object(
             group="kubeflow.org",
             version="v2beta1",
@@ -470,6 +441,19 @@ class KubernetesSystem(BaseModel, System):
 
         job_name: str = api_response["metadata"]["name"]
         logging.debug(f"MPIJob '{job_name}' created with status: {api_response.get('status')}")
+        return job_name
+
+    def _create_dynamo_graph_deployment(self, job_spec: Dict[Any, Any]) -> str:
+        api_response = self.custom_objects_api.create_namespaced_custom_object(
+            group="nvidia.com",
+            version="v1alpha1",
+            namespace=self.default_namespace,
+            plural="dynamographdeployments",
+            body=job_spec,
+        )
+
+        job_name: str = api_response["metadata"]["name"]
+        logging.debug(f"DynamoGraphDeployment '{job_name}' created with status: {api_response.get('status')}")
         return job_name
 
     def _is_job_observable(self, job_name: str, job_kind: str) -> bool:
