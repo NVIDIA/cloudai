@@ -457,36 +457,19 @@ class KubernetesSystem(BaseModel, System):
         return job_name
 
     def _is_job_observable(self, job_name: str, job_kind: str) -> bool:
-        """
-        Check if a job is observable by the Kubernetes client.
-
-        Args:
-            job_name (str): The name of the job.
-            job_kind (str): The kind of the job (e.g., 'Job', 'MPIJob').
-
-        Returns:
-            bool: True if the job is observable, False otherwise.
-        """
         logging.debug(f"Checking if job '{job_name}' of kind '{job_kind}' is observable.")
 
         if "mpijob" in job_kind.lower():
             return self._is_mpijob_observable(job_name)
         elif "job" in job_kind.lower():
             return self._is_batch_job_observable(job_name)
+        elif "dynamographdeployment" in job_kind.lower():
+            return self._is_dynamo_graph_deployment_observable(job_name)
         else:
             logging.error(f"Unsupported job kind: '{job_kind}'")
             return False
 
     def _is_mpijob_observable(self, job_name: str) -> bool:
-        """
-        Check if an MPIJob is observable by the Kubernetes client.
-
-        Args:
-            job_name (str): The name of the MPIJob.
-
-        Returns:
-            bool: True if the MPIJob is observable, False otherwise.
-        """
         logging.debug(f"Attempting to observe MPIJob '{job_name}'.")
         try:
             api_instance = self.custom_objects_api
@@ -515,15 +498,6 @@ class KubernetesSystem(BaseModel, System):
                 raise
 
     def _is_batch_job_observable(self, job_name: str) -> bool:
-        """
-        Check if a batch job is observable by the Kubernetes client.
-
-        Args:
-            job_name (str): The name of the batch job.
-
-        Returns:
-            bool: True if the batch job is observable, False otherwise.
-        """
         logging.debug(f"Attempting to observe batch job '{job_name}'.")
         try:
             return self.batch_v1.read_namespaced_job_status(name=job_name, namespace=self.default_namespace) is not None
@@ -535,6 +509,35 @@ class KubernetesSystem(BaseModel, System):
                 logging.error(
                     f"An error occurred while checking if batch job '{job_name}' is observable: {e.reason}. "
                     f"Please check the job name, namespace, and Kubernetes API server."
+                )
+                raise
+
+    def _is_dynamo_graph_deployment_observable(self, job_name: str) -> bool:
+        logging.debug(f"Attempting to observe DynamoGraphDeployment '{job_name}'.")
+        try:
+            api_instance = self.custom_objects_api
+            deployment = api_instance.get_namespaced_custom_object(
+                group="nvidia.com",
+                version="v1alpha1",
+                namespace=self.default_namespace,
+                plural="dynamographdeployments",
+                name=job_name,
+            )
+            if deployment:
+                logging.debug(f"DynamoGraphDeployment '{job_name}' found with details: {deployment}.")
+                return True
+            else:
+                logging.debug(f"DynamoGraphDeployment '{job_name}' is not yet observable.")
+                return False
+        except lazy.k8s.client.ApiException as e:
+            if e.status == 404:
+                logging.debug(f"DynamoGraphDeployment '{job_name}' not found.")
+                return False
+            else:
+                logging.error(
+                    f"An error occurred while checking if DynamoGraphDeployment '{job_name}' "
+                    f"is observable: {e.reason}. Please check the job name, namespace, and "
+                    "Kubernetes API server."
                 )
                 raise
 
