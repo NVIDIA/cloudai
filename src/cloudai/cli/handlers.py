@@ -59,8 +59,6 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     parser = Parser(args.system_config)
     system, tests, scenario = parser.parse(args.tests_dir, args.test_scenario)
 
-    if args.output_dir:
-        system.output_path = args.output_dir.absolute()
     system.update()
     logging.info(f"System Name: {system.name}")
     logging.info(f"Scheduler: {system.scheduler}")

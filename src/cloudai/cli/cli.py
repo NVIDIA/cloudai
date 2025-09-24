@@ -128,30 +128,18 @@ def main(log_file, log_level):
 
 @main.command()
 @common_options
-@output_dir_opt
-def install(system_cfg: Path, tests_dir: Path, scenario_cfg: Path, output_dir: Path):
+def install(system_cfg: Path, tests_dir: Path, scenario_cfg: Path):
     """Install the necessary components for workloads."""
-    args = argparse.Namespace(
-        system_config=system_cfg,
-        tests_dir=tests_dir,
-        test_scenario=scenario_cfg,
-        output_dir=output_dir,
-        mode="install",
-    )
+    args = argparse.Namespace(system_config=system_cfg, tests_dir=tests_dir, test_scenario=scenario_cfg, mode="install")
     exit(handle_install_and_uninstall(args))
 
 
 @main.command()
 @common_options
-@output_dir_opt
-def uninstall(system_cfg: Path, tests_dir: Path, scenario_cfg: Path, output_dir: Path):
+def uninstall(system_cfg: Path, tests_dir: Path, scenario_cfg: Path):
     """Uninstall the components used by workloads."""
     args = argparse.Namespace(
-        system_config=system_cfg,
-        tests_dir=tests_dir,
-        test_scenario=scenario_cfg,
-        output_dir=output_dir,
-        mode="uninstall",
+        system_config=system_cfg, tests_dir=tests_dir, test_scenario=scenario_cfg, mode="uninstall"
     )
     exit(handle_install_and_uninstall(args))
 
