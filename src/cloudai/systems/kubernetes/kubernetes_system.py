@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import subprocess
 import time
@@ -307,10 +308,40 @@ class KubernetesSystem(BaseModel, System):
             logging.error(f"Error setting up port forward: {e}")
             raise
 
+    def _check_model_server(self) -> bool:
+        try:
+            cmd = "curl -s http://localhost:8000/v1/models"
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+            if result.returncode != 0:
+                logging.warning("Failed to connect to model server")
+                return False
+
+            try:
+                response = json.loads(result.stdout)
+                if response.get("data") and len(response["data"]) > 0:
+                    logging.info(f"Model server is running. Response: {result.stdout}")
+                    return True
+                else:
+                    logging.info("Model server is up but no models are loaded yet")
+                    return False
+            except json.JSONDecodeError:
+                logging.warning("Invalid JSON response from model server")
+                return False
+
+        except subprocess.SubprocessError as e:
+            logging.error(f"Error checking model server: {e}")
+            return False
+
     def _is_dynamo_graph_deployment_running(self, job_name: str) -> bool:
         try:
             if self._check_vllm_pods_status():
                 self._setup_port_forward()
+                if self._port_forward_process:
+                    time.sleep(2)
+                    if self._check_model_server():
+                        logging.info("vLLM server is up and models are loaded")
+
             deployment = self.custom_objects_api.get_namespaced_custom_object(
                 group="nvidia.com",
                 version="v1alpha1",
