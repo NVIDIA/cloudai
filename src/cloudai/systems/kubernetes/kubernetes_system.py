@@ -386,6 +386,8 @@ class KubernetesSystem(BaseModel, System):
                     if self._check_model_server():
                         logging.info("vLLM server is up and models are loaded")
                         self._test_chat_completion()
+                        self._delete_dynamo_graph_deployment(job_name)
+                        return False
 
             deployment = self.custom_objects_api.get_namespaced_custom_object(
                 group="nvidia.com",
