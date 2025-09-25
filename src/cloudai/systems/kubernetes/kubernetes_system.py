@@ -434,32 +434,18 @@ class KubernetesSystem(BaseModel, System):
         self.delete_job(k_job.name, k_job.kind)
 
     def delete_job(self, job_name: str, job_kind: str) -> None:
-        """
-        Delete a job.
-
-        Args:
-            job_name (str): The name of the job.
-            job_kind (str): The kind of the job ('MPIJob' or 'Job').
-        """
         if "mpijob" in job_kind.lower():
             self._delete_mpi_job(job_name)
         elif "job" in job_kind.lower():
             self._delete_batch_job(job_name)
+        elif "dynamographdeployment" in job_kind.lower():
+            pass
         else:
-            error_message = (
-                f"Unsupported job kind: '{job_kind}'. Supported kinds are 'MPIJob' for MPI workloads and 'Job' for "
-                "batch jobs. Please verify that the 'job_kind' field is correctly set in the job specification."
-            )
+            error_message = f"Unsupported job kind: '{job_kind}'."
             logging.error(error_message)
             raise ValueError(error_message)
 
     def _delete_mpi_job(self, job_name: str) -> None:
-        """
-        Delete an MPIJob.
-
-        Args:
-            job_name (str): The name of the job.
-        """
         logging.debug(f"Deleting MPIJob '{job_name}'")
         try:
             self.custom_objects_api.delete_namespaced_custom_object(
@@ -483,12 +469,6 @@ class KubernetesSystem(BaseModel, System):
                 raise
 
     def _delete_batch_job(self, job_name: str) -> None:
-        """
-        Delete a batch job.
-
-        Args:
-            job_name (str): The name of the job.
-        """
         logging.debug(f"Deleting batch job '{job_name}'")
         api_response = self.batch_v1.delete_namespaced_job(
             name=job_name,
@@ -498,6 +478,18 @@ class KubernetesSystem(BaseModel, System):
         api_response = cast(k8s.client.V1Job, api_response)
 
         logging.debug(f"Batch job '{job_name}' deleted with status: {api_response.status}")
+
+    def _delete_dynamo_graph_deployment(self, job_name: str) -> None:
+        logging.debug(f"Deleting DynamoGraphDeployment '{job_name}'")
+        try:
+            cmd = f"kubectl delete dgd vllm-v1-agg -n {self.default_namespace}"
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            if result.returncode != 0:
+                raise subprocess.SubprocessError(f"Failed to delete DynamoGraphDeployment: {result.stderr}")
+            logging.debug("DynamoGraphDeployment deleted successfully")
+        except subprocess.SubprocessError as e:
+            logging.error(str(e))
+            raise
 
     def create_job(self, job_spec: Dict[Any, Any], timeout: int = 60, interval: int = 1) -> str:
         """
