@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import logging
+import subprocess
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
@@ -248,8 +249,41 @@ class KubernetesSystem(BaseModel, System):
                 )
                 raise
 
+    def _check_vllm_pods_status(self) -> bool:
+        try:
+            cmd = f"kubectl get pods -n {self.default_namespace} | grep 'vllm-v1-agg'"
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+            if result.returncode != 0:
+                logging.warning("No vLLM pods found")
+                return False
+
+            all_ready = True
+            for line in result.stdout.splitlines():
+                columns = line.split()
+                if len(columns) < 3:
+                    continue
+
+                pod_name = columns[0]
+                ready_status = columns[1]
+                pod_status = columns[2]
+
+                ready_count, total_count = map(int, ready_status.split("/"))
+                if pod_status == "Running" and ready_count == total_count:
+                    logging.info(f"Pod {pod_name} is running and ready ({ready_status})")
+                else:
+                    logging.info(f"Pod {pod_name} is {pod_status} but not fully ready ({ready_status})")
+                    all_ready = False
+
+            return all_ready
+
+        except subprocess.SubprocessError as e:
+            logging.error(f"Error running kubectl command: {e}")
+            raise
+
     def _is_dynamo_graph_deployment_running(self, job_name: str) -> bool:
         try:
+            self._check_vllm_pods_status()
             deployment = self.custom_objects_api.get_namespaced_custom_object(
                 group="nvidia.com",
                 version="v1alpha1",
