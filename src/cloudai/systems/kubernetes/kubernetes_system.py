@@ -156,15 +156,6 @@ class KubernetesSystem(BaseModel, System):
         return self._is_job_running(k_job.name, k_job.kind)
 
     def is_job_completed(self, job: BaseJob) -> bool:
-        """
-        Check if a given Kubernetes job is completed.
-
-        Args:
-            job (BaseJob): The job to check.
-
-        Returns:
-            bool: True if the job is completed, False otherwise.
-        """
         k_job: KubernetesJob = cast(KubernetesJob, job)
         return not self._is_job_running(k_job.name, k_job.kind)
 
