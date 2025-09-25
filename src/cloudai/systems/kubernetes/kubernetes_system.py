@@ -64,6 +64,7 @@ class KubernetesSystem(BaseModel, System):
     _core_v1: Optional[k8s.client.CoreV1Api] = None
     _batch_v1: Optional[k8s.client.BatchV1Api] = None
     _custom_objects_api: Optional[k8s.client.CustomObjectsApi] = None
+    _port_forward_process = None
 
     def __getstate__(self) -> dict[str, Any]:
         """Return the state for pickling, excluding non-picklable Kubernetes client objects."""
@@ -281,9 +282,35 @@ class KubernetesSystem(BaseModel, System):
             logging.error(f"Error running kubectl command: {e}")
             raise
 
+    def _setup_port_forward(self) -> None:
+        if self._port_forward_process and self._port_forward_process.poll() is None:
+            logging.info("Port forwarding is already running")
+            return
+
+        if not self._check_vllm_pods_status():
+            logging.info("Pods are not ready yet, skipping port forward")
+            return
+
+        try:
+            get_pod_cmd = (
+                f"kubectl get pods -n {self.default_namespace} --no-headers | "
+                "grep vllm-v1-agg-frontend | "
+                "awk 'NR==1{print $1}'"
+            )
+            cmd = f"kubectl port-forward pod/$({get_pod_cmd}) 8000:8000 -n {self.default_namespace}"
+            logging.info("Starting port forwarding")
+            self._port_forward_process = subprocess.Popen(
+                cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+            logging.info("Port forwarding started")
+        except subprocess.SubprocessError as e:
+            logging.error(f"Error setting up port forward: {e}")
+            raise
+
     def _is_dynamo_graph_deployment_running(self, job_name: str) -> bool:
         try:
-            self._check_vllm_pods_status()
+            if self._check_vllm_pods_status():
+                self._setup_port_forward()
             deployment = self.custom_objects_api.get_namespaced_custom_object(
                 group="nvidia.com",
                 version="v1alpha1",
