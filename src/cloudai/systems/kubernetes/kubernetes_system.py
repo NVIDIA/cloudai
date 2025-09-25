@@ -270,6 +270,9 @@ class KubernetesSystem(BaseModel, System):
                 ready_status = columns[1]
                 pod_status = columns[2]
 
+                if pod_status == "Terminating":
+                    return False
+
                 ready_count, total_count = map(int, ready_status.split("/"))
                 if pod_status == "Running" and ready_count == total_count:
                     logging.info(f"Pod {pod_name} is running and ready ({ready_status})")
