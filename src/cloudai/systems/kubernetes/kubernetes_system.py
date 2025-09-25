@@ -333,6 +333,50 @@ class KubernetesSystem(BaseModel, System):
             logging.error(f"Error checking model server: {e}")
             return False
 
+    def _test_chat_completion(self) -> None:
+        try:
+            cmd = """curl -N -X POST http://localhost:8000/v1/chat/completions \\
+                -H 'accept: application/json' \\
+                -H 'Content-Type: application/json' \\
+                -d '{
+                    "model": "Qwen/Qwen3-0.6B",
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": "Hello! How are you?"
+                        }
+                    ],
+                    "max_tokens": 64,
+                    "stream": true,
+                    "temperature": 0.7,
+                    "top_p": 0.9,
+                    "frequency_penalty": 0.1,
+                    "presence_penalty": 0.2,
+                    "top_k": 5
+                }'"""
+
+            logging.info("Running chat completion test")
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+            if result.returncode != 0:
+                raise subprocess.SubprocessError(f"Chat completion test failed: {result.stderr}")
+
+            lines = [line for line in result.stdout.splitlines() if line.strip()]
+
+            for line in lines:
+                if line.startswith("data: ") and line.strip() != "data: [DONE]":
+                    try:
+                        chunk = json.loads(line[6:])
+                        if chunk.get("choices", [{}])[0].get("delta", {}).get("content"):
+                            content = chunk["choices"][0]["delta"]["content"]
+                            logging.info(f"Response chunk: {content}")
+                    except json.JSONDecodeError:
+                        logging.warning(f"Failed to parse line: {line}")
+
+        except subprocess.SubprocessError as e:
+            logging.error(str(e))
+            raise
+
     def _is_dynamo_graph_deployment_running(self, job_name: str) -> bool:
         try:
             if self._check_vllm_pods_status():
@@ -341,6 +385,7 @@ class KubernetesSystem(BaseModel, System):
                     time.sleep(2)
                     if self._check_model_server():
                         logging.info("vLLM server is up and models are loaded")
+                        self._test_chat_completion()
 
             deployment = self.custom_objects_api.get_namespaced_custom_object(
                 group="nvidia.com",
