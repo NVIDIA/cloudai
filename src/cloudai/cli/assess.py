@@ -39,13 +39,30 @@ def build_slurm_system() -> SlurmSystem:
         logging.error("No default partition found in Slurm configuration.")
         exit(1)
 
-    return SlurmSystem(
+    result = subprocess.run(
+        ["sacctmgr", "-nP", "show", "assoc", "where", "user=$(whoami)", "format=account"],
+        text=True,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        logging.error(f"Failed to run 'sacctmgr -nP assoc where user=$(whoami) format=account': {result.stderr}")
+        exit(1)
+    account = result.stdout.strip().split("\n")[0]
+    if account:
+        logging.info(f"Using Slurm account: {account}")
+    else:
+        logging.error("No Slurm account found for the current user.")
+
+    system = SlurmSystem(
         name="slurm",
         install_path=Path.cwd() / "_install",
         output_path=Path.cwd() / "_output",
         default_partition=default_partition,
+        account=account,
         partitions=[SlurmPartition(name=default_partition, slurm_nodes=[])],
     )
+
+    return system
 
 
 def get_test_runs(slurm_system: SlurmSystem) -> list[TestRun]:
