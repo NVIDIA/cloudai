@@ -74,13 +74,15 @@ class ComparisonReport(Reporter, ABC):
         cmp_groups = TestRunsGrouper(self.trs, self.group_by).groups()
         charts: list[bk.figure] = self.create_charts(cmp_groups)
 
-        # layout with 2 charts per row
-        rows = []
-        for i in range(0, len(charts), 2):
-            if i + 1 < len(charts):
-                rows.append(lazy.bokeh_layouts.row(charts[i], charts[i + 1]))
-            else:
-                rows.append(lazy.bokeh_layouts.row(charts[i]))
+        row, rows = [], []
+        for i in range(0, len(charts)):
+            row.append(charts[i])
+            if (i + 1) % self._bokeh_columns == 0:
+                rows.append(lazy.bokeh_layouts.row(*row))
+                row = []
+        if row:
+            rows.append(lazy.bokeh_layouts.row(*row))
+
         layout = lazy.bokeh_layouts.column(*rows, name="charts_layout")
 
         bokeh_script, bokeh_div = lazy.bokeh_embed.components(layout)
@@ -179,6 +181,8 @@ class ComparisonReport(Reporter, ABC):
         p.add_tools(hover)
 
         for df, name in zip(dfs, [item.name for item in group.items], strict=True):
+            if df.empty:
+                continue
             for col in data_columns:
                 source = lazy.bokeh_models.ColumnDataSource(
                     data={
@@ -195,12 +199,15 @@ class ComparisonReport(Reporter, ABC):
         p.legend.location = "top_left"
         p.legend.click_policy = "hide"
 
-        y_max = max(df[col].max() for df in dfs for col in data_columns)
-        y_min = min(df[col].min() for df in dfs for col in data_columns)
+        y_max = max(df[col].max() for df in dfs for col in data_columns if not df.empty)
+        y_min = min(df[col].min() for df in dfs for col in data_columns if not df.empty)
         p.y_range = lazy.bokeh_models.Range1d(start=y_min * -1 * y_max * 0.01, end=y_max * 1.1)
 
-        x_min = dfs[0][info_columns[0]].min()
-        x_max = dfs[0][info_columns[0]].max()
+        non_empty_dfs = [df for df in dfs if not df.empty]
+        x_min, x_max = 0, 0
+        if non_empty_dfs:
+            x_min = non_empty_dfs[0][info_columns[0]].min()
+            x_max = non_empty_dfs[0][info_columns[0]].max()
         p.xaxis.ticker = calculate_power_of_two_ticks(x_min, x_max)
         p.xaxis.formatter = lazy.bokeh_models.CustomJSTickFormatter(code=bokeh_size_unit_js_tick_formatter)
         p.xaxis.major_label_orientation = lazy.np.pi / 4
