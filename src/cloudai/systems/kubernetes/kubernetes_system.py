@@ -400,11 +400,11 @@ class KubernetesSystem(BaseModel, System):
 
             if self._check_vllm_pods_status():
                 self._setup_port_forward()
-                if self._port_forward_process:
-                    if self._check_model_server():
-                        logging.info("vLLM server is up and models are loaded")
-                        self._test_chat_completion()
-                        self._test_completed = True
+                if self._port_forward_process and self._check_model_server():
+                    logging.info("vLLM server is up and models are loaded")
+                    self._test_chat_completion()
+                    self._test_completed = True
+                    return False
 
             deployment = self.custom_objects_api.get_namespaced_custom_object(
                 group="nvidia.com",
