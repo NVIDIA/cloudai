@@ -20,8 +20,9 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
+from shutil import rmtree
 
-from cloudai.core import BaseInstaller, DockerImage, File, GitRepo, Installable, InstallStatusResult
+from cloudai.core import BaseInstaller, DockerImage, File, GitRepo, Installable, InstallStatusResult, PythonExecutable
 from cloudai.util.lazy_imports import lazy
 
 
@@ -63,6 +64,8 @@ class KubernetesInstaller(BaseInstaller):
             return InstallStatusResult(True, f"Docker image {item} installed")
         elif isinstance(item, GitRepo):
             return self._install_one_git_repo(item)
+        elif isinstance(item, PythonExecutable):
+            return self._install_python_executable(item)
         elif isinstance(item, File):
             item.installed_path = self.system.install_path / item.src.name
             shutil.copyfile(item.src, item.installed_path, follow_symlinks=False)
@@ -74,6 +77,8 @@ class KubernetesInstaller(BaseInstaller):
             return InstallStatusResult(True, f"Docker image {item} uninstalled")
         elif isinstance(item, GitRepo):
             return self._uninstall_git_repo(item)
+        elif isinstance(item, PythonExecutable):
+            return self._uninstall_python_executable(item)
         elif isinstance(item, File):
             if item.installed_path != item.src:
                 item.installed_path.unlink()
@@ -92,6 +97,8 @@ class KubernetesInstaller(BaseInstaller):
                 item.installed_path = repo_path
                 return InstallStatusResult(True)
             return InstallStatusResult(False, f"Git repository {item.url} not cloned")
+        elif isinstance(item, PythonExecutable):
+            return self._is_python_executable_installed(item)
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
     def mark_as_installed_one(self, item: Installable) -> InstallStatusResult:
@@ -99,6 +106,10 @@ class KubernetesInstaller(BaseInstaller):
             return InstallStatusResult(True, f"Docker image {item} marked as installed")
         elif isinstance(item, GitRepo):
             item.installed_path = self.system.install_path / item.repo_name
+            return InstallStatusResult(True)
+        elif isinstance(item, PythonExecutable):
+            item.git_repo.installed_path = self.system.install_path / item.git_repo.repo_name
+            item.venv_path = self.system.install_path / item.venv_name
             return InstallStatusResult(True)
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
@@ -120,6 +131,45 @@ class KubernetesInstaller(BaseInstaller):
 
         item.installed_path = repo_path
         return InstallStatusResult(True)
+
+    def _install_python_executable(self, item: PythonExecutable) -> InstallStatusResult:
+        res = self._install_one_git_repo(item.git_repo)
+        if not res.success:
+            return res
+
+        res = self._create_venv(item)
+        if not res.success:
+            return res
+
+        return InstallStatusResult(True)
+
+    def _install_dependencies(self, item: PythonExecutable) -> InstallStatusResult:
+        venv_path = self.system.install_path / item.venv_name
+
+        if not item.git_repo.installed_path:
+            return InstallStatusResult(False, "Git repository must be installed before creating virtual environment.")
+
+        project_dir = item.git_repo.installed_path
+
+        if item.project_subpath:
+            project_dir = project_dir / item.project_subpath
+
+        pyproject_toml = project_dir / "pyproject.toml"
+        requirements_txt = project_dir / "requirements.txt"
+
+        if pyproject_toml.exists() and requirements_txt.exists():
+            if item.dependencies_from_pyproject:
+                res = self._install_pyproject(venv_path, project_dir)
+            else:
+                res = self._install_requirements(venv_path, requirements_txt)
+        elif pyproject_toml.exists():
+            res = self._install_pyproject(venv_path, project_dir)
+        elif requirements_txt.exists():
+            res = self._install_requirements(venv_path, requirements_txt)
+        else:
+            return InstallStatusResult(False, "No pyproject.toml or requirements.txt found for installation.")
+
+        return res
 
     def _clone_repository(self, git_url: str, path: Path) -> InstallStatusResult:
         logging.debug(f"Cloning repository {git_url} into {path}")
@@ -144,6 +194,58 @@ class KubernetesInstaller(BaseInstaller):
             return InstallStatusResult(False, f"Failed to checkout commit: {result.stderr}")
         return InstallStatusResult(True)
 
+    def _create_venv(self, item: PythonExecutable) -> InstallStatusResult:
+        venv_path = self.system.install_path / item.venv_name
+        logging.debug(f"Creating virtual environment in {venv_path}")
+        if venv_path.exists():
+            msg = f"Virtual environment already exists at {venv_path}."
+            logging.debug(msg)
+            return InstallStatusResult(True, msg)
+
+        cmd = ["python", "-m", "venv", str(venv_path)]
+        logging.debug(f"Creating venv using cmd: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        logging.debug(f"venv creation STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}")
+        if result.returncode != 0:
+            if venv_path.exists():
+                rmtree(venv_path)
+            return InstallStatusResult(
+                False, f"Failed to create venv:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+            )
+
+        res = self._install_dependencies(item)
+        if not res.success:
+            if venv_path.exists():
+                rmtree(venv_path)
+            return res
+
+        item.venv_path = self.system.install_path / item.venv_name
+
+        return InstallStatusResult(True)
+
+    def _install_pyproject(self, venv_dir: Path, project_dir: Path) -> InstallStatusResult:
+        install_cmd = [str(venv_dir / "bin" / "python"), "-m", "pip", "install", str(project_dir)]
+        logging.debug(f"Installing dependencies using: {' '.join(install_cmd)}")
+        result = subprocess.run(install_cmd, capture_output=True, text=True)
+
+        if result.returncode != 0:
+            return InstallStatusResult(False, f"Failed to install {project_dir} using pip: {result.stderr}")
+
+        return InstallStatusResult(True)
+
+    def _install_requirements(self, venv_dir: Path, requirements_txt: Path) -> InstallStatusResult:
+        if not requirements_txt.is_file():
+            return InstallStatusResult(False, f"Requirements file is invalid or does not exist: {requirements_txt}")
+
+        install_cmd = [str(venv_dir / "bin" / "python"), "-m", "pip", "install", "-r", str(requirements_txt)]
+        logging.debug(f"Installing dependencies using: {' '.join(install_cmd)}")
+        result = subprocess.run(install_cmd, capture_output=True, text=True)
+
+        if result.returncode != 0:
+            return InstallStatusResult(False, f"Failed to install dependencies from requirements.txt: {result.stderr}")
+
+        return InstallStatusResult(True)
+
     def _uninstall_git_repo(self, item: GitRepo) -> InstallStatusResult:
         logging.debug(f"Uninstalling git repository at {item.installed_path=}")
         repo_path = item.installed_path if item.installed_path else self.system.install_path / item.repo_name
@@ -156,3 +258,37 @@ class KubernetesInstaller(BaseInstaller):
         item.installed_path = None
 
         return InstallStatusResult(True)
+
+    def _uninstall_python_executable(self, item: PythonExecutable) -> InstallStatusResult:
+        res = self._uninstall_git_repo(item.git_repo)
+        if not res.success:
+            return res
+
+        logging.debug(f"Uninstalling virtual environment at {item.venv_path=}")
+        venv_path = item.venv_path if item.venv_path else self.system.install_path / item.venv_name
+        if not venv_path.exists():
+            msg = f"Virtual environment {item.venv_name} is not created."
+            return InstallStatusResult(True, msg)
+
+        logging.debug(f"Removing folder {venv_path}")
+        rmtree(venv_path)
+        item.venv_path = None
+
+        return InstallStatusResult(True)
+
+    def _is_python_executable_installed(self, item: PythonExecutable) -> InstallStatusResult:
+        repo_path = (
+            item.git_repo.installed_path
+            if item.git_repo.installed_path
+            else self.system.install_path / item.git_repo.repo_name
+        )
+        if not repo_path.exists():
+            return InstallStatusResult(False, f"Git repository {item.git_repo.url} not cloned")
+        item.git_repo.installed_path = repo_path
+
+        venv_path = item.venv_path if item.venv_path else self.system.install_path / item.venv_name
+        if not venv_path.exists():
+            return InstallStatusResult(False, f"Virtual environment not created for {item.git_repo.url}")
+        item.venv_path = venv_path
+
+        return InstallStatusResult(True, "Python executable installed")
