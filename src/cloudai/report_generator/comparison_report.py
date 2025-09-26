@@ -61,6 +61,9 @@ class ComparisonReport(Reporter, ABC):
         self.report_file_name: str = "comparison_report.html"
         self.group_by: list[str] = config.group_by
 
+        self._bokeh_wxh: tuple[int, int] = (800, 500)
+        self._bokeh_columns: int = 2
+
     @abstractmethod
     def extract_data_as_df(self, tr: TestRun) -> pd.DataFrame: ...
 
@@ -169,8 +172,8 @@ class ComparisonReport(Reporter, ABC):
             title=f"{title}: {group.name}",
             x_axis_label=info_columns[0],
             y_axis_label=y_axis_label,
-            width=800,
-            height=500,
+            width=self._bokeh_wxh[0],
+            height=self._bokeh_wxh[1],
             tools="pan,box_zoom,wheel_zoom,reset,save",
             active_drag="pan",
             active_scroll="wheel_zoom",

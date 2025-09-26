@@ -62,6 +62,8 @@ class NCCLDashboard:
         config = ComparisonReportConfig(enable=True, group_by=["subtest_name"])
         rep = NcclComparisonReport(system, test_scenario, self.results_root, config)
         rep.trs = nccl_test_runs
+        rep._bokeh_wxh = (1200, 700)
+        rep._bokeh_columns = 1
         bokeh_script, bokeh_div = rep.get_bokeh_html()
 
         return {
