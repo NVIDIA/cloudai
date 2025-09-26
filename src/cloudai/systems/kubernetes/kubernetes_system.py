@@ -389,7 +389,6 @@ class KubernetesSystem(BaseModel, System):
             if self._check_vllm_pods_status():
                 self._setup_port_forward()
                 if self._port_forward_process:
-                    time.sleep(2)
                     if self._check_model_server():
                         logging.info("vLLM server is up and models are loaded")
                         self._test_chat_completion()
