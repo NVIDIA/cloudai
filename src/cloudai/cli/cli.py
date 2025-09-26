@@ -21,6 +21,7 @@ from pathlib import Path
 
 import click
 
+from .assess import assess
 from .handlers import (
     handle_dry_run_and_run,
     handle_generate_report,
@@ -244,3 +245,6 @@ def list(type: str, verbose: bool):
     """List available in Registry items."""
     args = argparse.Namespace(type=type, verbose=verbose)
     handle_list_registered_items(args)
+
+
+main.add_command(assess)
