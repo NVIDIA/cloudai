@@ -72,6 +72,7 @@ def get_test_runs(slurm_system: SlurmSystem) -> list[TestRun]:
 def run():
     """Run assessment."""
     system = build_slurm_system()
+    logging.info(f"Using Slurm system with default partition '{system.default_partition}'")
     system.update()
 
     partition = None
@@ -83,18 +84,22 @@ def run():
         logging.error(f"Default partition '{system.default_partition}' not found in system partitions.")
         exit(1)
 
+    logging.info(f"Default partition '{partition.name}' has {len(partition.slurm_nodes)} nodes available.")
     if len(partition.slurm_nodes) < 2:
         logging.error(f"Partition '{partition.name}' has less than 2 nodes, cannot run assessment.")
         exit(1)
 
     scenario = TestScenario(name="Assessment", test_runs=get_test_runs(system))
+    logging.info(f"Prepared scenario '{scenario.name}' with {len(scenario.test_runs)} test runs.")
 
+    logging.info("Preparing installation of required components...")
     installables, installer = prepare_installation(system, [tr.test for tr in scenario.test_runs], scenario)
     result = installer.install(installables)
     if not result.success:
         logging.error("Installation failed, cannot proceed with assessment.")
         exit(1)
 
+    logging.info("Starting assessment run...")
     runner = Runner("run", system, scenario)
     register_signal_handlers(runner.cancel_on_signal)
     handle_non_dse_job(runner, argparse.Namespace(mode="run"))
