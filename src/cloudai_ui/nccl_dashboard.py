@@ -51,6 +51,7 @@ class NCCLDashboard:
                 "bokeh_div": "",
             }
 
+        # TODO: system should be stored as part of results to be loaded here
         system = SlurmSystem(
             name="slurm", install_path=Path("/"), output_path=Path("/"), default_partition="default", partitions=[]
         )
@@ -62,6 +63,10 @@ class NCCLDashboard:
         rep.trs = nccl_test_runs
         rep._bokeh_wxh = (1200, 700)
         rep._bokeh_columns = 1
+
+        # TODO: extract parameters like GPU type, scenario date, cluster name, etc.
+        # dashboard should offer filtering by these parameters.
+        # Q: each select seems to be re-querying the server? Is it time to move this logic to JS?
 
         bokeh_script, bokeh_div = rep.get_bokeh_html()
         return {
