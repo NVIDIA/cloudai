@@ -15,9 +15,12 @@
 # limitations under the License.
 
 import logging
+import subprocess
+from pathlib import Path
 from typing import cast
 
 from cloudai.core import BaseJob, BaseRunner, TestRun
+from cloudai.workloads.ai_dynamo.ai_dynamo import AIDynamoTestDefinition
 
 from .kubernetes_job import KubernetesJob
 from .kubernetes_system import KubernetesSystem
@@ -38,7 +41,49 @@ class KubernetesRunner(BaseRunner):
             k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)
             job_name = k8s_system.create_job(job_spec)
 
-        return KubernetesJob(tr, id=job_name, name=job_name, kind=job_kind)
+        job = KubernetesJob(tr, id=job_name, name=job_name, kind=job_kind)
+
+        if job_kind == "dynamographdeployment":
+            self._setup_dynamo_graph_deployment(job, tr)
+
+        return job
+
+    def _setup_dynamo_graph_deployment(self, job: KubernetesJob, tr: TestRun) -> None:
+        test_definition = tr.test.test_definition
+        if not isinstance(test_definition, AIDynamoTestDefinition):
+            raise TypeError("Test definition must be an instance of AIDynamoTestDefinition")
+
+        python_exec = test_definition.python_executable
+        if not python_exec.git_repo.installed_path:
+            raise ValueError(
+                f"Local clone of git repo {python_exec.git_repo} does not exist. "
+                "Please ensure to run installation before running the test."
+            )
+        if not python_exec.venv_path:
+            raise ValueError(
+                f"The virtual environment for git repo {python_exec.git_repo} does not exist. "
+                "Please ensure to run installation before running the test."
+            )
+
+        venv_pip = python_exec.venv_path.absolute() / "bin" / "pip"
+        repo_root = python_exec.git_repo.installed_path.absolute()
+
+        self._install_python_packages(repo_root, venv_pip)
+
+        job.python_executable = python_exec
+        job.genai_perf_args = test_definition.cmd_args.genai_perf
+        job.output_path = tr.output_path
+
+    def _install_python_packages(self, repo_root: Path, venv_pip: Path) -> None:
+        installs = [
+            ("perf_analyzer", repo_root),
+            ("genai-perf", repo_root / "genai-perf"),
+        ]
+
+        for package, path in installs:
+            install_cmd = f"cd {path} && {venv_pip} install ."
+            logging.info(f"Installing {package} with command: {install_cmd}")
+            subprocess.run(install_cmd, shell=True, capture_output=True, text=True, check=True)
 
     def on_job_completion(self, job: BaseJob) -> None:
         k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)

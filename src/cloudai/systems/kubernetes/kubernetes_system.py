@@ -66,7 +66,7 @@ class KubernetesSystem(BaseModel, System):
     _batch_v1: Optional[k8s.client.BatchV1Api] = None
     _custom_objects_api: Optional[k8s.client.CustomObjectsApi] = None
     _port_forward_process = None
-    _test_completed: bool = False
+    _genai_perf_completed: bool = False
 
     def __getstate__(self) -> dict[str, Any]:
         """Return the state for pickling, excluding non-picklable Kubernetes client objects."""
@@ -157,23 +157,23 @@ class KubernetesSystem(BaseModel, System):
 
     def is_job_running(self, job: BaseJob) -> bool:
         k_job: KubernetesJob = cast(KubernetesJob, job)
-        return self._is_job_running(k_job.name, k_job.kind)
+        return self._is_job_running(k_job)
 
     def is_job_completed(self, job: BaseJob) -> bool:
         k_job: KubernetesJob = cast(KubernetesJob, job)
-        return not self._is_job_running(k_job.name, k_job.kind)
+        return not self._is_job_running(k_job)
 
-    def _is_job_running(self, job_name: str, job_kind: str) -> bool:
-        logging.debug(f"Checking for job '{job_name}' of kind '{job_kind}' to determine if it is running.")
+    def _is_job_running(self, job: KubernetesJob) -> bool:
+        logging.debug(f"Checking for job '{job.name}' of kind '{job.kind}' to determine if it is running.")
 
-        if "mpijob" in job_kind.lower():
-            return self._is_mpijob_running(job_name)
-        elif "job" in job_kind.lower():
-            return self._is_batch_job_running(job_name)
-        elif "dynamographdeployment" in job_kind.lower():
-            return self._is_dynamo_graph_deployment_running(job_name)
+        if "mpijob" in job.kind.lower():
+            return self._is_mpijob_running(job.name)
+        elif "job" in job.kind.lower():
+            return self._is_batch_job_running(job.name)
+        elif "dynamographdeployment" in job.kind.lower():
+            return self._is_dynamo_graph_deployment_running(job)
         else:
-            error_message = f"Unsupported job kind: '{job_kind}'."
+            error_message = f"Unsupported job kind: '{job.kind}'."
             logging.error(error_message)
             raise ValueError(error_message)
 
@@ -321,45 +321,34 @@ class KubernetesSystem(BaseModel, System):
             logging.warning("Invalid JSON response from model server")
             return False
 
-    def _test_chat_completion(self) -> None:
-        cmd = """curl -N -X POST http://localhost:8000/v1/chat/completions \\
-            -H 'accept: application/json' \\
-            -H 'Content-Type: application/json' \\
-            -d '{
-                "model": "Qwen/Qwen3-0.6B",
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": "Hello! How are you?"
-                    }
-                ],
-                "max_tokens": 64,
-                "stream": true,
-                "temperature": 0.7,
-                "top_p": 0.9,
-                "frequency_penalty": 0.1,
-                "presence_penalty": 0.2,
-                "top_k": 5
-            }'"""
+    def _run_genai_perf(self, job: KubernetesJob) -> None:
+        if not job.python_executable or not job.python_executable.venv_path:
+            raise ValueError("Python executable path not set - executable may not be installed")
+        if not job.genai_perf_args:
+            raise ValueError("GenAI perf args not set")
+        if not job.output_path:
+            raise ValueError("Output path not set")
 
-        logging.info("Running chat completion test")
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        genai_perf_args = job.genai_perf_args.model_dump()
+        args = [f"--artifact-dir={job.output_path.absolute()}"]
+        for k, v in genai_perf_args.items():
+            if k == "extra-args":
+                args.append(str(v))
+            else:
+                args.append(f"--{k}={v}")
+        args_str = " ".join(args)
 
-        if result.returncode != 0:
-            logging.error(f"Chat completion test failed: {result.stderr}")
-            return
-
-        lines = [line for line in result.stdout.splitlines() if line.strip()]
-
-        for line in lines:
-            if line.startswith("data: ") and line.strip() != "data: [DONE]":
-                try:
-                    chunk = json.loads(line[6:])
-                    if chunk.get("choices", [{}])[0].get("delta", {}).get("content"):
-                        content = chunk["choices"][0]["delta"]["content"]
-                        logging.info(f"Response chunk: {content}")
-                except json.JSONDecodeError:
-                    logging.warning(f"Failed to parse line: {line}")
+        venv_path = job.python_executable.venv_path.absolute()
+        cmd = f". {venv_path}/bin/activate && genai-perf profile {args_str}"
+        logging.info("Running GenAI performance test with command:")
+        logging.info(cmd)
+        try:
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=True)
+            logging.info("GenAI performance test completed successfully")
+            logging.info(f"Output: {result.stdout}")
+        except subprocess.CalledProcessError as e:
+            logging.error(f"GenAI performance test failed: {e.stderr}")
+            raise
 
     def _check_deployment_conditions(self, conditions: list) -> bool:
         if not conditions:
@@ -373,17 +362,17 @@ class KubernetesSystem(BaseModel, System):
 
         return True
 
-    def _is_dynamo_graph_deployment_running(self, job_name: str) -> bool:
+    def _is_dynamo_graph_deployment_running(self, job: KubernetesJob) -> bool:
         try:
-            if self._test_completed:
+            if self._genai_perf_completed:
                 return False
 
             if self._check_vllm_pods_status():
                 self._setup_port_forward()
                 if self._port_forward_process and self._check_model_server():
                     logging.info("vLLM server is up and models are loaded")
-                    self._test_chat_completion()
-                    self._test_completed = True
+                    self._run_genai_perf(job)
+                    self._genai_perf_completed = True
                     return False
 
             deployment = self.custom_objects_api.get_namespaced_custom_object(
@@ -391,7 +380,7 @@ class KubernetesSystem(BaseModel, System):
                 version="v1alpha1",
                 namespace=self.default_namespace,
                 plural="dynamographdeployments",
-                name=job_name,
+                name=job.name,
             )
 
             assert isinstance(deployment, dict)
@@ -400,11 +389,11 @@ class KubernetesSystem(BaseModel, System):
 
         except lazy.k8s.client.ApiException as e:
             if e.status == 404:
-                logging.debug(f"DynamoGraphDeployment '{job_name}' not found.")
+                logging.debug(f"DynamoGraphDeployment '{job.name}' not found.")
                 return False
             else:
                 logging.error(
-                    f"Error occurred while retrieving status for DynamoGraphDeployment '{job_name}'. "
+                    f"Error occurred while retrieving status for DynamoGraphDeployment '{job.name}'. "
                     f"Error code: {e.status}. Message: {e.reason}."
                 )
                 raise

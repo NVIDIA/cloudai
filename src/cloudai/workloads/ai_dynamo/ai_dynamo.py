@@ -19,7 +19,7 @@ from typing import Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cloudai.core import DockerImage, File, GitRepo, Installable
+from cloudai.core import DockerImage, File, GitRepo, Installable, PythonExecutable
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 
@@ -80,6 +80,11 @@ class AIDynamoTestDefinition(TestDefinition):
     dynamo_repo: GitRepo = GitRepo(
         url="https://github.com/ai-dynamo/dynamo.git", commit="f7e468c7e8ff0d1426db987564e60572167e8464"
     )
+    genai_perf_repo: GitRepo = GitRepo(
+        url="https://github.com/triton-inference-server/perf_analyzer.git",
+        commit="3c0bc9efa1844a82dfcc911f094f5026e6dd9214",
+    )
+    _python_executable: Optional[PythonExecutable] = None
 
     @property
     def docker_image(self) -> DockerImage:
@@ -89,7 +94,7 @@ class AIDynamoTestDefinition(TestDefinition):
 
     @property
     def installables(self) -> list[Installable]:
-        return [self.docker_image, self.script, self.dynamo_repo]
+        return [self.docker_image, self.script, self.dynamo_repo, self.python_executable]
 
     @property
     def huggingface_home_host_path(self) -> Path:
@@ -97,3 +102,11 @@ class AIDynamoTestDefinition(TestDefinition):
         if not path.is_dir():
             raise FileNotFoundError(f"HuggingFace home path not found at {path}")
         return path
+
+    @property
+    def python_executable(self) -> PythonExecutable:
+        if not self._python_executable:
+            self._python_executable = PythonExecutable(
+                GitRepo(url=self.genai_perf_repo.url, commit=self.genai_perf_repo.commit),
+            )
+        return self._python_executable
