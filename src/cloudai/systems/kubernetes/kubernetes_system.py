@@ -381,6 +381,18 @@ class KubernetesSystem(BaseModel, System):
             logging.error(str(e))
             raise
 
+    def _check_deployment_conditions(self, conditions: list) -> bool:
+        if not conditions:
+            return True
+
+        for condition in conditions:
+            if condition["type"] == "Ready" and condition["status"] == "True":
+                return True
+            if condition["type"] == "Failed" and condition["status"] == "True":
+                return False
+
+        return True
+
     def _is_dynamo_graph_deployment_running(self, job_name: str) -> bool:
         try:
             if self._test_completed:
@@ -404,20 +416,7 @@ class KubernetesSystem(BaseModel, System):
 
             assert isinstance(deployment, dict)
             status: dict = cast(dict, deployment.get("status", {}))
-            conditions = status.get("conditions", [])
-
-            # Consider an empty conditions list as running
-            if not conditions:
-                return True
-
-            for condition in conditions:
-                if condition["type"] == "Ready" and condition["status"] == "True":
-                    return True
-                if condition["type"] == "Failed" and condition["status"] == "True":
-                    return False
-
-            # If no terminal conditions found, consider it running
-            return True
+            return self._check_deployment_conditions(status.get("conditions", []))
 
         except lazy.k8s.client.ApiException as e:
             if e.status == 404:
