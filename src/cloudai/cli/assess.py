@@ -1,4 +1,5 @@
 import argparse
+import getpass
 import logging
 import re
 import subprocess
@@ -39,19 +40,16 @@ def build_slurm_system() -> SlurmSystem:
         logging.error("No default partition found in Slurm configuration.")
         exit(1)
 
-    result = subprocess.run(
-        ["sacctmgr", "-nP", "show", "assoc", "where", "user=$(whoami)", "format=account"],
-        text=True,
-        capture_output=True,
-    )
+    cmd = ["sacctmgr", "-nP", "show", "assoc", "where", f"user={getpass.getuser()}", "format=account"]
+    result = subprocess.run(cmd, text=True, capture_output=True)
     if result.returncode != 0:
-        logging.error(f"Failed to run 'sacctmgr -nP assoc where user=$(whoami) format=account': {result.stderr}")
+        logging.error(f"Failed to run '{' '.join(cmd)}': {result.stderr}")
         exit(1)
-    account = result.stdout.strip().split("\n")[0]
+    account = result.stdout.splitlines()[0].strip()
     if account:
         logging.info(f"Using Slurm account: {account}")
     else:
-        logging.error("No Slurm account found for the current user.")
+        logging.error(f"No Slurm account found for the current user: {result.stdout}")
 
     system = SlurmSystem(
         name="slurm",
