@@ -16,9 +16,8 @@
 
 """NCCL Dashboard that reuses NcclComparisonReport logic."""
 
-import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from cloudai.core import TestRun, TestScenario
 from cloudai.report_generator.comparison_report import ComparisonReportConfig
@@ -37,8 +36,6 @@ class NCCLDashboard:
         self.results_root = results_root
 
     def get_dashboard_data(self) -> Dict:
-        """Get NCCL dashboard data for template rendering."""
-        # Collect all NCCL test runs across scenarios
         nccl_test_runs: list[TestRun] = []
 
         for scenario in self.scenarios:
@@ -57,15 +54,16 @@ class NCCLDashboard:
         system = SlurmSystem(
             name="slurm", install_path=Path("/"), output_path=Path("/"), default_partition="default", partitions=[]
         )
-        test_scenario = TestScenario(name="NCCL", test_runs=nccl_test_runs)
+        scenario = TestScenario(name="NCCL", test_runs=nccl_test_runs)
 
-        config = ComparisonReportConfig(enable=True, group_by=["subtest_name"])
-        rep = NcclComparisonReport(system, test_scenario, self.results_root, config)
+        rep = NcclComparisonReport(
+            system, scenario, self.results_root, ComparisonReportConfig(enable=True, group_by=["subtest_name"])
+        )
         rep.trs = nccl_test_runs
         rep._bokeh_wxh = (1200, 700)
         rep._bokeh_columns = 1
-        bokeh_script, bokeh_div = rep.get_bokeh_html()
 
+        bokeh_script, bokeh_div = rep.get_bokeh_html()
         return {
             "test_run_count": len(nccl_test_runs),
             "gpu_info": "TBD",

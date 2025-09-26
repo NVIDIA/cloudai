@@ -51,7 +51,6 @@ def create_app(results_root: Path):
 
     @app.route("/")
     def index():
-        """Show dashboard selection page."""
         scenarios = data_provider.get_scenarios()
         dashboards = available_dashboards(scenarios)
         return render_template(
@@ -64,7 +63,6 @@ def create_app(results_root: Path):
 
     @app.route("/<dashboard_type>")
     def dashboard(dashboard_type):
-        """Show specific dashboard type."""
         scenarios = data_provider.get_scenarios()
         dashboards = available_dashboards(scenarios)
 
@@ -92,7 +90,6 @@ def create_app(results_root: Path):
                 **dashboard_data,
             )
 
-        # No other dashboard types currently supported
         return f"Dashboard '{dashboard_type}' not implemented yet", 501
 
     return app
