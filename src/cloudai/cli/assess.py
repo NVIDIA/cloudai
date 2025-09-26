@@ -51,12 +51,24 @@ def build_slurm_system() -> SlurmSystem:
     else:
         logging.error(f"No Slurm account found for the current user: {result.stdout}")
 
+    cmd = ["sinfo", "-p", default_partition, "-o", "%G", "--noheader"]
+    result = subprocess.run(cmd, text=True, capture_output=True)
+    if result.returncode != 0:
+        logging.error(f"Failed to run '{' '.join(cmd)}': {result.stderr}")
+        exit(1)
+    m = re.search(r"gpu:(\d+)", result.stdout)
+    if not m:
+        logging.error(f"No GPUs found in the '{default_partition}' partition: {result.stdout}")
+        exit(1)
+    gpus_per_node = int(m.group(1))
+
     system = SlurmSystem(
         name="slurm",
         install_path=Path.cwd() / "_install",
         output_path=Path.cwd() / "_output",
         default_partition=default_partition,
         account=account,
+        gpus_per_node=gpus_per_node,
         partitions=[SlurmPartition(name=default_partition, slurm_nodes=[])],
     )
 
