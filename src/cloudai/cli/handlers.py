@@ -59,8 +59,6 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     parser = Parser(args.system_config)
     system, tests, scenario = parser.parse(args.tests_dir, args.test_scenario)
 
-    if args.output_dir:
-        system.output_path = args.output_dir.absolute()
     system.update()
     logging.info(f"System Name: {system.name}")
     logging.info(f"Scheduler: {system.scheduler}")
@@ -150,10 +148,11 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
                 break
             step, action = result
             env.test_run.step = step
+            logging.info(f"Running step {step} (of {agent.max_steps}) with action {action}")
             observation, reward, done, info = env.step(action)
             feedback = {"trial_index": step, "value": reward}
             agent.update_policy(feedback)
-            logging.info(f"Step {step}: Observation: {observation}, Reward: {reward}")
+            logging.info(f"Step {step}: Observation: {[round(obs, 4) for obs in observation]}, Reward: {reward:.4f}")
 
     if args.mode == "run":
         runner.runner.test_scenario.test_runs = original_test_runs
