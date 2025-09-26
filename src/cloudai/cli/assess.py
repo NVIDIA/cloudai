@@ -64,7 +64,7 @@ def get_test_runs(slurm_system: SlurmSystem) -> list[TestRun]:
         ),
     )
     test = Test(test_definition=nccl, test_template=TestTemplate(system=slurm_system))
-    tr = TestRun(name="NCCL benchmark", test=test, num_nodes=2, nodes=[])
+    tr = TestRun(name="NCCL-benchmark", test=test, num_nodes=2, nodes=[])
     return [tr]
 
 
