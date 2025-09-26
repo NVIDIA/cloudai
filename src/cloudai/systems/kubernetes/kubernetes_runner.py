@@ -43,8 +43,11 @@ class KubernetesRunner(BaseRunner):
     def on_job_completion(self, job: BaseJob) -> None:
         k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)
         k_job = cast(KubernetesJob, job)
-        k8s_system.store_logs_for_job(k_job.name, k_job.test_run.output_path)
-        k8s_system.delete_job(k_job.name, k_job.kind)
+        if k_job.kind == "dynamographdeployment":
+            k8s_system._delete_dynamo_graph_deployment(k_job.name)
+        else:
+            k8s_system.store_logs_for_job(k_job.name, k_job.test_run.output_path)
+            k8s_system.delete_job(k_job.name, k_job.kind)
 
     def kill_job(self, job: BaseJob) -> None:
         k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)

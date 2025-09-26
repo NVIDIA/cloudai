@@ -66,6 +66,7 @@ class KubernetesSystem(BaseModel, System):
     _batch_v1: Optional[k8s.client.BatchV1Api] = None
     _custom_objects_api: Optional[k8s.client.CustomObjectsApi] = None
     _port_forward_process = None
+    _test_completed: bool = False
 
     def __getstate__(self) -> dict[str, Any]:
         """Return the state for pickling, excluding non-picklable Kubernetes client objects."""
@@ -382,6 +383,9 @@ class KubernetesSystem(BaseModel, System):
 
     def _is_dynamo_graph_deployment_running(self, job_name: str) -> bool:
         try:
+            if self._test_completed:
+                return False
+
             if self._check_vllm_pods_status():
                 self._setup_port_forward()
                 if self._port_forward_process:
@@ -389,8 +393,7 @@ class KubernetesSystem(BaseModel, System):
                     if self._check_model_server():
                         logging.info("vLLM server is up and models are loaded")
                         self._test_chat_completion()
-                        self._delete_dynamo_graph_deployment(job_name)
-                        return False
+                        self._test_completed = True
 
             deployment = self.custom_objects_api.get_namespaced_custom_object(
                 group="nvidia.com",
