@@ -253,39 +253,34 @@ class KubernetesSystem(BaseModel, System):
                 raise
 
     def _check_vllm_pods_status(self) -> bool:
-        try:
-            cmd = f"kubectl get pods -n {self.default_namespace} | grep 'vllm-v1-agg'"
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        cmd = f"kubectl get pods -n {self.default_namespace} | grep 'vllm-v1-agg'"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
-            if result.returncode != 0:
-                logging.warning("No vLLM pods found")
+        if result.returncode != 0:
+            logging.warning("No vLLM pods found")
+            return False
+
+        all_ready = True
+        for line in result.stdout.splitlines():
+            columns = line.split()
+            if len(columns) < 3:
+                continue
+
+            pod_name = columns[0]
+            ready_status = columns[1]
+            pod_status = columns[2]
+
+            if pod_status == "Terminating":
                 return False
 
-            all_ready = True
-            for line in result.stdout.splitlines():
-                columns = line.split()
-                if len(columns) < 3:
-                    continue
+            ready_count, total_count = map(int, ready_status.split("/"))
+            if pod_status == "Running" and ready_count == total_count:
+                logging.info(f"Pod {pod_name} is running and ready ({ready_status})")
+            else:
+                logging.info(f"Pod {pod_name} is {pod_status} but not fully ready ({ready_status})")
+                all_ready = False
 
-                pod_name = columns[0]
-                ready_status = columns[1]
-                pod_status = columns[2]
-
-                if pod_status == "Terminating":
-                    return False
-
-                ready_count, total_count = map(int, ready_status.split("/"))
-                if pod_status == "Running" and ready_count == total_count:
-                    logging.info(f"Pod {pod_name} is running and ready ({ready_status})")
-                else:
-                    logging.info(f"Pod {pod_name} is {pod_status} but not fully ready ({ready_status})")
-                    all_ready = False
-
-            return all_ready
-
-        except subprocess.SubprocessError as e:
-            logging.error(f"Error running kubectl command: {e}")
-            raise
+        return all_ready
 
     def _setup_port_forward(self) -> None:
         if self._port_forward_process and self._port_forward_process.poll() is None:
@@ -296,90 +291,75 @@ class KubernetesSystem(BaseModel, System):
             logging.info("Pods are not ready yet, skipping port forward")
             return
 
-        try:
-            get_pod_cmd = (
-                f"kubectl get pods -n {self.default_namespace} --no-headers | "
-                "grep vllm-v1-agg-frontend | "
-                "awk 'NR==1{print $1}'"
-            )
-            cmd = f"kubectl port-forward pod/$({get_pod_cmd}) 8000:8000 -n {self.default_namespace}"
-            logging.info("Starting port forwarding")
-            self._port_forward_process = subprocess.Popen(
-                cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-            )
-            logging.info("Port forwarding started")
-        except subprocess.SubprocessError as e:
-            logging.error(f"Error setting up port forward: {e}")
-            raise
+        get_pod_cmd = (
+            f"kubectl get pods -n {self.default_namespace} --no-headers | "
+            "grep vllm-v1-agg-frontend | "
+            "awk 'NR==1{print $1}'"
+        )
+        cmd = f"kubectl port-forward pod/$({get_pod_cmd}) 8000:8000 -n {self.default_namespace}"
+        logging.info("Starting port forwarding")
+        self._port_forward_process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        logging.info("Port forwarding started")
 
     def _check_model_server(self) -> bool:
+        cmd = "curl -s http://localhost:8000/v1/models"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+        if result.returncode != 0:
+            logging.warning("Failed to connect to model server")
+            return False
+
         try:
-            cmd = "curl -s http://localhost:8000/v1/models"
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-
-            if result.returncode != 0:
-                logging.warning("Failed to connect to model server")
+            response = json.loads(result.stdout)
+            if response.get("data") and len(response["data"]) > 0:
+                logging.info(f"Model server is running. Response: {result.stdout}")
+                return True
+            else:
+                logging.info("Model server is up but no models are loaded yet")
                 return False
-
-            try:
-                response = json.loads(result.stdout)
-                if response.get("data") and len(response["data"]) > 0:
-                    logging.info(f"Model server is running. Response: {result.stdout}")
-                    return True
-                else:
-                    logging.info("Model server is up but no models are loaded yet")
-                    return False
-            except json.JSONDecodeError:
-                logging.warning("Invalid JSON response from model server")
-                return False
-
-        except subprocess.SubprocessError as e:
-            logging.error(f"Error checking model server: {e}")
+        except json.JSONDecodeError:
+            logging.warning("Invalid JSON response from model server")
             return False
 
     def _test_chat_completion(self) -> None:
-        try:
-            cmd = """curl -N -X POST http://localhost:8000/v1/chat/completions \\
-                -H 'accept: application/json' \\
-                -H 'Content-Type: application/json' \\
-                -d '{
-                    "model": "Qwen/Qwen3-0.6B",
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": "Hello! How are you?"
-                        }
-                    ],
-                    "max_tokens": 64,
-                    "stream": true,
-                    "temperature": 0.7,
-                    "top_p": 0.9,
-                    "frequency_penalty": 0.1,
-                    "presence_penalty": 0.2,
-                    "top_k": 5
-                }'"""
+        cmd = """curl -N -X POST http://localhost:8000/v1/chat/completions \\
+            -H 'accept: application/json' \\
+            -H 'Content-Type: application/json' \\
+            -d '{
+                "model": "Qwen/Qwen3-0.6B",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Hello! How are you?"
+                    }
+                ],
+                "max_tokens": 64,
+                "stream": true,
+                "temperature": 0.7,
+                "top_p": 0.9,
+                "frequency_penalty": 0.1,
+                "presence_penalty": 0.2,
+                "top_k": 5
+            }'"""
 
-            logging.info("Running chat completion test")
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        logging.info("Running chat completion test")
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
-            if result.returncode != 0:
-                raise subprocess.SubprocessError(f"Chat completion test failed: {result.stderr}")
+        if result.returncode != 0:
+            logging.error(f"Chat completion test failed: {result.stderr}")
+            return
 
-            lines = [line for line in result.stdout.splitlines() if line.strip()]
+        lines = [line for line in result.stdout.splitlines() if line.strip()]
 
-            for line in lines:
-                if line.startswith("data: ") and line.strip() != "data: [DONE]":
-                    try:
-                        chunk = json.loads(line[6:])
-                        if chunk.get("choices", [{}])[0].get("delta", {}).get("content"):
-                            content = chunk["choices"][0]["delta"]["content"]
-                            logging.info(f"Response chunk: {content}")
-                    except json.JSONDecodeError:
-                        logging.warning(f"Failed to parse line: {line}")
-
-        except subprocess.SubprocessError as e:
-            logging.error(str(e))
-            raise
+        for line in lines:
+            if line.startswith("data: ") and line.strip() != "data: [DONE]":
+                try:
+                    chunk = json.loads(line[6:])
+                    if chunk.get("choices", [{}])[0].get("delta", {}).get("content"):
+                        content = chunk["choices"][0]["delta"]["content"]
+                        logging.info(f"Response chunk: {content}")
+                except json.JSONDecodeError:
+                    logging.warning(f"Failed to parse line: {line}")
 
     def _check_deployment_conditions(self, conditions: list) -> bool:
         if not conditions:
