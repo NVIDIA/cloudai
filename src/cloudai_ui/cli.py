@@ -16,43 +16,37 @@
 
 """CloudAI Web UI CLI."""
 
-import argparse
 from pathlib import Path
+
+import click
 
 from .app import create_app
 
 
-def main():
+@click.command()
+@click.option(
+    "--results-dir",
+    default="results",
+    help="Path to results directory",
+    type=click.Path(exists=True, resolve_path=True, path_type=Path, file_okay=False, dir_okay=True),
+)
+@click.option("--host", default="localhost", help="Host to bind to")
+@click.option("--port", default=8000, help="Port to bind to", type=int)
+@click.option("--debug", is_flag=True, help="Enable debug mode")
+def main(results_dir: Path, host: str, port: int, debug: bool):
     """Run the CloudAI Web UI Flask development server."""
-    parser = argparse.ArgumentParser(description="CloudAI Web UI")
-    parser.add_argument(
-        "--results-dir", type=str, default="results", help="Path to results directory (default: results)"
-    )
-    parser.add_argument("--host", type=str, default="localhost", help="Host to bind to")
-    parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
-    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
-
-    args = parser.parse_args()
-
-    # Resolve results directory
-    results_dir = Path(args.results_dir).resolve()
-
     app = create_app(results_dir)
 
-    print("=" * 60)
-    print("CloudAI Web UI")
-    print("=" * 60)
-    print(f"Results directory: {results_dir}")
-    print(f"URL: http://{args.host}:{args.port}")
-    print()
-    print("Press Ctrl+C to stop the server")
-    print("=" * 60)
+    click.echo("=" * 60)
+    click.echo("CloudAI Web UI")
+    click.echo("=" * 60)
+    click.echo(f"Results directory: {results_dir}")
+    click.echo(f"URL: http://{host}:{port}")
+    click.echo()
+    click.echo("Press Ctrl+C to stop the server")
+    click.echo("=" * 60)
 
     try:
-        app.run(host=args.host, port=args.port, debug=args.debug)
+        app.run(host=host, port=port, debug=debug)
     except KeyboardInterrupt:
-        print("\nShutting down CloudAI Web UI...")
-
-
-if __name__ == "__main__":
-    main()
+        click.echo("\nShutting down CloudAI Web UI...")
