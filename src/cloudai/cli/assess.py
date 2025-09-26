@@ -8,7 +8,7 @@ import click
 
 from cloudai.cli.handlers import handle_non_dse_job, prepare_installation, register_signal_handlers
 from cloudai.core import Runner, Test, TestRun, TestScenario, TestTemplate
-from cloudai.systems.slurm.slurm_system import SlurmSystem
+from cloudai.systems.slurm.slurm_system import SlurmPartition, SlurmSystem
 from cloudai.workloads.nccl_test.nccl import NCCLCmdArgs, NCCLTestDefinition
 
 
@@ -44,7 +44,7 @@ def build_slurm_system() -> SlurmSystem:
         install_path=Path.cwd() / "_install",
         output_path=Path.cwd() / "_output",
         default_partition=default_partition,
-        partitions=[],
+        partitions=[SlurmPartition(name=default_partition, slurm_nodes=[])],
     )
 
 
