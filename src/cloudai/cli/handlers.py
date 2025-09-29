@@ -539,15 +539,21 @@ def load_tomls_by_type(tomls: List[Path]) -> dict[str, List[Path]]:
     return files
 
 
-def handle_list_registered_items(args: argparse.Namespace) -> int:
-    item_type = args.type
+def handle_list_registered_items(item_type: str, verbose: bool) -> int:
     registry = Registry()
-    if item_type == "reports":
-        print("Registered scenario reports:")
+    if item_type.lower() == "reports":
+        print("Available scenario reports:")
         for idx, (name, report) in enumerate(sorted(registry.scenario_reports.items()), start=1):
             str = f'{idx}. "{name}" {report.__name__}'
-            if args.verbose:
+            if verbose:
                 str += f" (config={registry.report_configs[name].model_dump_json(indent=None)})"
+            print(str)
+    elif item_type.lower() == "agents":
+        print("Available agents:")
+        for idx, (name, agent) in enumerate(sorted(registry.agents_map.items()), start=1):
+            str = f'{idx}. "{name}" class={agent.__name__}'
+            if verbose:
+                str += f"{agent.__doc__}"
             print(str)
 
     return 0

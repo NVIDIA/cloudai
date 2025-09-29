@@ -238,9 +238,8 @@ def verify_configs(configs_dir: Path, tests_dir: Path):
 
 
 @main.command()
-@click.argument("type", type=click.Choice(["reports"]))
+@click.argument("type", type=click.Choice(["reports", "agents"], case_sensitive=False))
 @click.option("-v", "--verbose", is_flag=True, default=False, help="Verbose output.")
 def list(type: str, verbose: bool):
     """List available in Registry items."""
-    args = argparse.Namespace(type=type, verbose=verbose)
-    handle_list_registered_items(args)
+    handle_list_registered_items(type, verbose)
