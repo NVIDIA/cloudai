@@ -15,6 +15,8 @@
 # limitations under the License.
 
 import copy
+from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -31,6 +33,7 @@ from cloudai.core import (
 )
 from cloudai.models.scenario import ReportConfig
 from cloudai.models.workload import TestDefinition
+from cloudai.registration import register_entrypoint_agents
 
 
 class MyTestDefinition(TestDefinition):
@@ -322,3 +325,20 @@ class TestRegistry__CommandGenStrategiesMap:
         with pytest.raises(KeyError) as exc_info:
             registry.get_command_gen_strategy(MySystem, AnotherTestDefinition)
         assert exc_info.match("Command gen strategy for 'MySystem, AnotherTestDefinition' not found.")
+
+
+def test_entrypoint_agent_type_verified():
+    class MockEP:
+        def __init__(self, load_value: Any):
+            self._load_value = load_value
+            self.name = "name"
+            self.value = "value"
+
+        def load(self):
+            return self._load_value
+
+    with (
+        patch("cloudai.registration.entry_points", return_value=[MockEP(str)]),
+        pytest.warns(UserWarning, match="(not a subclass of BaseAgent)"),
+    ):
+        register_entrypoint_agents()
