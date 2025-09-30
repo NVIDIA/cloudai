@@ -61,3 +61,13 @@ num_nodes = 2
   [[Tests.dependencies]]
   type = "start_post_comp"
   id = "Tests.allreduce"
+
+[[Tests]]
+id = "Tests.alltoallv"
+test_name = "ucc_test_alltoallv"
+description = "UCC alltoallv"
+time_limit = "00:20:00"
+num_nodes = 2
+  [Tests.cmd_args]
+  collective = "alltoallv"
+  gen = "file:name=/workspace/ucc_transfer_matrices_new/bench0_intput_matrices.txt"

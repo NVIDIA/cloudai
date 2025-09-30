@@ -1,0 +1,9 @@
+name = "ucc_test_alltoallv"
+description = "alltoallv"
+test_template_name = "UCCTest"
+
+extra_container_mounts = ["path_to_host_matrices:path_to_container_matrices_as_used_in_gen"]
+
+[cmd_args]
+docker_image_url = "image_that_contains_ucc_v1.5"
+collective = "alltoallv"
