@@ -16,7 +16,7 @@
 
 """NCCL Dashboard module for CloudAI UI v2."""
 
-from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import plotly.express as px
@@ -26,12 +26,54 @@ from dash import dcc, html
 from cloudai.core import TestRun
 from cloudai.workloads.nccl_test.nccl import NCCLTestDefinition
 from cloudai.workloads.nccl_test.performance_report_generation_strategy import extract_nccl_data
-from cloudai_ui.data_layer import DataProvider
 
-from .data_layer import TestScenarioInfo
+from .data_layer import DataProvider, DataQuery
 
 
-def create_scenario_dropdown_options(nccl_data: list[dict]) -> list[dict]:
+class NCCLDashboard:
+    """Stateful NCCL dashboard that caches loaded data."""
+
+    def __init__(self, data_provider: DataProvider):
+        self.data_provider = data_provider
+        self._nccl_data: list[dict] | None = None
+
+    def load_data(self) -> None:
+        """Load NCCL data from provider (cached after first call)."""
+        if self._nccl_data is None:
+            self._nccl_data = collect_nccl_data(self.data_provider, time_range_days=7)
+
+    def get_data(self) -> list[dict]:
+        """Get loaded NCCL data."""
+        if self._nccl_data is None:
+            self.load_data()
+        return self._nccl_data or []
+
+    def reload_data(self) -> None:
+        """Force reload of data (e.g., on F5 or explicit refresh)."""
+        self._nccl_data = None
+        self.load_data()
+
+    def render_controls(self) -> html.Div:
+        """Render control elements."""
+        data = self.get_data()
+        return create_nccl_controls(data)
+
+    def render_charts(
+        self, selected_charts: list[str] | None = None, selected_scenarios: list[str] | None = None
+    ) -> Any:
+        """Render charts with optional filters."""
+        data = self.get_data()
+        if not data:
+            return html.Div(html.P("No NCCL test runs found.", className="text-muted"))
+
+        # Use defaults if not specified
+        if selected_charts is None:
+            selected_charts = ["bandwidth_out", "bandwidth_in", "latency_out", "latency_in"]
+
+        return _render_charts(data, selected_charts, selected_scenarios)
+
+
+def create_scenario_dropdown_options(nccl_data: list[dict]) -> list[dict[str, Any]]:
     """Create dropdown options with unique scenario labels and their result counts."""
     label_counts = {}
     for data in nccl_data:
@@ -51,7 +93,12 @@ def create_scenario_dropdown_options(nccl_data: list[dict]) -> list[dict]:
 
 def extract_nccl_data_as_df(test_run: TestRun) -> pd.DataFrame:
     """Extract NCCL data as DataFrame, replicating NcclComparisonReport.extract_data_as_df logic."""
-    parsed_data_rows, gpu_type, num_devices_per_node, num_ranks = extract_nccl_data(test_run.output_path / "stdout.txt")
+    stdout_path = test_run.output_path / "stdout.txt"
+
+    if not stdout_path.exists():
+        return pd.DataFrame()
+
+    parsed_data_rows, gpu_type, num_devices_per_node, num_ranks = extract_nccl_data(stdout_path)
     if not parsed_data_rows:
         return pd.DataFrame()
 
@@ -89,8 +136,11 @@ def extract_nccl_data_as_df(test_run: TestRun) -> pd.DataFrame:
     return df
 
 
-def collect_nccl_data(scenarios: list[TestScenarioInfo]) -> list[dict]:
-    """Collect NCCL test runs and extract data from scenarios."""
+def collect_nccl_data(data_provider: DataProvider, time_range_days: int = 7) -> list[dict]:
+    """Collect NCCL test runs and extract data using lazy loading."""
+    query = DataQuery(test_type="nccl", time_range_days=time_range_days)
+    scenarios = data_provider.query_data(query)
+
     nccl_data: list[dict] = []
     for scenario in scenarios:
         for test_run in scenario.test_runs:
@@ -106,6 +156,7 @@ def collect_nccl_data(scenarios: list[TestScenarioInfo]) -> list[dict]:
                             "label": f"{scenario.name} - {scenario.timestamp.strftime('%Y-%m-%d %H:%M:%S')}",
                         }
                     )
+
     return nccl_data
 
 
@@ -169,7 +220,8 @@ def create_nccl_latency_chart(nccl_data: list[dict], selected_latency_charts: li
     """Create latency chart for NCCL test runs."""
     fig = go.Figure()
 
-    colors = px.colors.qualitative.Set1
+    # Use a simple color palette
+    colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f"]
 
     for i, data in enumerate(nccl_data):
         df = data["df"]
@@ -221,93 +273,70 @@ def create_nccl_latency_chart(nccl_data: list[dict], selected_latency_charts: li
     return fig
 
 
-def create_nccl_page(
-    scenarios: list[TestScenarioInfo], dashboards: list[str], results_root: Path, create_header_navbar
-):
-    """Create the NCCL page with bandwidth and latency charts."""
-    nccl_data = collect_nccl_data(scenarios)
-
-    if not nccl_data:
-        return html.Div(
-            [
-                create_header_navbar("nccl", dashboards),
-                html.Div(
-                    [
-                        html.H3("NCCL Dashboard"),
-                        html.P("No NCCL test runs found.", className="text-muted"),
-                    ],
-                    className="main-content",
-                ),
-            ]
-        )
-
+def create_nccl_page(dashboard: "NCCLDashboard") -> html.Div:
+    """Create the NCCL page with initial data loaded."""
     return html.Div(
         [
-            create_header_navbar("nccl", dashboards),
-            html.Div(
-                [
-                    html.H3("NCCL Dashboard"),
-                    # Controls Section
-                    html.Div(
-                        [
-                            html.Div(
-                                [
-                                    dcc.Dropdown(
-                                        options=create_scenario_dropdown_options(nccl_data),
-                                        placeholder="Select Scenarios",
-                                        id="nccl-scenario-filter",
-                                        multi=True,
-                                    ),
-                                ],
-                                style={"marginBottom": "1rem"},
-                            ),
-                            # Chart Controls
-                            html.Div(
-                                [
-                                    html.Label(
-                                        "Chart Controls:", style={"fontWeight": "bold", "marginBottom": "0.5rem"}
-                                    ),
-                                    dcc.Checklist(
-                                        id="nccl-chart-controls",
-                                        options=[
-                                            {"label": " Bandwidth Out-of-place", "value": "bandwidth_out"},
-                                            {"label": " Bandwidth In-place", "value": "bandwidth_in"},
-                                            {"label": " Latency Out-of-place", "value": "latency_out"},
-                                            {"label": " Latency In-place", "value": "latency_in"},
-                                        ],
-                                        value=["bandwidth_out", "bandwidth_in", "latency_out", "latency_in"],
-                                        inline=True,
-                                        className="dash-checklist",
-                                        style={"display": "flex", "flexWrap": "wrap", "gap": "1rem"},
-                                    ),
-                                ],
-                            ),
-                        ],
-                        className="chart-controls",
-                    ),
-                    # Charts Container
-                    html.Div(id="nccl-charts-container"),
-                ],
-                className="main-content",
-            ),
-        ]
+            html.H3("NCCL Dashboard"),
+            # Controls Section
+            html.Div(dashboard.render_controls(), id="nccl-controls-container"),
+            # Charts Container
+            html.Div(dashboard.render_charts(), id="nccl-charts-container"),
+        ],
+        className="main-content",
     )
 
 
-def update_nccl_charts(selected_charts: list[str], selected_scenarios: list[str], data_provider: DataProvider):
-    """Update NCCL charts based on user selection and scenario filter."""
-    scenarios = data_provider.get_scenarios()
-    nccl_data = collect_nccl_data(scenarios)
+def create_nccl_controls(nccl_data: list[dict]) -> html.Div:
+    """Create control elements for NCCL dashboard."""
+    return html.Div(
+        [
+            html.Div(
+                [
+                    dcc.Dropdown(
+                        options=create_scenario_dropdown_options(nccl_data),  # type: ignore
+                        placeholder="Select Scenarios",
+                        id="nccl-scenario-filter",
+                        multi=True,
+                    ),
+                ],
+                style={"marginBottom": "1rem"},
+            ),
+            # Chart Controls
+            html.Div(
+                [
+                    html.Label("Chart Controls:", style={"fontWeight": "bold", "marginBottom": "0.5rem"}),
+                    dcc.Checklist(
+                        id="nccl-chart-controls",
+                        options=[
+                            {"label": " Bandwidth Out-of-place", "value": "bandwidth_out"},
+                            {"label": " Bandwidth In-place", "value": "bandwidth_in"},
+                            {"label": " Latency Out-of-place", "value": "latency_out"},
+                            {"label": " Latency In-place", "value": "latency_in"},
+                        ],
+                        value=["bandwidth_out", "bandwidth_in", "latency_out", "latency_in"],
+                        inline=True,
+                        className="dash-checklist",
+                        style={"display": "flex", "flexWrap": "wrap", "gap": "1rem"},
+                    ),
+                ],
+            ),
+        ],
+        className="chart-controls",
+    )
 
+
+def _render_charts(nccl_data: list[dict], selected_charts: list[str] | None, selected_scenarios: list[str] | None):
+    """Render charts based on data and filters."""
+    # Filter by scenario if specified
     if selected_scenarios:
         nccl_data = [data for data in nccl_data if data["label"] in selected_scenarios]
 
+    # Validate data and selections
     if not nccl_data or not selected_charts:
         if not nccl_data:
             message = (
-                "No NCCL data available for the selected scenario."
-                if selected_scenarios != []
-                else "No NCCL data available."
+                "No NCCL data available for the selected scenario." if selected_scenarios else "No NCCL data available."
             )
         else:
             message = "No charts selected."
@@ -325,7 +354,7 @@ def update_nccl_charts(selected_charts: list[str], selected_scenarios: list[str]
                 dcc.Graph(
                     figure=bandwidth_fig,
                     config={
-                        "scrollZoom": True,  # Enable mouse wheel zoom
+                        "scrollZoom": True,
                         "displayModeBar": True,
                         "displaylogo": False,
                         "modeBarButtonsToRemove": ["lasso2d", "select2d"],
@@ -344,7 +373,7 @@ def update_nccl_charts(selected_charts: list[str], selected_scenarios: list[str]
                 dcc.Graph(
                     figure=latency_fig,
                     config={
-                        "scrollZoom": True,  # Enable mouse wheel zoom
+                        "scrollZoom": True,
                         "displayModeBar": True,
                         "displaylogo": False,
                         "modeBarButtonsToRemove": ["lasso2d", "select2d"],
