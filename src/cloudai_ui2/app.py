@@ -21,12 +21,22 @@ from pathlib import Path
 import dash
 from dash import Input, Output, dcc, html
 
+from cloudai.workloads.nccl_test.nccl import NCCLTestDefinition
+
 from .data_layer import LocalFileDataProvider, TestScenarioInfo
+from .nccl_dashboard import collect_nccl_data, create_nccl_page, update_nccl_charts
 
 
 def available_dashboards(scenarios: list[TestScenarioInfo]) -> list[str]:
     """Determine available dashboard types based on test runs."""
-    return ["debug"]
+    dash_types: list[str] = ["debug"]
+
+    # Check for NCCL test runs
+    nccl_data = collect_nccl_data(scenarios)
+    if len(nccl_data) > 1:
+        dash_types.append("nccl")
+
+    return dash_types
 
 
 def create_header_navbar(current_page: str, available_dashboards: list[str]):
@@ -62,7 +72,7 @@ def create_header_navbar(current_page: str, available_dashboards: list[str]):
 
 def create_app(results_root: Path):
     """Create and configure the Dash application."""
-    app = dash.Dash(__name__, assets_folder="assets", title="CloudAI Dashboard")
+    app = dash.Dash(__name__, assets_folder="assets", title="CloudAI Dashboard", suppress_callback_exceptions=True)
     data_provider = LocalFileDataProvider(results_root)
 
     app.layout = html.Div([dcc.Location(id="url", refresh=False), html.Div(id="page-content")])
@@ -77,6 +87,8 @@ def create_app(results_root: Path):
             return create_main_page(scenarios, dashboards, results_root)
         elif pathname == "/debug":
             return create_debug_page(scenarios, dashboards, results_root)
+        elif pathname == "/nccl":
+            return create_nccl_page(scenarios, dashboards, results_root, create_header_navbar)
         else:
             return html.Div(
                 [
@@ -86,12 +98,20 @@ def create_app(results_root: Path):
                 ]
             )
 
+    @app.callback(
+        Output("nccl-charts-container", "children"),
+        [Input("nccl-chart-controls", "value"), Input("nccl-scenario-filter", "value")],
+        prevent_initial_call=False,
+    )
+    def update_nccl_charts_callback(selected_charts: list[str], selected_scenario: str):
+        """Update NCCL charts based on user selection and scenario filter."""
+        return update_nccl_charts(selected_charts, selected_scenario, data_provider)
+
     return app
 
 
 def create_main_page(scenarios: list[TestScenarioInfo], dashboards: list[str], results_root: Path):
     """Create the main dashboard selection page."""
-
     dashboard_cards = html.Div([create_compact_dashboard_card(dashboard) for dashboard in dashboards])
 
     return html.Div(
@@ -122,7 +142,7 @@ def create_compact_dashboard_card(dashboard: str):
     """Create a compact dashboard card component."""
     description = {
         "debug": " • Debug view with scenario details",
-    }.get(dashboard, f"{dashboard.title()} dashboard")
+    }.get(dashboard, f" • {dashboard.title()} dashboard")
 
     return html.Div(
         [

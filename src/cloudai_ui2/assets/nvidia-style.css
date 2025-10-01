@@ -68,7 +68,7 @@ body {
     background-color: var(--pst-color-background);
     border-bottom: 1px solid var(--pst-color-shadow);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    padding: 1rem 0;
+    padding: 0.5rem 0;
 }
 
 .header-content {
@@ -93,12 +93,12 @@ body {
 }
 
 .app-title {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
     font-weight: 700;
     color: var(--pst-color-heading);
     margin: 0;
     line-height: 1;
-    padding-bottom: 0.1rem;
+    padding-bottom: 0.05rem;
 }
 
 .header-nav {
@@ -108,12 +108,13 @@ body {
 
 .nav-item {
     display: inline-block;
-    padding: 0.75rem 1.5rem;
+    padding: 0.375rem 1rem;
     color: var(--pst-color-text-base);
     text-decoration: none;
-    border-bottom: 3px solid transparent;
+    border-bottom: 2px solid transparent;
     transition: all 0.2s ease;
     font-weight: 500;
+    font-size: 0.9rem;
 }
 
 .nav-item:hover {
@@ -278,6 +279,46 @@ p {
 
 
 
+/* Chart Controls */
+.chart-controls {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.chart-controls label {
+    font-weight: 600;
+    color: var(--pst-color-heading);
+    margin-right: 1rem;
+}
+
+/* Dash Checklist Styling */
+.dash-checklist {
+    display: inline-flex;
+    gap: 1rem;
+}
+
+.dash-checklist label {
+    display: flex;
+    align-items: center;
+    font-weight: normal;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    transition: background-color 0.2s ease;
+}
+
+.dash-checklist label:hover {
+    background-color: var(--pst-color-surface);
+}
+
+.dash-checklist input[type="checkbox"] {
+    margin-right: 0.5rem;
+    accent-color: var(--nv-color-green);
+}
+
 /* Utility Classes */
 .text-muted {
     color: var(--pst-color-text-muted);
@@ -397,7 +438,7 @@ details[open] .scenario-summary::before {
     }
 
     .app-title {
-        font-size: 1.25rem;
+        font-size: 1rem;
     }
 
     .header-nav {
@@ -406,8 +447,8 @@ details[open] .scenario-summary::before {
     }
 
     .nav-item {
-        padding: 0.5rem 1rem;
-        font-size: 0.9rem;
+        padding: 0.25rem 0.75rem;
+        font-size: 0.8rem;
     }
 
     .main-content {
