@@ -103,9 +103,9 @@ def create_app(results_root: Path):
         [Input("nccl-chart-controls", "value"), Input("nccl-scenario-filter", "value")],
         prevent_initial_call=False,
     )
-    def update_nccl_charts_callback(selected_charts: list[str], selected_scenario: str):
+    def update_nccl_charts_callback(selected_charts: list[str], selected_scenarios: list[str]):
         """Update NCCL charts based on user selection and scenario filter."""
-        return update_nccl_charts(selected_charts, selected_scenario, data_provider)
+        return update_nccl_charts(selected_charts, selected_scenarios, data_provider)
 
     return app
 

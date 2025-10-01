@@ -40,7 +40,7 @@ def create_scenario_dropdown_options(nccl_data: list[dict]) -> list[dict]:
             label_counts[label] = 0
         label_counts[label] += 1
 
-    options = [{"label": f"All Scenarios ({len(nccl_data)} results)", "value": "all"}]
+    options = []
 
     for label, count in label_counts.items():
         result_text = "result" if count == 1 else "results"
@@ -247,22 +247,16 @@ def create_nccl_page(
             html.Div(
                 [
                     html.H3("NCCL Dashboard"),
-                    html.P(f"Found {len(nccl_data)} NCCL test runs", className="text-muted"),
                     # Controls Section
                     html.Div(
                         [
-                            # Scenario Filter
                             html.Div(
                                 [
-                                    html.Label(
-                                        "Filter by Scenario:", style={"fontWeight": "bold", "marginBottom": "0.5rem"}
-                                    ),
                                     dcc.Dropdown(
-                                        id="nccl-scenario-filter",
                                         options=create_scenario_dropdown_options(nccl_data),
-                                        value="all",
-                                        clearable=False,
-                                        style={"marginBottom": "1rem"},
+                                        placeholder="Select Scenarios",
+                                        id="nccl-scenario-filter",
+                                        multi=True,
                                     ),
                                 ],
                                 style={"marginBottom": "1rem"},
@@ -281,12 +275,7 @@ def create_nccl_page(
                                             {"label": " Latency Out-of-place", "value": "latency_out"},
                                             {"label": " Latency In-place", "value": "latency_in"},
                                         ],
-                                        value=[
-                                            "bandwidth_out",
-                                            "bandwidth_in",
-                                            "latency_out",
-                                            "latency_in",
-                                        ],  # All enabled by default
+                                        value=["bandwidth_out", "bandwidth_in", "latency_out", "latency_in"],
                                         inline=True,
                                         className="dash-checklist",
                                         style={"display": "flex", "flexWrap": "wrap", "gap": "1rem"},
@@ -305,19 +294,19 @@ def create_nccl_page(
     )
 
 
-def update_nccl_charts(selected_charts: list[str], selected_scenario: str, data_provider: DataProvider):
+def update_nccl_charts(selected_charts: list[str], selected_scenarios: list[str], data_provider: DataProvider):
     """Update NCCL charts based on user selection and scenario filter."""
     scenarios = data_provider.get_scenarios()
     nccl_data = collect_nccl_data(scenarios)
 
-    if selected_scenario and selected_scenario != "all":
-        nccl_data = [data for data in nccl_data if data["label"] == selected_scenario]
+    if selected_scenarios:
+        nccl_data = [data for data in nccl_data if data["label"] in selected_scenarios]
 
     if not nccl_data or not selected_charts:
         if not nccl_data:
             message = (
                 "No NCCL data available for the selected scenario."
-                if selected_scenario != "all"
+                if selected_scenarios != []
                 else "No NCCL data available."
             )
         else:
