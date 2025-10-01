@@ -6,11 +6,16 @@ import subprocess
 from pathlib import Path
 
 import click
+from rich.console import Console
+from rich.style import Style
 
 from cloudai.cli.handlers import handle_non_dse_job, prepare_installation, register_signal_handlers
 from cloudai.core import Runner, Test, TestRun, TestScenario, TestTemplate
 from cloudai.systems.slurm.slurm_system import SlurmPartition, SlurmSystem
 from cloudai.workloads.nccl_test.nccl import NCCLCmdArgs, NCCLTestDefinition
+
+error_style = Style(color="red", bold=True)
+console = Console()
 
 
 @click.group()
@@ -23,7 +28,7 @@ def build_slurm_system() -> SlurmSystem:
     """Build a Slurm system for assessment."""
     result = subprocess.run(["scontrol", "show", "partition"], text=True, capture_output=True)
     if result.returncode != 0:
-        logging.error(f"Failed to run 'scontrol show partition': {result.stderr}")
+        console.log(f"Failed to run 'scontrol show partition': {result.stderr}", style=error_style)
         exit(1)
 
     partitions = re.split(r"\n\s*\n", result.stdout.strip())
@@ -37,30 +42,32 @@ def build_slurm_system() -> SlurmSystem:
                 default_partition = name
 
     if not default_partition:
-        logging.error("No default partition found in Slurm configuration.")
+        console.log("No default partition found in Slurm configuration.", style=error_style)
         exit(1)
 
     cmd = ["sacctmgr", "-nP", "show", "assoc", "where", f"user={getpass.getuser()}", "format=account"]
     result = subprocess.run(cmd, text=True, capture_output=True)
     if result.returncode != 0:
-        logging.error(f"Failed to run '{' '.join(cmd)}': {result.stderr}")
+        console.log(f"Failed to run '{' '.join(cmd)}': {result.stderr}", style=error_style)
         exit(1)
     account = result.stdout.splitlines()[0].strip()
     if account:
-        logging.info(f"Using Slurm account: {account}")
+        console.log(f"Using Slurm account: [bold cyan]{account}[/]")
     else:
-        logging.error(f"No Slurm account found for the current user: {result.stdout}")
+        console.log(f"No Slurm account found for the current user: {result.stdout}", style=error_style)
 
     cmd = ["sinfo", "-p", default_partition, "-o", "%G", "--noheader"]
     result = subprocess.run(cmd, text=True, capture_output=True)
     if result.returncode != 0:
-        logging.error(f"Failed to run '{' '.join(cmd)}': {result.stderr}")
+        console.log(f"Failed to run '{' '.join(cmd)}': {result.stderr}", style=error_style)
         exit(1)
+
+    gpus_per_node: int | None = None
     m = re.search(r"gpu:(\d+)", result.stdout)
     if not m:
-        logging.error(f"No GPUs found in the '{default_partition}' partition: {result.stdout}")
-        exit(1)
-    gpus_per_node = int(m.group(1))
+        console.log(f"[warning]No GPUs info in GRES for [bold green]{default_partition}[/] partition[/warning]")
+    else:
+        gpus_per_node = int(m.group(1))
 
     system = SlurmSystem(
         name="slurm",
@@ -71,7 +78,23 @@ def build_slurm_system() -> SlurmSystem:
         gpus_per_node=gpus_per_node,
         partitions=[SlurmPartition(name=default_partition, slurm_nodes=[])],
     )
+    console.log(f"Using Slurm system with default partition [bold green]{system.default_partition}[/]")
+    system.update()
 
+    partition = None
+    for p in system.partitions:
+        if p.name == system.default_partition:
+            partition = p
+            break
+    if not partition:
+        console.log(
+            f"Default partition '{system.default_partition}' not found in system partitions.", style=error_style
+        )
+        exit(1)
+
+    console.log(
+        f"Default partition [bold green]{partition.name}[/] has [bold yellow]{len(partition.slurm_nodes)}[/] nodes"
+    )
     return system
 
 
@@ -98,35 +121,24 @@ def get_test_runs(slurm_system: SlurmSystem) -> list[TestRun]:
 @assess.command()
 def run():
     """Run assessment."""
-    system = build_slurm_system()
-    logging.info(f"Using Slurm system with default partition '{system.default_partition}'")
-    system.update()
+    with console.status("[bold green]Building Slurm system..."):
+        system = build_slurm_system()
 
-    partition = None
-    for p in system.partitions:
-        if p.name == system.default_partition:
-            partition = p
-            break
-    if not partition:
-        logging.error(f"Default partition '{system.default_partition}' not found in system partitions.")
+    trs = get_test_runs(system)
+    if not trs:
+        logging.error("No test runs available for assessment.")
         exit(1)
+    scenario = TestScenario(name="Assessment", test_runs=trs)
+    console.log(f"Prepared scenario '{scenario.name}' with {len(scenario.test_runs)} test runs.")
 
-    logging.info(f"Default partition '{partition.name}' has {len(partition.slurm_nodes)} nodes available.")
-    if len(partition.slurm_nodes) < 2:
-        logging.error(f"Partition '{partition.name}' has less than 2 nodes, cannot run assessment.")
-        exit(1)
+    with console.status("Preparing installation of required components..."):
+        installables, installer = prepare_installation(system, [tr.test for tr in scenario.test_runs], scenario)
+        result = installer.install(installables)
+        if not result.success:
+            logging.error("Installation failed, cannot proceed with assessment", style=error_style)
+            exit(1)
 
-    scenario = TestScenario(name="Assessment", test_runs=get_test_runs(system))
-    logging.info(f"Prepared scenario '{scenario.name}' with {len(scenario.test_runs)} test runs.")
-
-    logging.info("Preparing installation of required components...")
-    installables, installer = prepare_installation(system, [tr.test for tr in scenario.test_runs], scenario)
-    result = installer.install(installables)
-    if not result.success:
-        logging.error("Installation failed, cannot proceed with assessment.")
-        exit(1)
-
-    logging.info("Starting assessment run...")
+    console.log("Starting assessment run...")
     runner = Runner("run", system, scenario)
     register_signal_handlers(runner.cancel_on_signal)
-    handle_non_dse_job(runner, argparse.Namespace(mode="run"))
+    # handle_non_dse_job(runner, argparse.Namespace(mode="run"))
