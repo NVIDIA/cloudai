@@ -28,13 +28,13 @@ class TestGrouping:
         return pd.DataFrame()
 
     def test_single_tr(self, nccl_tr: TestRun) -> None:
-        groups = TestRunsGrouper(trs=[nccl_tr], group_by=[]).groups()
+        groups = TestRunsGrouper(items=[nccl_tr], group_by=[]).groups()
         assert len(groups) == 1
         assert groups[0].name == "all-in-one"
         assert groups[0].items[0].name == "0.0"
 
     def test_multiple_trs_no_group_by_fields_same_trs(self, nccl_tr: TestRun) -> None:
-        groups = TestRunsGrouper(trs=[nccl_tr, nccl_tr], group_by=[]).groups()
+        groups = TestRunsGrouper(items=[nccl_tr, nccl_tr], group_by=[]).groups()
         assert len(groups) == 1
         assert groups[0].name == "all-in-one"
         assert groups[0].items[0].name == "0.0"
@@ -45,7 +45,7 @@ class TestGrouping:
         nccl2 = copy.deepcopy(nccl_tr)
         nccl1.test.test_definition.cmd_args.subtest_name = "all_gather_perf"
         nccl2.test.test_definition.cmd_args.subtest_name = "all_reduce_perf"
-        groups = TestRunsGrouper(trs=[nccl1, nccl2], group_by=[]).groups()
+        groups = TestRunsGrouper(items=[nccl1, nccl2], group_by=[]).groups()
         assert len(groups) == 1
         assert groups[0].name == "all-in-one"
         assert groups[0].items[0].name == "subtest_name=all_gather_perf"
@@ -57,7 +57,7 @@ class TestGrouping:
         nccl1.test.test_definition.cmd_args.subtest_name = "all_gather_perf"
         nccl2.test.test_definition.cmd_args.subtest_name = "all_reduce_perf"
 
-        groups = TestRunsGrouper(trs=[nccl1, nccl2], group_by=["subtest_name"]).groups()
+        groups = TestRunsGrouper(items=[nccl1, nccl2], group_by=["subtest_name"]).groups()
 
         assert len(groups) == 2
         assert groups[0].name == "subtest_name=all_gather_perf"
@@ -71,7 +71,7 @@ class TestGrouping:
         trs: list[TestRun] = [nccl_tr.apply_params_set(combination) for combination in nccl_tr.all_combinations]
 
         groups = TestRunsGrouper(
-            trs=trs,
+            items=trs,
             group_by=["subtest_name", "extra_env_vars.NCCL_IB_SPLIT_DATA_ON_QPS"],
         ).groups()
 
@@ -87,7 +87,7 @@ class TestGrouping:
         nccl_tr.test.test_definition.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = ["0", "1"]
         trs: list[TestRun] = [nccl_tr.apply_params_set(combination) for combination in nccl_tr.all_combinations]
 
-        groups = TestRunsGrouper(trs=trs, group_by=["subtest_name"]).groups()
+        groups = TestRunsGrouper(items=trs, group_by=["subtest_name"]).groups()
 
         assert len(groups) == 2
 

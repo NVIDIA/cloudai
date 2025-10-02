@@ -57,7 +57,7 @@ class NcclComparisonReport(ComparisonReport):
     def create_tables(self, cmp_groups: list[GroupedTestRuns]) -> list[Table]:
         tables: list[Table] = []
         for group in cmp_groups:
-            dfs = [self.extract_data_as_df(item.tr) for item in group.items]
+            dfs = [self.extract_data_as_df(item.item) for item in group.items]
             tables.extend(
                 [
                     self.create_table(
@@ -121,7 +121,7 @@ class NcclComparisonReport(ComparisonReport):
     def create_charts(self, cmp_groups: list[GroupedTestRuns]) -> list[bk.figure]:
         charts: list[bk.figure] = []
         for group in cmp_groups:
-            dfs = [self.extract_data_as_df(item.tr) for item in group.items]
+            dfs = [self.extract_data_as_df(item.item) for item in group.items]
             if chart := self.create_chart(
                 group, dfs, "Latecy", list(self.INFO_COLUMNS), list(self.LATENCY_DATA_COLUMNS), "Time (us)"
             ):

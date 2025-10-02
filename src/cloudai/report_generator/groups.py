@@ -14,40 +14,56 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+from __future__ import annotations
 
-from cloudai.core import TestDefinition, TestRun
+from dataclasses import dataclass
+from typing import Generic, TypeVar, cast
+
+from cloudai.core import TestRun
 
 from .util import diff_test_runs
 
+T = TypeVar("T")
+
 
 @dataclass
-class TRGroupItem:
-    """Item in a group of TestRuns."""
+class GroupItem(Generic[T]):
+    """Generic item in a group."""
 
     name: str
-    tr: TestRun
+    item: T
 
 
 @dataclass
-class GroupedTestRuns:
-    """Group of TestRuns."""
+class GroupedItems(Generic[T]):
+    """Generic group of items."""
 
     name: str
-    items: list[TRGroupItem]
+    items: list[GroupItem[T]]
 
 
 @dataclass
-class TestRunsGrouper:
-    """Group TestRuns based on cmd_args or/and extra_env_vars."""
+class ItemsGrouper(Generic[T]):
+    """Generic grouper for TestRuns or items containing TestRuns."""
 
     __test__ = False
 
-    trs: list[TestRun]
+    items: list[T]
     group_by: list[str]
 
-    def get_value(self, tdef: TestDefinition, field: str) -> str:
+    def _tr(self, item: T) -> TestRun:
+        """Extract TestRun from item."""
+        if isinstance(item, TestRun):
+            return item
+        if hasattr(item, "test_run"):
+            return cast(TestRun, getattr(item, "test_run"))  # noqa: B009
+
+        raise ValueError(f"Item {item} does not have a test_run attribute")
+
+    def get_value(self, item: T, field: str) -> str:
         """Get field value for cmd_args or extra_env_vars."""
+        tr = self._tr(item)
+        tdef = tr.test.test_definition
         if field.startswith("extra_env_vars."):
             f_name = field[len("extra_env_vars.") :]
             v = str(tdef.extra_env_vars.get(f_name))
@@ -55,48 +71,53 @@ class TestRunsGrouper:
             v = getattr(tdef.cmd_args, field)
         return v
 
-    def group_name(self, trs: list[TestRun]) -> str:
+    def group_name(self, items: list[T]) -> str:
         """
-        Get group name for a list of TestRuns.
+        Get group name for a list of items.
 
-        Assume all test runs are grouped by the group_by fields, so take all the values from the first test run.
+        Assume all items are grouped by the group_by fields, so take values from the first item.
         """
         if not self.group_by:
             return "all-in-one"
-        parts = [f"{field}={self.get_value(trs[0].test.test_definition, field)}" for field in self.group_by]
+        parts = [f"{field}={self.get_value(items[0], field)}" for field in self.group_by]
         return " ".join(parts).replace("extra_env_vars.", "")
 
-    def create_group(self, trs: list[TestRun], group_idx: str = "0") -> GroupedTestRuns:
+    def create_group(self, items: list[T], group_idx: str = "0") -> GroupedItems[T]:
+        """Create a group from items."""
+        trs = [self._tr(item) for item in items]
         diff = diff_test_runs(trs)
-        items: list[TRGroupItem] = []
-        for idx, _ in enumerate(trs):
+
+        group_items: list[GroupItem[T]] = []
+        for idx, item in enumerate(items):
             name = f"{group_idx}.{idx}"
             if diff:
                 item_name_parts = [f"{field}={vals[idx]}" for field, vals in diff.items()]
                 name = " ".join(item_name_parts).replace("extra_env_vars.", "")
-            items.append(TRGroupItem(name=name, tr=trs[idx]))
-        return GroupedTestRuns(name=self.group_name(trs), items=items)
+            group_items.append(GroupItem(name=name, item=item))
 
-    def groups(self) -> list[GroupedTestRuns]:
+        return GroupedItems(name=self.group_name(items), items=group_items)
+
+    def groups(self) -> list[GroupedItems[T]]:
+        """Group items based on group_by fields."""
         if not self.group_by:
-            return [self.create_group(self.trs)]
+            return [self.create_group(self.items)]
 
-        groups: list[list[TestRun]] = []
-        for tr in self.trs:
-            for group in groups:
-                matched = all(
-                    self.get_value(tr.test.test_definition, field)
-                    == self.get_value(group[0].test.test_definition, field)
-                    for field in self.group_by
-                )
+        groups_list: list[list[T]] = []
+        for item in self.items:
+            for group in groups_list:
+                matched = all(self.get_value(item, field) == self.get_value(group[0], field) for field in self.group_by)
 
                 if matched:
-                    group.append(tr)
+                    group.append(item)
                     break
             else:  # runs only if no break happened
-                groups.append([tr])
+                groups_list.append([item])
 
-        res: list[GroupedTestRuns] = []
-        for grp_idx, group in enumerate(groups):
-            res.append(self.create_group(group, group_idx=str(grp_idx)))
-        return res
+        result: list[GroupedItems[T]] = []
+        for grp_idx, group in enumerate(groups_list):
+            result.append(self.create_group(group, group_idx=str(grp_idx)))
+        return result
+
+
+GroupedTestRuns = GroupedItems[TestRun]
+TestRunsGrouper = ItemsGrouper[TestRun]

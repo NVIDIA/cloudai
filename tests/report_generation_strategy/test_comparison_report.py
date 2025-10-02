@@ -21,7 +21,7 @@ from rich.table import Table
 
 from cloudai.core import TestRun, TestScenario
 from cloudai.report_generator.comparison_report import ComparisonReport, ComparisonReportConfig
-from cloudai.report_generator.groups import GroupedTestRuns, TRGroupItem
+from cloudai.report_generator.groups import GroupedTestRuns, GroupItem
 from cloudai.systems.slurm import SlurmSystem
 
 
@@ -55,7 +55,7 @@ class TestCreateTable:
         table = cmp_report.create_table(
             GroupedTestRuns(
                 name="grp_name",
-                items=[TRGroupItem(name="item_name", tr=nccl_tr)],
+                items=[GroupItem(name="item_name", item=nccl_tr)],
             ),
             [pd.DataFrame({"size": [1, 2, 4], "value": [10, 20, 40]})],
             "title",
@@ -72,8 +72,8 @@ class TestCreateTable:
             GroupedTestRuns(
                 name="grp_name",
                 items=[
-                    TRGroupItem(name="item_name", tr=nccl_tr),
-                    TRGroupItem(name="item_name2", tr=nccl_tr),
+                    GroupItem(name="item_name", item=nccl_tr),
+                    GroupItem(name="item_name2", item=nccl_tr),
                 ],
             ),
             [
@@ -96,8 +96,8 @@ class TestCreateTable:
             GroupedTestRuns(
                 name="grp_name",
                 items=[
-                    TRGroupItem(name="item_name", tr=nccl_tr),
-                    TRGroupItem(name="item_name2", tr=nccl_tr),
+                    GroupItem(name="item_name", item=nccl_tr),
+                    GroupItem(name="item_name2", item=nccl_tr),
                 ],
             ),
             [
@@ -122,8 +122,8 @@ def test_create_charts(cmp_report: MyComparisonReport, nccl_tr: TestRun) -> None
         GroupedTestRuns(
             name="grp_name",
             items=[
-                TRGroupItem(name="item_name", tr=nccl_tr),
-                TRGroupItem(name="item_name2", tr=nccl_tr),
+                GroupItem(name="item_name", item=nccl_tr),
+                GroupItem(name="item_name2", item=nccl_tr),
             ],
         ),
         [
