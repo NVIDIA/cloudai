@@ -23,7 +23,7 @@ from typing import Any
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from dash import dcc, html
+from dash import dcc, html, no_update
 
 from cloudai.core import TestRun
 from cloudai.workloads.nccl_test.nccl import NCCLTestDefinition
@@ -85,6 +85,24 @@ class NCCLDashboard:
             selected_charts = ["bandwidth_out", "bandwidth_in", "latency_out", "latency_in"]
 
         return _render_charts(data, selected_charts, selected_scenarios)
+
+    def update(
+        self,
+        triggered_id: str | None,
+        time_range_days: int | None,
+        selected_charts: list[str] | None,
+        selected_scenarios: list[str] | None,
+    ) -> tuple[Any, Any]:
+        # If time range changed, reload data and update both controls and charts
+        if triggered_id == "nccl-time-range":
+            self.load_data(time_range_days)
+            controls = self.render_controls()
+            charts = self.render_charts(selected_charts, selected_scenarios)
+            return (controls, charts)
+
+        # Otherwise, only update charts (controls stay the same, use cached data)
+        charts = self.render_charts(selected_charts, selected_scenarios)
+        return (no_update, charts)
 
     def create_nccl_page(self) -> html.Div:
         """Create the NCCL page with initial data loaded."""
@@ -330,7 +348,7 @@ def create_nccl_controls(nccl_data: list[dict]) -> html.Div:
                 [
                     dcc.Dropdown(
                         options=create_scenario_dropdown_options(nccl_data),  # type: ignore
-                        placeholder="Select Scenarios",
+                        placeholder="Filter Scenarios",
                         id="nccl-scenario-filter",
                         multi=True,
                     ),

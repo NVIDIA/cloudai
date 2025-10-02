@@ -19,7 +19,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 from cloudai_ui.data_layer import LocalFileDataProvider as _LocalFileDataProvider
 from cloudai_ui.data_layer import TestScenarioInfo
