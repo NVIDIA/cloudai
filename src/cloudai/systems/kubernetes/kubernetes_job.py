@@ -16,6 +16,8 @@
 
 
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Optional
 
 from cloudai.core import BaseJob
 
@@ -26,3 +28,6 @@ class KubernetesJob(BaseJob):
 
     kind: str
     name: str
+    python_executable: Optional[Any] = None
+    genai_perf_args: Optional[Any] = None
+    output_path: Optional[Path] = None

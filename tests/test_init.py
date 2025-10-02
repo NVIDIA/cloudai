@@ -23,6 +23,7 @@ from cloudai.systems.runai import RunAIInstaller, RunAISystem
 from cloudai.systems.slurm import SlurmInstaller, SlurmSystem
 from cloudai.systems.standalone import StandaloneInstaller, StandaloneSystem
 from cloudai.workloads.ai_dynamo import (
+    AIDynamoKubernetesJsonGenStrategy,
     AIDynamoSlurmCommandGenStrategy,
     AIDynamoTestDefinition,
 )
@@ -137,6 +138,7 @@ ALL_STRATEGIES = {
     (JsonGenStrategy, KubernetesSystem, NCCLTestDefinition): NcclTestKubernetesJsonGenStrategy,
     (JsonGenStrategy, KubernetesSystem, SleepTestDefinition): SleepKubernetesJsonGenStrategy,
     (JsonGenStrategy, RunAISystem, NCCLTestDefinition): NcclTestRunAIJsonGenStrategy,
+    (JsonGenStrategy, KubernetesSystem, AIDynamoTestDefinition): AIDynamoKubernetesJsonGenStrategy,
 }
 
 
