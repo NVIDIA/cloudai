@@ -27,7 +27,8 @@ Architecture:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, cast
+from datetime import datetime
+from typing import Any
 
 import pandas as pd
 import plotly.express as px
@@ -42,11 +43,29 @@ from .data_layer import DataProvider, DataQuery
 
 
 @dataclass(frozen=True)
+class NCCLRecord:
+    """Immutable NCCL test run data."""
+
+    test_run: TestRun
+    df: pd.DataFrame
+    scenario_name: str
+    timestamp: datetime
+
+    @property
+    def label(self) -> str:
+        return f"{self.scenario_name} - {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
+
+    @property
+    def system_name(self) -> str:
+        return self.test_run.test.test_template.system.name
+
+
+@dataclass(frozen=True)
 class DashboardState:
     """Immutable state snapshot for rendering."""
 
-    all_data: list[dict]  # All loaded data
-    filtered_data: list[dict]  # After applying system/scenario filters
+    all_data: list[NCCLRecord]
+    filtered_data: list[NCCLRecord]
     time_range_days: int
     selected_systems: list[str] | None
     selected_scenarios: list[str] | None
@@ -103,7 +122,7 @@ class NCCLDataManager:
 
     def __init__(self, data_provider: DataProvider):
         self.data_provider = data_provider
-        self._cached_data: list[dict] | None = None
+        self._cached_data: list[NCCLRecord] | None = None
         self.time_range_days: int = 30
 
     def load_data(self, time_range_days: int | None = None) -> None:
@@ -114,19 +133,19 @@ class NCCLDataManager:
         if self._cached_data is None:
             self._cached_data = self._collect_nccl_data()
 
-    def get_data(self) -> list[dict]:
+    def get_data(self) -> list[NCCLRecord]:
         if self._cached_data is None:
             self.load_data()
         return self._cached_data or []
 
     def apply_filters(
-        self, data: list[dict], selected_systems: list[str] | None, selected_scenarios: list[str] | None
-    ) -> list[dict]:
+        self, data: list[NCCLRecord], selected_systems: list[str] | None, selected_scenarios: list[str] | None
+    ) -> list[NCCLRecord]:
         if selected_systems:
-            data = [d for d in data if cast(TestRun, d["test_run"]).test.test_template.system.name in selected_systems]
+            data = [d for d in data if d.system_name in selected_systems]
 
         if selected_scenarios:
-            data = [d for d in data if d["label"] in selected_scenarios]
+            data = [d for d in data if d.label in selected_scenarios]
 
         return data
 
@@ -151,24 +170,23 @@ class NCCLDataManager:
             selected_charts=selected_charts,
         )
 
-    def _collect_nccl_data(self) -> list[dict]:
+    def _collect_nccl_data(self) -> list[NCCLRecord]:
         query = DataQuery(test_type="nccl", time_range_days=self.time_range_days)
         scenarios = self.data_provider.query_data(query)
 
-        nccl_data: list[dict] = []
+        nccl_data: list[NCCLRecord] = []
         for scenario in scenarios:
             for test_run in scenario.test_runs:
                 if isinstance(test_run.test.test_definition, NCCLTestDefinition):
                     df = extract_nccl_data_as_df(test_run)
                     if not df.empty:
                         nccl_data.append(
-                            {
-                                "test_run": test_run,
-                                "df": df,
-                                "scenario_name": scenario.name,
-                                "timestamp": scenario.timestamp,
-                                "label": f"{scenario.name} - {scenario.timestamp.strftime('%Y-%m-%d %H:%M:%S')}",
-                            }
+                            NCCLRecord(
+                                test_run=test_run,
+                                df=df,
+                                scenario_name=scenario.name,
+                                timestamp=scenario.timestamp,
+                            )
                         )
 
         return nccl_data
@@ -313,10 +331,10 @@ def render_charts(state: DashboardState) -> Any:
 # ============================================================================
 
 
-def create_scenario_dropdown_options(nccl_data: list[dict]) -> list:
-    label_counts = {}
+def create_scenario_dropdown_options(nccl_data: list[NCCLRecord]) -> list:
+    label_counts: dict[str, int] = {}
     for data in nccl_data:
-        label = data["label"]
+        label = data.label
         if label not in label_counts:
             label_counts[label] = 0
         label_counts[label] += 1
@@ -330,13 +348,8 @@ def create_scenario_dropdown_options(nccl_data: list[dict]) -> list:
     return options
 
 
-def create_system_dropdown_options(nccl_data: list[dict]) -> list:
-    systems = set()
-    for data in nccl_data:
-        tr = cast(TestRun, data["test_run"])
-        systems.add(tr.test.test_template.system.name)
-
-    return [{"label": system, "value": system} for system in systems]
+def create_system_dropdown_options(nccl_data: list[NCCLRecord]) -> list:
+    return [{"label": data.system_name, "value": data.system_name} for data in nccl_data]
 
 
 def extract_nccl_data_as_df(test_run: TestRun) -> pd.DataFrame:
@@ -383,14 +396,14 @@ def extract_nccl_data_as_df(test_run: TestRun) -> pd.DataFrame:
     return df
 
 
-def create_bandwidth_chart(nccl_data: list[dict], selected_bandwidth_charts: list[str]) -> go.Figure:
+def create_bandwidth_chart(nccl_data: list[NCCLRecord], selected_bandwidth_charts: list[str]) -> go.Figure:
     fig = go.Figure()
 
     colors = px.colors.qualitative.Set1
 
     for i, data in enumerate(nccl_data):
-        df = data["df"]
-        label = data["label"]
+        df = data.df
+        label = data.label
         color = colors[i % len(colors)]
 
         for chart in selected_bandwidth_charts:
@@ -423,14 +436,14 @@ def create_bandwidth_chart(nccl_data: list[dict], selected_bandwidth_charts: lis
     return fig
 
 
-def create_latency_chart(nccl_data: list[dict], selected_latency_charts: list[str]) -> go.Figure:
+def create_latency_chart(nccl_data: list[NCCLRecord], selected_latency_charts: list[str]) -> go.Figure:
     fig = go.Figure()
 
     colors = px.colors.qualitative.Set1
 
     for i, data in enumerate(nccl_data):
-        df = data["df"]
-        label = data["label"]
+        df = data.df
+        label = data.label
         color = colors[i % len(colors)]
 
         for chart in selected_latency_charts:
