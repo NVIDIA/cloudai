@@ -80,12 +80,12 @@ class LocalFileDataProvider(DataProvider):
                     time_part = parts[-1]
                     try:
                         timestamp = datetime.strptime(f"{date_part}_{time_part}", "%Y-%m-%d_%H-%M-%S")
-                    except ValueError:
-                        error = f"Not a scenario directory: {scenario_dir.absolute()}"
+                    except ValueError as e:
+                        error = f"Not a scenario directory 3: {scenario_dir.absolute()}: {e} {parts}"
                 else:
-                    error = f"Not a scenario directory: {scenario_dir.absolute()}"
+                    error = f"Not a scenario directory 2: {scenario_dir.absolute()}"
             else:
-                error = f"Not a scenario directory: {scenario_dir.absolute()}"
+                error = f"Not a scenario directory 1: {scenario_dir.absolute()}"
 
             if not error:
                 try:
@@ -102,6 +102,7 @@ class LocalFileDataProvider(DataProvider):
                     error=error,
                 )
             )
+            print(f"Added scenario: {scenario_name} (error: {error})")
 
         # Sort by timestamp, newest first
         scenarios.sort(key=lambda x: x.timestamp, reverse=True)

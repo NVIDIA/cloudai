@@ -301,6 +301,33 @@ def render_controls(state: DashboardState) -> html.Div:
     )
 
 
+def format_group_title(group_name: str) -> Any:
+    """Format group title with monospaced values (k=v format)."""
+    if group_name == "all-in-one":
+        return html.H3("All Results")
+
+    # Split by spaces to get individual k=v pairs
+    parts = group_name.split(" ")
+    children = []
+
+    for i, part in enumerate(parts):
+        if i > 0:
+            children.append(" ")  # Add space between parts
+
+        if "=" in part:
+            key, value = part.split("=", 1)
+            children.append(key + "=")
+            children.append(
+                html.Code(
+                    value, style={"backgroundColor": "#f5f5f5", "padding": "0.2rem 0.4rem", "borderRadius": "3px"}
+                )
+            )
+        else:
+            children.append(part)
+
+    return html.H3(children)
+
+
 def render_charts(state: DashboardState) -> Any:
     if not state.filtered_data:
         return html.Div(html.P("No NCCL test runs found.", className="text-muted"))
@@ -311,12 +338,14 @@ def render_charts(state: DashboardState) -> Any:
     charts = []
 
     for group in groups:
-        charts.append(html.H3(group.name))
+        group_content = []
+        group_content.append(format_group_title(group.name))
+
         # Check if any bandwidth charts are selected
         bandwidth_charts = [chart for chart in selected_charts if chart.startswith("bandwidth_")]
         if bandwidth_charts:
             bandwidth_fig = create_bandwidth_chart(group.items, bandwidth_charts)
-            charts.extend(
+            group_content.extend(
                 [
                     html.H4("Bandwidth Performance"),
                     dcc.Graph(
@@ -335,7 +364,7 @@ def render_charts(state: DashboardState) -> Any:
         latency_charts = [chart for chart in selected_charts if chart.startswith("latency_")]
         if latency_charts:
             latency_fig = create_latency_chart(group.items, latency_charts)
-            charts.extend(
+            group_content.extend(
                 [
                     html.H4("Latency Performance"),
                     dcc.Graph(
@@ -349,6 +378,19 @@ def render_charts(state: DashboardState) -> Any:
                     ),
                 ]
             )
+
+        # Wrap each group in a lightweight container
+        charts.append(
+            html.Div(
+                group_content,
+                style={
+                    "borderLeft": "3px solid #76b900",  # NVIDIA green accent
+                    "paddingLeft": "1.5rem",
+                    "marginBottom": "2rem",
+                    "marginTop": "1rem",
+                },
+            )
+        )
 
     return charts
 
@@ -461,9 +503,20 @@ def create_nccl_chart(
         yaxis_title=f"{chart_prefix.title()} ({hover_unit})",
         xaxis_type="log",
         hovermode="closest",
-        legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
+        legend=dict(
+            orientation="v",  # Vertical orientation for better readability
+            yanchor="top",
+            y=-0.2,  # Position below the chart
+            xanchor="left",
+            x=0,  # Align to left
+            bgcolor="rgba(255, 255, 255, 0.8)",  # Semi-transparent background
+            bordercolor="rgba(0, 0, 0, 0.2)",
+            borderwidth=1,
+            font=dict(size=10),  # Slightly smaller font
+        ),
         dragmode="zoom",
         height=600,
+        margin=dict(b=150),  # More bottom margin for vertical legend
     )
 
     return fig
