@@ -87,9 +87,9 @@ body {
 }
 
 .nvidia-logo {
-    height: 2.5rem;
-    width: auto;
-    margin-bottom: 0.2rem;
+    height: auto;
+    width: 7.3rem;
+    margin-bottom: 0.1rem;
 }
 
 .app-title {
@@ -98,7 +98,6 @@ body {
     color: var(--pst-color-heading);
     margin: 0;
     line-height: 1;
-    padding-bottom: 0.05rem;
 }
 
 .header-nav {
@@ -114,7 +113,7 @@ body {
     border-bottom: 2px solid transparent;
     transition: all 0.2s ease;
     font-weight: 500;
-    font-size: 0.9rem;
+    font-size: 1.1rem;
 }
 
 .nav-item:hover {

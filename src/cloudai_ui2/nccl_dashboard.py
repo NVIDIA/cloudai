@@ -16,6 +16,8 @@
 
 """NCCL Dashboard module for CloudAI UI v2."""
 
+from __future__ import annotations
+
 from typing import Any
 
 import pandas as pd
@@ -71,6 +73,19 @@ class NCCLDashboard:
             selected_charts = ["bandwidth_out", "bandwidth_in", "latency_out", "latency_in"]
 
         return _render_charts(data, selected_charts, selected_scenarios)
+
+    def create_nccl_page(self) -> html.Div:
+        """Create the NCCL page with initial data loaded."""
+        return html.Div(
+            [
+                html.H3("NCCL Dashboard"),
+                # Controls Section
+                html.Div(self.render_controls(), id="nccl-controls-container"),
+                # Charts Container
+                html.Div(self.render_charts(), id="nccl-charts-container"),
+            ],
+            className="main-content",
+        )
 
 
 def create_scenario_dropdown_options(nccl_data: list[dict]) -> list[dict[str, Any]]:
@@ -271,20 +286,6 @@ def create_nccl_latency_chart(nccl_data: list[dict], selected_latency_charts: li
     )
 
     return fig
-
-
-def create_nccl_page(dashboard: "NCCLDashboard") -> html.Div:
-    """Create the NCCL page with initial data loaded."""
-    return html.Div(
-        [
-            html.H3("NCCL Dashboard"),
-            # Controls Section
-            html.Div(dashboard.render_controls(), id="nccl-controls-container"),
-            # Charts Container
-            html.Div(dashboard.render_charts(), id="nccl-charts-container"),
-        ],
-        className="main-content",
-    )
 
 
 def create_nccl_controls(nccl_data: list[dict]) -> html.Div:

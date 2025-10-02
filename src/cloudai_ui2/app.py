@@ -22,7 +22,7 @@ import dash
 from dash import Input, Output, dcc, html
 
 from .data_layer import LocalFileDataProvider
-from .nccl_dashboard import NCCLDashboard, create_nccl_page
+from .nccl_dashboard import NCCLDashboard
 
 
 def available_dashboards() -> list[str]:
@@ -79,7 +79,7 @@ def create_app(results_root: Path):
         if pathname == "/" or pathname is None:
             return create_main_page(dashboards, results_root)
         elif pathname == "/nccl":
-            return html.Div([create_header_navbar("nccl", dashboards), create_nccl_page(nccl_dashboard)])
+            return html.Div([create_header_navbar("nccl", dashboards), nccl_dashboard.create_nccl_page()])
         else:
             return html.Div(
                 [
