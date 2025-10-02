@@ -18,7 +18,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 import plotly.express as px
@@ -65,9 +65,24 @@ class NCCLDashboard:
         data = self.get_data()
         return create_nccl_controls(data)
 
+    def render_controls_with_filter(self, selected_systems: list[str] | None) -> html.Div:
+        """Render control elements with system filter applied to scenario dropdown."""
+        all_data = self.get_data()
+
+        # Filter data by selected systems for scenario dropdown only
+        if selected_systems:
+            filtered_data = [
+                d for d in all_data if cast(TestRun, d["test_run"]).test.test_template.system.name in selected_systems
+            ]
+        else:
+            filtered_data = all_data
+
+        return create_nccl_controls_filtered(all_data, filtered_data, selected_systems)
+
     def render_charts(
         self,
         selected_charts: list[str] | None = None,
+        selected_systems: list[str] | None = None,
         selected_scenarios: list[str] | None = None,
         time_range_days: int | None = None,
     ) -> Any:
@@ -84,24 +99,31 @@ class NCCLDashboard:
         if selected_charts is None:
             selected_charts = ["bandwidth_out", "bandwidth_in", "latency_out", "latency_in"]
 
-        return _render_charts(data, selected_charts, selected_scenarios)
+        return _render_charts(data, selected_charts, selected_systems, selected_scenarios)
 
     def update(
         self,
         triggered_id: str | None,
         time_range_days: int | None,
         selected_charts: list[str] | None,
+        selected_systems: list[str] | None,
         selected_scenarios: list[str] | None,
     ) -> tuple[Any, Any]:
         # If time range changed, reload data and update both controls and charts
         if triggered_id == "nccl-time-range":
             self.load_data(time_range_days)
             controls = self.render_controls()
-            charts = self.render_charts(selected_charts, selected_scenarios)
+            charts = self.render_charts(selected_charts, selected_systems, selected_scenarios)
+            return (controls, charts)
+
+        # If system filter changed, update controls (scenario dropdown) and charts
+        if triggered_id == "nccl-system-filter":
+            controls = self.render_controls_with_filter(selected_systems)
+            charts = self.render_charts(selected_charts, selected_systems, selected_scenarios)
             return (controls, charts)
 
         # Otherwise, only update charts (controls stay the same, use cached data)
-        charts = self.render_charts(selected_charts, selected_scenarios)
+        charts = self.render_charts(selected_charts, selected_systems, selected_scenarios)
         return (no_update, charts)
 
     def create_nccl_page(self) -> html.Div:
@@ -134,6 +156,15 @@ def create_scenario_dropdown_options(nccl_data: list[dict]) -> list[dict[str, An
         options.append({"label": f"{label} ({count} {result_text})", "value": label})
 
     return options
+
+
+def create_system_dropdown_options(nccl_data: list[dict]) -> list[dict[str, Any]]:
+    systems = set()
+    for data in nccl_data:
+        tr = cast(TestRun, data["test_run"])
+        systems.add(tr.test.test_template.system.name)
+
+    return [{"label": system, "value": system} for system in systems]
 
 
 def extract_nccl_data_as_df(test_run: TestRun) -> pd.DataFrame:
@@ -318,8 +349,15 @@ def create_nccl_latency_chart(nccl_data: list[dict], selected_latency_charts: li
     return fig
 
 
-def create_nccl_controls(nccl_data: list[dict]) -> html.Div:
+def create_nccl_controls(nccl_data: list[dict], selected_systems: list[str] | None = None) -> html.Div:
     """Create control elements for NCCL dashboard."""
+    return create_nccl_controls_filtered(nccl_data, nccl_data, selected_systems)
+
+
+def create_nccl_controls_filtered(
+    all_data: list[dict], scenario_data: list[dict], selected_systems: list[str] | None = None
+) -> html.Div:
+    """Create control elements with separate data for system and scenario dropdowns."""
     return html.Div(
         [
             # Time Range Picker
@@ -343,17 +381,33 @@ def create_nccl_controls(nccl_data: list[dict]) -> html.Div:
                 ],
                 style={"marginBottom": "1rem", "display": "flex", "alignItems": "center"},
             ),
-            # Scenario Filter
             html.Div(
                 [
-                    dcc.Dropdown(
-                        options=create_scenario_dropdown_options(nccl_data),  # type: ignore
-                        placeholder="Filter Scenarios",
-                        id="nccl-scenario-filter",
-                        multi=True,
+                    html.Div(
+                        [
+                            dcc.Dropdown(
+                                options=create_system_dropdown_options(all_data),  # All systems
+                                placeholder="Filter Systems",
+                                id="nccl-system-filter",
+                                multi=True,
+                                value=selected_systems,  # Preserve selection
+                            ),
+                        ],
+                        style={"flex": "1", "marginRight": "1rem"},
+                    ),
+                    html.Div(
+                        [
+                            dcc.Dropdown(
+                                options=create_scenario_dropdown_options(scenario_data),  # Filtered by system
+                                placeholder="Filter Scenarios",
+                                id="nccl-scenario-filter",
+                                multi=True,
+                            ),
+                        ],
+                        style={"flex": "1"},
                     ),
                 ],
-                style={"marginBottom": "1rem"},
+                style={"display": "flex", "marginBottom": "1rem"},
             ),
             # Chart Controls
             html.Div(
@@ -379,8 +433,21 @@ def create_nccl_controls(nccl_data: list[dict]) -> html.Div:
     )
 
 
-def _render_charts(nccl_data: list[dict], selected_charts: list[str] | None, selected_scenarios: list[str] | None):
+def _render_charts(
+    nccl_data: list[dict],
+    selected_charts: list[str] | None,
+    selected_systems: list[str] | None,
+    selected_scenarios: list[str] | None,
+):
     """Render charts based on data and filters."""
+    # Filter by system if specified
+    if selected_systems:
+        nccl_data = [
+            data
+            for data in nccl_data
+            if cast(TestRun, data["test_run"]).test.test_template.system.name in selected_systems
+        ]
+
     # Filter by scenario if specified
     if selected_scenarios:
         nccl_data = [data for data in nccl_data if data["label"] in selected_scenarios]

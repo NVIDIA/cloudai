@@ -112,7 +112,11 @@ class LocalFileDataProvider(DataProvider):
         test_runs = []
 
         system = SlurmSystem(
-            name="slurm", install_path=Path("/"), output_path=Path("/"), default_partition="default", partitions=[]
+            name=f"unknown-{scenario_dir.name[3:10]}",
+            install_path=Path("/"),
+            output_path=Path("/"),
+            default_partition="default",
+            partitions=[],
         )
 
         for tr_dump in scenario_dir.rglob("test-run.toml"):
