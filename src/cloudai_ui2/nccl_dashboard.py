@@ -27,6 +27,7 @@ from dash import dcc, html, no_update
 
 from cloudai.core import TestRun
 from cloudai.report_generator.groups import GroupItem, ItemsGrouper
+from cloudai.report_generator.util import diff_test_runs
 from cloudai.workloads.nccl_test import NCCLTestDefinition
 from cloudai.workloads.nccl_test.performance_report_generation_strategy import extract_nccl_data
 
@@ -61,6 +62,7 @@ class DashboardState:
     selected_systems: list[str] | None
     selected_scenarios: list[str] | None
     selected_charts: list[str]
+    group_by: list[str]
 
 
 class NCCLDashboard:
@@ -80,6 +82,7 @@ class NCCLDashboard:
         selected_charts: list[str] | None,
         selected_systems: list[str] | None,
         selected_scenarios: list[str] | None,
+        group_by: list[str] | None,
     ) -> tuple[Any, Any]:
         if triggered_id is None:
             return (no_update, no_update)
@@ -87,12 +90,12 @@ class NCCLDashboard:
         # time range affects everything else
         self.update_data(triggered_id, time_range_days)
 
-        state = self.data_manager.get_state(selected_systems, selected_scenarios, selected_charts)
+        state = self.data_manager.get_state(selected_systems, selected_scenarios, selected_charts, group_by)
 
-        if triggered_id in ("nccl-time-range", "nccl-system-filter"):
+        if triggered_id == "nccl-time-range":
             return (render_controls(state), render_charts(state))
-        else:
-            return (no_update, render_charts(state))
+
+        return (no_update, render_charts(state))
 
     def create_nccl_page(self) -> html.Div:
         state = self.data_manager.get_state()
@@ -145,12 +148,16 @@ class NCCLDataManager:
         selected_systems: list[str] | None = None,
         selected_scenarios: list[str] | None = None,
         selected_charts: list[str] | None = None,
+        group_by: list[str] | None = None,
     ) -> DashboardState:
         all_data = self.get_data()
         filtered_data = self.apply_filters(all_data, selected_systems, selected_scenarios)
 
         if selected_charts is None:
             selected_charts = ["bandwidth_out", "bandwidth_in", "latency_out", "latency_in"]
+
+        if group_by is None:
+            group_by = ["subtest_name"]
 
         return DashboardState(
             all_data=all_data,
@@ -159,6 +166,7 @@ class NCCLDataManager:
             selected_systems=selected_systems,
             selected_scenarios=selected_scenarios,
             selected_charts=selected_charts,
+            group_by=group_by,
         )
 
     def _collect_nccl_data(self) -> list[NCCLRecord]:
@@ -188,7 +196,19 @@ class NCCLDataManager:
 # ============================================================================
 
 
+def get_grouping_options(data: list[NCCLRecord]) -> list:
+    """Get available grouping options from filtered data."""
+    if not data:
+        return []
+
+    diff = diff_test_runs([record.test_run for record in data])
+    options = [{"label": key, "value": key} for key in sorted(diff.keys())]
+    return options
+
+
 def render_controls(state: DashboardState) -> html.Div:
+    grouping_options = get_grouping_options(state.filtered_data)
+
     return html.Div(
         [
             # Time Range Picker
@@ -205,7 +225,7 @@ def render_controls(state: DashboardState) -> html.Div:
                             {"label": "Last 90 days", "value": 90},
                             {"label": "All time", "value": 0},
                         ],
-                        value=state.time_range_days,  # Use value from state
+                        value=state.time_range_days,
                         clearable=False,
                         style={"width": "200px"},
                     ),
@@ -240,6 +260,23 @@ def render_controls(state: DashboardState) -> html.Div:
                 ],
                 style={"display": "flex", "marginBottom": "1rem"},
             ),
+            # Group By Control
+            html.Div(
+                [
+                    html.Label("Group By:", style={"fontWeight": "bold", "marginBottom": "0.5rem"}),
+                    dcc.Dropdown(
+                        id="nccl-group-by",
+                        options=grouping_options,
+                        value=state.group_by,
+                        placeholder="No grouping (all together)"
+                        if grouping_options
+                        else "No grouping options available",
+                        multi=True,
+                        disabled=not grouping_options,
+                    ),
+                ],
+                style={"marginBottom": "1rem"},
+            ),
             # Chart Controls
             html.Div(
                 [
@@ -268,7 +305,7 @@ def render_charts(state: DashboardState) -> Any:
     if not state.filtered_data:
         return html.Div(html.P("No NCCL test runs found.", className="text-muted"))
 
-    groups = ItemsGrouper[NCCLRecord](items=state.filtered_data, group_by=["subtest_name"]).groups()
+    groups = ItemsGrouper[NCCLRecord](items=state.filtered_data, group_by=state.group_by).groups()
 
     selected_charts = state.selected_charts
     charts = []
@@ -339,7 +376,8 @@ def create_scenario_dropdown_options(nccl_data: list[NCCLRecord]) -> list:
 
 
 def create_system_dropdown_options(nccl_data: list[NCCLRecord]) -> list:
-    return [{"label": data.system_name, "value": data.system_name} for data in nccl_data]
+    systems = set([data.system_name for data in nccl_data])
+    return [{"label": system, "value": system} for system in systems]
 
 
 def extract_nccl_data_as_df(test_run: TestRun) -> pd.DataFrame:

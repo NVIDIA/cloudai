@@ -96,12 +96,13 @@ def create_app(results_root: Path):
             Input("nccl-chart-controls", "value"),
             Input("nccl-system-filter", "value"),
             Input("nccl-scenario-filter", "value"),
+            Input("nccl-group-by", "value"),
         ],
     )
-    def update_nccl_dashboard(time_range_days, selected_charts, selected_systems, selected_scenarios):
+    def update_nccl_dashboard(time_range_days, selected_charts, selected_systems, selected_scenarios, group_by):
         """Update NCCL dashboard."""
         return nccl_dashboard.update(
-            ctx.triggered_id, time_range_days, selected_charts, selected_systems, selected_scenarios
+            ctx.triggered_id, time_range_days, selected_charts, selected_systems, selected_scenarios, group_by
         )
 
     return app
