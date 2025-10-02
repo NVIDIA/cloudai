@@ -26,7 +26,7 @@ import plotly.graph_objects as go
 from dash import dcc, html, no_update
 
 from cloudai.core import TestRun
-from cloudai.report_generator.groups import GroupedItems, GroupItem, ItemsGrouper
+from cloudai.report_generator.groups import GroupItem, ItemsGrouper
 from cloudai.workloads.nccl_test import NCCLTestDefinition
 from cloudai.workloads.nccl_test.performance_report_generation_strategy import extract_nccl_data
 
@@ -270,7 +270,6 @@ def render_charts(state: DashboardState) -> Any:
 
     groups = ItemsGrouper[NCCLRecord](items=state.filtered_data, group_by=["subtest_name"]).groups()
 
-    # nccl_data = state.filtered_data
     selected_charts = state.selected_charts
     charts = []
 
@@ -387,9 +386,14 @@ def extract_nccl_data_as_df(test_run: TestRun) -> pd.DataFrame:
     return df
 
 
-def create_bandwidth_chart(nccl_data: list[GroupItem[NCCLRecord]], selected_bandwidth_charts: list[str]) -> go.Figure:
+def create_nccl_chart(
+    nccl_data: list[GroupItem[NCCLRecord]],
+    selected_charts: list[str],
+    chart_prefix: str,
+    y_column_prefix: str,
+    hover_unit: str,
+) -> go.Figure:
     fig = go.Figure()
-
     colors = px.colors.qualitative.Set1
 
     for i, data in enumerate(nccl_data):
@@ -397,26 +401,26 @@ def create_bandwidth_chart(nccl_data: list[GroupItem[NCCLRecord]], selected_band
         label = data.item.label
         color = colors[i % len(colors)]
 
-        for chart in selected_bandwidth_charts:
-            fig_label = "In-place" if chart == "bandwidth_in" else "Out-of-place"
+        for chart in selected_charts:
+            fig_label = "In-place" if chart == f"{chart_prefix}_in" else "Out-of-place"
             fig.add_trace(
                 go.Scatter(
                     x=df["Size (B)"],
-                    y=df[f"Busbw (GB/s) {fig_label}"],
+                    y=df[f"{y_column_prefix} {fig_label}"],
                     mode="lines+markers",
                     name=f"{label} {data.name} ({fig_label})",
                     line=dict(color=color, width=2),
                     marker=dict(size=6),
                     hovertemplate="<b>%{fullData.name}</b><br>"
                     + "Size: %{x:,} B<br>"
-                    + "Bandwidth: %{y:.2f} GB/s<br>"
+                    + f"{chart_prefix.title()}: %{{y:.2f}} {hover_unit}<br>"
                     + "<extra></extra>",
                 )
             )
 
     fig.update_layout(
         xaxis_title="Size (B)",
-        yaxis_title="Bandwidth (GB/s)",
+        yaxis_title=f"{chart_prefix.title()} ({hover_unit})",
         xaxis_type="log",
         hovermode="closest",
         legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
@@ -425,43 +429,25 @@ def create_bandwidth_chart(nccl_data: list[GroupItem[NCCLRecord]], selected_band
     )
 
     return fig
+
+
+def create_bandwidth_chart(nccl_data: list[GroupItem[NCCLRecord]], selected_bandwidth_charts: list[str]) -> go.Figure:
+    """Create bandwidth chart for NCCL test runs."""
+    return create_nccl_chart(
+        nccl_data=nccl_data,
+        selected_charts=selected_bandwidth_charts,
+        chart_prefix="bandwidth",
+        y_column_prefix="Busbw (GB/s)",
+        hover_unit="GB/s",
+    )
 
 
 def create_latency_chart(nccl_data: list[GroupItem[NCCLRecord]], selected_latency_charts: list[str]) -> go.Figure:
-    fig = go.Figure()
-
-    colors = px.colors.qualitative.Set1
-
-    for i, data in enumerate(nccl_data):
-        df = data.item.df
-        label = data.item.label
-        color = colors[i % len(colors)]
-
-        for chart in selected_latency_charts:
-            fig_label = "In-place" if chart == "latency_in" else "Out-of-place"
-            fig.add_trace(
-                go.Scatter(
-                    x=df["Size (B)"],
-                    y=df[f"Time (us) {fig_label}"],
-                    mode="lines+markers",
-                    name=f"{label} {data.name} ({fig_label})",
-                    line=dict(color=color, width=2),
-                    marker=dict(size=6),
-                    hovertemplate="<b>%{fullData.name}</b><br>"
-                    + "Size: %{x:,} B<br>"
-                    + "Latency: %{y:.2f} μs<br>"
-                    + "<extra></extra>",
-                )
-            )
-
-    fig.update_layout(
-        xaxis_title="Size (B)",
-        yaxis_title="Time (μs)",
-        xaxis_type="log",
-        hovermode="closest",
-        legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
-        dragmode="zoom",
-        height=600,
+    """Create latency chart for NCCL test runs."""
+    return create_nccl_chart(
+        nccl_data=nccl_data,
+        selected_charts=selected_latency_charts,
+        chart_prefix="latency",
+        y_column_prefix="Time (us)",
+        hover_unit="μs",
     )
-
-    return fig
