@@ -38,11 +38,16 @@ class NCCLDashboard:
     def __init__(self, data_provider: DataProvider):
         self.data_provider = data_provider
         self._nccl_data: list[dict] | None = None
+        self._time_range_days: int = 30  # Default to 30 days
 
-    def load_data(self) -> None:
+    def load_data(self, time_range_days: int | None = None) -> None:
         """Load NCCL data from provider (cached after first call)."""
+        if time_range_days is not None:
+            self._time_range_days = time_range_days
+            self._nccl_data = None  # Clear cache if time range changed
+
         if self._nccl_data is None:
-            self._nccl_data = collect_nccl_data(self.data_provider, time_range_days=7)
+            self._nccl_data = collect_nccl_data(self.data_provider, time_range_days=self._time_range_days)
 
     def get_data(self) -> list[dict]:
         """Get loaded NCCL data."""
@@ -61,9 +66,16 @@ class NCCLDashboard:
         return create_nccl_controls(data)
 
     def render_charts(
-        self, selected_charts: list[str] | None = None, selected_scenarios: list[str] | None = None
+        self,
+        selected_charts: list[str] | None = None,
+        selected_scenarios: list[str] | None = None,
+        time_range_days: int | None = None,
     ) -> Any:
         """Render charts with optional filters."""
+        # Reload data if time range changed
+        if time_range_days is not None and time_range_days != self._time_range_days:
+            self.load_data(time_range_days)
+
         data = self.get_data()
         if not data:
             return html.Div(html.P("No NCCL test runs found.", className="text-muted"))
@@ -292,6 +304,28 @@ def create_nccl_controls(nccl_data: list[dict]) -> html.Div:
     """Create control elements for NCCL dashboard."""
     return html.Div(
         [
+            # Time Range Picker
+            html.Div(
+                [
+                    html.Label("Time Range:", style={"fontWeight": "bold", "marginRight": "1rem"}),
+                    dcc.Dropdown(
+                        id="nccl-time-range",
+                        options=[
+                            {"label": "Last 7 days", "value": 7},
+                            {"label": "Last 14 days", "value": 14},
+                            {"label": "Last 30 days", "value": 30},
+                            {"label": "Last 60 days", "value": 60},
+                            {"label": "Last 90 days", "value": 90},
+                            {"label": "All time", "value": 36500},  # ~100 years
+                        ],
+                        value=30,  # Default to 30 days
+                        clearable=False,
+                        style={"width": "200px"},
+                    ),
+                ],
+                style={"marginBottom": "1rem", "display": "flex", "alignItems": "center"},
+            ),
+            # Scenario Filter
             html.Div(
                 [
                     dcc.Dropdown(

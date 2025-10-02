@@ -19,7 +19,7 @@
 from pathlib import Path
 
 import dash
-from dash import Input, Output, dcc, html
+from dash import Input, Output, ctx, dcc, html
 
 from .data_layer import LocalFileDataProvider
 from .nccl_dashboard import NCCLDashboard
@@ -90,12 +90,27 @@ def create_app(results_root: Path):
             )
 
     @app.callback(
-        Output("nccl-charts-container", "children"),
-        [Input("nccl-chart-controls", "value"), Input("nccl-scenario-filter", "value")],
+        [Output("nccl-controls-container", "children"), Output("nccl-charts-container", "children")],
+        [
+            Input("nccl-time-range", "value"),
+            Input("nccl-chart-controls", "value"),
+            Input("nccl-scenario-filter", "value"),
+        ],
     )
-    def update_nccl_charts(selected_charts, selected_scenarios):
-        """Update charts when filters change (uses cached data)."""
-        return nccl_dashboard.render_charts(selected_charts, selected_scenarios)
+    def update_nccl_dashboard(time_range_days, selected_charts, selected_scenarios):
+        """Update NCCL dashboard - reloads data if time range changed, otherwise uses cache."""
+        triggered_id = ctx.triggered_id
+
+        # If time range changed, reload data and update both controls and charts
+        if triggered_id == "nccl-time-range":
+            nccl_dashboard.load_data(time_range_days)
+            controls = nccl_dashboard.render_controls()
+            charts = nccl_dashboard.render_charts(selected_charts, selected_scenarios)
+            return (controls, charts)
+
+        # Otherwise, only update charts (controls stay the same, use cached data)
+        charts = nccl_dashboard.render_charts(selected_charts, selected_scenarios)
+        return (dash.no_update, charts)
 
     return app
 

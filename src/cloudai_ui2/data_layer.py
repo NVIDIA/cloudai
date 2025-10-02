@@ -29,10 +29,9 @@ from cloudai_ui.data_layer import TestScenarioInfo
 class DataQuery:
     """Query parameters for loading dashboard data."""
 
-    test_type: str  # "nccl", "nixl", etc.
-    time_range_days: int = 7  # Default: last 7 days
-    scenario_names: Optional[List[str]] = None
-    limit: int = 100
+    test_type: str
+    time_range_days: int = 7
+    scenario_names: list[str] | None = None
 
 
 class DataProvider(ABC):
@@ -92,4 +91,4 @@ class LocalFileDataProvider(DataProvider):
                 )
                 filtered_scenarios.append(filtered_scenario)
 
-        return filtered_scenarios[: query.limit]
+        return filtered_scenarios
