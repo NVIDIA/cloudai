@@ -18,6 +18,7 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List
 
@@ -57,6 +58,8 @@ class LocalFileDataProvider(DataProvider):
         for scenario in all_scenarios:
             # Filter by scenario name if specified
             if query.scenario_names and scenario.name not in query.scenario_names:
+                continue
+            if query.time_range_days and scenario.timestamp < datetime.now() - timedelta(days=query.time_range_days):
                 continue
 
             # Filter test runs by test type

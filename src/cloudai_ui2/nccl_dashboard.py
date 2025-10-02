@@ -372,7 +372,7 @@ def create_nccl_controls_filtered(
                             {"label": "Last 30 days", "value": 30},
                             {"label": "Last 60 days", "value": 60},
                             {"label": "Last 90 days", "value": 90},
-                            {"label": "All time", "value": 36500},  # ~100 years
+                            {"label": "All time", "value": 0},
                         ],
                         value=30,  # Default to 30 days
                         clearable=False,
@@ -386,7 +386,7 @@ def create_nccl_controls_filtered(
                     html.Div(
                         [
                             dcc.Dropdown(
-                                options=create_system_dropdown_options(all_data),  # All systems
+                                options=create_system_dropdown_options(all_data),
                                 placeholder="Filter Systems",
                                 id="nccl-system-filter",
                                 multi=True,
@@ -398,7 +398,7 @@ def create_nccl_controls_filtered(
                     html.Div(
                         [
                             dcc.Dropdown(
-                                options=create_scenario_dropdown_options(scenario_data),  # Filtered by system
+                                options=create_scenario_dropdown_options(scenario_data),
                                 placeholder="Filter Scenarios",
                                 id="nccl-scenario-filter",
                                 multi=True,
