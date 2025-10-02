@@ -20,7 +20,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
 
 import toml
 
@@ -36,15 +35,15 @@ class TestScenarioInfo:
     id: str
     name: str
     timestamp: datetime
-    test_runs: List[TestRun]
-    error: Optional[str] = None
+    test_runs: list[TestRun]
+    error: str | None = None
 
 
 class DataProvider(ABC):
     """Abstract base class for data providers."""
 
     @abstractmethod
-    def get_scenarios(self) -> List[TestScenarioInfo]:
+    def get_scenarios(self) -> list[TestScenarioInfo]:
         """Get list of all test scenarios."""
         pass
 
@@ -55,9 +54,9 @@ class LocalFileDataProvider(DataProvider):
     def __init__(self, results_root: Path):
         self.results_root = Path(results_root)
 
-    def get_scenarios(self) -> List[TestScenarioInfo]:
+    def get_scenarios(self) -> list[TestScenarioInfo]:
         """Get list of all test scenarios from the results directory."""
-        scenarios = []
+        scenarios: list[TestScenarioInfo] = []
 
         if not self.results_root.exists():
             return scenarios
@@ -66,7 +65,11 @@ class LocalFileDataProvider(DataProvider):
             if not scenario_dir.is_dir():
                 continue
 
-            # Parse scenario name and timestamp from directory name
+            error: str | None = None
+            scenario_name: str = scenario_dir.name
+            test_runs: list[TestRun] = []
+            timestamp: datetime = datetime.now()
+
             # Format: {scenario_name}_{timestamp}
             dir_name = scenario_dir.name
             if "_" in dir_name:
@@ -78,22 +81,17 @@ class LocalFileDataProvider(DataProvider):
                     try:
                         timestamp = datetime.strptime(f"{date_part}_{time_part}", "%Y-%m-%d_%H-%M-%S")
                     except ValueError:
-                        # Fallback to directory modification time
-                        timestamp = datetime.fromtimestamp(scenario_dir.stat().st_mtime)
-                        scenario_name = dir_name
+                        error = f"Not a scenario directory: {scenario_dir.absolute()}"
                 else:
-                    scenario_name = dir_name
-                    timestamp = datetime.fromtimestamp(scenario_dir.stat().st_mtime)
+                    error = f"Not a scenario directory: {scenario_dir.absolute()}"
             else:
-                scenario_name = dir_name
-                timestamp = datetime.fromtimestamp(scenario_dir.stat().st_mtime)
+                error = f"Not a scenario directory: {scenario_dir.absolute()}"
 
-            try:
-                test_runs = self._get_test_runs(scenario_dir)
-                error = None
-            except Exception as e:
-                test_runs = []
-                error = str(e)
+            if not error:
+                try:
+                    test_runs = self._get_test_runs(scenario_dir)
+                except Exception as e:
+                    error = str(e)
 
             scenarios.append(
                 TestScenarioInfo(
@@ -109,7 +107,7 @@ class LocalFileDataProvider(DataProvider):
         scenarios.sort(key=lambda x: x.timestamp, reverse=True)
         return scenarios
 
-    def _get_test_runs(self, scenario_dir: Path) -> List[TestRun]:
+    def _get_test_runs(self, scenario_dir: Path) -> list[TestRun]:
         """Get test runs for a scenario."""
         test_runs = []
 

@@ -38,10 +38,6 @@ class DataProvider(ABC):
     """Abstract interface for dashboard data loading."""
 
     @abstractmethod
-    def has_data_for(self, test_type: str, days: int = 7) -> bool:
-        """Quick check if data exists for dashboard type without loading full data."""
-
-    @abstractmethod
     def query_data(self, query: DataQuery) -> List[TestScenarioInfo]:
         """Load data based on query parameters."""
 
@@ -52,16 +48,6 @@ class LocalFileDataProvider(DataProvider):
     def __init__(self, results_root: Path):
         self.results_root = results_root
         self._file_provider = _LocalFileDataProvider(results_root)
-
-    def has_data_for(self, test_type: str, days: int = 7) -> bool:
-        """Quick check for data availability (ignores time range for local files)."""
-        scenarios = self._file_provider.get_scenarios()
-
-        for scenario in scenarios:
-            for test_run in scenario.test_runs:
-                if test_run.test.test_definition.test_template_name.lower().startswith(test_type.lower()):
-                    return True
-        return False
 
     def query_data(self, query: DataQuery) -> List[TestScenarioInfo]:
         """Load and filter data based on query (ignores time range for local files)."""
