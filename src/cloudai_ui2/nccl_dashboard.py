@@ -14,16 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-NCCL Dashboard module for CloudAI UI v2.
-
-Architecture:
-- NCCLDataManager: Pure data management (loading, caching, filtering)
-- DashboardState: Immutable state snapshot for rendering
-- render_*(): Pure presentation functions (state -> UI)
-- NCCLDashboard: Thin orchestration layer (coordinates data and rendering)
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -36,7 +26,8 @@ import plotly.graph_objects as go
 from dash import dcc, html, no_update
 
 from cloudai.core import TestRun
-from cloudai.workloads.nccl_test.nccl import NCCLTestDefinition
+from cloudai.report_generator.groups import GroupedItems, GroupItem, ItemsGrouper
+from cloudai.workloads.nccl_test import NCCLTestDefinition
 from cloudai.workloads.nccl_test.performance_report_generation_strategy import extract_nccl_data
 
 from .data_layer import DataProvider, DataQuery
@@ -198,10 +189,6 @@ class NCCLDataManager:
 
 
 def render_controls(state: DashboardState) -> html.Div:
-    all_data = state.all_data
-    selected_systems = state.selected_systems
-    time_range_days = state.time_range_days
-    scenario_data = state.filtered_data
     return html.Div(
         [
             # Time Range Picker
@@ -218,7 +205,7 @@ def render_controls(state: DashboardState) -> html.Div:
                             {"label": "Last 90 days", "value": 90},
                             {"label": "All time", "value": 0},
                         ],
-                        value=time_range_days,  # Use value from state
+                        value=state.time_range_days,  # Use value from state
                         clearable=False,
                         style={"width": "200px"},
                     ),
@@ -230,11 +217,11 @@ def render_controls(state: DashboardState) -> html.Div:
                     html.Div(
                         [
                             dcc.Dropdown(
-                                options=create_system_dropdown_options(all_data),
+                                options=create_system_dropdown_options(state.all_data),
                                 placeholder="Filter Systems",
                                 id="nccl-system-filter",
                                 multi=True,
-                                value=selected_systems,
+                                value=state.selected_systems,
                             ),
                         ],
                         style={"flex": "1", "marginRight": "1rem"},
@@ -242,7 +229,7 @@ def render_controls(state: DashboardState) -> html.Div:
                     html.Div(
                         [
                             dcc.Dropdown(
-                                options=create_scenario_dropdown_options(scenario_data),
+                                options=create_scenario_dropdown_options(state.filtered_data),
                                 placeholder="Filter Scenarios",
                                 id="nccl-scenario-filter",
                                 multi=True,
@@ -281,47 +268,51 @@ def render_charts(state: DashboardState) -> Any:
     if not state.filtered_data:
         return html.Div(html.P("No NCCL test runs found.", className="text-muted"))
 
-    nccl_data = state.filtered_data
+    groups = ItemsGrouper[NCCLRecord](items=state.filtered_data, group_by=["subtest_name"]).groups()
+
+    # nccl_data = state.filtered_data
     selected_charts = state.selected_charts
     charts = []
 
-    # Check if any bandwidth charts are selected
-    bandwidth_charts = [chart for chart in selected_charts if chart.startswith("bandwidth_")]
-    if bandwidth_charts:
-        bandwidth_fig = create_bandwidth_chart(nccl_data, bandwidth_charts)
-        charts.extend(
-            [
-                html.H4("Bandwidth Performance"),
-                dcc.Graph(
-                    figure=bandwidth_fig,
-                    config={
-                        "scrollZoom": True,
-                        "displayModeBar": True,
-                        "displaylogo": False,
-                        "modeBarButtonsToRemove": ["lasso2d", "select2d"],
-                    },
-                ),
-            ]
-        )
+    for group in groups:
+        charts.append(html.H3(group.name))
+        # Check if any bandwidth charts are selected
+        bandwidth_charts = [chart for chart in selected_charts if chart.startswith("bandwidth_")]
+        if bandwidth_charts:
+            bandwidth_fig = create_bandwidth_chart(group.items, bandwidth_charts)
+            charts.extend(
+                [
+                    html.H4("Bandwidth Performance"),
+                    dcc.Graph(
+                        figure=bandwidth_fig,
+                        config={
+                            "scrollZoom": True,
+                            "displayModeBar": True,
+                            "displaylogo": False,
+                            "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+                        },
+                    ),
+                ]
+            )
 
-    # Check if any latency charts are selected
-    latency_charts = [chart for chart in selected_charts if chart.startswith("latency_")]
-    if latency_charts:
-        latency_fig = create_latency_chart(nccl_data, latency_charts)
-        charts.extend(
-            [
-                html.H4("Latency Performance"),
-                dcc.Graph(
-                    figure=latency_fig,
-                    config={
-                        "scrollZoom": True,
-                        "displayModeBar": True,
-                        "displaylogo": False,
-                        "modeBarButtonsToRemove": ["lasso2d", "select2d"],
-                    },
-                ),
-            ]
-        )
+        # Check if any latency charts are selected
+        latency_charts = [chart for chart in selected_charts if chart.startswith("latency_")]
+        if latency_charts:
+            latency_fig = create_latency_chart(group.items, latency_charts)
+            charts.extend(
+                [
+                    html.H4("Latency Performance"),
+                    dcc.Graph(
+                        figure=latency_fig,
+                        config={
+                            "scrollZoom": True,
+                            "displayModeBar": True,
+                            "displaylogo": False,
+                            "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+                        },
+                    ),
+                ]
+            )
 
     return charts
 
@@ -396,14 +387,14 @@ def extract_nccl_data_as_df(test_run: TestRun) -> pd.DataFrame:
     return df
 
 
-def create_bandwidth_chart(nccl_data: list[NCCLRecord], selected_bandwidth_charts: list[str]) -> go.Figure:
+def create_bandwidth_chart(nccl_data: list[GroupItem[NCCLRecord]], selected_bandwidth_charts: list[str]) -> go.Figure:
     fig = go.Figure()
 
     colors = px.colors.qualitative.Set1
 
     for i, data in enumerate(nccl_data):
-        df = data.df
-        label = data.label
+        df = data.item.df
+        label = data.item.label
         color = colors[i % len(colors)]
 
         for chart in selected_bandwidth_charts:
@@ -413,7 +404,7 @@ def create_bandwidth_chart(nccl_data: list[NCCLRecord], selected_bandwidth_chart
                     x=df["Size (B)"],
                     y=df[f"Busbw (GB/s) {fig_label}"],
                     mode="lines+markers",
-                    name=f"{label} ({fig_label})",
+                    name=f"{label} {data.name} ({fig_label})",
                     line=dict(color=color, width=2),
                     marker=dict(size=6),
                     hovertemplate="<b>%{fullData.name}</b><br>"
@@ -436,14 +427,14 @@ def create_bandwidth_chart(nccl_data: list[NCCLRecord], selected_bandwidth_chart
     return fig
 
 
-def create_latency_chart(nccl_data: list[NCCLRecord], selected_latency_charts: list[str]) -> go.Figure:
+def create_latency_chart(nccl_data: list[GroupItem[NCCLRecord]], selected_latency_charts: list[str]) -> go.Figure:
     fig = go.Figure()
 
     colors = px.colors.qualitative.Set1
 
     for i, data in enumerate(nccl_data):
-        df = data.df
-        label = data.label
+        df = data.item.df
+        label = data.item.label
         color = colors[i % len(colors)]
 
         for chart in selected_latency_charts:
@@ -453,7 +444,7 @@ def create_latency_chart(nccl_data: list[NCCLRecord], selected_latency_charts: l
                     x=df["Size (B)"],
                     y=df[f"Time (us) {fig_label}"],
                     mode="lines+markers",
-                    name=f"{label} ({fig_label})",
+                    name=f"{label} {data.name} ({fig_label})",
                     line=dict(color=color, width=2),
                     marker=dict(size=6),
                     hovertemplate="<b>%{fullData.name}</b><br>"
