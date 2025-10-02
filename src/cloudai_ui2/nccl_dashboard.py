@@ -41,7 +41,7 @@ from cloudai.workloads.nccl_test.performance_report_generation_strategy import e
 from .data_layer import DataProvider, DataQuery
 
 
-@dataclass
+@dataclass(frozen=True)
 class DashboardState:
     """Immutable state snapshot for rendering."""
 
@@ -85,7 +85,6 @@ class NCCLDashboard:
             return (no_update, render_charts(state))
 
     def create_nccl_page(self) -> html.Div:
-        """Create the NCCL page with initial data loaded."""
         state = self.data_manager.get_state()
         return html.Div(
             [
@@ -100,20 +99,20 @@ class NCCLDashboard:
 
 
 class NCCLDataManager:
-    """Pure data management - NO rendering logic."""
+    """Dashboard data manager."""
 
     def __init__(self, data_provider: DataProvider):
         self.data_provider = data_provider
         self._cached_data: list[dict] | None = None
-        self._time_range_days: int = 30
+        self.time_range_days: int = 30
 
     def load_data(self, time_range_days: int | None = None) -> None:
-        if time_range_days is not None and time_range_days != self._time_range_days:
-            self._time_range_days = time_range_days
+        if time_range_days is not None and time_range_days != self.time_range_days:
+            self.time_range_days = time_range_days
             self._cached_data = None
 
         if self._cached_data is None:
-            self._cached_data = _collect_nccl_data(self.data_provider, self._time_range_days)
+            self._cached_data = self._collect_nccl_data()
 
     def get_data(self) -> list[dict]:
         if self._cached_data is None:
@@ -137,7 +136,6 @@ class NCCLDataManager:
         selected_scenarios: list[str] | None = None,
         selected_charts: list[str] | None = None,
     ) -> DashboardState:
-        """Get current state snapshot for rendering."""
         all_data = self.get_data()
         filtered_data = self.apply_filters(all_data, selected_systems, selected_scenarios)
 
@@ -147,11 +145,33 @@ class NCCLDataManager:
         return DashboardState(
             all_data=all_data,
             filtered_data=filtered_data,
-            time_range_days=self._time_range_days,
+            time_range_days=self.time_range_days,
             selected_systems=selected_systems,
             selected_scenarios=selected_scenarios,
             selected_charts=selected_charts,
         )
+
+    def _collect_nccl_data(self) -> list[dict]:
+        query = DataQuery(test_type="nccl", time_range_days=self.time_range_days)
+        scenarios = self.data_provider.query_data(query)
+
+        nccl_data: list[dict] = []
+        for scenario in scenarios:
+            for test_run in scenario.test_runs:
+                if isinstance(test_run.test.test_definition, NCCLTestDefinition):
+                    df = extract_nccl_data_as_df(test_run)
+                    if not df.empty:
+                        nccl_data.append(
+                            {
+                                "test_run": test_run,
+                                "df": df,
+                                "scenario_name": scenario.name,
+                                "timestamp": scenario.timestamp,
+                                "label": f"{scenario.name} - {scenario.timestamp.strftime('%Y-%m-%d %H:%M:%S')}",
+                            }
+                        )
+
+        return nccl_data
 
 
 # ============================================================================
@@ -196,7 +216,7 @@ def render_controls(state: DashboardState) -> html.Div:
                                 placeholder="Filter Systems",
                                 id="nccl-system-filter",
                                 multi=True,
-                                value=selected_systems,  # Preserve selection
+                                value=selected_systems,
                             ),
                         ],
                         style={"flex": "1", "marginRight": "1rem"},
@@ -250,7 +270,7 @@ def render_charts(state: DashboardState) -> Any:
     # Check if any bandwidth charts are selected
     bandwidth_charts = [chart for chart in selected_charts if chart.startswith("bandwidth_")]
     if bandwidth_charts:
-        bandwidth_fig = _create_bandwidth_chart(nccl_data, bandwidth_charts)
+        bandwidth_fig = create_bandwidth_chart(nccl_data, bandwidth_charts)
         charts.extend(
             [
                 html.H4("Bandwidth Performance"),
@@ -269,7 +289,7 @@ def render_charts(state: DashboardState) -> Any:
     # Check if any latency charts are selected
     latency_charts = [chart for chart in selected_charts if chart.startswith("latency_")]
     if latency_charts:
-        latency_fig = _create_latency_chart(nccl_data, latency_charts)
+        latency_fig = create_latency_chart(nccl_data, latency_charts)
         charts.extend(
             [
                 html.H4("Latency Performance"),
@@ -293,8 +313,7 @@ def render_charts(state: DashboardState) -> Any:
 # ============================================================================
 
 
-def create_scenario_dropdown_options(nccl_data: list[dict]) -> list[dict[str, Any]]:
-    """Create dropdown options with unique scenario labels and their result counts."""
+def create_scenario_dropdown_options(nccl_data: list[dict]) -> list:
     label_counts = {}
     for data in nccl_data:
         label = data["label"]
@@ -311,8 +330,7 @@ def create_scenario_dropdown_options(nccl_data: list[dict]) -> list[dict[str, An
     return options
 
 
-def create_system_dropdown_options(nccl_data: list[dict]) -> list[dict[str, Any]]:
-    """Create system dropdown options from NCCL data."""
+def create_system_dropdown_options(nccl_data: list[dict]) -> list:
     systems = set()
     for data in nccl_data:
         tr = cast(TestRun, data["test_run"])
@@ -322,7 +340,6 @@ def create_system_dropdown_options(nccl_data: list[dict]) -> list[dict[str, Any]
 
 
 def extract_nccl_data_as_df(test_run: TestRun) -> pd.DataFrame:
-    """Extract NCCL data as DataFrame, replicating NcclComparisonReport.extract_data_as_df logic."""
     stdout_path = test_run.output_path / "stdout.txt"
 
     if not stdout_path.exists():
@@ -366,32 +383,7 @@ def extract_nccl_data_as_df(test_run: TestRun) -> pd.DataFrame:
     return df
 
 
-def _collect_nccl_data(data_provider: DataProvider, time_range_days: int = 7) -> list[dict]:
-    """Collect NCCL test runs and extract data using lazy loading."""
-    query = DataQuery(test_type="nccl", time_range_days=time_range_days)
-    scenarios = data_provider.query_data(query)
-
-    nccl_data: list[dict] = []
-    for scenario in scenarios:
-        for test_run in scenario.test_runs:
-            if isinstance(test_run.test.test_definition, NCCLTestDefinition):
-                df = extract_nccl_data_as_df(test_run)
-                if not df.empty:
-                    nccl_data.append(
-                        {
-                            "test_run": test_run,
-                            "df": df,
-                            "scenario_name": scenario.name,
-                            "timestamp": scenario.timestamp,
-                            "label": f"{scenario.name} - {scenario.timestamp.strftime('%Y-%m-%d %H:%M:%S')}",
-                        }
-                    )
-
-    return nccl_data
-
-
-def _create_bandwidth_chart(nccl_data: list[dict], selected_bandwidth_charts: list[str]) -> go.Figure:
-    """Create bandwidth chart for NCCL test runs."""
+def create_bandwidth_chart(nccl_data: list[dict], selected_bandwidth_charts: list[str]) -> go.Figure:
     fig = go.Figure()
 
     colors = px.colors.qualitative.Set1
@@ -401,31 +393,16 @@ def _create_bandwidth_chart(nccl_data: list[dict], selected_bandwidth_charts: li
         label = data["label"]
         color = colors[i % len(colors)]
 
-        if "bandwidth_out" in selected_bandwidth_charts:
+        for chart in selected_bandwidth_charts:
+            fig_label = "In-place" if chart == "bandwidth_in" else "Out-of-place"
             fig.add_trace(
                 go.Scatter(
                     x=df["Size (B)"],
-                    y=df["Busbw (GB/s) Out-of-place"],
+                    y=df[f"Busbw (GB/s) {fig_label}"],
                     mode="lines+markers",
-                    name=f"{label} (Out-of-place)",
+                    name=f"{label} ({fig_label})",
                     line=dict(color=color, width=2),
                     marker=dict(size=6),
-                    hovertemplate="<b>%{fullData.name}</b><br>"
-                    + "Size: %{x:,} B<br>"
-                    + "Bandwidth: %{y:.2f} GB/s<br>"
-                    + "<extra></extra>",
-                )
-            )
-
-        if "bandwidth_in" in selected_bandwidth_charts:
-            fig.add_trace(
-                go.Scatter(
-                    x=df["Size (B)"],
-                    y=df["Busbw (GB/s) In-place"],
-                    mode="lines+markers",
-                    name=f"{label} (In-place)",
-                    line=dict(color=color, width=2, dash="dash"),
-                    marker=dict(size=6, symbol="square"),
                     hovertemplate="<b>%{fullData.name}</b><br>"
                     + "Size: %{x:,} B<br>"
                     + "Bandwidth: %{y:.2f} GB/s<br>"
@@ -446,43 +423,26 @@ def _create_bandwidth_chart(nccl_data: list[dict], selected_bandwidth_charts: li
     return fig
 
 
-def _create_latency_chart(nccl_data: list[dict], selected_latency_charts: list[str]) -> go.Figure:
-    """Create latency chart for NCCL test runs."""
+def create_latency_chart(nccl_data: list[dict], selected_latency_charts: list[str]) -> go.Figure:
     fig = go.Figure()
 
-    # Use a simple color palette
-    colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f"]
+    colors = px.colors.qualitative.Set1
 
     for i, data in enumerate(nccl_data):
         df = data["df"]
         label = data["label"]
         color = colors[i % len(colors)]
 
-        if "latency_out" in selected_latency_charts:
+        for chart in selected_latency_charts:
+            fig_label = "In-place" if chart == "latency_in" else "Out-of-place"
             fig.add_trace(
                 go.Scatter(
                     x=df["Size (B)"],
-                    y=df["Time (us) Out-of-place"],
+                    y=df[f"Time (us) {fig_label}"],
                     mode="lines+markers",
-                    name=f"{label} (Out-of-place)",
+                    name=f"{label} ({fig_label})",
                     line=dict(color=color, width=2),
                     marker=dict(size=6),
-                    hovertemplate="<b>%{fullData.name}</b><br>"
-                    + "Size: %{x:,} B<br>"
-                    + "Latency: %{y:.2f} μs<br>"
-                    + "<extra></extra>",
-                )
-            )
-
-        if "latency_in" in selected_latency_charts:
-            fig.add_trace(
-                go.Scatter(
-                    x=df["Size (B)"],
-                    y=df["Time (us) In-place"],
-                    mode="lines+markers",
-                    name=f"{label} (In-place)",
-                    line=dict(color=color, width=2, dash="dash"),
-                    marker=dict(size=6, symbol="square"),
                     hovertemplate="<b>%{fullData.name}</b><br>"
                     + "Size: %{x:,} B<br>"
                     + "Latency: %{y:.2f} μs<br>"
