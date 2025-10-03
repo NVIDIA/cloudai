@@ -154,7 +154,7 @@ class NCCLDataManager:
         filtered_data = self.apply_filters(all_data, selected_systems, selected_scenarios)
 
         if selected_charts is None:
-            selected_charts = ["bandwidth_out", "bandwidth_in", "latency_out", "latency_in"]
+            selected_charts = ["bandwidth_out"]
 
         if group_by is None:
             group_by = ["subtest_name"]
@@ -211,29 +211,28 @@ def render_controls(state: DashboardState) -> html.Div:
 
     return html.Div(
         [
-            # Time Range Picker
+            # First row: Time Range, System Filter, Scenario Filter
             html.Div(
                 [
-                    html.Label("Time Range:", style={"fontWeight": "bold", "marginRight": "1rem"}),
-                    dcc.Dropdown(
-                        id="nccl-time-range",
-                        options=[
-                            {"label": "Last 7 days", "value": 7},
-                            {"label": "Last 14 days", "value": 14},
-                            {"label": "Last 30 days", "value": 30},
-                            {"label": "Last 60 days", "value": 60},
-                            {"label": "Last 90 days", "value": 90},
-                            {"label": "All time", "value": 0},
+                    html.Div(
+                        [
+                            dcc.Dropdown(
+                                id="nccl-time-range",
+                                options=[
+                                    {"label": "Last 7 days", "value": 7},
+                                    {"label": "Last 14 days", "value": 14},
+                                    {"label": "Last 30 days", "value": 30},
+                                    {"label": "Last 60 days", "value": 60},
+                                    {"label": "Last 90 days", "value": 90},
+                                    {"label": "All time", "value": 0},
+                                ],
+                                value=state.time_range_days,
+                                clearable=False,
+                                placeholder="Time Range",
+                            ),
                         ],
-                        value=state.time_range_days,
-                        clearable=False,
-                        style={"width": "200px"},
+                        style={"flex": "1", "marginRight": "1rem"},
                     ),
-                ],
-                style={"marginBottom": "1rem", "display": "flex", "alignItems": "center"},
-            ),
-            html.Div(
-                [
                     html.Div(
                         [
                             dcc.Dropdown(
@@ -255,15 +254,15 @@ def render_controls(state: DashboardState) -> html.Div:
                                 multi=True,
                             ),
                         ],
-                        style={"flex": "1"},
+                        style={"flex": "3"},
                     ),
                 ],
                 style={"display": "flex", "marginBottom": "1rem"},
             ),
-            # Group By Control
+            # Second row: Group By
             html.Div(
                 [
-                    html.Label("Group By:", style={"fontWeight": "bold", "marginBottom": "0.5rem"}),
+                    html.Label("Group By", style={"fontWeight": "bold", "marginRight": "1rem", "minWidth": "80px"}),
                     dcc.Dropdown(
                         id="nccl-group-by",
                         options=grouping_options,
@@ -273,28 +272,30 @@ def render_controls(state: DashboardState) -> html.Div:
                         else "No grouping options available",
                         multi=True,
                         disabled=not grouping_options,
+                        style={"flex": "1"},
                     ),
                 ],
-                style={"marginBottom": "1rem"},
+                style={"display": "flex", "alignItems": "center", "marginBottom": "1rem"},
             ),
-            # Chart Controls
+            # Third row: Chart Types
             html.Div(
                 [
-                    html.Label("Chart Controls:", style={"fontWeight": "bold", "marginBottom": "0.5rem"}),
+                    html.Label("Chart types", style={"fontWeight": "bold", "marginRight": "1rem"}),
                     dcc.Checklist(
                         id="nccl-chart-controls",
                         options=[
-                            {"label": " Bandwidth Out-of-place", "value": "bandwidth_out"},
-                            {"label": " Bandwidth In-place", "value": "bandwidth_in"},
-                            {"label": " Latency Out-of-place", "value": "latency_out"},
-                            {"label": " Latency In-place", "value": "latency_in"},
+                            {"label": " BW out-of-place", "value": "bandwidth_out"},
+                            {"label": " BW in-place", "value": "bandwidth_in"},
+                            {"label": " Latency out-of-place", "value": "latency_out"},
+                            {"label": " Latency in-place", "value": "latency_in"},
                         ],
-                        value=["bandwidth_out", "bandwidth_in", "latency_out", "latency_in"],
+                        value=["bandwidth_out"],
                         inline=True,
                         className="dash-checklist",
                         style={"display": "flex", "flexWrap": "wrap", "gap": "1rem"},
                     ),
                 ],
+                style={"display": "flex", "alignItems": "center"},
             ),
         ],
         className="chart-controls",
@@ -503,6 +504,7 @@ def create_nccl_chart(
         yaxis_title=f"{chart_prefix.title()} ({hover_unit})",
         xaxis_type="log",
         hovermode="closest",
+        showlegend=True,
         legend=dict(
             orientation="v",  # Vertical orientation for better readability
             yanchor="top",
@@ -512,7 +514,6 @@ def create_nccl_chart(
             bgcolor="rgba(255, 255, 255, 0.8)",  # Semi-transparent background
             bordercolor="rgba(0, 0, 0, 0.2)",
             borderwidth=1,
-            font=dict(size=10),  # Slightly smaller font
         ),
         dragmode="zoom",
         height=600,
