@@ -58,6 +58,8 @@ class DashboardState:
 
     all_data: list[NCCLRecord]
     filtered_data: list[NCCLRecord]
+    available_scenarios: list[str]  # Scenario labels available after system filter
+    available_systems: list[str]  # System names available after scenario filter
     time_range_days: int
     selected_systems: list[str] | None
     selected_scenarios: list[str] | None
@@ -92,7 +94,9 @@ class NCCLDashboard:
 
         state = self.data_manager.get_state(selected_systems, selected_scenarios, selected_charts, group_by)
 
-        if triggered_id == "nccl-time-range":
+        # Update controls when time range, system filter, or scenario filter changes
+        # (to refresh cascading dropdown options)
+        if triggered_id in ("nccl-time-range", "nccl-system-filter", "nccl-scenario-filter"):
             return (render_controls(state), render_charts(state))
 
         return (no_update, render_charts(state))
@@ -151,6 +155,13 @@ class NCCLDataManager:
         group_by: list[str] | None = None,
     ) -> DashboardState:
         all_data = self.get_data()
+
+        # Calculate data filtered only by systems (for scenario dropdown options)
+        data_filtered_by_systems = self.apply_filters(all_data, selected_systems, None)
+        # Calculate data filtered only by scenarios (for system dropdown options)
+        data_filtered_by_scenarios = self.apply_filters(all_data, None, selected_scenarios)
+
+        # Calculate final filtered data (both filters applied)
         filtered_data = self.apply_filters(all_data, selected_systems, selected_scenarios)
 
         if selected_charts is None:
@@ -162,6 +173,8 @@ class NCCLDataManager:
         return DashboardState(
             all_data=all_data,
             filtered_data=filtered_data,
+            available_scenarios=sorted({d.label for d in data_filtered_by_systems}),
+            available_systems=sorted({d.system_name for d in data_filtered_by_scenarios}),
             time_range_days=self.time_range_days,
             selected_systems=selected_systems,
             selected_scenarios=selected_scenarios,
@@ -236,7 +249,7 @@ def render_controls(state: DashboardState) -> html.Div:
                     html.Div(
                         [
                             dcc.Dropdown(
-                                options=create_system_dropdown_options(state.all_data),
+                                options=create_system_dropdown_options(state.available_systems),
                                 placeholder="Filter Systems",
                                 id="nccl-system-filter",
                                 multi=True,
@@ -248,10 +261,11 @@ def render_controls(state: DashboardState) -> html.Div:
                     html.Div(
                         [
                             dcc.Dropdown(
-                                options=create_scenario_dropdown_options(state.filtered_data),
+                                options=create_scenario_dropdown_options(state.available_scenarios, state.all_data),
                                 placeholder="Filter Scenarios",
                                 id="nccl-scenario-filter",
                                 multi=True,
+                                value=state.selected_scenarios,
                             ),
                         ],
                         style={"flex": "3"},
@@ -401,26 +415,26 @@ def render_charts(state: DashboardState) -> Any:
 # ============================================================================
 
 
-def create_scenario_dropdown_options(nccl_data: list[NCCLRecord]) -> list:
+def create_scenario_dropdown_options(scenario_labels: list[str], all_data: list[NCCLRecord]) -> list:
+    """Create scenario dropdown options with result counts."""
+    # Count occurrences in all_data for each available scenario label
     label_counts: dict[str, int] = {}
-    for data in nccl_data:
-        label = data.label
-        if label not in label_counts:
-            label_counts[label] = 0
-        label_counts[label] += 1
+    for data in all_data:
+        if data.label in scenario_labels:
+            label_counts[data.label] = label_counts.get(data.label, 0) + 1
 
     options = []
-
-    for label, count in label_counts.items():
+    for label in scenario_labels:
+        count = label_counts.get(label, 0)
         result_text = "result" if count == 1 else "results"
         options.append({"label": f"{label} ({count} {result_text})", "value": label})
 
     return options
 
 
-def create_system_dropdown_options(nccl_data: list[NCCLRecord]) -> list:
-    systems = set([data.system_name for data in nccl_data])
-    return [{"label": system, "value": system} for system in systems]
+def create_system_dropdown_options(system_names: list[str]) -> list:
+    """Create system dropdown options."""
+    return [{"label": system, "value": system} for system in system_names]
 
 
 def extract_nccl_data_as_df(test_run: TestRun) -> pd.DataFrame:
