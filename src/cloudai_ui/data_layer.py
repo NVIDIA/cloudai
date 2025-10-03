@@ -25,6 +25,7 @@ import toml
 
 from cloudai._core.test_scenario import TestRun
 from cloudai.models.scenario import TestRunDetails
+from cloudai.reporter import SlurmReportItem
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 
 
@@ -87,9 +88,17 @@ class LocalFileDataProvider(DataProvider):
             else:
                 error = f"Not a scenario directory 1: {scenario_dir.absolute()}"
 
+            metadata = SlurmReportItem.get_metadata(scenario_dir, self.results_root)
+            system = SlurmSystem(
+                name=metadata.slurm.cluster_name if metadata else "unknown",
+                install_path=Path("/"),
+                output_path=Path("/"),
+                default_partition="default",
+                partitions=[],
+            )
             if not error:
                 try:
-                    test_runs = self._get_test_runs(scenario_dir)
+                    test_runs = self._get_test_runs(scenario_dir, system)
                 except Exception as e:
                     error = str(e)
 
@@ -108,13 +117,9 @@ class LocalFileDataProvider(DataProvider):
         scenarios.sort(key=lambda x: x.timestamp, reverse=True)
         return scenarios
 
-    def _get_test_runs(self, scenario_dir: Path) -> list[TestRun]:
+    def _get_test_runs(self, scenario_dir: Path, system: SlurmSystem) -> list[TestRun]:
         """Get test runs for a scenario."""
         test_runs = []
-
-        system = SlurmSystem(
-            name="unknown", install_path=Path("/"), output_path=Path("/"), default_partition="default", partitions=[]
-        )
 
         for tr_dump in scenario_dir.rglob("test-run.toml"):
             trd = TestRunDetails.model_validate(toml.load(tr_dump))
