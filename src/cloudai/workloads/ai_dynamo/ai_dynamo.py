@@ -69,6 +69,13 @@ class AIDynamoCmdArgs(CmdArgs):
     dynamo: AIDynamoArgs
     genai_perf: GenAIPerfArgs
     run_script: str = ""
+    dynamo_graph_path: Optional[str] = None
+
+    def model_post_init(self, *args, **kwargs) -> None:
+        """Post-init validation of fields."""
+        super().model_post_init(*args, **kwargs)
+        if self.dynamo_graph_path is not None and not Path(self.dynamo_graph_path).exists():
+            raise ValueError(f"Dynamo graph file not found at {self.dynamo_graph_path}")
 
 
 class AIDynamoTestDefinition(TestDefinition):

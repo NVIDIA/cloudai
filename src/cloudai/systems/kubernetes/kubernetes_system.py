@@ -252,7 +252,7 @@ class KubernetesSystem(BaseModel, System):
                 )
                 raise
 
-    def _check_vllm_pods_status(self) -> bool:
+    def are_vllm_pods_ready(self) -> bool:
         cmd = f"kubectl get pods -n {self.default_namespace} | grep 'vllm-v1-agg'"
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
@@ -287,7 +287,7 @@ class KubernetesSystem(BaseModel, System):
             logging.info("Port forwarding is already running")
             return
 
-        if not self._check_vllm_pods_status():
+        if not self.are_vllm_pods_ready():
             logging.info("Pods are not ready yet, skipping port forward")
             return
 
@@ -363,40 +363,28 @@ class KubernetesSystem(BaseModel, System):
         return True
 
     def _is_dynamo_graph_deployment_running(self, job: KubernetesJob) -> bool:
-        try:
-            if self._genai_perf_completed:
+        if self._genai_perf_completed:
+            return False
+
+        if self.are_vllm_pods_ready():
+            self._setup_port_forward()
+            if self._port_forward_process and self._check_model_server():
+                logging.info("vLLM server is up and models are loaded")
+                self._run_genai_perf(job)
+                self._genai_perf_completed = True
                 return False
 
-            if self._check_vllm_pods_status():
-                self._setup_port_forward()
-                if self._port_forward_process and self._check_model_server():
-                    logging.info("vLLM server is up and models are loaded")
-                    self._run_genai_perf(job)
-                    self._genai_perf_completed = True
-                    return False
+        deployment = self.custom_objects_api.get_namespaced_custom_object(
+            group="nvidia.com",
+            version="v1alpha1",
+            namespace=self.default_namespace,
+            plural="dynamographdeployments",
+            name=job.name,
+        )
 
-            deployment = self.custom_objects_api.get_namespaced_custom_object(
-                group="nvidia.com",
-                version="v1alpha1",
-                namespace=self.default_namespace,
-                plural="dynamographdeployments",
-                name=job.name,
-            )
-
-            assert isinstance(deployment, dict)
-            status: dict = cast(dict, deployment.get("status", {}))
-            return self._check_deployment_conditions(status.get("conditions", []))
-
-        except lazy.k8s.client.ApiException as e:
-            if e.status == 404:
-                logging.debug(f"DynamoGraphDeployment '{job.name}' not found.")
-                return False
-            else:
-                logging.error(
-                    f"Error occurred while retrieving status for DynamoGraphDeployment '{job.name}'. "
-                    f"Error code: {e.status}. Message: {e.reason}."
-                )
-                raise
+        assert isinstance(deployment, dict)
+        status: dict = cast(dict, deployment.get("status", {}))
+        return self._check_deployment_conditions(status.get("conditions", []))
 
     def kill(self, job: BaseJob) -> None:
         """
@@ -456,15 +444,11 @@ class KubernetesSystem(BaseModel, System):
 
     def _delete_dynamo_graph_deployment(self, job_name: str) -> None:
         logging.debug(f"Deleting DynamoGraphDeployment '{job_name}'")
-        try:
-            cmd = f"kubectl delete dgd vllm-v1-agg -n {self.default_namespace}"
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            if result.returncode != 0:
-                raise subprocess.SubprocessError(f"Failed to delete DynamoGraphDeployment: {result.stderr}")
-            logging.debug("DynamoGraphDeployment deleted successfully")
-        except subprocess.SubprocessError as e:
-            logging.error(str(e))
-            raise
+        cmd = f"kubectl delete dgd vllm-v1-agg -n {self.default_namespace}"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise subprocess.SubprocessError(f"Failed to delete DynamoGraphDeployment: {result.stderr}")
+        logging.debug("DynamoGraphDeployment deleted successfully")
 
     def create_job(self, job_spec: Dict[Any, Any], timeout: int = 60, interval: int = 1) -> str:
         """
