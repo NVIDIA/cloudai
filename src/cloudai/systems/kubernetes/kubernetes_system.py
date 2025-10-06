@@ -272,7 +272,7 @@ class KubernetesSystem(BaseModel, System):
                 continue
 
             pod_name = columns[0]
-            if not "vllm-v1-agg" in pod_name:
+            if "vllm-v1-agg" not in pod_name:
                 continue
 
             vllm_pods_found = True
