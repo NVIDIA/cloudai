@@ -253,32 +253,51 @@ class KubernetesSystem(BaseModel, System):
                 raise
 
     def are_vllm_pods_ready(self) -> bool:
-        cmd = f"kubectl get pods -n {self.default_namespace} | grep 'vllm-v1-agg'"
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-
-        if result.returncode != 0:
-            logging.warning("No vLLM pods found")
+        cmd = ["kubectl", "get", "pods", "-n", self.default_namespace]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Failed to get pods: {e}")
             return False
 
         all_ready = True
+        vllm_pods_found = False
+
         for line in result.stdout.splitlines():
+            if line.startswith("NAME"):
+                continue
+
             columns = line.split()
             if len(columns) < 3:
                 continue
 
             pod_name = columns[0]
+            if not "vllm-v1-agg" in pod_name:
+                continue
+
+            vllm_pods_found = True
             ready_status = columns[1]
             pod_status = columns[2]
 
             if pod_status == "Terminating":
+                logging.debug(f"Pod {pod_name} is terminating")
                 return False
 
-            ready_count, total_count = map(int, ready_status.split("/"))
+            try:
+                ready_count, total_count = map(int, ready_status.split("/"))
+            except (ValueError, IndexError) as e:
+                logging.error(f"Failed to parse ready status '{ready_status}' for pod {pod_name}: {e}")
+                return False
+
             if pod_status == "Running" and ready_count == total_count:
                 logging.debug(f"Pod {pod_name} is running and ready ({ready_status})")
             else:
                 logging.debug(f"Pod {pod_name} is {pod_status} but not fully ready ({ready_status})")
                 all_ready = False
+
+        if not vllm_pods_found:
+            logging.warning("No vLLM pods found")
+            return False
 
         return all_ready
 
