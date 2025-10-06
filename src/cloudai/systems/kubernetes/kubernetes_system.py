@@ -275,20 +275,20 @@ class KubernetesSystem(BaseModel, System):
 
             ready_count, total_count = map(int, ready_status.split("/"))
             if pod_status == "Running" and ready_count == total_count:
-                logging.info(f"Pod {pod_name} is running and ready ({ready_status})")
+                logging.debug(f"Pod {pod_name} is running and ready ({ready_status})")
             else:
-                logging.info(f"Pod {pod_name} is {pod_status} but not fully ready ({ready_status})")
+                logging.debug(f"Pod {pod_name} is {pod_status} but not fully ready ({ready_status})")
                 all_ready = False
 
         return all_ready
 
     def _setup_port_forward(self) -> None:
         if self._port_forward_process and self._port_forward_process.poll() is None:
-            logging.info("Port forwarding is already running")
+            logging.debug("Port forwarding is already running")
             return
 
         if not self.are_vllm_pods_ready():
-            logging.info("Pods are not ready yet, skipping port forward")
+            logging.debug("Pods are not ready yet, skipping port forward")
             return
 
         get_pod_cmd = (
@@ -297,9 +297,9 @@ class KubernetesSystem(BaseModel, System):
             "awk 'NR==1{print $1}'"
         )
         cmd = f"kubectl port-forward pod/$({get_pod_cmd}) 8000:8000 -n {self.default_namespace}"
-        logging.info("Starting port forwarding")
+        logging.debug("Starting port forwarding")
         self._port_forward_process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        logging.info("Port forwarding started")
+        logging.debug("Port forwarding started")
 
     def _check_model_server(self) -> bool:
         cmd = "curl -s http://localhost:8000/v1/models"
@@ -312,10 +312,10 @@ class KubernetesSystem(BaseModel, System):
         try:
             response = json.loads(result.stdout)
             if response.get("data") and len(response["data"]) > 0:
-                logging.info(f"Model server is running. Response: {result.stdout}")
+                logging.debug(f"Model server is running. Response: {result.stdout}")
                 return True
             else:
-                logging.info("Model server is up but no models are loaded yet")
+                logging.debug("Model server is up but no models are loaded yet")
                 return False
         except json.JSONDecodeError:
             logging.warning("Invalid JSON response from model server")
@@ -340,12 +340,12 @@ class KubernetesSystem(BaseModel, System):
 
         venv_path = job.python_executable.venv_path.absolute()
         cmd = f". {venv_path}/bin/activate && genai-perf profile {args_str}"
-        logging.info("Running GenAI performance test with command:")
-        logging.info(cmd)
+        logging.debug("Running GenAI performance test with command:")
+        logging.debug(cmd)
         try:
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=True)
-            logging.info("GenAI performance test completed successfully")
-            logging.info(f"Output: {result.stdout}")
+            logging.debug("GenAI performance test completed successfully")
+            logging.debug(f"Output: {result.stdout}")
         except subprocess.CalledProcessError as e:
             logging.error(f"GenAI performance test failed: {e.stderr}")
             raise
@@ -369,7 +369,7 @@ class KubernetesSystem(BaseModel, System):
         if self.are_vllm_pods_ready():
             self._setup_port_forward()
             if self._port_forward_process and self._check_model_server():
-                logging.info("vLLM server is up and models are loaded")
+                logging.debug("vLLM server is up and models are loaded")
                 self._run_genai_perf(job)
                 self._genai_perf_completed = True
                 return False
@@ -669,14 +669,14 @@ class KubernetesSystem(BaseModel, System):
                     log_file_path = output_dir / f"{pod_name}.txt"
                     with log_file_path.open("w") as log_file:
                         log_file.write(logs)
-                    logging.info(f"Logs for pod '{pod_name}' saved to '{log_file_path}'")
+                    logging.debug(f"Logs for pod '{pod_name}' saved to '{log_file_path}'")
 
                     stdout_file.write(logs + "\n")
 
                 except lazy.k8s.client.ApiException as e:
                     logging.error(f"Error retrieving logs for pod '{pod_name}': {e}")
 
-        logging.info(f"All logs concatenated and saved to '{stdout_file_path}'")
+        logging.debug(f"All logs concatenated and saved to '{stdout_file_path}'")
 
     def get_pod_names_for_job(self, job_name: str) -> List[str]:
         """
