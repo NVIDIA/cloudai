@@ -325,7 +325,7 @@ class KubernetesSystem(BaseModel, System):
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
         if result.returncode != 0:
-            logging.warning("Failed to connect to model server")
+            logging.debug("Failed to connect to model server")
             return False
 
         try:
