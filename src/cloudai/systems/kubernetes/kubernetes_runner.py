@@ -54,11 +54,6 @@ class KubernetesRunner(BaseRunner):
             raise TypeError("Test definition must be an instance of AIDynamoTestDefinition")
 
         python_exec = test_definition.python_executable
-        if not python_exec.git_repo.installed_path:
-            raise ValueError(
-                f"Local clone of git repo {python_exec.git_repo} does not exist. "
-                "Please ensure to run installation before running the test."
-            )
         if not python_exec.venv_path:
             raise ValueError(
                 f"The virtual environment for git repo {python_exec.git_repo} does not exist. "
@@ -66,6 +61,7 @@ class KubernetesRunner(BaseRunner):
             )
 
         venv_pip = python_exec.venv_path.absolute() / "bin" / "pip"
+        assert python_exec.git_repo.installed_path
         repo_root = python_exec.git_repo.installed_path.absolute()
 
         self._install_python_packages(repo_root, venv_pip)
