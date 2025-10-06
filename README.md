@@ -103,7 +103,8 @@ Please make sure to use the correct system configuration file that corresponds t
 ```bash
 cloudai install\
     --system-config conf/common/system/example_slurm_cluster.toml\
-    --tests-dir conf/common/test
+    --tests-dir conf/common/test\
+    --test-scenario conf/common/test_scenario/sleep.toml
 ```
 ### dry-run
 To simulate running experiments without execution, use the dry-run mode:
@@ -137,7 +138,8 @@ To uninstall test prerequisites, run CloudAI CLI in uninstall mode:
 ```bash
 cloudai uninstall\
     --system-config conf/common/system/example_slurm_cluster.toml\
-    --tests-dir conf/common/test
+    --tests-dir conf/common/test\
+    --test-scenario conf/common/test_scenario/sleep.toml
 ```
 Verify TOML configs:
 ```bash
