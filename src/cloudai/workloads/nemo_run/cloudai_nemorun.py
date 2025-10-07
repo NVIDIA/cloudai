@@ -1214,13 +1214,11 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
 def cloudai_qwen3_30b_a3b_recipe() -> run.Partial:
     recipe = qwen3_30b_a3b_pretrain_recipe()
 
-    # CloudAI adjustments using upstream performance settings
     recipe.log = default_log()
 
     if not hasattr(recipe.trainer, "callbacks") or recipe.trainer.callbacks is None:
         recipe.trainer.callbacks = []
 
-    # FLOPs measurement (modeled after DeepSeek integration)
     recipe.trainer.callbacks.append(
         run.Config(
             FLOPsMeasurementCallback,
