@@ -350,11 +350,16 @@ class KubernetesSystem(BaseModel, System):
 
         genai_perf_args = job.genai_perf_args.model_dump()
         args = [f"--artifact-dir={job.output_path.absolute()}"]
+        extra_args = None
+
         for k, v in genai_perf_args.items():
             if k == "extra-args":
-                args.append(str(v))
+                extra_args = str(v)
             else:
                 args.append(f"--{k}={v}")
+
+        if extra_args:
+            args.append(extra_args)
         args_str = " ".join(args)
 
         venv_path = job.python_executable.venv_path.absolute()
