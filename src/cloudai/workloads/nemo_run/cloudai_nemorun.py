@@ -1208,6 +1208,7 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
 
     return recipe
 
+
 # Qwen3 30B Recipe
 @run.cli.factory(target=llm.pretrain)
 def cloudai_qwen3_30b_a3b_recipe() -> run.Partial:
@@ -1247,7 +1248,8 @@ def cloudai_qwen3_30b_a3b_recipe() -> run.Partial:
         set_enable_cuda_graphs_params(recipe)
 
     return recipe
-    
+
+
 if __name__ == "__main__":
     mode = os.getenv("CLOUDAI_NEMO_TASK")
 
