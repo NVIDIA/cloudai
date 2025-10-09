@@ -32,6 +32,7 @@ from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.model.llama import Llama3Config70B, Llama31Config405B, LlamaModel
 from nemo.collections.llm.gpt.model.nemotron import Nemotron4Config15B, Nemotron4Config340B, NemotronModel
 from nemo.collections.llm.recipes.nemotron3_8b import pretrain_recipe as nemotron3_8b_recipe
+from nemo.collections.llm.recipes.qwen3_30b_a3b import pretrain_recipe as qwen3_30b_a3b_pretrain_recipe
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
     BulkOverlapCfg,
     PipelineOverlapCfg,
@@ -43,6 +44,7 @@ from nemo.lightning import AutoResume, NeMoLogger
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.utils.exp_manager import TimingCallback
@@ -1207,6 +1209,45 @@ def cloudai_nemotron4_340b_recipe() -> run.Partial:
     return recipe
 
 
+# Qwen3 30B Recipe
+@run.cli.factory(target=llm.pretrain)
+def cloudai_qwen3_30b_a3b_recipe() -> run.Partial:
+    recipe = qwen3_30b_a3b_pretrain_recipe()
+
+    recipe.log = default_log()
+
+    if not hasattr(recipe.trainer, "callbacks") or recipe.trainer.callbacks is None:
+        recipe.trainer.callbacks = []
+
+    recipe.trainer.callbacks.append(
+        run.Config(
+            FLOPsMeasurementCallback,
+            model_config=recipe.model.config,
+            data_config=recipe.data,
+            model_name="qwen3",
+        )
+    )
+
+    recipe.trainer.callbacks.append(run.Config(MegatronTokenDropCallback))
+    recipe.trainer.callbacks.append(run.Config(MegatronCommOverlapCallback, tp_comm_overlap=True))
+
+    recipe.model.config.cross_entropy_fusion_impl = "te"
+    recipe.model.config.cross_entropy_loss_fusion = True
+    recipe.model.config.apply_rope_fusion = True
+    recipe.model.config.moe_permute_fusion = True
+    recipe.model.config.bias_dropout_fusion = True
+    recipe.model.config.bias_activation_fusion = True
+
+    recipe.model.config.recompute_granularity = None
+    recipe.model.config.recompute_method = None
+    recipe.model.config.recompute_num_layers = None
+
+    if os.getenv("CLOUDAI_GPU_TYPE") in ("gb200", "b200"):
+        set_enable_cuda_graphs_params(recipe)
+
+    return recipe
+
+
 if __name__ == "__main__":
     mode = os.getenv("CLOUDAI_NEMO_TASK")
 
@@ -1218,6 +1259,7 @@ if __name__ == "__main__":
         "cloudai_nemotron4_15b_recipe",
         "cloudai_nemotron4_340b_recipe",
         "cloudai_deepseek_v3_recipe",
+        "cloudai_qwen3_30b_a3b_recipe",
     ]
 
     recipe_name = os.getenv("CLOUDAI_NEMO_RECIPE")
