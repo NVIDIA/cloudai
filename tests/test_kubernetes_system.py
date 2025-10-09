@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,8 @@
 # limitations under the License.
 
 from pathlib import Path
+from typing import Dict, List
+from unittest.mock import MagicMock, patch
 
 import pytest
 from kubernetes import client
@@ -92,3 +94,88 @@ def test_initialization(k8s_system):
     assert isinstance(k8s_system.core_v1, client.CoreV1Api)
     assert isinstance(k8s_system.batch_v1, client.BatchV1Api)
     assert isinstance(k8s_system.custom_objects_api, client.CustomObjectsApi)
+
+
+@pytest.mark.parametrize(
+    "pod_output,expected_result",
+    [
+        # Test case 1: No vLLM pods
+        ("NAME  READY  STATUS\npod1  1/1    Running", False),
+        # Test case 2: vLLM pod running and ready
+        ("NAME                READY   STATUS\nvllm-v1-agg-pod  1/1     Running", True),
+        # Test case 3: vLLM pod not ready
+        ("NAME                READY   STATUS\nvllm-v1-agg-pod  0/1     Running", False),
+        # Test case 4: vLLM pod terminating
+        ("NAME                READY   STATUS\nvllm-v1-agg-pod  1/1     Terminating", False),
+        # Test case 5: Multiple pods, vLLM pod ready
+        (
+            "NAME                READY   STATUS\n"
+            "pod1                1/1     Running\n"
+            "vllm-v1-agg-pod    1/1     Running",
+            True,
+        ),
+        # Test case 6: Multiple vLLM pods, all must be ready
+        (
+            "NAME                READY   STATUS\n"
+            "vllm-v1-agg-pod1   1/1     Running\n"
+            "vllm-v1-agg-pod2   0/1     Running",
+            False,
+        ),
+    ],
+)
+def test_are_vllm_pods_ready(k8s_system: KubernetesSystem, pod_output: str, expected_result: bool) -> None:
+    """Test the are_vllm_pods_ready method with various pod states."""
+    with patch("subprocess.run") as mock_run:
+        mock_process = MagicMock()
+        mock_process.stdout = pod_output
+        mock_process.returncode = 0
+        mock_run.return_value = mock_process
+
+        assert k8s_system.are_vllm_pods_ready() == expected_result
+
+
+@pytest.mark.parametrize(
+    "conditions,expected_result",
+    [
+        # Test case 1: Empty conditions list
+        ([], True),
+        # Test case 2: Ready condition is True
+        ([{"type": "Ready", "status": "True"}], True),
+        # Test case 3: Ready condition is False
+        ([{"type": "Ready", "status": "False"}], True),
+        # Test case 4: Failed condition is True
+        ([{"type": "Failed", "status": "True"}], False),
+        # Test case 5: Failed condition is False
+        ([{"type": "Failed", "status": "False"}], True),
+        # Test case 6: Multiple conditions with Ready True
+        (
+            [
+                {"type": "Created", "status": "True"},
+                {"type": "Ready", "status": "True"},
+                {"type": "Running", "status": "True"},
+            ],
+            True,
+        ),
+        # Test case 7: Multiple conditions with Failed True
+        (
+            [
+                {"type": "Created", "status": "True"},
+                {"type": "Failed", "status": "True"},
+                {"type": "Running", "status": "False"},
+            ],
+            False,
+        ),
+        # Test case 8: Other conditions only
+        (
+            [
+                {"type": "Created", "status": "True"},
+                {"type": "Running", "status": "True"},
+            ],
+            True,
+        ),
+    ],
+)
+def test_check_deployment_conditions(
+    k8s_system: KubernetesSystem, conditions: List[Dict[str, str]], expected_result: bool
+) -> None:
+    assert k8s_system._check_deployment_conditions(conditions) == expected_result
