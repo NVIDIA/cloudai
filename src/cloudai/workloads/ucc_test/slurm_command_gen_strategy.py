@@ -39,6 +39,8 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         srun_command_parts.append(f"-c {tdef_cmd_args.collective}")
         srun_command_parts.append(f"-b {tdef_cmd_args.b}")
         srun_command_parts.append(f"-e {tdef_cmd_args.e}")
+        if tdef_cmd_args.gen is not None:
+            srun_command_parts.append(f"--gen {tdef_cmd_args.gen}")
         srun_command_parts.append("-m cuda")
         srun_command_parts.append("-F")
 

@@ -1,0 +1,69 @@
+name = "Israel-1"
+scheduler = "slurm"
+
+# install_path = "./install"
+install_path = "/mnt/lustre/cloudai/1.1/install"
+output_path = "/auto/e2e/israel1/workload_results/yyacobovich"
+default_partition = "ISR1-ALL"
+
+gpus_per_node = 8
+ntasks_per_node = 8
+
+cache_docker_images_locally = true
+
+# extra_srun_args = "--qos isr1-prio"
+extra_srun_args = "--reservation agelman_650"
+
+[[partitions]]
+name = "ISR1-ALL"
+nodes = ["hgx-isr1-[001-128]"]
+
+  [[partitions.groups]]
+  name = "P2SU1"
+  nodes = ["hgx-isr1-[001-016]"]
+
+  [[partitions.groups]]
+  name = "P2SU2"
+  nodes = ["hgx-isr1-[017-032]"]
+
+  [[partitions.groups]]
+  name = "P1SU2"
+  nodes = ["hgx-isr1-[033-064]"]
+
+  [[partitions.groups]]
+  name = "P1SU3"
+  nodes = ["hgx-isr1-[065-096]"]
+
+  [[partitions.groups]]
+  name = "P1SU4"
+  nodes = ["hgx-isr1-[097-128]"]
+
+[[partitions]]
+name = "ISR1-PRE"
+nodes = ["hgx-isr1-pre-[01-16]"]
+
+[global_env_vars]
+# NCCL General Configuration
+NCCL_SOCKET_IFNAME = "eno8303"
+
+# NCCL Specific Configurations
+NCCL_IB_GID_INDEX = "3"
+NCCL_IB_TC = "96"
+NCCL_IB_HCA = "mlx5_0:1,mlx5_3:1,mlx5_4:1,mlx5_5:1,mlx5_6:1,mlx5_9:1,mlx5_10:1,mlx5_11:1"
+NCCL_IB_ADAPTIVE_ROUTING = "1"
+NCCL_IB_SPLIT_DATA_ON_QPS = "0"
+NCCL_IBEXT_DISABLE = "0"
+OMPI_MCA_btl = "tcp,self"
+OMPI_MCA_btl_tcp_if_include = "eno8303"
+
+# UCX Configuration
+UCX_IB_GID_INDEX = "3"
+# TODO remove once we move to HPCX 2.19 and tested, https://github.com/openucx/ucx/pull/9632
+UCX_RNDV_SCHEME = "get_zcopy"
+UCX_RNDV_THRESH = "0"
+
+# Device Visibility Configuration
+MELLANOX_VISIBLE_DEVICES = "0,3,4,5,6,9,10,11"
+CUDA_VISIBLE_DEVICES = "0,1,2,3,4,5,6,7"
+GLOO_SOCKET_IFNAME = "eno8303"
+HYDRA_FULL_ERROR = "1"
