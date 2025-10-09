@@ -403,12 +403,14 @@ def verify_system_configs(system_tomls: List[Path]) -> int:
             try:
                 with _ensure_kube_config_exists(system_toml, content):
                     Parser.parse_system(system_toml)
-            except Exception:
+            except Exception as e:
+                logging.debug(f"Failed to parse system config {system_toml}: {e}", exc_info=True)
                 nfailed += 1
         else:
             try:
                 Parser.parse_system(system_toml)
-            except Exception:
+            except Exception as e:
+                logging.debug(f"Failed to parse system config {system_toml}: {e}", exc_info=True)
                 nfailed += 1
 
     if nfailed:
