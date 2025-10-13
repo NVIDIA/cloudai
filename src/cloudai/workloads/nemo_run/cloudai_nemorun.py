@@ -651,10 +651,7 @@ def set_perf_optimization_configs(recipe):
 # LLAMA4 Scout Recipe
 @run.cli.factory(target=llm.pretrain)
 def cloudai_llama4_scout_recipe() -> run.Partial:
-    recipe = llama4_e16.pretrain_recipe(
-            num_nodes=32,
-            num_gpus_per_node=8,
-            performance_mode=True)
+    recipe = llama4_e16.pretrain_recipe(num_nodes=32, num_gpus_per_node=8, performance_mode=True)
 
     recipe.trainer.callbacks.append(
         run.Config(
@@ -681,10 +678,7 @@ def cloudai_llama4_scout_recipe() -> run.Partial:
 # LLAMA4 Maverick Recipe
 @run.cli.factory(target=llm.pretrain)
 def cloudai_llama4_maverick_recipe() -> run.Partial:
-    recipe = llama4_e128.pretrain_recipe(
-            num_nodes=64,
-            num_gpus_per_node=8,
-            performance_mode=True)
+    recipe = llama4_e128.pretrain_recipe(num_nodes=64, num_gpus_per_node=8, performance_mode=True)
 
     recipe.trainer.callbacks.append(
         run.Config(
