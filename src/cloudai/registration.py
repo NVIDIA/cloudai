@@ -55,6 +55,7 @@ def register_all():
     from cloudai.systems.slurm import SlurmInstaller, SlurmRunner, SlurmSystem
     from cloudai.systems.standalone import StandaloneInstaller, StandaloneRunner, StandaloneSystem
     from cloudai.workloads.ai_dynamo import (
+        AIDynamoKubernetesJsonGenStrategy,
         AIDynamoReportGenerationStrategy,
         AIDynamoSlurmCommandGenStrategy,
         AIDynamoTestDefinition,
@@ -183,6 +184,9 @@ def register_all():
     Registry().add_command_gen_strategy(SlurmSystem, NixlPerftestTestDefinition, NixlPerftestSlurmCommandGenStrategy)
 
     Registry().add_command_gen_strategy(SlurmSystem, AIDynamoTestDefinition, AIDynamoSlurmCommandGenStrategy)
+    Registry().add_strategy(
+        JsonGenStrategy, [KubernetesSystem], [AIDynamoTestDefinition], AIDynamoKubernetesJsonGenStrategy
+    )
     Registry().add_command_gen_strategy(SlurmSystem, BashCmdTestDefinition, BashCmdCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NIXLKVBenchTestDefinition, NIXLKVBenchSlurmCommandGenStrategy)
 

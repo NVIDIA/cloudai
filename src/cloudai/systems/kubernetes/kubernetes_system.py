@@ -16,7 +16,9 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import subprocess
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
@@ -63,6 +65,8 @@ class KubernetesSystem(BaseModel, System):
     _core_v1: Optional[k8s.client.CoreV1Api] = None
     _batch_v1: Optional[k8s.client.BatchV1Api] = None
     _custom_objects_api: Optional[k8s.client.CustomObjectsApi] = None
+    _port_forward_process = None
+    _genai_perf_completed: bool = False
 
     def __getstate__(self) -> dict[str, Any]:
         """Return the state for pickling, excluding non-picklable Kubernetes client objects."""
@@ -152,66 +156,28 @@ class KubernetesSystem(BaseModel, System):
         pass
 
     def is_job_running(self, job: BaseJob) -> bool:
-        """
-        Check if a given Kubernetes job is currently running.
-
-        Args:
-            job (BaseJob): The job to check.
-
-        Returns:
-            bool: True if the job is running, False otherwise.
-        """
         k_job: KubernetesJob = cast(KubernetesJob, job)
-        return self._is_job_running(k_job.name, k_job.kind)
+        return self._is_job_running(k_job)
 
     def is_job_completed(self, job: BaseJob) -> bool:
-        """
-        Check if a given Kubernetes job is completed.
-
-        Args:
-            job (BaseJob): The job to check.
-
-        Returns:
-            bool: True if the job is completed, False otherwise.
-        """
         k_job: KubernetesJob = cast(KubernetesJob, job)
-        return not self._is_job_running(k_job.name, k_job.kind)
+        return not self._is_job_running(k_job)
 
-    def _is_job_running(self, job_name: str, job_kind: str) -> bool:
-        """
-        Check if a job is currently running.
+    def _is_job_running(self, job: KubernetesJob) -> bool:
+        logging.debug(f"Checking for job '{job.name}' of kind '{job.kind}' to determine if it is running.")
 
-        Args:
-            job_name (str): The name of the job.
-            job_kind (str): The kind of the job ('MPIJob' or 'Job').
-
-        Returns:
-            bool: True if the job is running, False if the job has completed or is not found.
-        """
-        logging.debug(f"Checking for job '{job_name}' of kind '{job_kind}' to determine if it is running.")
-
-        if "mpijob" in job_kind.lower():
-            return self._is_mpijob_running(job_name)
-        elif "job" in job_kind.lower():
-            return self._is_batch_job_running(job_name)
+        if "mpijob" in job.kind.lower():
+            return self._is_mpijob_running(job.name)
+        elif "job" in job.kind.lower():
+            return self._is_batch_job_running(job.name)
+        elif "dynamographdeployment" in job.kind.lower():
+            return self._is_dynamo_graph_deployment_running(job)
         else:
-            error_message = (
-                f"Unsupported job kind: '{job_kind}'. Supported kinds are 'MPIJob' for MPI workloads and 'Job' for "
-                f"batch jobs. Please verify that the 'job_kind' field is correctly set in the job specification."
-            )
+            error_message = f"Unsupported job kind: '{job.kind}'."
             logging.error(error_message)
             raise ValueError(error_message)
 
     def _is_mpijob_running(self, job_name: str) -> bool:
-        """
-        Check if an MPIJob is currently running.
-
-        Args:
-            job_name (str): The name of the MPIJob.
-
-        Returns:
-            bool: True if the MPIJob is running, False if the MPIJob has completed or is not found.
-        """
         try:
             mpijob = self.custom_objects_api.get_namespaced_custom_object(
                 group="kubeflow.org",
@@ -252,15 +218,6 @@ class KubernetesSystem(BaseModel, System):
                 raise
 
     def _is_batch_job_running(self, job_name: str) -> bool:
-        """
-        Check if a batch job is currently running.
-
-        Args:
-            job_name (str): The name of the batch job.
-
-        Returns:
-            bool: True if the batch job is running, False if the job has completed or is not found.
-        """
         try:
             k8s_job: Any = self.batch_v1.read_namespaced_job_status(name=job_name, namespace=self.default_namespace)
 
@@ -295,6 +252,176 @@ class KubernetesSystem(BaseModel, System):
                 )
                 raise
 
+    def are_vllm_pods_ready(self) -> bool:
+        cmd = ["kubectl", "get", "pods", "-n", self.default_namespace]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Failed to get pods: {e}")
+            return False
+
+        all_ready = True
+        vllm_pods_found = False
+
+        for line in result.stdout.splitlines():
+            if line.startswith("NAME"):
+                continue
+
+            columns = line.split()
+            if len(columns) < 3:
+                continue
+
+            pod_name = columns[0]
+            if "vllm-v1-agg" not in pod_name:
+                continue
+
+            vllm_pods_found = True
+            ready_status = columns[1]
+            pod_status = columns[2]
+
+            if pod_status == "Terminating":
+                logging.debug(f"Pod {pod_name} is terminating")
+                return False
+
+            try:
+                ready_count, total_count = map(int, ready_status.split("/"))
+            except (ValueError, IndexError) as e:
+                logging.error(f"Failed to parse ready status '{ready_status}' for pod {pod_name}: {e}")
+                return False
+
+            if pod_status == "Running" and ready_count == total_count:
+                logging.debug(f"Pod {pod_name} is running and ready ({ready_status})")
+            else:
+                logging.debug(f"Pod {pod_name} is {pod_status} but not fully ready ({ready_status})")
+                all_ready = False
+
+        if not vllm_pods_found:
+            logging.warning("No vLLM pods found")
+            return False
+
+        return all_ready
+
+    def _setup_port_forward(self) -> None:
+        if self._port_forward_process and self._port_forward_process.poll() is None:
+            logging.debug("Port forwarding is already running")
+            return
+
+        if not self.are_vllm_pods_ready():
+            logging.debug("Pods are not ready yet, skipping port forward")
+            return
+
+        get_pod_cmd = (
+            f"kubectl get pods -n {self.default_namespace} --no-headers | "
+            "grep vllm-v1-agg-frontend | "
+            "awk 'NR==1{print $1}'"
+        )
+        cmd = f"kubectl port-forward pod/$({get_pod_cmd}) 8000:8000 -n {self.default_namespace}"
+        logging.debug("Starting port forwarding")
+        self._port_forward_process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        logging.debug("Port forwarding started")
+
+    def _check_model_server(self) -> bool:
+        cmd = "curl -s http://localhost:8000/v1/models"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+        if result.returncode != 0:
+            logging.debug("Failed to connect to model server")
+            return False
+
+        try:
+            response = json.loads(result.stdout)
+            if response.get("data") and len(response["data"]) > 0:
+                logging.debug(f"Model server is running. Response: {result.stdout}")
+                return True
+            else:
+                logging.debug("Model server is up but no models are loaded yet")
+                return False
+        except json.JSONDecodeError:
+            logging.warning("Invalid JSON response from model server")
+            return False
+
+    def _run_genai_perf(self, job: KubernetesJob) -> None:
+        from cloudai.workloads.ai_dynamo.ai_dynamo import AIDynamoTestDefinition
+
+        test_definition = job.test_run.test.test_definition
+        if not isinstance(test_definition, AIDynamoTestDefinition):
+            raise TypeError("Test definition must be an instance of AIDynamoTestDefinition")
+
+        python_exec = test_definition.python_executable
+        if not python_exec or not python_exec.venv_path:
+            raise ValueError("Python executable path not set - executable may not be installed")
+
+        genai_perf_args_obj = test_definition.cmd_args.genai_perf
+        if not genai_perf_args_obj:
+            raise ValueError("GenAI perf args not set")
+
+        output_path = job.test_run.output_path
+        if not output_path:
+            raise ValueError("Output path not set")
+
+        genai_perf_args = genai_perf_args_obj.model_dump()
+        args = [f"--artifact-dir={output_path.absolute()}"]
+        extra_args = None
+
+        for k, v in genai_perf_args.items():
+            if k == "extra-args":
+                extra_args = str(v)
+            else:
+                args.append(f"--{k}={v}")
+
+        if extra_args:
+            args.append(extra_args)
+        args_str = " ".join(args)
+
+        venv_path = python_exec.venv_path.absolute()
+        cmd = f". {venv_path}/bin/activate && genai-perf profile {args_str}"
+        logging.debug("Running GenAI performance test with command:")
+        logging.debug(cmd)
+        try:
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=True)
+            logging.debug("GenAI performance test completed successfully")
+            logging.debug(f"Output: {result.stdout}")
+        except subprocess.CalledProcessError as e:
+            logging.error(f"GenAI performance test failed: {e.stderr}")
+            raise
+
+    def _check_deployment_conditions(self, conditions: list) -> bool:
+        if not conditions:
+            return True
+
+        for condition in conditions:
+            if condition["type"] == "Ready" and condition["status"] == "True":
+                return True
+            if condition["type"] == "Failed" and condition["status"] == "True":
+                return False
+
+        return True
+
+    def _is_dynamo_graph_deployment_running(self, job: KubernetesJob) -> bool:
+        if self._genai_perf_completed:
+            return False
+
+        if self.are_vllm_pods_ready():
+            self._setup_port_forward()
+            if self._port_forward_process and self._check_model_server():
+                logging.debug("vLLM server is up and models are loaded")
+                self._run_genai_perf(job)
+                self._genai_perf_completed = True
+                return False
+
+        deployment = cast(
+            dict,
+            self.custom_objects_api.get_namespaced_custom_object(
+                group="nvidia.com",
+                version="v1alpha1",
+                namespace=self.default_namespace,
+                plural="dynamographdeployments",
+                name=job.name,
+            ),
+        )
+        status: dict = cast(dict, deployment.get("status", {}))
+        return self._check_deployment_conditions(status.get("conditions", []))
+
     def kill(self, job: BaseJob) -> None:
         """
         Terminate a Kubernetes job.
@@ -306,32 +433,18 @@ class KubernetesSystem(BaseModel, System):
         self.delete_job(k_job.name, k_job.kind)
 
     def delete_job(self, job_name: str, job_kind: str) -> None:
-        """
-        Delete a job.
-
-        Args:
-            job_name (str): The name of the job.
-            job_kind (str): The kind of the job ('MPIJob' or 'Job').
-        """
         if "mpijob" in job_kind.lower():
             self._delete_mpi_job(job_name)
         elif "job" in job_kind.lower():
             self._delete_batch_job(job_name)
+        elif "dynamographdeployment" in job_kind.lower():
+            pass
         else:
-            error_message = (
-                f"Unsupported job kind: '{job_kind}'. Supported kinds are 'MPIJob' for MPI workloads and 'Job' for "
-                "batch jobs. Please verify that the 'job_kind' field is correctly set in the job specification."
-            )
+            error_message = f"Unsupported job kind: '{job_kind}'."
             logging.error(error_message)
             raise ValueError(error_message)
 
     def _delete_mpi_job(self, job_name: str) -> None:
-        """
-        Delete an MPIJob.
-
-        Args:
-            job_name (str): The name of the job.
-        """
         logging.debug(f"Deleting MPIJob '{job_name}'")
         try:
             self.custom_objects_api.delete_namespaced_custom_object(
@@ -355,12 +468,6 @@ class KubernetesSystem(BaseModel, System):
                 raise
 
     def _delete_batch_job(self, job_name: str) -> None:
-        """
-        Delete a batch job.
-
-        Args:
-            job_name (str): The name of the job.
-        """
         logging.debug(f"Deleting batch job '{job_name}'")
         api_response = self.batch_v1.delete_namespaced_job(
             name=job_name,
@@ -370,6 +477,14 @@ class KubernetesSystem(BaseModel, System):
         api_response = cast(k8s.client.V1Job, api_response)
 
         logging.debug(f"Batch job '{job_name}' deleted with status: {api_response.status}")
+
+    def _delete_dynamo_graph_deployment(self, job_name: str) -> None:
+        logging.debug(f"Deleting DynamoGraphDeployment '{job_name}'")
+        cmd = f"kubectl delete dgd vllm-v1-agg -n {self.default_namespace}"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise subprocess.SubprocessError(f"Failed to delete DynamoGraphDeployment: {result.stderr}")
+        logging.debug("DynamoGraphDeployment deleted successfully")
 
     def create_job(self, job_spec: Dict[Any, Any], timeout: int = 60, interval: int = 1) -> str:
         """
@@ -402,18 +517,6 @@ class KubernetesSystem(BaseModel, System):
         raise TimeoutError(f"Job '{job_name}' was not observable within {timeout} seconds.")
 
     def _create_job(self, job_spec: Dict[Any, Any]) -> str:
-        """
-        Submit a job.
-
-        Args:
-            job_spec (Dict[Any, Any]): The job specification.
-
-        Returns:
-            str: The job name.
-
-        Raises:
-            ValueError: If the job specification does not contain a valid 'kind' field.
-        """
         api_version = job_spec.get("apiVersion", "")
         kind = job_spec.get("kind", "").lower()
 
@@ -421,10 +524,11 @@ class KubernetesSystem(BaseModel, System):
             return self._create_mpi_job(job_spec)
         elif ("batch" in api_version) and ("job" in kind):
             return self._create_batch_job(job_spec)
+        elif "dynamographdeployment" in kind:
+            return self._create_dynamo_graph_deployment(job_spec)
         else:
             error_message = (
                 f"Unsupported job kind: '{job_spec.get('kind')}'.\n"
-                "The supported kinds are: 'MPIJob' for MPI workloads and 'Job' for batch jobs.\n"
                 "Please review the job specification generation logic to ensure that the 'kind' field is set "
                 "correctly.\n"
             )
@@ -432,15 +536,6 @@ class KubernetesSystem(BaseModel, System):
             raise ValueError(error_message)
 
     def _create_batch_job(self, job_spec: Dict[Any, Any]) -> str:
-        """
-        Submit a batch job.
-
-        Args:
-            job_spec (Dict[Any, Any]): The job specification.
-
-        Returns:
-            str: The job name.
-        """
         api_response = self.batch_v1.create_namespaced_job(body=job_spec, namespace=self.default_namespace)
 
         if not isinstance(api_response, lazy.k8s.client.V1Job) or api_response.metadata is None:
@@ -451,15 +546,6 @@ class KubernetesSystem(BaseModel, System):
         return job_name
 
     def _create_mpi_job(self, job_spec: Dict[Any, Any]) -> str:
-        """
-        Submit an MPIJob.
-
-        Args:
-            job_spec (Dict[Any, Any]): The MPIJob specification.
-
-        Returns:
-            str: The job name.
-        """
         api_response = self.custom_objects_api.create_namespaced_custom_object(
             group="kubeflow.org",
             version="v2beta1",
@@ -472,37 +558,33 @@ class KubernetesSystem(BaseModel, System):
         logging.debug(f"MPIJob '{job_name}' created with status: {api_response.get('status')}")
         return job_name
 
+    def _create_dynamo_graph_deployment(self, job_spec: Dict[Any, Any]) -> str:
+        api_response = self.custom_objects_api.create_namespaced_custom_object(
+            group="nvidia.com",
+            version="v1alpha1",
+            namespace=self.default_namespace,
+            plural="dynamographdeployments",
+            body=job_spec,
+        )
+
+        job_name: str = api_response["metadata"]["name"]
+        logging.debug(f"DynamoGraphDeployment '{job_name}' created with status: {api_response.get('status')}")
+        return job_name
+
     def _is_job_observable(self, job_name: str, job_kind: str) -> bool:
-        """
-        Check if a job is observable by the Kubernetes client.
-
-        Args:
-            job_name (str): The name of the job.
-            job_kind (str): The kind of the job (e.g., 'Job', 'MPIJob').
-
-        Returns:
-            bool: True if the job is observable, False otherwise.
-        """
         logging.debug(f"Checking if job '{job_name}' of kind '{job_kind}' is observable.")
 
         if "mpijob" in job_kind.lower():
             return self._is_mpijob_observable(job_name)
         elif "job" in job_kind.lower():
             return self._is_batch_job_observable(job_name)
+        elif "dynamographdeployment" in job_kind.lower():
+            return self._is_dynamo_graph_deployment_observable(job_name)
         else:
             logging.error(f"Unsupported job kind: '{job_kind}'")
             return False
 
     def _is_mpijob_observable(self, job_name: str) -> bool:
-        """
-        Check if an MPIJob is observable by the Kubernetes client.
-
-        Args:
-            job_name (str): The name of the MPIJob.
-
-        Returns:
-            bool: True if the MPIJob is observable, False otherwise.
-        """
         logging.debug(f"Attempting to observe MPIJob '{job_name}'.")
         try:
             api_instance = self.custom_objects_api
@@ -531,15 +613,6 @@ class KubernetesSystem(BaseModel, System):
                 raise
 
     def _is_batch_job_observable(self, job_name: str) -> bool:
-        """
-        Check if a batch job is observable by the Kubernetes client.
-
-        Args:
-            job_name (str): The name of the batch job.
-
-        Returns:
-            bool: True if the batch job is observable, False otherwise.
-        """
         logging.debug(f"Attempting to observe batch job '{job_name}'.")
         try:
             return self.batch_v1.read_namespaced_job_status(name=job_name, namespace=self.default_namespace) is not None
@@ -551,6 +624,35 @@ class KubernetesSystem(BaseModel, System):
                 logging.error(
                     f"An error occurred while checking if batch job '{job_name}' is observable: {e.reason}. "
                     f"Please check the job name, namespace, and Kubernetes API server."
+                )
+                raise
+
+    def _is_dynamo_graph_deployment_observable(self, job_name: str) -> bool:
+        logging.debug(f"Attempting to observe DynamoGraphDeployment '{job_name}'.")
+        try:
+            api_instance = self.custom_objects_api
+            deployment = api_instance.get_namespaced_custom_object(
+                group="nvidia.com",
+                version="v1alpha1",
+                namespace=self.default_namespace,
+                plural="dynamographdeployments",
+                name=job_name,
+            )
+            if deployment:
+                logging.debug(f"DynamoGraphDeployment '{job_name}' found with details: {deployment}.")
+                return True
+            else:
+                logging.debug(f"DynamoGraphDeployment '{job_name}' is not yet observable.")
+                return False
+        except lazy.k8s.client.ApiException as e:
+            if e.status == 404:
+                logging.debug(f"DynamoGraphDeployment '{job_name}' not found.")
+                return False
+            else:
+                logging.error(
+                    f"An error occurred while checking if DynamoGraphDeployment '{job_name}' "
+                    f"is observable: {e.reason}. Please check the job name, namespace, and "
+                    "Kubernetes API server."
                 )
                 raise
 
@@ -603,14 +705,14 @@ class KubernetesSystem(BaseModel, System):
                     log_file_path = output_dir / f"{pod_name}.txt"
                     with log_file_path.open("w") as log_file:
                         log_file.write(logs)
-                    logging.info(f"Logs for pod '{pod_name}' saved to '{log_file_path}'")
+                    logging.debug(f"Logs for pod '{pod_name}' saved to '{log_file_path}'")
 
                     stdout_file.write(logs + "\n")
 
                 except lazy.k8s.client.ApiException as e:
                     logging.error(f"Error retrieving logs for pod '{pod_name}': {e}")
 
-        logging.info(f"All logs concatenated and saved to '{stdout_file_path}'")
+        logging.debug(f"All logs concatenated and saved to '{stdout_file_path}'")
 
     def get_pod_names_for_job(self, job_name: str) -> List[str]:
         """
