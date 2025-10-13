@@ -26,7 +26,7 @@ description = "dse_nemo_run_llama3_8b"
 test_template_name = "NeMoRun"
 
     [Tests.cmd_args]
-    docker_image_url = "nvcr.io#nvidia/nemo:25.07"
+    docker_image_url = "nvcr.io#nvidia/nemo:25.09.00"
     task = "pretrain"
     recipe_name = "cloudai_llama3_8b_recipe"
     num_layers = 32
