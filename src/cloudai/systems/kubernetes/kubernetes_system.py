@@ -341,15 +341,26 @@ class KubernetesSystem(BaseModel, System):
             return False
 
     def _run_genai_perf(self, job: KubernetesJob) -> None:
-        if not job.python_executable or not job.python_executable.venv_path:
+        from cloudai.workloads.ai_dynamo.ai_dynamo import AIDynamoTestDefinition
+
+        test_definition = job.test_run.test.test_definition
+        if not isinstance(test_definition, AIDynamoTestDefinition):
+            raise TypeError("Test definition must be an instance of AIDynamoTestDefinition")
+
+        python_exec = test_definition.python_executable
+        if not python_exec or not python_exec.venv_path:
             raise ValueError("Python executable path not set - executable may not be installed")
-        if not job.genai_perf_args:
+
+        genai_perf_args_obj = test_definition.cmd_args.genai_perf
+        if not genai_perf_args_obj:
             raise ValueError("GenAI perf args not set")
-        if not job.output_path:
+
+        output_path = job.test_run.output_path
+        if not output_path:
             raise ValueError("Output path not set")
 
-        genai_perf_args = job.genai_perf_args.model_dump()
-        args = [f"--artifact-dir={job.output_path.absolute()}"]
+        genai_perf_args = genai_perf_args_obj.model_dump()
+        args = [f"--artifact-dir={output_path.absolute()}"]
         extra_args = None
 
         for k, v in genai_perf_args.items():
@@ -362,7 +373,7 @@ class KubernetesSystem(BaseModel, System):
             args.append(extra_args)
         args_str = " ".join(args)
 
-        venv_path = job.python_executable.venv_path.absolute()
+        venv_path = python_exec.venv_path.absolute()
         cmd = f". {venv_path}/bin/activate && genai-perf profile {args_str}"
         logging.debug("Running GenAI performance test with command:")
         logging.debug(cmd)

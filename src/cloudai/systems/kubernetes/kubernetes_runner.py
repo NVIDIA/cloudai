@@ -66,10 +66,6 @@ class KubernetesRunner(BaseRunner):
 
         self._install_python_packages(repo_root, venv_pip)
 
-        job.python_executable = python_exec
-        job.genai_perf_args = test_definition.cmd_args.genai_perf
-        job.output_path = tr.output_path
-
     def _install_python_packages(self, repo_root: Path, venv_pip: Path) -> None:
         installs = [
             ("perf_analyzer", repo_root),
