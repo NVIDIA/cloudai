@@ -398,15 +398,16 @@ class KubernetesSystem(BaseModel, System):
                 self._genai_perf_completed = True
                 return False
 
-        deployment = self.custom_objects_api.get_namespaced_custom_object(
-            group="nvidia.com",
-            version="v1alpha1",
-            namespace=self.default_namespace,
-            plural="dynamographdeployments",
-            name=job.name,
+        deployment = cast(
+            dict,
+            self.custom_objects_api.get_namespaced_custom_object(
+                group="nvidia.com",
+                version="v1alpha1",
+                namespace=self.default_namespace,
+                plural="dynamographdeployments",
+                name=job.name,
+            ),
         )
-
-        assert isinstance(deployment, dict)
         status: dict = cast(dict, deployment.get("status", {}))
         return self._check_deployment_conditions(status.get("conditions", []))
 
