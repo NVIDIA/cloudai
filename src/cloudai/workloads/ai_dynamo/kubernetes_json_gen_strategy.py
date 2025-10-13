@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
+import subprocess
+from pathlib import Path
 from typing import Any, Dict, cast
 
 import yaml
@@ -26,11 +29,38 @@ from .ai_dynamo import AIDynamoTestDefinition
 class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
     """JSON generation strategy for AI Dynamo on Kubernetes systems."""
 
+    def _install_python_packages(self, repo_root: Path, venv_pip: Path) -> None:
+        installs = [
+            ("perf_analyzer", repo_root),
+            ("genai-perf", repo_root / "genai-perf"),
+        ]
+
+        for package, path in installs:
+            install_cmd = f"cd {path} && {venv_pip} install ."
+            logging.info(f"Installing {package} with command: {install_cmd}")
+            subprocess.run(install_cmd, shell=True, capture_output=True, text=True, check=True)
+
+    def _setup_dynamo_graph_deployment(self, td: AIDynamoTestDefinition) -> None:
+        python_exec = td.python_executable
+        if not python_exec.venv_path:
+            raise ValueError(
+                f"The virtual environment for git repo {python_exec.git_repo} does not exist. "
+                "Please ensure to run installation before running the test."
+            )
+
+        venv_pip = python_exec.venv_path.absolute() / "bin" / "pip"
+        assert python_exec.git_repo.installed_path
+        repo_root = python_exec.git_repo.installed_path.absolute()
+
+        self._install_python_packages(repo_root, venv_pip)
+
     def gen_json(self, tr: TestRun) -> Dict[Any, Any]:
         td = cast(AIDynamoTestDefinition, tr.test.test_definition)
 
         if td.cmd_args.dynamo_graph_path is None:
             raise ValueError("dynamo_graph_path must be provided in cmd_args")
+
+        self._setup_dynamo_graph_deployment(td)
 
         with open(td.cmd_args.dynamo_graph_path, "r") as f:
             yaml_data = yaml.safe_load(f)
