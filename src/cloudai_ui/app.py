@@ -67,7 +67,7 @@ def create_app(results_root: Path):
     data_provider = LocalFileDataProvider(results_root)
 
     # Create stateful dashboard instances
-    nccl_dashboard = NCCLDashboard(data_provider)
+    nccl_dashboard = NCCLDashboard(data_provider, id_prefix="nccl")
 
     app.layout = html.Div([dcc.Location(id="url", refresh=False), html.Div(id="page-content")])
 
@@ -90,13 +90,16 @@ def create_app(results_root: Path):
             )
 
     @app.callback(
-        [Output("nccl-controls-container", "children"), Output("nccl-charts-container", "children")],
         [
-            Input("nccl-time-range", "value"),
-            Input("nccl-chart-controls", "value"),
-            Input("nccl-system-filter", "value"),
-            Input("nccl-scenario-filter", "value"),
-            Input("nccl-group-by", "value"),
+            Output(f"{nccl_dashboard.id_prefix}-controls-container", "children"),
+            Output(f"{nccl_dashboard.id_prefix}-charts-container", "children"),
+        ],
+        [
+            Input(f"{nccl_dashboard.id_prefix}-time-range", "value"),
+            Input(f"{nccl_dashboard.id_prefix}-chart-controls", "value"),
+            Input(f"{nccl_dashboard.id_prefix}-system-filter", "value"),
+            Input(f"{nccl_dashboard.id_prefix}-scenario-filter", "value"),
+            Input(f"{nccl_dashboard.id_prefix}-group-by", "value"),
         ],
     )
     def update_nccl_dashboard(time_range_days, selected_charts, selected_systems, selected_scenarios, group_by):

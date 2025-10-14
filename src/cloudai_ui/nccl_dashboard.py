@@ -47,11 +47,12 @@ class DashboardState:
 class NCCLDashboard:
     """Orchestrates data and presentation - thin coordination layer."""
 
-    def __init__(self, data_provider: DataProvider):
+    def __init__(self, data_provider: DataProvider, id_prefix: str = "nccl"):
         self.data_manager = NCCLDataManager(data_provider)
+        self.id_prefix = id_prefix
 
     def update_data(self, triggered_id: str, time_range_days: int | None) -> None:
-        if triggered_id == "nccl-time-range":
+        if triggered_id == f"{self.id_prefix}-time-range":
             self.data_manager.load_data(time_range_days)
 
     def update(
@@ -73,8 +74,12 @@ class NCCLDashboard:
 
         # Update controls when time range, system filter, or scenario filter changes
         # (to refresh cascading dropdown options)
-        if triggered_id in ("nccl-time-range", "nccl-system-filter", "nccl-scenario-filter"):
-            return (render_controls(state), render_charts(state))
+        if triggered_id in (
+            f"{self.id_prefix}-time-range",
+            f"{self.id_prefix}-system-filter",
+            f"{self.id_prefix}-scenario-filter",
+        ):
+            return (render_controls(state, self.id_prefix), render_charts(state))
 
         return (no_update, render_charts(state))
 
@@ -84,9 +89,9 @@ class NCCLDashboard:
             [
                 html.H3("NCCL Dashboard"),
                 # Controls Section
-                html.Div(render_controls(state), id="nccl-controls-container"),
+                html.Div(render_controls(state, self.id_prefix), id=f"{self.id_prefix}-controls-container"),
                 # Charts Container
-                html.Div(render_charts(state), id="nccl-charts-container"),
+                html.Div(render_charts(state), id=f"{self.id_prefix}-charts-container"),
             ],
             className="main-content",
         )
@@ -177,7 +182,7 @@ def get_grouping_options(data: list[Record]) -> list:
     return options
 
 
-def render_controls(state: DashboardState) -> html.Div:
+def render_controls(state: DashboardState, id_prefix: str) -> html.Div:
     grouping_options = get_grouping_options(state.filtered_data)
 
     return html.Div(
@@ -188,7 +193,7 @@ def render_controls(state: DashboardState) -> html.Div:
                     html.Div(
                         [
                             dcc.Dropdown(
-                                id="nccl-time-range",
+                                id=f"{id_prefix}-time-range",
                                 options=[
                                     {"label": "Last 7 days", "value": 7},
                                     {"label": "Last 14 days", "value": 14},
@@ -209,7 +214,7 @@ def render_controls(state: DashboardState) -> html.Div:
                             dcc.Dropdown(
                                 options=create_system_dropdown_options(state.available_systems),
                                 placeholder="Filter Systems",
-                                id="nccl-system-filter",
+                                id=f"{id_prefix}-system-filter",
                                 multi=True,
                                 value=state.selected_systems,
                             ),
@@ -221,7 +226,7 @@ def render_controls(state: DashboardState) -> html.Div:
                             dcc.Dropdown(
                                 options=create_scenario_dropdown_options(state.available_scenarios, state.all_data),
                                 placeholder="Filter Scenarios",
-                                id="nccl-scenario-filter",
+                                id=f"{id_prefix}-scenario-filter",
                                 multi=True,
                                 value=state.selected_scenarios,
                             ),
@@ -236,7 +241,7 @@ def render_controls(state: DashboardState) -> html.Div:
                 [
                     html.Label("Group By", style={"fontWeight": "bold", "marginRight": "1rem", "minWidth": "80px"}),
                     dcc.Dropdown(
-                        id="nccl-group-by",
+                        id=f"{id_prefix}-group-by",
                         options=grouping_options,
                         value=state.group_by,
                         placeholder="No grouping (all together)"
@@ -254,7 +259,7 @@ def render_controls(state: DashboardState) -> html.Div:
                 [
                     html.Label("Chart types", style={"fontWeight": "bold", "marginRight": "1rem"}),
                     dcc.Checklist(
-                        id="nccl-chart-controls",
+                        id=f"{id_prefix}-chart-controls",
                         options=[
                             {"label": " BW out-of-place", "value": "bandwidth_out"},
                             {"label": " BW in-place", "value": "bandwidth_in"},
