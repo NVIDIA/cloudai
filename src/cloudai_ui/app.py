@@ -79,7 +79,7 @@ def create_app(results_root: Path):
         if pathname == "/" or pathname is None:
             return create_main_page(dashboards, results_root)
         elif pathname == "/nccl":
-            return html.Div([create_header_navbar("nccl", dashboards), nccl_dashboard.create_nccl_page()])
+            return html.Div([create_header_navbar("nccl", dashboards), nccl_dashboard.create_page()])
         else:
             return html.Div(
                 [
