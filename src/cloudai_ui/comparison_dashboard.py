@@ -45,12 +45,12 @@ class DashboardState:
     group_by: list[str]
 
 
-class ComparissonDashboard(ABC):
-    """Abstract base class for test dashboards."""
+class ComparisonDashboard(ABC):
+    """Abstract base class for comparison dashboards."""
 
     def __init__(self, data_provider: DataProvider, id_prefix: str):
         self.id_prefix = id_prefix
-        self.data_manager = ComparissonDataManager(
+        self.data_manager = ComparisonDataManager(
             data_provider=data_provider,
             test_type=self.get_test_type(),
             default_charts=self.get_default_charts(),
@@ -142,7 +142,7 @@ class ComparissonDashboard(ABC):
         )
 
 
-class ComparissonDataManager:
+class ComparisonDataManager:
     """Base dashboard data manager."""
 
     def __init__(

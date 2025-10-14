@@ -26,11 +26,11 @@ from dash import dcc, html
 
 from cloudai.report_generator.groups import GroupItem
 
-from .comparisson_dashboard import ComparissonDashboard
+from .comparison_dashboard import ComparisonDashboard
 from .data_layer import DataProvider, Record
 
 
-class NCCLDashboard(ComparissonDashboard):
+class NCCLDashboard(ComparisonDashboard):
     """NCCL-specific dashboard implementation."""
 
     def __init__(self, data_provider: DataProvider, id_prefix: str = "nccl"):
@@ -41,10 +41,10 @@ class NCCLDashboard(ComparissonDashboard):
 
     def get_chart_options(self) -> list[Any]:
         return [
-            {"label": " BW out-of-place", "value": "bandwidth_out"},
-            {"label": " BW in-place", "value": "bandwidth_in"},
-            {"label": " Latency out-of-place", "value": "latency_out"},
-            {"label": " Latency in-place", "value": "latency_in"},
+            {"label": "BW out-of-place", "value": "bandwidth_out"},
+            {"label": "BW in-place", "value": "bandwidth_in"},
+            {"label": "Latency out-of-place", "value": "latency_out"},
+            {"label": "Latency in-place", "value": "latency_in"},
         ]
 
     def get_default_charts(self) -> list[str]:

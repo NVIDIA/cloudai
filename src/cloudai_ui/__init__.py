@@ -16,7 +16,7 @@
 
 """CloudAI UI — Dash.plotly based interactive visualization."""
 
-from .comparisson_dashboard import ComparissonDashboard, ComparissonDataManager, DashboardState
+from .comparison_dashboard import ComparisonDashboard, ComparisonDataManager, DashboardState
 from .nccl_dashboard import NCCLDashboard
 
-__all__ = ["ComparissonDashboard", "ComparissonDataManager", "DashboardState", "NCCLDashboard"]
+__all__ = ["ComparisonDashboard", "ComparisonDataManager", "DashboardState", "NCCLDashboard"]
