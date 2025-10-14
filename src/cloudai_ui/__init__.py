@@ -14,4 +14,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""CloudAI Web UI package for result visualization."""
+"""CloudAI UI — Dash.plotly based interactive visualization."""

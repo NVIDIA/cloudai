@@ -30,7 +30,7 @@ dependencies = [
   "click>=8.2.1",
 ]
 requires-python = ">=3.10"
-scripts = { cloudai = "cloudai.cli:main", "cloudai-ui" = "cloudai_ui.cli:main", "cloudai-ui2" = "cloudai_ui2.cli:main" }
+scripts = { cloudai = "cloudai.cli:main", "cloudai-ui" = "cloudai_ui.cli:main" }
 
   [project.optional-dependencies]
   dev = [
@@ -46,8 +46,7 @@ scripts = { cloudai = "cloudai.cli:main", "cloudai-ui" = "cloudai_ui.cli:main", 
     "pytest-deadfixtures==2.2.*",
     "taplo==0.9.3",
   ]
-  ui = ["flask>=2.3.0"]
-  ui2 = ["dash>=2.14.0", "plotly>=5.15.0"]
+  ui = ["dash>=2.14.0", "plotly>=5.15.0"]
   docs = [
     "sphinx>=7.0",
     "nvidia-sphinx-theme",

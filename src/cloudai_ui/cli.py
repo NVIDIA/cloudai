@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""CloudAI Web UI CLI."""
+"""CloudAI Web UI CLI - Dash.plotly based."""
 
 from pathlib import Path
 
@@ -31,14 +31,14 @@ from .app import create_app
     type=click.Path(exists=True, resolve_path=True, path_type=Path, file_okay=False, dir_okay=True),
 )
 @click.option("--host", default="localhost", help="Host to bind to")
-@click.option("--port", default=8000, help="Port to bind to", type=int)
+@click.option("--port", default=8050, help="Port to bind to", type=int)  # Dash default port
 @click.option("--debug", is_flag=True, help="Enable debug mode")
 def main(results_dir: Path, host: str, port: int, debug: bool):
-    """Run the CloudAI Web UI Flask development server."""
+    """Run the CloudAI Web UI development server."""
     app = create_app(results_dir)
 
     click.echo("=" * 60)
-    click.echo("CloudAI Web UI")
+    click.echo("CloudAI Web UI ")
     click.echo("=" * 60)
     click.echo(f"Results directory: {results_dir}")
     click.echo(f"URL: http://{host}:{port}")

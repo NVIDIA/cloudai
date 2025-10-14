@@ -250,9 +250,6 @@ docs = [
     { name = "sphinxext-opengraph" },
 ]
 ui = [
-    { name = "flask" },
-]
-ui2 = [
     { name = "dash" },
     { name = "plotly" },
 ]
@@ -262,8 +259,7 @@ requires-dist = [
     { name = "bokeh", specifier = "==3.4.1" },
     { name = "build", marker = "extra == 'dev'", specifier = "==1.2.*" },
     { name = "click", specifier = ">=8.2.1" },
-    { name = "dash", marker = "extra == 'ui2'", specifier = ">=2.14.0" },
-    { name = "flask", marker = "extra == 'ui'", specifier = ">=2.3.0" },
+    { name = "dash", marker = "extra == 'ui'", specifier = ">=2.14.0" },
     { name = "import-linter", marker = "extra == 'dev'", specifier = "==2.3.*" },
     { name = "jinja2", specifier = "==3.1.6" },
     { name = "kubernetes", specifier = "==30.1.0" },
@@ -271,7 +267,7 @@ requires-dist = [
     { name = "nvidia-sphinx-theme", marker = "extra == 'docs'" },
     { name = "pandas", specifier = "==2.2.1" },
     { name = "pandas-stubs", marker = "extra == 'dev'", specifier = "==2.2.*" },
-    { name = "plotly", marker = "extra == 'ui2'", specifier = ">=5.15.0" },
+    { name = "plotly", marker = "extra == 'ui'", specifier = ">=5.15.0" },
     { name = "pydantic", specifier = "==2.8.2" },
     { name = "pyright", marker = "extra == 'dev'", specifier = "==1.1.400" },
     { name = "pytest", marker = "extra == 'dev'", specifier = "==8.3.*" },
@@ -291,7 +287,7 @@ requires-dist = [
     { name = "vulture", marker = "extra == 'dev'", specifier = "==2.14" },
     { name = "websockets", specifier = "==15.0.1" },
 ]
-provides-extras = ["dev", "ui", "ui2", "docs"]
+provides-extras = ["dev", "ui", "docs"]
 
 [[package]]
 name = "colorama"
