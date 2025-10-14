@@ -14,6 +14,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import warnings
+from importlib.metadata import entry_points
+
+
+def register_entrypoint_agents():
+    from cloudai.configurator.base_agent import BaseAgent
+    from cloudai.core import Registry
+
+    eps = entry_points(group="cloudai.agents")
+    for ep in eps:
+        cls = ep.load()
+        if issubclass(cls, BaseAgent):
+            Registry().add_agent(ep.name, cls)
+        else:
+            warnings.warn(
+                f"Skipping entrypoint: {ep.name} -> {ep.value} class={cls} (not a subclass of BaseAgent)", stacklevel=2
+            )
+
 
 def register_all():
     """Register all workloads, systems, runners, installers, and strategies."""
@@ -37,6 +55,7 @@ def register_all():
     from cloudai.systems.slurm import SlurmInstaller, SlurmRunner, SlurmSystem
     from cloudai.systems.standalone import StandaloneInstaller, StandaloneRunner, StandaloneSystem
     from cloudai.workloads.ai_dynamo import (
+        AIDynamoKubernetesJsonGenStrategy,
         AIDynamoReportGenerationStrategy,
         AIDynamoSlurmCommandGenStrategy,
         AIDynamoTestDefinition,
@@ -165,6 +184,9 @@ def register_all():
     Registry().add_command_gen_strategy(SlurmSystem, NixlPerftestTestDefinition, NixlPerftestSlurmCommandGenStrategy)
 
     Registry().add_command_gen_strategy(SlurmSystem, AIDynamoTestDefinition, AIDynamoSlurmCommandGenStrategy)
+    Registry().add_strategy(
+        JsonGenStrategy, [KubernetesSystem], [AIDynamoTestDefinition], AIDynamoKubernetesJsonGenStrategy
+    )
     Registry().add_command_gen_strategy(SlurmSystem, BashCmdTestDefinition, BashCmdCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NIXLKVBenchTestDefinition, NIXLKVBenchSlurmCommandGenStrategy)
 
@@ -233,3 +255,5 @@ def register_all():
     Registry().add_reward_function("ai_dynamo_weighted_normalized", ai_dynamo_weighted_normalized_reward)
     Registry().add_reward_function("ai_dynamo_ratio_normalized", ai_dynamo_ratio_normalized_reward)
     Registry().add_reward_function("ai_dynamo_log_scale", ai_dynamo_log_scale_reward)
+
+    register_entrypoint_agents()

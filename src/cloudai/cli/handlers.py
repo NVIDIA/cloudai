@@ -403,12 +403,14 @@ def verify_system_configs(system_tomls: List[Path]) -> int:
             try:
                 with _ensure_kube_config_exists(system_toml, content):
                     Parser.parse_system(system_toml)
-            except Exception:
+            except Exception as e:
+                logging.debug(f"Failed to parse system config {system_toml}: {e}", exc_info=True)
                 nfailed += 1
         else:
             try:
                 Parser.parse_system(system_toml)
-            except Exception:
+            except Exception as e:
+                logging.debug(f"Failed to parse system config {system_toml}: {e}", exc_info=True)
                 nfailed += 1
 
     if nfailed:
@@ -539,15 +541,21 @@ def load_tomls_by_type(tomls: List[Path]) -> dict[str, List[Path]]:
     return files
 
 
-def handle_list_registered_items(args: argparse.Namespace) -> int:
-    item_type = args.type
+def handle_list_registered_items(item_type: str, verbose: bool) -> int:
     registry = Registry()
-    if item_type == "reports":
-        print("Registered scenario reports:")
+    if item_type.lower() == "reports":
+        print("Available scenario reports:")
         for idx, (name, report) in enumerate(sorted(registry.scenario_reports.items()), start=1):
             str = f'{idx}. "{name}" {report.__name__}'
-            if args.verbose:
+            if verbose:
                 str += f" (config={registry.report_configs[name].model_dump_json(indent=None)})"
+            print(str)
+    elif item_type.lower() == "agents":
+        print("Available agents:")
+        for idx, (name, agent) in enumerate(sorted(registry.agents_map.items()), start=1):
+            str = f'{idx}. "{name}" class={agent.__name__}'
+            if verbose:
+                str += f"{agent.__doc__}"
             print(str)
 
     return 0
