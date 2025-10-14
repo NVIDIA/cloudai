@@ -24,7 +24,7 @@ from typing import Any
 
 from dash import dcc, html, no_update
 
-from cloudai.report_generator.groups import ItemsGrouper
+from cloudai.report_generator.groups import GroupedItems, ItemsGrouper
 from cloudai.report_generator.util import diff_test_runs
 
 from .data_layer import DataProvider, DataQuery, Record
@@ -83,7 +83,7 @@ class ComparisonDashboard(ABC):
         pass
 
     @abstractmethod
-    def render_charts_for_group(self, group: Any, selected_charts: list[str]) -> list[Any]:
+    def render_charts_for_group(self, group: GroupedItems[Record], selected_charts: list[str]) -> list[Any]:
         """Render charts for a specific group. Returns list of Dash components."""
         pass
 

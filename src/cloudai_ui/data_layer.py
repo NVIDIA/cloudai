@@ -30,6 +30,7 @@ from cloudai.reporter import SlurmReportItem
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nccl_test import NCCLTestDefinition
 from cloudai.workloads.nccl_test.performance_report_generation_strategy import extract_nccl_data
+from cloudai.workloads.nixl_bench import NIXLBenchTestDefinition
 
 
 @dataclass
@@ -181,19 +182,22 @@ class LocalFileDataProvider(DataProvider):
 
     def query_data(self, query: DataQuery) -> list[Record]:
         """Load and filter data based on query (ignores time range for local files)."""
-        nccl_data: list[Record] = []
+        records: list[Record] = []
         for scenario in self.filtered_scenarios(query):
             for test_run in scenario.test_runs:
-                if not isinstance(test_run.test.test_definition, NCCLTestDefinition):
-                    continue
+                df = pd.DataFrame()
 
-                df = extract_nccl_data_as_df(test_run)
+                if isinstance(test_run.test.test_definition, NCCLTestDefinition):
+                    df = extract_nccl_data_as_df(test_run)
+                elif isinstance(test_run.test.test_definition, NIXLBenchTestDefinition):
+                    df = extract_nixl_data_as_df(test_run)
+
                 if not df.empty:
-                    nccl_data.append(
+                    records.append(
                         Record(test_run=test_run, df=df, scenario_name=scenario.name, timestamp=scenario.timestamp)
                     )
 
-        return nccl_data
+        return records
 
     def filtered_scenarios(self, query: DataQuery) -> list[TestScenarioInfo]:
         filtered_scenarios: list[TestScenarioInfo] = []
@@ -223,6 +227,19 @@ class LocalFileDataProvider(DataProvider):
                 filtered_scenarios.append(filtered_scenario)
 
         return filtered_scenarios
+
+
+def extract_nixl_data_as_df(tr: TestRun) -> pd.DataFrame:
+    if (tr.output_path / "nixlbench.csv").exists():
+        return pd.read_csv(tr.output_path / "nixlbench.csv")
+    return pd.DataFrame(
+        {
+            "block_size": pd.Series([], dtype=int),
+            "batch_size": pd.Series([], dtype=int),
+            "avg_lat": pd.Series([], dtype=float),
+            "bw_gb_sec": pd.Series([], dtype=float),
+        }
+    )
 
 
 def extract_nccl_data_as_df(test_run: TestRun) -> pd.DataFrame:

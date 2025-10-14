@@ -23,11 +23,12 @@ from dash import Input, Output, ctx, dcc, html
 
 from .data_layer import LocalFileDataProvider
 from .nccl_dashboard import NCCLDashboard
+from .nixl_dashboard import NIXLDashboard
 
 
 def available_dashboards() -> list[str]:
     """Determine available dashboard types based on data availability."""
-    return ["nccl"]
+    return ["nccl", "nixl"]
 
 
 def create_header_navbar(current_page: str, available_dashboards: list[str]):
@@ -68,6 +69,7 @@ def create_app(results_root: Path):
 
     # Create stateful dashboard instances
     nccl_dashboard = NCCLDashboard(data_provider, id_prefix="nccl")
+    nixl_dashboard = NIXLDashboard(data_provider, id_prefix="nixl")
 
     app.layout = html.Div([dcc.Location(id="url", refresh=False), html.Div(id="page-content")])
 
@@ -80,6 +82,8 @@ def create_app(results_root: Path):
             return create_main_page(dashboards, results_root)
         elif pathname == "/nccl":
             return html.Div([create_header_navbar("nccl", dashboards), nccl_dashboard.create_page()])
+        elif pathname == "/nixl":
+            return html.Div([create_header_navbar("nixl", dashboards), nixl_dashboard.create_page()])
         else:
             return html.Div(
                 [
@@ -105,6 +109,25 @@ def create_app(results_root: Path):
     def update_nccl_dashboard(time_range_days, selected_charts, selected_systems, selected_scenarios, group_by):
         """Update NCCL dashboard."""
         return nccl_dashboard.update(
+            ctx.triggered_id, time_range_days, selected_charts, selected_systems, selected_scenarios, group_by
+        )
+
+    @app.callback(
+        [
+            Output(f"{nixl_dashboard.id_prefix}-controls-container", "children"),
+            Output(f"{nixl_dashboard.id_prefix}-charts-container", "children"),
+        ],
+        [
+            Input(f"{nixl_dashboard.id_prefix}-time-range", "value"),
+            Input(f"{nixl_dashboard.id_prefix}-chart-controls", "value"),
+            Input(f"{nixl_dashboard.id_prefix}-system-filter", "value"),
+            Input(f"{nixl_dashboard.id_prefix}-scenario-filter", "value"),
+            Input(f"{nixl_dashboard.id_prefix}-group-by", "value"),
+        ],
+    )
+    def update_nixl_dashboard(time_range_days, selected_charts, selected_systems, selected_scenarios, group_by):
+        """Update NIXL dashboard."""
+        return nixl_dashboard.update(
             ctx.triggered_id, time_range_days, selected_charts, selected_systems, selected_scenarios, group_by
         )
 
@@ -143,6 +166,7 @@ def create_compact_dashboard_card(dashboard: str):
     """Create a compact dashboard card component."""
     description = {
         "nccl": " • NCCL performance analysis",
+        "nixl": " • NIXL benchmark performance",
     }.get(dashboard, f" • {dashboard.title()} dashboard")
 
     return html.Div(

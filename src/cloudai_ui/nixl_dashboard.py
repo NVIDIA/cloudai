@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""NCCL-specific dashboard implementation."""
+"""NIXL-specific dashboard implementation."""
 
 from __future__ import annotations
 
@@ -30,40 +30,36 @@ from .comparison_dashboard import ComparisonDashboard
 from .data_layer import DataProvider, Record
 
 
-class NCCLDashboard(ComparisonDashboard):
-    """NCCL-specific dashboard implementation."""
+class NIXLDashboard(ComparisonDashboard):
+    """NIXL-specific dashboard implementation."""
 
-    def __init__(self, data_provider: DataProvider, id_prefix: str = "nccl"):
+    def __init__(self, data_provider: DataProvider, id_prefix: str = "nixl"):
         super().__init__(data_provider, id_prefix)
 
     def get_test_type(self) -> str:
-        return "nccl"
+        return "nixlbench"
 
     def get_chart_options(self) -> list[Any]:
         return [
-            {"label": "BW out-of-place", "value": "bandwidth_out"},
-            {"label": "BW in-place", "value": "bandwidth_in"},
-            {"label": "Latency out-of-place", "value": "latency_out"},
-            {"label": "Latency in-place", "value": "latency_in"},
+            {"label": "Bandwidth", "value": "bandwidth"},
+            {"label": "Latency", "value": "latency"},
         ]
 
     def get_default_charts(self) -> list[str]:
-        return ["bandwidth_out"]
+        return ["bandwidth"]
 
     def get_default_grouping(self) -> list[str]:
-        return ["subtest_name"]
+        return ["op_type"]
 
     def get_page_title(self) -> str:
-        return "NCCL Dashboard"
+        return "NIXL Benchmark Dashboard"
 
     def render_charts_for_group(self, group: GroupedItems[Record], selected_charts: list[str]) -> list[Any]:
-        """Render NCCL-specific charts for a group."""
+        """Render NIXL-specific charts for a group."""
         group_content = []
 
-        # Check if any bandwidth charts are selected
-        bandwidth_charts = [chart for chart in selected_charts if chart.startswith("bandwidth_")]
-        if bandwidth_charts:
-            bandwidth_fig = create_bandwidth_chart(group.items, bandwidth_charts)
+        if "bandwidth" in selected_charts:
+            bandwidth_fig = create_bandwidth_chart(group.items)
             group_content.extend(
                 [
                     html.H4("Bandwidth"),
@@ -79,10 +75,8 @@ class NCCLDashboard(ComparisonDashboard):
                 ]
             )
 
-        # Check if any latency charts are selected
-        latency_charts = [chart for chart in selected_charts if chart.startswith("latency_")]
-        if latency_charts:
-            latency_fig = create_latency_chart(group.items, latency_charts)
+        if "latency" in selected_charts:
+            latency_fig = create_latency_chart(group.items)
             group_content.extend(
                 [
                     html.H4("Latency"),
@@ -101,62 +95,60 @@ class NCCLDashboard(ComparisonDashboard):
         return group_content
 
 
-def create_bandwidth_chart(nccl_data: list[GroupItem[Record]], selected_bandwidth_charts: list[str]) -> go.Figure:
-    """Create bandwidth chart for NCCL test runs."""
-    return create_nccl_chart(
-        nccl_data=nccl_data,
-        selected_charts=selected_bandwidth_charts,
+# ============================================================================
+# NIXL-SPECIFIC MOCK CHART FUNCTIONS
+# ============================================================================
+
+
+def create_bandwidth_chart(nixl_data: list[GroupItem[Record]]) -> go.Figure:
+    """Create bandwidth chart for NIXL test runs."""
+    return create_nixl_chart(
+        nixl_data=nixl_data,
         chart_prefix="bandwidth",
-        y_column_prefix="Busbw (GB/s)",
+        y_column_prefix="bw_gb_sec",
         hover_unit="GB/s",
     )
 
 
-def create_latency_chart(nccl_data: list[GroupItem[Record]], selected_latency_charts: list[str]) -> go.Figure:
-    """Create latency chart for NCCL test runs."""
-    return create_nccl_chart(
-        nccl_data=nccl_data,
-        selected_charts=selected_latency_charts,
+def create_latency_chart(nixl_data: list[GroupItem[Record]]) -> go.Figure:
+    """Create latency chart for NIXL test runs."""
+    return create_nixl_chart(
+        nixl_data=nixl_data,
         chart_prefix="latency",
-        y_column_prefix="Time (us)",
+        y_column_prefix="avg_lat",
         hover_unit="μs",
     )
 
 
-def create_nccl_chart(
-    nccl_data: list[GroupItem[Record]],
-    selected_charts: list[str],
-    chart_prefix: str,
-    y_column_prefix: str,
-    hover_unit: str,
+def create_nixl_chart(
+    nixl_data: list[GroupItem[Record]], chart_prefix: str, y_column_prefix: str, hover_unit: str
 ) -> go.Figure:
     fig = go.Figure()
     colors = px.colors.qualitative.Set1
 
-    for i, data in enumerate(nccl_data):
+    for i, data in enumerate(nixl_data):
         df = data.item.df
         label = data.item.label
         color = colors[i % len(colors)]
 
-        for chart in selected_charts:
-            fig_label = "In-place" if chart == f"{chart_prefix}_in" else "Out-of-place"
-            fig.add_trace(
-                go.Scatter(
-                    x=df["Size (B)"],
-                    y=df[f"{y_column_prefix} {fig_label}"],
-                    mode="lines+markers",
-                    name=f"{label} {data.name} ({fig_label})",
-                    line=dict(color=color, width=2),
-                    marker=dict(size=6),
-                    hovertemplate="<b>%{fullData.name}</b><br>"
-                    + "Size: %{x:,} B<br>"
-                    + f"{chart_prefix.title()}: %{{y:.2f}} {hover_unit}<br>"
-                    + "<extra></extra>",
-                )
+        fig_label = chart_prefix.title()
+        fig.add_trace(
+            go.Scatter(
+                x=df["block_size"],
+                y=df[y_column_prefix],
+                mode="lines+markers",
+                name=f"{label} {data.name} ({fig_label})",
+                line=dict(color=color, width=2),
+                marker=dict(size=6),
+                hovertemplate="<b>%{fullData.name}</b><br>"
+                + "Size: %{x:,} B<br>"
+                + f"{chart_prefix.title()}: %{{y:.2f}} {hover_unit}<br>"
+                + "<extra></extra>",
             )
+        )
 
     fig.update_layout(
-        xaxis_title="Size (B)",
+        xaxis_title="Block Size (B)",
         yaxis_title=f"{chart_prefix.title()} ({hover_unit})",
         xaxis_type="log",
         hovermode="closest",
