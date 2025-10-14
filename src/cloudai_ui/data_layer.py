@@ -111,7 +111,6 @@ class LocalFileDataProvider(DataProvider):
                     error=error,
                 )
             )
-            print(f"Added scenario: {scenario_name} (error: {error})")
 
         # Sort by timestamp, newest first
         scenarios.sort(key=lambda x: x.timestamp, reverse=True)

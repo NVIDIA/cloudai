@@ -17,47 +17,24 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Any
 
-import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from dash import dcc, html, no_update
 
-from cloudai.core import TestRun
 from cloudai.report_generator.groups import GroupItem, ItemsGrouper
 from cloudai.report_generator.util import diff_test_runs
-from cloudai.workloads.nccl_test import NCCLTestDefinition
-from cloudai.workloads.nccl_test.performance_report_generation_strategy import extract_nccl_data
 
-from .data_layer import DataProvider, DataQuery
-
-
-@dataclass(frozen=True)
-class NCCLRecord:
-    """Immutable NCCL test run data."""
-
-    test_run: TestRun
-    df: pd.DataFrame
-    scenario_name: str
-    timestamp: datetime
-
-    @property
-    def label(self) -> str:
-        return f"{self.scenario_name} - {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
-
-    @property
-    def system_name(self) -> str:
-        return self.test_run.test.test_template.system.name
+from .data_layer import DataProvider, DataQuery, Record
 
 
 @dataclass(frozen=True)
 class DashboardState:
     """Immutable state snapshot for rendering."""
 
-    all_data: list[NCCLRecord]
-    filtered_data: list[NCCLRecord]
+    all_data: list[Record]
+    filtered_data: list[Record]
     available_scenarios: list[str]  # Scenario labels available after system filter
     available_systems: list[str]  # System names available after scenario filter
     time_range_days: int
@@ -120,7 +97,7 @@ class NCCLDataManager:
 
     def __init__(self, data_provider: DataProvider):
         self.data_provider = data_provider
-        self._cached_data: list[NCCLRecord] | None = None
+        self._cached_data: list[Record] | None = None
         self.time_range_days: int = 30
 
     def load_data(self, time_range_days: int | None = None) -> None:
@@ -129,16 +106,18 @@ class NCCLDataManager:
             self._cached_data = None
 
         if self._cached_data is None:
-            self._cached_data = self._collect_nccl_data()
+            self._cached_data = self.data_provider.query_data(
+                DataQuery(test_type="nccl", time_range_days=self.time_range_days)
+            )
 
-    def get_data(self) -> list[NCCLRecord]:
+    def get_data(self) -> list[Record]:
         if self._cached_data is None:
             self.load_data()
         return self._cached_data or []
 
     def apply_filters(
-        self, data: list[NCCLRecord], selected_systems: list[str] | None, selected_scenarios: list[str] | None
-    ) -> list[NCCLRecord]:
+        self, data: list[Record], selected_systems: list[str] | None, selected_scenarios: list[str] | None
+    ) -> list[Record]:
         if selected_systems:
             data = [d for d in data if d.system_name in selected_systems]
 
@@ -182,34 +161,13 @@ class NCCLDataManager:
             group_by=group_by,
         )
 
-    def _collect_nccl_data(self) -> list[NCCLRecord]:
-        query = DataQuery(test_type="nccl", time_range_days=self.time_range_days)
-        scenarios = self.data_provider.query_data(query)
-
-        nccl_data: list[NCCLRecord] = []
-        for scenario in scenarios:
-            for test_run in scenario.test_runs:
-                if isinstance(test_run.test.test_definition, NCCLTestDefinition):
-                    df = extract_nccl_data_as_df(test_run)
-                    if not df.empty:
-                        nccl_data.append(
-                            NCCLRecord(
-                                test_run=test_run,
-                                df=df,
-                                scenario_name=scenario.name,
-                                timestamp=scenario.timestamp,
-                            )
-                        )
-
-        return nccl_data
-
 
 # ============================================================================
 # PRESENTATION LAYER
 # ============================================================================
 
 
-def get_grouping_options(data: list[NCCLRecord]) -> list:
+def get_grouping_options(data: list[Record]) -> list:
     """Get available grouping options from filtered data."""
     if not data:
         return []
@@ -347,7 +305,7 @@ def render_charts(state: DashboardState) -> Any:
     if not state.filtered_data:
         return html.Div(html.P("No NCCL test runs found.", className="text-muted"))
 
-    groups = ItemsGrouper[NCCLRecord](items=state.filtered_data, group_by=state.group_by).groups()
+    groups = ItemsGrouper[Record](items=state.filtered_data, group_by=state.group_by).groups()
 
     selected_charts = state.selected_charts
     charts = []
@@ -415,7 +373,7 @@ def render_charts(state: DashboardState) -> Any:
 # ============================================================================
 
 
-def create_scenario_dropdown_options(scenario_labels: list[str], all_data: list[NCCLRecord]) -> list:
+def create_scenario_dropdown_options(scenario_labels: list[str], all_data: list[Record]) -> list:
     """Create scenario dropdown options with result counts."""
     # Count occurrences in all_data for each available scenario label
     label_counts: dict[str, int] = {}
@@ -437,52 +395,8 @@ def create_system_dropdown_options(system_names: list[str]) -> list:
     return [{"label": system, "value": system} for system in system_names]
 
 
-def extract_nccl_data_as_df(test_run: TestRun) -> pd.DataFrame:
-    stdout_path = test_run.output_path / "stdout.txt"
-
-    if not stdout_path.exists():
-        return pd.DataFrame()
-
-    parsed_data_rows, gpu_type, num_devices_per_node, num_ranks = extract_nccl_data(stdout_path)
-    if not parsed_data_rows:
-        return pd.DataFrame()
-
-    df = pd.DataFrame(
-        parsed_data_rows,
-        columns=[
-            "Size (B)",
-            "Count",
-            "Type",
-            "Redop",
-            "Root",
-            "Time (us) Out-of-place",
-            "Algbw (GB/s) Out-of-place",
-            "Busbw (GB/s) Out-of-place",
-            "#Wrong Out-of-place",
-            "Time (us) In-place",
-            "Algbw (GB/s) In-place",
-            "Busbw (GB/s) In-place",
-            "#Wrong In-place",
-        ],
-    )
-
-    df["GPU Type"] = gpu_type
-    df["Devices per Node"] = num_devices_per_node
-    df["Ranks"] = num_ranks
-
-    df["Size (B)"] = df["Size (B)"].astype(int)
-    df["Time (us) Out-of-place"] = df["Time (us) Out-of-place"].astype(float).round(2)
-    df["Time (us) In-place"] = df["Time (us) In-place"].astype(float).round(2)
-    df["Algbw (GB/s) Out-of-place"] = df["Algbw (GB/s) Out-of-place"].astype(float)
-    df["Busbw (GB/s) Out-of-place"] = df["Busbw (GB/s) Out-of-place"].astype(float)
-    df["Algbw (GB/s) In-place"] = df["Algbw (GB/s) In-place"].astype(float)
-    df["Busbw (GB/s) In-place"] = df["Busbw (GB/s) In-place"].astype(float)
-
-    return df
-
-
 def create_nccl_chart(
-    nccl_data: list[GroupItem[NCCLRecord]],
+    nccl_data: list[GroupItem[Record]],
     selected_charts: list[str],
     chart_prefix: str,
     y_column_prefix: str,
@@ -537,7 +451,7 @@ def create_nccl_chart(
     return fig
 
 
-def create_bandwidth_chart(nccl_data: list[GroupItem[NCCLRecord]], selected_bandwidth_charts: list[str]) -> go.Figure:
+def create_bandwidth_chart(nccl_data: list[GroupItem[Record]], selected_bandwidth_charts: list[str]) -> go.Figure:
     """Create bandwidth chart for NCCL test runs."""
     return create_nccl_chart(
         nccl_data=nccl_data,
@@ -548,7 +462,7 @@ def create_bandwidth_chart(nccl_data: list[GroupItem[NCCLRecord]], selected_band
     )
 
 
-def create_latency_chart(nccl_data: list[GroupItem[NCCLRecord]], selected_latency_charts: list[str]) -> go.Figure:
+def create_latency_chart(nccl_data: list[GroupItem[Record]], selected_latency_charts: list[str]) -> go.Figure:
     """Create latency chart for NCCL test runs."""
     return create_nccl_chart(
         nccl_data=nccl_data,
