@@ -35,7 +35,7 @@ class NixlPerftestCmdArgs(CmdArgs):
     subtest: Literal["sequential-ct-perftest"]
     perftest_script: str = "/workspace/nixl/benchmark/kvbench/main.py"
     matgen_script: str = "/workspace/nixl/benchmark/kvbench/test/inference_workload_matgen.py"
-    python_executable: str = "/workspace/nixl/.venv/bin/python"
+    python_executable: str = "python"
     etcd_path: str = "etcd"
     wait_etcd_for: int = 60
 
