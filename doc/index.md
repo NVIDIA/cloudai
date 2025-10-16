@@ -135,8 +135,9 @@ cloudai generate-report\
     --test-scenario conf/common/test_scenario/sleep.toml\
     --result-dir /path/to/result_directory
 ```
-In the generate-report mode, use the --result-dir argument to specify a subdirectory under the output directory.
+In the generate-report mode, use the `--result-dir` argument to specify a subdirectory under the output directory.
 This subdirectory is usually named with a timestamp for unique identification.
+
 (uninstall)=
 ### uninstall
 To uninstall test prerequisites, run CloudAI CLI in uninstall mode:
@@ -146,7 +147,9 @@ cloudai uninstall\
     --tests-dir conf/common/test\
     --test-scenario conf/common/test_scenario/sleep.toml
 ```
-Verify TOML configs:
+
+(verify-configs)=
+### verify-configs
 ```bash
 # verify all at once
 cloudai verify-configs conf

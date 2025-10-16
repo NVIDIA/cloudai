@@ -70,7 +70,7 @@ Registry().add_test_template("MyTest", MyTest)
 ```
 Relevant Test Configs should specify `test_template_name = MyTest` to use the custom test definition.
 
-## Step 3: System Configuration
+## Step 4: System Configuration
 System configuration describes the system configuration. You can find more examples of system configs under `conf/common/system/`. Our example will be small for demonstration purposes. Below is the `myconfig/system.toml` file:
 ```toml
 name = "my-cluster"
@@ -90,7 +90,7 @@ name = "partition_1"
 ```
 Replace `<YOUR PARTITION NAME>` with the name of the partition you want to use. You can find the partition name by running `sinfo` on the cluster.
 
-## Step 4: Install Test Requirements
+## Step 5: Install Test Requirements
 Once all configs are ready, it is time to install test requirements. It is done once so that you can run multiple experiments without reinstalling the requirements. This step requires the system config file from the step 3.
 ```bash
 cloudai install \
@@ -98,7 +98,7 @@ cloudai install \
    --tests-dir myconfig/tests/
 ```
 
-## Step 5: Test Configuration
+## Step 6: Test Configuration
 Test Configuration describes a particular test configuration to be run. It is based on Test definition and will be used in Test Sceanrio. Below is the `myconfig/tests/nccl_test.toml` file, definition is based on built-in `NcclTest` definition:
 ```toml
 name = "nccl_test_all_reduce_single_node"
@@ -116,7 +116,7 @@ extra_cmd_args = "--stepfactor 2"
 ```
 You can find more examples under `conf/common/test`. In a test schema file, you can adjust arguments as shown above. In the `cmd_args` section, you can provide different values other than the default values for each argument. In `extra_cmd_args`, you can provide additional arguments that will be appended after the NCCL test command. You can specify additional environment variables in the `extra_env_vars` section.
 
-## Step 6: Run Experiments
+## Step 7: Run Experiments
 Test Scenario uses Test description from step 5. Below is the `myconfig/scenario.toml` file:
 ```toml
 name = "nccl-test"
@@ -147,7 +147,7 @@ Notes on the test scenario:
    All dependencies are described as a pair of the depending test name and a delay. The name should be taken from the test name as set in the test scenario. The delay is described in the number of seconds.
 
 
-To generate NCCL test commands without actual execution, use the `dry-run` mode. You can review `debug.log` (or other file specifued with `--log-file`) to see the generated commands from CloudAI. Please note that group node allocations are not currently supported in the `dry-run` mode.
+To generate NCCL test commands without actual execution, use the `dry-run` mode. You can review `debug.log` (or other file specified with `--log-file`) to see the generated commands from CloudAI. Please note that group node allocations are not currently supported in the `dry-run` mode.
 ```bash
 cloudai dry-run \
     --test-scenario myconfig/scenario.toml \
@@ -163,7 +163,7 @@ cloudai run \
     --tests-dir myconfig/tests/
 ```
 
-## Step 7: Generate Reports
+## Step 8: Generate Reports
 Once the test scenario is completed, you can generate reports using the following command:
 ```bash
 cloudai generate-report \
@@ -392,9 +392,9 @@ rm_extracted: False # Preprocess script will remove extracted files after prepro
 You can update the fields to adjust the behavior. For example, you can update the file_numbers field to adjust the number of dataset files to download. This will allow you to save disk space.
 
 ## Note: For running Nemo Llama model, it is important to follow these additional steps:
-1. Go to https://huggingface.co/docs/transformers/en/model_doc/llama.
-2. Follow the instructions under 'Usage Tips' on how to download the tokenizer.
-3. Replace "training.model.tokenizer.model=TOKENIZER_MODEL" with "training.model.tokenizer.model=YOUR_TOKENIZER_PATH" (the tokenizer should be a .model file) in conf/common/test/llama.toml.
+1. Go to [🤗 Hugging Face](https://huggingface.co/docs/transformers/en/model_doc/llama).
+2. Follow the instructions on how to download the tokenizer.
+3. Replace `TOKENIZER_MODEL` in `training.model.tokenizer.model=TOKENIZER_MODEL` with your path (the tokenizer should be a `.model` file) in `conf/common/test/llama.toml`.
 
 
 # Using Test Hooks in CloudAI
