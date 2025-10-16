@@ -69,7 +69,7 @@ class UCCCmdArgs(CmdArgs):
     b: Union[int, list[int]] = 1
     e: Union[str, list[str]] = "8M"
     gen: Union[str, list[str], None] = None
-    
+
 
 
 class UCCTestDefinition(TestDefinition):
