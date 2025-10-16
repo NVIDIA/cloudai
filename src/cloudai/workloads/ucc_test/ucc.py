@@ -71,7 +71,6 @@ class UCCCmdArgs(CmdArgs):
     gen: Union[str, list[str], None] = None
 
 
-
 class UCCTestDefinition(TestDefinition):
     """Test object for UCC."""
 
