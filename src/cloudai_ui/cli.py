@@ -30,7 +30,7 @@ from .app import create_app
     help="Path to results directory",
     type=click.Path(exists=True, resolve_path=True, path_type=Path, file_okay=False, dir_okay=True),
 )
-@click.option("--host", default="localhost", help="Host to bind to")
+@click.option("--host", default="0.0.0.0", help="Host to bind to")
 @click.option("--port", default=8050, help="Port to bind to", type=int)  # Dash default port
 @click.option("--debug", is_flag=True, help="Enable debug mode")
 def main(results_dir: Path, host: str, port: int, debug: bool):
