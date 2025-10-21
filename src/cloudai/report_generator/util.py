@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, List, Tuple
 
-from cloudai.core import TestRun
+from cloudai.core import TestRun, TestTemplateStrategy
 from cloudai.util.lazy_imports import lazy
 
 if TYPE_CHECKING:
@@ -163,11 +163,13 @@ def diff_test_runs(trs: list[TestRun]) -> dict[str, list[str]]:
     dicts: list[dict] = []
     for tr in trs:
         dicts.append(
-            {
-                "NUM_NODES": tr.num_nodes,
-                **tr.test.test_definition.cmd_args.model_dump(),
-                **{f"extra_env_vars.{k}": v for k, v in tr.test.test_definition.extra_env_vars.items()},
-            }
+            TestTemplateStrategy._flatten_dict(
+                {
+                    "NUM_NODES": tr.num_nodes,
+                    **tr.test.test_definition.cmd_args.model_dump(),
+                    **{f"extra_env_vars.{k}": v for k, v in tr.test.test_definition.extra_env_vars.items()},
+                }
+            )
         )
     all_keys = set().union(*[d.keys() for d in dicts])
 

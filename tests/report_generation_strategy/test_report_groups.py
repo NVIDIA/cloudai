@@ -15,12 +15,15 @@
 # limitations under the License.
 
 import copy
+from pathlib import Path
 
 import pandas as pd
 
-from cloudai import TestRun
+from cloudai.core import Test, TestRun, TestTemplate
 from cloudai.report_generator.groups import TestRunsGrouper
 from cloudai.report_generator.util import diff_test_runs
+from cloudai.systems.slurm.slurm_system import SlurmSystem
+from cloudai.workloads.nemo_run import Data, NeMoRunCmdArgs, NeMoRunTestDefinition
 
 
 class TestGrouping:
@@ -130,3 +133,43 @@ class TestDiffTrs:
 
         diff = diff_test_runs([nccl1, nccl2])
         assert diff == {"extra_env_vars.NCCL_IB_SPLIT_DATA_ON_QPS": ["0", "1"]}
+
+    def test_diff_nested(self, slurm_system: SlurmSystem) -> None:
+        data1 = Data(micro_batch_size=1, global_batch_size=1)
+        data2 = Data(micro_batch_size=2, global_batch_size=2)
+        nemo1 = TestRun(
+            name="nemo1",
+            num_nodes=1,
+            nodes=[],
+            output_path=Path("/"),
+            test=Test(
+                test_definition=NeMoRunTestDefinition(
+                    name="nemo1",
+                    description="desc",
+                    test_template_name="t",
+                    cmd_args=NeMoRunCmdArgs(
+                        docker_image_url="fake://url/nemo1", task="task1", recipe_name="recipe1", data=data1
+                    ),
+                ),
+                test_template=TestTemplate(system=slurm_system),
+            ),
+        )
+        nemo2 = TestRun(
+            name="nemo1",
+            num_nodes=1,
+            nodes=[],
+            output_path=Path("/"),
+            test=Test(
+                test_definition=NeMoRunTestDefinition(
+                    name="nemo2",
+                    description="desc",
+                    test_template_name="t",
+                    cmd_args=NeMoRunCmdArgs(
+                        docker_image_url="fake://url/nemo1", task="task1", recipe_name="recipe1", data=data2
+                    ),
+                ),
+                test_template=TestTemplate(system=slurm_system),
+            ),
+        )
+        diff = diff_test_runs([nemo1, nemo2])
+        assert diff == {"data.micro_batch_size": [1, 2], "data.global_batch_size": [1, 2]}
