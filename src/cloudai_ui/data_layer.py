@@ -75,6 +75,10 @@ class Record:
     def system_name(self) -> str:
         return self.test_run.test.test_template.system.name
 
+    @property
+    def dse_id(self) -> str:
+        return f"{self.scenario_name} | {self.test_run.name} | {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
+
 
 class _BaseFileDataProvider(ABC):
     """Abstract base class for file-based data providers."""

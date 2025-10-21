@@ -22,13 +22,14 @@ import dash
 from dash import Input, Output, ctx, dcc, html
 
 from .data_layer import LocalFileDataProvider
+from .dse_dashboard import DSEDashboard
 from .nccl_dashboard import NCCLDashboard
 from .nixl_dashboard import NIXLDashboard
 
 
 def available_dashboards() -> list[str]:
     """Determine available dashboard types based on data availability."""
-    return ["nccl", "nixl"]
+    return ["nccl", "nixl", "dse"]
 
 
 def create_header_navbar(current_page: str, available_dashboards: list[str]):
@@ -70,6 +71,7 @@ def create_app(results_root: Path):
     # Create stateful dashboard instances
     nccl_dashboard = NCCLDashboard(data_provider, id_prefix="nccl")
     nixl_dashboard = NIXLDashboard(data_provider, id_prefix="nixl")
+    dse_dashboard = DSEDashboard(data_provider, id_prefix="dse")
 
     app.layout = html.Div([dcc.Location(id="url", refresh=False), html.Div(id="page-content")])
 
@@ -84,6 +86,8 @@ def create_app(results_root: Path):
             return html.Div([create_header_navbar("nccl", dashboards), nccl_dashboard.create_page()])
         elif pathname == "/nixl":
             return html.Div([create_header_navbar("nixl", dashboards), nixl_dashboard.create_page()])
+        elif pathname == "/dse":
+            return html.Div([create_header_navbar("dse", dashboards), dse_dashboard.create_page()])
         else:
             return html.Div(
                 [
@@ -129,6 +133,24 @@ def create_app(results_root: Path):
         """Update NIXL dashboard."""
         return nixl_dashboard.update(
             ctx.triggered_id, time_range_days, selected_charts, selected_systems, selected_scenarios, group_by
+        )
+
+    @app.callback(
+        [
+            Output(f"{dse_dashboard.id_prefix}-controls-container", "children"),
+            Output(f"{dse_dashboard.id_prefix}-table-container", "children"),
+        ],
+        [
+            Input(f"{dse_dashboard.id_prefix}-time-range", "value"),
+            Input(f"{dse_dashboard.id_prefix}-system-filter", "value"),
+            Input(f"{dse_dashboard.id_prefix}-scenario-filter", "value"),
+            Input(f"{dse_dashboard.id_prefix}-run-selector", "value"),
+        ],
+    )
+    def update_dse_dashboard(time_range_days, selected_systems, selected_scenarios, selected_dse_run):
+        """Update DSE dashboard."""
+        return dse_dashboard.update(
+            ctx.triggered_id, time_range_days, selected_systems, selected_scenarios, selected_dse_run
         )
 
     return app

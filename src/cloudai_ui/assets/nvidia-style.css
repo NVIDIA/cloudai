@@ -462,4 +462,8 @@ h1 {
 .dashboard-section {
     padding: 1rem;
 }
+
+/* DataTable Sort Arrow Styling */
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th .column-header--sort {
+    padding-right: .5rem !important;
 }
