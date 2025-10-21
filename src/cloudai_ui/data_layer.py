@@ -48,7 +48,7 @@ class TestScenarioInfo:
 class DataQuery:
     """Query parameters for loading dashboard data."""
 
-    test_type: str
+    test_type: str | None  # None means all test types
     time_range_days: int = 7
     scenario_names: list[str] | None = None
 
@@ -192,28 +192,27 @@ class LocalFileDataProvider(DataProvider):
                 elif isinstance(test_run.test.test_definition, NIXLBenchTestDefinition):
                     df = extract_nixl_data_as_df(test_run)
 
-                if not df.empty:
-                    records.append(
-                        Record(test_run=test_run, df=df, scenario_name=scenario.name, timestamp=scenario.timestamp)
-                    )
+                records.append(
+                    Record(test_run=test_run, df=df, scenario_name=scenario.name, timestamp=scenario.timestamp)
+                )
 
         return records
 
     def filtered_scenarios(self, query: DataQuery) -> list[TestScenarioInfo]:
         filtered_scenarios: list[TestScenarioInfo] = []
         for scenario in self._file_provider.get_scenarios():
-            # Filter by scenario name if specified
             if query.scenario_names and scenario.name not in query.scenario_names:
                 continue
             if query.time_range_days and scenario.timestamp < datetime.now() - timedelta(days=query.time_range_days):
                 continue
 
-            # Filter test runs by test type
-            matching_runs = [
-                tr
-                for tr in scenario.test_runs
-                if tr.test.test_definition.test_template_name.lower().startswith(query.test_type.lower())
-            ]
+            matching_runs = scenario.test_runs
+            if query.test_type is not None:
+                matching_runs = [
+                    tr
+                    for tr in scenario.test_runs
+                    if tr.test.test_definition.test_template_name.lower().startswith(query.test_type.lower())
+                ]
 
             if matching_runs:
                 # Create filtered scenario with only matching test runs

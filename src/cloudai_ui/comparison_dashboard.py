@@ -165,9 +165,13 @@ class ComparisonDataManager:
             self._cached_data = None
 
         if self._cached_data is None:
-            self._cached_data = self.data_provider.query_data(
-                DataQuery(test_type=self.test_type, time_range_days=self.time_range_days)
-            )
+            self._cached_data = [
+                r
+                for r in self.data_provider.query_data(
+                    DataQuery(test_type=self.test_type, time_range_days=self.time_range_days)
+                )
+                if not r.df.empty
+            ]
 
     def get_data(self) -> list[Record]:
         if self._cached_data is None:
