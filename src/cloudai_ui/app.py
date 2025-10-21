@@ -46,7 +46,7 @@ def create_header_navbar(current_page: str, available_dashboards: list[str]):
             dcc.Link("Home", href="/", className=f"nav-item {'active' if current_page == 'home' else ''}"),
             *[
                 dcc.Link(
-                    dashboard.title(),
+                    dashboard.upper(),
                     href=f"/{dashboard}",
                     className=f"nav-item {'active' if current_page == dashboard else ''}",
                 )
@@ -167,12 +167,13 @@ def create_compact_dashboard_card(dashboard: str):
     description = {
         "nccl": " • NCCL performance analysis",
         "nixl": " • NIXL benchmark performance",
-    }.get(dashboard, f" • {dashboard.title()} dashboard")
+        "dse": " • Design Space Exploration analysis",
+    }.get(dashboard, f" • {dashboard.upper()} dashboard")
 
     return html.Div(
         [
             dcc.Link(
-                [html.Strong(dashboard.title()), html.Span(description, className="text-muted")],
+                [html.Strong(dashboard.upper()), html.Span(description, className="text-muted")],
                 href=f"/{dashboard}",
                 className="compact-dashboard-link",
             ),
