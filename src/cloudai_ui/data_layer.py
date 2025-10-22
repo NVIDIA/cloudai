@@ -16,6 +16,7 @@
 
 """Data layer for CloudAI UI v2 with lazy loading support."""
 
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -179,7 +180,8 @@ class LocalFileDataProvider(DataProvider):
                 self.issues.append(f"dir={scenario_dir.absolute()}: {e}")
                 continue
 
-            metadata = SlurmReportItem.get_metadata(scenario_dir, self.results_root)
+            metadata_dirs = list(scenario_dir.rglob("metadata")) or [scenario_dir]
+            metadata = SlurmReportItem.get_metadata(metadata_dirs[0].parent, self.results_root)
             if not metadata:
                 self.issues.append(f"dir={scenario_dir.absolute()}: no metadata found")
 
