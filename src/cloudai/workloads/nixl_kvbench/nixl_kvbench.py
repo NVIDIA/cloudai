@@ -31,7 +31,7 @@ class NIXLKVBenchCmdArgs(CmdArgs):
 
     docker_image_url: str
     kvbench_script: str = "/workspace/nixl/benchmark/kvbench/main.py"
-    python_executable: str = "/workspace/nixl/.venv/bin/python"
+    python_executable: str = "python"
 
     backend: str | list[str] | None = None
 

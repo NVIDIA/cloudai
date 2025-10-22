@@ -46,7 +46,6 @@ from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning import AutoResume, NeMoLogger
-from nemo.lightning.pytorch.callbacks.deepep import DeepEPCallback
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
@@ -54,16 +53,6 @@ from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCal
 from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.utils.exp_manager import TimingCallback
-
-
-def set_deepep_params(recipe):
-    enable_deepep = os.getenv("CLOUDAI_ENABLE_DEEPEP", "0") == "1"
-    if enable_deepep:
-        print("INFO: CLOUDAI_ENABLE_DEEPEP is set. Applying DeepEP model configs.")
-        recipe.trainer.callbacks.append(run.Config(DeepEPCallback))
-        recipe.trainer.callbacks[-1].moe_expert_capacity_factor = -1.0
-        recipe.trainer.callbacks[-1].moe_pad_expert_input_to_capacity = False
-        recipe.model.config.moe_router_dtype = "fp32"
 
 
 def set_enable_cuda_graphs_params(recipe):
@@ -669,8 +658,6 @@ def cloudai_llama4_scout_recipe() -> run.Partial:
 
     # Check if enabling cuda graphs
     set_enable_cuda_graphs_params(recipe)
-    # Check if enabling DeepEP
-    set_deepep_params(recipe)
 
     return recipe
 
@@ -696,8 +683,6 @@ def cloudai_llama4_maverick_recipe() -> run.Partial:
 
     # Check if enabling cuda graphs
     set_enable_cuda_graphs_params(recipe)
-    # Check if enabling DeepEP
-    set_deepep_params(recipe)
 
     return recipe
 

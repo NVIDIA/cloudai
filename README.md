@@ -141,7 +141,7 @@ cloudai uninstall\
     --tests-dir conf/common/test\
     --test-scenario conf/common/test_scenario/sleep.toml
 ```
-Verify TOML configs:
+### verify-configs
 ```bash
 # verify all at once
 cloudai verify-configs conf
