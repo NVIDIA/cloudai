@@ -17,11 +17,12 @@
 """CloudAI UI — Dash.plotly based interactive visualization."""
 
 from pathlib import Path
+from typing import Any
 
 import dash
 from dash import Input, Output, ctx, dcc, html
 
-from .data_layer import LocalFileDataProvider
+from .data_layer import DataProvider, DataQuery, LocalFileDataProvider
 from .dse_dashboard import DSEDashboard
 from .nccl_dashboard import NCCLDashboard
 from .nixl_dashboard import NIXLDashboard
@@ -65,7 +66,7 @@ def create_header_navbar(current_page: str, available_dashboards: list[str]):
 
 def create_app(results_root: Path):
     """Create and configure the Dash application."""
-    app = dash.Dash(__name__, assets_folder="assets", title="CloudAI Dashboard", suppress_callback_exceptions=True)
+    app = dash.Dash(__name__, assets_folder="assets", title="CloudAI UI", suppress_callback_exceptions=True)
     data_provider = LocalFileDataProvider(results_root)
 
     # Create stateful dashboard instances
@@ -81,7 +82,7 @@ def create_app(results_root: Path):
         dashboards = available_dashboards()
 
         if pathname == "/" or pathname is None:
-            return create_main_page(dashboards, results_root)
+            return create_main_page(dashboards, data_provider)
         elif pathname == "/nccl":
             return html.Div([create_header_navbar("nccl", dashboards), nccl_dashboard.create_page()])
         elif pathname == "/nixl":
@@ -156,32 +157,54 @@ def create_app(results_root: Path):
     return app
 
 
-def create_main_page(dashboards: list[str], results_root: Path):
+def create_main_page(dashboards: list[str], data_provider: DataProvider):
     """Create the main dashboard selection page."""
     dashboard_cards = html.Div([create_compact_dashboard_card(dashboard) for dashboard in dashboards])
 
-    return html.Div(
-        [
-            create_header_navbar("home", dashboards),
-            # Main content
-            html.Div(
-                [
-                    html.Div(
-                        [html.Strong("Results Directory: "), html.Code(str(results_root))],
-                        className="dashboard-section",
-                    ),
-                    html.H3("Available Dashboards"),
-                    dashboard_cards
-                    if dashboards
-                    else html.Div(
-                        ["No dashboards available. No scenarios found in the results directory."],
-                        className="dashboard-section",
-                    ),
-                ],
-                className="main-content",
-            ),
-        ]
-    )
+    elements = [
+        html.H3("Available Dashboards"),
+        dashboard_cards
+        if dashboards
+        else html.Div(
+            ["No dashboards available. No scenarios found in the results directory."],
+            className="dashboard-section",
+        ),
+    ]
+
+    if isinstance(data_provider, LocalFileDataProvider):
+        data_provider.query_data(DataQuery(test_type=None, time_range_days=0))
+        elements.extend(
+            [
+                html.H3("Data Provider Details"),
+                html.Div(
+                    [html.Strong("Results Directory: "), html.Code(str(data_provider.results_root))],
+                    className="dashboard-section",
+                ),
+            ]
+        )
+        if data_provider.issues:
+            issues_by_msg: dict[str, list[str]] = {}
+            for issue in data_provider.issues:
+                if issue.startswith("dir=") and ": " in issue:
+                    dir_and_msg = issue.replace("dir=", "")
+                    dir_path, msg = dir_and_msg.split(": ", 1)
+                    issues_by_msg.setdefault(msg, []).append(dir_path)
+                else:
+                    issues_by_msg.setdefault("Other", []).append(issue)
+
+            issue_sections: list[Any] = [html.H3("Issues loading local data")]
+            for msg, dirs in issues_by_msg.items():
+                issue_sections.append(html.H4(msg, style={"marginTop": "1rem"}))
+                issue_sections.append(
+                    html.Ol(
+                        [html.Li(html.Code(dir_path), className="alert alert-danger") for dir_path in dirs],
+                        style={"paddingLeft": "2rem"},
+                    )
+                )
+
+            elements.extend(issue_sections)
+
+    return html.Div([create_header_navbar("home", dashboards), html.Div(elements, className="main-content")])
 
 
 def create_compact_dashboard_card(dashboard: str):

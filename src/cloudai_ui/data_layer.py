@@ -41,7 +41,6 @@ class TestScenarioInfo:
     name: str
     timestamp: datetime
     test_runs: list[TestRun]
-    error: str | None = None
 
 
 @dataclass
@@ -80,95 +79,6 @@ class Record:
         return f"{self.scenario_name} | {self.test_run.name} | {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
 
 
-class _BaseFileDataProvider(ABC):
-    """Abstract base class for file-based data providers."""
-
-    @abstractmethod
-    def get_scenarios(self) -> list[TestScenarioInfo]:
-        """Get list of all test scenarios."""
-        pass
-
-
-class _LocalFileDataProvider(_BaseFileDataProvider):
-    """Internal data provider that reads from local filesystem."""
-
-    def __init__(self, results_root: Path):
-        self.results_root = Path(results_root)
-
-    def get_scenarios(self) -> list[TestScenarioInfo]:
-        """Get list of all test scenarios from the results directory."""
-        scenarios: list[TestScenarioInfo] = []
-
-        if not self.results_root.exists():
-            return scenarios
-
-        for scenario_dir in self.results_root.iterdir():
-            if not scenario_dir.is_dir():
-                continue
-
-            error: str | None = None
-            scenario_name: str = scenario_dir.name
-            test_runs: list[TestRun] = []
-            timestamp: datetime = datetime.now()
-
-            # Format: {scenario_name}_{timestamp}
-            dir_name = scenario_dir.name
-            if "_" in dir_name:
-                parts = dir_name.rsplit("_", 2)  # Split on last 2 underscores for date_time
-                if len(parts) >= 3:
-                    scenario_name = "_".join(parts[:-2])
-                    date_part = parts[-2]
-                    time_part = parts[-1]
-                    try:
-                        timestamp = datetime.strptime(f"{date_part}_{time_part}", "%Y-%m-%d_%H-%M-%S")
-                    except ValueError as e:
-                        error = f"Not a scenario directory 3: {scenario_dir.absolute()}: {e} {parts}"
-                else:
-                    error = f"Not a scenario directory 2: {scenario_dir.absolute()}"
-            else:
-                error = f"Not a scenario directory 1: {scenario_dir.absolute()}"
-
-            metadata = SlurmReportItem.get_metadata(scenario_dir, self.results_root)
-            system = SlurmSystem(
-                name=metadata.slurm.cluster_name if metadata else "unknown",
-                install_path=Path("/"),
-                output_path=Path("/"),
-                default_partition="default",
-                partitions=[],
-            )
-            if not error:
-                try:
-                    test_runs = self._get_test_runs(scenario_dir, system)
-                except Exception as e:
-                    error = str(e)
-
-            scenarios.append(
-                TestScenarioInfo(
-                    id=scenario_dir.name,
-                    name=scenario_name,
-                    timestamp=timestamp,
-                    test_runs=test_runs,
-                    error=error,
-                )
-            )
-
-        # Sort by timestamp, newest first
-        scenarios.sort(key=lambda x: x.timestamp, reverse=True)
-        return scenarios
-
-    def _get_test_runs(self, scenario_dir: Path, system: SlurmSystem) -> list[TestRun]:
-        """Get test runs for a scenario."""
-        test_runs = []
-
-        for tr_dump in scenario_dir.rglob("test-run.toml"):
-            trd = TestRunDetails.model_validate(toml.load(tr_dump))
-            test_run = trd.to_test_run(system)
-            test_run.output_path = tr_dump.parent
-            test_runs.append(test_run)
-
-        return test_runs
-
-
 class DataProvider(ABC):
     """Abstract interface for dashboard data loading."""
 
@@ -182,7 +92,7 @@ class LocalFileDataProvider(DataProvider):
 
     def __init__(self, results_root: Path):
         self.results_root = results_root
-        self._file_provider = _LocalFileDataProvider(results_root)
+        self.issues: list[str] = []
 
     def query_data(self, query: DataQuery) -> list[Record]:
         """Load and filter data based on query (ignores time range for local files)."""
@@ -204,7 +114,7 @@ class LocalFileDataProvider(DataProvider):
 
     def filtered_scenarios(self, query: DataQuery) -> list[TestScenarioInfo]:
         filtered_scenarios: list[TestScenarioInfo] = []
-        for scenario in self._file_provider.get_scenarios():
+        for scenario in self.get_scenarios():
             if query.scenario_names and scenario.name not in query.scenario_names:
                 continue
             if query.time_range_days and scenario.timestamp < datetime.now() - timedelta(days=query.time_range_days):
@@ -221,15 +131,94 @@ class LocalFileDataProvider(DataProvider):
             if matching_runs:
                 # Create filtered scenario with only matching test runs
                 filtered_scenario = TestScenarioInfo(
-                    id=scenario.id,
-                    name=scenario.name,
-                    timestamp=scenario.timestamp,
-                    test_runs=matching_runs,
-                    error=scenario.error,
+                    id=scenario.id, name=scenario.name, timestamp=scenario.timestamp, test_runs=matching_runs
                 )
                 filtered_scenarios.append(filtered_scenario)
 
         return filtered_scenarios
+
+    def _parse_scenario_dir_name(self, dir_name: str) -> tuple[str, datetime]:
+        # Format: {scenario_name}_{timestamp}
+        if "_" not in dir_name:
+            raise ValueError("no '_' in name")
+
+        parts = dir_name.rsplit("_", 2)  # Split on last 2 underscores for date_time
+        if len(parts) != 3:
+            raise ValueError(f"expected 3 parts in name, got {len(parts)}")
+        scenario_name = "_".join(parts[:-2])
+        date_part = parts[-2]
+        time_part = parts[-1]
+        try:
+            timestamp = datetime.strptime(f"{date_part}_{time_part}", "%Y-%m-%d_%H-%M-%S")
+        except ValueError as e:
+            raise ValueError(f"expected timestamp in name, got {date_part}_{time_part} ({e})") from e
+
+        return scenario_name, timestamp
+
+    def get_scenarios(self) -> list[TestScenarioInfo]:
+        """Get list of all test scenarios from the results directory."""
+        scenarios: list[TestScenarioInfo] = []
+        self.issues = []
+
+        if not self.results_root.exists():
+            self.issues.append(f"dir={self.results_root.absolute()}: does not exist")
+            return scenarios
+
+        for scenario_dir in self.results_root.iterdir():
+            if not scenario_dir.is_dir():
+                self.issues.append(f"dir={scenario_dir.absolute()}: is not a directory")
+                continue
+
+            scenario_name: str = scenario_dir.name
+            test_runs: list[TestRun] = []
+            timestamp: datetime = datetime.now()
+
+            try:
+                scenario_name, timestamp = self._parse_scenario_dir_name(scenario_dir.name)
+            except ValueError as e:
+                self.issues.append(f"dir={scenario_dir.absolute()}: {e}")
+                continue
+
+            metadata = SlurmReportItem.get_metadata(scenario_dir, self.results_root)
+            if not metadata:
+                self.issues.append(f"dir={scenario_dir.absolute()}: no metadata found")
+
+            system = SlurmSystem(
+                name=metadata.slurm.cluster_name if metadata else "unknown",
+                install_path=Path("/"),
+                output_path=Path("/"),
+                default_partition="default",
+                partitions=[],
+            )
+            try:
+                test_runs = self._get_test_runs(scenario_dir, system)
+            except Exception as e:
+                self.issues.append(f"dir={scenario_dir.absolute()}: {e}")
+
+            scenarios.append(
+                TestScenarioInfo(
+                    id=scenario_dir.name,
+                    name=scenario_name,
+                    timestamp=timestamp,
+                    test_runs=test_runs,
+                )
+            )
+
+        # Sort by timestamp, newest first
+        scenarios.sort(key=lambda x: x.timestamp, reverse=True)
+        return scenarios
+
+    def _get_test_runs(self, scenario_dir: Path, system: SlurmSystem) -> list[TestRun]:
+        """Get test runs for a scenario."""
+        test_runs = []
+
+        for tr_dump in scenario_dir.rglob("test-run.toml"):
+            trd = TestRunDetails.model_validate(toml.load(tr_dump))
+            test_run = trd.to_test_run(system)
+            test_run.output_path = tr_dump.parent
+            test_runs.append(test_run)
+
+        return test_runs
 
 
 def extract_nixl_data_as_df(tr: TestRun) -> pd.DataFrame:
