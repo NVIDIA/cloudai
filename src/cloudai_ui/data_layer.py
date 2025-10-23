@@ -214,15 +214,15 @@ class LocalFileDataProvider(DataProvider):
             if not trajectory_data.empty:
                 try:
                     step_data = trajectory_data[trajectory_data["step"] == test_run.step].iloc[0]
+                    dse_details = DSEDetails(
+                        step=test_run.step,
+                        action=step_data["action"],
+                        reward=step_data["reward"],
+                        observation=json.loads(step_data["observation"]),
+                    )
                 except Exception as e:
-                    self.issues.append(f"dir={test_iter_dir.absolute()}: {e}")
+                    self.issues.append(f"dir={test_iter_dir.absolute()}: step={test_run.step} {e}")
                     continue
-                dse_details = DSEDetails(
-                    step=test_run.step,
-                    action=step_data["action"],
-                    reward=step_data["reward"],
-                    observation=json.loads(step_data["observation"]),
-                )
 
             df = pd.DataFrame()
             if isinstance(test_run.test.test_definition, NCCLTestDefinition):

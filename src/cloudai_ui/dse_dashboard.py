@@ -301,10 +301,14 @@ def render_dse_table(records: list[Record]) -> html.Div:
     max_reward: float = 0.0
 
     for record in records:
-        diff_fields = {
-            fname: TestTemplateStrategy._flatten_dict(record.test_run.test.test_definition.cmd_args_dict)[fname]
-            for fname in diff
-        }
+        diff_fields: dict[str, str] = {}
+        for fname in diff:
+            if fname.startswith("extra_env_vars."):
+                value = record.test_run.test.test_definition.extra_env_vars.get(fname.removeprefix("extra_env_vars."))
+            else:
+                value = TestTemplateStrategy._flatten_dict(record.test_run.test.test_definition.cmd_args_dict)[fname]
+            diff_fields[fname] = str(value)
+
         reward, observation = "N/A", "N/A"
         if record.dse:
             reward = f"{record.dse.reward:.4f}"
