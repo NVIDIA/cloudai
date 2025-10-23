@@ -318,22 +318,23 @@ def render_dse_table(records: list[Record]) -> html.Div:
 
     style_data_conditional: list[dict[str, Any]] = []
     if max_reward is not None:
+        max_reward_str = f"{max_reward:.4g}"
         columns = list(table_data[0].keys())
         for col_idx, _ in enumerate(columns):
             style_config = {
-                "if": {"filter_query": f"{{Reward}} = {max_reward}"},
+                "if": {"filter_query": f"{{Reward}} = {max_reward_str}"},
                 "borderTop": "3px solid #76b900",
                 "borderBottom": "3px solid #76b900",
                 "fontWeight": "600",
             }
             if col_idx == 0:
                 style_config = {
-                    "if": {"filter_query": f"{{Reward}} = {max_reward}", "column_id": columns[0]},
+                    "if": {"filter_query": f"{{Reward}} = {max_reward_str}", "column_id": columns[0]},
                     "borderLeft": "6px solid #76b900",
                 }
             if col_idx == len(table_data[0].keys()) - 1:
                 style_config = {
-                    "if": {"filter_query": f"{{Reward}} = {max_reward}", "column_id": columns[-1]},
+                    "if": {"filter_query": f"{{Reward}} = {max_reward_str}", "column_id": columns[-1]},
                     "borderRight": "3px solid #76b900",
                 }
             style_data_conditional.append(style_config)
