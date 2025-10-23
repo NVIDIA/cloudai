@@ -156,6 +156,18 @@ def create_app(results_root: Path):
             ctx.triggered_id, time_range_days, selected_systems, selected_scenarios, selected_dse_run
         )
 
+    @app.callback(
+        Output("data-provider-collapse", "style"),
+        Output("toggle-data-provider", "children"),
+        Input("toggle-data-provider", "n_clicks"),
+    )
+    def toggle_data_provider_details(n_clicks):
+        """Toggle the data provider details section."""
+        is_open = n_clicks % 2 == 1
+        button_text = "▲" if is_open else "▼"
+        style = {"marginTop": "1rem", "display": "block" if is_open else "none"}
+        return style, button_text
+
     return app
 
 
@@ -175,15 +187,14 @@ def create_main_page(dashboards: list[str], data_provider: DataProvider):
 
     if isinstance(data_provider, LocalFileDataProvider):
         data_provider.query_data(DataQuery(test_type=None, time_range_days=0))
-        elements.extend(
-            [
-                html.H3("Data Provider Details"),
-                html.Div(
-                    [html.Strong("Results Directory: "), html.Code(str(data_provider.results_root))],
-                    className="dashboard-section",
-                ),
-            ]
-        )
+
+        details_content = [
+            html.Div(
+                [html.Strong("Results Directory: "), html.Code(str(data_provider.results_root))],
+                className="dashboard-section",
+            ),
+        ]
+
         if data_provider.issues:
             issues_by_msg: dict[str, list[str]] = {}
             for issue in data_provider.issues:
@@ -203,8 +214,32 @@ def create_main_page(dashboards: list[str], data_provider: DataProvider):
                         style={"paddingLeft": "2rem"},
                     )
                 )
+            details_content.extend(issue_sections)
 
-            elements.extend(issue_sections)
+        elements.extend(
+            [
+                html.Div(
+                    [
+                        html.H3(
+                            [
+                                "Data Provider Details (for debugging) ",
+                                html.Button(
+                                    "▼",
+                                    id="toggle-data-provider",
+                                    n_clicks=0,
+                                    style={"fontSize": "0.8em", "marginLeft": "0.5rem", "cursor": "pointer"},
+                                ),
+                            ],
+                        ),
+                    ]
+                ),
+                html.Div(
+                    details_content,
+                    id="data-provider-collapse",
+                    style={"marginTop": "1rem", "display": "none"},
+                ),
+            ]
+        )
 
     return html.Div([create_header_navbar("home", dashboards), html.Div(elements, className="main-content")])
 
