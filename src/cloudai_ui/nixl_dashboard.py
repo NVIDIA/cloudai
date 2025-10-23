@@ -26,7 +26,7 @@ from dash import dcc, html
 
 from cloudai.report_generator.groups import GroupedItems, GroupItem
 
-from .comparison_dashboard import ComparisonDashboard
+from .comparison_dashboard import ComparisonDashboard, format_bytes, generate_size_ticks
 from .data_layer import DataProvider, Record
 
 
@@ -126,6 +126,12 @@ def create_nixl_chart(
     fig = go.Figure()
     colors = px.colors.qualitative.Set1
 
+    # Collect all x values to determine tick positions
+    all_x_values = set()
+    for data in nixl_data:
+        df = data.item.df
+        all_x_values.update(df["block_size"].unique())
+
     for i, data in enumerate(nixl_data):
         df = data.item.df
         label = data.item.label
@@ -141,16 +147,25 @@ def create_nixl_chart(
                 line=dict(color=color, width=2),
                 marker=dict(size=6),
                 hovertemplate="<b>%{fullData.name}</b><br>"
-                + "Size: %{x:,} B<br>"
+                + "Size: %{text}<br>"
                 + f"{chart_prefix.title()}: %{{y:.2f}} {hover_unit}<br>"
                 + "<extra></extra>",
+                text=[format_bytes(x) for x in df["block_size"]],
             )
         )
 
+    # Generate custom tick values and labels
+    tickvals, ticktext = generate_size_ticks(all_x_values)
+
     fig.update_layout(
-        xaxis_title="Block Size (B)",
+        xaxis_title="Block Size",
         yaxis_title=f"{chart_prefix.title()} ({hover_unit})",
         xaxis_type="log",
+        xaxis=dict(
+            tickvals=tickvals,
+            ticktext=ticktext,
+            tickangle=-45,
+        ),
         hovermode="closest",
         showlegend=True,
         legend=dict(

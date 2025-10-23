@@ -421,3 +421,33 @@ def create_scenario_dropdown_options(scenario_labels: list[str], all_data: list[
 def create_system_dropdown_options(system_names: list[str]) -> list:
     """Create system dropdown options."""
     return [{"label": system, "value": system} for system in system_names]
+
+
+def format_bytes(num_bytes: float) -> str:
+    """Format byte size to human-readable format (KB, MB, GB, TB)."""
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if abs(num_bytes) < 1024.0:
+            if num_bytes == int(num_bytes):
+                return f"{int(num_bytes)}{unit}"
+            return f"{num_bytes:.1f}{unit}"
+        num_bytes /= 1024.0
+    return f"{num_bytes:.1f}PB"
+
+
+def generate_size_ticks(x_values: set[float]) -> tuple[list[float], list[str]]:
+    """
+    Generate tick values and human-readable labels for size-based x-axis.
+
+    Args:
+        x_values: Set of x-axis values (in bytes)
+
+    Returns:
+        Tuple of (tick_values, tick_labels) for plotly
+    """
+    if not x_values:
+        return ([], [])
+
+    sorted_x = sorted(x_values)
+    tick_values = sorted_x
+    tick_labels = [format_bytes(x) for x in sorted_x]
+    return (tick_values, tick_labels)

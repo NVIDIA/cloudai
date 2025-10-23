@@ -26,7 +26,7 @@ from dash import dcc, html
 
 from cloudai.report_generator.groups import GroupedItems, GroupItem
 
-from .comparison_dashboard import ComparisonDashboard
+from .comparison_dashboard import ComparisonDashboard, format_bytes, generate_size_ticks
 from .data_layer import DataProvider, Record
 
 
@@ -133,6 +133,12 @@ def create_nccl_chart(
     fig = go.Figure()
     colors = px.colors.qualitative.Set1
 
+    # Collect all x values to determine tick positions
+    all_x_values = set()
+    for data in nccl_data:
+        df = data.item.df
+        all_x_values.update(df["Size (B)"].unique())
+
     for i, data in enumerate(nccl_data):
         df = data.item.df
         label = data.item.label
@@ -149,16 +155,25 @@ def create_nccl_chart(
                     line=dict(color=color, width=2),
                     marker=dict(size=6),
                     hovertemplate="<b>%{fullData.name}</b><br>"
-                    + "Size: %{x:,} B<br>"
+                    + "Size: %{text}<br>"
                     + f"{chart_prefix.title()}: %{{y:.2f}} {hover_unit}<br>"
                     + "<extra></extra>",
+                    text=[format_bytes(x) for x in df["Size (B)"]],
                 )
             )
 
+    # Generate custom tick values and labels
+    tickvals, ticktext = generate_size_ticks(all_x_values)
+
     fig.update_layout(
-        xaxis_title="Size (B)",
+        xaxis_title="Message Size",
         yaxis_title=f"{chart_prefix.title()} ({hover_unit})",
         xaxis_type="log",
+        xaxis=dict(
+            tickvals=tickvals,
+            ticktext=ticktext,
+            tickangle=-45,
+        ),
         hovermode="closest",
         showlegend=True,
         legend=dict(
