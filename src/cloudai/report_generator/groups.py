@@ -68,7 +68,7 @@ class ItemsGrouper(Generic[T]):
             f_name = field[len("extra_env_vars.") :]
             v = str(tdef.extra_env_vars.get(f_name))
         else:
-            v = tdef.cmd_args_dict.get(field, "")
+            v = str(getattr(tdef.cmd_args, field, ""))
         return v
 
     def group_name(self, items: list[T]) -> str:
