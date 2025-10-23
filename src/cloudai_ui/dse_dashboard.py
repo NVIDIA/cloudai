@@ -299,8 +299,9 @@ def render_dse_table(records: list[Record]) -> html.Div:
     diff = sorted(diff_test_runs([r.test_run for r in records]).keys(), key=lambda x: x.lower())
     table_data: list[dict] = []
     max_reward: float | None = None
+    max_reward_row_idx: int | None = None
 
-    for record in records:
+    for idx, record in enumerate(records):
         diff_fields: dict[str, str] = {}
         for fname in diff:
             if fname.startswith("extra_env_vars."):
@@ -312,29 +313,30 @@ def render_dse_table(records: list[Record]) -> html.Div:
         reward, observation = "N/A", "N/A"
         if record.dse:
             reward = f"{record.dse.reward:.4g}"
-            observation = ", ".join([f"{v:.2g}" for v in record.dse.observation])
-            max_reward = max(max_reward or 0.0, record.dse.reward)
+            observation = ", ".join([f"{v:.4g}" for v in record.dse.observation])
+            if max_reward is None or record.dse.reward > max_reward:
+                max_reward = record.dse.reward
+                max_reward_row_idx = idx
         table_data.append({"Step": record.test_run.step, **diff_fields, "Reward": reward, "Observation": observation})
 
     style_data_conditional: list[dict[str, Any]] = []
-    if max_reward is not None:
-        max_reward_str = f"{max_reward:.4g}"
+    if max_reward_row_idx is not None:
         columns = list(table_data[0].keys())
         for col_idx, _ in enumerate(columns):
             style_config = {
-                "if": {"filter_query": f"{{Reward}} = {max_reward_str}"},
+                "if": {"row_index": max_reward_row_idx},
                 "borderTop": "3px solid #76b900",
                 "borderBottom": "3px solid #76b900",
                 "fontWeight": "600",
             }
             if col_idx == 0:
                 style_config = {
-                    "if": {"filter_query": f"{{Reward}} = {max_reward_str}", "column_id": columns[0]},
+                    "if": {"row_index": max_reward_row_idx, "column_id": columns[0]},
                     "borderLeft": "6px solid #76b900",
                 }
             if col_idx == len(table_data[0].keys()) - 1:
                 style_config = {
-                    "if": {"filter_query": f"{{Reward}} = {max_reward_str}", "column_id": columns[-1]},
+                    "if": {"row_index": max_reward_row_idx, "column_id": columns[-1]},
                     "borderRight": "3px solid #76b900",
                 }
             style_data_conditional.append(style_config)
