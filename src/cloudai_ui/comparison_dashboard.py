@@ -365,6 +365,9 @@ def render_charts(state: DashboardState, render_charts_for_group_func: Any) -> A
         return html.Div(html.P("No test runs found.", className="text-muted"))
 
     groups = ItemsGrouper[Record](items=state.filtered_data, group_by=state.group_by).groups()
+    for grp in groups:
+        for item in grp.items:
+            item.name += f" @{item.item.system_name}"
 
     selected_charts = state.selected_charts
     charts = []
