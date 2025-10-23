@@ -104,6 +104,16 @@ class TestGrouping:
         assert groups[1].items[0].name == "NCCL_IB_SPLIT_DATA_ON_QPS=0"
         assert groups[1].items[1].name == "NCCL_IB_SPLIT_DATA_ON_QPS=1"
 
+    def test_missing_group_by_field(self, nccl_tr: TestRun) -> None:
+        nccl_tr1 = copy.deepcopy(nccl_tr)
+        nccl_tr2 = copy.deepcopy(nccl_tr)
+        nccl_tr1.test.test_definition.cmd_args.unknown_field = "value"
+
+        groups = TestRunsGrouper(items=[nccl_tr1, nccl_tr2], group_by=["unknown_field"]).groups()
+        assert len(groups) == 2
+        assert groups[0].name == "unknown_field=value"
+        assert groups[1].name == "unknown_field="
+
 
 class TestDiffTrs:
     def test_diff_cmd_args_field(self, nccl_tr: TestRun) -> None:
