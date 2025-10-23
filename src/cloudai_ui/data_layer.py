@@ -212,7 +212,11 @@ class LocalFileDataProvider(DataProvider):
 
             dse_details = None
             if not trajectory_data.empty:
-                step_data = trajectory_data[trajectory_data["step"] == test_run.step].iloc[0]
+                try:
+                    step_data = trajectory_data[trajectory_data["step"] == test_run.step].iloc[0]
+                except Exception as e:
+                    self.issues.append(f"dir={test_iter_dir.absolute()}: {e}")
+                    continue
                 dse_details = DSEDetails(
                     step=test_run.step,
                     action=step_data["action"],
