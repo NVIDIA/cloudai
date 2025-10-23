@@ -19,7 +19,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Any, Iterable
+from typing import Any, Iterable, cast
 
 from dash import dash_table, dcc, html
 
@@ -298,19 +298,49 @@ def render_dse_table(records: list[Record]) -> html.Div:
     """Render table showing steps for the DSE run."""
     diff = sorted(diff_test_runs([r.test_run for r in records]).keys(), key=lambda x: x.lower())
     table_data: list[dict] = []
+    max_reward: float = 0.0
+
     for record in records:
         diff_fields = {
             fname: TestTemplateStrategy._flatten_dict(record.test_run.test.test_definition.cmd_args_dict)[fname]
             for fname in diff
         }
-        table_data.append({"Step": record.test_run.step, **diff_fields})
+        reward, observation = "N/A", "N/A"
+        if record.dse:
+            reward = f"{record.dse.reward:.4f}"
+            observation = ", ".join([f"{v:.2f}" for v in record.dse.observation])
+            max_reward = max(max_reward, record.dse.reward)
+        table_data.append({"Step": record.test_run.step, **diff_fields, "Reward": reward, "Observation": observation})
+
+    style_data_conditional: list[dict[str, Any]] = []
+    if max_reward:
+        max_reward_str = f"{max_reward:.4f}"
+        columns = list(table_data[0].keys())
+        for col_idx, _ in enumerate(columns):
+            style_config = {
+                "if": {"filter_query": f"{{Reward}} = {max_reward_str}"},
+                "borderTop": "3px solid #76b900",
+                "borderBottom": "3px solid #76b900",
+                "fontWeight": "600",
+            }
+            if col_idx == 0:
+                style_config = {
+                    "if": {"filter_query": f"{{Reward}} = {max_reward_str}", "column_id": columns[0]},
+                    "borderLeft": "6px solid #76b900",
+                }
+            if col_idx == len(table_data[0].keys()) - 1:
+                style_config = {
+                    "if": {"filter_query": f"{{Reward}} = {max_reward_str}", "column_id": columns[-1]},
+                    "borderRight": "3px solid #76b900",
+                }
+            style_data_conditional.append(style_config)
 
     return html.Div(
         [
             html.H4("Test Run Steps"),
             dash_table.DataTable(
                 data=table_data,
-                columns=[{"name": "Step", "id": "Step"}, *[{"name": fname, "id": fname} for fname in diff]],
+                columns=[{"name": f.title(), "id": f} for f in table_data[0]],
                 sort_action="native",
                 sort_mode="multi",
                 style_table={"overflowX": "auto"},
@@ -322,6 +352,7 @@ def render_dse_table(records: list[Record]) -> html.Div:
                 },
                 style_header={"backgroundColor": "#76b900", "color": "white", "fontWeight": "700", "textAlign": "left"},
                 style_data={"backgroundColor": "#f7f7f7", "color": "#1a1a1a"},
+                style_data_conditional=cast(Any, style_data_conditional),
             ),
         ],
         style={"marginTop": "1rem"},

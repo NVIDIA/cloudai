@@ -16,7 +16,7 @@
 
 """Data layer for CloudAI UI v2 with lazy loading support."""
 
-import logging
+import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -24,6 +24,7 @@ from pathlib import Path
 
 import pandas as pd
 import toml
+from pydantic import BaseModel, ConfigDict
 
 from cloudai.core import TestRun
 from cloudai.models.scenario import TestRunDetails
@@ -34,6 +35,17 @@ from cloudai.workloads.nccl_test.performance_report_generation_strategy import e
 from cloudai.workloads.nixl_bench import NIXLBenchTestDefinition
 
 
+class DSEDetails(BaseModel):
+    """Details about a DSE run."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    step: int
+    action: str
+    reward: float
+    observation: list[float]
+
+
 @dataclass
 class TestScenarioInfo:
     """Information about a test scenario run."""
@@ -41,7 +53,7 @@ class TestScenarioInfo:
     id: str
     name: str
     timestamp: datetime
-    test_runs: list[TestRun]
+    trs_dse_details: list[tuple[TestRun, DSEDetails | None]]
 
 
 @dataclass
@@ -66,6 +78,7 @@ class Record:
     df: pd.DataFrame
     scenario_name: str
     timestamp: datetime
+    dse: DSEDetails | None = None
 
     @property
     def label(self) -> str:
@@ -99,7 +112,7 @@ class LocalFileDataProvider(DataProvider):
         """Load and filter data based on query (ignores time range for local files)."""
         records: list[Record] = []
         for scenario in self.filtered_scenarios(query):
-            for test_run in scenario.test_runs:
+            for test_run, dse in scenario.trs_dse_details:
                 df = pd.DataFrame()
 
                 if isinstance(test_run.test.test_definition, NCCLTestDefinition):
@@ -108,7 +121,7 @@ class LocalFileDataProvider(DataProvider):
                     df = extract_nixl_data_as_df(test_run)
 
                 records.append(
-                    Record(test_run=test_run, df=df, scenario_name=scenario.name, timestamp=scenario.timestamp)
+                    Record(test_run=test_run, df=df, scenario_name=scenario.name, timestamp=scenario.timestamp, dse=dse)
                 )
 
         return records
@@ -121,18 +134,18 @@ class LocalFileDataProvider(DataProvider):
             if query.time_range_days and scenario.timestamp < datetime.now() - timedelta(days=query.time_range_days):
                 continue
 
-            matching_runs = scenario.test_runs
+            matching = scenario.trs_dse_details
             if query.test_type is not None:
-                matching_runs = [
-                    tr
-                    for tr in scenario.test_runs
+                matching = [
+                    (tr, dse)
+                    for tr, dse in matching
                     if tr.test.test_definition.test_template_name.lower().startswith(query.test_type.lower())
                 ]
 
-            if matching_runs:
+            if matching:
                 # Create filtered scenario with only matching test runs
                 filtered_scenario = TestScenarioInfo(
-                    id=scenario.id, name=scenario.name, timestamp=scenario.timestamp, test_runs=matching_runs
+                    id=scenario.id, name=scenario.name, timestamp=scenario.timestamp, trs_dse_details=matching
                 )
                 filtered_scenarios.append(filtered_scenario)
 
@@ -171,7 +184,7 @@ class LocalFileDataProvider(DataProvider):
                 continue
 
             scenario_name: str = scenario_dir.name
-            test_runs: list[TestRun] = []
+            trs_dse_details: list[tuple[TestRun, DSEDetails | None]] = []
             timestamp: datetime = datetime.now()
 
             try:
@@ -193,7 +206,7 @@ class LocalFileDataProvider(DataProvider):
                 partitions=[],
             )
             try:
-                test_runs = self._get_test_runs(scenario_dir, system)
+                trs_dse_details = self._get_test_runs(scenario_dir, system)
             except Exception as e:
                 self.issues.append(f"dir={scenario_dir.absolute()}: {e}")
 
@@ -202,7 +215,7 @@ class LocalFileDataProvider(DataProvider):
                     id=scenario_dir.name,
                     name=scenario_name,
                     timestamp=timestamp,
-                    test_runs=test_runs,
+                    trs_dse_details=trs_dse_details,
                 )
             )
 
@@ -210,17 +223,45 @@ class LocalFileDataProvider(DataProvider):
         scenarios.sort(key=lambda x: x.timestamp, reverse=True)
         return scenarios
 
-    def _get_test_runs(self, scenario_dir: Path, system: SlurmSystem) -> list[TestRun]:
+    def _get_test_runs(self, scenario_dir: Path, system: SlurmSystem) -> list[tuple[TestRun, DSEDetails | None]]:
         """Get test runs for a scenario."""
-        test_runs = []
+        result: list[tuple[TestRun, DSEDetails | None]] = []
 
-        for tr_dump in scenario_dir.rglob("test-run.toml"):
-            trd = TestRunDetails.model_validate(toml.load(tr_dump))
-            test_run = trd.to_test_run(system)
-            test_run.output_path = tr_dump.parent
-            test_runs.append(test_run)
+        for test_dir in scenario_dir.iterdir():
+            if not test_dir.is_dir():
+                continue
 
-        return test_runs
+            for test_iter_dir in test_dir.iterdir():
+                try:
+                    int(test_iter_dir.name)
+                except ValueError:
+                    continue
+
+                if not test_iter_dir.is_dir():
+                    continue
+
+                trajectory_file, trajectory_data = test_iter_dir / "trajectory.csv", pd.DataFrame()
+                if trajectory_file.exists():
+                    trajectory_data = pd.read_csv(trajectory_file)
+
+                for tr_dump in test_iter_dir.rglob("test-run.toml"):
+                    trd = TestRunDetails.model_validate(toml.load(tr_dump))
+                    test_run = trd.to_test_run(system)
+                    test_run.output_path = tr_dump.parent
+
+                    dse_details = None
+                    if not trajectory_data.empty:
+                        step_data = trajectory_data[trajectory_data["step"] == test_run.step].iloc[0]
+                        dse_details = DSEDetails(
+                            step=test_run.step,
+                            action=step_data["action"],
+                            reward=step_data["reward"],
+                            observation=json.loads(step_data["observation"]),
+                        )
+
+                    result.append((test_run, dse_details))
+
+        return result
 
 
 def extract_nixl_data_as_df(tr: TestRun) -> pd.DataFrame:
