@@ -27,6 +27,8 @@ from .dse_dashboard import DSEDashboard
 from .nccl_dashboard import NCCLDashboard
 from .nixl_dashboard import NIXLDashboard
 
+APP_TITLE = "CloudAI UI (⍺)"
+
 
 def available_dashboards() -> list[str]:
     """Determine available dashboard types based on data availability."""
@@ -38,7 +40,7 @@ def create_header_navbar(current_page: str, available_dashboards: list[str]):
     logo_title = html.Div(
         [
             html.Img(src="/assets/nvidia-logo.svg", className="nvidia-logo"),
-            html.H1("CloudAI Dashboard", className="app-title"),
+            html.H1(APP_TITLE, className="app-title"),
         ],
         className="header-left",
     )
@@ -66,7 +68,7 @@ def create_header_navbar(current_page: str, available_dashboards: list[str]):
 
 def create_app(results_root: Path):
     """Create and configure the Dash application."""
-    app = dash.Dash(__name__, assets_folder="assets", title="CloudAI UI", suppress_callback_exceptions=True)
+    app = dash.Dash(__name__, assets_folder="assets", title=APP_TITLE, suppress_callback_exceptions=True)
     data_provider = LocalFileDataProvider(results_root)
 
     # Create stateful dashboard instances
@@ -192,9 +194,9 @@ def create_main_page(dashboards: list[str], data_provider: DataProvider):
                 else:
                     issues_by_msg.setdefault("Other", []).append(issue)
 
-            issue_sections: list[Any] = [html.H3("Issues loading local data")]
+            issue_sections: list[Any] = [html.H4("Warnings loading local data")]
             for msg, dirs in issues_by_msg.items():
-                issue_sections.append(html.H4(msg, style={"marginTop": "1rem"}))
+                issue_sections.append(html.H5(msg, style={"marginTop": "1rem"}))
                 issue_sections.append(
                     html.Ol(
                         [html.Li(html.Code(dir_path), className="alert alert-danger") for dir_path in dirs],
