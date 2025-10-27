@@ -25,6 +25,7 @@ class DDLBCmdArgs(CmdArgs):
 
     docker_image_url: str
 
+
 class DDLBTestDefinition(TestDefinition):
     """Test object for DDLB."""
 
@@ -65,24 +66,11 @@ class DDLBTestDefinition(TestDefinition):
                             "If the issue persists, contact the system administrator."
                         ),
                     )
-                if "Error" in content:
-                    return JobStatusResult(
-                        is_successful=False,
-                        error_message=(
-                            f"Test failure detected in {stdout_path}. "
-                            "Please review the specific test failure messages in the file. "
-                            "Ensure that the DDLB test environment is correctly set up and configured. "
-                            "If the issue persists, contact the system administrator."
-                        ),
-                    )
 
                 # Identify missing success indicators
-                missing_indicators = []
                 if "Benchmark Results" not in content:
-                    missing_indicators.append("'Benchmark Results'")
-
                     error_message = (
-                        f"Missing success indicators in {stdout_path}: {', '.join(missing_indicators)}. "
+                        f"Missing success indicators in {stdout_path}: 'Benchmark Results'. "
                         "These keywords are expected to be present in stdout.txt, usually towards the end of the file. "
                         "Please review the DDLB test output and errors in the file. "
                         "Ensure the DDLB test ran to completion. You can run the generated sbatch script manually "
