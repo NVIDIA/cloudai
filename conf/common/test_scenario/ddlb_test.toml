@@ -16,11 +16,8 @@
 
 name = "ddlb-test"
 
-#pre_test = "ddlb_test"
-#post_test = "ddlb_test"
-
 [[Tests]]
 id = "Tests.ddlb"
 test_name = "ddlb_test"
 num_nodes = 1
-time_limit = "00:10:00"
+time_limit = "00:30:00"
