@@ -33,8 +33,7 @@ class DDLBTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def generate_test_command(self) -> List[str]:
         tdef: DDLBTestDefinition = cast(DDLBTestDefinition, self.test_run.test.test_definition)
-        srun_command_parts = ["python scripts/run_benchmark.py"]
-        return srun_command_parts
+        return ["python scripts/run_benchmark.py"]
 
     def gen_srun_success_check(self) -> str:
         output_file = self.test_run.output_path / "stdout.txt"
