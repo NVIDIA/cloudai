@@ -168,7 +168,7 @@ class LSFSystem(BaseModel, System):
             parts = line.split()
             if len(parts) < 6:
                 continue
-            job_id, user, _, _, _, exec_host = parts[:6]
+            _, user, _, _, _, exec_host = parts[:6]
             if exec_host not in node_user_map:
                 node_user_map[exec_host] = user
         return node_user_map

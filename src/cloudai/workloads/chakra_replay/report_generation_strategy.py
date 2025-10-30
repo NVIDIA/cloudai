@@ -225,7 +225,7 @@ class ChakraReplayReportGenerationStrategy(ReportGenerationStrategy):
             toolbar_location="right",
             tools="hover",
             tooltips="@comm: @value (@percentage)",
-            x_range=(-0.5, 1.5),
+            x_range=lazy.bokeh_models.Range(-0.5, 1.5),
         )
         p.add_layout(lazy.bokeh_models.Title(text="Comm Types Distribution", align="center"), "above")
         p.wedge(
