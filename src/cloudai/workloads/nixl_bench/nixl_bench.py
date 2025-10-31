@@ -16,34 +16,25 @@
 
 from __future__ import annotations
 
-import logging
-from functools import cache
-from pathlib import Path
-from typing import TYPE_CHECKING, Optional
-
 from cloudai.core import DockerImage, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
-from cloudai.util.lazy_imports import lazy
-
-if TYPE_CHECKING:
-    import pandas as pd
+from cloudai.workloads.common.nixl import extract_nixlbench_data
 
 
 class NIXLBenchCmdArgs(CmdArgs):
     """Command line arguments for a NIXL Bench test."""
 
     docker_image_url: str
-    etcd_endpoint: str
     path_to_benchmark: str
+    etcd_path: str = "etcd"
+    etcd_endpoints: str = "http://$NIXL_ETCD_ENDPOINTS"
 
 
 class NIXLBenchTestDefinition(TestDefinition):
     """Test definition for a NIXL Bench test."""
 
     cmd_args: NIXLBenchCmdArgs
-    etcd_image_url: str
-    _nixl_image: Optional[DockerImage] = None
-    _etcd_image: Optional[DockerImage] = None
+    _nixl_image: DockerImage | None = None
 
     @property
     def docker_image(self) -> DockerImage:
@@ -52,47 +43,16 @@ class NIXLBenchTestDefinition(TestDefinition):
         return self._nixl_image
 
     @property
-    def etcd_image(self) -> DockerImage:
-        if not self._etcd_image:
-            self._etcd_image = DockerImage(url=self.etcd_image_url)
-        return self._etcd_image
+    def installables(self) -> list[Installable]:
+        return [self.docker_image, *self.git_repos]
 
     @property
-    def installables(self) -> list[Installable]:
-        return [self.docker_image, *self.git_repos, self.etcd_image]
+    def cmd_args_dict(self) -> dict[str, str | list[str]]:
+        return self.cmd_args.model_dump(exclude={"docker_image_url", "path_to_benchmark", "cmd_args", "etcd_path"})
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
-        df = extract_nixl_data(tr.output_path / "stdout.txt")
+        df = extract_nixlbench_data(tr.output_path / "stdout.txt")
         if df.empty:
             return JobStatusResult(is_successful=False, error_message=f"NIXLBench data not found in {tr.output_path}.")
 
         return JobStatusResult(is_successful=True)
-
-
-@cache
-def extract_nixl_data(stdout_file: Path) -> pd.DataFrame:
-    if not stdout_file.exists():
-        logging.debug(f"{stdout_file} not found")
-        return lazy.pd.DataFrame()
-
-    header_present, data = False, []
-    for line in stdout_file.read_text().splitlines():
-        if not header_present and (
-            "Block Size (B)      Batch Size     " in line and "Avg Lat. (us)" in line and "B/W (GB/Sec)" in line
-        ):
-            header_present = True
-            continue
-        parts = line.split()
-        if header_present and (len(parts) == 6 or len(parts) == 10):
-            if len(parts) == 6:
-                data.append([parts[0], parts[1], parts[2], parts[-1]])
-            else:
-                data.append([parts[0], parts[1], parts[3], parts[2]])
-
-    df = lazy.pd.DataFrame(data, columns=["block_size", "batch_size", "avg_lat", "bw_gb_sec"])
-    df["block_size"] = df["block_size"].astype(int)
-    df["batch_size"] = df["batch_size"].astype(int)
-    df["avg_lat"] = df["avg_lat"].astype(float)
-    df["bw_gb_sec"] = df["bw_gb_sec"].astype(float)
-
-    return df

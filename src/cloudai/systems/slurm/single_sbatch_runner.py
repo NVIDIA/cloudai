@@ -134,10 +134,10 @@ class SingleSbatchRunner(SlurmRunner):
                 yield next_tr
 
     def get_global_env_vars(self) -> str:
-        vars: list[str] = []
+        vars: list[str] = ["export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)"]
         tr = self.test_scenario.test_runs[0]
-        env_vars = self.system.global_env_vars | tr.test.test_definition.extra_env_vars
-        for key, value in env_vars.items():
+        cmd_gen = cast(SlurmCommandGenStrategy, self.get_cmd_gen_strategy(self.system, tr))
+        for key, value in cmd_gen.final_env_vars.items():
             vars.append(f"export {key}={value}")
         return "\n".join(vars)
 
@@ -204,9 +204,9 @@ class SingleSbatchRunner(SlurmRunner):
             if not tr.is_dse_job:
                 continue
 
-            for idx, combination in enumerate(tr.all_combinations):
+            for idx, combination in enumerate(tr.all_combinations, start=1):
                 next_tr = tr.apply_params_set(combination)
-                next_tr.step = idx + 1
+                next_tr.step = idx
                 next_tr.output_path = self.get_job_output_path(next_tr)
 
                 gym = CloudAIGymEnv(next_tr, self)

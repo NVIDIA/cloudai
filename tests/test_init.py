@@ -23,6 +23,7 @@ from cloudai.systems.runai import RunAIInstaller, RunAISystem
 from cloudai.systems.slurm import SlurmInstaller, SlurmSystem
 from cloudai.systems.standalone import StandaloneInstaller, StandaloneSystem
 from cloudai.workloads.ai_dynamo import (
+    AIDynamoKubernetesJsonGenStrategy,
     AIDynamoSlurmCommandGenStrategy,
     AIDynamoTestDefinition,
 )
@@ -62,6 +63,7 @@ from cloudai.workloads.nixl_bench import (
     NIXLBenchSlurmCommandGenStrategy,
     NIXLBenchTestDefinition,
 )
+from cloudai.workloads.nixl_kvbench import NIXLKVBenchSlurmCommandGenStrategy, NIXLKVBenchTestDefinition
 from cloudai.workloads.nixl_perftest import NixlPerftestSlurmCommandGenStrategy, NixlPerftestTestDefinition
 from cloudai.workloads.sleep import (
     SleepGradingStrategy,
@@ -122,6 +124,7 @@ CMD_GEN_STRATEGIES = {
     (SlurmSystem, AIDynamoTestDefinition): AIDynamoSlurmCommandGenStrategy,
     (SlurmSystem, BashCmdTestDefinition): BashCmdCommandGenStrategy,
     (SlurmSystem, NixlPerftestTestDefinition): NixlPerftestSlurmCommandGenStrategy,
+    (SlurmSystem, NIXLKVBenchTestDefinition): NIXLKVBenchSlurmCommandGenStrategy,
 }
 ALL_STRATEGIES = {
     (GradingStrategy, SlurmSystem, ChakraReplayTestDefinition): ChakraReplayGradingStrategy,
@@ -135,6 +138,7 @@ ALL_STRATEGIES = {
     (JsonGenStrategy, KubernetesSystem, NCCLTestDefinition): NcclTestKubernetesJsonGenStrategy,
     (JsonGenStrategy, KubernetesSystem, SleepTestDefinition): SleepKubernetesJsonGenStrategy,
     (JsonGenStrategy, RunAISystem, NCCLTestDefinition): NcclTestRunAIJsonGenStrategy,
+    (JsonGenStrategy, KubernetesSystem, AIDynamoTestDefinition): AIDynamoKubernetesJsonGenStrategy,
 }
 
 
@@ -180,7 +184,7 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 16
+    assert len(test_defs) == 17
     for tdef in [
         ("UCCTest", UCCTestDefinition),
         ("NcclTest", NCCLTestDefinition),
@@ -198,6 +202,7 @@ def test_definitions():
         ("AIDynamo", AIDynamoTestDefinition),
         ("BashCmd", BashCmdTestDefinition),
         ("NixlPerftest", NixlPerftestTestDefinition),
+        ("NIXLKVBench", NIXLKVBenchTestDefinition),
     ]:
         assert test_defs[tdef[0]] == tdef[1]
 

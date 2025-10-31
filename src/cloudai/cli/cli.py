@@ -15,8 +15,11 @@
 # limitations under the License.
 
 import argparse
+import logging
+import logging.config
 from pathlib import Path
-from typing import Callable, Optional
+
+import click
 
 from .handlers import (
     handle_dry_run_and_run,
@@ -27,155 +30,216 @@ from .handlers import (
 )
 
 
-def existing_path(filepath: str) -> Path:
-    fpath = Path(filepath)
-    if not fpath.exists():
-        raise argparse.ArgumentTypeError(f"Path '{fpath}' does not exist.")
-    return fpath
+def setup_logging(log_file: str, log_level: str) -> None:
+    """
+    Configure logging for the application.
+
+    Args:
+        log_level (str): The logging level (e.g., DEBUG, INFO).
+        log_file (str): The name of the log file.
+    """
+    numeric_level = getattr(logging, log_level.upper(), None)
+    if not isinstance(numeric_level, int):
+        raise ValueError(f"Invalid log level: {log_level}")
+
+    LOGGING_CONFIG = {
+        "version": 1,
+        "disable_existing_loggers": True,
+        "formatters": {
+            "standard": {"format": "%(asctime)s - %(levelname)s - %(message)s"},
+            "short": {"format": "[%(levelname)s] %(message)s"},
+        },
+        "handlers": {
+            "default": {
+                "level": log_level.upper(),
+                "formatter": "short",
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stdout",
+            },
+            "debug_file": {
+                "level": "DEBUG",
+                "formatter": "standard",
+                "class": "logging.FileHandler",
+                "filename": log_file,
+                "mode": "w",
+            },
+        },
+        "loggers": {
+            "": {
+                "handlers": ["default", "debug_file"],
+                "level": "DEBUG",
+                "propagate": False,
+            },
+        },
+    }
+    logging.config.dictConfig(LOGGING_CONFIG)
 
 
-class CloudAICLI:
-    """Command-line argument parser for CloudAI and derivatives."""
+def common_options(f):
+    f = click.option(
+        "--system-config",
+        "system_cfg",
+        required=True,
+        type=click.Path(exists=True, resolve_path=True, path_type=Path),
+        help="System config path.",
+    )(f)
+    f = click.option(
+        "--tests-dir",
+        required=False,
+        type=click.Path(exists=True, resolve_path=True, path_type=Path, file_okay=False, dir_okay=True),
+        help="Directory with Test configs.",
+    )(f)
+    f = click.option(
+        "--test-scenario",
+        "scenario_cfg",
+        required=True,
+        type=click.Path(exists=True, resolve_path=True, path_type=Path),
+        help="Scenario config path.",
+    )(f)
+    return f
 
-    def __init__(self):
-        self.DEFAULT_MODES = {"dry-run", "generate-report", "install", "run", "uninstall", "verify-configs", "list"}
 
-        self.parser = argparse.ArgumentParser(description="CloudAI")
-        self.parser.add_argument(
-            "--log-file", default="debug.log", help="The name of the log file (default: %(default)s)."
-        )
-        self.parser.add_argument(
-            "--log-level",
-            default="INFO",
-            choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-            help="Set the logging level (default: %(default)s).",
-        )
-        self.subparsers = self.parser.add_subparsers(dest="mode", required=True, title="modes")
+output_dir_opt = click.option(
+    "--output-dir",
+    default=None,
+    required=False,
+    type=click.Path(resolve_path=True, path_type=Path, writable=True, file_okay=False),
+    help="Output directory",
+)
+cache_without_check_opt = click.option(
+    "--enable-cache-without-check",
+    is_flag=True,
+    default=False,
+    help="Enable cache without checking.",
+)
+single_sbatch_opt = click.option(
+    "--single-sbatch", is_flag=True, default=False, help="Use single sbatch for all test runs (Slurm only)."
+)
 
-        self.handlers: dict[str, Callable[[argparse.Namespace], int]] = {}
 
-    def add_command(
-        self,
-        name: str,
-        help_text: str,
-        handler: Callable[[argparse.Namespace], int],
-        system_config: Optional[bool] = None,
-        tests_dir: Optional[bool] = None,
-        test_scenario: Optional[bool] = None,
-        output_dir: Optional[bool] = None,
-        result_dir: Optional[bool] = None,
-    ) -> argparse.ArgumentParser:
-        p = self.subparsers.add_parser(name, help=help_text)
-        self.handlers[name] = handler
-        if system_config is not None:
-            p.add_argument(
-                "--system-config",
-                help="Path to the system configuration file.",
-                required=system_config,
-                type=existing_path,
-            )
-        if tests_dir is not None:
-            p.add_argument(
-                "--tests-dir", help="Path to the test configuration directory.", required=tests_dir, type=existing_path
-            )
-        if test_scenario is not None:
-            p.add_argument(
-                "--test-scenario", help="Path to the test scenario file.", required=test_scenario, type=existing_path
-            )
-        if output_dir is not None:
-            p.add_argument("--output-dir", help="Path to the output directory.", required=output_dir, type=Path)
-        if result_dir is not None:
-            p.add_argument(
-                "--result-dir", help="Path to the result directory.", required=result_dir, type=existing_path
-            )
+@click.group(name="CloudAI", context_settings={"help_option_names": ["-h", "--help"]})
+@click.option("--log-file", default="debug.log", help="Log file path for storing verbose output.")
+@click.option("--log-level", default="INFO", help="Log level for standard output.")
+@click.version_option(prog_name="CloudAI")
+def main(log_file, log_level):
+    """CloudAI is a benchmark framework focused on grading Data Center scale AI systems."""
+    setup_logging(log_file, log_level)
 
-        return p
 
-    def init_default_args(self) -> argparse.ArgumentParser:
-        self.add_install_and_uninstall()
-        self.add_run_and_dry_run()
+@main.command()
+@common_options
+def install(system_cfg: Path, tests_dir: Path, scenario_cfg: Path):
+    """Install the necessary components for workloads."""
+    args = argparse.Namespace(system_config=system_cfg, tests_dir=tests_dir, test_scenario=scenario_cfg, mode="install")
+    exit(handle_install_and_uninstall(args))
 
-        if "generate-report" in self.DEFAULT_MODES:
-            p = self.add_command(
-                "generate-report",
-                "Generate a report based on the test results.",
-                handle_generate_report,
-                system_config=True,
-                tests_dir=True,
-                test_scenario=True,
-                result_dir=True,
-            )
 
-        if "verify-configs" in self.DEFAULT_MODES:
-            p = self.add_command(
-                "verify-configs",
-                (
-                    "Verify all found TOML files in the given directory. Test Scenarios are verified against all found "
-                    "Test TOML files or all Test TOML files in the given directory."
-                ),
-                handle_verify_all_configs,
-                tests_dir=False,
-            )
-            p.add_argument("configs_dir", help="Path to a file or the directory containing the TOML files.", type=Path)
-            p.add_argument(
-                "--strict", help="Warn about unknown keys in Test TOML files.", action="store_true", default=False
-            )
+@main.command()
+@common_options
+def uninstall(system_cfg: Path, tests_dir: Path, scenario_cfg: Path):
+    """Uninstall the components used by workloads."""
+    args = argparse.Namespace(
+        system_config=system_cfg, tests_dir=tests_dir, test_scenario=scenario_cfg, mode="uninstall"
+    )
+    exit(handle_install_and_uninstall(args))
 
-        if "list" in self.DEFAULT_MODES:
-            p = self.add_command("list", "List registered items.", handle_list_registered_items)
-            p.add_argument("type", choices=["reports"], help="Type of items to list.")
-            p.add_argument("-v", "--verbose", action="store_true", help="Verbose output.")
 
-        return self.parser
+@main.command()
+@common_options
+@output_dir_opt
+@cache_without_check_opt
+@single_sbatch_opt
+def dry_run(
+    system_cfg: Path,
+    tests_dir: Path,
+    scenario_cfg: Path,
+    output_dir: Path,
+    enable_cache_without_check: bool,
+    single_sbatch: bool,
+):
+    """Dry run a scenario without executing it."""
+    args = argparse.Namespace(
+        system_config=system_cfg,
+        tests_dir=tests_dir,
+        test_scenario=scenario_cfg,
+        output_dir=output_dir,
+        mode="dry-run",
+        enable_cache_without_check=enable_cache_without_check,
+        single_sbatch=single_sbatch,
+    )
+    exit(handle_dry_run_and_run(args))
 
-    def add_run_and_dry_run(self):
-        for mode in {"run", "dry-run"}:
-            if mode not in self.DEFAULT_MODES:
-                continue
 
-            desc = "Execute the test scenarios."
-            if mode == "dry-run":
-                desc = "Perform a dry-run of the test scenarios without executing them."
-            p = self.add_command(
-                mode,
-                desc,
-                handle_dry_run_and_run,
-                system_config=True,
-                tests_dir=False,
-                test_scenario=True,
-                output_dir=False,
-            )
-            p.add_argument(
-                "--enable-cache-without-check",
-                action="store_true",
-                help="Enable cache without checking.",
-                default=False,
-            )
-            p.add_argument(
-                "--single-sbatch",
-                action="store_true",
-                help="Use single sbatch for all test runs (Slurm only).",
-                default=False,
-            )
+@main.command()
+@common_options
+@output_dir_opt
+@cache_without_check_opt
+@single_sbatch_opt
+def run(
+    system_cfg: Path,
+    tests_dir: Path,
+    scenario_cfg: Path,
+    output_dir: Path,
+    enable_cache_without_check: bool,
+    single_sbatch: bool,
+):
+    """
+    Run all the workloads from a scenario.
 
-    def add_install_and_uninstall(self):
-        for mode in {"install", "uninstall"}:
-            if mode not in self.DEFAULT_MODES:
-                continue
+    It includes installing necessary components, executing the scenario, and generating reports.
+    """
+    args = argparse.Namespace(
+        system_config=system_cfg,
+        tests_dir=tests_dir,
+        test_scenario=scenario_cfg,
+        output_dir=output_dir,
+        mode="run",
+        enable_cache_without_check=enable_cache_without_check,
+        single_sbatch=single_sbatch,
+    )
+    exit(handle_dry_run_and_run(args))
 
-            desc = "Prepare execution by setting up env and dependencies for the tests to run."
-            if mode == "uninstall":
-                desc = "Remove the installed dependencies."
-            self.add_command(
-                mode,
-                desc,
-                handle_install_and_uninstall,
-                system_config=True,
-                tests_dir=False,
-                test_scenario=False,
-                output_dir=False,
-            )
 
-    def run(self) -> int:
-        args = self.parser.parse_args()
-        return self.handlers[args.mode](args)
+@main.command()
+@common_options
+@click.option(
+    "--result-dir",
+    required=True,
+    type=click.Path(exists=True, resolve_path=True, path_type=Path, file_okay=False),
+    help="Path to a scenario results directory.",
+)
+def generate_report(system_cfg: Path, tests_dir: Path, scenario_cfg: Path, result_dir: Path):
+    """
+    Generate a report from the results of a scenario.
+
+    While this process is automatically executed as part of "run" command, one can also invoke it manually using this
+    command.
+    """
+    args = argparse.Namespace(
+        system_config=system_cfg, tests_dir=tests_dir, test_scenario=scenario_cfg, result_dir=result_dir
+    )
+    exit(handle_generate_report(args))
+
+
+@main.command()
+@click.argument(
+    "configs_dir",
+    type=click.Path(exists=True, resolve_path=True, path_type=Path, file_okay=True, dir_okay=True),
+)
+@click.option(
+    "--tests-dir",
+    type=click.Path(exists=True, resolve_path=True, path_type=Path, file_okay=False, dir_okay=True),
+    help="Directory with Test configs.",
+)
+def verify_configs(configs_dir: Path, tests_dir: Path):
+    """Verify the configuration TOML files."""
+    args = argparse.Namespace(configs_dir=configs_dir, tests_dir=tests_dir)
+    handle_verify_all_configs(args)
+
+
+@main.command()
+@click.argument("type", type=click.Choice(["reports", "agents"], case_sensitive=False))
+@click.option("-v", "--verbose", is_flag=True, default=False, help="Verbose output.")
+def list(type: str, verbose: bool):
+    """List available in Registry items."""
+    handle_list_registered_items(type, verbose)

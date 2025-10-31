@@ -18,7 +18,7 @@ from typing import Literal, Optional
 
 from pydantic import Field, model_validator
 
-from cloudai.core import CmdArgs, DockerImage, Installable, TestDefinition
+from cloudai.core import CmdArgs, DockerImage, Installable, TestDefinition, TestRun
 
 
 class MatgenCmdArgs(CmdArgs):
@@ -35,7 +35,7 @@ class NixlPerftestCmdArgs(CmdArgs):
     subtest: Literal["sequential-ct-perftest"]
     perftest_script: str = "/workspace/nixl/benchmark/kvbench/main.py"
     matgen_script: str = "/workspace/nixl/benchmark/kvbench/test/inference_workload_matgen.py"
-    python_executable: str = "/workspace/nixl/.venv/bin/python"
+    python_executable: str = "python"
     etcd_path: str = "etcd"
     wait_etcd_for: int = 60
 
@@ -106,3 +106,11 @@ class NixlPerftestTestDefinition(TestDefinition):
     @property
     def installables(self) -> list[Installable]:
         return [*self.git_repos, self.docker_image]
+
+    def constraint_check(self, tr: TestRun) -> bool:
+        decode_tp = int(tr.test.test_definition.cmd_args.decode_tp)
+        decode_nodes = int(tr.test.test_definition.cmd_args.num_decode_nodes)
+        prefill_tp = int(tr.test.test_definition.cmd_args.prefill_tp)
+        prefill_nodes = int(tr.test.test_definition.cmd_args.num_prefill_nodes)
+
+        return decode_tp / decode_nodes == prefill_tp / prefill_nodes

@@ -167,13 +167,40 @@ def test_gen_matrix_gen_command_with_matgen_args_ppn(
 def test_gen_perftest_srun_command(test_run: TestRun, slurm_system: SlurmSystem) -> None:
     strategy = NixlPerftestSlurmCommandGenStrategy(slurm_system, test_run)
     tdef = cast(NixlPerftestTestDefinition, test_run.test.test_definition)
+    test_run.output_path.mkdir(parents=True, exist_ok=True)
     cmd = strategy.gen_perftest_srun_command()
     assert cmd == [
         *strategy.gen_srun_prefix(),
         "--overlap",
+        f'bash -c "source {(test_run.output_path / "env_vars.sh").absolute()}; ',
         tdef.cmd_args.python_executable,
         tdef.cmd_args.perftest_script,
         tdef.cmd_args.subtest,
         str(strategy.matrix_gen_path.absolute() / "metadata.yaml"),
         "--json-output-path=" + str(test_run.output_path.absolute() / "results.json"),
+        '"',
     ]
+
+
+@pytest.mark.parametrize(
+    "decode_tp,dec_nodes,prefill_tp,prefill_nodes,res",
+    [
+        (1, 1, 1, 1, True),  # decode/prefill ratio is 1:1
+        (1, 2, 4, 8, True),  # decode/prefill ratio is 2:2
+        (1, 2, 1, 1, False),  # decode/prefill ratio is 1:2
+    ],
+)
+def test_constraint_check(
+    nixl_perftest: NixlPerftestTestDefinition,
+    test_run: TestRun,
+    decode_tp: int,
+    dec_nodes: int,
+    prefill_tp: int,
+    prefill_nodes: int,
+    res: bool,
+) -> None:
+    nixl_perftest.cmd_args.decode_tp = decode_tp
+    nixl_perftest.cmd_args.num_decode_nodes = dec_nodes
+    nixl_perftest.cmd_args.prefill_tp = prefill_tp
+    nixl_perftest.cmd_args.num_prefill_nodes = prefill_nodes
+    assert nixl_perftest.constraint_check(test_run) is res

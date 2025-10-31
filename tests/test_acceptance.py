@@ -24,7 +24,8 @@ from unittest.mock import Mock, patch
 import pytest
 import toml
 
-from cloudai.cli import handle_dry_run_and_run, setup_logging
+from cloudai.cli import setup_logging
+from cloudai.cli.handlers import handle_dry_run_and_run
 from cloudai.core import CommandGenStrategy, GitRepo, Test, TestDefinition, TestRun, TestScenario, TestTemplate
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmRunner, SlurmSystem
@@ -54,7 +55,8 @@ from cloudai.workloads.nemo_launcher import (
 )
 from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
 from cloudai.workloads.nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
-from cloudai.workloads.nixl_perftest.nixl_perftest import NixlPerftestCmdArgs, NixlPerftestTestDefinition
+from cloudai.workloads.nixl_kvbench import NIXLKVBenchCmdArgs, NIXLKVBenchTestDefinition
+from cloudai.workloads.nixl_perftest import NixlPerftestCmdArgs, NixlPerftestTestDefinition
 from cloudai.workloads.sleep import SleepCmdArgs, SleepTestDefinition
 from cloudai.workloads.slurm_container import (
     SlurmContainerCmdArgs,
@@ -262,6 +264,7 @@ def build_special_test_run(
         "nixl_bench",
         "ai-dynamo",
         "nixl-perftest",
+        "nixl-kvbench",
     ]
 )
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> Tuple[TestRun, str, Optional[str]]:
@@ -362,11 +365,9 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 name="nixl_bench",
                 description="nixl_bench",
                 test_template_name="nixl_bench",
-                etcd_image_url="url.com/docker:1",
                 cmd_args=NIXLBenchCmdArgs.model_validate(
                     {
                         "docker_image_url": "url.com/docker:2",
-                        "etcd_endpoint": "http://$SLURM_JOB_MASTER_NODE:2379",
                         "path_to_benchmark": "./nixlbench",
                         "backend": "UCX",
                     }
@@ -390,6 +391,24 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     num_prefill_nodes=1,
                     num_decode_nodes=1,
                     model="model-name",
+                ),
+            ),
+        ),
+        "nixl-kvbench": lambda: create_test_run(
+            partial_tr,
+            slurm_system,
+            "nixl-kvbench",
+            NIXLKVBenchTestDefinition(
+                name="nixl-perftest",
+                description="nixl-perftest",
+                test_template_name="nixl-perftest",
+                cmd_args=NIXLKVBenchCmdArgs.model_validate(
+                    {
+                        "docker_image_url": "url.com/docker:tag",
+                        "backend": "UCX",
+                        "kvbench_script": "path/to/kvbench_script.sh",
+                        "python_executable": "path/to/python",
+                    }
                 ),
             ),
         ),
@@ -454,7 +473,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             tr.num_nodes = 3
             tr.test.test_definition.extra_env_vars["NIM_MODEL_NAME"] = str(tr.output_path)
             tr.test.test_definition.extra_env_vars["NIM_CACHE_PATH"] = str(tr.output_path)
-        if request.param == "nixl_bench":
+        if request.param in {"nixl_bench", "nixl-kvbench"}:
             tr.num_nodes = 2
         if request.param == "ai-dynamo":
             tr.num_nodes = 2

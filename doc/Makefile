@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,16 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cloudai.cli import CloudAICLI, setup_logging
+SPHINXOPTS    ?=
+SPHINXBUILD  ?= sphinx-build
+SOURCEDIR    = .
+BUILDDIR     = _build
 
+help:
+	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
-def main() -> None:
-    cloudai_cli = CloudAICLI()
-    args = cloudai_cli.init_default_args().parse_args()
-    setup_logging(args.log_file, args.log_level)
-    rc = cloudai_cli.run()
-    exit(rc)
+.PHONY: help Makefile
 
-
-if __name__ == "__main__":
-    main()
+%: Makefile
+	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)

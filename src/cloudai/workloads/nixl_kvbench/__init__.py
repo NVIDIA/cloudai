@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,19 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "nemo_launcher_with_noise"
-[[Tests]]
-id = "Tests.1"
-test_name = "llama2_70b"
-num_nodes = "4"
-weight = 100
+from .nixl_kvbench import NIXLKVBenchCmdArgs, NIXLKVBenchTestDefinition
+from .slurm_command_gen_strategy import NIXLKVBenchSlurmCommandGenStrategy
 
-[[Tests]]
-id = "Tests.2"
-test_name = "nccl_base_test"
-num_nodes = "16"
-  [Tests.cmd_args]
-  subtest_name = "all_reduce_perf_mpi"
-  [[Tests.dependencies]]
-  type = "start_post_init"
-  id = "Tests.1"
+__all__ = [
+    "NIXLKVBenchCmdArgs",
+    "NIXLKVBenchSlurmCommandGenStrategy",
+    "NIXLKVBenchTestDefinition",
+]

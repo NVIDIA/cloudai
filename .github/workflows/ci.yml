@@ -18,7 +18,7 @@ jobs:
         uses: actions/setup-python@v5
 
       - name: Install dependencies
-        run: pip install '.[dev]'
+        run: pip install '.[dev,docs]'
 
       - name: Run ruff linter
         run: ruff check
@@ -42,10 +42,23 @@ jobs:
 
           taplo fmt --check --diff
 
+      - name: Build documentation
+        run: |
+          set -eE
+          set -o pipefail
+
+          cd doc
+          make html
+
   test:
     name: Run pytest
 
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+      fail-fast: false
 
     steps:
       - name: Checkout code
@@ -53,8 +66,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Python
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: pip install '.[dev]'
@@ -95,7 +110,7 @@ jobs:
 
           # this checks that all TOMLs are valid, Test Scenarios are checked _only_ the tests in the specified directory
           cloudai verify-configs --tests-dir conf/common/test conf/common
-          cloudai verify-configs --strict --tests-dir conf/release/spcx/l40s/test conf/release/spcx/l40s
+          cloudai verify-configs --tests-dir conf/release/spcx/l40s/test conf/release/spcx/l40s
 
           # set monitor_interval to 1 to speed up the test
           sed -i '/scheduler =/a monitor_interval = 1' conf/common/system/example_slurm_cluster.toml

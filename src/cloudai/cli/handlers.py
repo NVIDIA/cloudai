@@ -59,8 +59,6 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     parser = Parser(args.system_config)
     system, tests, scenario = parser.parse(args.tests_dir, args.test_scenario)
 
-    if args.output_dir:
-        system.output_path = args.output_dir.absolute()
     system.update()
     logging.info(f"System Name: {system.name}")
     logging.info(f"Scheduler: {system.scheduler}")
@@ -115,24 +113,34 @@ def prepare_installation(
     return installables, installer
 
 
-def handle_dse_job(runner: Runner, args: argparse.Namespace):
+def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
     registry = Registry()
 
     original_test_runs = copy.deepcopy(runner.runner.test_scenario.test_runs)
 
+    has_dependencies = any(tr.dependencies for tr in runner.runner.test_scenario.test_runs)
+    if has_dependencies:
+        logging.error(
+            "Dependencies are not supported for DSE jobs, all cases run consecutively. "
+            "Please remove dependencies and re-run."
+        )
+        return 1
+
+    err = 0
     for tr in runner.runner.test_scenario.test_runs:
         test_run = copy.deepcopy(tr)
-        env = CloudAIGymEnv(test_run=test_run, runner=runner.runner)
-        agent_type = test_run.test.test_definition.agent
 
+        agent_type = test_run.test.test_definition.agent
         agent_class = registry.agents_map.get(agent_type)
         if agent_class is None:
             logging.error(
                 f"No agent available for type: {agent_type}. Please make sure {agent_type} "
                 f"is a valid agent type. Available agents: {registry.agents_map.keys()}"
             )
+            err = 1
             continue
 
+        env = CloudAIGymEnv(test_run=test_run, runner=runner.runner)
         agent = agent_class(env)
         for step in range(agent.max_steps):
             result = agent.select_action()
@@ -140,16 +148,18 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace):
                 break
             step, action = result
             env.test_run.step = step
-            observation, reward, done, info = env.step(action)
+            logging.info(f"Running step {step} (of {agent.max_steps}) with action {action}")
+            observation, reward, *_ = env.step(action)
             feedback = {"trial_index": step, "value": reward}
             agent.update_policy(feedback)
-            logging.info(f"Step {step}: Observation: {observation}, Reward: {reward}")
+            logging.info(f"Step {step}: Observation: {[round(obs, 4) for obs in observation]}, Reward: {reward:.4f}")
 
     if args.mode == "run":
         runner.runner.test_scenario.test_runs = original_test_runs
         generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
 
     logging.info("All jobs are complete.")
+    return err
 
 
 def generate_reports(system: System, test_scenario: TestScenario, result_dir: Path) -> None:
@@ -291,8 +301,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
         return 0
 
     if all(tr.is_dse_job for tr in test_scenario.test_runs):
-        handle_dse_job(runner, args)
-        return 0
+        return handle_dse_job(runner, args)
 
     logging.error("Mixing DSE and non-DSE jobs is not allowed.")
     return 1
@@ -394,12 +403,14 @@ def verify_system_configs(system_tomls: List[Path]) -> int:
             try:
                 with _ensure_kube_config_exists(system_toml, content):
                     Parser.parse_system(system_toml)
-            except Exception:
+            except Exception as e:
+                logging.debug(f"Failed to parse system config {system_toml}: {e}", exc_info=True)
                 nfailed += 1
         else:
             try:
                 Parser.parse_system(system_toml)
-            except Exception:
+            except Exception as e:
+                logging.debug(f"Failed to parse system config {system_toml}: {e}", exc_info=True)
                 nfailed += 1
 
     if nfailed:
@@ -410,16 +421,15 @@ def verify_system_configs(system_tomls: List[Path]) -> int:
     return nfailed
 
 
-def verify_test_configs(test_tomls: List[Path], strict: bool) -> int:
+def verify_test_configs(test_tomls: List[Path]) -> int:
     nfailed = 0
     tp = TestParser([], None)  # type: ignore
-    logging.info(f"Strict test verification: {strict}")
     for test_toml in test_tomls:
         logging.debug(f"Verifying Test: {test_toml}...")
         try:
             with test_toml.open() as fh:
                 tp.current_file = test_toml
-                tp.load_test_definition(toml.load(fh), strict)
+                tp.load_test_definition(toml.load(fh))
         except Exception:
             nfailed += 1
 
@@ -432,11 +442,7 @@ def verify_test_configs(test_tomls: List[Path], strict: bool) -> int:
 
 
 def verify_test_scenarios(
-    scenario_tomls: List[Path],
-    test_tomls: list[Path],
-    hook_tomls: List[Path],
-    hook_test_tomls: list[Path],
-    strict: bool = False,
+    scenario_tomls: List[Path], test_tomls: list[Path], hook_tomls: List[Path], hook_test_tomls: list[Path]
 ) -> int:
     system = Mock(spec=System)
     nfailed = 0
@@ -446,7 +452,7 @@ def verify_test_scenarios(
             tests = Parser.parse_tests(test_tomls, system)
             hook_tests = Parser.parse_tests(hook_test_tomls, system)
             hooks = Parser.parse_hooks(hook_tomls, system, {t.name: t for t in hook_tests})
-            Parser.parse_test_scenario(scenario_file, system, {t.name: t for t in tests}, hooks, strict)
+            Parser.parse_test_scenario(scenario_file, system, {t.name: t for t in tests}, hooks)
         except Exception:
             nfailed += 1
 
@@ -482,9 +488,9 @@ def handle_verify_all_configs(args: argparse.Namespace) -> int:
     if files["system"]:
         nfailed += verify_system_configs(files["system"])
     if files["test"]:
-        nfailed += verify_test_configs(files["test"], args.strict)
+        nfailed += verify_test_configs(files["test"])
     if files["scenario"]:
-        nfailed += verify_test_scenarios(files["scenario"], test_tomls, files["hook"], files["hook_test"], args.strict)
+        nfailed += verify_test_scenarios(files["scenario"], test_tomls, files["hook"], files["hook_test"])
     if files["unknown"]:
         logging.error(f"Unknown configuration files: {[str(f) for f in files['unknown']]}")
         nfailed += len(files["unknown"])
@@ -535,15 +541,21 @@ def load_tomls_by_type(tomls: List[Path]) -> dict[str, List[Path]]:
     return files
 
 
-def handle_list_registered_items(args: argparse.Namespace) -> int:
-    item_type = args.type
+def handle_list_registered_items(item_type: str, verbose: bool) -> int:
     registry = Registry()
-    if item_type == "reports":
-        print("Registered scenario reports:")
+    if item_type.lower() == "reports":
+        print("Available scenario reports:")
         for idx, (name, report) in enumerate(sorted(registry.scenario_reports.items()), start=1):
             str = f'{idx}. "{name}" {report.__name__}'
-            if args.verbose:
+            if verbose:
                 str += f" (config={registry.report_configs[name].model_dump_json(indent=None)})"
+            print(str)
+    elif item_type.lower() == "agents":
+        print("Available agents:")
+        for idx, (name, agent) in enumerate(sorted(registry.agents_map.items()), start=1):
+            str = f'{idx}. "{name}" class={agent.__name__}'
+            if verbose:
+                str += f"{agent.__doc__}"
             print(str)
 
     return 0

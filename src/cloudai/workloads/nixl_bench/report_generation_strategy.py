@@ -23,7 +23,7 @@ from typing import ClassVar
 from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
 from cloudai.report_generator.tool.bokeh_report_tool import BokehReportTool
 from cloudai.util.lazy_imports import lazy
-from cloudai.workloads.nixl_bench.nixl_bench import extract_nixl_data
+from cloudai.workloads.common.nixl import extract_nixlbench_data
 
 
 class NIXLBenchReportGenerationStrategy(ReportGenerationStrategy):
@@ -36,7 +36,7 @@ class NIXLBenchReportGenerationStrategy(ReportGenerationStrategy):
         return self.test_run.output_path / "stdout.txt"
 
     def can_handle_directory(self) -> bool:
-        df = extract_nixl_data(self.results_file)
+        df = extract_nixlbench_data(self.results_file)
         return not df.empty
 
     def generate_report(self) -> None:
@@ -44,19 +44,19 @@ class NIXLBenchReportGenerationStrategy(ReportGenerationStrategy):
             return
 
         self.generate_bokeh_report()
-        df = extract_nixl_data(self.results_file)
+        df = extract_nixlbench_data(self.results_file)
         df.to_csv(self.test_run.output_path / "nixlbench.csv", index=False)
 
     def get_metric(self, metric: str) -> float:
         logging.debug(f"Getting metric {metric} from {self.results_file.absolute()}")
-        df = extract_nixl_data(self.results_file)
+        df = extract_nixlbench_data(self.results_file)
         if df.empty or metric not in {"default", "latency"}:
             return METRIC_ERROR
 
         return float(lazy.np.mean(df["avg_lat"]))
 
     def generate_bokeh_report(self) -> None:
-        df = extract_nixl_data(self.results_file)
+        df = extract_nixlbench_data(self.results_file)
 
         report_tool = BokehReportTool(self.test_run.output_path)
         p = report_tool.add_log_x_linear_y_multi_line_plot(

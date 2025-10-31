@@ -18,12 +18,13 @@ from pathlib import Path
 from typing import cast
 
 from cloudai.core import TestRun
-from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmSystem
+from cloudai.systems.slurm import SlurmSystem
+from cloudai.workloads.common.nixl import NIXLCmdGenBase
 
 from .nixl_perftest import NixlPerftestTestDefinition
 
 
-class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
+class NixlPerftestSlurmCommandGenStrategy(NIXLCmdGenBase):
     """Command generation strategy for NixlPerftest tests."""
 
     def __init__(self, system: SlurmSystem, test_run: TestRun) -> None:
@@ -44,23 +45,17 @@ class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return []
 
     def _gen_srun_command(self) -> str:
-        self.final_env_vars["NIXL_ETCD_NAMESPACE"] = "/nixl/kvbench/$(uuidgen)"
-        self.final_env_vars["NIXL_ETCD_ENDPOINTS"] = '"$SLURM_JOB_MASTER_NODE:2379"'
-
-        with (self.test_run.output_path / "env_vars.sh").open("w") as f:
-            for key, value in self.final_env_vars.items():
-                f.write(f"export {key}={value}\n")
-
         matrix_gen_command: list[str] = self.gen_matrix_gen_srun_command()
-        etcd_command: list[str] = self.gen_etcd_srun_command()
+        etcd_command: list[str] = self.gen_etcd_srun_command(self.tdef.cmd_args.etcd_path)
         perftest_command: list[str] = self.gen_perftest_srun_command()
         return "\n".join(
             [
-                "echo SLURM_JOB_MASTER_NODE=$SLURM_JOB_MASTER_NODE",
                 " ".join(matrix_gen_command),
                 " ".join(etcd_command),
-                " ".join(self.gen_wait_for_etcd_command()),
+                "etcd_pid=$!",
+                " ".join(self.gen_wait_for_etcd_command(self.tdef.cmd_args.wait_etcd_for)),
                 " ".join(perftest_command),
+                "kill -9 $etcd_pid",
             ]
         )
 
@@ -124,50 +119,18 @@ class NixlPerftestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return cmd
 
-    def gen_etcd_srun_command(self) -> list[str]:
-        etcd_cmd = [
-            self.tdef.cmd_args.etcd_path,
-            "--listen-client-urls=http://0.0.0.0:2379",
-            "--advertise-client-urls=http://$SLURM_JOB_MASTER_NODE:2379",
-            "--listen-peer-urls=http://0.0.0.0:2380",
-            "--initial-advertise-peer-urls=http://$SLURM_JOB_MASTER_NODE:2380",
-            '--initial-cluster="default=http://$SLURM_JOB_MASTER_NODE:2380"',
-            "--initial-cluster-state=new",
-        ]
-        cmd = [
-            *self.gen_srun_prefix(),
-            f"--output={self.test_run.output_path.absolute() / 'etcd.log'}",
-            "--overlap",
-            "--ntasks-per-node=1",
-            "--ntasks=1",
-            "--nodelist=$SLURM_JOB_MASTER_NODE",
-            "-N1",
-            *etcd_cmd,
-            " &",
-        ]
-        return cmd
-
     def gen_perftest_srun_command(self) -> list[str]:
+        self.create_env_vars_file()
+
         cmd = [
             *self.gen_srun_prefix(),
             "--overlap",
+            f'bash -c "source {(self.test_run.output_path / "env_vars.sh").absolute()}; ',
             self.tdef.cmd_args.python_executable,
             self.tdef.cmd_args.perftest_script,
             self.tdef.cmd_args.subtest,
             str(self.matrix_gen_path.absolute() / "metadata.yaml"),
             "--json-output-path=" + str(self.test_run.output_path.absolute() / "results.json"),
-        ]
-        return cmd
-
-    def gen_wait_for_etcd_command(self) -> list[str]:
-        cmd = [
-            "timeout",
-            str(self.tdef.cmd_args.wait_etcd_for),
-            "bash",
-            "-c",
-            '"until curl -s $NIXL_ETCD_ENDPOINTS/health > /dev/null 2>&1; do sleep 1; done" || {\n',
-            f'  echo "ETCD ($NIXL_ETCD_ENDPOINTS) was unreachable after {self.tdef.cmd_args.wait_etcd_for} seconds";\n',
-            "  exit 1\n",
-            "}",
+            '"',
         ]
         return cmd

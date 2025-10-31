@@ -78,7 +78,7 @@ class NIXLBenchComparisonReport(ComparisonReport):
             dfs = [self.extract_data_as_df(item.tr) for item in group.items]
             charts.extend(
                 [
-                    self.create_chart(group, dfs, "Latecy", list(self.INFO_COLUMNS), ["avg_lat"], "Time (us)"),
+                    self.create_chart(group, dfs, "Latency", list(self.INFO_COLUMNS), ["avg_lat"], "Time (us)"),
                     self.create_chart(group, dfs, "Bandwidth", list(self.INFO_COLUMNS), ["bw_gb_sec"], "Busbw (GB/s)"),
                 ]
             )

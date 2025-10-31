@@ -54,6 +54,8 @@ These schemas enable CloudAI to be flexible and compatible with different system
 |SlurmContainer|✅|❌|❌|❌|
 |MegatronRun (experimental)|✅|❌|❌|❌|
 
+For more detailed information, please refer to the [official documentation](https://nvidia.github.io/cloudai/workloads/index.html).
+
 ## Details
 ###  Set Up Access to the Private NGC Registry
 First, ensure you have access to the Docker repository. Follow the following steps:
@@ -101,7 +103,8 @@ Please make sure to use the correct system configuration file that corresponds t
 ```bash
 cloudai install\
     --system-config conf/common/system/example_slurm_cluster.toml\
-    --tests-dir conf/common/test
+    --tests-dir conf/common/test\
+    --test-scenario conf/common/test_scenario/sleep.toml
 ```
 ### dry-run
 To simulate running experiments without execution, use the dry-run mode:
@@ -135,9 +138,10 @@ To uninstall test prerequisites, run CloudAI CLI in uninstall mode:
 ```bash
 cloudai uninstall\
     --system-config conf/common/system/example_slurm_cluster.toml\
-    --tests-dir conf/common/test
+    --tests-dir conf/common/test\
+    --test-scenario conf/common/test_scenario/sleep.toml
 ```
-Verify TOML configs:
+### verify-configs
 ```bash
 # verify all at once
 cloudai verify-configs conf
@@ -149,11 +153,11 @@ cloudai verify-configs conf/common/system/example_slurm_cluster.toml
 cloudai verify-configs --tests-dir conf/release/spcx/l40s/test conf/release/spcx/l40s/test_scenario
 ```
 
+## Additional Documentation
+For more detailed instructions and guidance, including advanced usage and troubleshooting, please refer to the [official documentation](https://nvidia.github.io/cloudai/).
+
 ## Contribution
 Please feel free to contribute to the CloudAI project and share your insights. Your contributions are highly appreciated.
 
 ## License
 This project is licensed under Apache 2.0. See the LICENSE file for detailed information.
-
-## Additional Documentation
-For more detailed instructions and guidance, including advanced usage and troubleshooting, please refer to the [USER_GUIDE.md](./USER_GUIDE.md)

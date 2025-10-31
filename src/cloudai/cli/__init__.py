@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,8 +17,7 @@
 import logging
 import logging.config
 
-from .cli import CloudAICLI
-from .handlers import handle_dry_run_and_run, handle_generate_report, handle_install_and_uninstall
+from .cli import main
 
 
 def setup_logging(log_file: str, log_level: str) -> None:
@@ -69,9 +68,6 @@ def setup_logging(log_file: str, log_level: str) -> None:
 
 
 __all__ = [
-    "CloudAICLI",
-    "handle_dry_run_and_run",
-    "handle_generate_report",
-    "handle_install_and_uninstall",
+    "main",
     "setup_logging",
 ]

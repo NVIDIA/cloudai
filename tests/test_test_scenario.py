@@ -17,7 +17,6 @@
 
 from pathlib import Path
 from typing import Set, Type
-from unittest.mock import Mock, patch
 
 import pytest
 import toml
@@ -34,7 +33,6 @@ from cloudai.core import (
     TestRun,
     TestScenario,
     TestScenarioParser,
-    TestScenarioParsingError,
     TestTemplate,
 )
 from cloudai.models.scenario import TestRunModel, TestScenarioModel
@@ -66,6 +64,7 @@ from cloudai.workloads.nemo_run import (
     NeMoRunTestDefinition,
 )
 from cloudai.workloads.nixl_bench import NIXLBenchReportGenerationStrategy, NIXLBenchTestDefinition
+from cloudai.workloads.nixl_perftest import NIXLKVBenchDummyReport, NixlPerftestTestDefinition
 from cloudai.workloads.triton_inference import TritonInferenceReportGenerationStrategy, TritonInferenceTestDefinition
 from cloudai.workloads.ucc_test import UCCTestDefinition, UCCTestReportGenerationStrategy
 
@@ -488,7 +487,7 @@ class TestReporters:
         assert len(reporters) == 0
 
     def test_default_reporters_size(self):
-        assert len(Registry().reports_map) == 12
+        assert len(Registry().reports_map) == 13
 
     @pytest.mark.parametrize(
         "tdef,expected_reporters",
@@ -505,6 +504,7 @@ class TestReporters:
             (TritonInferenceTestDefinition, {TritonInferenceReportGenerationStrategy}),
             (NIXLBenchTestDefinition, {NIXLBenchReportGenerationStrategy}),
             (AIDynamoTestDefinition, {AIDynamoReportGenerationStrategy}),
+            (NixlPerftestTestDefinition, {NIXLKVBenchDummyReport}),
         ],
     )
     def test_custom_reporters(self, tdef: Type[TestDefinition], expected_reporters: Set[ReportGenerationStrategy]):
@@ -527,62 +527,3 @@ class TestReporters:
         assert len(reporters) == 2
         assert NcclTestPerformanceReportGenerationStrategy in reporters
         assert NcclTestPredictionReportGenerationStrategy in reporters
-
-
-class TestReportMetricsDSE:
-    @pytest.fixture
-    def tname(self) -> str:
-        return "nccl"
-
-    @pytest.fixture
-    def test_info(self, tname: str) -> TestRunModel:
-        return TestRunModel(id="main1", test_name=tname, time_limit="01:00:00", weight=10, iterations=1, num_nodes=1)
-
-    @pytest.fixture
-    def ts_parser(self, test_scenario_parser: TestScenarioParser) -> TestScenarioParser:
-        nccl = NCCLTestDefinition(
-            name="nccl",
-            description="desc",
-            test_template_name="NcclTest",
-            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-            extra_env_vars={"DSE": ["v1", "v2"]},
-        )
-        test_scenario_parser.test_mapping["nccl"] = Test(test_definition=nccl, test_template=Mock())
-        return test_scenario_parser
-
-    def test_raises_on_unknown_metric(
-        self, ts_parser: TestScenarioParser, tname: str, test_info: TestRunModel, caplog: pytest.LogCaptureFixture
-    ):
-        test_info.agent_metrics = ["unknown"]
-
-        with pytest.raises(TestScenarioParsingError) as exc_info:
-            ts_parser._create_test_run(test_info=test_info, normalized_weight=1.0)
-
-        mapping_str = (
-            f"'{NcclTestPerformanceReportGenerationStrategy.__name__}': "
-            f"{NcclTestPerformanceReportGenerationStrategy.metrics}"
-        )
-        msg = (
-            f"Test '{test_info.id}' is a DSE job with agent_metrics='{test_info.agent_metrics}', "
-            "but no report generation strategy is defined for it. "
-            f"Available report-metrics mapping: {{{mapping_str}}}"
-        )
-        assert str(exc_info.value) == msg
-        assert caplog.records[0].levelname == "ERROR"
-        assert caplog.records[0].message == f"Failed to parse Test Scenario definition: {ts_parser.file_path}"
-        assert caplog.records[1].levelname == "ERROR"
-        assert caplog.records[1].message == msg
-
-    @patch("cloudai.test_scenario_parser.get_reporters", return_value=set())
-    def test_raises_if_no_reports_defined(self, _, ts_parser: TestScenarioParser, test_info: TestRunModel, tname: str):
-        tdef = ts_parser.test_mapping[tname].test_definition
-        tdef.agent_metrics = ["default"]
-
-        with pytest.raises(TestScenarioParsingError) as exc_info:
-            ts_parser._create_test_run(test_info=test_info, normalized_weight=1.0)
-
-        assert str(exc_info.value) == (
-            f"Test '{test_info.id}' is a DSE job with agent_metrics='{tdef.agent_metrics}', "
-            "but no report generation strategy is defined for it. "
-            "Available report-metrics mapping: {}"
-        )

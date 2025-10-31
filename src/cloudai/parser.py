@@ -146,12 +146,11 @@ class Parser:
         system: System,
         test_mapping: Dict[str, Test],
         hook_mapping: Optional[Dict[str, TestScenario]] = None,
-        strict: bool = False,
     ) -> TestScenario:
         if hook_mapping is None:
             hook_mapping = {}
 
-        test_scenario_parser = TestScenarioParser(test_scenario_path, system, test_mapping, hook_mapping, strict)
+        test_scenario_parser = TestScenarioParser(test_scenario_path, system, test_mapping, hook_mapping)
         test_scenario = test_scenario_parser.parse()
         return test_scenario
 
