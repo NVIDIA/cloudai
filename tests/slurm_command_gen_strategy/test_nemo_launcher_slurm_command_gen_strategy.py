@@ -201,7 +201,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         tdef.cmd_args.training.model.data.data_impl = "not_mock"
         tdef.cmd_args.training.model.data.data_prefix = "[]"
 
-        with pytest.raises(ValueError, match="The 'data_prefix' field of the NeMo launcher test is missing or empty."):
+        with pytest.raises(ValueError, match=r"The 'data_prefix' field of the NeMo launcher test is missing or empty."):
             cmd_gen_strategy.gen_exec_command()
 
     @patch("pathlib.Path.open", new_callable=mock_open)

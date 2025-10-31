@@ -117,7 +117,7 @@ class NcclTestPredictionReportGenerator:
         if predictor_paths is None:
             return lazy.pd.DataFrame()
 
-        config_path, model_path, input_csv, output_csv, predictor_sub_path = predictor_paths
+        config_path, model_path, input_csv, output_csv, _ = predictor_paths
 
         if not self.predictor or not self.predictor.venv_path:
             logging.warning("Predictor virtual environment is not set up. Skipping prediction.")
