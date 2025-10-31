@@ -24,6 +24,7 @@ class DDLBCmdArgs(CmdArgs):
     """DDLB test command arguments."""
 
     docker_image_url: str
+    np: int
 
 
 class DDLBTestDefinition(TestDefinition):
