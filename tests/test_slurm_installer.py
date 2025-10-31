@@ -278,7 +278,7 @@ class TestInstallOnePythonExecutable:
     def test_install_python_executable_prefers_requirements_txt(
         self, installer: SlurmInstaller, git: GitRepo, setup_repo
     ):
-        repo_dir, subdir, _, requirements_file = setup_repo
+        repo_dir, *_ = setup_repo
 
         py = PythonExecutable(git, project_subpath=Path("subdir"), dependencies_from_pyproject=False)
 

@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from math import pi
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Literal, Optional, Tuple
 
 from cloudai.report_generator.util import bokeh_size_unit_js_tick_formatter, calculate_power_of_two_ticks
 from cloudai.util.lazy_imports import lazy
@@ -50,7 +50,7 @@ class BokehReportTool:
         y_range: bokeh.models.Range1d,
         width: int = 500,
         height: int = 308,
-        x_axis_type: str = "linear",
+        x_axis_type: Literal["linear", "log"] = "linear",
         tools: str = "pan,wheel_zoom,box_zoom,reset,save",
         x_range: Optional[bokeh.models.Range1d] = None,
     ) -> bokeh.plotting.figure:
