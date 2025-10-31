@@ -19,4 +19,6 @@ description = "DDLB test configuration"
 test_template_name = "DDLBTest"
 
 [cmd_args]
-docker_image_url = "gitlab-master.nvidia.com/nsarkauskas/ddlb:latest"
+docker_image_url = "/mnt/lustre/gaia/nsarkauskas/gaia/Cloudai/nsarkauskas+ddlb.sqsh"
+# Number of MPI ranks passed to mpirun -np
+np = 8
