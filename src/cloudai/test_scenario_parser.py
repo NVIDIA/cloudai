@@ -147,10 +147,10 @@ class TestScenarioParser:
                 raise TestScenarioParsingError(msg)
 
         test_runs_by_id: dict[str, TestRun] = {
-            tr.id: self._create_test_run(tr, normalized_weight, pre_test, post_test) for tr in ts_model.tests
+            trm.id: self._create_test_run(trm, normalized_weight, pre_test, post_test) for trm in ts_model.tests
         }
 
-        tests_data: dict[str, TestRunModel] = {tr.id: tr for tr in ts_model.tests}
+        tests_data: dict[str, TestRunModel] = {trm.id: trm for trm in ts_model.tests}
         for section, tr in test_runs_by_id.items():
             test_info = tests_data[section]
             tr.dependencies = {
