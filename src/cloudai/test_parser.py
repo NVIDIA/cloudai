@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Union, cast
 
 import toml
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
 from .core import (
     GradingStrategy,
@@ -74,17 +74,6 @@ class TestParser:
                     raise ValueError(f"Duplicate name found: {obj_name}")
                 objects.append(parsed_object)
         return objects
-
-    @staticmethod
-    def model_extras(m: BaseModel, prefix="cmd_args") -> set[str]:
-        if m.model_extra is None:
-            return set()
-
-        extras = set()
-        for field in type(m).model_fields:
-            if isinstance(m.__dict__[field], BaseModel):
-                extras |= TestParser.model_extras(m.__dict__[field], prefix=f"{prefix}.{field}")
-        return extras | set([f"{prefix}.{k}" for k in m.model_extra])
 
     def load_test_definition(self, data: dict) -> TestDefinition:
         test_template_name = data.get("test_template_name")
