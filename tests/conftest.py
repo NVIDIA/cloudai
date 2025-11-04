@@ -23,7 +23,7 @@ import pytest
 import toml
 import yaml
 
-from cloudai.core import CommandGenStrategy, Test, TestRun, TestTemplate
+from cloudai.core import CommandGenStrategy, Test, TestRun
 from cloudai.models.scenario import TestRunDetails
 from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.kubernetes import KubernetesSystem
@@ -125,8 +125,7 @@ def base_tr(slurm_system: SlurmSystem) -> TestRun:
     return TestRun(
         name="tr-name",
         test=Test(
-            test_definition=TestDefinition(name="n", description="d", test_template_name="tt", cmd_args=CmdArgs()),
-            test_template=TestTemplate(slurm_system),
+            test_definition=TestDefinition(name="n", description="d", test_template_name="tt", cmd_args=CmdArgs())
         ),
         num_nodes=1,
         nodes=[],
@@ -161,8 +160,7 @@ def benchmark_tr(slurm_system: SlurmSystem) -> TestRun:
         test_template_name="NcclTest",
         cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
     )
-    test_template = TestTemplate(system=slurm_system)
-    test = Test(test_definition=test_definition, test_template=test_template)
+    test = Test(test_definition=test_definition)
     tr = TestRun(name="benchmark", test=test, num_nodes=1, nodes=["node1"], iterations=3)
     create_test_directories(slurm_system, tr)
     return tr
@@ -178,8 +176,7 @@ def dse_tr(slurm_system: SlurmSystem) -> TestRun:
         extra_env_vars={"VAR1": ["value1", "value2"]},
         agent_steps=12,
     )
-    test_template = TestTemplate(system=slurm_system)
-    test = Test(test_definition=test_definition, test_template=test_template)
+    test = Test(test_definition=test_definition)
 
     tr = TestRun(name="dse", test=test, num_nodes=1, nodes=["node1"], iterations=12)
     create_test_directories(slurm_system, tr)

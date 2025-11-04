@@ -118,7 +118,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return self._gen_srun_command()
 
     def job_name_prefix(self) -> str:
-        return self.test_run.test.test_template.__class__.__name__
+        return self.test_run.test.name
 
     def job_name(self) -> str:
         job_name_prefix = self.job_name_prefix()

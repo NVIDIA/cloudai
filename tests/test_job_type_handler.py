@@ -16,7 +16,7 @@
 
 import pytest
 
-from cloudai.core import Test, TestRun, TestTemplate
+from cloudai.core import Test, TestRun
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
@@ -30,11 +30,7 @@ def tr(slurm_system: SlurmSystem) -> TestRun:
         cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
     )
     return TestRun(
-        name="test_run",
-        test=Test(test_definition=tdef, test_template=TestTemplate(system=slurm_system)),
-        num_nodes=1,
-        nodes=[],
-        output_path=slurm_system.output_path,
+        name="test_run", test=Test(test_definition=tdef), num_nodes=1, nodes=[], output_path=slurm_system.output_path
     )
 
 

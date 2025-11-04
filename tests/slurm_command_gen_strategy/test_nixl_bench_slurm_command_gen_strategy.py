@@ -18,7 +18,7 @@ from typing import cast
 
 import pytest
 
-from cloudai.core import Test, TestRun, TestTemplate
+from cloudai.core import Test, TestRun
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nixl_bench.nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
 from cloudai.workloads.nixl_bench.slurm_command_gen_strategy import NIXLBenchSlurmCommandGenStrategy
@@ -31,7 +31,6 @@ def nixl_bench_tr(slurm_system: SlurmSystem) -> TestRun:
         num_nodes=2,
         nodes=[],
         test=Test(
-            test_template=TestTemplate(slurm_system),
             test_definition=NIXLBenchTestDefinition(
                 cmd_args=NIXLBenchCmdArgs(
                     docker_image_url="docker.io/library/ubuntu:22.04", path_to_benchmark="./nixlbench"

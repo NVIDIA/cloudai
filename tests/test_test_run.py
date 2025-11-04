@@ -19,9 +19,8 @@ from typing import ClassVar
 import pytest
 
 from cloudai._core.test_scenario import TestRun
-from cloudai.core import ReportGenerationStrategy, Test, TestDefinition, TestTemplate
+from cloudai.core import ReportGenerationStrategy, Test, TestDefinition
 from cloudai.models.workload import CmdArgs
-from cloudai.systems.slurm import SlurmSystem
 
 
 class MyReport(ReportGenerationStrategy):
@@ -46,17 +45,13 @@ class MyReport2(ReportGenerationStrategy):
 
 class TestMetricsReporter:
     @pytest.fixture
-    def tr(self, slurm_system: SlurmSystem):
+    def tr(self) -> TestRun:
         return TestRun(
             name="test",
             test=Test(
                 test_definition=TestDefinition(
-                    name="test",
-                    description="",
-                    test_template_name="Test",
-                    cmd_args=CmdArgs(),
-                ),
-                test_template=TestTemplate(slurm_system),
+                    name="test", description="", test_template_name="Test", cmd_args=CmdArgs()
+                )
             ),
             num_nodes=1,
             nodes=[],

@@ -24,7 +24,7 @@ import pytest
 import toml
 
 from cloudai._core.registry import Registry
-from cloudai.core import Test, TestRun, TestScenario, TestTemplate
+from cloudai.core import Test, TestRun, TestScenario
 from cloudai.systems.slurm import SingleSbatchRunner, SlurmJob, SlurmJobMetadata, SlurmSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.workloads.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
@@ -46,8 +46,7 @@ def nccl_tr(slurm_system: SlurmSystem) -> Generator[TestRun, None, None]:
                 description="desc",
                 test_template_name="NcclTest",
                 cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-            ),
-            test_template=TestTemplate(slurm_system),
+            )
         ),
         num_nodes=2,
         nodes=[],
@@ -65,8 +64,7 @@ def sleep_tr(slurm_system: SlurmSystem) -> TestRun:
         test=Test(
             test_definition=SleepTestDefinition(
                 name="sleep", description="desc", test_template_name="t", cmd_args=SleepCmdArgs()
-            ),
-            test_template=TestTemplate(slurm_system),
+            )
         ),
         num_nodes=1,
         nodes=[],

@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import Mock
 
 from cloudai.core import Test, TestRun
 from cloudai.systems.runai.runai_system import RunAISystem
@@ -28,7 +27,7 @@ class TestNcclTestRunAIJsonGenStrategy:
     def test_gen_json(self, runai_system: RunAISystem) -> None:
         cmd_args = NCCLCmdArgs.model_validate({"subtest_name": "all_reduce_perf", "docker_image_url": "fake_image_url"})
         nccl = NCCLTestDefinition(name="name", description="desc", test_template_name="tt", cmd_args=cmd_args)
-        t = Test(test_definition=nccl, test_template=Mock())
+        t = Test(test_definition=nccl)
         tr = TestRun(name="t1", test=t, nodes=["node1", "node2"], num_nodes=2)
         json_payload = self.json_gen_strategy(runai_system, tr).gen_json()
 
@@ -63,7 +62,7 @@ class TestNcclTestRunAIJsonGenStrategy:
             }
         )
         nccl = NCCLTestDefinition(name="name", description="desc", test_template_name="tt", cmd_args=cmd_args)
-        t = Test(test_definition=nccl, test_template=Mock())
+        t = Test(test_definition=nccl)
         tr = TestRun(name="t1", test=t, nodes=["node1", "node2"], num_nodes=2)
 
         json_payload = self.json_gen_strategy(runai_system, tr).gen_json()
@@ -107,7 +106,7 @@ class TestNcclTestRunAIJsonGenStrategy:
             cmd_args=cmd_args,
             extra_cmd_args={"--extra-arg": "value"},
         )
-        t = Test(test_definition=nccl, test_template=Mock())
+        t = Test(test_definition=nccl)
         tr = TestRun(name="t1", test=t, nodes=["node1", "node2"], num_nodes=2)
 
         json_payload = self.json_gen_strategy(runai_system, tr).gen_json()

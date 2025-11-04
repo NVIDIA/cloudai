@@ -26,7 +26,7 @@ import toml
 
 from cloudai.cli import setup_logging
 from cloudai.cli.handlers import handle_dry_run_and_run
-from cloudai.core import CommandGenStrategy, GitRepo, Test, TestDefinition, TestRun, TestScenario, TestTemplate
+from cloudai.core import CommandGenStrategy, GitRepo, Test, TestDefinition, TestRun, TestScenario
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmRunner, SlurmSystem
 from cloudai.workloads.ai_dynamo import (
@@ -157,12 +157,10 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
     return partial(TestRun, num_nodes=1, nodes=[], output_path=slurm_system.output_path)
 
 
-def create_test_run(
-    partial_tr: partial[TestRun], slurm_system: SlurmSystem, name: str, test_definition: TestDefinition
-) -> TestRun:
+def create_test_run(partial_tr: partial[TestRun], name: str, test_definition: TestDefinition) -> TestRun:
     tr = partial_tr(
         name=name,
-        test=Test(test_definition=test_definition, test_template=TestTemplate(slurm_system)),
+        test=Test(test_definition=test_definition),
     )
     return tr
 
@@ -177,7 +175,6 @@ def build_special_test_run(
         test_type = "gpt"
         tr = create_test_run(
             partial_tr,
-            slurm_system,
             test_type,
             GPTTestDefinition(
                 name=test_type,
@@ -193,7 +190,6 @@ def build_special_test_run(
         test_type = "grok"
         tr = create_test_run(
             partial_tr,
-            slurm_system,
             test_type,
             GrokTestDefinition(
                 name=test_type,
@@ -209,7 +205,6 @@ def build_special_test_run(
         test_type = "nemo-run"
         tr = create_test_run(
             partial_tr,
-            slurm_system,
             test_type,
             NeMoRunTestDefinition(
                 name=test_type,
@@ -224,7 +219,6 @@ def build_special_test_run(
         test_type = "nemo-launcher"
         tr = create_test_run(
             partial_tr,
-            slurm_system,
             test_type,
             NeMoLauncherTestDefinition(
                 name="nemo-launcher",
@@ -271,7 +265,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
     test_mapping: Dict[str, Callable[[], TestRun]] = {
         "ucc": lambda: create_test_run(
             partial_tr,
-            slurm_system,
             "ucc",
             UCCTestDefinition(
                 name="ucc",
@@ -282,7 +275,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         ),
         "nccl": lambda: create_test_run(
             partial_tr,
-            slurm_system,
             "nccl",
             NCCLTestDefinition(
                 name="nccl",
@@ -293,13 +285,11 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         ),
         "sleep": lambda: create_test_run(
             partial_tr,
-            slurm_system,
             "sleep",
             SleepTestDefinition(name="sleep", description="sleep", test_template_name="sleep", cmd_args=SleepCmdArgs()),
         ),
         "slurm_container": lambda: create_test_run(
             partial_tr,
-            slurm_system,
             "slurm_container",
             SlurmContainerTestDefinition(
                 name="slurm_container",
@@ -310,7 +300,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         ),
         "megatron-run": lambda: create_test_run(
             partial_tr,
-            slurm_system,
             "megatron-run",
             MegatronRunTestDefinition(
                 name="megatron-run",
@@ -328,7 +317,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         ),
         "nemo-run": lambda: create_test_run(
             partial_tr,
-            slurm_system,
             "nemo-run",
             NeMoRunTestDefinition(
                 name="nemo-run",
@@ -343,7 +331,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         ),
         "triton-inference": lambda: create_test_run(
             partial_tr,
-            slurm_system,
             "triton-inference",
             TritonInferenceTestDefinition(
                 name="triton-inference",
@@ -359,7 +346,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         ),
         "nixl_bench": lambda: create_test_run(
             partial_tr,
-            slurm_system,
             "nixl_bench",
             NIXLBenchTestDefinition(
                 name="nixl_bench",
@@ -376,7 +362,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         ),
         "nixl-perftest": lambda: create_test_run(
             partial_tr,
-            slurm_system,
             "nixl-perftest",
             NixlPerftestTestDefinition(
                 name="nixl-perftest",
@@ -396,7 +381,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         ),
         "nixl-kvbench": lambda: create_test_run(
             partial_tr,
-            slurm_system,
             "nixl-kvbench",
             NIXLKVBenchTestDefinition(
                 name="nixl-perftest",
@@ -414,7 +398,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         ),
         "ai-dynamo": lambda: create_test_run(
             partial_tr,
-            slurm_system,
             "ai-dynamo",
             AIDynamoTestDefinition(
                 name="ai-dynamo",

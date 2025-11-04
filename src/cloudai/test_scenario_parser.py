@@ -18,7 +18,7 @@ import copy
 import logging
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Type
+from typing import Any, Dict, List, Optional, Set, Type
 
 import toml
 from pydantic import ValidationError
@@ -186,9 +186,7 @@ class TestScenarioParser:
         Raises:
             ValueError: If the test or nodes are not found within the system.
         """
-        original_test, tdef = self._prepare_tdef(test_info)
-
-        test = Test(test_definition=tdef, test_template=original_test.test_template)
+        test = Test(test_definition=self._prepare_tdef(test_info))
 
         hooks = [hook for hook in [pre_test, post_test] if hook is not None]
         total_time_limit = calculate_total_time_limit(test_hooks=hooks, time_limit=test_info.time_limit)
@@ -210,7 +208,7 @@ class TestScenarioParser:
 
         return tr
 
-    def _prepare_tdef(self, test_info: TestRunModel) -> Tuple[Test, TestDefinition]:
+    def _prepare_tdef(self, test_info: TestRunModel) -> TestDefinition:
         tp = TestParser([self.file_path], self.system)
         tp.current_file = self.file_path
 
@@ -231,4 +229,4 @@ class TestScenarioParser:
                 f"Cannot configure test case '{test_info.id}' with both 'test_name' and 'test_template_name'."
             )
 
-        return test, test.test_definition
+        return test.test_definition

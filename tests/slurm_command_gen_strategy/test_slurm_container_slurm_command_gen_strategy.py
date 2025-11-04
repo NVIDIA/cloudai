@@ -18,8 +18,7 @@ from typing import cast
 
 import pytest
 
-from cloudai import TestRun
-from cloudai.core import Test, TestTemplate
+from cloudai.core import Test, TestRun
 from cloudai.models.workload import NsysConfiguration
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.slurm_container import (
@@ -30,14 +29,14 @@ from cloudai.workloads.slurm_container import (
 
 
 @pytest.fixture
-def test_run(slurm_system: SlurmSystem) -> TestRun:
+def test_run() -> TestRun:
     tdef = SlurmContainerTestDefinition(
         name="sc",
         description="desc",
         test_template_name="tt",
         cmd_args=SlurmContainerCmdArgs(docker_image_url="docker://url", cmd="cmd"),
     )
-    t = Test(test_definition=tdef, test_template=TestTemplate(system=slurm_system))
+    t = Test(test_definition=tdef)
     tr = TestRun(name="name", test=t, num_nodes=1, nodes=[])
     return tr
 

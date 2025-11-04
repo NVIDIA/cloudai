@@ -68,11 +68,7 @@ def setup_env(slurm_system: SlurmSystem, nemorun: NeMoRunTestDefinition) -> tupl
     test_template_mock.command_gen_strategy = mock_command_gen
 
     test_run = TestRun(
-        name="mock_test_run",
-        test=Test(tdef, test_template=test_template_mock),
-        num_nodes=1,
-        nodes=[],
-        reports={NeMoRunReportGenerationStrategy},
+        name="mock_test_run", test=Test(tdef), num_nodes=1, nodes=[], reports={NeMoRunReportGenerationStrategy}
     )
 
     test_scenario = TestScenario(name="mock_test_scenario", test_runs=[test_run])

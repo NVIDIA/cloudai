@@ -15,7 +15,6 @@
 # limitations under the License.
 
 from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 
@@ -36,8 +35,7 @@ def jax_tr(tmp_path: Path) -> TestRun:
             description="desc",
             test_template_name="t",
             cmd_args=GPTCmdArgs(docker_image_url="docker://url", fdl_config="cfg"),
-        ),
-        test_template=Mock(),
+        )
     )
     return TestRun(name="nemo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
 

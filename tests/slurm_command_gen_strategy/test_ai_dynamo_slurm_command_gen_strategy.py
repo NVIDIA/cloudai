@@ -16,7 +16,6 @@
 
 from pathlib import Path
 from typing import cast
-from unittest.mock import Mock
 
 import pytest
 
@@ -93,7 +92,7 @@ def test_run(tmp_path: Path, cmd_args: AIDynamoCmdArgs) -> TestRun:
     )
     tdef.dynamo_repo.installed_path = dynamo_repo_path
 
-    test = Test(test_definition=tdef, test_template=Mock())
+    test = Test(test_definition=tdef)
     return TestRun(name="run", test=test, nodes=["n0", "n1"], num_nodes=2, output_path=tmp_path)
 
 

@@ -18,7 +18,7 @@ from typing import cast
 
 import pytest
 
-from cloudai.core import Test, TestRun, TestTemplate
+from cloudai.core import Test, TestRun
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nixl_kvbench import (
     NIXLKVBenchCmdArgs,
@@ -38,12 +38,12 @@ def kvbench() -> NIXLKVBenchTestDefinition:
 
 
 @pytest.fixture
-def kvbench_tr(slurm_system: SlurmSystem, kvbench: NIXLKVBenchTestDefinition) -> TestRun:
+def kvbench_tr(kvbench: NIXLKVBenchTestDefinition) -> TestRun:
     return TestRun(
         name="nixl-bench",
         num_nodes=2,
         nodes=[],
-        test=Test(test_template=TestTemplate(slurm_system), test_definition=kvbench),
+        test=Test(test_definition=kvbench),
     )
 
 

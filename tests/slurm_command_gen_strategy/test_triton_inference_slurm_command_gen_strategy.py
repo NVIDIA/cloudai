@@ -51,7 +51,7 @@ def test_run(tmp_path: Path) -> TestRun:
         },
     )
 
-    test = Test(test_definition=tdef, test_template=Mock())
+    test = Test(test_definition=tdef)
     return TestRun(name="run", test=test, nodes=["nodeA", "nodeB", "nodeC"], num_nodes=3)
 
 

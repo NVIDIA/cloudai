@@ -18,8 +18,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Dict, List, Union
 
-from .test_template import TestTemplate
-
 if TYPE_CHECKING:
     from cloudai.models.workload import TestDefinition
 
@@ -29,15 +27,13 @@ class Test:
 
     __test__ = False
 
-    def __init__(self, test_definition: TestDefinition, test_template: TestTemplate) -> None:
+    def __init__(self, test_definition: TestDefinition) -> None:
         """
         Initialize a Test instance.
 
         Args:
             test_definition (TestDefinition): The test definition object.
-            test_template (TestTemplate): The test template object
         """
-        self.test_template = test_template
         self.test_definition = test_definition
 
     @property

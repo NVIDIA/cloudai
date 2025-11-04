@@ -16,7 +16,7 @@
 
 import pytest
 
-from cloudai.core import Test, TestRun, TestTemplate
+from cloudai.core import Test, TestRun
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.ucc_test.report_generation_strategy import UCCTestReportGenerationStrategy, parse_ucc_output
 from cloudai.workloads.ucc_test.ucc import UCCCmdArgs, UCCTestDefinition
@@ -73,8 +73,7 @@ def ucc_tr(slurm_system: SlurmSystem) -> TestRun:
                 description="ucc_test",
                 test_template_name="ucc_test",
                 cmd_args=UCCCmdArgs(docker_image_url="url://fake/ucc"),
-            ),
-            test_template=TestTemplate(system=slurm_system),
+            )
         ),
         num_nodes=1,
         nodes=[],

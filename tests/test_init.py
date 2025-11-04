@@ -15,7 +15,7 @@
 # limitations under the License.
 
 
-from cloudai.core import GradingStrategy, Registry
+from cloudai.core import Registry
 from cloudai.reporter import PerTestReporter, StatusReporter, TarballReporter
 from cloudai.systems.kubernetes import KubernetesSystem
 from cloudai.systems.lsf import LSFInstaller, LSFSystem

@@ -18,7 +18,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from cloudai.core import Test, TestRun, TestTemplate
+from cloudai.core import Test, TestRun
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.bash_cmd import BashCmdArgs, BashCmdCommandGenStrategy, BashCmdTestDefinition
 
@@ -33,8 +33,7 @@ def bash_tr(slurm_system: SlurmSystem) -> TestRun:
                 description="desc",
                 test_template_name="t",
                 cmd_args=BashCmdArgs(cmd="echo 'Hello, world!'"),
-            ),
-            test_template=TestTemplate(slurm_system),
+            )
         ),
         num_nodes=1,
         nodes=[],

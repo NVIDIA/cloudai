@@ -27,10 +27,7 @@ from cloudai.workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy
 
 @pytest.fixture
 def nemo_tr(tmp_path: Path) -> TestRun:
-    test = Test(
-        test_definition=Mock(),
-        test_template=Mock(),
-    )
+    test = Test(test_definition=Mock())
     tr = TestRun(name="nemo_launcher", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
 
     log_content = (
@@ -51,10 +48,7 @@ def nemo_tr(tmp_path: Path) -> TestRun:
 
 @pytest.fixture
 def nemo_tr_large(tmp_path: Path) -> TestRun:
-    test = Test(
-        test_definition=Mock(),
-        test_template=Mock(),
-    )
+    test = Test(test_definition=Mock())
     tr = TestRun(name="nemo_launcher_large", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
 
     step_timings = [float(i) for i in range(150)]

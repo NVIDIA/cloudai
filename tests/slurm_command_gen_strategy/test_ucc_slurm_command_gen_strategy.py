@@ -15,7 +15,6 @@
 # limitations under the License.
 
 from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 
@@ -79,7 +78,7 @@ class TestUCCTestSlurmCommandGenStrategy:
             extra_cmd_args=extra_cmd_args,
         )
 
-        test_obj = Test(test_definition=test_def, test_template=Mock())
+        test_obj = Test(test_definition=test_def)
 
         tr = TestRun(test=test_obj, num_nodes=1, nodes=[], output_path=tmp_path / "output", name="test-job")
 

@@ -22,7 +22,7 @@ from unittest.mock import Mock, patch
 import pytest
 import toml
 
-from cloudai.core import BaseJob, Test, TestRun, TestTemplate
+from cloudai.core import BaseJob, Test, TestRun
 from cloudai.models.scenario import ReportConfig
 from cloudai.systems.slurm import (
     SlurmCommandGenStrategy,
@@ -389,8 +389,7 @@ def test_run(slurm_system: SlurmSystem) -> TestRun:
                 description="test_run",
                 test_template_name="nccl",
                 cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-            ),
-            test_template=TestTemplate(slurm_system),
+            )
         ),
         num_nodes=2,
         nodes=["main:group1:2"],
@@ -570,8 +569,7 @@ name = "p"
                 description="test_run",
                 test_template_name="nccl",
                 cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-            ),
-            test_template=TestTemplate(slurm),
+            )
         ),
         num_nodes=1,
         nodes=[],

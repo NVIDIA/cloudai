@@ -15,7 +15,6 @@
 # limitations under the License.
 
 from pathlib import Path
-from unittest.mock import Mock
 
 import pandas as pd
 import pytest
@@ -50,10 +49,7 @@ def test_definition(tmp_path: Path) -> TestDefinition:
 
 @pytest.fixture
 def generator(test_definition: TestDefinition, tmp_path: Path) -> NcclTestPredictionReportGenerator:
-    test = Test(
-        test_definition=test_definition,
-        test_template=Mock(),
-    )
+    test = Test(test_definition=test_definition)
     test_run = TestRun(name="mock_test_run", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
     return NcclTestPredictionReportGenerator("all_reduce", test_run)
 

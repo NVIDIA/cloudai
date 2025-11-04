@@ -16,7 +16,7 @@
 
 import pytest
 
-from cloudai.core import CommandGenStrategy, Test, TestRun, TestTemplate
+from cloudai.core import CommandGenStrategy, Test, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 
@@ -36,8 +36,7 @@ def test_run(slurm_system: SlurmSystem) -> TestRun:
         num_nodes=1,
         nodes=["node1"],
         test=Test(
-            test_definition=TestDefinition(name="n", description="d", test_template_name="tt", cmd_args=CmdArgs()),
-            test_template=TestTemplate(slurm_system),
+            test_definition=TestDefinition(name="n", description="d", test_template_name="tt", cmd_args=CmdArgs())
         ),
     )
 

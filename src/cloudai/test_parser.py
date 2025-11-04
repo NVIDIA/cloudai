@@ -21,14 +21,7 @@ from typing import Any, Dict, List
 import toml
 from pydantic import ValidationError
 
-from .core import (
-    Registry,
-    System,
-    Test,
-    TestConfigParsingError,
-    TestTemplate,
-    format_validation_error,
-)
+from .core import Registry, System, Test, TestConfigParsingError, format_validation_error
 from .models.workload import TestDefinition
 
 
@@ -92,31 +85,15 @@ class TestParser:
 
         return test_def
 
-    def _get_test_template(self, name: str, tdef: TestDefinition) -> TestTemplate:
-        """
-        Dynamically retrieves the appropriate TestTemplate subclass based on the given name.
-
-        Args:
-            name (str): The name of the test template.
-            tdef (TestDefinition): The test definition.
-
-        Returns:
-            Type[TestTemplate]: A subclass of TestTemplate corresponding to the given name.
-        """
-        obj = TestTemplate(system=self.system)
-        return obj
-
     def _parse_data(self, data: Dict[str, Any]) -> Test:
         """
         Parse data for a Test object.
 
         Args:
             data (Dict[str, Any]): Data from a source (e.g., a TOML file).
-            strict (bool): Whether to enforce strict validation for test definition.
 
         Returns:
             Test: Parsed Test object.
         """
         test_def = self.load_test_definition(data)
-        test_template = self._get_test_template(test_def.test_template_name, test_def)
-        return Test(test_definition=test_def, test_template=test_template)
+        return Test(test_definition=test_def)

@@ -15,7 +15,6 @@
 # limitations under the License.
 
 from pathlib import Path
-from unittest.mock import Mock
 
 import pandas as pd
 import pytest
@@ -37,8 +36,7 @@ def megatron_tr(tmp_path: Path) -> TestRun:
             description="desc",
             test_template_name="t",
             cmd_args=MegatronRunCmdArgs(docker_image_url="http://url", run_script=Path(__file__)),
-        ),
-        test_template=Mock(),
+        )
     )
     tr = TestRun(name="n", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
 

@@ -16,7 +16,6 @@
 
 from pathlib import Path
 from typing import Tuple
-from unittest.mock import Mock
 
 import pytest
 
@@ -38,8 +37,7 @@ def nemo_tr(tmp_path: Path) -> TestRun:
             description="desc",
             test_template_name="t",
             cmd_args=NeMoRunCmdArgs(docker_image_url="docker://url", task="task", recipe_name="recipe"),
-        ),
-        test_template=Mock(),
+        )
     )
     tr = TestRun(name="nemo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
     tr.reports = {NeMoRunReportGenerationStrategy}
@@ -88,8 +86,7 @@ def nemo_tr_empty_log(tmp_path: Path) -> TestRun:
                 task="task",
                 recipe_name="recipe",
             ),
-        ),
-        test_template=Mock(),
+        )
     )
     return TestRun(name="nemo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
 

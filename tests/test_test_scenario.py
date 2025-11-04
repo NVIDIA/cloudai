@@ -33,7 +33,6 @@ from cloudai.core import (
     TestRun,
     TestScenario,
     TestScenarioParser,
-    TestTemplate,
 )
 from cloudai.models.scenario import TestRunModel, TestScenarioModel
 from cloudai.systems.slurm.slurm_system import SlurmSystem
@@ -83,8 +82,7 @@ def test(slurm_system: SlurmSystem) -> Test:
             description="desc1",
             test_template_name="NcclTest",
             cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-        ),
-        test_template=TestTemplate(system=slurm_system),
+        )
     )
 
 
@@ -106,7 +104,6 @@ def test_single_test_case(test: Test, test_scenario_parser: TestScenarioParser) 
     atest = test_scenario.test_runs[0].test
     assert atest.name == test.name
     assert atest.description == test.description
-    assert atest.test_template == test.test_template
     assert atest.cmd_args == test.cmd_args
     assert atest.extra_env_vars == test.extra_env_vars
     assert atest.extra_cmd_args == test.extra_cmd_args
@@ -364,8 +361,7 @@ class TestInScenario:
                     description="desc",
                     test_template_name="NcclTest",
                     cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-                ),
-                test_template=TestTemplate(system=slurm_system),
+                )
             )
         }
         model = TestScenarioModel.model_validate(
@@ -382,7 +378,7 @@ class TestInScenario:
             """
             )
         )
-        _, tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
         assert tdef.cmd_args.nthreads == 42
 
     def test_spec_can_set_unknown_args(self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem):
@@ -393,8 +389,7 @@ class TestInScenario:
                     description="desc",
                     test_template_name="NcclTest",
                     cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-                ),
-                test_template=TestTemplate(system=slurm_system),
+                )
             )
         }
         model = TestScenarioModel.model_validate(
@@ -409,7 +404,7 @@ class TestInScenario:
             """
             )
         )
-        _, tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
         assert tdef.cmd_args_dict["unknown"] == 42
 
     def test_spec_can_set_unknown_args_no_base(self, test_scenario_parser: TestScenarioParser):
@@ -427,7 +422,7 @@ class TestInScenario:
             """
             )
         )
-        _, tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
         assert tdef.cmd_args_dict["unknown"] == 42
         assert isinstance(tdef.cmd_args, NCCLCmdArgs)
 
@@ -439,8 +434,7 @@ class TestInScenario:
                     description="desc",
                     test_template_name="MegatronRun",
                     cmd_args=MegatronRunCmdArgs(docker_image_url="docker://megatron", run_script=Path("run.sh")),
-                ),
-                test_template=TestTemplate(system=slurm_system),
+                )
             )
         }
         model = TestScenarioModel.model_validate(
@@ -455,7 +449,7 @@ class TestInScenario:
             """
             )
         )
-        _, tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
         assert isinstance(tdef.cmd_args, MegatronRunCmdArgs)
         assert tdef.cmd_args.run_script == Path("run.sh")
 

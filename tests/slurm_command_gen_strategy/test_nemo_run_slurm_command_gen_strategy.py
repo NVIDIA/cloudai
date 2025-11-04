@@ -16,7 +16,6 @@
 
 import logging
 from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 
@@ -46,7 +45,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
             extra_cmd_args={"extra_args": ""},
         )
 
-        test = Test(test_definition=tdef, test_template=Mock())
+        test = Test(test_definition=tdef)
         tr = TestRun(
             test=test,
             num_nodes=1,

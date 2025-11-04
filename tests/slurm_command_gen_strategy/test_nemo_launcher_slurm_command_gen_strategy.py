@@ -17,7 +17,7 @@
 import re
 from pathlib import Path
 from typing import List, cast
-from unittest.mock import Mock, mock_open, patch
+from unittest.mock import mock_open, patch
 
 import pytest
 
@@ -46,7 +46,7 @@ class TestNeMoLauncherSlurmCommandGenStrategy:
         tdef.python_executable.git_repo.installed_path = tmp_path / "repo"
         tdef.python_executable.venv_path = tmp_path / "venv"
 
-        test = Test(test_definition=tdef, test_template=Mock())
+        test = Test(test_definition=tdef)
         tr = TestRun(
             test=test,
             num_nodes=2,

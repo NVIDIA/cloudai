@@ -18,8 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from cloudai.core import Test, TestRun, TestTemplate
-from cloudai.systems.slurm import SlurmSystem
+from cloudai.core import Test, TestRun
 from cloudai.workloads.common.nixl import extract_nixlbench_data
 from cloudai.workloads.nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
 
@@ -43,15 +42,14 @@ Block Size (B)      Batch Size     B/W (GB/Sec)   Avg Lat. (us)  Avg Prep (us)  
 
 
 @pytest.fixture
-def nixl_tr(tmp_path: Path, slurm_system: SlurmSystem) -> TestRun:
+def nixl_tr(tmp_path: Path) -> TestRun:
     test = Test(
         test_definition=NIXLBenchTestDefinition(
             name="nixl",
             description="desc",
             test_template_name="t",
             cmd_args=NIXLBenchCmdArgs(docker_image_url="fake://url/nixl", path_to_benchmark="fake://url/nixl_bench"),
-        ),
-        test_template=TestTemplate(system=slurm_system),
+        )
     )
     tr = TestRun(name="nixl_test", test=test, num_nodes=2, nodes=[], output_path=tmp_path)
     return tr

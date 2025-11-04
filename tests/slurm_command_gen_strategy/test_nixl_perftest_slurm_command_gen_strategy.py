@@ -19,7 +19,7 @@ from typing import cast
 
 import pytest
 
-from cloudai.core import Test, TestRun, TestTemplate
+from cloudai.core import Test, TestRun
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.nixl_perftest import (
     NixlPerftestCmdArgs,
@@ -57,7 +57,7 @@ def test_run(nixl_perftest: NixlPerftestTestDefinition, slurm_system: SlurmSyste
         name="test_run",
         num_nodes=2,
         nodes=[],
-        test=Test(test_definition=nixl_perftest, test_template=TestTemplate(slurm_system)),
+        test=Test(test_definition=nixl_perftest),
         output_path=slurm_system.output_path,
     )
 
