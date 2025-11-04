@@ -19,6 +19,8 @@ import logging
 from pathlib import Path
 from typing import Dict, List
 
+from .registry import Registry
+from .system import System
 from .test_scenario import TestRun, TestScenario
 
 
@@ -31,8 +33,9 @@ class Grader:
         logger (logging.Logger): Logger for the class, used to log messages related to the grading process.
     """
 
-    def __init__(self, output_path: Path) -> None:
+    def __init__(self, output_path: Path, system: System) -> None:
         self.output_path = output_path
+        self.system = system
 
     def grade(self, test_scenario: TestScenario) -> str:
         """
@@ -80,9 +83,11 @@ class Grader:
             List[float]: A list of performance values.
         """
         perfs = []
+
         for subdir in directory_path.iterdir():
             if subdir.is_dir() and subdir.name.isdigit():
-                perf = tr.test.test_template.grade(subdir, tr.ideal_perf)
+                grading_strategy = Registry().get_grading_strategy(type(self.system), type(tr.test.test_definition))()
+                perf = grading_strategy.grade(subdir, tr.ideal_perf)
                 perfs.append(perf)
         return perfs
 

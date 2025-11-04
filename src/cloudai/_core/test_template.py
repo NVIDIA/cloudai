@@ -14,10 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
-from typing import Optional
 
-from .grading_strategy import GradingStrategy
 from .system import System
 
 
@@ -39,18 +36,3 @@ class TestTemplate:
             system (System): System configuration for the test template.
         """
         self.system = system
-        self.grading_strategy: Optional[GradingStrategy] = None
-
-    def grade(self, directory_path: Path, ideal_perf: float) -> Optional[float]:
-        """
-        Read the performance value from the directory.
-
-        Args:
-            directory_path (Path): Path to the directory containing performance data.
-            ideal_perf (float): The ideal performance metric to compare against.
-
-        Returns:
-            Optional[float]: The performance value read from the directory.
-        """
-        if self.grading_strategy is not None:
-            return self.grading_strategy.grade(directory_path, ideal_perf)

@@ -16,13 +16,12 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type, cast
+from typing import Any, Dict, List
 
 import toml
 from pydantic import ValidationError
 
 from .core import (
-    GradingStrategy,
     Registry,
     System,
     Test,
@@ -93,37 +92,6 @@ class TestParser:
 
         return test_def
 
-    def _fetch_strategy(  # noqa: D417
-        self,
-        strategy_interface: Type[GradingStrategy],
-        system_type: Type[System],
-        test_definition_type: Type[TestDefinition],
-    ) -> Optional[GradingStrategy]:
-        """
-        Fetch a strategy from the registry based on system and template.
-
-        Args:
-            strategy_interface (Type[Union[JsonGenStrategy, GradingStrategy]]):
-                The strategy interface to fetch.
-            system_type (Type[System]): The system type.
-            test_template_type (Type[TestTemplate]): The test template type.
-
-        Returns:
-            An instance of the requested strategy, or None.
-        """
-        key = (strategy_interface, system_type, test_definition_type)
-        registry = Registry()
-        strategy_type = registry.strategies_map.get(key)
-        if strategy_type:
-            return strategy_type()
-
-        logging.debug(
-            f"No {strategy_interface.__name__} found for "
-            f"{test_definition_type.__name__} and "
-            f"{type(self.system).__name__}"
-        )
-        return None
-
     def _get_test_template(self, name: str, tdef: TestDefinition) -> TestTemplate:
         """
         Dynamically retrieves the appropriate TestTemplate subclass based on the given name.
@@ -136,9 +104,6 @@ class TestParser:
             Type[TestTemplate]: A subclass of TestTemplate corresponding to the given name.
         """
         obj = TestTemplate(system=self.system)
-        obj.grading_strategy = cast(
-            GradingStrategy, self._fetch_strategy(GradingStrategy, type(obj.system), type(tdef))
-        )
         return obj
 
     def _parse_data(self, data: Dict[str, Any]) -> Test:
