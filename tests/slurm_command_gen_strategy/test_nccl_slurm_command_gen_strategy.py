@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Union
 
 import pytest
 
-from cloudai.core import Test, TestRun
+from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestSlurmCommandGenStrategy
 
@@ -60,8 +60,7 @@ class TestNcclTestSlurmCommandGenStrategy:
             cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
             extra_env_vars=env_vars,
         )
-        t = Test(test_definition=nccl)
-        tr = TestRun(name="t1", test=t, nodes=nodes, num_nodes=num_nodes)
+        tr = TestRun(name="t1", test=nccl, nodes=nodes, num_nodes=num_nodes)
         cmd_gen_strategy = NcclTestSlurmCommandGenStrategy(slurm_system, tr)
         assert expected_result["container_mounts"] in cmd_gen_strategy.container_mounts()
 
@@ -76,8 +75,7 @@ class TestNcclTestSlurmCommandGenStrategy:
     def test_generate_test_command(self, slurm_system: SlurmSystem, args: dict[str, Union[str, list[str]]]) -> None:
         cmd_args: NCCLCmdArgs = NCCLCmdArgs.model_validate({**{"docker_image_url": "fake_image_url"}, **args})
         nccl = NCCLTestDefinition(name="name", description="desc", test_template_name="NcclTest", cmd_args=cmd_args)
-        t = Test(test_definition=nccl)
-        tr = TestRun(name="t1", test=t, nodes=[], num_nodes=1)
+        tr = TestRun(name="t1", test=nccl, nodes=[], num_nodes=1)
 
         cmd_gen_strategy = NcclTestSlurmCommandGenStrategy(slurm_system, tr)
         cmd = " ".join(cmd_gen_strategy.generate_test_command())

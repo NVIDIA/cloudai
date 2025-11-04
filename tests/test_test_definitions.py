@@ -21,7 +21,7 @@ import pytest
 import toml
 from pydantic import ValidationError
 
-from cloudai.core import File, NsysConfiguration, Parser, Registry, Test, TestDefinition, TestParser, TestRun
+from cloudai.core import File, NsysConfiguration, Parser, Registry, TestDefinition, TestParser, TestRun
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
@@ -436,7 +436,7 @@ def test_workload_can_be_restored_from_test_run_details(slurm_system: SlurmSyste
         cmd_args=NIXLBenchCmdArgs(docker_image_url="fake://url/nemo", path_to_benchmark="./nixlbench"),
     )
     trd = TestRunDetails.from_test_run(
-        TestRun(name="test", test=Test(test_definition=tdef), num_nodes=1, nodes=[]),
+        TestRun(name="test", test=tdef, num_nodes=1, nodes=[]),
         "test cmd",
         "full cmd",
     )

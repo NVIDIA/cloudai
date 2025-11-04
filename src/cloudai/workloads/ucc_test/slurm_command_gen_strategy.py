@@ -28,11 +28,11 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return []
 
     def image_path(self) -> str | None:
-        tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test.test_definition)
+        tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test)
         return str(tdef.docker_image.installed_path)
 
     def generate_test_command(self) -> List[str]:
-        tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test.test_definition)
+        tdef: UCCTestDefinition = cast(UCCTestDefinition, self.test_run.test)
         tdef_cmd_args: UCCCmdArgs = tdef.cmd_args
 
         srun_command_parts = ["/opt/hpcx/ucc/bin/ucc_perftest"]
@@ -45,6 +45,6 @@ class UCCTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         srun_command_parts.append("-F")
 
         if self.test_run.test.extra_cmd_args:
-            srun_command_parts.append(self.test_run.test.extra_cmd_args)
+            srun_command_parts.append(self.test_run.test.extra_args_str)
 
         return srun_command_parts

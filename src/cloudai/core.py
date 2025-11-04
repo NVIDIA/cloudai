@@ -39,7 +39,6 @@ from ._core.registry import Registry
 from ._core.report_generation_strategy import ReportGenerationStrategy
 from ._core.runner import Runner
 from ._core.system import System
-from ._core.test import Test
 from ._core.test_scenario import METRIC_ERROR, TestDependency, TestRun, TestScenario
 from .configurator.base_agent import BaseAgent
 from .configurator.cloudai_gym import CloudAIGymEnv
@@ -85,7 +84,6 @@ __all__ = [
     "System",
     "SystemConfigParsingError",
     "TarballReporter",
-    "Test",
     "TestConfigParsingError",
     "TestDefinition",
     "TestDependency",

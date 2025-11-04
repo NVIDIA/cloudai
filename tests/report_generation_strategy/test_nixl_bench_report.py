@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from cloudai.core import Test, TestRun
+from cloudai.core import TestRun
 from cloudai.workloads.common.nixl import extract_nixlbench_data
 from cloudai.workloads.nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
 
@@ -43,13 +43,11 @@ Block Size (B)      Batch Size     B/W (GB/Sec)   Avg Lat. (us)  Avg Prep (us)  
 
 @pytest.fixture
 def nixl_tr(tmp_path: Path) -> TestRun:
-    test = Test(
-        test_definition=NIXLBenchTestDefinition(
-            name="nixl",
-            description="desc",
-            test_template_name="t",
-            cmd_args=NIXLBenchCmdArgs(docker_image_url="fake://url/nixl", path_to_benchmark="fake://url/nixl_bench"),
-        )
+    test = NIXLBenchTestDefinition(
+        name="nixl",
+        description="desc",
+        test_template_name="t",
+        cmd_args=NIXLBenchCmdArgs(docker_image_url="fake://url/nixl", path_to_benchmark="fake://url/nixl_bench"),
     )
     tr = TestRun(name="nixl_test", test=test, num_nodes=2, nodes=[], output_path=tmp_path)
     return tr
@@ -110,15 +108,15 @@ Block Size (B)      Batch Size     B/W (GB/Sec)   Avg Lat. (us)  Avg Prep (us)  
 
 class TestWasRunSuccessful:
     def test_no_file(self, nixl_tr: TestRun):
-        assert not nixl_tr.test.test_definition.was_run_successful(nixl_tr).is_successful
+        assert not nixl_tr.test.was_run_successful(nixl_tr).is_successful
 
     def test_no_data(self, nixl_tr: TestRun):
         nixl_tr.output_path.mkdir(parents=True, exist_ok=True)
         nixl_tr.output_path.joinpath("stdout.txt").write_text("")
-        assert not nixl_tr.test.test_definition.was_run_successful(nixl_tr).is_successful
+        assert not nixl_tr.test.was_run_successful(nixl_tr).is_successful
 
     @pytest.mark.parametrize("sample", [LEGACY_FORMAT, NEW_FORMAT], ids=["LegacyFormat", "NewFormat"])
     def test_was_run_successful(self, nixl_tr: TestRun, sample: str):
         nixl_tr.output_path.mkdir(parents=True, exist_ok=True)
         nixl_tr.output_path.joinpath("stdout.txt").write_text(sample)
-        assert nixl_tr.test.test_definition.was_run_successful(nixl_tr).is_successful
+        assert nixl_tr.test.was_run_successful(nixl_tr).is_successful

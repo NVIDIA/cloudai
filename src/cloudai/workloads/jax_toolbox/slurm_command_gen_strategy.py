@@ -35,7 +35,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def image_path(self) -> Optional[str]:
         tdef: Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition] = cast(
-            Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition], self.test_run.test.test_definition
+            Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition], self.test_run.test
         )
         return str(tdef.docker_image.installed_path)
 
@@ -43,7 +43,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         mounts: list[str] = []
 
         tdef: Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition] = cast(
-            Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition], self.test_run.test.test_definition
+            Union[GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition], self.test_run.test
         )
         docker_workspace_dir = tdef.cmd_args.setup_flags.docker_workspace_dir
         mounts.append(f"{self.test_run.output_path.resolve()}:{docker_workspace_dir}")
@@ -51,9 +51,9 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return mounts
 
     def gen_exec_command(self) -> str:
-        self.test_name = self._extract_test_name(self.test_run.test.cmd_args)
+        self.test_name = self._extract_test_name(self.test_run.test.cmd_args_dict)
         self._update_env_vars()
-        self.test_run.test.test_definition.cmd_args.output_path = str(self.test_run.output_path)
+        self.test_run.test.cmd_args.output_path = str(self.test_run.output_path)
         return super().gen_exec_command()
 
     def _extract_test_name(self, cmd_args: Dict[str, Any]) -> str:
@@ -78,14 +78,14 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _update_env_vars(self):
         """Update environment variables."""
-        env_vars = self.test_run.test.test_definition.extra_env_vars
-        cmd_args = self.test_run.test.test_definition.cmd_args_dict
+        env_vars = self.test_run.test.extra_env_vars
+        cmd_args = self.test_run.test.cmd_args_dict
         num_nodes = len(self.test_run.nodes) if self.test_run.nodes else self.test_run.nnodes
 
         self._update_per_gpu_combine_threshold(env_vars, cmd_args, num_nodes)
         self._update_xla_flags(env_vars, cmd_args)
 
-        self.test_run.test.test_definition.extra_env_vars.update(env_vars)
+        self.test_run.test.extra_env_vars.update(env_vars)
 
     def _update_per_gpu_combine_threshold(
         self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Any], num_nodes: int
@@ -144,7 +144,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return " ".join(sorted(xla_flags))
 
     def _gen_srun_command(self) -> str:
-        cmd_args = flatten_dict(self.test_run.test.cmd_args)
+        cmd_args = flatten_dict(self.test_run.test.cmd_args_dict)
         self._create_run_script(cmd_args)
 
         commands = []
@@ -254,7 +254,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         for key, value in sorted(fdl_args.items()):
             parts.append(f"--fdl.{key.upper()}={value}")
         if self.test_run.test.extra_cmd_args:
-            parts.append(self.test_run.test.extra_cmd_args)
+            parts.append(self.test_run.test.extra_args_str)
         python_command = " \\\n    ".join(parts)
 
         if stage == "profile":

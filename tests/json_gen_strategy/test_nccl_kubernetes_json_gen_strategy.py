@@ -17,7 +17,7 @@
 
 import pytest
 
-from cloudai.core import Test, TestRun
+from cloudai.core import TestRun
 from cloudai.systems.kubernetes import KubernetesSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestKubernetesJsonGenStrategy
 
@@ -27,8 +27,7 @@ class TestNcclTestKubernetesJsonGenStrategy:
     def basic_test_run(self, kubernetes_system: KubernetesSystem) -> TestRun:
         cmd_args = NCCLCmdArgs.model_validate({"subtest_name": "all_reduce_perf", "docker_image_url": "fake_image_url"})
         nccl = NCCLTestDefinition(name="name", description="desc", test_template_name="NcclTest", cmd_args=cmd_args)
-        t = Test(test_definition=nccl)
-        return TestRun(name="t1", test=t, nodes=["node1", "node2"], num_nodes=2)
+        return TestRun(name="t1", test=nccl, nodes=["node1", "node2"], num_nodes=2)
 
     @pytest.fixture
     def test_run_with_env_vars(self, kubernetes_system: KubernetesSystem) -> TestRun:
@@ -40,8 +39,7 @@ class TestNcclTestKubernetesJsonGenStrategy:
             cmd_args=cmd_args,
             extra_env_vars={"TEST_VAR": "test_value", "LIST_VAR": ["item1", "item2"]},
         )
-        t = Test(test_definition=nccl)
-        return TestRun(name="t1", test=t, nodes=["node1"], num_nodes=1)
+        return TestRun(name="t1", test=nccl, nodes=["node1"], num_nodes=1)
 
     @pytest.fixture
     def test_run_with_extra_args(self, kubernetes_system: KubernetesSystem) -> TestRun:
@@ -62,8 +60,7 @@ class TestNcclTestKubernetesJsonGenStrategy:
             cmd_args=cmd_args,
             extra_cmd_args={"extra-flag": "value"},
         )
-        t = Test(test_definition=nccl)
-        return TestRun(name="t1", test=t, nodes=["node1"], num_nodes=1)
+        return TestRun(name="t1", test=nccl, nodes=["node1"], num_nodes=1)
 
     def json_gen_strategy(
         self, kubernetes_system: KubernetesSystem, test_run: TestRun

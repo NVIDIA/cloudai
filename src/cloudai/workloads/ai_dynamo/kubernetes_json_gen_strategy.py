@@ -55,7 +55,7 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
         self._install_python_packages(repo_root, venv_pip)
 
     def gen_json(self) -> Dict[Any, Any]:
-        td = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
+        td = cast(AIDynamoTestDefinition, self.test_run.test)
 
         if td.cmd_args.dynamo_graph_path is None:
             raise ValueError("dynamo_graph_path must be provided in cmd_args")

@@ -20,7 +20,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai.core import GitRepo, Test, TestRun, TestScenario
+from cloudai.core import GitRepo, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
@@ -40,9 +40,7 @@ def testrun_fixture(tmp_path: Path) -> TestRun:
         extra_env_vars={"TEST_VAR": "VALUE"},
     )
 
-    test = Test(test_definition=tdef)
-
-    return TestRun(name="test_job", test=test, output_path=tmp_path, num_nodes=2, nodes=["node1", "node2"])
+    return TestRun(name="test_job", test=tdef, output_path=tmp_path, num_nodes=2, nodes=["node1", "node2"])
 
 
 @pytest.fixture
@@ -124,8 +122,7 @@ def make_test_run(name: str, output_dir: Path) -> TestRun:
         cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
         extra_env_vars={"TEST_VAR": "VALUE"},
     )
-    test = Test(test_definition=test_def)
-    return TestRun(name=name, test=test, num_nodes=1, nodes=["node1"], output_path=output_dir / name)
+    return TestRun(name=name, test=test_def, num_nodes=1, nodes=["node1"], output_path=output_dir / name)
 
 
 def test_pre_post_combinations(tmp_path: Path, slurm_system: SlurmSystem, strategy_fixture: SlurmCommandGenStrategy):
@@ -250,7 +247,7 @@ def test_append_sbatch_directives(strategy_fixture: SlurmCommandGenStrategy):
 
 
 def test_default_container_mounts_with_extra_mounts(strategy_fixture: SlurmCommandGenStrategy):
-    strategy_fixture.test_run.test.test_definition.extra_container_mounts = ["/host:/container"]
+    strategy_fixture.test_run.test.extra_container_mounts = ["/host:/container"]
     mounts = strategy_fixture.container_mounts()
     assert len(mounts) == 4
     assert mounts[0] == f"{strategy_fixture.test_run.output_path.absolute()}:/cloudai_run_results"
@@ -262,7 +259,7 @@ def test_default_container_mounts_with_extra_mounts(strategy_fixture: SlurmComma
 def test_default_container_mounts_with_git_repos(strategy_fixture: SlurmCommandGenStrategy):
     repo1 = GitRepo(url="./git_repo", commit="commit", mount_as="/git/r1", installed_path=Path.cwd())
     repo2 = GitRepo(url="./git_repo2", commit="commit", mount_as="/git/r2", installed_path=Path.cwd())
-    strategy_fixture.test_run.test.test_definition.git_repos = [repo1, repo2]
+    strategy_fixture.test_run.test.git_repos = [repo1, repo2]
 
     mounts = strategy_fixture.container_mounts()
 

@@ -37,11 +37,11 @@ from cloudai.core import (
     Registry,
     Runner,
     System,
-    Test,
     TestParser,
     TestScenario,
 )
 from cloudai.models.scenario import ReportConfig
+from cloudai.models.workload import TestDefinition
 from cloudai.parser import HOOK_ROOT
 from cloudai.systems.slurm import SingleSbatchRunner, SlurmSystem
 from cloudai.util import prepare_output_dir
@@ -92,17 +92,17 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
 
 
 def prepare_installation(
-    system: System, tests: list[Test], scenario: Optional[TestScenario]
+    system: System, tests: list[TestDefinition], scenario: Optional[TestScenario]
 ) -> tuple[list[Installable], BaseInstaller]:
     installables: list[Installable] = []
     if scenario:
         for test in scenario.test_runs:
-            logging.debug(f"{test.test.name} has {len(test.test.test_definition.installables)} installables.")
-            installables.extend(test.test.test_definition.installables)
+            logging.debug(f"{test.test.name} has {len(test.test.installables)} installables.")
+            installables.extend(test.test.installables)
     else:
         for test in tests:
-            logging.debug(f"{test.name} has {len(test.test_definition.installables)} installables.")
-            installables.extend(test.test_definition.installables)
+            logging.debug(f"{test.name} has {len(test.installables)} installables.")
+            installables.extend(test.installables)
 
     registry = Registry()
     installer_class = registry.installers_map.get(system.scheduler)
@@ -130,7 +130,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
     for tr in runner.runner.test_scenario.test_runs:
         test_run = copy.deepcopy(tr)
 
-        agent_type = test_run.test.test_definition.agent
+        agent_type = test_run.test.agent
         agent_class = registry.agents_map.get(agent_type)
         if agent_class is None:
             logging.error(
@@ -211,7 +211,7 @@ def register_signal_handlers(signal_handler: Callable) -> None:
 
 def _setup_system_and_scenario(
     args: argparse.Namespace,
-) -> tuple[Optional[System], Optional[TestScenario], Optional[list[Test]]]:
+) -> tuple[System | None, TestScenario | None, list[TestDefinition] | None]:
     parser = Parser(args.system_config)
     try:
         system, tests, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
@@ -247,7 +247,7 @@ def _handle_single_sbatch(args: argparse.Namespace, system: System) -> bool:
 
 
 def _check_installation(
-    args: argparse.Namespace, system: System, tests: list[Test], test_scenario: TestScenario
+    args: argparse.Namespace, system: System, tests: list[TestDefinition], test_scenario: TestScenario
 ) -> InstallStatusResult:
     logging.info("Checking if workloads components are installed.")
     installables, installer = prepare_installation(system, tests, test_scenario)

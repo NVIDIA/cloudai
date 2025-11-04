@@ -22,7 +22,7 @@ from unittest.mock import Mock, patch
 import pytest
 import toml
 
-from cloudai.core import BaseJob, Test, TestRun
+from cloudai.core import BaseJob, TestRun
 from cloudai.models.scenario import ReportConfig
 from cloudai.systems.slurm import (
     SlurmCommandGenStrategy,
@@ -383,13 +383,11 @@ class ConcreteSlurmStrategy(SlurmCommandGenStrategy):
 def test_run(slurm_system: SlurmSystem) -> TestRun:
     test_run = TestRun(
         name="test_run",
-        test=Test(
-            test_definition=NCCLTestDefinition(
-                name="test_run",
-                description="test_run",
-                test_template_name="nccl",
-                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-            )
+        test=NCCLTestDefinition(
+            name="test_run",
+            description="test_run",
+            test_template_name="nccl",
+            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
         ),
         num_nodes=2,
         nodes=["main:group1:2"],
@@ -563,13 +561,11 @@ name = "p"
     slurm = SlurmSystem.model_validate(toml.loads(spec))
     test_run = TestRun(
         name="test_run",
-        test=Test(
-            test_definition=NCCLTestDefinition(
-                name="test_run",
-                description="test_run",
-                test_template_name="nccl",
-                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-            )
+        test=NCCLTestDefinition(
+            name="test_run",
+            description="test_run",
+            test_template_name="nccl",
+            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
         ),
         num_nodes=1,
         nodes=[],

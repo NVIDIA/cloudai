@@ -86,7 +86,7 @@ class Grader:
 
         for subdir in directory_path.iterdir():
             if subdir.is_dir() and subdir.name.isdigit():
-                grading_strategy = Registry().get_grading_strategy(type(self.system), type(tr.test.test_definition))()
+                grading_strategy = Registry().get_grading_strategy(type(self.system), type(tr.test))()
                 perf = grading_strategy.grade(subdir, tr.ideal_perf)
                 perfs.append(perf)
         return perfs

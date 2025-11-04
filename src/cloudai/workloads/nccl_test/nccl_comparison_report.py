@@ -52,7 +52,7 @@ class NcclComparisonReport(ComparisonReport):
 
     def load_test_runs(self):
         super().load_test_runs()
-        self.trs = [tr for tr in self.trs if isinstance(tr.test.test_definition, NCCLTestDefinition)]
+        self.trs = [tr for tr in self.trs if isinstance(tr.test, NCCLTestDefinition)]
 
     def create_tables(self, cmp_groups: list[GroupedTestRuns]) -> list[Table]:
         tables: list[Table] = []

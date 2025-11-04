@@ -26,7 +26,7 @@ import toml
 
 from cloudai.cli import setup_logging
 from cloudai.cli.handlers import handle_dry_run_and_run
-from cloudai.core import CommandGenStrategy, GitRepo, Test, TestDefinition, TestRun, TestScenario
+from cloudai.core import CommandGenStrategy, GitRepo, TestDefinition, TestRun, TestScenario
 from cloudai.models.scenario import TestRunDetails
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmRunner, SlurmSystem
 from cloudai.workloads.ai_dynamo import (
@@ -158,18 +158,12 @@ def partial_tr(slurm_system: SlurmSystem) -> partial[TestRun]:
 
 
 def create_test_run(partial_tr: partial[TestRun], name: str, test_definition: TestDefinition) -> TestRun:
-    tr = partial_tr(
-        name=name,
-        test=Test(test_definition=test_definition),
-    )
+    tr = partial_tr(name=name, test=test_definition)
     return tr
 
 
 def build_special_test_run(
-    partial_tr: partial[TestRun],
-    slurm_system: SlurmSystem,
-    param: str,
-    test_mapping: Dict[str, Callable[[], TestRun]],
+    partial_tr: partial[TestRun], param: str, test_mapping: Dict[str, Callable[[], TestRun]]
 ) -> Tuple[TestRun, str, Optional[str]]:
     if "gpt" in param:
         test_type = "gpt"
@@ -443,7 +437,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
     }
 
     if request.param.startswith(("gpt-", "grok-", "nemo-run-", "nemo-launcher")):
-        tr, sbatch_file, run_script = build_special_test_run(partial_tr, slurm_system, request.param, test_mapping)
+        tr, sbatch_file, run_script = build_special_test_run(partial_tr, request.param, test_mapping)
 
         if request.param == "nemo-run-vboost":
             tr.test.extra_env_vars["ENABLE_VBOOST"] = "1"
@@ -454,15 +448,15 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         tr = test_mapping[request.param]()
         if request.param.startswith("triton-inference"):
             tr.num_nodes = 3
-            tr.test.test_definition.extra_env_vars["NIM_MODEL_NAME"] = str(tr.output_path)
-            tr.test.test_definition.extra_env_vars["NIM_CACHE_PATH"] = str(tr.output_path)
+            tr.test.extra_env_vars["NIM_MODEL_NAME"] = str(tr.output_path)
+            tr.test.extra_env_vars["NIM_CACHE_PATH"] = str(tr.output_path)
         if request.param in {"nixl_bench", "nixl-kvbench"}:
             tr.num_nodes = 2
         if request.param == "ai-dynamo":
             tr.num_nodes = 2
             hf_home = tr.output_path / "hf_home"
             hf_home.mkdir(parents=True, exist_ok=True)
-            tr.test.test_definition.cmd_args.huggingface_home_host_path = str(hf_home)
+            tr.test.cmd_args.huggingface_home_host_path = str(hf_home)
         return tr, f"{request.param}.sbatch", None
 
     raise ValueError(f"Unknown test: {request.param}")

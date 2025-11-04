@@ -289,7 +289,7 @@ class BaseRunner(ABC):
             JobStatusResult: The result containing the job status and an optional error message.
         """
         runner_job_status_result = self.get_runner_job_status(job)
-        workload_run_results = job.test_run.test.test_definition.was_run_successful(job.test_run)
+        workload_run_results = job.test_run.test.was_run_successful(job.test_run)
         if not runner_job_status_result.is_successful:
             return runner_job_status_result
         if not workload_run_results.is_successful:
@@ -376,9 +376,9 @@ class BaseRunner(ABC):
         self.system.kill(job)
 
     def get_cmd_gen_strategy(self, system: System, test_run: TestRun) -> CommandGenStrategy:
-        strategy_cls = Registry().get_command_gen_strategy(type(system), type(test_run.test.test_definition))
+        strategy_cls = Registry().get_command_gen_strategy(type(system), type(test_run.test))
         return strategy_cls(system, test_run)
 
     def get_json_gen_strategy(self, system: System, test_run: TestRun) -> JsonGenStrategy:
-        strategy_cls = Registry().get_json_gen_strategy(type(system), type(test_run.test.test_definition))
+        strategy_cls = Registry().get_json_gen_strategy(type(system), type(test_run.test))
         return strategy_cls(system, test_run)

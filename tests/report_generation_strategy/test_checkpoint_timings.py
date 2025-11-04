@@ -19,7 +19,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from cloudai import Test, TestRun
+from cloudai import TestRun
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.megatron_run import (
     CheckpointTimingReportGenerationStrategy,
@@ -30,13 +30,11 @@ from cloudai.workloads.megatron_run import (
 
 @pytest.fixture
 def megatron_tr(tmp_path: Path) -> TestRun:
-    test = Test(
-        test_definition=MegatronRunTestDefinition(
-            name="megatron_run",
-            description="desc",
-            test_template_name="t",
-            cmd_args=MegatronRunCmdArgs(docker_image_url="http://url", run_script=Path(__file__)),
-        )
+    test = MegatronRunTestDefinition(
+        name="megatron_run",
+        description="desc",
+        test_template_name="t",
+        cmd_args=MegatronRunCmdArgs(docker_image_url="http://url", run_script=Path(__file__)),
     )
     tr = TestRun(name="n", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
 

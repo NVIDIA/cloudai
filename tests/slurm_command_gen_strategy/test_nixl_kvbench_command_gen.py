@@ -18,7 +18,7 @@ from typing import cast
 
 import pytest
 
-from cloudai.core import Test, TestRun
+from cloudai.core import TestRun
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nixl_kvbench import (
     NIXLKVBenchCmdArgs,
@@ -39,16 +39,11 @@ def kvbench() -> NIXLKVBenchTestDefinition:
 
 @pytest.fixture
 def kvbench_tr(kvbench: NIXLKVBenchTestDefinition) -> TestRun:
-    return TestRun(
-        name="nixl-bench",
-        num_nodes=2,
-        nodes=[],
-        test=Test(test_definition=kvbench),
-    )
+    return TestRun(name="nixl-bench", num_nodes=2, nodes=[], test=kvbench)
 
 
 def test_gen_kvbench_ucx(kvbench_tr: TestRun, slurm_system: SlurmSystem):
-    kvbench_tr.test.test_definition.cmd_args = NIXLKVBenchCmdArgs.model_validate(
+    kvbench_tr.test.cmd_args = NIXLKVBenchCmdArgs.model_validate(
         {
             "docker_image_url": "docker://image/url",
             "model": "./model.yaml",
@@ -58,7 +53,7 @@ def test_gen_kvbench_ucx(kvbench_tr: TestRun, slurm_system: SlurmSystem):
             "op_type": "READ",
         }
     )
-    kvbench = cast(NIXLKVBenchTestDefinition, kvbench_tr.test.test_definition)
+    kvbench = cast(NIXLKVBenchTestDefinition, kvbench_tr.test)
     cmd_gen = NIXLKVBenchSlurmCommandGenStrategy(slurm_system, kvbench_tr)
     cmd = cmd_gen.gen_kvbench_command()
     assert cmd == [

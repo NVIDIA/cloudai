@@ -23,8 +23,7 @@ import pandas as pd
 import pytest
 import toml
 
-from cloudai._core.registry import Registry
-from cloudai.core import Test, TestRun, TestScenario
+from cloudai.core import Registry, TestRun, TestScenario
 from cloudai.systems.slurm import SingleSbatchRunner, SlurmJob, SlurmJobMetadata, SlurmSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 from cloudai.workloads.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
@@ -33,20 +32,18 @@ from cloudai.workloads.sleep import SleepCmdArgs, SleepTestDefinition
 
 class MyNCCL(NCCLTestDefinition):
     def constraint_check(self, tr: TestRun) -> bool:
-        return "CONSTRAINT" not in tr.test.test_definition.extra_env_vars
+        return "CONSTRAINT" not in tr.test.extra_env_vars
 
 
 @pytest.fixture
 def nccl_tr(slurm_system: SlurmSystem) -> Generator[TestRun, None, None]:
     tr = TestRun(
         name="nccl_test",
-        test=Test(
-            test_definition=MyNCCL(
-                name="nccl",
-                description="desc",
-                test_template_name="NcclTest",
-                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-            )
+        test=MyNCCL(
+            name="nccl",
+            description="desc",
+            test_template_name="NcclTest",
+            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
         ),
         num_nodes=2,
         nodes=[],
@@ -61,11 +58,7 @@ def nccl_tr(slurm_system: SlurmSystem) -> Generator[TestRun, None, None]:
 def sleep_tr(slurm_system: SlurmSystem) -> TestRun:
     tr = TestRun(
         name="sleep_test",
-        test=Test(
-            test_definition=SleepTestDefinition(
-                name="sleep", description="desc", test_template_name="t", cmd_args=SleepCmdArgs()
-            )
-        ),
+        test=SleepTestDefinition(name="sleep", description="desc", test_template_name="t", cmd_args=SleepCmdArgs()),
         num_nodes=1,
         nodes=[],
         output_path=slurm_system.output_path / "sleep_test",
@@ -262,7 +255,7 @@ class TestAuxCommands:
         assert aux_cmds[1] == ranks_mapping_cmd
 
     def test_container(self, nccl_tr: TestRun, slurm_system: SlurmSystem) -> None:
-        tdef = cast(NCCLTestDefinition, nccl_tr.test.test_definition)
+        tdef = cast(NCCLTestDefinition, nccl_tr.test)
         tc = TestScenario(name="tc", test_runs=[nccl_tr])
         runner = SingleSbatchRunner(
             mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path
@@ -321,10 +314,10 @@ def test_single_tr_block(sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
     runner = SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
 
     runner.system.global_env_vars["GLOBAL_VAR"] = "global_value"
-    sleep_tr.test.test_definition.extra_env_vars["LOCAL_VAR"] = "local_value"
+    sleep_tr.test.extra_env_vars["LOCAL_VAR"] = "local_value"
     block = runner.get_single_tr_block(sleep_tr)
 
-    tdef = cast(SleepTestDefinition, sleep_tr.test.test_definition)
+    tdef = cast(SleepTestDefinition, sleep_tr.test)
     assert block == (
         f"srun -N1 "
         f"--output={sleep_tr.output_path.absolute()}/stdout.txt "
@@ -335,19 +328,19 @@ def test_single_tr_block(sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
 
 
 def test_unroll_dse(nccl_tr: TestRun, slurm_system: SlurmSystem) -> None:
-    nccl_tr.test.test_definition.extra_env_vars["NCCL_VAR"] = ["v1", "v2"]
+    nccl_tr.test.extra_env_vars["NCCL_VAR"] = ["v1", "v2"]
     tc = TestScenario(name="tc", test_runs=[nccl_tr])
     runner = SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
 
     dse_runs = list(runner.unroll_dse(nccl_tr))
 
     assert len(dse_runs) == 2
-    assert dse_runs[0].test.test_definition.extra_env_vars["NCCL_VAR"] == "v1"
-    assert dse_runs[1].test.test_definition.extra_env_vars["NCCL_VAR"] == "v2"
+    assert dse_runs[0].test.extra_env_vars["NCCL_VAR"] == "v1"
+    assert dse_runs[1].test.extra_env_vars["NCCL_VAR"] == "v2"
 
 
 def test_unroll_dse_constraint_check(nccl_tr: TestRun, slurm_system: SlurmSystem) -> None:
-    nccl_tr.test.test_definition.extra_env_vars["CONSTRAINT"] = "1"
+    nccl_tr.test.extra_env_vars["CONSTRAINT"] = "1"
     tc = TestScenario(name="tc", test_runs=[nccl_tr])
     runner = SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
 
@@ -357,7 +350,7 @@ def test_unroll_dse_constraint_check(nccl_tr: TestRun, slurm_system: SlurmSystem
 
 class TestSbatch:
     def test_single_case(self, slurm_system: SlurmSystem, nccl_tr: TestRun) -> None:
-        nccl_tr.test.test_definition.extra_env_vars["NCCL_VAR"] = "nccl_value"
+        nccl_tr.test.extra_env_vars["NCCL_VAR"] = "nccl_value"
         tc = TestScenario(name="tc", test_runs=[nccl_tr])
         runner = SingleSbatchRunner(
             mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path
@@ -375,8 +368,8 @@ class TestSbatch:
         assert output_paths[3] == f"SCENARIO_ROOT/{nccl_tr.name}/0/stdout.txt"
 
     def test_with_two_cases(self, slurm_system: SlurmSystem, nccl_tr: TestRun, sleep_tr: TestRun) -> None:
-        nccl_tr.test.test_definition.extra_env_vars["NCCL_VAR"] = "nccl_value"
-        sleep_tr.test.test_definition.extra_env_vars["SLEEP_VAR"] = "sleep_value"
+        nccl_tr.test.extra_env_vars["NCCL_VAR"] = "nccl_value"
+        sleep_tr.test.extra_env_vars["SLEEP_VAR"] = "sleep_value"
         tc = TestScenario(name="tc", test_runs=[nccl_tr, sleep_tr])
         runner = SingleSbatchRunner(
             mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path
@@ -416,7 +409,7 @@ class TestSbatch:
         assert output_paths[-2] != output_paths[-1]
 
     def test_dse(self, nccl_tr: TestRun, slurm_system: SlurmSystem) -> None:
-        nccl_tr.test.test_definition.extra_env_vars["NCCL_VAR"] = ["v1", "v2"]
+        nccl_tr.test.extra_env_vars["NCCL_VAR"] = ["v1", "v2"]
         tc = TestScenario(name="tc", test_runs=[nccl_tr])
         runner = SingleSbatchRunner(
             mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path
@@ -454,7 +447,7 @@ class TestSbatch:
 
     def test_dse_and_non_dse(self, nccl_tr: TestRun, slurm_system: SlurmSystem) -> None:
         dse_nccl = copy.deepcopy(nccl_tr)
-        dse_nccl.test.test_definition.extra_env_vars["NCCL_VAR"] = ["v1", "v2"]
+        dse_nccl.test.extra_env_vars["NCCL_VAR"] = ["v1", "v2"]
 
         tc = TestScenario(name="tc", test_runs=[dse_nccl, nccl_tr])
         runner = SingleSbatchRunner(
@@ -518,7 +511,7 @@ def test_pre_test(nccl_tr: TestRun, sleep_tr: TestRun, slurm_system: SlurmSystem
     runner = SingleSbatchRunner(mode="run", system=slurm_system, test_scenario=tc, output_path=slurm_system.output_path)
 
     pre_tests = runner.add_pre_tests(nccl_tr.pre_test, nccl_tr)
-    tdef = cast(SleepTestDefinition, sleep_tr.test.test_definition)
+    tdef = cast(SleepTestDefinition, sleep_tr.test)
 
     assert pre_tests == "\n".join(
         [

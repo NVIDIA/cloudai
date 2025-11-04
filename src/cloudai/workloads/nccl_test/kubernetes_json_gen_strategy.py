@@ -44,7 +44,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
         }
 
     def _create_launcher_spec(self) -> dict[str, Any]:
-        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test.test_definition)
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
         env_vars = self._get_merged_env_vars()
         return {
             "replicas": 1,
@@ -67,7 +67,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
         }
 
     def _create_worker_spec(self) -> dict[str, Any]:
-        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test.test_definition)
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
         env_vars = self._get_merged_env_vars()
         return {
             "replicas": self.test_run.num_nodes,
@@ -137,7 +137,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
         return extra_args
 
     def _generate_launcher_command(self, env_vars: dict[str, str | list[str]]) -> str:
-        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test.test_definition)
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
         tdef_cmd_args = tdef.cmd_args
 
         cmd_args_dict = {

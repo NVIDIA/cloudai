@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from cloudai import Test, TestRun
+from cloudai import TestRun
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
@@ -29,13 +29,11 @@ from cloudai.workloads.jax_toolbox import (
 
 @pytest.fixture
 def jax_tr(tmp_path: Path) -> TestRun:
-    test = Test(
-        test_definition=GPTTestDefinition(
-            name="nccl",
-            description="desc",
-            test_template_name="t",
-            cmd_args=GPTCmdArgs(docker_image_url="docker://url", fdl_config="cfg"),
-        )
+    test = GPTTestDefinition(
+        name="nccl",
+        description="desc",
+        test_template_name="t",
+        cmd_args=GPTCmdArgs(docker_image_url="docker://url", fdl_config="cfg"),
     )
     return TestRun(name="nemo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
 

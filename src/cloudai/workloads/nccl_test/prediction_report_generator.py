@@ -37,7 +37,7 @@ class NcclTestPredictionReportGenerator:
         self.test_run = test_run
         self.output_path = test_run.output_path
         self.stdout_path = self.output_path / "stdout.txt"
-        self.test_definition = test_run.test.test_definition
+        self.test_definition = test_run.test
         self.predictor = self.test_definition.predictor
 
     def generate(self) -> None:

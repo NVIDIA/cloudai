@@ -19,7 +19,7 @@ from typing import Dict, List
 
 import pytest
 
-from cloudai.core import Test, TestRun
+from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.sleep import SleepCmdArgs, SleepSlurmCommandGenStrategy, SleepTestDefinition
 
@@ -48,9 +48,7 @@ class TestSleepSlurmCommandGenStrategy:
             extra_cmd_args={},
         )
 
-        test_obj = Test(test_definition=test_def)
-
-        tr = TestRun(test=test_obj, num_nodes=1, nodes=[], output_path=tmp_path / "output", name="sleep-job")
+        tr = TestRun(test=test_def, num_nodes=1, nodes=[], output_path=tmp_path / "output", name="sleep-job")
 
         cmd_gen_strategy = SleepSlurmCommandGenStrategy(slurm_system, tr)
         command = cmd_gen_strategy.generate_test_command()

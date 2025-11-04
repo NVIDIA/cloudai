@@ -18,19 +18,17 @@ from pathlib import Path
 
 import pytest
 
-from cloudai import Test, TestRun
+from cloudai import TestRun
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 
 @pytest.fixture
 def nccl_tr(tmp_path: Path) -> TestRun:
-    test = Test(
-        test_definition=NCCLTestDefinition(
-            name="nccl",
-            description="desc",
-            test_template_name="t",
-            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-        )
+    test = NCCLTestDefinition(
+        name="nccl",
+        description="desc",
+        test_template_name="t",
+        cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
     )
     tr = TestRun(name="nccl_test", test=test, num_nodes=2, nodes=[], output_path=tmp_path)
 

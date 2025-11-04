@@ -66,10 +66,10 @@ class TestLoadTestTuns:
         )
         reporter.load_test_runs()
 
-        assert len(reporter.trs) == dse_tr.test.test_definition.agent_steps * dse_tr.iterations
+        assert len(reporter.trs) == dse_tr.test.agent_steps * dse_tr.iterations
         for i, tr in enumerate(reporter.trs):
-            exp_iter = i // dse_tr.test.test_definition.agent_steps
-            exp_step = i % dse_tr.test.test_definition.agent_steps
+            exp_iter = i // dse_tr.test.agent_steps
+            exp_step = i % dse_tr.test.agent_steps
             assert tr.name == dse_tr.name
             assert tr.current_iteration == exp_iter
             assert tr.step == exp_step

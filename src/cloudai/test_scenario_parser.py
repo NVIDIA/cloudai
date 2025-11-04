@@ -18,7 +18,7 @@ import copy
 import logging
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Type
+from typing import Any, Dict, List, Mapping, Optional, Set, Type
 
 import toml
 from pydantic import ValidationError
@@ -30,7 +30,6 @@ from .core import (
     Registry,
     ReportGenerationStrategy,
     System,
-    Test,
     TestDependency,
     TestRun,
     TestScenario,
@@ -83,11 +82,15 @@ class TestScenarioParser:
     __test__ = False
 
     def __init__(
-        self, file_path: Path, system: System, test_mapping: Dict[str, Test], hook_mapping: Dict[str, TestScenario]
+        self,
+        file_path: Path,
+        system: System,
+        test_mapping: dict[str, TestDefinition],
+        hook_mapping: dict[str, TestScenario],
     ) -> None:
         self.file_path = file_path
         self.system = system
-        self.test_mapping = test_mapping
+        self.test_mapping: Mapping[str, TestDefinition] = test_mapping
         self.hook_mapping = hook_mapping
 
     def parse(self) -> TestScenario:
@@ -186,14 +189,14 @@ class TestScenarioParser:
         Raises:
             ValueError: If the test or nodes are not found within the system.
         """
-        test = Test(test_definition=self._prepare_tdef(test_info))
+        tdef = self._prepare_tdef(test_info)
 
         hooks = [hook for hook in [pre_test, post_test] if hook is not None]
         total_time_limit = calculate_total_time_limit(test_hooks=hooks, time_limit=test_info.time_limit)
 
         tr = TestRun(
             test_info.id,
-            test,
+            tdef,
             num_nodes=test_info.num_nodes or 1,
             iterations=test_info.iterations,
             nodes=test_info.nodes,
@@ -203,7 +206,7 @@ class TestScenarioParser:
             ideal_perf=test_info.ideal_perf,
             pre_test=pre_test,
             post_test=post_test,
-            reports=get_reporters(test_info, test.test_definition),
+            reports=get_reporters(test_info, tdef),
         )
 
         return tr
@@ -217,10 +220,10 @@ class TestScenarioParser:
                 raise MissingTestError(test_info.test_name)
             test = self.test_mapping[test_info.test_name]
 
-            test_defined = test.test_definition.model_dump(by_alias=True)
+            test_defined = test.model_dump(by_alias=True)
             tc_defined = test_info.tdef_model_dump(by_alias=True)
             merged_data = deep_merge(test_defined, tc_defined)
-            test.test_definition = tp.load_test_definition(merged_data)
+            test = tp.load_test_definition(merged_data)
         elif test_info.test_template_name:  # test fully defined in the scenario
             test = tp._parse_data(test_info.tdef_model_dump(by_alias=True))
         else:
@@ -229,4 +232,4 @@ class TestScenarioParser:
                 f"Cannot configure test case '{test_info.id}' with both 'test_name' and 'test_template_name'."
             )
 
-        return test.test_definition
+        return test

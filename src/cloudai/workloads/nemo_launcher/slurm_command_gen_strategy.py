@@ -40,7 +40,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         _, nodes = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)
         self._set_node_config(nodes, self.test_run.nnodes)
 
-        tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, self.test_run.test.test_definition)
+        tdef: NeMoLauncherTestDefinition = cast(NeMoLauncherTestDefinition, self.test_run.test)
 
         if self.system.account:
             self.final_cmd_args["cluster.account"] = self.system.account
@@ -94,7 +94,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd_args_str = self._generate_cmd_args_str(self.final_cmd_args, nodes)
         full_cmd = f"{py_bin} \\\n {repo_path / tdef.cmd_args.launcher_script} \\\n {cmd_args_str}"
         if self.test_run.test.extra_cmd_args:
-            full_cmd += f" {self.test_run.test.extra_cmd_args}"
+            full_cmd += f" {self.test_run.test.extra_args_str}"
         full_cmd = self._update_container_mounts_with_tokenizer_path(full_cmd)
 
         env_vars_str = self._gen_env_vars_str(self.final_env_vars)
@@ -120,7 +120,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             extra_env_vars (Dict[str, Union[str, List[str]]]): Additional environment variables.
             output_path (Path): Path to the output directory.
         """
-        overriden_cmd_args = flatten_dict(self.test_run.test.cmd_args)
+        overriden_cmd_args = flatten_dict(self.test_run.test.cmd_args_dict)
         overriden_cmd_args.pop("launcher_script", None)
         self.final_cmd_args = {k: self._handle_special_keys(k, v) for k, v in sorted(overriden_cmd_args.items())}
 

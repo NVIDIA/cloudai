@@ -20,7 +20,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from cloudai.core import JobIdRetrievalError, Test, TestRun, TestScenario
+from cloudai.core import JobIdRetrievalError, TestRun, TestScenario
 from cloudai.systems.lsf.lsf_runner import LSFRunner
 from cloudai.systems.lsf.lsf_system import LSFSystem
 from cloudai.systems.slurm import SlurmRunner, SlurmSystem
@@ -45,11 +45,7 @@ def test_scenario(slurm_system: SlurmSystem) -> TestScenario:
         test_runs=[
             TestRun(
                 "tr-name",
-                Test(
-                    test_definition=SleepTestDefinition(
-                        name="n", description="d", test_template_name="Sleep", cmd_args=SleepCmdArgs()
-                    )
-                ),
+                SleepTestDefinition(name="n", description="d", test_template_name="Sleep", cmd_args=SleepCmdArgs()),
                 1,
                 [],
                 output_path=slurm_system.output_path / "tr-name",

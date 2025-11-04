@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from cloudai import Test, TestRun
+from cloudai import TestRun
 from cloudai.core import METRIC_ERROR
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.ai_dynamo import (
@@ -58,41 +58,39 @@ def get_csv_content() -> str:
 
 @pytest.fixture
 def ai_dynamo_tr(tmp_path: Path) -> TestRun:
-    test = Test(
-        test_definition=AIDynamoTestDefinition(
-            name="ai_dynamo",
-            description="desc",
-            test_template_name="t",
-            cmd_args=AIDynamoCmdArgs(
-                docker_image_url="http://url",
-                dynamo=AIDynamoArgs(
-                    prefill_worker=PrefillWorkerArgs(
-                        **{
-                            "num-nodes": 1,
-                            "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
-                        }
-                    ),
-                    decode_worker=DecodeWorkerArgs(
-                        **{
-                            "num-nodes": 1,
-                            "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
-                        }
-                    ),
-                ),
-                genai_perf=GenAIPerfArgs(
+    test = AIDynamoTestDefinition(
+        name="ai_dynamo",
+        description="desc",
+        test_template_name="t",
+        cmd_args=AIDynamoCmdArgs(
+            docker_image_url="http://url",
+            dynamo=AIDynamoArgs(
+                prefill_worker=PrefillWorkerArgs(
                     **{
-                        "streaming": False,
-                        "extra-inputs": "mock_extra_inputs",
-                        "input-file": "mock_input_file",
-                        "output-tokens-mean": 100,
-                        "random-seed": 123,
-                        "request-count": 100,
-                        "synthetic-input-tokens-mean": 100,
-                        "warmup-request-count": 10,
+                        "num-nodes": 1,
+                        "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
+                    }
+                ),
+                decode_worker=DecodeWorkerArgs(
+                    **{
+                        "num-nodes": 1,
+                        "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
                     }
                 ),
             ),
-        )
+            genai_perf=GenAIPerfArgs(
+                **{
+                    "streaming": False,
+                    "extra-inputs": "mock_extra_inputs",
+                    "input-file": "mock_input_file",
+                    "output-tokens-mean": 100,
+                    "random-seed": 123,
+                    "request-count": 100,
+                    "synthetic-input-tokens-mean": 100,
+                    "warmup-request-count": 10,
+                }
+            ),
+        ),
     )
     tr = TestRun(name="ai_dynamo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
 

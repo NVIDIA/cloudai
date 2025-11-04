@@ -21,7 +21,7 @@ from typing import Any, Dict, List
 import toml
 from pydantic import ValidationError
 
-from .core import Registry, System, Test, TestConfigParsingError, format_validation_error
+from .core import Registry, System, TestConfigParsingError, format_validation_error
 from .models.workload import TestDefinition
 
 
@@ -85,7 +85,7 @@ class TestParser:
 
         return test_def
 
-    def _parse_data(self, data: Dict[str, Any]) -> Test:
+    def _parse_data(self, data: Dict[str, Any]) -> TestDefinition:
         """
         Parse data for a Test object.
 
@@ -95,5 +95,4 @@ class TestParser:
         Returns:
             Test: Parsed Test object.
         """
-        test_def = self.load_test_definition(data)
-        return Test(test_definition=test_def)
+        return self.load_test_definition(data)

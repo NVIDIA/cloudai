@@ -19,7 +19,6 @@ from typing import cast
 
 import pytest
 
-from cloudai._core.test import Test
 from cloudai._core.test_scenario import TestRun
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.ai_dynamo import (
@@ -92,8 +91,7 @@ def test_run(tmp_path: Path, cmd_args: AIDynamoCmdArgs) -> TestRun:
     )
     tdef.dynamo_repo.installed_path = dynamo_repo_path
 
-    test = Test(test_definition=tdef)
-    return TestRun(name="run", test=test, nodes=["n0", "n1"], num_nodes=2, output_path=tmp_path)
+    return TestRun(name="run", test=tdef, nodes=["n0", "n1"], num_nodes=2, output_path=tmp_path)
 
 
 @pytest.fixture
@@ -102,14 +100,14 @@ def strategy(slurm_system: SlurmSystem, test_run: TestRun) -> AIDynamoSlurmComma
 
 
 def test_hugging_face_home_path_valid(test_run: TestRun) -> None:
-    td = cast(AIDynamoTestDefinition, test_run.test.test_definition)
+    td = cast(AIDynamoTestDefinition, test_run.test)
     path = td.huggingface_home_host_path
     assert path.exists()
     assert path.is_dir()
 
 
 def test_hugging_face_home_path_missing(test_run: TestRun) -> None:
-    td = cast(AIDynamoTestDefinition, test_run.test.test_definition)
+    td = cast(AIDynamoTestDefinition, test_run.test)
     td.cmd_args.huggingface_home_host_path = Path("/nonexistent")
     with pytest.raises(FileNotFoundError):
         _ = td.huggingface_home_host_path
@@ -117,7 +115,7 @@ def test_hugging_face_home_path_missing(test_run: TestRun) -> None:
 
 def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: TestRun) -> None:
     mounts = strategy._container_mounts()
-    td = cast(AIDynamoTestDefinition, test_run.test.test_definition)
+    td = cast(AIDynamoTestDefinition, test_run.test)
     dynamo_repo_path = td.dynamo_repo.installed_path
     assert dynamo_repo_path is not None, "dynamo_repo_path should be set in the test fixture"
 

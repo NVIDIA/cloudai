@@ -21,7 +21,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from cloudai.core import Test, TestRun
+from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.triton_inference import (
     TritonInferenceCmdArgs,
@@ -51,8 +51,7 @@ def test_run(tmp_path: Path) -> TestRun:
         },
     )
 
-    test = Test(test_definition=tdef)
-    return TestRun(name="run", test=test, nodes=["nodeA", "nodeB", "nodeC"], num_nodes=3)
+    return TestRun(name="run", test=tdef, nodes=["nodeA", "nodeB", "nodeC"], num_nodes=3)
 
 
 @pytest.fixture
@@ -63,7 +62,7 @@ def strategy(slurm_system: SlurmSystem, test_run: TestRun) -> TritonInferenceSlu
 def test_container_mounts_invalid_model(tmp_path: Path, strategy: TritonInferenceSlurmCommandGenStrategy) -> None:
     cache_dir = tmp_path / "cache"
     cache_dir.mkdir()
-    strategy.test_run.test.test_definition.extra_env_vars = {
+    strategy.test_run.test.extra_env_vars = {
         "NIM_MODEL_NAME": str(tmp_path / "nope"),
         "NIM_CACHE_PATH": str(cache_dir),
     }
@@ -87,7 +86,7 @@ def test_container_mounts_with_model_and_cache(
     model_dir.mkdir()
     cache_dir.mkdir()
 
-    tdef = cast(TritonInferenceTestDefinition, strategy.test_run.test.test_definition)
+    tdef = cast(TritonInferenceTestDefinition, strategy.test_run.test)
     tdef.extra_env_vars["NIM_MODEL_NAME"] = str(model_dir)
     tdef.extra_env_vars["NIM_CACHE_PATH"] = str(cache_dir)
 
@@ -138,9 +137,9 @@ def test_build_server_srun(strategy: TritonInferenceSlurmCommandGenStrategy) -> 
 
 @pytest.mark.parametrize("streaming", [True, False])
 def test_build_client_srun(strategy: TritonInferenceSlurmCommandGenStrategy, streaming: bool) -> None:
-    strategy.test_run.test.test_definition.cmd_args.streaming = streaming
+    strategy.test_run.test.cmd_args.streaming = streaming
     result = strategy._build_client_srun(1)
-    assert strategy.test_run.test.test_definition.cmd_args.client_docker_image_url in result
+    assert strategy.test_run.test.cmd_args.client_docker_image_url in result
     assert "--nodes=1" in result
     assert "--ntasks=1" in result
     assert "genai-perf" in result
@@ -154,4 +153,4 @@ def test_gen_srun_command(strategy: TritonInferenceSlurmCommandGenStrategy) -> N
     strategy._build_server_srun = Mock(return_value="S")
     strategy._build_client_srun = Mock(return_value="C")
     cmd = strategy._gen_srun_command()
-    assert cmd == f"S &\n\nsleep {strategy.test_run.test.test_definition.cmd_args.sleep_seconds}\n\nC"
+    assert cmd == f"S &\n\nsleep {strategy.test_run.test.cmd_args.sleep_seconds}\n\nC"

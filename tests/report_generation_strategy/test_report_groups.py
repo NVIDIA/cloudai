@@ -43,8 +43,8 @@ class TestGrouping:
     def test_multiple_trs_no_group_by_fields(self, nccl_tr: TestRun) -> None:
         nccl1 = copy.deepcopy(nccl_tr)
         nccl2 = copy.deepcopy(nccl_tr)
-        nccl1.test.test_definition.cmd_args.subtest_name = "all_gather_perf"
-        nccl2.test.test_definition.cmd_args.subtest_name = "all_reduce_perf"
+        nccl1.test.cmd_args.subtest_name = "all_gather_perf"
+        nccl2.test.cmd_args.subtest_name = "all_reduce_perf"
         groups = TestRunsGrouper(trs=[nccl1, nccl2], group_by=[]).groups()
         assert len(groups) == 1
         assert groups[0].name == "all-in-one"
@@ -54,8 +54,8 @@ class TestGrouping:
     def test_group_by_one_field(self, nccl_tr: TestRun) -> None:
         nccl1 = copy.deepcopy(nccl_tr)
         nccl2 = copy.deepcopy(nccl_tr)
-        nccl1.test.test_definition.cmd_args.subtest_name = "all_gather_perf"
-        nccl2.test.test_definition.cmd_args.subtest_name = "all_reduce_perf"
+        nccl1.test.cmd_args.subtest_name = "all_gather_perf"
+        nccl2.test.cmd_args.subtest_name = "all_reduce_perf"
 
         groups = TestRunsGrouper(trs=[nccl1, nccl2], group_by=["subtest_name"]).groups()
 
@@ -66,8 +66,8 @@ class TestGrouping:
         assert groups[1].items[0].name == "1.0"
 
     def test_group_by_two_fields(self, nccl_tr: TestRun) -> None:
-        nccl_tr.test.test_definition.cmd_args.subtest_name = ["all_gather_perf", "all_reduce_perf"]
-        nccl_tr.test.test_definition.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = ["0", "1"]
+        nccl_tr.test.cmd_args.subtest_name = ["all_gather_perf", "all_reduce_perf"]
+        nccl_tr.test.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = ["0", "1"]
         trs: list[TestRun] = [nccl_tr.apply_params_set(combination) for combination in nccl_tr.all_combinations]
 
         groups = TestRunsGrouper(
@@ -83,8 +83,8 @@ class TestGrouping:
         assert groups[3].name == "subtest_name=all_reduce_perf NCCL_IB_SPLIT_DATA_ON_QPS=1"
 
     def test_multiple_trs_in_a_group(self, nccl_tr: TestRun) -> None:
-        nccl_tr.test.test_definition.cmd_args.subtest_name = ["all_gather_perf", "all_reduce_perf"]
-        nccl_tr.test.test_definition.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = ["0", "1"]
+        nccl_tr.test.cmd_args.subtest_name = ["all_gather_perf", "all_reduce_perf"]
+        nccl_tr.test.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = ["0", "1"]
         trs: list[TestRun] = [nccl_tr.apply_params_set(combination) for combination in nccl_tr.all_combinations]
 
         groups = TestRunsGrouper(trs=trs, group_by=["subtest_name"]).groups()
@@ -106,8 +106,8 @@ class TestDiffTrs:
     def test_diff_cmd_args_field(self, nccl_tr: TestRun) -> None:
         nccl1 = copy.deepcopy(nccl_tr)
         nccl2 = copy.deepcopy(nccl_tr)
-        nccl1.test.test_definition.cmd_args.subtest_name = "all_gather_perf"
-        nccl2.test.test_definition.cmd_args.subtest_name = "all_reduce_perf"
+        nccl1.test.cmd_args.subtest_name = "all_gather_perf"
+        nccl2.test.cmd_args.subtest_name = "all_reduce_perf"
 
         diff = diff_test_runs([nccl1, nccl2])
 
@@ -125,8 +125,8 @@ class TestDiffTrs:
     def test_diff_extra_env_vars(self, nccl_tr: TestRun) -> None:
         nccl1 = copy.deepcopy(nccl_tr)
         nccl2 = copy.deepcopy(nccl_tr)
-        nccl1.test.test_definition.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = "0"
-        nccl2.test.test_definition.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = "1"
+        nccl1.test.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = "0"
+        nccl2.test.extra_env_vars["NCCL_IB_SPLIT_DATA_ON_QPS"] = "1"
 
         diff = diff_test_runs([nccl1, nccl2])
         assert diff == {"extra_env_vars.NCCL_IB_SPLIT_DATA_ON_QPS": ["0", "1"]}

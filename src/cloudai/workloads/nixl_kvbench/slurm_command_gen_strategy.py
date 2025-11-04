@@ -35,7 +35,7 @@ class NIXLKVBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
 
     @property
     def tdef(self) -> NIXLKVBenchTestDefinition:
-        return cast(NIXLKVBenchTestDefinition, self.test_run.test.test_definition)
+        return cast(NIXLKVBenchTestDefinition, self.test_run.test)
 
     def image_path(self) -> str | None:
         return str(self.tdef.docker_image.installed_path)
@@ -66,7 +66,7 @@ class NIXLKVBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
             f"{self.tdef.cmd_args.kvbench_script}",
             self.tdef.cmd_args.command,
         ]
-        for k, v in self.test_run.test.test_definition.cmd_args_dict.items():
+        for k, v in self.test_run.test.cmd_args_dict.items():
             command.append(f"--{k} {v}")
 
         command.append("--etcd_endpoints http://$NIXL_ETCD_ENDPOINTS")
