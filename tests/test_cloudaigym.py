@@ -21,8 +21,9 @@ from unittest.mock import MagicMock, PropertyMock, patch
 import pytest
 
 from cloudai.configurator import CloudAIGymEnv, GridSearchAgent
-from cloudai.core import BaseRunner, Runner, Test, TestRun, TestScenario, TestTemplateStrategy
+from cloudai.core import BaseRunner, Runner, Test, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmSystem
+from cloudai.util import flatten_dict
 from cloudai.workloads.nemo_run import (
     Data,
     NeMoRunCmdArgs,
@@ -259,7 +260,7 @@ def test_params_set(setup_env: tuple[TestRun, Runner], num_nodes: int):
     assert len(tr.all_combinations) > 1
     for action in tr.all_combinations:
         new_tr = tr.apply_params_set(action)
-        cmd_args = TestTemplateStrategy._flatten_dict(new_tr.test.test_definition.cmd_args.model_dump())
+        cmd_args = flatten_dict(new_tr.test.test_definition.cmd_args.model_dump())
         for key, value in action.items():
             if key.startswith("extra_env_vars."):
                 assert new_tr.test.test_definition.extra_env_vars[key[len("extra_env_vars.") :]] == value

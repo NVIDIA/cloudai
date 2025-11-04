@@ -44,7 +44,7 @@ def register_all():
         inverse_reward,
         negative_reward,
     )
-    from cloudai.core import GradingStrategy, JsonGenStrategy, Registry
+    from cloudai.core import GradingStrategy, Registry
     from cloudai.models.scenario import ReportConfig
     from cloudai.reporter import PerTestReporter, StatusReporter, TarballReporter
 
@@ -143,14 +143,14 @@ def register_all():
     Registry().add_runner("lsf", LSFRunner)
     Registry().add_runner("runai", RunAIRunner)
 
+    Registry().add_json_gen_strategy(KubernetesSystem, SleepTestDefinition, SleepKubernetesJsonGenStrategy)
+    Registry().add_json_gen_strategy(KubernetesSystem, NCCLTestDefinition, NcclTestKubernetesJsonGenStrategy)
+    Registry().add_json_gen_strategy(KubernetesSystem, AIDynamoTestDefinition, AIDynamoKubernetesJsonGenStrategy)
+    Registry().add_json_gen_strategy(RunAISystem, NCCLTestDefinition, NcclTestRunAIJsonGenStrategy)
+
     Registry().add_command_gen_strategy(StandaloneSystem, SleepTestDefinition, SleepStandaloneCommandGenStrategy)
     Registry().add_command_gen_strategy(LSFSystem, SleepTestDefinition, SleepLSFCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, SleepTestDefinition, SleepSlurmCommandGenStrategy)
-    Registry().add_strategy(JsonGenStrategy, [KubernetesSystem], [SleepTestDefinition], SleepKubernetesJsonGenStrategy)
-    Registry().add_strategy(
-        JsonGenStrategy, [KubernetesSystem], [NCCLTestDefinition], NcclTestKubernetesJsonGenStrategy
-    )
-    Registry().add_strategy(JsonGenStrategy, [RunAISystem], [NCCLTestDefinition], NcclTestRunAIJsonGenStrategy)
     Registry().add_strategy(GradingStrategy, [SlurmSystem], [NCCLTestDefinition], NcclTestGradingStrategy)
 
     Registry().add_command_gen_strategy(SlurmSystem, MegatronRunTestDefinition, MegatronRunSlurmCommandGenStrategy)
@@ -184,9 +184,6 @@ def register_all():
     Registry().add_command_gen_strategy(SlurmSystem, NixlPerftestTestDefinition, NixlPerftestSlurmCommandGenStrategy)
 
     Registry().add_command_gen_strategy(SlurmSystem, AIDynamoTestDefinition, AIDynamoSlurmCommandGenStrategy)
-    Registry().add_strategy(
-        JsonGenStrategy, [KubernetesSystem], [AIDynamoTestDefinition], AIDynamoKubernetesJsonGenStrategy
-    )
     Registry().add_command_gen_strategy(SlurmSystem, BashCmdTestDefinition, BashCmdCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NIXLKVBenchTestDefinition, NIXLKVBenchSlurmCommandGenStrategy)
 

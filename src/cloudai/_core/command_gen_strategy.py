@@ -18,16 +18,15 @@ from abc import ABC, abstractmethod
 
 from .system import System
 from .test_scenario import TestRun
-from .test_template_strategy import TestTemplateStrategy
 
 
-class CommandGenStrategy(TestTemplateStrategy, ABC):
+class CommandGenStrategy(ABC):
     """Abstract base class defining the interface for command generation strategies across different systems."""
 
     TEST_RUN_DUMP_FILE_NAME: str = "test-run.toml"
 
     def __init__(self, system: System, test_run: TestRun) -> None:
-        super().__init__(system)
+        self.system = system
         self.test_run = test_run
         self._final_env_vars: dict[str, str | list[str]] = {}
 

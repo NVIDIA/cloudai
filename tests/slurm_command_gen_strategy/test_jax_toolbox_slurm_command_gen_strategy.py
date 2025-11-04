@@ -21,6 +21,7 @@ import pytest
 
 from cloudai.core import Test, TestRun, TestTemplate
 from cloudai.systems.slurm import SlurmSystem
+from cloudai.util import flatten_dict
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
     GPTTestDefinition,
@@ -190,7 +191,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
         self, slurm_system: SlurmSystem, gpt_tr: TestRun, gpt_test: GPTTestDefinition
     ) -> None:
         cmd_gen_strategy = JaxToolboxSlurmCommandGenStrategy(slurm_system, gpt_tr)
-        cargs = cmd_gen_strategy._flatten_dict({"output_path": "/path/to/output", **gpt_test.cmd_args_dict})
+        cargs = flatten_dict({"output_path": "/path/to/output", **gpt_test.cmd_args_dict})
 
         cmd_gen_strategy.test_name = "GPT"
 

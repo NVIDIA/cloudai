@@ -16,7 +16,7 @@
 
 from typing import Any, Dict, cast
 
-from cloudai.core import JsonGenStrategy, TestRun
+from cloudai.core import JsonGenStrategy
 from cloudai.systems.kubernetes import KubernetesSystem
 
 from .sleep import SleepCmdArgs, SleepTestDefinition
@@ -25,8 +25,8 @@ from .sleep import SleepCmdArgs, SleepTestDefinition
 class SleepKubernetesJsonGenStrategy(JsonGenStrategy):
     """JSON generation strategy for Sleep on Kubernetes systems."""
 
-    def gen_json(self, tr: TestRun) -> Dict[Any, Any]:
-        tdef: SleepTestDefinition = cast(SleepTestDefinition, tr.test.test_definition)
+    def gen_json(self) -> Dict[Any, Any]:
+        tdef: SleepTestDefinition = cast(SleepTestDefinition, self.test_run.test.test_definition)
         tdef_cmd_args: SleepCmdArgs = tdef.cmd_args
         sec = tdef_cmd_args.seconds
 
@@ -35,7 +35,7 @@ class SleepKubernetesJsonGenStrategy(JsonGenStrategy):
         job_spec = {
             "apiVersion": "batch/v1",
             "kind": "Job",
-            "metadata": {"name": tr.name, "namespace": kubernetes_system.default_namespace},
+            "metadata": {"name": self.test_run.name, "namespace": kubernetes_system.default_namespace},
             "spec": {
                 "ttlSecondsAfterFinished": 0,
                 "template": {
@@ -44,7 +44,7 @@ class SleepKubernetesJsonGenStrategy(JsonGenStrategy):
                             {
                                 "args": ["sleep " + str(sec)],
                                 "command": ["/bin/bash", "-c"],
-                                "image": tr.test.test_definition.cmd_args.docker_image_url,
+                                "image": self.test_run.test.test_definition.cmd_args.docker_image_url,
                                 "name": "task",
                             }
                         ],

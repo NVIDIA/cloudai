@@ -18,6 +18,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Union, cast
 
 from cloudai.core import CommandGenStrategy, System, TestRun
+from cloudai.util import flatten_dict
 
 from .lsf_system import LSFSystem
 
@@ -53,7 +54,7 @@ class LSFCommandGenStrategy(CommandGenStrategy):
             str: The generated LSF command.
         """
         env_vars = self.final_env_vars
-        cmd_args = self._flatten_dict(self.test_run.test.cmd_args)
+        cmd_args = flatten_dict(self.test_run.test.cmd_args)
         lsf_args = self._parse_lsf_args(
             self.test_run.test.test_template.__class__.__name__, env_vars, cmd_args, self.test_run
         )

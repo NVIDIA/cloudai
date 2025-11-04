@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
+from cloudai.util import flatten_dict
 
 from .nemo_launcher import NeMoLauncherTestDefinition
 
@@ -119,7 +120,7 @@ class NeMoLauncherSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             extra_env_vars (Dict[str, Union[str, List[str]]]): Additional environment variables.
             output_path (Path): Path to the output directory.
         """
-        overriden_cmd_args = self._flatten_dict(self.test_run.test.cmd_args)
+        overriden_cmd_args = flatten_dict(self.test_run.test.cmd_args)
         overriden_cmd_args.pop("launcher_script", None)
         self.final_cmd_args = {k: self._handle_special_keys(k, v) for k, v in sorted(overriden_cmd_args.items())}
 

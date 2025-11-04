@@ -25,6 +25,7 @@ from .base_job import BaseJob
 from .command_gen_strategy import CommandGenStrategy
 from .exceptions import JobFailureError, JobSubmissionError
 from .job_status_result import JobStatusResult
+from .json_gen_strategy import JsonGenStrategy
 from .registry import Registry
 from .system import System
 from .test_scenario import TestRun, TestScenario
@@ -376,4 +377,8 @@ class BaseRunner(ABC):
 
     def get_cmd_gen_strategy(self, system: System, test_run: TestRun) -> CommandGenStrategy:
         strategy_cls = Registry().get_command_gen_strategy(type(system), type(test_run.test.test_definition))
+        return strategy_cls(system, test_run)
+
+    def get_json_gen_strategy(self, system: System, test_run: TestRun) -> JsonGenStrategy:
+        strategy_cls = Registry().get_json_gen_strategy(type(system), type(test_run.test.test_definition))
         return strategy_cls(system, test_run)

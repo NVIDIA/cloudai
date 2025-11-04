@@ -16,14 +16,13 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type, Union, cast
+from typing import Any, Dict, List, Optional, Type, cast
 
 import toml
 from pydantic import ValidationError
 
 from .core import (
     GradingStrategy,
-    JsonGenStrategy,
     Registry,
     System,
     Test,
@@ -96,10 +95,10 @@ class TestParser:
 
     def _fetch_strategy(  # noqa: D417
         self,
-        strategy_interface: Type[Union[JsonGenStrategy, GradingStrategy]],
+        strategy_interface: Type[GradingStrategy],
         system_type: Type[System],
         test_definition_type: Type[TestDefinition],
-    ) -> Optional[Union[JsonGenStrategy, GradingStrategy]]:
+    ) -> Optional[GradingStrategy]:
         """
         Fetch a strategy from the registry based on system and template.
 
@@ -116,10 +115,7 @@ class TestParser:
         registry = Registry()
         strategy_type = registry.strategies_map.get(key)
         if strategy_type:
-            if issubclass(strategy_type, JsonGenStrategy):
-                return strategy_type(self.system)
-            else:
-                return strategy_type()
+            return strategy_type()
 
         logging.debug(
             f"No {strategy_interface.__name__} found for "
@@ -140,10 +136,6 @@ class TestParser:
             Type[TestTemplate]: A subclass of TestTemplate corresponding to the given name.
         """
         obj = TestTemplate(system=self.system)
-        obj.json_gen_strategy = cast(
-            JsonGenStrategy,
-            self._fetch_strategy(JsonGenStrategy, type(obj.system), type(tdef)),
-        )
         obj.grading_strategy = cast(
             GradingStrategy, self._fetch_strategy(GradingStrategy, type(obj.system), type(tdef))
         )

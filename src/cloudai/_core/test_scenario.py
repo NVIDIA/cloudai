@@ -22,8 +22,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, List, Optional, Set, Type, Union
 
+from ..util import flatten_dict
 from .system import System
-from .test_template_strategy import TestTemplateStrategy
 
 if TYPE_CHECKING:
     from ..models.scenario import ReportConfig
@@ -121,7 +121,7 @@ class TestRun:
 
     @property
     def param_space(self) -> dict[str, Any]:
-        cmd_args_dict = TestTemplateStrategy._flatten_dict(self.test.test_definition.cmd_args.model_dump())
+        cmd_args_dict = flatten_dict(self.test.test_definition.cmd_args.model_dump())
         extra_env_vars_dict = self.test.test_definition.extra_env_vars
 
         action_space: dict[str, Any] = {

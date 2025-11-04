@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional, Union, cast
 
 from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmSystem
+from cloudai.util import flatten_dict
 
 from .gpt import GPTTestDefinition
 from .grok import GrokTestDefinition
@@ -143,7 +144,7 @@ class JaxToolboxSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return " ".join(sorted(xla_flags))
 
     def _gen_srun_command(self) -> str:
-        cmd_args = self._flatten_dict(self.test_run.test.cmd_args)
+        cmd_args = flatten_dict(self.test_run.test.cmd_args)
         self._create_run_script(cmd_args)
 
         commands = []

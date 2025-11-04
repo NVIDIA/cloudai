@@ -42,7 +42,6 @@ from ._core.system import System
 from ._core.test import Test
 from ._core.test_scenario import METRIC_ERROR, TestDependency, TestRun, TestScenario
 from ._core.test_template import TestTemplate
-from ._core.test_template_strategy import TestTemplateStrategy
 from .configurator.base_agent import BaseAgent
 from .configurator.cloudai_gym import CloudAIGymEnv
 from .configurator.grid_search import GridSearchAgent
@@ -97,7 +96,6 @@ __all__ = [
     "TestScenarioParser",
     "TestScenarioParsingError",
     "TestTemplate",
-    "TestTemplateStrategy",
     "case_name",
     "format_validation_error",
 ]

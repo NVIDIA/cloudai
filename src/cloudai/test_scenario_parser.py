@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Type
 import toml
 from pydantic import ValidationError
 
-from cloudai.util import format_time_limit, parse_time_limit
+from cloudai.util import deep_merge, format_time_limit, parse_time_limit
 
 from .core import (
     MissingTestError,
@@ -232,16 +232,3 @@ class TestScenarioParser:
             )
 
         return test, test.test_definition
-
-
-def deep_merge(a: dict, b: dict):
-    result = a.copy()
-    for key in b:
-        if key in result:
-            if isinstance(result[key], dict) and isinstance(b[key], dict):
-                result[key] = deep_merge(result[key], b[key])
-            else:
-                result[key] = b[key]
-        else:
-            result[key] = b[key]
-    return result
