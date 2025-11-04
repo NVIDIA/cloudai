@@ -98,12 +98,12 @@ def test_single_test_case(tdef: TestDefinition, test_scenario_parser: TestScenar
     assert tr.weight == 0
     assert tr.ideal_perf == 1.0
     assert tr.sol is None
-    tdef = test_scenario.test_runs[0].test
-    assert tdef.name == tdef.name
-    assert tdef.description == tdef.description
-    assert tdef.cmd_args == tdef.cmd_args
-    assert tdef.extra_env_vars == tdef.extra_env_vars
-    assert tdef.extra_cmd_args == tdef.extra_cmd_args
+    parsed_tdef = test_scenario.test_runs[0].test
+    assert parsed_tdef.name == tdef.name
+    assert parsed_tdef.description == tdef.description
+    assert parsed_tdef.cmd_args == tdef.cmd_args
+    assert parsed_tdef.extra_env_vars == tdef.extra_env_vars
+    assert parsed_tdef.extra_cmd_args == tdef.extra_cmd_args
 
 
 @pytest.mark.parametrize("prop,cfg_value", [("sol", 42.0), ("ideal_perf", 42.0)])
