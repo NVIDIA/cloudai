@@ -90,7 +90,7 @@ def prepare_output_dir(path: Path) -> Optional[Path]:
         return None
 
 
-def deep_merge(a: dict, b: dict):
+def deep_merge(a: dict, b: dict) -> dict:
     result = a.copy()
     for key in b:
         if key in result:
