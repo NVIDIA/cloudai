@@ -31,7 +31,7 @@ class DDLBCmdArgs(CmdArgs):
     dtype: str
     num_iterations: int = 50
     num_warmups: int = 5
-    impl: Union[str, list[str]] = "pytorch;backend=nccl;order=AG_before,AG_after"
+    impl: Union[str, list[str]] = "pytorch;backend=nccl;order=AG_before"
 
 
 class DDLBTestDefinition(TestDefinition):

@@ -87,6 +87,10 @@ from cloudai.workloads.ucc_test import (
     UCCTestGradingStrategy,
     UCCTestSlurmCommandGenStrategy,
 )
+from cloudai.workloads.ddlb import (
+    DDLBTestDefinition,
+    DDLBTestSlurmCommandGenStrategy,
+)
 
 
 def test_systems():
@@ -121,6 +125,7 @@ CMD_GEN_STRATEGIES = {
     (SlurmSystem, SleepTestDefinition): SleepSlurmCommandGenStrategy,
     (SlurmSystem, SlurmContainerTestDefinition): SlurmContainerCommandGenStrategy,
     (SlurmSystem, UCCTestDefinition): UCCTestSlurmCommandGenStrategy,
+    (SlurmSystem, DDLBTestDefinition): DDLBTestSlurmCommandGenStrategy,
     (SlurmSystem, MegatronRunTestDefinition): MegatronRunSlurmCommandGenStrategy,
     (StandaloneSystem, SleepTestDefinition): SleepStandaloneCommandGenStrategy,
     (LSFSystem, SleepTestDefinition): SleepLSFCommandGenStrategy,
@@ -206,6 +211,7 @@ def test_definitions():
     assert len(test_defs) == 18
     for tdef in [
         ("UCCTest", UCCTestDefinition),
+        ("DDLBTest", DDLBTestDefinition),
         ("NcclTest", NCCLTestDefinition),
         ("ChakraReplay", ChakraReplayTestDefinition),
         ("DeepEPBenchmark", DeepEPBenchmarkTestDefinition),
