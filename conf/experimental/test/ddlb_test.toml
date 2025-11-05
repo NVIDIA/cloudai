@@ -27,7 +27,7 @@ k = 1024
 dtype = "float16"
 num_iterations = 50
 num_warmups = 10
-# Maker sure to specify only one configuration per --impl argument. i.e., do not write in one impl "order=AG_before,AG_after"
+# Make sure to specify only one configuration per --impl argument. i.e., do not write in one impl "order=AG_before,AG_after"
 impl = [
   "pytorch;backend=nccl;order=AG_before",
   "fuser;algorithm=p2p_pipeline;backend=cuda;order=AG_before",
