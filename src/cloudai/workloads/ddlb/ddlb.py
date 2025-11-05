@@ -24,6 +24,14 @@ class DDLBCmdArgs(CmdArgs):
     """DDLB test command arguments."""
 
     docker_image_url: str
+    primitive: str
+    m: Union[int, list[int]] = 1024
+    n: Union[int, list[int]] = 128
+    k: Union[int, list[int]] = 1024
+    dtype: str
+    num_iterations: int = 50
+    num_warmups: int = 5
+    impl: Union[str, list[str]] = "pytorch;backend=nccl;order=AG_before,AG_after"
 
 
 class DDLBTestDefinition(TestDefinition):

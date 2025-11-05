@@ -20,3 +20,12 @@ test_template_name = "DDLBTest"
 
 [cmd_args]
 docker_image_url = "gitlab-master.nvidia.com/nsarkauskas/ddlb:latest"
+primitive = "tp_columnwise"
+m = [1024,8192]
+n = 128
+k = 1024
+dtype = "float16"
+num_iterations = 50
+num_warmups = 10
+# Maker sure to specify only one configuration per --impl argument. i.e., do not write in one impl "order=AG_before,AG_after"
+impl = ["pytorch;backend=nccl;order=AG_before", "fuser;algorithm=p2p_pipeline;backend=cuda;order=AG_before"]

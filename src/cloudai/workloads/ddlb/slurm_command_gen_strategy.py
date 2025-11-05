@@ -33,7 +33,28 @@ class DDLBTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def generate_test_command(self) -> List[str]:
         tdef: DDLBTestDefinition = cast(DDLBTestDefinition, self.test_run.test.test_definition)
-        return ["python scripts/run_benchmark.py"]
+        srun_command_parts = ["python ddlb/cli/benchmark.py"]
+        ddlb_test_args = tdef.cmd_args.model_dump().keys()
+        for arg in ddlb_test_args:
+            if arg is "docker_image_url":
+                continue
+
+            value = getattr(tdef.cmd_args, arg)
+            if value is None:
+                continue
+
+            match arg:
+                case "m" | "n" | "k":
+                    srun_command_parts.append(f"-{arg} {value}")
+                case "num_iterations" | "num_warmups":
+                    srun_command_parts.append(f"--{arg.replace('_', '-')} {value}")
+                case _:
+                    srun_command_parts.append(f"--{arg} {value}")
+
+        if self.test_run.test.extra_cmd_args:
+            srun_command_parts.append(self.test_run.test.extra_cmd_args)
+
+        return srun_command_parts
 
     def gen_srun_success_check(self) -> str:
         output_file = self.test_run.output_path / "stdout.txt"
