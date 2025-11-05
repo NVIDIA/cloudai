@@ -33,6 +33,10 @@ from cloudai.workloads.chakra_replay import (
     ChakraReplaySlurmCommandGenStrategy,
     ChakraReplayTestDefinition,
 )
+from cloudai.workloads.ddlb import (
+    DDLBTestDefinition,
+    DDLBTestSlurmCommandGenStrategy,
+)
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -82,10 +86,6 @@ from cloudai.workloads.ucc_test import (
     UCCTestDefinition,
     UCCTestGradingStrategy,
     UCCTestSlurmCommandGenStrategy,
-)
-from cloudai.workloads.ddlb import (
-    DDLBTestDefinition,
-    DDLBTestSlurmCommandGenStrategy,
 )
 
 

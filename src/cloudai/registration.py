@@ -69,6 +69,10 @@ def register_all():
         ChakraReplaySlurmCommandGenStrategy,
         ChakraReplayTestDefinition,
     )
+    from cloudai.workloads.ddlb import (
+        DDLBTestDefinition,
+        DDLBTestSlurmCommandGenStrategy,
+    )
     from cloudai.workloads.jax_toolbox import (
         GPTTestDefinition,
         GrokTestDefinition,
@@ -91,10 +95,6 @@ def register_all():
         NcclTestPerformanceReportGenerationStrategy,
         NcclTestRunAIJsonGenStrategy,
         NcclTestSlurmCommandGenStrategy,
-    )
-    from cloudai.workloads.ddlb import (
-        DDLBTestDefinition,
-        DDLBTestSlurmCommandGenStrategy,
     )
     from cloudai.workloads.nemo_launcher import (
         NeMoLauncherGradingStrategy,

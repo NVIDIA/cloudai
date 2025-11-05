@@ -37,6 +37,7 @@ from cloudai.workloads.ai_dynamo import (
     GenAIPerfArgs,
     PrefillWorkerArgs,
 )
+from cloudai.workloads.ddlb import DDLBCmdArgs, DDLBTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
     GPTTestDefinition,
@@ -67,7 +68,6 @@ from cloudai.workloads.triton_inference import (
     TritonInferenceTestDefinition,
 )
 from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition
-from cloudai.workloads.ddlb import DDLBCmdArgs, DDLBTestDefinition
 
 SLURM_TEST_SCENARIOS = [
     {"path": Path("conf/common/test_scenario/sleep.toml"), "expected_dirs_number": 4, "log_file": "sleep_debug.log"},
@@ -301,10 +301,17 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 name="ddlb",
                 description="ddlb",
                 test_template_name="ddlb",
-                cmd_args=DDLBCmdArgs(docker_image_url="gitlab-master.nvidia.com/nsarkauskas/ddlb:latest",
-                                     primitive="tp_columnwise", m=1024, n=128, k=1024, dtype="float16",
-                                     num_iterations=50, num_warmups=5,
-                                     impl="pytorch;backend=nccl;order=AG_before"),
+                cmd_args=DDLBCmdArgs(
+                    docker_image_url="gitlab-master.nvidia.com/nsarkauskas/ddlb:latest",
+                    primitive="tp_columnwise",
+                    m=1024,
+                    n=128,
+                    k=1024,
+                    dtype="float16",
+                    num_iterations=50,
+                    num_warmups=5,
+                    impl="pytorch;backend=nccl;order=AG_before",
+                ),
             ),
         ),
         "sleep": lambda: create_test_run(
