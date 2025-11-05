@@ -13,6 +13,7 @@ bash_cmd
 chakra_replay
 deepep_benchmark
 nccl
+ddlb
 nemo_run
 nixl_bench
 nixl_kvbench
