@@ -36,7 +36,7 @@ class DDLBTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         srun_command_parts = ["python ddlb/cli/benchmark.py"]
         ddlb_test_args = tdef.cmd_args.model_dump().keys()
         for arg in ddlb_test_args:
-            if arg is "docker_image_url":
+            if arg == "docker_image_url":
                 continue
 
             value = getattr(tdef.cmd_args, arg)
