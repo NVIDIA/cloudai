@@ -173,6 +173,7 @@ class TestRun:
         return new_tr
 
 
+@dataclass
 class TestScenario:
     """
     Represents a test scenario, comprising a set of tests.
@@ -181,30 +182,15 @@ class TestScenario:
         name (str): Unique name of the test scenario.
         tests (List[Test]): Tests in the scenario.
         job_status_check (bool): Flag indicating whether to check the job status or not.
+        reports (dict[str, ReportConfig] | None): Report configurations for the scenario.
     """
 
     __test__ = False
 
-    def __init__(
-        self,
-        name: str,
-        test_runs: List[TestRun],
-        job_status_check: bool = True,
-        reports: dict[str, ReportConfig] | None = None,
-    ) -> None:
-        """
-        Initialize a TestScenario instance.
-
-        Args:
-            name (str): Name of the test scenario.
-            test_runs (List[TestRun]): List of tests in the scenario with custom run options.
-            job_status_check (bool): Flag indicating whether to check the job status or not.
-            reports (Optional[dict[str, ReportConfig]]): Reports to be generated for the scenario.
-        """
-        self.name = name
-        self.test_runs = test_runs
-        self.job_status_check = job_status_check
-        self.reports = reports or {}
+    name: str
+    test_runs: list[TestRun]
+    job_status_check: bool = True
+    reports: dict[str, ReportConfig] = field(default_factory=dict)
 
     def __repr__(self) -> str:
         """
