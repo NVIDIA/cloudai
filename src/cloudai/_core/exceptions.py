@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -129,8 +129,28 @@ class SystemConfigParsingError(Exception):
     pass
 
 
-def format_validation_error(err: ErrorDetails) -> str:
-    if err["msg"] == "Field required":
-        return f"Field '{'.'.join(str(v) for v in err['loc'])}': {err['msg']}"
+class MissingTestError(Exception):
+    """Exception raised when a test specified in a test scenario is not found in the test directory."""
 
-    return f"Field '{'.'.join(str(v) for v in err['loc'])}' with value '{err['input']}' is invalid: {err['msg']}"
+    def __init__(self, test_name: str):
+        self.test_name = test_name
+        self.message = (
+            f"Test '{test_name}' is not defined.\n"
+            "Please check:\n"
+            "1. The tests directory argument (--tests-dir) is set correctly\n"
+            "2. The test name in your test scenario matches the test name defined in the test file\n"
+            "3. The test file exists in your tests directory"
+        )
+        super().__init__(self.message)
+
+
+def format_validation_error(err: ErrorDetails) -> str:
+    flattened_field = ".".join(str(v) for v in err["loc"])
+
+    if not flattened_field:
+        return "Validation error: " + err["msg"]
+
+    if err["msg"] == "Field required":
+        return f"Field '{flattened_field}': {err['msg']}"
+
+    return f"Field '{flattened_field}' with value '{err['input']}' is invalid: {err['msg']}"

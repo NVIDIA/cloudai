@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,35 +16,51 @@
 
 from pathlib import Path
 
-from cloudai.schema.test_template.jax_toolbox.report_generation_strategy import (
+import pytest
+
+from cloudai import TestRun
+from cloudai.systems.slurm.slurm_system import SlurmSystem
+from cloudai.workloads.jax_toolbox import (
+    GPTCmdArgs,
+    GPTTestDefinition,
     JaxToolboxReportGenerationStrategy,
 )
+
+
+@pytest.fixture
+def jax_tr(tmp_path: Path) -> TestRun:
+    test = GPTTestDefinition(
+        name="nccl",
+        description="desc",
+        test_template_name="t",
+        cmd_args=GPTCmdArgs(docker_image_url="docker://url", fdl_config="cfg"),
+    )
+    return TestRun(name="nemo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
 
 
 class TestJaxExtractTime:
     """Tests for the JaxToolboxReportGenerationStrategy class."""
 
-    def setup_method(self) -> None:
-        """Setup method for initializing JaxToolboxReportGenerationStrategy."""
-        self.js = JaxToolboxReportGenerationStrategy()
+    @pytest.fixture
+    def js(self, slurm_system: SlurmSystem, jax_tr: TestRun) -> JaxToolboxReportGenerationStrategy:
+        return JaxToolboxReportGenerationStrategy(slurm_system, jax_tr)
 
-    def test_no_files(self, tmp_path: Path) -> None:
+    def test_no_files(self, js: JaxToolboxReportGenerationStrategy) -> None:
         """Test that no times are extracted when no files are present."""
-        assert self.js._extract_times(tmp_path) == []
+        assert js._extract_times() == []
 
-    def test_no_matches(self, tmp_path: Path) -> None:
+    def test_no_matches(self, js: JaxToolboxReportGenerationStrategy) -> None:
         """Test that no times are extracted when no matching lines are present."""
-        (tmp_path / "error-1.txt").write_text("fake line")
-        assert self.js._extract_times(tmp_path) == []
+        (js.test_run.output_path / "error-1.txt").write_text("fake line")
+        assert js._extract_times() == []
 
-    def test_one_match(self, tmp_path: Path) -> None:
+    def test_one_match(self, js: JaxToolboxReportGenerationStrategy) -> None:
         """Test that the correct time is extracted when one matching line is present."""
-        err_file = tmp_path / "error-1.txt"
-        sample_line = (
+        stdout_content = """
             "I0508 15:25:28.482553 140737334253888 programs.py:379] "
             "[PAX STATUS]: train_step() took 38.727223 seconds.\n"
-        )
-        with err_file.open("w") as f:
+        """
+        with (js.test_run.output_path / "error-1.txt").open("w") as of:
             for _ in range(11):
-                f.write(sample_line)
-        assert self.js._extract_times(err_file.parent) == [38.727223]
+                of.write(stdout_content)
+        assert js._extract_times() == [38.727223]

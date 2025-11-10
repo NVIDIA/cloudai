@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,40 +14,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import abstractmethod
-from pathlib import Path
-from typing import Optional
+from abc import ABC, abstractmethod
+from typing import ClassVar
+
+from .system import System
+from .test_scenario import TestRun
 
 
-class ReportGenerationStrategy:
-    """
-    Abstract class for generating reports from directories.
+class ReportGenerationStrategy(ABC):
+    """Abstract class for generating reports from TestRun objects."""
 
-    This class defines a strategy for checking if a strategy can handle a
-    specific directory and for generating a report from that directory.
-    """
+    metrics: ClassVar[list[str]] = ["default"]
 
-    @abstractmethod
-    def can_handle_directory(self, directory_path: Path) -> bool:
-        """
-        Determine if the strategy can handle the directory.
+    def __init__(self, system: System, tr: TestRun) -> None:
+        self.system = system
+        self.test_run = tr
 
-        Args:
-            directory_path (Path): Path to the directory.
-
-        Returns:
-            bool: True if can handle, False otherwise.
-        """
-        pass
+    def get_metric(self, metric: str) -> float:
+        return 0.0
 
     @abstractmethod
-    def generate_report(self, test_name: str, directory_path: Path, sol: Optional[float] = None) -> None:
-        """
-        Generate a report from the directory.
+    def can_handle_directory(self) -> bool: ...
 
-        Args:
-            test_name (str): The name of the test.
-            directory_path (Path): Path to the directory.
-            sol (Optional[float]): Speed-of-light performance for reference.
-        """
-        pass
+    @abstractmethod
+    def generate_report(self) -> None: ...

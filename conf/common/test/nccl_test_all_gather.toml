@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,15 +19,11 @@ description = "all_gather"
 test_template_name = "NcclTest"
 
 [cmd_args]
+"docker_image_url" = "nvcr.io#nvidia/pytorch:25.06-py3"
 "subtest_name" = "all_gather_perf_mpi"
 "ngpus" = "1"
 "minbytes" = "128"
 "maxbytes" = "4G"
 "iters" = "100"
 "warmup_iters" = "50"
-
-[extra_cmd_args]
-"--stepfactor" = "2"
-
-[extra_env_vars]
-"NCCL_TEST_SPLIT_MASK" = "0x7"
+"stepfactor" = 2

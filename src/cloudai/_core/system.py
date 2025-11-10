@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,8 @@ import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional
+
+from .installables import Installable
 
 if TYPE_CHECKING:
     from .base_job import BaseJob
@@ -152,3 +154,6 @@ class System(ABC):
         )
         logging.error(error_message)
         raise NotImplementedError(error_message)
+
+    def system_installables(self) -> list[Installable]:
+        return []

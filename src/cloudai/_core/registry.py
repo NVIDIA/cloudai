@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,17 +14,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Tuple, Type, Union
+from __future__ import annotations
 
-from .base_installer import BaseInstaller
-from .base_runner import BaseRunner
-from .grading_strategy import GradingStrategy
-from .job_id_retrieval_strategy import JobIdRetrievalStrategy
-from .job_status_retrieval_strategy import JobStatusRetrievalStrategy
-from .report_generation_strategy import ReportGenerationStrategy
-from .system import System
-from .test import TestDefinition
-from .test_template_strategy import TestTemplateStrategy
+from typing import TYPE_CHECKING, Callable, ClassVar, List, Set, Tuple, Type
+
+if TYPE_CHECKING:
+    from ..configurator.base_agent import BaseAgent
+    from ..models.scenario import ReportConfig
+    from ..models.workload import TestDefinition
+    from ..reporter import Reporter
+    from .base_installer import BaseInstaller
+    from .base_runner import BaseRunner
+    from .command_gen_strategy import CommandGenStrategy
+    from .grading_strategy import GradingStrategy
+    from .json_gen_strategy import JsonGenStrategy
+    from .report_generation_strategy import ReportGenerationStrategy
+    from .system import System
+
+RewardFunction = Callable[[List[float]], float]
 
 
 class Singleton(type):
@@ -41,34 +48,18 @@ class Singleton(type):
 class Registry(metaclass=Singleton):
     """Registry for implementations mappings."""
 
-    runners_map: Dict[str, Type[BaseRunner]] = {}
-    strategies_map: Dict[
-        Tuple[
-            Type[
-                Union[
-                    TestTemplateStrategy,
-                    ReportGenerationStrategy,
-                    JobIdRetrievalStrategy,
-                    JobStatusRetrievalStrategy,
-                    GradingStrategy,
-                ]
-            ],
-            Type[System],
-            Type[TestDefinition],
-        ],
-        Type[
-            Union[
-                TestTemplateStrategy,
-                ReportGenerationStrategy,
-                JobIdRetrievalStrategy,
-                JobStatusRetrievalStrategy,
-                GradingStrategy,
-            ]
-        ],
-    ] = {}
-    installers_map: Dict[str, Type[BaseInstaller]] = {}
-    systems_map: Dict[str, Type[System]] = {}
-    test_definitions_map: Dict[str, Type[TestDefinition]] = {}
+    runners_map: ClassVar[dict[str, Type[BaseRunner]]] = {}
+    installers_map: ClassVar[dict[str, Type[BaseInstaller]]] = {}
+    systems_map: ClassVar[dict[str, Type[System]]] = {}
+    test_definitions_map: ClassVar[dict[str, Type[TestDefinition]]] = {}
+    agents_map: ClassVar[dict[str, Type[BaseAgent]]] = {}
+    reports_map: ClassVar[dict[Type[TestDefinition], Set[Type[ReportGenerationStrategy]]]] = {}
+    scenario_reports: ClassVar[dict[str, type[Reporter]]] = {}
+    report_configs: ClassVar[dict[str, ReportConfig]] = {}
+    reward_functions_map: ClassVar[dict[str, RewardFunction]] = {}
+    command_gen_strategies_map: ClassVar[dict[tuple[Type[System], Type[TestDefinition]], Type[CommandGenStrategy]]] = {}
+    json_gen_strategies_map: ClassVar[dict[tuple[Type[System], Type[TestDefinition]], Type[JsonGenStrategy]]] = {}
+    grading_strategies_map: ClassVar[dict[Tuple[Type[System], Type[TestDefinition]], Type[GradingStrategy]]] = {}
 
     def add_runner(self, name: str, value: Type[BaseRunner]) -> None:
         """
@@ -92,95 +83,26 @@ class Registry(metaclass=Singleton):
         Args:
             name (str): The name of the runner.
             value (Type[BaseRunner]): The runner implementation.
-
-        Raises:
-            ValueError: If value is not a subclass of BaseRunner.
         """
-        if not issubclass(value, BaseRunner):
-            raise ValueError(f"Invalid runner implementation for '{name}', should be subclass of 'BaseRunner'.")
         self.runners_map[name] = value
 
-    def add_strategy(
-        self,
-        strategy_interface: Type[
-            Union[
-                TestTemplateStrategy,
-                ReportGenerationStrategy,
-                JobIdRetrievalStrategy,
-                JobStatusRetrievalStrategy,
-                GradingStrategy,
-            ]
-        ],
-        system_types: List[Type[System]],
-        definition_types: List[Type[TestDefinition]],
-        strategy: Type[
-            Union[
-                TestTemplateStrategy,
-                ReportGenerationStrategy,
-                JobIdRetrievalStrategy,
-                JobStatusRetrievalStrategy,
-                GradingStrategy,
-            ]
-        ],
+    def add_grading_strategy(
+        self, system_type: Type[System], tdef_type: Type[TestDefinition], strategy: Type[GradingStrategy]
     ) -> None:
-        for system_type in system_types:
-            for def_type in definition_types:
-                key = (strategy_interface, system_type, def_type)
-                if key in self.strategies_map:
-                    raise ValueError(f"Duplicating implementation for '{key}', use 'update()' for replacement.")
-                self.update_strategy(key, strategy)
+        key = (system_type, tdef_type)
+        if key in self.grading_strategies_map:
+            raise ValueError(f"Duplicating implementation for '{key}', use 'update()' for replacement.")
+        self.update_grading_strategy(key, strategy)
 
-    def update_strategy(
-        self,
-        key: Tuple[
-            Type[
-                Union[
-                    TestTemplateStrategy,
-                    ReportGenerationStrategy,
-                    JobIdRetrievalStrategy,
-                    JobStatusRetrievalStrategy,
-                    GradingStrategy,
-                ]
-            ],
-            Type[System],
-            Type[TestDefinition],
-        ],
-        value: Type[
-            Union[
-                TestTemplateStrategy,
-                ReportGenerationStrategy,
-                JobIdRetrievalStrategy,
-                JobStatusRetrievalStrategy,
-                GradingStrategy,
-            ]
-        ],
+    def update_grading_strategy(
+        self, key: Tuple[Type[System], Type[TestDefinition]], value: Type[GradingStrategy]
     ) -> None:
-        if not (
-            issubclass(key[0], TestTemplateStrategy)
-            or issubclass(key[0], ReportGenerationStrategy)
-            or issubclass(key[0], JobIdRetrievalStrategy)
-            or issubclass(key[0], JobStatusRetrievalStrategy)
-            or issubclass(key[0], GradingStrategy)
-        ):
-            raise ValueError(
-                "Invalid strategy interface type, should be subclass of 'TestTemplateStrategy' or "
-                "'ReportGenerationStrategy' or 'JobIdRetrievalStrategy' or 'JobStatusRetrievalStrategy' or "
-                "'GradingStrategy'."
-            )
-        if not issubclass(key[1], System):
-            raise ValueError("Invalid system type, should be subclass of 'System'.")
-        if not issubclass(key[2], TestDefinition):
-            raise ValueError("Invalid test definition type, should be subclass of 'TestDefinition'.")
+        self.grading_strategies_map[key] = value
 
-        if not (
-            issubclass(value, TestTemplateStrategy)
-            or issubclass(value, ReportGenerationStrategy)
-            or issubclass(value, JobIdRetrievalStrategy)
-            or issubclass(value, JobStatusRetrievalStrategy)
-            or issubclass(value, GradingStrategy)
-        ):
-            raise ValueError(f"Invalid strategy implementation {value}, should be subclass of 'TestTemplateStrategy'.")
-        self.strategies_map[key] = value
+    def get_grading_strategy(self, system_type: Type[System], tdef_type: Type[TestDefinition]) -> Type[GradingStrategy]:
+        if (system_type, tdef_type) not in self.grading_strategies_map:
+            raise KeyError(f"Grading gen strategy for '{system_type.__name__}, {tdef_type.__name__}' not found.")
+        return self.grading_strategies_map[(system_type, tdef_type)]
 
     def add_installer(self, name: str, value: Type[BaseInstaller]) -> None:
         """
@@ -204,12 +126,7 @@ class Registry(metaclass=Singleton):
         Args:
             name (str): The name of the installer.
             value (Type[BaseInstaller]): The installer implementation.
-
-        Raises:
-            ValueError: If value is not a subclass of BaseInstaller.
         """
-        if not issubclass(value, BaseInstaller):
-            raise ValueError(f"Invalid installer implementation for '{name}', should be subclass of 'BaseInstaller'.")
         self.installers_map[name] = value
 
     def add_system(self, name: str, value: Type[System]) -> None:
@@ -234,12 +151,7 @@ class Registry(metaclass=Singleton):
         Args:
             name (str): The name of the system.
             value (Type[System]): The system implementation.
-
-        Raises:
-            ValueError: If value is not a subclass of System.
         """
-        if not issubclass(value, System):
-            raise ValueError(f"Invalid system implementation for '{name}', should be subclass of 'System'.")
         self.systems_map[name] = value
 
     def add_test_definition(self, name: str, value: Type[TestDefinition]) -> None:
@@ -264,12 +176,108 @@ class Registry(metaclass=Singleton):
         Args:
             name (str): The name of the test definition.
             value (Type[TestDefinition]): The test definition implementation.
+        """
+        self.test_definitions_map[name] = value
+
+    def add_agent(self, name: str, value: Type[BaseAgent]) -> None:
+        """
+        Add a new agent implementation mapping.
+
+        Args:
+            name (str): The name of the agent.
+            value (Type[BaseAgent]): The agent implementation.
 
         Raises:
-            ValueError: If value is not a subclass of TestDefinition.
+            ValueError: If the agent implementation already exists.
         """
-        if not issubclass(value, TestDefinition):
+        if name in self.agents_map:
+            raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
+        self.update_agent(name, value)
+
+    def update_agent(self, name: str, value: Type[BaseAgent]) -> None:
+        """
+        Create or replace agent implementation mapping.
+
+        Args:
+            name (str): The name of the agent.
+            value (Type[BaseAgent]): The agent implementation.
+        """
+        self.agents_map[name] = value
+
+    def add_report(self, tdef_type: Type[TestDefinition], value: Type[ReportGenerationStrategy]) -> None:
+        existing_reports = self.reports_map.get(tdef_type, set())
+        existing_reports.add(value)
+        self.update_report(tdef_type, existing_reports)
+
+    def update_report(self, tdef_type: Type[TestDefinition], reports: Set[Type[ReportGenerationStrategy]]) -> None:
+        self.reports_map[tdef_type] = reports
+
+    def add_scenario_report(self, name: str, report: type[Reporter], config: ReportConfig) -> None:
+        if name in self.scenario_reports:
             raise ValueError(
-                f"Invalid test definition implementation for '{name}', should be subclass of 'TestDefinition'."
+                f"Duplicating scenario report implementation for '{name}', use 'update()' for replacement."
             )
-        self.test_definitions_map[name] = value
+        self.update_scenario_report(name, report, config)
+
+    def update_scenario_report(self, name: str, report: type[Reporter], config: ReportConfig) -> None:
+        self.scenario_reports[name] = report
+        self.report_configs[name] = config
+
+    def add_reward_function(self, name: str, value: RewardFunction) -> None:
+        if name in self.reward_functions_map:
+            raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")
+        self.update_reward_function(name, value)
+
+    def update_reward_function(self, name: str, value: RewardFunction) -> None:
+        self.reward_functions_map[name] = value
+
+    def get_reward_function(self, name: str) -> RewardFunction:
+        if name not in self.reward_functions_map:
+            raise KeyError(
+                f"Reward function '{name}' not found. Available functions: {list(self.reward_functions_map.keys())}"
+            )
+        return self.reward_functions_map[name]
+
+    def add_command_gen_strategy(
+        self, system_type: Type[System], tdef_type: Type[TestDefinition], value: Type[CommandGenStrategy]
+    ) -> None:
+        if (system_type, tdef_type) in self.command_gen_strategies_map:
+            raise ValueError(
+                f"Duplicating implementation for '{system_type.__name__}, {tdef_type.__name__}', use 'update()' "
+                "for replacement."
+            )
+        self.update_command_gen_strategy(system_type, tdef_type, value)
+
+    def update_command_gen_strategy(
+        self, system_type: Type[System], tdef_type: Type[TestDefinition], value: Type[CommandGenStrategy]
+    ) -> None:
+        self.command_gen_strategies_map[(system_type, tdef_type)] = value
+
+    def get_command_gen_strategy(
+        self, system_type: Type[System], tdef_type: Type[TestDefinition]
+    ) -> Type[CommandGenStrategy]:
+        if (system_type, tdef_type) not in self.command_gen_strategies_map:
+            raise KeyError(f"Command gen strategy for '{system_type.__name__}, {tdef_type.__name__}' not found.")
+        return self.command_gen_strategies_map[(system_type, tdef_type)]
+
+    def add_json_gen_strategy(
+        self, system_type: Type[System], tdef_type: Type[TestDefinition], value: Type[JsonGenStrategy]
+    ) -> None:
+        if (system_type, tdef_type) in self.json_gen_strategies_map:
+            raise ValueError(
+                f"Duplicating implementation for '{system_type.__name__}, {tdef_type.__name__}', use 'update()' "
+                "for replacement."
+            )
+        self.update_json_gen_strategy(system_type, tdef_type, value)
+
+    def update_json_gen_strategy(
+        self, system_type: Type[System], tdef_type: Type[TestDefinition], value: Type[JsonGenStrategy]
+    ) -> None:
+        self.json_gen_strategies_map[(system_type, tdef_type)] = value
+
+    def get_json_gen_strategy(
+        self, system_type: Type[System], tdef_type: Type[TestDefinition]
+    ) -> Type[JsonGenStrategy]:
+        if (system_type, tdef_type) not in self.json_gen_strategies_map:
+            raise KeyError(f"JSON gen strategy for '{system_type.__name__}, {tdef_type.__name__}' not found.")
+        return self.json_gen_strategies_map[(system_type, tdef_type)]

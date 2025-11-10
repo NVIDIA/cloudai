@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,9 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+import datetime
 import logging
+from types import FrameType
+from typing import Optional
 
 from .base_runner import BaseRunner
+from .exceptions import JobFailureError
 from .registry import Registry
 from .system import System
 from .test_scenario import TestScenario
@@ -39,8 +44,6 @@ class Runner:
         system (System): The system configuration object.
         test_scenario (TestScenario): The test scenario to be executed.
     """
-
-    _runners = {}
 
     def __init__(self, mode: str, system: System, test_scenario: TestScenario):
         logging.info(f"Initializing Runner [{mode.upper()}] mode")
@@ -69,8 +72,47 @@ class Runner:
             raise NotImplementedError(msg)
         runner_class = registry.runners_map[scheduler_type]
         logging.info(f"Creating {runner_class.__name__}")
-        return runner_class(mode, system, test_scenario)
+
+        if not system.output_path.exists():
+            system.output_path.mkdir()
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        results_root = system.output_path / f"{test_scenario.name}_{current_time}"
+
+        return runner_class(mode, system, test_scenario, results_root)
 
     async def run(self):
         """Run the test scenario using the instantiated runner."""
-        await self.runner.run()
+        try:
+            await self.runner.run()
+            logging.debug("All jobs finished successfully.")
+        except asyncio.CancelledError:
+            logging.info("Runner cancelled, performing cleanup...")
+            await self.runner.shutdown()
+            return
+        except JobFailureError as exc:
+            logging.debug(f"Runner failed JobFailure exception: {exc}", exc_info=True)
+
+    def _cancel_all(self):
+        # the below code might look excessive, this is to address https://docs.astral.sh/ruff/rules/asyncio-dangling-task/
+        shutdown_task = asyncio.create_task(self.runner.shutdown())
+        tasks = {shutdown_task}
+        shutdown_task.add_done_callback(tasks.discard)
+
+        for task in asyncio.all_tasks():
+            if task == shutdown_task:
+                continue
+
+            logging.debug(f"Cancelling task: {task}")
+            try:
+                task.cancel()
+            except asyncio.CancelledError as exc:
+                logging.debug(f"Error cancelling task: {task}, {exc}", exc_info=True)
+                pass
+
+    def cancel_on_signal(
+        self,
+        signum: int,
+        frame: Optional[FrameType],  # noqa: Vulture
+    ):
+        logging.info(f"Signal {signum} received, shutting down...")
+        asyncio.get_running_loop().call_soon_threadsafe(self._cancel_all)

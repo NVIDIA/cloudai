@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,29 +14,41 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "test_scenario_example"
+name = "sleep-scenario"
 
 [[Tests]]
-id = "Tests.1"
-test_name = "sleep_10"
+id = "Tests.sleep1"
+time_limit = "00:01:00"
+test_name = "sleep"
+  [Tests.cmd_args]
+  seconds = 10
 
 [[Tests]]
-id = "Tests.2"
-test_name = "sleep_5"
+id = "Tests.sleep5"
+time_limit = "00:01:00"
+test_name = "sleep"
+  [Tests.cmd_args]
+  seconds = 5
   [[Tests.dependencies]]
   type = "start_post_init"
-  id = "Tests.1"
+  id = "Tests.sleep1"
 
 [[Tests]]
-id = "Tests.3"
-test_name = "sleep_5"
+id = "Tests.sleep5_2"
+time_limit = "00:01:00"
+test_name = "sleep"
+  [Tests.cmd_args]
+  seconds = 5
   [[Tests.dependencies]]
   type = "start_post_comp"
-  id = "Tests.1"
+  id = "Tests.sleep1"
 
 [[Tests]]
-id = "Tests.4"
-test_name = "sleep_20"
+id = "Tests.sleep20"
+time_limit = "00:01:00"
+test_name = "sleep"
+  [Tests.cmd_args]
+  seconds = 20
   [[Tests.dependencies]]
   type = "end_post_comp"
-  id = "Tests.1"
+  id = "Tests.sleep1"

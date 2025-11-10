@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,8 @@
 
 from typing import Dict, Optional
 
+from .installables import Installable
+
 
 class InstallStatusResult:
     """
@@ -27,7 +29,9 @@ class InstallStatusResult:
         details (Optional[Dict[str, str]]): A dictionary containing details about the result for each test template.
     """
 
-    def __init__(self, success: bool, message: str = "", details: Optional[Dict[str, str]] = None):
+    def __init__(
+        self, success: bool, message: str = "", details: Optional[Dict[Installable, "InstallStatusResult"]] = None
+    ):
         """
         Initialize the InstallStatusResult.
 

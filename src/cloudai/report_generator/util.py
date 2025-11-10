@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,11 +13,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
 
-from typing import List, Tuple
+from typing import TYPE_CHECKING, List, Tuple
 
-import numpy as np
-import pandas as pd
+from cloudai.core import TestRun
+from cloudai.util.lazy_imports import lazy
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 bokeh_size_unit_js_tick_formatter = """
     function tick_formatter(tick) {
@@ -55,9 +59,12 @@ def calculate_power_of_two_ticks(min_val: float, max_val: float) -> List[float]:
     Returns:
         List[float]: A list of tick locations that are powers of 2.
     """
+    if lazy.pd.isna(min_val) or lazy.pd.isna(max_val):
+        return []
+
     min_val = float(max(min_val, 1.0))
-    min_exp = np.floor(np.log2(min_val))
-    max_exp = np.ceil(np.log2(max_val))
+    min_exp = lazy.np.floor(lazy.np.log2(min_val))
+    max_exp = lazy.np.ceil(lazy.np.log2(max_val))
     return [2**exp for exp in range(int(min_exp), int(max_exp) + 1)]
 
 
@@ -113,8 +120,8 @@ def generate_power_of_two_ticks(min_val: float, max_val: float) -> List[int]:
     Returns:
         List[int]: A list of tick locations that are powers of 2.
     """
-    min_exp = np.floor(np.log2(min_val))
-    max_exp = np.ceil(np.log2(max_val))
+    min_exp = lazy.np.floor(lazy.np.log2(min_val))
+    max_exp = lazy.np.ceil(lazy.np.log2(max_val))
     return [2**exp for exp in range(int(min_exp), int(max_exp) + 1)]
 
 
@@ -149,3 +156,25 @@ def adjust_scale(df: pd.DataFrame, input_column: str, output_column: str) -> Tup
 
     df[output_column] = size / factor
     return df, unit
+
+
+def diff_test_runs(trs: list[TestRun]) -> dict[str, list[str]]:
+    """Acts like .action_space for a DSE TestRun, but for a list of TestRuns."""
+    dicts: list[dict] = []
+    for tr in trs:
+        dicts.append(
+            {
+                "NUM_NODES": tr.num_nodes,
+                **tr.test.cmd_args.model_dump(),
+                **{f"extra_env_vars.{k}": v for k, v in tr.test.extra_env_vars.items()},
+            }
+        )
+    all_keys = set().union(*[d.keys() for d in dicts])
+
+    diff = {}
+    for key in all_keys:
+        all_values = [d[key] for d in dicts]
+        if len(set(all_values)) > 1:
+            diff[key] = all_values
+
+    return diff

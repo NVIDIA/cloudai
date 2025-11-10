@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,8 +20,8 @@ from unittest.mock import patch
 import pytest
 import toml
 
-from cloudai import Parser
-from cloudai._core.test_scenario_parser import _TestScenarioTOML
+from cloudai.core import Parser
+from cloudai.models.scenario import TestScenarioModel
 
 TOML_FILES = list(Path("conf").glob("**/*.toml"))
 
@@ -69,4 +69,4 @@ def test_test_scenarios(test_scenario_file: Path):
     """
     with test_scenario_file.open("r") as f:
         d = toml.load(f)
-        _TestScenarioTOML.model_validate(d)
+        TestScenarioModel.model_validate(d)

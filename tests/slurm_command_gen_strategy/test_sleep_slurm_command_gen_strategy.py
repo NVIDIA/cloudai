@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,33 +14,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from typing import Dict, List
-from unittest.mock import Mock
 
 import pytest
 
-from cloudai.schema.test_template.sleep.slurm_command_gen_strategy import SleepSlurmCommandGenStrategy
-from cloudai.systems import SlurmSystem
+from cloudai.core import TestRun
+from cloudai.systems.slurm import SlurmSystem
+from cloudai.workloads.sleep import SleepCmdArgs, SleepSlurmCommandGenStrategy, SleepTestDefinition
 
 
 class TestSleepSlurmCommandGenStrategy:
-    @pytest.fixture
-    def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> SleepSlurmCommandGenStrategy:
-        return SleepSlurmCommandGenStrategy(slurm_system, {})
+    """Test the SleepSlurmCommandGenStrategy class."""
 
     @pytest.mark.parametrize(
-        "cmd_args, expected_command",
+        "cmd_args_data, expected_command",
         [
-            ({"seconds": "60"}, ["sleep 60"]),
-            ({"seconds": "120"}, ["sleep 120"]),
+            ({"seconds": 60}, ["sleep 60"]),
+            ({"seconds": 120}, ["sleep 120"]),
         ],
     )
     def test_generate_test_command(
-        self,
-        cmd_gen_strategy: SleepSlurmCommandGenStrategy,
-        cmd_args: Dict[str, str],
-        expected_command: List[str],
+        self, tmp_path: Path, slurm_system: SlurmSystem, cmd_args_data: Dict[str, int], expected_command: List[str]
     ) -> None:
-        env_vars = {}
-        command = cmd_gen_strategy.generate_test_command(env_vars, cmd_args, Mock())
+        sleep_cmd_args = SleepCmdArgs(seconds=cmd_args_data["seconds"])
+
+        test_def = SleepTestDefinition(
+            name="sleep_test",
+            description="Simple sleep test",
+            test_template_name="default_template",
+            cmd_args=sleep_cmd_args,
+            extra_env_vars={},
+            extra_cmd_args={},
+        )
+
+        tr = TestRun(test=test_def, num_nodes=1, nodes=[], output_path=tmp_path / "output", name="sleep-job")
+
+        cmd_gen_strategy = SleepSlurmCommandGenStrategy(slurm_system, tr)
+        command = cmd_gen_strategy.generate_test_command()
+
         assert command == expected_command

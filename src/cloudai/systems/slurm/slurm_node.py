@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -140,6 +140,10 @@ class SlurmNode(BaseModel):
                 SlurmNodeState.RESERVED,
             ]
 
+    def __hash__(self) -> int:
+        """Provide a hash of the Slurm node, including its name, state, and partition."""
+        return hash((self.name, self.partition, self.state, self.user))
+
     def __repr__(self) -> str:
         """
         Provide a structured string representation of the Slurm node, including its name, state, and partition.
@@ -147,9 +151,4 @@ class SlurmNode(BaseModel):
         Returns
             str: A string representation of the Slurm node.
         """
-        return (
-            f"SlurmNode(name={self.name}, "
-            f"partition={self.partition}, "
-            f"state={self.state.name}, "
-            f"user={self.user})"
-        )
+        return f"SlurmNode(name={self.name}, partition={self.partition}, state={self.state.name}, user={self.user})"

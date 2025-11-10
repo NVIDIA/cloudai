@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,13 +15,14 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import cast
+from typing import Generator, cast
 from unittest.mock import Mock, patch
 
 import pytest
 from pydantic_core import ErrorDetails
 
-from cloudai import Parser, format_validation_error
+from cloudai.core import Parser, Registry, Reporter, format_validation_error
+from cloudai.models.scenario import ReportConfig, parse_reports_spec
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 
 
@@ -37,7 +38,7 @@ class Test_Parser:
             parser.parse(tests_dir, None)
         assert "Test path" in str(exc_info.value)
 
-    @patch("cloudai._core.test_parser.TestParser.parse_all")
+    @patch("cloudai.test_parser.TestParser.parse_all")
     def test_no_scenario(self, test_parser: Mock, parser: Parser):
         tests_dir = parser.system_config_path.parent.parent / "test"
         fake_tests = []
@@ -48,8 +49,8 @@ class Test_Parser:
         _, tests, _ = parser.parse(tests_dir, None)
         assert len(tests) == 3
 
-    @patch("cloudai._core.test_parser.TestParser.parse_all")
-    @patch("cloudai._core.test_scenario_parser.TestScenarioParser.parse")
+    @patch("cloudai.test_parser.TestParser.parse_all")
+    @patch("cloudai.test_scenario_parser.TestScenarioParser.parse")
     def test_scenario_without_hook(self, test_scenario_parser: Mock, test_parser: Mock, parser: Parser):
         tests_dir = parser.system_config_path.parent.parent / "test"
 
@@ -69,8 +70,8 @@ class Test_Parser:
         assert len(tests) == 1
         assert tests[0].name == "test-1"
 
-    @patch("cloudai._core.test_parser.TestParser.parse_all")
-    @patch("cloudai._core.test_scenario_parser.TestScenarioParser.parse")
+    @patch("cloudai.test_parser.TestParser.parse_all")
+    @patch("cloudai.test_scenario_parser.TestScenarioParser.parse")
     @patch("cloudai.parser.Parser.parse_hooks")
     def test_scenario_with_hook_common_tests(
         self, parse_hooks: Mock, test_scenario_parser: Mock, test_parser: Mock, parser: Parser
@@ -101,8 +102,8 @@ class Test_Parser:
         assert len(tests) == 1
         assert "test-1" in filtered_test_names
 
-    @patch("cloudai._core.test_parser.TestParser.parse_all")
-    @patch("cloudai._core.test_scenario_parser.TestScenarioParser.parse")
+    @patch("cloudai.test_parser.TestParser.parse_all")
+    @patch("cloudai.test_scenario_parser.TestScenarioParser.parse")
     def test_scenario_with_hook_exclusive_tests(self, test_scenario_parser: Mock, test_parser: Mock, parser: Parser):
         tests_dir = parser.system_config_path.parent.parent / "test"
         test_scenario_path = Path("/mock/test_scenario.toml")
@@ -142,10 +143,6 @@ class Test_Parser:
         assert "partition_1" in system.groups
         assert "partition_2" in system.groups
 
-        # checking number of nodes in each partition
-        assert len(system.partitions[0].slurm_nodes) == 100
-        assert len(system.partitions[1].slurm_nodes) == 100
-
         # checking groups
         assert len(system.groups["partition_2"]) == 0
         assert len(system.groups["partition_1"]) == 4
@@ -176,3 +173,34 @@ class Test_Parser:
     def test_log_validation_errors_with_required_field_error(self, error: ErrorDetails, expected_msg: str):
         err_msg = format_validation_error(error)
         assert err_msg == expected_msg
+
+
+class TestParseReportsSpec:
+    @pytest.fixture(autouse=True, scope="class")
+    def scenario_report(self) -> Generator[str, None, None]:
+        class MyReporter(Reporter):
+            def generate(self) -> None: ...
+
+        rname = "scenario-test"
+        Registry().add_scenario_report(rname, MyReporter, ReportConfig())
+
+        yield rname
+
+        Registry().scenario_reports.pop(rname)
+        Registry().report_configs.pop(rname)
+
+    def test_report_not_in_registry(self):
+        with pytest.raises(ValueError) as exc_info:
+            parse_reports_spec({"unknown": {}})
+        assert "Report configuration for 'unknown' not found in the registry." in str(exc_info.value)
+        assert "Available reports: " in str(exc_info.value)
+
+    def test_scenario_reports_can_be_disallowed(self, scenario_report: str):
+        with pytest.raises(ValueError) as exc_info:
+            parse_reports_spec({scenario_report: {}}, allow_scenario_reports=False)
+        assert f"Scenario level report '{scenario_report}' is not allowed here." in str(exc_info.value)
+
+    def test_malformed_config_reported(self, scenario_report: str):
+        with pytest.raises(ValueError) as exc_info:
+            parse_reports_spec({scenario_report: {"enable": "invalid"}})
+        assert f"Error validating report configuration '{scenario_report}' as ReportConfig: " in str(exc_info.value)

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,24 +14,53 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
+from typing import Any
+from unittest.mock import patch
+
 import pytest
 
-from cloudai import (
+from cloudai.configurator import BaseAgent
+from cloudai.core import (
     BaseInstaller,
     BaseRunner,
-    JobIdRetrievalStrategy,
-    JobStatusRetrievalStrategy,
+    CommandGenStrategy,
+    GradingStrategy,
+    JsonGenStrategy,
     Registry,
+    Reporter,
     ReportGenerationStrategy,
     System,
-    TestDefinition,
-    TestTemplateStrategy,
 )
+from cloudai.models.scenario import ReportConfig
+from cloudai.models.workload import TestDefinition
+from cloudai.registration import register_entrypoint_agents
 
 
-@pytest.fixture
+class MyTestDefinition(TestDefinition):
+    pass
+
+
+@pytest.fixture(scope="class")
 def registry():
-    return Registry()
+    registry = Registry()
+
+    strategies_map = copy.copy(registry.grading_strategies_map)
+    scenario_reports = copy.copy(registry.scenario_reports)
+    report_configs = copy.copy(registry.report_configs)
+
+    registry.scenario_reports.clear()
+
+    yield registry
+
+    # Clean up the registry after the test, we check exact list of reports in other tests
+    if MyTestDefinition in registry.reports_map:
+        del registry.reports_map[MyTestDefinition]
+    for name, report in scenario_reports.items():
+        registry.update_scenario_report(name, report, report_configs[name])
+
+    registry.grading_strategies_map.clear()
+    registry.grading_strategies_map.update(strategies_map)
 
 
 class MyRunner(BaseRunner):
@@ -62,13 +91,8 @@ class TestRegistry__RunnersMap:
         registry.update_runner("runner", AnotherRunner)
         assert registry.runners_map["runner"] == AnotherRunner
 
-    def test_invalid_type(self, registry: Registry):
-        with pytest.raises(ValueError) as exc_info:
-            registry.update_runner("TestRunner", str)  # pyright: ignore
-        assert "Invalid runner implementation for 'TestRunner'" in str(exc_info.value)
 
-
-class MyStrategy(TestTemplateStrategy):
+class MyStrategy(GradingStrategy):
     pass
 
 
@@ -80,23 +104,11 @@ class AnotherSystem(System):
     pass
 
 
-class AnotherStrategy(TestTemplateStrategy):
+class AnotherStrategy(GradingStrategy):
     pass
 
 
-class MyReportGenerationStrategy(ReportGenerationStrategy):
-    pass
-
-
-class MyJobIdRetrievalStrategy(JobIdRetrievalStrategy):
-    pass
-
-
-class MyJobStatusRetrievalStrategy(JobStatusRetrievalStrategy):
-    pass
-
-
-class TestRegistry__StrategiesMap:
+class TestRegistry__GradingStrategies:
     """This test verifies Registry class functionality.
 
     Since Registry is a Singleton, the order of cases is important.
@@ -104,72 +116,23 @@ class TestRegistry__StrategiesMap:
     """
 
     def test_add_strategy(self, registry: Registry):
-        registry.add_strategy(MyStrategy, [MySystem], [MyTestDefinition], MyStrategy)
-        registry.add_strategy(MyReportGenerationStrategy, [MySystem], [MyTestDefinition], MyReportGenerationStrategy)
-        registry.add_strategy(MyJobIdRetrievalStrategy, [MySystem], [MyTestDefinition], MyJobIdRetrievalStrategy)
-        registry.add_strategy(
-            MyJobStatusRetrievalStrategy, [MySystem], [MyTestDefinition], MyJobStatusRetrievalStrategy
-        )
-
-        assert registry.strategies_map[(MyStrategy, MySystem, MyTestDefinition)] == MyStrategy
-        assert (
-            registry.strategies_map[(MyReportGenerationStrategy, MySystem, MyTestDefinition)]
-            == MyReportGenerationStrategy
-        )
-        assert (
-            registry.strategies_map[(MyJobIdRetrievalStrategy, MySystem, MyTestDefinition)] == MyJobIdRetrievalStrategy
-        )
-        assert (
-            registry.strategies_map[(MyJobStatusRetrievalStrategy, MySystem, MyTestDefinition)]
-            == MyJobStatusRetrievalStrategy
-        )
+        registry.add_grading_strategy(MySystem, MyTestDefinition, MyStrategy)
+        assert registry.grading_strategies_map[(MySystem, MyTestDefinition)] == MyStrategy
+        assert registry.get_grading_strategy(MySystem, MyTestDefinition) == MyStrategy
 
     def test_add_strategy_duplicate(self, registry: Registry):
         with pytest.raises(ValueError) as exc_info:
-            registry.add_strategy(MyStrategy, [MySystem], [MyTestDefinition], MyStrategy)
+            registry.add_grading_strategy(MySystem, MyTestDefinition, MyStrategy)
         assert "Duplicating implementation for" in str(exc_info.value)
 
     def test_update_strategy(self, registry: Registry):
-        registry.update_strategy((MyStrategy, MySystem, MyTestDefinition), AnotherStrategy)
-        assert registry.strategies_map[(MyStrategy, MySystem, MyTestDefinition)] == AnotherStrategy
+        registry.update_grading_strategy((MySystem, MyTestDefinition), AnotherStrategy)
+        assert registry.grading_strategies_map[(MySystem, MyTestDefinition)] == AnotherStrategy
 
-    def test_invalid_type__strategy_interface(self, registry: Registry):
-        with pytest.raises(ValueError) as exc_info:
-            registry.update_strategy((str, MySystem, MyTestDefinition), MyStrategy)  # pyright: ignore
-        err = (
-            "Invalid strategy interface type, should be subclass of 'TestTemplateStrategy' or "
-            "'ReportGenerationStrategy' or 'JobIdRetrievalStrategy' or 'JobStatusRetrievalStrategy' "
-            "or 'GradingStrategy'."
-        )
-        assert err in str(exc_info.value)
-
-    def test_invalid_type__system(self, registry: Registry):
-        with pytest.raises(ValueError) as exc_info:
-            registry.update_strategy((MyStrategy, str, MyTestDefinition), MyStrategy)  # pyright: ignore
-        assert "Invalid system type, should be subclass of 'System'." in str(exc_info.value)
-
-    def test_invalid_type__template(self, registry: Registry):
-        with pytest.raises(ValueError) as exc_info:
-            registry.update_strategy((MyStrategy, MySystem, str), MyStrategy)  # pyright: ignore
-        assert "Invalid test definition type, should be subclass of 'TestDefinition'." in str(exc_info.value)
-
-    def test_invalid_type__strategy(self, registry: Registry):
-        with pytest.raises(ValueError) as exc_info:
-            registry.update_strategy((MyStrategy, MySystem, MyTestDefinition), str)  # pyright: ignore
-        assert "Invalid strategy implementation " in str(exc_info.value)
-        assert "should be subclass of 'TestTemplateStrategy'." in str(exc_info.value)
-
-    def test_add_multiple_strategies(self, registry: Registry):
-        registry.strategies_map = {}
-
-        registry.add_strategy(
-            MyStrategy, [MySystem, AnotherSystem], [MyTestDefinition, AnotherTestDefinition], MyStrategy
-        )
-        assert len(registry.strategies_map) == 4
-        assert registry.strategies_map[(MyStrategy, MySystem, MyTestDefinition)] == MyStrategy
-        assert registry.strategies_map[(MyStrategy, MySystem, AnotherTestDefinition)] == MyStrategy
-        assert registry.strategies_map[(MyStrategy, AnotherSystem, MyTestDefinition)] == MyStrategy
-        assert registry.strategies_map[(MyStrategy, AnotherSystem, AnotherTestDefinition)] == MyStrategy
+    def test_get_grading_strategy_not_found(self, registry: Registry):
+        with pytest.raises(KeyError) as exc_info:
+            registry.get_grading_strategy(MySystem, AnotherTestDefinition)
+        assert exc_info.match("Grading gen strategy for 'MySystem, AnotherTestDefinition' not found.")
 
 
 class MyInstaller(BaseInstaller):
@@ -200,15 +163,6 @@ class TestRegistry__Installers:
         registry.update_installer("installer", AnotherInstaller)
         assert registry.installers_map["installer"] == AnotherInstaller
 
-    def test_invalid_type(self, registry: Registry):
-        with pytest.raises(ValueError) as exc_info:
-            registry.update_installer("TestInstaller", str)  # pyright: ignore
-        assert "Invalid installer implementation for 'TestInstaller'" in str(exc_info.value)
-
-
-class MyTestDefinition(TestDefinition):
-    pass
-
 
 class AnotherTestDefinition(TestDefinition):
     pass
@@ -234,7 +188,184 @@ class TestRegistry__TestDefinitions:
         registry.update_test_definition("test_definition", AnotherTestDefinition)
         assert registry.test_definitions_map["test_definition"] == AnotherTestDefinition
 
-    def test_invalid_type(self, registry: Registry):
+
+class MyAgent(BaseAgent):
+    pass
+
+
+class AnotherAgent(BaseAgent):
+    pass
+
+
+class TestRegistry__AgentsMap:
+    """This test verifies Registry class functionality.
+
+    Since Registry is a Singleton, the order of cases is important.
+    Only covers the agents_map attribute.
+    """
+
+    def test_add_agent(self, registry: Registry):
+        registry.add_agent("agent", MyAgent)
+        assert registry.agents_map["agent"] == MyAgent
+
+    def test_add_agent_duplicate(self, registry: Registry):
         with pytest.raises(ValueError) as exc_info:
-            registry.update_test_definition("TestDefinition", str)  # pyright: ignore
-        assert "Invalid test definition implementation for 'TestDefinition'" in str(exc_info.value)
+            registry.add_agent("agent", MyAgent)
+        assert "Duplicating implementation for 'agent'" in str(exc_info.value)
+
+    def test_update_agent(self, registry: Registry):
+        registry.update_agent("agent", AnotherAgent)
+        assert registry.agents_map["agent"] == AnotherAgent
+
+
+class MyReport(ReportGenerationStrategy):
+    pass
+
+
+class AnotherReport(ReportGenerationStrategy):
+    pass
+
+
+class TestRegistry__ReportsMap:
+    """This test verifies Registry class functionality.
+
+    Since Registry is a Singleton, the order of cases is important.
+    Only covers the reports_map attribute.
+    """
+
+    def test_add_report(self, registry: Registry):
+        registry.add_report(MyTestDefinition, MyReport)
+        assert registry.reports_map[MyTestDefinition] == {MyReport}
+
+    def test_duplicate_is_fine(self, registry: Registry):
+        registry.add_report(MyTestDefinition, MyReport)
+        registry.add_report(MyTestDefinition, MyReport)
+        assert registry.reports_map[MyTestDefinition] == {MyReport}
+
+    def test_add_multiple_reports(self, registry: Registry):
+        registry.add_report(MyTestDefinition, MyReport)
+        registry.add_report(MyTestDefinition, AnotherReport)
+        assert registry.reports_map[MyTestDefinition] == {MyReport, AnotherReport}
+
+    def test_update_report(self, registry: Registry):
+        registry.update_report(MyTestDefinition, {AnotherReport})
+        assert registry.reports_map[MyTestDefinition] == {AnotherReport}
+
+
+class MyReporter(Reporter):
+    def generate(self) -> None:
+        pass
+
+
+class AnotherReporter(Reporter):
+    def generate(self) -> None:
+        pass
+
+
+class TestRegistry__ScenarioReports:
+    """This test verifies Registry class functionality.
+
+    Since Registry is a Singleton, the order of cases is important.
+    Only covers the scenario_reports attribute.
+    """
+
+    def test_add_scenario_report(self, registry: Registry):
+        registry.add_scenario_report("my", MyReporter, ReportConfig())
+        assert registry.scenario_reports == {"my": MyReporter}
+
+    def test_duplicate_is_must_use_update(self, registry: Registry):
+        with pytest.raises(ValueError) as exc_info:
+            registry.add_scenario_report("my", MyReporter, ReportConfig())
+        assert (
+            str(exc_info.value)
+            == "Duplicating scenario report implementation for 'my', use 'update()' for replacement."
+        )
+        registry.update_scenario_report("my", MyReporter, ReportConfig())
+        assert registry.scenario_reports == {"my": MyReporter}
+
+    def test_update_scenario_report(self, registry: Registry):
+        registry.update_scenario_report("another", AnotherReporter, ReportConfig())
+        assert registry.scenario_reports["another"] == AnotherReporter
+
+
+class AnotherCommandGenStrategy(CommandGenStrategy):
+    pass
+
+
+class TestRegistry__CommandGenStrategiesMap:
+    """This test verifies Registry class functionality.
+
+    Since Registry is a Singleton, the order of cases is important.
+    Only covers the command_gen_strategies_map attribute.
+    """
+
+    def test_add_command_gen_strategy(self, registry: Registry):
+        registry.add_command_gen_strategy(MySystem, MyTestDefinition, CommandGenStrategy)
+        assert registry.command_gen_strategies_map[(MySystem, MyTestDefinition)] == CommandGenStrategy
+        assert registry.get_command_gen_strategy(MySystem, MyTestDefinition) == CommandGenStrategy
+
+    def test_add_command_gen_strategy_duplicate(self, registry: Registry):
+        with pytest.raises(ValueError) as exc_info:
+            registry.add_command_gen_strategy(MySystem, MyTestDefinition, CommandGenStrategy)
+        assert str(exc_info.value) == (
+            "Duplicating implementation for 'MySystem, MyTestDefinition', use 'update()' for replacement."
+        )
+
+    def test_update_command_gen_strategy(self, registry: Registry):
+        registry.update_command_gen_strategy(MySystem, MyTestDefinition, AnotherCommandGenStrategy)
+        assert registry.command_gen_strategies_map[(MySystem, MyTestDefinition)] == AnotherCommandGenStrategy
+
+    def test_get_command_gen_strategy_not_found(self, registry: Registry):
+        with pytest.raises(KeyError) as exc_info:
+            registry.get_command_gen_strategy(MySystem, AnotherTestDefinition)
+        assert exc_info.match("Command gen strategy for 'MySystem, AnotherTestDefinition' not found.")
+
+
+class AnotherJsonGenStrategy(JsonGenStrategy):
+    pass
+
+
+class TestRegistry__JsonGenStrategiesMap:
+    """This test verifies Registry class functionality.
+
+    Since Registry is a Singleton, the order of cases is important.
+    Only covers the json_gen_strategies_map attribute.
+    """
+
+    def test_add_json_gen_strategy(self, registry: Registry):
+        registry.add_json_gen_strategy(MySystem, MyTestDefinition, JsonGenStrategy)
+        assert registry.json_gen_strategies_map[(MySystem, MyTestDefinition)] == JsonGenStrategy
+        assert registry.get_json_gen_strategy(MySystem, MyTestDefinition) == JsonGenStrategy
+
+    def test_add_json_gen_strategy_duplicate(self, registry: Registry):
+        with pytest.raises(ValueError) as exc_info:
+            registry.add_json_gen_strategy(MySystem, MyTestDefinition, JsonGenStrategy)
+        assert str(exc_info.value) == (
+            "Duplicating implementation for 'MySystem, MyTestDefinition', use 'update()' for replacement."
+        )
+
+    def test_update_json_gen_strategy(self, registry: Registry):
+        registry.update_json_gen_strategy(MySystem, MyTestDefinition, AnotherJsonGenStrategy)
+        assert registry.json_gen_strategies_map[(MySystem, MyTestDefinition)] == AnotherJsonGenStrategy
+
+    def test_get_json_gen_strategy_not_found(self, registry: Registry):
+        with pytest.raises(KeyError) as exc_info:
+            registry.get_json_gen_strategy(MySystem, AnotherTestDefinition)
+        assert exc_info.match("JSON gen strategy for 'MySystem, AnotherTestDefinition' not found.")
+
+
+def test_entrypoint_agent_type_verified():
+    class MockEP:
+        def __init__(self, load_value: Any):
+            self._load_value = load_value
+            self.name = "name"
+            self.value = "value"
+
+        def load(self):
+            return self._load_value
+
+    with (
+        patch("cloudai.registration.entry_points", return_value=[MockEP(str)]),
+        pytest.warns(UserWarning, match="(not a subclass of BaseAgent)"),
+    ):
+        register_entrypoint_agents()

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,26 +14,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 
+from .system import System
 from .test_scenario import TestRun
-from .test_template_strategy import TestTemplateStrategy
 
 
-class CommandGenStrategy(TestTemplateStrategy):
-    """
-    Abstract base class defining the interface for command generation strategies across different system environments.
+class CommandGenStrategy(ABC):
+    """Abstract base class defining the interface for command generation strategies across different systems."""
 
-    It specifies how to generate execution commands based on system and test parameters.
-    """
+    TEST_RUN_DUMP_FILE_NAME: str = "test-run.toml"
+
+    def __init__(self, system: System, test_run: TestRun) -> None:
+        self.system = system
+        self.test_run = test_run
+        self._final_env_vars: dict[str, str | list[str]] = {}
 
     @abstractmethod
-    def gen_exec_command(self, tr: TestRun) -> str:
+    def gen_exec_command(self) -> str:
         """
         Generate the execution command for a test based on the given parameters.
-
-        Args:
-            tr (TestRun): Contains the test and its run-specific configurations.
 
         Returns:
             str: The generated execution command.
@@ -41,27 +41,22 @@ class CommandGenStrategy(TestTemplateStrategy):
         pass
 
     @abstractmethod
-    def gen_srun_command(self, tr: TestRun) -> str:
+    def store_test_run(self) -> None:
         """
-        Generate the Slurm srun command for a test based on the given parameters.
+        Store the test run information in output folder.
 
-        Args:
-            tr (TestRun): Contains the test and its run-specific configurations.
-
-        Returns:
-            str: The generated Slurm srun command.
+        Only at command generation time, CloudAI has all the information to store the test run.
         """
         pass
 
-    @abstractmethod
-    def gen_srun_success_check(self, tr: TestRun) -> str:
-        """
-        Generate the Slurm success check command to verify if a test run was successful.
+    @property
+    def final_env_vars(self) -> dict[str, str | list[str]]:
+        if not self._final_env_vars:
+            final_env_vars = self.system.global_env_vars.copy()
+            final_env_vars.update(self.test_run.test.extra_env_vars)
+            self._final_env_vars = final_env_vars
+        return self._final_env_vars
 
-        Args:
-            tr (TestRun): Contains the test and its run-specific configurations.
-
-        Returns:
-            str: The generated command to check the success of the test run.
-        """
-        pass
+    @final_env_vars.setter
+    def final_env_vars(self, value: dict[str, str | list[str]]) -> None:
+        self._final_env_vars = value

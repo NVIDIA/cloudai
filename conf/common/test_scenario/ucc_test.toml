@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,38 +17,47 @@
 name = "ucc_test"
 
 [[Tests]]
-id = "Tests.1"
-test_name = "ucc_test_alltoall"
-num_nodes = "2"
+id = "Tests.alltoall"
+test_name = "ucc_base_test"
+description = "UCC alltoall"
+time_limit = "00:20:00"
+num_nodes = 2
+  [Tests.cmd_args]
+  collective = "alltoall"
 
 [[Tests]]
-id = "Tests.2"
-test_name = "ucc_test_alltoall"
-num_nodes = "2"
+id = "Tests.allgather"
+test_name = "ucc_base_test"
+description = "UCC allgather"
+time_limit = "00:20:00"
+num_nodes = 2
+  [Tests.cmd_args]
+  collective = "allgather"
   [[Tests.dependencies]]
   type = "start_post_comp"
-  id = "Tests.1"
+  id = "Tests.alltoall"
 
 [[Tests]]
-id = "Tests.3"
-test_name = "ucc_test_alltoall"
-num_nodes = "2"
+id = "Tests.allreduce"
+test_name = "ucc_base_test"
+description = "UCC allreduce"
+time_limit = "00:20:00"
+num_nodes = 2
+  [Tests.cmd_args]
+  collective = "allreduce"
+  e = "4G"
   [[Tests.dependencies]]
   type = "start_post_comp"
-  id = "Tests.2"
+  id = "Tests.allgather"
 
 [[Tests]]
-id = "Tests.4"
-test_name = "ucc_test_alltoall"
-num_nodes = "2"
+id = "Tests.reduce_scatter"
+test_name = "ucc_base_test"
+description = "UCC reduce_scatter"
+time_limit = "00:20:00"
+num_nodes = 2
+  [Tests.cmd_args]
+  collective = "reduce_scatter"
   [[Tests.dependencies]]
   type = "start_post_comp"
-  id = "Tests.3"
-
-[[Tests]]
-id = "Tests.5"
-test_name = "ucc_test_alltoall"
-num_nodes = "2"
-  [[Tests.dependencies]]
-  type = "start_post_comp"
-  id = "Tests.4"
+  id = "Tests.allreduce"

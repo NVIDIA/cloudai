@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,16 +17,13 @@
 name = "nemo_run_llama3_8b"
 
 [[Tests]]
-id = "nemo_run_llama3_8b_1"
+id = "nemo_run_llama3_8b.single-node"
 test_name = "nemo_run_llama3_8b"
-num_nodes = "1"
-time_limit = "00:30:00"
+num_nodes = 1
+time_limit = "00:60:00"
 
 [[Tests]]
-id = "nemo_run_llama3_8b_2"
+id = "nemo_run_llama3_8b.2nodes"
 test_name = "nemo_run_llama3_8b"
-num_nodes = "2"
-time_limit = "00:30:00"
-  [[Tests.dependencies]]
-  type = "start_post_comp"
-  id = "nemo_run_llama3_8b_1"
+num_nodes = 2
+time_limit = "00:60:00"

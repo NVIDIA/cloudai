@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -42,7 +42,7 @@ def test_set_dataframe(example_dataframe: pd.DataFrame):
 
 def test_finalize_report_no_dataframe(output_directory: Path):
     csv_tool = CSVReportTool(output_directory=output_directory)
-    with pytest.raises(ValueError, match="No DataFrame has been set for the report."):
+    with pytest.raises(ValueError, match=r"No DataFrame has been set for the report."):
         csv_tool.finalize_report(Path("report.csv"))
 
 

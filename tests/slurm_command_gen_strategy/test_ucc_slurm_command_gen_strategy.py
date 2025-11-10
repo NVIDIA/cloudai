@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,26 +14,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List
-from unittest.mock import Mock
+from pathlib import Path
 
 import pytest
 
-from cloudai.schema.test_template.ucc_test.slurm_command_gen_strategy import UCCTestSlurmCommandGenStrategy
-from cloudai.systems import SlurmSystem
+from cloudai.core import TestRun
+from cloudai.systems.slurm import SlurmSystem
+from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition, UCCTestSlurmCommandGenStrategy
 
 
 class TestUCCTestSlurmCommandGenStrategy:
-    @pytest.fixture
-    def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> UCCTestSlurmCommandGenStrategy:
-        return UCCTestSlurmCommandGenStrategy(slurm_system, {})
-
     @pytest.mark.parametrize(
-        "cmd_args, extra_cmd_args, expected_command",
+        "cmd_args_data, extra_cmd_args, expected_command",
         [
             (
-                {"collective": "allgather", "b": "8", "e": "256M"},
-                "--max-steps 100",
+                {"collective": "allgather", "b": 8, "e": "256M", "docker_image_url": "url://fake/ucc"},
+                {"--max-steps": "100"},
                 [
                     "/opt/hpcx/ucc/bin/ucc_perftest",
                     "-c allgather",
@@ -41,16 +37,17 @@ class TestUCCTestSlurmCommandGenStrategy:
                     "-e 256M",
                     "-m cuda",
                     "-F",
-                    "--max-steps 100",
+                    "--max-steps=100",
                 ],
             ),
             (
-                {"collective": "allreduce", "b": "4"},
-                "",
+                {"collective": "allreduce", "b": 4, "e": "8M", "docker_image_url": "url://fake/ucc"},
+                {},
                 [
                     "/opt/hpcx/ucc/bin/ucc_perftest",
                     "-c allreduce",
                     "-b 4",
+                    "-e 8M",
                     "-m cuda",
                     "-F",
                 ],
@@ -59,13 +56,30 @@ class TestUCCTestSlurmCommandGenStrategy:
     )
     def test_generate_test_command(
         self,
-        cmd_gen_strategy: UCCTestSlurmCommandGenStrategy,
-        cmd_args: Dict[str, str],
-        extra_cmd_args: str,
-        expected_command: List[str],
+        tmp_path: Path,
+        cmd_args_data: dict,
+        extra_cmd_args: dict,
+        expected_command: list[str],
+        slurm_system: SlurmSystem,
     ) -> None:
-        env_vars = {}
-        tr = Mock()
-        tr.test.extra_cmd_args = extra_cmd_args
-        command = cmd_gen_strategy.generate_test_command(env_vars, cmd_args, tr)
+        ucc_cmd_args = UCCCmdArgs(
+            docker_image_url=cmd_args_data["docker_image_url"],
+            collective=cmd_args_data["collective"],
+            b=cmd_args_data["b"],
+            e=cmd_args_data.get("e", "8M"),
+        )
+
+        test_def = UCCTestDefinition(
+            name="ucc_test",
+            description="UCC test",
+            test_template_name="default_template",
+            cmd_args=ucc_cmd_args,
+            extra_env_vars={},
+            extra_cmd_args=extra_cmd_args,
+        )
+
+        tr = TestRun(test=test_def, num_nodes=1, nodes=[], output_path=tmp_path / "output", name="test-job")
+
+        cmd_gen_strategy = UCCTestSlurmCommandGenStrategy(slurm_system, tr)
+        command = cmd_gen_strategy.generate_test_command()
         assert command == expected_command

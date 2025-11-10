@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,8 @@ import logging
 from pathlib import Path
 from typing import Dict, List
 
+from .registry import Registry
+from .system import System
 from .test_scenario import TestRun, TestScenario
 
 
@@ -31,8 +33,9 @@ class Grader:
         logger (logging.Logger): Logger for the class, used to log messages related to the grading process.
     """
 
-    def __init__(self, output_path: Path) -> None:
+    def __init__(self, output_path: Path, system: System) -> None:
         self.output_path = output_path
+        self.system = system
 
     def grade(self, test_scenario: TestScenario) -> str:
         """
@@ -59,7 +62,7 @@ class Grader:
             test_output_dir = self.output_path / section_name
             perfs = self._get_perfs_from_subdirs(test_output_dir, tr)
             avg_perf = sum(perfs) / len(perfs) if perfs else 0
-            test_perfs[tr.test.name] = perfs + [avg_perf]
+            test_perfs[tr.test.name] = [*perfs, avg_perf]
             weighted_avg = (avg_perf * tr.weight / total_weight) if total_weight else 0
             weighted_perfs.append(weighted_avg)
 
@@ -80,9 +83,11 @@ class Grader:
             List[float]: A list of performance values.
         """
         perfs = []
+
         for subdir in directory_path.iterdir():
             if subdir.is_dir() and subdir.name.isdigit():
-                perf = tr.test.test_template.grade(subdir, tr.ideal_perf)
+                grading_strategy = Registry().get_grading_strategy(type(self.system), type(tr.test))()
+                perf = grading_strategy.grade(subdir, tr.ideal_perf)
                 perfs.append(perf)
         return perfs
 

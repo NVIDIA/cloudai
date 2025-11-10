@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,96 +14,75 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List
-from unittest.mock import Mock
+from typing import Any, Dict, List, Union
 
 import pytest
 
-from cloudai._core.test_scenario import TestRun
-from cloudai.schema.test_template.nccl_test.slurm_command_gen_strategy import NcclTestSlurmCommandGenStrategy
-from cloudai.systems import SlurmSystem
-from tests.conftest import create_autospec_dataclass
+from cloudai.core import TestRun
+from cloudai.systems.slurm import SlurmSystem
+from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTestSlurmCommandGenStrategy
 
 
 class TestNcclTestSlurmCommandGenStrategy:
-    @pytest.fixture
-    def cmd_gen_strategy(self, slurm_system: SlurmSystem) -> NcclTestSlurmCommandGenStrategy:
-        return NcclTestSlurmCommandGenStrategy(slurm_system, {})
-
     @pytest.mark.parametrize(
-        "job_name_prefix, env_vars, cmd_args, num_nodes, nodes, expected_result",
+        "env_vars, num_nodes, nodes, expected_result",
         [
             (
-                "nccl_test",
-                {"NCCL_TOPO_FILE": "/path/to/topo", "DOCKER_NCCL_TOPO_FILE": "/docker/topo"},
-                {"subtest_name": "all_reduce_perf", "docker_image_url": "fake_image_url"},
+                {"NCCL_TOPO_FILE": "/path/to/topo"},
                 2,
                 ["node1", "node2"],
                 {
-                    "container_mounts": "/path/to/topo:/docker/topo",
+                    "container_mounts": "/path/to/topo:/path/to/topo",
                 },
             ),
             (
-                "nccl_test",
                 {"NCCL_TOPO_FILE": "/path/to/topo"},
-                {"subtest_name": "all_reduce_perf", "docker_image_url": "another_image_url"},
                 1,
                 ["node1"],
                 {
-                    "container_mounts": "",
+                    "container_mounts": "/path/to/topo:/path/to/topo",
                 },
             ),
         ],
     )
     def test_parse_slurm_args(
         self,
-        cmd_gen_strategy: NcclTestSlurmCommandGenStrategy,
-        job_name_prefix: str,
-        env_vars: Dict[str, str],
-        cmd_args: Dict[str, str],
+        slurm_system: SlurmSystem,
+        env_vars: Dict[str, Union[str, List[str]]],
         num_nodes: int,
         nodes: List[str],
         expected_result: Dict[str, Any],
     ) -> None:
-        tr = create_autospec_dataclass(TestRun)
-        tr.nodes = nodes
-        tr.num_nodes = num_nodes
-        slurm_args = cmd_gen_strategy._parse_slurm_args(job_name_prefix, env_vars, cmd_args, tr)
-        assert slurm_args["container_mounts"] == expected_result["container_mounts"]
+        nccl = NCCLTestDefinition(
+            name="name",
+            description="desc",
+            test_template_name="NcclTest",
+            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+            extra_env_vars=env_vars,
+        )
+        tr = TestRun(name="t1", test=nccl, nodes=nodes, num_nodes=num_nodes)
+        cmd_gen_strategy = NcclTestSlurmCommandGenStrategy(slurm_system, tr)
+        assert expected_result["container_mounts"] in cmd_gen_strategy.container_mounts()
 
     @pytest.mark.parametrize(
-        "cmd_args, extra_cmd_args, expected_command",
+        "args",
         [
-            (
-                {"subtest_name": "all_reduce_perf", "nthreads": "4", "ngpus": "2"},
-                "--max-steps 100",
-                [
-                    "/usr/local/bin/all_reduce_perf",
-                    "--nthreads 4",
-                    "--ngpus 2",
-                    "--max-steps 100",
-                ],
-            ),
-            (
-                {"subtest_name": "all_reduce_perf", "op": "sum", "datatype": "float"},
-                "",
-                [
-                    "/usr/local/bin/all_reduce_perf",
-                    "--op sum",
-                    "--datatype float",
-                ],
-            ),
+            {"nthreads": "4", "ngpus": "2"},
+            {"R": "1", "G": "0"},
+            {"stepfactor": None},
         ],
     )
-    def test_generate_test_command(
-        self,
-        cmd_gen_strategy: NcclTestSlurmCommandGenStrategy,
-        cmd_args: Dict[str, str],
-        extra_cmd_args: str,
-        expected_command: List[str],
-    ) -> None:
-        env_vars = {}
-        tr = Mock()
-        tr.test.extra_cmd_args = extra_cmd_args
-        command = cmd_gen_strategy.generate_test_command(env_vars, cmd_args, tr)
-        assert command == expected_command
+    def test_generate_test_command(self, slurm_system: SlurmSystem, args: dict[str, Union[str, list[str]]]) -> None:
+        cmd_args: NCCLCmdArgs = NCCLCmdArgs.model_validate({**{"docker_image_url": "fake_image_url"}, **args})
+        nccl = NCCLTestDefinition(name="name", description="desc", test_template_name="NcclTest", cmd_args=cmd_args)
+        tr = TestRun(name="t1", test=nccl, nodes=[], num_nodes=1)
+
+        cmd_gen_strategy = NcclTestSlurmCommandGenStrategy(slurm_system, tr)
+        cmd = " ".join(cmd_gen_strategy.generate_test_command())
+
+        for arg in args:
+            if args[arg] is None:
+                assert arg not in cmd
+            else:
+                cli_key = f"--{arg}" if len(arg) > 1 else f"-{arg}"
+                assert f"{cli_key} {args[arg]}" in cmd
