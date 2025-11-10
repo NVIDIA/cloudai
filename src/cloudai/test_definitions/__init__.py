@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from .chakra_replay import ChakraReplayCmdArgs, ChakraReplayTestDefinition
+from .deepep_benchmark import DeepEPBenchmarkCmdArgs, DeepEPBenchmarkTestDefinition
 from .gpt import GPTCmdArgs, GPTTestDefinition
 from .grok import GrokCmdArgs, GrokTestDefinition
 from .jax_toolbox import JaxToolboxCmdArgs, JaxToolboxTestDefinition
@@ -28,6 +29,8 @@ from .ucc import UCCCmdArgs, UCCTestDefinition
 __all__ = [
     "ChakraReplayCmdArgs",
     "ChakraReplayTestDefinition",
+    "DeepEPBenchmarkCmdArgs",
+    "DeepEPBenchmarkTestDefinition",
     "NCCLCmdArgs",
     "NCCLTestDefinition",
     "NeMoLauncherCmdArgs",

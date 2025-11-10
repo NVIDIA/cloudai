@@ -56,6 +56,9 @@ from .schema.test_template.chakra_replay.slurm_command_gen_strategy import Chakr
 from .schema.test_template.common.default_job_status_retrieval_strategy import DefaultJobStatusRetrievalStrategy
 from .schema.test_template.common.slurm_job_id_retrieval_strategy import SlurmJobIdRetrievalStrategy
 from .schema.test_template.common.standalone_job_id_retrieval_strategy import StandaloneJobIdRetrievalStrategy
+from .schema.test_template.deepep_benchmark.grading_strategy import DeepEPBenchmarkGradingStrategy
+from .schema.test_template.deepep_benchmark.report_generation_strategy import DeepEPBenchmarkReportGenerationStrategy
+from .schema.test_template.deepep_benchmark.slurm_command_gen_strategy import DeepEPBenchmarkSlurmCommandGenStrategy
 from .schema.test_template.jax_toolbox.grading_strategy import JaxToolboxGradingStrategy
 from .schema.test_template.jax_toolbox.job_status_retrieval_strategy import JaxToolboxJobStatusRetrievalStrategy
 from .schema.test_template.jax_toolbox.report_generation_strategy import JaxToolboxReportGenerationStrategy
@@ -91,6 +94,7 @@ from .systems.slurm.slurm_system import SlurmSystem
 from .systems.standalone_system import StandaloneSystem
 from .test_definitions import (
     ChakraReplayTestDefinition,
+    DeepEPBenchmarkTestDefinition,
     GPTTestDefinition,
     GrokTestDefinition,
     NCCLTestDefinition,
@@ -219,6 +223,21 @@ Registry().add_strategy(
 Registry().add_strategy(
     CommandGenStrategy, [SlurmSystem], [SlurmContainerTestDefinition], SlurmContainerCommandGenStrategy
 )
+Registry().add_strategy(
+    CommandGenStrategy, [SlurmSystem], [DeepEPBenchmarkTestDefinition], DeepEPBenchmarkSlurmCommandGenStrategy
+)
+Registry().add_strategy(
+    ReportGenerationStrategy, [SlurmSystem], [DeepEPBenchmarkTestDefinition], DeepEPBenchmarkReportGenerationStrategy
+)
+Registry().add_strategy(
+    GradingStrategy, [SlurmSystem], [DeepEPBenchmarkTestDefinition], DeepEPBenchmarkGradingStrategy
+)
+Registry().add_strategy(
+    JobIdRetrievalStrategy, [SlurmSystem], [DeepEPBenchmarkTestDefinition], SlurmJobIdRetrievalStrategy
+)
+Registry().add_strategy(
+    JobStatusRetrievalStrategy, [SlurmSystem], [DeepEPBenchmarkTestDefinition], DefaultJobStatusRetrievalStrategy
+)
 
 Registry().add_installer("slurm", SlurmInstaller)
 Registry().add_installer("standalone", StandaloneInstaller)
@@ -231,6 +250,7 @@ Registry().add_system("kubernetes", KubernetesSystem)
 Registry().add_test_definition("UCCTest", UCCTestDefinition)
 Registry().add_test_definition("NcclTest", NCCLTestDefinition)
 Registry().add_test_definition("ChakraReplay", ChakraReplayTestDefinition)
+Registry().add_test_definition("DeepEPBenchmark", DeepEPBenchmarkTestDefinition)
 Registry().add_test_definition("Sleep", SleepTestDefinition)
 Registry().add_test_definition("NeMoLauncher", NeMoLauncherTestDefinition)
 Registry().add_test_definition("NeMoRun", NeMoRunTestDefinition)
