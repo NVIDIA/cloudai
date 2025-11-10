@@ -21,8 +21,7 @@ import pytest
 from pydantic import ConfigDict
 
 from cloudai._core.system import System
-from cloudai._core.test_template import TestTemplate
-from cloudai.core import BaseJob, BaseRunner, JobStatusResult, Test, TestDefinition, TestRun, TestScenario
+from cloudai.core import BaseJob, BaseRunner, JobStatusResult, TestDefinition, TestRun, TestScenario
 from cloudai.models.workload import CmdArgs
 from cloudai.systems.slurm import SlurmSystem
 
@@ -50,10 +49,7 @@ class MyWorkload(TestDefinition):
 
 @pytest.fixture
 def test_scenario(slurm_system: SlurmSystem) -> TestScenario:
-    test = Test(
-        test_definition=MyWorkload(name="n", description="d", test_template_name="wrk", cmd_args=CmdArgs()),
-        test_template=TestTemplate(slurm_system),
-    )
+    test = MyWorkload(name="n", description="d", test_template_name="wrk", cmd_args=CmdArgs())
     test_scenario = TestScenario(
         name="Test Scenario",
         test_runs=[TestRun("tr-name", test, 1, [], output_path=slurm_system.output_path / "tr-name")],
@@ -83,7 +79,7 @@ class TestGetJobStatus:
     def test_workload_job_failed(self, runner: MyRunner):
         tr = runner.test_scenario.test_runs[0]
         job = BaseJob(tr, 0)
-        tdef = cast(MyWorkload, tr.test.test_definition)
+        tdef = cast(MyWorkload, tr.test)
         tdef.workload_status_result = JobStatusResult(is_successful=False, error_message="workload job failed")
         res = runner.get_job_status(job)
         assert not res.is_successful
@@ -92,7 +88,7 @@ class TestGetJobStatus:
     def test_both_failed_runner_status_reported(self, runner: MyRunner):
         tr = runner.test_scenario.test_runs[0]
         job = BaseJob(tr, 0)
-        tdef = cast(MyWorkload, tr.test.test_definition)
+        tdef = cast(MyWorkload, tr.test)
         tdef.workload_status_result = JobStatusResult(is_successful=False, error_message="workload job failed")
         runner.runner_job_status_result = JobStatusResult(is_successful=False, error_message="runner job failed")
         res = runner.get_job_status(job)

@@ -18,28 +18,25 @@ from typing import cast
 
 import pytest
 
-from cloudai.core import Test, TestRun, TestTemplate
+from cloudai.core import TestRun
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nixl_bench.nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
 from cloudai.workloads.nixl_bench.slurm_command_gen_strategy import NIXLBenchSlurmCommandGenStrategy
 
 
 @pytest.fixture
-def nixl_bench_tr(slurm_system: SlurmSystem) -> TestRun:
+def nixl_bench_tr() -> TestRun:
     return TestRun(
         name="nixl-bench",
         num_nodes=2,
         nodes=[],
-        test=Test(
-            test_template=TestTemplate(slurm_system),
-            test_definition=NIXLBenchTestDefinition(
-                cmd_args=NIXLBenchCmdArgs(
-                    docker_image_url="docker.io/library/ubuntu:22.04", path_to_benchmark="./nixlbench"
-                ),
-                name="nixl-bench",
-                description="NIXL Bench",
-                test_template_name="NIXLBench",
+        test=NIXLBenchTestDefinition(
+            cmd_args=NIXLBenchCmdArgs(
+                docker_image_url="docker.io/library/ubuntu:22.04", path_to_benchmark="./nixlbench"
             ),
+            name="nixl-bench",
+            description="NIXL Bench",
+            test_template_name="NIXLBench",
         ),
     )
 
@@ -48,7 +45,7 @@ class TestNIXLBenchCommand:
     def test_default(self, nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
         strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
         cmd = strategy.gen_nixlbench_command()
-        tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, nixl_bench_tr.test.test_definition)
+        tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, nixl_bench_tr.test)
         assert cmd == ["./nixlbench", f"--etcd-endpoints {tdef.cmd_args.etcd_endpoints}"]
 
     def test_can_set_any_cmd_arg(self, nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
@@ -60,7 +57,7 @@ class TestNIXLBenchCommand:
                 **in_args,
             }
         )
-        nixl_bench_tr.test.test_definition.cmd_args = cmd_args
+        nixl_bench_tr.test.cmd_args = cmd_args
         strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
 
         cmd = " ".join(strategy.gen_nixlbench_command())
@@ -71,7 +68,7 @@ class TestNIXLBenchCommand:
 
 def test_gen_etcd_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
     strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
-    tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, nixl_bench_tr.test.test_definition)
+    tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, nixl_bench_tr.test)
     cmd = " ".join(strategy.gen_etcd_srun_command(tdef.cmd_args.etcd_path))
     assert (
         f"{tdef.cmd_args.etcd_path} --listen-client-urls=http://0.0.0.0:2379 --advertise-client-urls=http://$SLURM_JOB_MASTER_NODE:2379"
@@ -79,7 +76,7 @@ def test_gen_etcd_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem
         ' --initial-cluster="default=http://$SLURM_JOB_MASTER_NODE:2380"'
     ) in cmd
 
-    tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, nixl_bench_tr.test.test_definition)
+    tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, nixl_bench_tr.test)
     assert "--overlap" in cmd
     assert "--ntasks-per-node=1" in cmd
     assert "--ntasks=1" in cmd
@@ -108,7 +105,7 @@ def test_gen_nixl_srun_command(
     nixl_bench_tr: TestRun, slurm_system: SlurmSystem, backend: str, nnodes: int, exp_ntasks: int
 ):
     nixl_bench_tr.num_nodes = nnodes
-    nixl_bench_tr.test.test_definition.cmd_args.backend = backend
+    nixl_bench_tr.test.cmd_args.backend = backend
     strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
 
     cmds = strategy.gen_nixlbench_srun_commands(strategy.gen_nixlbench_command(), backend)

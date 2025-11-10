@@ -16,11 +16,10 @@
 
 from pathlib import Path
 from typing import Tuple
-from unittest.mock import Mock
 
 import pytest
 
-from cloudai import Test, TestRun
+from cloudai import TestRun
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nemo_run import (
     NeMoRunCmdArgs,
@@ -32,14 +31,11 @@ from cloudai.workloads.nemo_run import (
 
 @pytest.fixture
 def nemo_tr(tmp_path: Path) -> TestRun:
-    test = Test(
-        test_definition=NeMoRunTestDefinition(
-            name="nemo",
-            description="desc",
-            test_template_name="t",
-            cmd_args=NeMoRunCmdArgs(docker_image_url="docker://url", task="task", recipe_name="recipe"),
-        ),
-        test_template=Mock(),
+    test = NeMoRunTestDefinition(
+        name="nemo",
+        description="desc",
+        test_template_name="t",
+        cmd_args=NeMoRunCmdArgs(docker_image_url="docker://url", task="task", recipe_name="recipe"),
     )
     tr = TestRun(name="nemo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
     tr.reports = {NeMoRunReportGenerationStrategy}
@@ -78,18 +74,15 @@ def nemo_tr(tmp_path: Path) -> TestRun:
 
 @pytest.fixture
 def nemo_tr_empty_log(tmp_path: Path) -> TestRun:
-    test = Test(
-        test_definition=NeMoRunTestDefinition(
-            name="nemo",
-            description="desc",
-            test_template_name="template",
-            cmd_args=NeMoRunCmdArgs(
-                docker_image_url="docker://url",
-                task="task",
-                recipe_name="recipe",
-            ),
+    test = NeMoRunTestDefinition(
+        name="nemo",
+        description="desc",
+        test_template_name="template",
+        cmd_args=NeMoRunCmdArgs(
+            docker_image_url="docker://url",
+            task="task",
+            recipe_name="recipe",
         ),
-        test_template=Mock(),
     )
     return TestRun(name="nemo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
 

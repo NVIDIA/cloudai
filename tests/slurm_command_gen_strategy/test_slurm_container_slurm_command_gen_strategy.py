@@ -18,8 +18,7 @@ from typing import cast
 
 import pytest
 
-from cloudai import TestRun
-from cloudai.core import Test, TestTemplate
+from cloudai.core import TestRun
 from cloudai.models.workload import NsysConfiguration
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.slurm_container import (
@@ -30,15 +29,14 @@ from cloudai.workloads.slurm_container import (
 
 
 @pytest.fixture
-def test_run(slurm_system: SlurmSystem) -> TestRun:
+def test_run() -> TestRun:
     tdef = SlurmContainerTestDefinition(
         name="sc",
         description="desc",
         test_template_name="tt",
         cmd_args=SlurmContainerCmdArgs(docker_image_url="docker://url", cmd="cmd"),
     )
-    t = Test(test_definition=tdef, test_template=TestTemplate(system=slurm_system))
-    tr = TestRun(name="name", test=t, num_nodes=1, nodes=[])
+    tr = TestRun(name="name", test=tdef, num_nodes=1, nodes=[])
     return tr
 
 
@@ -47,7 +45,7 @@ def test_default(slurm_system: SlurmSystem, test_run: TestRun) -> None:
     cmd = cgs.gen_srun_command()
     srun_part = (
         f"srun --export=ALL --mpi={slurm_system.mpi} "
-        f"--container-image={test_run.test.test_definition.cmd_args.docker_image_url} "
+        f"--container-image={test_run.test.cmd_args.docker_image_url} "
         f"--container-mounts={test_run.output_path.absolute()}:/cloudai_run_results,"
         f"{slurm_system.install_path.absolute()}:/cloudai_install,"
         f"{test_run.output_path.absolute()} "
@@ -60,12 +58,12 @@ def test_default(slurm_system: SlurmSystem, test_run: TestRun) -> None:
 def test_with_nsys(slurm_system: SlurmSystem, test_run: TestRun) -> None:
     cgs = SlurmContainerCommandGenStrategy(slurm_system, test_run)
     nsys = NsysConfiguration()
-    test_run.test.test_definition.nsys = nsys
+    test_run.test.nsys = nsys
     cmd = cgs.gen_srun_command()
 
     srun_part = (
         f"srun --export=ALL --mpi={slurm_system.mpi} "
-        f"--container-image={test_run.test.test_definition.cmd_args.docker_image_url} "
+        f"--container-image={test_run.test.cmd_args.docker_image_url} "
         f"--container-mounts={test_run.output_path.absolute()}:/cloudai_run_results,"
         f"{slurm_system.install_path.absolute()}:/cloudai_install,"
         f"{test_run.output_path.absolute()} "
@@ -77,7 +75,7 @@ def test_with_nsys(slurm_system: SlurmSystem, test_run: TestRun) -> None:
 
 def test_with_extra_srun_args(slurm_system: SlurmSystem, test_run: TestRun) -> None:
     extra_args = ["--ntasks=1", "--ntasks-per-node=1"]
-    tdef = cast(SlurmContainerTestDefinition, test_run.test.test_definition)
+    tdef = cast(SlurmContainerTestDefinition, test_run.test)
     tdef.extra_srun_args = extra_args
 
     cgs = SlurmContainerCommandGenStrategy(slurm_system, test_run)
@@ -85,7 +83,7 @@ def test_with_extra_srun_args(slurm_system: SlurmSystem, test_run: TestRun) -> N
 
     srun_part = (
         f"srun --export=ALL --mpi={slurm_system.mpi} "
-        f"--container-image={test_run.test.test_definition.cmd_args.docker_image_url} "
+        f"--container-image={test_run.test.cmd_args.docker_image_url} "
         f"--container-mounts={test_run.output_path.absolute()}:/cloudai_run_results,"
         f"{slurm_system.install_path.absolute()}:/cloudai_install,"
         f"{test_run.output_path.absolute()} "

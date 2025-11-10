@@ -59,7 +59,7 @@ class NeMoRunDataStoreReportGenerationStrategy(ReportGenerationStrategy):
         step_timings: List[float] = extract_timings(self.results_file)
         if not step_timings:
             return {}
-        tdef = cast(NeMoRunTestDefinition, self.test_run.test.test_definition)
+        tdef = cast(NeMoRunTestDefinition, self.test_run.test)
         slurm_system = cast(SlurmSystem, self.system)
         docker_image_url: str = tdef.cmd_args.docker_image_url
         s_model, s_model_size = self.extract_model_info(tdef.cmd_args.recipe_name)

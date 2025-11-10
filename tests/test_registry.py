@@ -25,6 +25,7 @@ from cloudai.core import (
     BaseInstaller,
     BaseRunner,
     CommandGenStrategy,
+    GradingStrategy,
     JsonGenStrategy,
     Registry,
     Reporter,
@@ -44,7 +45,7 @@ class MyTestDefinition(TestDefinition):
 def registry():
     registry = Registry()
 
-    strategies_map = copy.copy(registry.strategies_map)
+    strategies_map = copy.copy(registry.grading_strategies_map)
     scenario_reports = copy.copy(registry.scenario_reports)
     report_configs = copy.copy(registry.report_configs)
 
@@ -58,8 +59,8 @@ def registry():
     for name, report in scenario_reports.items():
         registry.update_scenario_report(name, report, report_configs[name])
 
-    registry.strategies_map.clear()
-    registry.strategies_map.update(strategies_map)
+    registry.grading_strategies_map.clear()
+    registry.grading_strategies_map.update(strategies_map)
 
 
 class MyRunner(BaseRunner):
@@ -91,7 +92,7 @@ class TestRegistry__RunnersMap:
         assert registry.runners_map["runner"] == AnotherRunner
 
 
-class MyStrategy(JsonGenStrategy):
+class MyStrategy(GradingStrategy):
     pass
 
 
@@ -103,11 +104,11 @@ class AnotherSystem(System):
     pass
 
 
-class AnotherStrategy(JsonGenStrategy):
+class AnotherStrategy(GradingStrategy):
     pass
 
 
-class TestRegistry__StrategiesMap:
+class TestRegistry__GradingStrategies:
     """This test verifies Registry class functionality.
 
     Since Registry is a Singleton, the order of cases is important.
@@ -115,30 +116,23 @@ class TestRegistry__StrategiesMap:
     """
 
     def test_add_strategy(self, registry: Registry):
-        registry.add_strategy(MyStrategy, [MySystem], [MyTestDefinition], MyStrategy)
-
-        assert registry.strategies_map[(MyStrategy, MySystem, MyTestDefinition)] == MyStrategy
+        registry.add_grading_strategy(MySystem, MyTestDefinition, MyStrategy)
+        assert registry.grading_strategies_map[(MySystem, MyTestDefinition)] == MyStrategy
+        assert registry.get_grading_strategy(MySystem, MyTestDefinition) == MyStrategy
 
     def test_add_strategy_duplicate(self, registry: Registry):
         with pytest.raises(ValueError) as exc_info:
-            registry.add_strategy(MyStrategy, [MySystem], [MyTestDefinition], MyStrategy)
+            registry.add_grading_strategy(MySystem, MyTestDefinition, MyStrategy)
         assert "Duplicating implementation for" in str(exc_info.value)
 
     def test_update_strategy(self, registry: Registry):
-        registry.update_strategy((MyStrategy, MySystem, MyTestDefinition), AnotherStrategy)
-        assert registry.strategies_map[(MyStrategy, MySystem, MyTestDefinition)] == AnotherStrategy
+        registry.update_grading_strategy((MySystem, MyTestDefinition), AnotherStrategy)
+        assert registry.grading_strategies_map[(MySystem, MyTestDefinition)] == AnotherStrategy
 
-    def test_add_multiple_strategies(self, registry: Registry):
-        registry.strategies_map.clear()
-
-        registry.add_strategy(
-            MyStrategy, [MySystem, AnotherSystem], [MyTestDefinition, AnotherTestDefinition], MyStrategy
-        )
-        assert len(registry.strategies_map) == 4
-        assert registry.strategies_map[(MyStrategy, MySystem, MyTestDefinition)] == MyStrategy
-        assert registry.strategies_map[(MyStrategy, MySystem, AnotherTestDefinition)] == MyStrategy
-        assert registry.strategies_map[(MyStrategy, AnotherSystem, MyTestDefinition)] == MyStrategy
-        assert registry.strategies_map[(MyStrategy, AnotherSystem, AnotherTestDefinition)] == MyStrategy
+    def test_get_grading_strategy_not_found(self, registry: Registry):
+        with pytest.raises(KeyError) as exc_info:
+            registry.get_grading_strategy(MySystem, AnotherTestDefinition)
+        assert exc_info.match("Grading gen strategy for 'MySystem, AnotherTestDefinition' not found.")
 
 
 class MyInstaller(BaseInstaller):
@@ -325,6 +319,39 @@ class TestRegistry__CommandGenStrategiesMap:
         with pytest.raises(KeyError) as exc_info:
             registry.get_command_gen_strategy(MySystem, AnotherTestDefinition)
         assert exc_info.match("Command gen strategy for 'MySystem, AnotherTestDefinition' not found.")
+
+
+class AnotherJsonGenStrategy(JsonGenStrategy):
+    pass
+
+
+class TestRegistry__JsonGenStrategiesMap:
+    """This test verifies Registry class functionality.
+
+    Since Registry is a Singleton, the order of cases is important.
+    Only covers the json_gen_strategies_map attribute.
+    """
+
+    def test_add_json_gen_strategy(self, registry: Registry):
+        registry.add_json_gen_strategy(MySystem, MyTestDefinition, JsonGenStrategy)
+        assert registry.json_gen_strategies_map[(MySystem, MyTestDefinition)] == JsonGenStrategy
+        assert registry.get_json_gen_strategy(MySystem, MyTestDefinition) == JsonGenStrategy
+
+    def test_add_json_gen_strategy_duplicate(self, registry: Registry):
+        with pytest.raises(ValueError) as exc_info:
+            registry.add_json_gen_strategy(MySystem, MyTestDefinition, JsonGenStrategy)
+        assert str(exc_info.value) == (
+            "Duplicating implementation for 'MySystem, MyTestDefinition', use 'update()' for replacement."
+        )
+
+    def test_update_json_gen_strategy(self, registry: Registry):
+        registry.update_json_gen_strategy(MySystem, MyTestDefinition, AnotherJsonGenStrategy)
+        assert registry.json_gen_strategies_map[(MySystem, MyTestDefinition)] == AnotherJsonGenStrategy
+
+    def test_get_json_gen_strategy_not_found(self, registry: Registry):
+        with pytest.raises(KeyError) as exc_info:
+            registry.get_json_gen_strategy(MySystem, AnotherTestDefinition)
+        assert exc_info.match("JSON gen strategy for 'MySystem, AnotherTestDefinition' not found.")
 
 
 def test_entrypoint_agent_type_verified():

@@ -16,21 +16,12 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type, Union, cast
+from typing import Any, Dict, List
 
 import toml
 from pydantic import ValidationError
 
-from .core import (
-    GradingStrategy,
-    JsonGenStrategy,
-    Registry,
-    System,
-    Test,
-    TestConfigParsingError,
-    TestTemplate,
-    format_validation_error,
-)
+from .core import Registry, System, TestConfigParsingError, format_validation_error
 from .models.workload import TestDefinition
 
 
@@ -94,72 +85,14 @@ class TestParser:
 
         return test_def
 
-    def _fetch_strategy(  # noqa: D417
-        self,
-        strategy_interface: Type[Union[JsonGenStrategy, GradingStrategy]],
-        system_type: Type[System],
-        test_definition_type: Type[TestDefinition],
-    ) -> Optional[Union[JsonGenStrategy, GradingStrategy]]:
-        """
-        Fetch a strategy from the registry based on system and template.
-
-        Args:
-            strategy_interface (Type[Union[JsonGenStrategy, GradingStrategy]]):
-                The strategy interface to fetch.
-            system_type (Type[System]): The system type.
-            test_template_type (Type[TestTemplate]): The test template type.
-
-        Returns:
-            An instance of the requested strategy, or None.
-        """
-        key = (strategy_interface, system_type, test_definition_type)
-        registry = Registry()
-        strategy_type = registry.strategies_map.get(key)
-        if strategy_type:
-            if issubclass(strategy_type, JsonGenStrategy):
-                return strategy_type(self.system)
-            else:
-                return strategy_type()
-
-        logging.debug(
-            f"No {strategy_interface.__name__} found for "
-            f"{test_definition_type.__name__} and "
-            f"{type(self.system).__name__}"
-        )
-        return None
-
-    def _get_test_template(self, name: str, tdef: TestDefinition) -> TestTemplate:
-        """
-        Dynamically retrieves the appropriate TestTemplate subclass based on the given name.
-
-        Args:
-            name (str): The name of the test template.
-            tdef (TestDefinition): The test definition.
-
-        Returns:
-            Type[TestTemplate]: A subclass of TestTemplate corresponding to the given name.
-        """
-        obj = TestTemplate(system=self.system)
-        obj.json_gen_strategy = cast(
-            JsonGenStrategy,
-            self._fetch_strategy(JsonGenStrategy, type(obj.system), type(tdef)),
-        )
-        obj.grading_strategy = cast(
-            GradingStrategy, self._fetch_strategy(GradingStrategy, type(obj.system), type(tdef))
-        )
-        return obj
-
-    def _parse_data(self, data: Dict[str, Any]) -> Test:
+    def _parse_data(self, data: Dict[str, Any]) -> TestDefinition:
         """
         Parse data for a Test object.
 
         Args:
             data (Dict[str, Any]): Data from a source (e.g., a TOML file).
-            strict (bool): Whether to enforce strict validation for test definition.
 
         Returns:
             Test: Parsed Test object.
         """
-        test_def = self.load_test_definition(data)
-        test_template = self._get_test_template(test_def.test_template_name, test_def)
-        return Test(test_definition=test_def, test_template=test_template)
+        return self.load_test_definition(data)

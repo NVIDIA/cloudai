@@ -19,7 +19,7 @@ from typing import cast
 
 import pytest
 
-from cloudai.core import Test, TestRun, TestTemplate
+from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.nixl_perftest import (
     NixlPerftestCmdArgs,
@@ -53,13 +53,7 @@ def nixl_perftest() -> NixlPerftestTestDefinition:
 
 @pytest.fixture
 def test_run(nixl_perftest: NixlPerftestTestDefinition, slurm_system: SlurmSystem) -> TestRun:
-    return TestRun(
-        name="test_run",
-        num_nodes=2,
-        nodes=[],
-        test=Test(test_definition=nixl_perftest, test_template=TestTemplate(slurm_system)),
-        output_path=slurm_system.output_path,
-    )
+    return TestRun(name="test_run", num_nodes=2, nodes=[], test=nixl_perftest, output_path=slurm_system.output_path)
 
 
 def test_gen_matrix_gen_srun_command(test_run: TestRun, slurm_system: SlurmSystem) -> None:
@@ -85,7 +79,7 @@ def test_gen_matrix_gen_command_with_model(
     test_run: TestRun, slurm_system: SlurmSystem, opt_arg: str | None, value: int | None
 ) -> None:
     strategy = NixlPerftestSlurmCommandGenStrategy(slurm_system, test_run)
-    tdef = cast(NixlPerftestTestDefinition, test_run.test.test_definition)
+    tdef = cast(NixlPerftestTestDefinition, test_run.test)
     if opt_arg:
         setattr(tdef.cmd_args, opt_arg, value)
     cmd = strategy.gen_matrix_gen_command()
@@ -114,7 +108,7 @@ def test_gen_matrix_gen_command_with_model(
 
 def test_gen_matrix_gen_command(test_run: TestRun, slurm_system: SlurmSystem) -> None:
     strategy = NixlPerftestSlurmCommandGenStrategy(slurm_system, test_run)
-    tdef = cast(NixlPerftestTestDefinition, test_run.test.test_definition)
+    tdef = cast(NixlPerftestTestDefinition, test_run.test)
     tdef.cmd_args.model = None
     tdef.cmd_args.hidden_size = 1
     tdef.cmd_args.num_layers = 2
@@ -128,7 +122,7 @@ def test_gen_matrix_gen_command(test_run: TestRun, slurm_system: SlurmSystem) ->
 
 def test_gen_matrix_gen_command_with_matgen_args(test_run: TestRun, slurm_system: SlurmSystem) -> None:
     strategy = NixlPerftestSlurmCommandGenStrategy(slurm_system, test_run)
-    tdef = cast(NixlPerftestTestDefinition, test_run.test.test_definition)
+    tdef = cast(NixlPerftestTestDefinition, test_run.test)
     tdef.cmd_args.matgen_args = MatgenCmdArgs.model_validate({"unknown": "unknown"})
     slurm_system.ntasks_per_node = 2
     cmd = strategy.gen_matrix_gen_command()
@@ -154,7 +148,7 @@ def test_gen_matrix_gen_command_with_matgen_args_ppn(
     - If args.ppn is not set, then ppn is set to system.ntasks_per_node if it is defined.
     """
     strategy = NixlPerftestSlurmCommandGenStrategy(slurm_system, test_run)
-    tdef = cast(NixlPerftestTestDefinition, test_run.test.test_definition)
+    tdef = cast(NixlPerftestTestDefinition, test_run.test)
     tdef.cmd_args.matgen_args = MatgenCmdArgs(ppn=args_ppn)
     slurm_system.ntasks_per_node = system_ppn
     cmd = strategy.gen_matrix_gen_command()
@@ -166,7 +160,7 @@ def test_gen_matrix_gen_command_with_matgen_args_ppn(
 
 def test_gen_perftest_srun_command(test_run: TestRun, slurm_system: SlurmSystem) -> None:
     strategy = NixlPerftestSlurmCommandGenStrategy(slurm_system, test_run)
-    tdef = cast(NixlPerftestTestDefinition, test_run.test.test_definition)
+    tdef = cast(NixlPerftestTestDefinition, test_run.test)
     test_run.output_path.mkdir(parents=True, exist_ok=True)
     cmd = strategy.gen_perftest_srun_command()
     assert cmd == [

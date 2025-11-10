@@ -66,7 +66,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     @final
     def container_mounts(self) -> list[str]:
         """Return the container mounts for the test run."""
-        tdef = self.test_run.test.test_definition
+        tdef = self.test_run.test
 
         repo_mounts = []
         for repo in tdef.git_repos:
@@ -118,7 +118,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return self._gen_srun_command()
 
     def job_name_prefix(self) -> str:
-        return self.test_run.test.test_template.__class__.__name__
+        return self.test_run.test.name
 
     def job_name(self) -> str:
         job_name_prefix = self.job_name_prefix()
@@ -137,7 +137,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         Returns:
             CommandGenStrategy: The strategy instance.
         """
-        strategy_cls = Registry().get_command_gen_strategy(type(self.system), type(tr.test.test_definition))
+        strategy_cls = Registry().get_command_gen_strategy(type(self.system), type(tr.test))
         strategy = cast(SlurmCommandGenStrategy, strategy_cls(self.system, tr))
         return strategy
 
@@ -211,7 +211,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return "\n".join(post_test_commands)
 
     def gen_nsys_command(self) -> list[str]:
-        nsys = self.test_run.test.test_definition.nsys
+        nsys = self.test_run.test.nsys
         if not nsys or not nsys.enable:
             return []
 

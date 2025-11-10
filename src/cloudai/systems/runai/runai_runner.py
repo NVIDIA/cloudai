@@ -29,7 +29,7 @@ class RunAIRunner(BaseRunner):
     def _submit_test(self, tr: TestRun) -> RunAIJob:
         logging.info(f"Running test: {tr.name}")
         tr.output_path = self.get_job_output_path(tr)
-        job_spec = tr.test.test_template.gen_json(tr)
+        job_spec = self.get_json_gen_strategy(self.system, tr).gen_json()
         logging.debug(f"Generated JSON for test {tr.name}: {job_spec}")
 
         if self.mode == "run":

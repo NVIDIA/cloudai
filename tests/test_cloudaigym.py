@@ -21,8 +21,9 @@ from unittest.mock import MagicMock, PropertyMock, patch
 import pytest
 
 from cloudai.configurator import CloudAIGymEnv, GridSearchAgent
-from cloudai.core import BaseRunner, Runner, Test, TestRun, TestScenario, TestTemplateStrategy
+from cloudai.core import BaseRunner, Runner, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmSystem
+from cloudai.util import flatten_dict
 from cloudai.workloads.nemo_run import (
     Data,
     NeMoRunCmdArgs,
@@ -67,11 +68,7 @@ def setup_env(slurm_system: SlurmSystem, nemorun: NeMoRunTestDefinition) -> tupl
     test_template_mock.command_gen_strategy = mock_command_gen
 
     test_run = TestRun(
-        name="mock_test_run",
-        test=Test(tdef, test_template=test_template_mock),
-        num_nodes=1,
-        nodes=[],
-        reports={NeMoRunReportGenerationStrategy},
+        name="mock_test_run", test=tdef, num_nodes=1, nodes=[], reports={NeMoRunReportGenerationStrategy}
     )
 
     test_scenario = TestScenario(name="mock_test_scenario", test_runs=[test_run])
@@ -126,22 +123,20 @@ def test_observation_space(setup_env: tuple[TestRun, BaseRunner]):
         ),
     ],
 )
-def test_compute_reward(reward_function, test_cases):
-    test_run = MagicMock()
-    test_run.test.test_definition.agent_reward_function = reward_function
-    env = CloudAIGymEnv(test_run=test_run, runner=MagicMock())
+def test_compute_reward(reward_function, test_cases, base_tr: TestRun):
+    base_tr.test.agent_reward_function = reward_function
+    env = CloudAIGymEnv(test_run=base_tr, runner=MagicMock())
 
     for input_value, expected_reward in test_cases:
         reward = env.compute_reward(input_value)
         assert reward == expected_reward
 
 
-def test_compute_reward_invalid():
-    test_run = MagicMock()
-    test_run.test.test_definition.agent_reward_function = "nonexistent"
+def test_compute_reward_invalid(base_tr: TestRun):
+    base_tr.test.agent_reward_function = "nonexistent"
 
     with pytest.raises(KeyError) as exc_info:
-        CloudAIGymEnv(test_run=test_run, runner=MagicMock())
+        CloudAIGymEnv(test_run=base_tr, runner=MagicMock())
 
     assert "Reward function 'nonexistent' not found" in str(exc_info.value)
     assert (
@@ -152,7 +147,7 @@ def test_compute_reward_invalid():
 
 def test_tr_output_path(setup_env: tuple[TestRun, BaseRunner]):
     test_run, runner = setup_env
-    test_run.test.test_definition.cmd_args.data.global_batch_size = 8  # avoid constraint check failure
+    test_run.test.cmd_args.data.global_batch_size = 8  # avoid constraint check failure
     env = CloudAIGymEnv(test_run=test_run, runner=runner)
     agent = GridSearchAgent(env)
 
@@ -171,7 +166,7 @@ def test_action_space(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, 
     nemorun.cmd_args.data.micro_batch_size = [1, 2]
     nemorun.extra_env_vars["DSE_VAR"] = ["1", "2"]
 
-    tr.test.test_definition = nemorun
+    tr.test = nemorun
     tr.num_nodes = [1, 2]
 
     action_space = tr.param_space
@@ -192,7 +187,7 @@ def test_all_combinations(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestR
     tr, _ = setup_env
     nemorun.cmd_args.trainer = Trainer(max_steps=[1000], strategy=TrainerStrategy(tensor_model_parallel_size=[1, 2]))
     nemorun.extra_env_vars["DSE_VAR"] = ["1", "2", "3"]
-    tr.test.test_definition = nemorun
+    tr.test = nemorun
     tr.num_nodes = num_nodes
 
     expected_num_combinations = 6
@@ -229,20 +224,20 @@ def test_all_combinations(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestR
 
 def test_all_combinations_non_dse(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, BaseRunner]):
     tr, _ = setup_env
-    tr.test.test_definition = nemorun
+    tr.test = nemorun
     assert len(tr.all_combinations) == 0
 
 
 def test_all_combinations_non_dse_but_with_space(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, Runner]):
     tr, _ = setup_env
-    tr.test.test_definition = nemorun
-    with patch.object(type(tr.test.test_definition), "is_dse_job", new_callable=PropertyMock(return_value=True)):
+    tr.test = nemorun
+    with patch.object(type(tr.test), "is_dse_job", new_callable=PropertyMock(return_value=True)):
         assert len(tr.all_combinations) == 0
 
 
 def test_all_combinations_dse_on_num_nodes(nemorun: NeMoRunTestDefinition, setup_env: tuple[TestRun, Runner]):
     tr, _ = setup_env
-    tr.test.test_definition = NeMoRunTestDefinition(
+    tr.test = NeMoRunTestDefinition(
         name="NemoModel",
         description="Nemo Model",
         test_template_name="nemo_template",
@@ -259,10 +254,10 @@ def test_params_set(setup_env: tuple[TestRun, Runner], num_nodes: int):
     assert len(tr.all_combinations) > 1
     for action in tr.all_combinations:
         new_tr = tr.apply_params_set(action)
-        cmd_args = TestTemplateStrategy._flatten_dict(new_tr.test.test_definition.cmd_args.model_dump())
+        cmd_args = flatten_dict(new_tr.test.cmd_args.model_dump())
         for key, value in action.items():
             if key.startswith("extra_env_vars."):
-                assert new_tr.test.test_definition.extra_env_vars[key[len("extra_env_vars.") :]] == value
+                assert new_tr.test.extra_env_vars[key[len("extra_env_vars.") :]] == value
             elif key == "NUM_NODES":
                 assert new_tr.num_nodes == value
             else:
@@ -272,7 +267,7 @@ def test_params_set(setup_env: tuple[TestRun, Runner], num_nodes: int):
 def test_params_set_validated(setup_env: tuple[TestRun, Runner], nemorun: NeMoRunTestDefinition):
     tr, _ = setup_env
     nemorun.cmd_args.trainer = Trainer(max_steps=[1000])
-    tr.test.test_definition = nemorun
+    tr.test = nemorun
     action_space = tr.param_space
     action_space["trainer.max_steps"] = "invalid"
 
@@ -288,7 +283,7 @@ def test_params_set_validated(setup_env: tuple[TestRun, Runner], nemorun: NeMoRu
 
 def test_apply_params_set__preserves_installables_state(setup_env: tuple[TestRun, Runner], tmp_path: Path):
     tr, _ = setup_env
-    tr.test.test_definition = NIXLBenchTestDefinition(
+    tr.test = NIXLBenchTestDefinition(
         name="NIXLBench",
         description="NIXL Bench",
         test_template_name="NIXLBench",
@@ -297,10 +292,10 @@ def test_apply_params_set__preserves_installables_state(setup_env: tuple[TestRun
             path_to_benchmark="https://benchmark/path",
         ),
     )
-    tr.test.test_definition.docker_image.installed_path = tmp_path
+    tr.test.docker_image.installed_path = tmp_path
 
     new_tr = tr.apply_params_set({"backend": "VRAM"})
 
-    upd_tdef = cast(NIXLBenchTestDefinition, new_tr.test.test_definition)
+    upd_tdef = cast(NIXLBenchTestDefinition, new_tr.test)
 
     assert upd_tdef.docker_image.installed_path == tmp_path

@@ -15,11 +15,10 @@
 # limitations under the License.
 
 from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 
-from cloudai import Test, TestRun
+from cloudai import TestRun
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunReportGenerationStrategy, NeMoRunTestDefinition
 from cloudai.workloads.nemo_run.report_generation_strategy import extract_timings
@@ -27,14 +26,11 @@ from cloudai.workloads.nemo_run.report_generation_strategy import extract_timing
 
 @pytest.fixture
 def nemo_tr(tmp_path: Path) -> TestRun:
-    test = Test(
-        test_definition=NeMoRunTestDefinition(
-            name="nemo",
-            description="desc",
-            test_template_name="t",
-            cmd_args=NeMoRunCmdArgs(docker_image_url="docker://url", task="task", recipe_name="recipe"),
-        ),
-        test_template=Mock(),
+    test = NeMoRunTestDefinition(
+        name="nemo",
+        description="desc",
+        test_template_name="t",
+        cmd_args=NeMoRunCmdArgs(docker_image_url="docker://url", task="task", recipe_name="recipe"),
     )
     tr = TestRun(name="nemo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
     tr.reports = {NeMoRunReportGenerationStrategy}
@@ -73,14 +69,11 @@ def nemo_tr(tmp_path: Path) -> TestRun:
 
 @pytest.fixture
 def nemo_tr_encoded(tmp_path: Path) -> TestRun:
-    test = Test(
-        test_definition=NeMoRunTestDefinition(
-            name="nemo",
-            description="desc",
-            test_template_name="t",
-            cmd_args=NeMoRunCmdArgs(docker_image_url="docker://url", task="task", recipe_name="recipe"),
-        ),
-        test_template=Mock(),
+    test = NeMoRunTestDefinition(
+        name="nemo",
+        description="desc",
+        test_template_name="t",
+        cmd_args=NeMoRunCmdArgs(docker_image_url="docker://url", task="task", recipe_name="recipe"),
     )
     tr = TestRun(name="nemo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
 
@@ -152,7 +145,7 @@ def test_nemo_generate_report_encoded(slurm_system: SlurmSystem, nemo_tr_encoded
 
 @pytest.mark.parametrize("metric", ["default", "step-time"])
 def test_metrics(nemo_tr: TestRun, slurm_system: SlurmSystem, metric: str):
-    nemo_tr.test.test_definition.agent_metrics = [metric]
+    nemo_tr.test.agent_metrics = [metric]
     value = nemo_tr.get_metric_value(slurm_system, metric)
     assert value == 12.72090909090909
 
