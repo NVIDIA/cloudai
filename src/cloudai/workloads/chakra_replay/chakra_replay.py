@@ -44,3 +44,10 @@ class ChakraReplayTestDefinition(TestDefinition):
     @property
     def installables(self) -> list[Installable]:
         return [self.docker_image]
+
+    @property
+    def extra_args_str(self) -> str:
+        parts = []
+        for k, v in self.extra_cmd_args.items():
+            parts.append(f"{k} {v}" if v else k)
+        return " ".join(parts)

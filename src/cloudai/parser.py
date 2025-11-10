@@ -16,10 +16,12 @@
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 import toml
 from pydantic import ValidationError
+
+from cloudai.models.workload import TestDefinition
 
 from ._core.exceptions import (
     SystemConfigParsingError,
@@ -29,7 +31,6 @@ from ._core.exceptions import (
 )
 from ._core.registry import Registry
 from ._core.system import System
-from ._core.test import Test
 from ._core.test_scenario import TestScenario
 from .test_parser import TestParser
 from .test_scenario_parser import TestScenarioParser
@@ -64,10 +65,8 @@ class Parser:
         return self._system
 
     def parse(
-        self,
-        test_path: Optional[Path] = None,
-        test_scenario_path: Optional[Path] = None,
-    ) -> Tuple[System, List[Test], Optional[TestScenario]]:
+        self, test_path: Path | None = None, test_scenario_path: Path | None = None
+    ) -> tuple[System, list[TestDefinition], TestScenario | None]:
         """
         Parse configurations for system, test templates, and test scenarios.
 
@@ -80,7 +79,7 @@ class Parser:
             Tuple[System, List[Test], Optional[TestScenario]]: A tuple containing the system object, a list of filtered
                 test template objects, and the main test scenario object if provided.
         """
-        tests: list[Test] = []
+        tests: list[TestDefinition] = []
         if test_path:
             if not test_path.exists():
                 raise FileNotFoundError(f"Test path '{test_path}' not found.")
@@ -133,7 +132,9 @@ class Parser:
         return self.system, filtered_tests, test_scenario
 
     @staticmethod
-    def parse_hooks(hook_tomls: List[Path], system: System, test_mapping: Dict[str, Test]) -> Dict[str, TestScenario]:
+    def parse_hooks(
+        hook_tomls: list[Path], system: System, test_mapping: dict[str, TestDefinition]
+    ) -> dict[str, TestScenario]:
         hook_mapping = {}
         for hook_test_scenario_path in hook_tomls:
             hook_scenario = Parser.parse_test_scenario(hook_test_scenario_path, system, test_mapping)
@@ -144,8 +145,8 @@ class Parser:
     def parse_test_scenario(
         test_scenario_path: Path,
         system: System,
-        test_mapping: Dict[str, Test],
-        hook_mapping: Optional[Dict[str, TestScenario]] = None,
+        test_mapping: dict[str, TestDefinition],
+        hook_mapping: dict[str, TestScenario] | None = None,
     ) -> TestScenario:
         if hook_mapping is None:
             hook_mapping = {}
@@ -155,9 +156,9 @@ class Parser:
         return test_scenario
 
     @staticmethod
-    def parse_tests(test_tomls: list[Path], system: System) -> list[Test]:
+    def parse_tests(test_tomls: list[Path], system: System) -> list[TestDefinition]:
         test_parser = TestParser(test_tomls, system)
-        tests: List[Test] = test_parser.parse_all()
+        tests: list[TestDefinition] = test_parser.parse_all()
         return tests
 
     @staticmethod

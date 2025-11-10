@@ -36,7 +36,7 @@ class NixlPerftestSlurmCommandGenStrategy(NIXLCmdGenBase):
 
     @property
     def tdef(self) -> NixlPerftestTestDefinition:
-        return cast(NixlPerftestTestDefinition, self.test_run.test.test_definition)
+        return cast(NixlPerftestTestDefinition, self.test_run.test)
 
     def image_path(self) -> str | None:
         return str(self.tdef.docker_image.installed_path)

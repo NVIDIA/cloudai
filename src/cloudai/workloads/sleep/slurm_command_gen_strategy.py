@@ -28,6 +28,6 @@ class SleepSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return []
 
     def generate_test_command(self) -> List[str]:
-        tdef: SleepTestDefinition = cast(SleepTestDefinition, self.test_run.test.test_definition)
+        tdef: SleepTestDefinition = cast(SleepTestDefinition, self.test_run.test)
         tdef_cmd_args: SleepCmdArgs = tdef.cmd_args
         return [f"sleep {tdef_cmd_args.seconds}"]

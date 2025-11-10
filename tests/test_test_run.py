@@ -19,9 +19,8 @@ from typing import ClassVar
 import pytest
 
 from cloudai._core.test_scenario import TestRun
-from cloudai.core import ReportGenerationStrategy, Test, TestDefinition, TestTemplate
+from cloudai.core import ReportGenerationStrategy, TestDefinition
 from cloudai.models.workload import CmdArgs
-from cloudai.systems.slurm import SlurmSystem
 
 
 class MyReport(ReportGenerationStrategy):
@@ -46,37 +45,29 @@ class MyReport2(ReportGenerationStrategy):
 
 class TestMetricsReporter:
     @pytest.fixture
-    def tr(self, slurm_system: SlurmSystem):
+    def tr(self) -> TestRun:
         return TestRun(
             name="test",
-            test=Test(
-                test_definition=TestDefinition(
-                    name="test",
-                    description="",
-                    test_template_name="Test",
-                    cmd_args=CmdArgs(),
-                ),
-                test_template=TestTemplate(slurm_system),
-            ),
+            test=TestDefinition(name="test", description="", test_template_name="Test", cmd_args=CmdArgs()),
             num_nodes=1,
             nodes=[],
         )
 
     def test_no_reports(self, tr: TestRun):
         tr.reports.clear()
-        tr.test.test_definition.agent_metrics = ["default"]
+        tr.test.agent_metrics = ["default"]
         assert tr.metric_reporter is None
 
     def test_no_metrics(self, tr: TestRun):
         tr.reports = {MyReport}
-        tr.test.test_definition.agent_metrics = []
+        tr.test.agent_metrics = []
         assert tr.metric_reporter is None
 
     def test_one_report_multiple_metrics(self, tr: TestRun):
         tr.reports = {MyReport}
         metrics = ["m1", "m2"]
         MyReport.metrics = metrics
-        tr.test.test_definition.agent_metrics = metrics
+        tr.test.agent_metrics = metrics
 
         assert tr.metric_reporter is MyReport
 
@@ -85,6 +76,6 @@ class TestMetricsReporter:
         metrics = ["m1", "m2"]
         MyReport.metrics = ["m1"]
         MyReport2.metrics = ["m2"]
-        tr.test.test_definition.agent_metrics = metrics
+        tr.test.agent_metrics = metrics
 
         assert tr.metric_reporter is None

@@ -18,19 +18,18 @@ import copy
 import logging
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Type
+from typing import Any, Dict, List, Mapping, Optional, Set, Type
 
 import toml
 from pydantic import ValidationError
 
-from cloudai.util import format_time_limit, parse_time_limit
+from cloudai.util import deep_merge, format_time_limit, parse_time_limit
 
 from .core import (
     MissingTestError,
     Registry,
     ReportGenerationStrategy,
     System,
-    Test,
     TestDependency,
     TestRun,
     TestScenario,
@@ -83,11 +82,15 @@ class TestScenarioParser:
     __test__ = False
 
     def __init__(
-        self, file_path: Path, system: System, test_mapping: Dict[str, Test], hook_mapping: Dict[str, TestScenario]
+        self,
+        file_path: Path,
+        system: System,
+        test_mapping: dict[str, TestDefinition],
+        hook_mapping: dict[str, TestScenario],
     ) -> None:
         self.file_path = file_path
         self.system = system
-        self.test_mapping = test_mapping
+        self.test_mapping: Mapping[str, TestDefinition] = test_mapping
         self.hook_mapping = hook_mapping
 
     def parse(self) -> TestScenario:
@@ -186,16 +189,14 @@ class TestScenarioParser:
         Raises:
             ValueError: If the test or nodes are not found within the system.
         """
-        original_test, tdef = self._prepare_tdef(test_info)
-
-        test = Test(test_definition=tdef, test_template=original_test.test_template)
+        tdef = self._prepare_tdef(test_info)
 
         hooks = [hook for hook in [pre_test, post_test] if hook is not None]
         total_time_limit = calculate_total_time_limit(test_hooks=hooks, time_limit=test_info.time_limit)
 
         tr = TestRun(
             test_info.id,
-            test,
+            tdef,
             num_nodes=test_info.num_nodes or 1,
             iterations=test_info.iterations,
             nodes=test_info.nodes,
@@ -205,12 +206,12 @@ class TestScenarioParser:
             ideal_perf=test_info.ideal_perf,
             pre_test=pre_test,
             post_test=post_test,
-            reports=get_reporters(test_info, test.test_definition),
+            reports=get_reporters(test_info, tdef),
         )
 
         return tr
 
-    def _prepare_tdef(self, test_info: TestRunModel) -> Tuple[Test, TestDefinition]:
+    def _prepare_tdef(self, test_info: TestRunModel) -> TestDefinition:
         tp = TestParser([self.file_path], self.system)
         tp.current_file = self.file_path
 
@@ -219,10 +220,10 @@ class TestScenarioParser:
                 raise MissingTestError(test_info.test_name)
             test = self.test_mapping[test_info.test_name]
 
-            test_defined = test.test_definition.model_dump(by_alias=True)
+            test_defined = test.model_dump(by_alias=True)
             tc_defined = test_info.tdef_model_dump(by_alias=True)
             merged_data = deep_merge(test_defined, tc_defined)
-            test.test_definition = tp.load_test_definition(merged_data)
+            test = tp.load_test_definition(merged_data)
         elif test_info.test_template_name:  # test fully defined in the scenario
             test = tp._parse_data(test_info.tdef_model_dump(by_alias=True))
         else:
@@ -231,17 +232,4 @@ class TestScenarioParser:
                 f"Cannot configure test case '{test_info.id}' with both 'test_name' and 'test_template_name'."
             )
 
-        return test, test.test_definition
-
-
-def deep_merge(a: dict, b: dict):
-    result = a.copy()
-    for key in b:
-        if key in result:
-            if isinstance(result[key], dict) and isinstance(b[key], dict):
-                result[key] = deep_merge(result[key], b[key])
-            else:
-                result[key] = b[key]
-        else:
-            result[key] = b[key]
-    return result
+        return test

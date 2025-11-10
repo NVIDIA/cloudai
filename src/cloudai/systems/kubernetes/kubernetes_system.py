@@ -343,7 +343,7 @@ class KubernetesSystem(BaseModel, System):
     def _run_genai_perf(self, job: KubernetesJob) -> None:
         from cloudai.workloads.ai_dynamo.ai_dynamo import AIDynamoTestDefinition
 
-        test_definition = job.test_run.test.test_definition
+        test_definition = job.test_run.test
         if not isinstance(test_definition, AIDynamoTestDefinition):
             raise TypeError("Test definition must be an instance of AIDynamoTestDefinition")
 

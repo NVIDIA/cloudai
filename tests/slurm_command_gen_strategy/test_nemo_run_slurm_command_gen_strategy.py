@@ -16,11 +16,10 @@
 
 import logging
 from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 
-from cloudai.core import Test, TestRun
+from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.nemo_run import (
     Data,
@@ -46,14 +45,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
             extra_cmd_args={"extra_args": ""},
         )
 
-        test = Test(test_definition=tdef, test_template=Mock())
-        tr = TestRun(
-            test=test,
-            num_nodes=1,
-            nodes=[],
-            output_path=tmp_path / "output",
-            name="test-job",
-        )
+        tr = TestRun(test=tdef, num_nodes=1, nodes=[], output_path=tmp_path / "output", name="test-job")
 
         return tr
 
@@ -71,7 +63,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
             ),
             data=Data(micro_batch_size=1),
         )
-        cmd_gen_strategy.test_run.test.test_definition.cmd_args = cmd_args
+        cmd_gen_strategy.test_run.test.cmd_args = cmd_args
 
         recipe_name = cmd_gen_strategy._validate_recipe_name(cmd_args.recipe_name)
 
@@ -91,7 +83,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
 
     def test_num_nodes(self, cmd_gen_strategy: NeMoRunSlurmCommandGenStrategy) -> None:
         cmd_gen_strategy.test_run.nodes = ["node1"]
-        cmd_args_dict = cmd_gen_strategy.test_run.test.test_definition.cmd_args.model_dump()
+        cmd_args_dict = cmd_gen_strategy.test_run.test.cmd_args.model_dump()
         cmd_args_dict["trainer"]["num_nodes"] = len(cmd_gen_strategy.test_run.nodes)
 
         cmd = cmd_gen_strategy.generate_test_command()
@@ -108,7 +100,7 @@ class TestNeMoRunSlurmCommandGenStrategy:
             recipe_name="llama7_13b",
             trainer=Trainer(num_nodes=4),
         )
-        cmd_gen_strategy.test_run.test.test_definition.cmd_args = cmd_args
+        cmd_gen_strategy.test_run.test.cmd_args = cmd_args
 
         with caplog.at_level(logging.WARNING):
             cmd_gen_strategy.generate_test_command()

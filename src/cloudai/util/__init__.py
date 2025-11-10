@@ -17,7 +17,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from .command_shell import CommandShell
 from .utils import format_time_limit, parse_time_limit
@@ -90,8 +90,45 @@ def prepare_output_dir(path: Path) -> Optional[Path]:
         return None
 
 
+def deep_merge(a: dict, b: dict) -> dict:
+    result = a.copy()
+    for key in b:
+        if key in result:
+            if isinstance(result[key], dict) and isinstance(b[key], dict):
+                result[key] = deep_merge(result[key], b[key])
+            else:
+                result[key] = b[key]
+        else:
+            result[key] = b[key]
+    return result
+
+
+def flatten_dict(d: dict[str, Any], parent_key: str = "", sep: str = ".") -> dict[str, Any]:
+    """
+    Flatten a nested dictionary into a single level dictionary with dot-separated keys.
+
+    Args:
+        d (Dict[str, Any]): The dictionary to flatten.
+        parent_key (str): The base key for recursion (used internally).
+        sep (str): Separator used between keys.
+
+    Returns:
+        Dict[str, Any]: Flattened dictionary.
+    """
+    items = []
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
+
 __all__ = [
     "CommandShell",
+    "deep_merge",
+    "flatten_dict",
     "format_time_limit",
     "parse_time_limit",
     "prepare_output_dir",

@@ -15,24 +15,20 @@
 # limitations under the License.
 
 from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 
-from cloudai import Test, TestRun
+from cloudai import TestRun
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
 
 @pytest.fixture
 def nccl_tr(tmp_path: Path) -> TestRun:
-    test = Test(
-        test_definition=NCCLTestDefinition(
-            name="nccl",
-            description="desc",
-            test_template_name="t",
-            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-        ),
-        test_template=Mock(),
+    test = NCCLTestDefinition(
+        name="nccl",
+        description="desc",
+        test_template_name="t",
+        cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
     )
     tr = TestRun(name="nccl_test", test=test, num_nodes=2, nodes=[], output_path=tmp_path)
 

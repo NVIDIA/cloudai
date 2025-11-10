@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,16 +18,20 @@ import re
 from abc import ABC, abstractmethod
 from typing import Any, Dict
 
+from .system import System
 from .test_scenario import TestRun
-from .test_template_strategy import TestTemplateStrategy
 
 
-class JsonGenStrategy(TestTemplateStrategy, ABC):
+class JsonGenStrategy(ABC):
     """
     Abstract base class for generating Kubernetes job specifications based on system and test parameters.
 
     It specifies how to generate JSON job specifications based on system and test parameters.
     """
+
+    def __init__(self, system: System, test_run: TestRun) -> None:
+        self.system = system
+        self.test_run = test_run
 
     def sanitize_k8s_job_name(self, job_name: str) -> str:
         """
@@ -51,7 +55,7 @@ class JsonGenStrategy(TestTemplateStrategy, ABC):
         return sanitized_name[:253]
 
     @abstractmethod
-    def gen_json(self, tr: TestRun) -> Dict[Any, Any]:
+    def gen_json(self) -> Dict[Any, Any]:
         """
         Generate the Kubernetes job specification based on the given parameters.
 

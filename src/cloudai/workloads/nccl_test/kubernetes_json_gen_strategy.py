@@ -16,7 +16,7 @@
 
 from typing import Any, Dict, List, Union, cast
 
-from cloudai.core import JsonGenStrategy, TestRun
+from cloudai.core import JsonGenStrategy
 
 from .nccl import NCCLTestDefinition
 
@@ -26,7 +26,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
 
     SSH_PORT: int = 2222
 
-    def gen_json(self, tr: TestRun) -> Dict[Any, Any]:
+    def gen_json(self) -> dict[Any, Any]:
         return {
             "apiVersion": "kubeflow.org/v2beta1",
             "kind": "MPIJob",
@@ -37,15 +37,15 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
                 "slotsPerWorker": 1,
                 "runPolicy": {"cleanPodPolicy": "Running"},
                 "mpiReplicaSpecs": {
-                    "Launcher": self._create_launcher_spec(tr),
-                    "Worker": self._create_worker_spec(tr),
+                    "Launcher": self._create_launcher_spec(),
+                    "Worker": self._create_worker_spec(),
                 },
             },
         }
 
-    def _create_launcher_spec(self, tr: TestRun) -> Dict[str, Any]:
-        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, tr.test.test_definition)
-        env_vars = self._get_merged_env_vars(tr)
+    def _create_launcher_spec(self) -> dict[str, Any]:
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
+        env_vars = self._get_merged_env_vars()
         return {
             "replicas": 1,
             "template": {
@@ -59,18 +59,18 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
                             "securityContext": {"privileged": True},
                             "env": self._generate_env_list(env_vars),
                             "command": ["/bin/bash", "-c"],
-                            "args": [self._generate_launcher_command(tr, env_vars)],
+                            "args": [self._generate_launcher_command(env_vars)],
                         }
                     ],
                 },
             },
         }
 
-    def _create_worker_spec(self, tr: TestRun) -> Dict[str, Any]:
-        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, tr.test.test_definition)
-        env_vars = self._get_merged_env_vars(tr)
+    def _create_worker_spec(self) -> dict[str, Any]:
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
+        env_vars = self._get_merged_env_vars()
         return {
-            "replicas": tr.num_nodes,
+            "replicas": self.test_run.num_nodes,
             "template": {
                 "spec": {
                     "hostNetwork": True,
@@ -95,8 +95,10 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
             },
         }
 
-    def _get_merged_env_vars(self, tr: TestRun) -> Dict[str, Union[str, List[str]]]:
-        return self._override_env_vars(self.system.global_env_vars, tr.test.extra_env_vars)
+    def _get_merged_env_vars(self) -> dict[str, str | list[str]]:
+        final_env_vars = self.system.global_env_vars.copy()
+        final_env_vars.update(self.test_run.test.extra_env_vars)
+        return final_env_vars
 
     def _generate_env_list(self, env_vars: Dict[str, Union[str, List[str]]]) -> List[Dict[str, str]]:
         env_list = [{"name": "OMPI_ALLOW_RUN_AS_ROOT", "value": "1"}]
@@ -134,8 +136,8 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
             extra_args.append(f"{key} {value}" if value else key)
         return extra_args
 
-    def _generate_launcher_command(self, tr: TestRun, env_vars: Dict[str, Union[str, List[str]]]) -> str:
-        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, tr.test.test_definition)
+    def _generate_launcher_command(self, env_vars: dict[str, str | list[str]]) -> str:
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
         tdef_cmd_args = tdef.cmd_args
 
         cmd_args_dict = {
@@ -149,7 +151,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
             " ".join(self._generate_nccl_args(cmd_args_dict)),
         ]
 
-        if tr.test.extra_cmd_args:
+        if self.test_run.test.extra_cmd_args:
             command_parts.append(" ".join(self._generate_extra_args(tdef.extra_cmd_args)))
 
         return " \\\n".join(command_parts)

@@ -157,7 +157,7 @@ class StatusReporter(Reporter):
 
     def report_best_dse_config(self):
         for tr in self.test_scenario.test_runs:
-            if not tr.test.test_definition.is_dse_job:
+            if not tr.test.is_dse_job:
                 continue
 
             tr_root = self.results_root / tr.name / f"{tr.current_iteration}"
@@ -188,7 +188,7 @@ class TarballReporter(Reporter):
             self.create_tarball(self.results_root)
 
     def is_successful(self, tr: TestRun) -> bool:
-        return tr.test.test_definition.was_run_successful(tr).is_successful
+        return tr.test.was_run_successful(tr).is_successful
 
     def create_tarball(self, directory: Path) -> None:
         tarball_path = Path(str(directory) + ".tgz")
