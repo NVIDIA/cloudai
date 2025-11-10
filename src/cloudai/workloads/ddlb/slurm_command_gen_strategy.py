@@ -52,7 +52,7 @@ class DDLBTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     srun_command_parts.append(f"--{arg} {value}")
 
         if self.test_run.test.extra_cmd_args:
-            srun_command_parts.append(self.test_run.test.extra_cmd_args)
+            srun_command_parts.append(self.test_run.test.extra_args_str)
 
         return srun_command_parts
 
