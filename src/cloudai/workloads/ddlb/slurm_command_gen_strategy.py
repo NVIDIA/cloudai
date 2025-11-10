@@ -28,11 +28,11 @@ class DDLBTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return []
 
     def image_path(self) -> str | None:
-        tdef: DDLBTestDefinition = cast(DDLBTestDefinition, self.test_run.test.test_definition)
+        tdef: DDLBTestDefinition = cast(DDLBTestDefinition, self.test_run.test)
         return str(tdef.docker_image.installed_path)
 
     def generate_test_command(self) -> List[str]:
-        tdef: DDLBTestDefinition = cast(DDLBTestDefinition, self.test_run.test.test_definition)
+        tdef: DDLBTestDefinition = cast(DDLBTestDefinition, self.test_run.test)
         srun_command_parts = ["python ddlb/cli/benchmark.py"]
         ddlb_test_args = tdef.cmd_args.model_dump().keys()
         for arg in ddlb_test_args:

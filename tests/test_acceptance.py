@@ -281,7 +281,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         ),
         "ddlb": lambda: create_test_run(
             partial_tr,
-            slurm_system,
             "ddlb",
             DDLBTestDefinition(
                 name="ddlb",
