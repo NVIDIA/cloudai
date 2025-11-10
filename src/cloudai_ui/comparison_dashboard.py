@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 from dash import dcc, html, no_update
 
@@ -146,11 +146,7 @@ class ComparisonDataManager:
     """Base dashboard data manager."""
 
     def __init__(
-        self,
-        data_provider: DataProvider,
-        test_type: str,
-        default_charts: list[str],
-        default_grouping: list[str],
+        self, data_provider: DataProvider, test_type: str, default_charts: list[str], default_grouping: list[str]
     ):
         self.data_provider = data_provider
         self.test_type = test_type
@@ -198,12 +194,8 @@ class ComparisonDataManager:
     ) -> DashboardState:
         all_data = self.get_data()
 
-        # Calculate data filtered only by systems (for scenario dropdown options)
         data_filtered_by_systems = self.apply_filters(all_data, selected_systems, None)
-        # Calculate data filtered only by scenarios (for system dropdown options)
         data_filtered_by_scenarios = self.apply_filters(all_data, None, selected_scenarios)
-
-        # Calculate final filtered data (both filters applied)
         filtered_data = self.apply_filters(all_data, selected_systems, selected_scenarios)
 
         if selected_charts is None:
@@ -223,11 +215,6 @@ class ComparisonDataManager:
             selected_charts=selected_charts,
             group_by=group_by,
         )
-
-
-# ============================================================================
-# PRESENTATION LAYER
-# ============================================================================
 
 
 def get_grouping_options(data: list[Record]) -> list:
@@ -337,7 +324,6 @@ def format_group_title(group_name: str) -> Any:
     if group_name == "all-in-one":
         return html.H3("All Results")
 
-    # Split by spaces to get individual k=v pairs
     parts = group_name.split(" ")
     children = []
 
@@ -359,7 +345,9 @@ def format_group_title(group_name: str) -> Any:
     return html.H3(children)
 
 
-def render_charts(state: DashboardState, render_charts_for_group_func: Any) -> Any:
+def render_charts(
+    state: DashboardState, render_charts_for_group_func: Callable[[GroupedItems[Record], list[str]], list[Any]]
+) -> Any:
     """Render charts using dashboard-specific rendering function."""
     if not state.filtered_data:
         return html.Div(html.P("No test runs found.", className="text-muted"))
@@ -376,7 +364,6 @@ def render_charts(state: DashboardState, render_charts_for_group_func: Any) -> A
         group_content = []
         group_content.append(format_group_title(group.name))
 
-        # Use dashboard-specific chart rendering
         chart_components = render_charts_for_group_func(group, selected_charts)
         group_content.extend(chart_components)
 
@@ -396,14 +383,7 @@ def render_charts(state: DashboardState, render_charts_for_group_func: Any) -> A
     return charts
 
 
-# ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
-
-
 def create_scenario_dropdown_options(scenario_labels: list[str], all_data: list[Record]) -> list:
-    """Create scenario dropdown options with result counts."""
-    # Count occurrences in all_data for each available scenario label
     label_counts: dict[str, int] = {}
     for data in all_data:
         if data.label in scenario_labels:
@@ -419,12 +399,11 @@ def create_scenario_dropdown_options(scenario_labels: list[str], all_data: list[
 
 
 def create_system_dropdown_options(system_names: list[str]) -> list:
-    """Create system dropdown options."""
     return [{"label": system, "value": system} for system in system_names]
 
 
 def format_bytes(num_bytes: float) -> str:
-    """Format byte size to human-readable format (KB, MB, GB, TB)."""
+    """Format byte size to human-readable format (KB, MB, etc.)."""
     for unit in ["B", "KB", "MB", "GB", "TB"]:
         if abs(num_bytes) < 1024.0:
             if num_bytes == int(num_bytes):
@@ -434,20 +413,10 @@ def format_bytes(num_bytes: float) -> str:
     return f"{num_bytes:.1f}PB"
 
 
-def generate_size_ticks(x_values: set[float]) -> tuple[list[float], list[str]]:
-    """
-    Generate tick values and human-readable labels for size-based x-axis.
-
-    Args:
-        x_values: Set of x-axis values (in bytes)
-
-    Returns:
-        Tuple of (tick_values, tick_labels) for plotly
-    """
+def generate_byte_sized_ticks(x_values: set[float]) -> tuple[list[float], list[str]]:
     if not x_values:
         return ([], [])
 
-    sorted_x = sorted(x_values)
-    tick_values = sorted_x
-    tick_labels = [format_bytes(x) for x in sorted_x]
+    tick_values = sorted(x_values)
+    tick_labels = [format_bytes(x) for x in tick_values]
     return (tick_values, tick_labels)

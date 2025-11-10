@@ -27,7 +27,7 @@ from .dse_dashboard import DSEDashboard
 from .nccl_dashboard import NCCLDashboard
 from .nixl_dashboard import NIXLDashboard
 
-APP_TITLE = "CloudAI UI (⍺)"
+APP_TITLE = "CloudAI UI (⍺)"  # noqa: RUF001 (this letter is intentional)
 
 
 def available_dashboards() -> list[str]:

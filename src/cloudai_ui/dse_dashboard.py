@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""DSE (Design Space Exploration) dashboard implementation."""
-
 from __future__ import annotations
 
 from collections import defaultdict

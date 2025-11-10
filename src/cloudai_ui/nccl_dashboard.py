@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""NCCL-specific dashboard implementation."""
-
 from __future__ import annotations
 
 from typing import Any
@@ -26,7 +24,7 @@ from dash import dcc, html
 
 from cloudai.report_generator.groups import GroupedItems, GroupItem
 
-from .comparison_dashboard import ComparisonDashboard, format_bytes, generate_size_ticks
+from .comparison_dashboard import ComparisonDashboard, format_bytes, generate_byte_sized_ticks
 from .data_layer import DataProvider, Record
 
 
@@ -163,7 +161,7 @@ def create_nccl_chart(
             )
 
     # Generate custom tick values and labels
-    tickvals, ticktext = generate_size_ticks(all_x_values)
+    tickvals, ticktext = generate_byte_sized_ticks(all_x_values)
 
     fig.update_layout(
         xaxis_title="Message Size",
