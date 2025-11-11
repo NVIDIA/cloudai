@@ -17,7 +17,7 @@
 import json
 from pathlib import Path
 
-from cloudai import GradingStrategy
+from cloudai.core import GradingStrategy
 
 
 class DeepEPBenchmarkGradingStrategy(GradingStrategy):

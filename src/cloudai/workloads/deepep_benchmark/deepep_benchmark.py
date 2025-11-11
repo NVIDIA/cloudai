@@ -16,8 +16,8 @@
 
 from typing import Literal, Optional
 
-from cloudai import CmdArgs, TestDefinition
-from cloudai.installer.installables import DockerImage, Installable
+from cloudai.core import DockerImage, Installable
+from cloudai.models.workload import CmdArgs, TestDefinition
 
 
 class DeepEPBenchmarkCmdArgs(CmdArgs):

@@ -21,7 +21,7 @@ from typing import Optional
 
 import pandas as pd
 
-from cloudai import ReportGenerationStrategy
+from cloudai.core import ReportGenerationStrategy
 from cloudai.report_generator.tool.csv_report_tool import CSVReportTool
 
 

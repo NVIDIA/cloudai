@@ -29,7 +29,6 @@ ntasks_per_node = 1
 
 [[partitions]]
 name = "GAIA"
-nodes = ["dgx-gaia-[09-10,30,36-37,40-42]"]
 
   [[partitions.groups]]
   name = "low_latency_nodes"
@@ -38,6 +37,10 @@ nodes = ["dgx-gaia-[09-10,30,36-37,40-42]"]
   [[partitions.groups]]
   name = "standard_nodes"
   nodes = ["dgx-gaia-[40-41]"]
+
+  [[partitions.groups]]
+  name = "all_nodes"
+  nodes = ["dgx-gaia-[09-10,30,36-37,40-42]"]
 
 [global_env_vars]
 # NCCL Specific Configurations for DeepEP on GAIA
