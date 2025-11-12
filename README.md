@@ -3,31 +3,16 @@
 CloudAI benchmark framework aims to develop an industry standard benchmark focused on grading Data Center (DC) scale AI systems in the Cloud. The primary motivation is to provide automated benchmarking on various systems.
 
 ## Get Started
-**Note**: instructions for installing a custom python version are available [here](#install-custom-python-version).
-
 **Note**: instructions for setting up access for `enroot` are available [here](#set-up-access-to-the-private-ngc-registry).
 
-1. Clone the CloudAI repository to your local machine:
-    ```bash
-    git clone git@github.com:NVIDIA/cloudai.git
-    cd cloudai
-    ```
+Using `uv` tool allows users to run CloudAI without manually managing required Python versions and dependencies.
+```bash
+git clone git@github.com:NVIDIA/cloudai.git
+cd cloudai
+uv run cloudai --help
+```
 
-2. Create a virtual environment:
-    ```bash
-    python -m venv venv
-    source venv/bin/activate
-    ```
-
-3. Next, install the required packages:
-    ```bash
-    pip install .
-    ```
-
-    For development please use the following command:
-    ```bash
-    pip install -e '.[dev]'  
-    ```
+For details and `pip`-based installation, please refer to the [documentation](https://nvidia.github.io/cloudai/#get-started).
 
 ## Key Concepts
 CloudAI operates on four main schemas:
@@ -74,17 +59,6 @@ machine nvcr.io login $oauthtoken password <api-key>
 ```
 Replace `<api-key>` with your respective credentials. Keep `$oauthtoken` as is.
 
-
-### Install custom python version
-If your system python version is not supported, you can install a custom version using [uv](https://docs.astral.sh/uv/getting-started/installation/) tool:
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-source $HOME/.local/bin/env
-uv venv -p 3.10
-source .venv/bin/activate
-# optionally you might need to install pip which is not installed by default:
-uv pip install -U pip
-```
 
 ## CloudAI Modes Usage Examples
 

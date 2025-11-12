@@ -78,7 +78,7 @@ scheduler = "slurm"
 
 install_path = "./install"
 output_path = "./results"
-cache_docker_images_locally = "True"
+cache_docker_images_locally = true
 default_partition = "<YOUR PARTITION NAME>"
 
 mpi = "pmix"
@@ -104,15 +104,15 @@ Test Configuration describes a particular test configuration to be run. It is ba
 name = "nccl_test_all_reduce_single_node"
 description = "all_reduce"
 test_template_name = "NcclTest"
-extra_cmd_args = "--stepfactor 2"
 
 [cmd_args]
-"subtest_name" = "all_reduce_perf_mpi"
-"ngpus" = "1"
-"minbytes" = "8M"
-"maxbytes" = "16G"
-"iters" = "5"
-"warmup_iters" = "3"
+subtest_name = "all_reduce_perf_mpi"
+ngpus = 1
+minbytes = "8M"
+maxbytes = "16G"
+iters = 5
+warmup_iters = 3
+stepfactor = 2
 ```
 You can find more examples under `conf/common/test`. In a test schema file, you can adjust arguments as shown above. In the `cmd_args` section, you can provide different values other than the default values for each argument. In `extra_cmd_args`, you can provide additional arguments that will be appended after the NCCL test command. You can specify additional environment variables in the `extra_env_vars` section.
 
@@ -122,12 +122,14 @@ Test Scenario uses Test description from step 5. Below is the `myconfig/scenario
 name = "nccl-test"
 
 [[Tests]]
-id = "Tests.1"
+id = "allreduce.1"
+num_nodes = 1
 test_name = "nccl_test_all_reduce_single_node"
 time_limit = "00:20:00"
 
 [[Tests]]
-id = "Tests.2"
+id = "allreduce.2"
+num_nodes = 1
 test_name = "nccl_test_all_reduce_single_node"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -178,7 +180,7 @@ cloudai generate-report \
 # Describing a System in the System Schema
 In this section, we introduce the concept of the system schema, explain the meaning of each field, and describe how the fields should be used. The system schema is a TOML file that allows users to define a system's configuration.
 
-```
+```toml
 name = "example-cluster"
 scheduler = "slurm"
 
@@ -207,14 +209,14 @@ name = "partition_1"
 name = "partition_2"
 
 [global_env_vars]
-  # NCCL Specific Configurations
-  NCCL_IB_GID_INDEX = "3"
-  NCCL_IB_TIMEOUT = "20"
-  NCCL_IB_QPS_PER_CONNECTION = "4"
+# NCCL Specific Configurations
+NCCL_IB_GID_INDEX = "3"
+NCCL_IB_TIMEOUT = "20"
+NCCL_IB_QPS_PER_CONNECTION = "4"
 
-  # Device Visibility Configuration
-  MELLANOX_VISIBLE_DEVICES = "0,3,4,5,6,9,10,11"
-  CUDA_VISIBLE_DEVICES = "0,1,2,3,4,5,6,7"
+# Device Visibility Configuration
+MELLANOX_VISIBLE_DEVICES = "0,3,4,5,6,9,10,11"
+CUDA_VISIBLE_DEVICES = "0,1,2,3,4,5,6,7"
 ```
 
 ## Field Descriptions
