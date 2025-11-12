@@ -34,7 +34,6 @@ from .app import create_app
 @click.option("--port", default=8050, help="Port to bind to", type=int)  # Dash default port
 @click.option("--debug", is_flag=True, help="Enable debug mode")
 def main(results_dir: Path, host: str, port: int, debug: bool):
-    """Run the CloudAI Web UI development server."""
     app = create_app(results_dir)
 
     click.echo("=" * 60)

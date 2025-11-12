@@ -28,14 +28,14 @@ from .nccl_dashboard import NCCLDashboard
 from .nixl_dashboard import NIXLDashboard
 
 APP_TITLE = "CloudAI UI (⍺)"  # noqa: RUF001 (this letter is intentional)
+DASHBOARDS = {
+    "nccl": " • NCCL performance analysis",
+    "nixl": " • NIXL benchmark performance",
+    "dse": " • Design Space Exploration analysis",
+}
 
 
-def available_dashboards() -> list[str]:
-    """Determine available dashboard types based on data availability."""
-    return ["nccl", "nixl", "dse"]
-
-
-def create_header_navbar(current_page: str, available_dashboards: list[str]):
+def create_header_navbar(current_page: str, all_pages: list[str]):
     """Create the header with NVIDIA logo and navigation bar in the same row."""
     logo_title = html.Div(
         [
@@ -50,11 +50,11 @@ def create_header_navbar(current_page: str, available_dashboards: list[str]):
             dcc.Link("Home", href="/", className=f"nav-item {'active' if current_page == 'home' else ''}"),
             *[
                 dcc.Link(
-                    dashboard.upper(),
-                    href=f"/{dashboard}",
-                    className=f"nav-item {'active' if current_page == dashboard else ''}",
+                    dash_page.upper(),
+                    href=f"/{dash_page}",
+                    className=f"nav-item {'active' if current_page == dash_page else ''}",
                 )
-                for dashboard in available_dashboards
+                for dash_page in all_pages
             ],
         ],
         className="header-nav",
@@ -66,8 +66,7 @@ def create_header_navbar(current_page: str, available_dashboards: list[str]):
     )
 
 
-def create_app(results_root: Path):
-    """Create and configure the Dash application."""
+def create_app(results_root: Path) -> dash.Dash:
     app = dash.Dash(__name__, assets_folder="assets", title=APP_TITLE, suppress_callback_exceptions=True)
     data_provider = LocalFileDataProvider(results_root)
 
@@ -81,7 +80,7 @@ def create_app(results_root: Path):
     @app.callback(Output("page-content", "children"), Input("url", "pathname"))
     def display_page(pathname: str | None):
         """Route pages based on URL pathname."""
-        dashboards = available_dashboards()
+        dashboards = list(DASHBOARDS.keys())
 
         if pathname == "/" or pathname is None:
             return create_main_page(dashboards, data_provider)
@@ -101,17 +100,13 @@ def create_app(results_root: Path):
             )
 
     @app.callback(
-        [
-            Output(f"{nccl_dashboard.id_prefix}-controls-container", "children"),
-            Output(f"{nccl_dashboard.id_prefix}-charts-container", "children"),
-        ],
-        [
-            Input(f"{nccl_dashboard.id_prefix}-time-range", "value"),
-            Input(f"{nccl_dashboard.id_prefix}-chart-controls", "value"),
-            Input(f"{nccl_dashboard.id_prefix}-system-filter", "value"),
-            Input(f"{nccl_dashboard.id_prefix}-scenario-filter", "value"),
-            Input(f"{nccl_dashboard.id_prefix}-group-by", "value"),
-        ],
+        Output(f"{nccl_dashboard.id_prefix}-controls-container", "children"),
+        Output(f"{nccl_dashboard.id_prefix}-charts-container", "children"),
+        Input(f"{nccl_dashboard.id_prefix}-time-range", "value"),
+        Input(f"{nccl_dashboard.id_prefix}-chart-controls", "value"),
+        Input(f"{nccl_dashboard.id_prefix}-system-filter", "value"),
+        Input(f"{nccl_dashboard.id_prefix}-scenario-filter", "value"),
+        Input(f"{nccl_dashboard.id_prefix}-group-by", "value"),
     )
     def update_nccl_dashboard(time_range_days, selected_charts, selected_systems, selected_scenarios, group_by):
         """Update NCCL dashboard."""
@@ -171,8 +166,7 @@ def create_app(results_root: Path):
     return app
 
 
-def create_main_page(dashboards: list[str], data_provider: DataProvider):
-    """Create the main dashboard selection page."""
+def create_main_page(dashboards: list[str], data_provider: DataProvider) -> html.Div:
     dashboard_cards = html.Div([create_compact_dashboard_card(dashboard) for dashboard in dashboards])
 
     elements = [
@@ -244,13 +238,8 @@ def create_main_page(dashboards: list[str], data_provider: DataProvider):
     return html.Div([create_header_navbar("home", dashboards), html.Div(elements, className="main-content")])
 
 
-def create_compact_dashboard_card(dashboard: str):
-    """Create a compact dashboard card component."""
-    description = {
-        "nccl": " • NCCL performance analysis",
-        "nixl": " • NIXL benchmark performance",
-        "dse": " • Design Space Exploration analysis",
-    }.get(dashboard, f" • {dashboard.upper()} dashboard")
+def create_compact_dashboard_card(dashboard: str) -> html.Div:
+    description = DASHBOARDS.get(dashboard, f" • {dashboard.upper()} dashboard")
 
     return html.Div(
         [

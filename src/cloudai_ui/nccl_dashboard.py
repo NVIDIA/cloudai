@@ -21,6 +21,7 @@ from typing import Any
 import plotly.express as px
 import plotly.graph_objects as go
 from dash import dcc, html
+from dash.development.base_component import Component
 
 from cloudai.report_generator.groups import GroupedItems, GroupItem
 
@@ -34,10 +35,12 @@ class NCCLDashboard(ComparisonDashboard):
     def __init__(self, data_provider: DataProvider, id_prefix: str = "nccl"):
         super().__init__(data_provider, id_prefix)
 
-    def get_test_type(self) -> str:
+    @property
+    def test_type(self) -> str:
         return "nccl"
 
-    def get_chart_options(self) -> list[Any]:
+    @property
+    def chart_options(self) -> list[Any]:
         return [
             {"label": "BW out-of-place", "value": "bandwidth_out"},
             {"label": "BW in-place", "value": "bandwidth_in"},
@@ -45,18 +48,21 @@ class NCCLDashboard(ComparisonDashboard):
             {"label": "Latency in-place", "value": "latency_in"},
         ]
 
-    def get_default_charts(self) -> list[str]:
+    @property
+    def default_charts(self) -> list[str]:
         return ["bandwidth_out"]
 
-    def get_default_grouping(self) -> list[str]:
+    @property
+    def default_grouping(self) -> list[str]:
         return ["subtest_name"]
 
-    def get_page_title(self) -> str:
+    @property
+    def page_title(self) -> str:
         return "NCCL Dashboard"
 
-    def render_charts_for_group(self, group: GroupedItems[Record], selected_charts: list[str]) -> list[Any]:
+    def render_charts_for_group(self, group: GroupedItems[Record], selected_charts: list[str]) -> list[Component]:
         """Render NCCL-specific charts for a group."""
-        group_content = []
+        group_content: list[Component] = []
 
         # Check if any bandwidth charts are selected
         bandwidth_charts = [chart for chart in selected_charts if chart.startswith("bandwidth_")]

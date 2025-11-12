@@ -34,22 +34,27 @@ class NIXLDashboard(ComparisonDashboard):
     def __init__(self, data_provider: DataProvider, id_prefix: str = "nixl"):
         super().__init__(data_provider, id_prefix)
 
-    def get_test_type(self) -> str:
+    @property
+    def test_type(self) -> str:
         return "nixlbench"
 
-    def get_chart_options(self) -> list[Any]:
+    @property
+    def chart_options(self) -> list[Any]:
         return [
             {"label": "Bandwidth", "value": "bandwidth"},
             {"label": "Latency", "value": "latency"},
         ]
 
-    def get_default_charts(self) -> list[str]:
+    @property
+    def default_charts(self) -> list[str]:
         return ["bandwidth"]
 
-    def get_default_grouping(self) -> list[str]:
+    @property
+    def default_grouping(self) -> list[str]:
         return ["op_type"]
 
-    def get_page_title(self) -> str:
+    @property
+    def page_title(self) -> str:
         return "NIXL Benchmark Dashboard"
 
     def render_charts_for_group(self, group: GroupedItems[Record], selected_charts: list[str]) -> list[Any]:

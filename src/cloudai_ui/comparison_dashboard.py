@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from dash import dcc, html, no_update
+from dash.development.base_component import Component
 
 from cloudai.report_generator.groups import GroupedItems, ItemsGrouper
 from cloudai.report_generator.util import diff_test_runs
@@ -52,38 +53,43 @@ class ComparisonDashboard(ABC):
         self.id_prefix = id_prefix
         self.data_manager = ComparisonDataManager(
             data_provider=data_provider,
-            test_type=self.get_test_type(),
-            default_charts=self.get_default_charts(),
-            default_grouping=self.get_default_grouping(),
+            test_type=self.test_type,
+            default_charts=self.default_charts,
+            default_grouping=self.default_grouping,
         )
 
+    @property
     @abstractmethod
-    def get_test_type(self) -> str:
+    def test_type(self) -> str:
         """Return the test type for data queries (e.g., 'nccl', 'ucc', 'nixl')."""
         pass
 
+    @property
     @abstractmethod
-    def get_chart_options(self) -> list[Any]:
+    def chart_options(self) -> list[Any]:
         """Return chart type options for the dashboard."""
         pass
 
+    @property
     @abstractmethod
-    def get_default_charts(self) -> list[str]:
+    def default_charts(self) -> list[str]:
         """Return default selected charts."""
         pass
 
+    @property
     @abstractmethod
-    def get_default_grouping(self) -> list[str]:
+    def default_grouping(self) -> list[str]:
         """Return default grouping fields."""
         pass
 
+    @property
     @abstractmethod
-    def get_page_title(self) -> str:
+    def page_title(self) -> str:
         """Return the dashboard page title."""
         pass
 
     @abstractmethod
-    def render_charts_for_group(self, group: GroupedItems[Record], selected_charts: list[str]) -> list[Any]:
+    def render_charts_for_group(self, group: GroupedItems[Record], selected_charts: list[str]) -> list[Component]:
         """Render charts for a specific group. Returns list of Dash components."""
         pass
 
@@ -118,7 +124,7 @@ class ComparisonDashboard(ABC):
             f"{self.id_prefix}-scenario-filter",
         ):
             return (
-                render_controls(state, self.id_prefix, self.get_chart_options()),
+                render_controls(state, self.id_prefix, self.chart_options),
                 render_charts(state, self.render_charts_for_group),
             )
 
@@ -129,10 +135,10 @@ class ComparisonDashboard(ABC):
         state = self.data_manager.get_state()
         return html.Div(
             [
-                html.H3(self.get_page_title()),
+                html.H3(self.page_title),
                 # Controls Section
                 html.Div(
-                    render_controls(state, self.id_prefix, self.get_chart_options()),
+                    render_controls(state, self.id_prefix, self.chart_options),
                     id=f"{self.id_prefix}-controls-container",
                 ),
                 # Charts Container
@@ -230,57 +236,50 @@ def get_grouping_options(data: list[Record]) -> list:
 def render_controls(state: DashboardState, id_prefix: str, chart_options: list[Any]) -> html.Div:
     grouping_options = get_grouping_options(state.filtered_data)
 
+    date_picker = html.Div(
+        [
+            dcc.Dropdown(
+                id=f"{id_prefix}-time-range",
+                options=[
+                    {"label": "Last 7 days", "value": 7},
+                    {"label": "Last 14 days", "value": 14},
+                    {"label": "Last 30 days", "value": 30},
+                    {"label": "Last 60 days", "value": 60},
+                    {"label": "Last 90 days", "value": 90},
+                    {"label": "All time", "value": 0},
+                ],
+                value=state.time_range_days,
+                clearable=False,
+                placeholder="Time Range",
+            ),
+        ],
+        style={"flex": "1", "marginRight": "1rem"},
+    )
+    system_picker = html.Div(
+        dcc.Dropdown(
+            options=create_system_dropdown_options(state.available_systems),
+            placeholder="Filter Systems",
+            id=f"{id_prefix}-system-filter",
+            multi=True,
+            value=state.selected_systems,
+        ),
+        style={"flex": "1", "marginRight": "1rem"},
+    )
+    scenario_picker = html.Div(
+        dcc.Dropdown(
+            options=create_scenario_dropdown_options(state.available_scenarios, state.all_data),
+            placeholder="Filter Scenarios",
+            id=f"{id_prefix}-scenario-filter",
+            multi=True,
+            value=state.selected_scenarios,
+        ),
+        style={"flex": "3"},
+    )
+
     return html.Div(
         [
             # First row: Time Range, System Filter, Scenario Filter
-            html.Div(
-                [
-                    html.Div(
-                        [
-                            dcc.Dropdown(
-                                id=f"{id_prefix}-time-range",
-                                options=[
-                                    {"label": "Last 7 days", "value": 7},
-                                    {"label": "Last 14 days", "value": 14},
-                                    {"label": "Last 30 days", "value": 30},
-                                    {"label": "Last 60 days", "value": 60},
-                                    {"label": "Last 90 days", "value": 90},
-                                    {"label": "All time", "value": 0},
-                                ],
-                                value=state.time_range_days,
-                                clearable=False,
-                                placeholder="Time Range",
-                            ),
-                        ],
-                        style={"flex": "1", "marginRight": "1rem"},
-                    ),
-                    html.Div(
-                        [
-                            dcc.Dropdown(
-                                options=create_system_dropdown_options(state.available_systems),
-                                placeholder="Filter Systems",
-                                id=f"{id_prefix}-system-filter",
-                                multi=True,
-                                value=state.selected_systems,
-                            ),
-                        ],
-                        style={"flex": "1", "marginRight": "1rem"},
-                    ),
-                    html.Div(
-                        [
-                            dcc.Dropdown(
-                                options=create_scenario_dropdown_options(state.available_scenarios, state.all_data),
-                                placeholder="Filter Scenarios",
-                                id=f"{id_prefix}-scenario-filter",
-                                multi=True,
-                                value=state.selected_scenarios,
-                            ),
-                        ],
-                        style={"flex": "3"},
-                    ),
-                ],
-                style={"display": "flex", "marginBottom": "1rem"},
-            ),
+            html.Div([date_picker, system_picker, scenario_picker], style={"display": "flex", "marginBottom": "1rem"}),
             # Second row: Group By
             html.Div(
                 [
@@ -346,7 +345,7 @@ def format_group_title(group_name: str) -> Any:
 
 
 def render_charts(
-    state: DashboardState, render_charts_for_group_func: Callable[[GroupedItems[Record], list[str]], list[Any]]
+    state: DashboardState, render_charts_for_group_func: Callable[[GroupedItems[Record], list[str]], list[Component]]
 ) -> Any:
     """Render charts using dashboard-specific rendering function."""
     if not state.filtered_data:
