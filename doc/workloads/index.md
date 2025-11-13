@@ -12,6 +12,7 @@ ai_dynamo
 bash_cmd
 chakra_replay
 nccl
+ddlb
 nemo_run
 nixl_bench
 nixl_kvbench
