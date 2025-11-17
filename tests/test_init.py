@@ -33,6 +33,11 @@ from cloudai.workloads.chakra_replay import (
     ChakraReplaySlurmCommandGenStrategy,
     ChakraReplayTestDefinition,
 )
+from cloudai.workloads.deepep_benchmark import (
+    DeepEPBenchmarkGradingStrategy,
+    DeepEPBenchmarkSlurmCommandGenStrategy,
+    DeepEPBenchmarkTestDefinition,
+)
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -107,6 +112,7 @@ def test_runners():
 
 CMD_GEN_STRATEGIES = {
     (SlurmSystem, ChakraReplayTestDefinition): ChakraReplaySlurmCommandGenStrategy,
+    (SlurmSystem, DeepEPBenchmarkTestDefinition): DeepEPBenchmarkSlurmCommandGenStrategy,
     (SlurmSystem, GPTTestDefinition): JaxToolboxSlurmCommandGenStrategy,
     (SlurmSystem, GrokTestDefinition): JaxToolboxSlurmCommandGenStrategy,
     (SlurmSystem, NCCLTestDefinition): NcclTestSlurmCommandGenStrategy,
@@ -134,6 +140,7 @@ JSON_GEN_STRATEGIES = {
 }
 GRADING_STRATEGIES = {
     (SlurmSystem, ChakraReplayTestDefinition): ChakraReplayGradingStrategy,
+    (SlurmSystem, DeepEPBenchmarkTestDefinition): DeepEPBenchmarkGradingStrategy,
     (SlurmSystem, GPTTestDefinition): JaxToolboxGradingStrategy,
     (SlurmSystem, GrokTestDefinition): JaxToolboxGradingStrategy,
     (SlurmSystem, NCCLTestDefinition): NcclTestGradingStrategy,
@@ -198,11 +205,12 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 17
+    assert len(test_defs) == 18
     for tdef in [
         ("UCCTest", UCCTestDefinition),
         ("NcclTest", NCCLTestDefinition),
         ("ChakraReplay", ChakraReplayTestDefinition),
+        ("DeepEPBenchmark", DeepEPBenchmarkTestDefinition),
         ("Sleep", SleepTestDefinition),
         ("NeMoLauncher", NeMoLauncherTestDefinition),
         ("NeMoRun", NeMoRunTestDefinition),
