@@ -14,16 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 from pathlib import Path
 
 from cloudai.core import GradingStrategy
 
 
 class DeepEPBenchmarkGradingStrategy(GradingStrategy):
-    """
-    Performance grading strategy for DeepEP Benchmark test templates.
-    """
+    """Performance grading strategy for DeepEP Benchmark test templates."""
 
     def grade(self, directory_path: Path, ideal_perf: float) -> float:
         return 100

@@ -17,7 +17,6 @@
 from pathlib import Path
 from typing import List, cast
 
-from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 from .deepep_benchmark import DeepEPBenchmarkCmdArgs, DeepEPBenchmarkTestDefinition
@@ -47,7 +46,7 @@ class DeepEPBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """Return container mounts specific to DeepEP benchmark."""
         tdef: DeepEPBenchmarkTestDefinition = cast(DeepEPBenchmarkTestDefinition, self.test_run.test)
         cmd_args: DeepEPBenchmarkCmdArgs = tdef.cmd_args
-        
+
         # Create config file
         config_file_path = self.test_run.output_path / "config.yaml"
         self._generate_config_yaml(config_file_path, cmd_args)
@@ -57,7 +56,7 @@ class DeepEPBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f"{config_file_path.absolute()}:{cmd_args.config_file_path}",
             f"{self.test_run.output_path.absolute()}:{cmd_args.results_dir}",
         ]
-        
+
         return mounts
 
     def image_path(self) -> str | None:
@@ -69,17 +68,17 @@ class DeepEPBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         """Generate the test command for DeepEP benchmark."""
         tdef: DeepEPBenchmarkTestDefinition = cast(DeepEPBenchmarkTestDefinition, self.test_run.test)
         cmd_args: DeepEPBenchmarkCmdArgs = tdef.cmd_args
-        
+
         # Determine which benchmark script to run based on mode
         if cmd_args.mode == 'standard':
             benchmark_script = '/workspace/dp-benchmark/benchmark/benchmark.py'
         else:  # low_latency
             benchmark_script = '/workspace/dp-benchmark/benchmark/benchmark_ll.py'
-        
+
         # Get number of nodes
         _, nodes = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)
         num_nodes = len(nodes) if nodes else self.test_run.nnodes
-        
+
         # Build torchrun command
         command_parts = [
             "torchrun",
@@ -91,7 +90,7 @@ class DeepEPBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             benchmark_script,
             cmd_args.config_file_path
         ]
-        
+
         return command_parts
 
     def _generate_config_yaml(self, config_path: Path, cmd_args: DeepEPBenchmarkCmdArgs) -> None:
@@ -120,10 +119,10 @@ class DeepEPBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f"num_warmups: {cmd_args.num_warmups}",
             f"num_iterations: {cmd_args.num_iterations}",
         ]
-        
+
         # Ensure parent directory exists
         config_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Write config file
         with open(config_path, 'w') as f:
             f.write("\n".join(config_lines))

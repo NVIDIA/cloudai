@@ -20,8 +20,8 @@ from .report_generation_strategy import DeepEPBenchmarkReportGenerationStrategy
 from .slurm_command_gen_strategy import DeepEPBenchmarkSlurmCommandGenStrategy
 
 __all__ = [
-    "DeepEPBenchmarkTestDefinition",
     "DeepEPBenchmarkGradingStrategy",
     "DeepEPBenchmarkReportGenerationStrategy",
     "DeepEPBenchmarkSlurmCommandGenStrategy",
+    "DeepEPBenchmarkTestDefinition",
 ]
