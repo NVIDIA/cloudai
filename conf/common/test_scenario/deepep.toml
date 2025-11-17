@@ -20,5 +20,5 @@ name = "deepep-benchmark"
 [[Tests]]
 id = "Tests.1"
 test_name = "deepep_standard"
-nodes = ['GAIA:standard_nodes:2']
+num_nodes = 2
 time_limit = "00:30:00"
