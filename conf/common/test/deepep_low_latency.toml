@@ -36,8 +36,8 @@ hidden_size = 7168
 data_type = "bfloat16"
 
 # Low-latency mode settings
-allow_nvlink_for_low_latency = false  # Set to true to enable NVLink for intra-node
-allow_mnnvl = false                   # Multi-Node NVLink support
+allow_nvlink_for_low_latency = false # Set to true to enable NVLink for intra-node
+allow_mnnvl = false                  # Multi-Node NVLink support
 
 # FP8 settings
 round_scale = false
@@ -52,4 +52,3 @@ use_kineto_profiler = false
 # Paths
 config_file_path = "/tmp/config.yaml"
 results_dir = "/workspace/dp-benchmark/results"
-

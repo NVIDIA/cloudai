@@ -52,4 +52,3 @@ use_kineto_profiler = false
 # Paths
 config_file_path = "/tmp/config.yaml"
 results_dir = "/workspace/dp-benchmark/results"
-
