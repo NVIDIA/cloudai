@@ -182,7 +182,9 @@ def register_all():
     Registry().add_command_gen_strategy(SlurmSystem, UCCTestDefinition, UCCTestSlurmCommandGenStrategy)
 
     Registry().add_command_gen_strategy(SlurmSystem, ChakraReplayTestDefinition, ChakraReplaySlurmCommandGenStrategy)
-    Registry().add_command_gen_strategy(SlurmSystem, DeepEPBenchmarkTestDefinition, DeepEPBenchmarkSlurmCommandGenStrategy)
+    Registry().add_command_gen_strategy(
+        SlurmSystem, DeepEPBenchmarkTestDefinition, DeepEPBenchmarkSlurmCommandGenStrategy
+    )
     Registry().add_command_gen_strategy(SlurmSystem, SlurmContainerTestDefinition, SlurmContainerCommandGenStrategy)
     Registry().add_command_gen_strategy(
         SlurmSystem, TritonInferenceTestDefinition, TritonInferenceSlurmCommandGenStrategy

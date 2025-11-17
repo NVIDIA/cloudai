@@ -50,7 +50,7 @@ class DeepEPBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         # Create config file
         config_file_path = self.test_run.output_path / "config.yaml"
         self._generate_config_yaml(config_file_path, cmd_args)
-        
+
         # Mount config file and results directory
         mounts = [
             f"{config_file_path.absolute()}:{cmd_args.config_file_path}",
