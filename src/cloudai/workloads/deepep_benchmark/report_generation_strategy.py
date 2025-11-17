@@ -17,7 +17,6 @@
 import json
 import re
 from pathlib import Path
-from typing import Optional
 
 import pandas as pd
 
@@ -28,17 +27,15 @@ from cloudai.report_generator.tool.csv_report_tool import CSVReportTool
 class DeepEPBenchmarkReportGenerationStrategy(ReportGenerationStrategy):
     """Strategy for generating reports from DeepEP benchmark outputs."""
 
-    def can_handle_directory(self, directory_path: Path) -> bool:
+    def can_handle_directory(self) -> bool:
         """
         Check if this directory contains DeepEP benchmark results.
-
-        Args:
-            directory_path (Path): Path to the directory to check.
 
         Returns:
             bool: True if directory contains DeepEP results.
         """
         # Check for results subdirectories created by DeepEP
+        directory_path = self.test_run.output_path
         matching_dirs = list(directory_path.glob("results/benchmark_*_ranks_*"))
 
         if matching_dirs:
@@ -49,15 +46,12 @@ class DeepEPBenchmarkReportGenerationStrategy(ReportGenerationStrategy):
 
         return False
 
-    def generate_report(self, test_name: str, directory_path: Path, sol: Optional[float] = None) -> None:
-        """
-        Generate a report from DeepEP benchmark results.
+    def generate_report(self) -> None:
+        """Generate a report from DeepEP benchmark results."""
+        # Get directory path and test name from test run
+        directory_path = self.test_run.output_path
+        test_name = self.test_run.test.name
 
-        Args:
-            test_name (str): Name of the test.
-            directory_path (Path): Directory containing the results.
-            sol (Optional[float]): Speed-of-light performance for reference.
-        """
         # Find all benchmark result directories
         results_dirs = list(directory_path.glob("results/benchmark_*_ranks_*"))
 
