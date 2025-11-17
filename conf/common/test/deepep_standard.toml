@@ -19,7 +19,11 @@ description = "DeepEP MoE Benchmark - Standard Mode"
 test_template_name = "DeepEPBenchmark"
 
 [cmd_args]
-docker_image_url = "/.autodirect/mswg2/E2E/Regression_logs/squash/yoel/dp-benchmark-shuffle.sqsh"
+# Local .sqsh file:
+# docker_image_url = "/.autodirect/mswg2/E2E/Regression_logs/squash/yoel/dp-benchmark-shuffle.sqsh"
+# Container registry (uses your Docker credentials):
+docker_image_url = "gitlab-master.nvidia.com/ybenabou/warehouse/deepep:dp-benchmark"
+
 mode = "standard"
 
 # Basic parameters
