@@ -1,0 +1,228 @@
+DeepEP Benchmark
+================
+
+This workload (``test_template_name`` is ``DeepEPBenchmark``) allows you to execute DeepEP (Deep Expert Parallelism) MoE (Mixture of Experts) benchmarks within the CloudAI framework.
+
+Overview
+--------
+
+DeepEP is a benchmark for measuring the performance of MoE models with distributed expert parallelism. It supports:
+
+- **Two operation modes**: Standard and Low-Latency
+- **Multiple data types**: bfloat16 and FP8
+- **Flexible network configurations**: With or without NVLink
+- **Configurable model parameters**: Experts, tokens, hidden size, top-k
+- **Performance profiling**: Kineto profiler support
+
+Docker Image Sources
+--------------------
+
+DeepEP supports multiple Docker image sources:
+
+1. **Container Registry** (requires authentication):
+
+   .. code-block:: toml
+
+      docker_image_url = "gitlab-master.nvidia.com/ybenabou/warehouse/deepep:dp-benchmark"
+
+2. **Local .sqsh file** :
+
+   .. code-block:: toml
+
+      docker_image_url = "/.autodirect/mswg2/E2E/Regression_logs/squash/yoel/dp-benchmark-shuffle.sqsh"
+
+Usage Example
+-------------
+
+Test TOML example (Standard Mode):
+
+.. code-block:: toml
+
+   name = "deepep_standard"
+   description = "DeepEP MoE Benchmark - Standard Mode"
+   test_template_name = "DeepEPBenchmark"
+
+   [cmd_args]
+   docker_image_url = "gitlab-master.nvidia.com/ybenabou/warehouse/deepep:dp-benchmark"
+   mode = "standard"
+   tokens = 1024
+   num_experts = 256
+   num_topk = 8
+   hidden_size = 7168
+   data_type = "bfloat16"
+   num_warmups = 20
+   num_iterations = 50
+
+Test TOML example (Low-Latency Mode):
+
+.. code-block:: toml
+
+   name = "deepep_low_latency"
+   description = "DeepEP MoE Benchmark - Low Latency Mode"
+   test_template_name = "DeepEPBenchmark"
+
+   [cmd_args]
+   docker_image_url = "gitlab-master.nvidia.com/ybenabou/warehouse/deepep:dp-benchmark"
+   mode = "low_latency"
+   tokens = 128
+   num_experts = 256
+   num_topk = 1
+   hidden_size = 7168
+   data_type = "bfloat16"
+   allow_nvlink_for_low_latency = false
+   allow_mnnvl = false
+
+Test Scenario example:
+
+.. code-block:: toml
+
+   name = "deepep-benchmark"
+
+   [[Tests]]
+   id = "Tests.1"
+   test_name = "deepep_standard"
+   num_nodes = 2
+   time_limit = "00:30:00"
+
+Test-in-Scenario example:
+
+.. code-block:: toml
+
+   name = "deepep-benchmark"
+
+   [[Tests]]
+   id = "Tests.1"
+   num_nodes = 2
+   nodes = "GAIA:standard_nodes:2"
+   time_limit = "00:30:00"
+
+   name = "deepep_standard"
+   description = "DeepEP MoE Benchmark"
+   test_template_name = "DeepEPBenchmark"
+
+     [Tests.cmd_args]
+     docker_image_url = "gitlab-master.nvidia.com/ybenabou/warehouse/deepep:dp-benchmark"
+     mode = "standard"
+     tokens = 1024
+     num_experts = 256
+     num_topk = 8
+
+Configuration Parameters
+------------------------
+
+Mode Selection
+~~~~~~~~~~~~~~
+
+- ``mode``: Operation mode (``"standard"`` or ``"low_latency"``)
+
+  - **Standard Mode**: Optimized for throughput, uses standard network communication
+  - **Low-Latency Mode**: Optimized for latency, configurable NVLink usage
+
+Model Parameters
+~~~~~~~~~~~~~~~~
+
+- ``tokens``: Number of tokens per iteration (default: 1024 for standard, 128 for low-latency)
+- ``num_experts``: Total number of experts in the MoE model (default: 256)
+- ``num_topk``: Top-K experts to activate per token (default: 8 for standard, 1 for low-latency)
+- ``hidden_size``: Hidden dimension size (default: 7168)
+
+Data Type
+~~~~~~~~~
+
+- ``data_type``: Precision type (``"bfloat16"`` or ``"fp8"``)
+- ``round_scale``: Enable scale rounding for FP8 (default: false)
+- ``use_ue8m0``: Use UE8M0 format for FP8 (default: false)
+
+Network Configuration
+~~~~~~~~~~~~~~~~~~~~~
+
+- ``allow_nvlink_for_low_latency``: Enable NVLink for intra-node communication in low-latency mode (default: false)
+- ``allow_mnnvl``: Enable Multi-Node NVLink support (default: false)
+
+Benchmark Settings
+~~~~~~~~~~~~~~~~~~
+
+- ``num_warmups``: Number of warmup iterations (default: 20)
+- ``num_iterations``: Number of measurement iterations (default: 50)
+- ``shuffle_columns``: Enable column shuffling (default: false)
+- ``use_kineto_profiler``: Enable Kineto profiler (default: false)
+
+Environment Variables
+~~~~~~~~~~~~~~~~~~~~~
+
+- ``num_sms``: Number of SMs per rank for standard mode (default: 24)
+- ``num_qps_per_rank``: Number of QPs per rank for standard mode (default: 12)
+
+Paths
+~~~~~
+
+- ``config_file_path``: Path to config file inside container (default: "/tmp/config.yaml")
+- ``results_dir``: Results directory inside container (default: "/workspace/dp-benchmark/results")
+
+Output Files
+------------
+
+CloudAI generates a structured output directory with the following files:
+
+**Root Level:**
+
+- ``deepep-benchmark.html``: Interactive HTML report for navigating test results
+
+**Test Directory Structure** :
+
+- ``cloudai_sbatch_script.sh``: Generated Slurm batch script
+- ``config.yaml``: Configuration file generated by CloudAI
+- ``env_vars.sh``: Environment variables script
+- ``hostfile.txt``: List of allocated nodes
+- ``stdout.txt``: Standard output from the benchmark
+- ``stderr.txt``: Standard error output
+- ``slurm-job.toml``: Slurm job metadata
+- ``test-run.toml``: Test run configuration
+- ``metadata/``: Directory containing per-node metadata files
+
+**Benchmark Results** (``benchmark_<ranks>_<date>_<mode>/``):
+
+- ``results.json``: JSON file containing performance metrics:
+
+  - ``global_bw``: Global bandwidth in GB/s
+  - ``deepep_time``: Total execution time in seconds
+  - ``simple_rdma_bw``: RDMA bandwidth in GB/s
+  - ``simple_nvl_bw``: NVLink bandwidth in GB/s
+  - ``num_tokens``: Number of tokens processed
+  - ``hidden``: Hidden dimension size
+
+- ``token_matrix.txt``: Matrix of expert per token
+- ``token_matrix_kb.txt``: Matrix of data transfer sizes in KB
+
+Credential Setup
+----------------
+
+For pulling from container registries, ensure proper authentication:
+
+**Enroot credentials** (``~/.config/enroot/.credentials``):
+
+.. code-block:: text
+
+   machine gitlab-master.nvidia.com login <username> password <token>
+
+**Docker credentials** are automatically used if ``cache_docker_images_locally = true`` in the system configuration.
+
+Alternatively, use local ``.sqsh`` files to bypass authentication requirements.
+
+API Documentation
+-----------------
+
+Command Arguments
+~~~~~~~~~~~~~~~~~
+
+.. autoclass:: cloudai.workloads.deepep_benchmark.deepep_benchmark.DeepEPBenchmarkCmdArgs
+   :members:
+   :show-inheritance:
+
+Test Definition
+~~~~~~~~~~~~~~~
+
+.. autoclass:: cloudai.workloads.deepep_benchmark.deepep_benchmark.DeepEPBenchmarkTestDefinition
+   :members:
+   :show-inheritance:
+
