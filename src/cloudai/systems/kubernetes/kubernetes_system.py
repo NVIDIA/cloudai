@@ -472,9 +472,9 @@ class KubernetesSystem(BaseModel, System):
         api_response = self.batch_v1.delete_namespaced_job(
             name=job_name,
             namespace=self.default_namespace,
-            body=k8s.client.V1DeleteOptions(propagation_policy="Foreground", grace_period_seconds=5),
+            body=lazy.k8s.client.V1DeleteOptions(propagation_policy="Foreground", grace_period_seconds=5),
         )
-        api_response = cast(k8s.client.V1Job, api_response)
+        api_response = cast("k8s.client.V1Job", api_response)
 
         logging.debug(f"Batch job '{job_name}' deleted with status: {api_response.status}")
 

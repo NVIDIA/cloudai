@@ -16,7 +16,7 @@
 
 from pathlib import Path
 from typing import Dict, List
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from kubernetes import client
@@ -179,3 +179,16 @@ def test_check_deployment_conditions(
     k8s_system: KubernetesSystem, conditions: List[Dict[str, str]], expected_result: bool
 ) -> None:
     assert k8s_system._check_deployment_conditions(conditions) == expected_result
+
+
+def test_delete_batch_job(k8s_system: KubernetesSystem):
+    job_name = "test-job"
+
+    with patch.object(k8s_system.batch_v1, "delete_namespaced_job", return_value=Mock()) as mock_delete:
+        k8s_system._delete_batch_job(job_name)
+
+        mock_delete.assert_called_once_with(
+            name=job_name,
+            namespace=k8s_system.default_namespace,
+            body=client.V1DeleteOptions(propagation_policy="Foreground", grace_period_seconds=5),
+        )
