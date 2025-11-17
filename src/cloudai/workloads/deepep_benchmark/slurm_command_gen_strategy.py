@@ -28,19 +28,21 @@ class DeepEPBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _append_sbatch_directives(self, batch_script_content: List[str]) -> None:
         """Append SBATCH directives and head node IP detection for DeepEP."""
         super()._append_sbatch_directives(batch_script_content)
-        batch_script_content.extend([
-            "",
-            "# Get head node information for torchrun",
-            "nodes=( $( scontrol show hostnames $SLURM_JOB_NODELIST ) )",
-            "nodes_array=($nodes)",
-            "head_node=${nodes_array[0]}",
-            'head_node_ip=$(srun --nodes=1 --ntasks=1 -w "$head_node" hostname --ip-address)',
-            "",
-            "echo Nodes: $SLURM_JOB_NODELIST",
-            "echo Num Nodes: ${#nodes[@]}",
-            "echo Head Node IP: $head_node_ip",
-            ""
-        ])
+        batch_script_content.extend(
+            [
+                "",
+                "# Get head node information for torchrun",
+                "nodes=( $( scontrol show hostnames $SLURM_JOB_NODELIST ) )",
+                "nodes_array=($nodes)",
+                "head_node=${nodes_array[0]}",
+                'head_node_ip=$(srun --nodes=1 --ntasks=1 -w "$head_node" hostname --ip-address)',
+                "",
+                "echo Nodes: $SLURM_JOB_NODELIST",
+                "echo Num Nodes: ${#nodes[@]}",
+                "echo Head Node IP: $head_node_ip",
+                "",
+            ]
+        )
 
     def _container_mounts(self) -> List[str]:
         """Return container mounts specific to DeepEP benchmark."""
@@ -70,10 +72,10 @@ class DeepEPBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         cmd_args: DeepEPBenchmarkCmdArgs = tdef.cmd_args
 
         # Determine which benchmark script to run based on mode
-        if cmd_args.mode == 'standard':
-            benchmark_script = '/workspace/dp-benchmark/benchmark/benchmark.py'
+        if cmd_args.mode == "standard":
+            benchmark_script = "/workspace/dp-benchmark/benchmark/benchmark.py"
         else:  # low_latency
-            benchmark_script = '/workspace/dp-benchmark/benchmark/benchmark_ll.py'
+            benchmark_script = "/workspace/dp-benchmark/benchmark/benchmark_ll.py"
 
         # Get number of nodes
         _, nodes = self.system.get_nodes_by_spec(self.test_run.nnodes, self.test_run.nodes)
@@ -88,7 +90,7 @@ class DeepEPBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "--rdzv_backend=c10d",
             "--rdzv_endpoint=$head_node_ip:29500",
             benchmark_script,
-            cmd_args.config_file_path
+            cmd_args.config_file_path,
         ]
 
         return command_parts
@@ -109,7 +111,7 @@ class DeepEPBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f"num_experts: {cmd_args.num_experts}",
             f"num_topk: {cmd_args.num_topk}",
             f"hidden_size: {cmd_args.hidden_size}",
-            f"data_type: \"{cmd_args.data_type}\"",
+            f'data_type: "{cmd_args.data_type}"',
             f"allow_nvlink_for_low_latency: {str(cmd_args.allow_nvlink_for_low_latency).lower()}",
             f"allow_mnnvl: {str(cmd_args.allow_mnnvl).lower()}",
             f"round_scale: {str(cmd_args.round_scale).lower()}",
@@ -124,7 +126,7 @@ class DeepEPBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         config_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Write config file
-        with open(config_path, 'w') as f:
+        with open(config_path, "w") as f:
             f.write("\n".join(config_lines))
 
     def gen_srun_success_check(self) -> str:

@@ -24,4 +24,3 @@ class DeepEPBenchmarkGradingStrategy(GradingStrategy):
 
     def grade(self, directory_path: Path, ideal_perf: float) -> float:
         return 100
-

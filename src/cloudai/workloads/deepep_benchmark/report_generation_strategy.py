@@ -72,13 +72,13 @@ class DeepEPBenchmarkReportGenerationStrategy(ReportGenerationStrategy):
                 continue
 
             try:
-                with open(results_json, 'r') as f:
+                with open(results_json, "r") as f:
                     results_data = json.load(f)
 
                 # Extract metadata from directory name
                 dir_name = result_dir.name
                 # Format: benchmark_{num_ranks}_ranks_{timestamp}_{mode}
-                match = re.match(r'benchmark_(\d+)_ranks_(.+)_(\w+)', dir_name)
+                match = re.match(r"benchmark_(\d+)_ranks_(.+)_(\w+)", dir_name)
                 if match:
                     num_ranks = int(match.group(1))
                     timestamp = match.group(2)
@@ -90,10 +90,10 @@ class DeepEPBenchmarkReportGenerationStrategy(ReportGenerationStrategy):
 
                 # Process results
                 for result in results_data:
-                    result['num_ranks'] = num_ranks
-                    result['timestamp'] = timestamp
-                    result['mode'] = mode
-                    result['result_dir'] = str(result_dir)
+                    result["num_ranks"] = num_ranks
+                    result["timestamp"] = timestamp
+                    result["mode"] = mode
+                    result["result_dir"] = str(result_dir)
                     all_results.append(result)
 
             except Exception as e:
@@ -105,9 +105,18 @@ class DeepEPBenchmarkReportGenerationStrategy(ReportGenerationStrategy):
             df = pd.DataFrame(all_results)
 
             # Reorder columns for better readability
-            column_order = ['mode', 'num_ranks', 'num_tokens', 'hidden',
-                          'deepep_time', 'global_bw', 'simple_rdma_bw', 'simple_nvl_bw',
-                          'timestamp', 'result_dir']
+            column_order = [
+                "mode",
+                "num_ranks",
+                "num_tokens",
+                "hidden",
+                "deepep_time",
+                "global_bw",
+                "simple_rdma_bw",
+                "simple_nvl_bw",
+                "timestamp",
+                "result_dir",
+            ]
 
             # Only include columns that exist
             column_order = [col for col in column_order if col in df.columns]
