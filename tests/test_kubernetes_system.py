@@ -192,3 +192,44 @@ def test_delete_batch_job(k8s_system: KubernetesSystem):
             namespace=k8s_system.default_namespace,
             body=client.V1DeleteOptions(propagation_policy="Foreground", grace_period_seconds=5),
         )
+
+
+def test_delete_dynamo_graph_deployment(k8s_system: KubernetesSystem):
+    job_name = "test-dgd"
+
+    with patch("subprocess.run") as mock_run:
+        mock_process = Mock()
+        mock_process.returncode = 0
+        mock_run.return_value = mock_process
+
+        k8s_system._delete_dynamo_graph_deployment(job_name)
+
+        mock_run.assert_called_once_with(
+            f"kubectl delete dgd {job_name} -n {k8s_system.default_namespace}",
+            shell=True,
+            capture_output=True,
+            text=True,
+        )
+
+
+@pytest.mark.parametrize("job_kind", ["mpijob", "job", "dynamographdeployment", "unknown"])
+def test_delete_job(k8s_system: KubernetesSystem, job_kind: str):
+    job_name = "test-job"
+
+    if job_kind == "unknown":
+        with pytest.raises(ValueError):
+            k8s_system.delete_job(job_name, job_kind)
+    elif job_kind == "mpijob":
+        k8s_system._delete_mpi_job = Mock()
+        k8s_system.delete_job(job_name, job_kind)
+        assert k8s_system._delete_mpi_job.called
+    elif job_kind == "job":
+        k8s_system._delete_batch_job = Mock()
+        k8s_system.delete_job(job_name, job_kind)
+        assert k8s_system._delete_batch_job.called
+    elif job_kind == "dynamographdeployment":
+        k8s_system._delete_dynamo_graph_deployment = Mock()
+        k8s_system.delete_job(job_name, job_kind)
+        assert k8s_system._delete_dynamo_graph_deployment.called
+    else:
+        raise AssertionError(f"Unhandled job kind in test: {job_kind}")

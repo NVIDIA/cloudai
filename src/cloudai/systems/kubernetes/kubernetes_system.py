@@ -386,6 +386,7 @@ class KubernetesSystem(BaseModel, System):
             raise
 
     def _check_deployment_conditions(self, conditions: list) -> bool:
+        logging.debug(f"Checking deployment conditions: {conditions}")
         if not conditions:
             return True
 
@@ -438,7 +439,7 @@ class KubernetesSystem(BaseModel, System):
         elif "job" in job_kind.lower():
             self._delete_batch_job(job_name)
         elif "dynamographdeployment" in job_kind.lower():
-            pass
+            self._delete_dynamo_graph_deployment(job_name)
         else:
             error_message = f"Unsupported job kind: '{job_kind}'."
             logging.error(error_message)
@@ -480,11 +481,10 @@ class KubernetesSystem(BaseModel, System):
 
     def _delete_dynamo_graph_deployment(self, job_name: str) -> None:
         logging.debug(f"Deleting DynamoGraphDeployment '{job_name}'")
-        cmd = f"kubectl delete dgd vllm-v1-agg -n {self.default_namespace}"
+        cmd = f"kubectl delete dgd {job_name} -n {self.default_namespace}"
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         if result.returncode != 0:
-            raise subprocess.SubprocessError(f"Failed to delete DynamoGraphDeployment: {result.stderr}")
-        logging.debug("DynamoGraphDeployment deleted successfully")
+            logging.debug(f"Failed to delete DynamoGraphDeployment: {result.stderr}")
 
     def create_job(self, job_spec: Dict[Any, Any], timeout: int = 60, interval: int = 1) -> str:
         """
@@ -567,7 +567,7 @@ class KubernetesSystem(BaseModel, System):
             body=job_spec,
         )
 
-        job_name: str = api_response["metadata"]["name"]
+        job_name = str(api_response["metadata"]["name"])
         logging.debug(f"DynamoGraphDeployment '{job_name}' created with status: {api_response.get('status')}")
         return job_name
 
