@@ -25,7 +25,7 @@ from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
 
 
 @pytest.fixture
-def kube_config_tempfile():
+def kube_config_tempfile(tmp_path: Path) -> Path:
     """Fixture to create a kube config file in $HOME/.kube/config with reasonable content."""
     kube_config_content = """
     apiVersion: v1
@@ -46,8 +46,7 @@ def kube_config_tempfile():
         token: fake-token
     """
 
-    home_dir = Path.home()
-    kube_config_dir = home_dir / ".kube"
+    kube_config_dir = tmp_path / ".kube"
     kube_config_path = kube_config_dir / "config"
 
     kube_config_dir.mkdir(parents=True, exist_ok=True)
@@ -55,11 +54,11 @@ def kube_config_tempfile():
     with kube_config_path.open("w") as config_file:
         config_file.write(kube_config_content)
 
-    yield kube_config_path
+    return kube_config_path
 
 
 @pytest.fixture
-def k8s_system(kube_config_tempfile):
+def k8s_system(kube_config_tempfile: Path) -> KubernetesSystem:
     """Fixture to create a KubernetesSystem instance with a valid kube config."""
     system_data = {
         "name": "test-system",
@@ -77,7 +76,7 @@ def k8s_system(kube_config_tempfile):
 
     validated_system = KubernetesSystem.model_validate(system_data)
 
-    yield validated_system
+    return validated_system
 
 
 def test_initialization(k8s_system):
