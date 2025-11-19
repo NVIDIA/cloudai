@@ -46,6 +46,7 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
         output_path = self.test_run.output_path
         csv_files = list(output_path.rglob(CSV_FILES_PATTERN))
         json_files = list(output_path.rglob(JSON_FILES_PATTERN))
+        logging.debug(f"Found CSV files: {csv_files}, JSON files: {json_files}")
         return len(csv_files) > 0 and len(json_files) > 0
 
     def _find_csv_file(self) -> Path | None:
