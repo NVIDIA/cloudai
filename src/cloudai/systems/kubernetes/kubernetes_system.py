@@ -323,15 +323,9 @@ class KubernetesSystem(BaseModel, System):
             logging.debug("Port forward process is not running")
             return False
 
-        logging.info("Checking if model server is up")
-        configuration = lazy.k8s.client.Configuration.get_default_copy()
-        logging.info(f"Getting output from port forward process (pid={self._port_forward_process.pid})")
-        out, err = "", ""
-        with contextlib.suppress(subprocess.TimeoutExpired):
-            out, err = self._port_forward_process.communicate(timeout=1)
-        logging.debug(f"{out=} {err=} k8s_url={configuration.host}")
         server = "localhost:8000"
         cmd = f"curl -s http://{server}/v1/models"
+        logging.debug(f"Checking if model server is up at {server}: {cmd}")
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
         if result.returncode != 0:
