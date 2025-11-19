@@ -25,6 +25,9 @@ from typing import ClassVar
 from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 
+CSV_FILES_PATTERN = "profile*_genai_perf.csv"
+JSON_FILES_PATTERN = "profile*_genai_perf.json"
+
 
 class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
     """Strategy for generating reports from AI Dynamo run directories."""
@@ -41,8 +44,8 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
 
     def can_handle_directory(self) -> bool:
         output_path = self.test_run.output_path
-        csv_files = list(output_path.rglob("profile_genai_perf.csv"))
-        json_files = list(output_path.rglob("profile_genai_perf.json"))
+        csv_files = list(output_path.rglob(CSV_FILES_PATTERN))
+        json_files = list(output_path.rglob(JSON_FILES_PATTERN))
         return len(csv_files) > 0 and len(json_files) > 0
 
     def _find_csv_file(self) -> Path | None:
@@ -50,7 +53,7 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
         if not output_path.exists() or not output_path.is_dir():
             return None
 
-        csv_files = list(output_path.rglob("profile_genai_perf.csv"))
+        csv_files = list(output_path.rglob(CSV_FILES_PATTERN))
         if not csv_files or csv_files[0].stat().st_size == 0:
             return None
 
@@ -174,7 +177,7 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
 
     def generate_report(self) -> None:
         output_path = self.test_run.output_path
-        source_csv = next(output_path.rglob("profile_genai_perf.csv"))
+        source_csv = next(output_path.rglob(CSV_FILES_PATTERN))
         target_csv = output_path / "report.csv"
 
         total_gpus = self._calculate_total_gpus()
