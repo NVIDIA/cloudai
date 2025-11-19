@@ -21,6 +21,8 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from kubernetes import client
 
+from cloudai.core import TestRun
+from cloudai.systems.kubernetes.kubernetes_job import KubernetesJob
 from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
 
 
@@ -79,6 +81,11 @@ def k8s_system(kube_config_tempfile: Path) -> KubernetesSystem:
     return validated_system
 
 
+@pytest.fixture
+def k8s_dynamo_job(base_tr: TestRun) -> KubernetesJob:
+    return KubernetesJob(test_run=base_tr, id=1, name="k8s-dynamo-job", kind="dynamographdeployment")
+
+
 def test_initialization(k8s_system):
     """Test that all attributes and Kubernetes API clients are properly initialized."""
     assert k8s_system.name == "test-system"
@@ -122,7 +129,9 @@ def test_initialization(k8s_system):
         ),
     ],
 )
-def test_are_vllm_pods_ready(k8s_system: KubernetesSystem, pod_output: str, expected_result: bool) -> None:
+def test_are_vllm_pods_ready(
+    k8s_system: KubernetesSystem, pod_output: str, expected_result: bool, k8s_dynamo_job: KubernetesJob
+) -> None:
     """Test the are_vllm_pods_ready method with various pod states."""
     with patch("subprocess.run") as mock_run:
         mock_process = MagicMock()
@@ -130,7 +139,9 @@ def test_are_vllm_pods_ready(k8s_system: KubernetesSystem, pod_output: str, expe
         mock_process.returncode = 0
         mock_run.return_value = mock_process
 
-        assert k8s_system.are_vllm_pods_ready() == expected_result
+        k8s_dynamo_job.name = "vllm-v1-agg"
+
+        assert k8s_system.are_vllm_pods_ready(k8s_dynamo_job) == expected_result
 
 
 @pytest.mark.parametrize(
