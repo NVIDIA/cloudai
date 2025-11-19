@@ -53,6 +53,8 @@ class DeepEPBenchmarkTestDefinition(TestDefinition):
     @property
     def docker_image(self) -> DockerImage:
         if not self._docker_image:
+            if not self.cmd_args.docker_image_url:
+                raise ValueError("docker_image_url is required for DeepEP benchmark")
             self._docker_image = DockerImage(url=self.cmd_args.docker_image_url)
         return self._docker_image
 
