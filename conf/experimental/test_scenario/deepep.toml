@@ -16,9 +16,14 @@
 
 name = "deepep-benchmark"
 
-# Test 1: Standard Mode Benchmark
 [[Tests]]
 id = "Tests.1"
 test_name = "deepep_standard"
+num_nodes = 2
+time_limit = "00:30:00"
+
+[[Tests]]
+id = "Tests.2"
+test_name = "deepep_low_latency"
 num_nodes = 2
 time_limit = "00:30:00"

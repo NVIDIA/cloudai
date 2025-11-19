@@ -15,12 +15,10 @@
 # limitations under the License.
 
 from .deepep_benchmark import DeepEPBenchmarkTestDefinition
-from .grading_strategy import DeepEPBenchmarkGradingStrategy
 from .report_generation_strategy import DeepEPBenchmarkReportGenerationStrategy
 from .slurm_command_gen_strategy import DeepEPBenchmarkSlurmCommandGenStrategy
 
 __all__ = [
-    "DeepEPBenchmarkGradingStrategy",
     "DeepEPBenchmarkReportGenerationStrategy",
     "DeepEPBenchmarkSlurmCommandGenStrategy",
     "DeepEPBenchmarkTestDefinition",

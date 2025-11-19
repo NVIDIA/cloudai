@@ -23,40 +23,24 @@ from cloudai.models.workload import CmdArgs, TestDefinition
 class DeepEPBenchmarkCmdArgs(CmdArgs):
     """DeepEP benchmark command arguments."""
 
-    docker_image_url: str = "gitlab-master.nvidia.com/ybenabou/warehouse/deepep:dp-benchmark"
+    docker_image_url: Optional[str] = None
     mode: Literal["standard", "low_latency"] = "standard"
-
-    # Basic parameters
     tokens: int = 1024
     num_experts: int = 256
     num_topk: int = 8
     hidden_size: int = 7168
-
-    # Data type
     data_type: Literal["bfloat16", "fp8"] = "bfloat16"
-
-    # Low-latency mode settings
     allow_nvlink_for_low_latency: bool = False
     allow_mnnvl: bool = False
-
-    # FP8 settings
     round_scale: bool = False
     use_ue8m0: bool = False
-
-    # Benchmark settings
     num_warmups: int = 20
     num_iterations: int = 50
     shuffle_columns: bool = False
     use_kineto_profiler: bool = False
-
-    # Environment variables for standard mode
     num_sms: int = 24
     num_qps_per_rank: int = 12
-
-    # Config file path (will be mounted inside container)
     config_file_path: str = "/tmp/config.yaml"
-
-    # Results directory (will be mounted inside container)
     results_dir: str = "/workspace/dp-benchmark/results"
 
 

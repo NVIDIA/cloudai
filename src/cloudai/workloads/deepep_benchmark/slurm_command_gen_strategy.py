@@ -25,13 +25,16 @@ from .deepep_benchmark import DeepEPBenchmarkCmdArgs, DeepEPBenchmarkTestDefinit
 class DeepEPBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for DeepEP benchmark on Slurm systems."""
 
-    def _append_sbatch_directives(self, batch_script_content: List[str]) -> None:
-        """Append SBATCH directives and head node IP detection for DeepEP."""
-        super()._append_sbatch_directives(batch_script_content)
+    def _append_head_node_detection(self, batch_script_content: List[str]) -> None:
+        """
+        Append bash commands to detect head node IP for torchrun.
+
+        Args:
+            batch_script_content: The list of script lines to append to.
+        """
         batch_script_content.extend(
             [
                 "",
-                "# Get head node information for torchrun",
                 "nodes=( $( scontrol show hostnames $SLURM_JOB_NODELIST ) )",
                 "nodes_array=($nodes)",
                 "head_node=${nodes_array[0]}",
@@ -43,6 +46,16 @@ class DeepEPBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 "",
             ]
         )
+
+    def _append_sbatch_directives(self, batch_script_content: List[str]) -> None:
+        """
+        Append SBATCH directives and head node detection setup for DeepEP.
+
+        Args:
+            batch_script_content: The list of script lines to append to.
+        """
+        super()._append_sbatch_directives(batch_script_content)
+        self._append_head_node_detection(batch_script_content)
 
     def _container_mounts(self) -> List[str]:
         """Return container mounts specific to DeepEP benchmark."""

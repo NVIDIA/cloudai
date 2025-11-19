@@ -70,7 +70,6 @@ def register_all():
         ChakraReplayTestDefinition,
     )
     from cloudai.workloads.deepep_benchmark import (
-        DeepEPBenchmarkGradingStrategy,
         DeepEPBenchmarkReportGenerationStrategy,
         DeepEPBenchmarkSlurmCommandGenStrategy,
         DeepEPBenchmarkTestDefinition,
@@ -162,7 +161,6 @@ def register_all():
     Registry().add_grading_strategy(SlurmSystem, GrokTestDefinition, JaxToolboxGradingStrategy)
     Registry().add_grading_strategy(SlurmSystem, NemotronTestDefinition, JaxToolboxGradingStrategy)
     Registry().add_grading_strategy(SlurmSystem, ChakraReplayTestDefinition, ChakraReplayGradingStrategy)
-    Registry().add_grading_strategy(SlurmSystem, DeepEPBenchmarkTestDefinition, DeepEPBenchmarkGradingStrategy)
 
     Registry().add_command_gen_strategy(StandaloneSystem, SleepTestDefinition, SleepStandaloneCommandGenStrategy)
     Registry().add_command_gen_strategy(LSFSystem, SleepTestDefinition, SleepLSFCommandGenStrategy)

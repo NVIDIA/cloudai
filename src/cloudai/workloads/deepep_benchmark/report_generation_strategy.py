@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import json
+import logging
 import re
 from pathlib import Path
 
@@ -48,7 +49,6 @@ class DeepEPBenchmarkReportGenerationStrategy(ReportGenerationStrategy):
 
     def generate_report(self) -> None:
         """Generate a report from DeepEP benchmark results."""
-        # Get directory path and test name from test run
         directory_path = self.test_run.output_path
         test_name = self.test_run.test.name
 
@@ -82,7 +82,6 @@ class DeepEPBenchmarkReportGenerationStrategy(ReportGenerationStrategy):
                     timestamp = "unknown"
                     mode = "unknown"
 
-                # Process results
                 for result in results_data:
                     result["num_ranks"] = num_ranks
                     result["timestamp"] = timestamp
@@ -91,14 +90,12 @@ class DeepEPBenchmarkReportGenerationStrategy(ReportGenerationStrategy):
                     all_results.append(result)
 
             except Exception as e:
-                print(f"Error parsing {results_json}: {e}")
+                logging.debug(f"Error parsing {results_json}: {e}")
                 continue
 
         if all_results:
-            # Create DataFrame
             df = pd.DataFrame(all_results)
 
-            # Reorder columns for better readability
             column_order = [
                 "mode",
                 "num_ranks",
@@ -112,11 +109,9 @@ class DeepEPBenchmarkReportGenerationStrategy(ReportGenerationStrategy):
                 "result_dir",
             ]
 
-            # Only include columns that exist
             column_order = [col for col in column_order if col in df.columns]
             df = df[column_order]
 
-            # Generate CSV report
             self._generate_csv_report(df, directory_path, test_name)
 
     def _generate_csv_report(self, df: pd.DataFrame, directory_path: Path, test_name: str) -> None:

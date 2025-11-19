@@ -37,6 +37,10 @@ from cloudai.workloads.ai_dynamo import (
     GenAIPerfArgs,
     PrefillWorkerArgs,
 )
+from cloudai.workloads.deepep_benchmark import (
+    DeepEPBenchmarkCmdArgs,
+    DeepEPBenchmarkTestDefinition,
+)
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
     GPTTestDefinition,
@@ -253,6 +257,7 @@ def build_special_test_run(
         "ai-dynamo",
         "nixl-perftest",
         "nixl-kvbench",
+        "deepep-benchmark",
     ]
 )
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> Tuple[TestRun, str, Optional[str]]:
@@ -434,6 +439,24 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 ),
             ),
         ),
+        "deepep-benchmark": lambda: create_test_run(
+            partial_tr,
+            "deepep-benchmark",
+            DeepEPBenchmarkTestDefinition(
+                name="deepep-benchmark",
+                description="DeepEP MoE Benchmark",
+                test_template_name="deepep-benchmark",
+                cmd_args=DeepEPBenchmarkCmdArgs(
+                    docker_image_url="gitlab-master.nvidia.com/ybenabou/warehouse/deepep:dp-benchmark",
+                    mode="standard",
+                    tokens=1024,
+                    num_experts=256,
+                    num_topk=8,
+                    hidden_size=7168,
+                    data_type="bfloat16",
+                ),
+            ),
+        ),
     }
 
     if request.param.startswith(("gpt-", "grok-", "nemo-run-", "nemo-launcher")):
@@ -457,6 +480,8 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
             hf_home = tr.output_path / "hf_home"
             hf_home.mkdir(parents=True, exist_ok=True)
             tr.test.cmd_args.huggingface_home_host_path = str(hf_home)
+        if request.param == "deepep-benchmark":
+            tr.num_nodes = 2
         return tr, f"{request.param}.sbatch", None
 
     raise ValueError(f"Unknown test: {request.param}")

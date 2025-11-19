@@ -34,7 +34,6 @@ from cloudai.workloads.chakra_replay import (
     ChakraReplayTestDefinition,
 )
 from cloudai.workloads.deepep_benchmark import (
-    DeepEPBenchmarkGradingStrategy,
     DeepEPBenchmarkSlurmCommandGenStrategy,
     DeepEPBenchmarkTestDefinition,
 )
@@ -140,7 +139,6 @@ JSON_GEN_STRATEGIES = {
 }
 GRADING_STRATEGIES = {
     (SlurmSystem, ChakraReplayTestDefinition): ChakraReplayGradingStrategy,
-    (SlurmSystem, DeepEPBenchmarkTestDefinition): DeepEPBenchmarkGradingStrategy,
     (SlurmSystem, GPTTestDefinition): JaxToolboxGradingStrategy,
     (SlurmSystem, GrokTestDefinition): JaxToolboxGradingStrategy,
     (SlurmSystem, NCCLTestDefinition): NcclTestGradingStrategy,

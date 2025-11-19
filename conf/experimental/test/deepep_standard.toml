@@ -14,41 +14,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "deepep_low_latency"
-description = "DeepEP MoE Benchmark - Low Latency Mode"
+name = "deepep_standard"
+description = "DeepEP MoE Benchmark - Standard Mode"
 test_template_name = "DeepEPBenchmark"
 
 [cmd_args]
 # Local .sqsh file:
 # docker_image_url = "/.autodirect/mswg2/E2E/Regression_logs/squash/yoel/dp-benchmark-shuffle.sqsh"
-# Container registry:
+# Container registry (uses your Docker credentials):
 docker_image_url = "gitlab-master.nvidia.com/ybenabou/warehouse/deepep:dp-benchmark"
 
-mode = "low_latency"
+mode = "standard"
 
-# Basic parameters
-tokens = 128
+tokens = 1024
 num_experts = 256
-num_topk = 1
+num_topk = 8
 hidden_size = 7168
-
-# Data type
 data_type = "bfloat16"
-
-# Low-latency mode settings
-allow_nvlink_for_low_latency = false # Set to true to enable NVLink for intra-node
-allow_mnnvl = false                  # Multi-Node NVLink support
-
-# FP8 settings
+allow_nvlink_for_low_latency = false
+allow_mnnvl = false
 round_scale = false
 use_ue8m0 = false
-
-# Benchmark settings
 num_warmups = 20
 num_iterations = 50
 shuffle_columns = false
 use_kineto_profiler = false
-
-# Paths
 config_file_path = "/tmp/config.yaml"
 results_dir = "/workspace/dp-benchmark/results"
