@@ -1,0 +1,59 @@
+name = "vllm"
+description = "vllm"
+test_template_name = "AIDynamo"
+
+[cmd_args]
+docker_image_url = "gitlab-master.nvidia.com#dl/ai-dynamo/dynamo:e82bc4ec960111b369260e1758072c93227b66bf-32414403-vllm-amd64"
+huggingface_home_host_path = "/lustre/fsw/coreai_tritoninference_triton3/kapila/huggingface"
+
+  [cmd_args.dynamo]
+  backend = "vllm"
+  model = "deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
+  workspace-path = "/workspace/"
+  node-setup-cmd = "apt-get update -o APT::Sandbox::User=root && apt-get install -y curl libibverbs1 rdma-core ibverbs-utils libibumad3 libnuma1 librdmacm1 ibverbs-providers; /usr/local/ucx/bin/ucx_info -d |grep Transport | sort -u;"
+  ingress-cmd = "python -m dynamo.frontend --router-mode kv"
+  port = 8787
+  etcd-cmd = "etcd --log-level debug"
+  nats-cmd = "nats-server -js"
+  etcd-port = 2379
+  nats-port = 4222
+  prefill-cmd = 'python3 -m dynamo.vllm --is-prefill-worker'
+  decode-cmd = 'python3 -m dynamo.vllm'
+  genai-perf-cmd = 'genai-perf profile'
+  prefill-initialized-regex = 'VllmWorker.*has.been.initialized'
+  decode-initialized-regex = 'VllmWorker.*has.been.initialized'
+
+    [cmd_args.dynamo.prefill_worker]
+    num-nodes = 4
+    gpu-memory-utilization = 0.95
+    tensor-parallel-size = 8
+    pipeline-parallel-size = 1
+    data-parallel-size = 1
+    extra-args = "--no-enable-expert-parallel"
+
+    [cmd_args.dynamo.decode_worker]
+    num-nodes = 6
+    gpu-memory-utilization = 0.95
+    tensor-parallel-size = 8
+    pipeline-parallel-size = 1
+    data-parallel-size = 1
+    extra-args = "--no-enable-expert-parallel"
+
+  [cmd_args.genai_perf]
+  endpoint = "v1/chat/completions"
+  endpoint-type = "chat"
+  extra-inputs = 'min_tokens:10'
+  output-tokens-mean = 500
+  output-tokens-stddev = 0
+  random-seed = 123
+  request-count = 20
+  synthetic-input-tokens-mean = 3000
+  synthetic-input-tokens-stddev = 0
+  warmup-request-count = 10
+  concurrency = 1
+  extra-args = "--streaming -- -v --async"
+
+[extra_env_vars]
+UCX_LOG_LEVEL = "warn"
+UCX_TLS = "cuda_copy,rc_x"
+DYNAMO_NODELIST = "$(scontrol show hostname $SLURM_JOB_NODELIST | tr -s '\\n' ',')"

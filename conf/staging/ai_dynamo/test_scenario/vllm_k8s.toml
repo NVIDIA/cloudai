@@ -1,0 +1,28 @@
+name = "vllm_k8s"
+
+[[Tests]]
+id = "Tests.1"
+test_name = "vllm"
+
+  [Tests.cmd_args]
+  docker_image_url = "gitlab-master.nvidia.com#dl/ai-dynamo/dynamo:e82bc4ec960111b369260e1758072c93227b66bf-32414403-vllm-amd64"
+  dynamo_graph_path = "conf/staging/ai_dynamo/test/agg.yaml"
+    [Tests.cmd_args.dynamo]
+      [Tests.cmd_args.dynamo.prefill_worker]
+      num-nodes = 1
+      [Tests.cmd_args.dynamo.decode_worker]
+      num-nodes = 1
+    [Tests.cmd_args.genai_perf]
+    model = "Qwen/Qwen3-0.6B"
+    endpoint = "v1/chat/completions"
+    endpoint-type = "chat"
+    extra-inputs = 'min_tokens:10'
+    output-tokens-mean = 500
+    output-tokens-stddev = 0
+    random-seed = 123
+    request-count = 2
+    synthetic-input-tokens-mean = 300
+    synthetic-input-tokens-stddev = 0
+    warmup-request-count = 1
+    concurrency = 1
+    extra-args = "--streaming -- -v --async"
