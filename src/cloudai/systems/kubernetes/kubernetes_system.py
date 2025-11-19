@@ -384,12 +384,18 @@ class KubernetesSystem(BaseModel, System):
         venv_path = python_exec.venv_path.absolute()
         cmd = f"{venv_path}/bin/genai-perf profile {args_str}"
         logging.debug(f"Running GenAI performance test: {cmd}")
+        result: subprocess.CompletedProcess | None = None
         try:
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=True)
             logging.debug("GenAI performance test completed successfully")
-            logging.debug(f"Output: {result.stdout}")
         except subprocess.CalledProcessError as e:
             logging.error(f"GenAI performance test failed: {e.stderr}")
+
+        if result:
+            with (job.test_run.output_path / "stdout.txt").open("w") as f:
+                f.write(result.stdout)
+            with (job.test_run.output_path / "stderr.txt").open("w") as f:
+                f.write(result.stderr)
 
     def _check_deployment_conditions(self, conditions: list) -> bool:
         logging.debug(f"Checking deployment conditions: {conditions}")
