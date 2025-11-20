@@ -33,6 +33,10 @@ from cloudai.workloads.chakra_replay import (
     ChakraReplaySlurmCommandGenStrategy,
     ChakraReplayTestDefinition,
 )
+from cloudai.workloads.ddlb import (
+    DDLBTestDefinition,
+    DDLBTestSlurmCommandGenStrategy,
+)
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -116,6 +120,7 @@ CMD_GEN_STRATEGIES = {
     (SlurmSystem, SleepTestDefinition): SleepSlurmCommandGenStrategy,
     (SlurmSystem, SlurmContainerTestDefinition): SlurmContainerCommandGenStrategy,
     (SlurmSystem, UCCTestDefinition): UCCTestSlurmCommandGenStrategy,
+    (SlurmSystem, DDLBTestDefinition): DDLBTestSlurmCommandGenStrategy,
     (SlurmSystem, MegatronRunTestDefinition): MegatronRunSlurmCommandGenStrategy,
     (StandaloneSystem, SleepTestDefinition): SleepStandaloneCommandGenStrategy,
     (LSFSystem, SleepTestDefinition): SleepLSFCommandGenStrategy,
@@ -198,9 +203,10 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 17
+    assert len(test_defs) == 18
     for tdef in [
         ("UCCTest", UCCTestDefinition),
+        ("DDLBTest", DDLBTestDefinition),
         ("NcclTest", NCCLTestDefinition),
         ("ChakraReplay", ChakraReplayTestDefinition),
         ("Sleep", SleepTestDefinition),

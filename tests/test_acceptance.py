@@ -37,6 +37,7 @@ from cloudai.workloads.ai_dynamo import (
     GenAIPerfArgs,
     PrefillWorkerArgs,
 )
+from cloudai.workloads.ddlb import DDLBCmdArgs, DDLBTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
     GPTTestDefinition,
@@ -236,6 +237,7 @@ def build_special_test_run(
 @pytest.fixture(
     params=[
         "ucc",
+        "ddlb",
         "nccl",
         "sleep",
         "gpt-pre-test",
@@ -275,6 +277,26 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 description="nccl",
                 test_template_name="nccl",
                 cmd_args=NCCLCmdArgs(docker_image_url="nvcr.io#nvidia/pytorch:24.02-py3"),
+            ),
+        ),
+        "ddlb": lambda: create_test_run(
+            partial_tr,
+            "ddlb",
+            DDLBTestDefinition(
+                name="ddlb",
+                description="ddlb",
+                test_template_name="ddlb",
+                cmd_args=DDLBCmdArgs(
+                    docker_image_url="gitlab-master.nvidia.com/nsarkauskas/ddlb:latest",
+                    primitive="tp_columnwise",
+                    m=1024,
+                    n=128,
+                    k=1024,
+                    dtype="float16",
+                    num_iterations=50,
+                    num_warmups=5,
+                    impl="pytorch;backend=nccl;order=AG_before",
+                ),
             ),
         ),
         "sleep": lambda: create_test_run(

@@ -69,6 +69,10 @@ def register_all():
         ChakraReplaySlurmCommandGenStrategy,
         ChakraReplayTestDefinition,
     )
+    from cloudai.workloads.ddlb import (
+        DDLBTestDefinition,
+        DDLBTestSlurmCommandGenStrategy,
+    )
     from cloudai.workloads.jax_toolbox import (
         GPTTestDefinition,
         GrokTestDefinition,
@@ -163,6 +167,7 @@ def register_all():
 
     Registry().add_command_gen_strategy(SlurmSystem, MegatronRunTestDefinition, MegatronRunSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NCCLTestDefinition, NcclTestSlurmCommandGenStrategy)
+    Registry().add_command_gen_strategy(SlurmSystem, DDLBTestDefinition, DDLBTestSlurmCommandGenStrategy)
 
     Registry().add_command_gen_strategy(SlurmSystem, NeMoLauncherTestDefinition, NeMoLauncherSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NeMoRunTestDefinition, NeMoRunSlurmCommandGenStrategy)
@@ -199,6 +204,7 @@ def register_all():
 
     Registry().add_test_definition("UCCTest", UCCTestDefinition)
     Registry().add_test_definition("NcclTest", NCCLTestDefinition)
+    Registry().add_test_definition("DDLBTest", DDLBTestDefinition)
     Registry().add_test_definition("ChakraReplay", ChakraReplayTestDefinition)
     Registry().add_test_definition("Sleep", SleepTestDefinition)
     Registry().add_test_definition("NeMoLauncher", NeMoLauncherTestDefinition)
