@@ -26,7 +26,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 if TYPE_CHECKING:
     import kubernetes as k8s
 
-import contextlib
 
 from pydantic import BaseModel, ConfigDict
 
