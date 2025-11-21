@@ -497,6 +497,10 @@ class KubernetesSystem(BaseModel, System):
         if result.returncode != 0:
             logging.debug(f"Failed to delete DynamoGraphDeployment: {result.stderr}")
 
+        if self._port_forward_process and self._port_forward_process.poll():
+            self._port_forward_process.kill()
+        self._port_forward_process = None
+
     def create_job(self, job_spec: Dict[Any, Any], timeout: int = 60, interval: int = 1) -> str:
         """
         Create a job in the Kubernetes system in a blocking manner.
