@@ -497,7 +497,7 @@ class KubernetesSystem(BaseModel, System):
         if result.returncode != 0:
             logging.debug(f"Failed to delete DynamoGraphDeployment: {result.stderr}")
 
-        if self._port_forward_process and self._port_forward_process.poll():
+        if self._port_forward_process and self._port_forward_process.poll() is None:
             self._port_forward_process.kill()
         self._port_forward_process = None
 
