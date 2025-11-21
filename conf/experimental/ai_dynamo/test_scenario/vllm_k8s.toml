@@ -1,11 +1,11 @@
 name = "vllm_k8s"
 
 [[Tests]]
-id = "Tests.1"
+id = "dynamo.vllm"
 test_name = "vllm"
 
   [Tests.cmd_args]
-  docker_image_url = "gitlab-master.nvidia.com#dl/ai-dynamo/dynamo:e82bc4ec960111b369260e1758072c93227b66bf-32414403-vllm-amd64"
+  docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.6.1.post1"
   dynamo_graph_path = "conf/staging/ai_dynamo/test/agg.yaml"
     [Tests.cmd_args.dynamo]
       [Tests.cmd_args.dynamo.prefill_worker]

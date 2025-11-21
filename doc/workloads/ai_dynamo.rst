@@ -52,5 +52,5 @@ Run CloudAI to deploy AI Dynamo worker nodes according to your spec and run ``ge
 .. code-block:: bash
 
    uv run cloudai run --system-config <k8s system toml> \
-      --tests-dir conf/staging/ai_dynamo/test \
-      --test-scenario conf/staging/ai_dynamo/test_scenario/vllm_k8s.toml
+      --tests-dir conf/experimental/ai_dynamo/test \
+      --test-scenario conf/experimental/ai_dynamo/test_scenario/vllm_k8s.toml
