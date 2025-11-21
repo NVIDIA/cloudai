@@ -8,6 +8,11 @@ docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.6.1.post1"
   [cmd_args.dynamo]
   backend = "vllm"
 
+  [cmd_args.dynamo.prefill_worker]
+  num-nodes = 1
+  [cmd_args.dynamo.decode_worker]
+  num-nodes = 1
+
   [cmd_args.genai_perf]
   endpoint = "v1/chat/completions"
   endpoint-type = "chat"
