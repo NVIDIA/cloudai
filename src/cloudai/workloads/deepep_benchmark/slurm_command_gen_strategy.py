@@ -68,7 +68,7 @@ class DeepEPBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         # Mount config file and results directory
         mounts = [
-            f"{config_file_path.absolute()}:{cmd_args.config_file_path}",
+            f"{config_file_path.parent.absolute()}:{config_file_path.parent.absolute()}",
             f"{self.test_run.output_path.absolute()}:{cmd_args.results_dir}",
         ]
 
@@ -95,6 +95,7 @@ class DeepEPBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         num_nodes = len(nodes) if nodes else self.test_run.nnodes
 
         # Build torchrun command
+        config_file_path = self.test_run.output_path / "config.yaml"
         command_parts = [
             "torchrun",
             f"--nnodes={num_nodes}",
@@ -103,7 +104,7 @@ class DeepEPBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "--rdzv_backend=c10d",
             "--rdzv_endpoint=$head_node_ip:29500",
             benchmark_script,
-            cmd_args.config_file_path,
+            str(config_file_path.absolute()),
         ]
 
         return command_parts
