@@ -37,11 +37,11 @@ from cloudai.workloads.ai_dynamo import (
     GenAIPerfArgs,
     PrefillWorkerArgs,
 )
+from cloudai.workloads.ddlb import DDLBCmdArgs, DDLBTestDefinition
 from cloudai.workloads.deepep_benchmark import (
     DeepEPBenchmarkCmdArgs,
     DeepEPBenchmarkTestDefinition,
 )
-from cloudai.workloads.ddlb import DDLBCmdArgs, DDLBTestDefinition
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
     GPTTestDefinition,

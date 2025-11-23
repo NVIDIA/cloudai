@@ -69,14 +69,14 @@ def register_all():
         ChakraReplaySlurmCommandGenStrategy,
         ChakraReplayTestDefinition,
     )
+    from cloudai.workloads.ddlb import (
+        DDLBTestDefinition,
+        DDLBTestSlurmCommandGenStrategy,
+    )
     from cloudai.workloads.deepep_benchmark import (
         DeepEPBenchmarkReportGenerationStrategy,
         DeepEPBenchmarkSlurmCommandGenStrategy,
         DeepEPBenchmarkTestDefinition,
-    )
-    from cloudai.workloads.ddlb import (
-        DDLBTestDefinition,
-        DDLBTestSlurmCommandGenStrategy,
     )
     from cloudai.workloads.jax_toolbox import (
         GPTTestDefinition,

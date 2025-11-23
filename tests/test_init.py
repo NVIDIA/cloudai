@@ -33,13 +33,13 @@ from cloudai.workloads.chakra_replay import (
     ChakraReplaySlurmCommandGenStrategy,
     ChakraReplayTestDefinition,
 )
-from cloudai.workloads.deepep_benchmark import (
-    DeepEPBenchmarkSlurmCommandGenStrategy,
-    DeepEPBenchmarkTestDefinition,
-)
 from cloudai.workloads.ddlb import (
     DDLBTestDefinition,
     DDLBTestSlurmCommandGenStrategy,
+)
+from cloudai.workloads.deepep_benchmark import (
+    DeepEPBenchmarkSlurmCommandGenStrategy,
+    DeepEPBenchmarkTestDefinition,
 )
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
