@@ -72,7 +72,7 @@ class DeepEPBenchmarkReportGenerationStrategy(ReportGenerationStrategy):
                 # Extract metadata from directory name
                 dir_name = result_dir.name
                 # Format: benchmark_{num_ranks}_ranks_{timestamp}_{mode}
-                match = re.match(r"benchmark_(\d+)_ranks_(.+)_(\w+)", dir_name)
+                match = match = re.match(r"benchmark_(\d+)_ranks_(.+?)_(low_latency|standard)", dir_name)
                 if match:
                     num_ranks = int(match.group(1))
                     timestamp = match.group(2)
