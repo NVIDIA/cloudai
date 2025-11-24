@@ -189,8 +189,6 @@ def generate_reports(system: System, test_scenario: TestScenario, result_dir: Pa
 def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> None:
     asyncio.run(runner.run())
 
-    logging.info(f"All test scenario results stored at: {runner.runner.scenario_root}")
-
     if args.mode == "run":
         generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
 
@@ -294,6 +292,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
 
     runner = Runner(args.mode, system, test_scenario)
     register_signal_handlers(runner.cancel_on_signal)
+    logging.info(f"Scenario results will be stored at: {runner.runner.scenario_root}")
 
     has_dse = any(tr.is_dse_job for tr in test_scenario.test_runs)
     if args.single_sbatch or not has_dse:  # in this mode cases are unrolled using grid search
