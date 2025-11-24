@@ -14,21 +14,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "vllm"
-description = "vllm"
+name = "vLLM-Qwen3-0.6B"
+description = "vLLM backend with Qwen3-0.6B model"
 test_template_name = "AIDynamo"
 
 [cmd_args]
 docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.6.1.post1"
 
   [cmd_args.dynamo]
-  model = "Qwen/Qwen3-0.6B"
   backend = "vllm"
+  model = "Qwen/Qwen3-0.6B"
+  workspace-path = "/workspace/examples/backends/vllm"
+  prefill-cmd = 'python3 -m dynamo.vllm --is-prefill-worker'
+  decode-cmd = 'python3 -m dynamo.vllm'
 
     [cmd_args.dynamo.prefill_worker]
-    num-nodes = 1
+    num-nodes = 2
+    gpu-memory-utilization = 0.95
+    tensor-parallel-size = 8
+    pipeline-parallel-size = 1
+    data-parallel-size = 1
+    extra-args = "--no-enable-expert-parallel"
+
     [cmd_args.dynamo.decode_worker]
-    num-nodes = 1
+    num-nodes = 2
+    gpu-memory-utilization = 0.95
+    tensor-parallel-size = 8
+    pipeline-parallel-size = 1
+    data-parallel-size = 1
+    extra-args = "--no-enable-expert-parallel"
 
   [cmd_args.genai_perf]
   endpoint = "v1/chat/completions"
@@ -47,4 +61,3 @@ docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.6.1.post1"
 [extra_env_vars]
 UCX_LOG_LEVEL = "warn"
 UCX_TLS = "cuda_copy,rc_x"
-DYNAMO_NODELIST = "$(scontrol show hostname $SLURM_JOB_NODELIST | tr -s '\\n' ',')"

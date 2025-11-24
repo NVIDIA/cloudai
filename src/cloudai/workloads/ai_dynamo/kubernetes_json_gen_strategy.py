@@ -22,6 +22,7 @@ from typing import Any, Dict, cast
 import yaml
 
 from cloudai.core import JsonGenStrategy
+from cloudai.systems.kubernetes import KubernetesSystem
 
 from .ai_dynamo import AIDynamoTestDefinition
 
@@ -53,6 +54,38 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
         repo_root = python_exec.git_repo.installed_path.absolute()
 
         self._install_python_packages(repo_root, venv_pip)
+
+    def gen_frontend_dict(self) -> dict[str, Any]:
+        system = cast(KubernetesSystem, self.system)
+        tdef = cast(AIDynamoTestDefinition, self.test_run.test)
+        return {
+            "dynamoNamespace": system.default_namespace,
+            "componentType": "frontend",
+            "replicas": 1,
+            "extraPodSpec": {
+                "mainContainer": {
+                    "image": tdef.cmd_args.docker_image_url,
+                }
+            },
+        }
+
+    def gen_decode_dict(self) -> dict[str, Any]:
+        system = cast(KubernetesSystem, self.system)
+        tdef = cast(AIDynamoTestDefinition, self.test_run.test)
+        return {
+            "dynamoNamespace": system.default_namespace,
+            "componentType": "worker",
+            "replicas": 1,
+            "resources": {"limits": {"gpu": f"{system.gpus_per_node}"}},
+            "extraPodSpec": {
+                "mainContainer": {
+                    "image": tdef.cmd_args.docker_image_url,
+                    "workingDir": tdef.cmd_args.dynamo.workspace_path,
+                    "command": tdef.cmd_args.dynamo.decode_cmd.split(),
+                    "args": ["--model", tdef.cmd_args.dynamo.model],
+                }
+            },
+        }
 
     def gen_json(self) -> Dict[Any, Any]:
         td = cast(AIDynamoTestDefinition, self.test_run.test)

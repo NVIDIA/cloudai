@@ -15,9 +15,9 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from cloudai.core import DockerImage, File, GitRepo, HFModel, Installable, PythonExecutable
 from cloudai.models.workload import CmdArgs, TestDefinition
@@ -28,8 +28,10 @@ class WorkerBaseArgs(BaseModel):
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
-    num_nodes: Union[int, list[int]] = Field(alias="num-nodes")
-    nodes: Optional[str] = Field(default=None, alias="nodes")
+    num_nodes: Union[int, list[int]] = Field(
+        serialization_alias="num-nodes", validation_alias=AliasChoices("num-nodes", "num_nodes")
+    )
+    nodes: Optional[str] = Field(default=None)
 
 
 class PrefillWorkerArgs(WorkerBaseArgs):
@@ -51,8 +53,17 @@ class AIDynamoArgs(BaseModel):
 
     model: str
     backend: str = "vllm"
-    prefill_worker: PrefillWorkerArgs
+    model: str = "Qwen/Qwen3-0.6B"
+    workspace_path: str = Field(
+        serialization_alias="workspace-path", validation_alias=AliasChoices("workspace-path", "workspace_path")
+    )
     decode_worker: DecodeWorkerArgs
+    decode_cmd: str = Field(
+        serialization_alias="decode-cmd",
+        validation_alias=AliasChoices("decode-cmd", "decode_cmd"),
+        default="python3 -m dynamo.vllm",
+    )
+    prefill_worker: PrefillWorkerArgs
 
 
 class GenAIPerfArgs(BaseModel):

@@ -63,10 +63,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _get_toml_args(self, base_model: BaseModel, prefix: str, exclude: List[str] | None = None) -> List[str]:
         args = []
         exclude = exclude or []
-        toml_args = base_model.model_dump(by_alias=True)
-        for k, v in toml_args.items():
-            if k not in exclude and v is not None:
-                args.append(f'{prefix}{k} "{v}"')
+        toml_args = base_model.model_dump(by_alias=True, exclude=set(exclude), exclude_none=True)
+        args = [f'{prefix}{k} "{v}"' for k, v in toml_args.items()]
 
         return args
 
@@ -77,7 +75,9 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ]
         args.extend(
             self._get_toml_args(
-                td.cmd_args.dynamo, "--dynamo-", exclude=["prefill_worker", "decode_worker", "genai_perf"]
+                td.cmd_args.dynamo,
+                "--dynamo-",
+                exclude=["prefill_worker", "decode_worker", "genai_perf", "model", "workspace_path", "decode_cmd"],
             )
         )
 

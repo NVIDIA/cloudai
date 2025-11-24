@@ -70,7 +70,7 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
 
 
 @pytest.fixture
-def kubernetes_system(tmp_path: Path) -> KubernetesSystem:
+def k8s_system(tmp_path: Path) -> KubernetesSystem:
     kube_config = tmp_path / "kubeconfig"
     config = {
         "apiVersion": "v1",
@@ -88,7 +88,8 @@ def kubernetes_system(tmp_path: Path) -> KubernetesSystem:
         output_path=tmp_path / "output",
         scheduler="kubernetes",
         global_env_vars={},
-        monitor_interval=60,
+        monitor_interval=1,
+        gpus_per_node=8,
         default_namespace="test-namespace",
         kube_config_path=kube_config,
     )
