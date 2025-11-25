@@ -16,7 +16,7 @@
 
 name = "deepep_low_latency"
 description = "DeepEP MoE Benchmark - Low Latency Mode"
-test_template_name = "DeepEPBenchmark"
+test_template_name = "DeepEP"
 
 [cmd_args]
 # Local .sqsh file:

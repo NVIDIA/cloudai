@@ -19,10 +19,10 @@ from typing import List, cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
-from .deepep_benchmark import DeepEPBenchmarkCmdArgs, DeepEPBenchmarkTestDefinition
+from .deepep import DeepEPCmdArgs, DeepEPTestDefinition
 
 
-class DeepEPBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
+class DeepEPSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for DeepEP benchmark on Slurm systems."""
 
     def _append_head_node_detection(self, batch_script_content: List[str]) -> None:
@@ -59,8 +59,8 @@ class DeepEPBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _container_mounts(self) -> List[str]:
         """Return container mounts specific to DeepEP benchmark."""
-        tdef: DeepEPBenchmarkTestDefinition = cast(DeepEPBenchmarkTestDefinition, self.test_run.test)
-        cmd_args: DeepEPBenchmarkCmdArgs = tdef.cmd_args
+        tdef: DeepEPTestDefinition = cast(DeepEPTestDefinition, self.test_run.test)
+        cmd_args: DeepEPCmdArgs = tdef.cmd_args
 
         config_file_path = self.test_run.output_path / "config.yaml"
         self._generate_config_yaml(config_file_path, cmd_args)
@@ -74,13 +74,13 @@ class DeepEPBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def image_path(self) -> str | None:
         """Return the Docker image path for DeepEP benchmark."""
-        tdef: DeepEPBenchmarkTestDefinition = cast(DeepEPBenchmarkTestDefinition, self.test_run.test)
+        tdef: DeepEPTestDefinition = cast(DeepEPTestDefinition, self.test_run.test)
         return str(tdef.docker_image.installed_path)
 
     def generate_test_command(self) -> List[str]:
         """Generate the test command for DeepEP benchmark."""
-        tdef: DeepEPBenchmarkTestDefinition = cast(DeepEPBenchmarkTestDefinition, self.test_run.test)
-        cmd_args: DeepEPBenchmarkCmdArgs = tdef.cmd_args
+        tdef: DeepEPTestDefinition = cast(DeepEPTestDefinition, self.test_run.test)
+        cmd_args: DeepEPCmdArgs = tdef.cmd_args
 
         if cmd_args.mode == "standard":
             benchmark_script = "/workspace/dp-benchmark/benchmark/benchmark.py"
@@ -104,7 +104,7 @@ class DeepEPBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return command_parts
 
-    def _generate_config_yaml(self, config_path: Path, cmd_args: DeepEPBenchmarkCmdArgs) -> None:
+    def _generate_config_yaml(self, config_path: Path, cmd_args: DeepEPCmdArgs) -> None:
         """
         Generate YAML configuration file for DeepEP benchmark.
 
@@ -112,7 +112,7 @@ class DeepEPBenchmarkSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             config_path: Path where to write the config file.
             cmd_args: Command arguments for the benchmark.
         """
-        tdef: DeepEPBenchmarkTestDefinition = cast(DeepEPBenchmarkTestDefinition, self.test_run.test)
+        tdef: DeepEPTestDefinition = cast(DeepEPTestDefinition, self.test_run.test)
 
         config_lines = [
             "# DeepEP Benchmark Configuration",

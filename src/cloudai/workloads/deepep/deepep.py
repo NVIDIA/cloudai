@@ -20,7 +20,7 @@ from cloudai.core import DockerImage, Installable
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 
-class DeepEPBenchmarkCmdArgs(CmdArgs):
+class DeepEPCmdArgs(CmdArgs):
     """DeepEP benchmark command arguments."""
 
     docker_image_url: str
@@ -44,10 +44,10 @@ class DeepEPBenchmarkCmdArgs(CmdArgs):
     results_dir: str = "/workspace/dp-benchmark/results"
 
 
-class DeepEPBenchmarkTestDefinition(TestDefinition):
+class DeepEPTestDefinition(TestDefinition):
     """Test object for DeepEP MoE benchmark."""
 
-    cmd_args: DeepEPBenchmarkCmdArgs
+    cmd_args: DeepEPCmdArgs
     _docker_image: Optional[DockerImage] = None
 
     @property
@@ -65,13 +65,13 @@ class DeepEPBenchmarkTestDefinition(TestDefinition):
     @property
     def cmd_args_dict(self) -> dict:
         """Return command arguments as dict, excluding CloudAI-specific fields."""
-        exclude_fields = {
-            "docker_image_url",
-            "mode",
-            "num_sms",
-            "num_qps_per_rank",
-            "config_file_path",
-            "results_dir",
-        }
-        all_args = self.cmd_args.model_dump()
-        return {k: v for k, v in all_args.items() if k not in exclude_fields}
+        return self.cmd_args.model_dump(
+            exclude={
+                "docker_image_url",
+                "mode",
+                "num_sms",
+                "num_qps_per_rank",
+                "config_file_path",
+                "results_dir",
+            }
+        )

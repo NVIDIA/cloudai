@@ -37,9 +37,9 @@ from cloudai.workloads.ddlb import (
     DDLBTestDefinition,
     DDLBTestSlurmCommandGenStrategy,
 )
-from cloudai.workloads.deepep_benchmark import (
-    DeepEPBenchmarkSlurmCommandGenStrategy,
-    DeepEPBenchmarkTestDefinition,
+from cloudai.workloads.deepep import (
+    DeepEPSlurmCommandGenStrategy,
+    DeepEPTestDefinition,
 )
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
@@ -115,7 +115,7 @@ def test_runners():
 
 CMD_GEN_STRATEGIES = {
     (SlurmSystem, ChakraReplayTestDefinition): ChakraReplaySlurmCommandGenStrategy,
-    (SlurmSystem, DeepEPBenchmarkTestDefinition): DeepEPBenchmarkSlurmCommandGenStrategy,
+    (SlurmSystem, DeepEPTestDefinition): DeepEPSlurmCommandGenStrategy,
     (SlurmSystem, GPTTestDefinition): JaxToolboxSlurmCommandGenStrategy,
     (SlurmSystem, GrokTestDefinition): JaxToolboxSlurmCommandGenStrategy,
     (SlurmSystem, NCCLTestDefinition): NcclTestSlurmCommandGenStrategy,
@@ -214,7 +214,7 @@ def test_definitions():
         ("DDLBTest", DDLBTestDefinition),
         ("NcclTest", NCCLTestDefinition),
         ("ChakraReplay", ChakraReplayTestDefinition),
-        ("DeepEPBenchmark", DeepEPBenchmarkTestDefinition),
+        ("DeepEP", DeepEPTestDefinition),
         ("Sleep", SleepTestDefinition),
         ("NeMoLauncher", NeMoLauncherTestDefinition),
         ("NeMoRun", NeMoRunTestDefinition),

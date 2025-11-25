@@ -14,13 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .deepep_benchmark import DeepEPBenchmarkCmdArgs, DeepEPBenchmarkTestDefinition
-from .report_generation_strategy import DeepEPBenchmarkReportGenerationStrategy
-from .slurm_command_gen_strategy import DeepEPBenchmarkSlurmCommandGenStrategy
+from .deepep import DeepEPCmdArgs, DeepEPTestDefinition
+from .report_generation_strategy import DeepEPReportGenerationStrategy
+from .slurm_command_gen_strategy import DeepEPSlurmCommandGenStrategy
 
 __all__ = [
-    "DeepEPBenchmarkCmdArgs",
-    "DeepEPBenchmarkReportGenerationStrategy",
-    "DeepEPBenchmarkSlurmCommandGenStrategy",
-    "DeepEPBenchmarkTestDefinition",
+    "DeepEPCmdArgs",
+    "DeepEPReportGenerationStrategy",
+    "DeepEPSlurmCommandGenStrategy",
+    "DeepEPTestDefinition",
 ]

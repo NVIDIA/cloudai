@@ -16,7 +16,7 @@
 
 name = "deepep_standard"
 description = "DeepEP MoE Benchmark - Standard Mode"
-test_template_name = "DeepEPBenchmark"
+test_template_name = "DeepEP"
 
 [cmd_args]
 # Local .sqsh file:

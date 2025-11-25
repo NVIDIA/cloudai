@@ -38,9 +38,9 @@ from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.test_scenario_parser import calculate_total_time_limit, get_reporters
 from cloudai.workloads.ai_dynamo import AIDynamoReportGenerationStrategy, AIDynamoTestDefinition
 from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
-from cloudai.workloads.deepep_benchmark import (
-    DeepEPBenchmarkReportGenerationStrategy,
-    DeepEPBenchmarkTestDefinition,
+from cloudai.workloads.deepep import (
+    DeepEPReportGenerationStrategy,
+    DeepEPTestDefinition,
 )
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
@@ -476,7 +476,7 @@ class TestReporters:
         "tdef,expected_reporters",
         [
             (ChakraReplayTestDefinition, {ChakraReplayReportGenerationStrategy}),
-            (DeepEPBenchmarkTestDefinition, {DeepEPBenchmarkReportGenerationStrategy}),
+            (DeepEPTestDefinition, {DeepEPReportGenerationStrategy}),
             (GPTTestDefinition, {JaxToolboxReportGenerationStrategy}),
             (GrokTestDefinition, {JaxToolboxReportGenerationStrategy}),
             (MegatronRunTestDefinition, {CheckpointTimingReportGenerationStrategy}),

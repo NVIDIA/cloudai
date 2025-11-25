@@ -38,9 +38,9 @@ from cloudai.workloads.ai_dynamo import (
     PrefillWorkerArgs,
 )
 from cloudai.workloads.ddlb import DDLBCmdArgs, DDLBTestDefinition
-from cloudai.workloads.deepep_benchmark import (
-    DeepEPBenchmarkCmdArgs,
-    DeepEPBenchmarkTestDefinition,
+from cloudai.workloads.deepep import (
+    DeepEPCmdArgs,
+    DeepEPTestDefinition,
 )
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
@@ -464,11 +464,11 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
         "deepep-benchmark": lambda: create_test_run(
             partial_tr,
             "deepep-benchmark",
-            DeepEPBenchmarkTestDefinition(
+            DeepEPTestDefinition(
                 name="deepep-benchmark",
                 description="DeepEP MoE Benchmark",
                 test_template_name="deepep-benchmark",
-                cmd_args=DeepEPBenchmarkCmdArgs(
+                cmd_args=DeepEPCmdArgs(
                     docker_image_url="gitlab-master.nvidia.com/ybenabou/warehouse/deepep:dp-benchmark",
                 ),
             ),
