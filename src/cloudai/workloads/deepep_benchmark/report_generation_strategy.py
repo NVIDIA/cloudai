@@ -68,30 +68,29 @@ class DeepEPBenchmarkReportGenerationStrategy(ReportGenerationStrategy):
             try:
                 with open(results_json, "r") as f:
                     results_data = json.load(f)
-
-                # Extract metadata from directory name
-                dir_name = result_dir.name
-                # Format: benchmark_{num_ranks}_ranks_{timestamp}_{mode}
-                match = match = re.match(r"benchmark_(\d+)_ranks_(.+?)_(low_latency|standard)", dir_name)
-                if match:
-                    num_ranks = int(match.group(1))
-                    timestamp = match.group(2)
-                    mode = match.group(3)
-                else:
-                    num_ranks = 0
-                    timestamp = "unknown"
-                    mode = "unknown"
-
-                for result in results_data:
-                    result["num_ranks"] = num_ranks
-                    result["timestamp"] = timestamp
-                    result["mode"] = mode
-                    result["result_dir"] = str(result_dir)
-                    all_results.append(result)
-
             except Exception as e:
                 logging.debug(f"Error parsing {results_json}: {e}")
                 continue
+
+            # Extract metadata from directory name
+            dir_name = result_dir.name
+            # Format: benchmark_{num_ranks}_ranks_{timestamp}_{mode}
+            match = match = re.match(r"benchmark_(\d+)_ranks_(.+?)_(low_latency|standard)", dir_name)
+            if match:
+                num_ranks = int(match.group(1))
+                timestamp = match.group(2)
+                mode = match.group(3)
+            else:
+                num_ranks = 0
+                timestamp = "unknown"
+                mode = "unknown"
+
+            for result in results_data:
+                result["num_ranks"] = num_ranks
+                result["timestamp"] = timestamp
+                result["mode"] = mode
+                result["result_dir"] = str(result_dir)
+                all_results.append(result)
 
         if all_results:
             df = pd.DataFrame(all_results)

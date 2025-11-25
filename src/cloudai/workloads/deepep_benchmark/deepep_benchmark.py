@@ -23,7 +23,7 @@ from cloudai.models.workload import CmdArgs, TestDefinition
 class DeepEPBenchmarkCmdArgs(CmdArgs):
     """DeepEP benchmark command arguments."""
 
-    docker_image_url: Optional[str] = None
+    docker_image_url: str
     mode: Literal["standard", "low_latency"] = "standard"
     tokens: int = 1024
     num_experts: int = 256
@@ -61,3 +61,17 @@ class DeepEPBenchmarkTestDefinition(TestDefinition):
     @property
     def installables(self) -> list[Installable]:
         return [self.docker_image]
+
+    @property
+    def cmd_args_dict(self) -> dict:
+        """Return command arguments as dict, excluding CloudAI-specific fields."""
+        exclude_fields = {
+            "docker_image_url",
+            "mode",
+            "num_sms",
+            "num_qps_per_rank",
+            "config_file_path",
+            "results_dir",
+        }
+        all_args = self.cmd_args.model_dump()
+        return {k: v for k, v in all_args.items() if k not in exclude_fields}

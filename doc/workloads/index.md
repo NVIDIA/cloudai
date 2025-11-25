@@ -11,7 +11,7 @@ This section contains automatically generated documentation for all CloudAI work
 ai_dynamo
 bash_cmd
 chakra_replay
-deepep_benchmark
+deepep
 nccl
 ddlb
 nemo_run

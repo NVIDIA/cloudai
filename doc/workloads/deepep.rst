@@ -14,23 +14,6 @@ DeepEP is a benchmark for measuring the performance of MoE models with distribut
 - **Configurable model parameters**: Experts, tokens, hidden size, top-k
 - **Performance profiling**: Kineto profiler support
 
-Docker Image Sources
---------------------
-
-DeepEP supports multiple Docker image sources:
-
-1. **Container Registry** (requires authentication):
-
-   .. code-block:: toml
-
-      docker_image_url = "gitlab-master.nvidia.com/ybenabou/warehouse/deepep:dp-benchmark"
-
-2. **Local .sqsh file** :
-
-   .. code-block:: toml
-
-      docker_image_url = "/.autodirect/mswg2/E2E/Regression_logs/squash/yoel/dp-benchmark-shuffle.sqsh"
-
 Usage Example
 -------------
 
@@ -106,58 +89,6 @@ Test-in-Scenario example:
      tokens = 1024
      num_experts = 256
      num_topk = 8
-
-Configuration Parameters
-------------------------
-
-Mode Selection
-~~~~~~~~~~~~~~
-
-- ``mode``: Operation mode (``"standard"`` or ``"low_latency"``)
-
-  - **Standard Mode**: Optimized for throughput, uses standard network communication
-  - **Low-Latency Mode**: Optimized for latency, configurable NVLink usage
-
-Model Parameters
-~~~~~~~~~~~~~~~~
-
-- ``tokens``: Number of tokens per iteration (default: 1024 for standard, 128 for low-latency)
-- ``num_experts``: Total number of experts in the MoE model (default: 256)
-- ``num_topk``: Top-K experts to activate per token (default: 8 for standard, 1 for low-latency)
-- ``hidden_size``: Hidden dimension size (default: 7168)
-
-Data Type
-~~~~~~~~~
-
-- ``data_type``: Precision type (``"bfloat16"`` or ``"fp8"``)
-- ``round_scale``: Enable scale rounding for FP8 (default: false)
-- ``use_ue8m0``: Use UE8M0 format for FP8 (default: false)
-
-Network Configuration
-~~~~~~~~~~~~~~~~~~~~~
-
-- ``allow_nvlink_for_low_latency``: Enable NVLink for intra-node communication in low-latency mode (default: false)
-- ``allow_mnnvl``: Enable Multi-Node NVLink support (default: false)
-
-Benchmark Settings
-~~~~~~~~~~~~~~~~~~
-
-- ``num_warmups``: Number of warmup iterations (default: 20)
-- ``num_iterations``: Number of measurement iterations (default: 50)
-- ``shuffle_columns``: Enable column shuffling (default: false)
-- ``use_kineto_profiler``: Enable Kineto profiler (default: false)
-
-Environment Variables
-~~~~~~~~~~~~~~~~~~~~~
-
-- ``num_sms``: Number of SMs per rank for standard mode (default: 24)
-- ``num_qps_per_rank``: Number of QPs per rank for standard mode (default: 12)
-
-Paths
-~~~~~
-
-- ``config_file_path``: Path to config file inside container (default: "/tmp/config.yaml")
-- ``results_dir``: Results directory inside container (default: "/workspace/dp-benchmark/results")
 
 Output Files
 ------------

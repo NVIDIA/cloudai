@@ -470,12 +470,6 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 test_template_name="deepep-benchmark",
                 cmd_args=DeepEPBenchmarkCmdArgs(
                     docker_image_url="gitlab-master.nvidia.com/ybenabou/warehouse/deepep:dp-benchmark",
-                    mode="standard",
-                    tokens=1024,
-                    num_experts=256,
-                    num_topk=8,
-                    hidden_size=7168,
-                    data_type="bfloat16",
                 ),
             ),
         ),
