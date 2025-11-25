@@ -41,20 +41,6 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
     def tdef(self) -> NIXLBenchTestDefinition:
         return cast(NIXLBenchTestDefinition, self.test_run.test)
 
-    def gen_kill_and_wait_cmd(self, pid_var: str, timeout: int = 60) -> list[str]:
-        cmd = [
-            f"kill -9 ${pid_var}\n",
-            "timeout",
-            str(timeout),
-            "bash",
-            "-c",
-            f'"while kill -0 ${pid_var} 2>/dev/null; do sleep 1; done" || {{\n',
-            f'  echo "Failed to kill ETCD (pid=${pid_var}) within {timeout} seconds";\n',
-            "  exit 1\n",
-            "}",
-        ]
-        return cmd
-
     def _gen_srun_command(self) -> str:
         self.create_env_vars_file()
 
