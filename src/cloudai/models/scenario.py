@@ -248,5 +248,5 @@ class TestRunDetails(BaseModel):
             step=tr.step,
             test_cmd=test_cmd,
             full_cmd=full_cmd,
-            test_definition=tr.test.test_definition,
+            test_definition=tr.test,
         )

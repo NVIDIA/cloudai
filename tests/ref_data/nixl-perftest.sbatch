@@ -25,3 +25,7 @@ timeout 60 bash -c "until curl -s $NIXL_ETCD_ENDPOINTS/health > /dev/null 2>&1; 
  }
 srun --export=ALL --mpi=pmix --container-image=url.com/docker:tag --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --overlap bash -c "source __OUTPUT_DIR__/output/env_vars.sh;  python /workspace/nixl/benchmark/kvbench/main.py sequential-ct-perftest __OUTPUT_DIR__/output/matrices/metadata.yaml --json-output-path=__OUTPUT_DIR__/output/results.json "
 kill -9 $etcd_pid
+ timeout 60 bash -c "while kill -0 $etcd_pid 2>/dev/null; do sleep 1; done" || {
+   echo "Failed to kill ETCD (pid=$etcd_pid) within 60 seconds";
+   exit 1
+ }

@@ -31,6 +31,6 @@ class SleepLSFCommandGenStrategy(LSFCommandGenStrategy):
     def generate_test_command(
         self, env_vars: Dict[str, Union[str, List[str]]], cmd_args: Dict[str, Union[str, List[str]]], tr: TestRun
     ) -> List[str]:
-        tdef: SleepTestDefinition = cast(SleepTestDefinition, tr.test.test_definition)
+        tdef: SleepTestDefinition = cast(SleepTestDefinition, tr.test)
         tdef_cmd_args: SleepCmdArgs = tdef.cmd_args
         return [f"sleep {tdef_cmd_args.seconds}"]

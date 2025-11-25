@@ -108,9 +108,9 @@ class NixlPerftestTestDefinition(TestDefinition):
         return [*self.git_repos, self.docker_image]
 
     def constraint_check(self, tr: TestRun) -> bool:
-        decode_tp = int(tr.test.test_definition.cmd_args.decode_tp)
-        decode_nodes = int(tr.test.test_definition.cmd_args.num_decode_nodes)
-        prefill_tp = int(tr.test.test_definition.cmd_args.prefill_tp)
-        prefill_nodes = int(tr.test.test_definition.cmd_args.num_prefill_nodes)
+        decode_tp = int(tr.test.cmd_args.decode_tp)
+        decode_nodes = int(tr.test.cmd_args.num_decode_nodes)
+        prefill_tp = int(tr.test.cmd_args.prefill_tp)
+        prefill_nodes = int(tr.test.cmd_args.num_prefill_nodes)
 
         return decode_tp / decode_nodes == prefill_tp / prefill_nodes

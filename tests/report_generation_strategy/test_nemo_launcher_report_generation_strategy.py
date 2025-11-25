@@ -20,18 +20,14 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
-from cloudai import Test, TestRun
+from cloudai import TestRun
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nemo_launcher import NeMoLauncherReportGenerationStrategy
 
 
 @pytest.fixture
 def nemo_tr(tmp_path: Path) -> TestRun:
-    test = Test(
-        test_definition=Mock(),
-        test_template=Mock(),
-    )
-    tr = TestRun(name="nemo_launcher", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(name="nemo_launcher", test=Mock(), num_nodes=1, nodes=[], output_path=tmp_path)
 
     log_content = (
         "[NeMo I 2025-03-04 02:58:29 perf_metrics_utils:56] train_step_timing in s: "
@@ -51,11 +47,7 @@ def nemo_tr(tmp_path: Path) -> TestRun:
 
 @pytest.fixture
 def nemo_tr_large(tmp_path: Path) -> TestRun:
-    test = Test(
-        test_definition=Mock(),
-        test_template=Mock(),
-    )
-    tr = TestRun(name="nemo_launcher_large", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
+    tr = TestRun(name="nemo_launcher_large", test=Mock(), num_nodes=1, nodes=[], output_path=tmp_path)
 
     step_timings = [float(i) for i in range(150)]
     log_content = f"[NeMo I 2025-03-04 02:58:29 perf_metrics_utils:56] train_step_timing in s: {step_timings}\n"

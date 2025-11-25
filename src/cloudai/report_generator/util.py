@@ -165,8 +165,8 @@ def diff_test_runs(trs: list[TestRun]) -> dict[str, list[str]]:
         dicts.append(
             {
                 "NUM_NODES": tr.num_nodes,
-                **tr.test.test_definition.cmd_args.model_dump(),
-                **{f"extra_env_vars.{k}": v for k, v in tr.test.test_definition.extra_env_vars.items()},
+                **tr.test.cmd_args.model_dump(),
+                **{f"extra_env_vars.{k}": v for k, v in tr.test.extra_env_vars.items()},
             }
         )
     all_keys = set().union(*[d.keys() for d in dicts])

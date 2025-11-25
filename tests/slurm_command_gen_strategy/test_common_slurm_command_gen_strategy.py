@@ -20,7 +20,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai.core import GitRepo, Test, TestRun, TestScenario, TestTemplate
+from cloudai.core import GitRepo, TestRun, TestScenario
 from cloudai.systems.slurm import SlurmCommandGenStrategy, SlurmSystem
 from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition
 
@@ -31,7 +31,7 @@ class MySlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
 
 @pytest.fixture
-def testrun_fixture(tmp_path: Path, slurm_system: SlurmSystem) -> TestRun:
+def testrun_fixture(tmp_path: Path) -> TestRun:
     tdef = NCCLTestDefinition(
         name="test_job",
         description="Test description",
@@ -40,9 +40,7 @@ def testrun_fixture(tmp_path: Path, slurm_system: SlurmSystem) -> TestRun:
         extra_env_vars={"TEST_VAR": "VALUE"},
     )
 
-    test = Test(test_definition=tdef, test_template=TestTemplate(slurm_system))
-
-    return TestRun(name="test_job", test=test, output_path=tmp_path, num_nodes=2, nodes=["node1", "node2"])
+    return TestRun(name="test_job", test=tdef, output_path=tmp_path, num_nodes=2, nodes=["node1", "node2"])
 
 
 @pytest.fixture
@@ -68,9 +66,7 @@ def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy):
 
 
 def test_num_nodes_and_nodes(strategy_fixture: SlurmCommandGenStrategy):
-    tr = make_test_run(
-        slurm_system=strategy_fixture.system, name="test_job", output_dir=strategy_fixture.system.output_path
-    )
+    tr = make_test_run(name="test_job", output_dir=strategy_fixture.system.output_path)
     tr.nodes = ["node1", "node2"]
     tr.num_nodes = 3
     tr.output_path.mkdir(parents=True, exist_ok=True)
@@ -93,9 +89,7 @@ def test_only_num_nodes(strategy_fixture: SlurmCommandGenStrategy):
 
 
 def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
-    tr = make_test_run(
-        slurm_system=strategy_fixture.system, name="test_job", output_dir=strategy_fixture.system.output_path
-    )
+    tr = make_test_run(name="test_job", output_dir=strategy_fixture.system.output_path)
     tr.num_nodes = 0
     tr.nodes = ["node1", "node2"]
     tr.output_path.mkdir(parents=True, exist_ok=True)
@@ -120,7 +114,7 @@ def test_time_limit(time_limit: Optional[str], strategy_fixture: SlurmCommandGen
         assert not any("#SBATCH --time=" in line for line in lines)
 
 
-def make_test_run(slurm_system: SlurmSystem, name: str, output_dir: Path) -> TestRun:
+def make_test_run(name: str, output_dir: Path) -> TestRun:
     test_def = NCCLTestDefinition(
         name=name,
         description=name,
@@ -128,9 +122,7 @@ def make_test_run(slurm_system: SlurmSystem, name: str, output_dir: Path) -> Tes
         cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
         extra_env_vars={"TEST_VAR": "VALUE"},
     )
-    test_template = TestTemplate(slurm_system)
-    test = Test(test_definition=test_def, test_template=test_template)
-    return TestRun(name=name, test=test, num_nodes=1, nodes=["node1"], output_path=output_dir / name)
+    return TestRun(name=name, test=test_def, num_nodes=1, nodes=["node1"], output_path=output_dir / name)
 
 
 def test_pre_post_combinations(tmp_path: Path, slurm_system: SlurmSystem, strategy_fixture: SlurmCommandGenStrategy):
@@ -216,13 +208,13 @@ def test_pre_post_combinations(tmp_path: Path, slurm_system: SlurmSystem, strate
         expected_lines = case["expected_lines"]
 
         if pre_count > 0:
-            pre_runs = [make_test_run(slurm_system, f"pre{i}", tmp_path) for i in range(pre_count)]
+            pre_runs = [make_test_run(f"pre{i}", tmp_path) for i in range(pre_count)]
             strategy_fixture.test_run.pre_test = TestScenario(name="pre", test_runs=pre_runs)
         else:
             strategy_fixture.test_run.pre_test = None
 
         if post_count > 0:
-            post_runs = [make_test_run(slurm_system, f"post{i}", tmp_path) for i in range(post_count)]
+            post_runs = [make_test_run(f"post{i}", tmp_path) for i in range(post_count)]
             strategy_fixture.test_run.post_test = TestScenario(name="post", test_runs=post_runs)
         else:
             strategy_fixture.test_run.post_test = None
@@ -255,7 +247,7 @@ def test_append_sbatch_directives(strategy_fixture: SlurmCommandGenStrategy):
 
 
 def test_default_container_mounts_with_extra_mounts(strategy_fixture: SlurmCommandGenStrategy):
-    strategy_fixture.test_run.test.test_definition.extra_container_mounts = ["/host:/container"]
+    strategy_fixture.test_run.test.extra_container_mounts = ["/host:/container"]
     mounts = strategy_fixture.container_mounts()
     assert len(mounts) == 4
     assert mounts[0] == f"{strategy_fixture.test_run.output_path.absolute()}:/cloudai_run_results"
@@ -267,7 +259,7 @@ def test_default_container_mounts_with_extra_mounts(strategy_fixture: SlurmComma
 def test_default_container_mounts_with_git_repos(strategy_fixture: SlurmCommandGenStrategy):
     repo1 = GitRepo(url="./git_repo", commit="commit", mount_as="/git/r1", installed_path=Path.cwd())
     repo2 = GitRepo(url="./git_repo2", commit="commit", mount_as="/git/r2", installed_path=Path.cwd())
-    strategy_fixture.test_run.test.test_definition.git_repos = [repo1, repo2]
+    strategy_fixture.test_run.test.git_repos = [repo1, repo2]
 
     mounts = strategy_fixture.container_mounts()
 
@@ -303,7 +295,7 @@ def test_nccl_topo_mount(strategy_fixture: SlurmCommandGenStrategy):
 def test_gen_srun_prefix_with_pretest_extras(
     use_pretest_extras: bool, tmp_path: Path, slurm_system: SlurmSystem, strategy_fixture: SlurmCommandGenStrategy
 ):
-    pre_test = TestScenario(name="pre", test_runs=[make_test_run(slurm_system, "pre", tmp_path)])
+    pre_test = TestScenario(name="pre", test_runs=[make_test_run("pre", tmp_path)])
 
     class PreTestCmdGenStrategy(MySlurmCommandGenStrategy):
         def pre_test_srun_extra_args(self, tr: TestRun) -> List[str]:

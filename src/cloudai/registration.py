@@ -44,7 +44,7 @@ def register_all():
         inverse_reward,
         negative_reward,
     )
-    from cloudai.core import GradingStrategy, JsonGenStrategy, Registry
+    from cloudai.core import Registry
     from cloudai.models.scenario import ReportConfig
     from cloudai.reporter import PerTestReporter, StatusReporter, TarballReporter
 
@@ -68,6 +68,10 @@ def register_all():
         ChakraReplayReportGenerationStrategy,
         ChakraReplaySlurmCommandGenStrategy,
         ChakraReplayTestDefinition,
+    )
+    from cloudai.workloads.ddlb import (
+        DDLBTestDefinition,
+        DDLBTestSlurmCommandGenStrategy,
     )
     from cloudai.workloads.jax_toolbox import (
         GPTTestDefinition,
@@ -143,39 +147,38 @@ def register_all():
     Registry().add_runner("lsf", LSFRunner)
     Registry().add_runner("runai", RunAIRunner)
 
+    Registry().add_json_gen_strategy(KubernetesSystem, SleepTestDefinition, SleepKubernetesJsonGenStrategy)
+    Registry().add_json_gen_strategy(KubernetesSystem, NCCLTestDefinition, NcclTestKubernetesJsonGenStrategy)
+    Registry().add_json_gen_strategy(KubernetesSystem, AIDynamoTestDefinition, AIDynamoKubernetesJsonGenStrategy)
+    Registry().add_json_gen_strategy(RunAISystem, NCCLTestDefinition, NcclTestRunAIJsonGenStrategy)
+
+    Registry().add_grading_strategy(SlurmSystem, NCCLTestDefinition, NcclTestGradingStrategy)
+    Registry().add_grading_strategy(SlurmSystem, UCCTestDefinition, UCCTestGradingStrategy)
+    Registry().add_grading_strategy(SlurmSystem, SleepTestDefinition, SleepGradingStrategy)
+    Registry().add_grading_strategy(SlurmSystem, NeMoLauncherTestDefinition, NeMoLauncherGradingStrategy)
+    Registry().add_grading_strategy(SlurmSystem, GPTTestDefinition, JaxToolboxGradingStrategy)
+    Registry().add_grading_strategy(SlurmSystem, GrokTestDefinition, JaxToolboxGradingStrategy)
+    Registry().add_grading_strategy(SlurmSystem, NemotronTestDefinition, JaxToolboxGradingStrategy)
+    Registry().add_grading_strategy(SlurmSystem, ChakraReplayTestDefinition, ChakraReplayGradingStrategy)
+
     Registry().add_command_gen_strategy(StandaloneSystem, SleepTestDefinition, SleepStandaloneCommandGenStrategy)
     Registry().add_command_gen_strategy(LSFSystem, SleepTestDefinition, SleepLSFCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, SleepTestDefinition, SleepSlurmCommandGenStrategy)
-    Registry().add_strategy(JsonGenStrategy, [KubernetesSystem], [SleepTestDefinition], SleepKubernetesJsonGenStrategy)
-    Registry().add_strategy(
-        JsonGenStrategy, [KubernetesSystem], [NCCLTestDefinition], NcclTestKubernetesJsonGenStrategy
-    )
-    Registry().add_strategy(JsonGenStrategy, [RunAISystem], [NCCLTestDefinition], NcclTestRunAIJsonGenStrategy)
-    Registry().add_strategy(GradingStrategy, [SlurmSystem], [NCCLTestDefinition], NcclTestGradingStrategy)
 
     Registry().add_command_gen_strategy(SlurmSystem, MegatronRunTestDefinition, MegatronRunSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NCCLTestDefinition, NcclTestSlurmCommandGenStrategy)
-    Registry().add_strategy(GradingStrategy, [SlurmSystem], [SleepTestDefinition], SleepGradingStrategy)
+    Registry().add_command_gen_strategy(SlurmSystem, DDLBTestDefinition, DDLBTestSlurmCommandGenStrategy)
 
     Registry().add_command_gen_strategy(SlurmSystem, NeMoLauncherTestDefinition, NeMoLauncherSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NeMoRunTestDefinition, NeMoRunSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NIXLBenchTestDefinition, NIXLBenchSlurmCommandGenStrategy)
 
-    Registry().add_strategy(GradingStrategy, [SlurmSystem], [NeMoLauncherTestDefinition], NeMoLauncherGradingStrategy)
-    Registry().add_strategy(
-        GradingStrategy,
-        [SlurmSystem],
-        [GPTTestDefinition, GrokTestDefinition, NemotronTestDefinition],
-        JaxToolboxGradingStrategy,
-    )
-    Registry().add_strategy(GradingStrategy, [SlurmSystem], [UCCTestDefinition], UCCTestGradingStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, GPTTestDefinition, JaxToolboxSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, GrokTestDefinition, JaxToolboxSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NemotronTestDefinition, JaxToolboxSlurmCommandGenStrategy)
 
     Registry().add_command_gen_strategy(SlurmSystem, UCCTestDefinition, UCCTestSlurmCommandGenStrategy)
 
-    Registry().add_strategy(GradingStrategy, [SlurmSystem], [ChakraReplayTestDefinition], ChakraReplayGradingStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, ChakraReplayTestDefinition, ChakraReplaySlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, SlurmContainerTestDefinition, SlurmContainerCommandGenStrategy)
     Registry().add_command_gen_strategy(
@@ -184,9 +187,6 @@ def register_all():
     Registry().add_command_gen_strategy(SlurmSystem, NixlPerftestTestDefinition, NixlPerftestSlurmCommandGenStrategy)
 
     Registry().add_command_gen_strategy(SlurmSystem, AIDynamoTestDefinition, AIDynamoSlurmCommandGenStrategy)
-    Registry().add_strategy(
-        JsonGenStrategy, [KubernetesSystem], [AIDynamoTestDefinition], AIDynamoKubernetesJsonGenStrategy
-    )
     Registry().add_command_gen_strategy(SlurmSystem, BashCmdTestDefinition, BashCmdCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NIXLKVBenchTestDefinition, NIXLKVBenchSlurmCommandGenStrategy)
 
@@ -204,6 +204,7 @@ def register_all():
 
     Registry().add_test_definition("UCCTest", UCCTestDefinition)
     Registry().add_test_definition("NcclTest", NCCLTestDefinition)
+    Registry().add_test_definition("DDLBTest", DDLBTestDefinition)
     Registry().add_test_definition("ChakraReplay", ChakraReplayTestDefinition)
     Registry().add_test_definition("Sleep", SleepTestDefinition)
     Registry().add_test_definition("NeMoLauncher", NeMoLauncherTestDefinition)

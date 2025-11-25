@@ -25,6 +25,7 @@ from .base_job import BaseJob
 from .command_gen_strategy import CommandGenStrategy
 from .exceptions import JobFailureError, JobSubmissionError
 from .job_status_result import JobStatusResult
+from .json_gen_strategy import JsonGenStrategy
 from .registry import Registry
 from .system import System
 from .test_scenario import TestRun, TestScenario
@@ -103,8 +104,8 @@ class BaseRunner(ABC):
         Args:
             tr (TestRun): The test to be started.
         """
-        logging.info(f"Starting test: {tr.name}")
         tr.output_path = self.get_job_output_path(tr)
+        logging.info(f"Starting test: {tr.name} (results at: {tr.output_path})")
         self.on_job_submit(tr)
         try:
             job = self._submit_test(tr)
@@ -125,7 +126,7 @@ class BaseRunner(ABC):
             tr (TestRun): The test to start after a delay.
             delay (int): Delay in seconds before starting the test.
         """
-        logging.info(f"Delayed start for test {tr.name} by {delay} seconds.")
+        logging.debug(f"Delayed start for test {tr.name} by {delay} seconds.")
         await asyncio.sleep(delay)
         await self.submit_test(tr)
 
@@ -288,7 +289,7 @@ class BaseRunner(ABC):
             JobStatusResult: The result containing the job status and an optional error message.
         """
         runner_job_status_result = self.get_runner_job_status(job)
-        workload_run_results = job.test_run.test.test_definition.was_run_successful(job.test_run)
+        workload_run_results = job.test_run.test.was_run_successful(job.test_run)
         if not runner_job_status_result.is_successful:
             return runner_job_status_result
         if not workload_run_results.is_successful:
@@ -347,7 +348,7 @@ class BaseRunner(ABC):
         for tr in self.test_scenario.test_runs:
             if tr not in self.testrun_to_job_map:
                 for dep_type, dep in tr.dependencies.items():
-                    if dep_type == "start_post_comp" and dep.test_run.test == completed_job.test_run.test:
+                    if dep_type == "start_post_comp" and dep.test_run == completed_job.test_run:
                         task = await self.delayed_submit_test(tr)
                         if task:
                             tasks.append(task)
@@ -355,7 +356,7 @@ class BaseRunner(ABC):
         # Handling end_post_comp dependencies
         for test, dependent_job in self.testrun_to_job_map.items():
             for dep_type, dep in test.dependencies.items():
-                if dep_type == "end_post_comp" and dep.test_run.test == completed_job.test_run.test:
+                if dep_type == "end_post_comp" and dep.test_run == completed_job.test_run:
                     task = await self.delayed_kill_job(dependent_job)
                     tasks.append(task)
 
@@ -375,5 +376,9 @@ class BaseRunner(ABC):
         self.system.kill(job)
 
     def get_cmd_gen_strategy(self, system: System, test_run: TestRun) -> CommandGenStrategy:
-        strategy_cls = Registry().get_command_gen_strategy(type(system), type(test_run.test.test_definition))
+        strategy_cls = Registry().get_command_gen_strategy(type(system), type(test_run.test))
+        return strategy_cls(system, test_run)
+
+    def get_json_gen_strategy(self, system: System, test_run: TestRun) -> JsonGenStrategy:
+        strategy_cls = Registry().get_json_gen_strategy(type(system), type(test_run.test))
         return strategy_cls(system, test_run)

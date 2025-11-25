@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, ClassVar, List, Set, Tuple, Type, Union
+from typing import TYPE_CHECKING, Callable, ClassVar, List, Set, Tuple, Type
 
 if TYPE_CHECKING:
     from ..configurator.base_agent import BaseAgent
@@ -49,16 +49,6 @@ class Registry(metaclass=Singleton):
     """Registry for implementations mappings."""
 
     runners_map: ClassVar[dict[str, Type[BaseRunner]]] = {}
-    strategies_map: ClassVar[
-        dict[
-            Tuple[
-                Type[Union[JsonGenStrategy, GradingStrategy]],
-                Type[System],
-                Type[TestDefinition],
-            ],
-            Type[Union[JsonGenStrategy, GradingStrategy]],
-        ]
-    ] = {}
     installers_map: ClassVar[dict[str, Type[BaseInstaller]]] = {}
     systems_map: ClassVar[dict[str, Type[System]]] = {}
     test_definitions_map: ClassVar[dict[str, Type[TestDefinition]]] = {}
@@ -68,6 +58,8 @@ class Registry(metaclass=Singleton):
     report_configs: ClassVar[dict[str, ReportConfig]] = {}
     reward_functions_map: ClassVar[dict[str, RewardFunction]] = {}
     command_gen_strategies_map: ClassVar[dict[tuple[Type[System], Type[TestDefinition]], Type[CommandGenStrategy]]] = {}
+    json_gen_strategies_map: ClassVar[dict[tuple[Type[System], Type[TestDefinition]], Type[JsonGenStrategy]]] = {}
+    grading_strategies_map: ClassVar[dict[Tuple[Type[System], Type[TestDefinition]], Type[GradingStrategy]]] = {}
 
     def add_runner(self, name: str, value: Type[BaseRunner]) -> None:
         """
@@ -94,30 +86,23 @@ class Registry(metaclass=Singleton):
         """
         self.runners_map[name] = value
 
-    def add_strategy(
-        self,
-        strategy_interface: Type[Union[JsonGenStrategy, GradingStrategy]],
-        system_types: List[Type[System]],
-        definition_types: List[Type[TestDefinition]],
-        strategy: Type[Union[JsonGenStrategy, GradingStrategy]],
+    def add_grading_strategy(
+        self, system_type: Type[System], tdef_type: Type[TestDefinition], strategy: Type[GradingStrategy]
     ) -> None:
-        for system_type in system_types:
-            for def_type in definition_types:
-                key = (strategy_interface, system_type, def_type)
-                if key in self.strategies_map:
-                    raise ValueError(f"Duplicating implementation for '{key}', use 'update()' for replacement.")
-                self.update_strategy(key, strategy)
+        key = (system_type, tdef_type)
+        if key in self.grading_strategies_map:
+            raise ValueError(f"Duplicating implementation for '{key}', use 'update()' for replacement.")
+        self.update_grading_strategy(key, strategy)
 
-    def update_strategy(
-        self,
-        key: Tuple[
-            Type[Union[JsonGenStrategy, GradingStrategy]],
-            Type[System],
-            Type[TestDefinition],
-        ],
-        value: Type[Union[JsonGenStrategy, GradingStrategy]],
+    def update_grading_strategy(
+        self, key: Tuple[Type[System], Type[TestDefinition]], value: Type[GradingStrategy]
     ) -> None:
-        self.strategies_map[key] = value
+        self.grading_strategies_map[key] = value
+
+    def get_grading_strategy(self, system_type: Type[System], tdef_type: Type[TestDefinition]) -> Type[GradingStrategy]:
+        if (system_type, tdef_type) not in self.grading_strategies_map:
+            raise KeyError(f"Grading gen strategy for '{system_type.__name__}, {tdef_type.__name__}' not found.")
+        return self.grading_strategies_map[(system_type, tdef_type)]
 
     def add_installer(self, name: str, value: Type[BaseInstaller]) -> None:
         """
@@ -274,3 +259,25 @@ class Registry(metaclass=Singleton):
         if (system_type, tdef_type) not in self.command_gen_strategies_map:
             raise KeyError(f"Command gen strategy for '{system_type.__name__}, {tdef_type.__name__}' not found.")
         return self.command_gen_strategies_map[(system_type, tdef_type)]
+
+    def add_json_gen_strategy(
+        self, system_type: Type[System], tdef_type: Type[TestDefinition], value: Type[JsonGenStrategy]
+    ) -> None:
+        if (system_type, tdef_type) in self.json_gen_strategies_map:
+            raise ValueError(
+                f"Duplicating implementation for '{system_type.__name__}, {tdef_type.__name__}', use 'update()' "
+                "for replacement."
+            )
+        self.update_json_gen_strategy(system_type, tdef_type, value)
+
+    def update_json_gen_strategy(
+        self, system_type: Type[System], tdef_type: Type[TestDefinition], value: Type[JsonGenStrategy]
+    ) -> None:
+        self.json_gen_strategies_map[(system_type, tdef_type)] = value
+
+    def get_json_gen_strategy(
+        self, system_type: Type[System], tdef_type: Type[TestDefinition]
+    ) -> Type[JsonGenStrategy]:
+        if (system_type, tdef_type) not in self.json_gen_strategies_map:
+            raise KeyError(f"JSON gen strategy for '{system_type.__name__}, {tdef_type.__name__}' not found.")
+        return self.json_gen_strategies_map[(system_type, tdef_type)]

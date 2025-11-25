@@ -46,7 +46,7 @@ class NIXLBenchComparisonReport(ComparisonReport):
 
     def load_test_runs(self):
         super().load_test_runs()
-        self.trs = [tr for tr in self.trs if isinstance(tr.test.test_definition, NIXLBenchTestDefinition)]
+        self.trs = [tr for tr in self.trs if isinstance(tr.test, NIXLBenchTestDefinition)]
 
     def create_tables(self, cmp_groups: list[GroupedTestRuns]) -> list[Table]:
         tables: list[Table] = []

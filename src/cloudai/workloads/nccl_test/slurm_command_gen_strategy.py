@@ -28,11 +28,11 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return []
 
     def image_path(self) -> str | None:
-        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test.test_definition)
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
         return str(tdef.docker_image.installed_path)
 
     def generate_test_command(self) -> List[str]:
-        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test.test_definition)
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
         srun_command_parts = [f"{tdef.cmd_args.subtest_name}"]
         nccl_test_args = tdef.cmd_args.model_dump().keys()
         for arg in nccl_test_args:
@@ -49,7 +49,7 @@ class NcclTestSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 srun_command_parts.append(f"-{arg} {value}")
 
         if self.test_run.test.extra_cmd_args:
-            srun_command_parts.append(self.test_run.test.extra_cmd_args)
+            srun_command_parts.append(self.test_run.test.extra_args_str)
 
         return srun_command_parts
 

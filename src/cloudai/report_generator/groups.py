@@ -63,7 +63,7 @@ class TestRunsGrouper:
         """
         if not self.group_by:
             return "all-in-one"
-        parts = [f"{field}={self.get_value(trs[0].test.test_definition, field)}" for field in self.group_by]
+        parts = [f"{field}={self.get_value(trs[0].test, field)}" for field in self.group_by]
         return " ".join(parts).replace("extra_env_vars.", "")
 
     def create_group(self, trs: list[TestRun], group_idx: str = "0") -> GroupedTestRuns:
@@ -85,9 +85,7 @@ class TestRunsGrouper:
         for tr in self.trs:
             for group in groups:
                 matched = all(
-                    self.get_value(tr.test.test_definition, field)
-                    == self.get_value(group[0].test.test_definition, field)
-                    for field in self.group_by
+                    self.get_value(tr.test, field) == self.get_value(group[0].test, field) for field in self.group_by
                 )
 
                 if matched:

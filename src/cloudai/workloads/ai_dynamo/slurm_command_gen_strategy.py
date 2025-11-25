@@ -26,7 +26,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for AI Dynamo on Slurm systems."""
 
     def _container_mounts(self) -> list[str]:
-        td = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
+        td = cast(AIDynamoTestDefinition, self.test_run.test)
 
         dynamo_repo_path = td.dynamo_repo.installed_path
         if dynamo_repo_path is None:
@@ -55,7 +55,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return mounts
 
     def image_path(self) -> str | None:
-        tdef: AIDynamoTestDefinition = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
+        tdef: AIDynamoTestDefinition = cast(AIDynamoTestDefinition, self.test_run.test)
         if tdef.docker_image and tdef.docker_image.installed_path:
             return str(tdef.docker_image.installed_path)
         return None
@@ -113,7 +113,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return args
 
     def _gen_srun_command(self) -> str:
-        td = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
+        td = cast(AIDynamoTestDefinition, self.test_run.test)
         num_nodes, node_list = self.get_cached_nodes_spec()
 
         fatal_file_name = "fatal_error.marker"
@@ -193,7 +193,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if cache_key in self._node_spec_cache:
             return self._node_spec_cache[cache_key]
 
-        td = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
+        td = cast(AIDynamoTestDefinition, self.test_run.test)
         prefill_n = td.cmd_args.dynamo.prefill_worker.num_nodes
         decode_n = td.cmd_args.dynamo.decode_worker.num_nodes
         prefill_nodes = td.cmd_args.dynamo.prefill_worker.nodes

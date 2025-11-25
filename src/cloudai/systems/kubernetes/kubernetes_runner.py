@@ -30,7 +30,7 @@ class KubernetesRunner(BaseRunner):
         logging.info(f"Running test: {tr.name}")
         tr.output_path = self.get_job_output_path(tr)
         job_name = tr.name.replace(".", "-").lower()
-        job_spec = tr.test.test_template.gen_json(tr)
+        job_spec = self.get_json_gen_strategy(self.system, tr).gen_json()
         job_kind = job_spec.get("kind", "").lower()
         logging.info(f"Generated JSON string for test {tr.name}: {job_spec}")
 
