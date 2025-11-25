@@ -57,7 +57,7 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
             " ".join(self.gen_wait_for_etcd_command()),
             *[" ".join(cmd) + " &\nsleep 15" for cmd in nixl_commands[:-1]],
             " ".join(nixl_commands[-1]),
-            "kill -9 $etcd_pid",
+            " ".join(self.gen_kill_and_wait_cmd("etcd_pid")),
         ]
         return "\n".join(commands)
 

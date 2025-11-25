@@ -26,3 +26,7 @@ srun --export=ALL --mpi=pmix --container-image=url.com/docker:2 --container-moun
 sleep 15
 srun --export=ALL --mpi=pmix --container-image=url.com/docker:2 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__INSTALL_DIR__:/cloudai_install,__OUTPUT_DIR__/output --overlap --relative=1 --ntasks-per-node=1 --ntasks=1 -N1 bash -c "source __OUTPUT_DIR__/output/env_vars.sh; ./nixlbench --etcd-endpoints http://$NIXL_ETCD_ENDPOINTS --backend UCX"
 kill -9 $etcd_pid
+ timeout 60 bash -c "while kill -0 $etcd_pid 2>/dev/null; do sleep 1; done" || {
+   echo "Failed to kill ETCD (pid=$etcd_pid) within 60 seconds";
+   exit 1
+ }
