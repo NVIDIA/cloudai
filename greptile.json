@@ -1,0 +1,8 @@
+{
+    "strictness": 1,
+    "sequenceDiagramSection": {
+        "included": true,
+        "collapsible": true,
+        "defaultOpen": false
+    }
+}
