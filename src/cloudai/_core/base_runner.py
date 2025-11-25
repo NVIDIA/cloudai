@@ -104,8 +104,8 @@ class BaseRunner(ABC):
         Args:
             tr (TestRun): The test to be started.
         """
-        logging.info(f"Starting test: {tr.name}")
         tr.output_path = self.get_job_output_path(tr)
+        logging.info(f"Starting test: {tr.name} (results at: {tr.output_path})")
         self.on_job_submit(tr)
         try:
             job = self._submit_test(tr)
@@ -126,7 +126,7 @@ class BaseRunner(ABC):
             tr (TestRun): The test to start after a delay.
             delay (int): Delay in seconds before starting the test.
         """
-        logging.info(f"Delayed start for test {tr.name} by {delay} seconds.")
+        logging.debug(f"Delayed start for test {tr.name} by {delay} seconds.")
         await asyncio.sleep(delay)
         await self.submit_test(tr)
 
