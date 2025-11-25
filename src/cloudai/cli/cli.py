@@ -46,7 +46,7 @@ def setup_logging(log_file: str, log_level: str) -> None:
         "version": 1,
         "disable_existing_loggers": True,
         "formatters": {
-            "standard": {"format": "%(asctime)s - %(levelname)s - %(message)s"},
+            "verbose": {"format": "%(asctime)s %(levelname)s [%(pathname)s:%(lineno)d] %(message)s"},
             "rich": {"format": "%(message)s", "datefmt": "[%X]"},
         },
         "handlers": {
@@ -55,12 +55,12 @@ def setup_logging(log_file: str, log_level: str) -> None:
                 "level": log_level.upper(),
                 "formatter": "rich",
                 "rich_tracebacks": True,
-                "show_path": False,
+                "show_path": numeric_level <= logging.DEBUG,
                 "enable_link_path": True,
             },
             "debug_file": {
                 "level": "DEBUG",
-                "formatter": "standard",
+                "formatter": "verbose",
                 "class": "logging.FileHandler",
                 "filename": log_file,
                 "mode": "w",
