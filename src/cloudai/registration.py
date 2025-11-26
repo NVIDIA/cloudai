@@ -73,6 +73,11 @@ def register_all():
         DDLBTestDefinition,
         DDLBTestSlurmCommandGenStrategy,
     )
+    from cloudai.workloads.deepep import (
+        DeepEPReportGenerationStrategy,
+        DeepEPSlurmCommandGenStrategy,
+        DeepEPTestDefinition,
+    )
     from cloudai.workloads.jax_toolbox import (
         GPTTestDefinition,
         GrokTestDefinition,
@@ -180,6 +185,7 @@ def register_all():
     Registry().add_command_gen_strategy(SlurmSystem, UCCTestDefinition, UCCTestSlurmCommandGenStrategy)
 
     Registry().add_command_gen_strategy(SlurmSystem, ChakraReplayTestDefinition, ChakraReplaySlurmCommandGenStrategy)
+    Registry().add_command_gen_strategy(SlurmSystem, DeepEPTestDefinition, DeepEPSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, SlurmContainerTestDefinition, SlurmContainerCommandGenStrategy)
     Registry().add_command_gen_strategy(
         SlurmSystem, TritonInferenceTestDefinition, TritonInferenceSlurmCommandGenStrategy
@@ -206,6 +212,7 @@ def register_all():
     Registry().add_test_definition("NcclTest", NCCLTestDefinition)
     Registry().add_test_definition("DDLBTest", DDLBTestDefinition)
     Registry().add_test_definition("ChakraReplay", ChakraReplayTestDefinition)
+    Registry().add_test_definition("DeepEP", DeepEPTestDefinition)
     Registry().add_test_definition("Sleep", SleepTestDefinition)
     Registry().add_test_definition("NeMoLauncher", NeMoLauncherTestDefinition)
     Registry().add_test_definition("NeMoRun", NeMoRunTestDefinition)
@@ -224,6 +231,7 @@ def register_all():
     Registry().add_agent("grid_search", GridSearchAgent)
 
     Registry().add_report(ChakraReplayTestDefinition, ChakraReplayReportGenerationStrategy)
+    Registry().add_report(DeepEPTestDefinition, DeepEPReportGenerationStrategy)
     Registry().add_report(GPTTestDefinition, JaxToolboxReportGenerationStrategy)
     Registry().add_report(GrokTestDefinition, JaxToolboxReportGenerationStrategy)
     Registry().add_report(MegatronRunTestDefinition, CheckpointTimingReportGenerationStrategy)
