@@ -78,6 +78,20 @@ class NIXLCmdGenBase(SlurmCommandGenStrategy):
         ]
         return cmd
 
+    def gen_kill_and_wait_cmd(self, pid_var: str, timeout: int = 60) -> list[str]:
+        cmd = [
+            f"kill -9 ${pid_var}\n",
+            "timeout",
+            str(timeout),
+            "bash",
+            "-c",
+            f'"while kill -0 ${pid_var} 2>/dev/null; do sleep 1; done" || {{\n',
+            f'  echo "Failed to kill ETCD (pid=${pid_var}) within {timeout} seconds";\n',
+            "  exit 1\n",
+            "}",
+        ]
+        return cmd
+
     def gen_nixlbench_srun_commands(self, test_cmd: list[str], backend: str) -> list[list[str]]:
         prefix_part = self.gen_srun_prefix()
         bash_part = [

@@ -21,11 +21,13 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from kubernetes import client
 
+from cloudai.core import TestRun
+from cloudai.systems.kubernetes.kubernetes_job import KubernetesJob
 from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
 
 
 @pytest.fixture
-def kube_config_tempfile():
+def kube_config_tempfile(tmp_path: Path) -> Path:
     """Fixture to create a kube config file in $HOME/.kube/config with reasonable content."""
     kube_config_content = """
     apiVersion: v1
@@ -46,8 +48,7 @@ def kube_config_tempfile():
         token: fake-token
     """
 
-    home_dir = Path.home()
-    kube_config_dir = home_dir / ".kube"
+    kube_config_dir = tmp_path / ".kube"
     kube_config_path = kube_config_dir / "config"
 
     kube_config_dir.mkdir(parents=True, exist_ok=True)
@@ -55,11 +56,11 @@ def kube_config_tempfile():
     with kube_config_path.open("w") as config_file:
         config_file.write(kube_config_content)
 
-    yield kube_config_path
+    return kube_config_path
 
 
 @pytest.fixture
-def k8s_system(kube_config_tempfile):
+def k8s_system(kube_config_tempfile: Path) -> KubernetesSystem:
     """Fixture to create a KubernetesSystem instance with a valid kube config."""
     system_data = {
         "name": "test-system",
@@ -77,7 +78,12 @@ def k8s_system(kube_config_tempfile):
 
     validated_system = KubernetesSystem.model_validate(system_data)
 
-    yield validated_system
+    return validated_system
+
+
+@pytest.fixture
+def k8s_dynamo_job(base_tr: TestRun) -> KubernetesJob:
+    return KubernetesJob(test_run=base_tr, id=1, name="k8s-dynamo-job", kind="dynamographdeployment")
 
 
 def test_initialization(k8s_system):
@@ -123,7 +129,9 @@ def test_initialization(k8s_system):
         ),
     ],
 )
-def test_are_vllm_pods_ready(k8s_system: KubernetesSystem, pod_output: str, expected_result: bool) -> None:
+def test_are_vllm_pods_ready(
+    k8s_system: KubernetesSystem, pod_output: str, expected_result: bool, k8s_dynamo_job: KubernetesJob
+) -> None:
     """Test the are_vllm_pods_ready method with various pod states."""
     with patch("subprocess.run") as mock_run:
         mock_process = MagicMock()
@@ -131,7 +139,9 @@ def test_are_vllm_pods_ready(k8s_system: KubernetesSystem, pod_output: str, expe
         mock_process.returncode = 0
         mock_run.return_value = mock_process
 
-        assert k8s_system.are_vllm_pods_ready() == expected_result
+        k8s_dynamo_job.name = "vllm-v1-agg"
+
+        assert k8s_system.are_vllm_pods_ready(k8s_dynamo_job) == expected_result
 
 
 @pytest.mark.parametrize(
@@ -192,3 +202,44 @@ def test_delete_batch_job(k8s_system: KubernetesSystem):
             namespace=k8s_system.default_namespace,
             body=client.V1DeleteOptions(propagation_policy="Foreground", grace_period_seconds=5),
         )
+
+
+def test_delete_dynamo_graph_deployment(k8s_system: KubernetesSystem):
+    job_name = "test-dgd"
+
+    with patch("subprocess.run") as mock_run:
+        mock_process = Mock()
+        mock_process.returncode = 0
+        mock_run.return_value = mock_process
+
+        k8s_system._delete_dynamo_graph_deployment(job_name)
+
+        mock_run.assert_called_once_with(
+            f"kubectl delete dgd {job_name} -n {k8s_system.default_namespace}",
+            shell=True,
+            capture_output=True,
+            text=True,
+        )
+
+
+@pytest.mark.parametrize("job_kind", ["mpijob", "job", "dynamographdeployment", "unknown"])
+def test_delete_job(k8s_system: KubernetesSystem, job_kind: str):
+    job_name = "test-job"
+
+    if job_kind == "unknown":
+        with pytest.raises(ValueError):
+            k8s_system.delete_job(job_name, job_kind)
+    elif job_kind == "mpijob":
+        k8s_system._delete_mpi_job = Mock()
+        k8s_system.delete_job(job_name, job_kind)
+        assert k8s_system._delete_mpi_job.called
+    elif job_kind == "job":
+        k8s_system._delete_batch_job = Mock()
+        k8s_system.delete_job(job_name, job_kind)
+        assert k8s_system._delete_batch_job.called
+    elif job_kind == "dynamographdeployment":
+        k8s_system._delete_dynamo_graph_deployment = Mock()
+        k8s_system.delete_job(job_name, job_kind)
+        assert k8s_system._delete_dynamo_graph_deployment.called
+    else:
+        raise AssertionError(f"Unhandled job kind in test: {job_kind}")

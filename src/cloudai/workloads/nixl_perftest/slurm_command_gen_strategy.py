@@ -55,7 +55,7 @@ class NixlPerftestSlurmCommandGenStrategy(NIXLCmdGenBase):
                 "etcd_pid=$!",
                 " ".join(self.gen_wait_for_etcd_command(self.tdef.cmd_args.wait_etcd_for)),
                 " ".join(perftest_command),
-                "kill -9 $etcd_pid",
+                " ".join(self.gen_kill_and_wait_cmd("etcd_pid")),
             ]
         )
 

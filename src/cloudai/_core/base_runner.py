@@ -104,8 +104,8 @@ class BaseRunner(ABC):
         Args:
             tr (TestRun): The test to be started.
         """
-        logging.info(f"Starting test: {tr.name}")
         tr.output_path = self.get_job_output_path(tr)
+        logging.info(f"Starting test: {tr.name} (results at: {tr.output_path})")
         self.on_job_submit(tr)
         try:
             job = self._submit_test(tr)
@@ -126,7 +126,7 @@ class BaseRunner(ABC):
             tr (TestRun): The test to start after a delay.
             delay (int): Delay in seconds before starting the test.
         """
-        logging.info(f"Delayed start for test {tr.name} by {delay} seconds.")
+        logging.debug(f"Delayed start for test {tr.name} by {delay} seconds.")
         await asyncio.sleep(delay)
         await self.submit_test(tr)
 
@@ -348,7 +348,7 @@ class BaseRunner(ABC):
         for tr in self.test_scenario.test_runs:
             if tr not in self.testrun_to_job_map:
                 for dep_type, dep in tr.dependencies.items():
-                    if dep_type == "start_post_comp" and dep.test_run.test == completed_job.test_run.test:
+                    if dep_type == "start_post_comp" and dep.test_run == completed_job.test_run:
                         task = await self.delayed_submit_test(tr)
                         if task:
                             tasks.append(task)
@@ -356,7 +356,7 @@ class BaseRunner(ABC):
         # Handling end_post_comp dependencies
         for test, dependent_job in self.testrun_to_job_map.items():
             for dep_type, dep in test.dependencies.items():
-                if dep_type == "end_post_comp" and dep.test_run.test == completed_job.test_run.test:
+                if dep_type == "end_post_comp" and dep.test_run == completed_job.test_run:
                     task = await self.delayed_kill_job(dependent_job)
                     tasks.append(task)
 
