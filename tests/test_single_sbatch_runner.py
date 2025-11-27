@@ -239,7 +239,7 @@ class TestAuxCommands:
         assert len(aux_cmds) == 2
 
         metadata_cmd = (
-            "srun --export=ALL --mpi=pmix --ntasks=1 --ntasks-per-node=1 "
+            f"srun --export=ALL --mpi=pmix -N{sleep_tr.num_nodes} --ntasks=1 --ntasks-per-node=1 "
             f"--output={runner.scenario_root}/metadata/node-%N.toml "
             f"--error={runner.scenario_root}/metadata/nodes.err "
             "bash "
@@ -248,7 +248,7 @@ class TestAuxCommands:
         assert aux_cmds[0] == metadata_cmd
 
         ranks_mapping_cmd = (
-            f"srun --export=ALL --mpi=pmix --output={runner.scenario_root}/mapping-stdout.txt "
+            f"srun --export=ALL --mpi=pmix -N{sleep_tr.num_nodes} --output={runner.scenario_root}/mapping-stdout.txt "
             f"--error={runner.scenario_root}/mapping-stderr.txt bash -c "
             r'"echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."'
         )
@@ -269,8 +269,8 @@ class TestAuxCommands:
             f"{runner.system.output_path.absolute()}"
         )
         metadata_cmd = (
-            f"srun --export=ALL --mpi=pmix --container-image={tdef.docker_image.installed_path} {mounts} "
-            f"--no-container-mount-home --ntasks=2 --ntasks-per-node=1 "
+            f"srun --export=ALL --mpi=pmix -N{nccl_tr.num_nodes} --container-image={tdef.docker_image.installed_path} "
+            f"{mounts} --no-container-mount-home --ntasks=2 --ntasks-per-node=1 "
             f"--output={runner.scenario_root}/metadata/node-%N.toml "
             f"--error={runner.scenario_root}/metadata/nodes.err "
             "bash /cloudai_install/slurm-metadata.sh"
@@ -278,8 +278,8 @@ class TestAuxCommands:
         assert aux_cmds[0] == metadata_cmd
 
         ranks_mapping_cmd = (
-            f"srun --export=ALL --mpi=pmix --container-image={tdef.docker_image.installed_path} {mounts} "
-            f"--no-container-mount-home --output={runner.scenario_root}/mapping-stdout.txt "
+            f"srun --export=ALL --mpi=pmix -N{nccl_tr.num_nodes} --container-image={tdef.docker_image.installed_path} "
+            f"{mounts} --no-container-mount-home --output={runner.scenario_root}/mapping-stdout.txt "
             f"--error={runner.scenario_root}/mapping-stderr.txt bash -c "
             r'"echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."'
         )
@@ -322,7 +322,7 @@ def test_single_tr_block(sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
         f"srun -N1 "
         f"--output={sleep_tr.output_path.absolute()}/stdout.txt "
         f"--error={sleep_tr.output_path.absolute()}/stderr.txt "
-        f'--export=ALL --mpi=pmix bash -c "source {sleep_tr.output_path.absolute()}/env_vars.sh; '
+        f'--export=ALL --mpi=pmix -N{sleep_tr.num_nodes} bash -c "source {sleep_tr.output_path.absolute()}/env_vars.sh; '
         f'sleep {tdef.cmd_args.seconds}"'
     )
 
@@ -517,7 +517,7 @@ def test_pre_test(nccl_tr: TestRun, sleep_tr: TestRun, slurm_system: SlurmSystem
         [
             f"srun --output={sleep_tr.output_path.absolute()}/stdout.txt "
             f"--error={sleep_tr.output_path.absolute()}/stderr.txt "
-            f"--export=ALL --mpi=pmix bash -c "
+            f"--export=ALL --mpi=pmix -N{sleep_tr.num_nodes} bash -c "
             f'"source {sleep_tr.output_path.absolute()}/env_vars.sh; sleep {tdef.cmd_args.seconds}"',
             "SUCCESS_0=$()",
             "PRE_TEST_SUCCESS=$( [ $SUCCESS_0 -eq 1 ] && echo 1 || echo 0 )",
