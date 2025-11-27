@@ -322,8 +322,8 @@ def test_single_tr_block(sleep_tr: TestRun, slurm_system: SlurmSystem) -> None:
         f"srun -N1 "
         f"--output={sleep_tr.output_path.absolute()}/stdout.txt "
         f"--error={sleep_tr.output_path.absolute()}/stderr.txt "
-        f'--export=ALL --mpi=pmix -N{sleep_tr.num_nodes} bash -c "source {sleep_tr.output_path.absolute()}/env_vars.sh; '
-        f'sleep {tdef.cmd_args.seconds}"'
+        f'--export=ALL --mpi=pmix -N{sleep_tr.num_nodes} bash -c "source {sleep_tr.output_path.absolute()}/env_vars.sh;'
+        f' sleep {tdef.cmd_args.seconds}"'
     )
 
 
