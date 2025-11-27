@@ -142,14 +142,14 @@ class StatusReporter(Reporter):
         self.report_best_dse_config()
 
         table = Table(title="Scenario results", title_justify="left", show_lines=True, box=box.MINIMAL_HEAVY_HEAD)
-        table.add_column("Case Name")
-        table.add_column("Status")
-        table.add_column("Details", overflow="fold")
+        for col in {"Case", "Status", "Details"}:
+            table.add_column(col, overflow="fold")
 
         for tr in self.trs:
             tr_status = tr.test.was_run_successful(tr)
             sts_text = f"[bold]{'[green]Success[/green]' if tr_status.is_successful else '[red]Failed[/red]'}[/bold]"
-            columns = [tr.name, sts_text, f"{tr.output_path.absolute()}\n[i]{tr_status.error_message}[/i]"]
+            details_text = f"\n{tr_status.error_message}" if tr_status.error_message else ""
+            columns = [tr.name, sts_text, f"{tr.output_path.absolute().relative_to(Path.cwd())}{details_text}"]
             table.add_row(*columns)
 
         console = Console()
