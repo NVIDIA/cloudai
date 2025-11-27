@@ -23,6 +23,9 @@ from typing import Optional
 import jinja2
 import pandas as pd
 import toml
+from rich import box
+from rich.console import Console
+from rich.table import Table
 
 from .core import CommandGenStrategy, Reporter, TestRun, case_name
 from .models.scenario import TestRunDetails
@@ -137,6 +140,20 @@ class StatusReporter(Reporter):
         self.load_test_runs()
         self.generate_scenario_report()
         self.report_best_dse_config()
+
+        table = Table(title="Scenario results", title_justify="left", show_lines=True, box=box.MINIMAL_HEAVY_HEAD)
+        table.add_column("Case Name")
+        table.add_column("Status")
+        table.add_column("Details", overflow="fold")
+
+        for tr in self.trs:
+            tr_status = tr.test.was_run_successful(tr)
+            sts_text = f"[bold]{'[green]Success[/green]' if tr_status.is_successful else '[red]Failed[/red]'}[/bold]"
+            columns = [tr.name, sts_text, f"{tr.output_path.absolute()}\n[i]{tr_status.error_message}[/i]"]
+            table.add_row(*columns)
+
+        console = Console()
+        console.print(table)
 
     def generate_scenario_report(self) -> None:
         template = jinja2.Environment(loader=jinja2.FileSystemLoader(self.template_file_path)).get_template(

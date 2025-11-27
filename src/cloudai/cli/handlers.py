@@ -317,10 +317,9 @@ def handle_generate_report(args: argparse.Namespace) -> int:
     system, _, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
     assert test_scenario is not None
 
-    logging.info("Generating report based on system and test scenario")
     generate_reports(system, test_scenario, args.result_dir)
 
-    logging.info("Report generation completed.")
+    logging.debug("Report generation completed.")
 
     return 0
 
