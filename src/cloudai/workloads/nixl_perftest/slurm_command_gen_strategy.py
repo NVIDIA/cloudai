@@ -61,7 +61,7 @@ class NixlPerftestSlurmCommandGenStrategy(NIXLCmdGenBase):
 
     def gen_matrix_gen_srun_command(self) -> list[str]:
         cmd = [
-            *self.gen_srun_prefix(),
+            *self.gen_srun_prefix(with_num_nodes=False),
             "--ntasks-per-node=1",
             "--ntasks=1",
             "-N1",

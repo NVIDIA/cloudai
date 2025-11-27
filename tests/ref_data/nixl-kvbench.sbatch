@@ -16,15 +16,15 @@ srun --export=ALL --mpi=pmix -N2 --container-image=url.com/docker:tag --containe
 
 srun --export=ALL --mpi=pmix -N2 --container-image=url.com/docker:tag --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
-srun --export=ALL --mpi=pmix -N2 --container-image=url.com/docker:tag --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --output=__OUTPUT_DIR__/output/etcd.log --overlap --ntasks-per-node=1 --ntasks=1 --nodelist=$SLURM_JOB_MASTER_NODE -N1 etcd --listen-client-urls=http://0.0.0.0:2379 --advertise-client-urls=http://$SLURM_JOB_MASTER_NODE:2379 --listen-peer-urls=http://0.0.0.0:2380 --initial-advertise-peer-urls=http://$SLURM_JOB_MASTER_NODE:2380 --initial-cluster="default=http://$SLURM_JOB_MASTER_NODE:2380" --initial-cluster-state=new  &
+srun --export=ALL --mpi=pmix --container-image=url.com/docker:tag --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --output=__OUTPUT_DIR__/output/etcd.log --overlap --ntasks-per-node=1 --ntasks=1 --nodelist=$SLURM_JOB_MASTER_NODE -N1 etcd --listen-client-urls=http://0.0.0.0:2379 --advertise-client-urls=http://$SLURM_JOB_MASTER_NODE:2379 --listen-peer-urls=http://0.0.0.0:2380 --initial-advertise-peer-urls=http://$SLURM_JOB_MASTER_NODE:2380 --initial-cluster="default=http://$SLURM_JOB_MASTER_NODE:2380" --initial-cluster-state=new  &
 etcd_pid=$!
 timeout 60 bash -c "until curl -s $NIXL_ETCD_ENDPOINTS/health > /dev/null 2>&1; do sleep 1; done" || {
    echo "ETCD ($NIXL_ETCD_ENDPOINTS) was unreachable after 60 seconds";
    exit 1
  }
-srun --export=ALL --mpi=pmix -N2 --container-image=url.com/docker:tag --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --overlap --relative=0 --ntasks-per-node=1 --ntasks=1 -N1 bash -c "source __OUTPUT_DIR__/output/env_vars.sh; path/to/python path/to/kvbench_script.sh profile --backend UCX --etcd_endpoints http://$NIXL_ETCD_ENDPOINTS" &
+srun --export=ALL --mpi=pmix --container-image=url.com/docker:tag --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --overlap --relative=0 --ntasks-per-node=1 --ntasks=1 -N1 bash -c "source __OUTPUT_DIR__/output/env_vars.sh; path/to/python path/to/kvbench_script.sh profile --backend UCX --etcd_endpoints http://$NIXL_ETCD_ENDPOINTS" &
 sleep 15
-srun --export=ALL --mpi=pmix -N2 --container-image=url.com/docker:tag --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --overlap --relative=1 --ntasks-per-node=1 --ntasks=1 -N1 bash -c "source __OUTPUT_DIR__/output/env_vars.sh; path/to/python path/to/kvbench_script.sh profile --backend UCX --etcd_endpoints http://$NIXL_ETCD_ENDPOINTS"
+srun --export=ALL --mpi=pmix --container-image=url.com/docker:tag --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --overlap --relative=1 --ntasks-per-node=1 --ntasks=1 -N1 bash -c "source __OUTPUT_DIR__/output/env_vars.sh; path/to/python path/to/kvbench_script.sh profile --backend UCX --etcd_endpoints http://$NIXL_ETCD_ENDPOINTS"
 kill -9 $etcd_pid
  timeout 60 bash -c "while kill -0 $etcd_pid 2>/dev/null; do sleep 1; done" || {
    echo "Failed to kill ETCD (pid=$etcd_pid) within 60 seconds";

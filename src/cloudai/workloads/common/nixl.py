@@ -53,7 +53,7 @@ class NIXLCmdGenBase(SlurmCommandGenStrategy):
             "--initial-cluster-state=new",
         ]
         cmd = [
-            *self.gen_srun_prefix(),
+            *self.gen_srun_prefix(with_num_nodes=False),
             f"--output={self.test_run.output_path.absolute() / 'etcd.log'}",
             "--overlap",
             "--ntasks-per-node=1",
@@ -93,7 +93,7 @@ class NIXLCmdGenBase(SlurmCommandGenStrategy):
         return cmd
 
     def gen_nixlbench_srun_commands(self, test_cmd: list[str], backend: str) -> list[list[str]]:
-        prefix_part = self.gen_srun_prefix()
+        prefix_part = self.gen_srun_prefix(with_num_nodes=False)
         bash_part = [
             "bash",
             "-c",
