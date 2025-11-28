@@ -164,7 +164,9 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
 
 def generate_reports(system: System, test_scenario: TestScenario, result_dir: Path) -> None:
     registry = Registry()
-    for name, reporter_class in registry.scenario_reports.items():
+
+    # Ensure "status" report goes last for better readability
+    for name, reporter_class in sorted(registry.scenario_reports.items(), key=lambda x: (x[0] == "status", x[0])):
         logging.debug(f"Generating report '{name}' ({reporter_class.__name__})")
 
         cfg = registry.report_configs.get(name, ReportConfig(enable=False))
@@ -317,10 +319,9 @@ def handle_generate_report(args: argparse.Namespace) -> int:
     system, _, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
     assert test_scenario is not None
 
-    logging.info("Generating report based on system and test scenario")
     generate_reports(system, test_scenario, args.result_dir)
 
-    logging.info("Report generation completed.")
+    logging.debug("Report generation completed.")
 
     return 0
 

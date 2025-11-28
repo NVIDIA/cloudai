@@ -70,6 +70,10 @@ def setup_logging(log_file: str, log_level: str) -> None:
                 "level": "DEBUG",
                 "propagate": False,
             },
+            "bokeh": {
+                "handlers": ["debug_file"],
+                "propagate": False,
+            },
         },
     }
     logging.config.dictConfig(LOGGING_CONFIG)

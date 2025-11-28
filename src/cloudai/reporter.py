@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
 import logging
 import tarfile
 from dataclasses import dataclass
@@ -23,6 +24,9 @@ from typing import Optional
 import jinja2
 import pandas as pd
 import toml
+from rich import box
+from rich.console import Console
+from rich.table import Table
 
 from .core import CommandGenStrategy, Reporter, TestRun, case_name
 from .models.scenario import TestRunDetails
@@ -137,6 +141,7 @@ class StatusReporter(Reporter):
         self.load_test_runs()
         self.generate_scenario_report()
         self.report_best_dse_config()
+        self.print_summary()
 
     def generate_scenario_report(self) -> None:
         template = jinja2.Environment(loader=jinja2.FileSystemLoader(self.template_file_path)).get_template(
@@ -176,6 +181,28 @@ class StatusReporter(Reporter):
             logging.info(f"Writing best config for {tr.name} to {best_config_path}")
             with best_config_path.open("w") as f:
                 toml.dump(trd.test_definition.model_dump(), f)
+
+    def print_summary(self) -> None:
+        if not self.trs:
+            logging.debug("No test runs found, skipping summary.")
+            return
+
+        table = Table(title="Scenario results", title_justify="left", show_lines=True, box=box.MINIMAL_HEAVY_HEAD)
+        for col in ["Case", "Status", "Details"]:
+            table.add_column(col, overflow="fold")
+
+        for tr in self.trs:
+            tr_status = tr.test.was_run_successful(tr)
+            sts_text = f"[bold]{'[green]PASSED[/green]' if tr_status.is_successful else '[red]FAILED[/red]'}[/bold]"
+            display_path = str(tr.output_path.absolute())
+            with contextlib.suppress(ValueError):
+                display_path = str(tr.output_path.absolute().relative_to(Path.cwd()))
+            details_text = f"\n{tr_status.error_message}" if tr_status.error_message else ""
+            columns = [tr.name, sts_text, f"{display_path}{details_text}"]
+            table.add_row(*columns)
+
+        console = Console()
+        console.print(table)
 
 
 class TarballReporter(Reporter):
