@@ -237,8 +237,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     def image_path(self) -> Optional[str]:
         return None
 
-    def gen_srun_prefix(self, use_pretest_extras: bool = False) -> List[str]:
+    def gen_srun_prefix(self, use_pretest_extras: bool = False, with_num_nodes: bool = True) -> List[str]:
+        num_nodes, _ = self.get_cached_nodes_spec()
         srun_command_parts = ["srun", "--export=ALL", f"--mpi={self.system.mpi}"]
+        if with_num_nodes:
+            srun_command_parts.append(f"-N{num_nodes}")
         if use_pretest_extras and self.test_run.pre_test:
             for pre_tr in self.test_run.pre_test.test_runs:
                 srun_command_parts.extend(self._get_cmd_gen_strategy(pre_tr).pre_test_srun_extra_args(self.test_run))

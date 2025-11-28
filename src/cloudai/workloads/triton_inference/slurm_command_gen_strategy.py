@@ -94,7 +94,7 @@ class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _build_server_srun(self, num_server_nodes: int) -> str:
         test_definition = cast(TritonInferenceTestDefinition, self.test_run.test)
         self._current_container_image = str(test_definition.server_docker_image.installed_path)
-        srun_prefix = self.gen_srun_prefix()
+        srun_prefix = self.gen_srun_prefix(with_num_nodes=False)
         self._current_container_image = None
 
         srun_prefix.append(f"--nodes={num_server_nodes}")
@@ -107,7 +107,7 @@ class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _build_client_srun(self, num_client_nodes: int) -> str:
         test_definition = cast(TritonInferenceTestDefinition, self.test_run.test)
         self._current_container_image = str(test_definition.client_docker_image.installed_path)
-        srun_prefix = self.gen_srun_prefix()
+        srun_prefix = self.gen_srun_prefix(with_num_nodes=False)
         self._current_container_image = None
 
         srun_prefix.append(f"--nodes={num_client_nodes}")

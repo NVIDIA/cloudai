@@ -273,7 +273,7 @@ def test_default_container_mounts_with_git_repos(strategy_fixture: SlurmCommandG
 
 def test_ranks_mapping_cmd(strategy_fixture: SlurmCommandGenStrategy):
     expected_command = (
-        f"srun --export=ALL --mpi={strategy_fixture.system.mpi} "
+        f"srun --export=ALL --mpi={strategy_fixture.system.mpi} -N{strategy_fixture.test_run.num_nodes} "
         f"--output={strategy_fixture.test_run.output_path.absolute()}/mapping-stdout.txt "
         f"--error={strategy_fixture.test_run.output_path.absolute()}/mapping-stderr.txt "
         "bash -c "

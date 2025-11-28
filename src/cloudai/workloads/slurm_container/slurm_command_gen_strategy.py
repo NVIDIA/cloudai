@@ -35,8 +35,8 @@ class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, self.test_run.test)
         return str(tdef.docker_image.installed_path)
 
-    def gen_srun_prefix(self, use_pretest_extras: bool = False) -> list[str]:
-        cmd = super().gen_srun_prefix()
+    def gen_srun_prefix(self, use_pretest_extras: bool = False, with_num_nodes: bool = True) -> list[str]:
+        cmd = super().gen_srun_prefix(use_pretest_extras, with_num_nodes)
         tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, self.test_run.test)
         return [*cmd, *tdef.extra_srun_args]
 

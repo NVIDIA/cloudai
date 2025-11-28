@@ -61,7 +61,7 @@ def test_gen_matrix_gen_srun_command(test_run: TestRun, slurm_system: SlurmSyste
     strategy.gen_matrix_gen_command = lambda: ["cmd"]
     cmd = strategy.gen_matrix_gen_srun_command()
     assert cmd == [
-        *strategy.gen_srun_prefix(),
+        *strategy.gen_srun_prefix(with_num_nodes=False),
         "--ntasks-per-node=1",
         "--ntasks=1",
         "-N1",
