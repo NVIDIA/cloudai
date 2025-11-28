@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
 import logging
 import tarfile
 from dataclasses import dataclass
@@ -193,8 +194,11 @@ class StatusReporter(Reporter):
         for tr in self.trs:
             tr_status = tr.test.was_run_successful(tr)
             sts_text = f"[bold]{'[green]PASSED[/green]' if tr_status.is_successful else '[red]FAILED[/red]'}[/bold]"
+            display_path = str(tr.output_path.absolute())
+            with contextlib.suppress(ValueError):
+                display_path = str(tr.output_path.absolute().relative_to(Path.cwd()))
             details_text = f"\n{tr_status.error_message}" if tr_status.error_message else ""
-            columns = [tr.name, sts_text, f"{tr.output_path.absolute().relative_to(Path.cwd())}{details_text}"]
+            columns = [tr.name, sts_text, f"{display_path}{details_text}"]
             table.add_row(*columns)
 
         console = Console()
