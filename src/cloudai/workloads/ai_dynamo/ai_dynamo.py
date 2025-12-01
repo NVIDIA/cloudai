@@ -72,7 +72,7 @@ class AIDynamoCmdArgs(CmdArgs):
         description=(
             "Path on host for HuggingFace cache. "
             "Shell's ``HF_HOME`` environment variable is set, it takes precedence. "
-            '``AIDynamoTestDefinition.extra_env_vars["HF_HOME"]`` is not used for this field, as it affects only '
+            "``HF_HOME`` from system/test/scenario configs is not used for this field, as it affects only "
             "container environment."
         ),
     )
