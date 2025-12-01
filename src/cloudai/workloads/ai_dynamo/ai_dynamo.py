@@ -71,7 +71,7 @@ class AIDynamoCmdArgs(CmdArgs):
         default=Path.home() / ".cache/huggingface",
         description=(
             "Path on host for HuggingFace cache. "
-            "Shell's ``HF_HOME`` environment variable is set, it takes precedence. "
+            "If the shell's ``HF_HOME`` environment variable is set, it takes precedence. "
             "``HF_HOME`` from system/test/scenario configs is not used for this field, as it affects only "
             "container environment."
         ),
