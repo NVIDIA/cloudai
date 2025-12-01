@@ -17,7 +17,7 @@
 from pathlib import Path
 from typing import Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from cloudai.core import DockerImage, File, GitRepo, Installable, PythonExecutable
 from cloudai.models.workload import CmdArgs, TestDefinition
@@ -76,6 +76,16 @@ class AIDynamoCmdArgs(CmdArgs):
         super().model_post_init(*args, **kwargs)
         if self.dynamo_graph_path is not None and not Path(self.dynamo_graph_path).exists():
             raise ValueError(f"Dynamo graph file not found at {self.dynamo_graph_path}")
+
+    @model_validator(mode="after")
+    def hf_path_validator(self) -> AIDynamoCmdArgs:
+        env_path = environ.get("HF_HOME", None)
+        hf_path = Path(env_path) if env_path else self.huggingface_home_host_path
+        if not hf_path.exists() or not hf_path.is_dir():
+            err_details = " (overridden by HF_HOME environment variable)" if env_path else ""
+            raise ValueError(f"Path is invalid{err_details}: {hf_path}")
+        self.huggingface_home_host_path = hf_path
+        return self
 
 
 class AIDynamoTestDefinition(TestDefinition):
