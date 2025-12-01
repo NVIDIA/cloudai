@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
+from os import environ
 from pathlib import Path
 from typing import Optional, Union
 
@@ -64,7 +67,15 @@ class AIDynamoCmdArgs(CmdArgs):
     """Arguments for AI Dynamo."""
 
     docker_image_url: str
-    huggingface_home_host_path: Path = Path.home() / ".cache/huggingface"
+    huggingface_home_host_path: Path = Field(
+        default=Path.home() / ".cache/huggingface",
+        description=(
+            "Path on host for HuggingFace cache. "
+            "Shell's ``HF_HOME`` environment variable is set, it takes precedence. "
+            '``AIDynamoTestDefinition.extra_env_vars["HF_HOME"]`` is not used for this field, as it affects only '
+            "container environment."
+        ),
+    )
     huggingface_home_container_path: Path = Path("/root/.cache/huggingface")
     dynamo: AIDynamoArgs
     genai_perf: GenAIPerfArgs

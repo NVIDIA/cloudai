@@ -63,9 +63,8 @@ extensions = [
     "sphinx.ext.autosummary",
     "myst_parser",
     "sphinxcontrib.mermaid",
-    "sphinx_copybutton",
+    "sphinxcontrib.autodoc_pydantic",
 ]
-
 exclude_patterns = ["_build"]
 
 # -- Autodoc configuration ---------------------------------------------------
@@ -75,6 +74,8 @@ autodoc_default_options = {
     "special-members": "__init__",
     "undoc-members": False,  # Don't show undocumented members
 }
+
+autodoc_pydantic_field_list_validators = False
 
 # Generate autosummary even if no references
 autosummary_generate = True
