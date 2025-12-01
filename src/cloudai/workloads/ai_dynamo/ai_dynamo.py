@@ -68,7 +68,7 @@ class AIDynamoCmdArgs(CmdArgs):
 
     docker_image_url: str
     huggingface_home_host_path: Path = Field(
-        default=Path.home() / ".cache/huggingface",
+        default_factory=lambda: Path.home() / ".cache/huggingface",
         description=(
             "Path on host for HuggingFace cache. "
             "If the shell's ``HF_HOME`` environment variable is set, it takes precedence. "

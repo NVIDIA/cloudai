@@ -38,18 +38,13 @@ class TestHFHostPath:
         custom_path.mkdir(parents=True, exist_ok=True)
         return custom_path
 
-    @pytest.fixture(autouse=False)
-    def existing_hf_home(self):
-        default_path = Path.home() / ".cache/huggingface"
-        if not default_path.exists():
-            default_path.mkdir(parents=True, exist_ok=True)
-            yield default_path
-            default_path.rmdir()
-        else:
-            yield default_path
-
-    def test_default(self, args: dict, existing_hf_home: Path):
-        with mock.patch.dict(os.environ, clear=True):
+    def test_default(self, args: dict, tmp_path: Path):
+        existing_hf_home = tmp_path / "default_hf_home" / ".cache/huggingface"
+        existing_hf_home.mkdir(parents=True, exist_ok=True)
+        with (
+            mock.patch("pathlib.Path.home", return_value=existing_hf_home.parent.parent),
+            mock.patch.dict(os.environ, clear=True),
+        ):
             dynamo = AIDynamoCmdArgs(**args)
             assert dynamo.huggingface_home_host_path == existing_hf_home
 
