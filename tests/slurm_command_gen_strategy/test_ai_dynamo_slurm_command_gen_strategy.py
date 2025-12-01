@@ -33,10 +33,12 @@ from cloudai.workloads.ai_dynamo import (
 
 
 @pytest.fixture
-def cmd_args() -> AIDynamoCmdArgs:
+def cmd_args(tmp_path: Path) -> AIDynamoCmdArgs:
+    hf_path = tmp_path / "hf_cache"
+    hf_path.mkdir(exist_ok=True)
     return AIDynamoCmdArgs(
         docker_image_url="url",
-        huggingface_home_host_path=Path.home() / ".cache/huggingface",
+        huggingface_home_host_path=hf_path,
         huggingface_home_container_path=Path("/root/.cache/huggingface"),
         dynamo=AIDynamoArgs(
             prefill_worker=PrefillWorkerArgs(

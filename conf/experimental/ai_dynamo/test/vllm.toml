@@ -20,6 +20,7 @@ test_template_name = "AIDynamo"
 
 [cmd_args]
 docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.6.1.post1"
+huggingface_home_host_path = "."                                       # use HF_HOME environment variable to override
 
   [cmd_args.dynamo]
   backend = "vllm"

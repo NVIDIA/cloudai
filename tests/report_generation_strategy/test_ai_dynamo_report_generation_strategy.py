@@ -58,12 +58,15 @@ def get_csv_content() -> str:
 
 @pytest.fixture
 def ai_dynamo_tr(tmp_path: Path) -> TestRun:
+    hf_path = tmp_path / "hf_cache"
+    hf_path.mkdir(exist_ok=True)
     test = AIDynamoTestDefinition(
         name="ai_dynamo",
         description="desc",
         test_template_name="t",
         cmd_args=AIDynamoCmdArgs(
             docker_image_url="http://url",
+            huggingface_home_host_path=hf_path,
             dynamo=AIDynamoArgs(
                 prefill_worker=PrefillWorkerArgs(
                     **{
