@@ -63,6 +63,7 @@ extensions = [
     "sphinx.ext.autosummary",
     "myst_parser",
     "sphinxcontrib.mermaid",
+    "sphinx_copybutton",
     "sphinxcontrib.autodoc_pydantic",
 ]
 exclude_patterns = ["_build"]
