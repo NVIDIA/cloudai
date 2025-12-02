@@ -37,6 +37,7 @@ class System(ABC, BaseModel):
     scheduler: str
     install_path: Path
     output_path: Path
+    hf_home_path: Path = Field(default_factory=lambda data: data["install_path"] / "huggingface")
     global_env_vars: dict[str, Any] = Field(default_factory=dict)
     monitor_interval: int = 1
 

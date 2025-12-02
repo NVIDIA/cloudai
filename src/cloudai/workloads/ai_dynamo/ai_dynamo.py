@@ -64,7 +64,6 @@ class AIDynamoCmdArgs(CmdArgs):
     """Arguments for AI Dynamo."""
 
     docker_image_url: str
-    huggingface_home_host_path: Path = Path.home() / ".cache/huggingface"
     huggingface_home_container_path: Path = Path("/root/.cache/huggingface")
     dynamo: AIDynamoArgs
     genai_perf: GenAIPerfArgs
@@ -102,13 +101,6 @@ class AIDynamoTestDefinition(TestDefinition):
     @property
     def installables(self) -> list[Installable]:
         return [self.docker_image, self.script, self.dynamo_repo, self.python_executable]
-
-    @property
-    def huggingface_home_host_path(self) -> Path:
-        path = Path(self.cmd_args.huggingface_home_host_path)
-        if not path.is_dir():
-            raise FileNotFoundError(f"HuggingFace home path not found at {path}")
-        return path
 
     @property
     def python_executable(self) -> PythonExecutable:

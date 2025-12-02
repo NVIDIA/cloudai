@@ -142,6 +142,8 @@ class BaseInstaller(ABC):
         """
         if not prepare_output_dir(self.system.install_path):
             return InstallStatusResult(False, f"Error preparing install dir '{self.system.install_path.absolute()}'")
+        elif not prepare_output_dir(self.system.hf_home_path):
+            return InstallStatusResult(False, f"Error preparing hf home dir '{self.system.hf_home_path.absolute()}'")
 
         install_results: dict[Installable, InstallStatusResult] = {}
         for item in self.all_items(items):
@@ -180,6 +182,8 @@ class BaseInstaller(ABC):
 
         if not prepare_output_dir(self.system.install_path):
             return InstallStatusResult(False, f"Error preparing install dir '{self.system.install_path.absolute()}'")
+        elif not prepare_output_dir(self.system.hf_home_path):
+            return InstallStatusResult(False, f"Error preparing hf home dir '{self.system.hf_home_path.absolute()}'")
 
         logging.debug(f"Going to install {len(set(items))} uniq item(s) (total is {len(list(items))})")
 

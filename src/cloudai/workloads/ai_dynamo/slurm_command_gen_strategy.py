@@ -35,7 +35,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         mounts = [
             f"{dynamo_repo_path}:{dynamo_repo_path}",
-            f"{td.cmd_args.huggingface_home_host_path}:{td.cmd_args.huggingface_home_container_path}",
+            f"{self.system.hf_home_path.absolute()}:{td.cmd_args.huggingface_home_container_path}",
             f"{td.script.installed_path.absolute()!s}:{td.script.installed_path.absolute()!s}",
         ]
 
