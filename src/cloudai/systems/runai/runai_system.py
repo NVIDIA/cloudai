@@ -18,7 +18,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, PrivateAttr
+from pydantic import Field, PrivateAttr
 
 from cloudai.core import BaseJob, System
 
@@ -31,7 +31,7 @@ from .runai_rest_client import RunAIRestClient
 from .runai_training import ActualPhase, RunAITraining
 
 
-class RunAISystem(BaseModel, System):
+class RunAISystem(System):
     """
     RunAISystem integrates with the RunAI platform to manage and monitor jobs and nodes.
 
@@ -47,13 +47,7 @@ class RunAISystem(BaseModel, System):
         nodes (List[RunAINode]): List of nodes in the RunAI cluster.
     """
 
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
-
-    name: str
     scheduler: str = "runai"
-    install_path: Path
-    output_path: Path
-    global_env_vars: Dict[str, Any] = {}
     monitor_interval: int = 60
     base_url: str
     user_email: str
@@ -61,7 +55,7 @@ class RunAISystem(BaseModel, System):
     app_secret: str
     project_id: str
     cluster_id: str
-    nodes: List[RunAINode] = []
+    nodes: List[RunAINode] = Field(default_factory=list)
     _api_client: Optional[RunAIRestClient] = PrivateAttr(default=None)
 
     @property

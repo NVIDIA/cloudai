@@ -16,7 +16,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
@@ -49,7 +49,7 @@ class LSFQueue(BaseModel):
     lsf_nodes: List[LSFNodeObj] = Field(default_factory=list, exclude=True)
 
 
-class LSFSystem(BaseModel, System):
+class LSFSystem(System):
     """
     Represents an LSF system.
 
@@ -69,14 +69,8 @@ class LSFSystem(BaseModel, System):
         cmd_shell (CommandShell): Command shell for executing system commands.
     """
 
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
-
-    name: str
-    install_path: Path
-    output_path: Path
     queues: List[LSFQueue] = Field(default_factory=list)
     account: Optional[str] = None
-    global_env_vars: Dict[str, Any] = {}
     scheduler: str = "lsf"
     project_name: Optional[str] = None
     default_queue: Optional[str] = None

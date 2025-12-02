@@ -27,41 +27,18 @@ if TYPE_CHECKING:
     import kubernetes as k8s
 
 
-from pydantic import BaseModel, ConfigDict
-
 from cloudai.core import BaseJob, System
 from cloudai.util.lazy_imports import lazy
 
 from .kubernetes_job import KubernetesJob
 
 
-class KubernetesSystem(BaseModel, System):
-    """
-    Represents a Kubernetes system.
+class KubernetesSystem(System):
+    """Represents a Kubernetes system."""
 
-    Attributes
-        name (str): The name of the Kubernetes system.
-        install_path (Path): Path to the installation directory.
-        output_path (Path): Path to the output directory.
-        kube_config_path (Path): Path to the Kubernetes config file.
-        default_namespace (str): The default Kubernetes namespace for jobs.
-        scheduler (str): The scheduler type, default is "kubernetes".
-        global_env_vars (Dict[str, Any]): Global environment variables to be passed to jobs.
-        monitor_interval (int): Time interval to monitor jobs, in seconds.
-        _core_v1 (client.CoreV1Api): Kubernetes Core V1 API client instance.
-        _batch_v1 (client.BatchV1Api): Kubernetes Batch V1 API client instance.
-        _custom_objects_api (CustomObjectsApi): Kubernetes Custom Objects API client instance.
-    """
-
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
-
-    name: str
-    install_path: Path
-    output_path: Path
     kube_config_path: Path
     default_namespace: str
     scheduler: str = "kubernetes"
-    global_env_vars: Dict[str, Any] = {}
     monitor_interval: int = 1
     _core_v1: Optional[k8s.client.CoreV1Api] = None
     _batch_v1: Optional[k8s.client.BatchV1Api] = None
