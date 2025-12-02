@@ -27,7 +27,6 @@ if TYPE_CHECKING:
     import kubernetes as k8s
 
 
-
 from cloudai.core import BaseJob, System
 from cloudai.util.lazy_imports import lazy
 
