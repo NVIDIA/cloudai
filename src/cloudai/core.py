@@ -32,7 +32,7 @@ from ._core.exceptions import (
 )
 from ._core.grader import Grader
 from ._core.grading_strategy import GradingStrategy
-from ._core.installables import DockerImage, File, GitRepo, Installable, PythonExecutable
+from ._core.installables import DockerImage, File, GitRepo, HFModel, Installable, PythonExecutable
 from ._core.job_status_result import JobStatusResult
 from ._core.json_gen_strategy import JsonGenStrategy
 from ._core.registry import Registry
@@ -65,6 +65,7 @@ __all__ = [
     "Grader",
     "GradingStrategy",
     "GridSearchAgent",
+    "HFModel",
     "InstallStatusResult",
     "Installable",
     "JobIdRetrievalError",

@@ -28,6 +28,7 @@ dependencies = [
   "websockets~=15.0.1",
   "rich~=14.2",
   "click~=8.3",
+  "huggingface-hub~=1.1.7",
 ]
 requires-python = ">=3.10"
 scripts = { cloudai = "cloudai.cli:main" }
