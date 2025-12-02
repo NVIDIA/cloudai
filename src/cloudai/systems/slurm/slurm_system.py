@@ -93,32 +93,9 @@ class SlurmPartition(BaseModel):
     slurm_nodes: list[SlurmNode] = Field(default_factory=list[SlurmNode], exclude=True)
 
 
-class SlurmSystem(BaseModel, System):
-    """
-    Represents a Slurm system.
+class SlurmSystem(System):
+    """Represents a Slurm system."""
 
-    Attributes
-        output_path (Path): Path to the output directory.
-        default_partition (str): The default partition for job submission.
-        partitions (Dict[str, List[SlurmNode]]): Mapping of partition names to lists of SlurmNodes.
-        account (Optional[str]): Account name for charging resources used by this job.
-        distribution (Optional[str]): Specifies alternate distribution methods for remote processes.
-        mpi (Optional[str]): Indicates the Process Management Interface (PMI) implementation to be used for
-            inter-process communication.
-        gpus_per_node (Optional[int]): Specifies the number of GPUs available per node.
-        ntasks_per_node (Optional[int]): Specifies the number of tasks that can run concurrently on a single node.
-        cache_docker_images_locally (bool): Whether to cache Docker images locally for the Slurm system.
-        groups (Dict[str, Dict[str, List[SlurmNode]]]): Nested mapping where the key is the partition name and the
-            value is another dictionary with group names as keys and lists of SlurmNodes as values, representing the
-            group composition within each partition.
-        cmd_shell (CommandShell): An instance of CommandShell for executing system commands.
-    """
-
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
-
-    name: str
-    install_path: Path
-    output_path: Path
     default_partition: str
     partitions: List[SlurmPartition]
     account: Optional[str] = None
@@ -127,12 +104,11 @@ class SlurmSystem(BaseModel, System):
     gpus_per_node: Optional[int] = None
     ntasks_per_node: Optional[int] = None
     cache_docker_images_locally: bool = False
-    global_env_vars: Dict[str, Any] = {}
     scheduler: str = "slurm"
     monitor_interval: int = 60
     cmd_shell: CommandShell = Field(default=CommandShell(), exclude=True)
     extra_srun_args: Optional[str] = None
-    extra_sbatch_args: list[str] = []
+    extra_sbatch_args: list[str] = Field(default_factory=list)
     supports_gpu_directives_cache: Optional[bool] = Field(default=None, exclude=True)
     container_mount_home: bool = False
 

@@ -15,15 +15,14 @@
 # limitations under the License.
 
 import logging
-from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict
 
 from cloudai.core import BaseJob, System
 from cloudai.util import CommandShell
 
 
-class StandaloneSystem(BaseModel, System):
+class StandaloneSystem(System):
     """
     Class representing a Standalone system.
 
@@ -32,9 +31,6 @@ class StandaloneSystem(BaseModel, System):
 
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
-    name: str
-    install_path: Path
-    output_path: Path
     scheduler: str = "standalone"
     monitor_interval: int = 1
     cmd_shell: CommandShell = CommandShell()
