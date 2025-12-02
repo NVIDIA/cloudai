@@ -74,7 +74,10 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
             logging.info("Not all components are ready")
             result = installer.install(installables)
             if result.success:
-                logging.info(f"CloudAI is successfully installed into '{system.install_path.absolute()}'.")
+                logging.info(
+                    f"CloudAI is successfully installed into '{system.install_path.absolute()}'. "
+                    f"HF cache is {system.hf_home_path.absolute()}."
+                )
             else:
                 logging.error(result.message)
                 rc = 1
@@ -284,7 +287,10 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
 
         result = installer.install(installables)
         if result.success:
-            logging.info(f"CloudAI is successfully installed into '{system.install_path.absolute()}'.")
+            logging.info(
+                f"CloudAI is successfully installed into '{system.install_path.absolute()}'. "
+                f"HF cache is {system.hf_home_path.absolute()}."
+            )
         else:
             logging.error("Failed to install workloads components.")
             logging.error(result.message)
