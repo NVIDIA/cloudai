@@ -16,8 +16,6 @@
 
 import logging
 
-from pydantic import ConfigDict
-
 from cloudai.core import BaseJob, System
 from cloudai.util import CommandShell
 
@@ -28,8 +26,6 @@ class StandaloneSystem(System):
 
     This class is used for systems that execute commands directly without a job scheduler.
     """
-
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     scheduler: str = "standalone"
     monitor_interval: int = 1
