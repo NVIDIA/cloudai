@@ -9,13 +9,15 @@ Set Up Access to the Private NGC Registry
 
 First, ensure you have access to the Docker repository. Follow the following steps:
 
-1. **Sign In**: Go to [NVIDIA NGC](https://ngc.nvidia.com/signin) and sign in with your credentials.
+1. **Sign In**: Go to `NGC signin`_ and sign in with your credentials.
 2. **Generate API Key**:
-   - On the top right corner, click on the dropdown menu next to your profile
-   - Select "Setup"
-   - In the "Setup" section, find "Keys/Secrets"
-   - Click "Generate API Key" and confirm when prompted. A new API key will be presented
-   - **Note**: Save this API key locally as you will not be able to view it again on NGC
+    - On the top right corner, click on the dropdown menu next to your profile
+    - Select "Setup"
+    - In the "Setup" section, find "Keys/Secrets"
+    - Click "Generate API Key" and confirm when prompted. A new API key will be presented
+    - **Note**: Save this API key locally as you will not be able to view it again on NGC
+
+.. _NGC signin: https://ngc.nvidia.com/signin
 
 Next, set up your enroot credentials. Ensure you have the correct credentials under ``~/.config/enroot/.credentials``:
 
