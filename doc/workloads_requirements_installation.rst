@@ -33,9 +33,9 @@ Some workloads require Hugging Face models. CloudAI will download the models fro
 
 
 Authentication with Hugging Face
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-As of now, CloudAI doesn't handle authentication with Hugging Face, so it is up to user to enable authentication with Hugging Face in the shell where CloudAI is run. One might need to run the following command:
+As of now, CloudAI doesn't handle authentication with Hugging Face, so it is up to the user to enable authentication with Hugging Face in the shell where CloudAI is run. One might need to run the following command:
 
 .. code-block:: bash
 

@@ -53,6 +53,7 @@ class HFModelManager:
             local_path: str = snapshot_download(
                 repo_id=model.model_name, cache_dir=self.root_path.absolute() / "hub", local_files_only=True
             )
+            model.installed_path = Path(local_path)
         except Exception as e:
             return InstallStatusResult(False, f"HF model {model.model_name} is not available locally: {e}")
 

@@ -47,3 +47,24 @@ def test_download_raises(hf_model: HFModel, tmp_path: Path) -> None:
     assert not result.success
     assert "some error message" in result.message
     assert hf_model._installed_path is None
+
+
+def test_is_downloaded(hf_model: HFModel, tmp_path: Path) -> None:
+    with patch("cloudai.util.hf_model_manager.snapshot_download", return_value=str("/real/path")):
+        result = HFModelManager(root_path=tmp_path).is_model_downloaded(hf_model)
+
+    assert result.success
+    assert result.message == "/real/path"
+    assert hf_model.installed_path == Path("/real/path")
+
+
+def test_is_downloaded_raises(hf_model: HFModel, tmp_path: Path) -> None:
+    with patch(
+        "cloudai.util.hf_model_manager.snapshot_download",
+        side_effect=Exception("some error message"),
+    ):
+        result = HFModelManager(root_path=tmp_path).is_model_downloaded(hf_model)
+
+    assert not result.success
+    assert "some error message" in result.message
+    assert hf_model._installed_path is None

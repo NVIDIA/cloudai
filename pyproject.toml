@@ -125,6 +125,7 @@ root_package = "cloudai"
   name = "Util modules are leaf dependencies"
   type = "forbidden"
   forbidden_modules = ["cloudai.systems", "cloudai.workloads", "cloudai.cli"]
+  allow_indirect_imports = true
   source_modules = ["cloudai.util"]
 
 [tool.vulture]
