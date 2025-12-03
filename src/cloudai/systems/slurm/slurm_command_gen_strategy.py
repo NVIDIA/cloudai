@@ -257,6 +257,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         if self.system.extra_srun_args:
             srun_command_parts.append(self.system.extra_srun_args)
+        if self.test_run.extra_srun_args:
+            srun_command_parts.append(self.test_run.extra_srun_args)
 
         return srun_command_parts
 

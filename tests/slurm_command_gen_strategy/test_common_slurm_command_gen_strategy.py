@@ -323,6 +323,12 @@ def test_gen_srun_prefix_with_container_mount_home(
     assert ("--no-container-mount-home" in srun_prefix) is not container_mount_home
 
 
+def test_gen_srun_prefix_tr_extra_srun_args(strategy_fixture: SlurmCommandGenStrategy):
+    strategy_fixture.test_run.extra_srun_args = "--arg val --flag"
+    srun_prefix = strategy_fixture.gen_srun_prefix()
+    assert "--arg val --flag" in srun_prefix  # added as a single element
+
+
 def test_append_distribution_and_hostfile_with_nodes(strategy_fixture: SlurmCommandGenStrategy) -> None:
     strategy_fixture.system.distribution = "block"
     strategy_fixture.system.ntasks_per_node = 2
