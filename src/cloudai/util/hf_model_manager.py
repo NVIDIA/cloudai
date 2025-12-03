@@ -1,0 +1,75 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import logging
+import os
+import subprocess
+from dataclasses import dataclass
+from pathlib import Path
+
+from huggingface_hub import snapshot_download
+from huggingface_hub.utils.tqdm import disable_progress_bars
+
+from cloudai.core import HFModel, InstallStatusResult
+
+
+@dataclass
+class HFModelManager:
+    """Manager for HuggingFace models."""
+
+    root_path: Path
+
+    def download_model(self, model: HFModel) -> InstallStatusResult:
+        logging.debug(f"Downloading HF model {model.model_name} into {self.root_path / 'hub'}")
+        disable_progress_bars()
+        try:
+            local_path: str = snapshot_download(repo_id=model.model_name, cache_dir=self.root_path.absolute() / "hub")
+            model.installed_path = Path(local_path)
+        except Exception as e:
+            return InstallStatusResult(False, f"Failed to download HF model {model.model_name}: {e}")
+
+        return InstallStatusResult(True)
+
+    def is_model_downloaded(self, model: HFModel) -> InstallStatusResult:
+        logging.debug(f"Checking if HF model {model.model_name} is already downloaded in {self.root_path / 'hub'}")
+        disable_progress_bars()
+        try:
+            local_path: str = snapshot_download(
+                repo_id=model.model_name, cache_dir=self.root_path.absolute() / "hub", local_files_only=True
+            )
+            model.installed_path = Path(local_path)
+        except Exception as e:
+            return InstallStatusResult(False, f"HF model {model.model_name} is not available locally: {e}")
+
+        return InstallStatusResult(True, local_path)
+
+    def remove_model(self, model: HFModel) -> InstallStatusResult:
+        logging.debug(f"Removing HF model {model.model_name} from {self.root_path / 'hub'}")
+        res = self.is_model_downloaded(model)
+        if not res.success:
+            return InstallStatusResult(True, f"HF model {model.model_name} is not downloaded.")
+
+        cmd = ["hf", "cache", "rm", "-y", f"model/{model.model_name}"]
+        env = os.environ | {"HF_HOME": str(self.root_path.absolute())}
+        p = subprocess.run(cmd, capture_output=True, text=True, env=env)
+        logging.debug(
+            f"Run {cmd=} with HF_HOME={env['HF_HOME']} returned code {p.returncode}, "
+            f"stdout: {p.stdout}, stderr: {p.stderr}"
+        )
+        if p.returncode != 0:
+            return InstallStatusResult(False, f"Failed to remove HF model {model.model_name}: {p.stderr} {p.stdout}")
+
+        return InstallStatusResult(True)

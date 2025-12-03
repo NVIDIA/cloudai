@@ -47,6 +47,10 @@ from cloudai.systems.slurm import SingleSbatchRunner, SlurmSystem
 from cloudai.util import prepare_output_dir
 
 
+def _log_installation_dirs(prefix: str, system: System) -> None:
+    logging.info(f"{prefix} '{system.install_path.absolute()}'. HF cache is {system.hf_home_path.absolute()}.")
+
+
 def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     """
     Manage the installation or uninstallation process for CloudAI.
@@ -69,12 +73,12 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     if args.mode == "install":
         all_installed = installer.is_installed(installables)
         if all_installed:
-            logging.info(f"CloudAI is already installed into '{system.install_path}'.")
+            _log_installation_dirs("CloudAI is already installed into", system)
         else:
             logging.info("Not all components are ready")
             result = installer.install(installables)
             if result.success:
-                logging.info(f"CloudAI is successfully installed into '{system.install_path.absolute()}'.")
+                _log_installation_dirs("CloudAI is successfully installed into", system)
             else:
                 logging.error(result.message)
                 rc = 1
@@ -284,7 +288,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
 
         result = installer.install(installables)
         if result.success:
-            logging.info(f"CloudAI is successfully installed into '{system.install_path.absolute()}'.")
+            _log_installation_dirs("CloudAI is successfully installed into", system)
         else:
             logging.error("Failed to install workloads components.")
             logging.error(result.message)

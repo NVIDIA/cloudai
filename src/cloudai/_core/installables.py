@@ -165,3 +165,27 @@ class File(Installable):
 
     def __hash__(self) -> int:
         return hash(self.src)
+
+
+@dataclass
+class HFModel(Installable):
+    """HuggingFace Model object."""
+
+    model_name: str
+    _installed_path: Path | None = field(default=None, repr=False)
+
+    @property
+    def installed_path(self) -> Path:
+        if self._installed_path:
+            return self._installed_path
+        return Path("hub") / self.model_name
+
+    @installed_path.setter
+    def installed_path(self, value: Path) -> None:
+        self._installed_path = value
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, HFModel) and other.model_name == self.model_name
+
+    def __hash__(self) -> int:
+        return hash(self.model_name)

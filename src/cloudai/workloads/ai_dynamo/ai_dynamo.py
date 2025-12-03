@@ -19,7 +19,7 @@ from typing import Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cloudai.core import DockerImage, File, GitRepo, Installable, PythonExecutable
+from cloudai.core import DockerImage, File, GitRepo, HFModel, Installable, PythonExecutable
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 
@@ -49,6 +49,7 @@ class AIDynamoArgs(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
+    model: str
     backend: str = "vllm"
     prefill_worker: PrefillWorkerArgs
     decode_worker: DecodeWorkerArgs
@@ -91,6 +92,7 @@ class AIDynamoTestDefinition(TestDefinition):
         commit="3c0bc9efa1844a82dfcc911f094f5026e6dd9214",
     )
     _python_executable: Optional[PythonExecutable] = None
+    _hf_model: HFModel | None = None
 
     @property
     def docker_image(self) -> DockerImage:
@@ -99,8 +101,14 @@ class AIDynamoTestDefinition(TestDefinition):
         return self._docker_image
 
     @property
+    def hf_model(self) -> HFModel:
+        if not self._hf_model:
+            self._hf_model = HFModel(model_name=self.cmd_args.dynamo.model)
+        return self._hf_model
+
+    @property
     def installables(self) -> list[Installable]:
-        return [self.docker_image, self.script, self.dynamo_repo, self.python_executable]
+        return [self.docker_image, self.script, self.dynamo_repo, self.python_executable, self.hf_model]
 
     @property
     def python_executable(self) -> PythonExecutable:

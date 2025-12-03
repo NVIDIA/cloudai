@@ -65,6 +65,7 @@ def ai_dynamo_tr(tmp_path: Path) -> TestRun:
         cmd_args=AIDynamoCmdArgs(
             docker_image_url="http://url",
             dynamo=AIDynamoArgs(
+                model="model",
                 prefill_worker=PrefillWorkerArgs(
                     **{
                         "num-nodes": 1,

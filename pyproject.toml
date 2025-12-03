@@ -28,6 +28,7 @@ dependencies = [
   "websockets~=15.0.1",
   "rich~=14.2",
   "click~=8.3",
+  "huggingface-hub~=1.1.7",
 ]
 requires-python = ">=3.10"
 scripts = { cloudai = "cloudai.cli:main" }
@@ -124,6 +125,7 @@ root_package = "cloudai"
   name = "Util modules are leaf dependencies"
   type = "forbidden"
   forbidden_modules = ["cloudai.systems", "cloudai.workloads", "cloudai.cli"]
+  allow_indirect_imports = true
   source_modules = ["cloudai.util"]
 
 [tool.vulture]
