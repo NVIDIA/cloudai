@@ -657,3 +657,23 @@ def test_update(
 
         all_nodes_set = set([node for p in slurm_system.partitions for node in p.slurm_nodes])
         assert all_nodes_set == set(expected_nodes)
+
+
+class TestHfHomePath:
+    @pytest.fixture
+    def system_args(self, tmp_path: Path) -> dict:
+        return {
+            "name": "test_system",
+            "install_path": tmp_path / "install",
+            "output_path": tmp_path / "output",
+            "partitions": [],
+            "default_partition": "main",
+        }
+
+    def test_default(self, system_args: dict):
+        system = SlurmSystem(**system_args)
+        assert system.hf_home_path == system_args["install_path"] / "huggingface"
+
+    def test_custom(self, system_args: dict):
+        system = SlurmSystem(**system_args, hf_home_path=system_args["output_path"] / "custom")
+        assert system.hf_home_path == system_args["output_path"] / "custom"

@@ -36,7 +36,6 @@ from cloudai.workloads.ai_dynamo import (
 def cmd_args() -> AIDynamoCmdArgs:
     return AIDynamoCmdArgs(
         docker_image_url="url",
-        huggingface_home_host_path=Path.home() / ".cache/huggingface",
         huggingface_home_container_path=Path("/root/.cache/huggingface"),
         dynamo=AIDynamoArgs(
             prefill_worker=PrefillWorkerArgs(
@@ -76,10 +75,6 @@ def cmd_args() -> AIDynamoCmdArgs:
 
 @pytest.fixture
 def test_run(tmp_path: Path, cmd_args: AIDynamoCmdArgs) -> TestRun:
-    hf_home = tmp_path / "huggingface"
-    hf_home.mkdir()
-    cmd_args.huggingface_home_host_path = hf_home
-
     dynamo_repo_path = tmp_path / "dynamo_repo"
     dynamo_repo_path.mkdir()
 
@@ -99,20 +94,6 @@ def strategy(slurm_system: SlurmSystem, test_run: TestRun) -> AIDynamoSlurmComma
     return AIDynamoSlurmCommandGenStrategy(slurm_system, test_run)
 
 
-def test_hugging_face_home_path_valid(test_run: TestRun) -> None:
-    td = cast(AIDynamoTestDefinition, test_run.test)
-    path = td.huggingface_home_host_path
-    assert path.exists()
-    assert path.is_dir()
-
-
-def test_hugging_face_home_path_missing(test_run: TestRun) -> None:
-    td = cast(AIDynamoTestDefinition, test_run.test)
-    td.cmd_args.huggingface_home_host_path = Path("/nonexistent")
-    with pytest.raises(FileNotFoundError):
-        _ = td.huggingface_home_host_path
-
-
 def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: TestRun) -> None:
     mounts = strategy._container_mounts()
     td = cast(AIDynamoTestDefinition, test_run.test)
@@ -121,7 +102,7 @@ def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: T
 
     assert mounts == [
         f"{dynamo_repo_path!s}:{dynamo_repo_path!s}",
-        f"{td.cmd_args.huggingface_home_host_path!s}:{td.cmd_args.huggingface_home_container_path!s}",
+        f"{strategy.system.hf_home_path.absolute()!s}:{td.cmd_args.huggingface_home_container_path!s}",
         f"{td.script.installed_path.absolute()!s}:{td.script.installed_path.absolute()!s}",
     ]
 
