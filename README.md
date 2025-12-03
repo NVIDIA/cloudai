@@ -16,6 +16,7 @@ Please refer to the [installation guide](https://nvidia.github.io/cloudai/worklo
 For details and `pip`-based installation, please refer to the [documentation](https://nvidia.github.io/cloudai/#get-started).
 
 ## Key Concepts
+
 CloudAI operates on four main schemas:
 
 - **System Schema**: Describes the system, including the scheduler type, node list, and global environment variables.

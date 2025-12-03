@@ -74,8 +74,6 @@ CloudAI supports five modes:
 
 To install test prerequisites, run CloudAI CLI in install mode. For more details, please refer to the [installation guide](./workloads_requirements_installation.rst).
 
-```bash
-
 Please make sure to use the correct system configuration file that corresponds to your current setup for installation and experiments.
 ```bash
 cloudai install\
@@ -83,6 +81,7 @@ cloudai install\
     --tests-dir conf/common/test\
     --test-scenario conf/common/test_scenario/sleep.toml
 ```
+
 (dry-run)=
 ### dry-run
 To simulate running experiments without execution, use the dry-run mode:
@@ -92,6 +91,7 @@ cloudai dry-run\
     --tests-dir conf/common/test\
     --test-scenario conf/common/test_scenario/sleep.toml
 ```
+
 (run)=
 ### run
 To run experiments, execute CloudAI CLI in run mode:
@@ -101,6 +101,7 @@ cloudai run\
     --tests-dir conf/common/test\
     --test-scenario conf/common/test_scenario/sleep.toml
 ```
+
 (generate-report)=
 ### generate-report
 To generate reports, execute CloudAI CLI in generate-report mode:

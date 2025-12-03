@@ -55,7 +55,6 @@ class SlurmInstaller(BaseInstaller):
         self.hf_model_downloader = HFModelManager(system.hf_home_path)
 
     def _check_prerequisites(self) -> InstallStatusResult:
-        return InstallStatusResult(True)
         base_prerequisites_result = super()._check_prerequisites()
         if not base_prerequisites_result.success:
             return InstallStatusResult(False, base_prerequisites_result.message)
@@ -68,7 +67,6 @@ class SlurmInstaller(BaseInstaller):
             return InstallStatusResult(False, str(e))
 
     def _check_required_binaries(self) -> None:
-        return
         for binary in self.PREREQUISITES:
             if not self._is_binary_installed(binary):
                 raise EnvironmentError(f"Required binary '{binary}' is not installed.")

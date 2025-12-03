@@ -1,7 +1,7 @@
 Workloads requirements installation
 ===================================
 
-CloudAI workloads can define multiple "installables" as prerequirements. It can be a container image, git repository, HF model, etc.
+CloudAI workloads can define multiple "installables" as prerequisites. It can be a container image, git repository, HF model, etc.
 
 
 Set Up Access to the Private NGC Registry

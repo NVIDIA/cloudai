@@ -73,7 +73,7 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     if args.mode == "install":
         all_installed = installer.is_installed(installables)
         if all_installed:
-            _log_installation_dirs("CloudAI is already installed into ", system)
+            _log_installation_dirs("CloudAI is already installed into", system)
         else:
             logging.info("Not all components are ready")
             result = installer.install(installables)
