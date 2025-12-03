@@ -3,13 +3,13 @@
 CloudAI benchmark framework aims to develop an industry standard benchmark focused on grading Data Center (DC) scale AI systems in the Cloud. The primary motivation is to provide automated benchmarking on various systems.
 
 ## Get Started
-**Note**: instructions for setting up access for `enroot` are available [here](set-up-access-to-the-private-ngc-registry).
-
 ```bash
 git clone git@github.com:NVIDIA/cloudai.git
 cd cloudai
 uv run cloudai --help
 ```
+
+**Note**: instructions for setting up access for `enroot` are available [installation guide](./workloads_requirements_installation.rst).
 
 ### `pip`-based installation
 See required Python version in the `.python-version` file, please ensure you have it installed (see how a custom python version [can be installed](#install-custom-python-version)). Follow these steps:
@@ -58,24 +58,7 @@ These schemas enable CloudAI to be flexible and compatible with different system
 |SlurmContainer|✅|❌|❌|❌|
 |MegatronRun (experimental)|✅|❌|❌|❌|
 
-## Details
-(set-up-access-to-the-private-ngc-registry)=
-###  Set Up Access to the Private NGC Registry
-First, ensure you have access to the Docker repository. Follow the following steps:
 
-1. **Sign In**: Go to [NVIDIA NGC](https://ngc.nvidia.com/signin) and sign in with your credentials.
-2. **Generate API Key**:
-    - On the top right corner, click on the dropdown menu next to your profile
-    - Select "Setup"
-    - In the "Setup" section, find "Keys/Secrets"
-    - Click "Generate API Key" and confirm when prompted. A new API key will be presented
-    - **Note**: Save this API key locally as you will not be able to view it again on NGC
-
-Next, set up your enroot credentials. Ensure you have the correct credentials under `~/.config/enroot/.credentials`:
-```
-machine nvcr.io login $oauthtoken password <api-key>
-```
-Replace `<api-key>` with your respective credentials. Keep `$oauthtoken` as is.
 
 ## CloudAI Modes Usage Examples
 
@@ -89,7 +72,9 @@ CloudAI supports five modes:
 (install)=
 ### install
 
-To install test prerequisites, run CloudAI CLI in install mode.
+To install test prerequisites, run CloudAI CLI in install mode. For more details, please refer to the [installation guide](./workloads_requirements_installation.rst).
+
+```bash
 
 Please make sure to use the correct system configuration file that corresponds to your current setup for installation and experiments.
 ```bash
@@ -161,4 +146,5 @@ workloads/index
 DEV
 reporting
 USER_GUIDE
+workloads_requirements_installation
 ```
