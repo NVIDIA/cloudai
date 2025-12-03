@@ -52,7 +52,8 @@ class HFModelManager:
         env = os.environ | {"HF_HOME": str(self.root_path.absolute())}
         p = subprocess.run(cmd, capture_output=True, text=True, env=env)
         logging.debug(
-            f"Run {cmd=} with HF_HOME={env['HF_HOME']} returned code {p.returncode}, stdout: {p.stdout}, stderr: {p.stderr}"
+            f"Run {cmd=} with HF_HOME={env['HF_HOME']} returned code {p.returncode}, "
+            f"stdout: {p.stdout}, stderr: {p.stderr}"
         )
         if p.returncode != 0:
             return InstallStatusResult(False, f"Failed to remove HF model {model.model_name}: {p.stderr} {p.stdout}")

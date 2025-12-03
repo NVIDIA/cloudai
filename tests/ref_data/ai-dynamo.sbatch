@@ -34,6 +34,7 @@ for try in $(seq 0 $num_retries); do
   __CLOUDAI_DIR__/src/cloudai/workloads/ai_dynamo/ai_dynamo.sh \
   --huggingface-home /root/.cache/huggingface \
   --results-dir /cloudai_run_results \
+  --dynamo-model "model" \
   --dynamo-backend "vllm" \
   --prefill-num-nodes "1" \
   --prefill-ServiceArgs "{'workers': 1, 'resources': {'gpu': '8'}}" \
