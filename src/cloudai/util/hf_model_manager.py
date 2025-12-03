@@ -32,9 +32,6 @@ class HFModelManager:
 
     root_path: Path
 
-    def model_path(self, model: HFModel) -> Path:
-        return self.root_path / "hub" / model.model_name
-
     def download_model(self, model: HFModel) -> InstallStatusResult:
         logging.debug(f"Downloading HF model {model.model_name} into {self.root_path / 'hub'}")
         disable_progress_bars()

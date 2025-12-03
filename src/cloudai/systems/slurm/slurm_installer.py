@@ -169,7 +169,7 @@ class SlurmInstaller(BaseInstaller):
             item.installed_path = self.system.install_path / item.src.name
             return InstallStatusResult(True)
         elif isinstance(item, HFModel):
-            item.installed_path = self.hf_model_downloader.model_path(item)
+            item.installed_path = self.system.hf_home_path  # fake path is OK here as the whole HF home will be mounted
             return InstallStatusResult(True)
 
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
