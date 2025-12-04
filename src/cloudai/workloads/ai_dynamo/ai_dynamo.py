@@ -32,9 +32,35 @@ class WorkerBaseArgs(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     num_nodes: Union[int, list[int]] = Field(
-        serialization_alias="num-nodes", validation_alias=AliasChoices("num-nodes", "num_nodes")
+        default=1, serialization_alias="num-nodes", validation_alias=AliasChoices("num-nodes", "num_nodes")
     )
     nodes: Optional[str] = Field(default=None)
+
+    data_parallel_size: int | list[int] | None = Field(
+        default=None,
+        serialization_alias="data-parallel-size",
+        validation_alias=AliasChoices("data-parallel-size", "data_parallel_size"),
+    )
+    gpu_memory_utilization: float | list[float] | None = Field(
+        default=None,
+        serialization_alias="gpu-memory-utilization",
+        validation_alias=AliasChoices("gpu-memory-utilization", "gpu_memory_utilization"),
+    )
+    pipeline_parallel_size: int | list[int] | None = Field(
+        default=None,
+        serialization_alias="pipeline-parallel-size",
+        validation_alias=AliasChoices("pipeline-parallel-size", "pipeline_parallel_size"),
+    )
+    tensor_parallel_size: int | list[int] | None = Field(
+        default=None,
+        serialization_alias="tensor-parallel-size",
+        validation_alias=AliasChoices("tensor-parallel-size", "tensor_parallel_size"),
+    )
+    extra_args: str | list[str] | None = Field(
+        default=None,
+        serialization_alias="extra-args",
+        validation_alias=AliasChoices("extra-args", "extra_args"),
+    )
 
 
 class PrefillWorkerArgs(WorkerBaseArgs):

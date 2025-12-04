@@ -40,7 +40,9 @@ def dynamo(request: Any) -> AIDynamoTestDefinition:
         test_template_name="AIDynamo",
         cmd_args=AIDynamoCmdArgs(
             docker_image_url="nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.6.1.post1",
-            dynamo=AIDynamoArgs(decode_worker=DecodeWorkerArgs(num_nodes=2)),
+            dynamo=AIDynamoArgs(
+                decode_worker=DecodeWorkerArgs(num_nodes=2, data_parallel_size=1, tensor_parallel_size=1)
+            ),
             genai_perf=GenAIPerfArgs(),
         ),
     )
@@ -83,6 +85,9 @@ def test_gen_decode(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
         assert decode.get("subComponentType") == "decode-worker"
         args.append("--is-decode-worker")
 
+    for arg, value in tdef.cmd_args.dynamo.decode_worker.model_dump(exclude={"num_nodes"}, exclude_none=True).items():
+        args.extend([json_gen._to_dynamo_arg("decode", arg), f'"{value}"'])
+
     main_container = decode.get("extraPodSpec", {}).get("mainContainer", {})
     assert main_container.get("image") == tdef.cmd_args.docker_image_url
     assert main_container.get("workingDir") == tdef.cmd_args.dynamo.workspace_path
@@ -106,14 +111,31 @@ def test_gen_prefill(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     assert decode.get("replicas") == 1
     assert decode.get("subComponentType") == "prefill"
 
+    args = ["--model", tdef.cmd_args.dynamo.model, "--is-prefill-worker"]
+    for arg, value in tdef.cmd_args.dynamo.prefill_worker.model_dump(exclude={"num_nodes"}, exclude_none=True).items():
+        args.extend([json_gen._to_dynamo_arg("prefill", arg), f'"{value}"'])
+
     main_container = decode.get("extraPodSpec", {}).get("mainContainer", {})
     assert main_container.get("image") == tdef.cmd_args.docker_image_url
     assert main_container.get("workingDir") == tdef.cmd_args.dynamo.workspace_path
     assert main_container.get("command") == tdef.cmd_args.dynamo.prefill_cmd.split()
-    assert main_container.get("args") == ["--model", tdef.cmd_args.dynamo.model, "--is-prefill-worker"]
+    assert main_container.get("args") == args
 
     resources = decode.get("resources", {})
     assert resources.get("limits", {}).get("gpu") == f"{system.gpus_per_node}"
+
+
+@pytest.mark.parametrize(
+    "prefix,arg_name,expected",
+    [
+        ("decode", "nodes", "--decode-nodes"),
+        ("decode", "num_nodes", "--decode-num-nodes"),
+        ("decode", "num-nodes", "--decode-num-nodes"),
+        ("prefill", "data_parallel_size", "--prefill-data-parallel-size"),
+    ],
+)
+def test_to_dynamo_arg(json_gen: AIDynamoKubernetesJsonGenStrategy, prefix: str, arg_name: str, expected: str) -> None:
+    assert json_gen._to_dynamo_arg(prefix, arg_name) == expected
 
 
 def test_gen_json(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
