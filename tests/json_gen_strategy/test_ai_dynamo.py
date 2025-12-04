@@ -51,7 +51,7 @@ def dynamo(request: Any) -> AIDynamoTestDefinition:
     )
     if request.param == "disagg":
         dynamo.cmd_args.dynamo.prefill_worker = PrefillWorkerArgs(
-            num_nodes=2, tensor_parallel_size=1, extra_args="--extra-prefill-arg v"
+            num_nodes=3, tensor_parallel_size=1, extra_args="--extra-prefill-arg v"
         )
 
     return dynamo
@@ -89,6 +89,12 @@ def test_gen_decode(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     assert decode.get("componentType") == "worker"
     assert decode.get("replicas") == 1
 
+    if cast(int, tdef.cmd_args.dynamo.decode_worker.num_nodes) > 1:
+        multinode = decode.get("multinode", {})
+        assert multinode.get("nodeCount") == tdef.cmd_args.dynamo.decode_worker.num_nodes
+    else:
+        assert "multinode" not in decode
+
     args = ["--model", tdef.cmd_args.dynamo.model]
     if tdef.cmd_args.dynamo.prefill_worker:
         assert decode.get("subComponentType") == "decode-worker"
@@ -118,11 +124,17 @@ def test_gen_prefill(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
             json_gen.gen_prefill_dict()
         return
 
-    decode = json_gen.gen_prefill_dict()
-    assert decode.get("dynamoNamespace") == system.default_namespace
-    assert decode.get("componentType") == "worker"
-    assert decode.get("replicas") == 1
-    assert decode.get("subComponentType") == "prefill"
+    prefill = json_gen.gen_prefill_dict()
+    assert prefill.get("dynamoNamespace") == system.default_namespace
+    assert prefill.get("componentType") == "worker"
+    assert prefill.get("replicas") == 1
+    assert prefill.get("subComponentType") == "prefill"
+
+    if cast(int, tdef.cmd_args.dynamo.prefill_worker.num_nodes) > 1:
+        multinode = prefill.get("multinode", {})
+        assert multinode.get("nodeCount") == tdef.cmd_args.dynamo.prefill_worker.num_nodes
+    else:
+        assert "multinode" not in prefill
 
     args = ["--model", tdef.cmd_args.dynamo.model, "--is-prefill-worker"]
     for arg, value in dynamo_args_dict(tdef.cmd_args.dynamo.prefill_worker).items():
@@ -130,13 +142,13 @@ def test_gen_prefill(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     if tdef.cmd_args.dynamo.prefill_worker.extra_args:
         args.append(f"{tdef.cmd_args.dynamo.prefill_worker.extra_args}")
 
-    main_container = decode.get("extraPodSpec", {}).get("mainContainer", {})
+    main_container = prefill.get("extraPodSpec", {}).get("mainContainer", {})
     assert main_container.get("image") == tdef.cmd_args.docker_image_url
     assert main_container.get("workingDir") == tdef.cmd_args.dynamo.workspace_path
     assert main_container.get("command") == tdef.cmd_args.dynamo.prefill_cmd.split()
     assert main_container.get("args") == args
 
-    resources = decode.get("resources", {})
+    resources = prefill.get("resources", {})
     assert resources.get("limits", {}).get("gpu") == f"{system.gpus_per_node}"
 
 

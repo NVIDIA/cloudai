@@ -103,6 +103,9 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
 
         decode_cfg["extraPodSpec"]["mainContainer"]["args"] = args
 
+        if cast(int, tdef.cmd_args.dynamo.decode_worker.num_nodes) > 1:
+            decode_cfg["multinode"] = {"nodeCount": tdef.cmd_args.dynamo.decode_worker.num_nodes}
+
         return decode_cfg
 
     def gen_prefill_dict(self) -> dict[str, Any]:
@@ -133,6 +136,9 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
             args.append(f"{tdef.cmd_args.dynamo.prefill_worker.extra_args}")
 
         prefill_cfg["extraPodSpec"]["mainContainer"]["args"] = args
+
+        if cast(int, tdef.cmd_args.dynamo.prefill_worker.num_nodes) > 1:
+            prefill_cfg["multinode"] = {"nodeCount": tdef.cmd_args.dynamo.prefill_worker.num_nodes}
 
         return prefill_cfg
 

@@ -46,22 +46,16 @@ test_template_name = "AIDynamo"
     workspace-path = "/workspace/"
 
       [Tests.cmd_args.dynamo.prefill_worker]
-      data-parallel-size = 1
       gpu-memory-utilization = 0.90
       max_model_len = 19280
       num-nodes = 2
-      pipeline-parallel-size = 1
       tensor-parallel-size = 2
-      extra-args = "--no-enable-expert-parallel"
 
       [Tests.cmd_args.dynamo.decode_worker]
-      data-parallel-size = 1
       gpu-memory-utilization = 0.90
       max_model_len = 19280
-      num-nodes = 1
-      pipeline-parallel-size = 1
+      num-nodes = 2
       tensor-parallel-size = 2
-      extra-args = "--no-enable-expert-parallel"
 
     [Tests.cmd_args.genai_perf]
     concurrency = 8
