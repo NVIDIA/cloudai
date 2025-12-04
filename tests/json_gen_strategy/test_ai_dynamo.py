@@ -18,6 +18,7 @@ from typing import Any, cast
 
 import pytest
 import yaml
+from pydantic import BaseModel
 
 from cloudai.core import TestRun
 from cloudai.systems.kubernetes import KubernetesSystem
@@ -41,13 +42,17 @@ def dynamo(request: Any) -> AIDynamoTestDefinition:
         cmd_args=AIDynamoCmdArgs(
             docker_image_url="nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.6.1.post1",
             dynamo=AIDynamoArgs(
-                decode_worker=DecodeWorkerArgs(num_nodes=2, data_parallel_size=1, tensor_parallel_size=1)
+                decode_worker=DecodeWorkerArgs(
+                    num_nodes=2, data_parallel_size=1, tensor_parallel_size=1, extra_args="--extra-decode-arg v"
+                )
             ),
             genai_perf=GenAIPerfArgs(),
         ),
     )
     if request.param == "disagg":
-        dynamo.cmd_args.dynamo.prefill_worker = PrefillWorkerArgs(num_nodes=2)
+        dynamo.cmd_args.dynamo.prefill_worker = PrefillWorkerArgs(
+            num_nodes=2, tensor_parallel_size=1, extra_args="--extra-prefill-arg v"
+        )
 
     return dynamo
 
@@ -71,6 +76,10 @@ def test_gen_frontend(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     assert frontend.get("extraPodSpec", {}).get("mainContainer", {}).get("image") == tdef.cmd_args.docker_image_url
 
 
+def dynamo_args_dict(model: BaseModel) -> dict:
+    return model.model_dump(exclude_none=True, exclude={"num_nodes", "extra_args"})
+
+
 def test_gen_decode(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     system = cast(KubernetesSystem, json_gen.system)
     tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test)
@@ -85,8 +94,10 @@ def test_gen_decode(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
         assert decode.get("subComponentType") == "decode-worker"
         args.append("--is-decode-worker")
 
-    for arg, value in tdef.cmd_args.dynamo.decode_worker.model_dump(exclude={"num_nodes"}, exclude_none=True).items():
+    for arg, value in dynamo_args_dict(tdef.cmd_args.dynamo.decode_worker).items():
         args.extend([json_gen._to_dynamo_arg("decode", arg), f'"{value}"'])
+    if tdef.cmd_args.dynamo.decode_worker.extra_args:
+        args.append(f"{tdef.cmd_args.dynamo.decode_worker.extra_args}")
 
     main_container = decode.get("extraPodSpec", {}).get("mainContainer", {})
     assert main_container.get("image") == tdef.cmd_args.docker_image_url
@@ -112,8 +123,10 @@ def test_gen_prefill(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     assert decode.get("subComponentType") == "prefill"
 
     args = ["--model", tdef.cmd_args.dynamo.model, "--is-prefill-worker"]
-    for arg, value in tdef.cmd_args.dynamo.prefill_worker.model_dump(exclude={"num_nodes"}, exclude_none=True).items():
+    for arg, value in dynamo_args_dict(tdef.cmd_args.dynamo.prefill_worker).items():
         args.extend([json_gen._to_dynamo_arg("prefill", arg), f'"{value}"'])
+    if tdef.cmd_args.dynamo.prefill_worker.extra_args:
+        args.append(f"{tdef.cmd_args.dynamo.prefill_worker.extra_args}")
 
     main_container = decode.get("extraPodSpec", {}).get("mainContainer", {})
     assert main_container.get("image") == tdef.cmd_args.docker_image_url

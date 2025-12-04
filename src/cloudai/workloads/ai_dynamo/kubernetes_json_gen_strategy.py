@@ -24,7 +24,7 @@ import yaml
 from cloudai.core import JsonGenStrategy
 from cloudai.systems.kubernetes import KubernetesSystem
 
-from .ai_dynamo import AIDynamoTestDefinition
+from .ai_dynamo import AIDynamoTestDefinition, WorkerBaseArgs
 
 
 class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
@@ -72,6 +72,9 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
     def _to_dynamo_arg(self, prefix: str, arg_name: str) -> str:
         return f"--{prefix}-" + arg_name.replace("_", "-")
 
+    def _dynamo_args_dict(self, model: WorkerBaseArgs) -> dict:
+        return model.model_dump(exclude={"num_nodes", "extra_args"}, exclude_none=True)
+
     def gen_decode_dict(self) -> dict[str, Any]:
         system = cast(KubernetesSystem, self.system)
         tdef = cast(AIDynamoTestDefinition, self.test_run.test)
@@ -93,10 +96,10 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
         if tdef.cmd_args.dynamo.prefill_worker:
             decode_cfg["subComponentType"] = "decode-worker"
             args.append("--is-decode-worker")
-        for arg, value in tdef.cmd_args.dynamo.decode_worker.model_dump(
-            exclude={"num_nodes"}, exclude_none=True
-        ).items():
+        for arg, value in self._dynamo_args_dict(tdef.cmd_args.dynamo.decode_worker).items():
             args.extend([self._to_dynamo_arg("decode", arg), f'"{value}"'])
+        if tdef.cmd_args.dynamo.decode_worker.extra_args:
+            args.append(f"{tdef.cmd_args.dynamo.decode_worker.extra_args}")
 
         decode_cfg["extraPodSpec"]["mainContainer"]["args"] = args
 
@@ -124,10 +127,11 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
         }
 
         args = ["--model", tdef.cmd_args.dynamo.model, "--is-prefill-worker"]
-        for arg, value in tdef.cmd_args.dynamo.prefill_worker.model_dump(
-            exclude={"num_nodes"}, exclude_none=True
-        ).items():
+        for arg, value in self._dynamo_args_dict(tdef.cmd_args.dynamo.prefill_worker).items():
             args.extend([self._to_dynamo_arg("prefill", arg), f'"{value}"'])
+        if tdef.cmd_args.dynamo.prefill_worker.extra_args:
+            args.append(f"{tdef.cmd_args.dynamo.prefill_worker.extra_args}")
+
         prefill_cfg["extraPodSpec"]["mainContainer"]["args"] = args
 
         return prefill_cfg
