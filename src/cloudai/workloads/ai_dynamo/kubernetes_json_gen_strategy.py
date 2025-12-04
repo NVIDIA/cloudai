@@ -72,7 +72,7 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
     def gen_decode_dict(self) -> dict[str, Any]:
         system = cast(KubernetesSystem, self.system)
         tdef = cast(AIDynamoTestDefinition, self.test_run.test)
-        return {
+        decode_cfg = {
             "dynamoNamespace": system.default_namespace,
             "componentType": "worker",
             "replicas": 1,
@@ -86,6 +86,12 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
                 }
             },
         }
+
+        if tdef.cmd_args.dynamo.prefill_worker:
+            decode_cfg["subComponentType"] = "decode-worker"
+            decode_cfg["extraPodSpec"]["mainContainer"]["args"].append("--is-decode-worker")
+
+        return decode_cfg
 
     def gen_json(self) -> Dict[Any, Any]:
         td = cast(AIDynamoTestDefinition, self.test_run.test)

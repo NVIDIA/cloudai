@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import cast
+from typing import Any, cast
 
 import pytest
 import yaml
@@ -32,21 +32,22 @@ from cloudai.workloads.ai_dynamo import (
 )
 
 
-@pytest.fixture
-def dynamo() -> AIDynamoTestDefinition:
-    return AIDynamoTestDefinition(
+@pytest.fixture(params=["agg", "disagg"])
+def dynamo(request: Any) -> AIDynamoTestDefinition:
+    dynamo = AIDynamoTestDefinition(
         name="test_dynamo",
         description="Test AI Dynamo workload",
         test_template_name="AIDynamo",
         cmd_args=AIDynamoCmdArgs(
             docker_image_url="nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.6.1.post1",
-            dynamo=AIDynamoArgs(
-                prefill_worker=PrefillWorkerArgs(num_nodes=2),
-                decode_worker=DecodeWorkerArgs(num_nodes=2),
-            ),
+            dynamo=AIDynamoArgs(decode_worker=DecodeWorkerArgs(num_nodes=2)),
             genai_perf=GenAIPerfArgs(),
         ),
     )
+    if request.param == "disagg":
+        dynamo.cmd_args.dynamo.prefill_worker = PrefillWorkerArgs(num_nodes=1)
+
+    return dynamo
 
 
 @pytest.fixture
@@ -77,11 +78,16 @@ def test_gen_decode(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     assert decode.get("componentType") == "worker"
     assert decode.get("replicas") == 1
 
+    args = ["--model", tdef.cmd_args.dynamo.model]
+    if tdef.cmd_args.dynamo.prefill_worker:
+        assert decode.get("subComponentType") == "decode-worker"
+        args.append("--is-decode-worker")
+
     main_container = decode.get("extraPodSpec", {}).get("mainContainer", {})
     assert main_container.get("image") == tdef.cmd_args.docker_image_url
     assert main_container.get("workingDir") == tdef.cmd_args.dynamo.workspace_path
     assert main_container.get("command") == tdef.cmd_args.dynamo.decode_cmd.split()
-    assert main_container.get("args") == ["--model", tdef.cmd_args.dynamo.model]
+    assert main_container.get("args") == args
 
     resources = decode.get("resources", {})
     assert resources.get("limits", {}).get("gpu") == f"{system.gpus_per_node}"
@@ -96,6 +102,6 @@ def test_gen_json(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     assert deployment.get("kind") == "DynamoGraphDeployment"
     assert deployment.get("metadata", {}).get("name") == k8s_system.default_namespace
 
-    with open(json_gen.test_run.output_path / "deployment.json", "r") as f:
+    with open(json_gen.test_run.output_path / "deployment.yaml", "r") as f:
         content = yaml.safe_load(f)
         assert content == deployment

@@ -67,7 +67,7 @@ class AIDynamoArgs(BaseModel):
         validation_alias=AliasChoices("decode-cmd", "decode_cmd"),
         default="python3 -m dynamo.vllm",
     )
-    prefill_worker: PrefillWorkerArgs
+    prefill_worker: PrefillWorkerArgs | None = None
 
 
 class GenAIPerfArgs(BaseModel):
