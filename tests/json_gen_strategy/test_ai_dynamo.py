@@ -24,6 +24,7 @@ def dynamo() -> AIDynamoTestDefinition:
         cmd_args=AIDynamoCmdArgs(
             docker_image_url="nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.6.1.post1",
             dynamo=AIDynamoArgs(
+                model="model",
                 backend="vllm",
                 workspace_path="/workspace/examples/backends/vllm",
                 prefill_worker=PrefillWorkerArgs(num_nodes=2),
@@ -87,7 +88,7 @@ def test_gen_decode(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     assert main_container.get("image") == tdef.cmd_args.docker_image_url
     assert main_container.get("workingDir") == tdef.cmd_args.dynamo.workspace_path
     assert main_container.get("command") == tdef.cmd_args.dynamo.decode_cmd.split()
-    assert main_container.get("args") == ["--model", "Qwen/Qwen3-0.6B"]
+    assert main_container.get("args") == ["--model", tdef.cmd_args.dynamo.model]
 
     resources = decode.get("resources", {})
     assert resources.get("limits", {}).get("gpu") == f"{system.gpus_per_node}"
