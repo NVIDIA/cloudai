@@ -18,7 +18,7 @@ name = "vllm_k8s"
 
 [[Tests]]
 id = "dynamo.vllm"
-test_name = "vllm"
+test_name = "vLLM-Qwen3-0.6B"
 
   [Tests.cmd_args]
     [Tests.cmd_args.dynamo]
