@@ -171,3 +171,17 @@ def test_ai_dynamo_get_metric_invalid(slurm_system: SlurmSystem, ai_dynamo_tr: T
 
     (ai_dynamo_tr.output_path / "profile_genai_perf.csv").write_text("")
     assert strategy.get_metric("default") == METRIC_ERROR
+
+
+def test_was_run_successful(ai_dynamo_tr: TestRun) -> None:
+    test_def = ai_dynamo_tr.test
+    result = test_def.was_run_successful(ai_dynamo_tr)
+    assert result.is_successful is True
+
+
+def test_was_run_successful_no_results(ai_dynamo_tr: TestRun, tmp_path: Path) -> None:
+    test_def = ai_dynamo_tr.test
+    ai_dynamo_tr.output_path = tmp_path / "empty_output"
+    ai_dynamo_tr.output_path.mkdir(parents=True, exist_ok=True)
+    result = test_def.was_run_successful(ai_dynamo_tr)
+    assert result.is_successful is False
