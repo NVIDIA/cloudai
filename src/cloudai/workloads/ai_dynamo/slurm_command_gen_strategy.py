@@ -77,7 +77,14 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             self._get_toml_args(
                 td.cmd_args.dynamo,
                 "--dynamo-",
-                exclude=["prefill_worker", "decode_worker", "genai_perf", "workspace_path", "decode_cmd"],
+                exclude=[
+                    "prefill_worker",
+                    "decode_worker",
+                    "genai_perf",
+                    "workspace_path",
+                    "decode_cmd",
+                    "prefill_cmd",
+                ],
             )
         )
 

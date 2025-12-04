@@ -114,7 +114,9 @@ def test_gen_prefill(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test)
 
     if not tdef.cmd_args.dynamo.prefill_worker:
-        pytest.skip("Prefill worker not defined in test definition")
+        with pytest.raises(ValueError, match=r"Prefill worker configuration is not defined in the test definition."):
+            json_gen.gen_prefill_dict()
+        return
 
     decode = json_gen.gen_prefill_dict()
     assert decode.get("dynamoNamespace") == system.default_namespace
