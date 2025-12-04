@@ -87,7 +87,7 @@ class AIDynamoArgs(BaseModel):
         serialization_alias="workspace-path",
         validation_alias=AliasChoices("workspace-path", "workspace_path"),
     )
-    decode_worker: DecodeWorkerArgs
+    decode_worker: DecodeWorkerArgs = Field(default_factory=DecodeWorkerArgs)
     decode_cmd: str = Field(
         default="python3 -m dynamo.vllm",
         serialization_alias="decode-cmd",
