@@ -14,13 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from pathlib import Path
 from typing import Any, Optional, Union
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
-from cloudai.core import DockerImage, File, GitRepo, HFModel, Installable, PythonExecutable
+from cloudai.core import DockerImage, File, GitRepo, HFModel, Installable, JobStatusResult, PythonExecutable, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
+
+from .report_generation_strategy import CSV_FILES_PATTERN, JSON_FILES_PATTERN
 
 
 class WorkerBaseArgs(BaseModel):
@@ -121,3 +124,13 @@ class AIDynamoTestDefinition(TestDefinition):
                 GitRepo(url=self.genai_perf_repo.url, commit=self.genai_perf_repo.commit),
             )
         return self._python_executable
+
+    def was_run_successful(self, tr: TestRun) -> JobStatusResult:
+        output_path = tr.output_path
+        csv_files = list(output_path.rglob(CSV_FILES_PATTERN))
+        json_files = list(output_path.rglob(JSON_FILES_PATTERN))
+        logging.debug(f"Found CSV files: {csv_files}, JSON files: {json_files}")
+        has_results = len(csv_files) > 0 and len(json_files) > 0
+        if not has_results:
+            return JobStatusResult(False, "No result files found in the output directory.")
+        return JobStatusResult(True)

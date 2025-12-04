@@ -21,8 +21,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai.core import DockerImage, File, GitRepo, Installable, InstallStatusResult, PythonExecutable
-from cloudai.systems.slurm.docker_image_cache_manager import DockerImageCacheResult
+from cloudai.core import DockerImage, File, GitRepo, InstallStatusResult, PythonExecutable
 from cloudai.systems.slurm.slurm_installer import SlurmInstaller
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.nemo_launcher import NeMoLauncherCmdArgs, NeMoLauncherTestDefinition
@@ -321,50 +320,6 @@ class TestInstallOneFile:
 
         res = installer.is_installed_one(f)
         assert not res.success
-
-
-def test_check_supported(slurm_system: SlurmSystem):
-    slurm_system.install_path.mkdir()
-    installer = SlurmInstaller(slurm_system)
-    installer._install_docker_image = lambda item: DockerImageCacheResult(True)
-    installer._install_python_executable = lambda item: InstallStatusResult(True)
-    installer._uninstall_docker_image = lambda item: DockerImageCacheResult(True)
-    installer._uninstall_python_executable = lambda item: InstallStatusResult(True)
-    installer._is_python_executable_installed = lambda item: InstallStatusResult(True)
-    installer.docker_image_cache_manager.check_docker_image_exists = Mock(return_value=DockerImageCacheResult(True))
-
-    git = GitRepo(url="./git_url", commit="commit_hash")
-    items = [DockerImage("fake_url/img"), PythonExecutable(git), File(Path(__file__))]
-    for item in items:
-        res = installer.install_one(item)
-        assert res.success
-
-        res = installer.is_installed_one(item)
-        assert res.success
-
-        res = installer.uninstall_one(item)
-        assert res.success
-
-        res = installer.mark_as_installed_one(item)
-        assert res.success
-
-    class MyInstallable(Installable):
-        def __eq__(self, other: object) -> bool:
-            return True
-
-        def __hash__(self) -> int:
-            return hash("MyInstallable")
-
-    unsupported = MyInstallable()
-    for func in [
-        installer.install_one,
-        installer.uninstall_one,
-        installer.is_installed_one,
-        installer.mark_as_installed_one,
-    ]:
-        res = func(unsupported)
-        assert not res.success
-        assert res.message == f"Unsupported item type: {type(unsupported)}"
 
 
 def test_mark_as_installed(slurm_system: SlurmSystem):

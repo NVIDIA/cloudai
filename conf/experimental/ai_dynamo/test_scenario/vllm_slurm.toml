@@ -1,0 +1,83 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name = "dynamo-vllm-slurm"
+
+[[Tests]]
+id = "qwen3-0.6B"
+num_nodes = 3
+time_limit = "00:20:00"
+
+name = "vllm"
+description = "vllm"
+test_template_name = "AIDynamo"
+
+  [Tests.cmd_args]
+  docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.6.1.post1"
+
+    [Tests.cmd_args.dynamo]
+    backend = "vllm"
+    model = "Qwen/Qwen3-0.6B"
+    decode-cmd = 'python3 -m dynamo.vllm'
+    decode-initialized-regex = 'VllmWorker.*has.been.initialized'
+    etcd-cmd = "etcd --log-level debug"
+    etcd-port = 2379
+    genai-perf-cmd = 'genai-perf profile'
+    ingress-cmd = "python -m dynamo.frontend --router-mode kv"
+    nats-cmd = "nats-server -js"
+    nats-port = 4222
+    node-setup-cmd = "apt-get update -o APT::Sandbox::User=root && apt-get install -y curl libibverbs1 rdma-core ibverbs-utils libibumad3 libnuma1 librdmacm1 ibverbs-providers; /usr/local/ucx/bin/ucx_info -d |grep Transport | sort -u;"
+    port = 8787
+    prefill-cmd = 'python3 -m dynamo.vllm --is-prefill-worker'
+    prefill-initialized-regex = 'VllmWorker.*has.been.initialized'
+    workspace-path = "/workspace/"
+
+      [Tests.cmd_args.dynamo.prefill_worker]
+      data-parallel-size = 1
+      gpu-memory-utilization = 0.90
+      max_model_len = 19280
+      num-nodes = 2
+      pipeline-parallel-size = 1
+      tensor-parallel-size = 2
+      extra-args = "--no-enable-expert-parallel"
+
+      [Tests.cmd_args.dynamo.decode_worker]
+      data-parallel-size = 1
+      gpu-memory-utilization = 0.90
+      max_model_len = 19280
+      num-nodes = 1
+      pipeline-parallel-size = 1
+      tensor-parallel-size = 2
+      extra-args = "--no-enable-expert-parallel"
+
+    [Tests.cmd_args.genai_perf]
+    concurrency = 8
+    endpoint = "v1/chat/completions"
+    endpoint-type = "chat"
+    extra-inputs = 'min_tokens:10'
+    output-tokens-mean = 150
+    output-tokens-stddev = 0
+    random-seed = 123
+    request-count = 128
+    synthetic-input-tokens-mean = 3000
+    synthetic-input-tokens-stddev = 0
+    warmup-request-count = 8
+    extra-args = "--streaming -- -v --async"
+
+  [Tests.extra_env_vars]
+  UCX_LOG_LEVEL = "warn"
+  UCX_TLS = "cuda_copy,rc_x"
+  DYNAMO_NODELIST = "$(scontrol show hostname $SLURM_JOB_NODELIST | tr -s '\\n' ',')"
