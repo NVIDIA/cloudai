@@ -97,7 +97,7 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
             decode_cfg["subComponentType"] = "decode-worker"
             args.append("--is-decode-worker")
         for arg, value in self._dynamo_args_dict(tdef.cmd_args.dynamo.decode_worker).items():
-            args.extend([self._to_dynamo_arg("decode", arg), f'"{value}"'])
+            args.extend([self._to_dynamo_arg("decode", arg), str(value)])
         if tdef.cmd_args.dynamo.decode_worker.extra_args:
             args.append(f"{tdef.cmd_args.dynamo.decode_worker.extra_args}")
 
@@ -128,7 +128,7 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
 
         args = ["--model", tdef.cmd_args.dynamo.model, "--is-prefill-worker"]
         for arg, value in self._dynamo_args_dict(tdef.cmd_args.dynamo.prefill_worker).items():
-            args.extend([self._to_dynamo_arg("prefill", arg), f'"{value}"'])
+            args.extend([self._to_dynamo_arg("prefill", arg), str(value)])
         if tdef.cmd_args.dynamo.prefill_worker.extra_args:
             args.append(f"{tdef.cmd_args.dynamo.prefill_worker.extra_args}")
 
