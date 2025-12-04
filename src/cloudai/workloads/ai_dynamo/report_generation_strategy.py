@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import ClassVar
 
 from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
+from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 
 CSV_FILES_PATTERN = "profile*_genai_perf.csv"
@@ -118,7 +119,7 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
 
     def _calculate_total_gpus(self) -> int | None:
         gpus_per_node = None
-        if isinstance(self.system, SlurmSystem):
+        if isinstance(self.system, (SlurmSystem, KubernetesSystem)):
             gpus_per_node = self.system.gpus_per_node
 
         if gpus_per_node is None:
