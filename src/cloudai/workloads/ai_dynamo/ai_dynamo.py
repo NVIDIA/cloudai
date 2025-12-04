@@ -16,7 +16,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Optional, Union
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 

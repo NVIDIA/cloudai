@@ -296,9 +296,9 @@ class TestSuccessIsPopulated:
 
 @pytest.fixture(params=["k8s", "slurm"])
 def installer(
-    request: Any, kubernetes_system: KubernetesSystem, slurm_system: SlurmSystem
+    request: Any, k8s_system: KubernetesSystem, slurm_system: SlurmSystem
 ) -> KubernetesInstaller | SlurmInstaller:
-    installer = KubernetesInstaller(kubernetes_system) if request.param == "k8s" else SlurmInstaller(slurm_system)
+    installer = KubernetesInstaller(k8s_system) if request.param == "k8s" else SlurmInstaller(slurm_system)
 
     installer.system.install_path.mkdir(parents=True)
     installer._check_low_thread_environment = lambda threshold=None: False

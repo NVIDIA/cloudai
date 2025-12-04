@@ -19,8 +19,6 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, cast
 
-import yaml
-
 from cloudai.core import JsonGenStrategy
 from cloudai.systems.kubernetes import KubernetesSystem
 
