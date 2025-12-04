@@ -40,6 +40,7 @@ class KubernetesSystem(System):
     default_namespace: str
     scheduler: str = "kubernetes"
     monitor_interval: int = 1
+    gpus_per_node: int = 1
     _core_v1: Optional[k8s.client.CoreV1Api] = None
     _batch_v1: Optional[k8s.client.BatchV1Api] = None
     _custom_objects_api: Optional[k8s.client.CustomObjectsApi] = None

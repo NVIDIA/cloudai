@@ -24,13 +24,13 @@ from cloudai.workloads.nccl_test import NCCLCmdArgs, NCCLTestDefinition, NcclTes
 
 class TestNcclTestKubernetesJsonGenStrategy:
     @pytest.fixture
-    def basic_test_run(self, kubernetes_system: KubernetesSystem) -> TestRun:
+    def basic_test_run(self, k8s_system: KubernetesSystem) -> TestRun:
         cmd_args = NCCLCmdArgs.model_validate({"subtest_name": "all_reduce_perf", "docker_image_url": "fake_image_url"})
         nccl = NCCLTestDefinition(name="name", description="desc", test_template_name="NcclTest", cmd_args=cmd_args)
         return TestRun(name="t1", test=nccl, nodes=["node1", "node2"], num_nodes=2)
 
     @pytest.fixture
-    def test_run_with_env_vars(self, kubernetes_system: KubernetesSystem) -> TestRun:
+    def test_run_with_env_vars(self, k8s_system: KubernetesSystem) -> TestRun:
         cmd_args = NCCLCmdArgs.model_validate({"subtest_name": "all_reduce_perf", "docker_image_url": "fake_image_url"})
         nccl = NCCLTestDefinition(
             name="name",
@@ -42,7 +42,7 @@ class TestNcclTestKubernetesJsonGenStrategy:
         return TestRun(name="t1", test=nccl, nodes=["node1"], num_nodes=1)
 
     @pytest.fixture
-    def test_run_with_extra_args(self, kubernetes_system: KubernetesSystem) -> TestRun:
+    def test_run_with_extra_args(self, k8s_system: KubernetesSystem) -> TestRun:
         cmd_args = NCCLCmdArgs.model_validate(
             {
                 "subtest_name": "all_reduce_perf",
@@ -67,8 +67,8 @@ class TestNcclTestKubernetesJsonGenStrategy:
     ) -> NcclTestKubernetesJsonGenStrategy:
         return NcclTestKubernetesJsonGenStrategy(kubernetes_system, test_run)
 
-    def test_gen_json_basic_structure(self, basic_test_run: TestRun, kubernetes_system: KubernetesSystem) -> None:
-        json_payload = self.json_gen_strategy(kubernetes_system, basic_test_run).gen_json()
+    def test_gen_json_basic_structure(self, basic_test_run: TestRun, k8s_system: KubernetesSystem) -> None:
+        json_payload = self.json_gen_strategy(k8s_system, basic_test_run).gen_json()
 
         assert json_payload["apiVersion"] == "kubeflow.org/v2beta1"
         assert json_payload["kind"] == "MPIJob"
@@ -78,8 +78,8 @@ class TestNcclTestKubernetesJsonGenStrategy:
         assert "Launcher" in json_payload["spec"]["mpiReplicaSpecs"]
         assert "Worker" in json_payload["spec"]["mpiReplicaSpecs"]
 
-    def test_launcher_spec(self, basic_test_run: TestRun, kubernetes_system: KubernetesSystem) -> None:
-        json_payload = self.json_gen_strategy(kubernetes_system, basic_test_run).gen_json()
+    def test_launcher_spec(self, basic_test_run: TestRun, k8s_system: KubernetesSystem) -> None:
+        json_payload = self.json_gen_strategy(k8s_system, basic_test_run).gen_json()
         launcher_spec = json_payload["spec"]["mpiReplicaSpecs"]["Launcher"]
 
         assert launcher_spec["replicas"] == 1
@@ -92,8 +92,8 @@ class TestNcclTestKubernetesJsonGenStrategy:
         assert container["securityContext"]["privileged"] is True
         assert container["command"] == ["/bin/bash", "-c"]
 
-    def test_worker_spec(self, basic_test_run: TestRun, kubernetes_system: KubernetesSystem) -> None:
-        json_payload = self.json_gen_strategy(kubernetes_system, basic_test_run).gen_json()
+    def test_worker_spec(self, basic_test_run: TestRun, k8s_system: KubernetesSystem) -> None:
+        json_payload = self.json_gen_strategy(k8s_system, basic_test_run).gen_json()
         worker_spec = json_payload["spec"]["mpiReplicaSpecs"]["Worker"]
 
         assert worker_spec["replicas"] == 2
@@ -115,8 +115,8 @@ class TestNcclTestKubernetesJsonGenStrategy:
             {"name": "dev-shm", "emptyDir": {"medium": "Memory", "sizeLimit": "1Gi"}}
         ]
 
-    def test_env_variables(self, test_run_with_env_vars: TestRun, kubernetes_system: KubernetesSystem) -> None:
-        json_payload = self.json_gen_strategy(kubernetes_system, test_run_with_env_vars).gen_json()
+    def test_env_variables(self, test_run_with_env_vars: TestRun, k8s_system: KubernetesSystem) -> None:
+        json_payload = self.json_gen_strategy(k8s_system, test_run_with_env_vars).gen_json()
         launcher_env = json_payload["spec"]["mpiReplicaSpecs"]["Launcher"]["template"]["spec"]["containers"][0]["env"]
         worker_env = json_payload["spec"]["mpiReplicaSpecs"]["Worker"]["template"]["spec"]["containers"][0]["env"]
 
@@ -126,10 +126,8 @@ class TestNcclTestKubernetesJsonGenStrategy:
             assert env_dict["TEST_VAR"] == "test_value"
             assert env_dict["LIST_VAR"] == "item1,item2"
 
-    def test_launcher_command_generation(
-        self, test_run_with_extra_args: TestRun, kubernetes_system: KubernetesSystem
-    ) -> None:
-        json_payload = self.json_gen_strategy(kubernetes_system, test_run_with_extra_args).gen_json()
+    def test_launcher_command_generation(self, test_run_with_extra_args: TestRun, k8s_system: KubernetesSystem) -> None:
+        json_payload = self.json_gen_strategy(k8s_system, test_run_with_extra_args).gen_json()
         launcher_args = json_payload["spec"]["mpiReplicaSpecs"]["Launcher"]["template"]["spec"]["containers"][0][
             "args"
         ][0]

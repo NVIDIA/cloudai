@@ -19,9 +19,8 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, cast
 
-import yaml
-
 from cloudai.core import JsonGenStrategy
+from cloudai.systems.kubernetes import KubernetesSystem
 
 from .ai_dynamo import AIDynamoTestDefinition
 
@@ -40,7 +39,7 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
             logging.info(f"Installing {package} with command: {install_cmd}")
             subprocess.run(install_cmd, shell=True, capture_output=True, text=True, check=True)
 
-    def _setup_dynamo_graph_deployment(self, td: AIDynamoTestDefinition) -> None:
+    def _setup_genai(self, td: AIDynamoTestDefinition) -> None:
         python_exec = td.python_executable
         if not python_exec.venv_path:
             raise ValueError(
@@ -54,16 +53,52 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
 
         self._install_python_packages(repo_root, venv_pip)
 
+    def gen_frontend_dict(self) -> dict[str, Any]:
+        system = cast(KubernetesSystem, self.system)
+        tdef = cast(AIDynamoTestDefinition, self.test_run.test)
+        return {
+            "dynamoNamespace": system.default_namespace,
+            "componentType": "frontend",
+            "replicas": 1,
+            "extraPodSpec": {
+                "mainContainer": {
+                    "image": tdef.cmd_args.docker_image_url,
+                }
+            },
+        }
+
+    def gen_decode_dict(self) -> dict[str, Any]:
+        system = cast(KubernetesSystem, self.system)
+        tdef = cast(AIDynamoTestDefinition, self.test_run.test)
+        return {
+            "dynamoNamespace": system.default_namespace,
+            "componentType": "worker",
+            "replicas": 1,
+            "resources": {"limits": {"gpu": f"{system.gpus_per_node}"}},
+            "extraPodSpec": {
+                "mainContainer": {
+                    "image": tdef.cmd_args.docker_image_url,
+                    "workingDir": tdef.cmd_args.dynamo.workspace_path,
+                    "command": tdef.cmd_args.dynamo.decode_cmd.split(),
+                    "args": ["--model", tdef.cmd_args.dynamo.model],
+                }
+            },
+        }
+
     def gen_json(self) -> Dict[Any, Any]:
         td = cast(AIDynamoTestDefinition, self.test_run.test)
+        k8s_system = cast(KubernetesSystem, self.system)
 
-        if td.cmd_args.dynamo_graph_path is None:
-            raise ValueError("dynamo_graph_path must be provided in cmd_args")
+        self._setup_genai(td)
 
-        self._setup_dynamo_graph_deployment(td)
-
-        with open(td.cmd_args.dynamo_graph_path, "r") as f:
-            yaml_data = yaml.safe_load(f)
-            if not isinstance(yaml_data, dict):
-                raise ValueError(f"YAML content must be a dictionary/object, got {type(yaml_data)}")
-            return yaml_data
+        return {
+            "apiVersion": "nvidia.com/v1alpha1",
+            "kind": "DynamoGraphDeployment",
+            "metadata": {"name": k8s_system.default_namespace},
+            "spec": {
+                "services": {
+                    "Frontend": self.gen_frontend_dict(),
+                    "VllmDecodeWorker": self.gen_decode_dict(),
+                },
+            },
+        }

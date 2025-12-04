@@ -39,6 +39,7 @@ def cmd_args() -> AIDynamoCmdArgs:
         huggingface_home_container_path=Path("/root/.cache/huggingface"),
         dynamo=AIDynamoArgs(
             model="model",
+            workspace_path="/workspace",
             prefill_worker=PrefillWorkerArgs(
                 **{
                     "num-nodes": 1,

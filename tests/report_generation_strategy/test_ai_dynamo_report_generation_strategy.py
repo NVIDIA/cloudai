@@ -66,11 +66,12 @@ def ai_dynamo_tr(tmp_path: Path) -> TestRun:
             docker_image_url="http://url",
             dynamo=AIDynamoArgs(
                 model="model",
+                workspace_path="/workspace",
                 prefill_worker=PrefillWorkerArgs(
                     **{
                         "num-nodes": 1,
                         "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
-                    }
+                    },
                 ),
                 decode_worker=DecodeWorkerArgs(
                     **{

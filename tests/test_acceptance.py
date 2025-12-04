@@ -434,6 +434,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     dynamo=AIDynamoArgs(
                         model="model",
                         backend="vllm",
+                        workspace_path="/workspace",
                         prefill_worker=PrefillWorkerArgs(
                             **{
                                 "num-nodes": 1,
