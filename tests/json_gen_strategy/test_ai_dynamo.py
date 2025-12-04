@@ -55,27 +55,6 @@ def test_gen_frontend(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
 
 
 def test_gen_decode(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
-    """
-    VllmDecodeWorker:
-      envFromSecret: hf-token-secret
-      dynamoNamespace: cloudai-vllm-agg
-      componentType: worker
-      replicas: 1
-      resources:
-        limits:
-          gpu: "1"
-      extraPodSpec:
-        mainContainer:
-          image: nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.6.1.post1
-          workingDir: /workspace/examples/backends/vllm
-          command:
-            - python3
-            - -m
-            - dynamo.vllm
-          args:
-            - --model
-            - Qwen/Qwen3-0.6B
-    """
     system = cast(KubernetesSystem, json_gen.system)
     tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test)
 
@@ -92,3 +71,12 @@ def test_gen_decode(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
 
     resources = decode.get("resources", {})
     assert resources.get("limits", {}).get("gpu") == f"{system.gpus_per_node}"
+
+
+def test_gen_json(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
+    k8s_system = cast(KubernetesSystem, json_gen.system)
+    json_gen._setup_genai = lambda td: None
+    deployment = json_gen.gen_json()
+    assert deployment.get("apiVersion") == "nvidia.com/v1alpha1"
+    assert deployment.get("kind") == "DynamoGraphDeployment"
+    assert deployment.get("metadata", {}).get("name") == k8s_system.default_namespace

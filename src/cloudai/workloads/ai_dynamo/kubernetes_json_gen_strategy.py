@@ -41,7 +41,7 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
             logging.info(f"Installing {package} with command: {install_cmd}")
             subprocess.run(install_cmd, shell=True, capture_output=True, text=True, check=True)
 
-    def _setup_dynamo_graph_deployment(self, td: AIDynamoTestDefinition) -> None:
+    def _setup_genai(self, td: AIDynamoTestDefinition) -> None:
         python_exec = td.python_executable
         if not python_exec.venv_path:
             raise ValueError(
@@ -89,14 +89,18 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
 
     def gen_json(self) -> Dict[Any, Any]:
         td = cast(AIDynamoTestDefinition, self.test_run.test)
+        k8s_system = cast(KubernetesSystem, self.system)
 
-        if td.cmd_args.dynamo_graph_path is None:
-            raise ValueError("dynamo_graph_path must be provided in cmd_args")
+        self._setup_genai(td)
 
-        self._setup_dynamo_graph_deployment(td)
-
-        with open(td.cmd_args.dynamo_graph_path, "r") as f:
-            yaml_data = yaml.safe_load(f)
-            if not isinstance(yaml_data, dict):
-                raise ValueError(f"YAML content must be a dictionary/object, got {type(yaml_data)}")
-            return yaml_data
+        return {
+            "apiVersion": "nvidia.com/v1alpha1",
+            "kind": "DynamoGraphDeployment",
+            "metadata": {"name": k8s_system.default_namespace},
+            "spec": {
+                "services": {
+                    "Frontend": self.gen_frontend_dict(),
+                    "VllmDecodeWorker": self.gen_decode_dict(),
+                },
+            },
+        }
