@@ -40,8 +40,6 @@ def dynamo() -> AIDynamoTestDefinition:
         cmd_args=AIDynamoCmdArgs(
             docker_image_url="nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.6.1.post1",
             dynamo=AIDynamoArgs(
-                model="model",
-                backend="vllm",
                 workspace_path="/workspace/examples/backends/vllm",
                 prefill_worker=PrefillWorkerArgs(num_nodes=2),
                 decode_worker=DecodeWorkerArgs(num_nodes=2),
@@ -75,7 +73,7 @@ def test_gen_decode(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test)
 
     decode = json_gen.gen_decode_dict()
-    assert decode.get("dynamoNamespace") is system.default_namespace
+    assert decode.get("dynamoNamespace") == system.default_namespace
     assert decode.get("componentType") == "worker"
     assert decode.get("replicas") == 1
 

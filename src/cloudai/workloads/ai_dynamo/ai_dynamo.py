@@ -54,9 +54,8 @@ class AIDynamoArgs(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    model: str
-    backend: str = "vllm"
     model: str = "Qwen/Qwen3-0.6B"
+    backend: str = "vllm"
     workspace_path: str = Field(
         serialization_alias="workspace-path", validation_alias=AliasChoices("workspace-path", "workspace_path")
     )
