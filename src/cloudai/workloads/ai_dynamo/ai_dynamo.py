@@ -57,7 +57,9 @@ class AIDynamoArgs(BaseModel):
     model: str = "Qwen/Qwen3-0.6B"
     backend: str = "vllm"
     workspace_path: str = Field(
-        serialization_alias="workspace-path", validation_alias=AliasChoices("workspace-path", "workspace_path")
+        serialization_alias="workspace-path",
+        validation_alias=AliasChoices("workspace-path", "workspace_path"),
+        default="/workspace",
     )
     decode_worker: DecodeWorkerArgs
     decode_cmd: str = Field(

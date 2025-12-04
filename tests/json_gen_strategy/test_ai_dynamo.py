@@ -40,7 +40,6 @@ def dynamo() -> AIDynamoTestDefinition:
         cmd_args=AIDynamoCmdArgs(
             docker_image_url="nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.6.1.post1",
             dynamo=AIDynamoArgs(
-                workspace_path="/workspace/examples/backends/vllm",
                 prefill_worker=PrefillWorkerArgs(num_nodes=2),
                 decode_worker=DecodeWorkerArgs(num_nodes=2),
             ),
