@@ -65,7 +65,7 @@ test_template_name = "AIDynamo"
 
     [Tests.cmd_args.genai_perf]
     concurrency = 8
-    endpoint = "v1/chat/completion"
+    endpoint = "v1/chat/completions"
     endpoint-type = "chat"
     extra-inputs = 'min_tokens:10'
     output-tokens-mean = 150
