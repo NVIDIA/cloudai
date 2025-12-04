@@ -187,7 +187,7 @@ class StatusReporter(Reporter):
             logging.debug("No test runs found, skipping summary.")
             return
 
-        table = Table(title="Scenario results", title_justify="left", show_lines=True, box=box.MINIMAL_HEAVY_HEAD)
+        table = Table(title="Scenario results", title_justify="left", show_lines=True, box=box.DOUBLE_EDGE)
         for col in ["Case", "Status", "Details"]:
             table.add_column(col, overflow="fold")
 
