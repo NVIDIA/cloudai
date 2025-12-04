@@ -95,7 +95,7 @@ def test_gen_decode(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
         args.append("--is-decode-worker")
 
     for arg, value in dynamo_args_dict(tdef.cmd_args.dynamo.decode_worker).items():
-        args.extend([json_gen._to_dynamo_arg("decode", arg), str(value)])
+        args.extend([json_gen._to_dynamo_arg(arg), str(value)])
     if tdef.cmd_args.dynamo.decode_worker.extra_args:
         args.append(f"{tdef.cmd_args.dynamo.decode_worker.extra_args}")
 
@@ -126,7 +126,7 @@ def test_gen_prefill(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
 
     args = ["--model", tdef.cmd_args.dynamo.model, "--is-prefill-worker"]
     for arg, value in dynamo_args_dict(tdef.cmd_args.dynamo.prefill_worker).items():
-        args.extend([json_gen._to_dynamo_arg("prefill", arg), str(value)])
+        args.extend([json_gen._to_dynamo_arg(arg), str(value)])
     if tdef.cmd_args.dynamo.prefill_worker.extra_args:
         args.append(f"{tdef.cmd_args.dynamo.prefill_worker.extra_args}")
 
@@ -141,16 +141,15 @@ def test_gen_prefill(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
 
 
 @pytest.mark.parametrize(
-    "prefix,arg_name,expected",
+    "arg_name,expected",
     [
-        ("decode", "nodes", "--decode-nodes"),
-        ("decode", "num_nodes", "--decode-num-nodes"),
-        ("decode", "num-nodes", "--decode-num-nodes"),
-        ("prefill", "data_parallel_size", "--prefill-data-parallel-size"),
+        ("nodes", "--nodes"),
+        ("num_nodes", "--num-nodes"),
+        ("num-nodes", "--num-nodes"),
     ],
 )
-def test_to_dynamo_arg(json_gen: AIDynamoKubernetesJsonGenStrategy, prefix: str, arg_name: str, expected: str) -> None:
-    assert json_gen._to_dynamo_arg(prefix, arg_name) == expected
+def test_to_dynamo_arg(json_gen: AIDynamoKubernetesJsonGenStrategy, arg_name: str, expected: str) -> None:
+    assert json_gen._to_dynamo_arg(arg_name) == expected
 
 
 def test_gen_json(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
