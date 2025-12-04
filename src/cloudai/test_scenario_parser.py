@@ -207,6 +207,7 @@ class TestScenarioParser:
             pre_test=pre_test,
             post_test=post_test,
             reports=get_reporters(test_info, tdef),
+            extra_srun_args=test_info.extra_srun_args,
         )
 
         return tr
