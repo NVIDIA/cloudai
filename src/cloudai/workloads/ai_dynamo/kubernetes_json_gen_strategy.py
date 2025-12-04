@@ -104,7 +104,7 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
                 },
             },
         }
-        with (self.test_run.output_path / "deployment.json").open("w") as f:
+        with (self.test_run.output_path / "deployment.yaml").open("w") as f:
             yaml.safe_dump(deployment, f)
 
         return deployment
