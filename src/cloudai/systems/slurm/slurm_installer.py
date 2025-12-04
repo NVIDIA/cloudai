@@ -52,7 +52,7 @@ class SlurmInstaller(BaseInstaller):
         super().__init__(system)
         self.system = system
         self.docker_image_cache_manager = DockerImageCacheManager(system)
-        self.hf_model_downloader = HFModelManager(system.hf_home_path)
+        self.hf_model_manager = HFModelManager(system.hf_home_path)
 
     def _check_prerequisites(self) -> InstallStatusResult:
         base_prerequisites_result = super()._check_prerequisites()
@@ -102,7 +102,7 @@ class SlurmInstaller(BaseInstaller):
             shutil.copyfile(item.src, item.installed_path, follow_symlinks=False)
             return InstallStatusResult(True)
         elif isinstance(item, HFModel):
-            return self.hf_model_downloader.download_model(item)
+            return self.hf_model_manager.download_model(item)
 
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
@@ -123,7 +123,7 @@ class SlurmInstaller(BaseInstaller):
             logging.debug(f"File {item.installed_path} does not exist.")
             return InstallStatusResult(True)
         elif isinstance(item, HFModel):
-            return self.hf_model_downloader.remove_model(item)
+            return self.hf_model_manager.remove_model(item)
 
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
@@ -149,7 +149,7 @@ class SlurmInstaller(BaseInstaller):
                 return InstallStatusResult(True)
             return InstallStatusResult(False, f"File {item.installed_path} does not exist")
         elif isinstance(item, HFModel):
-            return self.hf_model_downloader.is_model_downloaded(item)
+            return self.hf_model_manager.is_model_downloaded(item)
 
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 

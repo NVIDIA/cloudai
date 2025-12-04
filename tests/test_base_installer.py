@@ -17,13 +17,25 @@
 import shutil
 from concurrent.futures import Future
 from pathlib import Path
-from typing import Generator, cast
+from typing import Any, Generator, cast
 from unittest.mock import Mock, patch
 
 import pytest
 
-from cloudai.core import BaseInstaller, DockerImage, File, GitRepo, Installable, InstallStatusResult
+from cloudai.core import (
+    BaseInstaller,
+    DockerImage,
+    File,
+    GitRepo,
+    HFModel,
+    Installable,
+    InstallStatusResult,
+    PythonExecutable,
+)
+from cloudai.systems.kubernetes.kubernetes_installer import KubernetesInstaller
+from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
 from cloudai.systems.slurm import SlurmInstaller, SlurmSystem
+from cloudai.systems.slurm.docker_image_cache_manager import DockerImageCacheResult
 from cloudai.util import prepare_output_dir
 
 
@@ -280,3 +292,63 @@ class TestSuccessIsPopulated:
             "First ('self', present in the statuses) file was not marked as installed"
         )
         assert f2._installed_path is not None, "Second file was not marked as installed"
+
+
+@pytest.fixture(params=["k8s", "slurm"])
+def installer(
+    request: Any, kubernetes_system: KubernetesSystem, slurm_system: SlurmSystem
+) -> KubernetesInstaller | SlurmInstaller:
+    installer = KubernetesInstaller(kubernetes_system) if request.param == "k8s" else SlurmInstaller(slurm_system)
+
+    installer.system.install_path.mkdir(parents=True)
+    installer._check_low_thread_environment = lambda threshold=None: False
+    return installer
+
+
+def test_check_supported(installer: KubernetesInstaller | SlurmInstaller):
+    if isinstance(installer, SlurmInstaller):
+        installer._install_docker_image = lambda item: DockerImageCacheResult(True)
+        installer._uninstall_docker_image = lambda item: DockerImageCacheResult(True)
+        installer.docker_image_cache_manager.check_docker_image_exists = Mock(return_value=DockerImageCacheResult(True))
+    installer._install_python_executable = lambda item: InstallStatusResult(True)
+    installer._uninstall_python_executable = lambda item: InstallStatusResult(True)
+    installer._is_python_executable_installed = lambda item: InstallStatusResult(True)
+    installer.hf_model_manager = Mock()
+
+    git = GitRepo(url="./git_url", commit="commit_hash")
+    items = [DockerImage("fake_url/img"), PythonExecutable(git), HFModel("model_name")]
+    if isinstance(installer, SlurmInstaller):
+        items.append(File(Path(__file__)))
+    for item in items:
+        res = installer.install_one(item)
+        assert res.success, f"Failed to install {item} for {installer.__class__.__name__=} {res.message=}"
+
+        res = installer.is_installed_one(item)
+        assert res.success, f"Failed to check installation of {item} for {installer.__class__.__name__=} {res.message=}"
+
+        res = installer.uninstall_one(item)
+        assert res.success, f"Failed to uninstall {item} for {installer.__class__.__name__=} {res.message=}"
+
+        res = installer.mark_as_installed_one(item)
+        assert res.success, f"Failed to mark as installed {item} for {installer.__class__.__name__=} {res.message=}"
+
+
+class MyInstallable(Installable):
+    def __eq__(self, other: object) -> bool:
+        return True
+
+    def __hash__(self) -> int:
+        return hash("MyInstallable")
+
+
+def test_check_unsupported(installer: KubernetesInstaller | SlurmInstaller):
+    unsupported = MyInstallable()
+    for func in [
+        installer.install_one,
+        installer.uninstall_one,
+        installer.is_installed_one,
+        installer.mark_as_installed_one,
+    ]:
+        res = func(unsupported)
+        assert not res.success
+        assert res.message == f"Unsupported item type: {type(unsupported)}"

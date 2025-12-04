@@ -22,12 +22,27 @@ import subprocess
 from pathlib import Path
 from shutil import rmtree
 
-from cloudai.core import BaseInstaller, DockerImage, File, GitRepo, Installable, InstallStatusResult, PythonExecutable
+from cloudai.core import (
+    BaseInstaller,
+    DockerImage,
+    File,
+    GitRepo,
+    HFModel,
+    Installable,
+    InstallStatusResult,
+    PythonExecutable,
+    System,
+)
+from cloudai.util.hf_model_manager import HFModelManager
 from cloudai.util.lazy_imports import lazy
 
 
 class KubernetesInstaller(BaseInstaller):
     """Installer for Kubernetes systems."""
+
+    def __init__(self, system: System) -> None:
+        super().__init__(system)
+        self.hf_model_manager = HFModelManager(system.hf_home_path)
 
     def _check_prerequisites(self) -> InstallStatusResult:
         """
@@ -70,6 +85,8 @@ class KubernetesInstaller(BaseInstaller):
             item.installed_path = self.system.install_path / item.src.name
             shutil.copyfile(item.src, item.installed_path, follow_symlinks=False)
             return InstallStatusResult(True)
+        elif isinstance(item, HFModel):
+            return self.hf_model_manager.download_model(item)
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
     def uninstall_one(self, item: Installable) -> InstallStatusResult:
@@ -86,6 +103,8 @@ class KubernetesInstaller(BaseInstaller):
                 return InstallStatusResult(True)
             logging.debug(f"File {item.installed_path} does not exist.")
             return InstallStatusResult(True)
+        elif isinstance(item, HFModel):
+            return self.hf_model_manager.remove_model(item)
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
     def is_installed_one(self, item: Installable) -> InstallStatusResult:
@@ -99,6 +118,8 @@ class KubernetesInstaller(BaseInstaller):
             return InstallStatusResult(False, f"Git repository {item.url} not cloned")
         elif isinstance(item, PythonExecutable):
             return self._is_python_executable_installed(item)
+        elif isinstance(item, HFModel):
+            return self.hf_model_manager.is_model_downloaded(item)
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
     def mark_as_installed_one(self, item: Installable) -> InstallStatusResult:
@@ -110,6 +131,9 @@ class KubernetesInstaller(BaseInstaller):
         elif isinstance(item, PythonExecutable):
             item.git_repo.installed_path = self.system.install_path / item.git_repo.repo_name
             item.venv_path = self.system.install_path / item.venv_name
+            return InstallStatusResult(True)
+        elif isinstance(item, HFModel):
+            item.installed_path = self.system.hf_home_path  # fake path is OK here as the whole HF home will be mounted
             return InstallStatusResult(True)
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
 
