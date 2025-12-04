@@ -17,6 +17,7 @@
 from typing import cast
 
 import pytest
+import yaml
 
 from cloudai.core import TestRun
 from cloudai.systems.kubernetes import KubernetesSystem
@@ -88,8 +89,13 @@ def test_gen_decode(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
 
 def test_gen_json(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     k8s_system = cast(KubernetesSystem, json_gen.system)
+    json_gen.test_run.output_path.mkdir(parents=True, exist_ok=True)
     json_gen._setup_genai = lambda td: None
     deployment = json_gen.gen_json()
     assert deployment.get("apiVersion") == "nvidia.com/v1alpha1"
     assert deployment.get("kind") == "DynamoGraphDeployment"
     assert deployment.get("metadata", {}).get("name") == k8s_system.default_namespace
+
+    with open(json_gen.test_run.output_path / "deployment.json", "r") as f:
+        content = yaml.safe_load(f)
+        assert content == deployment

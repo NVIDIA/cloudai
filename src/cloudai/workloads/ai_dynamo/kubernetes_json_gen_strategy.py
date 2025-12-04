@@ -19,6 +19,8 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, cast
 
+import yaml
+
 from cloudai.core import JsonGenStrategy
 from cloudai.systems.kubernetes import KubernetesSystem
 
@@ -91,7 +93,7 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
 
         self._setup_genai(td)
 
-        return {
+        deployment = {
             "apiVersion": "nvidia.com/v1alpha1",
             "kind": "DynamoGraphDeployment",
             "metadata": {"name": k8s_system.default_namespace},
@@ -102,3 +104,7 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
                 },
             },
         }
+        with (self.test_run.output_path / "deployment.json").open("w") as f:
+            yaml.safe_dump(deployment, f)
+
+        return deployment
