@@ -93,6 +93,30 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
 
         return decode_cfg
 
+    def gen_prefill_dict(self) -> dict[str, Any]:
+        system = cast(KubernetesSystem, self.system)
+        tdef = cast(AIDynamoTestDefinition, self.test_run.test)
+        if not tdef.cmd_args.dynamo.prefill_worker:
+            raise ValueError("Prefill worker configuration is not defined in the test definition.")
+
+        prefill_cfg = {
+            "dynamoNamespace": system.default_namespace,
+            "componentType": "worker",
+            "subComponentType": "prefill",
+            "replicas": 1,
+            "resources": {"limits": {"gpu": f"{system.gpus_per_node}"}},
+            "extraPodSpec": {
+                "mainContainer": {
+                    "image": tdef.cmd_args.docker_image_url,
+                    "workingDir": tdef.cmd_args.dynamo.workspace_path,
+                    "command": tdef.cmd_args.dynamo.prefill_cmd.split(),
+                    "args": ["--model", tdef.cmd_args.dynamo.model, "--is-prefill-worker"],
+                }
+            },
+        }
+
+        return prefill_cfg
+
     def gen_json(self) -> Dict[Any, Any]:
         td = cast(AIDynamoTestDefinition, self.test_run.test)
         k8s_system = cast(KubernetesSystem, self.system)
@@ -110,6 +134,9 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
                 },
             },
         }
+        if td.cmd_args.dynamo.prefill_worker:
+            deployment["spec"]["services"]["VllmPrefillWorker"] = self.gen_prefill_dict()
+
         with (self.test_run.output_path / "deployment.yaml").open("w") as f:
             yaml.safe_dump(deployment, f)
 

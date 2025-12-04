@@ -57,17 +57,22 @@ class AIDynamoArgs(BaseModel):
     model: str = "Qwen/Qwen3-0.6B"
     backend: str = "vllm"
     workspace_path: str = Field(
+        default="/workspace",
         serialization_alias="workspace-path",
         validation_alias=AliasChoices("workspace-path", "workspace_path"),
-        default="/workspace",
     )
     decode_worker: DecodeWorkerArgs
     decode_cmd: str = Field(
+        default="python3 -m dynamo.vllm",
         serialization_alias="decode-cmd",
         validation_alias=AliasChoices("decode-cmd", "decode_cmd"),
-        default="python3 -m dynamo.vllm",
     )
     prefill_worker: PrefillWorkerArgs | None = None
+    prefill_cmd: str = Field(
+        default="python3 -m dynamo.vllm",
+        serialization_alias="prefill-cmd",
+        validation_alias=AliasChoices("prefill-cmd", "prefill_cmd"),
+    )
 
 
 class GenAIPerfArgs(BaseModel):

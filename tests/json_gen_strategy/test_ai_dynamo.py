@@ -45,7 +45,7 @@ def dynamo(request: Any) -> AIDynamoTestDefinition:
         ),
     )
     if request.param == "disagg":
-        dynamo.cmd_args.dynamo.prefill_worker = PrefillWorkerArgs(num_nodes=1)
+        dynamo.cmd_args.dynamo.prefill_worker = PrefillWorkerArgs(num_nodes=2)
 
     return dynamo
 
@@ -93,14 +93,47 @@ def test_gen_decode(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     assert resources.get("limits", {}).get("gpu") == f"{system.gpus_per_node}"
 
 
+def test_gen_prefill(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
+    system = cast(KubernetesSystem, json_gen.system)
+    tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test)
+
+    if not tdef.cmd_args.dynamo.prefill_worker:
+        pytest.skip("Prefill worker not defined in test definition")
+
+    decode = json_gen.gen_prefill_dict()
+    assert decode.get("dynamoNamespace") == system.default_namespace
+    assert decode.get("componentType") == "worker"
+    assert decode.get("replicas") == 1
+    assert decode.get("subComponentType") == "prefill"
+
+    main_container = decode.get("extraPodSpec", {}).get("mainContainer", {})
+    assert main_container.get("image") == tdef.cmd_args.docker_image_url
+    assert main_container.get("workingDir") == tdef.cmd_args.dynamo.workspace_path
+    assert main_container.get("command") == tdef.cmd_args.dynamo.prefill_cmd.split()
+    assert main_container.get("args") == ["--model", tdef.cmd_args.dynamo.model, "--is-prefill-worker"]
+
+    resources = decode.get("resources", {})
+    assert resources.get("limits", {}).get("gpu") == f"{system.gpus_per_node}"
+
+
 def test_gen_json(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     k8s_system = cast(KubernetesSystem, json_gen.system)
+    tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test)
     json_gen.test_run.output_path.mkdir(parents=True, exist_ok=True)
     json_gen._setup_genai = lambda td: None
+
     deployment = json_gen.gen_json()
+
     assert deployment.get("apiVersion") == "nvidia.com/v1alpha1"
     assert deployment.get("kind") == "DynamoGraphDeployment"
     assert deployment.get("metadata", {}).get("name") == k8s_system.default_namespace
+
+    if tdef.cmd_args.dynamo.prefill_worker:
+        assert "VllmPrefillWorker" in deployment.get("spec", {}).get("services", {})
+    else:
+        assert "spec" in deployment
+        assert "services" in deployment["spec"]
+        assert "VllmPrefillWorker" not in deployment["spec"]["services"]
 
     with open(json_gen.test_run.output_path / "deployment.yaml", "r") as f:
         content = yaml.safe_load(f)
