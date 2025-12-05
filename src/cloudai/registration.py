@@ -151,7 +151,6 @@ def register_all():
         UCCTestSlurmCommandGenStrategy,
     )
     from cloudai.workloads.osu_bench import (
-        #NIXLBenchComparisonReport,
         OSUBenchTestDefinition,
         OSUBenchSlurmCommandGenStrategy,
     )

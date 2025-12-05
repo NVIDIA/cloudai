@@ -16,15 +16,51 @@
 
 from __future__ import annotations
 
+from typing import Union, List, Dict, Literal
+
+from pydantic import Field
+
 from cloudai.core import DockerImage, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
+
+
+def cli_field(*args, cmdline: str, **kwargs):
+    """ Wrapper over pydantic Field to add a cmdline attribute to the field. """
+    return Field(*args, json_schema_extra={"cmdline": cmdline})
 
 
 class OSUBenchCmdArgs(CmdArgs):
     """Command line arguments for a OSU Benchmark test."""
 
+    # https://github.com/forresti/osu-micro-benchmarks/blob/master/mpi/collective/osu_coll.c#L202
+
     docker_image_url: str
-    path_to_benchmark: str
+    location: str
+    """ Location of the OSU Benchmark binary inside the container. """
+
+    benchmark: str
+    """ Name of the benchmark to run. """
+
+    message_len: Union[int, List[int]] = cli_field(default=1024, cmdline="-m")
+    """ Message length for the benchmark. """
+
+    iterations: int = cli_field(default=10, cmdline="-n")
+    """ Number of iterations for the benchmark. """
+
+    target: Literal["cpu", "gpu", "both"] = cli_field(default="cpu", cmdline="-r")
+    """ Target for the benchmark. """
+
+    #cuda: bool = cli_field(default=False, cmdline="-cuda")
+
+    @classmethod
+    def get_cmdline(cls, name: str) -> str:
+        return cls.model_fields[name].json_schema_extra["cmdline"]
+
+    def get_args(self) -> Dict[str, str]:
+        """ Retrieve the command line arguments for the OSU benchmark. """
+
+        general = ("docker_image_url", "location", "benchmark")
+        return {OSUBenchCmdArgs.get_cmdline(name): value for name, value in self.model_dump().items() if name not in general}
 
 
 class OSUBenchTestDefinition(TestDefinition):
