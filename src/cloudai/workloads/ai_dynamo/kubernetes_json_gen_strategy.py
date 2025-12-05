@@ -30,6 +30,8 @@ from .ai_dynamo import AIDynamoTestDefinition, WorkerBaseArgs
 class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
     """JSON generation strategy for AI Dynamo on Kubernetes systems."""
 
+    DEPLOYMENT_FILE_NAME = "deployment.yaml"
+
     def _install_python_packages(self, repo_root: Path, venv_pip: Path) -> None:
         installs = [
             ("perf_analyzer", repo_root),
@@ -127,7 +129,7 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
         if td.cmd_args.dynamo.prefill_worker:
             deployment["spec"]["services"]["VllmPrefillWorker"] = self.gen_prefill_dict()
 
-        with (self.test_run.output_path / "deployment.yaml").open("w") as f:
+        with (self.test_run.output_path / self.DEPLOYMENT_FILE_NAME).open("w") as f:
             yaml.safe_dump(deployment, f)
 
         return deployment

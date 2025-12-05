@@ -202,6 +202,6 @@ def test_gen_json(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
         assert "services" in deployment["spec"]
         assert "VllmPrefillWorker" not in deployment["spec"]["services"]
 
-    with open(json_gen.test_run.output_path / "deployment.yaml", "r") as f:
+    with open(json_gen.test_run.output_path / json_gen.DEPLOYMENT_FILE_NAME, "r") as f:
         content = yaml.safe_load(f)
         assert content == deployment
