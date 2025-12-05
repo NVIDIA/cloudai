@@ -154,7 +154,7 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
         return "--" + arg_name.replace("_", "-")
 
     def _dynamo_args_dict(self, model: WorkerBaseArgs) -> dict:
-        return model.model_dump(exclude={"num_nodes", "extra_args"}, exclude_none=True)
+        return model.model_dump(exclude={"num_nodes", "extra_args", "nodes"}, exclude_none=True)
 
     def _args_from_worker_config(self, worker: WorkerBaseArgs) -> list[str]:
         args = []
