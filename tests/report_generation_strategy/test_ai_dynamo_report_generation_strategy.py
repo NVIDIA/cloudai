@@ -25,7 +25,6 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoTestDefinition,
-    DecodeWorkerArgs,
     GenAIPerfArgs,
     PrefillWorkerArgs,
 )
@@ -64,34 +63,8 @@ def ai_dynamo_tr(tmp_path: Path) -> TestRun:
         test_template_name="t",
         cmd_args=AIDynamoCmdArgs(
             docker_image_url="http://url",
-            dynamo=AIDynamoArgs(
-                model="model",
-                workspace_path="/workspace",
-                prefill_worker=PrefillWorkerArgs(
-                    **{
-                        "num-nodes": 1,
-                        "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
-                    },
-                ),
-                decode_worker=DecodeWorkerArgs(
-                    **{
-                        "num-nodes": 1,
-                        "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
-                    }
-                ),
-            ),
-            genai_perf=GenAIPerfArgs(
-                **{
-                    "streaming": False,
-                    "extra-inputs": "mock_extra_inputs",
-                    "input-file": "mock_input_file",
-                    "output-tokens-mean": 100,
-                    "random-seed": 123,
-                    "request-count": 100,
-                    "synthetic-input-tokens-mean": 100,
-                    "warmup-request-count": 10,
-                }
-            ),
+            dynamo=AIDynamoArgs(prefill_worker=PrefillWorkerArgs()),
+            genai_perf=GenAIPerfArgs(),
         ),
     )
     tr = TestRun(name="ai_dynamo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
