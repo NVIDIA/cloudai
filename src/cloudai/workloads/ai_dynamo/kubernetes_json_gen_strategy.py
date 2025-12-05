@@ -69,82 +69,41 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
             },
         }
 
-    def _to_dynamo_arg(self, arg_name: str) -> str:
-        return "--" + arg_name.replace("_", "-")
-
-    def _dynamo_args_dict(self, model: WorkerBaseArgs) -> dict:
-        return model.model_dump(exclude={"num_nodes", "extra_args"}, exclude_none=True)
-
-    def args_from_worker_config(self, worker: WorkerBaseArgs) -> list[str]:
-        args = []
-        for arg, value in self._dynamo_args_dict(worker).items():
-            args.extend([self._to_dynamo_arg(arg), str(value)])
-        if worker.extra_args:
-            args.append(f"{worker.extra_args}")
-        return args
-
-    def set_multinode_if_needed(self, cfg: dict[str, Any], worker: WorkerBaseArgs) -> None:
-        if cast(int, worker.num_nodes) > 1:
-            cfg["multinode"] = {"nodeCount": worker.num_nodes}
-
     def gen_decode_dict(self) -> dict[str, Any]:
-        system = cast(KubernetesSystem, self.system)
         tdef = cast(AIDynamoTestDefinition, self.test_run.test)
-        decode_cfg = {
-            "dynamoNamespace": system.default_namespace,
-            "componentType": "worker",
-            "replicas": 1,
-            "resources": {"limits": {"gpu": f"{system.gpus_per_node}"}},
-            "extraPodSpec": {
-                "mainContainer": {
-                    "image": tdef.cmd_args.docker_image_url,
-                    "workingDir": tdef.cmd_args.dynamo.workspace_path,
-                    "command": tdef.cmd_args.dynamo.decode_cmd.split(),
-                }
-            },
-        }
+
+        decode_cfg = self._get_base_service_dict()
+        decode_cfg["extraPodSpec"]["mainContainer"]["command"] = tdef.cmd_args.dynamo.decode_cmd.split()
 
         args = ["--model", tdef.cmd_args.dynamo.model]
         if tdef.cmd_args.dynamo.prefill_worker:
             decode_cfg["subComponentType"] = "decode-worker"
             args.append("--is-decode-worker")
-        args.extend(self.args_from_worker_config(tdef.cmd_args.dynamo.decode_worker))
+        args.extend(self._args_from_worker_config(tdef.cmd_args.dynamo.decode_worker))
 
         decode_cfg["extraPodSpec"]["mainContainer"]["args"] = args
 
-        self.set_multinode_if_needed(decode_cfg, tdef.cmd_args.dynamo.decode_worker)
+        self._set_multinode_if_needed(decode_cfg, tdef.cmd_args.dynamo.decode_worker)
 
         return decode_cfg
 
     def gen_prefill_dict(self) -> dict[str, Any]:
-        system = cast(KubernetesSystem, self.system)
         tdef = cast(AIDynamoTestDefinition, self.test_run.test)
         if not tdef.cmd_args.dynamo.prefill_worker:
             raise ValueError("Prefill worker configuration is not defined in the test definition.")
 
-        prefill_cfg = {
-            "dynamoNamespace": system.default_namespace,
-            "componentType": "worker",
-            "subComponentType": "prefill",
-            "replicas": 1,
-            "resources": {"limits": {"gpu": f"{system.gpus_per_node}"}},
-            "extraPodSpec": {
-                "mainContainer": {
-                    "image": tdef.cmd_args.docker_image_url,
-                    "workingDir": tdef.cmd_args.dynamo.workspace_path,
-                    "command": tdef.cmd_args.dynamo.prefill_cmd.split(),
-                }
-            },
-        }
+        prefill_cfg = self._get_base_service_dict()
+        prefill_cfg["subComponentType"] = "prefill"
+        prefill_cfg["extraPodSpec"]["mainContainer"]["command"] = tdef.cmd_args.dynamo.prefill_cmd.split()
 
         prefill_cfg["extraPodSpec"]["mainContainer"]["args"] = [
             "--model",
             tdef.cmd_args.dynamo.model,
             "--is-prefill-worker",
-            *self.args_from_worker_config(tdef.cmd_args.dynamo.prefill_worker),
+            *self._args_from_worker_config(tdef.cmd_args.dynamo.prefill_worker),
         ]
 
-        self.set_multinode_if_needed(prefill_cfg, tdef.cmd_args.dynamo.prefill_worker)
+        self._set_multinode_if_needed(prefill_cfg, tdef.cmd_args.dynamo.prefill_worker)
 
         return prefill_cfg
 
@@ -172,3 +131,37 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
             yaml.safe_dump(deployment, f)
 
         return deployment
+
+    def _get_base_service_dict(self) -> dict[str, Any]:
+        system = cast(KubernetesSystem, self.system)
+        tdef = cast(AIDynamoTestDefinition, self.test_run.test)
+        return {
+            "dynamoNamespace": system.default_namespace,
+            "componentType": "worker",
+            "replicas": 1,
+            "resources": {"limits": {"gpu": f"{system.gpus_per_node}"}},
+            "extraPodSpec": {
+                "mainContainer": {
+                    "image": tdef.cmd_args.docker_image_url,
+                    "workingDir": tdef.cmd_args.dynamo.workspace_path,
+                }
+            },
+        }
+
+    def _to_dynamo_arg(self, arg_name: str) -> str:
+        return "--" + arg_name.replace("_", "-")
+
+    def _dynamo_args_dict(self, model: WorkerBaseArgs) -> dict:
+        return model.model_dump(exclude={"num_nodes", "extra_args"}, exclude_none=True)
+
+    def _args_from_worker_config(self, worker: WorkerBaseArgs) -> list[str]:
+        args = []
+        for arg, value in self._dynamo_args_dict(worker).items():
+            args.extend([self._to_dynamo_arg(arg), str(value)])
+        if worker.extra_args:
+            args.append(f"{worker.extra_args}")
+        return args
+
+    def _set_multinode_if_needed(self, cfg: dict[str, Any], worker: WorkerBaseArgs) -> None:
+        if cast(int, worker.num_nodes) > 1:
+            cfg["multinode"] = {"nodeCount": worker.num_nodes}
