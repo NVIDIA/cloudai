@@ -23,11 +23,8 @@ num_nodes = 4
 time_limit = "00:20:00"
 
   [Tests.cmd_args]
-  docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.6.1.post1"
 
     [Tests.cmd_args.dynamo]
-    model = "Qwen/Qwen3-0.6B"
-
     decode-initialized-regex = 'VllmWorker.*has.been.initialized'
     etcd-cmd = "etcd --log-level debug"
     etcd-port = 2379
