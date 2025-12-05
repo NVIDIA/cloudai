@@ -89,12 +89,6 @@ def test_gen_decode(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     assert decode.get("componentType") == "worker"
     assert decode.get("replicas") == 1
 
-    if cast(int, tdef.cmd_args.dynamo.decode_worker.num_nodes) > 1:
-        multinode = decode.get("multinode", {})
-        assert multinode.get("nodeCount") == tdef.cmd_args.dynamo.decode_worker.num_nodes
-    else:
-        assert "multinode" not in decode
-
     args = ["--model", tdef.cmd_args.dynamo.model]
     if tdef.cmd_args.dynamo.prefill_worker:
         assert decode.get("subComponentType") == "decode-worker"
@@ -115,6 +109,20 @@ def test_gen_decode(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     assert resources.get("limits", {}).get("gpu") == f"{system.gpus_per_node}"
 
 
+@pytest.mark.parametrize("num_nodes", [1, 2, 4])
+def test_gen_decode_num_nodes(num_nodes: int, json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
+    tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test)
+    tdef.cmd_args.dynamo.decode_worker.num_nodes = num_nodes
+
+    decode = json_gen.gen_decode_dict()
+
+    if num_nodes > 1:
+        multinode = decode.get("multinode", {})
+        assert multinode.get("nodeCount") == num_nodes
+    else:
+        assert "multinode" not in decode
+
+
 def test_gen_prefill(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     system = cast(KubernetesSystem, json_gen.system)
     tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test)
@@ -130,12 +138,6 @@ def test_gen_prefill(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     assert prefill.get("replicas") == 1
     assert prefill.get("subComponentType") == "prefill"
 
-    if cast(int, tdef.cmd_args.dynamo.prefill_worker.num_nodes) > 1:
-        multinode = prefill.get("multinode", {})
-        assert multinode.get("nodeCount") == tdef.cmd_args.dynamo.prefill_worker.num_nodes
-    else:
-        assert "multinode" not in prefill
-
     args = ["--model", tdef.cmd_args.dynamo.model, "--is-prefill-worker"]
     for arg, value in dynamo_args_dict(tdef.cmd_args.dynamo.prefill_worker).items():
         args.extend([json_gen._to_dynamo_arg(arg), str(value)])
@@ -150,6 +152,23 @@ def test_gen_prefill(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
 
     resources = prefill.get("resources", {})
     assert resources.get("limits", {}).get("gpu") == f"{system.gpus_per_node}"
+
+
+@pytest.mark.parametrize("num_nodes", [1, 2, 4])
+def test_gen_prefill_num_nodes(num_nodes: int, json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
+    tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test)
+    if not tdef.cmd_args.dynamo.prefill_worker:
+        pytest.skip("Prefill worker configuration is not defined in the test definition.")
+
+    tdef.cmd_args.dynamo.prefill_worker.num_nodes = num_nodes
+
+    prefill = json_gen.gen_prefill_dict()
+
+    if num_nodes > 1:
+        multinode = prefill.get("multinode", {})
+        assert multinode.get("nodeCount") == num_nodes
+    else:
+        assert "multinode" not in prefill
 
 
 @pytest.mark.parametrize(
