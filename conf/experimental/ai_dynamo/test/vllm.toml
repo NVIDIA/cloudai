@@ -28,6 +28,12 @@ docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.6.1.post1"
   prefill-cmd = 'python3 -m dynamo.vllm --is-prefill-worker'
   decode-cmd = 'python3 -m dynamo.vllm'
 
+    [cmd_args.dynamo.prefill_worker]
+    pipeline-parallel-size = 1
+
+    [cmd_args.dynamo.decode_worker]
+    pipeline-parallel-size = 1
+
   [cmd_args.genai_perf]
   model = "Qwen/Qwen3-0.6B"
   endpoint = "v1/chat/completions"

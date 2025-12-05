@@ -40,13 +40,13 @@ time_limit = "00:20:00"
       gpu-memory-utilization = 0.90
       max_model_len = 19280
       num-nodes = 2
-      tensor-parallel-size = 2
+      tensor-parallel-size = 4
 
       [Tests.cmd_args.dynamo.decode_worker]
       gpu-memory-utilization = 0.90
       max_model_len = 19280
       num-nodes = 2
-      tensor-parallel-size = 2
+      tensor-parallel-size = 4
 
   [Tests.extra_env_vars]
   UCX_LOG_LEVEL = "warn"
