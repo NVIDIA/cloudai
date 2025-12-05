@@ -23,8 +23,8 @@ test_name = "vLLM-Qwen3-0.6B"
   [Tests.cmd_args]
     [Tests.cmd_args.dynamo]
       [Tests.cmd_args.dynamo.prefill_worker]
-      num-nodes = 2
-      tensor-parallel-size = 2
+      num-nodes = 1
+      tensor-parallel-size = 8
       [Tests.cmd_args.dynamo.decode_worker]
-      num-nodes = 2
-      tensor-parallel-size = 2
+      num-nodes = 1
+      tensor-parallel-size = 8
