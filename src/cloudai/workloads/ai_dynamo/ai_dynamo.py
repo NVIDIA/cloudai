@@ -16,7 +16,7 @@
 
 import logging
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
@@ -31,10 +31,10 @@ class WorkerBaseArgs(BaseModel):
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
-    num_nodes: Union[int, list[int]] = Field(
+    num_nodes: int | list[int] = Field(
         default=1, serialization_alias="num-nodes", validation_alias=AliasChoices("num-nodes", "num_nodes")
     )
-    nodes: Optional[str] = Field(default=None)
+    nodes: str | None = Field(default=None)
 
     data_parallel_size: int | list[int] | None = Field(
         default=None,

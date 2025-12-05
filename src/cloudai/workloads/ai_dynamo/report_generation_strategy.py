@@ -20,11 +20,14 @@ import csv
 import logging
 import shutil
 from pathlib import Path
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar, cast
 
 from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
 from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
 from cloudai.systems.slurm.slurm_system import SlurmSystem
+
+if TYPE_CHECKING:
+    from .ai_dynamo import AIDynamoTestDefinition
 
 CSV_FILES_PATTERN = "profile*_genai_perf.csv"
 JSON_FILES_PATTERN = "profile*_genai_perf.json"
@@ -125,10 +128,13 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
         if gpus_per_node is None:
             return None
 
-        num_frontend_nodes = 1
-        num_prefill_nodes = self.test_run.test.cmd_args.dynamo.prefill_worker.num_nodes
-        num_decode_nodes = self.test_run.test.cmd_args.dynamo.decode_worker.num_nodes
+        tdef = cast("AIDynamoTestDefinition", self.test_run.test)
 
+        num_frontend_nodes = 1
+        num_prefill_nodes = (
+            cast(int, tdef.cmd_args.dynamo.prefill_worker.num_nodes) if tdef.cmd_args.dynamo.prefill_worker else 0
+        )
+        num_decode_nodes = cast(int, tdef.cmd_args.dynamo.decode_worker.num_nodes)
         return (num_frontend_nodes + num_prefill_nodes + num_decode_nodes) * gpus_per_node
 
     def _read_csv_sections(self, source_csv: Path) -> list[list[list[str]]]:
