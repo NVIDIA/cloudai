@@ -14,11 +14,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from typing import List, cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
+
+from .osu_bench import OSUBenchTestDefinition, OSUBenchCmdArgs
 
 
 class OSUBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _container_mounts(self) -> List[str]:
         return []
+
+    def image_path(self) -> str | None:
+        tdef: OSUBenchTestDefinition = cast(OSUBenchTestDefinition, self.test_run.test)
+        return str(tdef.docker_image.installed_path)
+
+    def generate_test_command(self) -> List[str]:
+        args: OSUBenchCmdArgs = cast(OSUBenchCmdArgs, self.test_run.test.cmd_args)
+
+        binary = f'{args.location}/{args.benchmark}'
+        cmd = [binary]
+
+        for name, value in args.get_args().items():
+            cmd.append(f"{name} {value}")
+
+        return cmd
