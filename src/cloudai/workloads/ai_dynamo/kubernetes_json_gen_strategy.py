@@ -75,6 +75,18 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
     def _dynamo_args_dict(self, model: WorkerBaseArgs) -> dict:
         return model.model_dump(exclude={"num_nodes", "extra_args"}, exclude_none=True)
 
+    def args_from_worker_config(self, worker: WorkerBaseArgs) -> list[str]:
+        args = []
+        for arg, value in self._dynamo_args_dict(worker).items():
+            args.extend([self._to_dynamo_arg(arg), str(value)])
+        if worker.extra_args:
+            args.append(f"{worker.extra_args}")
+        return args
+
+    def set_multinode_if_needed(self, cfg: dict[str, Any], worker: WorkerBaseArgs) -> None:
+        if cast(int, worker.num_nodes) > 1:
+            cfg["multinode"] = {"nodeCount": worker.num_nodes}
+
     def gen_decode_dict(self) -> dict[str, Any]:
         system = cast(KubernetesSystem, self.system)
         tdef = cast(AIDynamoTestDefinition, self.test_run.test)
@@ -96,15 +108,11 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
         if tdef.cmd_args.dynamo.prefill_worker:
             decode_cfg["subComponentType"] = "decode-worker"
             args.append("--is-decode-worker")
-        for arg, value in self._dynamo_args_dict(tdef.cmd_args.dynamo.decode_worker).items():
-            args.extend([self._to_dynamo_arg(arg), str(value)])
-        if tdef.cmd_args.dynamo.decode_worker.extra_args:
-            args.append(f"{tdef.cmd_args.dynamo.decode_worker.extra_args}")
+        args.extend(self.args_from_worker_config(tdef.cmd_args.dynamo.decode_worker))
 
         decode_cfg["extraPodSpec"]["mainContainer"]["args"] = args
 
-        if cast(int, tdef.cmd_args.dynamo.decode_worker.num_nodes) > 1:
-            decode_cfg["multinode"] = {"nodeCount": tdef.cmd_args.dynamo.decode_worker.num_nodes}
+        self.set_multinode_if_needed(decode_cfg, tdef.cmd_args.dynamo.decode_worker)
 
         return decode_cfg
 
@@ -129,16 +137,14 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
             },
         }
 
-        args = ["--model", tdef.cmd_args.dynamo.model, "--is-prefill-worker"]
-        for arg, value in self._dynamo_args_dict(tdef.cmd_args.dynamo.prefill_worker).items():
-            args.extend([self._to_dynamo_arg(arg), str(value)])
-        if tdef.cmd_args.dynamo.prefill_worker.extra_args:
-            args.append(f"{tdef.cmd_args.dynamo.prefill_worker.extra_args}")
+        prefill_cfg["extraPodSpec"]["mainContainer"]["args"] = [
+            "--model",
+            tdef.cmd_args.dynamo.model,
+            "--is-prefill-worker",
+            *self.args_from_worker_config(tdef.cmd_args.dynamo.prefill_worker),
+        ]
 
-        prefill_cfg["extraPodSpec"]["mainContainer"]["args"] = args
-
-        if cast(int, tdef.cmd_args.dynamo.prefill_worker.num_nodes) > 1:
-            prefill_cfg["multinode"] = {"nodeCount": tdef.cmd_args.dynamo.prefill_worker.num_nodes}
+        self.set_multinode_if_needed(prefill_cfg, tdef.cmd_args.dynamo.prefill_worker)
 
         return prefill_cfg
 
