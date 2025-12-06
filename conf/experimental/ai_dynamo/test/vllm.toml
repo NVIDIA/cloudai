@@ -29,20 +29,10 @@ docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.6.1.post1"
   decode-cmd = 'python3 -m dynamo.vllm'
 
     [cmd_args.dynamo.prefill_worker]
-    num-nodes = 2
-    gpu-memory-utilization = 0.95
-    tensor-parallel-size = 8
     pipeline-parallel-size = 1
-    data-parallel-size = 1
-    extra-args = "--no-enable-expert-parallel"
 
     [cmd_args.dynamo.decode_worker]
-    num-nodes = 2
-    gpu-memory-utilization = 0.95
-    tensor-parallel-size = 8
     pipeline-parallel-size = 1
-    data-parallel-size = 1
-    extra-args = "--no-enable-expert-parallel"
 
   [cmd_args.genai_perf]
   model = "Qwen/Qwen3-0.6B"
@@ -52,10 +42,10 @@ docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.6.1.post1"
   output-tokens-mean = 500
   output-tokens-stddev = 0
   random-seed = 123
-  request-count = 2
+  request-count = 128
   synthetic-input-tokens-mean = 300
   synthetic-input-tokens-stddev = 0
-  warmup-request-count = 1
+  warmup-request-count = 10
   concurrency = 1
   extra-args = "--streaming -- -v --async"
 

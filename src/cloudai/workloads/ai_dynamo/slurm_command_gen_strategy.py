@@ -77,7 +77,14 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             self._get_toml_args(
                 td.cmd_args.dynamo,
                 "--dynamo-",
-                exclude=["prefill_worker", "decode_worker", "genai_perf", "workspace_path", "decode_cmd"],
+                exclude=[
+                    "prefill_worker",
+                    "decode_worker",
+                    "genai_perf",
+                    "workspace_path",
+                    "decode_cmd",
+                    "prefill_cmd",
+                ],
             )
         )
 
@@ -106,7 +113,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 ]
             )
 
-        args.extend(self._get_toml_args(td.cmd_args.dynamo.prefill_worker, "--prefill-"))
+        if td.cmd_args.dynamo.prefill_worker:
+            args.extend(self._get_toml_args(td.cmd_args.dynamo.prefill_worker, "--prefill-"))
         args.extend(self._get_toml_args(td.cmd_args.dynamo.decode_worker, "--decode-"))
         args.extend(self._get_toml_args(td.cmd_args.genai_perf, "--genai-perf-"))
 
@@ -194,9 +202,11 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             return self._node_spec_cache[cache_key]
 
         td = cast(AIDynamoTestDefinition, self.test_run.test)
-        prefill_n = td.cmd_args.dynamo.prefill_worker.num_nodes
+        prefill_n, prefill_nodes = 0, ""
+        if td.cmd_args.dynamo.prefill_worker:
+            prefill_n = cast(int, td.cmd_args.dynamo.prefill_worker.num_nodes)
+            prefill_nodes = td.cmd_args.dynamo.prefill_worker.nodes
         decode_n = td.cmd_args.dynamo.decode_worker.num_nodes
-        prefill_nodes = td.cmd_args.dynamo.prefill_worker.nodes
         decode_nodes = td.cmd_args.dynamo.decode_worker.nodes
 
         assert isinstance(prefill_n, int), "prefill_worker.num_nodes must be an integer"
