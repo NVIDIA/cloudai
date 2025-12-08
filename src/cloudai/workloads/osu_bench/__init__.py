@@ -15,7 +15,6 @@
 # limitations under the License.
 
 from .osu_bench import OSUBenchCmdArgs, OSUBenchTestDefinition
-#from .report_generation_strategy import NIXLBenchReportGenerationStrategy
 from .slurm_command_gen_strategy import OSUBenchSlurmCommandGenStrategy
 
 __all__ = [

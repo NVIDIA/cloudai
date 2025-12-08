@@ -33,12 +33,15 @@ class OSUBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         args: OSUBenchCmdArgs = cast(OSUBenchCmdArgs, self.test_run.test.cmd_args)
 
         binary = f'{args.location}/{args.benchmark}'
-        cmd = [binary]
+        srun_command_parts = [binary]
 
         for name, value in args.get_args().items():
-            cmd.append(f"{name} {value}")
+            srun_command_parts.append(f"{name} {value}")
 
         # Always print full format listing of results.
-        cmd.append('-f')
+        srun_command_parts.append('-f')
 
-        return cmd
+        if self.test_run.test.extra_cmd_args:
+            srun_command_parts.append(self.test_run.test.extra_args_str)
+
+        return srun_command_parts
