@@ -30,4 +30,4 @@ def test_osu_bench_getting_args():
     args = data.get_args()
 
     cmd = ' '.join(f'{name} {value}' for name, value in args.items())
-    assert cmd == '-m 1024 -n 10 -r cpu'
+    assert cmd == '-m 1024 -i 10'

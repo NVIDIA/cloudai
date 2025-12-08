@@ -22,6 +22,8 @@ from .osu_bench import OSUBenchTestDefinition, OSUBenchCmdArgs
 
 
 class OSUBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
+    """Command generation strategy for OSU Benchmark test on Slurm systems."""
+
     def _container_mounts(self) -> List[str]:
         return []
 
