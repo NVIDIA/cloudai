@@ -261,6 +261,7 @@ def build_special_test_run(
         "nixl-perftest",
         "nixl-kvbench",
         "deepep-benchmark",
+        "osu-bench",
     ]
 )
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> Tuple[TestRun, str, Optional[str]]:
@@ -313,9 +314,9 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 description="osu-bench",
                 test_template_name="osu-bench",
                 cmd_args=OSUBenchCmdArgs(
-                    docker_image_url="nvcr.io#nvidia/pytorch:24.02-py3",
+                    docker_image_url="artifactory.nvidia.com/sw-nbu-swx-hpcx-docker-local/dlfw/pytorch:25.06-hpcx-v2.26-gcc-ubuntu24.04-cuda12-x86_64-latest-nightly",
                     location="/opt/hpcx/ompi/tests/osu-micro-benchmarks",
-                    benchmark=["osu_allreduce", "osu_allgather"],
+                    benchmark="osu_allreduce",
                     iterations=10,
                     message_size="1024"
                 ),

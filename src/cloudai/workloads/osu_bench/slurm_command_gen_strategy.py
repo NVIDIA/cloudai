@@ -18,7 +18,7 @@ from typing import List, cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
-from .osu_bench import OSUBenchTestDefinition, OSUBenchCmdArgs
+from .osu_bench import OSUBenchCmdArgs, OSUBenchTestDefinition
 
 
 class OSUBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -27,7 +27,7 @@ class OSUBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _container_mounts(self) -> List[str]:
         return []
 
-    def image_path(self) -> str | None:
+    def image_path(self) -> str:
         tdef: OSUBenchTestDefinition = cast(OSUBenchTestDefinition, self.test_run.test)
         return str(tdef.docker_image.installed_path)
 
