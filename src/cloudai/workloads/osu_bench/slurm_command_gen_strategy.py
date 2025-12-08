@@ -38,4 +38,7 @@ class OSUBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         for name, value in args.get_args().items():
             cmd.append(f"{name} {value}")
 
+        # Always print full format listing of results.
+        cmd.append('-f')
+
         return cmd
