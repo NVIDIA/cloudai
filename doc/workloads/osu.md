@@ -1,10 +1,12 @@
 # OSU
+
 This workload (`test_template_name` is `OSUBench`) allows you to execute OSU Micro Benchmarks
 within the CloudAI framework.
 
 ## Usage example
 
 Test example:
+
 ``` toml
     name = "osu_example"
     test_template_name = "OSUBench"
@@ -19,6 +21,7 @@ Test example:
 ```
 
 Test Scenario example:
+
 ``` toml
     name = "osu_example"
 
@@ -30,6 +33,7 @@ Test Scenario example:
 ```
 
 ## Arguments
+
 In the table below you can find arguments that can be used in `[cmd_args]`
 section:
 

@@ -19,6 +19,6 @@ from .slurm_command_gen_strategy import OSUBenchSlurmCommandGenStrategy
 
 __all__ = [
     "OSUBenchCmdArgs",
-    "OSUBenchTestDefinition",
     "OSUBenchSlurmCommandGenStrategy",
+    "OSUBenchTestDefinition",
 ]

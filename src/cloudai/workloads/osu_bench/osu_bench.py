@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from typing import Union, List, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import Field
 
@@ -61,10 +61,16 @@ class OSUBenchCmdArgs(CmdArgs):
 
     @classmethod
     def get_cmdline(cls, field: str) -> str:
-        """Retrieves the command line argument for the given field."""
-        return cls.model_fields[field].json_schema_extra["cmdline"]
+        """Retrieve the command line argument for the given field."""
 
-    def get_args(self) -> Dict[str, str]:
+        field_info = cls.model_fields[field]
+
+        if not field_info.json_schema_extra or "cmdline" not in field_info.json_schema_extra:
+            raise ValueError(f"Field '{field}' does not have a cmdline attribute")
+
+        return field_info.json_schema_extra["cmdline"]
+
+    def get_args(self) -> Dict[str, Any]:
         """Retrieve the command line arguments for the OSU benchmark."""
 
         general = ("docker_image_url", "location", "benchmark")
@@ -91,7 +97,7 @@ class OSUBenchTestDefinition(TestDefinition):
 
     @property
     def cmd_args_dict(self) -> dict[str, str | list[str]]:
-        return self.cmd_args.model_dump(exclude={"docker_image_url", "path_to_benchmark"})
+        return self.cmd_args.model_dump(exclude={"docker_image_url", "location"})
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         stdout_path = tr.output_path / "stdout.txt"
@@ -109,7 +115,7 @@ class OSUBenchTestDefinition(TestDefinition):
         with open(stdout_path, 'r') as f:
             content = f.read()
 
-        if content == "":
+        if not content.strip():
             return JobStatusResult(
                 is_successful=False,
                 error_message=(
