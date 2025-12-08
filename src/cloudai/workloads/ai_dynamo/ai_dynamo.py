@@ -16,7 +16,7 @@
 
 import logging
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
@@ -31,10 +31,36 @@ class WorkerBaseArgs(BaseModel):
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
-    num_nodes: Union[int, list[int]] = Field(
-        serialization_alias="num-nodes", validation_alias=AliasChoices("num-nodes", "num_nodes")
+    num_nodes: int | list[int] = Field(
+        default=1, serialization_alias="num-nodes", validation_alias=AliasChoices("num-nodes", "num_nodes")
     )
-    nodes: Optional[str] = Field(default=None)
+    nodes: str | None = Field(default=None)
+
+    data_parallel_size: int | list[int] | None = Field(
+        default=None,
+        serialization_alias="data-parallel-size",
+        validation_alias=AliasChoices("data-parallel-size", "data_parallel_size"),
+    )
+    gpu_memory_utilization: float | list[float] | None = Field(
+        default=None,
+        serialization_alias="gpu-memory-utilization",
+        validation_alias=AliasChoices("gpu-memory-utilization", "gpu_memory_utilization"),
+    )
+    pipeline_parallel_size: int | list[int] | None = Field(
+        default=None,
+        serialization_alias="pipeline-parallel-size",
+        validation_alias=AliasChoices("pipeline-parallel-size", "pipeline_parallel_size"),
+    )
+    tensor_parallel_size: int | list[int] | None = Field(
+        default=None,
+        serialization_alias="tensor-parallel-size",
+        validation_alias=AliasChoices("tensor-parallel-size", "tensor_parallel_size"),
+    )
+    extra_args: str | list[str] | None = Field(
+        default=None,
+        serialization_alias="extra-args",
+        validation_alias=AliasChoices("extra-args", "extra_args"),
+    )
 
 
 class PrefillWorkerArgs(WorkerBaseArgs):
@@ -57,17 +83,22 @@ class AIDynamoArgs(BaseModel):
     model: str = "Qwen/Qwen3-0.6B"
     backend: str = "vllm"
     workspace_path: str = Field(
+        default="/workspace",
         serialization_alias="workspace-path",
         validation_alias=AliasChoices("workspace-path", "workspace_path"),
-        default="/workspace",
     )
-    decode_worker: DecodeWorkerArgs
+    decode_worker: DecodeWorkerArgs = Field(default_factory=DecodeWorkerArgs)
     decode_cmd: str = Field(
+        default="python3 -m dynamo.vllm",
         serialization_alias="decode-cmd",
         validation_alias=AliasChoices("decode-cmd", "decode_cmd"),
-        default="python3 -m dynamo.vllm",
     )
-    prefill_worker: PrefillWorkerArgs
+    prefill_worker: PrefillWorkerArgs | None = None
+    prefill_cmd: str = Field(
+        default="python3 -m dynamo.vllm",
+        serialization_alias="prefill-cmd",
+        validation_alias=AliasChoices("prefill-cmd", "prefill_cmd"),
+    )
 
 
 class GenAIPerfArgs(BaseModel):
