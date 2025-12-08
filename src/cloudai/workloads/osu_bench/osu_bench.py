@@ -73,7 +73,7 @@ class OSUBenchCmdArgs(CmdArgs):
 
 
 class OSUBenchTestDefinition(TestDefinition):
-    """Test definition for a OSU Benchmark test."""
+    """Test definition for OSU Benchmark test."""
 
     cmd_args: OSUBenchCmdArgs
     _osu_image: DockerImage | None = None
