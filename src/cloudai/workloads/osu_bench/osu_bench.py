@@ -107,7 +107,7 @@ class OSUBenchTestDefinition(TestDefinition):
                 error_message=(
                     f"stdout.txt file not found in the specified output directory {tr.output_path}. "
                     "This file is expected to be created as a result of the OSU Benchmark test run."
-                )
+                ),
             )
 
         with open(stdout_path, "r") as f:
@@ -119,7 +119,8 @@ class OSUBenchTestDefinition(TestDefinition):
                 error_message=(
                     f"stdout.txt file is empty in the specified output directory {tr.output_path}. "
                     f"Please check for fatal errors in {stderr_path}"
-            ))
+                ),
+            )
 
         if "# Size       Avg Latency(us)   Min Latency(us)   Max Latency(us)  Iterations" not in content:
             return JobStatusResult(
