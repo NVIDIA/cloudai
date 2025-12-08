@@ -62,6 +62,7 @@ from cloudai.workloads.nemo_run import NeMoRunCmdArgs, NeMoRunTestDefinition
 from cloudai.workloads.nixl_bench import NIXLBenchCmdArgs, NIXLBenchTestDefinition
 from cloudai.workloads.nixl_kvbench import NIXLKVBenchCmdArgs, NIXLKVBenchTestDefinition
 from cloudai.workloads.nixl_perftest import NixlPerftestCmdArgs, NixlPerftestTestDefinition
+from cloudai.workloads.osu_bench import OSUBenchCmdArgs, OSUBenchTestDefinition
 from cloudai.workloads.sleep import SleepCmdArgs, SleepTestDefinition
 from cloudai.workloads.slurm_container import (
     SlurmContainerCmdArgs,
@@ -301,6 +302,22 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     num_iterations=50,
                     num_warmups=5,
                     impl="pytorch;backend=nccl;order=AG_before",
+                ),
+            ),
+        ),
+        "osu-bench": lambda: create_test_run(
+            partial_tr,
+            "osu-bench",
+            OSUBenchTestDefinition(
+                name="osu-bench",
+                description="osu-bench",
+                test_template_name="osu-bench",
+                cmd_args=OSUBenchCmdArgs(
+                    docker_image_url="nvcr.io#nvidia/pytorch:24.02-py3",
+                    location="/opt/hpcx/ompi/tests/osu-micro-benchmarks",
+                    benchmark=["osu_allreduce", "osu_allgather"],
+                    iterations=10,
+                    message_size="1024"
                 ),
             ),
         ),
