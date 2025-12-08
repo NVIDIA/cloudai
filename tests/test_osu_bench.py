@@ -21,11 +21,10 @@ from cloudai.workloads.osu_bench.osu_bench import OSUBenchCmdArgs
 def test_osu_bench_getting_args():
     data = OSUBenchCmdArgs(
         docker_image_url="nvcr.io#nvidia/pytorch:24.02-py3",
-        location="osu_bench",
+        location="/osu/loc",
         benchmark="osu_coll",
-        message_len=1024,
+        message_size="1024",
         iterations=10,
-        target="cpu"
     )
 
     args = data.get_args()
