@@ -318,7 +318,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     location="/opt/hpcx/ompi/tests/osu-micro-benchmarks",
                     benchmark="osu_allreduce",
                     iterations=10,
-                    message_size="1024"
+                    message_size="1024",
                 ),
             ),
         ),

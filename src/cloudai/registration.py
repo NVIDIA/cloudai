@@ -130,6 +130,10 @@ def register_all():
         NixlPerftestSlurmCommandGenStrategy,
         NixlPerftestTestDefinition,
     )
+    from cloudai.workloads.osu_bench import (
+        OSUBenchSlurmCommandGenStrategy,
+        OSUBenchTestDefinition,
+    )
     from cloudai.workloads.sleep import (
         SleepGradingStrategy,
         SleepKubernetesJsonGenStrategy,
@@ -149,10 +153,6 @@ def register_all():
         UCCTestGradingStrategy,
         UCCTestReportGenerationStrategy,
         UCCTestSlurmCommandGenStrategy,
-    )
-    from cloudai.workloads.osu_bench import (
-        OSUBenchTestDefinition,
-        OSUBenchSlurmCommandGenStrategy,
     )
 
     Registry().add_runner("slurm", SlurmRunner)

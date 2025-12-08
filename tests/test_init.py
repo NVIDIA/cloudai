@@ -74,6 +74,7 @@ from cloudai.workloads.nixl_bench import (
 )
 from cloudai.workloads.nixl_kvbench import NIXLKVBenchSlurmCommandGenStrategy, NIXLKVBenchTestDefinition
 from cloudai.workloads.nixl_perftest import NixlPerftestSlurmCommandGenStrategy, NixlPerftestTestDefinition
+from cloudai.workloads.osu_bench import OSUBenchSlurmCommandGenStrategy, OSUBenchTestDefinition
 from cloudai.workloads.sleep import (
     SleepGradingStrategy,
     SleepKubernetesJsonGenStrategy,
@@ -82,7 +83,6 @@ from cloudai.workloads.sleep import (
     SleepStandaloneCommandGenStrategy,
     SleepTestDefinition,
 )
-from cloudai.workloads.osu_bench import OSUBenchSlurmCommandGenStrategy, OSUBenchTestDefinition
 from cloudai.workloads.slurm_container import SlurmContainerCommandGenStrategy, SlurmContainerTestDefinition
 from cloudai.workloads.triton_inference import (
     TritonInferenceSlurmCommandGenStrategy,

@@ -25,7 +25,7 @@ from cloudai.models.workload import CmdArgs, TestDefinition
 
 
 def cli_field(*args, cmdline: str, **kwargs):
-    """Wrapper over pydantic Field to add a cmdline attribute to the field."""
+    """Wrap a pydantic Field to add a cmdline attribute."""
     return Field(*args, json_schema_extra={"cmdline": cmdline}, **kwargs)
 
 
@@ -62,7 +62,6 @@ class OSUBenchCmdArgs(CmdArgs):
     @classmethod
     def get_cmdline(cls, field: str) -> str:
         """Retrieve the command line argument for the given field."""
-
         field_info = cls.model_fields[field]
 
         if not field_info.json_schema_extra or "cmdline" not in field_info.json_schema_extra:
@@ -72,7 +71,6 @@ class OSUBenchCmdArgs(CmdArgs):
 
     def get_args(self) -> Dict[str, Any]:
         """Retrieve the command line arguments for the OSU benchmark."""
-
         general = ("docker_image_url", "location", "benchmark")
         arguments = {field: value for field, value in self.model_dump().items() if field not in general}
         return {OSUBenchCmdArgs.get_cmdline(field): value for field, value in arguments.items() if value is not None}
@@ -112,7 +110,7 @@ class OSUBenchTestDefinition(TestDefinition):
                 )
             )
 
-        with open(stdout_path, 'r') as f:
+        with open(stdout_path, "r") as f:
             content = f.read()
 
         if not content.strip():
@@ -129,7 +127,7 @@ class OSUBenchTestDefinition(TestDefinition):
                 error_message=(
                     f"Expected OSU benchmark output marker not found in stdout.txt in {tr.output_path}. "
                     f"Check for errors in the execution or for a different output format."
-                )
+                ),
             )
 
         return JobStatusResult(is_successful=True)
