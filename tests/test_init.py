@@ -82,6 +82,7 @@ from cloudai.workloads.sleep import (
     SleepStandaloneCommandGenStrategy,
     SleepTestDefinition,
 )
+from cloudai.workloads.osu_bench import OSUBenchSlurmCommandGenStrategy, OSUBenchTestDefinition
 from cloudai.workloads.slurm_container import SlurmContainerCommandGenStrategy, SlurmContainerTestDefinition
 from cloudai.workloads.triton_inference import (
     TritonInferenceSlurmCommandGenStrategy,
@@ -137,6 +138,7 @@ CMD_GEN_STRATEGIES = {
     (SlurmSystem, BashCmdTestDefinition): BashCmdCommandGenStrategy,
     (SlurmSystem, NixlPerftestTestDefinition): NixlPerftestSlurmCommandGenStrategy,
     (SlurmSystem, NIXLKVBenchTestDefinition): NIXLKVBenchSlurmCommandGenStrategy,
+    (SlurmSystem, OSUBenchTestDefinition): OSUBenchSlurmCommandGenStrategy,
 }
 JSON_GEN_STRATEGIES = {
     (KubernetesSystem, NCCLTestDefinition): NcclTestKubernetesJsonGenStrategy,
@@ -232,6 +234,7 @@ def test_definitions():
         ("NixlPerftest", NixlPerftestTestDefinition),
         ("NIXLKVBench", NIXLKVBenchTestDefinition),
         ("Aiconfigurator", AiconfiguratorTestDefinition),
+        ("OSUBench", OSUBenchTestDefinition),
     ]:
         assert test_defs[tdef[0]] == tdef[1]
 
