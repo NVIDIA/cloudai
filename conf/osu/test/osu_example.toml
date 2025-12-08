@@ -14,10 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "osu-example"
+name = "osu_example"
+test_template_name = "OSUBench"
+description = "OSU Benchmark example"
 
 [cmd_args]
-"docker_image_url" = "artifactory.nvidia.com/sw-nbu-swx-hpcx-docker-local/dlfw/pytorch:25.06-hpcx-v2.26-gcc-ubuntu24.04-cuda12-aarch64-latest-nightly"
+"docker_image_url" = "artifactory.nvidia.com/sw-nbu-swx-hpcx-docker-local/dlfw/pytorch:25.06-hpcx-v2.26-gcc-ubuntu24.04-cuda12-x86_64-latest-nightly"
 "location" = "/opt/hpcx/ompi/tests/osu-micro-benchmarks"
-"benchmark" = "osu_barrier"
-"iterations" = 1
+"benchmark" = ["osu_allreduce", "osu_allgather"]
+"iterations" = 10
+"message_size" = "1024"
