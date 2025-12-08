@@ -132,7 +132,7 @@ class TestInDryRun:
         results_output_dirs = [d for d in tmp_path.iterdir() if d.is_dir()]
         results_output = results_output_dirs[0]
 
-        test_dirs = list(results_output.iterdir())
+        test_dirs = list(d for d in results_output.iterdir() if d.is_dir())
 
         if scenario["expected_dirs_number"] is not None:
             assert len(test_dirs) == scenario["expected_dirs_number"], "Dirs number in output is not as expected"

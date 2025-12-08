@@ -204,6 +204,10 @@ class StatusReporter(Reporter):
         console = Console()
         console.print(table)
 
+        with console.capture() as capture:
+            console.print(table)
+        logging.debug(capture.get())
+
 
 class TarballReporter(Reporter):
     """Creates tarballs of results for failed test runs."""
