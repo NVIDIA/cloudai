@@ -25,7 +25,7 @@ from cloudai.models.workload import CmdArgs, TestDefinition
 
 
 def cli_field(*args, cmdline: str, **kwargs):
-    """ Wrapper over pydantic Field to add a cmdline attribute to the field. """
+    """Wrapper over pydantic Field to add a cmdline attribute to the field."""
     return Field(*args, json_schema_extra={"cmdline": cmdline}, **kwargs)
 
 
@@ -33,16 +33,16 @@ class OSUBenchCmdArgs(CmdArgs):
     """Command line arguments for a OSU Benchmark test."""
 
     docker_image_url: str
-    """ URL of the Docker image to use for the test. """
+    """URL of the Docker image to use for the test."""
 
     location: str
-    """ Location of the OSU Benchmark binary inside the container. """
+    """Location of the OSU Benchmark binary inside the container. """
 
     benchmark: Union[str, List[str]]
-    """ Name of the benchmark to run. """
+    """Name of the benchmark to run. """
 
     message_size: Optional[Union[str, List[str]]] = cli_field(default=None, cmdline="-m")
-    """ Message size for the benchmark.
+    """Message size for the benchmark.
 
     Examples:
     -m 128    // min = default, max = 128
@@ -51,21 +51,21 @@ class OSUBenchCmdArgs(CmdArgs):
     """
 
     iterations: Optional[int] = cli_field(default=None, cmdline="-i")
-    """ Number of iterations for the benchmark. """
+    """Number of iterations for the benchmark."""
 
     warmup: Optional[int] = cli_field(default=None, cmdline="-x")
-    """ Number of warmup iterations to skip before timing. """
+    """Number of warmup iterations to skip before timing."""
 
     mem_limit: Optional[int] = cli_field(default=None, cmdline="-M")
-    """ Per-process maximum memory consumption in bytes. """
+    """Per-process maximum memory consumption in bytes."""
 
     @classmethod
     def get_cmdline(cls, field: str) -> str:
-        """ Retrieves the command line argument for the given field. """
+        """Retrieves the command line argument for the given field."""
         return cls.model_fields[field].json_schema_extra["cmdline"]
 
     def get_args(self) -> Dict[str, str]:
-        """ Retrieve the command line arguments for the OSU benchmark. """
+        """Retrieve the command line arguments for the OSU benchmark."""
 
         general = ("docker_image_url", "location", "benchmark")
         arguments = {field: value for field, value in self.model_dump().items() if field not in general}
