@@ -102,7 +102,7 @@ cloudai uninstall\
 
 (list)=
 ### list
-This mode lists internal components
+This mode lists internal components available within CloudAI.
 ```bash
 cloudai list <component_type>
 ```
