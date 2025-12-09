@@ -43,7 +43,7 @@ class OSUBenchCmdArgs(CmdArgs):
     benchmark: Union[str, List[str]]
     """Name of the benchmark to run. """
 
-    message_size: Annotated[Optional[Union[str, List[str]]], Field(default=None), CmdLine("-m")]
+    message_size: Annotated[Optional[Union[str, List[str]]], CmdLine("-m")] = Field(default=None)
     """Message size for the benchmark.
 
     Examples:
@@ -52,13 +52,13 @@ class OSUBenchCmdArgs(CmdArgs):
     2:     // min 2, max = default
     """
 
-    iterations: Annotated[Optional[int], Field(default=None), CmdLine("-i")]
+    iterations: Annotated[Optional[int], CmdLine("-i")] = Field(default=None)
     """Number of iterations for the benchmark."""
 
-    warmup: Annotated[Optional[int], Field(default=None), CmdLine("-x")]
+    warmup: Annotated[Optional[int], CmdLine("-x")] = Field(default=None)
     """Number of warmup iterations to skip before timing."""
 
-    mem_limit: Annotated[Optional[int], Field(default=None), CmdLine("-M")]
+    mem_limit: Annotated[Optional[int], CmdLine("-M")] = Field(default=None)
     """Per-process maximum memory consumption in bytes."""
 
     @classmethod
