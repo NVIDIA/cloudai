@@ -76,7 +76,6 @@ Test-in-Scenario example:
    [[Tests]]
    id = "Tests.1"
    num_nodes = 2
-   nodes = "GAIA:standard_nodes:2"
    time_limit = "00:30:00"
 
    name = "deepep_standard"

@@ -11,7 +11,7 @@ Test TOML example:
 .. code-block:: toml
 
     name = "ucc"
-    description = "UCC test"
+    description = "Example UCC test"
     test_template_name = "UCCTest"
 
     [cmd_args]
@@ -42,7 +42,7 @@ Test-in-Scenario example:
     time_limit = "00:02:00"
 
     name = "ucc"
-    description = "UCC test"
+    description = "Example UCC test"
     test_template_name = "UCCTest"
 
     [Tests.cmd_args]
