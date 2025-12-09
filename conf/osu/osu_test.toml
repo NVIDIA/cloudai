@@ -14,20 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+name = "osu_example"
+test_template_name = "OSUBench"
+description = "OSU Benchmark example"
 
-from cloudai.workloads.osu_bench.osu_bench import OSUBenchCmdArgs
-
-
-def test_osu_bench_getting_args():
-    data = OSUBenchCmdArgs(
-        docker_image_url="nvcr.io#nvidia/pytorch:24.02-py3",
-        location="/osu/loc",
-        benchmark="osu_coll",
-        message_size="1024",
-        iterations=10,
-    )
-
-    args = data.get_args()
-
-    cmd = " ".join(f"{name} {value}" for name, value in args.items())
-    assert cmd == "-m 1024 -i 10"
+[cmd_args]
+"docker_image_url" = "artifactory.nvidia.com/sw-nbu-swx-hpcx-docker-local/dlfw/pytorch:25.06-hpcx-v2.26-gcc-ubuntu24.04-cuda12-x86_64-latest-nightly"
+"benchmarks_dir" = "/opt/hpcx/ompi/tests/osu-micro-benchmarks"
+"benchmark" = ["osu_allreduce", "osu_allgather"]
+"iterations" = 10
+"message_size" = "1024"
