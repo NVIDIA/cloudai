@@ -14,10 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "osu_example"
+name = "osu_test_scenario"
 
 [[Tests]]
 id = "Tests.1"
-test_name = "osu_example"
+test_name = "osu_test"
 num_nodes = "2"
 time_limit = "00:20:00"
