@@ -1,0 +1,15 @@
+name = "FUNK"
+scheduler = "slurm"
+
+install_path = "./install"
+output_path = "../results"
+default_partition = "funk"
+
+distribution = "block"
+
+ntasks_per_node = 2
+
+cache_docker_images_locally = true
+
+[[partitions]]
+name = "funk"
