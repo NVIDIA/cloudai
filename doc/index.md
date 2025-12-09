@@ -129,4 +129,5 @@ cloudai verify-configs --tests-dir conf/release/spcx/l40s/test conf/release/spcx
 :glob:
 
 *
+workloads/index
 ```
