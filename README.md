@@ -34,12 +34,10 @@ These schemas enable CloudAI to be flexible and compatible with different system
 |ChakraReplay|✅|❌|❌|❌|
 |DDLB|✅|❌|❌|❌|
 |DeepEP|✅|❌|❌|❌|
-|Jax GPT (deprecated)|✅|❌|❌|❌|
-|Jax Grok (deprecated)|✅|❌|❌|❌|
-|Jax Nemotron (deprecated)|✅|❌|❌|❌|
+|JaxToolbox workloads (DEPRECATED)|✅|❌|❌|❌|
 |MegatronRun|✅|❌|❌|❌|
 |NCCL|✅|✅|✅|❌|
-|NeMo v1.0 (aka NemoLauncher) (deprecated)|✅|❌|❌|❌|
+|NeMo v1.0 aka NemoLauncher (DEPRECATED)|✅|❌|❌|❌|
 |NeMo v2.0 (aka NemoRun)|✅|❌|❌|❌|
 |NIXL benchmark|✅|❌|❌|❌|
 |NIXL kvbench|✅|❌|❌|❌|
