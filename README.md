@@ -43,7 +43,7 @@ These schemas enable CloudAI to be flexible and compatible with different system
 |NeMo v2.0 (aka NemoRun)|✅|❌|❌|❌|
 |NIXL benchmark|✅|❌|❌|❌|
 |NIXL kvbench|✅|❌|❌|❌|
-|NIXL perftest|✅|❌|❌|❌|
+|NIXL CTPerf|✅|❌|❌|❌|
 |Sleep|✅|✅|❌|✅|
 |SlurmContainer|✅|❌|❌|❌|
 |Triton Inference|✅|❌|❌|❌|
