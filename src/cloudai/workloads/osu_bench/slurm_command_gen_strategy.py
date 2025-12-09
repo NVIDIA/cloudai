@@ -34,14 +34,17 @@ class OSUBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def generate_test_command(self) -> List[str]:
         args: OSUBenchCmdArgs = cast(OSUBenchCmdArgs, self.test_run.test.cmd_args)
 
-        binary = f"{args.location}/{args.benchmark}"
+        binary = f"{args.benchmarks_dir}/{args.benchmark}"
         srun_command_parts = [binary]
 
-        for name, value in args.get_args().items():
-            srun_command_parts.append(f"{name} {value}")
+        general = {"docker_image_url", "location", "benchmark"}
 
-        # Always print full format listing of results.
-        srun_command_parts.append("-f")
+        for name, value in args.model_dump(exclude=general).items():
+            if value is None:
+                continue
+
+            flag = f"--{name.replace('_', '-')}"
+            srun_command_parts.append(f"{flag} {value}")
 
         if self.test_run.test.extra_cmd_args:
             srun_command_parts.append(self.test_run.test.extra_args_str)

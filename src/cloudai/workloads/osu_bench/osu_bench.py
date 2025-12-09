@@ -16,19 +16,12 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 from pydantic import Field
 
 from cloudai.core import DockerImage, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
-
-
-class CmdLine:
-    """Lightweight metadata container to store CLI flag for a field."""
-
-    def __init__(self, flag: str) -> None:
-        self.flag = flag
 
 
 class OSUBenchCmdArgs(CmdArgs):
@@ -37,13 +30,13 @@ class OSUBenchCmdArgs(CmdArgs):
     docker_image_url: str
     """URL of the Docker image to use for the test."""
 
-    location: str
-    """Location of the OSU Benchmark binary inside the container. """
+    benchmarks_dir: str
+    """Directory with the OSU Benchmark binaries inside the container. """
 
     benchmark: Union[str, List[str]]
     """Name of the benchmark to run. """
 
-    message_size: Annotated[Optional[Union[str, List[str]]], CmdLine("-m")] = Field(default=None)
+    message_size: Optional[Union[str, List[str]]] = Field(default=None)
     """Message size for the benchmark.
 
     Examples:
@@ -52,31 +45,17 @@ class OSUBenchCmdArgs(CmdArgs):
     2:     // min 2, max = default
     """
 
-    iterations: Annotated[Optional[int], CmdLine("-i")] = Field(default=None)
+    iterations: Optional[int] = Field(default=None)
     """Number of iterations for the benchmark."""
 
-    warmup: Annotated[Optional[int], CmdLine("-x")] = Field(default=None)
+    warmup: Optional[int] = Field(default=None)
     """Number of warmup iterations to skip before timing."""
 
-    mem_limit: Annotated[Optional[int], CmdLine("-M")] = Field(default=None)
+    mem_limit: Optional[int] = Field(default=None)
     """Per-process maximum memory consumption in bytes."""
 
-    @classmethod
-    def get_cmdline(cls, field: str) -> str:
-        """Retrieve the command line argument for the given field."""
-        field_info = cls.model_fields[field]
-
-        for meta in getattr(field_info, "metadata", ()) or ():
-            if isinstance(meta, CmdLine):
-                return meta.flag
-
-        return field
-
-    def get_args(self) -> Dict[str, Any]:
-        """Retrieve the command line arguments for the OSU benchmark."""
-        general = ("docker_image_url", "location", "benchmark")
-        arguments = {field: value for field, value in self.model_dump().items() if field not in general}
-        return {OSUBenchCmdArgs.get_cmdline(field): value for field, value in arguments.items() if value is not None}
+    full: bool = Field(default=True)
+    """Print full format listing of results."""
 
 
 class OSUBenchTestDefinition(TestDefinition):

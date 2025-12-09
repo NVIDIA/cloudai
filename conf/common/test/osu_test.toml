@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "osu_example"
+name = "osu_test"
 test_template_name = "OSUBench"
 description = "OSU Benchmark example"
 
