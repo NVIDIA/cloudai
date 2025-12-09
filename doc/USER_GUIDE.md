@@ -221,7 +221,7 @@ CUDA_VISIBLE_DEVICES = "0,1,2,3,4,5,6,7"
 
 ## Field Descriptions
 - **name**: Specifies the name of the system. Users can choose any name that is convenient for them.
-- **scheduler**: Indicates the type of system. It should be one of the supported types, currently `slurm` or `standalone`. `slurm` refers to a system with the Slurm scheduler, while `standalone` refers to a single-node system without any slave nodes.
+- **scheduler**: Indicates the type of system. It should be one of the supported types, currently `slurm` or `standalone`. `slurm` refers to a system with the Slurm scheduler, while `standalone` refers to a single-node system without any slave nodes. Other values are possible depending on the available schedulers supported by CloudAI.
 - **install_path**: Specifies the path where test prerequisites are installed. Docker images are downloaded to this path if the user chooses to cache Docker images.
 - **output_path**: Defines the default path where outputs are stored. Whenever a user runs a test scenario, a new subdirectory will be created under this path.
 - **default_partition**: Specifies the default partition where jobs are scheduled.
