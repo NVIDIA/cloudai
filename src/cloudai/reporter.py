@@ -202,7 +202,10 @@ class StatusReporter(Reporter):
             table.add_row(*columns)
 
         console = Console()
-        console.print(table)
+        with console.capture() as capture:
+            console.print(table)  # doesn't print to stdout, captures only
+
+        logging.info(capture.get())
 
 
 class TarballReporter(Reporter):
