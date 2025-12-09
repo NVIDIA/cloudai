@@ -74,3 +74,10 @@ It is important to follow these additional steps:
 1. Go to `🤗 Hugging Face <https://huggingface.co/docs/transformers/en/model_doc/llama>`_.
 2. Follow the instructions on how to download the tokenizer.
 3. Replace ``TOKENIZER_MODEL`` in ``training.model.tokenizer.model=TOKENIZER_MODEL`` with your path (the tokenizer should be a ``.model`` file) in ``conf/common/test/llama.toml``.
+
+
+Troubleshooting
+---------------
+
+* If your run is not successful, please review the stderr and stdout files generated under the results directory. Within the output directory, locate the run directory, and under the run directory, you will find stderr files like ``log-nemo-megatron-run_[job_id].err``. Please review these files for any meaningful error messages
+* Trying the CloudAI-generated NeMo launcher command can be helpful as well. You can find the executed command in your stdout and in your log file (debug.log) in your current working directory. Review and run the command, and you can modify the arguments to troubleshoot the issue
