@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional, Union
 
 from pydantic import Field
 
@@ -24,9 +24,11 @@ from cloudai.core import DockerImage, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 
-def cli_field(*args, cmdline: str, **kwargs):
-    """Wrap a pydantic Field to add a cmdline attribute."""
-    return Field(*args, json_schema_extra={"cmdline": cmdline}, **kwargs)
+class CmdLine:
+    """Lightweight metadata container to store CLI flag for a field."""
+
+    def __init__(self, flag: str) -> None:
+        self.flag = flag
 
 
 class OSUBenchCmdArgs(CmdArgs):
@@ -41,22 +43,22 @@ class OSUBenchCmdArgs(CmdArgs):
     benchmark: Union[str, List[str]]
     """Name of the benchmark to run. """
 
-    message_size: Optional[Union[str, List[str]]] = cli_field(default=None, cmdline="-m")
+    message_size: Annotated[Optional[Union[str, List[str]]], Field(default=None), CmdLine("-m")]
     """Message size for the benchmark.
 
     Examples:
-    -m 128    // min = default, max = 128
-    -m 2:128  // min = 2, max = 128
-    -m 2:     // min 2, max = default
+    128    // min = default, max = 128
+    2:128  // min = 2, max = 128
+    2:     // min 2, max = default
     """
 
-    iterations: Optional[int] = cli_field(default=None, cmdline="-i")
+    iterations: Annotated[Optional[int], Field(default=None), CmdLine("-i")]
     """Number of iterations for the benchmark."""
 
-    warmup: Optional[int] = cli_field(default=None, cmdline="-x")
+    warmup: Annotated[Optional[int], Field(default=None), CmdLine("-x")]
     """Number of warmup iterations to skip before timing."""
 
-    mem_limit: Optional[int] = cli_field(default=None, cmdline="-M")
+    mem_limit: Annotated[Optional[int], Field(default=None), CmdLine("-M")]
     """Per-process maximum memory consumption in bytes."""
 
     @classmethod
@@ -64,10 +66,11 @@ class OSUBenchCmdArgs(CmdArgs):
         """Retrieve the command line argument for the given field."""
         field_info = cls.model_fields[field]
 
-        if not field_info.json_schema_extra or "cmdline" not in field_info.json_schema_extra:
-            raise ValueError(f"Field '{field}' does not have a cmdline attribute")
+        for meta in getattr(field_info, "metadata", ()) or ():
+            if isinstance(meta, CmdLine):
+                return meta.flag
 
-        return field_info.json_schema_extra["cmdline"]
+        return field
 
     def get_args(self) -> Dict[str, Any]:
         """Retrieve the command line arguments for the OSU benchmark."""

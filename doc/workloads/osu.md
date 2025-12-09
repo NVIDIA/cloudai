@@ -50,6 +50,6 @@ section:
 Notes:
 - `benchmark` accepts a single value or a list of benchmarks.
 - `message_size` examples:
-  - `-m 128` sets max to 128 with default min
-  - `-m 2:128` sets min 2 and max 128
-  - `-m 2:` sets min 2 with default max
+  - `128` sets max to 128 with default min
+  - `2:128` sets min 2 and max 128
+  - `2:` sets min 2 with default max
