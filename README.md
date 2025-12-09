@@ -29,17 +29,27 @@ These schemas enable CloudAI to be flexible and compatible with different system
 ## Support matrix
 |Test|Slurm|Kubernetes|RunAI|Standalone|
 |---|---|---|---|---|
+|AI Dynamo|✅|✅|❌|❌|
+|BashCmd|✅|❌|❌|❌|
 |ChakraReplay|✅|❌|❌|❌|
-|GPT|✅|❌|❌|❌|
-|Grok|✅|❌|❌|❌|
+|DDLB|✅|❌|❌|❌|
+|DeepEP|✅|❌|❌|❌|
+|Jax GPT (deprecated)|✅|❌|❌|❌|
+|Jax Grok (deprecated)|✅|❌|❌|❌|
+|Jax Nemotron (deprecated)|✅|❌|❌|❌|
+|MegatronRun|✅|❌|❌|❌|
 |NCCL|✅|✅|✅|❌|
-|NeMo Launcher|✅|❌|❌|❌|
-|NeMo Run|✅|❌|❌|❌|
-|Nemotron|✅|❌|❌|❌|
+|NeMo v1.0 (aka NemoLauncher) (deprecated)|✅|❌|❌|❌|
+|NeMo v2.0 (aka NemoRun)|✅|❌|❌|❌|
+|NIXL benchmark|✅|❌|❌|❌|
+|NIXL kvbench|✅|❌|❌|❌|
+|NIXL perftest|✅|❌|❌|❌|
 |Sleep|✅|✅|❌|✅|
-|UCC|✅|❌|❌|❌|
 |SlurmContainer|✅|❌|❌|❌|
-|MegatronRun (experimental)|✅|❌|❌|❌|
+|Triton Inference|✅|❌|❌|❌|
+|UCC|✅|❌|❌|❌|
+
+*deprecated means that a workload support exists, but we are not maintaining it actively anymore and newer configurations might not work.
 
 For more detailed information, please refer to the [official documentation](https://nvidia.github.io/cloudai/workloads/index.html).
 
