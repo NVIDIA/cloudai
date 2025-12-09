@@ -169,7 +169,7 @@ cloudai run \
 ```
 
 ### Test-in-Scenario
-One can override some args or oven fully define a workload inside a scenario file:
+One can override some args or even fully define a workload inside a scenario file:
 ```toml
 name = "nccl-test"
 
