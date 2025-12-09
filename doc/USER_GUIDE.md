@@ -55,13 +55,23 @@ CloudAI is fully configurable via set of TOML configuration files. You can find 
 Test definition is a Pydantic model that describes the arguments of a test. Such models should be inherited from the `TestDefinition` class:
 ```py
 class MyTestCmdArgs(CmdArgs):
-     an_arg: str
+     an_arg: str | list[str]
      docker_image_url: str = "nvcr.io/nvidia/pytorch:24.02-py3"
 
 class MyTestDefinition(TestDefinition):
     cmd_args: MyTestCmdArgs
 ```
 Notice that `cmd_args.docker_image_url` uses `nvcr.io/nvidia/pytorch:24.02-py3`, but you can use Docker image from Step 1.
+
+`an_arg` has mixed type of `str | list[str]`, so in a TOML config it can be defined as either:
+```toml
+an_arg = "a single string"
+```
+or
+```toml 
+an_arg = ["list", "of", "strings"]
+```
+When a list is used, CloudAI will automatically generate multiple test cases for each value in the list.
 
 A custom test definition should be registered to handle relevant Test Configs. For this, `Registry()` object is used:
 ```py
@@ -90,15 +100,7 @@ name = "partition_1"
 ```
 Replace `<YOUR PARTITION NAME>` with the name of the partition you want to use. You can find the partition name by running `sinfo` on the cluster.
 
-## Step 5: Install Test Requirements
-Once all configs are ready, it is time to install test requirements. It is done once so that you can run multiple experiments without reinstalling the requirements. This step requires the system config file from the step 3.
-```bash
-cloudai install \
-   --system-config myconfig/system.toml \
-   --tests-dir myconfig/tests/
-```
-
-## Step 6: Test Configuration
+## Step 5: Test Configuration
 Test Configuration describes a particular test configuration to be run. It is based on Test definition and will be used in Test Sceanrio. Below is the `myconfig/tests/nccl_test.toml` file, definition is based on built-in `NcclTest` definition:
 ```toml
 name = "nccl_test_all_reduce_single_node"
@@ -116,7 +118,8 @@ stepfactor = 2
 ```
 You can find more examples under `conf/common/test`. In a test schema file, you can adjust arguments as shown above. In the `cmd_args` section, you can provide different values other than the default values for each argument. In `extra_cmd_args`, you can provide additional arguments that will be appended after the NCCL test command. You can specify additional environment variables in the `extra_env_vars` section.
 
-## Step 7: Run Experiments
+
+## Step 6: Run Experiments
 Test Scenario uses Test description from step 5. Below is the `myconfig/scenario.toml` file:
 ```toml
 name = "nccl-test"
@@ -165,7 +168,46 @@ cloudai run \
     --tests-dir myconfig/tests/
 ```
 
-## Step 8: Generate Reports
+### Test-in-Scenario
+One can override some args or oven fully define a workload inside a scenario file:
+```toml
+name = "nccl-test"
+
+[[Tests]]
+id = "allreduce.in.scenario"
+num_nodes = 1
+time_limit = "00:20:00"
+
+name = "nccl_test_all_reduce_single_node"
+description = "all_reduce"
+test_template_name = "NcclTest"
+
+  [Tests.cmd_args]
+  subtest_name = "all_reduce_perf_mpi"
+  ngpus = 1
+  minbytes = "8M"
+  maxbytes = "16G"
+  iters = 5
+  warmup_iters = 3
+  stepfactor = 2
+
+[[Tests]]
+id = "allreduce.override"
+num_nodes = 1
+test_name = "nccl_test_all_reduce_single_node"
+time_limit = "00:20:00"
+
+  [Tests.cmd_args]
+  stepfactor = 4
+```
+
+`allreduce.in.scenario` fully defines a workload, in this case `test_name` must not be set, while `name`, `description` and `test_template_name` must be set.
+
+`allreduce.override` overrides only `stepfactor` arg from the test defined in the tests dir.
+
+If a scenario contains only fully defined tests, `--tests-dir` arg is not required.
+
+## Step 7: Generate Reports
 Once the test scenario is completed, you can generate reports using the following command:
 ```bash
 cloudai generate-report \
