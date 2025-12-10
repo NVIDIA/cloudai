@@ -1,0 +1,8 @@
+name = "ucc_gen_test"
+description = "alltoallv"
+test_template_name = "UCCTest"
+
+extra_container_mounts = ["$PWD/src/cloudai/workloads/ucc_test/perftest_generator_file/intput_matrices.txt:/opt/hpcx/ucc/tools/perf/generator/examples/intput_matrices.txt"]
+
+[cmd_args]
+docker_image_url = "nvcr.io/nvidia/pytorch:25.09-py3"

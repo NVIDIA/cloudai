@@ -19,4 +19,4 @@ description = "Base config for UCC tests"
 test_template_name = "UCCTest"
 
 [cmd_args]
-docker_image_url = "nvcr.io#nvidia/pytorch:25.06-py3"
+docker_image_url = "nvcr.io/nvidia/pytorch:25.09-py3"
