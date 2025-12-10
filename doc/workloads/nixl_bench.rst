@@ -11,7 +11,7 @@ Test TOML example:
 .. code-block:: toml
 
    name = "my_nixl_bench_test"
-   description = "Example NIXL KVBench test"
+   description = "Example NIXL Bench test"
    test_template_name = "NIXLBench"
 
    [cmd_args]

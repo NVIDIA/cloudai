@@ -42,59 +42,12 @@ CloudAI operates on four main schemas:
 
 These schemas enable CloudAI to be flexible and compatible with different systems and configurations.
 
-
-## Support matrix
-|Test|Slurm|Kubernetes|RunAI|Standalone|
-|---|---|---|---|---|
-|ChakraReplay|✅|❌|❌|❌|
-|GPT|✅|❌|❌|❌|
-|Grok|✅|❌|❌|❌|
-|NCCL|✅|✅|✅|❌|
-|NeMo Launcher|✅|❌|❌|❌|
-|NeMo Run|✅|❌|❌|❌|
-|Nemotron|✅|❌|❌|❌|
-|Sleep|✅|✅|❌|✅|
-|UCC|✅|❌|❌|❌|
-|SlurmContainer|✅|❌|❌|❌|
-|MegatronRun (experimental)|✅|❌|❌|❌|
-
-
-
 ## CloudAI Modes Usage Examples
-
-CloudAI supports five modes:
-- [install](install) - Use the install mode to install all test templates in the specified installation path 
-- [dry-run](dry-run) - Use the dry-run mode to simulate running experiments without actually executing them. This is useful for verifying configurations and testing experiment setups
-- [run](run) - Use the run mode to run experiments
-- [generate-report](generate-report) - Use the generate-report mode to generate reports under the test directories alongside the raw data
-- [uninstall](uninstall) - Use the uninstall mode to remove installed test templates
-
-(install)=
-### install
-
-To install test prerequisites, run CloudAI CLI in install mode. For more details, please refer to the [installation guide](./workloads_requirements_installation.rst).
-
-Please make sure to use the correct system configuration file that corresponds to your current setup for installation and experiments.
-```bash
-cloudai install\
-    --system-config conf/common/system/example_slurm_cluster.toml\
-    --tests-dir conf/common/test\
-    --test-scenario conf/common/test_scenario/sleep.toml
-```
-
-(dry-run)=
-### dry-run
-To simulate running experiments without execution, use the dry-run mode:
-```bash
-cloudai dry-run\
-    --system-config conf/common/system/example_slurm_cluster.toml\
-    --tests-dir conf/common/test\
-    --test-scenario conf/common/test_scenario/sleep.toml
-```
 
 (run)=
 ### run
-To run experiments, execute CloudAI CLI in run mode:
+This mode runs workloads. It automatically installs prerequisites if they are not met.
+
 ```bash
 cloudai run\
     --system-config conf/common/system/example_slurm_cluster.toml\
@@ -102,9 +55,21 @@ cloudai run\
     --test-scenario conf/common/test_scenario/sleep.toml
 ```
 
+(dry-run)=
+### dry-run
+This mode simulates running experiments without actually executing them. This is useful for verifying configurations and testing experiment setups.
+
+```bash
+cloudai dry-run\
+    --system-config conf/common/system/example_slurm_cluster.toml\
+    --tests-dir conf/common/test\
+    --test-scenario conf/common/test_scenario/sleep.toml
+```
+
 (generate-report)=
 ### generate-report
-To generate reports, execute CloudAI CLI in generate-report mode:
+This mode generates reports under the scenario directory. It automatically runs as part of the `run` mode after experiments are completed.
+
 ```bash
 cloudai generate-report\
     --system-config conf/common/system/example_slurm_cluster.toml\
@@ -112,12 +77,22 @@ cloudai generate-report\
     --test-scenario conf/common/test_scenario/sleep.toml\
     --result-dir /path/to/result_directory
 ```
-In the generate-report mode, use the `--result-dir` argument to specify a subdirectory under the output directory.
-This subdirectory is usually named with a timestamp for unique identification.
+
+(install)=
+### install
+This mode installs test prerequisites. For more details, please refer to the [installation guide](https://nvidia.github.io/cloudai/workloads_requirements_installation.html). It automatically runs as part of the `run` mode if prerequisites are not met.
+
+```bash
+cloudai install\
+    --system-config conf/common/system/example_slurm_cluster.toml\
+    --tests-dir conf/common/test\
+    --test-scenario conf/common/test_scenario/sleep.toml
+```
 
 (uninstall)=
 ### uninstall
-To uninstall test prerequisites, run CloudAI CLI in uninstall mode:
+The opposite to the install mode, this mode removes installed test prerequisites.
+
 ```bash
 cloudai uninstall\
     --system-config conf/common/system/example_slurm_cluster.toml\
@@ -125,8 +100,17 @@ cloudai uninstall\
     --test-scenario conf/common/test_scenario/sleep.toml
 ```
 
+(list)=
+### list
+This mode lists internal components available within CloudAI.
+```bash
+cloudai list <component_type>
+```
+
 (verify-configs)=
 ### verify-configs
+This mode verifies the correctness of system, test and test scenario configuration files.
+
 ```bash
 # verify all at once
 cloudai verify-configs conf
@@ -142,10 +126,8 @@ cloudai verify-configs --tests-dir conf/release/spcx/l40s/test conf/release/spcx
 ```{toctree}
 :maxdepth: 1
 :caption: Contents:
+:glob:
 
+*
 workloads/index
-DEV
-reporting
-USER_GUIDE
-workloads_requirements_installation
 ```
