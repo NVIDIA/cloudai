@@ -33,8 +33,6 @@ dynamo_args["ingress-cmd"]="python -m dynamo.frontend --router-mode kv"
 dynamo_args["port"]=8080
 dynamo_args["endpoint"]="v1/chat/completions"
 dynamo_args["model"]="deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
-dynamo_args["etcd-cmd"]="etcd --log-level debug"
-dynamo_args["nats-cmd"]="nats-server -js"
 dynamo_args["etcd-port"]=2379
 dynamo_args["nats-port"]=4222
 dynamo_args["workspace-path"]="/workspace"
@@ -47,8 +45,12 @@ dynamo_args["tp-arg-name"]="tensor-parallel-size"
 dynamo_args["pp-arg-name"]="pipeline-parallel-size"
 dynamo_args["multiple-prefill-workers-per-node"]="true"
 dynamo_args["multiple-decode-workers-per-node"]="true"
-dynamo_args["prefill-initialized-regex"]="prefill.*initialized"
-dynamo_args["decode-initialized-regex"]="decode.*initialized"
+dynamo_args["prefill-initialized-regex"]="Worker.*has.been.initialized"
+dynamo_args["decode-initialized-regex"]="Worker.*has.been.initialized"
+
+dynamo_args["etcd-cmd"]="etcd --log-level debug"
+dynamo_args["nats-cmd"]="nats-server -js"
+dynamo_args["genai-perf-cmd"]="genai-perf profile"
 
 # sglang-specific optional ports. Ignored by vllm.
 dynamo_args["sgl-http-port"]=9001
@@ -310,8 +312,12 @@ _compute_worker_allocation_vllm() {
     dynamo_args["decode-gpus-per-worker"]=$num_gpus
   fi
 
+  log "DECODE: num GPUs: $num_gpus, GPUs per worker: ${dynamo_args["decode-gpus-per-worker"]}"
+  log "PREFILL: num GPUs: $num_gpus, GPUs per worker: ${dynamo_args["prefill-gpus-per-worker"]}"
   dynamo_args["prefill-workers-per-node"]=$(( num_gpus / dynamo_args["prefill-gpus-per-worker"] ))
   dynamo_args["decode-workers-per-node"]=$(( num_gpus / dynamo_args["decode-gpus-per-worker"] ))
+  log "DECODE: workers per node: ${dynamo_args["decode-workers-per-node"]}"
+  log "PREFILL: workers per node: ${dynamo_args["prefill-workers-per-node"]}"
 
   if [[ -n "${prefill_args["--num-nodes"]}" ]]; then
     dynamo_args["num-prefill-nodes"]=${prefill_args["--num-nodes"]}
@@ -319,6 +325,8 @@ _compute_worker_allocation_vllm() {
   if [[ -n "${decode_args["--num-nodes"]}" ]]; then
     dynamo_args["num-decode-nodes"]=${decode_args["--num-nodes"]}
   fi
+  log "NUM PREFILL NODES: ${dynamo_args["num-prefill-nodes"]}"
+  log "NUM DECODE NODES: ${dynamo_args["num-decode-nodes"]}"
 }
 
 _compute_worker_allocation() {
@@ -597,7 +605,7 @@ validate_environment() {
 
 function launch_etcd()
 {
-  log "Launching etcd"
+  log "Launching etcd with cmd: ${dynamo_args["etcd-cmd"]} --listen-client-urls http://0.0.0.0:${dynamo_args["etcd-port"]} --advertise-client-urls http://0.0.0.0:${dynamo_args["etcd-port"]}"
   ${dynamo_args["etcd-cmd"]} \
     --listen-client-urls http://0.0.0.0:${dynamo_args["etcd-port"]} \
     --advertise-client-urls http://0.0.0.0:${dynamo_args["etcd-port"]} \
@@ -606,7 +614,7 @@ function launch_etcd()
 
 function launch_nats()
 {
-  log "Launching nats"
+  log "Launching nats with cmd: ${dynamo_args["nats-cmd"]} -p ${dynamo_args["nats-port"]}"
   ${dynamo_args["nats-cmd"]} -p ${dynamo_args["nats-port"]} > ${RESULTS_DIR}/nats.log 2>&1
 }
 
@@ -633,12 +641,14 @@ function launch_decode()
   wait_for_etcd
 
   local workers_per_node=${dynamo_args["decode-workers-per-node"]}
+  log "Using workers per node: $workers_per_node"
 
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
     local gpu_list=$(_gpu_list_for_worker "${dynamo_args["decode-gpus-per-worker"]}" "$i")
     local log_file=$(_log_file_for_worker "decode" "$i")
 
     log "Launching decode worker $i on GPUs $gpu_list"
+    log "Decode cmd: ${dynamo_args["decode-cmd"]} $(array_to_args decode_args) ${decode_args["--extra-args"]}"
     CUDA_VISIBLE_DEVICES=$gpu_list \
       ${dynamo_args["decode-cmd"]} \
       $(array_to_args decode_args) ${decode_args["--extra-args"]} > $log_file 2>&1 &
@@ -665,6 +675,7 @@ function launch_prefill()
     local log_file=$(_log_file_for_worker "prefill" "$i")
 
     log "Launching prefill worker $i on GPUs $gpu_list"
+    log "Prefill cmd: ${dynamo_args["prefill-cmd"]} $(array_to_args prefill_args) ${prefill_args["--extra-args"]}"
     CUDA_VISIBLE_DEVICES=$gpu_list \
       ${dynamo_args["prefill-cmd"]} \
       $(array_to_args prefill_args) ${prefill_args["--extra-args"]} > $log_file 2>&1 &
@@ -680,11 +691,12 @@ function wait_for_dynamo_frontend()
     local have_prefill=$(_count_initialized_prefill)
     local have_decode=$(_count_initialized_decode)
 
+    log "Initialized: prefill ${have_prefill}/${want_prefill}; decode ${have_decode}/${want_decode}"
+
     if [[ $have_prefill -ge $want_prefill && $have_decode -ge $want_decode ]]; then
       break
     fi
 
-    log "Initialized: prefill ${have_prefill}/${want_prefill}; decode ${have_decode}/${want_decode}"
     exit_on_error
     sleep 30
   done
@@ -710,7 +722,7 @@ function launch_genai_perf()
   echo "Response: $resp"
 
   local genai_perf_arguments=$(array_to_args genai_perf_args)
-  log "Launching genai-perf with args: $genai_perf_arguments ${genai_perf_args["--extra-args"]}"
+  log "Launching genai-perf with cmd: ${dynamo_args["genai-perf-cmd"]} $genai_perf_arguments ${genai_perf_args["--extra-args"]}"
 
   ${dynamo_args["genai-perf-cmd"]} ${genai_perf_arguments} ${genai_perf_args["--extra-args"]} > ${RESULTS_DIR}/genai_perf.log 2>&1
 

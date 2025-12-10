@@ -28,9 +28,6 @@ docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.6.1.post1"
   prefill-cmd = 'python3 -m dynamo.vllm --is-prefill-worker'
   decode-cmd = 'python3 -m dynamo.vllm'
 
-    [cmd_args.dynamo.prefill_worker]
-    pipeline-parallel-size = 1
-
     [cmd_args.dynamo.decode_worker]
     pipeline-parallel-size = 1
 
@@ -42,13 +39,14 @@ docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.6.1.post1"
   output-tokens-mean = 500
   output-tokens-stddev = 0
   random-seed = 123
-  request-count = 128
+  request-count = 50
   synthetic-input-tokens-mean = 300
   synthetic-input-tokens-stddev = 0
-  warmup-request-count = 10
-  concurrency = 1
+  warmup-request-count = 5
+  concurrency = 2
   extra-args = "--streaming -- -v --async"
 
 [extra_env_vars]
 UCX_LOG_LEVEL = "warn"
 UCX_TLS = "cuda_copy,rc_x"
+DYNAMO_NODELIST = "$(scontrol show hostname $SLURM_JOB_NODELIST | tr -s '\\n' ',')"
