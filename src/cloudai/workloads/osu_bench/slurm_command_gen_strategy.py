@@ -21,6 +21,16 @@ from cloudai.systems.slurm import SlurmCommandGenStrategy
 from .osu_bench import OSUBenchCmdArgs, OSUBenchTestDefinition
 
 
+FULL_FLAG_UNSUPPORTED = [
+    "osu_latency", "osu_latency_mt", "osu_latency_mp", "osu_bw",
+    "osu_bibw", "osu_latency_persistent", "osu_bw_persistent",
+    "osu_bibw_persistent", "osu_multi_lat", "osu_mbw_mr",
+    "osu_put_latency", "osu_get_latency", "osu_acc_latency",
+    "osu_get_acc_latency", "osu_cas_latency", "osu_fop_latency",
+    "osu_put_bw", "osu_get_bw", "osu_put_bibw", "osu_init", "osu_hello"
+]
+
+
 class OSUBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for OSU Benchmark test on Slurm systems."""
 
@@ -37,14 +47,25 @@ class OSUBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         binary = f"{args.benchmarks_dir}/{args.benchmark}"
         srun_command_parts = [binary]
 
-        general = {"docker_image_url", "location", "benchmark"}
+        general = {"docker_image_url", "benchmarks_dir", "benchmark"}
 
         for name, value in args.model_dump(exclude=general).items():
             if value is None:
                 continue
 
             flag = f"--{name.replace('_', '-')}"
-            srun_command_parts.append(f"{flag} {value}")
+
+            if isinstance(value, bool) and value:
+                argument = flag
+            else:
+                argument = f"{flag} {value}"
+
+            # Some benchmarks don't support the full flag; suppress it
+            # to avoid errors.
+            if name == "full" and args.benchmark in FULL_FLAG_UNSUPPORTED:
+                continue
+
+            srun_command_parts.append(argument)
 
         if self.test_run.test.extra_cmd_args:
             srun_command_parts.append(self.test_run.test.extra_args_str)

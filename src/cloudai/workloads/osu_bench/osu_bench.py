@@ -104,7 +104,7 @@ class OSUBenchTestDefinition(TestDefinition):
                 ),
             )
 
-        if "# Size       Avg Latency(us)   Min Latency(us)   Max Latency(us)  Iterations" not in content:
+        if "# Size" not in content:
             return JobStatusResult(
                 is_successful=False,
                 error_message=(
