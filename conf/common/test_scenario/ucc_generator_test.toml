@@ -25,9 +25,11 @@ time_limit = "00:02:00"
 name = "ucc_generator_perftest"
 description = "UCC alltoallv"
 test_template_name = "UCCTest"
-extra_container_mounts = ["$PWD/conf/common/test_scenario/ucc_generator_file.txt:/opt/hpcx/ucc/tools/perf/generator/input_matrices.txt"]
+extra_container_mounts = [
+  "$PWD/conf/common/test_scenario/ucc_generator_file.txt:/opt/hpcx/ucc/tools/perf/generator/input_matrices.txt",
+]
 
-    [Tests.cmd_args]
-    docker_image_url = "nvcr.io/nvidia/pytorch:25.09-py3"
-    collective = "alltoallv"
-    gen = "file:name=/opt/hpcx/ucc/tools/perf/generator/input_matrices.txt"
+  [Tests.cmd_args]
+  docker_image_url = "nvcr.io/nvidia/pytorch:25.09-py3"
+  collective = "alltoallv"
+  gen = "file:name=/opt/hpcx/ucc/tools/perf/generator/input_matrices.txt"
