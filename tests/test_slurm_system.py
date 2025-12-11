@@ -437,8 +437,10 @@ class TestSlurmCommandGenStrategyCache:
             ConcreteSlurmStrategy(slurm_system, test_run),
         )
 
+        assert mock_get_nodes.call_count == 2  # one call per strategy initialization
+
         res = strategy1.get_cached_nodes_spec()
-        assert mock_get_nodes.call_count == 1
+        assert mock_get_nodes.call_count == 2
         assert res == (2, ["node01", "node02"])
 
         res = strategy2.get_cached_nodes_spec()
