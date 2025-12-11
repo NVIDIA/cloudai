@@ -40,7 +40,7 @@ def testrun_fixture(tmp_path: Path) -> TestRun:
         extra_env_vars={"TEST_VAR": "VALUE"},
     )
 
-    return TestRun(name="test_job", test=tdef, output_path=tmp_path, num_nodes=2, nodes=["node1", "node2"])
+    return TestRun(name="test_job", test=tdef, output_path=tmp_path, num_nodes=2, nodes=[])
 
 
 @pytest.fixture
@@ -49,30 +49,33 @@ def strategy_fixture(slurm_system: SlurmSystem, testrun_fixture: TestRun) -> Slu
     return strategy
 
 
-def test_filename_generation(strategy_fixture: SlurmCommandGenStrategy):
-    srun_command = strategy_fixture._gen_srun_command()
+def test_filename_generation(slurm_system: SlurmSystem, testrun_fixture: TestRun):
+    testrun_fixture.nodes = ["node1", "node2"]
+    strategy = MySlurmCommandGenStrategy(slurm_system, testrun_fixture)
+    srun_command = strategy._gen_srun_command()
 
-    sbatch_command = strategy_fixture._write_sbatch_script(srun_command)
+    sbatch_command = strategy._write_sbatch_script(srun_command)
     filepath_from_command = sbatch_command.split()[-1]
 
-    assert strategy_fixture.test_run.output_path.joinpath("cloudai_sbatch_script.sh").exists()
+    assert strategy.test_run.output_path.joinpath("cloudai_sbatch_script.sh").exists()
 
     with open(filepath_from_command, "r") as file:
         file_contents = file.read()
 
     assert "node1,node2" in file_contents
     assert "srun" in file_contents
-    assert f"--mpi={strategy_fixture.system.mpi}" in file_contents
+    assert f"--mpi={strategy.system.mpi}" in file_contents
 
 
-def test_num_nodes_and_nodes(strategy_fixture: SlurmCommandGenStrategy):
-    tr = make_test_run(name="test_job", output_dir=strategy_fixture.system.output_path)
+def test_num_nodes_and_nodes(slurm_system: SlurmSystem):
+    tr = make_test_run(name="test_job", output_dir=slurm_system.output_path)
     tr.nodes = ["node1", "node2"]
     tr.num_nodes = 3
     tr.output_path.mkdir(parents=True, exist_ok=True)
+    strategy = MySlurmCommandGenStrategy(slurm_system, tr)
 
     lines: list[str] = []
-    strategy_fixture._append_sbatch_directives(lines)
+    strategy._append_sbatch_directives(lines)
 
     assert f"#SBATCH -N {tr.num_nodes}" not in lines
     assert f"#SBATCH --nodelist={','.join(tr.nodes)}" in lines
@@ -88,14 +91,16 @@ def test_only_num_nodes(strategy_fixture: SlurmCommandGenStrategy):
     assert f"#SBATCH --nodelist={','.join(strategy_fixture.test_run.nodes)}" not in lines
 
 
-def test_only_nodes(strategy_fixture: SlurmCommandGenStrategy):
-    tr = make_test_run(name="test_job", output_dir=strategy_fixture.system.output_path)
+def test_only_nodes(slurm_system: SlurmSystem):
+    tr = make_test_run(name="test_job", output_dir=slurm_system.output_path)
     tr.num_nodes = 0
     tr.nodes = ["node1", "node2"]
     tr.output_path.mkdir(parents=True, exist_ok=True)
 
+    strategy = MySlurmCommandGenStrategy(slurm_system, tr)
+
     lines: list[str] = []
-    strategy_fixture._append_sbatch_directives(lines)
+    strategy._append_sbatch_directives(lines)
 
     assert f"#SBATCH --nodelist={','.join(tr.nodes)}" in lines
     assert f"#SBATCH -N {tr.num_nodes}" not in lines
@@ -329,16 +334,18 @@ def test_gen_srun_prefix_tr_extra_srun_args(strategy_fixture: SlurmCommandGenStr
     assert "--arg val --flag" in srun_prefix  # added as a single element
 
 
-def test_append_distribution_and_hostfile_with_nodes(strategy_fixture: SlurmCommandGenStrategy) -> None:
-    strategy_fixture.system.distribution = "block"
-    strategy_fixture.system.ntasks_per_node = 2
+def test_append_distribution_and_hostfile_with_nodes(slurm_system: SlurmSystem, testrun_fixture: TestRun) -> None:
+    slurm_system.distribution = "block"
+    slurm_system.ntasks_per_node = 2
+    testrun_fixture.nodes = ["node1", "node2"]
+    strategy = MySlurmCommandGenStrategy(slurm_system, testrun_fixture)
     content: List[str] = []
-    strategy_fixture._append_nodes_related_directives(content)
+    strategy._append_nodes_related_directives(content)
 
     assert "#SBATCH --distribution=arbitrary" in content
     assert "#SBATCH --nodelist=node1,node2" in content
 
-    hostfile_path = strategy_fixture.test_run.output_path / "hostfile.txt"
+    hostfile_path = strategy.test_run.output_path / "hostfile.txt"
     assert hostfile_path.exists()
     lines: List[str] = hostfile_path.read_text().splitlines()
     assert lines == ["node1", "node1", "node2", "node2"]
@@ -352,3 +359,17 @@ def test_distribution_fallback_when_no_nodes(strategy_fixture: SlurmCommandGenSt
 
     assert "#SBATCH --distribution=cyclic" in content
     assert "#SBATCH --nodelist=" not in content
+
+
+def test_nodelist_over_num_nodes(slurm_system: SlurmSystem, testrun_fixture: TestRun) -> None:
+    testrun_fixture.nodes = ["nodeA", "nodeB", "nodeC"]
+    testrun_fixture.num_nodes = 5
+    strategy = MySlurmCommandGenStrategy(slurm_system, testrun_fixture)
+    content: list[str] = []
+
+    strategy._append_sbatch_directives(content)
+    assert "#SBATCH --nodelist=nodeA,nodeB,nodeC" in content
+    assert "#SBATCH -N" not in content
+
+    cmd = strategy.gen_srun_prefix(with_num_nodes=True)
+    assert " -N" not in " ".join(cmd)
