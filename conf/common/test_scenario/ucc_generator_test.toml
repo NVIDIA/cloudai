@@ -12,7 +12,7 @@
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
-# limitations under the License.
+# limitations under the License.ruff format
 
 
 name = "ucc_generator_perftest"
@@ -25,9 +25,9 @@ time_limit = "00:02:00"
 name = "ucc_generator_perftest"
 description = "UCC alltoallv"
 test_template_name = "UCCTest"
-extra_container_mounts = ["$PWD/conf/common/test_scenario/ucc_generator_file.txt:/opt/hpcx/ucc/tools/perf/generator/intput_matrices.txt"]
+extra_container_mounts = ["$PWD/conf/common/test_scenario/ucc_generator_file.txt:/opt/hpcx/ucc/tools/perf/generator/input_matrices.txt"]
 
     [Tests.cmd_args]
     docker_image_url = "nvcr.io/nvidia/pytorch:25.09-py3"
     collective = "alltoallv"
-    gen = "file:name=/opt/hpcx/ucc/tools/perf/generator/intput_matrices.txt"
+    gen = "file:name=/opt/hpcx/ucc/tools/perf/generator/input_matrices.txt"

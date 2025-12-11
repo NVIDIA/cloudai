@@ -1,6 +1,6 @@
 [format]
 version = 1.0
-description = UCC Collective Pattern File for benchmmark0 (Token choice)
+description = UCC Collective Pattern File
 
 [collective]
 type = ALLTOALLV
