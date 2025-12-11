@@ -70,4 +70,4 @@ time_limit = "00:20:00"
 num_nodes = 2
   [Tests.cmd_args]
   collective = "alltoallv"
-  gen = "file:name=/opt/hpcx/ucc/tools/perf/generator/examples/intput_matrices.txt"
+  gen = "file:name=/opt/hpcx/ucc/tools/perf/generator/intput_matrices.txt"
