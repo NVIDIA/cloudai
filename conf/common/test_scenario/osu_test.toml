@@ -15,6 +15,7 @@
 # limitations under the License.
 
 name = "osu_test_scenario"
+job_status_check = true
 
 [[Tests]]
 id = "Tests.1"

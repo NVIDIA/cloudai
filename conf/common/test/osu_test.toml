@@ -21,6 +21,6 @@ description = "OSU Benchmark example"
 [cmd_args]
 "docker_image_url" = "artifactory.nvidia.com/sw-nbu-swx-hpcx-docker-local/dlfw/pytorch:25.06-hpcx-v2.26-gcc-ubuntu24.04-cuda12-x86_64-latest-nightly"
 "benchmarks_dir" = "/opt/hpcx/ompi/tests/osu-micro-benchmarks"
-"benchmark" = ["osu_allreduce", "osu_allgather"]
+"benchmark" = "osu_allreduce"
 "iterations" = 10
 "message_size" = "1024"
