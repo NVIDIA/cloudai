@@ -51,8 +51,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         self.test_run = test_run
 
         self._node_spec_cache: dict[str, tuple[int, list[str]]] = {}
+
+    @property
+    def nodelist_in_use(self) -> bool:
         _, nodes = self.get_cached_nodes_spec()
-        self._nodelist_in_use: bool = len(nodes) > 0
+        return len(nodes) > 0
 
     @abstractmethod
     def _container_mounts(self) -> list[str]:
@@ -242,7 +245,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     def gen_srun_prefix(self, use_pretest_extras: bool = False, with_num_nodes: bool = True) -> List[str]:
         num_nodes, _ = self.get_cached_nodes_spec()
         srun_command_parts = ["srun", "--export=ALL", f"--mpi={self.system.mpi}"]
-        if with_num_nodes and not self._nodelist_in_use:
+        if with_num_nodes and not self.nodelist_in_use:
             srun_command_parts.append(f"-N{num_nodes}")
         if use_pretest_extras and self.test_run.pre_test:
             for pre_tr in self.test_run.pre_test.test_runs:
