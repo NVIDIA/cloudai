@@ -39,10 +39,11 @@ class OSUBenchCmdArgs(CmdArgs):
     message_size: Optional[Union[str, List[str]]] = Field(default=None)
     """Message size for the benchmark.
 
-    Examples:
-    128    // min = default, max = 128
-    2:128  // min = 2, max = 128
-    2:     // min 2, max = default
+    Examples::
+
+        128    // min = default, max = 128
+        2:128  // min = 2, max = 128
+        2:     // min 2, max = default
     """
 
     iterations: Optional[int] = Field(default=None)
