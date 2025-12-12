@@ -71,8 +71,6 @@ class OSUBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
             argument = flag if isinstance(value, bool) and value else f"{flag} {value}"
 
-            # Some benchmarks don't support the full flag; suppress it
-            # to avoid errors.
             if name == "full" and args.benchmark in FULL_FLAG_UNSUPPORTED:
                 continue
 

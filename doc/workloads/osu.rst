@@ -34,6 +34,28 @@ Test Scenario example:
     num_nodes = "2"
     time_limit = "00:20:00"
 
+Test-in-Scenario example:
+
+.. code-block:: toml
+
+    name = "osu-test"
+
+    [[Tests]]
+    id = "Tests.osu_allreduce"
+    num_nodes = 2
+    time_limit = "00:05:00"
+
+    name = "osu_example"
+    description = "OSU allreduce 1KB"
+    test_template_name = "OSUBench"
+
+        [Tests.cmd_args]
+        docker_image_url = "docker-image-with-osu-benchmark:latest"
+        benchmarks_dir = "/directory/with/osu/binaries/in/container"
+        benchmark = "osu_allreduce"
+        iterations = 10
+        message_size = "1024"
+
 API Documentation
 -----------------
 
