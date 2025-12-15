@@ -26,7 +26,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 if TYPE_CHECKING:
     import kubernetes as k8s
 
-
 from cloudai.core import BaseJob, System
 from cloudai.util.lazy_imports import lazy
 
@@ -325,54 +324,63 @@ class KubernetesSystem(System):
             logging.warning("Invalid JSON response from model server")
             return False
 
+    def _get_frontend_pod_name(self) -> str:
+        for pod in self.core_v1.list_namespaced_pod(namespace=self.default_namespace).items:
+            labels = pod.metadata.labels
+            logging.debug(f"Found pod: {pod.metadata.name} with labels: {labels}")
+            if labels and str(labels.get("nvidia.com/dynamo-component", "")).lower() == "frontend":
+                return pod.metadata.name
+        raise RuntimeError("No frontend pod found for the job")
+
     def _run_genai_perf(self, job: KubernetesJob) -> None:
         from cloudai.workloads.ai_dynamo.ai_dynamo import AIDynamoTestDefinition
 
-        test_definition = job.test_run.test
-        if not isinstance(test_definition, AIDynamoTestDefinition):
+        tdef = job.test_run.test
+        if not isinstance(tdef, AIDynamoTestDefinition):
             raise TypeError("Test definition must be an instance of AIDynamoTestDefinition")
 
-        python_exec = test_definition.python_executable
-        if not python_exec or not python_exec.venv_path:
-            raise ValueError("Python executable path not set - executable may not be installed")
+        genai_perf_results_path = "/tmp/cloudai/genai-perf"
 
-        genai_perf_args_obj = test_definition.cmd_args.genai_perf
-        if not genai_perf_args_obj:
-            raise ValueError("GenAI perf args not set")
+        genai_perf_cmd = ["genai-perf", "profile", f"--artifact-dir={genai_perf_results_path}"]
+        for k, v in tdef.cmd_args.genai_perf.model_dump(
+            exclude={"extra_args", "extra-args"}, exclude_none=True
+        ).items():
+            genai_perf_cmd.append(f"--{k}={v}")
+        if extra_args := tdef.cmd_args.genai_perf.extra_args:
+            genai_perf_cmd.extend(extra_args.split())
+        logging.debug(f"GenAI perf arguments: {genai_perf_cmd=}")
 
-        output_path = job.test_run.output_path
-        if not output_path:
-            raise ValueError("Output path not set")
+        frontend_pod = self._get_frontend_pod_name()
 
-        genai_perf_args = genai_perf_args_obj.model_dump()
-        args = [f"--artifact-dir={output_path.absolute()}"]
-        extra_args = None
-
-        for k, v in genai_perf_args.items():
-            if k == "extra-args":
-                extra_args = str(v)
-            else:
-                args.append(f"--{k}={v}")
-
-        if extra_args:
-            args.append(extra_args)
-        args_str = " ".join(args)
-
-        venv_path = python_exec.venv_path.absolute()
-        cmd = f"{venv_path}/bin/genai-perf profile {args_str}"
-        logging.debug(f"Running GenAI performance test: {cmd}")
-        result: subprocess.CompletedProcess | None = None
+        logging.debug(f"Executing genai-perf in pod={frontend_pod} cmd={genai_perf_cmd}")
         try:
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=True)
-            logging.debug("GenAI performance test completed successfully")
-        except subprocess.CalledProcessError as e:
-            logging.error(f"GenAI performance test failed: {e.stderr}")
+            genai_results = lazy.k8s.stream.stream(
+                self.core_v1.connect_get_namespaced_pod_exec,
+                name=frontend_pod,
+                namespace=self.default_namespace,
+                command=genai_perf_cmd,
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False,
+                _request_timeout=60 * 10,
+            )
+            with (job.test_run.output_path / "genai_perf.log").open("w") as f:
+                f.write(genai_results)
+        except lazy.k8s.client.ApiException as e:
+            logging.error(f"Error executing genai-perf command in pod '{frontend_pod}': {e}")
 
-        if result:
-            with (job.test_run.output_path / "stdout.txt").open("w") as f:
-                f.write(result.stdout)
-            with (job.test_run.output_path / "stderr.txt").open("w") as f:
-                f.write(result.stderr)
+        cp_logs_cmd = " ".join(
+            [
+                "kubectl",
+                "cp",
+                f"{self.default_namespace}/{frontend_pod}:{genai_perf_results_path}",
+                str(job.test_run.output_path / "genai-perf"),
+            ]
+        )
+        logging.debug(f"Copying genai-perf results with command: {cp_logs_cmd}")
+        p = subprocess.run(cp_logs_cmd, shell=True, capture_output=True, text=True)
+        logging.debug(f"Returned code {p.returncode}, stdout: {p.stdout}, stderr: {p.stderr}")
 
     def _check_deployment_conditions(self, conditions: list) -> bool:
         logging.debug(f"Checking deployment conditions: {conditions}")

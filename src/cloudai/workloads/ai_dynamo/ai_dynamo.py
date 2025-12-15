@@ -20,7 +20,7 @@ from typing import Optional
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
-from cloudai.core import DockerImage, File, GitRepo, HFModel, Installable, JobStatusResult, PythonExecutable, TestRun
+from cloudai.core import DockerImage, File, GitRepo, HFModel, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 from .report_generation_strategy import CSV_FILES_PATTERN, JSON_FILES_PATTERN
@@ -106,6 +106,12 @@ class GenAIPerfArgs(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
+    extra_args: str | None = Field(
+        default=None,
+        serialization_alias="extra-args",
+        validation_alias=AliasChoices("extra-args", "extra_args"),
+    )
+
 
 class AIDynamoCmdArgs(CmdArgs):
     """Arguments for AI Dynamo."""
@@ -126,11 +132,6 @@ class AIDynamoTestDefinition(TestDefinition):
     dynamo_repo: GitRepo = GitRepo(
         url="https://github.com/ai-dynamo/dynamo.git", commit="f7e468c7e8ff0d1426db987564e60572167e8464"
     )
-    genai_perf_repo: GitRepo = GitRepo(
-        url="https://github.com/triton-inference-server/perf_analyzer.git",
-        commit="3c0bc9efa1844a82dfcc911f094f5026e6dd9214",
-    )
-    _python_executable: Optional[PythonExecutable] = None
     _hf_model: HFModel | None = None
 
     @property
@@ -147,15 +148,7 @@ class AIDynamoTestDefinition(TestDefinition):
 
     @property
     def installables(self) -> list[Installable]:
-        return [self.docker_image, self.script, self.dynamo_repo, self.python_executable, self.hf_model]
-
-    @property
-    def python_executable(self) -> PythonExecutable:
-        if not self._python_executable:
-            self._python_executable = PythonExecutable(
-                GitRepo(url=self.genai_perf_repo.url, commit=self.genai_perf_repo.commit),
-            )
-        return self._python_executable
+        return [self.docker_image, self.script, self.dynamo_repo, self.hf_model]
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         output_path = tr.output_path

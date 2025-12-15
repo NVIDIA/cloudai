@@ -14,9 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
-import subprocess
-from pathlib import Path
 from typing import Any, Dict, cast
 
 import yaml
@@ -31,31 +28,6 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
     """JSON generation strategy for AI Dynamo on Kubernetes systems."""
 
     DEPLOYMENT_FILE_NAME = "deployment.yaml"
-
-    def _install_python_packages(self, repo_root: Path, venv_pip: Path) -> None:
-        installs = [
-            ("perf_analyzer", repo_root),
-            ("genai-perf", repo_root / "genai-perf"),
-        ]
-
-        for package, path in installs:
-            install_cmd = f"cd {path} && {venv_pip} install ."
-            logging.info(f"Installing {package} with command: {install_cmd}")
-            subprocess.run(install_cmd, shell=True, capture_output=True, text=True, check=True)
-
-    def _setup_genai(self, td: AIDynamoTestDefinition) -> None:
-        python_exec = td.python_executable
-        if not python_exec.venv_path:
-            raise ValueError(
-                f"The virtual environment for git repo {python_exec.git_repo} does not exist. "
-                "Please ensure to run installation before running the test."
-            )
-
-        venv_pip = python_exec.venv_path.absolute() / "bin" / "pip"
-        assert python_exec.git_repo.installed_path
-        repo_root = python_exec.git_repo.installed_path.absolute()
-
-        self._install_python_packages(repo_root, venv_pip)
 
     def gen_frontend_dict(self) -> dict[str, Any]:
         system = cast(KubernetesSystem, self.system)
@@ -113,21 +85,19 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
         td = cast(AIDynamoTestDefinition, self.test_run.test)
         k8s_system = cast(KubernetesSystem, self.system)
 
-        self._setup_genai(td)
-
         deployment = {
             "apiVersion": "nvidia.com/v1alpha1",
             "kind": "DynamoGraphDeployment",
             "metadata": {"name": k8s_system.default_namespace},
             "spec": {
                 "services": {
-                    "Frontend": self.gen_frontend_dict(),
-                    "VllmDecodeWorker": self.gen_decode_dict(),
+                    "frontend": self.gen_frontend_dict(),
+                    "decode": self.gen_decode_dict(),
                 },
             },
         }
         if td.cmd_args.dynamo.prefill_worker:
-            deployment["spec"]["services"]["VllmPrefillWorker"] = self.gen_prefill_dict()
+            deployment["spec"]["services"]["prefill"] = self.gen_prefill_dict()
 
         with (self.test_run.output_path / self.DEPLOYMENT_FILE_NAME).open("w") as f:
             yaml.safe_dump(deployment, f)

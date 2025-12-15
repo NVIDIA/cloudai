@@ -187,7 +187,6 @@ def test_gen_json(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     k8s_system = cast(KubernetesSystem, json_gen.system)
     tdef = cast(AIDynamoTestDefinition, json_gen.test_run.test)
     json_gen.test_run.output_path.mkdir(parents=True, exist_ok=True)
-    json_gen._setup_genai = lambda td: None
 
     deployment = json_gen.gen_json()
 
@@ -196,11 +195,11 @@ def test_gen_json(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     assert deployment.get("metadata", {}).get("name") == k8s_system.default_namespace
 
     if tdef.cmd_args.dynamo.prefill_worker:
-        assert "VllmPrefillWorker" in deployment.get("spec", {}).get("services", {})
+        assert "prefill" in deployment.get("spec", {}).get("services", {})
     else:
         assert "spec" in deployment
         assert "services" in deployment["spec"]
-        assert "VllmPrefillWorker" not in deployment["spec"]["services"]
+        assert "prefill" not in deployment["spec"]["services"]
 
     with open(json_gen.test_run.output_path / json_gen.DEPLOYMENT_FILE_NAME, "r") as f:
         content = yaml.safe_load(f)
