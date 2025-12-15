@@ -353,19 +353,22 @@ class KubernetesSystem(System):
         frontend_pod = self._get_frontend_pod_name()
 
         logging.debug(f"Executing genai-perf in pod={frontend_pod} cmd={genai_perf_cmd}")
-        genai_results = lazy.k8s.stream.stream(
-            self.core_v1.connect_get_namespaced_pod_exec,
-            name=frontend_pod,
-            namespace=self.default_namespace,
-            command=genai_perf_cmd,
-            stderr=True,
-            stdin=False,
-            stdout=True,
-            tty=False,
-            _request_timeout=60 * 10,
-        )
-        with (job.test_run.output_path / "genai_perf_stdout.txt").open("w") as f:
-            f.write(genai_results)
+        try:
+            genai_results = lazy.k8s.stream.stream(
+                self.core_v1.connect_get_namespaced_pod_exec,
+                name=frontend_pod,
+                namespace=self.default_namespace,
+                command=genai_perf_cmd,
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False,
+                _request_timeout=60 * 10,
+            )
+            with (job.test_run.output_path / "genai_perf.log").open("w") as f:
+                f.write(genai_results)
+        except lazy.k8s.client.ApiException as e:
+            logging.error(f"Error executing genai-perf command in pod '{frontend_pod}': {e}")
 
         cp_logs_cmd = " ".join(
             [
