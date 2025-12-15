@@ -1,0 +1,52 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name = "vLLM-Qwen3-0.6B"
+description = "vLLM backend with Qwen3-0.6B model"
+test_template_name = "AIDynamo"
+
+[cmd_args]
+docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.6.1.post1"
+
+  [cmd_args.dynamo]
+  backend = "vllm"
+  model = "Qwen/Qwen3-0.6B"
+  workspace-path = "/workspace/examples/backends/vllm"
+  prefill-cmd = 'python3 -m dynamo.vllm --is-prefill-worker'
+  decode-cmd = 'python3 -m dynamo.vllm'
+
+    [cmd_args.dynamo.decode_worker]
+    pipeline-parallel-size = 1
+
+  [cmd_args.genai_perf]
+  model = "Qwen/Qwen3-0.6B"
+  endpoint = "v1/chat/completions"
+  endpoint-type = "chat"
+  extra-inputs = 'min_tokens:10'
+  output-tokens-mean = 500
+  output-tokens-stddev = 0
+  random-seed = 123
+  request-count = 50
+  synthetic-input-tokens-mean = 300
+  synthetic-input-tokens-stddev = 0
+  warmup-request-count = 5
+  concurrency = 2
+  extra-args = "--streaming -- -v --async"
+
+[extra_env_vars]
+UCX_LOG_LEVEL = "warn"
+UCX_TLS = "cuda_copy,rc_x"
+DYNAMO_NODELIST = "$(scontrol show hostname $SLURM_JOB_NODELIST | tr -s '\\n' ',')"

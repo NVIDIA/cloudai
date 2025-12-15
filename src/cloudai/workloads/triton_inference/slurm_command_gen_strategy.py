@@ -31,7 +31,7 @@ class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         self._current_container_image: str | None = None
 
     def _container_mounts(self) -> list[str]:
-        td = cast(TritonInferenceTestDefinition, self.test_run.test.test_definition)
+        td = cast(TritonInferenceTestDefinition, self.test_run.test)
         mounts = [
             f"{td.nim_model_path}:{td.nim_model_path}:ro",
             f"{td.nim_cache_path}:{td.nim_cache_path}:rw",
@@ -79,7 +79,7 @@ class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         num_server_nodes, num_client_nodes = self._get_server_client_split()
         server_line = self._build_server_srun(num_server_nodes)
         client_line = self._build_client_srun(num_client_nodes)
-        sleep_sec = cast(TritonInferenceTestDefinition, self.test_run.test.test_definition).cmd_args.sleep_seconds
+        sleep_sec = cast(TritonInferenceTestDefinition, self.test_run.test).cmd_args.sleep_seconds
         return f"{server_line} &\n\nsleep {sleep_sec}\n\n{client_line}"
 
     def _get_server_client_split(self) -> Tuple[int, int]:
@@ -92,9 +92,9 @@ class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return self._current_container_image
 
     def _build_server_srun(self, num_server_nodes: int) -> str:
-        test_definition = cast(TritonInferenceTestDefinition, self.test_run.test.test_definition)
+        test_definition = cast(TritonInferenceTestDefinition, self.test_run.test)
         self._current_container_image = str(test_definition.server_docker_image.installed_path)
-        srun_prefix = self.gen_srun_prefix()
+        srun_prefix = self.gen_srun_prefix(with_num_nodes=False)
         self._current_container_image = None
 
         srun_prefix.append(f"--nodes={num_server_nodes}")
@@ -105,9 +105,9 @@ class TritonInferenceSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return " ".join(srun_prefix + nsys_command + server_launch_command)
 
     def _build_client_srun(self, num_client_nodes: int) -> str:
-        test_definition = cast(TritonInferenceTestDefinition, self.test_run.test.test_definition)
+        test_definition = cast(TritonInferenceTestDefinition, self.test_run.test)
         self._current_container_image = str(test_definition.client_docker_image.installed_path)
-        srun_prefix = self.gen_srun_prefix()
+        srun_prefix = self.gen_srun_prefix(with_num_nodes=False)
         self._current_container_image = None
 
         srun_prefix.append(f"--nodes={num_client_nodes}")

@@ -15,18 +15,16 @@
 # limitations under the License.
 
 from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 
-from cloudai import Test, TestRun
+from cloudai import TestRun
 from cloudai.core import METRIC_ERROR
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoTestDefinition,
-    DecodeWorkerArgs,
     GenAIPerfArgs,
     PrefillWorkerArgs,
 )
@@ -59,42 +57,15 @@ def get_csv_content() -> str:
 
 @pytest.fixture
 def ai_dynamo_tr(tmp_path: Path) -> TestRun:
-    test = Test(
-        test_definition=AIDynamoTestDefinition(
-            name="ai_dynamo",
-            description="desc",
-            test_template_name="t",
-            cmd_args=AIDynamoCmdArgs(
-                docker_image_url="http://url",
-                dynamo=AIDynamoArgs(
-                    prefill_worker=PrefillWorkerArgs(
-                        **{
-                            "num-nodes": 1,
-                            "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
-                        }
-                    ),
-                    decode_worker=DecodeWorkerArgs(
-                        **{
-                            "num-nodes": 1,
-                            "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
-                        }
-                    ),
-                ),
-                genai_perf=GenAIPerfArgs(
-                    **{
-                        "streaming": False,
-                        "extra-inputs": "mock_extra_inputs",
-                        "input-file": "mock_input_file",
-                        "output-tokens-mean": 100,
-                        "random-seed": 123,
-                        "request-count": 100,
-                        "synthetic-input-tokens-mean": 100,
-                        "warmup-request-count": 10,
-                    }
-                ),
-            ),
+    test = AIDynamoTestDefinition(
+        name="ai_dynamo",
+        description="desc",
+        test_template_name="t",
+        cmd_args=AIDynamoCmdArgs(
+            docker_image_url="http://url",
+            dynamo=AIDynamoArgs(prefill_worker=PrefillWorkerArgs()),
+            genai_perf=GenAIPerfArgs(),
         ),
-        test_template=Mock(),
     )
     tr = TestRun(name="ai_dynamo", test=test, num_nodes=1, nodes=[], output_path=tmp_path)
 
@@ -174,3 +145,17 @@ def test_ai_dynamo_get_metric_invalid(slurm_system: SlurmSystem, ai_dynamo_tr: T
 
     (ai_dynamo_tr.output_path / "profile_genai_perf.csv").write_text("")
     assert strategy.get_metric("default") == METRIC_ERROR
+
+
+def test_was_run_successful(ai_dynamo_tr: TestRun) -> None:
+    test_def = ai_dynamo_tr.test
+    result = test_def.was_run_successful(ai_dynamo_tr)
+    assert result.is_successful is True
+
+
+def test_was_run_successful_no_results(ai_dynamo_tr: TestRun, tmp_path: Path) -> None:
+    test_def = ai_dynamo_tr.test
+    ai_dynamo_tr.output_path = tmp_path / "empty_output"
+    ai_dynamo_tr.output_path.mkdir(parents=True, exist_ok=True)
+    result = test_def.was_run_successful(ai_dynamo_tr)
+    assert result.is_successful is False

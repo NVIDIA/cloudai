@@ -32,18 +32,18 @@ class SlurmContainerCommandGenStrategy(SlurmCommandGenStrategy):
         return []
 
     def image_path(self) -> str | None:
-        tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, self.test_run.test.test_definition)
+        tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, self.test_run.test)
         return str(tdef.docker_image.installed_path)
 
-    def gen_srun_prefix(self, use_pretest_extras: bool = False) -> list[str]:
-        cmd = super().gen_srun_prefix()
-        tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, self.test_run.test.test_definition)
+    def gen_srun_prefix(self, use_pretest_extras: bool = False, with_num_nodes: bool = True) -> list[str]:
+        cmd = super().gen_srun_prefix(use_pretest_extras, with_num_nodes)
+        tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, self.test_run.test)
         return [*cmd, *tdef.extra_srun_args]
 
     def generate_test_command(self) -> list[str]:
-        tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, self.test_run.test.test_definition)
+        tdef: SlurmContainerTestDefinition = cast(SlurmContainerTestDefinition, self.test_run.test)
         command_parts: list[str] = [*super().gen_nsys_command(), tdef.cmd_args.cmd]
         if self.test_run.test.extra_cmd_args:
-            command_parts.append(self.test_run.test.extra_cmd_args)
+            command_parts.append(self.test_run.test.extra_args_str)
 
         return command_parts

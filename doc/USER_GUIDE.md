@@ -55,13 +55,23 @@ CloudAI is fully configurable via set of TOML configuration files. You can find 
 Test definition is a Pydantic model that describes the arguments of a test. Such models should be inherited from the `TestDefinition` class:
 ```py
 class MyTestCmdArgs(CmdArgs):
-     an_arg: str
+     an_arg: str | list[str]
      docker_image_url: str = "nvcr.io/nvidia/pytorch:24.02-py3"
 
 class MyTestDefinition(TestDefinition):
     cmd_args: MyTestCmdArgs
 ```
 Notice that `cmd_args.docker_image_url` uses `nvcr.io/nvidia/pytorch:24.02-py3`, but you can use Docker image from Step 1.
+
+`an_arg` has mixed type of `str | list[str]`, so in a TOML config it can be defined as either:
+```toml
+an_arg = "a single string"
+```
+or
+```toml 
+an_arg = ["list", "of", "strings"]
+```
+When a list is used, CloudAI will automatically generate multiple test cases for each value in the list.
 
 A custom test definition should be registered to handle relevant Test Configs. For this, `Registry()` object is used:
 ```py
@@ -78,7 +88,7 @@ scheduler = "slurm"
 
 install_path = "./install"
 output_path = "./results"
-cache_docker_images_locally = "True"
+cache_docker_images_locally = true
 default_partition = "<YOUR PARTITION NAME>"
 
 mpi = "pmix"
@@ -90,44 +100,39 @@ name = "partition_1"
 ```
 Replace `<YOUR PARTITION NAME>` with the name of the partition you want to use. You can find the partition name by running `sinfo` on the cluster.
 
-## Step 5: Install Test Requirements
-Once all configs are ready, it is time to install test requirements. It is done once so that you can run multiple experiments without reinstalling the requirements. This step requires the system config file from the step 3.
-```bash
-cloudai install \
-   --system-config myconfig/system.toml \
-   --tests-dir myconfig/tests/
-```
-
-## Step 6: Test Configuration
+## Step 5: Test Configuration
 Test Configuration describes a particular test configuration to be run. It is based on Test definition and will be used in Test Sceanrio. Below is the `myconfig/tests/nccl_test.toml` file, definition is based on built-in `NcclTest` definition:
 ```toml
 name = "nccl_test_all_reduce_single_node"
 description = "all_reduce"
 test_template_name = "NcclTest"
-extra_cmd_args = "--stepfactor 2"
 
 [cmd_args]
-"subtest_name" = "all_reduce_perf_mpi"
-"ngpus" = "1"
-"minbytes" = "8M"
-"maxbytes" = "16G"
-"iters" = "5"
-"warmup_iters" = "3"
+subtest_name = "all_reduce_perf_mpi"
+ngpus = 1
+minbytes = "8M"
+maxbytes = "16G"
+iters = 5
+warmup_iters = 3
+stepfactor = 2
 ```
 You can find more examples under `conf/common/test`. In a test schema file, you can adjust arguments as shown above. In the `cmd_args` section, you can provide different values other than the default values for each argument. In `extra_cmd_args`, you can provide additional arguments that will be appended after the NCCL test command. You can specify additional environment variables in the `extra_env_vars` section.
 
-## Step 7: Run Experiments
+
+## Step 6: Run Experiments
 Test Scenario uses Test description from step 5. Below is the `myconfig/scenario.toml` file:
 ```toml
 name = "nccl-test"
 
 [[Tests]]
-id = "Tests.1"
+id = "allreduce.1"
+num_nodes = 1
 test_name = "nccl_test_all_reduce_single_node"
 time_limit = "00:20:00"
 
 [[Tests]]
-id = "Tests.2"
+id = "allreduce.2"
+num_nodes = 1
 test_name = "nccl_test_all_reduce_single_node"
 time_limit = "00:20:00"
   [[Tests.dependencies]]
@@ -163,7 +168,46 @@ cloudai run \
     --tests-dir myconfig/tests/
 ```
 
-## Step 8: Generate Reports
+### Test-in-Scenario
+One can override some args or even fully define a workload inside a scenario file:
+```toml
+name = "nccl-test"
+
+[[Tests]]
+id = "allreduce.in.scenario"
+num_nodes = 1
+time_limit = "00:20:00"
+
+name = "nccl_test_all_reduce_single_node"
+description = "all_reduce"
+test_template_name = "NcclTest"
+
+  [Tests.cmd_args]
+  subtest_name = "all_reduce_perf_mpi"
+  ngpus = 1
+  minbytes = "8M"
+  maxbytes = "16G"
+  iters = 5
+  warmup_iters = 3
+  stepfactor = 2
+
+[[Tests]]
+id = "allreduce.override"
+num_nodes = 1
+test_name = "nccl_test_all_reduce_single_node"
+time_limit = "00:20:00"
+
+  [Tests.cmd_args]
+  stepfactor = 4
+```
+
+`allreduce.in.scenario` fully defines a workload, in this case `test_name` must not be set, while `name`, `description` and `test_template_name` must be set.
+
+`allreduce.override` overrides only `stepfactor` arg from the test defined in the tests dir.
+
+If a scenario contains only fully defined tests, `--tests-dir` arg is not required.
+
+## Step 7: Generate Reports
 Once the test scenario is completed, you can generate reports using the following command:
 ```bash
 cloudai generate-report \
@@ -178,7 +222,7 @@ cloudai generate-report \
 # Describing a System in the System Schema
 In this section, we introduce the concept of the system schema, explain the meaning of each field, and describe how the fields should be used. The system schema is a TOML file that allows users to define a system's configuration.
 
-```
+```toml
 name = "example-cluster"
 scheduler = "slurm"
 
@@ -207,19 +251,19 @@ name = "partition_1"
 name = "partition_2"
 
 [global_env_vars]
-  # NCCL Specific Configurations
-  NCCL_IB_GID_INDEX = "3"
-  NCCL_IB_TIMEOUT = "20"
-  NCCL_IB_QPS_PER_CONNECTION = "4"
+# NCCL Specific Configurations
+NCCL_IB_GID_INDEX = "3"
+NCCL_IB_TIMEOUT = "20"
+NCCL_IB_QPS_PER_CONNECTION = "4"
 
-  # Device Visibility Configuration
-  MELLANOX_VISIBLE_DEVICES = "0,3,4,5,6,9,10,11"
-  CUDA_VISIBLE_DEVICES = "0,1,2,3,4,5,6,7"
+# Device Visibility Configuration
+MELLANOX_VISIBLE_DEVICES = "0,3,4,5,6,9,10,11"
+CUDA_VISIBLE_DEVICES = "0,1,2,3,4,5,6,7"
 ```
 
 ## Field Descriptions
 - **name**: Specifies the name of the system. Users can choose any name that is convenient for them.
-- **scheduler**: Indicates the type of system. It should be one of the supported types, currently `slurm` or `standalone`. `slurm` refers to a system with the Slurm scheduler, while `standalone` refers to a single-node system without any slave nodes.
+- **scheduler**: Indicates the type of system. It should be one of the supported types, currently `slurm` or `standalone`. `slurm` refers to a system with the Slurm scheduler, while `standalone` refers to a single-node system without any slave nodes. Other values are possible depending on the available schedulers supported by CloudAI.
 - **install_path**: Specifies the path where test prerequisites are installed. Docker images are downloaded to this path if the user chooses to cache Docker images.
 - **output_path**: Defines the default path where outputs are stored. Whenever a user runs a test scenario, a new subdirectory will be created under this path.
 - **default_partition**: Specifies the default partition where jobs are scheduled.
@@ -330,71 +374,6 @@ Replace `<your-api-token-here>` with your actual token.
 
 ## Step 3: Usage
 Both the endpoint and token must be valid for the HTTP Data Repository to function correctly. If either is missing or incorrect, data will not be posted.
-
-
-# Downloading and Installing the NeMo Dataset (The Pile Dataset)
-This section describes how you can download the NeMo datasets on your server. The install mode of CloudAI handles the installation of all test prerequisites, but downloading and installing datasets is not the responsibility of the install mode. This is because any large datasets should be installed globally by the administrator and shared with multiple users, even if a user does not use CloudAI.
-
-For CloudAI users, we provide a detailed guide about downloading and installing the NeMo datasets in this section. By default, the NeMo launcher uses mock datasets for testing purposes. If you want to run tests using real datasets, you must download the datasets and update the test `.toml` files accordingly to locate the datasets and provide appropriate prefixes.
-
- To understand the datasets available in the NeMo framework, you can refer to the Data Preparation section of [the document](https://docs.nvidia.com/launchpad/ai/base-command-nemo/latest/bc-nemo-step-02.html#use-bignlp-to-download-and-prepare-the-pile-dataset). According to the document, you can download and use the Pile dataset. The document also provides detailed instructions on how to download these datasets for various platforms.
-
-  Let’s assume that we have a Slurm cluster.
-
-You can download the datasets with the following command:
-```bash
-$ git clone https://github.com/NVIDIA/NeMo-Framework-Launcher.git
-$ cd NeMo-Framework-Launcher
-$ python3 launcher_scripts/main.py \
-    container=nvcr.io/ea-bignlp/ga-participants/nemofw-training:23.11\
-    stages=["data_preparation"]\
-    launcher_scripts_path=$PWD/launcher_scripts\
-    base_results_dir=$PWD/result\
-    env_vars.TRANSFORMERS_OFFLINE=0\
-    data_dir=directory_path_to_download_dataset\
-    data_preparation.run.time_limit="96:00:00"
-```
-
-Once you submit a NeMo job with the data preparation stage, you should be able to find data downloading jobs with the squeue command. If this command does not work, please review the log files under $PWD/result. If you want to download the full Pile dataset, you should have at least 1TB of space in the directory to download the dataset because the Pile dataset size is 800GB.
-By default, NeMo will look at the configuration file under conf/config.yaml:
-```
-defaults:
-  - data_preparation: baichuan2/download_baichuan2_pile
-
-stages:
-  - data_preparation
-```
-
-As the data preparation field points to baichuan2/download_baichuan2_pile, it will read the YAML file:
-```
-run:
-  name: download_baichuan2_pile
-  results_dir: ${base_results_dir}/${.name}
-  time_limit: "4:00:00"
-  dependency: "singleton"
-  node_array_size: 30
-  array: ${..file_numbers}
-  bcp_preproc_npernode: 2 # 2 should be safe to use and x2 times faster.
-
-dataset: pile
-download_the_pile: True  # Whether to download the pile dataset from the internet.
-the_pile_url: "https://huggingface.co/datasets/monology/pile-uncopyrighted/resolve/main/train/"  # Source URL to download The Pile dataset from.
-file_numbers: "0-29"  # The pile dataset consists of 30 files (0-29), choose which ones to download.
-preprocess_data: True  # True to preprocess the data from a jsonl file, False otherwise.
-download_tokenizer_url: "https://huggingface.co/baichuan-inc/Baichuan2-7B-Base/blob/main/tokenizer.model"
-tokenizer_typzer_library: "sentencepiece"
-tokenizer_save_dir: ${data_dir}/baichuan2
-tokenizer_model:  ${.tokenizer_save_dir}/baichuan2_tokenizer.model
-rm_downloaded: False # Extract script will remove downloaded zst after extraction
-rm_extracted: False # Preprocess script will remove extracted files after preproc.
-```
-
-You can update the fields to adjust the behavior. For example, you can update the file_numbers field to adjust the number of dataset files to download. This will allow you to save disk space.
-
-## Note: For running Nemo Llama model, it is important to follow these additional steps:
-1. Go to [🤗 Hugging Face](https://huggingface.co/docs/transformers/en/model_doc/llama).
-2. Follow the instructions on how to download the tokenizer.
-3. Replace `TOKENIZER_MODEL` in `training.model.tokenizer.model=TOKENIZER_MODEL` with your path (the tokenizer should be a `.model` file) in `conf/common/test/llama.toml`.
 
 
 # Using Test Hooks in CloudAI
@@ -627,7 +606,7 @@ extra_args: list[str] = []
 Fields with `None` value are not passed to `nsys` command.
 
 # Troubleshooting
-In this section, we will guide you through identifying the root cause of issues, determining whether they stem from system infrastructure or a bug in CloudAI. Users should closely follow the USER_GUIDE.md and README.md for installation, tests, and test scenarios.
+In this section, we will guide you through identifying the root cause of issues, determining whether they stem from system infrastructure or a bug in CloudAI.
 
 ## Identifying the Root Cause
 If you encounter issues running a command, start by reading the error message to understand the root cause. We strive to make our error messages and exception messages as readable and interpretable as possible.
@@ -654,30 +633,3 @@ To determine whether an issue is due to system infrastructure or a CloudAI bug, 
    - Execute the command manually to debug further
 
 If the problem persists, please report the issue at [https://github.com/NVIDIA/cloudai/issues/new/choose](https://github.com/NVIDIA/cloudai/issues/new/choose). When you report an issue, ensure it is reproducible. Follow the issue template and provide any necessary details, such as the hash commit used, system settings, any changes in the schema files, and the command.
-
-## Test Specific Troubleshooting Guides
-In addition to the general troubleshooting steps, this section provides specific troubleshooting guides for each test used in CloudAI. These guides help you identify and resolve issues unique to each template.
-
-### NeMo Launcher
-* If your run is not successful, please review the stderr and stdout files generated under the results directory. Within the output directory, locate the run directory, and under the run directory, you will find stderr files like log-nemo-megatron-run_[job_id].err. Please review these files for any meaningful error messages
-* Trying the CloudAI-generated NeMo launcher command can be helpful as well. You can find the executed command in your stdout and in your log file (debug.log) in your current working directory. Review and run the command, and you can modify the arguments to troubleshoot the issue
-
-### JaxToolbox (Grok)
-#### Troubleshooting Steps
-If an error occurs, follow these steps sequentially:
-
-1. **Read the Error Messages**:
-    Begin by reading the error messages printed by CloudAI. We strive to make our error messages clear and informative, so they are a good starting point for troubleshooting
-
-2. **Review `profile_stderr.txt`**: JaxToolbox operates in two stages: the profiling phase and the actual run phase. We follow the PGLE workflow as described in the [PGLE workflow documentation](https://github.com/google/paxml?tab=readme-ov-file#run-pgle-workflow-on-gpu). All stderr and stdout messages from the profiling phase are stored in `profile_stderr.txt`. If the profiling stage fails, you should find relevant error messages in this file. Attempt to understand the cause of the error from these messages.
-
-3. **Check the Actual Run Phase**:
-   If the profiling stage completes successfully, CloudAI moves on to the actual run phase. The actual run generates stdout and stderr messages in separate files for each rank. Review these files to diagnose any issues during this phase.
-
-#### Common Errors
- **DEADLINE_EXCEEDED**:
-   - When running JaxToolbox on multiple nodes, the nodes must be able to communicate to execute a training job collaboratively. The DEADLINE_EXCEEDED error indicates a failure in the connection during the initialization stage. Potential causes include:
-     - Hostname resolution failure by the slave nodes
-     - The port opened by the master node is not accessible by other nodes
-     - Network interface malfunctions
-     - Significant time gap in the initialization phase among nodes. If one node starts early while others are still loading the Docker image, this error can occur. This can happen when a Docker image is not locally cached, and all nodes try to download it from a remote registry without sufficient network bandwidth. The resulting difference in initialization times can lead to a timeout on some nodes

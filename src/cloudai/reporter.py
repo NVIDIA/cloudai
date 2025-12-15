@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
 import logging
 import tarfile
 from dataclasses import dataclass
@@ -23,6 +24,9 @@ from typing import Optional
 import jinja2
 import pandas as pd
 import toml
+from rich import box
+from rich.console import Console
+from rich.table import Table
 
 from .core import CommandGenStrategy, Reporter, TestRun, case_name
 from .models.scenario import TestRunDetails
@@ -137,6 +141,7 @@ class StatusReporter(Reporter):
         self.load_test_runs()
         self.generate_scenario_report()
         self.report_best_dse_config()
+        self.print_summary()
 
     def generate_scenario_report(self) -> None:
         template = jinja2.Environment(loader=jinja2.FileSystemLoader(self.template_file_path)).get_template(
@@ -157,7 +162,7 @@ class StatusReporter(Reporter):
 
     def report_best_dse_config(self):
         for tr in self.test_scenario.test_runs:
-            if not tr.test.test_definition.is_dse_job:
+            if not tr.test.is_dse_job:
                 continue
 
             tr_root = self.results_root / tr.name / f"{tr.current_iteration}"
@@ -177,6 +182,31 @@ class StatusReporter(Reporter):
             with best_config_path.open("w") as f:
                 toml.dump(trd.test_definition.model_dump(), f)
 
+    def print_summary(self) -> None:
+        if not self.trs:
+            logging.debug("No test runs found, skipping summary.")
+            return
+
+        table = Table(title="Scenario results", title_justify="left", show_lines=True, box=box.DOUBLE_EDGE)
+        for col in ["Case", "Status", "Details"]:
+            table.add_column(col, overflow="fold")
+
+        for tr in self.trs:
+            tr_status = tr.test.was_run_successful(tr)
+            sts_text = f"[bold]{'[green]PASSED[/green]' if tr_status.is_successful else '[red]FAILED[/red]'}[/bold]"
+            display_path = str(tr.output_path.absolute())
+            with contextlib.suppress(ValueError):
+                display_path = str(tr.output_path.absolute().relative_to(Path.cwd()))
+            details_text = f"\n{tr_status.error_message}" if tr_status.error_message else ""
+            columns = [tr.name, sts_text, f"{display_path}{details_text}"]
+            table.add_row(*columns)
+
+        console = Console()
+        with console.capture() as capture:
+            console.print(table)  # doesn't print to stdout, captures only
+
+        logging.info(capture.get())
+
 
 class TarballReporter(Reporter):
     """Creates tarballs of results for failed test runs."""
@@ -188,7 +218,7 @@ class TarballReporter(Reporter):
             self.create_tarball(self.results_root)
 
     def is_successful(self, tr: TestRun) -> bool:
-        return tr.test.test_definition.was_run_successful(tr).is_successful
+        return tr.test.was_run_successful(tr).is_successful
 
     def create_tarball(self, directory: Path) -> None:
         tarball_path = Path(str(directory) + ".tgz")

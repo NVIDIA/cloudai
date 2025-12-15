@@ -15,11 +15,10 @@
 # limitations under the License.
 
 from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 
-from cloudai.core import Test, TestRun
+from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition, UCCTestSlurmCommandGenStrategy
 
@@ -79,9 +78,7 @@ class TestUCCTestSlurmCommandGenStrategy:
             extra_cmd_args=extra_cmd_args,
         )
 
-        test_obj = Test(test_definition=test_def, test_template=Mock())
-
-        tr = TestRun(test=test_obj, num_nodes=1, nodes=[], output_path=tmp_path / "output", name="test-job")
+        tr = TestRun(test=test_def, num_nodes=1, nodes=[], output_path=tmp_path / "output", name="test-job")
 
         cmd_gen_strategy = UCCTestSlurmCommandGenStrategy(slurm_system, tr)
         command = cmd_gen_strategy.generate_test_command()

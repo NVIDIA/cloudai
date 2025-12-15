@@ -24,26 +24,26 @@ class ChakraReplaySlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for ChakraReplay on Slurm systems."""
 
     def _container_mounts(self) -> list[str]:
-        tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, self.test_run.test.test_definition)
+        tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, self.test_run.test)
         if tdef.cmd_args.trace_path:
             return [f"{tdef.cmd_args.trace_path}:{tdef.cmd_args.trace_path}"]
         return []
 
     def image_path(self) -> str | None:
-        tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, self.test_run.test.test_definition)
+        tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, self.test_run.test)
         return str(tdef.docker_image.installed_path)
 
     def generate_test_command(self) -> List[str]:
-        tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, self.test_run.test.test_definition)
+        tdef: ChakraReplayTestDefinition = cast(ChakraReplayTestDefinition, self.test_run.test)
 
         additional_cmd_args_dict = tdef.cmd_args.model_extra or {}
 
-        srun_command_parts = [
+        srun_command_parts: list[str] = [
             "comm_replay",
             f"--trace-type {tdef.cmd_args.trace_type}",
             f"--trace-path {tdef.cmd_args.trace_path}",
             f"--num-replays {tdef.cmd_args.num_replays}",
             *[f"--{k.replace('_', '-')} {v}" for k, v in additional_cmd_args_dict.items()],
-            self.test_run.test.extra_cmd_args,
+            self.test_run.test.extra_args_str,
         ]
         return srun_command_parts

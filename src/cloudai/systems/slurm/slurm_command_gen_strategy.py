@@ -52,6 +52,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         self._node_spec_cache: dict[str, tuple[int, list[str]]] = {}
 
+    @property
+    def nodelist_in_use(self) -> bool:
+        _, nodes = self.get_cached_nodes_spec()
+        return len(nodes) > 0
+
     @abstractmethod
     def _container_mounts(self) -> list[str]:
         """Return CommandGenStrategy specific container mounts for the test run."""
@@ -66,7 +71,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     @final
     def container_mounts(self) -> list[str]:
         """Return the container mounts for the test run."""
-        tdef = self.test_run.test.test_definition
+        tdef = self.test_run.test
 
         repo_mounts = []
         for repo in tdef.git_repos:
@@ -118,7 +123,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return self._gen_srun_command()
 
     def job_name_prefix(self) -> str:
-        return self.test_run.test.test_template.__class__.__name__
+        return self.test_run.test.name
 
     def job_name(self) -> str:
         job_name_prefix = self.job_name_prefix()
@@ -137,7 +142,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         Returns:
             CommandGenStrategy: The strategy instance.
         """
-        strategy_cls = Registry().get_command_gen_strategy(type(self.system), type(tr.test.test_definition))
+        strategy_cls = Registry().get_command_gen_strategy(type(self.system), type(tr.test))
         strategy = cast(SlurmCommandGenStrategy, strategy_cls(self.system, tr))
         return strategy
 
@@ -211,7 +216,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         return "\n".join(post_test_commands)
 
     def gen_nsys_command(self) -> list[str]:
-        nsys = self.test_run.test.test_definition.nsys
+        nsys = self.test_run.test.nsys
         if not nsys or not nsys.enable:
             return []
 
@@ -237,8 +242,11 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     def image_path(self) -> Optional[str]:
         return None
 
-    def gen_srun_prefix(self, use_pretest_extras: bool = False) -> List[str]:
+    def gen_srun_prefix(self, use_pretest_extras: bool = False, with_num_nodes: bool = True) -> List[str]:
+        num_nodes, _ = self.get_cached_nodes_spec()
         srun_command_parts = ["srun", "--export=ALL", f"--mpi={self.system.mpi}"]
+        if with_num_nodes and not self.nodelist_in_use:
+            srun_command_parts.append(f"-N{num_nodes}")
         if use_pretest_extras and self.test_run.pre_test:
             for pre_tr in self.test_run.pre_test.test_runs:
                 srun_command_parts.extend(self._get_cmd_gen_strategy(pre_tr).pre_test_srun_extra_args(self.test_run))
@@ -254,6 +262,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
 
         if self.system.extra_srun_args:
             srun_command_parts.append(self.system.extra_srun_args)
+        if self.test_run.extra_srun_args:
+            srun_command_parts.append(self.test_run.extra_srun_args)
 
         return srun_command_parts
 

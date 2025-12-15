@@ -22,13 +22,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, List, Optional, Set, Type, Union
 
+from ..util import flatten_dict
 from .system import System
-from .test_template_strategy import TestTemplateStrategy
 
 if TYPE_CHECKING:
     from ..models.scenario import ReportConfig
+    from ..models.workload import TestDefinition
     from .report_generation_strategy import ReportGenerationStrategy
-    from .test import Test
 
 
 METRIC_ERROR = -1.0
@@ -59,7 +59,7 @@ class TestRun:
     __test__ = False
 
     name: str
-    test: "Test"
+    test: TestDefinition
     num_nodes: Union[int, list[int]]
     nodes: List[str]
     output_path: Path = Path("")
@@ -74,6 +74,7 @@ class TestRun:
     pre_test: Optional[TestScenario] = None
     post_test: Optional[TestScenario] = None
     reports: Set[Type[ReportGenerationStrategy]] = field(default_factory=set)
+    extra_srun_args: str | None = None
 
     def __hash__(self) -> int:
         return hash(self.name + self.test.name + str(self.iterations) + str(self.current_iteration))
@@ -92,11 +93,11 @@ class TestRun:
         if not self.reports:
             return None
 
-        if not self.test.test_definition.agent_metrics:
+        if not self.test.agent_metrics:
             return None
 
         for r in self.reports:
-            if all(metric in r.metrics for metric in self.test.test_definition.agent_metrics):
+            if all(metric in r.metrics for metric in self.test.agent_metrics):
                 return r
 
         return None
@@ -110,7 +111,7 @@ class TestRun:
 
     @property
     def is_dse_job(self) -> bool:
-        return self.test.test_definition.is_dse_job or isinstance(self.num_nodes, list)
+        return self.test.is_dse_job or isinstance(self.num_nodes, list)
 
     @property
     def nnodes(self) -> int:
@@ -121,8 +122,8 @@ class TestRun:
 
     @property
     def param_space(self) -> dict[str, Any]:
-        cmd_args_dict = TestTemplateStrategy._flatten_dict(self.test.test_definition.cmd_args.model_dump())
-        extra_env_vars_dict = self.test.test_definition.extra_env_vars
+        cmd_args_dict = flatten_dict(self.test.cmd_args.model_dump())
+        extra_env_vars_dict = self.test.extra_env_vars
 
         action_space: dict[str, Any] = {
             **{key: value for key, value in cmd_args_dict.items() if isinstance(value, list)},
@@ -153,7 +154,7 @@ class TestRun:
         return all_combinations
 
     def apply_params_set(self, action: dict[str, Any]) -> "TestRun":
-        tdef = self.test.test_definition.model_copy(deep=True)
+        tdef = self.test.model_copy(deep=True)
         for key, value in action.items():
             if key.startswith("extra_env_vars."):
                 tdef.extra_env_vars[key[len("extra_env_vars.") :]] = value
@@ -167,7 +168,7 @@ class TestRun:
         type(tdef)(**tdef.model_dump())  # trigger validation
 
         new_tr = copy.deepcopy(self)
-        new_tr.test.test_definition = tdef
+        new_tr.test = tdef
         if "NUM_NODES" in action:
             new_tr.num_nodes = action["NUM_NODES"]
         return new_tr

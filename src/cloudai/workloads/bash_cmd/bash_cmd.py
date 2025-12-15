@@ -46,11 +46,11 @@ class BashCmdCommandGenStrategy(SlurmCommandGenStrategy):
         """NSYS command is generated as part of the test command and disabled here."""
         return []
 
-    def gen_srun_prefix(self, use_pretest_extras: bool = False) -> list[str]:  # noqa: Vulture
+    def gen_srun_prefix(self, use_pretest_extras: bool = False, with_num_nodes: bool = True) -> list[str]:  # noqa: Vulture
         return []
 
     def generate_test_command(self) -> list[str]:
-        tdef: BashCmdTestDefinition = cast(BashCmdTestDefinition, self.test_run.test.test_definition)
+        tdef: BashCmdTestDefinition = cast(BashCmdTestDefinition, self.test_run.test)
         srun_command_parts: list[str] = [*super().gen_nsys_command(), tdef.cmd_args.cmd]
         return [" ".join(srun_command_parts)]
 

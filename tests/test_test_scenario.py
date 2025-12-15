@@ -28,18 +28,20 @@ from cloudai.core import (
     PredictorConfig,
     Registry,
     ReportGenerationStrategy,
-    Test,
     TestDefinition,
     TestRun,
     TestScenario,
     TestScenarioParser,
-    TestTemplate,
 )
 from cloudai.models.scenario import TestRunModel, TestScenarioModel
 from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.test_scenario_parser import calculate_total_time_limit, get_reporters
 from cloudai.workloads.ai_dynamo import AIDynamoReportGenerationStrategy, AIDynamoTestDefinition
 from cloudai.workloads.chakra_replay import ChakraReplayReportGenerationStrategy, ChakraReplayTestDefinition
+from cloudai.workloads.deepep import (
+    DeepEPReportGenerationStrategy,
+    DeepEPTestDefinition,
+)
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
     GrokTestDefinition,
@@ -76,20 +78,17 @@ def test_scenario_parser(slurm_system: SlurmSystem) -> TestScenarioParser:
 
 
 @pytest.fixture
-def test(slurm_system: SlurmSystem) -> Test:
-    return Test(
-        test_definition=NCCLTestDefinition(
-            name="t1",
-            description="desc1",
-            test_template_name="NcclTest",
-            cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-        ),
-        test_template=TestTemplate(system=slurm_system),
+def tdef() -> NCCLTestDefinition:
+    return NCCLTestDefinition(
+        name="t1",
+        description="desc1",
+        test_template_name="NcclTest",
+        cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
     )
 
 
-def test_single_test_case(test: Test, test_scenario_parser: TestScenarioParser) -> None:
-    test_scenario_parser.test_mapping = {"nccl": test}
+def test_single_test_case(tdef: TestDefinition, test_scenario_parser: TestScenarioParser) -> None:
+    test_scenario_parser.test_mapping = {"nccl": tdef}
     test_scenario = test_scenario_parser._parse_data({"name": "nccl-test", "Tests": [{"id": "1", "test_name": "nccl"}]})
     assert test_scenario.name == "nccl-test"
     assert len(test_scenario.test_runs) == 1
@@ -103,43 +102,36 @@ def test_single_test_case(test: Test, test_scenario_parser: TestScenarioParser) 
     assert tr.weight == 0
     assert tr.ideal_perf == 1.0
     assert tr.sol is None
-    atest = test_scenario.test_runs[0].test
-    assert atest.name == test.name
-    assert atest.description == test.description
-    assert atest.test_template == test.test_template
-    assert atest.cmd_args == test.cmd_args
-    assert atest.extra_env_vars == test.extra_env_vars
-    assert atest.extra_cmd_args == test.extra_cmd_args
+    parsed_tdef = test_scenario.test_runs[0].test
+    assert parsed_tdef.name == tdef.name
+    assert parsed_tdef.description == tdef.description
+    assert parsed_tdef.cmd_args == tdef.cmd_args
+    assert parsed_tdef.extra_env_vars == tdef.extra_env_vars
+    assert parsed_tdef.extra_cmd_args == tdef.extra_cmd_args
 
 
-@pytest.mark.parametrize(
-    "prop,tvalue,cfg_value",
-    [("sol", 1.0, 42.0), ("ideal_perf", 1.0, 42.0)],
-)
+@pytest.mark.parametrize("prop,cfg_value", [("sol", 42.0), ("ideal_perf", 42.0)])
 def test_with_some_props(
-    prop: str, tvalue: float, cfg_value: float, test: Test, test_scenario_parser: TestScenarioParser
+    prop: str, cfg_value: float, tdef: TestDefinition, test_scenario_parser: TestScenarioParser
 ) -> None:
-    setattr(test, prop, tvalue)
-    test_scenario_parser.test_mapping = {"nccl": test}
+    test_scenario_parser.test_mapping = {"nccl": tdef}
     test_scenario = test_scenario_parser._parse_data(
         {"name": "nccl-test", "Tests": [{"id": "1", "test_name": "nccl", prop: cfg_value}]}
     )
-    atest = test_scenario.test_runs[0]
-    val = getattr(atest, prop)
-    assert val != tvalue
-    assert val == cfg_value
+    tr = test_scenario.test_runs[0]
+    assert getattr(tr, prop) == cfg_value
 
 
-def test_with_time_limit(test: Test, test_scenario_parser: TestScenarioParser) -> None:
-    test_scenario_parser.test_mapping = {"nccl": test}
+def test_with_time_limit(tdef: TestDefinition, test_scenario_parser: TestScenarioParser) -> None:
+    test_scenario_parser.test_mapping = {"nccl": tdef}
     test_scenario = test_scenario_parser._parse_data(
         {"name": "nccl-test", "Tests": [{"id": "1", "test_name": "nccl", "time_limit": "10m"}]}
     )
     assert test_scenario.test_runs[0].time_limit == "00:10:00"
 
 
-def test_two_independent_cases(test: Test, test_scenario_parser: TestScenarioParser) -> None:
-    t1, t2 = test, test
+def test_two_independent_cases(tdef: TestDefinition, test_scenario_parser: TestScenarioParser) -> None:
+    t1, t2 = tdef, tdef
 
     test_scenario_parser.test_mapping = {"nccl": t1, "nccl2": t2}
     test_scenario = test_scenario_parser._parse_data(
@@ -171,8 +163,8 @@ def test_cant_depends_on_itself() -> None:
     assert exc_info.match("Test '1' must not depend on itself.")
 
 
-def test_two_dependent_cases(test: Test, test_scenario_parser: TestScenarioParser) -> None:
-    t1, t2 = test, test
+def test_two_dependent_cases(tdef: TestDefinition, test_scenario_parser: TestScenarioParser) -> None:
+    t1, t2 = tdef, tdef
 
     test_scenario_parser.test_mapping = {"nccl": t1, "nccl2": t2}
     test_scenario = test_scenario_parser._parse_data(
@@ -259,18 +251,18 @@ def test_calculate_total_time_limit(time_str, expected):
     assert calculate_total_time_limit([], time_limit=time_str) == expected
 
 
-def test_create_test_run_with_hooks(test: Test, test_scenario_parser: TestScenarioParser):
+def test_create_test_run_with_hooks(tdef: TestDefinition, test_scenario_parser: TestScenarioParser):
     pre_test = TestScenario(
         name="pre",
-        test_runs=[TestRun(name="pre1", test=test, num_nodes=1, nodes=[], time_limit="00:30:00", iterations=1)],
+        test_runs=[TestRun(name="pre1", test=tdef, num_nodes=1, nodes=[], time_limit="00:30:00", iterations=1)],
     )
     post_test = TestScenario(
         name="post",
-        test_runs=[TestRun(name="post1", test=test, num_nodes=1, nodes=[], time_limit="00:20:00", iterations=1)],
+        test_runs=[TestRun(name="post1", test=tdef, num_nodes=1, nodes=[], time_limit="00:20:00", iterations=1)],
     )
 
     test_info = TestRunModel(id="main1", test_name="test1", time_limit="01:00:00", weight=10, iterations=1, num_nodes=1)
-    test_scenario_parser.test_mapping = {"test1": test}
+    test_scenario_parser.test_mapping = {"test1": tdef}
 
     test_run = test_scenario_parser._create_test_run(
         test_info=test_info, normalized_weight=1.0, pre_test=pre_test, post_test=post_test
@@ -358,14 +350,11 @@ class TestInScenario:
 
     def test_spec_has_priority(self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem):
         test_scenario_parser.test_mapping = {
-            "nccl": Test(
-                test_definition=NCCLTestDefinition(
-                    name="nccl",
-                    description="desc",
-                    test_template_name="NcclTest",
-                    cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-                ),
-                test_template=TestTemplate(system=slurm_system),
+            "nccl": NCCLTestDefinition(
+                name="nccl",
+                description="desc",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
             )
         }
         model = TestScenarioModel.model_validate(
@@ -382,19 +371,16 @@ class TestInScenario:
             """
             )
         )
-        _, tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
         assert tdef.cmd_args.nthreads == 42
 
     def test_spec_can_set_unknown_args(self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem):
         test_scenario_parser.test_mapping = {
-            "nccl": Test(
-                test_definition=NCCLTestDefinition(
-                    name="nccl",
-                    description="desc",
-                    test_template_name="NcclTest",
-                    cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
-                ),
-                test_template=TestTemplate(system=slurm_system),
+            "nccl": NCCLTestDefinition(
+                name="nccl",
+                description="desc",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
             )
         }
         model = TestScenarioModel.model_validate(
@@ -409,7 +395,7 @@ class TestInScenario:
             """
             )
         )
-        _, tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
         assert tdef.cmd_args_dict["unknown"] == 42
 
     def test_spec_can_set_unknown_args_no_base(self, test_scenario_parser: TestScenarioParser):
@@ -427,20 +413,17 @@ class TestInScenario:
             """
             )
         )
-        _, tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
         assert tdef.cmd_args_dict["unknown"] == 42
         assert isinstance(tdef.cmd_args, NCCLCmdArgs)
 
     def test_data_is_merge_correctly(self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem):
         test_scenario_parser.test_mapping = {
-            "megatron": Test(
-                test_definition=MegatronRunTestDefinition(
-                    name="megatron",
-                    description="desc",
-                    test_template_name="MegatronRun",
-                    cmd_args=MegatronRunCmdArgs(docker_image_url="docker://megatron", run_script=Path("run.sh")),
-                ),
-                test_template=TestTemplate(system=slurm_system),
+            "megatron": MegatronRunTestDefinition(
+                name="megatron",
+                description="desc",
+                test_template_name="MegatronRun",
+                cmd_args=MegatronRunCmdArgs(docker_image_url="docker://megatron", run_script=Path("run.sh")),
             )
         }
         model = TestScenarioModel.model_validate(
@@ -455,7 +438,7 @@ class TestInScenario:
             """
             )
         )
-        _, tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
         assert isinstance(tdef.cmd_args, MegatronRunCmdArgs)
         assert tdef.cmd_args.run_script == Path("run.sh")
 
@@ -487,12 +470,13 @@ class TestReporters:
         assert len(reporters) == 0
 
     def test_default_reporters_size(self):
-        assert len(Registry().reports_map) == 13
+        assert len(Registry().reports_map) == 14
 
     @pytest.mark.parametrize(
         "tdef,expected_reporters",
         [
             (ChakraReplayTestDefinition, {ChakraReplayReportGenerationStrategy}),
+            (DeepEPTestDefinition, {DeepEPReportGenerationStrategy}),
             (GPTTestDefinition, {JaxToolboxReportGenerationStrategy}),
             (GrokTestDefinition, {JaxToolboxReportGenerationStrategy}),
             (MegatronRunTestDefinition, {CheckpointTimingReportGenerationStrategy}),

@@ -15,9 +15,9 @@ export NIM_NUM_COMPUTE_NODES=2
 export NIM_MODEL_TOKENIZER='deepseek-ai/DeepSeek-R1'
 export NIM_MODEL_NAME=__OUTPUT_DIR__/output
 export NIM_CACHE_PATH=__OUTPUT_DIR__/output
-srun --export=ALL --mpi=pmix --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
+srun --export=ALL --mpi=pmix -N3 --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
 
-srun --export=ALL --mpi=pmix --ntasks=3 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash __OUTPUT_DIR__/install/slurm-metadata.sh
+srun --export=ALL --mpi=pmix -N3 --ntasks=3 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash __OUTPUT_DIR__/install/slurm-metadata.sh
 
 srun --export=ALL --mpi=pmix --container-image=nvcr.io/nim/deepseek-ai/deepseek-r1:1.7.2 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__OUTPUT_DIR__/output:__OUTPUT_DIR__/output:ro,__OUTPUT_DIR__/output:__OUTPUT_DIR__/output:rw,__OUTPUT_DIR__/output/start_server_wrapper.sh:/opt/nim/start_server_wrapper.sh:ro --nodes=2 --ntasks=2 --ntasks-per-node=1 /opt/nim/start_server_wrapper.sh &
 

@@ -44,8 +44,8 @@ class CloudAIGymEnv(BaseGym):
         self.test_run = test_run
         self.original_test_run = copy.deepcopy(test_run)  # Preserve clean state for DSE
         self.runner = runner
-        self.max_steps = test_run.test.test_definition.agent_steps
-        self.reward_function = Registry().get_reward_function(test_run.test.test_definition.agent_reward_function)
+        self.max_steps = test_run.test.agent_steps
+        self.reward_function = Registry().get_reward_function(test_run.test.agent_reward_function)
         super().__init__()
 
     def define_action_space(self) -> Dict[str, Any]:
@@ -100,7 +100,7 @@ class CloudAIGymEnv(BaseGym):
         """
         self.test_run = self.test_run.apply_params_set(action)
 
-        if not self.test_run.test.test_definition.constraint_check(self.test_run):
+        if not self.test_run.test.constraint_check(self.test_run):
             logging.info("Constraint check failed. Skipping step.")
             return [-1.0], -1.0, True, {}
 
@@ -172,7 +172,7 @@ class CloudAIGymEnv(BaseGym):
         Returns:
             list: The observation.
         """
-        all_metrics = self.test_run.test.test_definition.agent_metrics
+        all_metrics = self.test_run.test.agent_metrics
         if not all_metrics:
             raise ValueError("No agent metrics defined for the test run")
 

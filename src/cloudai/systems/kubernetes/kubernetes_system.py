@@ -26,46 +26,24 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 if TYPE_CHECKING:
     import kubernetes as k8s
 
-from pydantic import BaseModel, ConfigDict
-
 from cloudai.core import BaseJob, System
 from cloudai.util.lazy_imports import lazy
 
 from .kubernetes_job import KubernetesJob
 
 
-class KubernetesSystem(BaseModel, System):
-    """
-    Represents a Kubernetes system.
+class KubernetesSystem(System):
+    """Represents a Kubernetes system."""
 
-    Attributes
-        name (str): The name of the Kubernetes system.
-        install_path (Path): Path to the installation directory.
-        output_path (Path): Path to the output directory.
-        kube_config_path (Path): Path to the Kubernetes config file.
-        default_namespace (str): The default Kubernetes namespace for jobs.
-        scheduler (str): The scheduler type, default is "kubernetes".
-        global_env_vars (Dict[str, Any]): Global environment variables to be passed to jobs.
-        monitor_interval (int): Time interval to monitor jobs, in seconds.
-        _core_v1 (client.CoreV1Api): Kubernetes Core V1 API client instance.
-        _batch_v1 (client.BatchV1Api): Kubernetes Batch V1 API client instance.
-        _custom_objects_api (CustomObjectsApi): Kubernetes Custom Objects API client instance.
-    """
-
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
-
-    name: str
-    install_path: Path
-    output_path: Path
     kube_config_path: Path
     default_namespace: str
     scheduler: str = "kubernetes"
-    global_env_vars: Dict[str, Any] = {}
     monitor_interval: int = 1
+    gpus_per_node: int = 1
     _core_v1: Optional[k8s.client.CoreV1Api] = None
     _batch_v1: Optional[k8s.client.BatchV1Api] = None
     _custom_objects_api: Optional[k8s.client.CustomObjectsApi] = None
-    _port_forward_process = None
+    _port_forward_process: subprocess.Popen | None = None
     _genai_perf_completed: bool = False
 
     def __getstate__(self) -> dict[str, Any]:
@@ -252,7 +230,7 @@ class KubernetesSystem(BaseModel, System):
                 )
                 raise
 
-    def are_vllm_pods_ready(self) -> bool:
+    def are_vllm_pods_ready(self, job: KubernetesJob) -> bool:
         cmd = ["kubectl", "get", "pods", "-n", self.default_namespace]
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
@@ -272,7 +250,7 @@ class KubernetesSystem(BaseModel, System):
                 continue
 
             pod_name = columns[0]
-            if "vllm-v1-agg" not in pod_name:
+            if job.name not in pod_name:
                 continue
 
             vllm_pods_found = True
@@ -296,36 +274,42 @@ class KubernetesSystem(BaseModel, System):
                 all_ready = False
 
         if not vllm_pods_found:
-            logging.warning("No vLLM pods found")
+            logging.debug("No vLLM pods found")
             return False
 
         return all_ready
 
-    def _setup_port_forward(self) -> None:
+    def _setup_port_forward(self, job: KubernetesJob) -> None:
         if self._port_forward_process and self._port_forward_process.poll() is None:
             logging.debug("Port forwarding is already running")
             return
 
-        if not self.are_vllm_pods_ready():
+        if not self.are_vllm_pods_ready(job):
             logging.debug("Pods are not ready yet, skipping port forward")
             return
 
-        get_pod_cmd = (
-            f"kubectl get pods -n {self.default_namespace} --no-headers | "
-            "grep vllm-v1-agg-frontend | "
-            "awk 'NR==1{print $1}'"
-        )
-        cmd = f"kubectl port-forward pod/$({get_pod_cmd}) 8000:8000 -n {self.default_namespace}"
+        cmd = f"kubectl port-forward svc/{job.name}-frontend 8000:8000 -n {self.default_namespace}"
         logging.debug("Starting port forwarding")
         self._port_forward_process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        logging.debug("Port forwarding started")
+
+        logging.debug(f"Port forwarding started (pid={self._port_forward_process.pid})")
 
     def _check_model_server(self) -> bool:
-        cmd = "curl -s http://localhost:8000/v1/models"
+        if not self._port_forward_process:
+            logging.debug("Port forward process is not running")
+            return False
+
+        server = "localhost:8000"
+        cmd = f"curl -s http://{server}/v1/models"
+        logging.debug(f"Checking if model server is up at {server}: {cmd}")
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
         if result.returncode != 0:
-            logging.debug("Failed to connect to model server")
+            logging.debug(
+                f"Failed to connect to model server={server}, "
+                f"output={result.stdout.strip()}, "
+                f"error={result.stderr.strip()}"
+            )
             return False
 
         try:
@@ -340,52 +324,66 @@ class KubernetesSystem(BaseModel, System):
             logging.warning("Invalid JSON response from model server")
             return False
 
+    def _get_frontend_pod_name(self) -> str:
+        for pod in self.core_v1.list_namespaced_pod(namespace=self.default_namespace).items:
+            labels = pod.metadata.labels
+            logging.debug(f"Found pod: {pod.metadata.name} with labels: {labels}")
+            if labels and str(labels.get("nvidia.com/dynamo-component", "")).lower() == "frontend":
+                return pod.metadata.name
+        raise RuntimeError("No frontend pod found for the job")
+
     def _run_genai_perf(self, job: KubernetesJob) -> None:
         from cloudai.workloads.ai_dynamo.ai_dynamo import AIDynamoTestDefinition
 
-        test_definition = job.test_run.test.test_definition
-        if not isinstance(test_definition, AIDynamoTestDefinition):
+        tdef = job.test_run.test
+        if not isinstance(tdef, AIDynamoTestDefinition):
             raise TypeError("Test definition must be an instance of AIDynamoTestDefinition")
 
-        python_exec = test_definition.python_executable
-        if not python_exec or not python_exec.venv_path:
-            raise ValueError("Python executable path not set - executable may not be installed")
+        genai_perf_results_path = "/tmp/cloudai/genai-perf"
 
-        genai_perf_args_obj = test_definition.cmd_args.genai_perf
-        if not genai_perf_args_obj:
-            raise ValueError("GenAI perf args not set")
+        genai_perf_cmd = ["genai-perf", "profile", f"--artifact-dir={genai_perf_results_path}"]
+        for k, v in tdef.cmd_args.genai_perf.model_dump(
+            exclude={"extra_args", "extra-args"}, exclude_none=True
+        ).items():
+            genai_perf_cmd.append(f"--{k}={v}")
+        if extra_args := tdef.cmd_args.genai_perf.extra_args:
+            genai_perf_cmd.extend(extra_args.split())
+        logging.debug(f"GenAI perf arguments: {genai_perf_cmd=}")
 
-        output_path = job.test_run.output_path
-        if not output_path:
-            raise ValueError("Output path not set")
+        frontend_pod = self._get_frontend_pod_name()
 
-        genai_perf_args = genai_perf_args_obj.model_dump()
-        args = [f"--artifact-dir={output_path.absolute()}"]
-        extra_args = None
-
-        for k, v in genai_perf_args.items():
-            if k == "extra-args":
-                extra_args = str(v)
-            else:
-                args.append(f"--{k}={v}")
-
-        if extra_args:
-            args.append(extra_args)
-        args_str = " ".join(args)
-
-        venv_path = python_exec.venv_path.absolute()
-        cmd = f". {venv_path}/bin/activate && genai-perf profile {args_str}"
-        logging.debug("Running GenAI performance test with command:")
-        logging.debug(cmd)
+        logging.debug(f"Executing genai-perf in pod={frontend_pod} cmd={genai_perf_cmd}")
         try:
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=True)
-            logging.debug("GenAI performance test completed successfully")
-            logging.debug(f"Output: {result.stdout}")
-        except subprocess.CalledProcessError as e:
-            logging.error(f"GenAI performance test failed: {e.stderr}")
-            raise
+            genai_results = lazy.k8s.stream.stream(
+                self.core_v1.connect_get_namespaced_pod_exec,
+                name=frontend_pod,
+                namespace=self.default_namespace,
+                command=genai_perf_cmd,
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False,
+                _request_timeout=60 * 10,
+            )
+            with (job.test_run.output_path / "genai_perf.log").open("w") as f:
+                f.write(genai_results)
+        except lazy.k8s.client.ApiException as e:
+            logging.error(f"Error executing genai-perf command in pod '{frontend_pod}': {e}")
+
+        cp_logs_cmd = " ".join(
+            [
+                "kubectl",
+                "cp",
+                f"{self.default_namespace}/{frontend_pod}:{genai_perf_results_path}",
+                str(job.test_run.output_path / "genai-perf"),
+            ]
+        )
+        logging.debug(f"Copying genai-perf results with command: {cp_logs_cmd}")
+        p = subprocess.run(cp_logs_cmd, shell=True, capture_output=True, text=True)
+        logging.debug(f"Returned code {p.returncode}, stdout: {p.stdout}, stderr: {p.stderr}")
 
     def _check_deployment_conditions(self, conditions: list) -> bool:
+        logging.debug(f"Checking deployment conditions: {conditions}")
         if not conditions:
             return True
 
@@ -401,8 +399,8 @@ class KubernetesSystem(BaseModel, System):
         if self._genai_perf_completed:
             return False
 
-        if self.are_vllm_pods_ready():
-            self._setup_port_forward()
+        if self.are_vllm_pods_ready(job):
+            self._setup_port_forward(job)
             if self._port_forward_process and self._check_model_server():
                 logging.debug("vLLM server is up and models are loaded")
                 self._run_genai_perf(job)
@@ -438,7 +436,7 @@ class KubernetesSystem(BaseModel, System):
         elif "job" in job_kind.lower():
             self._delete_batch_job(job_name)
         elif "dynamographdeployment" in job_kind.lower():
-            pass
+            self._delete_dynamo_graph_deployment(job_name)
         else:
             error_message = f"Unsupported job kind: '{job_kind}'."
             logging.error(error_message)
@@ -472,19 +470,22 @@ class KubernetesSystem(BaseModel, System):
         api_response = self.batch_v1.delete_namespaced_job(
             name=job_name,
             namespace=self.default_namespace,
-            body=k8s.client.V1DeleteOptions(propagation_policy="Foreground", grace_period_seconds=5),
+            body=lazy.k8s.client.V1DeleteOptions(propagation_policy="Foreground", grace_period_seconds=5),
         )
-        api_response = cast(k8s.client.V1Job, api_response)
+        api_response = cast("k8s.client.V1Job", api_response)
 
         logging.debug(f"Batch job '{job_name}' deleted with status: {api_response.status}")
 
     def _delete_dynamo_graph_deployment(self, job_name: str) -> None:
         logging.debug(f"Deleting DynamoGraphDeployment '{job_name}'")
-        cmd = f"kubectl delete dgd vllm-v1-agg -n {self.default_namespace}"
+        cmd = f"kubectl delete dgd {job_name} -n {self.default_namespace}"
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         if result.returncode != 0:
-            raise subprocess.SubprocessError(f"Failed to delete DynamoGraphDeployment: {result.stderr}")
-        logging.debug("DynamoGraphDeployment deleted successfully")
+            logging.debug(f"Failed to delete DynamoGraphDeployment: {result.stderr}")
+
+        if self._port_forward_process and self._port_forward_process.poll() is None:
+            self._port_forward_process.kill()
+        self._port_forward_process = None
 
     def create_job(self, job_spec: Dict[Any, Any], timeout: int = 60, interval: int = 1) -> str:
         """
@@ -559,15 +560,20 @@ class KubernetesSystem(BaseModel, System):
         return job_name
 
     def _create_dynamo_graph_deployment(self, job_spec: Dict[Any, Any]) -> str:
-        api_response = self.custom_objects_api.create_namespaced_custom_object(
-            group="nvidia.com",
-            version="v1alpha1",
-            namespace=self.default_namespace,
-            plural="dynamographdeployments",
-            body=job_spec,
-        )
+        try:
+            api_response = self.custom_objects_api.create_namespaced_custom_object(
+                group="nvidia.com",
+                version="v1alpha1",
+                namespace=self.default_namespace,
+                plural="dynamographdeployments",
+                body=job_spec,
+            )
+        except lazy.k8s.client.ApiException as e:
+            logging.error(f"An error occurred while creating DynamoGraphDeployment: {e.reason}")
+            self._delete_dynamo_graph_deployment(job_spec["metadata"]["name"])
+            raise
 
-        job_name: str = api_response["metadata"]["name"]
+        job_name = str(api_response["metadata"]["name"])
         logging.debug(f"DynamoGraphDeployment '{job_name}' created with status: {api_response.get('status')}")
         return job_name
 

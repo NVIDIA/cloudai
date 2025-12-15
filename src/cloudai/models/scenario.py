@@ -78,6 +78,7 @@ class TestRunModel(BaseModel):
     ideal_perf: float = 1.0
     time_limit: Optional[str] = None
     dependencies: list[TestRunDependencyModel] = Field(default_factory=list)
+    extra_srun_args: str | None = None
 
     # test definition fields
     name: Optional[str] = None
@@ -248,5 +249,5 @@ class TestRunDetails(BaseModel):
             step=tr.step,
             test_cmd=test_cmd,
             full_cmd=full_cmd,
-            test_definition=tr.test.test_definition,
+            test_definition=tr.test,
         )

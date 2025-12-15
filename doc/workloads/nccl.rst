@@ -11,7 +11,7 @@ Test TOML example:
 .. code-block:: toml
 
    name = "my_nccl_test"
-   description = "Example bash command test"
+   description = "Example NCCL test"
    test_template_name = "NcclTest"
 
    [cmd_args]
@@ -42,7 +42,7 @@ Test-in-Scenario example:
    time_limit = "00:05:00"
 
    name = "my_nccl_test"
-   description = "Example bash command test"
+   description = "Example NCCL test"
    test_template_name = "NcclTest"
 
      [Tests.cmd_args]

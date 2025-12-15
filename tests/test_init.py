@@ -15,7 +15,7 @@
 # limitations under the License.
 
 
-from cloudai.core import GradingStrategy, JsonGenStrategy, Registry
+from cloudai.core import Registry
 from cloudai.reporter import PerTestReporter, StatusReporter, TarballReporter
 from cloudai.systems.kubernetes import KubernetesSystem
 from cloudai.systems.lsf import LSFInstaller, LSFSystem
@@ -32,6 +32,14 @@ from cloudai.workloads.chakra_replay import (
     ChakraReplayGradingStrategy,
     ChakraReplaySlurmCommandGenStrategy,
     ChakraReplayTestDefinition,
+)
+from cloudai.workloads.ddlb import (
+    DDLBTestDefinition,
+    DDLBTestSlurmCommandGenStrategy,
+)
+from cloudai.workloads.deepep import (
+    DeepEPSlurmCommandGenStrategy,
+    DeepEPTestDefinition,
 )
 from cloudai.workloads.jax_toolbox import (
     GPTTestDefinition,
@@ -107,6 +115,7 @@ def test_runners():
 
 CMD_GEN_STRATEGIES = {
     (SlurmSystem, ChakraReplayTestDefinition): ChakraReplaySlurmCommandGenStrategy,
+    (SlurmSystem, DeepEPTestDefinition): DeepEPSlurmCommandGenStrategy,
     (SlurmSystem, GPTTestDefinition): JaxToolboxSlurmCommandGenStrategy,
     (SlurmSystem, GrokTestDefinition): JaxToolboxSlurmCommandGenStrategy,
     (SlurmSystem, NCCLTestDefinition): NcclTestSlurmCommandGenStrategy,
@@ -116,6 +125,7 @@ CMD_GEN_STRATEGIES = {
     (SlurmSystem, SleepTestDefinition): SleepSlurmCommandGenStrategy,
     (SlurmSystem, SlurmContainerTestDefinition): SlurmContainerCommandGenStrategy,
     (SlurmSystem, UCCTestDefinition): UCCTestSlurmCommandGenStrategy,
+    (SlurmSystem, DDLBTestDefinition): DDLBTestSlurmCommandGenStrategy,
     (SlurmSystem, MegatronRunTestDefinition): MegatronRunSlurmCommandGenStrategy,
     (StandaloneSystem, SleepTestDefinition): SleepStandaloneCommandGenStrategy,
     (LSFSystem, SleepTestDefinition): SleepLSFCommandGenStrategy,
@@ -126,19 +136,21 @@ CMD_GEN_STRATEGIES = {
     (SlurmSystem, NixlPerftestTestDefinition): NixlPerftestSlurmCommandGenStrategy,
     (SlurmSystem, NIXLKVBenchTestDefinition): NIXLKVBenchSlurmCommandGenStrategy,
 }
-ALL_STRATEGIES = {
-    (GradingStrategy, SlurmSystem, ChakraReplayTestDefinition): ChakraReplayGradingStrategy,
-    (GradingStrategy, SlurmSystem, GPTTestDefinition): JaxToolboxGradingStrategy,
-    (GradingStrategy, SlurmSystem, GrokTestDefinition): JaxToolboxGradingStrategy,
-    (GradingStrategy, SlurmSystem, NCCLTestDefinition): NcclTestGradingStrategy,
-    (GradingStrategy, SlurmSystem, NeMoLauncherTestDefinition): NeMoLauncherGradingStrategy,
-    (GradingStrategy, SlurmSystem, NemotronTestDefinition): JaxToolboxGradingStrategy,
-    (GradingStrategy, SlurmSystem, SleepTestDefinition): SleepGradingStrategy,
-    (GradingStrategy, SlurmSystem, UCCTestDefinition): UCCTestGradingStrategy,
-    (JsonGenStrategy, KubernetesSystem, NCCLTestDefinition): NcclTestKubernetesJsonGenStrategy,
-    (JsonGenStrategy, KubernetesSystem, SleepTestDefinition): SleepKubernetesJsonGenStrategy,
-    (JsonGenStrategy, RunAISystem, NCCLTestDefinition): NcclTestRunAIJsonGenStrategy,
-    (JsonGenStrategy, KubernetesSystem, AIDynamoTestDefinition): AIDynamoKubernetesJsonGenStrategy,
+JSON_GEN_STRATEGIES = {
+    (KubernetesSystem, NCCLTestDefinition): NcclTestKubernetesJsonGenStrategy,
+    (KubernetesSystem, SleepTestDefinition): SleepKubernetesJsonGenStrategy,
+    (RunAISystem, NCCLTestDefinition): NcclTestRunAIJsonGenStrategy,
+    (KubernetesSystem, AIDynamoTestDefinition): AIDynamoKubernetesJsonGenStrategy,
+}
+GRADING_STRATEGIES = {
+    (SlurmSystem, ChakraReplayTestDefinition): ChakraReplayGradingStrategy,
+    (SlurmSystem, GPTTestDefinition): JaxToolboxGradingStrategy,
+    (SlurmSystem, GrokTestDefinition): JaxToolboxGradingStrategy,
+    (SlurmSystem, NCCLTestDefinition): NcclTestGradingStrategy,
+    (SlurmSystem, NeMoLauncherTestDefinition): NeMoLauncherGradingStrategy,
+    (SlurmSystem, NemotronTestDefinition): JaxToolboxGradingStrategy,
+    (SlurmSystem, SleepTestDefinition): SleepGradingStrategy,
+    (SlurmSystem, UCCTestDefinition): UCCTestGradingStrategy,
 }
 
 
@@ -149,15 +161,15 @@ def strategy2str(key: tuple) -> str:
     return f"({key[0].__name__}, {key[1].__name__}, {key[2].__name__})"
 
 
-def test_strategies():
-    strategies = Registry().strategies_map
+def test_grading_strategies():
+    strategies = Registry().grading_strategies_map
     real = [strategy2str(k) for k in strategies]
-    expected = [strategy2str(k) for k in ALL_STRATEGIES]
+    expected = [strategy2str(k) for k in GRADING_STRATEGIES]
     missing = set(expected) - set(real)
     extra = set(real) - set(expected)
     assert len(missing) == 0, f"Missing: {missing}"
     assert len(extra) == 0, f"Extra: {extra}"
-    for key, value in ALL_STRATEGIES.items():
+    for key, value in GRADING_STRATEGIES.items():
         assert strategies[key] == value, f"Strategy {strategy2str(key)} is not {value}"
 
 
@@ -173,6 +185,18 @@ def test_command_gen_strategies():
         assert command_gen_strategies[key] == value, f"Command gen strategy {strategy2str(key)} is not {value}"
 
 
+def test_json_gen_strategies():
+    json_gen_strategies = Registry().json_gen_strategies_map
+    real = [strategy2str(k) for k in json_gen_strategies]
+    expected = [strategy2str(k) for k in JSON_GEN_STRATEGIES]
+    missing = set(expected) - set(real)
+    extra = set(real) - set(expected)
+    assert len(missing) == 0, f"Missing: {missing}"
+    assert len(extra) == 0, f"Extra: {extra}"
+    for key, value in JSON_GEN_STRATEGIES.items():
+        assert json_gen_strategies[key] == value, f"JSON gen strategy {strategy2str(key)} is not {value}"
+
+
 def test_installers():
     installers = Registry().installers_map
     assert len(installers) == 5
@@ -184,11 +208,13 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 17
+    assert len(test_defs) == 19
     for tdef in [
         ("UCCTest", UCCTestDefinition),
+        ("DDLBTest", DDLBTestDefinition),
         ("NcclTest", NCCLTestDefinition),
         ("ChakraReplay", ChakraReplayTestDefinition),
+        ("DeepEP", DeepEPTestDefinition),
         ("Sleep", SleepTestDefinition),
         ("NeMoLauncher", NeMoLauncherTestDefinition),
         ("NeMoRun", NeMoRunTestDefinition),

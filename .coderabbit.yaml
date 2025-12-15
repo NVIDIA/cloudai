@@ -1,0 +1,10 @@
+reviews:
+  profile: assertive
+  auto_review:
+    enabled: true
+  sequence_diagrams: false
+  high_level_summary: false
+  collapse_walkthrough: true
+  pre_merge_checks:
+    docstrings:
+      mode: "off"

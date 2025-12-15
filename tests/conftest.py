@@ -15,25 +15,19 @@
 # limitations under the License.
 
 import csv
-from dataclasses import fields
 from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 import toml
 import yaml
 
-from cloudai.core import CommandGenStrategy, Test, TestRun, TestTemplate
+from cloudai.core import CommandGenStrategy, TestRun
 from cloudai.models.scenario import TestRunDetails
 from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.kubernetes import KubernetesSystem
 from cloudai.systems.runai import RunAISystem
 from cloudai.systems.slurm import SlurmGroup, SlurmPartition, SlurmSystem
 from cloudai.workloads.nccl_test.nccl import NCCLCmdArgs, NCCLTestDefinition
-
-
-def create_autospec_dataclass(dataclass: type) -> Mock:
-    return Mock(spec=[field.name for field in fields(dataclass)])
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -76,7 +70,7 @@ def slurm_system(tmp_path: Path) -> SlurmSystem:
 
 
 @pytest.fixture
-def kubernetes_system(tmp_path: Path) -> KubernetesSystem:
+def k8s_system(tmp_path: Path) -> KubernetesSystem:
     kube_config = tmp_path / "kubeconfig"
     config = {
         "apiVersion": "v1",
@@ -94,7 +88,8 @@ def kubernetes_system(tmp_path: Path) -> KubernetesSystem:
         output_path=tmp_path / "output",
         scheduler="kubernetes",
         global_env_vars={},
-        monitor_interval=60,
+        monitor_interval=1,
+        gpus_per_node=8,
         default_namespace="test-namespace",
         kube_config_path=kube_config,
     )
@@ -124,10 +119,7 @@ def runai_system(tmp_path: Path) -> RunAISystem:
 def base_tr(slurm_system: SlurmSystem) -> TestRun:
     return TestRun(
         name="tr-name",
-        test=Test(
-            test_definition=TestDefinition(name="n", description="d", test_template_name="tt", cmd_args=CmdArgs()),
-            test_template=TestTemplate(slurm_system),
-        ),
+        test=TestDefinition(name="n", description="d", test_template_name="tt", cmd_args=CmdArgs()),
         num_nodes=1,
         nodes=[],
         output_path=slurm_system.output_path / "tr-name",
@@ -144,7 +136,7 @@ def create_test_directories(slurm_system: SlurmSystem, test_run: TestRun) -> Non
                 csw_writer = csv.writer(_f_csv)
                 csw_writer.writerow(["step", "action", "reward", "observation"])
 
-                for step in range(test_run.test.test_definition.agent_steps):
+                for step in range(test_run.test.agent_steps):
                     step_folder = folder / str(step)
                     step_folder.mkdir(exist_ok=True, parents=True)
                     trd = TestRunDetails.from_test_run(test_run, "", "")
@@ -161,9 +153,7 @@ def benchmark_tr(slurm_system: SlurmSystem) -> TestRun:
         test_template_name="NcclTest",
         cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
     )
-    test_template = TestTemplate(system=slurm_system)
-    test = Test(test_definition=test_definition, test_template=test_template)
-    tr = TestRun(name="benchmark", test=test, num_nodes=1, nodes=["node1"], iterations=3)
+    tr = TestRun(name="benchmark", test=test_definition, num_nodes=1, nodes=["node1"], iterations=3)
     create_test_directories(slurm_system, tr)
     return tr
 
@@ -178,9 +168,7 @@ def dse_tr(slurm_system: SlurmSystem) -> TestRun:
         extra_env_vars={"VAR1": ["value1", "value2"]},
         agent_steps=12,
     )
-    test_template = TestTemplate(system=slurm_system)
-    test = Test(test_definition=test_definition, test_template=test_template)
 
-    tr = TestRun(name="dse", test=test, num_nodes=1, nodes=["node1"], iterations=12)
+    tr = TestRun(name="dse", test=test_definition, num_nodes=1, nodes=["node1"], iterations=12)
     create_test_directories(slurm_system, tr)
     return tr

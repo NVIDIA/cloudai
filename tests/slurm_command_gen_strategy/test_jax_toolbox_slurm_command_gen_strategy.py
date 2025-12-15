@@ -19,8 +19,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from cloudai.core import Test, TestRun, TestTemplate
+from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmSystem
+from cloudai.util import flatten_dict
 from cloudai.workloads.jax_toolbox import (
     GPTCmdArgs,
     GPTTestDefinition,
@@ -55,36 +56,24 @@ class TestJaxToolboxSlurmCommandGenStrategy:
     @pytest.fixture
     def gpt_tr(self, gpt_test: GPTTestDefinition, slurm_system: SlurmSystem) -> TestRun:
         return TestRun(
-            test=Test(test_definition=gpt_test, test_template=TestTemplate(slurm_system)),
-            num_nodes=1,
-            nodes=["node1"],
-            output_path=slurm_system.output_path,
-            name="test-job",
+            test=gpt_test, num_nodes=1, nodes=["node1"], output_path=slurm_system.output_path, name="test-job"
         )
 
     @pytest.fixture
     def grok_tr(self, grok_test: GrokTestDefinition, slurm_system: SlurmSystem) -> TestRun:
         return TestRun(
-            test=Test(test_definition=grok_test, test_template=TestTemplate(slurm_system)),
-            num_nodes=1,
-            nodes=["node1"],
-            output_path=slurm_system.output_path,
-            name="test-job",
+            test=grok_test, num_nodes=1, nodes=["node1"], output_path=slurm_system.output_path, name="test-job"
         )
 
     @pytest.mark.parametrize("test_fixture", ["gpt_test", "grok_test"])
-    def test_gen_exec_command(
-        self,
-        slurm_system: SlurmSystem,
-        tmp_path: Path,
-        request,
-        test_fixture,
-    ) -> None:
+    def test_gen_exec_command(self, slurm_system: SlurmSystem, tmp_path: Path, request, test_fixture) -> None:
         test_def = request.getfixturevalue(test_fixture)
+        print(f"{test_def=}")
         slurm_system.output_path.mkdir(parents=True, exist_ok=True)
 
-        test = Test(test_definition=test_def, test_template=TestTemplate(slurm_system))
-        test_run = TestRun(test=test, num_nodes=1, nodes=["node1"], output_path=tmp_path / "output", name="test-job")
+        test_run = TestRun(
+            test=test_def, num_nodes=1, nodes=["node1"], output_path=tmp_path / "output", name="test-job"
+        )
 
         cmd_gen_strategy = JaxToolboxSlurmCommandGenStrategy(slurm_system, test_run)
         cmd = cmd_gen_strategy.gen_exec_command()
@@ -173,13 +162,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
         cargs = {"output_path": str(tmp_path), **grok_test.cmd_args_dict}
         cmd_gen = JaxToolboxSlurmCommandGenStrategy(
             slurm_system,
-            TestRun(
-                name="test-job",
-                test=Test(test_definition=grok_test, test_template=TestTemplate(slurm_system)),
-                num_nodes=1,
-                nodes=[],
-                output_path=tmp_path,
-            ),
+            TestRun(name="test-job", test=grok_test, num_nodes=1, nodes=[], output_path=tmp_path),
         )
         cmd_gen.test_name = "Grok"
         cmd_gen._script_content = MagicMock(return_value="")
@@ -190,7 +173,7 @@ class TestJaxToolboxSlurmCommandGenStrategy:
         self, slurm_system: SlurmSystem, gpt_tr: TestRun, gpt_test: GPTTestDefinition
     ) -> None:
         cmd_gen_strategy = JaxToolboxSlurmCommandGenStrategy(slurm_system, gpt_tr)
-        cargs = cmd_gen_strategy._flatten_dict({"output_path": "/path/to/output", **gpt_test.cmd_args_dict})
+        cargs = flatten_dict({"output_path": "/path/to/output", **gpt_test.cmd_args_dict})
 
         cmd_gen_strategy.test_name = "GPT"
 

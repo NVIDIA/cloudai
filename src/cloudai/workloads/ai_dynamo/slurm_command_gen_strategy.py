@@ -26,7 +26,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for AI Dynamo on Slurm systems."""
 
     def _container_mounts(self) -> list[str]:
-        td = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
+        td = cast(AIDynamoTestDefinition, self.test_run.test)
 
         dynamo_repo_path = td.dynamo_repo.installed_path
         if dynamo_repo_path is None:
@@ -35,7 +35,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         mounts = [
             f"{dynamo_repo_path}:{dynamo_repo_path}",
-            f"{td.cmd_args.huggingface_home_host_path}:{td.cmd_args.huggingface_home_container_path}",
+            f"{self.system.hf_home_path.absolute()}:{td.cmd_args.huggingface_home_container_path}",
             f"{td.script.installed_path.absolute()!s}:{td.script.installed_path.absolute()!s}",
         ]
 
@@ -55,7 +55,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return mounts
 
     def image_path(self) -> str | None:
-        tdef: AIDynamoTestDefinition = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
+        tdef: AIDynamoTestDefinition = cast(AIDynamoTestDefinition, self.test_run.test)
         if tdef.docker_image and tdef.docker_image.installed_path:
             return str(tdef.docker_image.installed_path)
         return None
@@ -63,10 +63,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _get_toml_args(self, base_model: BaseModel, prefix: str, exclude: List[str] | None = None) -> List[str]:
         args = []
         exclude = exclude or []
-        toml_args = base_model.model_dump(by_alias=True)
-        for k, v in toml_args.items():
-            if k not in exclude and v is not None:
-                args.append(f'{prefix}{k} "{v}"')
+        toml_args = base_model.model_dump(by_alias=True, exclude=set(exclude), exclude_none=True)
+        args = [f'{prefix}{k} "{v}"' for k, v in toml_args.items()]
 
         return args
 
@@ -77,7 +75,16 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ]
         args.extend(
             self._get_toml_args(
-                td.cmd_args.dynamo, "--dynamo-", exclude=["prefill_worker", "decode_worker", "genai_perf"]
+                td.cmd_args.dynamo,
+                "--dynamo-",
+                exclude=[
+                    "prefill_worker",
+                    "decode_worker",
+                    "genai_perf",
+                    "workspace_path",
+                    "decode_cmd",
+                    "prefill_cmd",
+                ],
             )
         )
 
@@ -106,14 +113,15 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 ]
             )
 
-        args.extend(self._get_toml_args(td.cmd_args.dynamo.prefill_worker, "--prefill-"))
+        if td.cmd_args.dynamo.prefill_worker:
+            args.extend(self._get_toml_args(td.cmd_args.dynamo.prefill_worker, "--prefill-"))
         args.extend(self._get_toml_args(td.cmd_args.dynamo.decode_worker, "--decode-"))
         args.extend(self._get_toml_args(td.cmd_args.genai_perf, "--genai-perf-"))
 
         return args
 
     def _gen_srun_command(self) -> str:
-        td = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
+        td = cast(AIDynamoTestDefinition, self.test_run.test)
         num_nodes, node_list = self.get_cached_nodes_spec()
 
         fatal_file_name = "fatal_error.marker"
@@ -193,10 +201,12 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if cache_key in self._node_spec_cache:
             return self._node_spec_cache[cache_key]
 
-        td = cast(AIDynamoTestDefinition, self.test_run.test.test_definition)
-        prefill_n = td.cmd_args.dynamo.prefill_worker.num_nodes
+        td = cast(AIDynamoTestDefinition, self.test_run.test)
+        prefill_n, prefill_nodes = 0, ""
+        if td.cmd_args.dynamo.prefill_worker:
+            prefill_n = cast(int, td.cmd_args.dynamo.prefill_worker.num_nodes)
+            prefill_nodes = td.cmd_args.dynamo.prefill_worker.nodes
         decode_n = td.cmd_args.dynamo.decode_worker.num_nodes
-        prefill_nodes = td.cmd_args.dynamo.prefill_worker.nodes
         decode_nodes = td.cmd_args.dynamo.decode_worker.nodes
 
         assert isinstance(prefill_n, int), "prefill_worker.num_nodes must be an integer"

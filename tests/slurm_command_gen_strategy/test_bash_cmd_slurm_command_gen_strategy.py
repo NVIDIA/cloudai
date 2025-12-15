@@ -18,7 +18,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from cloudai.core import Test, TestRun, TestTemplate
+from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.bash_cmd import BashCmdArgs, BashCmdCommandGenStrategy, BashCmdTestDefinition
 
@@ -27,14 +27,11 @@ from cloudai.workloads.bash_cmd import BashCmdArgs, BashCmdCommandGenStrategy, B
 def bash_tr(slurm_system: SlurmSystem) -> TestRun:
     tr = TestRun(
         name="bash",
-        test=Test(
-            test_definition=BashCmdTestDefinition(
-                name="bash",
-                description="desc",
-                test_template_name="t",
-                cmd_args=BashCmdArgs(cmd="echo 'Hello, world!'"),
-            ),
-            test_template=TestTemplate(slurm_system),
+        test=BashCmdTestDefinition(
+            name="bash",
+            description="desc",
+            test_template_name="t",
+            cmd_args=BashCmdArgs(cmd="echo 'Hello, world!'"),
         ),
         num_nodes=1,
         nodes=[],
@@ -74,9 +71,9 @@ def test_gen_container_mounts(bash_cmd_gen: BashCmdCommandGenStrategy):
 
 
 def test_installables(bash_tr: TestRun):
-    res = bash_tr.test.test_definition.installables
+    res = bash_tr.test.installables
     assert res == []
 
-    bash_tr.test.test_definition.git_repos = [Mock()]
-    res = bash_tr.test.test_definition.installables
+    bash_tr.test.git_repos = [Mock()]
+    res = bash_tr.test.installables
     assert len(res) == 1

@@ -14,13 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
-from cloudai.core import DockerImage, File, GitRepo, Installable, PythonExecutable
+from cloudai.core import DockerImage, File, GitRepo, HFModel, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
+
+from .report_generation_strategy import CSV_FILES_PATTERN, JSON_FILES_PATTERN
 
 
 class WorkerBaseArgs(BaseModel):
@@ -28,8 +31,36 @@ class WorkerBaseArgs(BaseModel):
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
-    num_nodes: Union[int, list[int]] = Field(alias="num-nodes")
-    nodes: Optional[str] = Field(default=None, alias="nodes")
+    num_nodes: int | list[int] = Field(
+        default=1, serialization_alias="num-nodes", validation_alias=AliasChoices("num-nodes", "num_nodes")
+    )
+    nodes: str | None = Field(default=None)
+
+    data_parallel_size: int | list[int] | None = Field(
+        default=None,
+        serialization_alias="data-parallel-size",
+        validation_alias=AliasChoices("data-parallel-size", "data_parallel_size"),
+    )
+    gpu_memory_utilization: float | list[float] | None = Field(
+        default=None,
+        serialization_alias="gpu-memory-utilization",
+        validation_alias=AliasChoices("gpu-memory-utilization", "gpu_memory_utilization"),
+    )
+    pipeline_parallel_size: int | list[int] | None = Field(
+        default=None,
+        serialization_alias="pipeline-parallel-size",
+        validation_alias=AliasChoices("pipeline-parallel-size", "pipeline_parallel_size"),
+    )
+    tensor_parallel_size: int | list[int] | None = Field(
+        default=None,
+        serialization_alias="tensor-parallel-size",
+        validation_alias=AliasChoices("tensor-parallel-size", "tensor_parallel_size"),
+    )
+    extra_args: str | list[str] | None = Field(
+        default=None,
+        serialization_alias="extra-args",
+        validation_alias=AliasChoices("extra-args", "extra_args"),
+    )
 
 
 class PrefillWorkerArgs(WorkerBaseArgs):
@@ -49,9 +80,25 @@ class AIDynamoArgs(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
+    model: str = "Qwen/Qwen3-0.6B"
     backend: str = "vllm"
-    prefill_worker: PrefillWorkerArgs
-    decode_worker: DecodeWorkerArgs
+    workspace_path: str = Field(
+        default="/workspace",
+        serialization_alias="workspace-path",
+        validation_alias=AliasChoices("workspace-path", "workspace_path"),
+    )
+    decode_worker: DecodeWorkerArgs = Field(default_factory=DecodeWorkerArgs)
+    decode_cmd: str = Field(
+        default="python3 -m dynamo.vllm",
+        serialization_alias="decode-cmd",
+        validation_alias=AliasChoices("decode-cmd", "decode_cmd"),
+    )
+    prefill_worker: PrefillWorkerArgs | None = None
+    prefill_cmd: str = Field(
+        default="python3 -m dynamo.vllm",
+        serialization_alias="prefill-cmd",
+        validation_alias=AliasChoices("prefill-cmd", "prefill_cmd"),
+    )
 
 
 class GenAIPerfArgs(BaseModel):
@@ -59,23 +106,21 @@ class GenAIPerfArgs(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
+    extra_args: str | None = Field(
+        default=None,
+        serialization_alias="extra-args",
+        validation_alias=AliasChoices("extra-args", "extra_args"),
+    )
+
 
 class AIDynamoCmdArgs(CmdArgs):
     """Arguments for AI Dynamo."""
 
     docker_image_url: str
-    huggingface_home_host_path: Path = Path.home() / ".cache/huggingface"
     huggingface_home_container_path: Path = Path("/root/.cache/huggingface")
     dynamo: AIDynamoArgs
     genai_perf: GenAIPerfArgs
     run_script: str = ""
-    dynamo_graph_path: Optional[str] = None
-
-    def model_post_init(self, *args, **kwargs) -> None:
-        """Post-init validation of fields."""
-        super().model_post_init(*args, **kwargs)
-        if self.dynamo_graph_path is not None and not Path(self.dynamo_graph_path).exists():
-            raise ValueError(f"Dynamo graph file not found at {self.dynamo_graph_path}")
 
 
 class AIDynamoTestDefinition(TestDefinition):
@@ -87,11 +132,7 @@ class AIDynamoTestDefinition(TestDefinition):
     dynamo_repo: GitRepo = GitRepo(
         url="https://github.com/ai-dynamo/dynamo.git", commit="f7e468c7e8ff0d1426db987564e60572167e8464"
     )
-    genai_perf_repo: GitRepo = GitRepo(
-        url="https://github.com/triton-inference-server/perf_analyzer.git",
-        commit="3c0bc9efa1844a82dfcc911f094f5026e6dd9214",
-    )
-    _python_executable: Optional[PythonExecutable] = None
+    _hf_model: HFModel | None = None
 
     @property
     def docker_image(self) -> DockerImage:
@@ -100,20 +141,21 @@ class AIDynamoTestDefinition(TestDefinition):
         return self._docker_image
 
     @property
+    def hf_model(self) -> HFModel:
+        if not self._hf_model:
+            self._hf_model = HFModel(model_name=self.cmd_args.dynamo.model)
+        return self._hf_model
+
+    @property
     def installables(self) -> list[Installable]:
-        return [self.docker_image, self.script, self.dynamo_repo, self.python_executable]
+        return [self.docker_image, self.script, self.dynamo_repo, self.hf_model]
 
-    @property
-    def huggingface_home_host_path(self) -> Path:
-        path = Path(self.cmd_args.huggingface_home_host_path)
-        if not path.is_dir():
-            raise FileNotFoundError(f"HuggingFace home path not found at {path}")
-        return path
-
-    @property
-    def python_executable(self) -> PythonExecutable:
-        if not self._python_executable:
-            self._python_executable = PythonExecutable(
-                GitRepo(url=self.genai_perf_repo.url, commit=self.genai_perf_repo.commit),
-            )
-        return self._python_executable
+    def was_run_successful(self, tr: TestRun) -> JobStatusResult:
+        output_path = tr.output_path
+        csv_files = list(output_path.rglob(CSV_FILES_PATTERN))
+        json_files = list(output_path.rglob(JSON_FILES_PATTERN))
+        logging.debug(f"Found CSV files: {csv_files}, JSON files: {json_files}")
+        has_results = len(csv_files) > 0 and len(json_files) > 0
+        if not has_results:
+            return JobStatusResult(False, "No result files found in the output directory.")
+        return JobStatusResult(True)

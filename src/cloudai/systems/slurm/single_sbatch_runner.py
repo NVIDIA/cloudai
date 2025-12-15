@@ -130,7 +130,7 @@ class SingleSbatchRunner(SlurmRunner):
             next_tr.step = idx + 1
             next_tr.output_path = self.get_job_output_path(next_tr)
 
-            if next_tr.test.test_definition.constraint_check(next_tr):
+            if next_tr.test.constraint_check(next_tr):
                 yield next_tr
 
     def get_global_env_vars(self) -> str:

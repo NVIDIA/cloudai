@@ -36,7 +36,7 @@ class NixlPerftestSlurmCommandGenStrategy(NIXLCmdGenBase):
 
     @property
     def tdef(self) -> NixlPerftestTestDefinition:
-        return cast(NixlPerftestTestDefinition, self.test_run.test.test_definition)
+        return cast(NixlPerftestTestDefinition, self.test_run.test)
 
     def image_path(self) -> str | None:
         return str(self.tdef.docker_image.installed_path)
@@ -55,13 +55,13 @@ class NixlPerftestSlurmCommandGenStrategy(NIXLCmdGenBase):
                 "etcd_pid=$!",
                 " ".join(self.gen_wait_for_etcd_command(self.tdef.cmd_args.wait_etcd_for)),
                 " ".join(perftest_command),
-                "kill -9 $etcd_pid",
+                " ".join(self.gen_kill_and_wait_cmd("etcd_pid")),
             ]
         )
 
     def gen_matrix_gen_srun_command(self) -> list[str]:
         cmd = [
-            *self.gen_srun_prefix(),
+            *self.gen_srun_prefix(with_num_nodes=False),
             "--ntasks-per-node=1",
             "--ntasks=1",
             "-N1",

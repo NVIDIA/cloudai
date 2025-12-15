@@ -17,7 +17,7 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, cast
 
-from cloudai.core import JsonGenStrategy, TestRun
+from cloudai.core import JsonGenStrategy
 from cloudai.systems.runai.runai_system import RunAISystem
 
 from .nccl import NCCLTestDefinition
@@ -26,9 +26,9 @@ from .nccl import NCCLTestDefinition
 class NcclTestRunAIJsonGenStrategy(JsonGenStrategy):
     """JSON generation strategy for NCCL tests on RunAI systems."""
 
-    def gen_json(self, tr: TestRun) -> Dict[Any, Any]:
+    def gen_json(self) -> Dict[Any, Any]:
         runai_system = cast(RunAISystem, self.system)
-        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, tr.test.test_definition)
+        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
         project_id = runai_system.project_id
         cluster_id = runai_system.cluster_id
 
@@ -41,19 +41,19 @@ class NcclTestRunAIJsonGenStrategy(JsonGenStrategy):
             "projectId": project_id,
             "clusterId": cluster_id,
             "spec": {
-                "command": tr.test.test_definition.cmd_args.subtest_name,
+                "command": self.test_run.test.cmd_args.subtest_name,
                 "args": " ".join(
                     [
-                        f"--{arg} {getattr(tr.test.test_definition.cmd_args, arg)}"
-                        for arg in tr.test.test_definition.cmd_args.model_dump()
+                        f"--{arg} {getattr(self.test_run.test.cmd_args, arg)}"
+                        for arg in self.test_run.test.cmd_args.model_dump()
                         if arg not in {"docker_image_url", "subtest_name"}
                     ]
-                    + ([tr.test.extra_cmd_args] if tr.test.extra_cmd_args else [])
+                    + ([self.test_run.test.extra_args_str] if self.test_run.test.extra_cmd_args else [])
                 ),
                 "image": tdef.docker_image.installed_path,
                 "compute": {"gpuDevicesRequest": 8},
-                "parallelism": tr.num_nodes,
-                "completions": tr.num_nodes,
+                "parallelism": self.test_run.num_nodes,
+                "completions": self.test_run.num_nodes,
             },
         }
 

@@ -37,14 +37,18 @@ from cloudai.core import (
     Registry,
     Runner,
     System,
-    Test,
     TestParser,
     TestScenario,
 )
 from cloudai.models.scenario import ReportConfig
+from cloudai.models.workload import TestDefinition
 from cloudai.parser import HOOK_ROOT
 from cloudai.systems.slurm import SingleSbatchRunner, SlurmSystem
 from cloudai.util import prepare_output_dir
+
+
+def _log_installation_dirs(prefix: str, system: System) -> None:
+    logging.info(f"{prefix} '{system.install_path.absolute()}'. HF cache is {system.hf_home_path.absolute()}.")
 
 
 def handle_install_and_uninstall(args: argparse.Namespace) -> int:
@@ -69,12 +73,12 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
     if args.mode == "install":
         all_installed = installer.is_installed(installables)
         if all_installed:
-            logging.info(f"CloudAI is already installed into '{system.install_path}'.")
+            _log_installation_dirs("CloudAI is already installed into", system)
         else:
             logging.info("Not all components are ready")
             result = installer.install(installables)
             if result.success:
-                logging.info(f"CloudAI is successfully installed into '{system.install_path.absolute()}'.")
+                _log_installation_dirs("CloudAI is successfully installed into", system)
             else:
                 logging.error(result.message)
                 rc = 1
@@ -92,17 +96,17 @@ def handle_install_and_uninstall(args: argparse.Namespace) -> int:
 
 
 def prepare_installation(
-    system: System, tests: list[Test], scenario: Optional[TestScenario]
+    system: System, tests: list[TestDefinition], scenario: Optional[TestScenario]
 ) -> tuple[list[Installable], BaseInstaller]:
     installables: list[Installable] = []
     if scenario:
         for test in scenario.test_runs:
-            logging.debug(f"{test.test.name} has {len(test.test.test_definition.installables)} installables.")
-            installables.extend(test.test.test_definition.installables)
+            logging.debug(f"{test.test.name} has {len(test.test.installables)} installables.")
+            installables.extend(test.test.installables)
     else:
         for test in tests:
-            logging.debug(f"{test.name} has {len(test.test_definition.installables)} installables.")
-            installables.extend(test.test_definition.installables)
+            logging.debug(f"{test.name} has {len(test.installables)} installables.")
+            installables.extend(test.installables)
 
     registry = Registry()
     installer_class = registry.installers_map.get(system.scheduler)
@@ -130,7 +134,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
     for tr in runner.runner.test_scenario.test_runs:
         test_run = copy.deepcopy(tr)
 
-        agent_type = test_run.test.test_definition.agent
+        agent_type = test_run.test.agent
         agent_class = registry.agents_map.get(agent_type)
         if agent_class is None:
             logging.error(
@@ -164,7 +168,9 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
 
 def generate_reports(system: System, test_scenario: TestScenario, result_dir: Path) -> None:
     registry = Registry()
-    for name, reporter_class in registry.scenario_reports.items():
+
+    # Ensure "status" report goes last for better readability
+    for name, reporter_class in sorted(registry.scenario_reports.items(), key=lambda x: (x[0] == "status", x[0])):
         logging.debug(f"Generating report '{name}' ({reporter_class.__name__})")
 
         cfg = registry.report_configs.get(name, ReportConfig(enable=False))
@@ -188,12 +194,7 @@ def generate_reports(system: System, test_scenario: TestScenario, result_dir: Pa
 
 def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> None:
     asyncio.run(runner.run())
-
-    logging.info(f"All test scenario results stored at: {runner.runner.scenario_root}")
-
-    if args.mode == "run":
-        generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
-
+    generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
     logging.info("All jobs are complete.")
 
 
@@ -211,7 +212,7 @@ def register_signal_handlers(signal_handler: Callable) -> None:
 
 def _setup_system_and_scenario(
     args: argparse.Namespace,
-) -> tuple[Optional[System], Optional[TestScenario], Optional[list[Test]]]:
+) -> tuple[System | None, TestScenario | None, list[TestDefinition] | None]:
     parser = Parser(args.system_config)
     try:
         system, tests, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
@@ -247,7 +248,7 @@ def _handle_single_sbatch(args: argparse.Namespace, system: System) -> bool:
 
 
 def _check_installation(
-    args: argparse.Namespace, system: System, tests: list[Test], test_scenario: TestScenario
+    args: argparse.Namespace, system: System, tests: list[TestDefinition], test_scenario: TestScenario
 ) -> InstallStatusResult:
     logging.info("Checking if workloads components are installed.")
     installables, installer = prepare_installation(system, tests, test_scenario)
@@ -284,7 +285,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
 
         result = installer.install(installables)
         if result.success:
-            logging.info(f"CloudAI is successfully installed into '{system.install_path.absolute()}'.")
+            _log_installation_dirs("CloudAI is successfully installed into", system)
         else:
             logging.error("Failed to install workloads components.")
             logging.error(result.message)
@@ -294,6 +295,7 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
 
     runner = Runner(args.mode, system, test_scenario)
     register_signal_handlers(runner.cancel_on_signal)
+    logging.info(f"Scenario results will be stored at: {runner.runner.scenario_root}")
 
     has_dse = any(tr.is_dse_job for tr in test_scenario.test_runs)
     if args.single_sbatch or not has_dse:  # in this mode cases are unrolled using grid search
@@ -318,10 +320,9 @@ def handle_generate_report(args: argparse.Namespace) -> int:
     system, _, test_scenario = parser.parse(args.tests_dir, args.test_scenario)
     assert test_scenario is not None
 
-    logging.info("Generating report based on system and test scenario")
     generate_reports(system, test_scenario, args.result_dir)
 
-    logging.info("Report generation completed.")
+    logging.debug("Report generation completed.")
 
     return 0
 

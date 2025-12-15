@@ -16,12 +16,11 @@
 
 from pathlib import Path
 from typing import List, Optional, cast
-from unittest.mock import create_autospec
 
 import pytest
 import toml
 
-from cloudai.core import Test, TestDefinition, TestRun, TestScenario
+from cloudai.core import TestDefinition, TestRun, TestScenario
 from cloudai.models.scenario import TestScenarioModel
 from cloudai.test_scenario_parser import calculate_total_time_limit
 from cloudai.workloads.nccl_test.nccl_comparison_report import ComparisonReportConfig
@@ -29,14 +28,11 @@ from cloudai.workloads.nccl_test.nccl_comparison_report import ComparisonReportC
 
 class DummyTestRun(TestRun):
     def __init__(self, time_limit: str) -> None:
-        dummy_test = create_autospec(Test, instance=True)
-        dummy_test.name = "dummy_test"
-        dummy_test.test_definition = TestDefinition(
-            name="dummy_test", description="dummy_test", test_template_name="dummy_test", cmd_args={}
-        )
         super().__init__(
             name="dummy_run",
-            test=dummy_test,
+            test=TestDefinition(
+                name="dummy_test", description="dummy_test", test_template_name="dummy_test", cmd_args={}
+            ),
             num_nodes=1,
             nodes=[],
             output_path=Path(""),

@@ -20,10 +20,17 @@ import csv
 import logging
 import shutil
 from pathlib import Path
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar, cast
 
 from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
+from cloudai.systems.kubernetes.kubernetes_system import KubernetesSystem
 from cloudai.systems.slurm.slurm_system import SlurmSystem
+
+if TYPE_CHECKING:
+    from .ai_dynamo import AIDynamoTestDefinition
+
+CSV_FILES_PATTERN = "profile*_genai_perf.csv"
+JSON_FILES_PATTERN = "profile*_genai_perf.json"
 
 
 class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
@@ -41,8 +48,9 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
 
     def can_handle_directory(self) -> bool:
         output_path = self.test_run.output_path
-        csv_files = list(output_path.rglob("profile_genai_perf.csv"))
-        json_files = list(output_path.rglob("profile_genai_perf.json"))
+        csv_files = list(output_path.rglob(CSV_FILES_PATTERN))
+        json_files = list(output_path.rglob(JSON_FILES_PATTERN))
+        logging.debug(f"Found CSV files: {csv_files}, JSON files: {json_files}")
         return len(csv_files) > 0 and len(json_files) > 0
 
     def _find_csv_file(self) -> Path | None:
@@ -50,7 +58,7 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
         if not output_path.exists() or not output_path.is_dir():
             return None
 
-        csv_files = list(output_path.rglob("profile_genai_perf.csv"))
+        csv_files = list(output_path.rglob(CSV_FILES_PATTERN))
         if not csv_files or csv_files[0].stat().st_size == 0:
             return None
 
@@ -114,16 +122,19 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
 
     def _calculate_total_gpus(self) -> int | None:
         gpus_per_node = None
-        if isinstance(self.system, SlurmSystem):
+        if isinstance(self.system, (SlurmSystem, KubernetesSystem)):
             gpus_per_node = self.system.gpus_per_node
 
         if gpus_per_node is None:
             return None
 
-        num_frontend_nodes = 1
-        num_prefill_nodes = self.test_run.test.test_definition.cmd_args.dynamo.prefill_worker.num_nodes
-        num_decode_nodes = self.test_run.test.test_definition.cmd_args.dynamo.decode_worker.num_nodes
+        tdef = cast("AIDynamoTestDefinition", self.test_run.test)
 
+        num_frontend_nodes = 1
+        num_prefill_nodes = (
+            cast(int, tdef.cmd_args.dynamo.prefill_worker.num_nodes) if tdef.cmd_args.dynamo.prefill_worker else 0
+        )
+        num_decode_nodes = cast(int, tdef.cmd_args.dynamo.decode_worker.num_nodes)
         return (num_frontend_nodes + num_prefill_nodes + num_decode_nodes) * gpus_per_node
 
     def _read_csv_sections(self, source_csv: Path) -> list[list[list[str]]]:
@@ -174,7 +185,7 @@ class AIDynamoReportGenerationStrategy(ReportGenerationStrategy):
 
     def generate_report(self) -> None:
         output_path = self.test_run.output_path
-        source_csv = next(output_path.rglob("profile_genai_perf.csv"))
+        source_csv = next(output_path.rglob(CSV_FILES_PATTERN))
         target_csv = output_path / "report.csv"
 
         total_gpus = self._calculate_total_gpus()
