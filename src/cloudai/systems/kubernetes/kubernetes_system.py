@@ -342,7 +342,9 @@ class KubernetesSystem(System):
         genai_perf_results_path = "/tmp/cloudai/genai-perf"
 
         genai_perf_cmd = ["genai-perf", "profile", f"--artifact-dir={genai_perf_results_path}"]
-        for k, v in tdef.cmd_args.genai_perf.model_dump(exclude={"extra_args", "extra-args"}).items():
+        for k, v in tdef.cmd_args.genai_perf.model_dump(
+            exclude={"extra_args", "extra-args"}, exclude_none=True
+        ).items():
             genai_perf_cmd.append(f"--{k}={v}")
         if extra_args := tdef.cmd_args.genai_perf.extra_args:
             genai_perf_cmd.extend(extra_args.split())
@@ -360,6 +362,7 @@ class KubernetesSystem(System):
             stdin=False,
             stdout=True,
             tty=False,
+            _request_timeout=60 * 10,
         )
         with (job.test_run.output_path / "genai_perf_stdout.txt").open("w") as f:
             f.write(genai_results)
