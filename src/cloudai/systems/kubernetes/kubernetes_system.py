@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import subprocess
 import time
@@ -43,7 +42,6 @@ class KubernetesSystem(System):
     _core_v1: Optional[k8s.client.CoreV1Api] = None
     _batch_v1: Optional[k8s.client.BatchV1Api] = None
     _custom_objects_api: Optional[k8s.client.CustomObjectsApi] = None
-    _port_forward_process: subprocess.Popen | None = None
     _genai_perf_completed: bool = False
 
     def __getstate__(self) -> dict[str, Any]:
@@ -279,60 +277,15 @@ class KubernetesSystem(System):
 
         return all_ready
 
-    def _setup_port_forward(self, job: KubernetesJob) -> None:
-        if self._port_forward_process and self._port_forward_process.poll() is None:
-            logging.debug("Port forwarding is already running")
-            return
-
-        if not self.are_vllm_pods_ready(job):
-            logging.debug("Pods are not ready yet, skipping port forward")
-            return
-
-        cmd = f"kubectl port-forward svc/{job.name}-frontend 8000:8000 -n {self.default_namespace}"
-        logging.debug("Starting port forwarding")
-        self._port_forward_process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-        logging.debug(f"Port forwarding started (pid={self._port_forward_process.pid})")
-
-    def _check_model_server(self) -> bool:
-        if not self._port_forward_process:
-            logging.debug("Port forward process is not running")
-            return False
-
-        server = "localhost:8000"
-        cmd = f"curl -s http://{server}/v1/models"
-        logging.debug(f"Checking if model server is up at {server}: {cmd}")
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-
-        if result.returncode != 0:
-            logging.debug(
-                f"Failed to connect to model server={server}, "
-                f"output={result.stdout.strip()}, "
-                f"error={result.stderr.strip()}"
-            )
-            return False
-
-        try:
-            response = json.loads(result.stdout)
-            if response.get("data") and len(response["data"]) > 0:
-                logging.debug(f"Model server is running. Response: {result.stdout}")
-                return True
-            else:
-                logging.debug("Model server is up but no models are loaded yet")
-                return False
-        except json.JSONDecodeError:
-            logging.warning("Invalid JSON response from model server")
-            return False
-
-    def _get_frontend_pod_name(self) -> str:
+    def _get_dynamo_pod_by_role(self, role: str) -> str:
         for pod in self.core_v1.list_namespaced_pod(namespace=self.default_namespace).items:
             labels = pod.metadata.labels
             logging.debug(f"Found pod: {pod.metadata.name} with labels: {labels}")
-            if labels and str(labels.get("nvidia.com/dynamo-component", "")).lower() == "frontend":  # v0.6.x
+            if labels and str(labels.get("nvidia.com/dynamo-component", "")).lower() == role.lower():  # v0.6.x
                 return pod.metadata.name
-            if labels and str(labels.get("nvidia.com/dynamo-component-type", "")).lower() == "frontend":  # v0.7.x
+            if labels and str(labels.get("nvidia.com/dynamo-component-type", "")).lower() == role.lower():  # v0.7.x
                 return pod.metadata.name
-        raise RuntimeError("No frontend pod found for the job")
+        raise RuntimeError(f"No pod found for the role '{role}'")
 
     def _run_genai_perf(self, job: KubernetesJob) -> None:
         from cloudai.workloads.ai_dynamo.ai_dynamo import AIDynamoTestDefinition
@@ -352,7 +305,7 @@ class KubernetesSystem(System):
             genai_perf_cmd.extend(extra_args.split())
         logging.debug(f"GenAI perf arguments: {genai_perf_cmd=}")
 
-        frontend_pod = self._get_frontend_pod_name()
+        frontend_pod = self._get_dynamo_pod_by_role(role="frontend")
 
         logging.debug(f"Executing genai-perf in pod={frontend_pod} cmd={genai_perf_cmd}")
         try:
@@ -402,12 +355,20 @@ class KubernetesSystem(System):
             return False
 
         if self.are_vllm_pods_ready(job):
-            self._setup_port_forward(job)
-            if self._port_forward_process and self._check_model_server():
-                logging.debug("vLLM server is up and models are loaded")
-                self._run_genai_perf(job)
-                self._genai_perf_completed = True
-                return False
+            self._run_genai_perf(job)
+            self._genai_perf_completed = True
+
+            for pod_role in {"decode", "prefill", "frontend"}:
+                try:
+                    pod_name = self._get_dynamo_pod_by_role(pod_role)
+                    logging.debug(f"Fetching logs for {pod_role=} {pod_name=}")
+                    logs = self.core_v1.read_namespaced_pod_log(name=pod_name, namespace=self.default_namespace)
+                    with (job.test_run.output_path / f"{pod_role}_pod.log").open("w") as f:
+                        f.write(logs)
+                except Exception as e:
+                    logging.debug(f"Error fetching logs for role '{pod_role}': {e}")
+
+            return False
 
         deployment = cast(
             dict,
@@ -485,9 +446,7 @@ class KubernetesSystem(System):
         if result.returncode != 0:
             logging.debug(f"Failed to delete DynamoGraphDeployment: {result.stderr}")
 
-        if self._port_forward_process and self._port_forward_process.poll() is None:
-            self._port_forward_process.kill()
-        self._port_forward_process = None
+        self._genai_perf_completed = False
 
     def create_job(self, job_spec: Dict[Any, Any], timeout: int = 60, interval: int = 1) -> str:
         """
@@ -562,6 +521,10 @@ class KubernetesSystem(System):
         return job_name
 
     def _create_dynamo_graph_deployment(self, job_spec: Dict[Any, Any]) -> str:
+        logging.debug(f"Attempting to delete existing job='{job_spec['metadata']['name']}' before creation.")
+        self._delete_dynamo_graph_deployment(job_spec["metadata"]["name"])
+
+        logging.debug("Creating DynamoGraphDeployment with spec")
         try:
             api_response = self.custom_objects_api.create_namespaced_custom_object(
                 group="nvidia.com",
