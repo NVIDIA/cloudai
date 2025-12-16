@@ -179,6 +179,10 @@ class ComparisonReport(Reporter, ABC):
         hover = lazy.bokeh_models.HoverTool(tooltips=[("X", "@x"), ("Y", "@y"), ("Segment Type", "@segment_type")])
         p.add_tools(hover)
 
+        if all(df.empty for df in dfs):
+            logging.debug(f"No data available to create chart for group {group.name}, skipping.")
+            return p
+
         for df, name in zip(dfs, [item.name for item in group.items], strict=True):
             if df.empty:
                 continue
