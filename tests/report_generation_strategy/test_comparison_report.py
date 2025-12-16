@@ -101,8 +101,8 @@ class TestCreateTable:
                 ],
             ),
             [
-                pd.DataFrame({"size": [1, 2, 4], "value": [10, 20, 40]}),
                 pd.DataFrame({"size": [], "value": []}),
+                pd.DataFrame({"size": [1, 2, 4], "value": [10, 20, 40]}),
             ],
             "title",
             ["size"],
@@ -112,8 +112,8 @@ class TestCreateTable:
         assert len(table.columns) == 3
         assert len(table.rows) == 3
         assert list(table.columns[0].cells) == ["1", "2", "4"]
-        assert list(table.columns[1].cells) == ["10", "20", "40"]
-        assert list(table.columns[2].cells) == ["None", "None", "None"]
+        assert list(table.columns[1].cells) == ["n/a", "n/a", "n/a"]
+        assert list(table.columns[2].cells) == ["10", "20", "40"]
 
 
 def test_create_charts(cmp_report: MyComparisonReport, nccl_tr: TestRun) -> None:
