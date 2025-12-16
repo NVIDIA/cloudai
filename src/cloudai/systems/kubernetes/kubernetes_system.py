@@ -488,6 +488,7 @@ class KubernetesSystem(System):
         if self._port_forward_process and self._port_forward_process.poll() is None:
             self._port_forward_process.kill()
         self._port_forward_process = None
+        self._genai_perf_completed = False
 
     def create_job(self, job_spec: Dict[Any, Any], timeout: int = 60, interval: int = 1) -> str:
         """
@@ -562,12 +563,10 @@ class KubernetesSystem(System):
         return job_name
 
     def _create_dynamo_graph_deployment(self, job_spec: Dict[Any, Any]) -> str:
-        try:
-            logging.debug(f"Attempting to delete existing job='{job_spec['metadata']['name']}' before creation.")
-            self._delete_dynamo_graph_deployment(job_spec["metadata"]["name"])
-        except Exception as e:
-            logging.debug(f"Could not delete existing DynamoGraphDeployment: {e}")
+        logging.debug(f"Attempting to delete existing job='{job_spec['metadata']['name']}' before creation.")
+        self._delete_dynamo_graph_deployment(job_spec["metadata"]["name"])
 
+        logging.debug("Creating DynamoGraphDeployment with spec")
         try:
             api_response = self.custom_objects_api.create_namespaced_custom_object(
                 group="nvidia.com",
