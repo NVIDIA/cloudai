@@ -29,7 +29,7 @@ dependencies = [
   "rich~=14.2",
   "click~=8.3",
   "huggingface-hub~=1.1.7",
-  "aiconfigurator",
+  "aiconfigurator~=0.4.0",
 ]
 requires-python = ">=3.10"
 

@@ -34,17 +34,17 @@ isl = 4000
 osl = 500
 
   [cmd_args.disagg]
-  p_tp = [1, 2, 4]
+  p_tp = [1, 2]
   p_pp = [1]
   p_dp = [1]
   p_bs = 1
-  p_workers = [1, 2, 3, 4, 8, 16]
+  p_workers = [1, 2]
 
-  d_tp = [1, 2, 4]
+  d_tp = [1, 2]
   d_pp = [1]
   d_dp = [1]
-  d_bs = [8, 16, 32, 64, 128, 256, 512]
-  d_workers = [1, 2, 3, 4, 8, 16]
+  d_bs = [8, 16]
+  d_workers = [1, 2]
 
   gemm_quant_mode = "fp8_block"
   moe_quant_mode = "fp8"
