@@ -563,6 +563,12 @@ class KubernetesSystem(System):
 
     def _create_dynamo_graph_deployment(self, job_spec: Dict[Any, Any]) -> str:
         try:
+            logging.debug(f"Attempting to delete existing job='{job_spec['metadata']['name']}' before creation.")
+            self._delete_dynamo_graph_deployment(job_spec["metadata"]["name"])
+        except Exception as e:
+            logging.debug(f"Could not delete existing DynamoGraphDeployment: {e}")
+
+        try:
             api_response = self.custom_objects_api.create_namespaced_custom_object(
                 group="nvidia.com",
                 version="v1alpha1",
