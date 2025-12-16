@@ -19,7 +19,7 @@ description = "vLLM backend with Qwen3-0.6B model"
 test_template_name = "AIDynamo"
 
 [cmd_args]
-docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.6.1.post1"
+docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.7.0"
 
   [cmd_args.dynamo]
   backend = "vllm"

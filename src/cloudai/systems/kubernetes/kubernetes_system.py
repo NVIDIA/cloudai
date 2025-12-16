@@ -328,7 +328,9 @@ class KubernetesSystem(System):
         for pod in self.core_v1.list_namespaced_pod(namespace=self.default_namespace).items:
             labels = pod.metadata.labels
             logging.debug(f"Found pod: {pod.metadata.name} with labels: {labels}")
-            if labels and str(labels.get("nvidia.com/dynamo-component", "")).lower() == "frontend":
+            if labels and str(labels.get("nvidia.com/dynamo-component", "")).lower() == "frontend":  # v0.6.x
+                return pod.metadata.name
+            if labels and str(labels.get("nvidia.com/dynamo-component-type", "")).lower() == "frontend":  # v0.7.x
                 return pod.metadata.name
         raise RuntimeError("No frontend pod found for the job")
 
