@@ -288,3 +288,10 @@ class TestSlurmReportItem:
         meta = SlurmReportItem.get_metadata(run_dir, slurm_system.output_path)
         assert meta is not None
         assert meta.slurm.node_list == slurm_metadata.slurm.node_list
+
+
+def test_report_order() -> None:
+    reports = Registry().ordered_scenario_reports()
+    assert reports[0][0] == "per_test"
+    assert reports[-2][0] == "status"
+    assert reports[-1][0] == "tarball"
