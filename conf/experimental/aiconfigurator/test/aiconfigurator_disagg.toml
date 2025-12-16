@@ -25,20 +25,18 @@ system = "h100_sxm"
 isl = 3000
 osl = 150
 
-[cmd_args.disagg]
-p_tp = 4
-p_pp = 1
-p_dp = 1
-p_bs = 1
-p_workers = 1
+  [cmd_args.disagg]
+  p_tp = 4
+  p_pp = 1
+  p_dp = 1
+  p_bs = 1
+  p_workers = 1
 
-d_tp = 4
-d_pp = 1
-d_dp = 1
-d_bs = 256
-d_workers = 1
+  d_tp = 4
+  d_pp = 1
+  d_dp = 1
+  d_bs = 256
+  d_workers = 1
 
-prefill_correction_scale = 1.0
-decode_correction_scale = 1.0
-
-
+  prefill_correction_scale = 1.0
+  decode_correction_scale = 1.0

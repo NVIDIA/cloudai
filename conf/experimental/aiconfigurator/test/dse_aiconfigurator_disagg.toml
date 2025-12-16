@@ -17,7 +17,12 @@
 name = "dse_aiconfigurator_disagg_demo_Llama3.1_70B"
 description = "Aiconfigurator disaggregated predictor DSE sweeps"
 test_template_name = "Aiconfigurator"
-agent_metrics = ["ttft_ms", "tpot_ms", "tokens_per_s_per_gpu", "tokens_per_s_per_user"]
+agent_metrics = [
+  "ttft_ms",
+  "tpot_ms",
+  "tokens_per_s_per_gpu",
+  "tokens_per_s_per_user",
+]
 agent_reward_function = "ai_dynamo_log_scale"
 
 
@@ -28,25 +33,23 @@ system = "h200_sxm"
 isl = 4000
 osl = 500
 
-[cmd_args.disagg]
-p_tp = [1, 2, 4]
-p_pp = [1]
-p_dp = [1]
-p_bs = 1
-p_workers = [1, 2, 3, 4, 8, 16]
+  [cmd_args.disagg]
+  p_tp = [1, 2, 4]
+  p_pp = [1]
+  p_dp = [1]
+  p_bs = 1
+  p_workers = [1, 2, 3, 4, 8, 16]
 
-d_tp = [1, 2, 4]
-d_pp = [1]
-d_dp = [1]
-d_bs = [8, 16, 32, 64, 128, 256, 512]
-d_workers = [1, 2, 3, 4, 8, 16]
+  d_tp = [1, 2, 4]
+  d_pp = [1]
+  d_dp = [1]
+  d_bs = [8, 16, 32, 64, 128, 256, 512]
+  d_workers = [1, 2, 3, 4, 8, 16]
 
-gemm_quant_mode = "fp8_block"
-moe_quant_mode = "fp8"
-kvcache_quant_mode = "fp8"
-fmha_quant_mode = "fp8"
-comm_quant_mode = "half"
-prefill_correction_scale = 1.0
-decode_correction_scale = 1.0
-
-
+  gemm_quant_mode = "fp8_block"
+  moe_quant_mode = "fp8"
+  kvcache_quant_mode = "fp8"
+  fmha_quant_mode = "fp8"
+  comm_quant_mode = "half"
+  prefill_correction_scale = 1.0
+  decode_correction_scale = 1.0

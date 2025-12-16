@@ -21,6 +21,9 @@ id = "aiconfigurator.disagg.demo"
 time_limit = "00:05:00"
 test_name = "dse_aiconfigurator_disagg_demo_Llama3.1_70B"
 num_nodes = 1
-agent_metrics = ["ttft_ms", "tpot_ms", "tokens_per_s_per_gpu", "tokens_per_s_per_user"]
-
-
+agent_metrics = [
+  "ttft_ms",
+  "tpot_ms",
+  "tokens_per_s_per_gpu",
+  "tokens_per_s_per_user",
+]
