@@ -78,6 +78,9 @@ def _patch_aiconfigurator(
 
     class InferenceSession:
         def __init__(self, model, db, backend):
+            self._model = model
+            self._db = db
+            self._backend = backend
             self._impl = _FakeInferenceSession(p_df=p_df, d_df=d_df)
 
         def run_static(self, *, mode: str, runtime_config):
