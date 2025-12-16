@@ -50,10 +50,10 @@ def predict_ifb_single(
     moe_tp: int = 1,
     moe_ep: int = 1,
     # quantization
-    gemm_quant_mode: Any = "float16",
-    moe_quant_mode: Any = "float16",
-    kvcache_quant_mode: Any = "float16",
-    fmha_quant_mode: Any = "float16",
+    gemm_quant_mode: Any = "fp8_block",
+    moe_quant_mode: Any = "fp8",
+    kvcache_quant_mode: Any = "fp8",
+    fmha_quant_mode: Any = "fp8",
     comm_quant_mode: Any = "half",
     # features
     nextn: int = 0,
@@ -150,10 +150,10 @@ def predict_disagg_single(
     d_bs: int,
     d_workers: int,
     # quantization (can be same for both)
-    gemm_quant_mode: Any = "float16",
-    moe_quant_mode: Any = "float16",
-    kvcache_quant_mode: Any = "float16",
-    fmha_quant_mode: Any = "float16",
+    gemm_quant_mode: Any = "fp8_block",
+    moe_quant_mode: Any = "fp8",
+    kvcache_quant_mode: Any = "fp8",
+    fmha_quant_mode: Any = "fp8",
     comm_quant_mode: Any = "half",
     # features
     nextn: int = 0,
