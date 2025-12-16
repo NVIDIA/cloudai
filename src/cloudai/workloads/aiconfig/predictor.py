@@ -61,12 +61,7 @@ def predict_ifb_single(
     # advanced model options
     overwrite_num_layers: int = 0,
 ) -> Dict[str, Any]:
-    """
-    Predict metrics for a single IFB configuration using the aiconfigurator SDK primitives.
-
-    This is intentionally implemented inside CloudAI so CloudAI does not need
-    `aiconfigurator.sdk.simple_predictor` (which is not present in upstream aiconfigurator).
-    """
+    """Predict metrics for a single IFB configuration using the aiconfigurator SDK primitives."""
     try:
         from aiconfigurator.sdk import common
         from aiconfigurator.sdk.backends.factory import get_backend
@@ -74,8 +69,11 @@ def predict_ifb_single(
         from aiconfigurator.sdk.models import get_model
         from aiconfigurator.sdk.perf_database import get_database
     except ModuleNotFoundError as e:
+        import sys as _sys
+
         raise ModuleNotFoundError(
-            "Missing dependency 'aiconfigurator'. Install it in the Python environment used for this test."
+            "Missing dependency 'aiconfigurator'. Install it in the Python environment used for this test. "
+            f"(python={_sys.executable})"
         ) from e
 
     database = get_database(system=system, backend=backend, version=version)
@@ -98,7 +96,7 @@ def predict_ifb_single(
         nextn_accept_rates=nextn_accept_rates,
         overwrite_num_layers=overwrite_num_layers,
     )
-    model = get_model(model_name=model_name, model_config=mc)
+    model = get_model(model_name, mc, backend)
 
     rc = RuntimeConfig(batch_size=batch_size, isl=isl, osl=osl)
     summary = backend_impl.run_ifb(model=model, database=database, runtime_config=rc, ctx_tokens=ctx_tokens)
@@ -161,11 +159,7 @@ def predict_disagg_single(
     prefill_correction_scale: float = 1.0,
     decode_correction_scale: float = 1.0,
 ) -> Dict[str, Any]:
-    """
-    Predict metrics for a single disaggregated configuration (explicit prefill/decode workers).
-
-    Implemented in CloudAI to avoid depending on `aiconfigurator.sdk.simple_predictor`.
-    """
+    """Predict metrics for a single disaggregated configuration (explicit prefill/decode workers)."""
     try:
         from aiconfigurator.sdk import common
         from aiconfigurator.sdk.backends.factory import get_backend
@@ -174,8 +168,11 @@ def predict_disagg_single(
         from aiconfigurator.sdk.models import get_model
         from aiconfigurator.sdk.perf_database import get_database
     except ModuleNotFoundError as e:
+        import sys as _sys
+
         raise ModuleNotFoundError(
-            "Missing dependency 'aiconfigurator'. Install it in the Python environment used for this test."
+            "Missing dependency 'aiconfigurator'. Install it in the Python environment used for this test. "
+            f"(python={_sys.executable})"
         ) from e
 
     prefill_db = get_database(system=system, backend=backend, version=version)
@@ -220,8 +217,8 @@ def predict_disagg_single(
     rc_prefill = RuntimeConfig(batch_size=p_bs, isl=isl, osl=osl)
     rc_decode = RuntimeConfig(batch_size=d_bs, isl=isl, osl=osl)
 
-    prefill_model = get_model(model_name, p_mc)
-    decode_model = get_model(model_name, d_mc)
+    prefill_model = get_model(model_name, p_mc, backend)
+    decode_model = get_model(model_name, d_mc, backend)
 
     prefill_sess = InferenceSession(prefill_model, prefill_db, prefill_backend)
     decode_sess = InferenceSession(decode_model, decode_db, decode_backend)

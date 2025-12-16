@@ -17,6 +17,8 @@
 from __future__ import annotations
 
 import os
+import shlex
+import sys
 from pathlib import Path
 from typing import cast
 
@@ -34,21 +36,18 @@ class AiconfiguratorStandaloneCommandGenStrategy(CommandGenStrategy):
     def gen_exec_command(self) -> str:
         tdef: AiconfiguratorTestDefinition = cast(AiconfiguratorTestDefinition, self.test_run.test)
         args: AiconfiguratorCmdArgs = tdef.cmd_args
-        out_dir = self.test_run.output_path
+        out_dir = Path(self.test_run.output_path).resolve()
 
         report_txt = Path(out_dir) / "report.txt"
         stdout_txt = Path(out_dir) / "stdout.txt"
         stderr_txt = Path(out_dir) / "stderr.txt"
 
-        script_path = Path(__file__).parent / "simple_predictor.py"
-
-        cloudai_src_dir = Path(__file__).resolve().parents[3]
-
-        python_exec = "python"
+        python_exec = sys.executable
 
         base_cmd = [
             python_exec,
-            str(script_path),
+            "-m",
+            "cloudai.workloads.aiconfig.simple_predictor",
             "--model-name",
             args.model_name,
             "--system",
@@ -120,15 +119,12 @@ class AiconfiguratorStandaloneCommandGenStrategy(CommandGenStrategy):
 
         cmd.extend(["--output", str(report_txt)])
 
+        cmd_str = " ".join(shlex.quote(str(x)) for x in cmd)
+        full_cmd = f"{cmd_str} 1> {shlex.quote(str(stdout_txt))} 2> {shlex.quote(str(stderr_txt))}"
+
         script_file = Path(out_dir) / "run_simple_predictor.sh"
-        script_lines = [
-            "#!/usr/bin/env bash",
-            "set -euo pipefail",
-            f"export PYTHONPATH='{cloudai_src_dir}':\"${{PYTHONPATH:-}}\"",
-            f"{' '.join(cmd)} 1> '{stdout_txt}' 2> '{stderr_txt}'",
-        ]
         script_file.parent.mkdir(parents=True, exist_ok=True)
-        script_file.write_text("\n".join(script_lines) + "\n", encoding="utf-8")
+        script_file.write_text(f"#!/usr/bin/env bash\nset -euo pipefail\n{full_cmd}\n", encoding="utf-8")
         os.chmod(script_file, 0o755)
 
-        return f"bash {script_file}"
+        return f"bash {shlex.quote(str(script_file))}"
