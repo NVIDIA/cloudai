@@ -169,8 +169,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
 def generate_reports(system: System, test_scenario: TestScenario, result_dir: Path) -> None:
     registry = Registry()
 
-    # Ensure "status" report goes last for better readability
-    for name, reporter_class in sorted(registry.scenario_reports.items(), key=lambda x: (x[0] == "status", x[0])):
+    for name, reporter_class in registry.ordered_scenario_reports():
         logging.debug(f"Generating report '{name}' ({reporter_class.__name__})")
 
         cfg = registry.report_configs.get(name, ReportConfig(enable=False))
