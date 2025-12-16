@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+from typing import cast
 from typing import Any, Dict, Optional
 
 
@@ -79,7 +80,11 @@ def predict_ifb_single(
     database = get_database(system=system, backend=backend, version=version)
     if database is None:
         raise ValueError(f"No perf database found for system={system} backend={backend} version={version}")
-    backend_impl = get_backend(backend)
+    backend_impl = cast(Any, get_backend(backend))
+
+    if nextn > 0 and nextn_accept_rates is None:
+        raise ValueError("nextn_accept_rates must be provided when nextn > 0")
+    accept_rates = cast(Any, nextn_accept_rates or [])
 
     mc = ModelConfig(
         tp_size=tp,
@@ -93,7 +98,7 @@ def predict_ifb_single(
         fmha_quant_mode=_to_enum(common.FMHAQuantMode, fmha_quant_mode),
         comm_quant_mode=_to_enum(common.CommQuantMode, comm_quant_mode),
         nextn=nextn,
-        nextn_accept_rates=nextn_accept_rates,
+        nextn_accept_rates=accept_rates,
         overwrite_num_layers=overwrite_num_layers,
     )
     model = get_model(model_name, mc, backend)
@@ -180,8 +185,12 @@ def predict_disagg_single(
     if prefill_db is None or decode_db is None:
         raise ValueError(f"No perf database found for system={system} backend={backend} version={version}")
 
-    prefill_backend = get_backend(backend)
-    decode_backend = get_backend(backend)
+    prefill_backend = cast(Any, get_backend(backend))
+    decode_backend = cast(Any, get_backend(backend))
+
+    if nextn > 0 and nextn_accept_rates is None:
+        raise ValueError("nextn_accept_rates must be provided when nextn > 0")
+    accept_rates = cast(Any, nextn_accept_rates or [])
 
     p_mc = ModelConfig(
         tp_size=p_tp,
@@ -195,7 +204,7 @@ def predict_disagg_single(
         moe_tp_size=1,
         moe_ep_size=1,
         nextn=nextn,
-        nextn_accept_rates=nextn_accept_rates,
+        nextn_accept_rates=accept_rates,
         overwrite_num_layers=overwrite_num_layers,
     )
     d_mc = ModelConfig(
@@ -210,7 +219,7 @@ def predict_disagg_single(
         moe_tp_size=1,
         moe_ep_size=1,
         nextn=nextn,
-        nextn_accept_rates=nextn_accept_rates,
+        nextn_accept_rates=accept_rates,
         overwrite_num_layers=overwrite_num_layers,
     )
 
