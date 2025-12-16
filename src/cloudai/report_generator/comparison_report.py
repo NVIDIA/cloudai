@@ -144,7 +144,7 @@ class ComparisonReport(Reporter, ABC):
                 )
 
         df_with_max_rows = max(dfs, key=len)
-        for row_idx in range(len(df_with_max_rows[info_columns[0]])):
+        for row_idx in range(len(df_with_max_rows)):
             data = []
             for df in dfs:
                 data.extend([str(df[col].get(row_idx, "n/a")) for col in data_columns])
