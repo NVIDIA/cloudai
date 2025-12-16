@@ -16,8 +16,7 @@
 
 from __future__ import annotations
 
-from typing import cast
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 
 def _to_enum(enum_cls, value_or_name):
