@@ -42,6 +42,10 @@ class KubernetesRunner(BaseRunner):
 
         return job
 
+    def on_job_submit(self, tr: TestRun) -> None:
+        json_gen = self.get_json_gen_strategy(self.system, tr)
+        json_gen.store_test_run()
+
     def on_job_completion(self, job: BaseJob) -> None:
         k8s_system: KubernetesSystem = cast(KubernetesSystem, self.system)
         k_job = cast(KubernetesJob, job)

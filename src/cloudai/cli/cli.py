@@ -74,6 +74,10 @@ def setup_logging(log_file: str, log_level: str) -> None:
                 "handlers": ["debug_file"],
                 "propagate": False,
             },
+            "kubernetes": {
+                "handlers": [],
+                "propagate": False,
+            },
         },
     }
     logging.config.dictConfig(LOGGING_CONFIG)

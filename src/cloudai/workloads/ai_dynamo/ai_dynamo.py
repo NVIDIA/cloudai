@@ -154,7 +154,7 @@ class AIDynamoTestDefinition(TestDefinition):
         output_path = tr.output_path
         csv_files = list(output_path.rglob(CSV_FILES_PATTERN))
         json_files = list(output_path.rglob(JSON_FILES_PATTERN))
-        logging.debug(f"Found CSV files: {csv_files}, JSON files: {json_files}")
+        logging.debug(f"Found CSV files in {output_path.absolute()}: {csv_files}, JSON files: {json_files}")
         has_results = len(csv_files) > 0 and len(json_files) > 0
         if not has_results:
             return JobStatusResult(False, "No result files found in the output directory.")
