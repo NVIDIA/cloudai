@@ -16,13 +16,15 @@ Before running the AI Dynamo workload on a Kubernetes cluster, ensure that the c
 .. code-block:: bash
 
    export NAMESPACE=dynamo-system
-   export RELEASE_VERSION=0.6.1  # replace with the desired release version
+   export RELEASE_VERSION=0.7.0  # replace with the desired release version
 
-   helm fetch https://helm.ngc.nvidia.com/nvidia/ai-dynamo/charts/dynamo-crds-${RELEASE_VERSION}.tgz
-   helm install dynamo-crds dynamo-crds-${RELEASE_VERSION}.tgz --namespace default
+   helm upgrade -n default -i dynamo-crds https://helm.ngc.nvidia.com/nvidia/ai-dynamo/charts/dynamo-crds-${RELEASE_VERSION}.tgz
+   helm upgrade -n default -i dynamo-platform https://helm.ngc.nvidia.com/nvidia/ai-dynamo/charts/dynamo-platform-${RELEASE_VERSION}.tgz
 
-   helm fetch https://helm.ngc.nvidia.com/nvidia/ai-dynamo/charts/dynamo-platform-${RELEASE_VERSION}.tgz
-   helm install dynamo-platform dynamo-platform-${RELEASE_VERSION}.tgz --namespace ${NAMESPACE} --create-namespace
+   # The following components are required for multi node only.
+   # Versions should be aligned with Dynamo version.
+   helm upgrade -n default -i grove oci://ghcr.io/ai-dynamo/grove/grove-charts:v0.0.0-gd462e65
+   helm upgrade -n default -i kai-scheduler oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler:0.0.0-4c29820
 
 Launch and Monitor the Job
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
