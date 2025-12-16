@@ -143,12 +143,13 @@ class ComparisonReport(Reporter, ABC):
                     no_wrap=False,
                 )
 
-        for row_idx in range(len(dfs[0][info_columns[0]])):
+        df_with_max_rows = max(dfs, key=len)
+        for row_idx in range(len(df_with_max_rows)):
             data = []
             for df in dfs:
-                data.extend([str(df[col].get(row_idx)) for col in data_columns])
+                data.extend([str(df[col].get(row_idx, "n/a")) for col in data_columns])
 
-            table.add_row(*[str(dfs[0][col][row_idx]) for col in info_columns], *data)
+            table.add_row(*[str(df_with_max_rows[col][row_idx]) for col in info_columns], *data)
 
         return table
 
