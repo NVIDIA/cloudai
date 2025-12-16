@@ -359,11 +359,14 @@ class KubernetesSystem(System):
             self._genai_perf_completed = True
 
             for pod_role in {"decode", "prefill", "frontend"}:
-                pod_name = self._get_dynamo_pod_by_role(pod_role)
-                logging.debug(f"Fetching logs for {pod_role=} {pod_name=}")
-                logs = self.core_v1.read_namespaced_pod_log(name=pod_name, namespace=self.default_namespace)
-                with (job.test_run.output_path / f"{pod_role}_pod.log").open("w") as f:
-                    f.write(logs)
+                try:
+                    pod_name = self._get_dynamo_pod_by_role(pod_role)
+                    logging.debug(f"Fetching logs for {pod_role=} {pod_name=}")
+                    logs = self.core_v1.read_namespaced_pod_log(name=pod_name, namespace=self.default_namespace)
+                    with (job.test_run.output_path / f"{pod_role}_pod.log").open("w") as f:
+                        f.write(logs)
+                except Exception as e:
+                    logging.debug(f"Error fetching logs for role '{pod_role}': {e}")
 
             return False
 
