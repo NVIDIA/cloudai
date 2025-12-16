@@ -223,6 +223,16 @@ class Registry(metaclass=Singleton):
         self.scenario_reports[name] = report
         self.report_configs[name] = config
 
+    def ordered_scenario_reports(self) -> list[tuple[str, type[Reporter]]]:
+        def report_order(k: str) -> int:
+            return {
+                "per_test": 0,  # first
+                "status": 2,
+                "tarball": 3,  # last
+            }.get(k, 1)
+
+        return sorted(self.scenario_reports.items(), key=lambda kv: report_order(kv[0]))
+
     def add_reward_function(self, name: str, value: RewardFunction) -> None:
         if name in self.reward_functions_map:
             raise ValueError(f"Duplicating implementation for '{name}', use 'update()' for replacement.")

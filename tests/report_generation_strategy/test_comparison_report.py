@@ -14,9 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
+
 import bokeh.plotting as bk
 import pandas as pd
 import pytest
+import toml
+from packaging.requirements import Requirement
+from packaging.version import Version
 from rich.table import Table
 
 from cloudai.core import TestRun, TestScenario
@@ -101,8 +106,8 @@ class TestCreateTable:
                 ],
             ),
             [
-                pd.DataFrame({"size": [1, 2, 4], "value": [10, 20, 40]}),
                 pd.DataFrame({"size": [], "value": []}),
+                pd.DataFrame({"size": [1, 2, 4], "value": [10, 20, 40]}),
             ],
             "title",
             ["size"],
@@ -112,8 +117,8 @@ class TestCreateTable:
         assert len(table.columns) == 3
         assert len(table.rows) == 3
         assert list(table.columns[0].cells) == ["1", "2", "4"]
-        assert list(table.columns[1].cells) == ["10", "20", "40"]
-        assert list(table.columns[2].cells) == ["None", "None", "None"]
+        assert list(table.columns[1].cells) == ["n/a", "n/a", "n/a"]
+        assert list(table.columns[2].cells) == ["10", "20", "40"]
 
 
 def test_create_charts(cmp_report: MyComparisonReport, nccl_tr: TestRun) -> None:
@@ -135,3 +140,30 @@ def test_create_charts(cmp_report: MyComparisonReport, nccl_tr: TestRun) -> None
         ["value"],
         "y_axis_label",
     )
+
+
+def test_bokeh_cdn_version_matches_pyproject():
+    bokeh_dep = None
+    for dep in toml.load(Path("pyproject.toml"))["project"]["dependencies"]:
+        if dep.startswith("bokeh"):
+            bokeh_dep = dep
+            break
+
+    assert bokeh_dep is not None, "bokeh dependency not found in pyproject.toml"
+
+    req = Requirement(bokeh_dep)
+    assert req.specifier, f"No version specifier found in: {bokeh_dep}"
+
+    template_path = Path("src/cloudai/util/nixl_report_template.jinja2")
+    template_content = template_path.read_text()
+
+    pyproject_version = Version(f"{req.specifier}".lstrip("~=<>!"))
+    ver_str = f"-{pyproject_version.major}.{pyproject_version.minor}.0"
+
+    for line in template_content.splitlines():
+        if "cdn.bokeh.org/bokeh/release" not in line:
+            continue
+
+        assert ver_str in line, (
+            f"Bokeh CDN version ({line}) in template does not match pyproject.toml version ({pyproject_version})."
+        )
