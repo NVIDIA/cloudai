@@ -20,7 +20,7 @@ import sys
 from typing import Any, Dict, Optional, cast
 
 
-def _to_enum(enum_cls, value_or_name):
+def _to_enum(enum_cls: Any, value_or_name: Any) -> Any:
     """
     Convert a string or enum value to the corresponding enum instance.
 
