@@ -293,6 +293,21 @@ class TestSuccessIsPopulated:
         )
         assert f2._installed_path is not None, "Second file was not marked as installed"
 
+    def test_both_mark_as_installed(self, installer: SlurmInstaller):
+        f1, f2 = File(src=Path(__file__)), File(src=Path(__file__))
+
+        assert f1 == f2, "Files should be equal"
+        assert f1 is not f2, "Files should be distinct objects"
+        assert f1._installed_path is None, "First file should not be installed before test"
+        assert f2._installed_path is None, "Second file should not be installed before test"
+
+        res = installer.mark_as_installed([f1, f2])
+
+        assert res.success, "mark_as_installed should succeed"
+        assert f1._installed_path is not None, "First file should have installed_path set"
+        assert f2._installed_path is not None, "Second file should have installed_path set"
+        assert f1._installed_path == f2._installed_path, "Files should have same installed_path"
+
 
 @pytest.fixture(params=["k8s", "slurm"])
 def installer(

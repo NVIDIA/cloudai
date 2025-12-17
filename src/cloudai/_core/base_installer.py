@@ -268,9 +268,12 @@ class BaseInstaller(ABC):
         Returns:
             InstallStatusResult: Result containing the status and error message if any.
         """
-        install_results = {}
+        install_results: dict[Installable, InstallStatusResult] = {}
         for item in self.all_items(items):
-            self.mark_as_installed_one(item)
+            result = self.mark_as_installed_one(item)
+            install_results[item] = result
+
+        self._populate_successful_install(items, install_results)
 
         return InstallStatusResult(True, "All items marked as installed successfully.", install_results)
 
