@@ -166,6 +166,7 @@ class KubernetesSystem(System):
             assert isinstance(mpijob, dict)
             status: dict = cast(dict, mpijob.get("status", {}))
             conditions = status.get("conditions", [])
+            logging.debug(f"MPIJob '{job_name}': {conditions=} {status=}")
 
             # Consider an empty conditions list as running
             if not conditions:

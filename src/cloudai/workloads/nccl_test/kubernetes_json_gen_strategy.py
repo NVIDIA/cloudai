@@ -33,7 +33,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
 
     def gen_json(self) -> dict[Any, Any]:
         k8s_system = cast(KubernetesSystem, self.system)
-        job_name = self.sanitize_k8s_job_name("nccl-test")
+        job_name = self.sanitize_k8s_job_name(self.test_run.name)
 
         deployment = {
             "apiVersion": "kubeflow.org/v2beta1",
@@ -57,8 +57,12 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
 
         return deployment
 
-    def _create_launcher_spec(self) -> dict[str, Any]:
+    @property
+    def container_url(self) -> str:
         tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
+        return tdef.cmd_args.docker_image_url.replace("#", "/")
+
+    def _create_launcher_spec(self) -> dict[str, Any]:
         env_vars = self._get_merged_env_vars()
         return {
             "replicas": 1,
@@ -66,7 +70,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
                 "spec": {
                     "containers": [
                         {
-                            "image": tdef.cmd_args.docker_image_url,
+                            "image": self.container_url,
                             "name": "nccl-test-launcher",
                             "imagePullPolicy": "IfNotPresent",
                             "securityContext": {"privileged": True},
@@ -81,7 +85,6 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
         }
 
     def _create_worker_spec(self) -> dict[str, Any]:
-        tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
         env_vars = self._get_merged_env_vars()
         return {
             "replicas": self.test_run.nnodes,
@@ -89,7 +92,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
                 "spec": {
                     "containers": [
                         {
-                            "image": tdef.cmd_args.docker_image_url,
+                            "image": self.container_url,
                             "name": "nccl-test-worker",
                             "imagePullPolicy": "IfNotPresent",
                             "securityContext": {"privileged": True},
