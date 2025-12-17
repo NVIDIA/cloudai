@@ -65,7 +65,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--decode-correction-scale", type=float, default=1.0)
 
     # output
-    parser.add_argument("--output", required=True, type=Path, help="Path to write report.txt")
+    parser.add_argument(
+        "--output",
+        required=True,
+        type=Path,
+        help="Path to write predictor JSON output (filename is user-specified).",
+    )
 
     # optional quantization and features (strings to be converted by SDK)
     parser.add_argument("--gemm-quant-mode", default="fp8_block")

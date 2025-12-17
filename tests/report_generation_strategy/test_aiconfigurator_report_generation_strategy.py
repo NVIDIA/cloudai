@@ -31,16 +31,6 @@ from cloudai.workloads.aiconfig import (
 from cloudai.workloads.aiconfig.aiconfigurator import Agg
 
 
-@pytest.fixture
-def standalone_system(tmp_path: Path) -> StandaloneSystem:
-    return StandaloneSystem(
-        name="standalone",
-        scheduler="standalone",
-        install_path=tmp_path / "install",
-        output_path=tmp_path / "output",
-    )
-
-
 def _make_tr(tmp_path: Path) -> TestRun:
     tdef = AiconfiguratorTestDefinition(
         name="aiconfig",
@@ -60,7 +50,7 @@ def _make_tr(tmp_path: Path) -> TestRun:
 def test_can_handle_directory_when_report_exists(tmp_path: Path, standalone_system: StandaloneSystem) -> None:
     tr = _make_tr(tmp_path)
     tr.output_path.mkdir(parents=True, exist_ok=True)
-    (tr.output_path / "report.txt").write_text("{}", encoding="utf-8")
+    (tr.output_path / "report.json").write_text("{}", encoding="utf-8")
 
     strategy = AiconfiguratorReportGenerationStrategy(standalone_system, tr)
     assert strategy.can_handle_directory() is True
@@ -70,7 +60,7 @@ def test_generate_report_writes_summary(tmp_path: Path, standalone_system: Stand
     tr = _make_tr(tmp_path)
     tr.output_path.mkdir(parents=True, exist_ok=True)
     payload = {"ttft_ms": 10.0, "tpot_ms": 2.0, "tokens_per_s_per_gpu": 3.0, "tokens_per_s_per_user": 4.0, "oom": False}
-    (tr.output_path / "report.txt").write_text(json.dumps(payload), encoding="utf-8")
+    (tr.output_path / "report.json").write_text(json.dumps(payload), encoding="utf-8")
 
     strategy = AiconfiguratorReportGenerationStrategy(standalone_system, tr)
     strategy.generate_report()
@@ -86,7 +76,7 @@ def test_generate_report_writes_summary(tmp_path: Path, standalone_system: Stand
 def test_get_metric_default_prefers_throughput(tmp_path: Path, standalone_system: StandaloneSystem) -> None:
     tr = _make_tr(tmp_path)
     tr.output_path.mkdir(parents=True, exist_ok=True)
-    (tr.output_path / "report.txt").write_text(json.dumps({"tokens_per_s_per_gpu": 123.0}), encoding="utf-8")
+    (tr.output_path / "report.json").write_text(json.dumps({"tokens_per_s_per_gpu": 123.0}), encoding="utf-8")
 
     strategy = AiconfiguratorReportGenerationStrategy(standalone_system, tr)
     assert strategy.get_metric("default") == 123.0
@@ -95,7 +85,7 @@ def test_get_metric_default_prefers_throughput(tmp_path: Path, standalone_system
 def test_get_metric_default_falls_back_to_inverse_latency(tmp_path: Path, standalone_system: StandaloneSystem) -> None:
     tr = _make_tr(tmp_path)
     tr.output_path.mkdir(parents=True, exist_ok=True)
-    (tr.output_path / "report.txt").write_text(json.dumps({"tpot_ms": 2.0}), encoding="utf-8")
+    (tr.output_path / "report.json").write_text(json.dumps({"tpot_ms": 2.0}), encoding="utf-8")
 
     strategy = AiconfiguratorReportGenerationStrategy(standalone_system, tr)
     assert pytest.approx(strategy.get_metric("default"), rel=1e-6) == 0.5
@@ -113,7 +103,7 @@ def test_load_results_falls_back_to_stdout_last_json(tmp_path: Path, standalone_
 def test_get_metric_unknown_returns_error(tmp_path: Path, standalone_system: StandaloneSystem) -> None:
     tr = _make_tr(tmp_path)
     tr.output_path.mkdir(parents=True, exist_ok=True)
-    (tr.output_path / "report.txt").write_text(json.dumps({"ttft_ms": 1.0}), encoding="utf-8")
+    (tr.output_path / "report.json").write_text(json.dumps({"ttft_ms": 1.0}), encoding="utf-8")
 
     strategy = AiconfiguratorReportGenerationStrategy(standalone_system, tr)
     assert strategy.get_metric("nonexistent") == METRIC_ERROR

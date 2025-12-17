@@ -27,17 +27,7 @@ from cloudai.workloads.aiconfig import (
     AiconfiguratorStandaloneCommandGenStrategy,
     AiconfiguratorTestDefinition,
 )
-from cloudai.workloads.aiconfig.aiconfigurator import Disagg
-
-
-@pytest.fixture
-def standalone_system(tmp_path: Path) -> StandaloneSystem:
-    return StandaloneSystem(
-        name="standalone",
-        scheduler="standalone",
-        install_path=tmp_path / "install",
-        output_path=tmp_path / "output",
-    )
+from cloudai.workloads.aiconfig.aiconfigurator import Agg, Disagg
 
 
 def test_gen_exec_command_writes_repro_script_and_returns_bash(
@@ -94,6 +84,38 @@ def test_gen_exec_command_writes_repro_script_and_returns_bash(
     assert "--mode" in content and "disagg" in content
     assert "--d-bs" in content and "8" in content
 
-    assert str((out_dir.resolve() / "report.txt")) in content
+    assert str((out_dir.resolve() / "report.json")) in content
     assert str((out_dir.resolve() / "stdout.txt")) in content
     assert str((out_dir.resolve() / "stderr.txt")) in content
+
+
+def test_gen_exec_command_agg_branch(
+    tmp_path: Path, standalone_system: StandaloneSystem, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("sys.executable", "/tmp/python")
+
+    tdef = AiconfiguratorTestDefinition(
+        name="aiconfig",
+        description="desc",
+        test_template_name="Aiconfigurator",
+        cmd_args=AiconfiguratorCmdArgs(
+            model_name="LLAMA3.1_70B",
+            system="h200_sxm",
+            backend="trtllm",
+            version="0.20.0",
+            isl=4000,
+            osl=500,
+            agg=Agg(batch_size=8, ctx_tokens=16, tp=1, pp=1, dp=1, moe_tp=1, moe_ep=1),
+        ),
+    )
+    out_dir = tmp_path / "out-agg"
+    tr = TestRun(name="tr", test=tdef, num_nodes=1, nodes=[], output_path=out_dir)
+
+    strategy = AiconfiguratorStandaloneCommandGenStrategy(standalone_system, tr)
+    cmd = strategy.gen_exec_command()
+    assert cmd.startswith("bash ")
+
+    content = (out_dir.resolve() / "run_simple_predictor.sh").read_text(encoding="utf-8")
+    assert "--mode" in content and "agg" in content
+    assert "--batch-size" in content and "8" in content
+    assert "--ctx-tokens" in content and "16" in content

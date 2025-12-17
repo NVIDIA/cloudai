@@ -16,8 +16,14 @@
 
 from __future__ import annotations
 
-import sys
 from typing import Any, Dict, Optional, cast
+
+from aiconfigurator.sdk import common
+from aiconfigurator.sdk import config as aic_config
+from aiconfigurator.sdk import inference_session as aic_inference_session
+from aiconfigurator.sdk import models as aic_models
+from aiconfigurator.sdk import perf_database as aic_perf_database
+from aiconfigurator.sdk.backends import factory as aic_backends_factory
 
 
 def _to_enum(enum_cls: Any, value_or_name: Any) -> Any:
@@ -37,40 +43,6 @@ def _validate_nextn(nextn: int, nextn_accept_rates: Optional[list[float]]) -> li
     if nextn > 0 and nextn_accept_rates is None:
         raise ValueError("nextn_accept_rates must be provided when nextn > 0")
     return nextn_accept_rates or []
-
-
-def _ensure_aiconfigurator_available(*, need_inference_session: bool) -> dict[str, Any]:
-    """
-    Import required aiconfigurator symbols or raise a consistent ModuleNotFoundError.
-
-    Returns a dict of imported symbols so call sites can stay concise.
-    """
-    try:
-        from aiconfigurator.sdk import common
-        from aiconfigurator.sdk.backends.factory import get_backend
-        from aiconfigurator.sdk.config import ModelConfig, RuntimeConfig
-        from aiconfigurator.sdk.models import get_model
-        from aiconfigurator.sdk.perf_database import get_database
-
-        if need_inference_session:
-            from aiconfigurator.sdk.inference_session import InferenceSession
-        else:
-            InferenceSession = None  # type: ignore[assignment]
-    except ModuleNotFoundError as e:
-        raise ModuleNotFoundError(
-            "Missing dependency 'aiconfigurator'. Install it in the Python environment used for this test. "
-            f"(python={sys.executable})"
-        ) from e
-
-    return {
-        "common": common,
-        "get_backend": get_backend,
-        "ModelConfig": ModelConfig,
-        "RuntimeConfig": RuntimeConfig,
-        "get_model": get_model,
-        "get_database": get_database,
-        "InferenceSession": InferenceSession,
-    }
 
 
 def predict_ifb_single(
@@ -103,22 +75,14 @@ def predict_ifb_single(
     overwrite_num_layers: int = 0,
 ) -> Dict[str, Any]:
     """Predict metrics for a single IFB configuration using the aiconfigurator SDK primitives."""
-    syms = _ensure_aiconfigurator_available(need_inference_session=False)
-    common = syms["common"]
-    get_backend = syms["get_backend"]
-    ModelConfig = syms["ModelConfig"]
-    RuntimeConfig = syms["RuntimeConfig"]
-    get_model = syms["get_model"]
-    get_database = syms["get_database"]
-
-    database = get_database(system=system, backend=backend, version=version)
+    database = aic_perf_database.get_database(system=system, backend=backend, version=version)
     if database is None:
         raise ValueError(f"No perf database found for system={system} backend={backend} version={version}")
-    backend_impl = cast(Any, get_backend(backend))
+    backend_impl = cast(Any, aic_backends_factory.get_backend(backend))
 
     accept_rates = _validate_nextn(nextn, nextn_accept_rates)
 
-    mc = ModelConfig(
+    mc = aic_config.ModelConfig(
         tp_size=tp,
         pp_size=pp,
         attention_dp_size=dp,
@@ -133,9 +97,9 @@ def predict_ifb_single(
         nextn_accept_rates=accept_rates,
         overwrite_num_layers=overwrite_num_layers,
     )
-    model = get_model(model_name, mc, backend)
+    model = aic_models.get_model(model_name, mc, backend)
 
-    rc = RuntimeConfig(batch_size=batch_size, isl=isl, osl=osl)
+    rc = aic_config.RuntimeConfig(batch_size=batch_size, isl=isl, osl=osl)
     summary = backend_impl.run_ifb(model=model, database=database, runtime_config=rc, ctx_tokens=ctx_tokens)
     df = summary.get_summary_df()
     if df is None or df.empty:
@@ -197,24 +161,15 @@ def predict_disagg_single(
     decode_correction_scale: float = 1.0,
 ) -> Dict[str, Any]:
     """Predict metrics for a single disaggregated configuration (explicit prefill/decode workers)."""
-    syms = _ensure_aiconfigurator_available(need_inference_session=True)
-    common = syms["common"]
-    get_backend = syms["get_backend"]
-    ModelConfig = syms["ModelConfig"]
-    RuntimeConfig = syms["RuntimeConfig"]
-    get_model = syms["get_model"]
-    get_database = syms["get_database"]
-    InferenceSession = syms["InferenceSession"]
-
-    perf_db = get_database(system=system, backend=backend, version=version)
+    perf_db = aic_perf_database.get_database(system=system, backend=backend, version=version)
     if perf_db is None:
         raise ValueError(f"No perf database found for system={system} backend={backend} version={version}")
 
-    perf_backend = cast(Any, get_backend(backend))
+    perf_backend = cast(Any, aic_backends_factory.get_backend(backend))
 
     accept_rates = _validate_nextn(nextn, nextn_accept_rates)
 
-    p_mc = ModelConfig(
+    p_mc = aic_config.ModelConfig(
         tp_size=p_tp,
         pp_size=p_pp,
         attention_dp_size=p_dp,
@@ -229,7 +184,7 @@ def predict_disagg_single(
         nextn_accept_rates=accept_rates,
         overwrite_num_layers=overwrite_num_layers,
     )
-    d_mc = ModelConfig(
+    d_mc = aic_config.ModelConfig(
         tp_size=d_tp,
         pp_size=d_pp,
         attention_dp_size=d_dp,
@@ -245,14 +200,14 @@ def predict_disagg_single(
         overwrite_num_layers=overwrite_num_layers,
     )
 
-    rc_prefill = RuntimeConfig(batch_size=p_bs, isl=isl, osl=osl)
-    rc_decode = RuntimeConfig(batch_size=d_bs, isl=isl, osl=osl)
+    rc_prefill = aic_config.RuntimeConfig(batch_size=p_bs, isl=isl, osl=osl)
+    rc_decode = aic_config.RuntimeConfig(batch_size=d_bs, isl=isl, osl=osl)
 
-    prefill_model = get_model(model_name, p_mc, backend)
-    decode_model = get_model(model_name, d_mc, backend)
+    prefill_model = aic_models.get_model(model_name, p_mc, backend)
+    decode_model = aic_models.get_model(model_name, d_mc, backend)
 
-    prefill_sess = InferenceSession(prefill_model, perf_db, perf_backend)
-    decode_sess = InferenceSession(decode_model, perf_db, perf_backend)
+    prefill_sess = aic_inference_session.InferenceSession(prefill_model, perf_db, perf_backend)
+    decode_sess = aic_inference_session.InferenceSession(decode_model, perf_db, perf_backend)
 
     prefill_summary = prefill_sess.run_static(mode="static_ctx", runtime_config=rc_prefill)
     decode_summary = decode_sess.run_static(mode="static_gen", runtime_config=rc_decode)

@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from cloudai.core import CmdArgs, Installable, TestDefinition
 
@@ -73,6 +73,12 @@ class AiconfiguratorCmdArgs(CmdArgs):
 
     agg: Optional[Agg] = None
     disagg: Optional[Disagg] = None
+
+    @model_validator(mode="after")
+    def _validate_agg_disagg(self) -> "AiconfiguratorCmdArgs":
+        if self.agg is not None and self.disagg is not None:
+            raise ValueError("Only one of 'agg' or 'disagg' may be specified.")
+        return self
 
 
 class AiconfiguratorTestDefinition(TestDefinition):

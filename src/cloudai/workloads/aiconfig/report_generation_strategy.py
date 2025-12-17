@@ -38,11 +38,12 @@ class AiconfiguratorReportGenerationStrategy(ReportGenerationStrategy):
 
     def can_handle_directory(self) -> bool:
         return isinstance(self.test_run.test, AiconfiguratorTestDefinition) and (
-            (self.test_run.output_path / "report.txt").is_file() or (self.test_run.output_path / "stdout.txt").is_file()
+            (self.test_run.output_path / "report.json").is_file()
+            or (self.test_run.output_path / "stdout.txt").is_file()
         )
 
     def _load_results(self) -> Optional[dict]:
-        result_path = self.test_run.output_path / "report.txt"
+        result_path = self.test_run.output_path / "report.json"
         if result_path.is_file():
             try:
                 with result_path.open("r", encoding="utf-8") as f:

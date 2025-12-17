@@ -38,7 +38,7 @@ class AiconfiguratorStandaloneCommandGenStrategy(CommandGenStrategy):
         args: AiconfiguratorCmdArgs = tdef.cmd_args
         out_dir = Path(self.test_run.output_path).resolve()
 
-        report_txt = Path(out_dir) / "report.txt"
+        report_json = Path(out_dir) / "report.json"
         stdout_txt = Path(out_dir) / "stdout.txt"
         stderr_txt = Path(out_dir) / "stderr.txt"
 
@@ -117,7 +117,7 @@ class AiconfiguratorStandaloneCommandGenStrategy(CommandGenStrategy):
         else:
             cmd = [*base_cmd, "--mode", "agg"]
 
-        cmd.extend(["--output", str(report_txt)])
+        cmd.extend(["--output", str(report_json)])
 
         cmd_str = " ".join(shlex.quote(str(x)) for x in cmd)
         full_cmd = f"{cmd_str} 1> {shlex.quote(str(stdout_txt))} 2> {shlex.quote(str(stderr_txt))}"
