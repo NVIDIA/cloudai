@@ -61,7 +61,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--d-bs", dest="d_bs", type=int)
     parser.add_argument("--d-workers", dest="d_workers", type=int)
 
-    parser.add_argument("--prefill-correction-scale", type=float, default=0.9)
+    parser.add_argument("--prefill-correction-scale", type=float, default=1.0)
     parser.add_argument("--decode-correction-scale", type=float, default=1.0)
 
     # output
