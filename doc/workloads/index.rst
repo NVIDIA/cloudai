@@ -10,6 +10,7 @@ Available Workloads
    :header: "Test", "Slurm", "Kubernetes", "RunAI", "Standalone"
    :widths: 40, 15, 15, 15, 15
 
+   ":doc:`aiconfigurator`", "❌", "❌", "❌", "✅"
    ":doc:`ai_dynamo`", "✅", "✅", "❌", "❌"
    ":doc:`bash_cmd`", "✅", "❌", "❌", "❌"
    ":doc:`chakra_replay`", "✅", "❌", "❌", "❌"
