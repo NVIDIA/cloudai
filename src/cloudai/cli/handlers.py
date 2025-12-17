@@ -292,9 +292,9 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
     elif args.mode == "dry-run":
         # simulate installation for dry-run
         installables, installer = prepare_installation(system, tests, test_scenario)
-        installer.mark_as_installed(installables)
-        for inst in installables:
-            logging.info(f"Installed: {inst.__dict__!r}")
+        result = installer.mark_as_installed(installables)
+        if not result.success:
+            logging.warning("Failed to mark workloads components as installed for dry-run.")
 
     logging.info(test_scenario.pretty_print())
 
