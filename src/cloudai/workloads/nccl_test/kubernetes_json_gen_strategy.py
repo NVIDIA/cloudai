@@ -16,25 +16,34 @@
 
 from typing import Any, Dict, List, Union, cast
 
+import yaml
+
 from cloudai.core import JsonGenStrategy
+from cloudai.systems.kubernetes import KubernetesSystem
 
 from .nccl import NCCLTestDefinition
 
 
 class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
-    """JSON generation strategy for NCCL tests on Kubernetes systems."""
+    """
+    JSON generation strategy for NCCL tests on Kubernetes systems.
 
-    SSH_PORT: int = 2222
+    This strategy generates an MPIJob configuration for running NCCL tests.
+    """
 
     def gen_json(self) -> dict[Any, Any]:
-        return {
+        k8s_system = cast(KubernetesSystem, self.system)
+        job_name = self.sanitize_k8s_job_name("nccl-test")
+
+        deployment = {
             "apiVersion": "kubeflow.org/v2beta1",
             "kind": "MPIJob",
             "metadata": {
-                "name": self.sanitize_k8s_job_name("nccl-test"),
+                "name": job_name,
+                "namespace": k8s_system.default_namespace,
             },
             "spec": {
-                "slotsPerWorker": 1,
+                "slotsPerWorker": k8s_system.gpus_per_node,
                 "runPolicy": {"cleanPodPolicy": "Running"},
                 "mpiReplicaSpecs": {
                     "Launcher": self._create_launcher_spec(),
@@ -43,6 +52,11 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
             },
         }
 
+        with open(self.test_run.output_path / "deployment.yaml", "w") as f:
+            yaml.dump(deployment, f)
+
+        return deployment
+
     def _create_launcher_spec(self) -> dict[str, Any]:
         tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
         env_vars = self._get_merged_env_vars()
@@ -50,7 +64,6 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
             "replicas": 1,
             "template": {
                 "spec": {
-                    "hostNetwork": True,
                     "containers": [
                         {
                             "image": tdef.cmd_args.docker_image_url,
@@ -59,7 +72,8 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
                             "securityContext": {"privileged": True},
                             "env": self._generate_env_list(env_vars),
                             "command": ["/bin/bash", "-c"],
-                            "args": [self._generate_launcher_command(env_vars)],
+                            "args": [self._generate_launcher_command()],
+                            "resources": self._prepare_launcher_resources(),
                         }
                     ],
                 },
@@ -70,20 +84,18 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
         tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
         env_vars = self._get_merged_env_vars()
         return {
-            "replicas": self.test_run.num_nodes,
+            "replicas": self.test_run.nnodes,
             "template": {
                 "spec": {
-                    "hostNetwork": True,
                     "containers": [
                         {
                             "image": tdef.cmd_args.docker_image_url,
                             "name": "nccl-test-worker",
                             "imagePullPolicy": "IfNotPresent",
                             "securityContext": {"privileged": True},
-                            "ports": [{"containerPort": self.SSH_PORT, "name": "ssh"}],
                             "env": self._generate_env_list(env_vars),
-                            "command": ["/bin/bash"],
-                            "args": ["-c", f"/usr/sbin/sshd -p {self.SSH_PORT}; sleep infinity"],
+                            "command": ["/bin/bash", "-c"],
+                            "args": [self._generate_worker_command()],
                             "resources": self._prepare_worker_resources(),
                             "volumeMounts": [
                                 {"mountPath": "/dev/shm", "name": "dev-shm"},
@@ -95,30 +107,53 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
             },
         }
 
+    def _generate_worker_command(self) -> str:
+        """
+        Generate command for worker pods that starts the SSH daemon.
+
+        If the SSH daemon is not installed, it will be installed and the SSH keys will be generated.
+        """
+        return """
+set -e
+if ! command -v sshd &> /dev/null; then
+    apt-get update && apt-get install -y --no-install-recommends openssh-server
+fi
+mkdir -p /var/run/sshd
+cat >> /etc/ssh/sshd_config << EOF
+PermitRootLogin yes
+PubkeyAuthentication yes
+StrictModes no
+EOF
+ssh-keygen -A
+exec /usr/sbin/sshd -D
+""".strip()
+
     def _get_merged_env_vars(self) -> dict[str, str | list[str]]:
         final_env_vars = self.system.global_env_vars.copy()
         final_env_vars.update(self.test_run.test.extra_env_vars)
         return final_env_vars
 
     def _generate_env_list(self, env_vars: Dict[str, Union[str, List[str]]]) -> List[Dict[str, str]]:
-        env_list = [{"name": "OMPI_ALLOW_RUN_AS_ROOT", "value": "1"}]
+        env_list = [
+            {"name": "OMPI_ALLOW_RUN_AS_ROOT", "value": "1"},
+            {"name": "OMPI_ALLOW_RUN_AS_ROOT_CONFIRM", "value": "1"},
+        ]
         for key, value in env_vars.items():
             if isinstance(value, list):
                 value = ",".join(value)
             env_list.append({"name": key, "value": value})
         return env_list
 
-    def _generate_mpi_args(self, env_vars: Dict[str, Union[str, List[str]]]) -> List[str]:
-        mpi_args = [
-            "--allow-run-as-root",
-            f"--mca plm_rsh_args '-p {self.SSH_PORT}'",
-            "-c 2",
-            "-bind-to none -map-by slot",
-            "-mca btl tcp,self",
-        ]
+    def _generate_mpi_args(self) -> List[str]:
+        k8s_system = cast(KubernetesSystem, self.system)
+        total_processes = self.test_run.nnodes * k8s_system.gpus_per_node
 
-        if "NCCL_SOCKET_IFNAME" in env_vars:
-            mpi_args.append(f"-mca btl_tcp_if_include {env_vars['NCCL_SOCKET_IFNAME']}")
+        mpi_args = [
+            f"-np {total_processes}",
+            "-bind-to none",
+            # Disable strict host key checking for SSH
+            "-mca plm_rsh_args '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'",
+        ]
 
         return mpi_args
 
@@ -136,7 +171,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
             extra_args.append(f"{key} {value}" if value else key)
         return extra_args
 
-    def _generate_launcher_command(self, env_vars: dict[str, str | list[str]]) -> str:
+    def _generate_launcher_command(self) -> str:
         tdef: NCCLTestDefinition = cast(NCCLTestDefinition, self.test_run.test)
         tdef_cmd_args = tdef.cmd_args
 
@@ -146,7 +181,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
 
         command_parts = [
             "mpirun",
-            " ".join(self._generate_mpi_args(env_vars)),
+            " ".join(self._generate_mpi_args()),
             tdef_cmd_args.subtest_name,
             " ".join(self._generate_nccl_args(cmd_args_dict)),
         ]
@@ -163,4 +198,6 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
         }
 
     def _prepare_worker_resources(self) -> Dict[str, Dict[str, str]]:
-        return {"requests": {"nvidia.com/gpu": "8"}, "limits": {"nvidia.com/gpu": "8"}}
+        k8s_system = cast(KubernetesSystem, self.system)
+        gpu_count = str(k8s_system.gpus_per_node)
+        return {"requests": {"nvidia.com/gpu": gpu_count}, "limits": {"nvidia.com/gpu": gpu_count}}
