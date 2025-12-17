@@ -17,7 +17,7 @@ For details and `pip`-based installation, please refer to the [documentation](ht
 
 ## Key Concepts
 
-CloudAI operates on four main schemas:
+CloudAI operates on three main schemas:
 
 - **System Schema**: Describes the system, including the scheduler type, node list, and global environment variables.
 - **Test Schema**: An instance of a test template with custom arguments and environment variables.
