@@ -289,6 +289,12 @@ def handle_dry_run_and_run(args: argparse.Namespace) -> int:
             logging.error("Failed to install workloads components.")
             logging.error(result.message)
             return 1
+    elif args.mode == "dry-run":
+        # simulate installation for dry-run
+        installables, installer = prepare_installation(system, tests, test_scenario)
+        installer.mark_as_installed(installables)
+        for inst in installables:
+            logging.info(f"Installed: {inst.__dict__!r}")
 
     logging.info(test_scenario.pretty_print())
 
