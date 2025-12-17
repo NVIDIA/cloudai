@@ -44,6 +44,10 @@ These schemas enable CloudAI to be flexible and compatible with different system
 
 ## CloudAI Modes Usage Examples
 
+Global options for `cloudai` command:
+- `--log-file <path>`: specify a file to log output, by default `debug.log` in the current directory is used. Contains log entries of level `DEBUG` and higher.
+- `--log-level <level>`: specify logging level for standard output, default is `INFO`.
+
 (run)=
 ### run
 This mode runs workloads. It automatically installs prerequisites if they are not met.
