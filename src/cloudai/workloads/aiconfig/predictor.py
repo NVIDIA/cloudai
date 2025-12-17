@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import sys
 from typing import Any, Dict, Optional, cast
 
 
@@ -30,6 +31,46 @@ def _to_enum(enum_cls, value_or_name):
     if isinstance(value_or_name, str):
         return enum_cls[value_or_name]
     return enum_cls(value_or_name)
+
+
+def _validate_nextn(nextn: int, nextn_accept_rates: Optional[list[float]]) -> list[float]:
+    if nextn > 0 and nextn_accept_rates is None:
+        raise ValueError("nextn_accept_rates must be provided when nextn > 0")
+    return nextn_accept_rates or []
+
+
+def _ensure_aiconfigurator_available(*, need_inference_session: bool) -> dict[str, Any]:
+    """
+    Import required aiconfigurator symbols or raise a consistent ModuleNotFoundError.
+
+    Returns a dict of imported symbols so call sites can stay concise.
+    """
+    try:
+        from aiconfigurator.sdk import common
+        from aiconfigurator.sdk.backends.factory import get_backend
+        from aiconfigurator.sdk.config import ModelConfig, RuntimeConfig
+        from aiconfigurator.sdk.models import get_model
+        from aiconfigurator.sdk.perf_database import get_database
+
+        if need_inference_session:
+            from aiconfigurator.sdk.inference_session import InferenceSession
+        else:
+            InferenceSession = None  # type: ignore[assignment]
+    except ModuleNotFoundError as e:
+        raise ModuleNotFoundError(
+            "Missing dependency 'aiconfigurator'. Install it in the Python environment used for this test. "
+            f"(python={sys.executable})"
+        ) from e
+
+    return {
+        "common": common,
+        "get_backend": get_backend,
+        "ModelConfig": ModelConfig,
+        "RuntimeConfig": RuntimeConfig,
+        "get_model": get_model,
+        "get_database": get_database,
+        "InferenceSession": InferenceSession,
+    }
 
 
 def predict_ifb_single(
@@ -62,28 +103,20 @@ def predict_ifb_single(
     overwrite_num_layers: int = 0,
 ) -> Dict[str, Any]:
     """Predict metrics for a single IFB configuration using the aiconfigurator SDK primitives."""
-    try:
-        from aiconfigurator.sdk import common
-        from aiconfigurator.sdk.backends.factory import get_backend
-        from aiconfigurator.sdk.config import ModelConfig, RuntimeConfig
-        from aiconfigurator.sdk.models import get_model
-        from aiconfigurator.sdk.perf_database import get_database
-    except ModuleNotFoundError as e:
-        import sys as _sys
-
-        raise ModuleNotFoundError(
-            "Missing dependency 'aiconfigurator'. Install it in the Python environment used for this test. "
-            f"(python={_sys.executable})"
-        ) from e
+    syms = _ensure_aiconfigurator_available(need_inference_session=False)
+    common = syms["common"]
+    get_backend = syms["get_backend"]
+    ModelConfig = syms["ModelConfig"]
+    RuntimeConfig = syms["RuntimeConfig"]
+    get_model = syms["get_model"]
+    get_database = syms["get_database"]
 
     database = get_database(system=system, backend=backend, version=version)
     if database is None:
         raise ValueError(f"No perf database found for system={system} backend={backend} version={version}")
     backend_impl = cast(Any, get_backend(backend))
 
-    if nextn > 0 and nextn_accept_rates is None:
-        raise ValueError("nextn_accept_rates must be provided when nextn > 0")
-    accept_rates = cast(Any, nextn_accept_rates or [])
+    accept_rates = _validate_nextn(nextn, nextn_accept_rates)
 
     mc = ModelConfig(
         tp_size=tp,
@@ -164,20 +197,14 @@ def predict_disagg_single(
     decode_correction_scale: float = 1.0,
 ) -> Dict[str, Any]:
     """Predict metrics for a single disaggregated configuration (explicit prefill/decode workers)."""
-    try:
-        from aiconfigurator.sdk import common
-        from aiconfigurator.sdk.backends.factory import get_backend
-        from aiconfigurator.sdk.config import ModelConfig, RuntimeConfig
-        from aiconfigurator.sdk.inference_session import InferenceSession
-        from aiconfigurator.sdk.models import get_model
-        from aiconfigurator.sdk.perf_database import get_database
-    except ModuleNotFoundError as e:
-        import sys as _sys
-
-        raise ModuleNotFoundError(
-            "Missing dependency 'aiconfigurator'. Install it in the Python environment used for this test. "
-            f"(python={_sys.executable})"
-        ) from e
+    syms = _ensure_aiconfigurator_available(need_inference_session=True)
+    common = syms["common"]
+    get_backend = syms["get_backend"]
+    ModelConfig = syms["ModelConfig"]
+    RuntimeConfig = syms["RuntimeConfig"]
+    get_model = syms["get_model"]
+    get_database = syms["get_database"]
+    InferenceSession = syms["InferenceSession"]
 
     prefill_db = get_database(system=system, backend=backend, version=version)
     decode_db = get_database(system=system, backend=backend, version=version)
@@ -187,9 +214,7 @@ def predict_disagg_single(
     prefill_backend = cast(Any, get_backend(backend))
     decode_backend = cast(Any, get_backend(backend))
 
-    if nextn > 0 and nextn_accept_rates is None:
-        raise ValueError("nextn_accept_rates must be provided when nextn > 0")
-    accept_rates = cast(Any, nextn_accept_rates or [])
+    accept_rates = _validate_nextn(nextn, nextn_accept_rates)
 
     p_mc = ModelConfig(
         tp_size=p_tp,
