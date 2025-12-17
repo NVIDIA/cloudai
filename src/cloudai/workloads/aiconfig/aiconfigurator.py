@@ -78,6 +78,8 @@ class AiconfiguratorCmdArgs(CmdArgs):
     def _validate_agg_disagg(self) -> "AiconfiguratorCmdArgs":
         if self.agg is not None and self.disagg is not None:
             raise ValueError("Only one of 'agg' or 'disagg' may be specified.")
+        if self.agg is None and self.disagg is None:
+            raise ValueError("Either 'agg' or 'disagg' must be specified.")
         return self
 
 

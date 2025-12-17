@@ -115,7 +115,9 @@ class AiconfiguratorStandaloneCommandGenStrategy(CommandGenStrategy):
                 str(d.decode_correction_scale),
             ]
         else:
-            cmd = [*base_cmd, "--mode", "agg"]
+            raise ValueError(
+                "Either cmd_args.agg or cmd_args.disagg must be specified for the Aiconfigurator workload."
+            )
 
         cmd.extend(["--output", str(report_json)])
 

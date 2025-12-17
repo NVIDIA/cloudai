@@ -79,6 +79,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fmha-quant-mode", default="fp8")
     parser.add_argument("--comm-quant-mode", default="half")
     parser.add_argument("--nextn", default=0, type=int)
+    parser.add_argument(
+        "--nextn-accept-rates",
+        nargs="+",
+        type=float,
+        default=None,
+        help="Acceptance rates for nextn speculative decoding (space-separated floats). Required when --nextn > 0.",
+    )
 
     return parser.parse_args()
 
@@ -109,6 +116,7 @@ def _run_agg(ns: argparse.Namespace) -> dict:
         fmha_quant_mode=ns.fmha_quant_mode,
         comm_quant_mode=ns.comm_quant_mode,
         nextn=ns.nextn,
+        nextn_accept_rates=ns.nextn_accept_rates,
     )
 
 
@@ -143,6 +151,7 @@ def _run_disagg(ns: argparse.Namespace) -> dict:
         fmha_quant_mode=ns.fmha_quant_mode,
         comm_quant_mode=ns.comm_quant_mode,
         nextn=ns.nextn,
+        nextn_accept_rates=ns.nextn_accept_rates,
         prefill_correction_scale=ns.prefill_correction_scale,
         decode_correction_scale=ns.decode_correction_scale,
     )

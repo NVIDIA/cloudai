@@ -119,3 +119,13 @@ def test_gen_exec_command_agg_branch(
     assert "--mode" in content and "agg" in content
     assert "--batch-size" in content and "8" in content
     assert "--ctx-tokens" in content and "16" in content
+
+
+def test_cmd_args_requires_exactly_one_mode() -> None:
+    with pytest.raises(ValueError):
+        AiconfiguratorCmdArgs(
+            model_name="LLAMA3.1_70B",
+            system="h200_sxm",
+            isl=4000,
+            osl=500,
+        )
