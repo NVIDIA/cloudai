@@ -129,3 +129,26 @@ def test_cmd_args_requires_exactly_one_mode() -> None:
             isl=4000,
             osl=500,
         )
+
+
+def test_cmd_args_rejects_both_agg_and_disagg() -> None:
+    with pytest.raises(ValueError):
+        AiconfiguratorCmdArgs(
+            model_name="LLAMA3.1_70B",
+            system="h200_sxm",
+            isl=4000,
+            osl=500,
+            agg=Agg(batch_size=8, ctx_tokens=16, tp=1, pp=1, dp=1, moe_tp=1, moe_ep=1),
+            disagg=Disagg(
+                p_tp=1,
+                p_pp=1,
+                p_dp=1,
+                p_bs=1,
+                p_workers=1,
+                d_tp=1,
+                d_pp=1,
+                d_dp=1,
+                d_bs=8,
+                d_workers=2,
+            ),
+        )
