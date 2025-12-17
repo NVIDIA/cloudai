@@ -206,13 +206,11 @@ def predict_disagg_single(
     get_database = syms["get_database"]
     InferenceSession = syms["InferenceSession"]
 
-    prefill_db = get_database(system=system, backend=backend, version=version)
-    decode_db = get_database(system=system, backend=backend, version=version)
-    if prefill_db is None or decode_db is None:
+    perf_db = get_database(system=system, backend=backend, version=version)
+    if perf_db is None:
         raise ValueError(f"No perf database found for system={system} backend={backend} version={version}")
 
-    prefill_backend = cast(Any, get_backend(backend))
-    decode_backend = cast(Any, get_backend(backend))
+    perf_backend = cast(Any, get_backend(backend))
 
     accept_rates = _validate_nextn(nextn, nextn_accept_rates)
 
@@ -253,8 +251,8 @@ def predict_disagg_single(
     prefill_model = get_model(model_name, p_mc, backend)
     decode_model = get_model(model_name, d_mc, backend)
 
-    prefill_sess = InferenceSession(prefill_model, prefill_db, prefill_backend)
-    decode_sess = InferenceSession(decode_model, decode_db, decode_backend)
+    prefill_sess = InferenceSession(prefill_model, perf_db, perf_backend)
+    decode_sess = InferenceSession(decode_model, perf_db, perf_backend)
 
     prefill_summary = prefill_sess.run_static(mode="static_ctx", runtime_config=rc_prefill)
     decode_summary = decode_sess.run_static(mode="static_gen", runtime_config=rc_decode)
