@@ -1,0 +1,74 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name = "megatron_bridge_standalone_deepseekv3"
+description = "Megatron-Bridge standalone run (script submits Slurm job) for DeepSeek v3"
+test_template_name = "MegatronBridge"
+
+# Optional (DSE / cloudaigym)
+agent = "bo_gp"
+agent_steps = 20
+
+# Container mounts to pass through to Megatron-Bridge's setup_experiment.py via -cm
+# NOTE: update paths for your environment.
+extra_container_mounts = [
+  "/path/to/Megatron-Bridge:/opt/Megatron-Bridge",
+]
+
+[cmd_args]
+# Slurm/launcher-level
+account = ""
+partition = ""
+gpu_type = "gb200"
+container_image = "" # e.g. "/path/to/25.xx.sqsh"
+
+# Model/task
+model_name = "deepseek"
+model_size = "v3"
+domain = "llm"
+task = "pretrain"
+compute_dtype = "fp8_cs"
+
+# Required: must be a literal token string (not an env var reference)
+hf_token = "REPLACE_ME_WITH_HF_TOKEN"
+
+# Execution env (used by the generated bash script before running setup_experiment.py)
+venv_path = "/path/to/mbridge_venv"
+megatron_bridge_dir = "/path/to/Megatron-Bridge"
+
+# Cluster sizing
+gpus_per_node = 4
+num_gpus = 256
+
+# Sweeps (DSE)
+mb = [1]
+gb = 2048
+tp = [1, 2]
+pp = [1, 2, 4, 8]
+cp = 1
+ep = [32, 64]
+et = 1
+vp = [1, 2, 4, 8]
+
+# CUDA graphs / recompute
+cuda_graph_impl = "transformer_engine"
+cuda_graph_scope = ["[attn]"]
+recompute_modules = ["[mlp]", "[mlp, moe_act]", "[]"]
+
+moe_a2a_overlap = false
+use_megatron_fsdp = false
+
+
