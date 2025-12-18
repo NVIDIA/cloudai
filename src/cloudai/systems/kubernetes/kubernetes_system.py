@@ -682,7 +682,7 @@ class KubernetesSystem(System):
                     stdout_file.write(logs + "\n")
 
                 except lazy.k8s.client.ApiException as e:
-                    logging.error(f"Error retrieving logs for pod '{pod_name}': {e}")
+                    logging.debug(f"Error retrieving logs for pod '{pod_name}': {e}")
 
         logging.debug(f"All logs concatenated and saved to '{stdout_file_path}'")
 
