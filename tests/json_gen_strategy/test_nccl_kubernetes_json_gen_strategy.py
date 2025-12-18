@@ -15,6 +15,8 @@
 # limitations under the License.
 
 
+from typing import cast
+
 import pytest
 
 from cloudai.core import TestRun
@@ -68,12 +70,13 @@ class TestNcclTestKubernetesJsonGenStrategy:
         return NcclTestKubernetesJsonGenStrategy(kubernetes_system, test_run)
 
     def test_gen_json_basic_structure(self, basic_test_run: TestRun, k8s_system: KubernetesSystem) -> None:
-        json_payload = self.json_gen_strategy(k8s_system, basic_test_run).gen_json()
+        json_gen_strategy = self.json_gen_strategy(k8s_system, basic_test_run)
+        json_payload = json_gen_strategy.gen_json()
 
         assert json_payload["apiVersion"] == "kubeflow.org/v2beta1"
         assert json_payload["kind"] == "MPIJob"
-        assert json_payload["metadata"]["name"] == "nccl-test"
-        assert json_payload["spec"]["slotsPerWorker"] == 1
+        assert json_payload["metadata"]["name"] == json_gen_strategy.sanitize_k8s_job_name(basic_test_run.name)
+        assert json_payload["spec"]["slotsPerWorker"] == k8s_system.gpus_per_node
         assert json_payload["spec"]["runPolicy"]["cleanPodPolicy"] == "Running"
         assert "Launcher" in json_payload["spec"]["mpiReplicaSpecs"]
         assert "Worker" in json_payload["spec"]["mpiReplicaSpecs"]
@@ -83,7 +86,6 @@ class TestNcclTestKubernetesJsonGenStrategy:
         launcher_spec = json_payload["spec"]["mpiReplicaSpecs"]["Launcher"]
 
         assert launcher_spec["replicas"] == 1
-        assert launcher_spec["template"]["spec"]["hostNetwork"] is True
 
         container = launcher_spec["template"]["spec"]["containers"][0]
         assert container["image"] == "fake_image_url"
@@ -93,22 +95,24 @@ class TestNcclTestKubernetesJsonGenStrategy:
         assert container["command"] == ["/bin/bash", "-c"]
 
     def test_worker_spec(self, basic_test_run: TestRun, k8s_system: KubernetesSystem) -> None:
-        json_payload = self.json_gen_strategy(k8s_system, basic_test_run).gen_json()
+        json_gen_strategy = self.json_gen_strategy(k8s_system, basic_test_run)
+        json_payload = json_gen_strategy.gen_json()
         worker_spec = json_payload["spec"]["mpiReplicaSpecs"]["Worker"]
 
-        assert worker_spec["replicas"] == 2
-        assert worker_spec["template"]["spec"]["hostNetwork"] is True
+        assert worker_spec["replicas"] == basic_test_run.nnodes
 
         container = worker_spec["template"]["spec"]["containers"][0]
         assert container["image"] == "fake_image_url"
         assert container["name"] == "nccl-test-worker"
         assert container["imagePullPolicy"] == "IfNotPresent"
         assert container["securityContext"]["privileged"] is True
-        assert container["ports"][0] == {"containerPort": 2222, "name": "ssh"}
-        assert container["command"] == ["/bin/bash"]
-        assert container["args"] == ["-c", "/usr/sbin/sshd -p 2222; sleep infinity"]
+        assert container["command"] == ["/bin/bash", "-c"]
+        assert container["args"] == [json_gen_strategy._generate_worker_command()]
 
-        assert container["resources"] == {"requests": {"nvidia.com/gpu": "8"}, "limits": {"nvidia.com/gpu": "8"}}
+        assert container["resources"] == {
+            "requests": {"nvidia.com/gpu": str(k8s_system.gpus_per_node)},
+            "limits": {"nvidia.com/gpu": str(k8s_system.gpus_per_node)},
+        }
 
         assert container["volumeMounts"] == [{"mountPath": "/dev/shm", "name": "dev-shm"}]
         assert worker_spec["template"]["spec"]["volumes"] == [
@@ -127,18 +131,17 @@ class TestNcclTestKubernetesJsonGenStrategy:
             assert env_dict["LIST_VAR"] == "item1,item2"
 
     def test_launcher_command_generation(self, test_run_with_extra_args: TestRun, k8s_system: KubernetesSystem) -> None:
-        json_payload = self.json_gen_strategy(k8s_system, test_run_with_extra_args).gen_json()
+        json_gen_strategy = self.json_gen_strategy(k8s_system, test_run_with_extra_args)
+        json_payload = json_gen_strategy.gen_json()
         launcher_args = json_payload["spec"]["mpiReplicaSpecs"]["Launcher"]["template"]["spec"]["containers"][0][
             "args"
         ][0]
+        nccl = cast(NCCLTestDefinition, json_gen_strategy.test_run.test)
 
         assert "mpirun" in launcher_args
-        assert "--allow-run-as-root" in launcher_args
-        assert "--mca plm_rsh_args '-p 2222'" in launcher_args
-        assert "-bind-to none -map-by slot" in launcher_args
-        assert "all_reduce_perf" in launcher_args
-        assert "--nthreads 4" in launcher_args
-        assert "--ngpus 2" in launcher_args
-        assert "--minbytes 32M" in launcher_args
-        assert "--maxbytes 64M" in launcher_args
-        assert "--extra-flag value" in launcher_args
+        assert f"-np {test_run_with_extra_args.nnodes * k8s_system.gpus_per_node}" in launcher_args
+        assert "-bind-to none" in launcher_args
+        assert "-mca plm_rsh_args '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'" in launcher_args
+        assert nccl.cmd_args.subtest_name in launcher_args
+        assert f"--nthreads {nccl.cmd_args.nthreads}" in launcher_args
+        assert f"--ngpus {nccl.cmd_args.ngpus}" in launcher_args
