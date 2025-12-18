@@ -1,5 +1,5 @@
 # CloudAI User Guide
-This is a CloudAI user guide to help users use CloudAI, covering topics such as adding new tests and downloading datasets for running NeMo-launcher.
+The purpose of this guide is to help users use CloudAI. The user guide covers topics such as adding new tests and downloading datasets for running NeMo-launcher.
 
 ## Step 1: Create a Docker Image
 1. **Set Up the GitLab Repository:**

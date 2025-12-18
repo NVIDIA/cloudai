@@ -36,7 +36,8 @@ We use [import-linter](https://github.com/seddonym/import-linter) to ensure no c
 `Registry` object is a singleton that holds implementation mappings. Users can register their own implementations to the registry or replace the default implementations.
 
 ## Cache
-Some prerequisites can be installed: docker images, git repos with executable scripts, etc. All such "installables" are kept under System's `install_path`.
+Some prerequisites can be installed. For example: Docker images, git repos with executable scripts, etc.
+All such "installables" are kept under System's `install_path`.
 
 Installables are shared among all tests. So if any number of tests use the same installable, it is installed only once for a particular System TOML.
 

@@ -1,9 +1,9 @@
 UCC
 ===
 
-This workload (`test_template_name` is ``UCCTest``) allows you to execute UCC benchmarks within the CloudAI framework.
+This workload (`test_template_name` is ``UCCTest``) allows users to execute UCC benchmarks within the CloudAI framework.
 
-Usage Example
+Usage Examples
 -------------
 
 Test TOML example:
