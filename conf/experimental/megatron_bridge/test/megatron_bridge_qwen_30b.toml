@@ -18,16 +18,9 @@ name = "megatron_bridge_qwen_30b"
 description = "Megatron-Bridge run via CloudAI SlurmSystem for Qwen3 30B A3B"
 test_template_name = "MegatronBridge"
 
-# Optional (DSE / cloudaigym)
-agent = "bo_gp"
-agent_steps = 50
-
-# Extra container mounts passed to Megatron-Bridge's launcher via -cm
 extra_container_mounts = []
 
 [cmd_args]
-account = "network_software_cloudai"
-partition = "gb300"
 gpu_type = "gb200"
 container_image = "/lustre/fsw/hw_nsw_dev/srivatsank/workspace/nemo-perf/cloudaix/install/25.11.rc3.sqsh"
 
@@ -58,23 +51,7 @@ cuda_graph_impl = "transformer_engine"
 recompute_modules = ["[mlp]", "[mlp, moe_act]", "[]"]
 cuda_graph_scope = [
     "[attn]",
-    "[moe]",
-    "[moe_router]",
-    "[moe_preprocess]",
-    "[attn, moe]",
-    "[attn, moe_router]",
-    "[attn, moe_preprocess]",
-    "[moe, moe_router]",
     "[moe, moe_preprocess]",
-    "[moe_router, moe_preprocess]",
-    "[attn, moe, moe_router]",
-    "[attn, moe, moe_preprocess]",
-    "[attn, moe_router, moe_preprocess]",
-    "[mlp, moe, moe_router]",
-    "[mlp, moe, moe_preprocess]",
-    "[mlp, moe_router, moe_preprocess]",
-    "[moe, moe_router, moe_preprocess]",
-    "[attn, moe, moe_router, moe_preprocess]",
 ]
 
 

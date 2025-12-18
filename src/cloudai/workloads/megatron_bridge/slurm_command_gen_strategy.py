@@ -150,8 +150,9 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     parts.extend([flag, sv])
 
         # Base launcher flags
-        add("-a", args.account)
-        add("-p", args.partition)
+        if self.system.account:
+            add("-a", self.system.account)
+        add("-p", self.system.default_partition)
         add("-g", args.gpu_type)
         add("-l", args.log_dir)
         add("-t", args.time_limit)

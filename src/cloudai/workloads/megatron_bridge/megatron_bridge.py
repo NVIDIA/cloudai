@@ -27,8 +27,6 @@ class MegatronBridgeCmdArgs(CmdArgs):
     """Megatron-Bridge launcher arguments (translated into `setup_experiment.py` flags)."""
 
     # Slurm/launcher-level
-    account: str = Field(default="")
-    partition: str = Field(default="")
     gpu_type: str = Field(default="gb200")
     log_dir: str = Field(default="")
     time_limit: str = Field(default="00:30:00")
