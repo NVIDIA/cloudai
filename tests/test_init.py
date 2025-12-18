@@ -27,6 +27,7 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoSlurmCommandGenStrategy,
     AIDynamoTestDefinition,
 )
+from cloudai.workloads.aiconfig import AiconfiguratorStandaloneCommandGenStrategy, AiconfiguratorTestDefinition
 from cloudai.workloads.bash_cmd import BashCmdCommandGenStrategy, BashCmdTestDefinition
 from cloudai.workloads.chakra_replay import (
     ChakraReplayGradingStrategy,
@@ -128,6 +129,7 @@ CMD_GEN_STRATEGIES = {
     (SlurmSystem, DDLBTestDefinition): DDLBTestSlurmCommandGenStrategy,
     (SlurmSystem, MegatronRunTestDefinition): MegatronRunSlurmCommandGenStrategy,
     (StandaloneSystem, SleepTestDefinition): SleepStandaloneCommandGenStrategy,
+    (StandaloneSystem, AiconfiguratorTestDefinition): AiconfiguratorStandaloneCommandGenStrategy,
     (LSFSystem, SleepTestDefinition): SleepLSFCommandGenStrategy,
     (SlurmSystem, TritonInferenceTestDefinition): TritonInferenceSlurmCommandGenStrategy,
     (SlurmSystem, NIXLBenchTestDefinition): NIXLBenchSlurmCommandGenStrategy,
@@ -208,7 +210,7 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 19
+    assert len(test_defs) == 20
     for tdef in [
         ("UCCTest", UCCTestDefinition),
         ("DDLBTest", DDLBTestDefinition),
@@ -229,6 +231,7 @@ def test_definitions():
         ("BashCmd", BashCmdTestDefinition),
         ("NixlPerftest", NixlPerftestTestDefinition),
         ("NIXLKVBench", NIXLKVBenchTestDefinition),
+        ("Aiconfigurator", AiconfiguratorTestDefinition),
     ]:
         assert test_defs[tdef[0]] == tdef[1]
 

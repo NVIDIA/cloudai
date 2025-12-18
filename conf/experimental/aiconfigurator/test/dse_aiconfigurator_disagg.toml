@@ -1,0 +1,55 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name = "dse_aiconfigurator_disagg_demo_Llama3.1_70B"
+description = "Aiconfigurator disaggregated predictor DSE sweeps"
+test_template_name = "Aiconfigurator"
+agent_metrics = [
+  "ttft_ms",
+  "tpot_ms",
+  "tokens_per_s_per_gpu",
+  "tokens_per_s_per_user",
+]
+agent_reward_function = "ai_dynamo_log_scale"
+
+
+[cmd_args]
+model_name = "LLAMA3.1_70B"
+system = "h200_sxm"
+# backend and version use defaults
+isl = 4000
+osl = 500
+
+  [cmd_args.disagg]
+  p_tp = [1]
+  p_pp = [1]
+  p_dp = [1]
+  p_bs = 1
+  p_workers = [1, 2]
+
+  d_tp = [1]
+  d_pp = [1]
+  d_dp = [1]
+  d_bs = [8]
+  d_workers = [1, 2]
+
+  gemm_quant_mode = "fp8_block"
+  moe_quant_mode = "fp8"
+  kvcache_quant_mode = "fp8"
+  fmha_quant_mode = "fp8"
+  comm_quant_mode = "half"
+  prefill_correction_scale = 1.0
+  decode_correction_scale = 1.0
