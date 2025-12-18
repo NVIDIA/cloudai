@@ -86,15 +86,15 @@ def register_all():
         JaxToolboxSlurmCommandGenStrategy,
         NemotronTestDefinition,
     )
+    from cloudai.workloads.megatron_bridge import (
+        MegatronBridgeReportGenerationStrategy,
+        MegatronBridgeSlurmCommandGenStrategy,
+        MegatronBridgeTestDefinition,
+    )
     from cloudai.workloads.megatron_run import (
         CheckpointTimingReportGenerationStrategy,
         MegatronRunSlurmCommandGenStrategy,
         MegatronRunTestDefinition,
-    )
-    from cloudai.workloads.megatron_bridge import (
-        MegatronBridgeReportGenerationStrategy,
-        MegatronBridgeStandaloneCommandGenStrategy,
-        MegatronBridgeTestDefinition,
     )
     from cloudai.workloads.nccl_test import (
         ComparisonReportConfig,
@@ -179,7 +179,7 @@ def register_all():
     Registry().add_command_gen_strategy(SlurmSystem, NCCLTestDefinition, NcclTestSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, DDLBTestDefinition, DDLBTestSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(
-        StandaloneSystem, MegatronBridgeTestDefinition, MegatronBridgeStandaloneCommandGenStrategy
+        SlurmSystem, MegatronBridgeTestDefinition, MegatronBridgeSlurmCommandGenStrategy
     )
 
     Registry().add_command_gen_strategy(SlurmSystem, NeMoLauncherTestDefinition, NeMoLauncherSlurmCommandGenStrategy)

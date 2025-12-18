@@ -14,11 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "megatron_bridge_standalone_deepseekv3"
+from .megatron_bridge import MegatronBridgeCmdArgs, MegatronBridgeTestDefinition
+from .report_generation_strategy import MegatronBridgeReportGenerationStrategy
+from .slurm_command_gen_strategy import MegatronBridgeSlurmCommandGenStrategy
 
-[[Tests]]
-id = "megatron_bridge_standalone_deepseekv3"
-test_name = "megatron_bridge_standalone_deepseekv3"
-num_nodes = "1"
-
-
+__all__ = [
+    "MegatronBridgeCmdArgs",
+    "MegatronBridgeReportGenerationStrategy",
+    "MegatronBridgeSlurmCommandGenStrategy",
+    "MegatronBridgeTestDefinition",
+]

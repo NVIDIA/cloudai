@@ -1,0 +1,136 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from __future__ import annotations
+
+import contextlib
+import logging
+import re
+from pathlib import Path
+from statistics import mean, median, pstdev
+from typing import ClassVar
+
+from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
+
+
+class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
+    """Parse Megatron-Bridge logs for step time and GPU TFLOP/s per GPU."""
+
+    metrics: ClassVar[list[str]] = ["default", "step-time", "tflops-per-gpu"]
+
+    def _find_log_file(self) -> Path | None:
+        base = self.test_run.output_path
+        stdout = base / "stdout.txt"
+        if stdout.exists():
+            return stdout
+
+        candidates = list(base.rglob("log-*.out"))
+        candidates = [p for p in candidates if p.is_file()]
+        if candidates:
+            with contextlib.suppress(Exception):
+                candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+            return candidates[0]
+        return None
+
+    @property
+    def results_file(self) -> Path:
+        found = self._find_log_file()
+        return found if found else (self.test_run.output_path / "stdout.txt")
+
+    def can_handle_directory(self) -> bool:
+        return self.results_file.exists()
+
+    def _extract(self, log_path: Path) -> tuple[list[float], list[float]]:
+        step_times_s: list[float] = []
+        gpu_tflops: list[float] = []
+        step_line_re = re.compile(
+            r"Step Time\s*:\s*([0-9]+\.?[0-9]*)s\s+GPU utilization:\s*([0-9]+\.?[0-9]*)TFLOP/s/GPU"
+        )
+        with log_path.open("r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                m = step_line_re.search(line)
+                if m:
+                    try:
+                        step_times_s.append(float(m.group(1)))
+                        gpu_tflops.append(float(m.group(2)))
+                    except Exception:
+                        pass
+
+        if len(step_times_s) > 10:
+            step_times_s = step_times_s[-10:]
+            gpu_tflops = gpu_tflops[-10:]
+        return step_times_s, gpu_tflops
+
+    def generate_report(self) -> None:
+        log_file = self.results_file
+        if not log_file.exists():
+            logging.error("No Megatron-Bridge log file found under %s", self.test_run.output_path)
+            return
+
+        step_times_s, gpu_tflops = self._extract(log_file)
+        if not step_times_s:
+            return
+
+        step_stats = {
+            "avg": mean(step_times_s),
+            "median": median(step_times_s),
+            "min": min(step_times_s),
+            "max": max(step_times_s),
+            "std": pstdev(step_times_s) if len(step_times_s) > 1 else 0.0,
+        }
+        if gpu_tflops:
+            tflops_stats = {
+                "avg": mean(gpu_tflops),
+                "median": median(gpu_tflops),
+                "min": min(gpu_tflops),
+                "max": max(gpu_tflops),
+                "std": pstdev(gpu_tflops) if len(gpu_tflops) > 1 else 0.0,
+            }
+        else:
+            tflops_stats = {"avg": 0.0, "median": 0.0, "min": 0.0, "max": 0.0, "std": 0.0}
+
+        summary_file = self.test_run.output_path / "report.txt"
+        with open(summary_file, "w") as f:
+            f.write("Step Time (s)\n")
+            f.write("  avg: {avg}\n".format(avg=step_stats["avg"]))
+            f.write("  median: {median}\n".format(median=step_stats["median"]))
+            f.write("  min: {min}\n".format(min=step_stats["min"]))
+            f.write("  max: {max}\n".format(max=step_stats["max"]))
+            f.write("  std: {std}\n".format(std=step_stats["std"]))
+            f.write("\n")
+            f.write("TFLOP/s per GPU\n")
+            f.write("  avg: {avg}\n".format(avg=tflops_stats["avg"]))
+            f.write("  median: {median}\n".format(median=tflops_stats["median"]))
+            f.write("  min: {min}\n".format(min=tflops_stats["min"]))
+            f.write("  max: {max}\n".format(max=tflops_stats["max"]))
+            f.write("  std: {std}\n".format(std=tflops_stats["std"]))
+
+    def get_metric(self, metric: str) -> float:
+        if metric not in {"default", "step-time", "tflops-per-gpu"}:
+            return METRIC_ERROR
+        if not self.results_file.exists():
+            logging.error("%s not found", self.results_file)
+            return METRIC_ERROR
+
+        step_times_s, gpu_tflops = self._extract(self.results_file)
+        if not step_times_s:
+            return METRIC_ERROR
+
+        if metric in {"default", "step-time"}:
+            return float(mean(step_times_s))
+        if metric == "tflops-per-gpu":
+            return float(mean(gpu_tflops)) if gpu_tflops else METRIC_ERROR
+        return METRIC_ERROR
