@@ -3,7 +3,7 @@ Sleep
 
 This workload (`test_template_name` is ``Sleep``) executes a simple sleep command for testing and timing purposes. Useful for testing schedulers and system behavior.
 
-Usage Example
+Usage Examples
 -------------
 
 Test TOML example:

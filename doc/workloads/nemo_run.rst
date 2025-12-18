@@ -3,7 +3,7 @@ Nemo Run
 
 This workload (`test_template_name` is ``NemoRun``) executes NeMo training and fine-tuning tasks using the NeMo Run framework.
 
-Usage Example
+Usage Examples
 -------------
 
 Test TOML example:
