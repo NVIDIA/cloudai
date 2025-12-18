@@ -35,6 +35,7 @@ class AiconfiguratorStandaloneCommandGenStrategy(CommandGenStrategy):
 
     def store_test_run(self) -> None:
         test_cmd, full_cmd = ("", "n/a")
+        self.test_run.output_path.mkdir(parents=True, exist_ok=True)
         with (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).open("w", encoding="utf-8") as f:
             trd = TestRunDetails.from_test_run(self.test_run, test_cmd=test_cmd, full_cmd=full_cmd)
             toml.dump(trd.model_dump(), f)
