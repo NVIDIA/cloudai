@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 from pydantic import Field
 
@@ -77,8 +77,8 @@ class OSUBenchTestDefinition(TestDefinition):
         return [self.docker_image]
 
     @property
-    def cmd_args_dict(self) -> dict[str, str | list[str]]:
-        return self.cmd_args.model_dump(exclude={"docker_image_url", "location"})
+    def cmd_args_dict(self) -> dict[str, Any]:
+        return self.cmd_args.model_dump(exclude={"docker_image_url", "benchmarks_dir", "benchmark"})
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         stdout_path = tr.output_path / "stdout.txt"
@@ -105,6 +105,7 @@ class OSUBenchTestDefinition(TestDefinition):
                 ),
             )
 
+         # Check for basic OSU benchmark output format
         if "# Size" not in content:
             return JobStatusResult(
                 is_successful=False,
@@ -113,5 +114,8 @@ class OSUBenchTestDefinition(TestDefinition):
                     f"Check for errors in the execution or for a different output format."
                 ),
             )
+
+        # Additional validation could be added here to verify specific benchmark types
+        # based on the full header format once benchmark-specific validation is needed
 
         return JobStatusResult(is_successful=True)

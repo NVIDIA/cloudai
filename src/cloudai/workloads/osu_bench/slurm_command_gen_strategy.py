@@ -61,9 +61,7 @@ class OSUBenchSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         binary = f"{args.benchmarks_dir}/{args.benchmark}"
         srun_command_parts = [binary]
 
-        general = {"docker_image_url", "benchmarks_dir", "benchmark"}
-
-        for name, value in args.model_dump(exclude=general).items():
+        for name, value in self.test_run.test.cmd_args_dict.items():
             if value is None:
                 continue
 
