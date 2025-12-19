@@ -35,7 +35,7 @@ Launch and Monitor the Job
       --tests-dir conf/experimental/ai_dynamo/test \
       --test-scenario conf/experimental/ai_dynamo/test_scenario/vllm_k8s.toml
 
-Run using Slurm
+Run Using Slurm
 ---------------
 
 Node Configuration for AI Dynamo
@@ -43,11 +43,11 @@ Node Configuration for AI Dynamo
 
 AI Dynamo jobs use three distinct types of nodes:
 
-- **Frontend node**: Hosts the coordination services (`etcd`, `nats`), the **frontend server**, the **request generator** (`genai-perf`), and the first decode worker.
+- **Frontend node**: Hosts the coordination services (`etcd`, `nats`), the **frontend server**, the **request generator** (`genai-perf`), and the first decode worker
 - **Prefill node(s)**: Handle the prefill stage of inference
 - **Decode node(s)**: Handle the decode stage of inference (optional, depending on model and setup)
 
-The total number of nodes required must be:
+The total number of required nodes must be:
 
 ::
 

@@ -5,7 +5,7 @@ This workload is **DEPRECATED**. Please use :doc:`nemo_run` instead.
 
 Downloading and Installing the NeMo Dataset (The Pile Dataset)
 --------------------------------------------------------------
-This section describes how you can download the NeMo datasets on your server. The install mode of CloudAI handles the installation of all test prerequisites, but downloading and installing datasets is not the responsibility of the install mode. This is because any large datasets should be installed globally by the administrator and shared with multiple users, even if a user does not use CloudAI.
+This section describes how users can download the NeMo datasets on the server. The install mode of CloudAI handles the installation of all test prerequisites, but downloading and installing datasets is not the responsibility of the install mode. This is because any large datasets should be installed globally by the administrator and shared with multiple users, even if a user does not use CloudAI.
 
 For CloudAI users, we provide a detailed guide about downloading and installing the NeMo datasets in this section. By default, the NeMo launcher uses mock datasets for testing purposes. If you want to run tests using real datasets, you must download the datasets and update the test `.toml` files accordingly to locate the datasets and provide appropriate prefixes.
 

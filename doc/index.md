@@ -9,10 +9,10 @@ cd cloudai
 uv run cloudai --help
 ```
 
-**Note**: instructions for setting up access for `enroot` are available [installation guide](./workloads_requirements_installation.rst).
+**Note**: For instructions for setting up access for `enroot`, see [installation guide](./workloads_requirements_installation.rst).
 
-### `pip`-based installation
-See required Python version in the `.python-version` file, please ensure you have it installed (see how a custom python version [can be installed](#install-custom-python-version)). Follow these steps:
+### `pip`-based Installation
+See required Python version in the `.python-version` file and make sure you have it installed (For Installation, see [Custom Python version](#install-custom-python-version)). Follow these steps:
 ```bash
 git clone git@github.com:NVIDIA/cloudai.git
 cd cloudai
@@ -22,7 +22,7 @@ pip install -e .
 ```
 
 (install-custom-python-version)=
-### Install custom python version
+### Install Custom Python Version
 If your system python version is not supported, you can install a custom version using [uv](https://docs.astral.sh/uv/getting-started/installation/) tool:
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -34,11 +34,11 @@ source .venv/bin/activate
 
 
 ## Key Concepts
-CloudAI operates on four main schemas:
+CloudAI operates on three main schemas:
 
-- **System Schema**: Describes the system, including the scheduler type, node list, and global environment variables.
-- **Test Schema**: An instance of a test template with custom arguments and environment variables.
-- **Test Scenario Schema**: A set of tests with dependencies and additional descriptions about the test scenario.
+- **System Schema**: Describes the system, including the scheduler type, node list, and global environment variables
+- **Test Schema**: An instance of a test template with custom arguments and environment variables
+- **Test Scenario Schema**: A set of tests with dependencies and additional descriptions about the test scenario
 
 These schemas enable CloudAI to be flexible and compatible with different systems and configurations.
 

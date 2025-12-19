@@ -3,7 +3,7 @@ Chakra Replay
 
 This workload (`test_template_name` is ``ChakraReplay``) replays execution traces from the Chakra execution trace format for performance analysis and debugging.
 
-Usage Example
+Usage Examples
 -------------
 
 Test TOML example:

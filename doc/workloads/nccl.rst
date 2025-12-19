@@ -1,7 +1,7 @@
 NCCL
 ====
 
-This workload (`test_template_name` is ``NcclTest``) allows you to execute NCCL benchmarks within the CloudAI framework.
+This workload (`test_template_name` is ``NcclTest``) allows users to execute NCCL benchmarks within the CloudAI framework.
 
 Usage Example
 -------------

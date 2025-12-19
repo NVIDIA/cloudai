@@ -3,7 +3,7 @@ NIXL Bench
 
 This workload (`test_template_name` is ``NIXLBench``) runs NIXL benchmarking suite for network and interconnect performance testing.
 
-Usage Example
+Usage Examples
 -------------
 
 Test TOML example:

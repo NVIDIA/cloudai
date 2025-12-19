@@ -166,6 +166,7 @@ class KubernetesSystem(System):
             assert isinstance(mpijob, dict)
             status: dict = cast(dict, mpijob.get("status", {}))
             conditions = status.get("conditions", [])
+            logging.debug(f"MPIJob '{job_name}': {conditions=} {status=}")
 
             # Consider an empty conditions list as running
             if not conditions:
@@ -681,7 +682,7 @@ class KubernetesSystem(System):
                     stdout_file.write(logs + "\n")
 
                 except lazy.k8s.client.ApiException as e:
-                    logging.error(f"Error retrieving logs for pod '{pod_name}': {e}")
+                    logging.debug(f"Error retrieving logs for pod '{pod_name}': {e}")
 
         logging.debug(f"All logs concatenated and saved to '{stdout_file_path}'")
 
