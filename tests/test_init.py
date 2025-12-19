@@ -74,6 +74,7 @@ from cloudai.workloads.nixl_bench import (
 )
 from cloudai.workloads.nixl_kvbench import NIXLKVBenchSlurmCommandGenStrategy, NIXLKVBenchTestDefinition
 from cloudai.workloads.nixl_perftest import NixlPerftestSlurmCommandGenStrategy, NixlPerftestTestDefinition
+from cloudai.workloads.osu_bench import OSUBenchSlurmCommandGenStrategy, OSUBenchTestDefinition
 from cloudai.workloads.sleep import (
     SleepGradingStrategy,
     SleepKubernetesJsonGenStrategy,
@@ -137,6 +138,7 @@ CMD_GEN_STRATEGIES = {
     (SlurmSystem, BashCmdTestDefinition): BashCmdCommandGenStrategy,
     (SlurmSystem, NixlPerftestTestDefinition): NixlPerftestSlurmCommandGenStrategy,
     (SlurmSystem, NIXLKVBenchTestDefinition): NIXLKVBenchSlurmCommandGenStrategy,
+    (SlurmSystem, OSUBenchTestDefinition): OSUBenchSlurmCommandGenStrategy,
 }
 JSON_GEN_STRATEGIES = {
     (KubernetesSystem, NCCLTestDefinition): NcclTestKubernetesJsonGenStrategy,
@@ -210,7 +212,7 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 20
+    assert len(test_defs) == 21
     for tdef in [
         ("UCCTest", UCCTestDefinition),
         ("DDLBTest", DDLBTestDefinition),
@@ -232,6 +234,7 @@ def test_definitions():
         ("NixlPerftest", NixlPerftestTestDefinition),
         ("NIXLKVBench", NIXLKVBenchTestDefinition),
         ("Aiconfigurator", AiconfiguratorTestDefinition),
+        ("OSUBench", OSUBenchTestDefinition),
     ]:
         assert test_defs[tdef[0]] == tdef[1]
 

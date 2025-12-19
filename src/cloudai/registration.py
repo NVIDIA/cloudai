@@ -130,6 +130,10 @@ def register_all():
         NixlPerftestSlurmCommandGenStrategy,
         NixlPerftestTestDefinition,
     )
+    from cloudai.workloads.osu_bench import (
+        OSUBenchSlurmCommandGenStrategy,
+        OSUBenchTestDefinition,
+    )
     from cloudai.workloads.sleep import (
         SleepGradingStrategy,
         SleepKubernetesJsonGenStrategy,
@@ -203,6 +207,7 @@ def register_all():
     Registry().add_command_gen_strategy(SlurmSystem, AIDynamoTestDefinition, AIDynamoSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, BashCmdTestDefinition, BashCmdCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NIXLKVBenchTestDefinition, NIXLKVBenchSlurmCommandGenStrategy)
+    Registry().add_command_gen_strategy(SlurmSystem, OSUBenchTestDefinition, OSUBenchSlurmCommandGenStrategy)
 
     Registry().add_installer("slurm", SlurmInstaller)
     Registry().add_installer("standalone", StandaloneInstaller)
@@ -236,6 +241,7 @@ def register_all():
     Registry().add_test_definition("NixlPerftest", NixlPerftestTestDefinition)
     Registry().add_test_definition("NIXLKVBench", NIXLKVBenchTestDefinition)
     Registry().add_test_definition("Aiconfigurator", AiconfiguratorTestDefinition)
+    Registry().add_test_definition("OSUBench", OSUBenchTestDefinition)
 
     Registry().add_agent("grid_search", GridSearchAgent)
 
