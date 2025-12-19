@@ -67,3 +67,35 @@ def test_gen_kvbench_ucx(kvbench_tr: TestRun, slurm_system: SlurmSystem):
         "--op_type READ",
         "--etcd_endpoints http://$NIXL_ETCD_ENDPOINTS",
     ]
+
+
+def test_gen_kvbench_model_cfg_maps_to_model_config(kvbench_tr: TestRun, slurm_system: SlurmSystem):
+    kvbench_tr.test.cmd_args = NIXLKVBenchCmdArgs.model_validate(
+        {
+            "docker_image_url": "docker://image/url",
+            "model_cfg": "./cfg.yaml",
+        }
+    )
+    cmd_gen = NIXLKVBenchSlurmCommandGenStrategy(slurm_system, kvbench_tr)
+    cmd = cmd_gen.gen_kvbench_command()
+
+    # Ensure the alias 'model_cfg' is mapped to '--model_config'
+    assert "--model_config ./cfg.yaml" in cmd
+    assert not any(arg.startswith("--model_cfg ") for arg in cmd)
+
+
+def test_gen_kvbench_omits_none_values(kvbench_tr: TestRun, slurm_system: SlurmSystem):
+    kvbench_tr.test.cmd_args = NIXLKVBenchCmdArgs.model_validate(
+        {
+            "docker_image_url": "docker://image/url",
+            "model": "./model.yaml",
+            "op_type": None,
+            "source": None,
+        }
+    )
+    cmd_gen = NIXLKVBenchSlurmCommandGenStrategy(slurm_system, kvbench_tr)
+    cmd = cmd_gen.gen_kvbench_command()
+
+    # Ensure None-valued args are omitted entirely
+    assert not any(arg.startswith("--op_type ") for arg in cmd)
+    assert not any(arg.startswith("--source ") for arg in cmd)
