@@ -66,8 +66,14 @@ class NIXLKVBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
             f"{self.tdef.cmd_args.kvbench_script}",
             self.tdef.cmd_args.command,
         ]
+
         for k, v in self.test_run.test.cmd_args_dict.items():
-            command.append(f"--{k} {v}")
+            if v is None:
+                continue
+
+            key = "model_config" if k == "model_cfg" else k
+
+            command.append(f"--{key} {v}")
 
         command.append("--etcd_endpoints http://$NIXL_ETCD_ENDPOINTS")
 
