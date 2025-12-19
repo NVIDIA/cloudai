@@ -105,7 +105,7 @@ class OSUBenchTestDefinition(TestDefinition):
                 ),
             )
 
-         # Check for basic OSU benchmark output format
+        # Check for basic OSU benchmark output format
         if "# Size" not in content:
             return JobStatusResult(
                 is_successful=False,
