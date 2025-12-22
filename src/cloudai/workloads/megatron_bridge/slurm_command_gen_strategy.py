@@ -189,9 +189,9 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if args.enable_nsys and "enable_nsys" in fields_set:
             parts.append("-en")
         add_field("domain", "--domain", args.domain)
-        if "use_tokendrop" in fields_set:
+        if "use_tokendrop" in fields_set and args.use_tokendrop is not None:
             add_field("use_tokendrop", "--use_tokendrop", bool(args.use_tokendrop))
-        if "use_megatron_fsdp" in fields_set:
+        if "use_megatron_fsdp" in fields_set and args.use_megatron_fsdp is not None:
             add_field("use_megatron_fsdp", "--use_megatron_fsdp", bool(args.use_megatron_fsdp))
         add_field("cuda_graph_impl", "--cuda_graph_impl", args.cuda_graph_impl)
         if args.cuda_graph_scope and "cuda_graph_scope" in fields_set:
