@@ -66,16 +66,14 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         parts = self._build_launcher_parts(args, tdef, mbridge_repo_path, launcher_py)
         full_cmd = " ".join(parts)
 
-        self._last_exec_cmd = full_cmd
+        self._write_command_to_file(full_cmd, self.test_run.output_path)
         return full_cmd
 
     def store_test_run(self) -> None:
-        test_cmd = getattr(self, "_last_exec_cmd", None) or ""
+        test_cmd = self.gen_exec_command()
         trd = TestRunDetails.from_test_run(self.test_run, test_cmd=test_cmd, full_cmd=test_cmd)
         with (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).open("w") as f:
             toml.dump(trd.model_dump(), f)
-        if test_cmd:
-            self._write_command_to_file(test_cmd, self.test_run.output_path)
 
     def _write_command_to_file(self, command: str, output_path: Path) -> None:
         log_file = output_path / "generated_command.sh"
