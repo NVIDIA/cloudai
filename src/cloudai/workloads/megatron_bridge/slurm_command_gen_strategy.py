@@ -100,11 +100,14 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         parts = [p.strip().strip("\"'") for p in s.split(",") if p.strip()]
         return ",".join(parts)
 
-    def _build_launcher_parts(
+    def _build_launcher_parts(  # noqa: C901
         self, args: MegatronBridgeCmdArgs, tdef: MegatronBridgeTestDefinition, repo_path: Path, launcher_py: Path
-    ) -> list[str]:  # noqa: C901
-        if not args.hf_token:
-            raise RuntimeError("HuggingFace token is required. Please set a literal 'hf_token' in your test TOML.")
+    ) -> list[str]:
+        if not args.hf_token or args.hf_token.strip() == "" or args.hf_token.strip() == "REPLACE_ME_WITH_HF_TOKEN":
+            raise RuntimeError(
+                "HuggingFace token is required. Please set cmd_args.hf_token to a real token string "
+                "(not 'REPLACE_ME_WITH_HF_TOKEN') in your local test TOML."
+            )
 
         container_path = ""
         if args.container_image:

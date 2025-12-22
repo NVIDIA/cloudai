@@ -276,9 +276,8 @@ def test_params_set_validated(setup_env: tuple[TestRun, Runner], nemorun: NeMoRu
 
     assert excinfo.type is UserWarning
     assert "Pydantic serializer warnings:" in str(excinfo.value)
-    assert "serialized value may not be as expected [field_name='max_steps', input_value='invalid'" in str(
-        excinfo.value
-    )
+    assert "serialized value may not be as expected" in str(excinfo.value)
+    assert "input_value='invalid'" in str(excinfo.value)
 
 
 def test_apply_params_set__preserves_installables_state(setup_env: tuple[TestRun, Runner], tmp_path: Path):

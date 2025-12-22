@@ -17,7 +17,7 @@
 import logging
 from typing import List, Optional, Union, cast
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from cloudai.core import DockerImage, GitRepo, Installable, PythonExecutable
 from cloudai.models.workload import CmdArgs, TestDefinition
@@ -31,9 +31,7 @@ class MegatronBridgeCmdArgs(CmdArgs):
     log_dir: str = Field(default="")
     time_limit: str = Field(default="00:30:00")
     container_image: str = Field(default="")
-    # Explicit NeMo container version (e.g. "25.11"). Defaults to CloudAI's baseline container version.
     nemo_container_version: str = Field(default="25.11")
-    # Optional explicit Megatron-Bridge ref (branch/tag/commit). If set, it wins over version mapping.
     megatron_bridge_ref: Optional[str] = Field(default=None)
     num_gpus: int = Field(default=8)
     gpus_per_node: int = Field(default=8)
@@ -84,6 +82,12 @@ class MegatronBridgeCmdArgs(CmdArgs):
     # Optional distributed optimizer instances (for constraints/divisor)
     num_distributed_optimizer_instances: Optional[int] = Field(default=None)
 
+    @field_validator("hf_token", mode="after")
+    @classmethod
+    def validate_hf_token(cls, v: Optional[str]) -> Optional[str]:
+        token = (v or "").strip()
+        return token or None
+
 
 class MegatronBridgeTestDefinition(TestDefinition):
     """Megatron-Bridge test definition (CloudAI-managed install + Slurm submission via launcher)."""
@@ -109,17 +113,11 @@ class MegatronBridgeTestDefinition(TestDefinition):
     @property
     def python_executable(self) -> PythonExecutable:
         if not self._python_executable:
-            # Step 1: create venv and install NeMo-Run (CloudAI installs from the local clone)
             self._python_executable = PythonExecutable(git_repo=self.nemo_run_repo)
         return self._python_executable
 
     @property
     def megatron_bridge_repo(self) -> GitRepo:
-        """
-        Step 2: clone Megatron-Bridge and checkout the matching release branch for the container.
-
-        Example: for `...:25.11` container use `r0.2.0`.
-        """
         if self._megatron_bridge_repo is None:
             self._megatron_bridge_repo = GitRepo(
                 url="https://github.com/NVIDIA-NeMo/Megatron-Bridge.git",
@@ -129,11 +127,9 @@ class MegatronBridgeTestDefinition(TestDefinition):
         return self._megatron_bridge_repo
 
     def _infer_megatron_bridge_ref(self) -> str:
-        # Explicit override always wins.
         if self.cmd_args.megatron_bridge_ref:
             return self.cmd_args.megatron_bridge_ref
 
-        # No implicit inference from container_image: use explicit version mapping with defaults.
         return self._map_container_version_to_mbridge_ref(self.cmd_args.nemo_container_version.strip())
 
     def _map_container_version_to_mbridge_ref(self, ver: str) -> str:
@@ -165,7 +161,6 @@ class MegatronBridgeTestDefinition(TestDefinition):
                 items: list[str] = []
                 for raw in val:
                     s = str(raw).strip().strip("\"'")
-                    # Allow bracketed CSV like "[attn, mlp]"
                     if s.startswith("[") and s.endswith("]"):
                         s = s[1:-1]
                     for seg in s.split(","):
@@ -408,7 +403,8 @@ class MegatronBridgeTestDefinition(TestDefinition):
             ):
                 bad = True
                 logging.error(
-                    "Constraint 17 failed: cuda graph is not supported with layernorm recompute across attn+mlp+(moe|moe_router)."
+                    "Constraint 17 failed: cuda graph is not supported with layernorm recompute across "
+                    "attn+mlp+(moe|moe_router)."
                 )
             constraint17 = not bad
         else:
