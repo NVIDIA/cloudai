@@ -31,6 +31,10 @@ class MegatronBridgeCmdArgs(CmdArgs):
     log_dir: str = Field(default="")
     time_limit: str = Field(default="00:30:00")
     container_image: str = Field(default="")
+    # Explicit NeMo container version (e.g. "25.11"). Defaults to CloudAI's baseline container version.
+    nemo_container_version: str = Field(default="25.11")
+    # Optional explicit Megatron-Bridge ref (branch/tag/commit). If set, it wins over version mapping.
+    megatron_bridge_ref: Optional[str] = Field(default=None)
     num_gpus: int = Field(default=8)
     gpus_per_node: int = Field(default=8)
     custom_mounts: Optional[str] = Field(default=None)
@@ -86,14 +90,15 @@ class MegatronBridgeTestDefinition(TestDefinition):
 
     cmd_args: MegatronBridgeCmdArgs
 
-    scripts_repo: GitRepo = GitRepo(
-        url="https://github.com/NVIDIA-NeMo/Megatron-Bridge.git",
+    # NeMo-Run (provides the `nemo_run` package used by Megatron-Bridge launcher on the submit node)
+    nemo_run_repo: GitRepo = GitRepo(
+        url="https://github.com/NVIDIA-NeMo/Run.git",
         commit="main",
-        mount_as="/opt/Megatron-Bridge",
     )
 
     _docker_image: Optional[DockerImage] = None
     _python_executable: Optional[PythonExecutable] = None
+    _megatron_bridge_repo: Optional[GitRepo] = None
 
     @property
     def docker_image(self) -> DockerImage:
@@ -104,12 +109,42 @@ class MegatronBridgeTestDefinition(TestDefinition):
     @property
     def python_executable(self) -> PythonExecutable:
         if not self._python_executable:
-            self._python_executable = PythonExecutable(git_repo=self.scripts_repo)
+            # Step 1: create venv and install NeMo-Run (CloudAI installs from the local clone)
+            self._python_executable = PythonExecutable(git_repo=self.nemo_run_repo)
         return self._python_executable
 
     @property
+    def megatron_bridge_repo(self) -> GitRepo:
+        """
+        Step 2: clone Megatron-Bridge and checkout the matching release branch for the container.
+
+        Example: for `...:25.11` container use `r0.2.0`.
+        """
+        if self._megatron_bridge_repo is None:
+            self._megatron_bridge_repo = GitRepo(
+                url="https://github.com/NVIDIA-NeMo/Megatron-Bridge.git",
+                commit=self._infer_megatron_bridge_ref(),
+                mount_as="/opt/Megatron-Bridge",
+            )
+        return self._megatron_bridge_repo
+
+    def _infer_megatron_bridge_ref(self) -> str:
+        # Explicit override always wins.
+        if self.cmd_args.megatron_bridge_ref:
+            return self.cmd_args.megatron_bridge_ref
+
+        # No implicit inference from container_image: use explicit version mapping with defaults.
+        return self._map_container_version_to_mbridge_ref(self.cmd_args.nemo_container_version.strip())
+
+    def _map_container_version_to_mbridge_ref(self, ver: str) -> str:
+        version_to_branch = {
+            "25.11": "r0.2.0",
+        }
+        return version_to_branch.get(ver, "main")
+
+    @property
     def installables(self) -> list[Installable]:
-        items: list[Installable] = [self.python_executable]
+        items: list[Installable] = [self.python_executable, self.megatron_bridge_repo]
         if self.cmd_args.container_image:
             items.insert(0, self.docker_image)
         return items

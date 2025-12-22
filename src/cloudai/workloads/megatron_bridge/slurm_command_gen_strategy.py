@@ -43,17 +43,15 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         tdef: MegatronBridgeTestDefinition = cast(MegatronBridgeTestDefinition, self.test_run.test)
         args: MegatronBridgeCmdArgs = tdef.cmd_args
 
-        repo_path = (
-            tdef.python_executable.git_repo.installed_path.absolute()
-            if tdef.python_executable.git_repo.installed_path is not None
-            else None
+        mbridge_repo_path = (
+            tdef.megatron_bridge_repo.installed_path.absolute() if tdef.megatron_bridge_repo.installed_path else None
         )
-        if not repo_path:
+        if not mbridge_repo_path:
             logging.warning(
-                f"Local clone of git repo {tdef.python_executable.git_repo} does not exist. "
+                f"Local clone of git repo {tdef.megatron_bridge_repo} does not exist. "
                 "Please ensure to run installation before running the test."
             )
-            repo_path = self.system.install_path / tdef.python_executable.git_repo.repo_name  # dry-run compatibility
+            mbridge_repo_path = self.system.install_path / tdef.megatron_bridge_repo.repo_name  # dry-run compatibility
 
         venv_path = tdef.python_executable.venv_path
         if not venv_path:
@@ -63,9 +61,9 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             )
             venv_path = self.system.install_path / tdef.python_executable.venv_name  # dry-run compatibility
 
-        launcher_py = (repo_path / "scripts" / "performance" / "setup_experiment.py").absolute()
+        launcher_py = (mbridge_repo_path / "scripts" / "performance" / "setup_experiment.py").absolute()
 
-        parts = self._build_launcher_parts(args, tdef, repo_path, launcher_py)
+        parts = self._build_launcher_parts(args, tdef, mbridge_repo_path, launcher_py)
         full_cmd = " ".join(parts)
 
         self._log_command_to_file(full_cmd, self.test_run.output_path)
