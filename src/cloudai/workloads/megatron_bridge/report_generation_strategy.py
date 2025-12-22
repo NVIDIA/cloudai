@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import logging
 import re
 from pathlib import Path
@@ -52,7 +51,8 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
         step_times_s: list[float] = []
         gpu_tflops: list[float] = []
         step_line_re = re.compile(
-            r"Step Time\s*:\s*([0-9]+\.?[0-9]*)\s*s.*?GPU utilization:\s*([0-9]+\.?[0-9]*)\s*TFLOP/s/GPU",
+            r"Step Time\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*s.*?"
+            r"GPU utilization:\s*([0-9]+(?:\.[0-9]+)?)\s*(?:MODEL_)?TFLOP/s/GPU",
             re.IGNORECASE,
         )
         with log_path.open("r", encoding="utf-8", errors="ignore") as f:
@@ -74,7 +74,8 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
         candidates = self._candidate_logs()
         if not candidates:
             logging.error(
-                "No Megatron-Bridge launcher log file found: %s", self.test_run.output_path / "megatron_bridge_launcher.log"
+                "No Megatron-Bridge launcher log file found: %s",
+                self.test_run.output_path / "megatron_bridge_launcher.log",
             )
             return
 
@@ -140,7 +141,8 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
         candidates = self._candidate_logs()
         if not candidates:
             logging.error(
-                "No Megatron-Bridge launcher log file found: %s", self.test_run.output_path / "megatron_bridge_launcher.log"
+                "No Megatron-Bridge launcher log file found: %s",
+                self.test_run.output_path / "megatron_bridge_launcher.log",
             )
             return METRIC_ERROR
 
