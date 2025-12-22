@@ -31,33 +31,29 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
 
     metrics: ClassVar[list[str]] = ["default", "step-time", "tflops-per-gpu"]
 
-    def _find_log_file(self) -> Path | None:
+    def _candidate_logs(self) -> list[Path]:
         base = self.test_run.output_path
-        stdout = base / "stdout.txt"
-        if stdout.exists():
-            return stdout
+        log = base / "megatron_bridge_launcher.log"
+        return [log] if log.exists() and log.is_file() else []
 
-        candidates = list(base.rglob("log-*.out"))
-        candidates = [p for p in candidates if p.is_file()]
-        if candidates:
-            with contextlib.suppress(Exception):
-                candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-            return candidates[0]
-        return None
+    def _find_log_file(self) -> Path | None:
+        candidates = self._candidate_logs()
+        return candidates[0] if candidates else None
 
     @property
     def results_file(self) -> Path:
         found = self._find_log_file()
-        return found if found else (self.test_run.output_path / "stdout.txt")
+        return found if found else (self.test_run.output_path / "megatron_bridge_launcher.log")
 
     def can_handle_directory(self) -> bool:
-        return self.results_file.exists()
+        return bool(self._candidate_logs())
 
     def _extract(self, log_path: Path) -> tuple[list[float], list[float]]:
         step_times_s: list[float] = []
         gpu_tflops: list[float] = []
         step_line_re = re.compile(
-            r"Step Time\s*:\s*([0-9]+\.?[0-9]*)s\s+GPU utilization:\s*([0-9]+\.?[0-9]*)TFLOP/s/GPU"
+            r"Step Time\s*:\s*([0-9]+\.?[0-9]*)\s*s.*?GPU utilization:\s*([0-9]+\.?[0-9]*)\s*TFLOP/s/GPU",
+            re.IGNORECASE,
         )
         with log_path.open("r", encoding="utf-8", errors="ignore") as f:
             for line in f:
@@ -75,13 +71,32 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
         return step_times_s, gpu_tflops
 
     def generate_report(self) -> None:
-        log_file = self.results_file
-        if not log_file.exists():
-            logging.error("No Megatron-Bridge log file found under %s", self.test_run.output_path)
+        candidates = self._candidate_logs()
+        if not candidates:
+            logging.error(
+                "No Megatron-Bridge launcher log file found: %s", self.test_run.output_path / "megatron_bridge_launcher.log"
+            )
             return
 
-        step_times_s, gpu_tflops = self._extract(log_file)
+        log_file: Path | None = None
+        step_times_s: list[float] = []
+        gpu_tflops: list[float] = []
+        for cand in candidates:
+            st, tf = self._extract(cand)
+            if st:
+                log_file = cand
+                step_times_s, gpu_tflops = st, tf
+                break
+
+        summary_file = self.test_run.output_path / "report.txt"
         if not step_times_s:
+            with summary_file.open("w") as f:
+                f.write("MegatronBridge report\n")
+                f.write("No 'Step Time' / 'GPU utilization' lines were found.\n\n")
+                f.write("Searched files (newest first):\n")
+                for p in candidates:
+                    f.write(f"  - {p}\n")
+            logging.warning("No step metrics found under %s (wrote %s)", self.test_run.output_path, summary_file)
             return
 
         step_stats = {
@@ -102,8 +117,9 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
         else:
             tflops_stats = {"avg": 0.0, "median": 0.0, "min": 0.0, "max": 0.0, "std": 0.0}
 
-        summary_file = self.test_run.output_path / "report.txt"
         with open(summary_file, "w") as f:
+            if log_file:
+                f.write(f"Source log: {log_file}\n\n")
             f.write("Step Time (s)\n")
             f.write("  avg: {avg}\n".format(avg=step_stats["avg"]))
             f.write("  median: {median}\n".format(median=step_stats["median"]))
@@ -121,11 +137,20 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
     def get_metric(self, metric: str) -> float:
         if metric not in {"default", "step-time", "tflops-per-gpu"}:
             return METRIC_ERROR
-        if not self.results_file.exists():
-            logging.error("%s not found", self.results_file)
+        candidates = self._candidate_logs()
+        if not candidates:
+            logging.error(
+                "No Megatron-Bridge launcher log file found: %s", self.test_run.output_path / "megatron_bridge_launcher.log"
+            )
             return METRIC_ERROR
 
-        step_times_s, gpu_tflops = self._extract(self.results_file)
+        step_times_s: list[float] = []
+        gpu_tflops: list[float] = []
+        for cand in candidates:
+            st, tf = self._extract(cand)
+            if st:
+                step_times_s, gpu_tflops = st, tf
+                break
         if not step_times_s:
             return METRIC_ERROR
 
