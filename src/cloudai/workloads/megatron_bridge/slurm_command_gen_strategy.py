@@ -106,7 +106,14 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if not args.hf_token:
             raise RuntimeError("HuggingFace token is required. Please set a literal 'hf_token' in your test TOML.")
 
-        container_path = str(tdef.docker_image.installed_path) if args.container_image else ""
+        container_path = ""
+        if args.container_image:
+            ci = str(args.container_image).strip()
+            if ci.startswith("/") or ci.startswith("."):
+                ci_path = Path(ci).expanduser()
+                container_path = str(ci_path.absolute()) if ci_path.exists() else str(tdef.docker_image.installed_path)
+            else:
+                container_path = str(tdef.docker_image.installed_path)
 
         mounts: list[str] = []
         # Always mount the installed Megatron-Bridge repo into the container at /opt/Megatron-Bridge
