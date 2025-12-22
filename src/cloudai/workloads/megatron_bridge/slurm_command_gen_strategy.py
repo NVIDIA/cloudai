@@ -66,21 +66,22 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         parts = self._build_launcher_parts(args, tdef, mbridge_repo_path, launcher_py)
         full_cmd = " ".join(parts)
 
-        self._log_command_to_file(full_cmd, self.test_run.output_path)
+        self._last_exec_cmd = full_cmd
         return full_cmd
 
     def store_test_run(self) -> None:
-        # Store the actual launcher command (not an sbatch wrapper).
-        test_cmd = self.gen_exec_command()
+        test_cmd = getattr(self, "_last_exec_cmd", None) or ""
         trd = TestRunDetails.from_test_run(self.test_run, test_cmd=test_cmd, full_cmd=test_cmd)
         with (self.test_run.output_path / self.TEST_RUN_DUMP_FILE_NAME).open("w") as f:
             toml.dump(trd.model_dump(), f)
+        if test_cmd:
+            self._write_command_to_file(test_cmd, self.test_run.output_path)
 
-    def _log_command_to_file(self, command: str, output_path: Path) -> None:
+    def _write_command_to_file(self, command: str, output_path: Path) -> None:
         log_file = output_path / "generated_command.sh"
         log_file.parent.mkdir(parents=True, exist_ok=True)
-        with log_file.open("a") as f:
-            f.write(f"{command}\n\n")
+        with log_file.open("w") as f:
+            f.write(f"{command}\n")
 
     def _normalize_recompute_modules(self, val: Any) -> str:
         if isinstance(val, list):
@@ -127,14 +128,12 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         mounts.append(f"{repo_path.absolute()}:/opt/Megatron-Bridge")
         mounts.extend(tdef.extra_container_mounts or [])
 
+        venv_path = tdef.python_executable.venv_path or (self.system.install_path / tdef.python_executable.venv_name)
+        python_bin = (venv_path / "bin" / "python").absolute()
         parts: list[str] = [
             f'NEMORUN_HOME="{self.test_run.output_path.absolute()}"',
-            str(
-                (tdef.python_executable.venv_path or (self.system.install_path / tdef.python_executable.venv_name))
-                / "bin"
-                / "python"
-            ),
-            str(launcher_py),
+            str(python_bin),
+            str(Path(launcher_py).absolute()),
         ]
 
         def add(flag: str, value: Any) -> None:
