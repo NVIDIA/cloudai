@@ -41,11 +41,11 @@ class MegatronBridgeCmdArgs(CmdArgs):
     enable_vboost: Optional[bool] = Field(default=False)
     dryrun: Optional[bool] = Field(default=False)
     enable_nsys: Optional[bool] = Field(default=False)
-    no_detach: Optional[bool] = Field(default=True)
+    detach: Optional[bool] = Field(default=None)
 
     # Model/task
-    model_name: str = Field(default="")
-    model_size: str = Field(default="")
+    model_family_name: str = Field(default="")
+    model_recipe_name: str = Field(default="")
     domain: str = Field(default="llm")
     task: str = Field(default="pretrain")
     compute_dtype: str = Field(default="bf16")
