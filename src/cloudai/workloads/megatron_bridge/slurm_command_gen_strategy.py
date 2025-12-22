@@ -64,7 +64,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         launcher_py = (mbridge_repo_path / "scripts" / "performance" / "setup_experiment.py").absolute()
 
         parts = self._build_launcher_parts(args, tdef, mbridge_repo_path, launcher_py)
-        full_cmd = " ".join(parts)
+        full_cmd = self._wrap_launcher_for_job_id_and_quiet_output(" ".join(parts))
 
         self._write_command_to_file(full_cmd, self.test_run.output_path)
         return full_cmd
@@ -99,6 +99,46 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             s = s[1:-1]
         parts = [p.strip().strip("\"'") for p in s.split(",") if p.strip()]
         return ",".join(parts)
+
+    def _wrap_launcher_for_job_id_and_quiet_output(self, launcher_cmd: str) -> str:
+        """
+        Run the Megatron-Bridge launcher quietly and ensure CloudAI can parse a job ID.
+
+        CloudAI's SlurmRunner expects stdout to include "Submitted batch job <id>".
+        We redirect the launcher's stdout/stderr to a log file and echo a canonical line with the job id.
+        """
+        nemorun_home = str(self.test_run.output_path.absolute())
+        launch_log = f"{nemorun_home}/megatron_bridge_launcher.log"
+
+        # Try a few common job-id patterns produced by sbatch wrappers.
+        # We intentionally only print a single canonical line to stdout so it won't spam the CloudAI terminal.
+        script = (
+            "set -euo pipefail; "
+            f'export NEMORUN_HOME="{nemorun_home}"; '
+            'mkdir -p "$NEMORUN_HOME"; '
+            f'LOG="{launch_log}"; '
+            f'{launcher_cmd} >"$LOG" 2>&1; '
+            'JOB_ID=""; '
+            'JOB_ID=$(grep -Eo "Submitted batch job [0-9]+" "$LOG" | tail -n1 | awk "{print \\$4}" || true); '
+            'if [ -z "${JOB_ID}" ]; then '
+            '  JOB_ID=$(grep -Eo "submitted with Job ID [0-9]+" "$LOG" | tail -n1 | awk "{print \\$5}" || true); '
+            "fi; "
+            'if [ -z "${JOB_ID}" ]; then '
+            '  JOB_ID=$(grep -Eo "Job ID[: ]+[0-9]+" "$LOG" | tail -n1 | grep -Eo "[0-9]+" | tail -n1 || true); '
+            "fi; "
+            'if [ -z "${JOB_ID}" ]; then '
+            '  JOB_ID=$(grep -E "^[0-9]+$" "$LOG" | tail -n1 || true); '
+            "fi; "
+            'if [ -n "${JOB_ID}" ]; then '
+            '  echo "Submitted batch job ${JOB_ID}"; '
+            "else "
+            '  echo "Failed to retrieve job ID." >&2; '
+            '  tail -n 200 "$LOG" >&2 || true; '
+            "  exit 1; "
+            "fi"
+        )
+        # Use bash -lc so we can rely on pipefail and consistent shell behavior.
+        return f"bash -lc '{script}'"
 
     def _build_launcher_parts(  # noqa: C901
         self, args: MegatronBridgeCmdArgs, tdef: MegatronBridgeTestDefinition, repo_path: Path, launcher_py: Path

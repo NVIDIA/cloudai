@@ -171,4 +171,4 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         assert gen_file.exists()
         content = gen_file.read_text()
         assert cmd in content
-        assert content.startswith('NEMORUN_HOME="')
+        assert content.startswith("bash -lc")
