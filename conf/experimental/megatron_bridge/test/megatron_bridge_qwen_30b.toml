@@ -22,7 +22,7 @@ extra_container_mounts = []
 
 [cmd_args]
 gpu_type = "gb200"
-container_image = "nvcr.io#nvidian/nemo:25.11.rc3"
+container_image = "nvcr.io#nvidia/nemo:25.11.01"
 
 model_name = "qwen3"
 model_size = "30b_a3b"
@@ -30,7 +30,7 @@ gpus_per_node = 4
 num_gpus = 8
 domain = "llm"
 task = "pretrain"
-compute_dtype = "fp8"
+compute_dtype = "fp8_mx"
 
 hf_token = "REPLACE_ME_WITH_HF_TOKEN"
 
