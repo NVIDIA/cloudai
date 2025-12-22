@@ -22,7 +22,7 @@ extra_container_mounts = []
 
 [cmd_args]
 gpu_type = "gb200"
-container_image = "/lustre/fsw/hw_nsw_dev/srivatsank/workspace/nemo-perf/cloudaix/install/25.11.rc3.sqsh"
+container_image = "http://nvcr.io/nvidia/nemo:25.11"
 
 model_name = "qwen3"
 model_size = "30b_a3b"
@@ -30,28 +30,21 @@ gpus_per_node = 4
 num_gpus = 8
 domain = "llm"
 task = "pretrain"
-compute_dtype = "fp8_cs"
+compute_dtype = "fp8"
 
-# Required: must be a literal token string (not an env var reference)
 hf_token = "REPLACE_ME_WITH_HF_TOKEN"
 
-mb = [2, 4, 8, 16]
+mb = 8
 gb = 512
-tp = [1, 2]
-pp = [1, 2, 4, 8]
+tp = 1
+pp = 1
 cp = 1
-ep = [4, 8]
+ep = 8
 et = 1
 vp = 1
 
-moe_a2a_overlap = false
-use_megatron_fsdp = false
-
 cuda_graph_impl = "transformer_engine"
-recompute_modules = ["[mlp]", "[mlp, moe_act]", "[]"]
-cuda_graph_scope = [
-    "[attn]",
-    "[moe, moe_preprocess]",
-]
+recompute_modules = ["[mlp]"]
+cuda_graph_scope = "[attn]"
 
 
