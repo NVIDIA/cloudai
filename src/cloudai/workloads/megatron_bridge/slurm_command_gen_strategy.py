@@ -94,24 +94,11 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return f'"{joined}"'
 
     def _normalize_cuda_graph_scope_arg(self, val: Any) -> str:
-        """
-        Normalize `--cuda_graph_scope` to Megatron-Bridge's expected format.
-
-        Megatron-Bridge expects either:
-        - a string scope (single scope) -> it will be wrapped to a list internally
-        - or a list of scopes
-
-        Our configs often use a single TOML string like "[attn]" to represent a list.
-        For a single item, emit "attn" (no brackets). For multi-item, keep the bracketed form.
-        """
         s = str(val).strip().strip("\"'")
         if s.startswith("[") and s.endswith("]"):
-            inner = s[1:-1].strip()
-            parts = [p.strip().strip("\"'") for p in inner.split(",") if p.strip()]
-            if len(parts) == 1:
-                return parts[0]
-            return f'"[{", ".join(parts)}]"'
-        return s
+            s = s[1:-1]
+        parts = [p.strip().strip("\"'") for p in s.split(",") if p.strip()]
+        return ",".join(parts)
 
     def _build_launcher_parts(
         self, args: MegatronBridgeCmdArgs, tdef: MegatronBridgeTestDefinition, repo_path: Path, launcher_py: Path
