@@ -109,8 +109,17 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 "(not 'REPLACE_ME_WITH_HF_TOKEN') in your local test TOML."
             )
 
+        fields_set = args.model_fields_set
+        force_fields = {
+            "model_name",
+            "model_size",
+            "num_gpus",
+            "gpus_per_node",
+            "hf_token",
+        }
+
         container_path = ""
-        if args.container_image:
+        if args.container_image and "container_image" in fields_set:
             ci = str(args.container_image).strip()
             if ci.startswith("/") or ci.startswith("."):
                 ci_path = Path(ci).expanduser()
@@ -119,7 +128,6 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 container_path = str(tdef.docker_image.installed_path)
 
         mounts: list[str] = []
-        # Always mount the installed Megatron-Bridge repo into the container at /opt/Megatron-Bridge
         mounts.append(f"{repo_path.absolute()}:/opt/Megatron-Bridge")
         mounts.extend(tdef.extra_container_mounts or [])
 
@@ -141,72 +149,80 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 if sv != "":
                     parts.extend([flag, sv])
 
+        def add_field(field: str, flag: str, value: Any) -> None:
+            if field not in fields_set and field not in force_fields:
+                return
+            add(flag, value)
+
         # Base launcher flags
         if self.system.account:
             add("-a", self.system.account)
         add("-p", self.system.default_partition)
-        add("-g", args.gpu_type)
-        add("-l", args.log_dir)
-        add("-t", args.time_limit)
+        add_field("gpu_type", "-g", args.gpu_type)
+        add_field("log_dir", "-l", args.log_dir)
+        add_field("time_limit", "-t", args.time_limit)
         if container_path:
-            add("-i", container_path)
-        add("-c", args.compute_dtype)
-        add("--task", args.task)
-        add("-hf", args.hf_token)
-        add("-nh", args.nemo_home)
-        add("-wdk", args.wandb_key)
-        add("-wdp", args.wandb_prj_name)
-        add("-wdj", args.wandb_exp_name)
-        if args.dryrun:
+            add_field("container_image", "-i", container_path)
+        add_field("compute_dtype", "-c", args.compute_dtype)
+        add_field("task", "--task", args.task)
+        add_field("hf_token", "-hf", args.hf_token)
+        add_field("nemo_home", "-nh", args.nemo_home)
+        add_field("wandb_key", "-wdk", args.wandb_key)
+        add_field("wandb_prj_name", "-wdp", args.wandb_prj_name)
+        add_field("wandb_exp_name", "-wdj", args.wandb_exp_name)
+        if args.dryrun and "dryrun" in fields_set:
             parts.append("-d")
-        add("-ng", args.num_gpus)
-        add("-gn", args.gpus_per_node)
+        add_field("num_gpus", "-ng", args.num_gpus)
+        add_field("gpus_per_node", "-gn", args.gpus_per_node)
         if mounts:
             add("-cm", ",".join(mounts))
 
         # Model flags (Megatron-Bridge r0.2.0 API)
-        add("-vb", "true" if bool(args.enable_vboost) else "false" if args.enable_vboost is not None else None)
+        if "enable_vboost" in fields_set:
+            add_field("enable_vboost", "-vb", bool(args.enable_vboost))
         if not args.model_name:
             raise RuntimeError("Missing required cmd_args.model_name (maps to -m/--model_name).")
         if not args.model_size:
             raise RuntimeError("Missing required cmd_args.model_size (maps to -s/--model_size).")
-        add("-m", args.model_name)
-        add("-s", args.model_size)
-        if args.enable_nsys:
+        add_field("model_name", "-m", args.model_name)
+        add_field("model_size", "-s", args.model_size)
+        if args.enable_nsys and "enable_nsys" in fields_set:
             parts.append("-en")
-        add("--domain", args.domain)
-        if args.use_tokendrop is not None:
-            add("--use_tokendrop", bool(args.use_tokendrop))
-        if args.use_megatron_fsdp is not None:
-            add("--use_megatron_fsdp", bool(args.use_megatron_fsdp))
-        add("--cuda_graph_impl", args.cuda_graph_impl)
-        if args.cuda_graph_scope:
-            add("--cuda_graph_scope", self._normalize_cuda_graph_scope_arg(args.cuda_graph_scope))
+        add_field("domain", "--domain", args.domain)
+        if "use_tokendrop" in fields_set:
+            add_field("use_tokendrop", "--use_tokendrop", bool(args.use_tokendrop))
+        if "use_megatron_fsdp" in fields_set:
+            add_field("use_megatron_fsdp", "--use_megatron_fsdp", bool(args.use_megatron_fsdp))
+        add_field("cuda_graph_impl", "--cuda_graph_impl", args.cuda_graph_impl)
+        if args.cuda_graph_scope and "cuda_graph_scope" in fields_set:
+            add_field(
+                "cuda_graph_scope", "--cuda_graph_scope", self._normalize_cuda_graph_scope_arg(args.cuda_graph_scope)
+            )
 
         # Parallelism
-        add("-tp", args.tp)
-        add("-pp", args.pp)
-        add("-cp", args.cp)
-        add("-vp", args.vp)
-        add("-ep", args.ep)
-        add("-et", args.et)
+        add_field("tp", "-tp", args.tp)
+        add_field("pp", "-pp", args.pp)
+        add_field("cp", "-cp", args.cp)
+        add_field("vp", "-vp", args.vp)
+        add_field("ep", "-ep", args.ep)
+        add_field("et", "-et", args.et)
 
         # Batch
-        add("-mb", args.mb)
-        add("-gb", args.gb)
+        add_field("mb", "-mb", args.mb)
+        add_field("gb", "-gb", args.gb)
 
         # Misc
-        if args.moe_a2a_overlap is not None:
-            add("--moe_a2a_overlap", bool(args.moe_a2a_overlap))
-        add("-ms", args.max_steps)
-        add("-rl", args.recompute_num_layers)
-        add("-ol", args.activation_offload_layers)
-        if args.recompute_modules:
+        if "moe_a2a_overlap" in fields_set:
+            add_field("moe_a2a_overlap", "--moe_a2a_overlap", bool(args.moe_a2a_overlap))
+        add_field("max_steps", "-ms", args.max_steps)
+        add_field("recompute_num_layers", "-rl", args.recompute_num_layers)
+        add_field("activation_offload_layers", "-ol", args.activation_offload_layers)
+        if args.recompute_modules and "recompute_modules" in fields_set:
             parts.extend(["--recompute_modules", self._normalize_recompute_modules(args.recompute_modules)])
         # r0.2.0 supports `--detach` / `--no-detach` flags (no boolean value)
-        if args.detach is True:
+        if args.detach is True and "detach" in fields_set:
             parts.append("--detach")
-        elif args.detach is False:
+        elif args.detach is False and "detach" in fields_set:
             parts.append("--no-detach")
 
         # Extra user args (dict -> string)

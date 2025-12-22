@@ -85,6 +85,45 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         with pytest.raises(RuntimeError, match=r"hf_token"):
             cmd_gen.gen_exec_command()
 
+    def test_defaults_not_emitted_when_not_set_in_toml(self, slurm_system: SlurmSystem, tmp_path: Path) -> None:
+        sqsh = tmp_path / "img.sqsh"
+        sqsh.write_text("x")
+
+        args = MegatronBridgeCmdArgs(
+            container_image=str(sqsh),
+            hf_token="dummy_token",
+            model_name="qwen3",
+            model_size="30b_a3b",
+            num_gpus=8,
+            gpus_per_node=4,
+        )
+        tdef = MegatronBridgeTestDefinition(
+            name="mb",
+            description="desc",
+            test_template_name="MegatronBridge",
+            cmd_args=args,
+            extra_container_mounts=[],
+        )
+
+        (tmp_path / "run_repo").mkdir()
+        (tmp_path / "run_venv").mkdir()
+        (tmp_path / "mbridge_repo").mkdir()
+        tdef.python_executable.git_repo.installed_path = tmp_path / "run_repo"
+        tdef.python_executable.venv_path = tmp_path / "run_venv"
+        tdef.megatron_bridge_repo.installed_path = tmp_path / "mbridge_repo"
+        tdef.docker_image.installed_path = tmp_path / "cached.sqsh"
+
+        tr = TestRun(test=tdef, name="tr", num_nodes=1, nodes=[], output_path=tmp_path / "out")
+        slurm_system.account = "acct"
+        slurm_system.default_partition = "gb300"
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(slurm_system, tr)
+
+        cmd = cmd_gen.gen_exec_command()
+        assert "--use_tokendrop" not in cmd
+        assert "--use_megatron_fsdp" not in cmd
+        assert "--cuda_graph_impl" not in cmd
+        assert " -ms " not in cmd
+
     def test_container_image_local_path_passed_verbatim(
         self, cmd_gen: MegatronBridgeSlurmCommandGenStrategy, test_run: TestRun
     ) -> None:
