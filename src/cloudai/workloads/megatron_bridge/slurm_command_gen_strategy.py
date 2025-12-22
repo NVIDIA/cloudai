@@ -154,14 +154,14 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if mounts:
             add("-cm", ",".join(mounts))
 
-        # Model flags (align with current setup_experiment.py API)
+        # Model flags (Megatron-Bridge r0.2.0 API)
         add("-vb", "true" if bool(args.enable_vboost) else "false" if args.enable_vboost is not None else None)
-        if not args.model_family_name:
-            raise RuntimeError("Missing required cmd_args.model_family_name (maps to -m).")
-        if not args.model_recipe_name:
-            raise RuntimeError("Missing required cmd_args.model_recipe_name (maps to -mr).")
-        add("-m", args.model_family_name)
-        add("-mr", args.model_recipe_name)
+        if not args.model_name:
+            raise RuntimeError("Missing required cmd_args.model_name (maps to -m/--model_name).")
+        if not args.model_size:
+            raise RuntimeError("Missing required cmd_args.model_size (maps to -s/--model_size).")
+        add("-m", args.model_name)
+        add("-s", args.model_size)
         if args.enable_nsys:
             parts.append("-en")
         add("--domain", args.domain)
@@ -193,8 +193,11 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         add("-ol", args.activation_offload_layers)
         if args.recompute_modules:
             parts.extend(["--recompute_modules", self._normalize_recompute_modules(args.recompute_modules)])
-        if args.detach is not None:
-            add("--detach", bool(args.detach))
+        # r0.2.0 supports `--detach` / `--no-detach` flags (no boolean value)
+        if args.detach is True:
+            parts.append("--detach")
+        elif args.detach is False:
+            parts.append("--no-detach")
 
         # Extra user args (dict -> string)
         if tdef.extra_cmd_args:
