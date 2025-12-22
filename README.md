@@ -11,22 +11,22 @@ cd cloudai
 uv run cloudai --help
 ```
 
-Please refer to the [installation guide](https://nvidia.github.io/cloudai/workloads_requirements_installation.html) for details on setting up workloads' requirements.
+For details on setting up workloads' requirements, please refer to the [installation guide](https://nvidia.github.io/cloudai/workloads_requirements_installation.html)
 
 For details and `pip`-based installation, please refer to the [documentation](https://nvidia.github.io/cloudai/#get-started).
 
 ## Key Concepts
 
-CloudAI operates on four main schemas:
+CloudAI operates on three main schemas:
 
-- **System Schema**: Describes the system, including the scheduler type, node list, and global environment variables.
-- **Test Schema**: An instance of a test template with custom arguments and environment variables.
-- **Test Scenario Schema**: A set of tests with dependencies and additional descriptions about the test scenario.
+- **System Schema**: Describes the system, including the scheduler type, node list, and global environment variables
+- **Test Schema**: An instance of a test template with custom arguments and environment variables
+- **Test Scenario Schema**: A set of tests with dependencies and additional descriptions about the test scenario
 
 These schemas enable CloudAI to be flexible and compatible with different systems and configurations.
 
 
-## Support matrix
+## Support Matrix
 |Test|Slurm|Kubernetes|RunAI|Standalone|
 |---|---|---|---|---|
 |AI Dynamo|✅|✅|❌|❌|
@@ -47,7 +47,7 @@ These schemas enable CloudAI to be flexible and compatible with different system
 |Triton Inference|✅|❌|❌|❌|
 |UCC|✅|❌|❌|❌|
 
-*deprecated means that a workload support exists, but we are not maintaining it actively anymore and newer configurations might not work.
+Note: Deprecated means that a workload support exists, but we are not maintaining it actively anymore and newer configurations might not work.
 
 For more detailed information, please refer to the [official documentation](https://nvidia.github.io/cloudai/workloads/index.html).
 

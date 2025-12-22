@@ -60,6 +60,11 @@ def register_all():
         AIDynamoSlurmCommandGenStrategy,
         AIDynamoTestDefinition,
     )
+    from cloudai.workloads.aiconfig import (
+        AiconfiguratorReportGenerationStrategy,
+        AiconfiguratorStandaloneCommandGenStrategy,
+        AiconfiguratorTestDefinition,
+    )
 
     # Import all workloads and their strategies
     from cloudai.workloads.bash_cmd.bash_cmd import BashCmdCommandGenStrategy, BashCmdTestDefinition
@@ -130,6 +135,10 @@ def register_all():
         NixlPerftestSlurmCommandGenStrategy,
         NixlPerftestTestDefinition,
     )
+    from cloudai.workloads.osu_bench import (
+        OSUBenchSlurmCommandGenStrategy,
+        OSUBenchTestDefinition,
+    )
     from cloudai.workloads.sleep import (
         SleepGradingStrategy,
         SleepKubernetesJsonGenStrategy,
@@ -174,6 +183,9 @@ def register_all():
     Registry().add_command_gen_strategy(StandaloneSystem, SleepTestDefinition, SleepStandaloneCommandGenStrategy)
     Registry().add_command_gen_strategy(LSFSystem, SleepTestDefinition, SleepLSFCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, SleepTestDefinition, SleepSlurmCommandGenStrategy)
+    Registry().add_command_gen_strategy(
+        StandaloneSystem, AiconfiguratorTestDefinition, AiconfiguratorStandaloneCommandGenStrategy
+    )
 
     Registry().add_command_gen_strategy(SlurmSystem, MegatronRunTestDefinition, MegatronRunSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NCCLTestDefinition, NcclTestSlurmCommandGenStrategy)
@@ -203,6 +215,7 @@ def register_all():
     Registry().add_command_gen_strategy(SlurmSystem, AIDynamoTestDefinition, AIDynamoSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, BashCmdTestDefinition, BashCmdCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NIXLKVBenchTestDefinition, NIXLKVBenchSlurmCommandGenStrategy)
+    Registry().add_command_gen_strategy(SlurmSystem, OSUBenchTestDefinition, OSUBenchSlurmCommandGenStrategy)
 
     Registry().add_installer("slurm", SlurmInstaller)
     Registry().add_installer("standalone", StandaloneInstaller)
@@ -236,6 +249,8 @@ def register_all():
     Registry().add_test_definition("BashCmd", BashCmdTestDefinition)
     Registry().add_test_definition("NixlPerftest", NixlPerftestTestDefinition)
     Registry().add_test_definition("NIXLKVBench", NIXLKVBenchTestDefinition)
+    Registry().add_test_definition("Aiconfigurator", AiconfiguratorTestDefinition)
+    Registry().add_test_definition("OSUBench", OSUBenchTestDefinition)
 
     Registry().add_agent("grid_search", GridSearchAgent)
 
@@ -254,6 +269,7 @@ def register_all():
     Registry().add_report(TritonInferenceTestDefinition, TritonInferenceReportGenerationStrategy)
     Registry().add_report(NIXLBenchTestDefinition, NIXLBenchReportGenerationStrategy)
     Registry().add_report(AIDynamoTestDefinition, AIDynamoReportGenerationStrategy)
+    Registry().add_report(AiconfiguratorTestDefinition, AiconfiguratorReportGenerationStrategy)
     Registry().add_report(NixlPerftestTestDefinition, NIXLKVBenchDummyReport)
 
     Registry().add_scenario_report("per_test", PerTestReporter, ReportConfig(enable=True))

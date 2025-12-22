@@ -27,6 +27,7 @@ from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.kubernetes import KubernetesSystem
 from cloudai.systems.runai import RunAISystem
 from cloudai.systems.slurm import SlurmGroup, SlurmPartition, SlurmSystem
+from cloudai.systems.standalone import StandaloneSystem
 from cloudai.workloads.nccl_test.nccl import NCCLCmdArgs, NCCLTestDefinition
 
 
@@ -113,6 +114,16 @@ def runai_system(tmp_path: Path) -> RunAISystem:
         user_email="test_user@example.com",
     )
     return system
+
+
+@pytest.fixture
+def standalone_system(tmp_path: Path) -> StandaloneSystem:
+    return StandaloneSystem(
+        name="standalone",
+        scheduler="standalone",
+        install_path=tmp_path / "install",
+        output_path=tmp_path / "output",
+    )
 
 
 @pytest.fixture

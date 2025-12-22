@@ -10,6 +10,7 @@ Available Workloads
    :header: "Test", "Slurm", "Kubernetes", "RunAI", "Standalone"
    :widths: 40, 15, 15, 15, 15
 
+   ":doc:`aiconfigurator`", "❌", "❌", "❌", "✅"
    ":doc:`ai_dynamo`", "✅", "✅", "❌", "❌"
    ":doc:`bash_cmd`", "✅", "❌", "❌", "❌"
    ":doc:`chakra_replay`", "✅", "❌", "❌", "❌"
@@ -39,8 +40,8 @@ Adding New Workloads
 
 To add documentation for a new workload:
 
-1. Add docstrings to your Python classes and methods
-2. Create a markdown file in ``doc/workloads/`` (e.g., ``my_workload.md``)
+1. Add docstrings to your Python classes and methods.
+2. Create a markdown file in ``doc/workloads/`` (e.g., ``my_workload.md``).
 3. Add it to the table above.
 
-The documentation will be automatically generated during the build process!
+The documentation will be automatically generated during the build process.

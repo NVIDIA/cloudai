@@ -53,7 +53,7 @@ class JsonGenStrategy(ABC):
             str: The sanitized job name that complies with Kubernetes naming rules.
         """
         sanitized_name = job_name.lower()
-        sanitized_name = re.sub(r"[^a-z0-9.-]", "-", sanitized_name)
+        sanitized_name = re.sub(r"[^a-z0-9-]", "-", sanitized_name)
         sanitized_name = re.sub(r"^[^a-z0-9]+", "", sanitized_name)
         sanitized_name = re.sub(r"[^a-z0-9]+$", "", sanitized_name)
         return sanitized_name[:253]

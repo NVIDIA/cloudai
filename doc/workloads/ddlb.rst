@@ -1,9 +1,9 @@
 DDLB
 ====
 
-This workload (`test_template_name` is ``DDLB``) allows you to execute DDLB (Distributed Deep Learning Benchmarks) within the CloudAI framework. Please find the DDLB README at https://github.com/samnordmann/ddlb.
+This workload (`test_template_name` is ``DDLB``) allows users to execute DDLB (Distributed Deep Learning Benchmarks) within the CloudAI framework. Please find the DDLB README at https://github.com/samnordmann/ddlb.
 
-Usage Example
+Usage Examples
 -------------
 
 Test TOML example:
