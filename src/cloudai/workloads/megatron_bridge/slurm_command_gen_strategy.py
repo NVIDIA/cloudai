@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import logging
+import stat
 from pathlib import Path
 from typing import Any, cast
 
@@ -105,40 +106,48 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         Run the Megatron-Bridge launcher quietly and ensure CloudAI can parse a job ID.
 
         CloudAI's SlurmRunner expects stdout to include "Submitted batch job <id>".
-        We redirect the launcher's stdout/stderr to a log file and echo a canonical line with the job id.
+        This writes a readable wrapper script (with section breaks) into the test output directory, then runs it.
         """
-        nemorun_home = str(self.test_run.output_path.absolute())
-        launch_log = f"{nemorun_home}/megatron_bridge_launcher.log"
+        output_dir = self.test_run.output_path.absolute()
+        output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Try a few common job-id patterns produced by sbatch wrappers.
-        # We intentionally only print a single canonical line to stdout so it won't spam the CloudAI terminal.
-        script = (
-            "set -euo pipefail; "
-            f'export NEMORUN_HOME="{nemorun_home}"; '
-            'mkdir -p "$NEMORUN_HOME"; '
-            f'LOG="{launch_log}"; '
-            f'{launcher_cmd} >"$LOG" 2>&1; '
-            'JOB_ID=""; '
-            'JOB_ID=$(grep -Eo "Submitted batch job [0-9]+" "$LOG" | tail -n1 | awk "{print \\$4}" || true); '
-            'if [ -z "${JOB_ID}" ]; then '
-            '  JOB_ID=$(grep -Eo "submitted with Job ID [0-9]+" "$LOG" | tail -n1 | awk "{print \\$5}" || true); '
-            "fi; "
-            'if [ -z "${JOB_ID}" ]; then '
-            '  JOB_ID=$(grep -Eo "Job ID[: ]+[0-9]+" "$LOG" | tail -n1 | grep -Eo "[0-9]+" | tail -n1 || true); '
-            "fi; "
-            'if [ -z "${JOB_ID}" ]; then '
-            '  JOB_ID=$(grep -E "^[0-9]+$" "$LOG" | tail -n1 || true); '
-            "fi; "
-            'if [ -n "${JOB_ID}" ]; then '
-            '  echo "Submitted batch job ${JOB_ID}"; '
-            "else "
-            '  echo "Failed to retrieve job ID." >&2; '
-            '  tail -n 200 "$LOG" >&2 || true; '
-            "  exit 1; "
-            "fi"
-        )
-        # Use bash -lc so we can rely on pipefail and consistent shell behavior.
-        return f"bash -lc '{script}'"
+        wrapper_path = output_dir / "megatron_bridge_submit_and_parse_jobid.sh"
+        log_path = output_dir / "megatron_bridge_launcher.log"
+
+        script_lines = [
+            "#!/usr/bin/env bash",
+            "set -euo pipefail",
+            "",
+            f'export NEMORUN_HOME="{output_dir}"',
+            'mkdir -p "$NEMORUN_HOME"',
+            f'LOG="{log_path}"',
+            "",
+            # Launch Megatron-Bridge (log stdout/stderr to file)
+            "",
+            ': >"$LOG"',
+            f'{launcher_cmd} >>"$LOG" 2>&1',
+            "",
+            # Parse job id from Megatron-Bridge output (format: 'Job id: <num>')
+            "",
+            'JOB_ID=""',
+            'JOB_ID=$(grep -Eio "Job id[: ]+[0-9]+" "$LOG" | tail -n1 | grep -Eo "[0-9]+" | tail -n1 || true)',
+            "",
+            # Emit a canonical line for CloudAI to parse
+            "",
+            'if [ -n "${JOB_ID}" ]; then',
+            '  echo "Submitted batch job ${JOB_ID}"',
+            "else",
+            '  echo "Failed to retrieve job ID." >&2',
+            '  tail -n 200 "$LOG" >&2 || true',
+            "  exit 1",
+            "fi",
+            "",
+        ]
+
+        wrapper_path.write_text("\n".join(script_lines))
+        wrapper_path.chmod(wrapper_path.stat().st_mode | stat.S_IXUSR)
+
+        return f"bash {wrapper_path}"
 
     def _build_launcher_parts(  # noqa: C901
         self, args: MegatronBridgeCmdArgs, tdef: MegatronBridgeTestDefinition, repo_path: Path, launcher_py: Path

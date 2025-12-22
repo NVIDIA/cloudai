@@ -131,13 +131,18 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         local_img = Path(tdef.cmd_args.container_image)
         assert local_img.exists()
 
-        cmd = cmd_gen.gen_exec_command()
-        assert f"-i {local_img.absolute()}" in cmd
-        assert str(tdef.docker_image.installed_path) not in cmd
+        cmd_gen.gen_exec_command()
+        wrapper = test_run.output_path / "megatron_bridge_submit_and_parse_jobid.sh"
+        assert wrapper.exists()
+        wrapper_content = wrapper.read_text()
+        assert f"-i {local_img.absolute()}" in wrapper_content
+        assert str(tdef.docker_image.installed_path) not in wrapper_content
 
     def test_cuda_graph_scope_normalization(self, cmd_gen: MegatronBridgeSlurmCommandGenStrategy) -> None:
-        cmd = cmd_gen.gen_exec_command()
-        assert "--cuda_graph_scope moe_router,moe_preprocess" in cmd
+        cmd_gen.gen_exec_command()
+        wrapper = cmd_gen.test_run.output_path / "megatron_bridge_submit_and_parse_jobid.sh"
+        wrapper_content = wrapper.read_text()
+        assert "--cuda_graph_scope moe_router,moe_preprocess" in wrapper_content
 
     @pytest.mark.parametrize(
         "detach, expected, not_expected",
@@ -157,10 +162,13 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
     ) -> None:
         tdef = cast(MegatronBridgeTestDefinition, test_run.test)
         tdef.cmd_args.detach = detach
-        cmd = cmd_gen.gen_exec_command()
+        cmd_gen.gen_exec_command()
+        wrapper = test_run.output_path / "megatron_bridge_submit_and_parse_jobid.sh"
+        wrapper_content = wrapper.read_text()
         if expected:
-            assert expected in cmd
-        assert not_expected not in cmd if detach is None else True
+            assert expected in wrapper_content
+        if detach is None:
+            assert not_expected not in wrapper_content
 
     def test_generated_command_file_written(
         self, cmd_gen: MegatronBridgeSlurmCommandGenStrategy, test_run: TestRun
@@ -171,4 +179,5 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         assert gen_file.exists()
         content = gen_file.read_text()
         assert cmd in content
-        assert content.startswith("bash -lc")
+        assert content.startswith("bash ")
+        assert "megatron_bridge_submit_and_parse_jobid.sh" in content
