@@ -175,9 +175,12 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         cmd_gen.gen_exec_command()
         wrapper = test_run.output_path / "megatron_bridge_submit_and_parse_jobid.sh"
         wrapper_content = wrapper.read_text()
-        if expected:
-            assert expected in wrapper_content
         if detach is None:
+            assert "--detach" not in wrapper_content
+            assert "--no-detach" not in wrapper_content
+        else:
+            assert expected is not None
+            assert expected in wrapper_content
             assert not_expected not in wrapper_content
 
     def test_generated_command_file_written(
