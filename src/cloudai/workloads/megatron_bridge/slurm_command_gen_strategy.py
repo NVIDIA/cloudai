@@ -169,12 +169,23 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         container_path = ""
         if args.container_image and "container_image" in fields_set:
+            installed = tdef.docker_image.installed_path
+
+            def _installed_container_path() -> str:
+                if not installed:
+                    raise RuntimeError(
+                        "cmd_args.container_image was provided, but CloudAI has no installed/cached image path "
+                        "(docker_image.installed_path is empty). Please run `cloudai install` first, or provide "
+                        "a valid local .sqsh path in cmd_args.container_image."
+                    )
+                return str(Path(installed).absolute())
+
             ci = str(args.container_image).strip()
             if ci.startswith("/") or ci.startswith("."):
                 ci_path = Path(ci).expanduser()
-                container_path = str(ci_path.absolute()) if ci_path.exists() else str(tdef.docker_image.installed_path)
+                container_path = str(ci_path.absolute()) if ci_path.exists() else _installed_container_path()
             else:
-                container_path = str(tdef.docker_image.installed_path)
+                container_path = _installed_container_path()
 
         mounts: list[str] = []
         mounts.append(f"{repo_path.absolute()}:/opt/Megatron-Bridge")
