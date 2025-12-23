@@ -108,21 +108,21 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
         else:
             tflops_stats = {"avg": 0.0, "median": 0.0, "min": 0.0, "max": 0.0, "std": 0.0}
 
-        with open(summary_file, "w") as f:
+        with summary_file.open("w") as f:
             f.write(f"Source log: {log_file}\n\n")
             f.write("Step Time (s)\n")
-            f.write("  avg: {avg}\n".format(avg=step_stats["avg"]))
-            f.write("  median: {median}\n".format(median=step_stats["median"]))
-            f.write("  min: {min}\n".format(min=step_stats["min"]))
-            f.write("  max: {max}\n".format(max=step_stats["max"]))
-            f.write("  std: {std}\n".format(std=step_stats["std"]))
+            f.write(f"  avg: {step_stats['avg']}\n")
+            f.write(f"  median: {step_stats['median']}\n")
+            f.write(f"  min: {step_stats['min']}\n")
+            f.write(f"  max: {step_stats['max']}\n")
+            f.write(f"  std: {step_stats['std']}\n")
             f.write("\n")
             f.write("TFLOP/s per GPU\n")
-            f.write("  avg: {avg}\n".format(avg=tflops_stats["avg"]))
-            f.write("  median: {median}\n".format(median=tflops_stats["median"]))
-            f.write("  min: {min}\n".format(min=tflops_stats["min"]))
-            f.write("  max: {max}\n".format(max=tflops_stats["max"]))
-            f.write("  std: {std}\n".format(std=tflops_stats["std"]))
+            f.write(f"  avg: {tflops_stats['avg']}\n")
+            f.write(f"  median: {tflops_stats['median']}\n")
+            f.write(f"  min: {tflops_stats['min']}\n")
+            f.write(f"  max: {tflops_stats['max']}\n")
+            f.write(f"  std: {tflops_stats['std']}\n")
 
     def get_metric(self, metric: str) -> float:
         if metric not in {"default", "step-time", "tflops-per-gpu"}:
