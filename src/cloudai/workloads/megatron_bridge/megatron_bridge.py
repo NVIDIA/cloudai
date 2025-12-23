@@ -86,7 +86,9 @@ class MegatronBridgeCmdArgs(CmdArgs):
     @classmethod
     def validate_hf_token(cls, v: Optional[str]) -> Optional[str]:
         token = (v or "").strip()
-        return token or None
+        if not token:
+            raise ValueError("cmd_args.hf_token is required. Please set it to your literal HF token string.")
+        return token
 
 
 class MegatronBridgeTestDefinition(TestDefinition):

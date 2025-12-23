@@ -76,14 +76,9 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         slurm_system.default_partition = "gb300"
         return MegatronBridgeSlurmCommandGenStrategy(slurm_system, test_run)
 
-    def test_hf_token_placeholder_is_rejected_at_runtime(self, slurm_system: SlurmSystem, test_run: TestRun) -> None:
-        tdef = cast(MegatronBridgeTestDefinition, test_run.test)
-        tdef.cmd_args.hf_token = "REPLACE_ME_WITH_HF_TOKEN"
-        slurm_system.account = "acct"
-        slurm_system.default_partition = "gb300"
-        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(slurm_system, test_run)
-        with pytest.raises(RuntimeError, match=r"hf_token"):
-            cmd_gen.gen_exec_command()
+    def test_hf_token_empty_is_rejected_by_schema(self) -> None:
+        with pytest.raises(Exception, match=r"hf_token"):
+            MegatronBridgeCmdArgs.model_validate({"hf_token": ""})
 
     def test_defaults_not_emitted_when_not_set_in_toml(self, slurm_system: SlurmSystem, tmp_path: Path) -> None:
         sqsh = tmp_path / "img.sqsh"
