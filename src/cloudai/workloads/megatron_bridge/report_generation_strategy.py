@@ -30,22 +30,16 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
 
     metrics: ClassVar[list[str]] = ["default", "step-time", "tflops-per-gpu"]
 
-    def _candidate_logs(self) -> list[Path]:
-        base = self.test_run.output_path
-        log = base / "megatron_bridge_launcher.log"
-        return [log] if log.exists() and log.is_file() else []
-
-    def _find_log_file(self) -> Path | None:
-        candidates = self._candidate_logs()
-        return candidates[0] if candidates else None
+    def get_log_file(self) -> Path | None:
+        log = self.test_run.output_path / "megatron_bridge_launcher.log"
+        return log if log.is_file() else None
 
     @property
     def results_file(self) -> Path:
-        found = self._find_log_file()
-        return found if found else (self.test_run.output_path / "megatron_bridge_launcher.log")
+        return self.get_log_file() or (self.test_run.output_path / "megatron_bridge_launcher.log")
 
     def can_handle_directory(self) -> bool:
-        return bool(self._candidate_logs())
+        return self.get_log_file() is not None
 
     def _extract(self, log_path: Path) -> tuple[list[float], list[float]]:
         step_times_s: list[float] = []
@@ -71,32 +65,23 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
         return step_times_s, gpu_tflops
 
     def generate_report(self) -> None:
-        candidates = self._candidate_logs()
-        if not candidates:
+        log_file = self.get_log_file()
+        if not log_file:
             logging.error(
                 "No Megatron-Bridge launcher log file found: %s",
                 self.test_run.output_path / "megatron_bridge_launcher.log",
             )
             return
 
-        log_file: Path | None = None
-        step_times_s: list[float] = []
-        gpu_tflops: list[float] = []
-        for cand in candidates:
-            st, tf = self._extract(cand)
-            if st:
-                log_file = cand
-                step_times_s, gpu_tflops = st, tf
-                break
+        step_times_s, gpu_tflops = self._extract(log_file)
 
         summary_file = self.test_run.output_path / "report.txt"
         if not step_times_s:
             with summary_file.open("w") as f:
                 f.write("MegatronBridge report\n")
                 f.write("No 'Step Time' / 'GPU utilization' lines were found.\n\n")
-                f.write("Searched files (newest first):\n")
-                for p in candidates:
-                    f.write(f"  - {p}\n")
+                f.write("Searched file:\n")
+                f.write(f"  - {log_file}\n")
             logging.warning("No step metrics found under %s (wrote %s)", self.test_run.output_path, summary_file)
             return
 
@@ -119,8 +104,7 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
             tflops_stats = {"avg": 0.0, "median": 0.0, "min": 0.0, "max": 0.0, "std": 0.0}
 
         with open(summary_file, "w") as f:
-            if log_file:
-                f.write(f"Source log: {log_file}\n\n")
+            f.write(f"Source log: {log_file}\n\n")
             f.write("Step Time (s)\n")
             f.write("  avg: {avg}\n".format(avg=step_stats["avg"]))
             f.write("  median: {median}\n".format(median=step_stats["median"]))
@@ -138,21 +122,15 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
     def get_metric(self, metric: str) -> float:
         if metric not in {"default", "step-time", "tflops-per-gpu"}:
             return METRIC_ERROR
-        candidates = self._candidate_logs()
-        if not candidates:
+        log_file = self.get_log_file()
+        if not log_file:
             logging.error(
                 "No Megatron-Bridge launcher log file found: %s",
                 self.test_run.output_path / "megatron_bridge_launcher.log",
             )
             return METRIC_ERROR
 
-        step_times_s: list[float] = []
-        gpu_tflops: list[float] = []
-        for cand in candidates:
-            st, tf = self._extract(cand)
-            if st:
-                step_times_s, gpu_tflops = st, tf
-                break
+        step_times_s, gpu_tflops = self._extract(log_file)
         if not step_times_s:
             return METRIC_ERROR
 
