@@ -20,5 +20,3 @@ name = "megatron_bridge_qwen_30b"
 id = "megatron_bridge_qwen_30b"
 test_name = "megatron_bridge_qwen_30b"
 num_nodes = "2"
-
-

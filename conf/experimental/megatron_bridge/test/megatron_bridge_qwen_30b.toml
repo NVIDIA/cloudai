@@ -33,6 +33,3 @@ task = "pretrain"
 compute_dtype = "fp8_mx"
 
 hf_token = "REPLACE_ME_WITH_HF_TOKEN"
-
-
-

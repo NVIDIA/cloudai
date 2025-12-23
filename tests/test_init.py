@@ -217,8 +217,7 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 20
-
+    assert len(test_defs) == 22
     for tdef in [
         ("UCCTest", UCCTestDefinition),
         ("DDLBTest", DDLBTestDefinition),
