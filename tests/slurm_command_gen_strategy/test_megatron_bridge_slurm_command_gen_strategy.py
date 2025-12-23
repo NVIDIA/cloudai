@@ -154,14 +154,24 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
     )
     def test_detach_flags(
         self,
-        cmd_gen: MegatronBridgeSlurmCommandGenStrategy,
+        slurm_system: SlurmSystem,
         test_run: TestRun,
         detach: bool | None,
         expected: str | None,
         not_expected: str,
     ) -> None:
         tdef = cast(MegatronBridgeTestDefinition, test_run.test)
-        tdef.cmd_args.detach = detach
+
+        data = tdef.cmd_args.model_dump(exclude_none=True)
+        if detach is not None:
+            data["detach"] = detach
+        else:
+            data.pop("detach", None)
+        tdef.cmd_args = MegatronBridgeCmdArgs.model_validate(data)
+
+        slurm_system.account = "acct"
+        slurm_system.default_partition = "gb300"
+        cmd_gen = MegatronBridgeSlurmCommandGenStrategy(slurm_system, test_run)
         cmd_gen.gen_exec_command()
         wrapper = test_run.output_path / "megatron_bridge_submit_and_parse_jobid.sh"
         wrapper_content = wrapper.read_text()
