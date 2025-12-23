@@ -91,6 +91,11 @@ def register_all():
         JaxToolboxSlurmCommandGenStrategy,
         NemotronTestDefinition,
     )
+    from cloudai.workloads.megatron_bridge import (
+        MegatronBridgeReportGenerationStrategy,
+        MegatronBridgeSlurmCommandGenStrategy,
+        MegatronBridgeTestDefinition,
+    )
     from cloudai.workloads.megatron_run import (
         CheckpointTimingReportGenerationStrategy,
         MegatronRunSlurmCommandGenStrategy,
@@ -185,6 +190,9 @@ def register_all():
     Registry().add_command_gen_strategy(SlurmSystem, MegatronRunTestDefinition, MegatronRunSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NCCLTestDefinition, NcclTestSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, DDLBTestDefinition, DDLBTestSlurmCommandGenStrategy)
+    Registry().add_command_gen_strategy(
+        SlurmSystem, MegatronBridgeTestDefinition, MegatronBridgeSlurmCommandGenStrategy
+    )
 
     Registry().add_command_gen_strategy(SlurmSystem, NeMoLauncherTestDefinition, NeMoLauncherSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NeMoRunTestDefinition, NeMoRunSlurmCommandGenStrategy)
@@ -234,6 +242,7 @@ def register_all():
     Registry().add_test_definition("JaxToolboxNemotron", NemotronTestDefinition)
     Registry().add_test_definition("SlurmContainer", SlurmContainerTestDefinition)
     Registry().add_test_definition("MegatronRun", MegatronRunTestDefinition)
+    Registry().add_test_definition("MegatronBridge", MegatronBridgeTestDefinition)
     Registry().add_test_definition("TritonInference", TritonInferenceTestDefinition)
     Registry().add_test_definition("NIXLBench", NIXLBenchTestDefinition)
     Registry().add_test_definition("AIDynamo", AIDynamoTestDefinition)
@@ -250,6 +259,7 @@ def register_all():
     Registry().add_report(GPTTestDefinition, JaxToolboxReportGenerationStrategy)
     Registry().add_report(GrokTestDefinition, JaxToolboxReportGenerationStrategy)
     Registry().add_report(MegatronRunTestDefinition, CheckpointTimingReportGenerationStrategy)
+    Registry().add_report(MegatronBridgeTestDefinition, MegatronBridgeReportGenerationStrategy)
     Registry().add_report(NCCLTestDefinition, NcclTestPerformanceReportGenerationStrategy)
     Registry().add_report(NeMoLauncherTestDefinition, NeMoLauncherReportGenerationStrategy)
     Registry().add_report(NeMoRunTestDefinition, NeMoRunReportGenerationStrategy)

@@ -88,6 +88,11 @@ def test_all_tests(toml_file: Path):
     with toml_file.open("r") as f:
         toml_dict = toml.load(f)
 
+    if toml_dict.get("test_template_name") == "MegatronBridge":
+        cmd_args = toml_dict.get("cmd_args", {}) or {}
+        if cmd_args.get("hf_token", None) == "":
+            pytest.skip("MegatronBridge example config requires user to set cmd_args.hf_token.")
+
     registry = Registry()
     template_name = toml_dict["test_template_name"]
     assert template_name in registry.test_definitions_map, f"Unknown test template: {template_name}"
