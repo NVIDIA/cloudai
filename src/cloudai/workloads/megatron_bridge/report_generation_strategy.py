@@ -56,8 +56,8 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
                     try:
                         step_times_s.append(float(m.group(1)))
                         gpu_tflops.append(float(m.group(2)))
-                    except Exception:
-                        pass
+                    except (ValueError, TypeError):
+                        logging.debug("Failed to parse step metrics line: %s", line.rstrip("\n"))
 
         if len(step_times_s) > 10:
             step_times_s = step_times_s[-10:]
