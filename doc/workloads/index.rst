@@ -18,6 +18,7 @@ Available Workloads
    ":doc:`deepep`", "✅", "❌", "❌", "❌"
    ":doc:`jax_toolbox`", "✅", "❌", "❌", "❌"
    "MegatronRun", "✅", "❌", "❌", "❌"
+   ":doc:`megatron_bridge`", "✅", "❌", "❌", "❌"
    ":doc:`nccl`", "✅", "✅", "✅", "❌"
    ":doc:`nemo_launcher`", "✅", "❌", "❌", "❌"
    ":doc:`nemo_run`", "✅", "❌", "❌", "❌"
