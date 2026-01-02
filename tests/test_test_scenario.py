@@ -49,6 +49,7 @@ from cloudai.workloads.jax_toolbox import (
     JaxToolboxReportGenerationStrategy,
     NemotronTestDefinition,
 )
+from cloudai.workloads.megatron_bridge import MegatronBridgeReportGenerationStrategy, MegatronBridgeTestDefinition
 from cloudai.workloads.megatron_run import (
     CheckpointTimingReportGenerationStrategy,
     MegatronRunCmdArgs,
@@ -471,7 +472,7 @@ class TestReporters:
         assert len(reporters) == 0
 
     def test_default_reporters_size(self):
-        assert len(Registry().reports_map) == 15
+        assert len(Registry().reports_map) == 16
 
     @pytest.mark.parametrize(
         "tdef,expected_reporters",
@@ -481,6 +482,7 @@ class TestReporters:
             (GPTTestDefinition, {JaxToolboxReportGenerationStrategy}),
             (GrokTestDefinition, {JaxToolboxReportGenerationStrategy}),
             (MegatronRunTestDefinition, {CheckpointTimingReportGenerationStrategy}),
+            (MegatronBridgeTestDefinition, {MegatronBridgeReportGenerationStrategy}),
             (NCCLTestDefinition, {NcclTestPerformanceReportGenerationStrategy}),
             (NeMoLauncherTestDefinition, {NeMoLauncherReportGenerationStrategy}),
             (NeMoRunTestDefinition, {NeMoRunReportGenerationStrategy, NeMoRunDataStoreReportGenerationStrategy}),

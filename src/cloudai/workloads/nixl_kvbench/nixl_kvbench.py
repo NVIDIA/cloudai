@@ -33,6 +33,9 @@ class NIXLKVBenchCmdArgs(CmdArgs):
     kvbench_script: str = "/workspace/nixl/benchmark/kvbench/main.py"
     python_executable: str = "python"
 
+    model_cfg: str | list[str] | None = None
+    """Path to model configuration file used by NIXL KVBench."""
+
     backend: str | list[str] | None = None
 
 
@@ -62,7 +65,7 @@ class NIXLKVBenchTestDefinition(TestDefinition):
                 "wait_etcd_for",
                 "docker_image_url",
                 "command",
-            }
+            },
         )
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
