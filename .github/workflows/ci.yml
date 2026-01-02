@@ -13,34 +13,46 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Check uv.lock is up to date
+        run: uv lock --check
 
       - name: Install dependencies
-        run: pip install '.[dev,docs]'
+        run: uv sync --frozen --extra dev --extra docs
 
       - name: Run ruff linter
-        run: ruff check
+        run: uv run ruff check
 
       - name: Run ruff formatter
-        run: ruff format --check --diff
+        run: uv run ruff format --check --diff
 
       - name: Run pyright
-        run: pyright
+        run: uv run pyright
 
       - name: Run vulture check
-        run: vulture src/ tests/
+        run: uv run vulture src/ tests/
 
       - name: Import linter
-        run: PYTHONPATH=src lint-imports
+        run: PYTHONPATH=src uv run lint-imports
 
       - name: Check TOML formatting
         run: |
           set -eE
           set -o pipefail
 
-          taplo fmt --check --diff
+          uv run taplo fmt --check --diff
 
       - name: Build documentation
         run: |
@@ -48,7 +60,7 @@ jobs:
           set -o pipefail
 
           cd doc
-          make html
+          uv run make html
 
   test:
     name: Run pytest
