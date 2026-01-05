@@ -403,6 +403,9 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     def _append_nodes_related_directives(self, content: List[str]) -> Optional[Path]:
         num_nodes, node_list = self.get_cached_nodes_spec()
 
+        if self.system.distribution:
+            content.append(f"#SBATCH --distribution={self.system.distribution}")
+
         if node_list:
             content.append(f"#SBATCH --nodelist={','.join(node_list)}")
 
@@ -416,8 +419,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             return hostfile
 
         content.append(f"#SBATCH -N {num_nodes}")
-        if self.system.distribution:
-            content.append(f"#SBATCH --distribution={self.system.distribution}")
 
         return None
 
