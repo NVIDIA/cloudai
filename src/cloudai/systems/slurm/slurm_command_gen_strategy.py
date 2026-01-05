@@ -404,7 +404,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         num_nodes, node_list = self.get_cached_nodes_spec()
 
         if node_list:
-            content.append("#SBATCH --distribution=arbitrary")
             content.append(f"#SBATCH --nodelist={','.join(node_list)}")
 
             hostfile = (self.test_run.output_path / "hostfile.txt").absolute()
