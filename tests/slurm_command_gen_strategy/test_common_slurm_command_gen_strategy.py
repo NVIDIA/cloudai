@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -342,7 +342,7 @@ def test_append_distribution_and_hostfile_with_nodes(slurm_system: SlurmSystem, 
     content: List[str] = []
     strategy._append_nodes_related_directives(content)
 
-    assert "#SBATCH --distribution=arbitrary" in content
+    assert "#SBATCH --distribution=block" in content
     assert "#SBATCH --nodelist=node1,node2" in content
 
     hostfile_path = strategy.test_run.output_path / "hostfile.txt"
