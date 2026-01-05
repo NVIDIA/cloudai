@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -403,8 +403,10 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     def _append_nodes_related_directives(self, content: List[str]) -> Optional[Path]:
         num_nodes, node_list = self.get_cached_nodes_spec()
 
+        if self.system.distribution:
+            content.append(f"#SBATCH --distribution={self.system.distribution}")
+
         if node_list:
-            content.append("#SBATCH --distribution=arbitrary")
             content.append(f"#SBATCH --nodelist={','.join(node_list)}")
 
             hostfile = (self.test_run.output_path / "hostfile.txt").absolute()
@@ -417,8 +419,6 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             return hostfile
 
         content.append(f"#SBATCH -N {num_nodes}")
-        if self.system.distribution:
-            content.append(f"#SBATCH --distribution={self.system.distribution}")
 
         return None
 
