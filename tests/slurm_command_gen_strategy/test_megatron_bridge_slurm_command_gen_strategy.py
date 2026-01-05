@@ -51,6 +51,13 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
             test_template_name="MegatronBridge",
             cmd_args=args,
             extra_container_mounts=[],
+            git_repos=[
+                {
+                    "url": "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git",
+                    "commit": "r0.2.0",
+                    "mount_as": "/opt/Megatron-Bridge",
+                }
+            ],  # type: ignore[arg-type]
         )
 
         # Fake installed paths for installables so command-gen doesn't depend on real installs.
@@ -80,6 +87,24 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         with pytest.raises(Exception, match=r"hf_token"):
             MegatronBridgeCmdArgs.model_validate({"hf_token": ""})
 
+    def test_git_repos_can_pin_megatron_bridge_commit(self) -> None:
+        args = MegatronBridgeCmdArgs(hf_token="dummy_token", model_name="qwen3", model_size="30b_a3b")
+        tdef = MegatronBridgeTestDefinition(
+            name="mb",
+            description="desc",
+            test_template_name="MegatronBridge",
+            cmd_args=args,
+            extra_container_mounts=[],
+            git_repos=[
+                {
+                    "url": "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git",
+                    "commit": "abcdef1234567890",
+                    "mount_as": "/opt/Megatron-Bridge",
+                }
+            ],  # type: ignore[arg-type]
+        )
+        assert tdef.megatron_bridge_repo.commit == "abcdef1234567890"
+
     def test_defaults_not_emitted_when_not_set_in_toml(self, slurm_system: SlurmSystem, tmp_path: Path) -> None:
         sqsh = tmp_path / "img.sqsh"
         sqsh.write_text("x")
@@ -98,6 +123,13 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
             test_template_name="MegatronBridge",
             cmd_args=args,
             extra_container_mounts=[],
+            git_repos=[
+                {
+                    "url": "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git",
+                    "commit": "r0.2.0",
+                    "mount_as": "/opt/Megatron-Bridge",
+                }
+            ],  # type: ignore[arg-type]
         )
 
         (tmp_path / "run_repo").mkdir()
