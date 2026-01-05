@@ -159,7 +159,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         assert local_img.exists()
 
         cmd_gen.gen_exec_command()
-        wrapper = test_run.output_path / "megatron_bridge_submit_and_parse_jobid.sh"
+        wrapper = test_run.output_path / "cloudai_megatron_bridge_submit_and_parse_jobid.sh"
         assert wrapper.exists()
         wrapper_content = wrapper.read_text()
         assert f"-i {local_img.absolute()}" in wrapper_content
@@ -167,7 +167,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
 
     def test_cuda_graph_scope_normalization(self, cmd_gen: MegatronBridgeSlurmCommandGenStrategy) -> None:
         cmd_gen.gen_exec_command()
-        wrapper = cmd_gen.test_run.output_path / "megatron_bridge_submit_and_parse_jobid.sh"
+        wrapper = cmd_gen.test_run.output_path / "cloudai_megatron_bridge_submit_and_parse_jobid.sh"
         wrapper_content = wrapper.read_text()
         assert "--cuda_graph_scope moe_router,moe_preprocess" in wrapper_content
 
@@ -200,7 +200,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         slurm_system.default_partition = "gb300"
         cmd_gen = MegatronBridgeSlurmCommandGenStrategy(slurm_system, test_run)
         cmd_gen.gen_exec_command()
-        wrapper = test_run.output_path / "megatron_bridge_submit_and_parse_jobid.sh"
+        wrapper = test_run.output_path / "cloudai_megatron_bridge_submit_and_parse_jobid.sh"
         wrapper_content = wrapper.read_text()
         if detach is None:
             assert "--detach" not in wrapper_content
@@ -215,9 +215,9 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
     ) -> None:
         cmd = cmd_gen.gen_exec_command()
         out_dir = test_run.output_path
-        gen_file = out_dir / "generated_command.sh"
+        gen_file = out_dir / "cloudai_generated_command.sh"
         assert gen_file.exists()
         content = gen_file.read_text()
         assert cmd in content
         assert content.startswith("bash ")
-        assert "megatron_bridge_submit_and_parse_jobid.sh" in content
+        assert "cloudai_megatron_bridge_submit_and_parse_jobid.sh" in content

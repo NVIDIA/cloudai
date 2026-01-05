@@ -36,3 +36,5 @@ domain = "llm"
 task = "pretrain"
 compute_dtype = "fp8_mx"
 hf_token = ""
+enable_vboost = true
+detach = false
