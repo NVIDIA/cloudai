@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -51,6 +51,13 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
             test_template_name="MegatronBridge",
             cmd_args=args,
             extra_container_mounts=[],
+            git_repos=[
+                {
+                    "url": "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git",
+                    "commit": "r0.2.0",
+                    "mount_as": "/opt/Megatron-Bridge",
+                }
+            ],  # type: ignore[arg-type]
         )
 
         # Fake installed paths for installables so command-gen doesn't depend on real installs.
@@ -80,6 +87,24 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         with pytest.raises(Exception, match=r"hf_token"):
             MegatronBridgeCmdArgs.model_validate({"hf_token": ""})
 
+    def test_git_repos_can_pin_megatron_bridge_commit(self) -> None:
+        args = MegatronBridgeCmdArgs(hf_token="dummy_token", model_name="qwen3", model_size="30b_a3b")
+        tdef = MegatronBridgeTestDefinition(
+            name="mb",
+            description="desc",
+            test_template_name="MegatronBridge",
+            cmd_args=args,
+            extra_container_mounts=[],
+            git_repos=[
+                {
+                    "url": "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git",
+                    "commit": "abcdef1234567890",
+                    "mount_as": "/opt/Megatron-Bridge",
+                }
+            ],  # type: ignore[arg-type]
+        )
+        assert tdef.megatron_bridge_repo.commit == "abcdef1234567890"
+
     def test_defaults_not_emitted_when_not_set_in_toml(self, slurm_system: SlurmSystem, tmp_path: Path) -> None:
         sqsh = tmp_path / "img.sqsh"
         sqsh.write_text("x")
@@ -98,6 +123,13 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
             test_template_name="MegatronBridge",
             cmd_args=args,
             extra_container_mounts=[],
+            git_repos=[
+                {
+                    "url": "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git",
+                    "commit": "r0.2.0",
+                    "mount_as": "/opt/Megatron-Bridge",
+                }
+            ],  # type: ignore[arg-type]
         )
 
         (tmp_path / "run_repo").mkdir()
@@ -127,7 +159,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         assert local_img.exists()
 
         cmd_gen.gen_exec_command()
-        wrapper = test_run.output_path / "megatron_bridge_submit_and_parse_jobid.sh"
+        wrapper = test_run.output_path / "cloudai_megatron_bridge_submit_and_parse_jobid.sh"
         assert wrapper.exists()
         wrapper_content = wrapper.read_text()
         assert f"-i {local_img.absolute()}" in wrapper_content
@@ -135,7 +167,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
 
     def test_cuda_graph_scope_normalization(self, cmd_gen: MegatronBridgeSlurmCommandGenStrategy) -> None:
         cmd_gen.gen_exec_command()
-        wrapper = cmd_gen.test_run.output_path / "megatron_bridge_submit_and_parse_jobid.sh"
+        wrapper = cmd_gen.test_run.output_path / "cloudai_megatron_bridge_submit_and_parse_jobid.sh"
         wrapper_content = wrapper.read_text()
         assert "--cuda_graph_scope moe_router,moe_preprocess" in wrapper_content
 
@@ -168,7 +200,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         slurm_system.default_partition = "gb300"
         cmd_gen = MegatronBridgeSlurmCommandGenStrategy(slurm_system, test_run)
         cmd_gen.gen_exec_command()
-        wrapper = test_run.output_path / "megatron_bridge_submit_and_parse_jobid.sh"
+        wrapper = test_run.output_path / "cloudai_megatron_bridge_submit_and_parse_jobid.sh"
         wrapper_content = wrapper.read_text()
         if detach is None:
             assert "--detach" not in wrapper_content
@@ -183,9 +215,9 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
     ) -> None:
         cmd = cmd_gen.gen_exec_command()
         out_dir = test_run.output_path
-        gen_file = out_dir / "generated_command.sh"
+        gen_file = out_dir / "cloudai_generated_command.sh"
         assert gen_file.exists()
         content = gen_file.read_text()
         assert cmd in content
         assert content.startswith("bash ")
-        assert "megatron_bridge_submit_and_parse_jobid.sh" in content
+        assert "cloudai_megatron_bridge_submit_and_parse_jobid.sh" in content

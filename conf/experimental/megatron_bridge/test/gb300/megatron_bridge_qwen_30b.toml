@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,10 +20,14 @@ test_template_name = "MegatronBridge"
 
 extra_container_mounts = []
 
-[cmd_args]
-gpu_type = "gb200"
-container_image = "nvcr.io#nvidia/nemo:25.11.01"
+[[git_repos]]
+url = "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git"
+commit = "r0.2.0"
+mount_as = "/opt/Megatron-Bridge"
 
+[cmd_args]
+gpu_type = "gb300"
+container_image = "nvcr.io#nvidia/nemo:25.11.01"
 model_name = "qwen3"
 model_size = "30b_a3b"
 gpus_per_node = 4
@@ -31,5 +35,6 @@ num_gpus = 8
 domain = "llm"
 task = "pretrain"
 compute_dtype = "fp8_mx"
-
 hf_token = ""
+enable_vboost = true
+detach = false

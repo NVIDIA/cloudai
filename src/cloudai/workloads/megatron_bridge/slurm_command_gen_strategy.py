@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -77,7 +77,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             toml.dump(trd.model_dump(), f)
 
     def _write_command_to_file(self, command: str, output_path: Path) -> None:
-        log_file = output_path / "generated_command.sh"
+        log_file = output_path / "cloudai_generated_command.sh"
         log_file.parent.mkdir(parents=True, exist_ok=True)
         with log_file.open("w") as f:
             f.write(f"{command}\n")
@@ -111,8 +111,8 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         output_dir = self.test_run.output_path.absolute()
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        wrapper_path = output_dir / "megatron_bridge_submit_and_parse_jobid.sh"
-        log_path = output_dir / "megatron_bridge_launcher.log"
+        wrapper_path = output_dir / "cloudai_megatron_bridge_submit_and_parse_jobid.sh"
+        log_path = output_dir / "cloudai_megatron_bridge_launcher.log"
 
         script_lines = [
             "#!/usr/bin/env bash",

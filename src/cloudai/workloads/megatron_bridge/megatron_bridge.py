@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,8 +31,6 @@ class MegatronBridgeCmdArgs(CmdArgs):
     log_dir: str = Field(default="")
     time_limit: str = Field(default="00:30:00")
     container_image: str = Field(default="")
-    nemo_container_version: str = Field(default="25.11")
-    megatron_bridge_ref: Optional[str] = Field(default=None)
     num_gpus: int = Field(default=8)
     gpus_per_node: int = Field(default=8)
     custom_mounts: Optional[str] = Field(default=None)
@@ -96,7 +94,6 @@ class MegatronBridgeTestDefinition(TestDefinition):
 
     cmd_args: MegatronBridgeCmdArgs
 
-    # NeMo-Run (provides the `nemo_run` package used by Megatron-Bridge launcher on the submit node)
     nemo_run_repo: GitRepo = GitRepo(
         url="https://github.com/NVIDIA-NeMo/Run.git",
         commit="main",
@@ -105,6 +102,31 @@ class MegatronBridgeTestDefinition(TestDefinition):
     _docker_image: Optional[DockerImage] = None
     _python_executable: Optional[PythonExecutable] = None
     _megatron_bridge_repo: Optional[GitRepo] = None
+
+    @staticmethod
+    def _select_megatron_bridge_repo(git_repos: list[GitRepo]) -> GitRepo | None:
+        """Return the Megatron-Bridge repo from `git_repos` (normalized to mount_as=/opt/Megatron-Bridge)."""
+        for repo in git_repos:
+            if "Megatron-Bridge" in repo.url or (repo.mount_as or "").rstrip("/") == "/opt/Megatron-Bridge":
+                return repo if repo.mount_as else repo.model_copy(update={"mount_as": "/opt/Megatron-Bridge"})
+        return None
+
+    @field_validator("git_repos", mode="after")
+    @classmethod
+    def validate_git_repos_has_megatron_bridge_repo(cls, v: list[GitRepo]) -> list[GitRepo]:
+        """MegatronBridge requires users to pin the Megatron-Bridge repo version via `[[git_repos]]`."""
+        if not v:
+            raise ValueError(
+                "MegatronBridge requires the user to pin the Megatron-Bridge repository via `[[git_repos]]` "
+                "in the test TOML (provide at least url and commit)."
+            )
+
+        if cls._select_megatron_bridge_repo(v) is None:
+            raise ValueError(
+                "MegatronBridge requires `[[git_repos]]` to include the Megatron-Bridge repo (url containing "
+                "'Megatron-Bridge' or mount_as='/opt/Megatron-Bridge')."
+            )
+        return v
 
     @property
     def docker_image(self) -> DockerImage:
@@ -121,24 +143,14 @@ class MegatronBridgeTestDefinition(TestDefinition):
     @property
     def megatron_bridge_repo(self) -> GitRepo:
         if self._megatron_bridge_repo is None:
-            self._megatron_bridge_repo = GitRepo(
-                url="https://github.com/NVIDIA-NeMo/Megatron-Bridge.git",
-                commit=self._infer_megatron_bridge_ref(),
-                mount_as="/opt/Megatron-Bridge",
-            )
+            selected = self._select_megatron_bridge_repo(self.git_repos)
+            if selected is None:
+                raise ValueError(
+                    "MegatronBridge requires the user to pin the Megatron-Bridge repository via `[[git_repos]]` "
+                    "in the test TOML (provide at least url and commit)."
+                )
+            self._megatron_bridge_repo = selected
         return self._megatron_bridge_repo
-
-    def _infer_megatron_bridge_ref(self) -> str:
-        if self.cmd_args.megatron_bridge_ref:
-            return self.cmd_args.megatron_bridge_ref
-
-        return self._map_container_version_to_mbridge_ref(self.cmd_args.nemo_container_version.strip())
-
-    def _map_container_version_to_mbridge_ref(self, ver: str) -> str:
-        version_to_branch = {
-            "25.11": "r0.2.0",
-        }
-        return version_to_branch.get(ver, "main")
 
     @property
     def installables(self) -> list[Installable]:
