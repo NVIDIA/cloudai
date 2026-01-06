@@ -48,10 +48,10 @@ def setup(app):
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "CloudAI"
-copyright = "2025, NVIDIA CORPORATION & AFFILIATES"
+copyright = "2026, NVIDIA CORPORATION & AFFILIATES"
 author = "NVIDIA CORPORATION & AFFILIATES"
-version = "1.4.0-beta"
-release = "1.4.0-beta"
+version = "1.5.0-beta"
+release = "1.5.0-beta"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -61,7 +61,6 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
     "sphinx.ext.autosummary",
-    "myst_parser",
     "sphinxcontrib.mermaid",
     "sphinx_copybutton",
 ]
@@ -84,21 +83,12 @@ autosummary_generate = True
 
 html_theme = "nvidia_sphinx_theme"
 
-# MyST parser configuration
-myst_enable_extensions = [
-    "deflist",
-    "colon_fence",
-    "html_image",
-]
-
-# Configure MyST to handle code blocks as directives
-myst_fence_as_directive = ["mermaid"]
-
 # Mermaid configuration
 mermaid_version = "latest"
 mermaid_init_js = "mermaid.initialize({startOnLoad:true});"
+mermaid_output_format = "raw"  # render in-browser without mermaid-cli
 
 # Set the root document to index
 root_doc = "index"
 
-source_suffix = [".rst", ".md"]
+source_suffix = [".rst"]

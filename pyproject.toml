@@ -53,7 +53,6 @@ requires-python = ">=3.10"
   docs = [
     "sphinx~=8.1",
     "nvidia-sphinx-theme~=0.0.8",
-    "myst-parser~=4.0",
     "sphinxext-opengraph~=0.13",
     "sphinx-design~=0.6",
     "sphinxcontrib-mermaid~=1.0",
