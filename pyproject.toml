@@ -58,6 +58,12 @@ requires-python = ">=3.10"
     "sphinxcontrib-mermaid~=1.0",
     "sphinx-copybutton~=0.5",
   ]
+  docs-cms = [
+    "sphinx~=8.1",
+    "sphinx-rtd-theme~=3.0",
+    "sphinx-copybutton~=0.5",
+    "sphinxcontrib-mermaid~=1.0",
+  ]
 
 [build-system]
 requires = ["pdm-backend"]

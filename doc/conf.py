@@ -20,6 +20,7 @@
 import os
 import re
 import sys
+from pathlib import Path
 
 # Add the project source to Python path for autodoc
 sys.path.insert(0, os.path.abspath("../src"))
@@ -56,6 +57,7 @@ release = "1.5.0-beta"
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
+
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.viewcode",
@@ -81,12 +83,15 @@ autosummary_generate = True
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = "nvidia_sphinx_theme"
-
-# Mermaid configuration
-mermaid_version = "latest"
-mermaid_init_js = "mermaid.initialize({startOnLoad:true});"
-mermaid_output_format = "raw"  # render in-browser without mermaid-cli
+is_cms_build = os.environ.get("CLOUDAI_DOC_TARGET") == "cms"
+if is_cms_build:
+    html_theme = "sphinx_rtd_theme"
+    mermaid_output_format = "png"
+    mermaid_cmd = str(Path.cwd() / "_build-cms/node_modules/.bin/mmdc")
+else:
+    # Default build: nvidia_sphinx_theme with raw mermaid (client-side JS)
+    html_theme = "nvidia_sphinx_theme"
+    mermaid_output_format = "raw"
 
 # Set the root document to index
 root_doc = "index"

@@ -15,14 +15,42 @@
 # limitations under the License.
 
 SPHINXOPTS    ?=
-SPHINXBUILD  ?= sphinx-build
-SOURCEDIR    = .
-BUILDDIR     = _build
+SOURCEDIR     = .
+BUILDDIR      = _build
+BUILDDIR_CMS  = _build-cms
+
+NODE_MODULES  = $(BUILDDIR_CMS)/node_modules
+MMDC          = $(NODE_MODULES)/.bin/mmdc
+
+.PHONY: help html cms-html install-mermaid clean-mermaid clean
 
 help:
-	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+	@echo "Available targets:"
+	@echo "  html       - Build documentation for GitHub Pages (nvidia_sphinx_theme) -> $(BUILDDIR)/"
+	@echo "  cms-html   - Build documentation for BrightSpot CMS (sphinx_rtd_theme, PNG mermaid) -> $(BUILDDIR_CMS)/"
+	@echo "  clean      - Remove all build directories"
 
-.PHONY: help Makefile
+# Default html target (GitHub Pages)
+html:
+	@echo "Setting up environment for GitHub Pages build..."
+	@uv sync --extra docs
+	@echo "Building documentation..."
+	@cd .. && uv run sphinx-build -M html "doc" "doc/$(BUILDDIR)" $(SPHINXOPTS)
+	@touch $(BUILDDIR)/html/.nojekyll
 
-%: Makefile
-	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+cms-html: install-mermaid
+	@echo "Setting up environment for CMS build..."
+	@uv sync --extra docs-cms
+	@echo "Building documentation..."
+	@cd .. && CLOUDAI_DOC_TARGET=cms uv run sphinx-build -M html "doc" "doc/$(BUILDDIR_CMS)" $(SPHINXOPTS)
+
+install-mermaid: $(MMDC)
+
+$(MMDC):
+	@echo "Installing @mermaid-js/mermaid-cli via npm..."
+	@mkdir -p $(BUILDDIR_CMS)
+	@cd $(BUILDDIR_CMS) && npm install @mermaid-js/mermaid-cli
+	@echo "mermaid-cli installed successfully."
+
+clean:
+	@rm -rf $(BUILDDIR) $(BUILDDIR_CMS)
