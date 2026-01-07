@@ -55,14 +55,14 @@ requires-python = ">=3.10"
     "nvidia-sphinx-theme~=0.0.8",
     "sphinxext-opengraph~=0.13",
     "sphinx-design~=0.6",
-    "sphinxcontrib-mermaid~=1.0",
+    "sphinxcontrib-mermaid~=1.2",
     "sphinx-copybutton~=0.5",
   ]
   docs-cms = [
     "sphinx~=8.1",
     "sphinx-rtd-theme~=3.0",
     "sphinx-copybutton~=0.5",
-    "sphinxcontrib-mermaid~=1.0",
+    "sphinxcontrib-mermaid~=1.2",
   ]
 
 [build-system]

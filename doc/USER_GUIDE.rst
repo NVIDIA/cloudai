@@ -364,7 +364,7 @@ A test scenario is a set of tests with specific dependencies between them. A tes
 
    [[Tests]]
    id = "Tests.3"
-   templat_test = "nccl_test_reduce_scatter"
+   test_name = "nccl_test_reduce_scatter"
    num_nodes = "2"
    time_limit = "00:20:00"
      [[Tests.dependencies]]
