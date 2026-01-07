@@ -154,8 +154,8 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     ) -> list[str]:
         fields_set = args.model_fields_set
         force_fields = {
-            "model_name",
-            "model_size",
+            "model_family_name",
+            "model_recipe_name",
             "num_gpus",
             "gpus_per_node",
             "hf_token",
@@ -198,6 +198,15 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 return
             if isinstance(value, bool):
                 parts.extend([flag, "true" if value else "false"])
+            elif isinstance(value, (list, tuple)):
+                if not value:
+                    return
+                if flag == "--dataset_paths":
+                    parts.extend([flag, *[str(x) for x in value]])
+                elif flag == "--profiling_ranks":
+                    parts.extend([flag, ",".join(str(x) for x in value)])
+                else:
+                    parts.extend([flag, str(value[0]) if len(value) == 1 else ",".join(str(x) for x in value)])
             else:
                 sv = str(value)
                 if sv != "":
@@ -222,8 +231,11 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         add_field("hf_token", "-hf", args.hf_token)
         add_field("nemo_home", "-nh", args.nemo_home)
         add_field("wandb_key", "-wdk", args.wandb_key)
-        add_field("wandb_prj_name", "-wdp", args.wandb_prj_name)
-        add_field("wandb_exp_name", "-wdj", args.wandb_exp_name)
+        add_field("wandb_project_name", "-wdp", args.wandb_project_name)
+        add_field("wandb_entity_name", "-wde", args.wandb_entity_name)
+        add_field("wandb_experiment_name", "-wdj", args.wandb_experiment_name)
+        add_field("wandb_save_dir", "-wds", args.wandb_save_dir)
+        add_field("max_retries", "--max_retries", args.max_retries)
         if args.dryrun and "dryrun" in fields_set:
             parts.append("-d")
         add_field("num_gpus", "-ng", args.num_gpus)
@@ -231,15 +243,17 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if mounts:
             add("-cm", ",".join(mounts))
 
-        # Model flags (Megatron-Bridge r0.2.0 API)
+        # Model flags (Megatron-Bridge main-branch API)
+        if args.use_recipes and "use_recipes" in fields_set:
+            parts.append("--use_recipes")
         if "enable_vboost" in fields_set:
             add_field("enable_vboost", "-vb", bool(args.enable_vboost))
-        if not args.model_name:
-            raise RuntimeError("Missing required cmd_args.model_name (maps to -m/--model_name).")
-        if not args.model_size:
-            raise RuntimeError("Missing required cmd_args.model_size (maps to -s/--model_size).")
-        add_field("model_name", "-m", args.model_name)
-        add_field("model_size", "-s", args.model_size)
+        if not args.model_family_name:
+            raise RuntimeError("Missing required cmd_args.model_family_name (maps to -m/--model_family_name).")
+        if not args.model_recipe_name:
+            raise RuntimeError("Missing required cmd_args.model_recipe_name (maps to -mr/--model_recipe_name).")
+        add_field("model_family_name", "-m", args.model_family_name)
+        add_field("model_recipe_name", "-mr", args.model_recipe_name)
         if args.enable_nsys and "enable_nsys" in fields_set:
             parts.append("-en")
         add_field("domain", "--domain", args.domain)
@@ -247,6 +261,8 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             add_field("use_tokendrop", "--use_tokendrop", bool(args.use_tokendrop))
         if "use_megatron_fsdp" in fields_set and args.use_megatron_fsdp is not None:
             add_field("use_megatron_fsdp", "--use_megatron_fsdp", bool(args.use_megatron_fsdp))
+        if "nccl_ub" in fields_set and args.nccl_ub is not None:
+            add_field("nccl_ub", "--nccl_ub", bool(args.nccl_ub))
         add_field("cuda_graph_impl", "--cuda_graph_impl", args.cuda_graph_impl)
         if args.cuda_graph_scope and "cuda_graph_scope" in fields_set:
             add_field(
@@ -264,6 +280,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         # Batch
         add_field("mb", "-mb", args.mb)
         add_field("gb", "-gb", args.gb)
+        add_field("seq_length", "-sl", args.seq_length)
 
         # Misc
         if "moe_a2a_overlap" in fields_set:
@@ -273,11 +290,44 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         add_field("activation_offload_layers", "-ol", args.activation_offload_layers)
         if args.recompute_modules and "recompute_modules" in fields_set:
             parts.extend(["--recompute_modules", self._normalize_recompute_modules(args.recompute_modules)])
-        # r0.2.0 supports `--detach` / `--no-detach` flags (no boolean value)
-        if args.detach is True and "detach" in fields_set:
-            parts.append("--detach")
-        elif args.detach is False and "detach" in fields_set:
-            parts.append("--no-detach")
+        if "detach" in fields_set and args.detach is not None:
+            parts.extend(["--detach", "true" if args.detach else "false"])
+
+        # Optimizer
+        add_field("lr", "--lr", args.lr)
+        add_field("min_lr", "--min_lr", args.min_lr)
+        add_field("warmup_iters", "--warmup_iters", args.warmup_iters)
+
+        # Checkpointing
+        add_field("pretrained_checkpoint", "--pretrained_checkpoint", args.pretrained_checkpoint)
+        add_field("save_dir", "--save_dir", args.save_dir)
+        add_field("load_dir", "--load_dir", args.load_dir)
+        add_field("save_interval", "--save_interval", args.save_interval)
+        add_field("most_recent_k", "--most_recent_k", args.most_recent_k)
+        add_field("save_config_filepath", "--save_config_filepath", args.save_config_filepath)
+
+        # Data / Tokenizer
+        add_field("data", "--data", args.data)
+        add_field("dataset_paths", "--dataset_paths", args.dataset_paths)
+        add_field("dataset_root", "--dataset_root", args.dataset_root)
+        add_field("index_mapping_dir", "--index_mapping_dir", args.index_mapping_dir)
+        add_field("dataset_name", "--dataset_name", args.dataset_name)
+        if args.packed_sequence and "packed_sequence" in fields_set:
+            parts.append("--packed_sequence")
+        if args.head_only and "head_only" in fields_set:
+            parts.append("--head_only")
+        add_field("tokenizer_type", "--tokenizer_type", args.tokenizer_type)
+        add_field("tokenizer_model", "--tokenizer_model", args.tokenizer_model)
+        add_field("vocab_size", "--vocab_size", args.vocab_size)
+
+        # Profiling (performance group)
+        add_field("pytorch_profiler", "-pyp", args.pytorch_profiler)
+        add_field("profiling_start_step", "--profiling_start_step", args.profiling_start_step)
+        add_field("profiling_stop_step", "--profiling_stop_step", args.profiling_stop_step)
+        add_field("record_memory_history", "-mh", args.record_memory_history)
+        if args.profiling_gpu_metrics and "profiling_gpu_metrics" in fields_set:
+            parts.append("--profiling_gpu_metrics")
+        add_field("profiling_ranks", "--profiling_ranks", args.profiling_ranks)
 
         # Extra user args (dict -> string)
         if tdef.extra_cmd_args:

@@ -19,8 +19,8 @@ Test TOML example:
    # Container can be an NGC/enroot URL (nvcr.io#...) or a local .sqsh path.
    container_image = "nvcr.io#nvidia/nemo:25.11.01"
    
-   model_name = "qwen3"
-   model_size = "30b_a3b"
+   model_family_name = "qwen3"
+   model_recipe_name = "30b_a3b"
    task = "pretrain"
    domain = "llm"
    compute_dtype = "fp8_mx"
@@ -55,8 +55,8 @@ Test-in-Scenario example:
    
      [Tests.cmd_args]
      container_image = "nvcr.io#nvidia/nemo:25.11.01"
-     model_name = "qwen3"
-     model_size = "30b_a3b"
+     model_family_name = "qwen3"
+     model_recipe_name = "30b_a3b"
      task = "pretrain"
      domain = "llm"
      compute_dtype = "fp8_mx"

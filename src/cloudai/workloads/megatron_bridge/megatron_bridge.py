@@ -40,8 +40,9 @@ class MegatronBridgeCmdArgs(CmdArgs):
     detach: Optional[bool] = Field(default=None)
 
     # Model/task
-    model_name: str = Field(default="")
-    model_size: str = Field(default="")
+    model_family_name: str = Field(default="")
+    model_recipe_name: str = Field(default="")
+    use_recipes: Optional[bool] = Field(default=None)
     domain: str = Field(default="llm")
     task: str = Field(default="pretrain")
     compute_dtype: str = Field(default="bf16")
@@ -49,8 +50,13 @@ class MegatronBridgeCmdArgs(CmdArgs):
     hf_token: Optional[str] = Field(default=None)
     nemo_home: Optional[str] = Field(default=None)
     wandb_key: Optional[str] = Field(default=None)
-    wandb_prj_name: Optional[str] = Field(default=None)
-    wandb_exp_name: Optional[str] = Field(default=None)
+    wandb_project_name: Optional[str] = Field(default=None)
+    wandb_entity_name: Optional[str] = Field(default=None)
+    wandb_experiment_name: Optional[str] = Field(default=None)
+    wandb_save_dir: Optional[str] = Field(default=None)
+
+    # Retries
+    max_retries: Optional[int] = Field(default=None)
 
     # Feature flags (allow sweeps)
     use_tokendrop: Optional[Union[bool, List[bool]]] = Field(default=None)
@@ -69,6 +75,43 @@ class MegatronBridgeCmdArgs(CmdArgs):
     # Batch sizes
     mb: Optional[Union[int, List[int]]] = Field(default=None)
     gb: Optional[Union[int, List[int]]] = Field(default=None)
+    seq_length: Optional[Union[int, List[int]]] = Field(default=None)
+
+    # Optimizer
+    lr: Optional[Union[float, List[float]]] = Field(default=None)
+    min_lr: Optional[Union[float, List[float]]] = Field(default=None)
+    warmup_iters: Optional[Union[int, List[int]]] = Field(default=None)
+
+    # Checkpointing
+    pretrained_checkpoint: Optional[str] = Field(default=None)
+    save_dir: Optional[str] = Field(default=None)
+    load_dir: Optional[str] = Field(default=None)
+    save_interval: Optional[int] = Field(default=None)
+    most_recent_k: Optional[int] = Field(default=None)
+    save_config_filepath: Optional[str] = Field(default=None)
+
+    # Data / Tokenizer
+    data: Optional[str] = Field(default=None)
+    dataset_paths: Optional[Union[str, List[str]]] = Field(default=None)
+    dataset_root: Optional[str] = Field(default=None)
+    index_mapping_dir: Optional[str] = Field(default=None)
+    dataset_name: Optional[str] = Field(default=None)
+    packed_sequence: Optional[bool] = Field(default=None)
+    head_only: Optional[bool] = Field(default=None)
+    tokenizer_type: Optional[str] = Field(default=None)
+    tokenizer_model: Optional[str] = Field(default=None)
+    vocab_size: Optional[int] = Field(default=None)
+
+    # Profiling (performance group in argument_parser.py)
+    pytorch_profiler: Optional[bool] = Field(default=None)
+    profiling_start_step: Optional[int] = Field(default=None)
+    profiling_stop_step: Optional[int] = Field(default=None)
+    record_memory_history: Optional[bool] = Field(default=None)
+    profiling_gpu_metrics: Optional[bool] = Field(default=None)
+    profiling_ranks: Optional[Union[int, List[int]]] = Field(default=None)
+
+    # Performance
+    nccl_ub: Optional[Union[bool, List[bool]]] = Field(default=None)
 
     # Perf/tuning
     moe_a2a_overlap: Optional[Union[bool, List[bool]]] = Field(default=None)
