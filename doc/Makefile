@@ -33,14 +33,14 @@ help:
 # Default html target (GitHub Pages)
 html:
 	@echo "Setting up environment for GitHub Pages build..."
-	@uv sync --extra docs
+	@cd .. && uv sync --extra docs
 	@echo "Building documentation..."
 	@cd .. && uv run sphinx-build -M html "doc" "doc/$(BUILDDIR)" $(SPHINXOPTS)
 	@touch $(BUILDDIR)/html/.nojekyll
 
 cms-html: install-mermaid
 	@echo "Setting up environment for CMS build..."
-	@uv sync --extra docs-cms
+	@cd .. && uv sync --extra docs-cms
 	@echo "Building documentation..."
 	@cd .. && CLOUDAI_DOC_TARGET=cms uv run sphinx-build -M html "doc" "doc/$(BUILDDIR_CMS)" $(SPHINXOPTS)
 
