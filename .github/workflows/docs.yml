@@ -52,10 +52,14 @@ jobs:
     - name: Build CMS documentation
       run: make -C doc/ cms-html
 
+    - name: Sanitize artifact name
+      id: artifact-name
+      run: echo "name=cloudai-docs-cms-$(echo '${{ github.ref_name }}' | tr '/' '-')" >> $GITHUB_OUTPUT
+
     - name: Upload CMS docs artifact
       uses: actions/upload-artifact@v4
       with:
-        name: cloudai-docs-cms-${{ github.ref_name }}
+        name: ${{ steps.artifact-name.outputs.name }}
         path: doc/_build-cms/html
 
   deploy:
