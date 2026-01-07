@@ -3,6 +3,7 @@ name: Build and Deploy Documentation
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*' ]
   workflow_dispatch:    # Allow manual triggering
 
 # Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
@@ -54,7 +55,7 @@ jobs:
     - name: Upload CMS docs artifact
       uses: actions/upload-artifact@v4
       with:
-        name: cloudai-docs-cms
+        name: cloudai-docs-cms-${{ github.ref_name }}
         path: doc/_build-cms/html
 
   deploy:
