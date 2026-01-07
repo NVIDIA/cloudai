@@ -88,7 +88,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
             MegatronBridgeCmdArgs.model_validate({"hf_token": ""})
 
     def test_git_repos_can_pin_megatron_bridge_commit(self) -> None:
-        args = MegatronBridgeCmdArgs(hf_token="dummy_token", model_name="qwen3", model_size="30b_a3b")
+        args = MegatronBridgeCmdArgs(hf_token="dummy_token", model_family_name="qwen3", model_recipe_name="30b_a3b")
         tdef = MegatronBridgeTestDefinition(
             name="mb",
             description="desc",
@@ -223,20 +223,19 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
         sqsh = tmp_path / "img.sqsh"
         sqsh.write_text("x")
 
-        base = dict(
-            container_image=str(sqsh),
-            hf_token="dummy_token",
-            model_family_name="qwen3",
-            model_recipe_name="30b_a3b",
-            num_gpus=8,
-            gpus_per_node=4,
-        )
-
         tdef_true = MegatronBridgeTestDefinition(
             name="mb",
             description="desc",
             test_template_name="MegatronBridge",
-            cmd_args=MegatronBridgeCmdArgs(**base, use_recipes=True),
+            cmd_args=MegatronBridgeCmdArgs(
+                container_image=str(sqsh),
+                hf_token="dummy_token",
+                model_family_name="qwen3",
+                model_recipe_name="30b_a3b",
+                num_gpus=8,
+                gpus_per_node=4,
+                use_recipes=True,
+            ),
             extra_container_mounts=[],
             git_repos=[
                 {
@@ -267,7 +266,14 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
             name="mb",
             description="desc",
             test_template_name="MegatronBridge",
-            cmd_args=MegatronBridgeCmdArgs(**base),
+            cmd_args=MegatronBridgeCmdArgs(
+                container_image=str(sqsh),
+                hf_token="dummy_token",
+                model_family_name="qwen3",
+                model_recipe_name="30b_a3b",
+                num_gpus=8,
+                gpus_per_node=4,
+            ),
             extra_container_mounts=[],
             git_repos=[
                 {
