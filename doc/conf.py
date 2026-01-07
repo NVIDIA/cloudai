@@ -88,8 +88,8 @@ html_theme, mermaid_output_format, mermaid_cmd, mermaid_params = "nvidia_sphinx_
 if is_cms_build:
     html_theme = "sphinx_rtd_theme"
     mermaid_output_format = "png"
-    mermaid_cmd = str(Path.cwd() / "_build-cms/node_modules/.bin/mmdc")
-    mermaid_params = ["-p", str(Path.cwd() / "_build-cms/puppeteer-config.json")]
+    mermaid_cmd = str(Path(__file__).parent / "_build-cms/node_modules/.bin/mmdc")
+    mermaid_params = ["-p", str(Path(__file__).parent / "_build-cms/puppeteer-config.json")]
 
 # Set the root document to index
 root_doc = "index"
