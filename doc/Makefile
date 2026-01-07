@@ -48,9 +48,10 @@ cms-html: install-mermaid
 install-mermaid: $(MMDC)
 
 $(MMDC):
+	@command -v npm >/dev/null 2>&1 || { echo "Error: npm is required for CMS build but not found. Please install Node.js/npm first."; exit 1; }
 	@echo "Installing @mermaid-js/mermaid-cli via npm..."
 	@mkdir -p $(BUILDDIR_CMS)
-	@cd $(BUILDDIR_CMS) && npm install @mermaid-js/mermaid-cli
+	@cd $(BUILDDIR_CMS) && npm install @mermaid-js/mermaid-cli@^11
 	@echo '{"args": ["--no-sandbox"]}' > $(PUPPETEER_CFG)
 	@echo "mermaid-cli installed successfully."
 
