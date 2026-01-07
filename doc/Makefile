@@ -21,8 +21,9 @@ BUILDDIR_CMS  = _build-cms
 
 NODE_MODULES  = $(BUILDDIR_CMS)/node_modules
 MMDC          = $(NODE_MODULES)/.bin/mmdc
+PUPPETEER_CFG = $(BUILDDIR_CMS)/puppeteer-config.json
 
-.PHONY: help html cms-html install-mermaid clean-mermaid clean
+.PHONY: help html cms-html install-mermaid clean
 
 help:
 	@echo "Available targets:"
@@ -50,6 +51,7 @@ $(MMDC):
 	@echo "Installing @mermaid-js/mermaid-cli via npm..."
 	@mkdir -p $(BUILDDIR_CMS)
 	@cd $(BUILDDIR_CMS) && npm install @mermaid-js/mermaid-cli
+	@echo '{"args": ["--no-sandbox"]}' > $(PUPPETEER_CFG)
 	@echo "mermaid-cli installed successfully."
 
 clean:

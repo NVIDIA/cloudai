@@ -84,11 +84,12 @@ autosummary_generate = True
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 is_cms_build = os.environ.get("CLOUDAI_DOC_TARGET") == "cms"
-html_theme, mermaid_output_format, mermaid_cmd = "nvidia_sphinx_theme", "raw", ""
+html_theme, mermaid_output_format, mermaid_cmd, mermaid_params = "nvidia_sphinx_theme", "raw", "", []
 if is_cms_build:
     html_theme = "sphinx_rtd_theme"
     mermaid_output_format = "png"
     mermaid_cmd = str(Path.cwd() / "_build-cms/node_modules/.bin/mmdc")
+    mermaid_params = ["-p", str(Path.cwd() / "_build-cms/puppeteer-config.json")]
 
 # Set the root document to index
 root_doc = "index"
