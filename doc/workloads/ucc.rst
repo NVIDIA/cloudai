@@ -4,7 +4,7 @@ UCC
 This workload (`test_template_name` is ``UCCTest``) allows users to execute UCC benchmarks within the CloudAI framework.
 
 Usage Examples
--------------
+--------------
 
 Test TOML example:
 

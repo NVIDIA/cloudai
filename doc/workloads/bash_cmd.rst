@@ -6,7 +6,7 @@ This workload (`test_template_name` is ``BashCmd``) allows users to execute arbi
 ``cmd`` specified in the ``cmd_args`` section will be added as-is into generated sbatch script.
 
 Usage Examples
--------------
+--------------
 
 Test TOML example:
 
