@@ -4,7 +4,7 @@ NIXL KVBench
 This workload (`test_template_name` is ``NIXLKVBench``) runs NIXL KV-cache benchmarking for key-value store performance testing.
 
 Usage Examples
--------------
+--------------
 
 Test TOML example:
 

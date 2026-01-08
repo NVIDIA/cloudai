@@ -20,6 +20,7 @@
 import os
 import re
 import sys
+from pathlib import Path
 
 # Add the project source to Python path for autodoc
 sys.path.insert(0, os.path.abspath("../src"))
@@ -48,20 +49,20 @@ def setup(app):
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "CloudAI"
-copyright = "2025, NVIDIA CORPORATION & AFFILIATES"
+copyright = "2026, NVIDIA CORPORATION & AFFILIATES"
 author = "NVIDIA CORPORATION & AFFILIATES"
-version = "1.4.0-beta"
-release = "1.4.0-beta"
+version = "1.5.0-beta"
+release = "1.5.0-beta"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
+
 
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
     "sphinx.ext.autosummary",
-    "myst_parser",
     "sphinxcontrib.mermaid",
     "sphinx_copybutton",
 ]
@@ -82,23 +83,15 @@ autosummary_generate = True
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = "nvidia_sphinx_theme"
-
-# MyST parser configuration
-myst_enable_extensions = [
-    "deflist",
-    "colon_fence",
-    "html_image",
-]
-
-# Configure MyST to handle code blocks as directives
-myst_fence_as_directive = ["mermaid"]
-
-# Mermaid configuration
-mermaid_version = "latest"
-mermaid_init_js = "mermaid.initialize({startOnLoad:true});"
+is_cms_build = os.environ.get("CLOUDAI_DOC_TARGET") == "cms"
+html_theme, mermaid_output_format, mermaid_cmd, mermaid_params = "nvidia_sphinx_theme", "raw", "", []
+if is_cms_build:
+    html_theme = "sphinx_rtd_theme"
+    mermaid_output_format = "png"
+    mermaid_cmd = str(Path(__file__).parent / "_build-cms/node_modules/.bin/mmdc")
+    mermaid_params = ["-p", str(Path(__file__).parent / "_build-cms/puppeteer-config.json")]
 
 # Set the root document to index
 root_doc = "index"
 
-source_suffix = [".rst", ".md"]
+source_suffix = [".rst"]

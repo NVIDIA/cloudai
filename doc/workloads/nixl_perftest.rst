@@ -4,7 +4,7 @@ NIXL CTPerf
 This workload (`test_template_name` is ``NixlPerftest``) runs NIXL performance testing suite for comprehensive network performance evaluation.
 
 Usage Examples
--------------
+--------------
 
 Test TOML example:
 
