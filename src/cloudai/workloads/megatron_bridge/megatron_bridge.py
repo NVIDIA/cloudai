@@ -40,8 +40,8 @@ class MegatronBridgeCmdArgs(CmdArgs):
     detach: Optional[bool] = Field(default=None)
 
     # Model/task
-    model_name: str = Field(default="")
-    model_size: str = Field(default="")
+    model_name: str = Field(min_length=1)
+    model_size: str = Field(min_length=1)
     domain: str = Field(default="llm")
     task: str = Field(default="pretrain")
     compute_dtype: str = Field(default="bf16")

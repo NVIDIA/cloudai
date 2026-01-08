@@ -85,7 +85,7 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
 
     def test_hf_token_empty_is_rejected_by_schema(self) -> None:
         with pytest.raises(Exception, match=r"hf_token"):
-            MegatronBridgeCmdArgs.model_validate({"hf_token": ""})
+            MegatronBridgeCmdArgs.model_validate({"hf_token": "", "model_name": "qwen3", "model_size": "30b_a3b"})
 
     def test_git_repos_can_pin_megatron_bridge_commit(self) -> None:
         args = MegatronBridgeCmdArgs(hf_token="dummy_token", model_name="qwen3", model_size="30b_a3b")
