@@ -85,7 +85,21 @@ class TestMegatronBridgeSlurmCommandGenStrategy:
 
     def test_hf_token_empty_is_rejected_by_schema(self) -> None:
         with pytest.raises(Exception, match=r"hf_token"):
-            MegatronBridgeCmdArgs.model_validate({"hf_token": ""})
+            MegatronBridgeCmdArgs.model_validate({"hf_token": "", "model_name": "qwen3", "model_size": "30b_a3b"})
+
+    @pytest.mark.parametrize("field_name", ["model_name", "model_size"])
+    def test_model_fields_empty_string_rejected(self, field_name: str) -> None:
+        data = {"hf_token": "dummy_token", "model_name": "qwen3", "model_size": "30b_a3b"}
+        data[field_name] = ""
+        with pytest.raises(Exception, match=field_name):
+            MegatronBridgeCmdArgs.model_validate(data)
+
+    @pytest.mark.parametrize("field_name", ["model_name", "model_size"])
+    def test_model_fields_whitespace_only_rejected(self, field_name: str) -> None:
+        data = {"hf_token": "dummy_token", "model_name": "qwen3", "model_size": "30b_a3b"}
+        data[field_name] = "   \t  "
+        with pytest.raises(Exception, match=rf"cmd_args\.{field_name} cannot be empty\."):
+            MegatronBridgeCmdArgs.model_validate(data)
 
     def test_git_repos_can_pin_megatron_bridge_commit(self) -> None:
         args = MegatronBridgeCmdArgs(hf_token="dummy_token", model_name="qwen3", model_size="30b_a3b")
