@@ -29,7 +29,7 @@ Before running the AI Dynamo workload on a Kubernetes cluster, ensure that the c
 Launch and Monitor the Job
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Note**: both CloudAI and Dynamo will try to access HuggingFace Hub. To avoid ``429 Too Many Requests`` errors and access models under auth, it is recommended to define ``HF_TOKEN`` environment variable.
+**Note**: both CloudAI and Dynamo will try to access HuggingFace Hub. To avoid ``429 Too Many Requests`` errors and access models under auth, it is recommended to define ``HF_TOKEN`` environment variable before invoking CloudAI.
 
 .. code-block:: bash
 
