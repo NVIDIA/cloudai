@@ -19,7 +19,7 @@ name = "aiconfigurator-disagg-scenario"
 [[Tests]]
 id = "aiconfigurator.disagg.demo"
 time_limit = "00:05:00"
-test_name = "aiconfigurator_disagg_demo"
+test_name = "dse_aiconfigurator_disagg_demo_Llama3.1_70B"
 num_nodes = 1
 agent_metrics = [
   "ttft_ms",
