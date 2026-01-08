@@ -17,7 +17,7 @@
 import logging
 from typing import List, Optional, Union, cast
 
-from pydantic import Field, field_validator
+from pydantic import Field, ValidationInfo, field_validator
 
 from cloudai.core import DockerImage, GitRepo, Installable, PythonExecutable
 from cloudai.models.workload import CmdArgs, TestDefinition
@@ -87,6 +87,14 @@ class MegatronBridgeCmdArgs(CmdArgs):
         if not token:
             raise ValueError("cmd_args.hf_token is required. Please set it to your literal HF token string.")
         return token
+
+    @field_validator("model_name", "model_size", mode="after")
+    @classmethod
+    def validate_model_fields(cls, v: str, info: ValidationInfo) -> str:
+        s = v.strip()
+        if not s:
+            raise ValueError(f"cmd_args.{info.field_name} cannot be empty.")
+        return s
 
 
 class MegatronBridgeTestDefinition(TestDefinition):
