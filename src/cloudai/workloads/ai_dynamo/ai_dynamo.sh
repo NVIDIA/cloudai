@@ -30,7 +30,7 @@ dynamo_args["node-setup-cmd"]=""
 dynamo_args["prefill-cmd"]="python3 -m dynamo.vllm --is-prefill-worker"
 dynamo_args["decode-cmd"]="python3 -m dynamo.vllm"
 dynamo_args["ingress-cmd"]="python -m dynamo.frontend --router-mode kv"
-dynamo_args["port"]=8080
+dynamo_args["port"]=$((8080 + SLURM_JOBID % 100))
 dynamo_args["endpoint"]="v1/chat/completions"
 dynamo_args["model"]="deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
 dynamo_args["etcd-port"]=2379
@@ -641,15 +641,25 @@ function launch_decode()
   wait_for_etcd
 
   local workers_per_node=${dynamo_args["decode-workers-per-node"]}
-  log "Using workers per node: $workers_per_node"
+  local tp_size=${decode_args["--${dynamo_args["tp-arg-name"]}"]}
+  local base_nixl_port=${VLLM_NIXL_SIDE_CHANNEL_PORT:-5557}
+  local base_kv_event_port=${DYN_VLLM_KV_EVENT_PORT:-20080}
+  log "Launching $workers_per_node decode worker(s) with unique port ranges"
 
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
     local gpu_list=$(_gpu_list_for_worker "${dynamo_args["decode-gpus-per-worker"]}" "$i")
     local log_file=$(_log_file_for_worker "decode" "$i")
+    # Each worker needs unique port ranges to avoid ZMQ conflicts:
+    # - NIXL side channel: base_port + (worker_index * tp_size) for TP ranks
+    # - KV event port: one per worker
+    local nixl_port=$((base_nixl_port + (i * tp_size)))
+    local kv_event_port=$((base_kv_event_port + i))
 
-    log "Launching decode worker $i on GPUs $gpu_list"
+    log "Launching decode worker $i on GPUs $gpu_list (NIXL port: $nixl_port, KV event port: $kv_event_port)"
     log "Decode cmd: ${dynamo_args["decode-cmd"]} $(array_to_args decode_args) ${decode_args["--extra-args"]}"
     CUDA_VISIBLE_DEVICES=$gpu_list \
+      VLLM_NIXL_SIDE_CHANNEL_PORT=$nixl_port \
+      DYN_VLLM_KV_EVENT_PORT=$kv_event_port \
       ${dynamo_args["decode-cmd"]} \
       $(array_to_args decode_args) ${decode_args["--extra-args"]} > $log_file 2>&1 &
   done
@@ -669,14 +679,25 @@ function launch_prefill()
   wait_for_etcd
 
   local workers_per_node=${dynamo_args["prefill-workers-per-node"]}
+  local tp_size=${prefill_args["--${dynamo_args["tp-arg-name"]}"]}
+  local base_nixl_port=${VLLM_NIXL_SIDE_CHANNEL_PORT:-5557}
+  local base_kv_event_port=${DYN_VLLM_KV_EVENT_PORT:-20080}
+  log "Launching $workers_per_node prefill worker(s) with unique port ranges"
 
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
     local gpu_list=$(_gpu_list_for_worker "${dynamo_args["prefill-gpus-per-worker"]}" "$i")
     local log_file=$(_log_file_for_worker "prefill" "$i")
+    # Each worker needs unique port ranges to avoid ZMQ conflicts:
+    # - NIXL side channel: base_port + (worker_index * tp_size) for TP ranks
+    # - KV event port: one per worker
+    local nixl_port=$((base_nixl_port + (i * tp_size)))
+    local kv_event_port=$((base_kv_event_port + i))
 
-    log "Launching prefill worker $i on GPUs $gpu_list"
+    log "Launching prefill worker $i on GPUs $gpu_list (NIXL port: $nixl_port, KV event port: $kv_event_port)"
     log "Prefill cmd: ${dynamo_args["prefill-cmd"]} $(array_to_args prefill_args) ${prefill_args["--extra-args"]}"
     CUDA_VISIBLE_DEVICES=$gpu_list \
+      VLLM_NIXL_SIDE_CHANNEL_PORT=$nixl_port \
+      DYN_VLLM_KV_EVENT_PORT=$kv_event_port \
       ${dynamo_args["prefill-cmd"]} \
       $(array_to_args prefill_args) ${prefill_args["--extra-args"]} > $log_file 2>&1 &
   done
