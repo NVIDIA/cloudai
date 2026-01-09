@@ -145,7 +145,7 @@ class TestCreateTable:
             ["value1", "value2"],
         )
 
-        assert len(table.columns) == 7  # 1 info + 1 size + 2*2 data + 2 diff
+        assert len(table.columns) == 7  # 1 info + 2*2 data + 2 diff
         assert len(table.rows) == 1
         assert list(table.columns[0].cells) == ["1"]
         assert list(table.columns[1].cells) == ["10"]
