@@ -26,7 +26,7 @@ Test TOML example (Standard Mode):
    test_template_name = "DeepEP"
 
    [cmd_args]
-   docker_image_url = "gitlab-master.nvidia.com/ybenabou/warehouse/deepep:dp-benchmark"
+   docker_image_url = "<docker container url here>"
    mode = "standard"
    tokens = 1024
    num_experts = 256
@@ -45,7 +45,7 @@ Test TOML example (Low-Latency Mode):
    test_template_name = "DeepEP"
 
    [cmd_args]
-   docker_image_url = "gitlab-master.nvidia.com/ybenabou/warehouse/deepep:dp-benchmark"
+   docker_image_url = "<docker container url here>"
    mode = "low_latency"
    tokens = 128
    num_experts = 256
@@ -83,7 +83,7 @@ Test-in-Scenario example:
    test_template_name = "DeepEP"
 
      [Tests.cmd_args]
-     docker_image_url = "gitlab-master.nvidia.com/ybenabou/warehouse/deepep:dp-benchmark"
+     docker_image_url = "<docker container url here>"
      mode = "standard"
      tokens = 1024
      num_experts = 256
