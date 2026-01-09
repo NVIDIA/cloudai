@@ -15,7 +15,7 @@ Test TOML example:
    test_template_name = "NixlPerftest"
 
    [cmd_args]
-   docker_image_url = "..."
+   docker_image_url = "<docker container url here>"
    subtest = "sequential-ct-perftest"
    num_user_requests = 1
    batch_size = 1
@@ -56,7 +56,7 @@ Test-in-Scenario example:
    test_template_name = "NixlPerftest"
 
      [Tests.cmd_args]
-     docker_image_url = "..."
+     docker_image_url = "<docker container url here>"
      subtest = "sequential-ct-perftest"
      num_user_requests = 100
      batch_size = 1

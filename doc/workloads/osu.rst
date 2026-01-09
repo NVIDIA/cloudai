@@ -16,7 +16,7 @@ Test example:
     description = "OSU Benchmark example"
 
     [cmd_args]
-    "docker_image_url" = "docker-image-with-osu-benchmark:latest"
+    "docker_image_url" = "<docker container url here>"
     "benchmarks_dir" = "/directory/with/osu/binaries/in/container"
     "benchmark" = ["osu_allreduce", "osu_allgather"]
     "iterations" = 10
@@ -50,7 +50,7 @@ Test-in-Scenario example:
     test_template_name = "OSUBench"
 
         [Tests.cmd_args]
-        docker_image_url = "docker-image-with-osu-benchmark:latest"
+        docker_image_url = "<docker container url here>"
         benchmarks_dir = "/directory/with/osu/binaries/in/container"
         benchmark = "osu_allreduce"
         iterations = 10

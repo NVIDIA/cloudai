@@ -15,7 +15,7 @@ Test TOML example:
    test_template_name = "DDLB"
 
    [cmd_args]
-   docker_image_url = "gitlab-master.nvidia.com/nsarkauskas/ddlb:latest"
+   docker_image_url = "<docker container url here>"
    primitive = "tp_columnwise"
    dtype = "float16"
 
@@ -48,7 +48,7 @@ Test-in-Scenario example:
    test_template_name = "DDLB"
 
      [Tests.cmd_args]
-     docker_image_url = "gitlab-master.nvidia.com/nsarkauskas/ddlb:latest"
+     docker_image_url = "<docker container url here>"
      primitive = "tp_columnwise"
      m = 1024
      n = 128
