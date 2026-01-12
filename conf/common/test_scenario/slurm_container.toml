@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,5 +26,5 @@ description = "NCCL alltoall via SlurmContainer"
 test_template_name = "SlurmContainer"
 
   [Tests.cmd_args]
-  docker_image_url = "nvcr.io#nvidia/pytorch:25.06-py3"
+  docker_image_url = "nvcr.io#nvidia/pytorch:25.12-py3"
   cmd = "alltoall_perf_mpi --nthreads 1 --ngpus 1 --minbytes 128 --maxbytes 4G --stepbytes 1M --op sum --datatype float --root 0 --iters 100 --warmup_iters 50 --agg_iters 1 --average 1 --parallel_init 0 --check 1 --blocking 0 --cudagraph 0 --stepfactor 2"

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@ description = "nemo_run_llama3_8b"
 test_template_name = "NeMoRun"
 
 [cmd_args]
-docker_image_url = "nvcr.io#nvidia/nemo:25.09.00"
+docker_image_url = "nvcr.io#nvidia/nemo:25.11.01"
 task = "pretrain"
 recipe_name = "cloudai_llama3_8b_recipe"
 
