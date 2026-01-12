@@ -43,7 +43,6 @@ class MegatronBridgeCmdArgs(CmdArgs):
     model_family_name: str = Field(default="")
     model_recipe_name: str = Field(default="")
     use_recipes: Optional[bool] = Field(default=None)
-    domain: str = Field(default="llm")
     task: str = Field(default="pretrain")
     compute_dtype: str = Field(default="bf16")
     fp8_recipe: Optional[str] = Field(default=None)
