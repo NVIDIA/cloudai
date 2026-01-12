@@ -68,7 +68,7 @@ description = "scatter_perf"
 test_template_name = "NcclTest"
 
   [Tests.cmd_args]
-  docker_image_url = "nvcr.io#nvidia/pytorch:25.06-py3"
+  docker_image_url = "nvcr.io#nvidia/pytorch:25.12-py3"
   subtest_name = "scatter_perf_mpi"
   ngpus = 1
   minbytes = "128"

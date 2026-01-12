@@ -19,7 +19,7 @@ test_template_name = "OSUBench"
 description = "OSU Benchmark example"
 
 [cmd_args]
-"docker_image_url" = "nvcr.io#nvidia/pytorch:25.06-py3"
+"docker_image_url" = "nvcr.io#nvidia/pytorch:25.12-py3"
 "benchmarks_dir" = "/opt/hpcx/ompi/tests/osu-micro-benchmarks"
 "benchmark" = "osu_allreduce"
 "iterations" = 10
