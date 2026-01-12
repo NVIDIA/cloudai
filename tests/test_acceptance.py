@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -294,7 +294,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 description="ddlb",
                 test_template_name="ddlb",
                 cmd_args=DDLBCmdArgs(
-                    docker_image_url="gitlab-master.nvidia.com/nsarkauskas/ddlb:latest",
+                    docker_image_url="docker/image:url",
                     primitive="tp_columnwise",
                     m=1024,
                     n=128,
@@ -488,7 +488,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                 description="DeepEP MoE Benchmark",
                 test_template_name="deepep-benchmark",
                 cmd_args=DeepEPCmdArgs(
-                    docker_image_url="gitlab-master.nvidia.com/ybenabou/warehouse/deepep:dp-benchmark",
+                    docker_image_url="docker/image:url",
                 ),
             ),
         ),
