@@ -130,7 +130,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "",
             ': >"$LOG"',
             "LAUNCH_RC=0",
-            f'{launcher_cmd} >>"$LOG" 2>&1 || LAUNCH_RC=$?',
+            f"{launcher_cmd} >>\"$LOG\" 2>&1 || LAUNCH_RC=$?",
             "",
             # Parse job id from Megatron-Bridge output (multiple possible formats)
             "",
