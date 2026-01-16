@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -118,6 +118,24 @@ class ComparisonReport(Reporter, ABC):
 
         logging.info(f"Comparison report created: {html_file}")
 
+    @staticmethod
+    def _extract_cmp_values(data: list) -> tuple[float | None, float | None]:
+        val1, val2 = None, None
+        try:
+            val1 = float(data[-2])
+            val2 = float(data[-1])
+        except Exception as e:
+            logging.debug(f"Could not extract comparison values from data {data}: {e}")
+        return val1, val2
+
+    @staticmethod
+    def _format_diff_cell(val1: float | None, val2: float | None) -> str:
+        if val1 is None or val2 is None or val2 == 0:
+            return "n/a"
+        diff = val1 - val2
+        diff_percent = (diff / val2) * 100
+        return f"{diff:+.2f} ({diff_percent:+.2f}%)"
+
     def create_table(
         self,
         group: GroupedTestRuns,
@@ -131,9 +149,12 @@ class ComparisonReport(Reporter, ABC):
         table = Table(title=f"{title}: {group.name}", title_justify="left")
         for col in info_columns:
             table.add_column(col)
-        for item in group.items:
-            style = next(style_cycle)
-            for col in data_columns:
+
+        enable_diff_column = len(group.items) == 2
+
+        for col in data_columns:
+            for item in group.items:
+                style = next(style_cycle)
                 name_str = "\n".join(item.name.split())
                 table.add_column(
                     f"{name_str}\n[white on {style}]{col}",
@@ -143,11 +164,23 @@ class ComparisonReport(Reporter, ABC):
                     no_wrap=False,
                 )
 
+            if enable_diff_column:
+                diff_style = next(style_cycle)
+                table.add_column(f"diff\n{col}", justify="right", style=diff_style, header_style=diff_style)
+
         df_with_max_rows = max(dfs, key=len)
         for row_idx in range(len(df_with_max_rows)):
             data = []
-            for df in dfs:
-                data.extend([str(df[col].get(row_idx, "n/a")) for col in data_columns])
+            for col in data_columns:
+                data_points = []
+                for df in dfs:
+                    data_points.append(str(df[col].get(row_idx, "n/a")))
+
+                if enable_diff_column:
+                    val1, val2 = self._extract_cmp_values(data_points)
+                    data_points.append(self._format_diff_cell(val1, val2))
+
+                data.extend(data_points)
 
             table.add_row(*[str(df_with_max_rows[col][row_idx]) for col in info_columns], *data)
 

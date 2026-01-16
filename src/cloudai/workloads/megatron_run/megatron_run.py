@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,7 +36,7 @@ class MegatronRunCmdArgs(CmdArgs):
     num_attention_heads: Optional[int] = 32
     num_layers: Optional[int] = 32
     pipeline_model_parallel_size: Optional[int] = 1
-    recompute_activations: Optional[str] = ""
+    recompute_activations: Optional[str] = None
     seq_length: Optional[int] = 4096
     tensor_model_parallel_size: Optional[int] = 2
 

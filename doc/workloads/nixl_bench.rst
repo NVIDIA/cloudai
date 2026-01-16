@@ -4,7 +4,7 @@ NIXL Bench
 This workload (`test_template_name` is ``NIXLBench``) runs NIXL benchmarking suite for network and interconnect performance testing.
 
 Usage Examples
--------------
+--------------
 
 Test TOML example:
 
@@ -15,7 +15,7 @@ Test TOML example:
    test_template_name = "NIXLBench"
 
    [cmd_args]
-   docker_image_url = "..."
+   docker_image_url = "<docker container url here>"
    path_to_benchmark = "/workspace/nixlbench/build/nixlbench"
    backend = "UCX"
    initiator_seg_type = "VRAM"
@@ -51,7 +51,7 @@ Test-in-Scenario example:
    test_template_name = "NIXLBench"
 
      [Tests.cmd_args]
-     docker_image_url = "..."
+     docker_image_url = "<docker container url here>"
      path_to_benchmark = "/workspace/nixlbench/build/nixlbench"
      backend = "UCX"
      initiator_seg_type = "DRAM"

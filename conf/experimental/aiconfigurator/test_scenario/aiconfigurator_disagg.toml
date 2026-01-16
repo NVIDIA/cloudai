@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@ name = "aiconfigurator-disagg-scenario"
 [[Tests]]
 id = "aiconfigurator.disagg.demo"
 time_limit = "00:05:00"
-test_name = "dse_aiconfigurator_disagg_demo_Llama3.1_70B"
+test_name = "aiconfigurator_disagg_demo"
 num_nodes = 1
 agent_metrics = [
   "ttft_ms",

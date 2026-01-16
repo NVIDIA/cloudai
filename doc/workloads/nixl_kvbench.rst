@@ -4,7 +4,7 @@ NIXL KVBench
 This workload (`test_template_name` is ``NIXLKVBench``) runs NIXL KV-cache benchmarking for key-value store performance testing.
 
 Usage Examples
--------------
+--------------
 
 Test TOML example:
 
@@ -15,7 +15,7 @@ Test TOML example:
    test_template_name = "NIXLKVBench"
 
    [cmd_args]
-   docker_image_url = "..."
+   docker_image_url = "<docker container url here>"
    model = "./examples/model_deepseek_r1.yaml"
    model_config = "./examples/block-tp1-pp16.yaml"
    backend = "POSIX"
@@ -54,7 +54,7 @@ Test-in-Scenario example:
    test_template_name = "NIXLKVBench"
 
      [Tests.cmd_args]
-     docker_image_url = "..."
+     docker_image_url = "<docker container url here>"
      backend = "UCX"
      source = "memory"
      op_type = "READ"

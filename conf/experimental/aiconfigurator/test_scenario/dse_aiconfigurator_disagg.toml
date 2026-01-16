@@ -14,17 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "slurm-container"
+name = "aiconfigurator-disagg-scenario"
 
 [[Tests]]
-id = "nccl.alltoall"
-num_nodes = 2
-time_limit = "00:20:00"
-
-name = "nccl-alltoall"
-description = "NCCL alltoall via SlurmContainer"
-test_template_name = "SlurmContainer"
-
-  [Tests.cmd_args]
-  docker_image_url = "nvcr.io#nvidia/pytorch:25.12-py3"
-  cmd = "alltoall_perf_mpi --nthreads 1 --ngpus 1 --minbytes 128 --maxbytes 4G --stepbytes 1M --op sum --datatype float --root 0 --iters 100 --warmup_iters 50 --agg_iters 1 --average 1 --parallel_init 0 --check 1 --blocking 0 --cudagraph 0 --stepfactor 2"
+id = "aiconfigurator.disagg.demo"
+time_limit = "00:05:00"
+test_name = "dse_aiconfigurator_disagg_demo_Llama3.1_70B"
+num_nodes = 1
+agent_metrics = [
+  "ttft_ms",
+  "tpot_ms",
+  "tokens_per_s_per_gpu",
+  "tokens_per_s_per_user",
+]

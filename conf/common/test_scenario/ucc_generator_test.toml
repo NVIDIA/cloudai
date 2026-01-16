@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,6 +30,6 @@ extra_container_mounts = [
 ]
 
   [Tests.cmd_args]
-  docker_image_url = "nvcr.io/nvidia/pytorch:25.09-py3"
+  docker_image_url = "nvcr.io/nvidia/pytorch:25.12-py3"
   collective = "alltoallv"
   gen = "file:name=/opt/hpcx/ucc/tools/perf/generator/input_matrices.txt"
