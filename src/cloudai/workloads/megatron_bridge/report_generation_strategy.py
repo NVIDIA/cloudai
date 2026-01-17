@@ -31,12 +31,12 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
     metrics: ClassVar[list[str]] = ["default", "step-time", "tflops-per-gpu"]
 
     def get_log_file(self) -> Path | None:
-        log = self.test_run.output_path / "megatron_bridge_launcher.log"
+        log = self.test_run.output_path / "cloudai_megatron_bridge_launcher.log"
         return log if log.is_file() else None
 
     @property
     def results_file(self) -> Path:
-        return self.get_log_file() or (self.test_run.output_path / "megatron_bridge_launcher.log")
+        return self.get_log_file() or (self.test_run.output_path / "cloudai_megatron_bridge_launcher.log")
 
     def can_handle_directory(self) -> bool:
         return self.get_log_file() is not None
@@ -75,8 +75,8 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
         log_file, step_times_s, gpu_tflops = self._get_extracted_data()
         if not log_file:
             logging.error(
-                "No Megatron-Bridge launcher log file found: %s",
-                self.test_run.output_path / "megatron_bridge_launcher.log",
+                "No Megatron-Bridge launcher log file found in: %s",
+                self.test_run.output_path,
             )
             return
 
@@ -130,8 +130,8 @@ class MegatronBridgeReportGenerationStrategy(ReportGenerationStrategy):
         log_file, step_times_s, gpu_tflops = self._get_extracted_data()
         if not log_file:
             logging.error(
-                "No Megatron-Bridge launcher log file found: %s",
-                self.test_run.output_path / "megatron_bridge_launcher.log",
+                "No Megatron-Bridge launcher log file found in: %s",
+                self.test_run.output_path,
             )
             return METRIC_ERROR
         if not step_times_s:
