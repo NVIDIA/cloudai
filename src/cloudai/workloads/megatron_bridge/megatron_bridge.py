@@ -60,7 +60,7 @@ class MegatronBridgeCmdArgs(CmdArgs):
     # Feature flags (allow sweeps)
     use_tokendrop: Optional[Union[bool, List[bool]]] = Field(default=None)
     use_megatron_fsdp: Optional[Union[bool, List[bool]]] = Field(default=None)
-    cuda_graph_impl: Optional[str] = Field(default=None)
+    cuda_graph_impl: Optional[Union[str, List[str]]] = Field(default=None)
     cuda_graph_scope: Optional[Union[str, List[str]]] = Field(default=None)
 
     # Parallelism
