@@ -132,10 +132,11 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "LAUNCH_RC=0",
             f"{launcher_cmd} >>\"$LOG\" 2>&1 || LAUNCH_RC=$?",
             "",
-            # Parse job id from Megatron-Bridge output (format: 'Job id: <num>')
+            # Parse job id from Megatron-Bridge output (multiple possible formats)
+            # Patterns: "Job id: 694112", "- Job id: 694112", "Job ID: 694112"
             "",
             'JOB_ID=""',
-            'JOB_ID=$(grep -Eio "Job id[: ]+[0-9]+" "$LOG" | tail -n1 | grep -Eo "[0-9]+" | tail -n1 || true)',
+            'JOB_ID=$(grep -Eio "(Job id[: ]+[0-9]+|-[ ]*Job id[: ]+[0-9]+)" "$LOG" | tail -n1 | grep -Eo "[0-9]+" | tail -n1 || true)',
             "",
             # Emit a canonical line for CloudAI to parse
             "",
