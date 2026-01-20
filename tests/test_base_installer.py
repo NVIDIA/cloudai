@@ -331,9 +331,7 @@ def test_check_supported(installer: KubernetesInstaller | SlurmInstaller):
     installer.hf_model_manager = Mock()
 
     git = GitRepo(url="./git_url", commit="commit_hash")
-    items = [DockerImage("fake_url/img"), PythonExecutable(git), HFModel("model_name")]
-    if isinstance(installer, SlurmInstaller):
-        items.append(File(Path(__file__)))
+    items = [DockerImage("fake_url/img"), PythonExecutable(git), HFModel("model_name"), File(Path(__file__))]
     for item in items:
         res = installer.install_one(item)
         assert res.success, f"Failed to install {item} for {installer.__class__.__name__=} {res.message=}"

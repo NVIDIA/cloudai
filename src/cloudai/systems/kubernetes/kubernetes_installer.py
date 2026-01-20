@@ -118,6 +118,10 @@ class KubernetesInstaller(BaseInstaller):
             return InstallStatusResult(False, f"Git repository {item.url} not cloned")
         elif isinstance(item, PythonExecutable):
             return self._is_python_executable_installed(item)
+        elif isinstance(item, File):
+            if item.installed_path and item.installed_path.exists():
+                return InstallStatusResult(True)
+            return InstallStatusResult(False, f"File {item.installed_path} does not exist.")
         elif isinstance(item, HFModel):
             return self.hf_model_manager.is_model_downloaded(item)
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
@@ -131,6 +135,9 @@ class KubernetesInstaller(BaseInstaller):
         elif isinstance(item, PythonExecutable):
             item.git_repo.installed_path = self.system.install_path / item.git_repo.repo_name
             item.venv_path = self.system.install_path / item.venv_name
+            return InstallStatusResult(True)
+        elif isinstance(item, File):
+            item.installed_path = self.system.install_path / item.src.name
             return InstallStatusResult(True)
         elif isinstance(item, HFModel):
             item.installed_path = self.system.hf_home_path  # fake path is OK here as the whole HF home will be mounted
