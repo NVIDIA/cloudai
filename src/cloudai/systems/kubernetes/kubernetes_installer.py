@@ -124,7 +124,7 @@ class KubernetesInstaller(BaseInstaller):
             ).read_text() == item.src.read_text():
                 item.installed_path = self.system.install_path / item.src.name
                 return InstallStatusResult(True)
-            return InstallStatusResult(False, f"File {item.installed_path} does not exist")
+            return InstallStatusResult(False, f"File {self.system.install_path / item.src.name} does not exist")
         elif isinstance(item, HFModel):
             return self.hf_model_manager.is_model_downloaded(item)
         return InstallStatusResult(False, f"Unsupported item type: {type(item)}")
