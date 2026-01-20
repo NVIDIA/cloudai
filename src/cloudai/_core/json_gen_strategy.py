@@ -56,7 +56,12 @@ class JsonGenStrategy(ABC):
         sanitized_name = re.sub(r"[^a-z0-9-]", "-", sanitized_name)
         sanitized_name = re.sub(r"^[^a-z0-9]+", "", sanitized_name)
         sanitized_name = re.sub(r"[^a-z0-9]+$", "", sanitized_name)
-        return sanitized_name[:253]
+        final_name = sanitized_name[:253]
+
+        if not final_name:
+            raise ValueError(f"'{job_name}' cannot be sanitized to a valid Kubernetes job name.")
+
+        return final_name
 
     def store_test_run(self) -> None:
         from cloudai.models.scenario import TestRunDetails

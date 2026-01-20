@@ -449,7 +449,7 @@ class KubernetesSystem(System):
             )
             raise
 
-        api_response = cast("k8s.client.V1Job", api_response)
+        api_response = cast("k8s.client.V1Status", api_response)
         logging.debug(f"Batch job '{job_name}' deleted with status: {api_response.status}")
 
     def _delete_dynamo_graph_deployment(self, job_name: str) -> None:

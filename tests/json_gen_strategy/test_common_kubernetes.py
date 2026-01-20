@@ -41,3 +41,10 @@ def test_job_name_sanitization(k8s_system: KubernetesSystem, base_tr: TestRun, t
     base_tr.name = tname
     json_gen = MyJsonGenStrategy(k8s_system, base_tr)
     assert json_gen.sanitize_k8s_job_name(base_tr.name) == expected
+
+
+def test_job_name_sanitization_raises(k8s_system: KubernetesSystem, base_tr: TestRun) -> None:
+    base_tr.name = "!@#$%^&*()"
+    json_gen = MyJsonGenStrategy(k8s_system, base_tr)
+    with pytest.raises(ValueError):
+        json_gen.sanitize_k8s_job_name(base_tr.name)
