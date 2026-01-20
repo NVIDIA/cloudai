@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,7 +33,10 @@ class SleepKubernetesJsonGenStrategy(JsonGenStrategy):
         job_spec = {
             "apiVersion": "batch/v1",
             "kind": "Job",
-            "metadata": {"name": self.test_run.name, "namespace": kubernetes_system.default_namespace},
+            "metadata": {
+                "name": self.sanitize_k8s_job_name(self.test_run.name),
+                "namespace": kubernetes_system.default_namespace,
+            },
             "spec": {
                 "ttlSecondsAfterFinished": 0,
                 "template": {
