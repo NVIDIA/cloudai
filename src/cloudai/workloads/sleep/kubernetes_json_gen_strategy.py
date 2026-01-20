@@ -33,7 +33,10 @@ class SleepKubernetesJsonGenStrategy(JsonGenStrategy):
         job_spec = {
             "apiVersion": "batch/v1",
             "kind": "Job",
-            "metadata": {"name": self.test_run.name, "namespace": kubernetes_system.default_namespace},
+            "metadata": {
+                "name": self.sanitize_k8s_job_name(self.test_run.name),
+                "namespace": kubernetes_system.default_namespace,
+            },
             "spec": {
                 "ttlSecondsAfterFinished": 0,
                 "template": {
