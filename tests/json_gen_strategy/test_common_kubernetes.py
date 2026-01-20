@@ -35,6 +35,8 @@ class MyJsonGenStrategy(JsonGenStrategy):
         ("name@with#special$chars", "name-with-special-chars"),
         ("NameWithUpperCase", "namewithuppercase"),
         ("a" * 260, "a" * 253),
+        ("---leading-and-trailing---", "leading-and-trailing"),
+        ("a" * 250 + "-" * 3 + "b" * 10, "a" * 250),  # ensure no trailing hyphens on truncation
     ],
 )
 def test_job_name_sanitization(k8s_system: KubernetesSystem, base_tr: TestRun, tname: str, expected: str) -> None:
