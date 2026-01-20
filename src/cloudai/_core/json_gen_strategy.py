@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -55,8 +55,13 @@ class JsonGenStrategy(ABC):
         sanitized_name = job_name.lower()
         sanitized_name = re.sub(r"[^a-z0-9-]", "-", sanitized_name)
         sanitized_name = re.sub(r"^[^a-z0-9]+", "", sanitized_name)
+        sanitized_name = sanitized_name[:253]
         sanitized_name = re.sub(r"[^a-z0-9]+$", "", sanitized_name)
-        return sanitized_name[:253]
+
+        if not sanitized_name:
+            raise ValueError(f"'{job_name}' cannot be sanitized to a valid Kubernetes job name.")
+
+        return sanitized_name
 
     def store_test_run(self) -> None:
         from cloudai.models.scenario import TestRunDetails

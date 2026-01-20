@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -431,13 +431,25 @@ class KubernetesSystem(System):
 
     def _delete_batch_job(self, job_name: str) -> None:
         logging.debug(f"Deleting batch job '{job_name}'")
-        api_response = self.batch_v1.delete_namespaced_job(
-            name=job_name,
-            namespace=self.default_namespace,
-            body=lazy.k8s.client.V1DeleteOptions(propagation_policy="Foreground", grace_period_seconds=5),
-        )
-        api_response = cast("k8s.client.V1Job", api_response)
+        try:
+            api_response = self.batch_v1.delete_namespaced_job(
+                name=job_name,
+                namespace=self.default_namespace,
+                body=lazy.k8s.client.V1DeleteOptions(propagation_policy="Foreground", grace_period_seconds=5),
+            )
+        except lazy.k8s.client.ApiException as e:
+            if e.status == 404:
+                logging.debug(f"Batch job '{job_name}' not found. It may have already been deleted.")
+                return
 
+            logging.error(
+                f"An error occurred while attempting to delete batch job '{job_name}'. "
+                f"Error code: {e.status}. Message: {e.reason}. "
+                "Please verify the job name and Kubernetes API server."
+            )
+            raise
+
+        api_response = cast("k8s.client.V1Status", api_response)
         logging.debug(f"Batch job '{job_name}' deleted with status: {api_response.status}")
 
     def _delete_dynamo_graph_deployment(self, job_name: str) -> None:
@@ -662,7 +674,7 @@ class KubernetesSystem(System):
         """
         pod_names = self.get_pod_names_for_job(job_name)
         if not pod_names:
-            logging.warning(f"No pods found for job '{job_name}'")
+            logging.debug(f"No pods found for job '{job_name}'")
             return
 
         output_dir.mkdir(parents=True, exist_ok=True)
