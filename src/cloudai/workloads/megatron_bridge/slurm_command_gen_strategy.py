@@ -116,28 +116,41 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         script_lines = [
             "#!/usr/bin/env bash",
-            "set -euo pipefail",
+            "set -uo pipefail",
             "",
             f'export NEMORUN_HOME="{output_dir}"',
             'mkdir -p "$NEMORUN_HOME"',
             f'LOG="{log_path}"',
+            f'WRAPPER_STDOUT="{output_dir / "cloudai_megatron_bridge_wrapper.stdout"}"',
+            f'WRAPPER_STDERR="{output_dir / "cloudai_megatron_bridge_wrapper.stderr"}"',
+            # Mirror wrapper stdout/stderr to files for debugging while still emitting to the parent process.
+            'exec > >(tee -a "$WRAPPER_STDOUT") 2> >(tee -a "$WRAPPER_STDERR" >&2)',
             "",
             # Launch Megatron-Bridge (log stdout/stderr to file)
             "",
             ': >"$LOG"',
-            f'{launcher_cmd} >>"$LOG" 2>&1',
+            "LAUNCH_RC=0",
+            f'{launcher_cmd} >>"$LOG" 2>&1 || LAUNCH_RC=$?',
             "",
-            # Parse job id from Megatron-Bridge output (format: 'Job id: <num>')
+            # Parse job id from Megatron-Bridge output (multiple possible formats)
             "",
             'JOB_ID=""',
-            'JOB_ID=$(grep -Eio "Job id[: ]+[0-9]+" "$LOG" | tail -n1 | grep -Eo "[0-9]+" | tail -n1 || true)',
+            'JOB_ID=$(grep -Eio "Job[[:space:]]+id[: ]+[0-9]+" "$LOG" | '
+            'tail -n1 | grep -Eo "[0-9]+" | tail -n1 || true)',
             "",
             # Emit a canonical line for CloudAI to parse
             "",
             'if [ -n "${JOB_ID}" ]; then',
+            '  if [ "${LAUNCH_RC}" -ne 0 ]; then',
+            '    echo "Megatron-Bridge launcher exited non-zero (${LAUNCH_RC}) after submitting job ${JOB_ID}." >&2',
+            '    tail -n 200 "$LOG" >&2 || true',
+            "  fi",
             '  echo "Submitted batch job ${JOB_ID}"',
             "else",
             '  echo "Failed to retrieve job ID." >&2',
+            '  if [ "${LAUNCH_RC}" -ne 0 ]; then',
+            '    echo "Launcher exit code: ${LAUNCH_RC}" >&2',
+            "  fi",
             '  tail -n 200 "$LOG" >&2 || true',
             "  exit 1",
             "fi",
