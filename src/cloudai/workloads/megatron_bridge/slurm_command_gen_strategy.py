@@ -135,7 +135,8 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             # Parse job id from Megatron-Bridge output (multiple possible formats)
             "",
             'JOB_ID=""',
-            'JOB_ID=$(grep -Eio "Job id[: ]+[0-9]+" "$LOG" | tail -n1 | grep -Eo "[0-9]+" | tail -n1 || true)',
+            'JOB_ID=$(grep -Eio "Job[[:space:]]+id[: ]+[0-9]+" "$LOG" | '
+            'tail -n1 | grep -Eo "[0-9]+" | tail -n1 || true)',
             "",
             # Emit a canonical line for CloudAI to parse
             "",
