@@ -119,7 +119,7 @@ class KubernetesInstaller(BaseInstaller):
         elif isinstance(item, PythonExecutable):
             return self._is_python_executable_installed(item)
         elif isinstance(item, File):
-            if item.installed_path and item.installed_path.exists():
+            if item.installed_path.exists():
                 return InstallStatusResult(True)
             return InstallStatusResult(False, f"File {item.installed_path} does not exist.")
         elif isinstance(item, HFModel):
