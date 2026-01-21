@@ -39,7 +39,9 @@ def _parse_data_rows(file: TextIOWrapper) -> List[List[str]]:
     for line in file:
         line: str = line.strip()
         if re.match(r"^\d", line):
-            parsed_data_rows.append(re.split(r"\s+", line))
+            parts = re.split(r"\s+", line)
+            if len(parts) == 13:
+                parsed_data_rows.append(parts)
     return parsed_data_rows
 
 
