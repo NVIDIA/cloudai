@@ -357,14 +357,16 @@ class MegatronBridgeTestDefinition(TestDefinition):
         else:
             constraint10 = True
 
-        # Constraint 11: CUDA graphs require a2a overlap disabled
+        # Constraint 11: When cuda_graph_impl is set (not none), a2a overlap must be disabled
+        # moe_a2a_overlap can only be true when cuda_graph_impl is 'none' or unset
         a2a_overlap = _as_bool(self.cmd_args.moe_a2a_overlap)
-        constraint11 = not (cuda_graphs and a2a_overlap)
+        cuda_impl_enabled = cgi not in {"", "none", "null"}
+        constraint11 = not (cuda_impl_enabled and a2a_overlap)
         if not constraint11:
             logging.error(
-                "Constraint 11 failed: cuda_graphs=true requires moe_a2a_overlap=false. "
-                "cuda_graphs=%s moe_a2a_overlap=%s",
-                cuda_graphs,
+                "Constraint 11 failed: moe_a2a_overlap must be false when cuda_graph_impl is not 'none'. "
+                "cuda_graph_impl=%s moe_a2a_overlap=%s",
+                cgi,
                 a2a_overlap,
             )
 
