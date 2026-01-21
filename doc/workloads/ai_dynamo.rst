@@ -31,7 +31,7 @@ Launch and Monitor the Job
 
 .. note::
 
-   Both CloudAI and Dynamo will try to access HuggingFace Hub. To avoid ``429 Too Many Requests`` errors and access models under auth, it is recommended to define ``HF_TOKEN`` environment variable before invoking CloudAI.
+   Both CloudAI and Dynamo will try to access HuggingFace Hub. To avoid ``429 Too Many Requests`` errors and access models under auth, it is recommended to define ``HF_TOKEN`` environment variable before invoking CloudAI. Once set, run ``uv run hf auth login`` to authenticate.
 
 .. code-block:: bash
 
