@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,6 +30,10 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
 
     This strategy generates an MPIJob configuration for running NCCL tests.
     """
+
+    @property
+    def ssh_port(self) -> int:
+        return 2222
 
     def gen_json(self) -> dict[Any, Any]:
         k8s_system = cast(KubernetesSystem, self.system)
@@ -68,6 +72,7 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
             "replicas": 1,
             "template": {
                 "spec": {
+                    "hostNetwork": True,
                     "containers": [
                         {
                             "image": self.container_url,
@@ -90,10 +95,12 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
             "replicas": self.test_run.nnodes,
             "template": {
                 "spec": {
+                    "hostNetwork": True,
                     "containers": [
                         {
                             "image": self.container_url,
                             "name": "nccl-test-worker",
+                            "ports": [{"containerPort": self.ssh_port, "name": "ssh"}],
                             "imagePullPolicy": "IfNotPresent",
                             "securityContext": {"privileged": True},
                             "env": self._generate_env_list(env_vars),
@@ -116,8 +123,8 @@ class NcclTestKubernetesJsonGenStrategy(JsonGenStrategy):
 
         If the SSH daemon is not installed, it will be installed and the SSH keys will be generated.
         """
-        return """
-set -e
+        return f"""
+set -ex
 if ! command -v sshd &> /dev/null; then
     apt-get update && apt-get install -y --no-install-recommends openssh-server
 fi
@@ -126,9 +133,11 @@ cat >> /etc/ssh/sshd_config << EOF
 PermitRootLogin yes
 PubkeyAuthentication yes
 StrictModes no
+Port {self.ssh_port}
 EOF
 ssh-keygen -A
-exec /usr/sbin/sshd -D
+service ssh restart
+sleep infinity
 """.strip()
 
     def _get_merged_env_vars(self) -> dict[str, str | list[str]]:
@@ -154,8 +163,8 @@ exec /usr/sbin/sshd -D
         mpi_args = [
             f"-np {total_processes}",
             "-bind-to none",
-            # Disable strict host key checking for SSH
-            "-mca plm_rsh_args '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'",
+            # Disable strict host key checking for SSH and ensure correct port is used
+            f"-mca plm_rsh_args '-p {self.ssh_port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'",
         ]
 
         return mpi_args

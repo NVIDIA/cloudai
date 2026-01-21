@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -141,7 +141,11 @@ class TestNcclTestKubernetesJsonGenStrategy:
         assert "mpirun" in launcher_args
         assert f"-np {test_run_with_extra_args.nnodes * k8s_system.gpus_per_node}" in launcher_args
         assert "-bind-to none" in launcher_args
-        assert "-mca plm_rsh_args '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'" in launcher_args
+        assert (
+            f"-mca plm_rsh_args '-p {json_gen_strategy.ssh_port}"
+            + " -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'"
+            in launcher_args
+        )
         assert nccl.cmd_args.subtest_name in launcher_args
         assert f"--nthreads {nccl.cmd_args.nthreads}" in launcher_args
         assert f"--ngpus {nccl.cmd_args.ngpus}" in launcher_args

@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -39,7 +39,9 @@ def _parse_data_rows(file: TextIOWrapper) -> List[List[str]]:
     for line in file:
         line: str = line.strip()
         if re.match(r"^\d", line):
-            parsed_data_rows.append(re.split(r"\s+", line))
+            parts = re.split(r"\s+", line)
+            if len(parts) == 13:
+                parsed_data_rows.append(parts)
     return parsed_data_rows
 
 
