@@ -100,6 +100,7 @@ def test_sbatch_system_fields(sleep_tr: TestRun, slurm_system: SlurmSystem) -> N
 
     runner.system.account = "test_account"
     runner.system.distribution = "test_distribution"
+    runner.system.supports_gpu_directives_cache = True
     runner.system.gpus_per_node = 2
     runner.system.ntasks_per_node = 4
     runner.system.extra_sbatch_args = ["--test-arg1", "--test-arg2"]
