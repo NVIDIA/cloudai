@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import csv
 import logging
 import re
 from pathlib import Path
@@ -135,49 +136,35 @@ class MegatronRunReportGenerationStrategy(ReportGenerationStrategy):
             )
             return
 
-        summary_file = self.test_run.output_path / "megatron_run_report.txt"
+        report_file = self.test_run.output_path / "megatron_run_report.csv"
         if not iter_times_ms:
-            with summary_file.open("w") as f:
-                f.write("MegatronRun report\n")
-                f.write("No iteration timing lines were found.\n\n")
-                f.write("Searched file:\n")
-                f.write(f"  - {log_file}\n")
-            logging.warning("No iteration metrics found under %s (wrote %s)", self.test_run.output_path, summary_file)
+            with report_file.open("w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["metric_type", "avg", "median", "min", "max", "std"])
+                writer.writerow(["error: No iteration timing lines were found.", "", "", "", "", ""])
+            logging.warning("No iteration metrics found under %s (wrote %s)", self.test_run.output_path, report_file)
             return
 
-        iter_stats = {
-            "avg": mean(iter_times_ms),
-            "median": median(iter_times_ms),
-            "min": min(iter_times_ms),
-            "max": max(iter_times_ms),
-            "std": pstdev(iter_times_ms) if len(iter_times_ms) > 1 else 0.0,
-        }
-        if gpu_tflops:
-            tflops_stats = {
-                "avg": mean(gpu_tflops),
-                "median": median(gpu_tflops),
-                "min": min(gpu_tflops),
-                "max": max(gpu_tflops),
-                "std": pstdev(gpu_tflops) if len(gpu_tflops) > 1 else 0.0,
-            }
-        else:
-            tflops_stats = {"avg": 0.0, "median": 0.0, "min": 0.0, "max": 0.0, "std": 0.0}
+        iter_avg = mean(iter_times_ms)
+        iter_median = median(iter_times_ms)
+        iter_min = min(iter_times_ms)
+        iter_max = max(iter_times_ms)
+        iter_std = pstdev(iter_times_ms) if len(iter_times_ms) > 1 else 0.0
 
-        with summary_file.open("w") as f:
-            f.write(f"Source log: {log_file}\n\n")
-            f.write("Iteration Time (ms)\n")
-            f.write(f"  avg: {iter_stats['avg']}\n")
-            f.write(f"  median: {iter_stats['median']}\n")
-            f.write(f"  min: {iter_stats['min']}\n")
-            f.write(f"  max: {iter_stats['max']}\n")
-            f.write(f"  std: {iter_stats['std']}\n")
-            f.write("\n")
-            f.write("TFLOP/s per GPU\n")
-            f.write(f"  avg: {tflops_stats['avg']}\n")
-            f.write(f"  median: {tflops_stats['median']}\n")
-            f.write(f"  min: {tflops_stats['min']}\n")
-            f.write(f"  max: {tflops_stats['max']}\n")
-            f.write(f"  std: {tflops_stats['std']}\n")
+        if gpu_tflops:
+            tflops_avg = mean(gpu_tflops)
+            tflops_median = median(gpu_tflops)
+            tflops_min = min(gpu_tflops)
+            tflops_max = max(gpu_tflops)
+            tflops_std = pstdev(gpu_tflops) if len(gpu_tflops) > 1 else 0.0
+        else:
+            tflops_avg = tflops_median = tflops_min = tflops_max = tflops_std = 0.0
+
+        with report_file.open("w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["metric_type", "avg", "median", "min", "max", "std"])
+            writer.writerow(["iteration_time_ms", iter_avg, iter_median, iter_min, iter_max, iter_std])
+            writer.writerow(["tflops_per_gpu", tflops_avg, tflops_median, tflops_min, tflops_max, tflops_std])
 
     def get_metric(self, metric: str) -> float:
         if metric not in {"default", "iteration-time", "tflops-per-gpu"}:

@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import csv
 from pathlib import Path
 
 import pytest
@@ -97,16 +98,38 @@ def test_megatron_run_cannot_handle_directory_without_iteration_data(
 def test_megatron_run_extract_and_generate_report(slurm_system: SlurmSystem, megatron_run_tr: TestRun) -> None:
     strategy = MegatronRunReportGenerationStrategy(slurm_system, megatron_run_tr)
     strategy.generate_report()
-    report_path = megatron_run_tr.output_path / "megatron_run_report.txt"
+    report_path = megatron_run_tr.output_path / "megatron_run_report.csv"
     assert report_path.is_file()
-    content = report_path.read_text()
-    assert "Iteration Time (ms)" in content
-    assert "TFLOP/s per GPU" in content
-    assert "avg:" in content
-    assert "median:" in content
-    assert "min:" in content
-    assert "max:" in content
-    assert "std:" in content
+
+    with report_path.open() as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+
+    # Should have 2 rows: iteration_time_ms and tflops_per_gpu
+    assert len(rows) == 2
+
+    expected_headers = {"metric_type", "avg", "median", "min", "max", "std"}
+    assert set(rows[0].keys()) == expected_headers
+
+    data = {row["metric_type"]: row for row in rows}
+
+    # Verify iteration_time_ms stats
+    assert "iteration_time_ms" in data
+    iter_stats = data["iteration_time_ms"]
+    expected_iter_avg = (15800.0 + 15639.0 + 15448.5) / 3
+    assert abs(float(iter_stats["avg"]) - expected_iter_avg) < 0.1
+    assert abs(float(iter_stats["median"]) - 15639.0) < 0.1
+    assert abs(float(iter_stats["min"]) - 15448.5) < 0.1
+    assert abs(float(iter_stats["max"]) - 15800.0) < 0.1
+
+    # Verify tflops_per_gpu stats
+    assert "tflops_per_gpu" in data
+    tflops_stats = data["tflops_per_gpu"]
+    expected_tflops_avg = (490.0 + 494.6 + 500.6) / 3
+    assert abs(float(tflops_stats["avg"]) - expected_tflops_avg) < 0.1
+    assert abs(float(tflops_stats["median"]) - 494.6) < 0.1
+    assert abs(float(tflops_stats["min"]) - 490.0) < 0.1
+    assert abs(float(tflops_stats["max"]) - 500.6) < 0.1
 
 
 def test_megatron_run_get_metric_iteration_time(slurm_system: SlurmSystem, megatron_run_tr: TestRun) -> None:
