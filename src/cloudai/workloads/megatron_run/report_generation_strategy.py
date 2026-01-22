@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,12 +14,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import logging
 import re
+from pathlib import Path
+from statistics import mean, median, pstdev
+from typing import ClassVar
 
-from cloudai.core import ReportGenerationStrategy
+from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
 
 CHECKPOINT_REGEX = re.compile(r"(save|load)-checkpoint\s.*:\s\((\d+\.\d+),\s(\d+\.\d+)\)")
+
+# Pattern to match lines like:
+# [2026-01-16 07:32:39] iteration  6/100 | ... |
+#   elapsed time per iteration (ms): 15639.0 | throughput per GPU (TFLOP/s/GPU): 494.6 | ...
+ITERATION_REGEX = re.compile(
+    r"elapsed time per iteration \(ms\):\s*([0-9]+(?:\.[0-9]+)?)"
+    r".*?"
+    r"throughput per GPU \(TFLOP/s/GPU\):\s*([0-9]+(?:\.[0-9]+)?)",
+    re.IGNORECASE,
+)
 
 
 class CheckpointTimingReportGenerationStrategy(ReportGenerationStrategy):
@@ -59,3 +74,126 @@ class CheckpointTimingReportGenerationStrategy(ReportGenerationStrategy):
             for checkpoint_type, timings in [("save", save_timings), ("load", load_timings)]:
                 for t in timings:
                     file.write(f"{checkpoint_type},{t[0]},{t[1]}\n")
+
+
+class MegatronRunReportGenerationStrategy(ReportGenerationStrategy):
+    """Parse Megatron-Run stdout.txt for iteration time and GPU TFLOP/s per GPU."""
+
+    metrics: ClassVar[list[str]] = ["default", "iteration-time", "tflops-per-gpu"]
+
+    def get_log_file(self) -> Path | None:
+        log = self.test_run.output_path / "stdout.txt"
+        return log if log.is_file() else None
+
+    @property
+    def results_file(self) -> Path:
+        return self.get_log_file() or (self.test_run.output_path / "stdout.txt")
+
+    def can_handle_directory(self) -> bool:
+        log_file = self.get_log_file()
+        if not log_file:
+            return False
+        with log_file.open("r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                if ITERATION_REGEX.search(line):
+                    return True
+        return False
+
+    def _extract(self, log_path: Path) -> tuple[list[float], list[float]]:
+        """Extract iteration times (ms) and GPU TFLOPS from the log file."""
+        iter_times_ms: list[float] = []
+        gpu_tflops: list[float] = []
+        with log_path.open("r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                m = ITERATION_REGEX.search(line)
+                if m:
+                    try:
+                        iter_times_ms.append(float(m.group(1)))
+                        gpu_tflops.append(float(m.group(2)))
+                    except (ValueError, TypeError):
+                        logging.debug("Failed to parse iteration metrics line: %s", line.rstrip("\n"))
+
+        # Keep only the last 10 iterations for statistics (to exclude warmup)
+        if len(iter_times_ms) > 10:
+            iter_times_ms = iter_times_ms[-10:]
+            gpu_tflops = gpu_tflops[-10:]
+        return iter_times_ms, gpu_tflops
+
+    def _get_extracted_data(self) -> tuple[Path | None, list[float], list[float]]:
+        log_file = self.get_log_file()
+        if not log_file:
+            return None, [], []
+        iter_times_ms, gpu_tflops = self._extract(log_file)
+        return log_file, iter_times_ms, gpu_tflops
+
+    def generate_report(self) -> None:
+        log_file, iter_times_ms, gpu_tflops = self._get_extracted_data()
+        if not log_file:
+            logging.error(
+                "No stdout.txt file found in: %s",
+                self.test_run.output_path,
+            )
+            return
+
+        summary_file = self.test_run.output_path / "megatron_run_report.txt"
+        if not iter_times_ms:
+            with summary_file.open("w") as f:
+                f.write("MegatronRun report\n")
+                f.write("No iteration timing lines were found.\n\n")
+                f.write("Searched file:\n")
+                f.write(f"  - {log_file}\n")
+            logging.warning("No iteration metrics found under %s (wrote %s)", self.test_run.output_path, summary_file)
+            return
+
+        iter_stats = {
+            "avg": mean(iter_times_ms),
+            "median": median(iter_times_ms),
+            "min": min(iter_times_ms),
+            "max": max(iter_times_ms),
+            "std": pstdev(iter_times_ms) if len(iter_times_ms) > 1 else 0.0,
+        }
+        if gpu_tflops:
+            tflops_stats = {
+                "avg": mean(gpu_tflops),
+                "median": median(gpu_tflops),
+                "min": min(gpu_tflops),
+                "max": max(gpu_tflops),
+                "std": pstdev(gpu_tflops) if len(gpu_tflops) > 1 else 0.0,
+            }
+        else:
+            tflops_stats = {"avg": 0.0, "median": 0.0, "min": 0.0, "max": 0.0, "std": 0.0}
+
+        with summary_file.open("w") as f:
+            f.write(f"Source log: {log_file}\n\n")
+            f.write("Iteration Time (ms)\n")
+            f.write(f"  avg: {iter_stats['avg']}\n")
+            f.write(f"  median: {iter_stats['median']}\n")
+            f.write(f"  min: {iter_stats['min']}\n")
+            f.write(f"  max: {iter_stats['max']}\n")
+            f.write(f"  std: {iter_stats['std']}\n")
+            f.write("\n")
+            f.write("TFLOP/s per GPU\n")
+            f.write(f"  avg: {tflops_stats['avg']}\n")
+            f.write(f"  median: {tflops_stats['median']}\n")
+            f.write(f"  min: {tflops_stats['min']}\n")
+            f.write(f"  max: {tflops_stats['max']}\n")
+            f.write(f"  std: {tflops_stats['std']}\n")
+
+    def get_metric(self, metric: str) -> float:
+        if metric not in {"default", "iteration-time", "tflops-per-gpu"}:
+            return METRIC_ERROR
+        log_file, iter_times_ms, gpu_tflops = self._get_extracted_data()
+        if not log_file:
+            logging.error(
+                "No stdout.txt file found in: %s",
+                self.test_run.output_path,
+            )
+            return METRIC_ERROR
+        if not iter_times_ms:
+            return METRIC_ERROR
+
+        if metric in {"default", "iteration-time"}:
+            return float(mean(iter_times_ms))
+        if metric == "tflops-per-gpu":
+            return float(mean(gpu_tflops)) if gpu_tflops else METRIC_ERROR
+        return METRIC_ERROR

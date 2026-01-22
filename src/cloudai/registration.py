@@ -98,6 +98,7 @@ def register_all():
     )
     from cloudai.workloads.megatron_run import (
         CheckpointTimingReportGenerationStrategy,
+        MegatronRunReportGenerationStrategy,
         MegatronRunSlurmCommandGenStrategy,
         MegatronRunTestDefinition,
     )
@@ -259,6 +260,7 @@ def register_all():
     Registry().add_report(GPTTestDefinition, JaxToolboxReportGenerationStrategy)
     Registry().add_report(GrokTestDefinition, JaxToolboxReportGenerationStrategy)
     Registry().add_report(MegatronRunTestDefinition, CheckpointTimingReportGenerationStrategy)
+    Registry().add_report(MegatronRunTestDefinition, MegatronRunReportGenerationStrategy)
     Registry().add_report(MegatronBridgeTestDefinition, MegatronBridgeReportGenerationStrategy)
     Registry().add_report(NCCLTestDefinition, NcclTestPerformanceReportGenerationStrategy)
     Registry().add_report(NeMoLauncherTestDefinition, NeMoLauncherReportGenerationStrategy)
