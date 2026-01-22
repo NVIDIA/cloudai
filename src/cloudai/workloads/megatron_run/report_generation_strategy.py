@@ -114,10 +114,10 @@ class MegatronRunReportGenerationStrategy(ReportGenerationStrategy):
                     except (ValueError, TypeError):
                         logging.debug("Failed to parse iteration metrics line: %s", line.rstrip("\n"))
 
-        # Keep only the last 10 iterations for statistics (to exclude warmup)
-        if len(iter_times_ms) > 10:
-            iter_times_ms = iter_times_ms[-10:]
-            gpu_tflops = gpu_tflops[-10:]
+        # Skip the first 20 iterations for statistics (to exclude warmup)
+        if len(iter_times_ms) > 20:
+            iter_times_ms = iter_times_ms[20:]
+            gpu_tflops = gpu_tflops[20:]
         return iter_times_ms, gpu_tflops
 
     def _get_extracted_data(self) -> tuple[Path | None, list[float], list[float]]:
