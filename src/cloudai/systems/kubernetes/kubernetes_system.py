@@ -172,13 +172,14 @@ class KubernetesSystem(System):
             if not conditions:
                 return True
 
+            self.store_logs_for_job(job.name, job.test_run.output_path)
+
             for condition in conditions:
                 if condition["type"] == "Succeeded" and condition["status"] == "True":
                     return False
                 if condition["type"] == "Failed" and condition["status"] == "True":
                     return False
 
-            self.store_logs_for_job(job.name, job.test_run.output_path)
             # If the job has been created but is neither succeeded nor failed, it is considered running
             return any(condition["type"] == "Created" and condition["status"] == "True" for condition in conditions)
 
