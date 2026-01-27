@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,7 @@ import yaml
 from cloudai.core import JsonGenStrategy
 from cloudai.systems.kubernetes import KubernetesSystem
 
-from .ai_dynamo import AIDynamoTestDefinition, WorkerBaseArgs
+from .ai_dynamo import AIDynamoTestDefinition, WorkerBaseArgs, WorkerConfig
 
 
 class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
@@ -126,14 +126,14 @@ class AIDynamoKubernetesJsonGenStrategy(JsonGenStrategy):
     def _dynamo_args_dict(self, model: WorkerBaseArgs) -> dict:
         return model.model_dump(exclude={"num_nodes", "extra_args", "nodes"}, exclude_none=True)
 
-    def _args_from_worker_config(self, worker: WorkerBaseArgs) -> list[str]:
+    def _args_from_worker_config(self, worker: WorkerConfig) -> list[str]:
         args = []
-        for arg, value in self._dynamo_args_dict(worker).items():
+        for arg, value in self._dynamo_args_dict(worker.args).items():
             args.extend([self._to_dynamo_arg(arg), str(value)])
         if worker.extra_args:
             args.append(f"{worker.extra_args}")
         return args
 
-    def _set_multinode_if_needed(self, cfg: dict[str, Any], worker: WorkerBaseArgs) -> None:
+    def _set_multinode_if_needed(self, cfg: dict[str, Any], worker: WorkerConfig) -> None:
         if cast(int, worker.num_nodes) > 1:
             cfg["multinode"] = {"nodeCount": worker.num_nodes}

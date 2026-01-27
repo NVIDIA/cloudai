@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,9 +27,12 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoCmdArgs,
     AIDynamoKubernetesJsonGenStrategy,
     AIDynamoTestDefinition,
-    DecodeWorkerArgs,
-    GenAIPerfArgs,
-    PrefillWorkerArgs,
+    GenAIPerf,
+    LMBench,
+    LMCache,
+    LMCacheArgs,
+    WorkerBaseArgs,
+    WorkerConfig,
 )
 
 
@@ -42,16 +45,20 @@ def dynamo(request: Any) -> AIDynamoTestDefinition:
         cmd_args=AIDynamoCmdArgs(
             docker_image_url="nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.6.1.post1",
             dynamo=AIDynamoArgs(
-                decode_worker=DecodeWorkerArgs(
-                    num_nodes=2, data_parallel_size=1, tensor_parallel_size=1, extra_args="--extra-decode-arg v"
+                decode_worker=WorkerConfig(
+                    num_nodes=2,
+                    args=WorkerBaseArgs(data_parallel_size=1, tensor_parallel_size=1),
+                    extra_args="--extra-decode-arg v",
                 )
             ),
-            genai_perf=GenAIPerfArgs(),
+            genai_perf=GenAIPerf(),
+            lmcache=LMCache(args=LMCacheArgs()),
+            lmbench=LMBench(),
         ),
     )
     if request.param == "disagg":
-        dynamo.cmd_args.dynamo.prefill_worker = PrefillWorkerArgs(
-            num_nodes=3, tensor_parallel_size=1, extra_args="--extra-prefill-arg v"
+        dynamo.cmd_args.dynamo.prefill_worker = WorkerConfig(
+            num_nodes=3, args=WorkerBaseArgs(tensor_parallel_size=1), extra_args="--extra-prefill-arg v"
         )
 
     return dynamo
@@ -94,7 +101,7 @@ def test_gen_decode(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
         assert decode.get("subComponentType") == "decode-worker"
         args.append("--is-decode-worker")
 
-    for arg, value in dynamo_args_dict(tdef.cmd_args.dynamo.decode_worker).items():
+    for arg, value in dynamo_args_dict(tdef.cmd_args.dynamo.decode_worker.args).items():
         args.extend([json_gen._to_dynamo_arg(arg), str(value)])
     if tdef.cmd_args.dynamo.decode_worker.extra_args:
         args.append(f"{tdef.cmd_args.dynamo.decode_worker.extra_args}")
@@ -139,7 +146,7 @@ def test_gen_prefill(json_gen: AIDynamoKubernetesJsonGenStrategy) -> None:
     assert prefill.get("subComponentType") == "prefill"
 
     args = ["--model", tdef.cmd_args.dynamo.model, "--is-prefill-worker"]
-    for arg, value in dynamo_args_dict(tdef.cmd_args.dynamo.prefill_worker).items():
+    for arg, value in dynamo_args_dict(tdef.cmd_args.dynamo.prefill_worker.args).items():
         args.extend([json_gen._to_dynamo_arg(arg), str(value)])
     if tdef.cmd_args.dynamo.prefill_worker.extra_args:
         args.append(f"{tdef.cmd_args.dynamo.prefill_worker.extra_args}")
