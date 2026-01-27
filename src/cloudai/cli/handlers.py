@@ -162,7 +162,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
             err = 1
             continue
 
-        agent = agent_class(env, **agent_overrides)
+        agent = agent_class(env, **agent_overrides) if agent_overrides else agent_class(env)
 
         for step in range(agent.max_steps):
             result = agent.select_action()
