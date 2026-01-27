@@ -151,7 +151,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
             continue
 
         env = CloudAIGymEnv(test_run=test_run, runner=runner.runner)
-        
+
         try:
             agent_overrides = validate_agent_overrides(agent_type, test_run.test.agent_config)
         except ValidationError as e:
@@ -161,7 +161,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
                 logging.error(f"  - {field}: {error['msg']}")
             err = 1
             continue
-        
+
         agent = agent_class(env, **agent_overrides)
 
         for step in range(agent.max_steps):
@@ -185,9 +185,7 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
 
 
 def validate_agent_overrides(agent_type: str, agent_config: Optional[dict[str, Any]]) -> dict[str, Any]:
-    """
-    Validate and process agent configuration overrides.
-    """
+    """Validate and process agent configuration overrides."""
     if not agent_config:
         return {}
 
@@ -196,7 +194,7 @@ def validate_agent_overrides(agent_type: str, agent_config: Optional[dict[str, A
         "bo": BayesianOptimizationConfig,
         "mab": MultiArmedBanditConfig,
     }
-    
+
     config_class = config_class_map.get(agent_type)
     if not config_class:
         logging.debug(f"No config validation available for agent type '{agent_type}', using defaults.")
@@ -204,10 +202,10 @@ def validate_agent_overrides(agent_type: str, agent_config: Optional[dict[str, A
 
     validated_config = config_class.model_validate(agent_config)
     agent_kwargs = validated_config.model_dump(exclude_none=True)
-    
+
     if agent_kwargs:
         logging.info(f"Applying agent config overrides for '{agent_type}': {agent_kwargs}")
-    
+
     return agent_kwargs
 
 

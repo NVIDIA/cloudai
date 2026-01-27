@@ -21,17 +21,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class AgentConfig(BaseModel, ABC):
-    """
-    Base configuration for agent overrides.
-    """
+    """Base configuration for agent overrides."""
 
     model_config = ConfigDict(extra="forbid")
     random_seed: Optional[int] = Field(default=None, description="Random seed for reproducibility")
 
+
 class GeneticAlgorithmConfig(AgentConfig):
-    """
-    Configuration overrides for Genetic Algorithm agent.
-    """
+    """Configuration overrides for Genetic Algorithm agent."""
 
     population_size: Optional[int] = Field(default=None, ge=2, description="Population size for the genetic algorithm")
     n_offsprings: Optional[int] = Field(default=None, ge=1, description="Number of offsprings per generation")
@@ -40,19 +37,16 @@ class GeneticAlgorithmConfig(AgentConfig):
 
 
 class BayesianOptimizationConfig(AgentConfig):
-    """
-    Configuration overrides for Bayesian Optimization agent.
-    """
+    """Configuration overrides for Bayesian Optimization agent."""
 
     sobol_num_trials: Optional[int] = Field(default=None, ge=1, description="Number of SOBOL initialization trials")
     botorch_num_trials: Optional[int] = Field(
         default=None, description="Number of BoTorch trials (-1 for unlimited until max_steps)"
     )
 
+
 class MultiArmedBanditConfig(AgentConfig):
-    """
-    Configuration overrides for Multi-Armed Bandit agent.
-    """
+    """Configuration overrides for Multi-Armed Bandit agent."""
 
     algorithm: Optional[str] = Field(
         default=None,
