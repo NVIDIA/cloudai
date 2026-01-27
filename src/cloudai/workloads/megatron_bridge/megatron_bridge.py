@@ -468,6 +468,27 @@ class MegatronBridgeTestDefinition(TestDefinition):
         else:
             constraint17 = True
 
+        # Constraint 18: Valid (PP, VP) combinations for DeepSeek v3 pipeline layout
+        # Only specific (pp, vp) pairs are supported by DeepSeek v3's pipeline layout mapping
+        model_recipe = (self.cmd_args.model_recipe_name or "").lower()
+        is_deepseek_v3 = "deepseek_v3" in model_recipe or "deepseekv3" in model_recipe
+        
+        if is_deepseek_v3:
+            valid_pp_vp_combinations = {(1, 1), (4, 1), (8, 1), (4, 2), (16, 1), (8, 2), (4, 4)}
+            current_vp = vp if vp is not None else 1
+            pp_vp_pair = (pp, current_vp)
+            constraint18 = pp_vp_pair in valid_pp_vp_combinations
+            if not constraint18:
+                logging.error(
+                    "Constraint 18 failed: Invalid (PP, VP) combination for DeepSeek v3. pp=%s vp=%s. "
+                    "Valid combinations: %s",
+                    pp,
+                    current_vp,
+                    sorted(valid_pp_vp_combinations),
+                )
+        else:
+            constraint18 = True  # Skip this constraint for non-DeepSeek v3 models
+
         return bool(
             constraint1
             and constraint2
@@ -486,4 +507,5 @@ class MegatronBridgeTestDefinition(TestDefinition):
             and constraint15
             and constraint16
             and constraint17
+            and constraint18
         )
