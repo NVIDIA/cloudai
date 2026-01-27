@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,11 +25,13 @@ time_limit = "00:10:00"
 
   [Tests.cmd_args.dynamo.prefill_worker]
   num-nodes = 1
+  [Tests.cmd_args.dynamo.prefill_worker.args]
   tensor-parallel-size = 4
   pipeline-parallel-size = 1
 
   [Tests.cmd_args.dynamo.decode_worker]
   num-nodes = 1
+  [Tests.cmd_args.dynamo.decode_worker.args]
   tensor-parallel-size = 4
   pipeline-parallel-size = 1
 
@@ -41,10 +43,12 @@ time_limit = "00:10:00"
 
   [Tests.cmd_args.dynamo.prefill_worker]
   num-nodes = 2
+  [Tests.cmd_args.dynamo.prefill_worker.args]
   tensor-parallel-size = 4
   pipeline-parallel-size = 1
 
   [Tests.cmd_args.dynamo.decode_worker]
   num-nodes = 2
+  [Tests.cmd_args.dynamo.decode_worker.args]
   tensor-parallel-size = 4
   pipeline-parallel-size = 1

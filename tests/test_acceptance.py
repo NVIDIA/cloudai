@@ -33,9 +33,12 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoTestDefinition,
-    DecodeWorkerArgs,
-    GenAIPerfArgs,
-    PrefillWorkerArgs,
+    GenAIPerf,
+    LMBench,
+    LMCache,
+    LMCacheArgs,
+    WorkerBaseArgs,
+    WorkerConfig,
 )
 from cloudai.workloads.ddlb import DDLBCmdArgs, DDLBTestDefinition
 from cloudai.workloads.deepep import (
@@ -446,6 +449,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     url="https://github.com/ai-dynamo/dynamo.git",
                     commit="f7e468c7e8ff0d1426db987564e60572167e8464",
                     installed_path=slurm_system.install_path,
+                    mount_as="/git/dynamo",
                 ),
                 cmd_args=AIDynamoCmdArgs(
                     docker_image_url="nvcr.io/nvidia/ai-dynamo:24.09",
@@ -453,20 +457,22 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                         model="model",
                         backend="vllm",
                         workspace_path="/workspace",
-                        prefill_worker=PrefillWorkerArgs(
+                        prefill_worker=WorkerConfig(
                             **{
                                 "num-nodes": 1,
+                                "args": WorkerBaseArgs(),
                                 "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
                             }
                         ),
-                        decode_worker=DecodeWorkerArgs(
+                        decode_worker=WorkerConfig(
                             **{
                                 "num-nodes": 1,
+                                "args": WorkerBaseArgs(),
                                 "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
                             }
                         ),
                     ),
-                    genai_perf=GenAIPerfArgs(
+                    genai_perf=GenAIPerf(
                         **{
                             "streaming": True,
                             "extra-inputs": '{"temperature": 0.7, "max_tokens": 128}',
@@ -477,6 +483,8 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                             "warmup-request-count": 10,
                         }
                     ),
+                    lmcache=LMCache(args=LMCacheArgs()),
+                    lmbench=LMBench(),
                 ),
             ),
         ),

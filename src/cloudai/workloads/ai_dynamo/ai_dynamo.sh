@@ -2,68 +2,74 @@
 
 # CloudAI params
 RESULTS_DIR="/cloudai_run_results"
+INSTALL_DIR="/cloudai_install"
 HUGGINGFACE_HOME="/root/.cache/huggingface"
-DONE_MARKER="frontend_done.marker"
-FATAL_ERROR_MARKER="fatal_error.marker"
-: "${DYNAMO_WORKER_ERROR_PATTERN:=zmq\.error\.ZMQError:.*Address already in use|UCX.*ERROR|ERROR core\.run_engine_core:.*EngineCore failed to start|ERROR multiproc_executor\.worker_busy_loop:.*WorkerProc hit an exception|EngineDeadError|EngineCore encountered an issue}"
+DONE_MARKER="dynamo_frontend_done.marker"
+FATAL_ERROR_MARKER="dynamo_fatal_error.marker"
 NODE_ROLES_FILE="node_roles.log"
+TEST_USER="$USER"
 
 export DYN_SDK_DISABLE_ANSI_LOGGING=1
 export VLLM_DISABLE_COLORED_OUTPUT=1
 export VLLM_NO_COLOR=1
+export VLLM_LOGGING_COLOR=0
+#export VLLM_LOGGING_CONFIG_PATH="/cloudai_install/vllm_logging_config.json"
+
 export ABSL_LOGGING_USE_COLOR=0
 export DYN_LOGGING_DISABLE_ANSI_COLORS=1
 
 export TERM=dumb
 export NO_COLOR=1
+export TQDM_DISABLE=1  # Disables tqdm progress bars globally
+export TQDM_MININTERVAL=999999  # Makes tqdm update very rarely
 
 export DEBIAN_FRONTEND=noninteractive
 export APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1
 
+declare -A prefill_config
 declare -A prefill_args
+declare -A decode_config
 declare -A decode_args
+declare -A lmcache_args
+declare -A lmcache_config
 declare -A genai_perf_args
+declare -A genai_perf_config
+declare -A lmbench_args
+declare -A lmbench_config
+declare -A custom_workload_args
+declare -A custom_workload_config
 
 declare -A dynamo_args
 dynamo_args["backend"]="vllm"
 dynamo_args["node-setup-cmd"]=""
-dynamo_args["prefill-cmd"]="python3 -m dynamo.vllm --is-prefill-worker"
-dynamo_args["decode-cmd"]="python3 -m dynamo.vllm"
 dynamo_args["ingress-cmd"]="python -m dynamo.frontend --router-mode kv"
 dynamo_args["port"]=$((8080 + SLURM_JOBID % 100))
 dynamo_args["endpoint"]="v1/chat/completions"
-dynamo_args["model"]="deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
+dynamo_args["model"]="Qwen/Qwen3-0.6B"
+dynamo_args["connector"]="none"
 dynamo_args["etcd-port"]=2379
 dynamo_args["nats-port"]=4222
 dynamo_args["workspace-path"]="/workspace"
 dynamo_args["frontend-node"]=""
-dynamo_args["num-prefill-nodes"]=1
-dynamo_args["num-decode-nodes"]=1
-dynamo_args["prefill-nodes"]=""
-dynamo_args["decode-nodes"]=""
-dynamo_args["tp-arg-name"]="tensor-parallel-size"
-dynamo_args["pp-arg-name"]="pipeline-parallel-size"
-dynamo_args["multiple-prefill-workers-per-node"]="true"
-dynamo_args["multiple-decode-workers-per-node"]="true"
-dynamo_args["prefill-initialized-regex"]="Worker.*has.been.initialized"
-dynamo_args["decode-initialized-regex"]="Worker.*has.been.initialized"
 
 dynamo_args["etcd-cmd"]="etcd --log-level debug"
 dynamo_args["nats-cmd"]="nats-server -js"
-dynamo_args["genai-perf-cmd"]="genai-perf profile"
+dynamo_args["worker-error-pattern"]="zmq.error.ZMQError:.Address.already.in.use|UCX.*ERROR|ERROR.core.run_engine_core:.EngineCore.failed.to.start|ERROR.multiproc_executor.worker_busy_loop:.WorkerProc.hit.an.exception|EngineDeadError|EngineCore.encountered.an.issue"
 
 # sglang-specific optional ports. Ignored by vllm.
 dynamo_args["sgl-http-port"]=9001
 dynamo_args["prefill-port"]=30011
 dynamo_args["decode-port"]=30021
 
-# GenAI Perf params
-GENAI_PERF_PROFILE_EXPORT_FILE="profile.json"
-GENAI_PERF_ARTIFACT_DIR="genai_perf_artifacts"
 
 function log()
 {
-  echo "[$(date --iso-8601=ns) $(hostname)]: $@"
+  echo -e "[$(date +%F\ %T) $(hostname)]: $*"
+}
+
+function min()
+{
+  echo "$(( $1 < $2 ? $1 : $2 ))"
 }
 
 _is_vllm() { [[ "${dynamo_args["backend"]}" == "vllm" ]]; }
@@ -85,29 +91,6 @@ _csv_index_of() {
   echo "-1"
 }
 
-_validate_or_build_nodelists() {
-  local dl_len=$(_csv_len "${dynamo_args["decode-nodes"]}")
-  local pl_len=$(_csv_len "${dynamo_args["prefill-nodes"]}")
-  if (( dl_len > 0 )); then dynamo_args["num-decode-nodes"]="$dl_len"; fi
-  if (( pl_len > 0 )); then dynamo_args["num-prefill-nodes"]="$pl_len"; fi
-
-  if [[ -z "${dynamo_args["decode-nodes"]}" || -z "${dynamo_args["prefill-nodes"]}" ]]; then
-    if [[ -z "${DYNAMO_NODELIST:-}" ]]; then
-      log "ERROR: Provide --dynamo-decode-nodes/--dynamo-prefill-nodes or set DYNAMO_NODELIST"; exit 1
-    fi
-    local d="${dynamo_args["num-decode-nodes"]}"
-    local p="${dynamo_args["num-prefill-nodes"]}"
-    local total=$(_csv_len "${DYNAMO_NODELIST}")
-    if (( total < d + p )); then
-      log "ERROR: DYNAMO_NODELIST has ${total} entries; need decode(${d})+prefill(${p})"; exit 1
-    fi
-    [[ -z "${dynamo_args["decode-nodes"]}" ]] && \
-      dynamo_args["decode-nodes"]=$(echo "$DYNAMO_NODELIST" | cut -d',' -f1-"$d")
-    [[ -z "${dynamo_args["prefill-nodes"]}" ]] && \
-      dynamo_args["prefill-nodes"]=$(echo "$DYNAMO_NODELIST" | cut -d',' -f$(( d + 1 ))-)
-  fi
-}
-
 _gpus_per_node() {
   local n=$(echo "${CUDA_VISIBLE_DEVICES:-}" | tr ',' '\n' | grep -c . || true)
   [[ "$n" -gt 0 ]] && echo "$n" || echo "1"
@@ -125,23 +108,14 @@ _resolve_host_ip() {
 }
 
 _apply_sglang_section_args() {
-  prefill_args["--port"]=${dynamo_args["prefill-port"]}
-  decode_args["--port"]=${dynamo_args["decode-port"]}
-  prefill_args["--served-model-name"]=${dynamo_args["model"]}
-  decode_args["--served-model-name"]=${dynamo_args["model"]}
-
-  # model-path must point to HF cache for sglang
-  prefill_args["--model-path"]="${HUGGINGFACE_HOME}"
-  decode_args["--model-path"]="${HUGGINGFACE_HOME}"
-
   local self="$(_current_node_name)"
   local gpn="$(_gpus_per_node)"
 
   # prefill group
-  local prefill_nodes="${dynamo_args["num-prefill-nodes"]}"
-  local prefill_master_host="$(_first_in_csv "${dynamo_args["prefill-nodes"]}")"
+  local prefill_nodes="${prefill_config["num-nodes"]}"
+  local prefill_master_host="$(_first_in_csv "${prefill_config["node-list"]}")"
   local prefill_master_ip="$(_resolve_host_ip "${prefill_master_host}")"
-  local prefill_rank="$(_csv_index_of "${dynamo_args["prefill-nodes"]}" "$self")"
+  local prefill_rank="$(_csv_index_of "${prefill_config["node-list"]}" "$self")"
   local prefill_total_gpus=$(( gpn * prefill_nodes ))
   prefill_args["--dist-init-addr"]="${prefill_master_ip}:${dynamo_args["prefill-port"]}"
   prefill_args["--nnodes"]="${prefill_nodes}"
@@ -150,10 +124,10 @@ _apply_sglang_section_args() {
   prefill_args["--dp-size"]="${prefill_args["--dp-size"]:-${prefill_total_gpus}}"
 
   # decode group
-  local decode_nodes="${dynamo_args["num-decode-nodes"]}"
-  local decode_master_host="$(_first_in_csv "${dynamo_args["decode-nodes"]}")"
+  local decode_nodes="${decode_config["num-nodes"]}"
+  local decode_master_host="$(_first_in_csv "${decode_config["node-list"]}")"
   local decode_master_ip="$(_resolve_host_ip "${decode_master_host}")"
-  local decode_rank="$(_csv_index_of "${dynamo_args["decode-nodes"]}" "$self")"
+  local decode_rank="$(_csv_index_of "${decode_config["node-list"]}" "$self")"
   local decode_total_gpus=$(( gpn * decode_nodes ))
   decode_args["--dist-init-addr"]="${decode_master_ip}:${dynamo_args["decode-port"]}"
   decode_args["--nnodes"]="${decode_nodes}"
@@ -171,14 +145,6 @@ _apply_sglang_section_args() {
   unset 'decode_args["--model"]'
 }
 
-_apply_genai_perf_section_args() {
-  genai_perf_args["--model"]="${dynamo_args["model"]}"
-  genai_perf_args["--url"]="${dynamo_args["url"]}"
-  genai_perf_args["--endpoint"]="${dynamo_args["endpoint"]}"
-  genai_perf_args["--artifact-dir"]="${RESULTS_DIR}/${GENAI_PERF_ARTIFACT_DIR}/"
-  genai_perf_args["--profile-export-file"]="${GENAI_PERF_PROFILE_EXPORT_FILE}"
-}
-
 _parse_cli_pairs() {
   log "Parsing args:"
   while [[ $# -ge 2 ]]; do
@@ -187,19 +153,100 @@ _parse_cli_pairs() {
     case $key in
       --dynamo-*)
         dynamo_args["${key#--dynamo-}"]="$2" ;;
+      --prefill-args-*)
+        prefill_args["--${key#--prefill-args-}"]="$2" ;;
       --prefill-*)
-        prefill_args["--${key#--prefill-}"]="$2" ;;
+        prefill_config["${key#--prefill-}"]="$2" ;;
+      --decode-args-*)
+        decode_args["--${key#--decode-args-}"]="$2" ;;
       --decode-*)
-        decode_args["--${key#--decode-}"]="$2" ;;
-      --genai-perf-*)
-        genai_perf_args["--${key#--genai-perf-}"]="$2" ;;
+        decode_config["${key#--decode-}"]="$2" ;;
+      --lmcache-args-*)
+        lmcache_args["${key#--lmcache-args-}"]="$2" ;;
+      --lmcache-*)
+        lmcache_config["${key#--lmcache-}"]="$2" ;;
+      --lmbench-args-*)
+        lmbench_args["--${key#--lmbench-args-}"]="$2" ;;
+      --lmbench-*)
+        lmbench_config["--${key#--lmbench-}"]="$2" ;;
+      --genai_perf-args-*)
+        genai_perf_args["--${key#--genai_perf-args-}"]="$2" ;;
+      --genai_perf-*)
+        genai_perf_config["--${key#--genai_perf-}"]="$2" ;;
+      --custom_workload-args-*)
+        custom_workload_args["--${key#--custom_workload-args-}"]="$2" ;;
+      --custom_workload-*)
+        custom_workload_config["--${key#--custom_workload-}"]="$2" ;;
       --huggingface-home)
         HUGGINGFACE_HOME="$2" ;;
       --results-dir)
         RESULTS_DIR="$2" ;;
+      --install-dir)
+        INSTALL_DIR="$2" ;;
+      --user)
+        TEST_USER="$2" ;;
     esac
     shift; shift;
   done
+}
+
+_populate_nodelist() {
+  local num_nodes="$1"
+  local exclude_nodelist="$2" 
+
+  # Handle zero nodes case
+  if [[ -z "$num_nodes" || "$num_nodes" -eq 0 ]]; then
+    echo ""
+    return
+  fi
+
+  local count=0
+  local nodelist=""
+  for node in $(echo $DYNAMO_NODELIST | cut -d',' -f1-${num_nodes}); do
+    if ! echo "${exclude_nodelist}" | grep -q "$node"; then
+      nodelist+="$node,"
+      count=$(( count + 1 ))
+      if [[ "$count" -eq "${num_nodes}" ]]; then
+        break
+      fi
+    fi
+  done
+
+  # Terminate trailing comma
+  nodelist=${nodelist%,}
+  echo "$nodelist"
+}
+
+_set_nodelists()
+{
+  if [[ -z "${DYNAMO_NODELIST:-}" ]]; then
+    log "ERROR: DYNAMO_NODELIST is not set"
+    exit 1
+  fi
+
+  if [[ -z "${decode_config["node-list"]}" ]]; then
+    decode_config["node-list"]=$(_populate_nodelist "${decode_config["num-nodes"]}" "")
+  fi
+
+  if [[ -z "${prefill_config["node-list"]}" ]]; then
+    prefill_config["node-list"]=$(_populate_nodelist "${prefill_config["num-nodes"]}" "${decode_config["node-list"]}")
+  fi
+
+  # Prefill nodelist should match prefill node count (skip validation if num-nodes is 0)
+  local prefill_num_nodes="${prefill_config["num-nodes"]:-0}"
+  if [[ "$prefill_num_nodes" -gt 0 ]]; then
+    local prefill_nodelist_count=$(_csv_len "${prefill_config["node-list"]}")
+    if [[ "${prefill_nodelist_count}" -ne "${prefill_num_nodes}" ]]; then
+      log "ERROR: number of nodes in prefill nodelist (${prefill_nodelist_count}) does not match prefill node count (${prefill_num_nodes})"
+      exit 1
+    fi
+  fi
+
+  local decode_nodelist_count=$(_csv_len "${decode_config["node-list"]}")
+  if [[ "${decode_nodelist_count}" -ne "${decode_config["num-nodes"]}" ]]; then
+    log "ERROR: number of nodes in decode nodelist (${decode_nodelist_count}) does not match decode node count (${decode_config["num-nodes"]})"
+    exit 1
+  fi
 }
 
 _set_backend_defaults() {
@@ -219,50 +266,42 @@ _set_backend_defaults() {
   esac
 }
 
-_sync_num_nodes_from_section_args() {
-  if [[ -n "${prefill_args["--num-nodes"]:-}" ]]; then
-    dynamo_args["num-prefill-nodes"]="${prefill_args["--num-nodes"]}"
+_apply_connector_settings() {
+  local connector="${dynamo_args["connector"]:-}"
+  if [[ -z "$connector" || "$connector" == "none" ]]; then
+    ENABLE_LMCACHE="${ENABLE_LMCACHE:-0}"
+    ENABLE_KVBM="${ENABLE_KVBM:-0}"
+    return
   fi
-  if [[ -n "${decode_args["--num-nodes"]:-}" ]]; then
-    dynamo_args["num-decode-nodes"]="${decode_args["--num-nodes"]}"
-  fi
+
+  case "$connector" in
+    lmcache)
+      ENABLE_LMCACHE=1
+      ENABLE_KVBM=0
+      ;;
+    kvbm)
+      ENABLE_LMCACHE=0
+      ENABLE_KVBM=1
+      ;;
+    *)
+      log "ERROR: Unknown connector '${connector}' (expected none|lmcache|kvbm)"
+      exit 1
+      ;;
+  esac
 }
 
 _patch_dynamo_args() {
-  if [[ -z "${dynamo_args["decode-nodes"]}" ]]; then
-    if [[ -n "${decode_args["--node-list"]}" ]]; then
-      dynamo_args["decode-nodes"]="${decode_args["--node-list"]}"
-    else
-      dynamo_args["decode-nodes"]=$(echo $DYNAMO_NODELIST | cut -d',' -f1-${dynamo_args["num-decode-nodes"]})
-    fi
-  fi
-
-  if [[ -z "${dynamo_args["prefill-nodes"]}" ]]; then
-    if [[ -n "${prefill_args["--node-list"]}" ]]; then
-      dynamo_args["prefill-nodes"]="${prefill_args["--node-list"]}"
-    else
-      dynamo_args["prefill-nodes"]=$(echo $DYNAMO_NODELIST | cut -d',' -f$(( ${dynamo_args["num-decode-nodes"]} + 1 ))-)
-    fi
-  fi
-
   if [[ -z "${dynamo_args["frontend-node"]}" ]]; then
-    dynamo_args["frontend-node"]=$(echo ${dynamo_args["decode-nodes"]} | cut -d',' -f1)
+    dynamo_args["frontend-node"]=$(echo ${decode_config["node-list"]} | cut -d',' -f1)
   fi
 
   dynamo_args["url"]="http://${dynamo_args["frontend-node"]}:${dynamo_args["port"]}"
-
-  _validate_or_build_nodelists
 }
 
 _patch_section_args() {
-  prefill_args["--model"]="${dynamo_args["model"]}"
-  decode_args["--model"]="${dynamo_args["model"]}"
-
   if _is_sglang; then
     _apply_sglang_section_args
   fi
-
-  _apply_genai_perf_section_args
 }
 
 _compute_worker_allocation_sglang() {
@@ -273,22 +312,13 @@ _compute_worker_allocation_sglang() {
   fi
 
   # sglang: one worker per node using all GPUs
-  dynamo_args["prefill-gpus-per-worker"]=$num_gpus
-  dynamo_args["decode-gpus-per-worker"]=$num_gpus
-  dynamo_args["prefill-workers-per-node"]=1
-  dynamo_args["decode-workers-per-node"]=1
-
-  if [[ -n "${prefill_args["--num-nodes"]}" ]]; then
-    dynamo_args["num-prefill-nodes"]=${prefill_args["--num-nodes"]}
-  fi
-  if [[ -n "${decode_args["--num-nodes"]}" ]]; then
-    dynamo_args["num-decode-nodes"]=${decode_args["--num-nodes"]}
-  fi
+  prefill_config["gpus-per-worker"]=$num_gpus
+  decode_config["gpus-per-worker"]=$num_gpus
+  prefill_config["workers-per-node"]=1
+  decode_config["workers-per-node"]=1
 }
 
 _compute_worker_allocation_vllm() {
-  local tp_arg_name="--${dynamo_args["tp-arg-name"]}"
-  local pp_arg_name="--${dynamo_args["pp-arg-name"]}"
   local num_gpus="$(_gpus_per_node)"
 
   if [[ $num_gpus -eq 0 ]]; then
@@ -296,37 +326,31 @@ _compute_worker_allocation_vllm() {
     exit 1
   fi
 
-  dynamo_args["prefill-gpus-per-worker"]=$(( prefill_args[$tp_arg_name] * prefill_args[$pp_arg_name] ))
-  dynamo_args["decode-gpus-per-worker"]=$(( decode_args[$tp_arg_name] * decode_args[$pp_arg_name] ))
+  prefill_config["gpus-per-worker"]=$(( prefill_args["--tensor-parallel-size"] * prefill_args["--pipeline-parallel-size"] ))
+  decode_config["gpus-per-worker"]=$(( decode_args["--tensor-parallel-size"] * decode_args["--pipeline-parallel-size"] ))
 
-  if [[ ${dynamo_args["prefill-gpus-per-worker"]} -eq 0 ]] || [[ ${dynamo_args["decode-gpus-per-worker"]} -eq 0 ]]; then
+  if [[ ${prefill_config["gpus-per-worker"]} -eq 0 ]] || [[ ${decode_config["gpus-per-worker"]} -eq 0 ]]; then
     log "ERROR: Invalid TP/PP configuration"
     exit 1
   fi
 
-  if [[ "${dynamo_args["multiple-prefill-workers-per-node"]}" != "true" ]]; then
-    dynamo_args["prefill-gpus-per-worker"]=$num_gpus
+  if [[ "${prefill_config["multiple-workers-per-node"]}" != "true" ]]; then
+    prefill_config["gpus-per-worker"]=$num_gpus
   fi
 
-  if [[ "${dynamo_args["multiple-decode-workers-per-node"]}" != "true" ]]; then
-    dynamo_args["decode-gpus-per-worker"]=$num_gpus
+  if [[ "${decode_config["multiple-workers-per-node"]}" != "true" ]]; then
+    decode_config["gpus-per-worker"]=$num_gpus
   fi
 
-  log "DECODE: num GPUs: $num_gpus, GPUs per worker: ${dynamo_args["decode-gpus-per-worker"]}"
-  log "PREFILL: num GPUs: $num_gpus, GPUs per worker: ${dynamo_args["prefill-gpus-per-worker"]}"
-  dynamo_args["prefill-workers-per-node"]=$(( num_gpus / dynamo_args["prefill-gpus-per-worker"] ))
-  dynamo_args["decode-workers-per-node"]=$(( num_gpus / dynamo_args["decode-gpus-per-worker"] ))
-  log "DECODE: workers per node: ${dynamo_args["decode-workers-per-node"]}"
-  log "PREFILL: workers per node: ${dynamo_args["prefill-workers-per-node"]}"
+  log "DECODE: num GPUs: $num_gpus, GPUs per worker: ${decode_config["gpus-per-worker"]}"
+  log "PREFILL: num GPUs: $num_gpus, GPUs per worker: ${prefill_config["gpus-per-worker"]}"
+  prefill_config["workers-per-node"]=$(( num_gpus / prefill_config["gpus-per-worker"] ))
+  decode_config["workers-per-node"]=$(( num_gpus / decode_config["gpus-per-worker"] ))
+  log "DECODE: workers per node: ${decode_config["workers-per-node"]}"
+  log "PREFILL: workers per node: ${prefill_config["workers-per-node"]}"
 
-  if [[ -n "${prefill_args["--num-nodes"]}" ]]; then
-    dynamo_args["num-prefill-nodes"]=${prefill_args["--num-nodes"]}
-  fi
-  if [[ -n "${decode_args["--num-nodes"]}" ]]; then
-    dynamo_args["num-decode-nodes"]=${decode_args["--num-nodes"]}
-  fi
-  log "NUM PREFILL NODES: ${dynamo_args["num-prefill-nodes"]}"
-  log "NUM DECODE NODES: ${dynamo_args["num-decode-nodes"]}"
+  log "NUM PREFILL NODES: ${prefill_config["num-nodes"]}"
+  log "NUM DECODE NODES: ${decode_config["num-nodes"]}"
 }
 
 _compute_worker_allocation() {
@@ -337,22 +361,56 @@ _compute_worker_allocation() {
   fi
 }
 
+arg_array_to_string()
+{
+  local -n arr=$1
+  local result=""
+  for key in "${!arr[@]}"; do
+    result+="    ${key} ${arr[$key]}\n"
+  done
+  echo -e "$result"
+}
+
 _dump_args() {
-  log "Dynamo args: $(for key in "${!dynamo_args[@]}"; do echo -n "$key: ${dynamo_args[$key]}; "; done)"
-  log "Prefill args: $(for key in "${!prefill_args[@]}"; do echo -n "$key: ${prefill_args[$key]}; "; done)"
-  log "Decode args: $(for key in "${!decode_args[@]}"; do echo -n "$key: ${decode_args[$key]}; " ; done)"
-  log "GenAI perf args: $(for key in "${!genai_perf_args[@]}"; do echo -n "$key: ${genai_perf_args[$key]}; "; done)"
+  log "Dynamo args:\n$(arg_array_to_string dynamo_args)"
+  log "Prefill config params:\n$(arg_array_to_string prefill_config)"
+  log "Prefill args:\n$(arg_array_to_string prefill_args)"
+  log "Decode config params:\n$(arg_array_to_string decode_config)"
+  log "Decode args:\n$(arg_array_to_string decode_args)"
+  log "LMCache config params:\n$(arg_array_to_string lmcache_config)"
+  log "LMCache args:\n$(arg_array_to_string lmcache_args)"
+  log "GenAI config params:\n$(arg_array_to_string genai_perf_config)"
+  log "GenAI perf args:\n$(arg_array_to_string genai_perf_args)"
+  log "LMBench config params:\n$(arg_array_to_string lmbench_config)"
+  log "LMBench args:\n$(arg_array_to_string lmbench_args)"
+  log "Custom workload config params:\n$(arg_array_to_string custom_workload_config)"
+  log "Custom workload args:\n$(arg_array_to_string custom_workload_args)"
+  log "--------------------------------"
 }
 
 function parse_args()
 {
   _parse_cli_pairs "$@"
+  _set_nodelists
   _set_backend_defaults
-  _sync_num_nodes_from_section_args
   _patch_dynamo_args
+
   _patch_section_args
+  _apply_connector_settings
   _compute_worker_allocation
   _dump_args
+}
+
+function replace_placeholders() {
+  local val="$1"
+  val=${val//%MODEL%/${dynamo_args["model"]}}
+  val=${val//%PORT%/${dynamo_args["port"]}}
+  val=${val//%URL%/${dynamo_args["url"]}}
+  val=${val//%ENDPOINT%/${dynamo_args["endpoint"]}}
+  val=${val//%RESULTS_DIR%/${RESULTS_DIR}}
+  val=${val//%INSTALL_DIR%/${INSTALL_DIR}}
+  val=${val//%HUGGINGFACE_HOME%/${HUGGINGFACE_HOME}}
+  echo "$val"
 }
 
 function array_to_args()
@@ -360,12 +418,14 @@ function array_to_args()
   local -n arr=$1
   local result=""
   for key in "${!arr[@]}"; do
-    if [[ "$key" == "--extra-args" ]] || \
-       [[ "$key" == "--num-nodes" ]] || \
-       [[ "$key" == "--nodes" ]]; then
-      continue
+    shopt -s nocasematch
+    val=$(replace_placeholders "${arr[$key]}")
+    # Quote values that contain spaces
+    if [[ "$val" == *" "* ]]; then
+      val="${val//\"/\\\"}"  # Escape existing quotes
+      result+="${key} \"${val}\" "
     else
-      result+="${key} ${arr[$key]} "
+      result+="${key} ${val} "
     fi
   done
   echo "$result"
@@ -376,37 +436,55 @@ _detect_fatal_once() {
   _is_vllm || return 0
   local n=0
   # Worker logs and UCX logs
-  n=$(( n + $(grep -E "${DYNAMO_WORKER_ERROR_PATTERN}" "${RESULTS_DIR}"/dynamo_*.log 2>/dev/null | wc -l || true) ))
+  n=$(( n + $(grep -E "${dynamo_args["worker-error-pattern"]}" "${RESULTS_DIR}"/dynamo_*.log 2>/dev/null | wc -l || true) ))
   n=$(( n + $(grep -E "UCX.*ERROR" "${RESULTS_DIR}"/ucx_log_*.log 2>/dev/null | wc -l || true) ))
   echo "${n}"
 }
 
+function perform_exit()
+{
+  local exit_code=$1
+  local sleep_before_exit="${dynamo_args["sleep-before-exit"]}"
+  if [[ -n "${sleep_before_exit}" ]]; then
+    log "Sleeping for ${sleep_before_exit} seconds before exit"
+    sleep "${sleep_before_exit}"
+  fi
+  exit "${exit_code}"
+}
+
 exit_on_error() {
   local fatal=$(_detect_fatal_once)
+  if [ -f "${DONE_MARKER}" ]; then
+    log "DONE_MARKER found. Skipping error check."
+    return
+  fi
   if [[ "${fatal}" -gt 0 ]]; then
     log "FATAL: detected ${fatal} fatal error line(s). Writing ${FATAL_ERROR_MARKER} and terminating."
+    sleep 1
+
     touch "${FATAL_ERROR_MARKER}"
+    grep -E "${dynamo_args["worker-error-pattern"]}|UCX.*ERROR" "${RESULTS_DIR}"/*.log 2>/dev/null > "${FATAL_ERROR_MARKER}"
     # Try to stop background jobs for a cleaner exit, but do not loop
     kill $(jobs -p) 2>/dev/null || true
     # Exit non-zero so srun can retry
-    exit 1
+    perform_exit 1
   fi
 }
 
 _total_workers_prefill() {
-  echo $(( dynamo_args["num-prefill-nodes"] * dynamo_args["prefill-workers-per-node"] ))
+  echo $(( prefill_config["num-nodes"] * prefill_config["workers-per-node"] ))
 }
 
 _total_workers_decode() {
-  echo $(( dynamo_args["num-decode-nodes"] * dynamo_args["decode-workers-per-node"] ))
+  echo $(( decode_config["num-nodes"] * decode_config["workers-per-node"] ))
 }
 
 _count_initialized_prefill() {
-  grep -i -l -E "${dynamo_args["prefill-initialized-regex"]}" "${RESULTS_DIR}"/dynamo_*prefill* 2>/dev/null | wc -l
+  grep -i -l -E "${prefill_config["worker-initialized-regex"]}" "${RESULTS_DIR}"/dynamo_*prefill* 2>/dev/null | wc -l
 }
 
 _count_initialized_decode() {
-  grep -i -l -E "${dynamo_args["decode-initialized-regex"]}" "${RESULTS_DIR}"/dynamo_*decode* 2>/dev/null | wc -l
+  grep -i -l -E "${decode_config["worker-initialized-regex"]}" "${RESULTS_DIR}"/dynamo_*decode* 2>/dev/null | wc -l
 }
 
 _expected_ready_prefill() {
@@ -457,12 +535,24 @@ _is_frontend_node() {
 
 _is_decode_node() {
   local name="$(_current_node_name)"
-  [[ "${dynamo_args["decode-nodes"]}" == *"$name"* ]]
+  [[ "${decode_config["node-list"]}" == *"$name"* ]]
 }
 
 _is_prefill_node() {
   local name="$(_current_node_name)"
-  [[ "${dynamo_args["prefill-nodes"]}" == *"$name"* ]]
+  [[ "${prefill_config["node-list"]}" == *"$name"* ]]
+}
+
+_is_genai_perf_workload() {
+  [[ "${dynamo_args["workloads"]}" == *"genai_perf.sh"* ]]
+}
+
+_is_lmbench_workload() {
+  [[ "${dynamo_args["workloads"]}" == *"lmbench.sh"* ]]
+}
+
+_is_custom_workload_workload() {
+  [[ "${dynamo_args["workloads"]}" == *"custom_workload.sh"* ]]
 }
 
 _init_runtime_env() {
@@ -479,11 +569,14 @@ _init_runtime_env() {
 
 function launch_node_setup_cmd()
 {
+  logfile="${RESULTS_DIR}/node_setup_$(_current_node_name).log"
   if [[ -n "${dynamo_args["node-setup-cmd"]}" ]]; then
     log "Launching node setup command: ${dynamo_args["node-setup-cmd"]}"
-    bash -c "${dynamo_args["node-setup-cmd"]}"
+    bash -c "${dynamo_args["node-setup-cmd"]}" 2>&1 >> "$logfile"
     log "Node setup complete"
   fi
+
+  log "Node environment:\n$(env)" 2>&1 >> "$logfile"
 }
 
 _require_cmd() {
@@ -543,6 +636,8 @@ validate_environment() {
   _require_cmd grep
   _require_cmd cut
   _require_cmd curl
+  _require_cmd jq
+  _require_cmd uv
 
   # Runtime commands invoked later
   _require_cmd python3
@@ -553,14 +648,6 @@ validate_environment() {
   if [[ -z "${CUDA_VISIBLE_DEVICES:-}" ]]; then
     log "ERROR: CUDA_VISIBLE_DEVICES is not set"
     exit 1
-  fi
-
-  # If both nodelists are empty, DYNAMO_NODELIST must be provided
-  if [[ -z "${dynamo_args["decode-nodes"]}" && -z "${dynamo_args["prefill-nodes"]}" ]]; then
-    if [[ -z "${DYNAMO_NODELIST:-}" ]]; then
-      log "ERROR: When neither --dynamo-decode-nodes nor --dynamo-prefill-nodes is provided, DYNAMO_NODELIST must be set"
-      exit 1
-    fi
   fi
 
   # Directories
@@ -603,6 +690,22 @@ validate_environment() {
   log "Environment validation complete"
 }
 
+function wait_for_frontend_marker()
+{
+  while [ ! -f "$DONE_MARKER" ]; do
+    exit_on_error
+    log "Waiting for frontend completion marker by polling $DONE_MARKER"
+    sleep 30
+  done
+
+  log "Done marker found."
+}
+
+function mark_done()
+{
+  touch "$DONE_MARKER"
+}
+
 function launch_etcd()
 {
   log "Launching etcd with cmd: ${dynamo_args["etcd-cmd"]} --listen-client-urls http://0.0.0.0:${dynamo_args["etcd-port"]} --advertise-client-urls http://0.0.0.0:${dynamo_args["etcd-port"]}"
@@ -640,14 +743,14 @@ function launch_decode()
 {
   wait_for_etcd
 
-  local workers_per_node=${dynamo_args["decode-workers-per-node"]}
-  local tp_size=${decode_args["--${dynamo_args["tp-arg-name"]}"]}
+  local workers_per_node=${decode_config["workers-per-node"]}
+  local tp_size=${decode_args["--tensor-parallel-size"]}
   local base_nixl_port=${VLLM_NIXL_SIDE_CHANNEL_PORT:-5557}
   local base_kv_event_port=${DYN_VLLM_KV_EVENT_PORT:-20080}
   log "Launching $workers_per_node decode worker(s) with unique port ranges"
 
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
-    local gpu_list=$(_gpu_list_for_worker "${dynamo_args["decode-gpus-per-worker"]}" "$i")
+    local gpu_list=$(_gpu_list_for_worker "${decode_config["gpus-per-worker"]}" "$i")
     local log_file=$(_log_file_for_worker "decode" "$i")
     # Each worker needs unique port ranges to avoid ZMQ conflicts:
     # - NIXL side channel: base_port + (worker_index * tp_size) for TP ranks
@@ -656,11 +759,11 @@ function launch_decode()
     local kv_event_port=$((base_kv_event_port + i))
 
     log "Launching decode worker $i on GPUs $gpu_list (NIXL port: $nixl_port, KV event port: $kv_event_port)"
-    log "Decode cmd: ${dynamo_args["decode-cmd"]} $(array_to_args decode_args) ${decode_args["--extra-args"]}"
+    log "Decode cmd: ${decode_config["cmd"]} $(array_to_args decode_args) ${decode_args["--extra-args"]}"
     CUDA_VISIBLE_DEVICES=$gpu_list \
       VLLM_NIXL_SIDE_CHANNEL_PORT=$nixl_port \
       DYN_VLLM_KV_EVENT_PORT=$kv_event_port \
-      ${dynamo_args["decode-cmd"]} \
+      ${decode_config["cmd"]} \
       $(array_to_args decode_args) ${decode_args["--extra-args"]} > $log_file 2>&1 &
   done
 }
@@ -678,14 +781,14 @@ function launch_prefill()
 {
   wait_for_etcd
 
-  local workers_per_node=${dynamo_args["prefill-workers-per-node"]}
-  local tp_size=${prefill_args["--${dynamo_args["tp-arg-name"]}"]}
+  local workers_per_node=${prefill_config["workers-per-node"]}
+  local tp_size=${prefill_args["--tensor-parallel-size"]}
   local base_nixl_port=${VLLM_NIXL_SIDE_CHANNEL_PORT:-5557}
   local base_kv_event_port=${DYN_VLLM_KV_EVENT_PORT:-20080}
   log "Launching $workers_per_node prefill worker(s) with unique port ranges"
 
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
-    local gpu_list=$(_gpu_list_for_worker "${dynamo_args["prefill-gpus-per-worker"]}" "$i")
+    local gpu_list=$(_gpu_list_for_worker "${prefill_config["gpus-per-worker"]}" "$i")
     local log_file=$(_log_file_for_worker "prefill" "$i")
     # Each worker needs unique port ranges to avoid ZMQ conflicts:
     # - NIXL side channel: base_port + (worker_index * tp_size) for TP ranks
@@ -694,22 +797,32 @@ function launch_prefill()
     local kv_event_port=$((base_kv_event_port + i))
 
     log "Launching prefill worker $i on GPUs $gpu_list (NIXL port: $nixl_port, KV event port: $kv_event_port)"
-    log "Prefill cmd: ${dynamo_args["prefill-cmd"]} $(array_to_args prefill_args) ${prefill_args["--extra-args"]}"
+    log "Prefill cmd: ${prefill_config["cmd"]} $(array_to_args prefill_args) ${prefill_args["--extra-args"]}"
     CUDA_VISIBLE_DEVICES=$gpu_list \
       VLLM_NIXL_SIDE_CHANNEL_PORT=$nixl_port \
       DYN_VLLM_KV_EVENT_PORT=$kv_event_port \
-      ${dynamo_args["prefill-cmd"]} \
+      ${prefill_config["cmd"]} \
       $(array_to_args prefill_args) ${prefill_args["--extra-args"]} > $log_file 2>&1 &
   done
 }
 
+function launch_lmcache_controller()
+{
+  if [[ "${dynamo_args["connector"]}" != "lmcache" ]]; then
+    return
+  fi
+
+  log "Launching LMCache controller with cmd: ${lmcache_config["controller_cmd"]}"
+  ${lmcache_config["controller_cmd"]} > ${RESULTS_DIR}/lmcache_controller.log 2>&1
+}
+
 function wait_for_dynamo_frontend()
 {
-  local want_prefill=$(_expected_ready_prefill)
+  local want_prefill=0 #$(_expected_ready_prefill)
   local want_decode=$(_expected_ready_decode)
 
   while :; do
-    local have_prefill=$(_count_initialized_prefill)
+    local have_prefill=0 #$(_count_initialized_prefill)
     local have_decode=$(_count_initialized_decode)
 
     log "Initialized: prefill ${have_prefill}/${want_prefill}; decode ${have_decode}/${want_decode}"
@@ -725,44 +838,185 @@ function wait_for_dynamo_frontend()
   log "Dynamo frontend is ready"
 }
 
-_probe_frontend_once() {
+_query_frontend() {
+  local content="${1:-The color of sky is}"
+  content=$(echo "$content" | sed 's/"/\\"/g' | sed 's/\n/\\n/g')
+  local max_tokens="${2:-10}"
+
   local json='{
     "model": "'${dynamo_args["model"]}'",
-    "messages": [{"role": "user", "content": "The color of sky is"}],
+    "messages": [{"role": "user", "content": "'"$content"'"}],
     "stream": false,
-    "max_tokens": 10
+    "max_tokens": '$max_tokens',
+    "temperature": 0,
+    "top_p": 0.0001
   }'
-  curl -s -X POST "${dynamo_args["url"]}/v1/chat/completions" -H "Content-Type: application/json" -d "$json"
+
+  echo "$json" > "$RESULTS_DIR/curl_cmd.json"
+  curl -s -X POST "${dynamo_args["url"]}/v1/chat/completions" -H "Content-Type: application/json" -d @$RESULTS_DIR/curl_cmd.json
 }
 
-function launch_genai_perf()
+function setup_cufile()
+{
+  export CUFILE_ENV_PATH_JSON="$RESULTS_DIR/cufile.json"
+  cat <<EOF > $CUFILE_ENV_PATH_JSON
+{
+    // NOTE : Application can override custom configuration via export CUFILE_ENV_PATH_JSON=<filepath>
+    // e.g : export CUFILE_ENV_PATH_JSON="/home/<xxx>/cufile.json"
+            "properties": {
+                            // allow compat mode, this will enable use of cuFile posix read/writes
+                            "allow_compat_mode": true,
+                            // max IO chunk size (parameter should be multiples of 64K) used by cuFileRead/Write internally per IO request
+                            "max_direct_io_size_kb" : 16384,
+                            // device memory size (parameter should be 4K aligned) for reserving bounce buffers for the entire GPU
+                            "max_device_cache_size_kb" : 2097152,
+                            // Note: ensure (max_device_cache_size_kb / per_buffer_cache_size_kb) >= io_batchsize
+                            // per-io bounce-buffer size (parameter should be multiples of 64K) ranging from 1024kb to 16384kb
+                            "per_buffer_cache_size_kb": 16384,
+                            // limit on maximum device memory size (parameter should be 4K aligned) that can be pinned for a given process
+                            "max_device_pinned_mem_size_kb" : 33554432,
+
+                            // posix bounce buffer pool size allocations
+                            "posix_pool_slab_size_kb" : [16384],
+                            // posix bounce buffer pool max counts
+                            "posix_pool_slab_count": [1024]
+            },
+  "logging": {
+    "dir": "$RESULTS_DIR",
+    "level": "${CUFILE_LOG_LEVEL:-INFO}"
+  }
+}
+EOF
+}
+
+function setup_storage_cache_dir()
+{
+  # Use a global variable that can be exported
+  STORAGE_CACHE_DIR="${dynamo_args["storage-cache-dir"]}/${TEST_USER}/${dynamo_args["frontend-node"]}/${dynamo_args["connector"]}/cache"
+  rm -rf ${STORAGE_CACHE_DIR}
+  mkdir -p ${STORAGE_CACHE_DIR}
+  chmod 755 ${STORAGE_CACHE_DIR}
+}
+
+function setup_kvbm()
+{
+  if [[ "${dynamo_args["connector"]}" != "kvbm" ]]; then
+    return
+  fi
+
+  setup_storage_cache_dir
+  export DYN_KVBM_DISK_CACHE_DIR=${STORAGE_CACHE_DIR}
+  setup_cufile
+}
+
+function setup_lmcache()
+{
+  if [[ "${dynamo_args["connector"]}" != "lmcache" ]]; then
+    return
+  fi
+
+  local lmcache_path="${lmcache_config["repo"]}"
+  log "Installing LMCache using: uv pip install $lmcache_path"
+  uv pip install -e $lmcache_path
+
+  setup_storage_cache_dir
+
+  export LMCACHE_CONFIG_FILE=$RESULTS_DIR/lmcache-nixl-config.yaml
+  rm -f $LMCACHE_CONFIG_FILE
+
+  for key in "${!lmcache_args[@]}"; do
+    shopt -s nocasematch
+    if [[ "$key" == "extra_config"* ]]; then
+      continue
+    fi
+
+    val="${lmcache_args[$key]}"
+    echo "$key: $val" >> $LMCACHE_CONFIG_FILE
+  done
+
+  echo "extra_config:" >> $LMCACHE_CONFIG_FILE
+  for key in "${!lmcache_args[@]}"; do
+    shopt -s nocasematch
+    if [[ "$key" == "extra_config"* ]]; then
+      nkey="${key#extra_config_}"
+      val="${lmcache_args[$key]}"
+      val=${val//%CACHEDIR%/${STORAGE_CACHE_DIR}}
+      echo "    $nkey: $val" >> $LMCACHE_CONFIG_FILE
+    fi
+  done
+  setup_cufile
+}
+
+function log_gpu_utilization()
+{
+  # Check if nvidia-smi is available
+  if ! command -v nvidia-smi &> /dev/null; then
+    log "Error: nvidia-smi not found"
+    return
+  fi
+
+  wait_for_dynamo_frontend
+  log "Starting GPU utilization monitoring"
+
+  nvidia-smi \
+    --query-gpu=timestamp,name,pci.bus_id,pstate,pcie.link.gen.max,pcie.link.gen.current,temperature.gpu,utilization.gpu,utilization.memory,memory.total,memory.free,memory.used \
+    --format=csv \
+    -l 5 \
+    -f ${RESULTS_DIR}/gpu_utilization-${SLURM_NODEID}.csv
+}
+
+function launch_workload()
+{
+  local workload_config_name="$1"
+  local workload_args_name="$2"
+
+  # Create nameref to the associative arrays
+  local -n workload_config_ref="$workload_config_name"
+  local -n workload_args_ref="$workload_args_name"
+
+  local workload_name="${workload_config_ref["--name"]}"
+  local script="${workload_config_ref["--script"]}"
+  local expanded_config=$(array_to_args "$workload_config_name")
+  local expanded_arguments=$(array_to_args "$workload_args_name")
+
+  log "Launching $workload_name with cmd: ${INSTALL_DIR}/$script $expanded_config -- $expanded_arguments"
+
+  # Use eval to properly handle values with spaces in expanded_config
+  eval bash ${INSTALL_DIR}/$script \
+    --install_dir "$INSTALL_DIR" \
+    --result_dir "$RESULTS_DIR" \
+    --model '"${dynamo_args["model"]}"' \
+    --url '"http://${dynamo_args["frontend-node"]}"' \
+    --port '"${dynamo_args["port"]}"' \
+    --endpoint '"${dynamo_args["endpoint"]}"' \
+    --gpus_per_node '"$(_gpus_per_node)"' \
+    $expanded_config \
+    -- $expanded_arguments '>' ${RESULTS_DIR}/$workload_name.log '2>&1' 
+
+  log "Done with $workload_name run"
+}
+
+function launch_workloads()
 {
   wait_for_dynamo_frontend
 
-  local resp=$(_probe_frontend_once)
-  echo "Response: $resp"
+  if _is_genai_perf_workload; then
+    launch_workload genai_perf_config genai_perf_args
+  fi
+  if _is_lmbench_workload; then
+    launch_workload lmbench_config lmbench_args
+  fi
+  if _is_custom_workload_workload; then
+    launch_workload custom_workload_config custom_workload_args
+  fi
 
-  local genai_perf_arguments=$(array_to_args genai_perf_args)
-  log "Launching genai-perf with cmd: ${dynamo_args["genai-perf-cmd"]} $genai_perf_arguments ${genai_perf_args["--extra-args"]}"
-
-  ${dynamo_args["genai-perf-cmd"]} ${genai_perf_arguments} ${genai_perf_args["--extra-args"]} > ${RESULTS_DIR}/genai_perf.log 2>&1
-
-  log "Done with genai-perf run"
-}
-
-function wait_for_frontend_marker()
-{
-  while [ ! -f "$DONE_MARKER" ]; do
-    exit_on_error
-    log "Waiting for frontend completion marker by polling $DONE_MARKER"
-    sleep 30
-  done
-
-  log "Done marker found."
+  mark_done
 }
 
 function main()
 {
+  parse_args "$@"
+
   _init_runtime_env
 
   launch_node_setup_cmd
@@ -773,9 +1027,15 @@ function main()
     cd ${dynamo_args["workspace-path"]}
   fi
 
+  cd $RESULTS_DIR
+
+  log_gpu_utilization &
+
   if _is_frontend_node; then
     log "Node ID: $SLURM_NODEID, Role: frontend"
     log_node_role "$(_current_node_name)" "frontend"
+    setup_lmcache
+    setup_kvbm
     launch_etcd &
     launch_nats &
     wait_for_etcd
@@ -798,17 +1058,18 @@ function main()
   fi
 
   if _is_frontend_node; then
-    launch_genai_perf
-    touch "$DONE_MARKER"
+    launch_lmcache_controller &
+
+    sleep 10
+
+    launch_workloads &
   fi
 
   wait_for_frontend_marker
 }
 
-parse_args "$@"
-
-log "env: $(env)"
-
 log "Starting main"
-main
+main "$@"
 log "Done with main"
+
+perform_exit 0
