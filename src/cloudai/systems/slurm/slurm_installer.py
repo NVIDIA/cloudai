@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -155,7 +155,7 @@ class SlurmInstaller(BaseInstaller):
 
     def mark_as_installed_one(self, item: Installable) -> InstallStatusResult:
         if isinstance(item, DockerImage):
-            if self.system.cache_docker_images_locally:
+            if self.system.cache_docker_images_locally and not isinstance(item.installed_path, Path):
                 item.installed_path = self.system.install_path / item.cache_filename
             return InstallStatusResult(True)
         elif isinstance(item, GitRepo):

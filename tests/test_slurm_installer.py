@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -348,3 +348,23 @@ def test_mark_as_installed_docker_image_system_is_respected(slurm_system: SlurmS
         assert docker.installed_path == slurm_system.install_path / docker.cache_filename
     else:
         assert docker.installed_path == docker.url
+
+
+def test_mark_as_installed_local_container(slurm_system: SlurmSystem):
+    """
+    Test for marking a local docker image as installed.
+
+    The issue appeared when a DockerImage with existing local path was marked as installed,
+    and installed_path was overwritten with a default value.
+    """
+    installer = SlurmInstaller(slurm_system)
+    slurm_system.install_path.mkdir(parents=True, exist_ok=True)
+    local_image = slurm_system.install_path / "local_image.sqsh"
+    local_image.touch()
+
+    docker_image = DockerImage(url=str(local_image.absolute()))
+    docker_image.installed_path = local_image  # simulate installation
+
+    installer.mark_as_installed_one(docker_image)
+
+    assert docker_image.installed_path == local_image.absolute()
