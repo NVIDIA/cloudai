@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,12 +18,62 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    model_validator,
+)
 
-from cloudai.core import DockerImage, File, GitRepo, HFModel, Installable, JobStatusResult, TestRun
+from cloudai.core import (
+    DockerImage,
+    File,
+    GitRepo,
+    HFModel,
+    Installable,
+    JobStatusResult,
+    TestRun,
+)
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 from .report_generation_strategy import CSV_FILES_PATTERN, JSON_FILES_PATTERN
+
+
+class BenchmarkArgs(BaseModel):
+    """Arguments for custom benchmarks."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+
+class Benchmark(BaseModel):
+    """Arguments for custom benchmarks."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    name: str
+    cmd: str
+    report_name: Optional[str] = Field(default=None, serialization_alias="report-name")
+    repo: Optional[GitRepo] = None
+    enabled: bool = False
+    args: Optional[BenchmarkArgs] = None
+    extra_args: str | list[str] | None = Field(
+        default=None,
+        serialization_alias="extra-args",
+        validation_alias=AliasChoices("extra-args", "extra_args"),
+    )
+
+    @model_validator(mode="after")
+    def set_default_report_name(self) -> "Benchmark":
+        """Set default report_name based on name if not provided."""
+        if self.report_name is None:
+            self.report_name = f"{self.name}_report.csv"
+        return self
+
+    @field_serializer("repo")
+    def _serialize_repo(self, v: GitRepo) -> str:
+        return v.container_mount if v else "/invalid/repo/path"
 
 
 class WorkerBaseArgs(BaseModel):
@@ -78,10 +128,11 @@ class DecodeWorkerArgs(WorkerBaseArgs):
 class AIDynamoArgs(BaseModel):
     """Arguments for AI Dynamo setup."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     model: str = "Qwen/Qwen3-0.6B"
     backend: str = "vllm"
+    connector: Optional[str] = None  # none, lmcache, kvbm
     workspace_path: str = Field(
         default="/workspace",
         serialization_alias="workspace-path",
@@ -95,32 +146,101 @@ class AIDynamoArgs(BaseModel):
     )
     prefill_worker: PrefillWorkerArgs | None = None
     prefill_cmd: str = Field(
-        default="python3 -m dynamo.vllm",
+        default="python3 -m dynamo.vllm --is-prefill-worker",
         serialization_alias="prefill-cmd",
         validation_alias=AliasChoices("prefill-cmd", "prefill_cmd"),
     )
 
 
-class GenAIPerfArgs(BaseModel):
-    """Arguments for GenAI performance profiling."""
+class LMCacheArgs(BaseModel):
+    """Arguments for LMCache."""
 
     model_config = ConfigDict(extra="allow")
 
-    extra_args: str | None = Field(
+    chunk_size: int = 256
+    local_cpu: bool = False
+    nixl_buffer_size: int = 10737418240
+    nixl_buffer_device: str = "cuda"
+    extra_config_enable_nixl_storage: bool = True
+    extra_config_nixl_backend: str = "GDS_MT"
+    extra_config_nixl_file_pool_size: int = 64
+    extra_config_nixl_path: str = "%CACHEDIR%"
+
+    # LMCache controller configuration
+    enable_controller: bool = True
+    lmcache_instance_id: str = "lmcache_default_instance"
+    controller_url: str = "localhost:9001"
+    lmcache_worker_port: int = 8788
+    distributed_url: str = "localhost:8789"
+
+
+class LMCache(BaseModel):
+    """LMCache configuration."""
+
+    model_config = ConfigDict(extra="allow")
+
+    controller_cmd: str = "lmcache_controller --host localhost --port 9000 --monitor-port 9001"
+    repo: Optional[GitRepo] = GitRepo(
+        url="git@github.com:LMCache/LMCache.git",
+        commit="ab8530993992db873869ba882320953582d94309",
+        mount_as="/git/LMCache",
+    )
+
+    args: LMCacheArgs = Field(default_factory=LMCacheArgs)
+    extra_args: str | list[str] | None = Field(
         default=None,
         serialization_alias="extra-args",
         validation_alias=AliasChoices("extra-args", "extra_args"),
     )
 
 
+class GenAIPerf(Benchmark):
+    """Benchmark configuration for GenAI performance profiling."""
+
+    model_config = ConfigDict(extra="allow")
+
+    name: str = "genai_perf"
+    cmd: str = "genai-perf profile"
+    enabled: bool = True
+
+
+class LMBench(Benchmark):
+    """Benchmark configuration for LMBench."""
+
+    model_config = ConfigDict(extra="allow")
+
+    name: str = "lmbench"
+    repo: Optional[GitRepo] = GitRepo(
+        url="git@github.com:LMCache/LMBenchmark.git",
+        commit="e1406623c5e88878cf2b7fbd64fe6c47f7dcb66f",
+        mount_as="/git/LMBenchmark",
+    )
+
+    cmd: str = "python3 ./synthetic-multi-round-qa/multi-round-qa.py"
+
+
+class Constraints(BaseModel):
+    """Constraints for validation of AI Dynamo configurations when using DSE."""
+
+    model_config = ConfigDict(extra="allow")
+
+    prefill_tp_le_decode_tp: bool = True
+    tp_times_pp_le_gpus_per_node: bool = True
+    prefill_decode_nodes_le_total_nodes: bool = True
+
+
 class AIDynamoCmdArgs(CmdArgs):
     """Arguments for AI Dynamo."""
 
     docker_image_url: str
-    huggingface_home_container_path: Path = Path("/root/.cache/huggingface")
+    storage_cache_dir: Optional[str] = None
+    num_nodes: int = 1
+    gpus_per_node: int = 8
     dynamo: AIDynamoArgs
-    genai_perf: GenAIPerfArgs
-    run_script: str = ""
+    lmcache: LMCache
+    genai_perf: GenAIPerf
+    lmbench: LMBench
+    custom_bench: Optional[Benchmark] = None
 
 
 class AIDynamoTestDefinition(TestDefinition):
@@ -129,10 +249,28 @@ class AIDynamoTestDefinition(TestDefinition):
     cmd_args: AIDynamoCmdArgs
     _docker_image: Optional[DockerImage] = None
     script: File = File(Path(__file__).parent.parent / "ai_dynamo/ai_dynamo.sh")
+    genai_perf_wrapper_script: File = File(Path(__file__).parent.parent / "ai_dynamo/genai_perf_wrapper.sh")
+    calc_percentile_csv: File = File(Path(__file__).parent.parent / "ai_dynamo/calc_percentile_csv.py")
     dynamo_repo: GitRepo = GitRepo(
-        url="https://github.com/ai-dynamo/dynamo.git", commit="f7e468c7e8ff0d1426db987564e60572167e8464"
+        url="https://github.com/ai-dynamo/dynamo.git",
+        commit="f7e468c7e8ff0d1426db987564e60572167e8464",
+        mount_as="/git/dynamo",
     )
     _hf_model: HFModel | None = None
+    benchmarks: str = "genai_perf"
+    constraints: Constraints = Constraints()
+
+    @model_validator(mode="after")
+    def populate_git_repos(self) -> "AIDynamoTestDefinition":
+        """Populate git_repos list with all git repositories used by this test definition."""
+        self.git_repos = [self.dynamo_repo]
+        if self.cmd_args.lmcache.repo:
+            self.git_repos.append(self.cmd_args.lmcache.repo)
+        if self.cmd_args.lmbench.repo:
+            self.git_repos.append(self.cmd_args.lmbench.repo)
+        if self.cmd_args.custom_bench and self.cmd_args.custom_bench.repo:
+            self.git_repos.append(self.cmd_args.custom_bench.repo)
+        return self
 
     @property
     def docker_image(self) -> DockerImage:
@@ -148,7 +286,16 @@ class AIDynamoTestDefinition(TestDefinition):
 
     @property
     def installables(self) -> list[Installable]:
-        return [self.docker_image, self.script, self.dynamo_repo, self.hf_model]
+        """Get all installables for this test definition."""
+        result = [
+            self.docker_image,
+            self.script,
+            self.genai_perf_wrapper_script,
+            self.calc_percentile_csv,
+            self.hf_model,
+            *self.git_repos,
+        ]
+        return result
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         output_path = tr.output_path
@@ -159,3 +306,33 @@ class AIDynamoTestDefinition(TestDefinition):
         if not has_results:
             return JobStatusResult(False, "No result files found in the output directory.")
         return JobStatusResult(True)
+
+    def constraint_check(self, tr: TestRun) -> bool:
+        prefill_worker = tr.test.cmd_args.dynamo.prefill_worker
+        decode_worker = tr.test.cmd_args.dynamo.decode_worker
+
+        prefill_tp = prefill_worker.tensor_parallel_size if prefill_worker else 1
+        decode_tp = decode_worker.tensor_parallel_size if decode_worker else 1
+        prefill_pp = prefill_worker.pipeline_parallel_size if prefill_worker else 1
+        prefill_nodes = prefill_worker.num_nodes if prefill_worker else 0
+        decode_nodes = decode_worker.num_nodes if decode_worker else 1
+
+        if self.constraints.prefill_tp_le_decode_tp and prefill_tp > decode_tp:
+            logging.info("constraint_check failed for: prefill_tp_le_decode_tp")
+            return False
+        logging.info("constraint_check passed for: prefill_tp_le_decode_tp")
+
+        gpus_per_node = tr.test.cmd_args.gpus_per_node
+        if self.constraints.tp_times_pp_le_gpus_per_node and prefill_tp * prefill_pp > gpus_per_node:
+            logging.info("constraint_check failed for: tp_times_pp_le_gpus_per_node")
+            return False
+        logging.info("constraint_check passed for: tp_times_pp_le_gpus_per_node")
+
+        num_nodes = tr.test.cmd_args.num_nodes
+        nodes_check = self.constraints.prefill_decode_nodes_le_total_nodes
+        if nodes_check and prefill_nodes + decode_nodes > num_nodes:
+            logging.info("constraint_check failed for: prefill_decode_nodes_le_total_nodes")
+            return False
+        logging.info("constraint_check passed for: prefill_decode_nodes_le_total_nodes")
+
+        return True

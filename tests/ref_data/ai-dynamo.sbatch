@@ -10,51 +10,80 @@
 
 export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 
-srun --export=ALL --mpi=pmix -N2 --container-image=nvcr.io/nvidia/ai-dynamo:24.09 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__:__INSTALL_DIR__,__INSTALL_DIR__/huggingface:/root/.cache/huggingface,__CLOUDAI_DIR__/src/cloudai/workloads/ai_dynamo/ai_dynamo.sh:__CLOUDAI_DIR__/src/cloudai/workloads/ai_dynamo/ai_dynamo.sh --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
+srun --export=ALL --mpi=pmix -N2 --container-image=nvcr.io/nvidia/ai-dynamo:24.09 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__:/git/dynamo,__INSTALL_DIR__/LMCache__ab8530993992db873869ba882320953582d94309:/git/LMCache,__INSTALL_DIR__/LMBenchmark__e1406623c5e88878cf2b7fbd64fe6c47f7dcb66f:/git/LMBenchmark,__INSTALL_DIR__/huggingface:/workspace/hf_home --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
 
-srun --export=ALL --mpi=pmix -N2 --container-image=nvcr.io/nvidia/ai-dynamo:24.09 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__:__INSTALL_DIR__,__INSTALL_DIR__/huggingface:/root/.cache/huggingface,__CLOUDAI_DIR__/src/cloudai/workloads/ai_dynamo/ai_dynamo.sh:__CLOUDAI_DIR__/src/cloudai/workloads/ai_dynamo/ai_dynamo.sh --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
+srun --export=ALL --mpi=pmix -N2 --container-image=nvcr.io/nvidia/ai-dynamo:24.09 --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__:/git/dynamo,__INSTALL_DIR__/LMCache__ab8530993992db873869ba882320953582d94309:/git/LMCache,__INSTALL_DIR__/LMBenchmark__e1406623c5e88878cf2b7fbd64fe6c47f7dcb66f:/git/LMBenchmark,__INSTALL_DIR__/huggingface:/workspace/hf_home --ntasks=2 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
 num_retries=${DYNAMO_NUM_RETRY_ON_FAILURE:-0}
+fatal_file_name=__OUTPUT_DIR__/output/${DYNAMO_FATAL_ERROR_FILE:-dynamo_fatal_error.marker}
 for try in $(seq 0 $num_retries); do
   echo "Try $try of $num_retries"
-  rm -f __OUTPUT_DIR__/output/fatal_error.marker 2>/dev/null || true
+  rm -f $fatal_file_name 2>/dev/null || true
   srun \
   --export=ALL \
   --mpi=pmix \
   -N2 \
   --container-image=nvcr.io/nvidia/ai-dynamo:24.09 \
-  --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__:__INSTALL_DIR__,__INSTALL_DIR__/huggingface:/root/.cache/huggingface,__CLOUDAI_DIR__/src/cloudai/workloads/ai_dynamo/ai_dynamo.sh:__CLOUDAI_DIR__/src/cloudai/workloads/ai_dynamo/ai_dynamo.sh \
+  --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output,__INSTALL_DIR__:/git/dynamo,__INSTALL_DIR__/LMCache__ab8530993992db873869ba882320953582d94309:/git/LMCache,__INSTALL_DIR__/LMBenchmark__e1406623c5e88878cf2b7fbd64fe6c47f7dcb66f:/git/LMBenchmark,__INSTALL_DIR__/huggingface:/workspace/hf_home \
   --nodes=2 \
   --ntasks=2 \
   --ntasks-per-node=1 \
-  --export=ALL,DYNAMO_FATAL_ERROR_FILE=fatal_error.marker \
+  --export=ALL \
   --output=__OUTPUT_DIR__/output/node-%n-stdout.txt \
   --error=__OUTPUT_DIR__/output/node-%n-stderr.txt \
   bash \
-  __CLOUDAI_DIR__/src/cloudai/workloads/ai_dynamo/ai_dynamo.sh \
-  --huggingface-home /root/.cache/huggingface \
+  /cloudai_install/ai_dynamo.sh \
+  --huggingface-home /workspace/hf_home \
   --results-dir /cloudai_run_results \
+  --genai_perf_wrapper_script /cloudai_install/genai_perf_wrapper.sh \
+  --calc_percentile_csv_script /cloudai_install/calc_percentile_csv.py \
+  --dynamo-repo /git/dynamo \
   --dynamo-model "model" \
   --dynamo-backend "vllm" \
+  --dynamo-workspace-path "/workspace" \
+  --dynamo-decode-cmd "python3 -m dynamo.vllm" \
+  --dynamo-prefill-cmd "python3 -m dynamo.vllm --is-prefill-worker" \
   --prefill-num-nodes "1" \
   --prefill-ServiceArgs "{'workers': 1, 'resources': {'gpu': '8'}}" \
   --decode-num-nodes "1" \
   --decode-ServiceArgs "{'workers': 1, 'resources': {'gpu': '8'}}" \
-  --genai-perf-streaming "True" \
-  --genai-perf-extra-inputs "{"temperature": 0.7, "max_tokens": 128}" \
-  --genai-perf-output-tokens-mean "128" \
-  --genai-perf-random-seed "42" \
-  --genai-perf-request-count "100" \
-  --genai-perf-synthetic-input-tokens-mean "550" \
-  --genai-perf-warmup-request-count "10"
-  if [ $try -eq $num_retries ] || [ ! -f __OUTPUT_DIR__/output/fatal_error.marker ]; then
+  --lmcache-controller_cmd "lmcache_controller --host localhost --port 9000 --monitor-port 9001" \
+  --lmcache-args-chunk_size "256" \
+  --lmcache-args-local_cpu "False" \
+  --lmcache-args-nixl_buffer_size "10737418240" \
+  --lmcache-args-nixl_buffer_device "cuda" \
+  --lmcache-args-extra_config_enable_nixl_storage "True" \
+  --lmcache-args-extra_config_nixl_backend "GDS_MT" \
+  --lmcache-args-extra_config_nixl_file_pool_size "64" \
+  --lmcache-args-extra_config_nixl_path "%CACHEDIR%" \
+  --lmcache-args-enable_controller "True" \
+  --lmcache-args-lmcache_instance_id "lmcache_default_instance" \
+  --lmcache-args-controller_url "localhost:9001" \
+  --lmcache-args-lmcache_worker_port "8788" \
+  --lmcache-args-distributed_url "localhost:8789" \
+  --genai_perf-name "genai_perf" \
+  --genai_perf-cmd "genai-perf profile" \
+  --genai_perf-report-name "genai_perf_report.csv" \
+  --genai_perf-enabled "True" \
+  --genai_perf-streaming "True" \
+  --genai_perf-extra-inputs "{"temperature": 0.7, "max_tokens": 128}" \
+  --genai_perf-output-tokens-mean "128" \
+  --genai_perf-random-seed "42" \
+  --genai_perf-request-count "100" \
+  --genai_perf-synthetic-input-tokens-mean "550" \
+  --genai_perf-warmup-request-count "10" \
+  --lmbench-name "lmbench" \
+  --lmbench-cmd "python3 ./synthetic-multi-round-qa/multi-round-qa.py" \
+  --lmbench-report-name "lmbench_report.csv" \
+  --lmbench-enabled "False"
+  if [ $try -eq $num_retries ] || [ ! -f $fatal_file_name ]; then
     break
   fi
   echo "Fatal error detected. Archiving logs then retrying..."
   mkdir -p __OUTPUT_DIR__/output/error.$try
   mv __OUTPUT_DIR__/output/*.log __OUTPUT_DIR__/output/error.$try/ 2>/dev/null || true
-  mv __OUTPUT_DIR__/output/node-*-stdout.txt __OUTPUT_DIR__/output/error.$try/ 2>/dev/null || true
-  mv __OUTPUT_DIR__/output/node-*-stderr.txt __OUTPUT_DIR__/output/error.$try/ 2>/dev/null || true
-  mv __OUTPUT_DIR__/output/fatal_error.marker __OUTPUT_DIR__/output/error.$try/ 2>/dev/null || true
+  mv __OUTPUT_DIR__/output/dynamo_* __OUTPUT_DIR__/output/error.$try/ 2>/dev/null || true
+  mv __OUTPUT_DIR__/output/node* __OUTPUT_DIR__/output/error.$try/ 2>/dev/null || true
+  mv $fatal_file_name __OUTPUT_DIR__/output/error.$try/ 2>/dev/null || true
   sleep ${DYNAMO_RETRY_BACKOFF_SEC:-10}
 done

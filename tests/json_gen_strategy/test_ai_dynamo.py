@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,7 +28,10 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoKubernetesJsonGenStrategy,
     AIDynamoTestDefinition,
     DecodeWorkerArgs,
-    GenAIPerfArgs,
+    GenAIPerf,
+    LMBench,
+    LMCache,
+    LMCacheArgs,
     PrefillWorkerArgs,
 )
 
@@ -46,7 +49,9 @@ def dynamo(request: Any) -> AIDynamoTestDefinition:
                     num_nodes=2, data_parallel_size=1, tensor_parallel_size=1, extra_args="--extra-decode-arg v"
                 )
             ),
-            genai_perf=GenAIPerfArgs(),
+            genai_perf=GenAIPerf(),
+            lmcache=LMCache(args=LMCacheArgs()),
+            lmbench=LMBench(),
         ),
     )
     if request.param == "disagg":

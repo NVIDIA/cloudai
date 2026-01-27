@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,7 +27,10 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoSlurmCommandGenStrategy,
     AIDynamoTestDefinition,
     DecodeWorkerArgs,
-    GenAIPerfArgs,
+    GenAIPerf,
+    LMBench,
+    LMCache,
+    LMCacheArgs,
     PrefillWorkerArgs,
 )
 
@@ -36,7 +39,6 @@ from cloudai.workloads.ai_dynamo import (
 def cmd_args() -> AIDynamoCmdArgs:
     return AIDynamoCmdArgs(
         docker_image_url="url",
-        huggingface_home_container_path=Path("/root/.cache/huggingface"),
         dynamo=AIDynamoArgs(
             model="model",
             workspace_path="/workspace",
@@ -57,7 +59,7 @@ def cmd_args() -> AIDynamoCmdArgs:
                 }
             ),
         ),
-        genai_perf=GenAIPerfArgs(
+        genai_perf=GenAIPerf(
             **{
                 "endpoint-type": "chat",
                 "streaming": True,
@@ -72,6 +74,8 @@ def cmd_args() -> AIDynamoCmdArgs:
                 "request-count": 10,
             }
         ),
+        lmcache=LMCache(args=LMCacheArgs()),
+        lmbench=LMBench(),
     )
 
 
@@ -99,13 +103,10 @@ def strategy(slurm_system: SlurmSystem, test_run: TestRun) -> AIDynamoSlurmComma
 def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: TestRun) -> None:
     mounts = strategy._container_mounts()
     td = cast(AIDynamoTestDefinition, test_run.test)
-    dynamo_repo_path = td.dynamo_repo.installed_path
-    assert dynamo_repo_path is not None, "dynamo_repo_path should be set in the test fixture"
 
+    # _container_mounts returns custom mounts including scripts and HF home (git repos are handled by base class)
     assert mounts == [
-        f"{dynamo_repo_path!s}:{dynamo_repo_path!s}",
-        f"{strategy.system.hf_home_path.absolute()!s}:{td.cmd_args.huggingface_home_container_path!s}",
-        f"{td.script.installed_path.absolute()!s}:{td.script.installed_path.absolute()!s}",
+        f"{strategy.system.hf_home_path.absolute()!s}:{td.cmd_args.dynamo.workspace_path}/hf_home",
     ]
 
 

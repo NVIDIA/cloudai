@@ -298,25 +298,75 @@ class KubernetesSystem(System):
             raise TypeError("Test definition must be an instance of AIDynamoTestDefinition")
 
         genai_perf_results_path = "/tmp/cloudai/genai-perf"
-
-        genai_perf_cmd = ["genai-perf", "profile", f"--artifact-dir={genai_perf_results_path}"]
-        for k, v in tdef.cmd_args.genai_perf.model_dump(
-            exclude={"extra_args", "extra-args"}, exclude_none=True
-        ).items():
-            genai_perf_cmd.append(f"--{k}={v}")
-        if extra_args := tdef.cmd_args.genai_perf.extra_args:
-            genai_perf_cmd.extend(extra_args.split())
-        logging.debug(f"GenAI perf arguments: {genai_perf_cmd=}")
-
         frontend_pod = self._get_dynamo_pod_by_role(role="frontend")
 
-        logging.debug(f"Executing genai-perf in pod={frontend_pod} cmd={genai_perf_cmd}")
+        # Copy wrapper script and calc_percentile_csv script to the pod
+        wrapper_script_path = tdef.genai_perf_wrapper_script.installed_path
+        calc_csv_script_path = tdef.calc_percentile_csv.installed_path
+
+        pod_wrapper_path = "/tmp/genai_perf_wrapper.sh"
+        pod_calc_csv_path = "/tmp/calc_percentile_csv.py"
+
+        logging.debug(f"Copying wrapper script {wrapper_script_path} to pod {frontend_pod}")
+        cp_wrapper_cmd = f"kubectl cp {wrapper_script_path} {self.default_namespace}/{frontend_pod}:{pod_wrapper_path}"
+        subprocess.run(cp_wrapper_cmd, shell=True, capture_output=True, text=True, check=True)
+
+        logging.debug(f"Copying calc_percentile_csv script {calc_csv_script_path} to pod {frontend_pod}")
+        cp_calc_cmd = f"kubectl cp {calc_csv_script_path} {self.default_namespace}/{frontend_pod}:{pod_calc_csv_path}"
+        subprocess.run(cp_calc_cmd, shell=True, capture_output=True, text=True, check=True)
+
+        # Make wrapper script executable
+        chmod_cmd = ["chmod", "+x", pod_wrapper_path]
+        logging.debug(f"Making wrapper script executable in pod {frontend_pod}")
+        try:
+            lazy.k8s.stream.stream(
+                self.core_v1.connect_get_namespaced_pod_exec,
+                name=frontend_pod,
+                namespace=self.default_namespace,
+                command=chmod_cmd,
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False,
+            )
+        except lazy.k8s.client.ApiException as e:
+            logging.error(f"Error making wrapper script executable in pod '{frontend_pod}': {e}")
+
+        # Build genai-perf command arguments
+        genai_perf_cmd_parts = ["genai-perf", "profile", f"--artifact-dir={genai_perf_results_path}"]
+        if tdef.cmd_args.genai_perf.args:
+            for k, v in tdef.cmd_args.genai_perf.args.model_dump(exclude_none=True).items():
+                genai_perf_cmd_parts.append(f"--{k}={v}")
+            if extra_args := tdef.cmd_args.genai_perf.extra_args:
+                if isinstance(extra_args, str):
+                    genai_perf_cmd_parts.extend(extra_args.split())
+                else:
+                    genai_perf_cmd_parts.extend(extra_args)
+
+        # Build wrapper command with proper parameters
+        report_file = "genai_perf_report.csv"
+        wrapper_cmd = [
+            "/bin/bash",
+            pod_wrapper_path,
+            "--result_dir",
+            genai_perf_results_path,
+            "--report_file",
+            report_file,
+            "--calc_percentile_csv_script",
+            pod_calc_csv_path,
+            "--gpus_per_node",
+            str(self.gpus_per_node),
+            "--",
+            *genai_perf_cmd_parts,
+        ]
+
+        logging.debug(f"Executing genai-perf wrapper in pod={frontend_pod} cmd={wrapper_cmd}")
         try:
             genai_results = lazy.k8s.stream.stream(
                 self.core_v1.connect_get_namespaced_pod_exec,
                 name=frontend_pod,
                 namespace=self.default_namespace,
-                command=genai_perf_cmd,
+                command=wrapper_cmd,
                 stderr=True,
                 stdin=False,
                 stdout=True,
@@ -326,7 +376,7 @@ class KubernetesSystem(System):
             with (job.test_run.output_path / "genai_perf.log").open("w") as f:
                 f.write(genai_results)
         except lazy.k8s.client.ApiException as e:
-            logging.error(f"Error executing genai-perf command in pod '{frontend_pod}': {e}")
+            logging.error(f"Error executing genai-perf wrapper command in pod '{frontend_pod}': {e}")
 
         cp_logs_cmd = " ".join(
             [
