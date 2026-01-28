@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -107,6 +107,7 @@ class TestDefinition(BaseModel, ABC):
     agent_steps: int = 1
     agent_metrics: list[str] = Field(default=["default"])
     agent_reward_function: str = "inverse"
+    agent_config: Optional[dict[str, Any]] = None
 
     @property
     def cmd_args_dict(self) -> Dict[str, Union[str, List[str]]]:
