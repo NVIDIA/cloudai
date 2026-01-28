@@ -6,18 +6,20 @@ HUGGINGFACE_HOME="/root/.cache/huggingface"
 DONE_MARKER="dynamo_frontend_done.marker"
 FATAL_ERROR_MARKER="dynamo_fatal_error.marker"
 NODE_ROLES_FILE="node_roles.log"
-genai_perf_wrapper_script="/cloudai_install/genai_perf_wrapper.sh"
-calc_percentile_csv_script="/cloudai_install/calc_percentile_csv.py"
-genai_perf_report_file="genai_perf_report.csv"
 
 export DYN_SDK_DISABLE_ANSI_LOGGING=1
 export VLLM_DISABLE_COLORED_OUTPUT=1
 export VLLM_NO_COLOR=1
+export VLLM_LOGGING_COLOR=0
+#export VLLM_LOGGING_CONFIG_PATH="/cloudai_install/vllm_logging_config.json"
+
 export ABSL_LOGGING_USE_COLOR=0
 export DYN_LOGGING_DISABLE_ANSI_COLORS=1
 
 export TERM=dumb
 export NO_COLOR=1
+export TQDM_DISABLE=1  # Disables tqdm progress bars globally
+export TQDM_MININTERVAL=999999  # Makes tqdm update very rarely
 
 export DEBIAN_FRONTEND=noninteractive
 export APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1
@@ -60,7 +62,6 @@ dynamo_args["decode-initialized-regex"]="Worker.*has.been.initialized"
 
 dynamo_args["etcd-cmd"]="etcd --log-level debug"
 dynamo_args["nats-cmd"]="nats-server -js"
-dynamo_args["genai-perf-cmd"]="genai-perf profile"
 dynamo_args["worker-error-pattern"]="zmq.error.ZMQError:.Address.already.in.use|UCX.*ERROR|ERROR.core.run_engine_core:.EngineCore.failed.to.start|ERROR.multiproc_executor.worker_busy_loop:.WorkerProc.hit.an.exception|EngineDeadError|EngineCore.encountered.an.issue"
 
 # sglang-specific optional ports. Ignored by vllm.
@@ -175,18 +176,6 @@ _apply_sglang_section_args() {
   unset 'decode_args["--model"]'
 }
 
-_apply_genai_perf_section_args() {
-  if [[ ! -v genai_perf_args["--warmup-request-count"] ]]; then
-    genai_perf_args["--warmup-request-count"]=$(( ${dynamo_args["warmup-request-multiplier"]} * ${genai_perf_args["--concurrency"]} ))
-    genai_perf_args["--warmup-request-count"]=$(min ${genai_perf_args["--warmup-request-count"]} ${dynamo_args["min-warmup-request-count"]})
-  fi
-
-  if [[ ! -v genai_perf_args["--request-count"] ]]; then
-    genai_perf_args["--request-count"]=$(( ${dynamo_args["actual-request-multiplier"]} * ${genai_perf_args["--concurrency"]} ))
-    genai_perf_args["--request-count"]=$(min ${genai_perf_args["--request-count"]} ${dynamo_args["min-request-count"]})
-  fi
-}
-
 _parse_cli_pairs() {
   log "Parsing args:"
   while [[ $# -ge 2 ]]; do
@@ -208,23 +197,17 @@ _parse_cli_pairs() {
       --lmbench-*)
         lmbench_config["${key#--lmbench-}"]="$2" ;;
       --genai_perf-args-*)
-        genai_perf_args["${key#--genai-perf-args-}"]="$2" ;;
-      --genai-perf-*)
-        genai_perf_config["${key#--genai-perf-}"]="$2" ;;
-      --custom-bench-args-*)
-        custom_bench_args["${key#--custom-bench-args-}"]="$2" ;;
-      --custom-bench-*)
-        custom_bench_config["${key#--custom-bench-}"]="$2" ;;
+        genai_perf_args["${key#--genai_perf-args-}"]="$2" ;;
+      --genai_perf-*)
+        genai_perf_config["${key#--genai_perf-}"]="$2" ;;
+      --custom_bench-args-*)
+        custom_bench_args["${key#--custom_bench-args-}"]="$2" ;;
+      --custom_bench-*)
+        custom_bench_config["${key#--custom_bench-}"]="$2" ;;
       --huggingface-home)
         HUGGINGFACE_HOME="$2" ;;
       --results-dir)
         RESULTS_DIR="$2" ;;
-      --genai_perf_wrapper_script)
-        genai_perf_wrapper_script="$2" ;;
-      --calc_percentile_csv_script)
-        calc_percentile_csv_script="$2" ;;
-      --genai_perf_report_file)
-        genai_perf_report_file="$2" ;;
     esac
     shift; shift;
   done
@@ -310,8 +293,6 @@ _patch_section_args() {
   if _is_sglang; then
     _apply_sglang_section_args
   fi
-
-  _apply_genai_perf_section_args
 }
 
 _compute_worker_allocation_sglang() {
@@ -548,15 +529,15 @@ _is_prefill_node() {
 }
 
 _is_genai_perf_workload() {
-  [[ "${dynamo_args["workload-type"]}" == "genai-perf" ]]
+  [[ "${dynamo_args["workload-type"]}" == *"genai-perf"* ]]
 }
 
 _is_lmbench_workload() {
-  [[ "${dynamo_args["workload-type"]}" == "lmbench" ]]
+  [[ "${dynamo_args["workload-type"]}" == *"lmbench"* ]]
 }
 
 _is_single_shot_workload() {
-  [[ "${dynamo_args["workload-type"]}" == "single-shot" ]]
+  [[ "${dynamo_args["workload-type"]}" == *"single-shot"* ]]
 }
 
 _init_runtime_env() {
@@ -573,10 +554,6 @@ _init_runtime_env() {
 
 function launch_node_setup_cmd()
 {
-  log "Installing uv"
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  source $HOME/.local/bin/env
-
   if [[ -n "${dynamo_args["node-setup-cmd"]}" ]]; then
     log "Launching node setup command: ${dynamo_args["node-setup-cmd"]}"
     bash -c "${dynamo_args["node-setup-cmd"]}"
@@ -641,6 +618,8 @@ validate_environment() {
   _require_cmd grep
   _require_cmd cut
   _require_cmd curl
+  _require_cmd jq
+  _require_cmd uv
 
   # Runtime commands invoked later
   _require_cmd python3
@@ -699,6 +678,22 @@ validate_environment() {
   fi
 
   log "Environment validation complete"
+}
+
+function wait_for_frontend_marker()
+{
+  while [ ! -f "$DONE_MARKER" ]; do
+    exit_on_error
+    log "Waiting for frontend completion marker by polling $DONE_MARKER"
+    sleep 30
+  done
+
+  log "Done marker found."
+}
+
+function mark_done()
+{
+  touch "$DONE_MARKER"
 }
 
 function launch_etcd()
@@ -803,26 +798,12 @@ function launch_prefill()
 
 function launch_lmcache_controller()
 {
-  if [[ "$ENABLE_LMCACHE" != "1" ]]; then
+  if [[ "${dynamo_args["connector"]}" != "lmcache" ]]; then
     return
   fi
 
   log "Launching LMCache controller with cmd: ${dynamo_args["lmcache-controller-cmd"]}"
   ${dynamo_args["lmcache-controller-cmd"]} > ${RESULTS_DIR}/lmcache_controller.log 2>&1
-}
-
-function clear_lmcache()
-{
-  log "Clearing LMCache"
-
-  response=$(curl -X POST http://${lmcache_config["controller_url"]}/clear \
-  -H "Content-Type: application/json" \
-  -d '{
-    "instance_id": "lmcache_default_instance",
-    "location": "LocalCPUBackend"
-  }')
-
-  log "LMCache cleared. Response: $response"
 }
 
 function wait_for_dynamo_frontend()
@@ -847,33 +828,49 @@ function wait_for_dynamo_frontend()
   log "Dynamo frontend is ready"
 }
 
-_probe_frontend_once() {
+_query_frontend() {
+  local content="${1:-The color of sky is}"
+  content=$(echo "$content" | sed 's/"/\\"/g' | sed 's/\n/\\n/g')
+  local max_tokens="${2:-10}"
+
   local json='{
     "model": "'${dynamo_args["model"]}'",
-    "messages": [{"role": "user", "content": "The color of sky is"}],
+    "messages": [{"role": "user", "content": "'"$content"'"}],
     "stream": false,
-    "max_tokens": 10
+    "max_tokens": '$max_tokens',
+    "temperature": 0,
+    "top_p": 0.0001
   }'
-  curl -s -X POST "${dynamo_args["url"]}/v1/chat/completions" -H "Content-Type: application/json" -d "$json"
+
+  echo "$json" > $RESULTS_DIR/curl_cmd.json
+  echo "$json" >> $RESULTS_DIR/curl_cmd.jsonl
+
+  curl -s -X POST "${dynamo_args["url"]}/v1/chat/completions" -H "Content-Type: application/json" -d @$RESULTS_DIR/curl_cmd.json
 }
 
-function launch_genai_perf()
+function launch_benchmark()
 {
-  wait_for_dynamo_frontend
+  local benchmark_config = "$1"
+  local benchmark_args = "$2"
 
-  local genai_perf_arguments=$(array_to_args genai_perf_args)
-  log "Launching genai-perf with cmd: ${dynamo_args["genai-perf-cmd"]} $genai_perf_arguments ${genai_perf_args["--extra-args"]}"
+  local benchmark_name = "${benchmark_config["name"]}"
+  local script = "${benchmark_config["script"]}"
+  local expanded_config=$(array_to_args benchmark_config)
+  local expanded_arguments=$(array_to_args benchmark_args)
 
-  ${genai_perf_wrapper_script} \
+  log "Launching $benchmark_name with cmd: $script $expanded_config -- $expanded_arguments"
+
+  bash $script \
     --result_dir $RESULTS_DIR \
-    --report_file ${genai_perf_report_file} \
-    --calc_percentile_csv_path ${calc_percentile_csv_script} \
+    --model ${dynamo_args["model"]} \
+    --url "http://${dynamo_args["frontend-node"]}" \
+    --port ${dynamo_args["port"]} \
+    --endpoint ${dynamo_args["endpoint"]} \
     --gpus_per_node $(_gpus_per_node) \
-    -- ${dynamo_args["genai-perf-cmd"]} $genai_perf_arguments ${genai_perf_args["--extra-args"]} > ${RESULTS_DIR}/genai_perf.log 2>&1
+    $expanded_config \
+    -- $expanded_arguments > ${RESULTS_DIR}/$benchmark_name.log 2>&1
 
-  log "Done with genai-perf run"
-
-  touch "$DONE_MARKER"
+  log "Done with $benchmark_name run"
 }
 
 function setup_cufile()
@@ -903,7 +900,7 @@ function setup_cufile()
             },
   "logging": {
     "dir": "$RESULTS_DIR",
-    "level": "${CUFILE_LOG_LEVEL:-info}"
+    "level": "${CUFILE_LOG_LEVEL:-INFO}"
   }
 }
 EOF
@@ -912,25 +909,22 @@ EOF
 
 function setup_kvbm()
 {
-  if [[ "$ENABLE_KVBM" != "1" ]]; then
+  if [[ "${dynamo_args["connector"]}" != "kvbm" ]]; then
     return
   fi
 
-  if [[ -z "${DYN_KVBM_DISK_CACHE_DIR}" ]]; then
-    log "ERROR: DYN_KVBM_DISK_CACHE_DIR is not set"
-    exit 1
-  fi
+  local storage_cachedir="${dynamo_args["storage-cache-dir"]}/${dynamo_args["frontend-node"]}/kvbm/cache"
+  rm -rf ${storage_cachedir}
+  mkdir -p ${storage_cachedir}
+  chmod 755 ${storage_cachedir}
 
-  rm -rf ${DYN_KVBM_DISK_CACHE_DIR}
-  mkdir -p ${DYN_KVBM_DISK_CACHE_DIR}
-  chmod 755 ${DYN_KVBM_DISK_CACHE_DIR}
-
+  export DYN_KVBM_DISK_CACHE_DIR=${storage_cachedir}
   setup_cufile
 }
 
 function setup_lmcache()
 {
-  if [[ "$ENABLE_LMCACHE" != "1" ]]; then
+  if [[ "${dynamo_args["connector"]}" != "lmcache" ]]; then
     return
   fi
 
@@ -971,78 +965,6 @@ function setup_lmcache()
   setup_cufile
 }
 
-function launch_single_shot()
-{
-  wait_for_dynamo_frontend
-  local isl="${dynamo_args["isl"]}"
-  local lmcache_path="${dynamo_args["lmcache-path"]}"
-  local url="${dynamo_args["url"]}"
-  local cache_hit_pct="${dynamo_args["cache-hit-pct"]:-1}"
-
-  local max_ctx_tokens_following=$(( $isl * 100 / $cache_hit_pct ))
-
-  log "Launching single shot with lmcache path: $lmcache_path"
-  log "python $lmcache_path/examples/online_session/openai_chat_completion_client.py --model ${dynamo_args["model"]} --api_base $url/v1 --max_ctx_tokens 131072 --num_following 1 "
-
-  pushd $lmcache_path/examples/online_session
-  log "python $lmcache_path/examples/online_session/openai_chat_completion_client.py --model ${dynamo_args["model"]} --api_base $url/v1 --max_ctx_tokens ${dynamo_args["isl"]} --context_file $lmcache_path/examples/online_session/salt.7.txt --out $RESULTS_DIR/single_shot.jsonl --num_following 1"
-
-  python $lmcache_path/examples/online_session/openai_chat_completion_client.py \
-    --model ${dynamo_args["model"]} \
-    --api_base $url/v1 \
-    --max_ctx_tokens $isl \
-    --flush_cache \
-    --context_file $lmcache_path/examples/online_session/salt.7.txt \
-    --out $RESULTS_DIR/single_shot.jsonl \
-    --num_following 1 > $RESULTS_DIR/single_shot_first_run.log 2>&1
-
-    # --osl 10 \
-    # --max_ctx_tokens_following ${max_ctx_tokens_following} \
-  python -c "import pandas as pd; pd.read_json('$RESULTS_DIR/single_shot.jsonl', lines=True).to_csv('$RESULTS_DIR/report.csv', float_format='%.3f',index=False)"
-
-  popd
-
-  touch "$DONE_MARKER"
-}
-
-function launch_lmbench()
-{
-  wait_for_dynamo_frontend
-
-  # run LMBenchmark, adjust the model name if you are using a different model
-  # for detail how to config and run LMBenchmark: https://github.com/LMCache/LMBenchmark/tree/main/synthetic-multi-round-qa
-  local lmbench_dir="${dynamo_args["lmbench-dir"]}"
-  local log_file="${RESULTS_DIR}/lmbench.log"
-  
-  cmd="${dynamo_args["lmbench-cmd"]}"
-  cmd=$(replace_placeholders "$cmd")
-  cmd=${cmd//%LMBENCH_DIR%/${lmbench_dir}}
-
-  pushd $RESULTS_DIR
-  local lmbench_arguments=$(array_to_args lmbench_args)
-  log "Launching lmbench with args: $cmd $lmbench_arguments ${lmbench_args["--extra-args"]}"
-
-  $cmd ${lmbench_arguments} ${lmbench_args["--extra-args"]} > ${log_file} 2>&1
-
-  log "Done with lmbench run"
-
-  log "Summarizing lmbench run"
-  python3 ${calc_percentile_csv_script} $RESULTS_DIR/lmcache_bench_output.csv -o $RESULTS_DIR/report.csv
-
-  touch "$DONE_MARKER"
-}
-
-function wait_for_frontend_marker()
-{
-  while [ ! -f "$DONE_MARKER" ]; do
-    exit_on_error
-    log "Waiting for frontend completion marker by polling $DONE_MARKER"
-    sleep 30
-  done
-
-  log "Done marker found."
-}
-
 function log_gpu_utilization()
 {
   # Check if nvidia-smi is available
@@ -1059,6 +981,23 @@ function log_gpu_utilization()
     --format=csv \
     -l 5 \
     -f ${RESULTS_DIR}/gpu_utilization-${SLURM_NODEID}.csv
+}
+
+function launch_workload()
+{
+  wait_for_dynamo_frontend
+
+  if _is_genai_perf_workload; then
+    launch_benchmark $genai_perf_config $genai_perf_args
+  fi
+  if _is_lmbench_workload; then
+    launch_benchmark $lmbench_config $lmbench_args
+  fi
+  if _is_custom_bench_workload; then
+    launch_benchmark $custom_bench_config $custom_bench_args
+  fi
+
+  mark_done
 }
 
 function main()
@@ -1100,21 +1039,15 @@ function main()
   if _is_prefill_node; then
     log "Node ID: $SLURM_NODEID, Role: prefill"
     log_node_role "$(_current_node_name)" "prefill"
-    #launch_prefill &
+    launch_prefill &
   fi
 
   if _is_frontend_node; then
     launch_lmcache_controller &
 
-    if _is_genai_perf_workload; then
-      launch_genai_perf &
-    fi
-    if _is_lmbench_workload; then
-      launch_lmbench &
-    fi
-    if _is_single_shot_workload; then
-      launch_single_shot &
-    fi
+    sleep 10
+
+    launch_workload &
   fi
 
   wait_for_frontend_marker

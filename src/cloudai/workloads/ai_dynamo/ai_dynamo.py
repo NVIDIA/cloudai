@@ -53,7 +53,7 @@ class Benchmark(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     name: str
-    cmd: str
+    script: File
     report_name: Optional[str] = Field(default=None, serialization_alias="report-name")
     repo: Optional[GitRepo] = None
     enabled: bool = False
@@ -68,7 +68,7 @@ class Benchmark(BaseModel):
     def set_default_report_name(self) -> "Benchmark":
         """Set default report_name based on name if not provided."""
         if self.report_name is None:
-            self.report_name = f"{self.name}_report.csv"
+            self.report_name = f"{self.name}-report.csv"
         return self
 
     @field_serializer("repo")
@@ -201,6 +201,7 @@ class GenAIPerf(Benchmark):
 
     name: str = "genai_perf"
     cmd: str = "genai-perf profile"
+    script: File = File(Path(__file__).parent.parent / "ai_dynamo/genai_perf.sh")
     enabled: bool = True
 
 
@@ -210,13 +211,24 @@ class LMBench(Benchmark):
     model_config = ConfigDict(extra="allow")
 
     name: str = "lmbench"
+    script: File = File(Path(__file__).parent.parent / "ai_dynamo/lmbench.sh")
+    cmd: str = "python3 ./synthetic-multi-round-qa/multi-round-qa.py"
     repo: Optional[GitRepo] = GitRepo(
         url="git@github.com:LMCache/LMBenchmark.git",
         commit="e1406623c5e88878cf2b7fbd64fe6c47f7dcb66f",
         mount_as="/git/LMBenchmark",
     )
 
-    cmd: str = "python3 ./synthetic-multi-round-qa/multi-round-qa.py"
+
+class CustomBench(Benchmark):
+    """Generic benchmark script."""
+
+    model_config = ConfigDict(extra="allow")
+
+    name: str = "custom_bench"
+    cmd: str = "hostname"
+    script: File = File(Path(__file__).parent.parent / "ai_dynamo/custom_bench.sh")
+    enabled: bool = False
 
 
 class Constraints(BaseModel):
@@ -240,7 +252,7 @@ class AIDynamoCmdArgs(CmdArgs):
     lmcache: LMCache
     genai_perf: GenAIPerf
     lmbench: LMBench
-    custom_bench: Optional[Benchmark] = None
+    custom_bench: CustomBench
 
 
 class AIDynamoTestDefinition(TestDefinition):
@@ -249,8 +261,6 @@ class AIDynamoTestDefinition(TestDefinition):
     cmd_args: AIDynamoCmdArgs
     _docker_image: Optional[DockerImage] = None
     script: File = File(Path(__file__).parent.parent / "ai_dynamo/ai_dynamo.sh")
-    genai_perf_wrapper_script: File = File(Path(__file__).parent.parent / "ai_dynamo/genai_perf_wrapper.sh")
-    calc_percentile_csv: File = File(Path(__file__).parent.parent / "ai_dynamo/calc_percentile_csv.py")
     dynamo_repo: GitRepo = GitRepo(
         url="https://github.com/ai-dynamo/dynamo.git",
         commit="f7e468c7e8ff0d1426db987564e60572167e8464",
@@ -268,7 +278,7 @@ class AIDynamoTestDefinition(TestDefinition):
             self.git_repos.append(self.cmd_args.lmcache.repo)
         if self.cmd_args.lmbench.repo:
             self.git_repos.append(self.cmd_args.lmbench.repo)
-        if self.cmd_args.custom_bench and self.cmd_args.custom_bench.repo:
+        if self.cmd_args.custom_bench.repo:
             self.git_repos.append(self.cmd_args.custom_bench.repo)
         return self
 
@@ -290,11 +300,15 @@ class AIDynamoTestDefinition(TestDefinition):
         result = [
             self.docker_image,
             self.script,
-            self.genai_perf_wrapper_script,
-            self.calc_percentile_csv,
             self.hf_model,
+            self.cmd_args.genai_perf.script,
+            self.cmd_args.lmbench.script,
+            self.cmd_args.custom_bench.script,
+            File(Path(__file__).parent.parent / "ai_dynamo/openai_chat_client.py"),
+            File(Path(__file__).parent.parent / "ai_dynamo/calc_percentile_csv.py"),
             *self.git_repos,
         ]
+
         return result
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:

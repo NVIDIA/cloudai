@@ -13,30 +13,46 @@ result_dir=""
 report_file="genai_perf_report.csv"
 calc_percentile_csv_script=""
 gpus_per_node=1
-genai_perf_cmdline_args=()
+repo=""
+cmdline_args=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --result_dir)
-      result_dir="$2"
+    --model)
+      model="$2"
       shift 2
       ;;
-    --report_file)
-      report_file="$2"
+    --url)
+      url="$2"
+      shift 2
+      ;;
+    --endpoint)
+      endpoint="$2"
+      shift 2
+      ;;
+    --result_dir)
+      result_dir="$2"
       shift 2
       ;;
     --calc_percentile_csv_script)
       calc_percentile_csv_script="$2"
       shift 2
       ;;
-      --gpus_per_node)
+    --gpus_per_node)
       gpus_per_node="$2"
+      shift 2
+      ;;
+    --report_name)
+      report_name="$2"
       shift 2
       ;;
     --)
       shift
-      genai_perf_cmdline_args=("$@")
+      cmdline_args=("$@")
       break
+      ;;
+    --*)
+      shift 2
       ;;
     *)
       shift
@@ -44,12 +60,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-genai_perf_cmdline_args="${genai_perf_cmdline_args[*]}"
+cmdline_args="${cmdline_args[*]}"
 
 # launch genai-perf
-log "Launching genai-perf with args: $genai_perf_cmdline_args"
+log "Launching genai-perf with args: $cmdline_args"
 
-${genai_perf_cmdline_args}
+${cmdline_args}
 
 log "Done with genai-perf run"
 

@@ -46,7 +46,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return args
 
     def _get_benchmark_toml_args(self, benchmark: Benchmark) -> List[str]:
-        result = self._get_toml_args(benchmark, f"--{benchmark.name}-", exclude=["args", "repo"])
+        result = self._get_toml_args(benchmark, f"--{benchmark.name}-", exclude=["args"])
         if benchmark.args:
             result.extend(self._get_toml_args(benchmark.args, f"--{benchmark.name}-args-"))
         return result
@@ -55,8 +55,6 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         args = [
             f"--huggingface-home {td.cmd_args.dynamo.workspace_path}/hf_home",
             f"--results-dir {self.container_results_path}",
-            f"--genai_perf_wrapper_script {self.container_install_path}/{td.genai_perf_wrapper_script.src.name!s}",
-            f"--calc_percentile_csv_script {self.container_install_path}/{td.calc_percentile_csv.src.name!s}",
             f"--dynamo-repo {td.dynamo_repo.container_mount}",
         ]
         args.extend(
@@ -89,16 +87,13 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             args.extend(self._get_toml_args(td.cmd_args.dynamo.prefill_worker, "--prefill-"))
         args.extend(self._get_toml_args(td.cmd_args.dynamo.decode_worker, "--decode-"))
 
-        args.extend(self._get_toml_args(td.cmd_args.lmcache, "--lmcache-", exclude=["args", "repo"]))
+        args.extend(self._get_toml_args(td.cmd_args.lmcache, "--lmcache-", exclude=["args"]))
         if td.cmd_args.lmcache.args:
             args.extend(self._get_toml_args(td.cmd_args.lmcache.args, "--lmcache-args-"))
 
         args.extend(self._get_benchmark_toml_args(td.cmd_args.genai_perf))
-
         args.extend(self._get_benchmark_toml_args(td.cmd_args.lmbench))
-
-        if td.cmd_args.custom_bench:
-            args.extend(self._get_benchmark_toml_args(td.cmd_args.custom_bench))
+        args.extend(self._get_benchmark_toml_args(td.cmd_args.custom_bench))
 
         return args
 
