@@ -40,6 +40,7 @@ NUM_FILLER_PROMPTS = 100  # how many fillers to send for eviction
 
 # ---------------- helper utilities ------------------------------------
 
+
 def log_jsonl(path: Path, rec: dict) -> None:
     with path.open("a", encoding="utf-8") as fh:
         json.dump(rec, fh)
@@ -53,6 +54,7 @@ class TtftStats:
         self.ttft_seconds = ttft_seconds
         self.prompt_tokens = prompt_tokens
         self.cached_tokens = cached_tokens
+
 
 class Chat:
     """Represents a chat context with a document for TTFT benchmarking."""
@@ -186,6 +188,7 @@ def main() -> None:
 
             json.dump(json_data, f, indent=2)
             f.write("\n")
+
 
 if __name__ == "__main__":
     main()

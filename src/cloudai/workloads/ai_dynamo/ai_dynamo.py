@@ -252,7 +252,7 @@ class AIDynamoCmdArgs(CmdArgs):
     lmcache: LMCache
     genai_perf: GenAIPerf
     lmbench: LMBench
-    custom_bench: CustomBench
+    custom_bench: CustomBench = Field(default_factory=CustomBench)
 
 
 class AIDynamoTestDefinition(TestDefinition):
