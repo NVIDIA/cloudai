@@ -63,7 +63,7 @@ for try in $(seq 0 $num_retries); do
   --lmcache-args-distributed_url "localhost:8789" \
   --genai_perf-name "genai_perf" \
   --genai_perf-cmd "genai-perf profile" \
-  --genai_perf-script "genai_perf.sh"\
+  --genai_perf-script "genai_perf.sh" \
   --genai_perf-report-name "genai_perf_report.csv" \
   --genai_perf-enabled "True" \
   --genai_perf-streaming "True" \
