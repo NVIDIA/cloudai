@@ -2,27 +2,39 @@
 
 # CloudAI params
 RESULTS_DIR="/cloudai_run_results"
+INSTALL_DIR="/cloudai_install"
 HUGGINGFACE_HOME="/root/.cache/huggingface"
-DONE_MARKER="frontend_done.marker"
-FATAL_ERROR_MARKER="fatal_error.marker"
-: "${DYNAMO_WORKER_ERROR_PATTERN:=zmq\.error\.ZMQError:.*Address already in use|UCX.*ERROR|ERROR core\.run_engine_core:.*EngineCore failed to start|ERROR multiproc_executor\.worker_busy_loop:.*WorkerProc hit an exception|EngineDeadError|EngineCore encountered an issue}"
+DONE_MARKER="dynamo_frontend_done.marker"
+FATAL_ERROR_MARKER="dynamo_fatal_error.marker"
 NODE_ROLES_FILE="node_roles.log"
 
 export DYN_SDK_DISABLE_ANSI_LOGGING=1
 export VLLM_DISABLE_COLORED_OUTPUT=1
 export VLLM_NO_COLOR=1
+export VLLM_LOGGING_COLOR=0
+#export VLLM_LOGGING_CONFIG_PATH="/cloudai_install/vllm_logging_config.json"
+
 export ABSL_LOGGING_USE_COLOR=0
 export DYN_LOGGING_DISABLE_ANSI_COLORS=1
 
 export TERM=dumb
 export NO_COLOR=1
+export TQDM_DISABLE=1  # Disables tqdm progress bars globally
+export TQDM_MININTERVAL=999999  # Makes tqdm update very rarely
 
 export DEBIAN_FRONTEND=noninteractive
 export APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1
 
 declare -A prefill_args
 declare -A decode_args
+declare -A lmcache_args
+declare -A lmcache_config
 declare -A genai_perf_args
+declare -A genai_perf_config
+declare -A lmbench_args
+declare -A lmbench_config
+declare -A custom_bench_args
+declare -A custom_bench_config
 
 declare -A dynamo_args
 dynamo_args["backend"]="vllm"
@@ -32,7 +44,8 @@ dynamo_args["decode-cmd"]="python3 -m dynamo.vllm"
 dynamo_args["ingress-cmd"]="python -m dynamo.frontend --router-mode kv"
 dynamo_args["port"]=$((8080 + SLURM_JOBID % 100))
 dynamo_args["endpoint"]="v1/chat/completions"
-dynamo_args["model"]="deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
+dynamo_args["model"]="Qwen/Qwen3-0.6B"
+dynamo_args["connector"]="none"
 dynamo_args["etcd-port"]=2379
 dynamo_args["nats-port"]=4222
 dynamo_args["workspace-path"]="/workspace"
@@ -50,20 +63,22 @@ dynamo_args["decode-initialized-regex"]="Worker.*has.been.initialized"
 
 dynamo_args["etcd-cmd"]="etcd --log-level debug"
 dynamo_args["nats-cmd"]="nats-server -js"
-dynamo_args["genai-perf-cmd"]="genai-perf profile"
+dynamo_args["worker-error-pattern"]="zmq.error.ZMQError:.Address.already.in.use|UCX.*ERROR|ERROR.core.run_engine_core:.EngineCore.failed.to.start|ERROR.multiproc_executor.worker_busy_loop:.WorkerProc.hit.an.exception|EngineDeadError|EngineCore.encountered.an.issue"
 
 # sglang-specific optional ports. Ignored by vllm.
 dynamo_args["sgl-http-port"]=9001
 dynamo_args["prefill-port"]=30011
 dynamo_args["decode-port"]=30021
 
-# GenAI Perf params
-GENAI_PERF_PROFILE_EXPORT_FILE="profile.json"
-GENAI_PERF_ARTIFACT_DIR="genai_perf_artifacts"
 
 function log()
 {
-  echo "[$(date --iso-8601=ns) $(hostname)]: $@"
+  echo "[$(date +%F\ %T) $(hostname)]: " "$@"
+}
+
+function min()
+{
+  echo "$(( $1 < $2 ? $1 : $2 ))"
 }
 
 _is_vllm() { [[ "${dynamo_args["backend"]}" == "vllm" ]]; }
@@ -125,15 +140,6 @@ _resolve_host_ip() {
 }
 
 _apply_sglang_section_args() {
-  prefill_args["--port"]=${dynamo_args["prefill-port"]}
-  decode_args["--port"]=${dynamo_args["decode-port"]}
-  prefill_args["--served-model-name"]=${dynamo_args["model"]}
-  decode_args["--served-model-name"]=${dynamo_args["model"]}
-
-  # model-path must point to HF cache for sglang
-  prefill_args["--model-path"]="${HUGGINGFACE_HOME}"
-  decode_args["--model-path"]="${HUGGINGFACE_HOME}"
-
   local self="$(_current_node_name)"
   local gpn="$(_gpus_per_node)"
 
@@ -171,14 +177,6 @@ _apply_sglang_section_args() {
   unset 'decode_args["--model"]'
 }
 
-_apply_genai_perf_section_args() {
-  genai_perf_args["--model"]="${dynamo_args["model"]}"
-  genai_perf_args["--url"]="${dynamo_args["url"]}"
-  genai_perf_args["--endpoint"]="${dynamo_args["endpoint"]}"
-  genai_perf_args["--artifact-dir"]="${RESULTS_DIR}/${GENAI_PERF_ARTIFACT_DIR}/"
-  genai_perf_args["--profile-export-file"]="${GENAI_PERF_PROFILE_EXPORT_FILE}"
-}
-
 _parse_cli_pairs() {
   log "Parsing args:"
   while [[ $# -ge 2 ]]; do
@@ -191,12 +189,28 @@ _parse_cli_pairs() {
         prefill_args["--${key#--prefill-}"]="$2" ;;
       --decode-*)
         decode_args["--${key#--decode-}"]="$2" ;;
-      --genai-perf-*)
-        genai_perf_args["--${key#--genai-perf-}"]="$2" ;;
+      --lmcache-args-*)
+        lmcache_args["${key#--lmcache-args-}"]="$2" ;;
+      --lmcache-*)
+        lmcache_config["${key#--lmcache-}"]="$2" ;;
+      --lmbench-args-*)
+        lmbench_args["${key#--lmbench-args-}"]="$2" ;;
+      --lmbench-*)
+        lmbench_config["${key#--lmbench-}"]="$2" ;;
+      --genai_perf-args-*)
+        genai_perf_args["${key#--genai_perf-args-}"]="$2" ;;
+      --genai_perf-*)
+        genai_perf_config["${key#--genai_perf-}"]="$2" ;;
+      --custom_bench-args-*)
+        custom_bench_args["${key#--custom_bench-args-}"]="$2" ;;
+      --custom_bench-*)
+        custom_bench_config["${key#--custom_bench-}"]="$2" ;;
       --huggingface-home)
         HUGGINGFACE_HOME="$2" ;;
       --results-dir)
         RESULTS_DIR="$2" ;;
+      --install-dir)
+        INSTALL_DIR="$2" ;;
     esac
     shift; shift;
   done
@@ -214,6 +228,30 @@ _set_backend_defaults() {
       ;;
     *)
       log "ERROR: Unknown backend '${dynamo_args["backend"]}'"
+      exit 1
+      ;;
+  esac
+}
+
+_apply_connector_settings() {
+  local connector="${dynamo_args["connector"]:-}"
+  if [[ -z "$connector" || "$connector" == "none" ]]; then
+    ENABLE_LMCACHE="${ENABLE_LMCACHE:-0}"
+    ENABLE_KVBM="${ENABLE_KVBM:-0}"
+    return
+  fi
+
+  case "$connector" in
+    lmcache)
+      ENABLE_LMCACHE=1
+      ENABLE_KVBM=0
+      ;;
+    kvbm)
+      ENABLE_LMCACHE=0
+      ENABLE_KVBM=1
+      ;;
+    *)
+      log "ERROR: Unknown connector '${connector}' (expected none|lmcache|kvbm)"
       exit 1
       ;;
   esac
@@ -255,14 +293,9 @@ _patch_dynamo_args() {
 }
 
 _patch_section_args() {
-  prefill_args["--model"]="${dynamo_args["model"]}"
-  decode_args["--model"]="${dynamo_args["model"]}"
-
   if _is_sglang; then
     _apply_sglang_section_args
   fi
-
-  _apply_genai_perf_section_args
 }
 
 _compute_worker_allocation_sglang() {
@@ -342,6 +375,7 @@ _dump_args() {
   log "Prefill args: $(for key in "${!prefill_args[@]}"; do echo -n "$key: ${prefill_args[$key]}; "; done)"
   log "Decode args: $(for key in "${!decode_args[@]}"; do echo -n "$key: ${decode_args[$key]}; " ; done)"
   log "GenAI perf args: $(for key in "${!genai_perf_args[@]}"; do echo -n "$key: ${genai_perf_args[$key]}; "; done)"
+  log "LMBench args: $(for key in "${!lmbench_args[@]}"; do echo -n "$key: ${lmbench_args[$key]}; "; done)"
 }
 
 function parse_args()
@@ -351,8 +385,20 @@ function parse_args()
   _sync_num_nodes_from_section_args
   _patch_dynamo_args
   _patch_section_args
+  _apply_connector_settings
   _compute_worker_allocation
   _dump_args
+}
+
+function replace_placeholders() {
+  local val="$1"
+  val=${val//%MODEL%/${dynamo_args["model"]}}
+  val=${val//%PORT%/${dynamo_args["port"]}}
+  val=${val//%URL%/${dynamo_args["url"]}}
+  val=${val//%ENDPOINT%/${dynamo_args["endpoint"]}}
+  val=${val//%RESULTS_DIR%/${RESULTS_DIR}}
+  val=${val//%HUGGINGFACE_HOME%/${HUGGINGFACE_HOME}}
+  echo "$val"
 }
 
 function array_to_args()
@@ -364,9 +410,11 @@ function array_to_args()
        [[ "$key" == "--num-nodes" ]] || \
        [[ "$key" == "--nodes" ]]; then
       continue
-    else
-      result+="${key} ${arr[$key]} "
     fi
+
+    shopt -s nocasematch
+    val=$(replace_placeholders "${arr[$key]}")
+    result+="${key} ${val} "
   done
   echo "$result"
 }
@@ -376,20 +424,38 @@ _detect_fatal_once() {
   _is_vllm || return 0
   local n=0
   # Worker logs and UCX logs
-  n=$(( n + $(grep -E "${DYNAMO_WORKER_ERROR_PATTERN}" "${RESULTS_DIR}"/dynamo_*.log 2>/dev/null | wc -l || true) ))
+  n=$(( n + $(grep -E "${dynamo_args["worker-error-pattern"]}" "${RESULTS_DIR}"/dynamo_*.log 2>/dev/null | wc -l || true) ))
   n=$(( n + $(grep -E "UCX.*ERROR" "${RESULTS_DIR}"/ucx_log_*.log 2>/dev/null | wc -l || true) ))
   echo "${n}"
 }
 
+function perform_exit()
+{
+  local exit_code=$1
+  local sleep_before_exit="${dynamo_args["sleep-before-exit"]}"
+  if [[ -n "${sleep_before_exit}" ]]; then
+    log "Sleeping for ${sleep_before_exit} seconds before exit"
+    sleep "${sleep_before_exit}"
+  fi
+  exit "${exit_code}"
+}
+
 exit_on_error() {
   local fatal=$(_detect_fatal_once)
+  if [ -f "${DONE_MARKER}" ]; then
+    log "DONE_MARKER found. Skipping error check."
+    return
+  fi
   if [[ "${fatal}" -gt 0 ]]; then
     log "FATAL: detected ${fatal} fatal error line(s). Writing ${FATAL_ERROR_MARKER} and terminating."
+    sleep 1
+
     touch "${FATAL_ERROR_MARKER}"
+    grep -E "${dynamo_args["worker-error-pattern"]}|UCX.*ERROR" "${RESULTS_DIR}"/*.log 2>/dev/null > "${FATAL_ERROR_MARKER}"
     # Try to stop background jobs for a cleaner exit, but do not loop
     kill $(jobs -p) 2>/dev/null || true
     # Exit non-zero so srun can retry
-    exit 1
+    perform_exit 1
   fi
 }
 
@@ -463,6 +529,18 @@ _is_decode_node() {
 _is_prefill_node() {
   local name="$(_current_node_name)"
   [[ "${dynamo_args["prefill-nodes"]}" == *"$name"* ]]
+}
+
+_is_genai_perf_workload() {
+  [[ "${dynamo_args["workload-type"]}" == *"genai-perf"* ]]
+}
+
+_is_lmbench_workload() {
+  [[ "${dynamo_args["workload-type"]}" == *"lmbench"* ]]
+}
+
+_is_single_shot_workload() {
+  [[ "${dynamo_args["workload-type"]}" == *"single-shot"* ]]
 }
 
 _init_runtime_env() {
@@ -543,6 +621,8 @@ validate_environment() {
   _require_cmd grep
   _require_cmd cut
   _require_cmd curl
+  _require_cmd jq
+  _require_cmd uv
 
   # Runtime commands invoked later
   _require_cmd python3
@@ -601,6 +681,22 @@ validate_environment() {
   fi
 
   log "Environment validation complete"
+}
+
+function wait_for_frontend_marker()
+{
+  while [ ! -f "$DONE_MARKER" ]; do
+    exit_on_error
+    log "Waiting for frontend completion marker by polling $DONE_MARKER"
+    sleep 30
+  done
+
+  log "Done marker found."
+}
+
+function mark_done()
+{
+  touch "$DONE_MARKER"
 }
 
 function launch_etcd()
@@ -703,13 +799,23 @@ function launch_prefill()
   done
 }
 
+function launch_lmcache_controller()
+{
+  if [[ "${dynamo_args["connector"]}" != "lmcache" ]]; then
+    return
+  fi
+
+  log "Launching LMCache controller with cmd: ${dynamo_args["lmcache-controller-cmd"]}"
+  ${dynamo_args["lmcache-controller-cmd"]} > ${RESULTS_DIR}/lmcache_controller.log 2>&1
+}
+
 function wait_for_dynamo_frontend()
 {
-  local want_prefill=$(_expected_ready_prefill)
+  local want_prefill=0 #$(_expected_ready_prefill)
   local want_decode=$(_expected_ready_decode)
 
   while :; do
-    local have_prefill=$(_count_initialized_prefill)
+    local have_prefill=0 #$(_count_initialized_prefill)
     local have_decode=$(_count_initialized_decode)
 
     log "Initialized: prefill ${have_prefill}/${want_prefill}; decode ${have_decode}/${want_decode}"
@@ -725,40 +831,177 @@ function wait_for_dynamo_frontend()
   log "Dynamo frontend is ready"
 }
 
-_probe_frontend_once() {
+_query_frontend() {
+  local content="${1:-The color of sky is}"
+  content=$(echo "$content" | sed 's/"/\\"/g' | sed 's/\n/\\n/g')
+  local max_tokens="${2:-10}"
+
   local json='{
     "model": "'${dynamo_args["model"]}'",
-    "messages": [{"role": "user", "content": "The color of sky is"}],
+    "messages": [{"role": "user", "content": "'"$content"'"}],
     "stream": false,
-    "max_tokens": 10
+    "max_tokens": '$max_tokens',
+    "temperature": 0,
+    "top_p": 0.0001
   }'
-  curl -s -X POST "${dynamo_args["url"]}/v1/chat/completions" -H "Content-Type: application/json" -d "$json"
+
+  echo "$json" > $RESULTS_DIR/curl_cmd.json
+  echo "$json" >> $RESULTS_DIR/curl_cmd.jsonl
+
+  curl -s -X POST "${dynamo_args["url"]}/v1/chat/completions" -H "Content-Type: application/json" -d @$RESULTS_DIR/curl_cmd.json
 }
 
-function launch_genai_perf()
+function launch_benchmark()
+{
+  local benchmark_config = "$1"
+  local benchmark_args = "$2"
+
+  local benchmark_name = "${benchmark_config["name"]}"
+  local script = "${benchmark_config["script"]}"
+  local expanded_config=$(array_to_args benchmark_config)
+  local expanded_arguments=$(array_to_args benchmark_args)
+
+  log "Launching $benchmark_name with cmd: ${INSTALL_DIR}/$script $expanded_config -- $expanded_arguments"
+
+  bash ${INSTALL_DIR}/$script \
+    --install_dir $INSTALL_DIR \
+    --result_dir $RESULTS_DIR \
+    --model ${dynamo_args["model"]} \
+    --url "http://${dynamo_args["frontend-node"]}" \
+    --port ${dynamo_args["port"]} \
+    --endpoint ${dynamo_args["endpoint"]} \
+    --gpus_per_node $(_gpus_per_node) \
+    $expanded_config \
+    -- $expanded_arguments > ${RESULTS_DIR}/$benchmark_name.log 2>&1
+
+  log "Done with $benchmark_name run"
+}
+
+function setup_cufile()
+{
+  export CUFILE_ENV_PATH_JSON="$RESULTS_DIR/cufile.json"
+  cat <<EOF > $CUFILE_ENV_PATH_JSON
+{
+    // NOTE : Application can override custom configuration via export CUFILE_ENV_PATH_JSON=<filepath>
+    // e.g : export CUFILE_ENV_PATH_JSON="/home/<xxx>/cufile.json"
+            "properties": {
+                            // allow compat mode, this will enable use of cuFile posix read/writes
+                            "allow_compat_mode": true,
+                            // max IO chunk size (parameter should be multiples of 64K) used by cuFileRead/Write internally per IO request
+                            "max_direct_io_size_kb" : 16384,
+                            // device memory size (parameter should be 4K aligned) for reserving bounce buffers for the entire GPU
+                            "max_device_cache_size_kb" : 2097152,
+                            // Note: ensure (max_device_cache_size_kb / per_buffer_cache_size_kb) >= io_batchsize
+                            // per-io bounce-buffer size (parameter should be multiples of 64K) ranging from 1024kb to 16384kb
+                            "per_buffer_cache_size_kb": 16384,
+                            // limit on maximum device memory size (parameter should be 4K aligned) that can be pinned for a given process
+                            "max_device_pinned_mem_size_kb" : 33554432,
+
+                            // posix bounce buffer pool size allocations
+                            "posix_pool_slab_size_kb" : [16384],
+                            // posix bounce buffer pool max counts
+                            "posix_pool_slab_count": [1024]
+            },
+  "logging": {
+    "dir": "$RESULTS_DIR",
+    "level": "${CUFILE_LOG_LEVEL:-INFO}"
+  }
+}
+EOF
+}
+
+
+function setup_kvbm()
+{
+  if [[ "${dynamo_args["connector"]}" != "kvbm" ]]; then
+    return
+  fi
+
+  local storage_cachedir="${dynamo_args["storage-cache-dir"]}/${dynamo_args["frontend-node"]}/kvbm/cache"
+  rm -rf ${storage_cachedir}
+  mkdir -p ${storage_cachedir}
+  chmod 755 ${storage_cachedir}
+
+  export DYN_KVBM_DISK_CACHE_DIR=${storage_cachedir}
+  setup_cufile
+}
+
+function setup_lmcache()
+{
+  if [[ "${dynamo_args["connector"]}" != "lmcache" ]]; then
+    return
+  fi
+
+  local lmcache_path="${dynamo_args["lmcache-path"]}"
+  log "Installing LMCache using: uv pip install $lmcache_path"
+  uv pip install -e $lmcache_path
+
+  local storage_cachedir="${dynamo_args["storage-cache-dir"]}/${dynamo_args["frontend-node"]}/"
+  if [[ ${dynamo_args["clear-storage-cache-dir"]} == "true" ]]; then
+    rm -rf $storage_cachedir 2>/dev/null || true
+    mkdir -p $storage_cachedir
+  fi
+
+  export LMCACHE_CONFIG_FILE=$RESULTS_DIR/lmcache-nixl-config.yaml
+
+  rm -f $LMCACHE_CONFIG_FILE
+
+  for key in "${!lmcache_args[@]}"; do
+    shopt -s nocasematch
+    if [[ "$key" == "extra_config"* ]]; then
+      continue
+    fi
+
+    val="${lmcache_args[$key]}"
+    echo "$key: $val" >> $LMCACHE_CONFIG_FILE
+  done
+
+  echo "extra_config:" >> $LMCACHE_CONFIG_FILE
+  for key in "${!lmcache_args[@]}"; do
+    shopt -s nocasematch
+    if [[ "$key" == "extra_config"* ]]; then
+      nkey="${key#extra_config_}"
+      val="${lmcache_args[$key]}"
+      val=${val//%CACHEDIR%/${storage_cachedir}}
+      echo "    $nkey: $val" >> $LMCACHE_CONFIG_FILE
+    fi
+  done
+  setup_cufile
+}
+
+function log_gpu_utilization()
+{
+  # Check if nvidia-smi is available
+  if ! command -v nvidia-smi &> /dev/null; then
+    log "Error: nvidia-smi not found"
+    return
+  fi
+
+  wait_for_dynamo_frontend
+  log "Starting GPU utilization monitoring"
+
+  nvidia-smi \
+    --query-gpu=timestamp,name,pci.bus_id,pstate,pcie.link.gen.max,pcie.link.gen.current,temperature.gpu,utilization.gpu,utilization.memory,memory.total,memory.free,memory.used \
+    --format=csv \
+    -l 5 \
+    -f ${RESULTS_DIR}/gpu_utilization-${SLURM_NODEID}.csv
+}
+
+function launch_workload()
 {
   wait_for_dynamo_frontend
 
-  local resp=$(_probe_frontend_once)
-  echo "Response: $resp"
+  if _is_genai_perf_workload; then
+    launch_benchmark $genai_perf_config $genai_perf_args
+  fi
+  if _is_lmbench_workload; then
+    launch_benchmark $lmbench_config $lmbench_args
+  fi
+  if _is_custom_bench_workload; then
+    launch_benchmark $custom_bench_config $custom_bench_args
+  fi
 
-  local genai_perf_arguments=$(array_to_args genai_perf_args)
-  log "Launching genai-perf with cmd: ${dynamo_args["genai-perf-cmd"]} $genai_perf_arguments ${genai_perf_args["--extra-args"]}"
-
-  ${dynamo_args["genai-perf-cmd"]} ${genai_perf_arguments} ${genai_perf_args["--extra-args"]} > ${RESULTS_DIR}/genai_perf.log 2>&1
-
-  log "Done with genai-perf run"
-}
-
-function wait_for_frontend_marker()
-{
-  while [ ! -f "$DONE_MARKER" ]; do
-    exit_on_error
-    log "Waiting for frontend completion marker by polling $DONE_MARKER"
-    sleep 30
-  done
-
-  log "Done marker found."
+  mark_done
 }
 
 function main()
@@ -773,9 +1016,15 @@ function main()
     cd ${dynamo_args["workspace-path"]}
   fi
 
+  cd $RESULTS_DIR
+
+  log_gpu_utilization &
+
   if _is_frontend_node; then
     log "Node ID: $SLURM_NODEID, Role: frontend"
     log_node_role "$(_current_node_name)" "frontend"
+    setup_lmcache
+    setup_kvbm
     launch_etcd &
     launch_nats &
     wait_for_etcd
@@ -798,8 +1047,11 @@ function main()
   fi
 
   if _is_frontend_node; then
-    launch_genai_perf
-    touch "$DONE_MARKER"
+    launch_lmcache_controller &
+
+    sleep 10
+
+    launch_workload &
   fi
 
   wait_for_frontend_marker
@@ -812,3 +1064,5 @@ log "env: $(env)"
 log "Starting main"
 main
 log "Done with main"
+
+perform_exit 0

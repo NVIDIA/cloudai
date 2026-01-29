@@ -34,7 +34,10 @@ from cloudai.workloads.ai_dynamo import (
     AIDynamoCmdArgs,
     AIDynamoTestDefinition,
     DecodeWorkerArgs,
-    GenAIPerfArgs,
+    GenAIPerf,
+    LMBench,
+    LMCache,
+    LMCacheArgs,
     PrefillWorkerArgs,
 )
 from cloudai.workloads.ddlb import DDLBCmdArgs, DDLBTestDefinition
@@ -446,6 +449,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     url="https://github.com/ai-dynamo/dynamo.git",
                     commit="f7e468c7e8ff0d1426db987564e60572167e8464",
                     installed_path=slurm_system.install_path,
+                    mount_as="/git/dynamo",
                 ),
                 cmd_args=AIDynamoCmdArgs(
                     docker_image_url="nvcr.io/nvidia/ai-dynamo:24.09",
@@ -466,7 +470,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                             }
                         ),
                     ),
-                    genai_perf=GenAIPerfArgs(
+                    genai_perf=GenAIPerf(
                         **{
                             "streaming": True,
                             "extra-inputs": '{"temperature": 0.7, "max_tokens": 128}',
@@ -477,6 +481,8 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                             "warmup-request-count": 10,
                         }
                     ),
+                    lmcache=LMCache(args=LMCacheArgs()),
+                    lmbench=LMBench(),
                 ),
             ),
         ),

@@ -49,6 +49,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
         super().__init__(system, test_run)
         self.system = cast(SlurmSystem, system)
         self.test_run = test_run
+        self.container_install_path = "/cloudai_install"
+        self.container_results_path = "/cloudai_run_results"
 
         self._node_spec_cache: dict[str, tuple[int, list[str]]] = {}
 
@@ -79,8 +81,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             repo_mounts.append(f"{path}:{repo.container_mount}")
 
         mounts = [
-            f"{self.test_run.output_path.absolute()}:/cloudai_run_results",
-            f"{self.system.install_path.absolute()}:/cloudai_install",
+            f"{self.test_run.output_path.absolute()}:{self.container_results_path}",
+            f"{self.system.install_path.absolute()}:{self.container_install_path}",
             f"{self.test_run.output_path.absolute()}",
             *tdef.extra_container_mounts,
             *repo_mounts,
@@ -302,7 +304,7 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
     def _metadata_cmd(self) -> str:
         (self.test_run.output_path.absolute() / "metadata").mkdir(parents=True, exist_ok=True)
         num_nodes, _ = self.get_cached_nodes_spec()
-        metadata_script_path = "/cloudai_install"
+        metadata_script_path = self.container_install_path
         if not self.image_path():
             metadata_script_path = str(self.system.install_path.absolute())
         return " ".join(
