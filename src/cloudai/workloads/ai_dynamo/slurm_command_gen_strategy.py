@@ -53,6 +53,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def _gen_script_args(self, td: AIDynamoTestDefinition) -> List[str]:
         args = [
+            f"--install-dir {self.container_install_path}",
             f"--huggingface-home {td.cmd_args.dynamo.workspace_path}/hf_home",
             f"--results-dir {self.container_results_path}",
             f"--dynamo-repo {td.dynamo_repo.container_mount}",

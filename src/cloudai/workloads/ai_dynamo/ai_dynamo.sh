@@ -2,6 +2,7 @@
 
 # CloudAI params
 RESULTS_DIR="/cloudai_run_results"
+INSTALL_DIR="/cloudai_install"
 HUGGINGFACE_HOME="/root/.cache/huggingface"
 DONE_MARKER="dynamo_frontend_done.marker"
 FATAL_ERROR_MARKER="dynamo_fatal_error.marker"
@@ -208,6 +209,8 @@ _parse_cli_pairs() {
         HUGGINGFACE_HOME="$2" ;;
       --results-dir)
         RESULTS_DIR="$2" ;;
+      --install-dir)
+        INSTALL_DIR="$2" ;;
     esac
     shift; shift;
   done
@@ -858,9 +861,10 @@ function launch_benchmark()
   local expanded_config=$(array_to_args benchmark_config)
   local expanded_arguments=$(array_to_args benchmark_args)
 
-  log "Launching $benchmark_name with cmd: $script $expanded_config -- $expanded_arguments"
+  log "Launching $benchmark_name with cmd: ${INSTALL_DIR}/$script $expanded_config -- $expanded_arguments"
 
-  bash $script \
+  bash ${INSTALL_DIR}/$script \
+    --install_dir $INSTALL_DIR \
     --result_dir $RESULTS_DIR \
     --model ${dynamo_args["model"]} \
     --url "http://${dynamo_args["frontend-node"]}" \

@@ -33,6 +33,7 @@ for try in $(seq 0 $num_retries); do
   --error=__OUTPUT_DIR__/output/node-%n-stderr.txt \
   bash \
   /cloudai_install/ai_dynamo.sh \
+  --install-dir /cloudai_install \
   --huggingface-home /workspace/hf_home \
   --results-dir /cloudai_run_results \
   --dynamo-repo /git/dynamo \
@@ -46,7 +47,7 @@ for try in $(seq 0 $num_retries); do
   --decode-num-nodes "1" \
   --decode-ServiceArgs "{'workers': 1, 'resources': {'gpu': '8'}}" \
   --lmcache-controller_cmd "lmcache_controller --host localhost --port 9000 --monitor-port 9001" \
-  --lmcache-repo /git/LMCache \
+  --lmcache-repo "/git/LMCache" \
   --lmcache-args-chunk_size "256" \
   --lmcache-args-local_cpu "False" \
   --lmcache-args-nixl_buffer_size "10737418240" \
@@ -61,10 +62,10 @@ for try in $(seq 0 $num_retries); do
   --lmcache-args-lmcache_worker_port "8788" \
   --lmcache-args-distributed_url "localhost:8789" \
   --genai_perf-name "genai_perf" \
-  --genai_perf-script /cloudai_install/genai_perf.sh \
+  --genai_perf-cmd "genai-perf profile" \
+  --genai_perf-script "genai_perf.sh"\
   --genai_perf-report-name "genai_perf_report.csv" \
   --genai_perf-enabled "True" \
-  --genai_perf-cmd "genai-perf profile" \
   --genai_perf-streaming "True" \
   --genai_perf-extra-inputs "{"temperature": 0.7, "max_tokens": 128}" \
   --genai_perf-output-tokens-mean "128" \
@@ -73,16 +74,16 @@ for try in $(seq 0 $num_retries); do
   --genai_perf-synthetic-input-tokens-mean "550" \
   --genai_perf-warmup-request-count "10" \
   --lmbench-name "lmbench" \
-  --lmbench-script /cloudai_install/lmbench.sh \
-  --lmbench-report-name "lmbench_report.csv" \
-  --lmbench-repo /git/LMBenchmark \
-  --lmbench-enabled "False" \
   --lmbench-cmd "python3 ./synthetic-multi-round-qa/multi-round-qa.py" \
+  --lmbench-script "lmbench.sh" \
+  --lmbench-report-name "lmbench_report.csv" \
+  --lmbench-repo "/git/LMBenchmark" \
+  --lmbench-enabled "False" \
   --custom_bench-name "custom_bench" \
-  --custom_bench-script /cloudai_install/custom_bench.sh \
+  --custom_bench-cmd "hostname" \
+  --custom_bench-script "custom_bench.sh" \
   --custom_bench-report-name "custom_bench_report.csv" \
-  --custom_bench-enabled "False" \
-  --custom_bench-cmd "hostname"
+  --custom_bench-enabled "False"
   if [ $try -eq $num_retries ] || [ ! -f $fatal_file_name ]; then
     break
   fi

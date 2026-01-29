@@ -43,6 +43,10 @@ function process_args()
       result_dir="$2"
       shift 2
       ;;
+    --install_dir)
+      install_dir="$2"
+      shift 2
+      ;;
     --report_name)
       report_name="$2"
       shift 2
@@ -116,7 +120,7 @@ function main()
 
   for isl in $(echo $all_isl | tr ',' '\n'); do
     log "Launching custom bench with ISL: $isl"
-    python3 /cloudai_install/openai_chat_client.py \
+    python3 ${install_dir}/openai_chat_client.py \
       --model $model \
       --url $url:$port/$endpoint \
       --isl $isl \

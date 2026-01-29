@@ -34,8 +34,8 @@ while [[ $# -gt 0 ]]; do
       result_dir="$2"
       shift 2
       ;;
-    --calc_percentile_csv_script)
-      calc_percentile_csv_script="$2"
+    --install_dir)
+      install_dir="$2"
       shift 2
       ;;
     --gpus_per_node)
@@ -75,7 +75,7 @@ total_gpus=$(( $gpus_per_node * $num_nodes ))
 
 profile_path=$(find $result_dir -type f -name "profile_genai_perf.csv" -print -quit)
 if [[ -f "$profile_path" ]]; then
-    python3 ${calc_percentile_csv_script} $profile_path -o $result_dir/$report_file
+    python3 ${install_dir}/calc_percentile_csv.py $profile_path -o $result_dir/$report_file
     output_tokens_per_second=$(grep "output_tokens_per_second" $profile_path | awk '{print $2}')
     output_tokens_per_second_per_gpu=$(( $output_tokens_per_second / $total_gpus ))
     grep ".*,.*,.*,.*" $profile_path > $result_dir/$report_file

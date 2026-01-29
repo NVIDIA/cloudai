@@ -198,7 +198,6 @@ class LMCache(BaseModel):
         validation_alias=AliasChoices("extra-args", "extra_args"),
     )
 
-
     @field_serializer("repo")
     def _serialize_repo(self, v: GitRepo) -> str:
         return v.container_mount if v else "/invalid/repo/path"
