@@ -301,10 +301,10 @@ class KubernetesSystem(System):
         frontend_pod = self._get_dynamo_pod_by_role(role="frontend")
 
         # Copy wrapper script and calc_percentile_csv script to the pod
-        wrapper_script_path = tdef.genai_perf_wrapper_script.installed_path
+        wrapper_script_path = tdef.genai_perf_script.installed_path
         calc_csv_script_path = tdef.calc_percentile_csv.installed_path
 
-        pod_wrapper_path = "/tmp/genai_perf_wrapper.sh"
+        pod_wrapper_path = "/tmp/genai_perf.sh"
         pod_calc_csv_path = "/tmp/calc_percentile_csv.py"
 
         logging.debug(f"Copying wrapper script {wrapper_script_path} to pod {frontend_pod}")

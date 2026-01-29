@@ -29,8 +29,8 @@ import time
 from pathlib import Path
 
 # Third Party
-from openai import OpenAI
-from transformers import AutoTokenizer
+from openai import OpenAI  # type: ignore[import-untyped]
+from transformers import AutoTokenizer  # type: ignore[import-untyped]
 
 # ----------------------------------------------------------------------
 FILLER_LEN_CHARS = 10_000  # ≈ length of each cache-filler prompt

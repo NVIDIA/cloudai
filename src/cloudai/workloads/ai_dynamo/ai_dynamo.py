@@ -53,6 +53,7 @@ class Benchmark(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     name: str
+    cmd: str
     script: File
     report_name: Optional[str] = Field(default=None, serialization_alias="report-name")
     repo: Optional[GitRepo] = None
@@ -68,12 +69,16 @@ class Benchmark(BaseModel):
     def set_default_report_name(self) -> "Benchmark":
         """Set default report_name based on name if not provided."""
         if self.report_name is None:
-            self.report_name = f"{self.name}-report.csv"
+            self.report_name = f"{self.name}_report.csv"
         return self
 
     @field_serializer("repo")
     def _serialize_repo(self, v: GitRepo) -> str:
         return v.container_mount if v else "/invalid/repo/path"
+
+    @field_serializer("script")
+    def _serialize_script(self, v: File) -> str:
+        return v.src.name
 
 
 class WorkerBaseArgs(BaseModel):
@@ -194,6 +199,11 @@ class LMCache(BaseModel):
     )
 
 
+    @field_serializer("repo")
+    def _serialize_repo(self, v: GitRepo) -> str:
+        return v.container_mount if v else "/invalid/repo/path"
+
+
 class GenAIPerf(Benchmark):
     """Benchmark configuration for GenAI performance profiling."""
 
@@ -249,9 +259,9 @@ class AIDynamoCmdArgs(CmdArgs):
     num_nodes: int = 1
     gpus_per_node: int = 8
     dynamo: AIDynamoArgs
-    lmcache: LMCache
-    genai_perf: GenAIPerf
-    lmbench: LMBench
+    lmcache: LMCache = Field(default_factory=LMCache)
+    genai_perf: GenAIPerf = Field(default_factory=GenAIPerf)
+    lmbench: LMBench = Field(default_factory=LMBench)
     custom_bench: CustomBench = Field(default_factory=CustomBench)
 
 
@@ -261,6 +271,8 @@ class AIDynamoTestDefinition(TestDefinition):
     cmd_args: AIDynamoCmdArgs
     _docker_image: Optional[DockerImage] = None
     script: File = File(Path(__file__).parent.parent / "ai_dynamo/ai_dynamo.sh")
+    genai_perf_script: File = File(Path(__file__).parent.parent / "ai_dynamo/genai_perf.sh")
+    calc_percentile_csv: File = File(Path(__file__).parent.parent / "ai_dynamo/calc_percentile_csv.py")
     dynamo_repo: GitRepo = GitRepo(
         url="https://github.com/ai-dynamo/dynamo.git",
         commit="f7e468c7e8ff0d1426db987564e60572167e8464",
@@ -301,11 +313,11 @@ class AIDynamoTestDefinition(TestDefinition):
             self.docker_image,
             self.script,
             self.hf_model,
-            self.cmd_args.genai_perf.script,
+            self.genai_perf_script,
+            self.calc_percentile_csv,
             self.cmd_args.lmbench.script,
             self.cmd_args.custom_bench.script,
             File(Path(__file__).parent.parent / "ai_dynamo/openai_chat_client.py"),
-            File(Path(__file__).parent.parent / "ai_dynamo/calc_percentile_csv.py"),
             *self.git_repos,
         ]
 
