@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,7 +29,14 @@ docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.7.0"
   decode-cmd = 'python3 -m dynamo.vllm'
 
     [cmd_args.dynamo.decode_worker]
-    pipeline-parallel-size = 1
+    num-nodes = 1
+
+      [cmd_args.dynamo.decode_worker.args]
+      model = "Qwen/Qwen3-0.6B"
+      gpu-memory-utilization = 0.95
+      tensor-parallel-size = 8
+      pipeline-parallel-size = 1
+      data-parallel-size = 1
 
   [cmd_args.genai_perf]
   model = "Qwen/Qwen3-0.6B"
@@ -45,6 +52,10 @@ docker_image_url = "nvcr.io/nvidia/ai-dynamo/vllm-runtime:0.7.0"
   warmup-request-count = 5
   concurrency = 2
   extra-args = "--streaming -- -v --async"
+
+  [cmd_args.lmcache]
+
+  [cmd_args.lmbench]
 
 [extra_env_vars]
 UCX_LOG_LEVEL = "warn"
