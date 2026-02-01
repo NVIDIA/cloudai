@@ -36,6 +36,9 @@ srun \
   --dynamo-model "model" \
   --dynamo-backend "vllm" \
   --dynamo-workspace-path "/workspace" \
+  --dynamo-port "8000" \
+  --dynamo-etcd-port "2379" \
+  --dynamo-nats-port "4222" \
   --dynamo-decode-cmd "python3 -m dynamo.vllm" \
   --dynamo-prefill-cmd "python3 -m dynamo.vllm --is-prefill-worker" \
   --prefill-num-nodes "1" \

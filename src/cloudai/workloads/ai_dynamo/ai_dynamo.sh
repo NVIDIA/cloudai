@@ -990,6 +990,8 @@ function launch_workload()
     --port '"${dynamo_args["port"]}"' \
     --endpoint '"${dynamo_args["endpoint"]}"' \
     --gpus_per_node '"$(_gpus_per_node)"' \
+    --connector '"${dynamo_args["connector"]}"' \
+    --kvbm_metrics_port '"${DYN_KVBM_METRICS_PORT:-6880}"' \
     $expanded_config \
     -- $expanded_arguments '>' ${RESULTS_DIR}/$workload_name.log '2>&1' 
 

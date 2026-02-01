@@ -144,6 +144,20 @@ class AIDynamoArgs(BaseModel):
         serialization_alias="workspace-path",
         validation_alias=AliasChoices("workspace-path", "workspace_path"),
     )
+    port: int = Field(
+        default=8000,
+        description="Dynamo frontend HTTP API port",
+    )
+    etcd_port: int = Field(
+        default=2379,
+        serialization_alias="etcd-port",
+        validation_alias=AliasChoices("etcd-port", "etcd_port"),
+    )
+    nats_port: int = Field(
+        default=4222,
+        serialization_alias="nats-port",
+        validation_alias=AliasChoices("nats-port", "nats_port"),
+    )
     decode_worker: WorkerConfig = Field(default_factory=WorkerConfig)
     decode_cmd: str = Field(
         default="python3 -m dynamo.vllm",

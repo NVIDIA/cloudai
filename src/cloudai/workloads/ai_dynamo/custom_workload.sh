@@ -10,6 +10,8 @@ model=""
 url=""
 port=""
 endpoint=""
+connector=""
+kvbm_metrics_port=""
 all_isl=""
 declare -A workload_args
 
@@ -55,6 +57,14 @@ function process_args()
       endpoint="$2"
       shift 2
       ;;
+    --connector)
+      connector="$2"
+      shift 2
+      ;;
+    --kvbm_metrics_port)
+      kvbm_metrics_port="$2"
+      shift 2
+      ;;
     --result_dir)
       result_dir="$2"
       shift 2
@@ -90,6 +100,8 @@ function process_args()
     url: $url
     port: $port
     endpoint: $endpoint
+    connector: $connector
+    kvbm_metrics_port: $kvbm_metrics_port
     result_dir: $result_dir
     install_dir: $install_dir
     report_name: $report_name
@@ -114,30 +126,39 @@ function process_args()
 
 function clear_kv_cache()
 {
-  # Use default ports if env vars not set
-  local metrics_port="${DYN_METRICS_PORT:-${port}}"  # Default to the main API port
-  local kvbm_metrics_port="${DYN_KVBM_METRICS_PORT:-6880}"  # Default KVBM metrics port
-  
-  local dyn_metrics_endpoint="${url}:${metrics_port}"
-  local kvbm_metrics_endpoint="${url}:${kvbm_metrics_port}/metrics"
+  # All ports are passed via command line arguments from ai_dynamo.sh
+  # - port: Dynamo frontend API port (for /clear_kv_blocks endpoint)
+  # - kvbm_metrics_port: KVBM metrics port (for cache hit rate metrics)
 
-  # This clears G1 (GPU) + G2 (CPU) + G3 (Disk) at once
-  status=$(curl -s ${dyn_metrics_endpoint}/metrics 2>/dev/null | grep -E "kvstats_active_blocks|kvstats_total_blocks" || echo "metrics unavailable")
+  if [[ -z "$port" ]]; then
+    log "ERROR: API port not specified, skipping KV cache clear"
+    return 1
+  fi
+
+  local api_endpoint="${url}:${port}"
+
+  # Check KV cache status before clearing (metrics on main API port)
+  status=$(curl -s ${api_endpoint}/metrics 2>/dev/null | grep -E "kvstats_active_blocks|kvstats_total_blocks" || echo "metrics unavailable")
   log "KV cache status before clear: $status"
 
-  response=$(curl -s -X POST ${dyn_metrics_endpoint}/reset_prefix_cache 2>/dev/null || echo "endpoint unavailable")
-  log "KV prefix cache reset. Response: $response"
-
-  response=$(curl -s -X POST ${dyn_metrics_endpoint}/clear_kv_blocks 2>/dev/null || echo "endpoint unavailable")
+  # Clear KV blocks via the dynamo HTTP endpoint
+  # This internally calls reset_prefix_cache() on all workers
+  response=$(curl -s -X POST ${api_endpoint}/clear_kv_blocks 2>/dev/null || echo "endpoint unavailable")
   log "KV blocks cleared. Response: $response"
 
-  status=$(curl -s ${dyn_metrics_endpoint}/metrics 2>/dev/null | grep -E "kvstats_active_blocks|kvstats_total_blocks" || echo "metrics unavailable")
+  # Check KV cache status after clearing
+  status=$(curl -s ${api_endpoint}/metrics 2>/dev/null | grep -E "kvstats_active_blocks|kvstats_total_blocks" || echo "metrics unavailable")
   log "KV cache status after clear: $status"
 
-  status=$(curl -s ${kvbm_metrics_endpoint} | grep -E "host_cache_hit_rate|disk_cache_hit_rate")
-  log "KVBM cache hit rates after clear: $status"
+  # Check KVBM-specific metrics if connector is kvbm and port is specified
+  if [[ "$connector" == "kvbm" && -n "$kvbm_metrics_port" ]]; then
+    local kvbm_metrics_endpoint="${url}:${kvbm_metrics_port}/metrics"
+    status=$(curl -s ${kvbm_metrics_endpoint} 2>/dev/null | grep -E "host_cache_hit_rate|disk_cache_hit_rate" || echo "kvbm metrics unavailable")
+    log "KVBM cache hit rates after clear: $status"
+  fi
 
-  # if [[ "${dynamo_args["connector"]}" == "lmcache" ]]; then
+  # TODO: Add LMCache clearing when connector is lmcache
+  # if [[ "$connector" == "lmcache" ]]; then
   #   clear_lmcache
   # fi
 }
