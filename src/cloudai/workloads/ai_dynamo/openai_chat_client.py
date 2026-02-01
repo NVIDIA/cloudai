@@ -158,7 +158,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    result= {
+    result = {
         "isl": args.isl,
         "context_tokens": 0,
         "baseline_cached_tokens": 0,
@@ -209,7 +209,7 @@ def main() -> None:
     out_path = Path(args.out)
     with out_path.open("a", encoding="utf-8") as f:
         if out_path.suffix == ".csv":
-            line=",".join(str(v) for v in result.values())
+            line = ",".join(str(v) for v in result.values())
             f.write(line + "\n")
         else:
             json.dump(result, f, indent=2)

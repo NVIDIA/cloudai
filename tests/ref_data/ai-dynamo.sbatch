@@ -73,8 +73,7 @@ srun \
   --lmbench-script "lmbench.sh" \
   --lmbench-report-name "lmbench_report.csv" \
   --lmbench-repo "/git/LMBenchmark" \
-  --lmbench-extra_args "0.25 0.5 0.75 1.0 1.25 1.5 1.75 2.0" \
-  --lmbench-key "lmbench" \
+  --lmbench-qps "0.25,0.5,0.75,1.0,1.25,1.5,1.75,2.0" \
   --custom_workload-name "custom_workload" \
   --custom_workload-cmd "hostname" \
   --custom_workload-script "custom_workload.sh" \

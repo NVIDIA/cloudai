@@ -25,15 +25,15 @@ time_limit = "00:10:00"
 
   [Tests.cmd_args.dynamo.prefill_worker]
   num-nodes = 1
-  [Tests.cmd_args.dynamo.prefill_worker.args]
-  tensor-parallel-size = 4
-  pipeline-parallel-size = 1
+    [Tests.cmd_args.dynamo.prefill_worker.args]
+    tensor-parallel-size = 4
+    pipeline-parallel-size = 1
 
   [Tests.cmd_args.dynamo.decode_worker]
   num-nodes = 1
-  [Tests.cmd_args.dynamo.decode_worker.args]
-  tensor-parallel-size = 4
-  pipeline-parallel-size = 1
+    [Tests.cmd_args.dynamo.decode_worker.args]
+    tensor-parallel-size = 4
+    pipeline-parallel-size = 1
 
 [[Tests]]
 id = "test.disagg.multinode"
@@ -43,12 +43,12 @@ time_limit = "00:10:00"
 
   [Tests.cmd_args.dynamo.prefill_worker]
   num-nodes = 2
-  [Tests.cmd_args.dynamo.prefill_worker.args]
-  tensor-parallel-size = 4
-  pipeline-parallel-size = 1
+    [Tests.cmd_args.dynamo.prefill_worker.args]
+    tensor-parallel-size = 4
+    pipeline-parallel-size = 1
 
   [Tests.cmd_args.dynamo.decode_worker]
   num-nodes = 2
-  [Tests.cmd_args.dynamo.decode_worker.args]
-  tensor-parallel-size = 4
-  pipeline-parallel-size = 1
+    [Tests.cmd_args.dynamo.decode_worker.args]
+    tensor-parallel-size = 4
+    pipeline-parallel-size = 1

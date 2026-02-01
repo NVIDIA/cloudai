@@ -18,7 +18,6 @@ import logging
 from pathlib import Path, PosixPath
 from typing import List, cast
 
-from cloudai.core import GitRepo, File
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
 from .ai_dynamo import AIDynamoTestDefinition, BaseModel
@@ -44,7 +43,7 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         toml_args = base_model.model_dump(by_alias=True, exclude=set(exclude), exclude_none=True)
         for k, v in toml_args.items():
             if isinstance(v, dict):
-                if "url" in v and "commit" in v and "installed_path" in v and "mount_as" in v:
+                if "url" in v and "commit" in v and "mount_as" in v:
                     args.extend([f'{prefix}{k} "{v["mount_as"]}"'])
                 elif "src" in v and isinstance(v["src"], PosixPath):
                     args.extend([f'{prefix}{k} "{v["src"].name}"'])
@@ -58,9 +57,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _get_nested_toml_args(self, base_model: BaseModel, prefix: str) -> List[str]:
         result = self._get_toml_args(base_model, prefix, exclude=["args"])
 
-        if hasattr(base_model, "args"):
-            args = getattr(base_model, "args")
-            result.extend(self._get_toml_args(base_model.args, prefix + "args-"))
+        if hasattr(base_model, "args") and (nested_args := getattr(base_model, "args", None)) is not None:
+            result.extend(self._get_toml_args(nested_args, prefix + "args-"))
 
         return result
 
