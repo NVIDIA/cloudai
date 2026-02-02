@@ -566,9 +566,7 @@ class TestNsysMerging:
         assert tdef.nsys.sample == "cpu"
         assert tdef.nsys.enable is True
 
-    def test_nsys_multiple_fields_override(
-        self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
-    ):
+    def test_nsys_multiple_fields_override(self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem):
         """When scenario specifies multiple nsys fields, all specified should override."""
         from cloudai.core import NsysConfiguration
 
@@ -650,9 +648,7 @@ class TestNsysMerging:
         assert tdef.nsys.enable is True
         assert tdef.nsys.nsys_binary == "nsys"
 
-    def test_nsys_disable_override(
-        self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
-    ):
+    def test_nsys_disable_override(self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem):
         """Scenario can disable nsys that was enabled in base config."""
         from cloudai.core import NsysConfiguration
 
