@@ -515,3 +515,176 @@ class TestReporters:
         assert len(reporters) == 2
         assert NcclTestPerformanceReportGenerationStrategy in reporters
         assert NcclTestPredictionReportGenerationStrategy in reporters
+
+
+class TestNsysMerging:
+    """Tests for nsys configuration merging behavior."""
+
+    def test_nsys_partial_override_preserves_base_config(
+        self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
+    ):
+        """When scenario specifies only some nsys fields, base config fields should be preserved."""
+        from cloudai.core import NsysConfiguration
+
+        test_scenario_parser.test_mapping = {
+            "nccl": NCCLTestDefinition(
+                name="nccl",
+                description="desc",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                nsys=NsysConfiguration(
+                    enable=True,
+                    nsys_binary="/custom/nsys",
+                    output="/base/output",
+                    trace="cuda,nvtx",
+                    sample="cpu",
+                ),
+            )
+        }
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "nccl"
+
+              [Tests.nsys]
+              output = "/scenario/output"
+            """
+            )
+        )
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+
+        assert tdef.nsys is not None
+        # The output should be overridden from scenario
+        assert tdef.nsys.output == "/scenario/output"
+        # But other fields should be preserved from base config
+        assert tdef.nsys.nsys_binary == "/custom/nsys"
+        assert tdef.nsys.trace == "cuda,nvtx"
+        assert tdef.nsys.sample == "cpu"
+        assert tdef.nsys.enable is True
+
+    def test_nsys_multiple_fields_override(
+        self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
+    ):
+        """When scenario specifies multiple nsys fields, all specified should override."""
+        from cloudai.core import NsysConfiguration
+
+        test_scenario_parser.test_mapping = {
+            "nccl": NCCLTestDefinition(
+                name="nccl",
+                description="desc",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                nsys=NsysConfiguration(
+                    enable=True,
+                    nsys_binary="/base/nsys",
+                    output="/base/output",
+                    trace="cuda",
+                    force_overwrite=False,
+                ),
+            )
+        }
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "nccl"
+
+              [Tests.nsys]
+              output = "/new/output"
+              force_overwrite = true
+            """
+            )
+        )
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+
+        assert tdef.nsys is not None
+        # Specified fields should be overridden
+        assert tdef.nsys.output == "/new/output"
+        assert tdef.nsys.force_overwrite is True
+        # Unspecified fields should be preserved
+        assert tdef.nsys.nsys_binary == "/base/nsys"
+        assert tdef.nsys.trace == "cuda"
+        assert tdef.nsys.enable is True
+
+    def test_nsys_scenario_adds_to_base_without_nsys(
+        self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
+    ):
+        """When base has no nsys config, scenario nsys should be applied."""
+        test_scenario_parser.test_mapping = {
+            "nccl": NCCLTestDefinition(
+                name="nccl",
+                description="desc",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                # No nsys in base config
+            )
+        }
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "nccl"
+
+              [Tests.nsys]
+              output = "/scenario/output"
+              trace = "cuda,nvtx"
+            """
+            )
+        )
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+
+        assert tdef.nsys is not None
+        assert tdef.nsys.output == "/scenario/output"
+        assert tdef.nsys.trace == "cuda,nvtx"
+        # Default values should apply for unspecified fields
+        assert tdef.nsys.enable is True
+        assert tdef.nsys.nsys_binary == "nsys"
+
+    def test_nsys_disable_override(
+        self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
+    ):
+        """Scenario can disable nsys that was enabled in base config."""
+        from cloudai.core import NsysConfiguration
+
+        test_scenario_parser.test_mapping = {
+            "nccl": NCCLTestDefinition(
+                name="nccl",
+                description="desc",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                nsys=NsysConfiguration(
+                    enable=True,
+                    output="/base/output",
+                ),
+            )
+        }
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "nccl"
+
+              [Tests.nsys]
+              enable = false
+            """
+            )
+        )
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+
+        assert tdef.nsys is not None
+        assert tdef.nsys.enable is False
+        # Output should still be preserved from base
+        assert tdef.nsys.output == "/base/output"
