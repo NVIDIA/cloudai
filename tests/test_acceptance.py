@@ -264,6 +264,7 @@ def build_special_test_run(
         "deepep-benchmark",
         "osu-bench",
         "vllm",
+        "vllm-disagg",
     ]
 )
 def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -> Tuple[TestRun, str, Optional[str]]:
@@ -507,6 +508,21 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     port=8000,
                 ),
                 extra_env_vars={"CUDA_VISIBLE_DEVICES": "0"},
+            ),
+        ),
+        "vllm-disagg": lambda: create_test_run(
+            partial_tr,
+            "vllm-disagg",
+            VllmTestDefinition(
+                name="vllm-disagg",
+                description="vLLM disaggregated benchmark",
+                test_template_name="Vllm",
+                cmd_args=VllmCmdArgs(
+                    docker_image_url="nvcr.io/nvidia/vllm:latest",
+                    model="Qwen/Qwen3-0.6B",
+                    port=8000,
+                ),
+                extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3"},
             ),
         ),
     }

@@ -29,6 +29,7 @@ class VllmCmdArgs(CmdArgs):
     port: int = 8000
     vllm_serve_wait_seconds: int = 300
     model: str = "Qwen/Qwen3-0.6B"
+    proxy_script: str = "/opt/vllm/tests/v1/kv_connector/nixl_integration/toy_proxy_server.py"
 
 
 class VllmBenchCmdArgs(CmdArgs):
