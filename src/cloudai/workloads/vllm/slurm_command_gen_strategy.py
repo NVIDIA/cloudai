@@ -24,8 +24,6 @@ from .vllm import VllmCmdArgs, VllmTestDefinition
 class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for vLLM on Slurm systems."""
 
-    VLLM_RUN_SCRIPT_NAME = "vllm_run.sh"
-
     def _container_mounts(self) -> list[str]:
         return []
 
@@ -34,49 +32,51 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         tdef_cmd_args: VllmCmdArgs = tdef.cmd_args
         return ["vllm", "serve", tdef_cmd_args.model, "--port", str(tdef_cmd_args.port)]
 
-    def generate_serve_run_and_wait_block(self) -> str:
-        """Generate bash block to run vLLM serve and wait for health check."""
+    def generate_wait_for_health_function(self) -> str:
+        """Generate bash function for health check."""
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
         cmd_args: VllmCmdArgs = tdef.cmd_args
-        serve_cmd = " ".join(self.get_vllm_serve_command())
 
         return f"""\
-{serve_cmd} &
-VLLM_PID=$!
+wait_for_health() {{
+    local endpoint="$1"
+    local timeout={cmd_args.vllm_serve_wait_seconds}
+    local interval=5
+    local end_time=$(($(date +%s) + timeout))
 
-TIMEOUT={cmd_args.vllm_serve_wait_seconds}
-SLEEP_INTERVAL=5
-HOST=0.0.0.0
-PORT={cmd_args.port}
+    while [ "$(date +%s)" -lt "$end_time" ]; do
+        if curl -sf "$endpoint" > /dev/null 2>&1; then
+            echo "Health check passed: $endpoint"
+            return 0
+        fi
+        sleep "$interval"
+    done
 
-end_time=$(($(date +%s) + TIMEOUT))
-while [ "$(date +%s)" -lt "$end_time" ]; do
-    if curl -sf "http://${{HOST}}:${{PORT}}/health" > /dev/null 2>&1; then
-        echo "vLLM server is ready!"
-        break
-    fi
-    if ! kill -0 "$VLLM_PID" 2>/dev/null; then
-        echo "vLLM server process died unexpectedly!"
-        exit 1
-    fi
-    sleep "$SLEEP_INTERVAL"
-done
-
-if ! curl -sf "http://${{HOST}}:${{PORT}}/health" > /dev/null 2>&1; then
-    echo "Timeout waiting for vLLM to start"
-    exit 1
-fi"""
+    echo "Timeout waiting for: $endpoint"
+    return 1
+}}"""
 
     def _gen_srun_command(self) -> str:
-        script_path = self.test_run.output_path / self.VLLM_RUN_SCRIPT_NAME
-        script_path.write_text(self.generate_serve_run_and_wait_block())
+        """Generate full command flow: server start, health check, cleanup."""
+        tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
+        cmd_args: VllmCmdArgs = tdef.cmd_args
 
-        srun_parts = [
-            *self.gen_srun_prefix(),
-            "--ntasks-per-node=1",
-            "--ntasks=1",
-            "bash",
-            "-c",
-            f'"{script_path.absolute()}"',
-        ]
-        return " ".join(srun_parts)
+        srun_prefix = " ".join(self.gen_srun_prefix())
+        serve_cmd = " ".join(self.get_vllm_serve_command())
+        health_func = self.generate_wait_for_health_function()
+
+        return f"""\
+cleanup() {{
+    [ -n "$VLLM_PID" ] && kill $VLLM_PID 2>/dev/null
+}}
+trap cleanup EXIT
+
+{health_func}
+
+# Start vLLM in background
+{srun_prefix} --ntasks-per-node=1 --ntasks=1 {serve_cmd} &
+VLLM_PID=$!
+
+# Wait for instances to be ready
+NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
+wait_for_health "http://${{NODE}}:{cmd_args.port}/health" || exit 1"""

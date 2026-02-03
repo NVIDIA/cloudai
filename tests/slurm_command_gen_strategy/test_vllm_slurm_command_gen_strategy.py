@@ -53,54 +53,56 @@ class TestVllmSlurmCommandGenStrategy:
 
         assert command == f"vllm serve {vllm_tr.test.cmd_args.model} --port {vllm_tr.test.cmd_args.port}"
 
-    def test_generate_serve_run_and_wait_block(self, vllm_tr: TestRun, slurm_system: SlurmSystem) -> None:
-        cmd_gen_strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
-        cmd_args = vllm_tr.test.cmd_args
+    def test_generate_wait_for_health_function(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
+        """Test that wait_for_health bash function is generated correctly."""
+        cmd_args = vllm_cmd_gen_strategy.test_run.test.cmd_args
 
-        block = cmd_gen_strategy.generate_serve_run_and_wait_block()
+        func = vllm_cmd_gen_strategy.generate_wait_for_health_function()
 
         expected = f"""\
-vllm serve {cmd_args.model} --port {cmd_args.port} &
-VLLM_PID=$!
+wait_for_health() {{
+    local endpoint="$1"
+    local timeout={cmd_args.vllm_serve_wait_seconds}
+    local interval=5
+    local end_time=$(($(date +%s) + timeout))
 
-TIMEOUT={cmd_args.vllm_serve_wait_seconds}
-SLEEP_INTERVAL=5
-HOST=0.0.0.0
-PORT={cmd_args.port}
+    while [ "$(date +%s)" -lt "$end_time" ]; do
+        if curl -sf "$endpoint" > /dev/null 2>&1; then
+            echo "Health check passed: $endpoint"
+            return 0
+        fi
+        sleep "$interval"
+    done
 
-end_time=$(($(date +%s) + TIMEOUT))
-while [ "$(date +%s)" -lt "$end_time" ]; do
-    if curl -sf "http://${{HOST}}:${{PORT}}/health" > /dev/null 2>&1; then
-        echo "vLLM server is ready!"
-        break
-    fi
-    if ! kill -0 "$VLLM_PID" 2>/dev/null; then
-        echo "vLLM server process died unexpectedly!"
-        exit 1
-    fi
-    sleep "$SLEEP_INTERVAL"
-done
+    echo "Timeout waiting for: $endpoint"
+    return 1
+}}"""
 
-if ! curl -sf "http://${{HOST}}:${{PORT}}/health" > /dev/null 2>&1; then
-    echo "Timeout waiting for vLLM to start"
-    exit 1
-fi"""
+        assert func == expected
 
-        assert block == expected
+    def test_gen_srun_command_full_flow(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
+        """Test that _gen_srun_command returns full flow: cleanup, server, health check."""
+        cmd_args = vllm_cmd_gen_strategy.test_run.test.cmd_args
+        srun_prefix = " ".join(vllm_cmd_gen_strategy.gen_srun_prefix())
+        serve_cmd = " ".join(vllm_cmd_gen_strategy.get_vllm_serve_command())
+        health_func = vllm_cmd_gen_strategy.generate_wait_for_health_function()
 
-    def test_gen_srun_command_writes_script_and_returns_srun(
-        self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy
-    ) -> None:
         srun_command = vllm_cmd_gen_strategy._gen_srun_command()
 
-        script_path = vllm_cmd_gen_strategy.test_run.output_path / VllmSlurmCommandGenStrategy.VLLM_RUN_SCRIPT_NAME
-        assert script_path.exists()
+        expected = f"""\
+cleanup() {{
+    [ -n "$VLLM_PID" ] && kill $VLLM_PID 2>/dev/null
+}}
+trap cleanup EXIT
 
-        expected_script = vllm_cmd_gen_strategy.generate_serve_run_and_wait_block()
-        assert script_path.read_text() == expected_script
+{health_func}
 
-        expected_srun = (
-            " ".join(vllm_cmd_gen_strategy.gen_srun_prefix())
-            + f' --ntasks-per-node=1 --ntasks=1 bash -c "{script_path.absolute()}"'
-        )
-        assert srun_command == expected_srun
+# Start vLLM in background
+{srun_prefix} --ntasks-per-node=1 --ntasks=1 {serve_cmd} &
+VLLM_PID=$!
+
+# Wait for instances to be ready
+NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
+wait_for_health "http://${{NODE}}:{cmd_args.port}/health" || exit 1"""
+
+        assert srun_command == expected

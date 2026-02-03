@@ -14,4 +14,33 @@ srun --export=ALL --mpi=pmix -N1 --output=__OUTPUT_DIR__/output/mapping-stdout.t
 
 srun --export=ALL --mpi=pmix -N1 --ntasks=1 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash __OUTPUT_DIR__/install/slurm-metadata.sh
 
-srun --export=ALL --mpi=pmix -N1 --ntasks-per-node=1 --ntasks=1 bash -c "__OUTPUT_DIR__/output/vllm_run.sh"
+cleanup() {
+    [ -n "$VLLM_PID" ] && kill $VLLM_PID 2>/dev/null
+}
+trap cleanup EXIT
+
+wait_for_health() {
+    local endpoint="$1"
+    local timeout=300
+    local interval=5
+    local end_time=$(($(date +%s) + timeout))
+
+    while [ "$(date +%s)" -lt "$end_time" ]; do
+        if curl -sf "$endpoint" > /dev/null 2>&1; then
+            echo "Health check passed: $endpoint"
+            return 0
+        fi
+        sleep "$interval"
+    done
+
+    echo "Timeout waiting for: $endpoint"
+    return 1
+}
+
+# Start vLLM in background
+srun --export=ALL --mpi=pmix -N1 --ntasks-per-node=1 --ntasks=1 vllm serve Qwen/Qwen3-0.6B --port 8000 &
+VLLM_PID=$!
+
+# Wait for instances to be ready
+NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
+wait_for_health "http://${NODE}:8000/health" || exit 1
