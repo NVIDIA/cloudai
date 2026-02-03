@@ -172,7 +172,7 @@ wait_for_health() {{
 
         expected = (
             f"vllm bench serve --model {cmd_args.model} "
-            f"--base-url http://${{NODE}}:{cmd_args.port} "
+            f"--base-url http://0.0.0.0:{cmd_args.port} "
             f"--random-input-len {bench_args.random_input_len} "
             f"--random-output-len {bench_args.random_output_len} "
             f"--max-concurrency {bench_args.max_concurrency} "
@@ -273,11 +273,11 @@ class TestVllmDisaggregatedMode:
             "--port",
             str(cmd_args.port),
             "--prefiller-hosts",
-            "localhost",
+            "0.0.0.0",
             "--prefiller-ports",
             str(cmd_args.port + 100),
             "--decoder-hosts",
-            "localhost",
+            "0.0.0.0",
             "--decoder-ports",
             str(cmd_args.port + 200),
         ]

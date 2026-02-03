@@ -67,10 +67,10 @@ wait_for_health "http://${NODE}:8200/health" || exit 1
 echo "Starting proxy..."
 srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --overlap --ntasks-per-node=1 --ntasks=1 \
     --output=__OUTPUT_DIR__/output/vllm-proxy.log \
-    python3 /opt/vllm/tests/v1/kv_connector/nixl_integration/toy_proxy_server.py --port 8000 --prefiller-hosts localhost --prefiller-ports 8100 --decoder-hosts localhost --decoder-ports 8200 &
+    python3 /opt/vllm/tests/v1/kv_connector/nixl_integration/toy_proxy_server.py --port 8000 --prefiller-hosts 0.0.0.0 --prefiller-ports 8100 --decoder-hosts 0.0.0.0 --decoder-ports 8200 &
 PROXY_PID=$!
 
 echo "Running benchmark..."
 srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --overlap --ntasks-per-node=1 --ntasks=1 \
     --output=__OUTPUT_DIR__/output/vllm-bench.log \
-    vllm bench serve --model Qwen/Qwen3-0.6B --base-url http://${NODE}:8000 --random-input-len 16 --random-output-len 128 --max-concurrency 16 --num-prompts 30
+    vllm bench serve --model Qwen/Qwen3-0.6B --base-url http://0.0.0.0:8000 --random-input-len 16 --random-output-len 128 --max-concurrency 16 --num-prompts 30
