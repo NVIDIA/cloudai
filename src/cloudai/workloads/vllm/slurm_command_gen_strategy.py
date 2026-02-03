@@ -37,3 +37,36 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
         tdef_cmd_args: VllmCmdArgs = tdef.cmd_args
         return ["vllm", "serve", tdef_cmd_args.model, "--port", str(tdef_cmd_args.port)]
+
+    def generate_serve_run_and_wait_block(self) -> str:
+        """Generate bash block to run vLLM serve and wait for health check."""
+        tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
+        cmd_args: VllmCmdArgs = tdef.cmd_args
+        serve_cmd = " ".join(self.get_vllm_serve_command())
+
+        return f"""\
+{serve_cmd} &
+VLLM_PID=$!
+
+TIMEOUT={cmd_args.vllm_serve_wait_seconds}
+SLEEP_INTERVAL=5
+HOST=0.0.0.0
+PORT={cmd_args.port}
+
+end_time=$(($(date +%s) + TIMEOUT))
+while [ "$(date +%s)" -lt "$end_time" ]; do
+    if curl -sf "http://${{HOST}}:${{PORT}}/health" > /dev/null 2>&1; then
+        echo "vLLM server is ready!"
+        break
+    fi
+    if ! kill -0 "$VLLM_PID" 2>/dev/null; then
+        echo "vLLM server process died unexpectedly!"
+        exit 1
+    fi
+    sleep "$SLEEP_INTERVAL"
+done
+
+if ! curl -sf "http://${{HOST}}:${{PORT}}/health" > /dev/null 2>&1; then
+    echo "Timeout waiting for vLLM to start"
+    exit 1
+fi"""

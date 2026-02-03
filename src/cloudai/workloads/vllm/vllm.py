@@ -24,7 +24,7 @@ class VllmCmdArgs(CmdArgs):
 
     docker_image_url: str
     port: int = 8000
-    vllm_server_wait_seconds: int = 300
+    vllm_serve_wait_seconds: int = 300
     model: str = "Qwen/Qwen3-0.6B"
 
 

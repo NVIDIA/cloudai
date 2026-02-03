@@ -47,3 +47,38 @@ class TestVllmSlurmCommandGenStrategy:
         command = " ".join(cmd_gen_strategy.get_vllm_serve_command())
 
         assert command == f"vllm serve {vllm_tr.test.cmd_args.model} --port {vllm_tr.test.cmd_args.port}"
+
+    def test_generate_serve_run_and_wait_block(self, vllm_tr: TestRun, slurm_system: SlurmSystem) -> None:
+        cmd_gen_strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
+        cmd_args = vllm_tr.test.cmd_args
+
+        block = cmd_gen_strategy.generate_serve_run_and_wait_block()
+
+        expected = f"""\
+vllm serve {cmd_args.model} --port {cmd_args.port} &
+VLLM_PID=$!
+
+TIMEOUT={cmd_args.vllm_server_wait_seconds}
+SLEEP_INTERVAL=5
+HOST=0.0.0.0
+PORT={cmd_args.port}
+
+end_time=$(($(date +%s) + TIMEOUT))
+while [ "$(date +%s)" -lt "$end_time" ]; do
+    if curl -sf "http://${{HOST}}:${{PORT}}/health" > /dev/null 2>&1; then
+        echo "vLLM server is ready!"
+        break
+    fi
+    if ! kill -0 "$VLLM_PID" 2>/dev/null; then
+        echo "vLLM server process died unexpectedly!"
+        exit 1
+    fi
+    sleep "$SLEEP_INTERVAL"
+done
+
+if ! curl -sf "http://${{HOST}}:${{PORT}}/health" > /dev/null 2>&1; then
+    echo "Timeout waiting for vLLM to start"
+    exit 1
+fi"""
+
+        assert block == expected
