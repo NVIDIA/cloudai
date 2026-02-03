@@ -67,7 +67,7 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "--port",
             str(prefill_port),
             "--kv-transfer-config",
-            '{"kv_connector":"NixlConnector","kv_role":"kv_producer"}',
+            '\'{"kv_connector":"NixlConnector","kv_role":"kv_producer"}\'',
         ]
         decode_cmd = [
             "vllm",
@@ -76,7 +76,7 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             "--port",
             str(decode_port),
             "--kv-transfer-config",
-            '{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}',
+            '\'{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}\'',
         ]
         return [prefill_cmd, decode_cmd]
 

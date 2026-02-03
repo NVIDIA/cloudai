@@ -197,7 +197,7 @@ class TestVllmDisaggregatedMode:
             "--port",
             str(cmd_args.port + 100),
             "--kv-transfer-config",
-            '{"kv_connector":"NixlConnector","kv_role":"kv_producer"}',
+            '\'{"kv_connector":"NixlConnector","kv_role":"kv_producer"}\'',
         ]
         assert decode_cmd == [
             "vllm",
@@ -206,7 +206,7 @@ class TestVllmDisaggregatedMode:
             "--port",
             str(cmd_args.port + 200),
             "--kv-transfer-config",
-            '{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}',
+            '\'{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}\'',
         ]
 
     def test_get_proxy_command(self, vllm_disagg_tr: TestRun, slurm_system: SlurmSystem) -> None:

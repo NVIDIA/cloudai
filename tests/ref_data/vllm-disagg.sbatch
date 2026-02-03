@@ -42,12 +42,12 @@ wait_for_health() {
 echo "Starting vLLM instances..."
 CUDA_VISIBLE_DEVICES=0,1 srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --overlap --ntasks-per-node=1 --ntasks=1 \
     --output=__OUTPUT_DIR__/output/vllm-prefill.log \
-    vllm serve Qwen/Qwen3-0.6B --port 8100 --kv-transfer-config {"kv_connector":"NixlConnector","kv_role":"kv_producer"} &
+    vllm serve Qwen/Qwen3-0.6B --port 8100 --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_producer"}' &
 PREFILL_PID=$!
 
 CUDA_VISIBLE_DEVICES=2,3 srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --overlap --ntasks-per-node=1 --ntasks=1 \
     --output=__OUTPUT_DIR__/output/vllm-decode.log \
-    vllm serve Qwen/Qwen3-0.6B --port 8200 --kv-transfer-config {"kv_connector":"NixlConnector","kv_role":"kv_consumer"} &
+    vllm serve Qwen/Qwen3-0.6B --port 8200 --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}' &
 DECODE_PID=$!
 
 NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
