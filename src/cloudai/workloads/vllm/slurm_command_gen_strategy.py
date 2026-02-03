@@ -180,7 +180,8 @@ wait_for_health() {{
     ) -> str:
         return f"""\
 cleanup() {{
-    [ -n "$VLLM_PID" ] && kill $VLLM_PID 2>/dev/null
+    echo "Cleaning up PIDs: VLLM_PID=$VLLM_PID"
+    [ -n "$VLLM_PID" ] && kill -9 $VLLM_PID 2>/dev/null
 }}
 trap cleanup EXIT
 
@@ -219,9 +220,10 @@ echo "Running benchmark..."
 
         return f"""\
 cleanup() {{
-    [ -n "$PREFILL_PID" ] && kill $PREFILL_PID 2>/dev/null
-    [ -n "$DECODE_PID" ] && kill $DECODE_PID 2>/dev/null
-    [ -n "$PROXY_PID" ] && kill $PROXY_PID 2>/dev/null
+    echo "Cleaning up PIDs: PREFILL_PID=$PREFILL_PID DECODE_PID=$DECODE_PID PROXY_PID=$PROXY_PID"
+    [ -n "$PREFILL_PID" ] && kill -9 $PREFILL_PID 2>/dev/null
+    [ -n "$DECODE_PID" ] && kill -9 $DECODE_PID 2>/dev/null
+    [ -n "$PROXY_PID" ] && kill -9 $PROXY_PID 2>/dev/null
 }}
 trap cleanup EXIT
 

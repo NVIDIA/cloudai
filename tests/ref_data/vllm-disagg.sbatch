@@ -15,9 +15,10 @@ srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --
 srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --ntasks=1 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
 cleanup() {
-    [ -n "$PREFILL_PID" ] && kill $PREFILL_PID 2>/dev/null
-    [ -n "$DECODE_PID" ] && kill $DECODE_PID 2>/dev/null
-    [ -n "$PROXY_PID" ] && kill $PROXY_PID 2>/dev/null
+    echo "Cleaning up PIDs: PREFILL_PID=$PREFILL_PID DECODE_PID=$DECODE_PID PROXY_PID=$PROXY_PID"
+    [ -n "$PREFILL_PID" ] && kill -9 $PREFILL_PID 2>/dev/null
+    [ -n "$DECODE_PID" ] && kill -9 $DECODE_PID 2>/dev/null
+    [ -n "$PROXY_PID" ] && kill -9 $PROXY_PID 2>/dev/null
 }
 trap cleanup EXIT
 

@@ -15,7 +15,8 @@ srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --
 srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --ntasks=1 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
 cleanup() {
-    [ -n "$VLLM_PID" ] && kill $VLLM_PID 2>/dev/null
+    echo "Cleaning up PIDs: VLLM_PID=$VLLM_PID"
+    [ -n "$VLLM_PID" ] && kill -9 $VLLM_PID 2>/dev/null
 }
 trap cleanup EXIT
 
