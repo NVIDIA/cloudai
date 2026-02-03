@@ -32,3 +32,8 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         tdef_cmd_args: VllmCmdArgs = tdef.cmd_args
         # TODO: Implement full command generation with bash script
         return [f"vllm serve {tdef_cmd_args.model}"]
+
+    def get_vllm_serve_command(self) -> list[str]:
+        tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
+        tdef_cmd_args: VllmCmdArgs = tdef.cmd_args
+        return ["vllm", "serve", tdef_cmd_args.model, "--port", str(tdef_cmd_args.port)]
