@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -159,6 +159,10 @@ def register_all():
         UCCTestReportGenerationStrategy,
         UCCTestSlurmCommandGenStrategy,
     )
+    from cloudai.workloads.vllm import (
+        VllmSlurmCommandGenStrategy,
+        VllmTestDefinition,
+    )
 
     Registry().add_runner("slurm", SlurmRunner)
     Registry().add_runner("kubernetes", KubernetesRunner)
@@ -216,6 +220,7 @@ def register_all():
     Registry().add_command_gen_strategy(SlurmSystem, BashCmdTestDefinition, BashCmdCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NIXLKVBenchTestDefinition, NIXLKVBenchSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, OSUBenchTestDefinition, OSUBenchSlurmCommandGenStrategy)
+    Registry().add_command_gen_strategy(SlurmSystem, VllmTestDefinition, VllmSlurmCommandGenStrategy)
 
     Registry().add_installer("slurm", SlurmInstaller)
     Registry().add_installer("standalone", StandaloneInstaller)
@@ -251,6 +256,7 @@ def register_all():
     Registry().add_test_definition("NIXLKVBench", NIXLKVBenchTestDefinition)
     Registry().add_test_definition("Aiconfigurator", AiconfiguratorTestDefinition)
     Registry().add_test_definition("OSUBench", OSUBenchTestDefinition)
+    Registry().add_test_definition("Vllm", VllmTestDefinition)
 
     Registry().add_agent("grid_search", GridSearchAgent)
 
