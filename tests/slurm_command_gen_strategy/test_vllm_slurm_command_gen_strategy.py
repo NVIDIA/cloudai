@@ -102,6 +102,7 @@ wait_for_health() {{
         """Test that _gen_srun_command returns full flow: cleanup, server, health check, bench."""
         tdef = vllm_cmd_gen_strategy.test_run.test
         cmd_args = tdef.cmd_args
+        output_path = vllm_cmd_gen_strategy.test_run.output_path.absolute()
         srun_prefix = " ".join(vllm_cmd_gen_strategy.gen_srun_prefix())
         serve_cmd = " ".join(vllm_cmd_gen_strategy.get_vllm_serve_command())
         bench_cmd = " ".join(vllm_cmd_gen_strategy.get_vllm_bench_command())
@@ -117,15 +118,18 @@ trap cleanup EXIT
 
 {health_func}
 
-# Start vLLM in background
-{srun_prefix} --ntasks-per-node=1 --ntasks=1 {serve_cmd} &
+{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
+    --output={output_path}/vllm-serve-stdout.txt \\
+    --error={output_path}/vllm-serve-stderr.txt \\
+    {serve_cmd} &
 VLLM_PID=$!
 
-# Wait for instances to be ready
 NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 wait_for_health "http://${{NODE}}:{cmd_args.port}/health" || exit 1
 
-# Run benchmark
-{srun_prefix} --ntasks-per-node=1 --ntasks=1 {bench_cmd}"""
+{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
+    --output={output_path}/vllm-bench-stdout.txt \\
+    --error={output_path}/vllm-bench-stderr.txt \\
+    {bench_cmd}"""
 
         assert srun_command == expected

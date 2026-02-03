@@ -83,8 +83,10 @@ wait_for_health() {{
 }}"""
 
     def _gen_srun_command(self) -> str:
+        """Generate full command flow: cleanup, server start, health check, benchmark."""
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
         cmd_args: VllmCmdArgs = tdef.cmd_args
+        output_path = self.test_run.output_path.absolute()
 
         srun_prefix = " ".join(self.gen_srun_prefix())
         serve_cmd = " ".join(self.get_vllm_serve_command())
@@ -99,13 +101,16 @@ trap cleanup EXIT
 
 {health_func}
 
-# Start vLLM in background
-{srun_prefix} --ntasks-per-node=1 --ntasks=1 {serve_cmd} &
+{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
+    --output={output_path}/vllm-serve-stdout.txt \\
+    --error={output_path}/vllm-serve-stderr.txt \\
+    {serve_cmd} &
 VLLM_PID=$!
 
-# Wait for instances to be ready
 NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 wait_for_health "http://${{NODE}}:{cmd_args.port}/health" || exit 1
 
-# Run benchmark
-{srun_prefix} --ntasks-per-node=1 --ntasks=1 {bench_cmd}"""
+{srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
+    --output={output_path}/vllm-bench-stdout.txt \\
+    --error={output_path}/vllm-bench-stderr.txt \\
+    {bench_cmd}"""
