@@ -22,6 +22,7 @@ import pytest
 from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.vllm import VllmCmdArgs, VllmSlurmCommandGenStrategy, VllmTestDefinition
+from cloudai.workloads.vllm.vllm import VLLM_BENCH_LOG_FILE, VLLM_SERVE_LOG_FILE
 
 
 @pytest.fixture
@@ -31,6 +32,7 @@ def vllm() -> VllmTestDefinition:
         description="vLLM benchmark test",
         test_template_name="Vllm",
         cmd_args=VllmCmdArgs(docker_image_url="nvcr.io/nvidia/vllm:latest", model="Qwen/Qwen3-0.6B", port=8000),
+        extra_env_vars={"CUDA_VISIBLE_DEVICES": "0"},
     )
 
 
@@ -44,8 +46,8 @@ def vllm_cmd_gen_strategy(vllm_tr: TestRun, slurm_system: SlurmSystem) -> VllmSl
     return VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
 
 
-class TestVllmSlurmCommandGenStrategy:
-    """Test the VllmSlurmCommandGenStrategy class."""
+class TestVllmAggregatedMode:
+    """Tests for vLLM non-disaggregated mode with 1 GPU."""
 
     def test_generate_vllm_command(self, vllm_tr: TestRun, slurm_system: SlurmSystem) -> None:
         cmd_gen_strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
@@ -55,7 +57,6 @@ class TestVllmSlurmCommandGenStrategy:
         assert command == f"vllm serve {vllm_tr.test.cmd_args.model} --port {vllm_tr.test.cmd_args.port}"
 
     def test_generate_wait_for_health_function(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
-        """Test that wait_for_health bash function is generated correctly."""
         cmd_args = vllm_cmd_gen_strategy.test_run.test.cmd_args
 
         func = vllm_cmd_gen_strategy.generate_wait_for_health_function()
@@ -99,7 +100,6 @@ wait_for_health() {{
         assert command == expected
 
     def test_gen_srun_command_full_flow(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
-        """Test that _gen_srun_command returns full flow: cleanup, server, health check, bench."""
         tdef = vllm_cmd_gen_strategy.test_run.test
         cmd_args = tdef.cmd_args
         output_path = vllm_cmd_gen_strategy.test_run.output_path.absolute()
@@ -120,7 +120,7 @@ trap cleanup EXIT
 
 echo "Starting vLLM instances..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
-    --output={output_path}/vllm-serve.txt \\
+    --output={output_path}/{VLLM_SERVE_LOG_FILE} \\
     {serve_cmd} &
 VLLM_PID=$!
 
@@ -130,7 +130,7 @@ wait_for_health "http://${{NODE}}:{cmd_args.port}/health" || exit 1
 
 echo "Running benchmark..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
-    --output={output_path}/vllm-bench.txt \\
+    --output={output_path}/{VLLM_BENCH_LOG_FILE} \\
     {bench_cmd}"""
 
         assert srun_command == expected
