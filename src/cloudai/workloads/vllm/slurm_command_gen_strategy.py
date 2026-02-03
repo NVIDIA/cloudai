@@ -53,9 +53,10 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def get_vllm_serve_commands(self) -> list[list[str]]:
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
         cmd_args: VllmCmdArgs = tdef.cmd_args
+        extra_args = tdef.serve_extra_args
 
         if len(self.gpu_ids) == 1:
-            return [["vllm", "serve", cmd_args.model, "--port", str(cmd_args.port)]]
+            return [["vllm", "serve", cmd_args.model, "--port", str(cmd_args.port), *extra_args]]
 
         prefill_port = cmd_args.port + 100
         decode_port = cmd_args.port + 200
@@ -68,6 +69,7 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             str(prefill_port),
             "--kv-transfer-config",
             '\'{"kv_connector":"NixlConnector","kv_role":"kv_producer"}\'',
+            *extra_args,
         ]
         decode_cmd = [
             "vllm",
@@ -77,6 +79,7 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             str(decode_port),
             "--kv-transfer-config",
             '\'{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}\'',
+            *extra_args,
         ]
         return [prefill_cmd, decode_cmd]
 

@@ -76,6 +76,56 @@ class TestGpuDetection:
         assert strategy.gpu_ids == list(range(gpus_per_node or 1))
 
 
+class TestServeExtraArgs:
+    """Tests for serve_extra_args property."""
+
+    def test_serve_extra_args_empty_by_default(self) -> None:
+        """Default cmd_args produces empty extra args (all fields excluded)."""
+        tdef = VllmTestDefinition(
+            name="vllm",
+            description="test",
+            test_template_name="Vllm",
+            cmd_args=VllmCmdArgs(docker_image_url="image:latest"),
+        )
+        assert tdef.serve_extra_args == []
+
+    def test_serve_extra_args_with_custom_fields(self) -> None:
+        """Extra fields in cmd_args appear in serve_extra_args."""
+        tdef = VllmTestDefinition(
+            name="vllm",
+            description="test",
+            test_template_name="Vllm",
+            cmd_args=VllmCmdArgs.model_validate(
+                {
+                    "docker_image_url": "image:latest",
+                    "tensor_parallel_size": 4,
+                    "max_model_len": 8192,
+                }
+            ),
+        )
+        assert tdef.serve_extra_args == [
+            "--tensor-parallel-size",
+            "4",
+            "--max-model-len",
+            "8192",
+        ]
+
+    def test_serve_extra_args_underscore_to_dash(self) -> None:
+        """Underscores in field names are converted to dashes."""
+        tdef = VllmTestDefinition(
+            name="vllm",
+            description="test",
+            test_template_name="Vllm",
+            cmd_args=VllmCmdArgs.model_validate(
+                {
+                    "docker_image_url": "image:latest",
+                    "some_long_arg": "value",
+                }
+            ),
+        )
+        assert "--some-long-arg" in tdef.serve_extra_args
+
+
 class TestVllmAggregatedMode:
     """Tests for vLLM non-disaggregated mode with 1 GPU."""
 
