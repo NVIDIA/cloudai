@@ -235,13 +235,13 @@ DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + 1))
 
 echo "Starting vLLM instances..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
-    --export=ALL,CUDA_VISIBLE_DEVICES={prefill_gpus},VLLM_NIXL_SIDE_CHANNEL_PORT=$PREFILL_NIXL_PORT \\
+    --export=ALL,CUDA_VISIBLE_DEVICES="{prefill_gpus}",VLLM_NIXL_SIDE_CHANNEL_PORT=$PREFILL_NIXL_PORT \\
     --output={output_path}/vllm-prefill.log \\
     {" ".join(prefill_cmd)} &
 PREFILL_PID=$!
 
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
-    --export=ALL,CUDA_VISIBLE_DEVICES={decode_gpus},VLLM_NIXL_SIDE_CHANNEL_PORT=$DECODE_NIXL_PORT \\
+    --export=ALL,CUDA_VISIBLE_DEVICES="{decode_gpus}",VLLM_NIXL_SIDE_CHANNEL_PORT=$DECODE_NIXL_PORT \\
     --output={output_path}/vllm-decode.log \\
     {" ".join(decode_cmd)} &
 DECODE_PID=$!
