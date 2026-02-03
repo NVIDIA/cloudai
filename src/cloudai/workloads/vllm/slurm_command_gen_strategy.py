@@ -101,16 +101,17 @@ trap cleanup EXIT
 
 {health_func}
 
+echo "Starting vLLM instances..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
-    --output={output_path}/vllm-serve-stdout.txt \\
-    --error={output_path}/vllm-serve-stderr.txt \\
+    --output={output_path}/vllm-serve.txt \\
     {serve_cmd} &
 VLLM_PID=$!
 
 NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
+echo "Waiting for vLLM on $NODE to be ready..."
 wait_for_health "http://${{NODE}}:{cmd_args.port}/health" || exit 1
 
+echo "Running benchmark..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
-    --output={output_path}/vllm-bench-stdout.txt \\
-    --error={output_path}/vllm-bench-stderr.txt \\
+    --output={output_path}/vllm-bench.txt \\
     {bench_cmd}"""

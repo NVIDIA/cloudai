@@ -37,16 +37,17 @@ wait_for_health() {
     return 1
 }
 
+echo "Starting vLLM instances..."
 srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --overlap --ntasks-per-node=1 --ntasks=1 \
-    --output=__OUTPUT_DIR__/output/vllm-serve-stdout.txt \
-    --error=__OUTPUT_DIR__/output/vllm-serve-stderr.txt \
+    --output=__OUTPUT_DIR__/output/vllm-serve.txt \
     vllm serve Qwen/Qwen3-0.6B --port 8000 &
 VLLM_PID=$!
 
 NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
+echo "Waiting for vLLM on $NODE to be ready..."
 wait_for_health "http://${NODE}:8000/health" || exit 1
 
+echo "Running benchmark..."
 srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --overlap --ntasks-per-node=1 --ntasks=1 \
-    --output=__OUTPUT_DIR__/output/vllm-bench-stdout.txt \
-    --error=__OUTPUT_DIR__/output/vllm-bench-stderr.txt \
+    --output=__OUTPUT_DIR__/output/vllm-bench.txt \
     vllm bench serve --model Qwen/Qwen3-0.6B --base-url http://${NODE}:8000 --random-input-len 16 --random-output-len 128 --max-concurrency 16 --num-prompts 30
