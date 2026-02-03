@@ -35,7 +35,10 @@ class TestVllmSuccessCheck:
     def test_successful_job(self, base_tr: TestRun) -> None:
         base_tr.output_path.mkdir(parents=True, exist_ok=True)
         log_file = base_tr.output_path / VLLM_BENCH_LOG_FILE
-        log_content = "============ Serving Benchmark Result ============"
+        log_content = """
+============ Serving Benchmark Result ============
+Successful requests:                     1
+"""
         log_file.write_text(log_content)
         result = self.vllm_tdef.was_run_successful(base_tr)
         assert result.is_successful
@@ -54,6 +57,18 @@ class TestVllmSuccessCheck:
         base_tr.output_path.mkdir(parents=True, exist_ok=True)
         log_file = base_tr.output_path / VLLM_BENCH_LOG_FILE
         log_file.touch()
+        result = self.vllm_tdef.was_run_successful(base_tr)
+        assert not result.is_successful
+        assert result.error_message == f"vLLM bench log does not contain benchmark result in {base_tr.output_path}."
+
+    def test_no_succesfull_requests(self, base_tr: TestRun) -> None:
+        base_tr.output_path.mkdir(parents=True, exist_ok=True)
+        log_file = base_tr.output_path / VLLM_BENCH_LOG_FILE
+        log_content = """
+============ Serving Benchmark Result ============
+Successful requests:                     0
+"""
+        log_file.write_text(log_content)
         result = self.vllm_tdef.was_run_successful(base_tr)
         assert not result.is_successful
         assert result.error_message == f"vLLM bench log does not contain benchmark result in {base_tr.output_path}."

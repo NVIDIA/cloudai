@@ -78,10 +78,16 @@ class VllmTestDefinition(TestDefinition):
         if not log_path.is_file():
             return JobStatusResult(is_successful=False, error_message=f"vLLM bench log not found in {tr.output_path}.")
 
+        has_results_marker = False
         with log_path.open("r") as f:
             for line in f:
                 if "============ Serving Benchmark Result ============" in line:
-                    return JobStatusResult(is_successful=True)
+                    has_results_marker = True
+                    continue
+                if has_results_marker and "Successful requests:" in line:
+                    num_successful_requests = int(line.split()[2])
+                    if num_successful_requests > 0:
+                        return JobStatusResult(is_successful=True)
 
         return JobStatusResult(
             is_successful=False, error_message=f"vLLM bench log does not contain benchmark result in {tr.output_path}."
