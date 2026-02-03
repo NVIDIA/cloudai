@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, cast
+from typing import cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
@@ -24,14 +24,10 @@ from .vllm import VllmCmdArgs, VllmTestDefinition
 class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for vLLM on Slurm systems."""
 
+    VLLM_RUN_SCRIPT_NAME = "vllm_run.sh"
+
     def _container_mounts(self) -> list[str]:
         return []
-
-    def generate_test_command(self) -> List[str]:
-        tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
-        tdef_cmd_args: VllmCmdArgs = tdef.cmd_args
-        # TODO: Implement full command generation with bash script
-        return [f"vllm serve {tdef_cmd_args.model}"]
 
     def get_vllm_serve_command(self) -> list[str]:
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
@@ -70,3 +66,17 @@ if ! curl -sf "http://${{HOST}}:${{PORT}}/health" > /dev/null 2>&1; then
     echo "Timeout waiting for vLLM to start"
     exit 1
 fi"""
+
+    def _gen_srun_command(self) -> str:
+        script_path = self.test_run.output_path / self.VLLM_RUN_SCRIPT_NAME
+        script_path.write_text(self.generate_serve_run_and_wait_block())
+
+        srun_parts = [
+            *self.gen_srun_prefix(),
+            "--ntasks-per-node=1",
+            "--ntasks=1",
+            "bash",
+            "-c",
+            f'"{script_path.absolute()}"',
+        ]
+        return " ".join(srun_parts)

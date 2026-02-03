@@ -38,6 +38,11 @@ def vllm_tr(vllm: VllmTestDefinition, tmp_path: Path) -> TestRun:
     return TestRun(test=vllm, num_nodes=1, nodes=[], output_path=tmp_path, name="vllm-job")
 
 
+@pytest.fixture
+def vllm_cmd_gen_strategy(vllm_tr: TestRun, slurm_system: SlurmSystem) -> VllmSlurmCommandGenStrategy:
+    return VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
+
+
 class TestVllmSlurmCommandGenStrategy:
     """Test the VllmSlurmCommandGenStrategy class."""
 
@@ -58,7 +63,7 @@ class TestVllmSlurmCommandGenStrategy:
 vllm serve {cmd_args.model} --port {cmd_args.port} &
 VLLM_PID=$!
 
-TIMEOUT={cmd_args.vllm_server_wait_seconds}
+TIMEOUT={cmd_args.vllm_serve_wait_seconds}
 SLEEP_INTERVAL=5
 HOST=0.0.0.0
 PORT={cmd_args.port}
@@ -82,3 +87,20 @@ if ! curl -sf "http://${{HOST}}:${{PORT}}/health" > /dev/null 2>&1; then
 fi"""
 
         assert block == expected
+
+    def test_gen_srun_command_writes_script_and_returns_srun(
+        self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy
+    ) -> None:
+        srun_command = vllm_cmd_gen_strategy._gen_srun_command()
+
+        script_path = vllm_cmd_gen_strategy.test_run.output_path / VllmSlurmCommandGenStrategy.VLLM_RUN_SCRIPT_NAME
+        assert script_path.exists()
+
+        expected_script = vllm_cmd_gen_strategy.generate_serve_run_and_wait_block()
+        assert script_path.read_text() == expected_script
+
+        expected_srun = (
+            " ".join(vllm_cmd_gen_strategy.gen_srun_prefix())
+            + f' --ntasks-per-node=1 --ntasks=1 bash -c "{script_path.absolute()}"'
+        )
+        assert srun_command == expected_srun
