@@ -15,8 +15,11 @@
 # limitations under the License.
 
 
-from cloudai.core import DockerImage, Installable
+from cloudai.core import DockerImage, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
+
+VLLM_SERVE_LOG_FILE = "vllm-serve.log"
+VLLM_BENCH_LOG_FILE = "vllm-bench.log"
 
 
 class VllmCmdArgs(CmdArgs):
@@ -54,3 +57,17 @@ class VllmTestDefinition(TestDefinition):
     @property
     def installables(self) -> list[Installable]:
         return [*self.git_repos, self.docker_image]
+
+    def was_run_successful(self, tr: TestRun) -> JobStatusResult:
+        log_path = tr.output_path / VLLM_BENCH_LOG_FILE
+        if not log_path.is_file():
+            return JobStatusResult(is_successful=False, error_message=f"vLLM bench log not found in {tr.output_path}.")
+
+        with log_path.open("r") as f:
+            for line in f:
+                if "============ Serving Benchmark Result ============" in line:
+                    return JobStatusResult(is_successful=True)
+
+        return JobStatusResult(
+            is_successful=False, error_message=f"vLLM bench log does not contain benchmark result in {tr.output_path}."
+        )

@@ -18,7 +18,7 @@ from typing import cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
-from .vllm import VllmCmdArgs, VllmTestDefinition
+from .vllm import VLLM_BENCH_LOG_FILE, VLLM_SERVE_LOG_FILE, VllmCmdArgs, VllmTestDefinition
 
 
 class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -103,7 +103,7 @@ trap cleanup EXIT
 
 echo "Starting vLLM instances..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
-    --output={output_path}/vllm-serve.txt \\
+    --output={output_path}/{VLLM_SERVE_LOG_FILE} \\
     {serve_cmd} &
 VLLM_PID=$!
 
@@ -113,5 +113,5 @@ wait_for_health "http://${{NODE}}:{cmd_args.port}/health" || exit 1
 
 echo "Running benchmark..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
-    --output={output_path}/vllm-bench.txt \\
+    --output={output_path}/{VLLM_BENCH_LOG_FILE} \\
     {bench_cmd}"""
