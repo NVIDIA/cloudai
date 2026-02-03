@@ -506,6 +506,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     model="Qwen/Qwen3-0.6B",
                     port=8000,
                 ),
+                extra_env_vars={"CUDA_VISIBLE_DEVICES": "0"},
             ),
         ),
     }

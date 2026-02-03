@@ -46,15 +46,39 @@ def vllm_cmd_gen_strategy(vllm_tr: TestRun, slurm_system: SlurmSystem) -> VllmSl
     return VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
 
 
+class TestGpuDetection:
+    """Tests for GPU detection logic."""
+
+    @pytest.mark.parametrize("cuda_visible_devices", ["0", "0,1,2,3", "0,1,2,3,4,5,6,7"])
+    def test_gpu_ids_from_cuda_visible_devices_single(
+        self, cuda_visible_devices: str, vllm_tr: TestRun, slurm_system: SlurmSystem
+    ) -> None:
+        vllm_tr.test.extra_env_vars = {"CUDA_VISIBLE_DEVICES": cuda_visible_devices}
+        strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
+        assert strategy.gpu_ids == [int(gpu_id) for gpu_id in cuda_visible_devices.split(",")]
+
+    @pytest.mark.parametrize("gpus_per_node", [None, 1, 8])
+    def test_gpu_ids_fallback_to_system(
+        self, gpus_per_node: int | None, vllm_tr: TestRun, slurm_system: SlurmSystem
+    ) -> None:
+        vllm_tr.test.extra_env_vars = {}
+        slurm_system.gpus_per_node = gpus_per_node
+
+        strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
+
+        assert strategy.gpu_ids == list(range(gpus_per_node or 1))
+
+
 class TestVllmAggregatedMode:
     """Tests for vLLM non-disaggregated mode with 1 GPU."""
 
-    def test_generate_vllm_command(self, vllm_tr: TestRun, slurm_system: SlurmSystem) -> None:
-        cmd_gen_strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
+    def test_get_vllm_serve_commands_single_gpu(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
+        cmd_args = vllm_cmd_gen_strategy.test_run.test.cmd_args
 
-        command = " ".join(cmd_gen_strategy.get_vllm_serve_command())
+        commands = vllm_cmd_gen_strategy.get_vllm_serve_commands()
 
-        assert command == f"vllm serve {vllm_tr.test.cmd_args.model} --port {vllm_tr.test.cmd_args.port}"
+        assert len(commands) == 1
+        assert commands[0] == ["vllm", "serve", cmd_args.model, "--port", str(cmd_args.port)]
 
     def test_generate_wait_for_health_function(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
         cmd_args = vllm_cmd_gen_strategy.test_run.test.cmd_args
@@ -104,7 +128,7 @@ wait_for_health() {{
         cmd_args = tdef.cmd_args
         output_path = vllm_cmd_gen_strategy.test_run.output_path.absolute()
         srun_prefix = " ".join(vllm_cmd_gen_strategy.gen_srun_prefix())
-        serve_cmd = " ".join(vllm_cmd_gen_strategy.get_vllm_serve_command())
+        serve_cmd = " ".join(vllm_cmd_gen_strategy.get_vllm_serve_commands()[0])
         bench_cmd = " ".join(vllm_cmd_gen_strategy.get_vllm_bench_command())
         health_func = vllm_cmd_gen_strategy.generate_wait_for_health_function()
 

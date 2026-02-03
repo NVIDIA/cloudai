@@ -31,10 +31,21 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
         return str(tdef.docker_image.installed_path)
 
-    def get_vllm_serve_command(self) -> list[str]:
+    @property
+    def gpu_ids(self) -> list[int]:
+        cuda_devices = self.test_run.test.extra_env_vars.get("CUDA_VISIBLE_DEVICES")
+        if cuda_devices:
+            return [int(gpu_id) for gpu_id in str(cuda_devices).split(",")]
+        return list(range(self.system.gpus_per_node or 1))
+
+    def get_vllm_serve_commands(self) -> list[list[str]]:
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
-        tdef_cmd_args: VllmCmdArgs = tdef.cmd_args
-        return ["vllm", "serve", tdef_cmd_args.model, "--port", str(tdef_cmd_args.port)]
+        cmd_args: VllmCmdArgs = tdef.cmd_args
+        base_cmd = ["vllm", "serve", cmd_args.model, "--port", str(cmd_args.port)]
+        if len(self.gpu_ids) == 1:
+            return [base_cmd]
+
+        return [[]]  # TODO
 
     def get_vllm_bench_command(self) -> list[str]:
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
@@ -83,13 +94,12 @@ wait_for_health() {{
 }}"""
 
     def _gen_srun_command(self) -> str:
-        """Generate full command flow: cleanup, server start, health check, benchmark."""
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
         cmd_args: VllmCmdArgs = tdef.cmd_args
         output_path = self.test_run.output_path.absolute()
 
         srun_prefix = " ".join(self.gen_srun_prefix())
-        serve_cmd = " ".join(self.get_vllm_serve_command())
+        serve_cmd = " ".join(self.get_vllm_serve_commands()[0])
         bench_cmd = " ".join(self.get_vllm_bench_command())
         health_func = self.generate_wait_for_health_function()
 
