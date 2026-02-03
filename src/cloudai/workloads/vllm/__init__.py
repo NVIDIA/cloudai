@@ -15,9 +15,10 @@
 # limitations under the License.
 
 from .slurm_command_gen_strategy import VllmSlurmCommandGenStrategy
-from .vllm import VllmCmdArgs, VllmTestDefinition
+from .vllm import VllmBenchCmdArgs, VllmCmdArgs, VllmTestDefinition
 
 __all__ = [
+    "VllmBenchCmdArgs",
     "VllmCmdArgs",
     "VllmSlurmCommandGenStrategy",
     "VllmTestDefinition",

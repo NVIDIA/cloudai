@@ -27,10 +27,36 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     def _container_mounts(self) -> list[str]:
         return []
 
+    def image_path(self) -> str | None:
+        tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
+        return tdef.cmd_args.docker_image_url
+
     def get_vllm_serve_command(self) -> list[str]:
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
         tdef_cmd_args: VllmCmdArgs = tdef.cmd_args
         return ["vllm", "serve", tdef_cmd_args.model, "--port", str(tdef_cmd_args.port)]
+
+    def get_vllm_bench_command(self) -> list[str]:
+        tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
+        cmd_args: VllmCmdArgs = tdef.cmd_args
+        bench_args = tdef.bench_cmd_args
+        return [
+            "vllm",
+            "bench",
+            "serve",
+            "--model",
+            cmd_args.model,
+            "--base-url",
+            f"http://${{NODE}}:{cmd_args.port}",
+            "--random-input-len",
+            str(bench_args.random_input_len),
+            "--random-output-len",
+            str(bench_args.random_output_len),
+            "--max-concurrency",
+            str(bench_args.max_concurrency),
+            "--num-prompts",
+            str(bench_args.num_prompts),
+        ]
 
     def generate_wait_for_health_function(self) -> str:
         """Generate bash function for health check."""
@@ -57,12 +83,12 @@ wait_for_health() {{
 }}"""
 
     def _gen_srun_command(self) -> str:
-        """Generate full command flow: server start, health check, cleanup."""
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
         cmd_args: VllmCmdArgs = tdef.cmd_args
 
         srun_prefix = " ".join(self.gen_srun_prefix())
         serve_cmd = " ".join(self.get_vllm_serve_command())
+        bench_cmd = " ".join(self.get_vllm_bench_command())
         health_func = self.generate_wait_for_health_function()
 
         return f"""\
@@ -79,4 +105,7 @@ VLLM_PID=$!
 
 # Wait for instances to be ready
 NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
-wait_for_health "http://${{NODE}}:{cmd_args.port}/health" || exit 1"""
+wait_for_health "http://${{NODE}}:{cmd_args.port}/health" || exit 1
+
+# Run benchmark
+{srun_prefix} --ntasks-per-node=1 --ntasks=1 {bench_cmd}"""

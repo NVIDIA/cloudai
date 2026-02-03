@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -80,11 +81,30 @@ wait_for_health() {{
 
         assert func == expected
 
+    def test_get_vllm_bench_command(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
+        tdef = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
+        cmd_args = tdef.cmd_args
+        bench_args = tdef.bench_cmd_args
+
+        command = " ".join(vllm_cmd_gen_strategy.get_vllm_bench_command())
+
+        expected = (
+            f"vllm bench serve --model {cmd_args.model} "
+            f"--base-url http://${{NODE}}:{cmd_args.port} "
+            f"--random-input-len {bench_args.random_input_len} "
+            f"--random-output-len {bench_args.random_output_len} "
+            f"--max-concurrency {bench_args.max_concurrency} "
+            f"--num-prompts {bench_args.num_prompts}"
+        )
+        assert command == expected
+
     def test_gen_srun_command_full_flow(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
-        """Test that _gen_srun_command returns full flow: cleanup, server, health check."""
-        cmd_args = vllm_cmd_gen_strategy.test_run.test.cmd_args
+        """Test that _gen_srun_command returns full flow: cleanup, server, health check, bench."""
+        tdef = vllm_cmd_gen_strategy.test_run.test
+        cmd_args = tdef.cmd_args
         srun_prefix = " ".join(vllm_cmd_gen_strategy.gen_srun_prefix())
         serve_cmd = " ".join(vllm_cmd_gen_strategy.get_vllm_serve_command())
+        bench_cmd = " ".join(vllm_cmd_gen_strategy.get_vllm_bench_command())
         health_func = vllm_cmd_gen_strategy.generate_wait_for_health_function()
 
         srun_command = vllm_cmd_gen_strategy._gen_srun_command()
@@ -103,6 +123,9 @@ VLLM_PID=$!
 
 # Wait for instances to be ready
 NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
-wait_for_health "http://${{NODE}}:{cmd_args.port}/health" || exit 1"""
+wait_for_health "http://${{NODE}}:{cmd_args.port}/health" || exit 1
+
+# Run benchmark
+{srun_prefix} --ntasks-per-node=1 --ntasks=1 {bench_cmd}"""
 
         assert srun_command == expected

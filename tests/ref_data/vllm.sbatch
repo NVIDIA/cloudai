@@ -10,9 +10,9 @@
 
 export SLURM_JOB_MASTER_NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 
-srun --export=ALL --mpi=pmix -N1 --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
+srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --output=__OUTPUT_DIR__/output/mapping-stdout.txt --error=__OUTPUT_DIR__/output/mapping-stderr.txt bash -c "echo \$(date): \$(hostname):node \${SLURM_NODEID}:rank \${SLURM_PROCID}."
 
-srun --export=ALL --mpi=pmix -N1 --ntasks=1 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash __OUTPUT_DIR__/install/slurm-metadata.sh
+srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --ntasks=1 --ntasks-per-node=1 --output=__OUTPUT_DIR__/output/metadata/node-%N.toml --error=__OUTPUT_DIR__/output/metadata/nodes.err bash /cloudai_install/slurm-metadata.sh
 
 cleanup() {
     [ -n "$VLLM_PID" ] && kill $VLLM_PID 2>/dev/null
@@ -38,9 +38,12 @@ wait_for_health() {
 }
 
 # Start vLLM in background
-srun --export=ALL --mpi=pmix -N1 --ntasks-per-node=1 --ntasks=1 vllm serve Qwen/Qwen3-0.6B --port 8000 &
+srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --ntasks-per-node=1 --ntasks=1 vllm serve Qwen/Qwen3-0.6B --port 8000 &
 VLLM_PID=$!
 
 # Wait for instances to be ready
 NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 wait_for_health "http://${NODE}:8000/health" || exit 1
+
+# Run benchmark
+srun --export=ALL --mpi=pmix -N1 --container-image=nvcr.io/nvidia/vllm:latest --container-mounts=__OUTPUT_DIR__/output:/cloudai_run_results,__OUTPUT_DIR__/install:/cloudai_install,__OUTPUT_DIR__/output --ntasks-per-node=1 --ntasks=1 vllm bench serve --model Qwen/Qwen3-0.6B --base-url http://${NODE}:8000 --random-input-len 16 --random-output-len 128 --max-concurrency 16 --num-prompts 30

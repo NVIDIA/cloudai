@@ -20,7 +20,7 @@ from cloudai.models.workload import CmdArgs, TestDefinition
 
 
 class VllmCmdArgs(CmdArgs):
-    """vLLM test command arguments."""
+    """vLLM serve command arguments."""
 
     docker_image_url: str
     port: int = 8000
@@ -28,10 +28,20 @@ class VllmCmdArgs(CmdArgs):
     model: str = "Qwen/Qwen3-0.6B"
 
 
+class VllmBenchCmdArgs(CmdArgs):
+    """vLLM bench serve command arguments."""
+
+    random_input_len: int = 16
+    random_output_len: int = 128
+    max_concurrency: int = 16
+    num_prompts: int = 30
+
+
 class VllmTestDefinition(TestDefinition):
     """Test object for vLLM."""
 
     cmd_args: VllmCmdArgs
+    bench_cmd_args: VllmBenchCmdArgs = VllmBenchCmdArgs()
 
     @property
     def installables(self) -> list[Installable]:
