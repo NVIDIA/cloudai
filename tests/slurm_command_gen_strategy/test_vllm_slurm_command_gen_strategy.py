@@ -257,12 +257,14 @@ trap cleanup EXIT
 {health_func}
 
 echo "Starting vLLM instances..."
-CUDA_VISIBLE_DEVICES={prefill_gpus} {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
+CUDA_VISIBLE_DEVICES={prefill_gpus} VLLM_NIXL_SIDE_CHANNEL_PORT=$((5557 + SLURM_JOB_ID)) \\
+    {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
     --output={output_path}/vllm-prefill.log \\
     {" ".join(prefill_cmd)} &
 PREFILL_PID=$!
 
-CUDA_VISIBLE_DEVICES={decode_gpus} {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
+CUDA_VISIBLE_DEVICES={decode_gpus} VLLM_NIXL_SIDE_CHANNEL_PORT=$((5557 + SLURM_JOB_ID + 1)) \\
+    {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
     --output={output_path}/vllm-decode.log \\
     {" ".join(decode_cmd)} &
 DECODE_PID=$!
