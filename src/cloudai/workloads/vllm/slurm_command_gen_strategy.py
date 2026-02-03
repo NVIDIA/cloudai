@@ -29,7 +29,7 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     def image_path(self) -> str | None:
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
-        return tdef.cmd_args.docker_image_url
+        return str(tdef.docker_image.installed_path)
 
     def get_vllm_serve_command(self) -> list[str]:
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)

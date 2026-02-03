@@ -15,7 +15,7 @@
 # limitations under the License.
 
 
-from cloudai.core import Installable
+from cloudai.core import DockerImage, Installable
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 
@@ -43,6 +43,14 @@ class VllmTestDefinition(TestDefinition):
     cmd_args: VllmCmdArgs
     bench_cmd_args: VllmBenchCmdArgs = VllmBenchCmdArgs()
 
+    _docker_image: DockerImage | None = None
+
+    @property
+    def docker_image(self) -> DockerImage:
+        if not self._docker_image:
+            self._docker_image = DockerImage(url=self.cmd_args.docker_image_url)
+        return self._docker_image
+
     @property
     def installables(self) -> list[Installable]:
-        return []
+        return [*self.git_repos, self.docker_image]
