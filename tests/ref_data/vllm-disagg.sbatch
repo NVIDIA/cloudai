@@ -42,7 +42,7 @@ wait_for_health() {
 
 PORT_OFFSET=$((SLURM_JOB_ID % 1000))
 PREFILL_NIXL_PORT=$((5557 + PORT_OFFSET))
-DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + 1))
+DECODE_NIXL_PORT=$((5557 + PORT_OFFSET + 4))
 
 echo "Starting vLLM instances..."
 export CUDA_VISIBLE_DEVICES="0,1"
