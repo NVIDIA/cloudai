@@ -15,7 +15,7 @@
 # limitations under the License.
 
 
-from cloudai.core import DockerImage, Installable, JobStatusResult, TestRun
+from cloudai.core import DockerImage, GitRepo, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 VLLM_SERVE_LOG_FILE = "vllm-serve.log"
@@ -46,6 +46,7 @@ class VllmTestDefinition(TestDefinition):
 
     cmd_args: VllmCmdArgs
     bench_cmd_args: VllmBenchCmdArgs = VllmBenchCmdArgs()
+    proxy_script_repo: GitRepo | None = None
 
     _docker_image: DockerImage | None = None
 
@@ -57,7 +58,10 @@ class VllmTestDefinition(TestDefinition):
 
     @property
     def installables(self) -> list[Installable]:
-        return [*self.git_repos, self.docker_image]
+        installables = [*self.git_repos, self.docker_image]
+        if self.proxy_script_repo:
+            installables.append(self.proxy_script_repo)
+        return installables
 
     @property
     def cmd_args_dict(self) -> dict[str, str | list[str]]:
