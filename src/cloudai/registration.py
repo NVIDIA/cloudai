@@ -160,6 +160,7 @@ def register_all():
         UCCTestSlurmCommandGenStrategy,
     )
     from cloudai.workloads.vllm import (
+        VLLMBenchReportGenerationStrategy,
         VllmSlurmCommandGenStrategy,
         VllmTestDefinition,
     )
@@ -277,6 +278,7 @@ def register_all():
     Registry().add_report(AIDynamoTestDefinition, AIDynamoReportGenerationStrategy)
     Registry().add_report(AiconfiguratorTestDefinition, AiconfiguratorReportGenerationStrategy)
     Registry().add_report(NixlPerftestTestDefinition, NIXLKVBenchDummyReport)
+    Registry().add_report(VllmTestDefinition, VLLMBenchReportGenerationStrategy)
 
     Registry().add_scenario_report("per_test", PerTestReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("status", StatusReporter, ReportConfig(enable=True))
