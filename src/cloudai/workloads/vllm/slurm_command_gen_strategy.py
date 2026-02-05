@@ -18,7 +18,7 @@ from typing import cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
-from .vllm import VLLM_BENCH_LOG_FILE, VLLM_SERVE_LOG_FILE, VllmCmdArgs, VllmTestDefinition
+from .vllm import VLLM_BENCH_JSON_FILE, VLLM_BENCH_LOG_FILE, VLLM_SERVE_LOG_FILE, VllmCmdArgs, VllmTestDefinition
 
 
 class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
@@ -110,22 +110,22 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
         cmd_args: VllmCmdArgs = tdef.cmd_args
         bench_args = tdef.bench_cmd_args
+        extra_args = tdef.bench_cmd_args.model_extra or {}
+        extras = ["--" + k.replace("_", "-") + " " + str(v) for k, v in extra_args.items()]
         return [
             "vllm",
             "bench",
             "serve",
-            "--model",
-            cmd_args.model,
-            "--base-url",
-            f"http://0.0.0.0:{cmd_args.port}",
-            "--random-input-len",
-            str(bench_args.random_input_len),
-            "--random-output-len",
-            str(bench_args.random_output_len),
-            "--max-concurrency",
-            str(bench_args.max_concurrency),
-            "--num-prompts",
-            str(bench_args.num_prompts),
+            f"--model {cmd_args.model}",
+            f"--base-url http://0.0.0.0:{cmd_args.port}",
+            f"--random-input-len {bench_args.random_input_len}",
+            f"--random-output-len {bench_args.random_output_len}",
+            f"--max-concurrency {bench_args.max_concurrency}",
+            f"--num-prompts {bench_args.num_prompts}",
+            f"--result-dir {self.test_run.output_path.absolute()}",
+            f"--result-filename {VLLM_BENCH_JSON_FILE}",
+            "--save-result",
+            *extras,
         ]
 
     def generate_wait_for_health_function(self) -> str:

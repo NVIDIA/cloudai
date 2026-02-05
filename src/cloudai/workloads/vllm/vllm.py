@@ -22,6 +22,7 @@ from cloudai.models.workload import CmdArgs, TestDefinition
 
 VLLM_SERVE_LOG_FILE = "vllm-serve.log"
 VLLM_BENCH_LOG_FILE = "vllm-bench.log"
+VLLM_BENCH_JSON_FILE = "vllm-bench.json"
 
 
 class VllmCmdArgs(CmdArgs):

@@ -21,8 +21,8 @@ import pytest
 
 from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmSystem
-from cloudai.workloads.vllm import VllmCmdArgs, VllmSlurmCommandGenStrategy, VllmTestDefinition
-from cloudai.workloads.vllm.vllm import VLLM_BENCH_LOG_FILE, VLLM_SERVE_LOG_FILE
+from cloudai.workloads.vllm import VllmBenchCmdArgs, VllmCmdArgs, VllmSlurmCommandGenStrategy, VllmTestDefinition
+from cloudai.workloads.vllm.vllm import VLLM_BENCH_JSON_FILE, VLLM_BENCH_LOG_FILE, VLLM_SERVE_LOG_FILE
 
 
 @pytest.fixture
@@ -192,17 +192,36 @@ wait_for_health() {{
         cmd_args = tdef.cmd_args
         bench_args = tdef.bench_cmd_args
 
-        command = " ".join(vllm_cmd_gen_strategy.get_vllm_bench_command())
+        command = vllm_cmd_gen_strategy.get_vllm_bench_command()
 
-        expected = (
-            f"vllm bench serve --model {cmd_args.model} "
-            f"--base-url http://0.0.0.0:{cmd_args.port} "
-            f"--random-input-len {bench_args.random_input_len} "
-            f"--random-output-len {bench_args.random_output_len} "
-            f"--max-concurrency {bench_args.max_concurrency} "
-            f"--num-prompts {bench_args.num_prompts}"
-        )
+        expected = [
+            "vllm",
+            "bench",
+            "serve",
+            f"--model {cmd_args.model}",
+            f"--base-url http://0.0.0.0:{cmd_args.port}",
+            f"--random-input-len {bench_args.random_input_len}",
+            f"--random-output-len {bench_args.random_output_len}",
+            f"--max-concurrency {bench_args.max_concurrency}",
+            f"--num-prompts {bench_args.num_prompts}",
+            f"--result-dir {vllm_cmd_gen_strategy.test_run.output_path.absolute()}",
+            f"--result-filename {VLLM_BENCH_JSON_FILE}",
+            "--save-result",
+        ]
         assert command == expected
+
+    def test_get_vllm_bench_command_with_extra_args(
+        self, vllm: VllmTestDefinition, vllm_tr: TestRun, slurm_system: SlurmSystem
+    ) -> None:
+        vllm.bench_cmd_args = VllmBenchCmdArgs.model_validate({"extra1": 1, "extra-2": 2, "extra_3": 3})
+        vllm_tr.test = vllm
+        vllm_cmd_gen_strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
+
+        cmd = vllm_cmd_gen_strategy.get_vllm_bench_command()
+
+        assert "--extra1 1" in cmd
+        assert "--extra-2 2" in cmd
+        assert "--extra-3 3" in cmd
 
     def test_gen_srun_command_full_flow(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
         tdef = vllm_cmd_gen_strategy.test_run.test
