@@ -368,3 +368,9 @@ echo "Running benchmark..."
     {bench_cmd}"""
 
         assert srun_command == expected
+
+
+def test_sweep_detection(vllm: VllmTestDefinition) -> None:
+    assert vllm.is_dse_job is False
+    vllm.cmd_args.decode_gpu_ids = ["1"]
+    assert vllm.is_dse_job is True

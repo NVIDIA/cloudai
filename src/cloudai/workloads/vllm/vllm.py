@@ -74,8 +74,8 @@ class VllmTestDefinition(TestDefinition):
         return installables
 
     @property
-    def cmd_args_dict(self) -> dict[str, str | list[str]]:
-        """Return cmd_args as dict, excluding fields handled separately."""
+    def serve_extra_args(self) -> list[str]:
+        """Convert cmd_args_dict to command-line arguments list for vllm serve."""
         excluded = {
             "docker_image_url",
             "port",
@@ -85,13 +85,8 @@ class VllmTestDefinition(TestDefinition):
             "prefill_gpu_ids",
             "decode_gpu_ids",
         }
-        return {k: str(v) for k, v in self.cmd_args.model_dump().items() if k not in excluded}
-
-    @property
-    def serve_extra_args(self) -> list[str]:
-        """Convert cmd_args_dict to command-line arguments list for vllm serve."""
         args = []
-        for k, v in self.cmd_args_dict.items():
+        for k, v in self.cmd_args.model_dump(exclude=excluded).items():
             args.extend([f"--{k.replace('_', '-')}", str(v)])
         return args
 
