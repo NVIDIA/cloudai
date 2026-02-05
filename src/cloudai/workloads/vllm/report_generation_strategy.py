@@ -53,7 +53,7 @@ class VLLMBenchReportGenerationStrategy(ReportGenerationStrategy):
 
         console = Console()
         table = Table(title=f"vLLM Benchmark Results ({self.test_run.output_path})", title_justify="left")
-        table.add_column("Successful prompt rate, %", justify="right")
+        table.add_column("Successful prompts", justify="right")
         table.add_column("TTFT Mean, ms", justify="right")
         table.add_column("TTFT Median, ms", justify="right")
         table.add_column("TTFT P99, ms", justify="right")
@@ -61,7 +61,7 @@ class VLLMBenchReportGenerationStrategy(ReportGenerationStrategy):
         table.add_column("TPOT Median, ms", justify="right")
         table.add_column("TPOT P99, ms", justify="right")
         table.add_row(
-            f"{results.completed / results.num_prompts * 100:.2f}% ({results.completed} / {results.num_prompts})",
+            f"{results.completed / results.num_prompts * 100:.2f}% ({results.completed} of {results.num_prompts})",
             f"{results.mean_ttft_ms:.4f}",
             f"{results.median_ttft_ms:.4f}",
             f"{results.p99_ttft_ms:.4f}",
