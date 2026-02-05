@@ -75,6 +75,30 @@ class TestGpuDetection:
 
         assert strategy.gpu_ids == list(range(gpus_per_node or 1))
 
+    def test_gpu_ids_use_prefill_and_decode_gpu_ids(self, vllm_tr: TestRun, slurm_system: SlurmSystem) -> None:
+        slurm_system.gpus_per_node = 4
+        vllm_tr.test.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
+        vllm_tr.test.cmd_args.prefill_gpu_ids = "4"
+        vllm_tr.test.cmd_args.decode_gpu_ids = "5"
+        strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
+        assert strategy.gpu_ids == [4, 5]
+        assert strategy.prefill_gpu_ids == [4]
+        assert strategy.decode_gpu_ids == [5]
+
+    def test_prefill_nodes_set(self, vllm_tr: TestRun, slurm_system: SlurmSystem) -> None:
+        slurm_system.gpus_per_node = 4
+        vllm_tr.test.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
+        vllm_tr.test.cmd_args.prefill_gpu_ids = "0,3"
+        strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
+        assert strategy.prefill_gpu_ids == [0, 3]
+
+    def test_decode_nodes_set(self, vllm_tr: TestRun, slurm_system: SlurmSystem) -> None:
+        slurm_system.gpus_per_node = 4
+        vllm_tr.test.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
+        vllm_tr.test.cmd_args.decode_gpu_ids = "1,2"
+        strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
+        assert strategy.decode_gpu_ids == [1, 2]
+
 
 class TestServeExtraArgs:
     """Tests for serve_extra_args property."""

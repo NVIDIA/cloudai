@@ -32,21 +32,29 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return str(tdef.docker_image.installed_path)
 
     @property
+    def tdef(self) -> VllmTestDefinition:
+        return cast(VllmTestDefinition, self.test_run.test)
+
+    @property
     def gpu_ids(self) -> list[int]:
         cuda_devices = self.test_run.test.extra_env_vars.get("CUDA_VISIBLE_DEVICES")
+        if self.tdef.cmd_args.prefill_gpu_ids and self.tdef.cmd_args.decode_gpu_ids:
+            cuda_devices = f"{self.tdef.cmd_args.prefill_gpu_ids},{self.tdef.cmd_args.decode_gpu_ids}"
         if cuda_devices:
             return [int(gpu_id) for gpu_id in str(cuda_devices).split(",")]
         return list(range(self.system.gpus_per_node or 1))
 
     @property
     def prefill_gpu_ids(self) -> list[int]:
-        """Return first half of GPUs for prefill."""
+        if self.tdef.cmd_args.prefill_gpu_ids:
+            return [int(gpu_id) for gpu_id in str(self.tdef.cmd_args.prefill_gpu_ids).split(",")]
         mid = len(self.gpu_ids) // 2
         return self.gpu_ids[:mid]
 
     @property
     def decode_gpu_ids(self) -> list[int]:
-        """Return second half of GPUs for decode."""
+        if self.tdef.cmd_args.decode_gpu_ids:
+            return [int(gpu_id) for gpu_id in str(self.tdef.cmd_args.decode_gpu_ids).split(",")]
         mid = len(self.gpu_ids) // 2
         return self.gpu_ids[mid:]
 
@@ -84,7 +92,6 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return [prefill_cmd, decode_cmd]
 
     def get_proxy_command(self) -> list[str]:
-        """Return proxy server command for disaggregated mode."""
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
         cmd_args: VllmCmdArgs = tdef.cmd_args
         prefill_port = cmd_args.port + 100
@@ -127,7 +134,6 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ]
 
     def generate_wait_for_health_function(self) -> str:
-        """Generate bash function for health check."""
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
         cmd_args: VllmCmdArgs = tdef.cmd_args
 

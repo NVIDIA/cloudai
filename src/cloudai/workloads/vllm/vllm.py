@@ -15,6 +15,8 @@
 # limitations under the License.
 
 
+from pydantic import Field
+
 from cloudai.core import DockerImage, GitRepo, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 
@@ -30,6 +32,14 @@ class VllmCmdArgs(CmdArgs):
     vllm_serve_wait_seconds: int = 300
     model: str = "Qwen/Qwen3-0.6B"
     proxy_script: str = "/opt/vllm/tests/v1/kv_connector/nixl_integration/toy_proxy_server.py"
+    prefill_gpu_ids: str | list[str] | None = Field(
+        default=None,
+        description="Comma-separated GPU IDs for prefill. If not set, will use first half of available GPUs.",
+    )
+    decode_gpu_ids: str | list[str] | None = Field(
+        default=None,
+        description="Comma-separated GPU IDs for decode. If not set, will use second half of available GPUs.",
+    )
 
 
 class VllmBenchCmdArgs(CmdArgs):
@@ -66,7 +76,15 @@ class VllmTestDefinition(TestDefinition):
     @property
     def cmd_args_dict(self) -> dict[str, str | list[str]]:
         """Return cmd_args as dict, excluding fields handled separately."""
-        excluded = {"docker_image_url", "port", "vllm_serve_wait_seconds", "model", "proxy_script"}
+        excluded = {
+            "docker_image_url",
+            "port",
+            "vllm_serve_wait_seconds",
+            "model",
+            "proxy_script",
+            "prefill_gpu_ids",
+            "decode_gpu_ids",
+        }
         return {k: str(v) for k, v in self.cmd_args.model_dump().items() if k not in excluded}
 
     @property
