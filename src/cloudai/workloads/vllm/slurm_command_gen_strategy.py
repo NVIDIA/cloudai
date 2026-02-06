@@ -38,51 +38,53 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     @property
     def gpu_ids(self) -> list[int]:
         cuda_devices = str(self.test_run.test.extra_env_vars.get("CUDA_VISIBLE_DEVICES", ""))
-        if self.tdef.cmd_args.prefill_gpu_ids and self.tdef.cmd_args.decode_gpu_ids:
-            cuda_devices = f"{self.tdef.cmd_args.prefill_gpu_ids},{self.tdef.cmd_args.decode_gpu_ids}"
+        if (self.tdef.cmd_args.prefill and self.tdef.cmd_args.prefill.gpu_ids) and self.tdef.cmd_args.decode.gpu_ids:
+            cuda_devices = f"{self.tdef.cmd_args.prefill.gpu_ids},{self.tdef.cmd_args.decode.gpu_ids}"
         if cuda_devices:
             return [int(gpu_id) for gpu_id in cuda_devices.split(",")]
         return list(range(self.system.gpus_per_node or 1))
 
     @property
     def prefill_gpu_ids(self) -> list[int]:
-        if self.tdef.cmd_args.prefill_gpu_ids:
-            return [int(gpu_id) for gpu_id in str(self.tdef.cmd_args.prefill_gpu_ids).split(",")]
+        if self.tdef.cmd_args.prefill and self.tdef.cmd_args.prefill.gpu_ids:
+            return [int(gpu_id) for gpu_id in str(self.tdef.cmd_args.prefill.gpu_ids).split(",")]
         mid = len(self.gpu_ids) // 2
         return self.gpu_ids[:mid]
 
     @property
     def decode_gpu_ids(self) -> list[int]:
-        if self.tdef.cmd_args.decode_gpu_ids:
-            return [int(gpu_id) for gpu_id in str(self.tdef.cmd_args.decode_gpu_ids).split(",")]
+        if self.tdef.cmd_args.decode.gpu_ids:
+            return [int(gpu_id) for gpu_id in str(self.tdef.cmd_args.decode.gpu_ids).split(",")]
         mid = len(self.gpu_ids) // 2
         return self.gpu_ids[mid:]
 
     def get_vllm_serve_commands(self) -> list[list[str]]:
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
         cmd_args: VllmCmdArgs = tdef.cmd_args
-        extra_args = tdef.serve_extra_args
 
-        base_cmd = ["vllm", "serve", cmd_args.model, *extra_args, "--port", str(cmd_args.port)]
-        if len(self.gpu_ids) == 1:
-            return [base_cmd]
+        base_cmd = ["vllm", "serve", cmd_args.model]
+        if not tdef.cmd_args.prefill:
+            return [[*base_cmd, *tdef.cmd_args.decode.serve_args, "--port", str(cmd_args.port)]]
 
         prefill_port = cmd_args.port + 100
         decode_port = cmd_args.port + 200
 
+        prefill_extra_args = tdef.cmd_args.prefill.serve_args if tdef.cmd_args.prefill else []
         prefill_cmd = [
-            *base_cmd[:3],
+            *base_cmd,
             "--port",
             str(prefill_port),
             "--kv-transfer-config",
             '\'{"kv_connector":"NixlConnector","kv_role":"kv_producer"}\'',
+            *prefill_extra_args,
         ]
         decode_cmd = [
-            *base_cmd[:3],
+            *base_cmd,
             "--port",
             str(decode_port),
             "--kv-transfer-config",
             '\'{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}\'',
+            *tdef.cmd_args.decode.serve_args,
         ]
         return [prefill_cmd, decode_cmd]
 

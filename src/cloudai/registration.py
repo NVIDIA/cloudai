@@ -257,7 +257,7 @@ def register_all():
     Registry().add_test_definition("NIXLKVBench", NIXLKVBenchTestDefinition)
     Registry().add_test_definition("Aiconfigurator", AiconfiguratorTestDefinition)
     Registry().add_test_definition("OSUBench", OSUBenchTestDefinition)
-    Registry().add_test_definition("Vllm", VllmTestDefinition)
+    Registry().add_test_definition("vllm", VllmTestDefinition)
 
     Registry().add_agent("grid_search", GridSearchAgent)
 

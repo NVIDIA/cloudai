@@ -15,7 +15,7 @@
 # limitations under the License.
 
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from cloudai.core import DockerImage, GitRepo, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
@@ -25,22 +25,39 @@ VLLM_BENCH_LOG_FILE = "vllm-bench.log"
 VLLM_BENCH_JSON_FILE = "vllm-bench.json"
 
 
+class VllmArgs(CmdArgs):
+    """Base command arguments for vLLM instances."""
+
+    gpu_ids: str | list[str] | None = Field(
+        default=None,
+        description="Comma-separated GPU IDs. If not set, will use all available GPUs.",
+    )
+
+    @property
+    def serve_args(self) -> list[str]:
+        """Convert cmd_args_dict to command-line arguments list for vllm serve."""
+        args = []
+        for k, v in self.model_dump(exclude={"gpu_ids"}).items():
+            args.extend([f"--{k.replace('_', '-')}", str(v)])
+        return args
+
+
 class VllmCmdArgs(CmdArgs):
     """vLLM serve command arguments."""
+
+    model_config = ConfigDict(extra="forbid")  # arbitrary fileds are allowed per decode/prefill, not here
 
     docker_image_url: str
     port: int = 8000
     vllm_serve_wait_seconds: int = 300
-    model: str = "Qwen/Qwen3-0.6B"
     proxy_script: str = "/opt/vllm/tests/v1/kv_connector/nixl_integration/toy_proxy_server.py"
-    prefill_gpu_ids: str | list[str] | None = Field(
+
+    model: str = "Qwen/Qwen3-0.6B"
+    prefill: VllmArgs | None = Field(
         default=None,
-        description="Comma-separated GPU IDs for prefill. If not set, will use first half of available GPUs.",
+        description="Prefill instance arguments. If not set, a single instance without disaggregation will be used.",
     )
-    decode_gpu_ids: str | list[str] | None = Field(
-        default=None,
-        description="Comma-separated GPU IDs for decode. If not set, will use second half of available GPUs.",
-    )
+    decode: VllmArgs = Field(default_factory=VllmArgs, description="Decode instance arguments.")
 
 
 class VllmBenchCmdArgs(CmdArgs):
@@ -73,23 +90,6 @@ class VllmTestDefinition(TestDefinition):
         if self.proxy_script_repo:
             installables.append(self.proxy_script_repo)
         return installables
-
-    @property
-    def serve_extra_args(self) -> list[str]:
-        """Convert cmd_args_dict to command-line arguments list for vllm serve."""
-        excluded = {
-            "docker_image_url",
-            "port",
-            "vllm_serve_wait_seconds",
-            "model",
-            "proxy_script",
-            "prefill_gpu_ids",
-            "decode_gpu_ids",
-        }
-        args = []
-        for k, v in self.cmd_args.model_dump(exclude=excluded).items():
-            args.extend([f"--{k.replace('_', '-')}", str(v)])
-        return args
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         log_path = tr.output_path / VLLM_BENCH_LOG_FILE

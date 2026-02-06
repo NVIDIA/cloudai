@@ -16,11 +16,12 @@
 
 from .report_generation_strategy import VLLMBenchReportGenerationStrategy
 from .slurm_command_gen_strategy import VllmSlurmCommandGenStrategy
-from .vllm import VLLM_BENCH_LOG_FILE, VllmBenchCmdArgs, VllmCmdArgs, VllmTestDefinition
+from .vllm import VLLM_BENCH_LOG_FILE, VllmArgs, VllmBenchCmdArgs, VllmCmdArgs, VllmTestDefinition
 
 __all__ = [
     "VLLM_BENCH_LOG_FILE",
     "VLLMBenchReportGenerationStrategy",
+    "VllmArgs",
     "VllmBenchCmdArgs",
     "VllmCmdArgs",
     "VllmSlurmCommandGenStrategy",

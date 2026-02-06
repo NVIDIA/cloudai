@@ -21,7 +21,13 @@ import pytest
 
 from cloudai.core import TestRun
 from cloudai.systems.slurm import SlurmSystem
-from cloudai.workloads.vllm import VllmBenchCmdArgs, VllmCmdArgs, VllmSlurmCommandGenStrategy, VllmTestDefinition
+from cloudai.workloads.vllm import (
+    VllmArgs,
+    VllmBenchCmdArgs,
+    VllmCmdArgs,
+    VllmSlurmCommandGenStrategy,
+    VllmTestDefinition,
+)
 from cloudai.workloads.vllm.vllm import VLLM_BENCH_JSON_FILE, VLLM_BENCH_LOG_FILE, VLLM_SERVE_LOG_FILE
 
 
@@ -50,6 +56,7 @@ def vllm_cmd_gen_strategy(vllm_tr: TestRun, slurm_system: SlurmSystem) -> VllmSl
 def vllm_disagg_tr(vllm: VllmTestDefinition, tmp_path: Path) -> TestRun:
     """TestRun for disaggregated mode with 4 GPUs."""
     vllm.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
+    vllm.cmd_args.prefill = VllmArgs()
     return TestRun(test=vllm, num_nodes=1, nodes=[], output_path=tmp_path, name="vllm-disagg-job")
 
 
@@ -78,8 +85,8 @@ class TestGpuDetection:
     def test_gpu_ids_use_prefill_and_decode_gpu_ids(self, vllm_tr: TestRun, slurm_system: SlurmSystem) -> None:
         slurm_system.gpus_per_node = 4
         vllm_tr.test.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
-        vllm_tr.test.cmd_args.prefill_gpu_ids = "4"
-        vllm_tr.test.cmd_args.decode_gpu_ids = "5"
+        vllm_tr.test.cmd_args.prefill = VllmArgs(gpu_ids="4")
+        vllm_tr.test.cmd_args.decode.gpu_ids = "5"
         strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
         assert strategy.gpu_ids == [4, 5]
         assert strategy.prefill_gpu_ids == [4]
@@ -88,33 +95,25 @@ class TestGpuDetection:
     def test_prefill_nodes_set(self, vllm_tr: TestRun, slurm_system: SlurmSystem) -> None:
         slurm_system.gpus_per_node = 4
         vllm_tr.test.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
-        vllm_tr.test.cmd_args.prefill_gpu_ids = "0,3"
+        vllm_tr.test.cmd_args.prefill = VllmArgs(gpu_ids="0,3")
         strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
         assert strategy.prefill_gpu_ids == [0, 3]
 
     def test_decode_nodes_set(self, vllm_tr: TestRun, slurm_system: SlurmSystem) -> None:
         slurm_system.gpus_per_node = 4
         vllm_tr.test.extra_env_vars = {"CUDA_VISIBLE_DEVICES": "0,1,2,3"}
-        vllm_tr.test.cmd_args.decode_gpu_ids = "1,2"
+        vllm_tr.test.cmd_args.decode.gpu_ids = "1,2"
         strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
         assert strategy.decode_gpu_ids == [1, 2]
 
 
 class TestServeExtraArgs:
-    """Tests for serve_extra_args property."""
+    """Tests for serve_args property."""
 
-    def test_serve_extra_args_empty_by_default(self) -> None:
-        """Default cmd_args produces empty extra args (all fields excluded)."""
-        tdef = VllmTestDefinition(
-            name="vllm",
-            description="test",
-            test_template_name="Vllm",
-            cmd_args=VllmCmdArgs(docker_image_url="image:latest"),
-        )
-        assert tdef.serve_extra_args == []
+    def test_serve_args_empty_by_default(self) -> None:
+        assert VllmArgs().serve_args == []
 
-    def test_serve_extra_args_with_custom_fields(self) -> None:
-        """Extra fields in cmd_args appear in serve_extra_args."""
+    def test_decode_serve_args_with_custom_fields(self) -> None:
         tdef = VllmTestDefinition(
             name="vllm",
             description="test",
@@ -122,20 +121,20 @@ class TestServeExtraArgs:
             cmd_args=VllmCmdArgs.model_validate(
                 {
                     "docker_image_url": "image:latest",
-                    "tensor_parallel_size": 4,
-                    "max_model_len": 8192,
+                    "decode": {"tensor_parallel_size": 4, "max_model_len": 8192, "some_long_arg": "value"},
                 }
             ),
         )
-        assert tdef.serve_extra_args == [
+        assert tdef.cmd_args.decode.serve_args == [
             "--tensor-parallel-size",
             "4",
             "--max-model-len",
             "8192",
+            "--some-long-arg",
+            "value",
         ]
 
-    def test_serve_extra_args_underscore_to_dash(self) -> None:
-        """Underscores in field names are converted to dashes."""
+    def test_prefill_serve_args_with_custom_fields(self) -> None:
         tdef = VllmTestDefinition(
             name="vllm",
             description="test",
@@ -143,11 +142,19 @@ class TestServeExtraArgs:
             cmd_args=VllmCmdArgs.model_validate(
                 {
                     "docker_image_url": "image:latest",
-                    "some_long_arg": "value",
+                    "prefill": {"tensor_parallel_size": 4, "max_model_len": 8192, "some_long_arg": "value"},
                 }
             ),
         )
-        assert "--some-long-arg" in tdef.serve_extra_args
+        assert tdef.cmd_args.prefill is not None
+        assert tdef.cmd_args.prefill.serve_args == [
+            "--tensor-parallel-size",
+            "4",
+            "--max-model-len",
+            "8192",
+            "--some-long-arg",
+            "value",
+        ]
 
 
 class TestVllmAggregatedMode:
@@ -391,5 +398,5 @@ echo "Running benchmark..."
 
 def test_sweep_detection(vllm: VllmTestDefinition) -> None:
     assert vllm.is_dse_job is False
-    vllm.cmd_args.decode_gpu_ids = ["1"]
+    vllm.cmd_args.decode.gpu_ids = ["1"]
     assert vllm.is_dse_job is True
