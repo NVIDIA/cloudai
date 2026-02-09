@@ -482,7 +482,10 @@ class TestReporters:
             (DeepEPTestDefinition, {DeepEPReportGenerationStrategy}),
             (GPTTestDefinition, {JaxToolboxReportGenerationStrategy}),
             (GrokTestDefinition, {JaxToolboxReportGenerationStrategy}),
-            (MegatronRunTestDefinition, {CheckpointTimingReportGenerationStrategy, MegatronRunReportGenerationStrategy}),
+            (
+                MegatronRunTestDefinition,
+                {CheckpointTimingReportGenerationStrategy, MegatronRunReportGenerationStrategy},
+            ),
             (MegatronBridgeTestDefinition, {MegatronBridgeReportGenerationStrategy}),
             (NCCLTestDefinition, {NcclTestPerformanceReportGenerationStrategy}),
             (NeMoLauncherTestDefinition, {NeMoLauncherReportGenerationStrategy}),

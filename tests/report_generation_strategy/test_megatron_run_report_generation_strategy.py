@@ -57,7 +57,7 @@ def megatron_run_tr_many_iterations(tmp_path: Path) -> TestRun:
         elapsed_ms = 3000.0 + i * 10
         tflops = 480.0 + i * 0.5
         lines.append(
-            f" [2026-02-06 20:55:{i:02d}.000000] iteration      {i}/100 | consumed samples:         {i*32} | "
+            f" [2026-02-06 20:55:{i:02d}.000000] iteration      {i}/100 | consumed samples:         {i * 32} | "
             f"elapsed time per iteration (ms): {elapsed_ms:.1f} | throughput per GPU (TFLOP/s/GPU): {tflops:.1f} | "
             f"learning rate: 9.568256E-08 | global batch size:    32 | lm loss: 2.401035E-02 |\n"
         )
