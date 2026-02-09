@@ -53,6 +53,7 @@ from cloudai.workloads.megatron_bridge import MegatronBridgeReportGenerationStra
 from cloudai.workloads.megatron_run import (
     CheckpointTimingReportGenerationStrategy,
     MegatronRunCmdArgs,
+    MegatronRunReportGenerationStrategy,
     MegatronRunTestDefinition,
 )
 from cloudai.workloads.nccl_test import (
@@ -481,7 +482,7 @@ class TestReporters:
             (DeepEPTestDefinition, {DeepEPReportGenerationStrategy}),
             (GPTTestDefinition, {JaxToolboxReportGenerationStrategy}),
             (GrokTestDefinition, {JaxToolboxReportGenerationStrategy}),
-            (MegatronRunTestDefinition, {CheckpointTimingReportGenerationStrategy}),
+            (MegatronRunTestDefinition, {CheckpointTimingReportGenerationStrategy, MegatronRunReportGenerationStrategy}),
             (MegatronBridgeTestDefinition, {MegatronBridgeReportGenerationStrategy}),
             (NCCLTestDefinition, {NcclTestPerformanceReportGenerationStrategy}),
             (NeMoLauncherTestDefinition, {NeMoLauncherReportGenerationStrategy}),
