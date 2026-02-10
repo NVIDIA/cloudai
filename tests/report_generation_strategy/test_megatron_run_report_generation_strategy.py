@@ -48,24 +48,6 @@ def megatron_run_tr(tmp_path: Path) -> TestRun:
 
 
 @pytest.fixture
-def megatron_run_tr_many_iterations(tmp_path: Path) -> TestRun:
-    """Create a TestRun with many iterations to test last-10 sampling."""
-    tr = TestRun(name="megatron_run", test=Mock(), num_nodes=1, nodes=[], output_path=tmp_path)
-    lines = []
-    for i in range(20):
-        # Create 20 iterations with varying step times and tflops
-        elapsed_ms = 3000.0 + i * 10
-        tflops = 480.0 + i * 0.5
-        lines.append(
-            f" [2026-02-06 20:55:{i:02d}.000000] iteration      {i}/100 | consumed samples:         {i * 32} | "
-            f"elapsed time per iteration (ms): {elapsed_ms:.1f} | throughput per GPU (TFLOP/s/GPU): {tflops:.1f} | "
-            f"learning rate: 9.568256E-08 | global batch size:    32 | lm loss: 2.401035E-02 |\n"
-        )
-    (tr.output_path / "stdout.txt").write_text("".join(lines))
-    return tr
-
-
-@pytest.fixture
 def megatron_run_tr_no_metrics(tmp_path: Path) -> TestRun:
     """Create a TestRun with log file but no iteration metrics."""
     tr = TestRun(name="megatron_run", test=Mock(), num_nodes=1, nodes=[], output_path=tmp_path)
