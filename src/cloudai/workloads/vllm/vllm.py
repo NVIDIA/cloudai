@@ -15,6 +15,8 @@
 # limitations under the License.
 
 
+import logging
+
 from pydantic import ConfigDict, Field
 
 from cloudai.core import DockerImage, GitRepo, HFModel, Installable, JobStatusResult, TestRun
@@ -38,7 +40,11 @@ class VllmArgs(CmdArgs):
         """Convert cmd_args_dict to command-line arguments list for vllm serve."""
         args = []
         for k, v in self.model_dump(exclude={"gpu_ids"}).items():
-            args.extend([f"--{k.replace('_', '-')}", str(v)])
+            opt = f"--{k.replace('_', '-')}"
+            if v:
+                args.extend([opt, str(v)])
+            else:
+                args.append(opt)
         return args
 
 
@@ -110,9 +116,12 @@ class VllmTestDefinition(TestDefinition):
                     has_results_marker = True
                     continue
                 if has_results_marker and "Successful requests:" in line:
-                    num_successful_requests = int(line.split()[2])
-                    if num_successful_requests > 0:
-                        return JobStatusResult(is_successful=True)
+                    try:
+                        num_successful_requests = int(line.split()[2])
+                        if num_successful_requests > 0:
+                            return JobStatusResult(is_successful=True)
+                    except Exception as e:
+                        logging.debug(f"Error parsing number of successful requests: {e}")
 
         return JobStatusResult(
             is_successful=False, error_message=f"vLLM bench log does not contain benchmark result in {tr.output_path}."

@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
 from typing import cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
@@ -178,7 +179,7 @@ wait_for_health() {{
         bench_cmd: str,
         health_func: str,
         cmd_args: VllmCmdArgs,
-        output_path,
+        output_path: Path,
     ) -> str:
         return f"""\
 cleanup() {{
@@ -211,7 +212,7 @@ echo "Running benchmark..."
         bench_cmd: str,
         health_func: str,
         cmd_args: VllmCmdArgs,
-        output_path,
+        output_path: Path,
     ) -> str:
         prefill_cmd, decode_cmd = serve_commands
         proxy_cmd = self.get_proxy_command()
