@@ -28,8 +28,7 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return [f"{self.system.hf_home_path.absolute()}:/root/.cache/huggingface"]
 
     def image_path(self) -> str | None:
-        tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
-        return str(tdef.docker_image.installed_path)
+        return str(self.tdef.docker_image.installed_path)
 
     @property
     def tdef(self) -> VllmTestDefinition:
