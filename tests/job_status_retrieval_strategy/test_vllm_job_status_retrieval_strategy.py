@@ -61,7 +61,7 @@ Successful requests:                     1
         assert not result.is_successful
         assert result.error_message == f"vLLM bench log does not contain benchmark result in {base_tr.output_path}."
 
-    def test_no_succesfull_requests(self, base_tr: TestRun) -> None:
+    def test_no_successful_requests(self, base_tr: TestRun) -> None:
         base_tr.output_path.mkdir(parents=True, exist_ok=True)
         log_file = base_tr.output_path / VLLM_BENCH_LOG_FILE
         log_content = """
