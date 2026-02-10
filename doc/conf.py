@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -51,8 +51,8 @@ def setup(app):
 project = "CloudAI"
 copyright = "2026, NVIDIA CORPORATION & AFFILIATES"
 author = "NVIDIA CORPORATION & AFFILIATES"
-version = "1.5.0-beta"
-release = "1.5.0-beta"
+version = "1.6.0-beta"
+release = "1.6.0-beta"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
