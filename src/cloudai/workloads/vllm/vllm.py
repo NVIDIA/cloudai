@@ -45,7 +45,7 @@ class VllmArgs(CmdArgs):
 class VllmCmdArgs(CmdArgs):
     """vLLM serve command arguments."""
 
-    model_config = ConfigDict(extra="forbid")  # arbitrary fileds are allowed per decode/prefill, not here
+    model_config = ConfigDict(extra="forbid")  # arbitrary fields are allowed per decode/prefill, not here
 
     docker_image_url: str
     port: int = 8000
