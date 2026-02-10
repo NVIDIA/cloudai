@@ -73,7 +73,7 @@ from cloudai.workloads.triton_inference import (
     TritonInferenceTestDefinition,
 )
 from cloudai.workloads.ucc_test import UCCCmdArgs, UCCTestDefinition
-from cloudai.workloads.vllm import VllmCmdArgs, VllmTestDefinition
+from cloudai.workloads.vllm import VllmArgs, VllmCmdArgs, VllmTestDefinition
 
 SLURM_TEST_SCENARIOS = [
     {"path": Path("conf/common/test_scenario/sleep.toml"), "expected_dirs_number": 4, "log_file": "sleep_debug.log"},
@@ -521,6 +521,7 @@ def test_req(request, slurm_system: SlurmSystem, partial_tr: partial[TestRun]) -
                     docker_image_url="nvcr.io/nvidia/vllm:latest",
                     model="Qwen/Qwen3-0.6B",
                     port=8000,
+                    prefill=VllmArgs(),
                 ),
                 extra_env_vars={"CUDA_VISIBLE_DEVICES": "0,1,2,3"},
             ),

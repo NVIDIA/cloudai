@@ -17,7 +17,7 @@
 
 from pydantic import ConfigDict, Field
 
-from cloudai.core import DockerImage, GitRepo, Installable, JobStatusResult, TestRun
+from cloudai.core import DockerImage, GitRepo, HFModel, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 VLLM_SERVE_LOG_FILE = "vllm-serve.log"
@@ -77,6 +77,7 @@ class VllmTestDefinition(TestDefinition):
     proxy_script_repo: GitRepo | None = None
 
     _docker_image: DockerImage | None = None
+    _hf_model: HFModel | None = None
 
     @property
     def docker_image(self) -> DockerImage:
@@ -85,8 +86,14 @@ class VllmTestDefinition(TestDefinition):
         return self._docker_image
 
     @property
+    def hf_model(self) -> HFModel:
+        if not self._hf_model:
+            self._hf_model = HFModel(model_name=self.cmd_args.model)
+        return self._hf_model
+
+    @property
     def installables(self) -> list[Installable]:
-        installables = [*self.git_repos, self.docker_image]
+        installables = [*self.git_repos, self.docker_image, self.hf_model]
         if self.proxy_script_repo:
             installables.append(self.proxy_script_repo)
         return installables

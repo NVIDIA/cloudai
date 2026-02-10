@@ -243,7 +243,7 @@ def test_definitions():
         ("NIXLKVBench", NIXLKVBenchTestDefinition),
         ("Aiconfigurator", AiconfiguratorTestDefinition),
         ("OSUBench", OSUBenchTestDefinition),
-        ("Vllm", VllmTestDefinition),
+        ("vllm", VllmTestDefinition),
     ]:
         assert test_defs[tdef[0]] == tdef[1]
 

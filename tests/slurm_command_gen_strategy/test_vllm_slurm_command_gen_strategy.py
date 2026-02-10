@@ -157,6 +157,12 @@ class TestServeExtraArgs:
         ]
 
 
+def test_container_mounts(vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
+    assert vllm_cmd_gen_strategy._container_mounts() == [
+        f"{vllm_cmd_gen_strategy.system.hf_home_path.absolute()}:/root/.cache/huggingface"
+    ]
+
+
 class TestVllmAggregatedMode:
     """Tests for vLLM non-disaggregated mode with 1 GPU."""
 

@@ -25,7 +25,7 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for vLLM on Slurm systems."""
 
     def _container_mounts(self) -> list[str]:
-        return []
+        return [f"{self.system.hf_home_path.absolute()}:/root/.cache/huggingface"]
 
     def image_path(self) -> str | None:
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
