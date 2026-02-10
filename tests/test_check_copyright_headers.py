@@ -15,6 +15,8 @@
 # limitations under the License.
 
 import subprocess
+from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -37,61 +39,133 @@ HEADER = """# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 # See the License for the specific language governing permissions and
 # limitations under the License."""
 
-HEADER_LINES = HEADER.count("\n") + 1
+HEADER_LINES = HEADER.split("\n")
+HEADER_TAIL = "\n".join(HEADER_LINES[2:])
 
-PY_FILES = [p for p in Path().glob("./src/**/*.py")]
-PY_FILES += [p for p in Path().glob("./tests/**/*.py")]
-TOML_FILES = [p for p in Path().glob("conf/**/*.toml")] + ["pyproject.toml", ".taplo.toml"]
+PY_FILES = list(Path().glob("./src/**/*.py")) + list(Path().glob("./tests/**/*.py"))
+TOML_FILES = list(Path().glob("conf/**/*.toml")) + [Path("pyproject.toml"), Path(".taplo.toml")]
+
+CURRENT_YEAR = datetime.now().year
 
 
-def prepare_copyright_with_year(file: Path, line: str) -> str:
-    res = subprocess.run(
-        ["git", "log", "--format=%ad", "--date=format:%Y", "--follow", "-1", file],
+def _path_key(file: Path) -> str:
+    """Normalize path for cache lookup (e.g. ./src/foo.py and src/foo.py match)."""
+    return file.as_posix().lstrip("./")
+
+
+def _format_years_to_ranges(years: list[int]) -> str:
+    """Turn sorted unique years into a string with ranges for consecutive years.
+
+    E.g. [2024, 2026] -> "2024, 2026"
+         [2024, 2025, 2027] -> "2024-2025, 2027"
+    """
+    if not years:
+        raise ValueError("Unexpected behavior. Expected at least one year in the list. If it's a new file - should be the current year")
+    
+    parts: list[str] = []
+    range_start = years[0]
+    range_end = years[0]
+    for y in years[1:]:
+        if y == range_end + 1:
+            range_end = y
+        else:
+            parts.append(f"{range_start}-{range_end}" if range_start != range_end else str(range_start))
+            range_start = y
+            range_end = y
+    parts.append(f"{range_start}-{range_end}" if range_start != range_end else str(range_start))
+    return ", ".join(parts)
+
+
+def test_format_years_to_ranges():
+    """Check year range formatting: consecutive years become start-end, non-consecutive stay separate."""
+    assert _format_years_to_ranges([2024, 2026]) == "2024, 2026"
+    assert _format_years_to_ranges([2024, 2025, 2027]) == "2024-2025, 2027"
+    assert _format_years_to_ranges([2024]) == "2024"
+    assert _format_years_to_ranges([2024, 2025, 2026]) == "2024-2026"
+    assert _format_years_to_ranges([]) == ""
+
+
+@pytest.fixture(scope="session")
+def git_commit_years_cache() -> dict[str, list[int]]:
+    """
+    Map all git-tracked files in this repo to the sorted list of years when they were touched in a commit
+
+    Example:
+        >>> git_commit_years_cache()
+        {"src/cloudai/core.py": [2024, 2025, 2026]}
+    """
+
+    # 1: get all tracked files
+    ls_out = subprocess.run(
+        ["git", "ls-files"],
         capture_output=True,
         text=True,
+        check=True,
     )
-    if not res.stdout:
-        # in some cases when a file was renamed, --follow won't allow getting the last modified year
-        res = subprocess.run(
-            ["git", "log", "--format=%ad", "--date=format:%Y", "-1", file],
-            capture_output=True,
-            text=True,
-        )
-    changed_years = res.stdout.splitlines()
-    last_modified_year_real = int(changed_years[0])
+    files = ls_out.stdout.splitlines()
 
-    curr_year_spec = line.split(" ")[3]
-    spec_is_range = "-" in curr_year_spec
+    # 2. Stream full history: each commit has a year line then affected files
+    log_cmd = [
+        "git",
+        "-c",
+        "core.quotepath=false",
+        "log",
+        "--format=Y:%ad",
+        "--date=format:%Y",
+        "--name-only",
+        "--",
+        "src/",
+        "tests/",
+        "conf/",
+        "pyproject.toml",
+        ".taplo.toml",
+    ]
+    file_years: dict[str, set[int]] = defaultdict(set)
 
+    process = subprocess.Popen(log_cmd, stdout=subprocess.PIPE, text=True)
+    if process.stdout is None:
+        raise OSError("git subprocess: stdout wasn't initialized for the subprocess")
+    
+    with process:
+        current_year: int | None = None
+        for line in process.stdout:
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith("Y:"):
+                current_year = int(line[2:])
+            elif current_year is not None and line in files:
+                file_years[line].add(current_year)
+    
+    if process.returncode != 0:
+        raise RuntimeError("git subprocess: unknown error, check output")
+
+    return {path: sorted(years) for path, years in file_years.items()}
+
+
+def prepare_copyright_with_year(file: Path, years_cache: dict[str, list[int]]) -> str:
+    path_key = file.as_posix().replace("./", "", 1)
+    years = years_cache.get(path_key, [CURRENT_YEAR])
+    years_str = _format_years_to_ranges(years)
     after_year_str = "NVIDIA CORPORATION & AFFILIATES. All rights reserved."
-
-    if spec_is_range:
-        created_year = int(curr_year_spec.split("-")[0])
-        return f"# Copyright (c) {created_year}-{last_modified_year_real} {after_year_str}"
-
-    if int(curr_year_spec) < last_modified_year_real:
-        return f"# Copyright (c) {curr_year_spec}-{last_modified_year_real} {after_year_str}"
-
-    return f"# Copyright (c) {last_modified_year_real} {after_year_str}"
+    return f"# Copyright (c) {years_str} {after_year_str}"
 
 
 @pytest.mark.parametrize("py_file", PY_FILES, ids=[str(f) for f in PY_FILES])
-def test_src_copyright_header(py_file: Path):
+def test_src_copyright_header(py_file: Path, git_commit_years_cache: dict[str, list[int]]):
     with py_file.open() as file:
-        first_lines = [next(file).strip() for _ in range(HEADER_LINES)]
+        actual_copyright_lines = [next(file).strip() for _ in range(len(HEADER_LINES))]
 
-    assert first_lines[0] == "# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES", (
-        "SPDX-FileCopyrightText is not valid"
-    )
-    assert first_lines[1] == prepare_copyright_with_year(py_file, first_lines[1]), "Copyright year is not valid"
-    assert "\n".join(first_lines[2:]) == "\n".join(HEADER.splitlines()[2:]), f"Header mismatch in {py_file}"
+    assert actual_copyright_lines[0] == HEADER_LINES[0], "SPDX-FileCopyrightText is not valid"
+    assert actual_copyright_lines[1] == prepare_copyright_with_year(py_file, git_commit_years_cache), "Copyright year is not valid"
+    assert "\n".join(actual_copyright_lines[2:]) == HEADER_TAIL, f"Header mismatch in {py_file}"
 
 
 @pytest.mark.parametrize("toml_file", TOML_FILES, ids=[str(f) for f in TOML_FILES])
-def test_toml_copyright_header(toml_file):
-    with open(toml_file, "r") as file:
-        first_lines = [next(file).strip() for _ in range(HEADER_LINES)]
+def test_toml_copyright_header(toml_file: Path, git_commit_years_cache: dict[str, list[int]]):
+    with toml_file.open() as file:
+        actual_copyright_lines = [next(file).strip() for _ in range(len(HEADER_LINES))]
 
-    assert first_lines[0] == "# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES"
-    assert first_lines[1] == prepare_copyright_with_year(toml_file, first_lines[1])
-    assert "\n".join(first_lines[2:]) == "\n".join(HEADER.splitlines()[2:]), f"Header mismatch in {toml_file}"
+    assert actual_copyright_lines[0] == HEADER_LINES[0], "SPDX-FileCopyrightText is not valid"
+    assert actual_copyright_lines[1] == prepare_copyright_with_year(toml_file, git_commit_years_cache), "Copyright year is not valid"
+    assert "\n".join(actual_copyright_lines[2:]) == HEADER_TAIL, f"Header mismatch in {toml_file}"
