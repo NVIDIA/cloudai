@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import json
+import logging
 from functools import cache
 from pathlib import Path
 
@@ -54,7 +55,8 @@ def parse_vllm_bench_output(res_file: Path) -> VLLMBenchReport | None:
         with res_file.open("r") as f:
             data = json.load(f)
         return VLLMBenchReport.model_validate(data)
-    except (json.JSONDecodeError, Exception):
+    except Exception as e:
+        logging.debug(f"Error parsing vLLM benchmark output: {e}")
         return None
 
 
