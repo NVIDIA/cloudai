@@ -70,7 +70,7 @@ Test-in-Scenario example
 
 Control number of GPUs
 ----------------------
-The number of GPUs can be controlled using the options below, listed from less priority to more priority:
+The number of GPUs can be controlled using the options below, listed from lowest to highest priority:
 1. ``gpus_per_node`` system property (scalar value)
 2. ``CUDA_VISIBLE_DEVICES`` environment variable (comma-separated list of GPU IDs)
 3. ``gpu_ids`` command argument for ``prefill`` and ``decode`` configurations (comma-separated list of GPU IDs)
