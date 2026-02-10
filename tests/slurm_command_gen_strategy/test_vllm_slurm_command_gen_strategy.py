@@ -114,10 +114,12 @@ class TestServeExtraArgs:
         assert VllmArgs().serve_args == []
 
     def test_empty_string_value_means_flag(self) -> None:
-        assert VllmArgs.model_validate({"some_flag": "", "some_arg": "value"}).serve_args == [
+        assert VllmArgs.model_validate({"some_flag": "", "some_arg": "value", "zero_value": 0}).serve_args == [
             "--some-flag",
             "--some-arg",
             "value",
+            "--zero-value",
+            "0",
         ]
 
     def test_decode_serve_args_with_custom_fields(self) -> None:

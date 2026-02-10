@@ -41,10 +41,10 @@ class VllmArgs(CmdArgs):
         args = []
         for k, v in self.model_dump(exclude={"gpu_ids"}).items():
             opt = f"--{k.replace('_', '-')}"
-            if v:
-                args.extend([opt, str(v)])
-            else:
+            if v == "":
                 args.append(opt)
+            else:
+                args.extend([opt, str(v)])
         return args
 
 
