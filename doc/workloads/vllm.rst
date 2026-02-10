@@ -78,7 +78,7 @@ The number of GPUs can be controlled using the options below, listed from less p
 
 Control disaggregation
 ----------------------
-By default, vLLM will run without disaggregation as a single process. To enable disaggregation, one need to set ``prefill`` configuration:
+By default, vLLM will run without disaggregation as a single process. To enable disaggregation, one needs to set ``prefill`` configuration:
 
 .. code-block:: toml
    :caption: test.toml (disaggregated prefill/decode)
