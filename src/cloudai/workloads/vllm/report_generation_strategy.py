@@ -50,10 +50,12 @@ def parse_vllm_bench_output(res_file: Path) -> VLLMBenchReport | None:
     if not res_file.is_file():
         return None
 
-    with res_file.open("r") as f:
-        data = json.load(f)
-
-    return VLLMBenchReport.model_validate(data)
+    try:
+        with res_file.open("r") as f:
+            data = json.load(f)
+        return VLLMBenchReport.model_validate(data)
+    except (json.JSONDecodeError, Exception):
+        return None
 
 
 class VLLMBenchReportGenerationStrategy(ReportGenerationStrategy):
