@@ -37,11 +37,9 @@ class VLLMBenchReport(BaseModel):
     completed: int
     mean_ttft_ms: float
     median_ttft_ms: float
-    std_ttft_ms: float
     p99_ttft_ms: float
     mean_tpot_ms: float
     median_tpot_ms: float
-    std_tpot_ms: float
     p99_tpot_ms: float
 
 
