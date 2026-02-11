@@ -284,8 +284,8 @@ _set_backend_defaults() {
 _has_connector() {
   # Check if a specific connector is in the comma-separated connector list.
   local needle="$1"
-  local prefill_connectors="${prefill_config["connector"]:-}"
-  local decode_connectors="${decode_config["connector"]:-}"
+  local prefill_connectors="${prefill_args["--connector"]:-}"
+  local decode_connectors="${decode_args["--connector"]:-}"
   [[ ",$prefill_connectors," == *",$needle,"* ]] || [[ ",$decode_connectors," == *",$needle,"* ]]
 }
 
@@ -767,14 +767,6 @@ function launch_decode()
   local base_kv_event_port=${DYN_VLLM_KV_EVENT_PORT:-20080}
   log "Launching $workers_per_node decode worker(s) with unique port ranges"
 
-  local connector="${dynamo_args["connector"]}"
-  if [[ "$connector" != "none" ]]; then
-    log "Setting connector for decode workers to $connector"
-    decode_args["--connector"]="$connector"
-  else
-    log "Setting connector for decode workers to $connector"
-  fi
-
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
     local gpu_list=$(_gpu_list_for_worker "${decode_config["gpus-per-worker"]}" "$i")
     local log_file=$(_log_file_for_worker "decode" "$i")
@@ -821,11 +813,6 @@ function launch_prefill()
   local base_nixl_port=${VLLM_NIXL_SIDE_CHANNEL_PORT:-5557}
   local base_kv_event_port=${DYN_VLLM_KV_EVENT_PORT:-20080}
   log "Launching $workers_per_node prefill worker(s) with unique port ranges"
-
-  local connector="${dynamo_args["connector"]}"
-  if [[ "$connector" != "none" ]]; then
-    prefill_args["--connector"]="$connector"
-  fi
 
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
     local gpu_list=$(_gpu_list_for_worker "${prefill_config["gpus-per-worker"]}" "$i")
@@ -940,8 +927,9 @@ EOF
 
 function setup_storage_cache_dir()
 {
+  local connector="$1"
   # Use a global variable that can be exported
-  STORAGE_CACHE_DIR="$STORAGE_CACHE_DIR/${TEST_USER}/${dynamo_args["frontend-node"]}/${dynamo_args["connector"]}/cache"
+  STORAGE_CACHE_DIR="$STORAGE_CACHE_DIR/${TEST_USER}/${dynamo_args["frontend-node"]}/${connector}/cache"
   rm -rf "${STORAGE_CACHE_DIR}"
   mkdir -p "${STORAGE_CACHE_DIR}"
   chmod 755 "${STORAGE_CACHE_DIR}"
@@ -955,7 +943,7 @@ function setup_kvbm()
   fi
 
   log "Setting up KVBM storage cache directory: ${STORAGE_CACHE_DIR}"
-  setup_storage_cache_dir
+  setup_storage_cache_dir "kvbm"
   export DYN_KVBM_DISK_CACHE_DIR=${STORAGE_CACHE_DIR}
   setup_cufile
 }
@@ -971,7 +959,7 @@ function setup_lmcache()
   local lmcache_path="${lmcache_config["repo"]}"
   uv pip install -e $lmcache_path
 
-  setup_storage_cache_dir
+  setup_storage_cache_dir "lmcache"
 
   export LMCACHE_CONFIG_FILE=$RESULTS_DIR/lmcache-nixl-config.yaml
   rm -f $LMCACHE_CONFIG_FILE
@@ -1051,7 +1039,8 @@ function launch_workload()
     --port "${dynamo_args["port"]}" \
     --endpoint "${dynamo_args["endpoint"]}" \
     --gpus_per_node "$(_gpus_per_node)" \
-    --connector "${dynamo_args["connector"]}" \
+    --decode-connector "${decode_args["--connector"]}" \
+    --prefill-connector "${prefill_args["--connector"]}" \
     --kvbm_metrics_port "${DYN_KVBM_METRICS_PORT:-6880}" \
     --decode-nodes "${decode_config["node-list"]}" \
     "${config_arr[@]}" \

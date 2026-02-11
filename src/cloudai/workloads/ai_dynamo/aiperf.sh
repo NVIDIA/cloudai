@@ -147,18 +147,6 @@ function _resolve_server_metrics_auto()
   log "Auto-discovered server-metrics URLs: $metrics_urls"
 }
 
-function split_csv_sections()
-{
-  # Split a CSV file into separate files based on blank-line delimiters.
-  # Usage: split_csv_sections <input_file> <output_prefix>
-  # Produces: <output_prefix>.1.csv, <output_prefix>.2.csv, <output_prefix>.3.csv, ...
-  local input_file="$1"
-  local output_prefix="$2"
-
-
-  echo "$section"
-}
-
 function process_result()
 {
   local profile_path

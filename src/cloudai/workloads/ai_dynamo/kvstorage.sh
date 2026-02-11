@@ -64,8 +64,12 @@ function process_args()
       endpoint="$2"
       shift 2
       ;;
-    --connector)
-      connector="$2"
+    --decode-connector)
+      decode_connector="$2"
+      shift 2
+      ;;
+    --prefill-connector)
+      prefill_connector="$2"
       shift 2
       ;;
     --kvbm_metrics_port)
@@ -119,7 +123,8 @@ function process_args()
     url: $url
     port: $port
     endpoint: $endpoint
-    connector: $connector
+    decode-connector: $decode_connector
+    prefill-connector: $prefill_connector
     kvbm_metrics_port: $kvbm_metrics_port
     result_dir: $result_dir
     install_dir: $install_dir
