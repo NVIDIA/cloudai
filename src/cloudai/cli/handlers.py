@@ -42,10 +42,10 @@ from cloudai.core import (
     TestScenario,
 )
 from cloudai.models.scenario import ReportConfig
-from cloudai.models.workload import TestDefinition
+from cloudai.models.workload import TestDefinition, TestRun
 from cloudai.parser import HOOK_ROOT
 from cloudai.systems.slurm import SingleSbatchRunner, SlurmSystem
-from cloudai.util import prepare_output_dir
+from cloudai.util import flatten_dict, prepare_output_dir
 
 
 def _log_installation_dirs(prefix: str, system: System) -> None:
@@ -148,17 +148,16 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
         env = CloudAIGymEnv(test_run=test_run, runner=runner.runner)
 
         try:
+            agent_config = test_run.test.agent_config
             agent_overrides = (
-                validate_agent_overrides(agent_type, test_run.test.agent_config)
-                if test_run.test.agent_config is not None
-                else None
+                validate_agent_overrides(test_run, agent_type, agent_config) if agent_config is not None else None
             )
         except ValidationError as e:
             logging.error(f"Invalid agent_config for agent '{agent_type}': ")
             for error in e.errors():
                 logging.error(f"  - {'.'.join(str(var_name) for var_name in error['loc'])}: {error['msg']}")
             logging.error("Valid overrides: ")
-            for item, desc in validate_agent_overrides(agent_type).items():
+            for item, desc in validate_agent_overrides(test_run, agent_type).items():
                 logging.error(f"  - {item}: {desc}")
             err = 1
             continue
@@ -184,7 +183,9 @@ def handle_dse_job(runner: Runner, args: argparse.Namespace) -> int:
     return err
 
 
-def validate_agent_overrides(agent_type: str, agent_config: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+def validate_agent_overrides(
+    test_run: TestRun, agent_type: str, agent_config: Optional[dict[str, Any]] = None
+) -> dict[str, Any]:
     """
     Validate and process agent configuration overrides.
 
@@ -205,14 +206,41 @@ def validate_agent_overrides(agent_type: str, agent_config: Optional[dict[str, A
         )
 
     if agent_config:
+        seed_parameters = agent_config.get("seed_parameters", None)
+        if seed_parameters:
+            validate_seed_parameters(test_run, seed_parameters)
+
         validated_config = config_class.model_validate(agent_config)
         agent_kwargs = validated_config.model_dump(exclude_none=True)
-        logging.info(f"Applying agent config overrides for '{agent_type}': {agent_kwargs}")
+        logging.debug(f"Applying agent config overrides for '{agent_type}': {agent_kwargs}")
     else:
         agent_kwargs = {}
         for field_name, field_info in config_class.model_fields.items():
             agent_kwargs[field_name] = field_info.description
     return agent_kwargs
+
+
+def validate_seed_parameters(test_run: TestRun, seed_parameters: dict[str, Any]) -> None:
+    """Validate seed parameters against DSE-able command-line arguments."""
+    flat_cmd_args = flatten_dict(test_run.test.cmd_args.model_dump(exclude_none=True))
+    dse_cmd_args = {k: v for k, v in flat_cmd_args.items() if isinstance(v, list)}
+
+    logging.debug("Validating seed parameters against DSE-able command-line arguments:")
+    logging.debug(f"\t{dse_cmd_args}")
+
+    for key, value in seed_parameters.items():
+        if key not in dse_cmd_args:
+            raise KeyError(
+                f"Seed parameter '{key}' not found in DSE-able command-line arguments. "
+                f"Ensure that the key is one of the following available keys: {list(dse_cmd_args.keys())}"
+            )
+        if value not in dse_cmd_args[key]:
+            raise ValueError(
+                f"Seed parameter '{key}' value '{value}' not found in DSE-able command-line arguments. "
+                f"Ensure that the value is one of the following available values: {dse_cmd_args[key]}"
+            )
+
+    logging.debug("Seed parameters validated successfully.")
 
 
 def generate_reports(system: System, test_scenario: TestScenario, result_dir: Path) -> None:

@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from abc import ABC
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -25,3 +25,4 @@ class AgentConfig(BaseModel, ABC):
 
     model_config = ConfigDict(extra="forbid")
     random_seed: Optional[int] = Field(default=None, description="Random seed for reproducibility")
+    seed_parameters: Optional[dict[str, Any]] = Field(default=None, description="Seed parameters for reproducibility")
