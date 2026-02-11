@@ -25,6 +25,7 @@ from cloudai._core.exceptions import MissingTestError
 from cloudai.core import (
     CmdArgs,
     GitRepo,
+    NsysConfiguration,
     PredictorConfig,
     Registry,
     ReportGenerationStrategy,
@@ -521,8 +522,6 @@ class TestNsysMerging:
     def test_nsys_partial_override_preserves_base_config(
         self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
     ):
-        from cloudai.core import NsysConfiguration
-
         test_scenario_parser.test_mapping = {
             "nccl": NCCLTestDefinition(
                 name="nccl",
@@ -562,8 +561,6 @@ class TestNsysMerging:
         assert tdef.nsys.enable is True
 
     def test_nsys_multiple_fields_override(self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem):
-        from cloudai.core import NsysConfiguration
-
         test_scenario_parser.test_mapping = {
             "nccl": NCCLTestDefinition(
                 name="nccl",
@@ -639,8 +636,6 @@ class TestNsysMerging:
         assert tdef.nsys.nsys_binary == "nsys"
 
     def test_nsys_disable_override(self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem):
-        from cloudai.core import NsysConfiguration
-
         test_scenario_parser.test_mapping = {
             "nccl": NCCLTestDefinition(
                 name="nccl",
