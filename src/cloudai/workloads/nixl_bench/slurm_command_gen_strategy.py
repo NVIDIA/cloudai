@@ -52,6 +52,7 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
         self._current_image_url = None
 
         commands: list[str] = [
+            f"echo {self.test_run.output_path.absolute()}",
             " ".join(etcd_command),
             "etcd_pid=$!",
             " ".join(self.gen_wait_for_etcd_command()),
