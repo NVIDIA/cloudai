@@ -122,7 +122,7 @@ class MegatronBridgeCmdArgs(CmdArgs):
     # Optional distributed optimizer instances (for constraints/divisor)
     num_distributed_optimizer_instances: Optional[int] = Field(default=None)
 
-    @field_validator("hf_token", mode="after")
+    @field_validator("hf_token", mode="after", check_fields=False)
     @classmethod
     def validate_hf_token(cls, v: Optional[str]) -> Optional[str]:
         token = (v or "").strip()
@@ -130,7 +130,7 @@ class MegatronBridgeCmdArgs(CmdArgs):
             raise ValueError("cmd_args.hf_token is required. Please set it to your literal HF token string.")
         return token
 
-    @field_validator("model_family_name", "model_recipe_name", mode="after")
+    @field_validator("model_family_name", "model_recipe_name", mode="after", check_fields=False)
     @classmethod
     def validate_model_fields(cls, v: str, info: ValidationInfo) -> str:
         s = v.strip()
