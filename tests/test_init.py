@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -101,6 +101,7 @@ from cloudai.workloads.ucc_test import (
     UCCTestGradingStrategy,
     UCCTestSlurmCommandGenStrategy,
 )
+from cloudai.workloads.vllm import VllmSlurmCommandGenStrategy, VllmTestDefinition
 
 
 def test_systems():
@@ -148,6 +149,7 @@ CMD_GEN_STRATEGIES = {
     (SlurmSystem, NixlPerftestTestDefinition): NixlPerftestSlurmCommandGenStrategy,
     (SlurmSystem, NIXLKVBenchTestDefinition): NIXLKVBenchSlurmCommandGenStrategy,
     (SlurmSystem, OSUBenchTestDefinition): OSUBenchSlurmCommandGenStrategy,
+    (SlurmSystem, VllmTestDefinition): VllmSlurmCommandGenStrategy,
 }
 JSON_GEN_STRATEGIES = {
     (KubernetesSystem, NCCLTestDefinition): NcclTestKubernetesJsonGenStrategy,
@@ -221,7 +223,7 @@ def test_installers():
 
 def test_definitions():
     test_defs = Registry().test_definitions_map
-    assert len(test_defs) == 22
+    assert len(test_defs) == 23
     for tdef in [
         ("UCCTest", UCCTestDefinition),
         ("DDLBTest", DDLBTestDefinition),
@@ -245,6 +247,7 @@ def test_definitions():
         ("NIXLKVBench", NIXLKVBenchTestDefinition),
         ("Aiconfigurator", AiconfiguratorTestDefinition),
         ("OSUBench", OSUBenchTestDefinition),
+        ("vllm", VllmTestDefinition),
     ]:
         assert test_defs[tdef[0]] == tdef[1]
 

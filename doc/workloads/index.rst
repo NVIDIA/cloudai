@@ -29,6 +29,7 @@ Available Workloads
    ":doc:`slurm_container`", "✅", "❌", "❌", "❌"
    "Triton Inference", "✅", "❌", "❌", "❌"
    ":doc:`ucc`", "✅", "❌", "❌", "❌"
+   ":doc:`vllm`", "✅", "❌", "❌", "❌"
 
 .. toctree::
     :hidden:
