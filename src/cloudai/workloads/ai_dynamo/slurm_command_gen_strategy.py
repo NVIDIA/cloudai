@@ -79,6 +79,8 @@ class AIDynamoSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             f"--results-dir {self.container_results_path}",
             f"--dynamo-repo {td.dynamo_repo.container_mount}",
             f"--workloads {td.cmd_args.workloads}",
+            f"--failure-marker {self.container_results_path}/{td.failure_marker()}",
+            f"--success-marker {self.container_results_path}/{td.success_marker()}",
         ]
         if td.cmd_args.hf_home_path:
             args.append(f"--hf-home {td.cmd_args.hf_home_path}")

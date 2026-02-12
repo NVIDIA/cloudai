@@ -5,8 +5,8 @@ RESULTS_DIR="/cloudai_run_results"
 INSTALL_DIR="/cloudai_install"
 STORAGE_CACHE_DIR="/cloudai_install/storage_cache"
 HUGGINGFACE_HOME="/root/.cache/huggingface"
-DONE_MARKER="dynamo_frontend_done.marker"
-FATAL_ERROR_MARKER="dynamo_fatal_error.marker"
+DONE_MARKER="./success-marker.txt"
+FATAL_ERROR_MARKER="./failure-marker.txt"
 NODE_ROLES_FILE="node_roles.log"
 TEST_USER="$USER"
 
@@ -199,6 +199,10 @@ _parse_cli_pairs() {
         INSTALL_DIR="$2" ;;
       --user)
         TEST_USER="$2" ;;
+      --failure-marker)
+        FATAL_ERROR_MARKER="$2" ;;
+      --success-marker)
+        DONE_MARKER="$2" ;;
     esac
     shift; shift;
   done
@@ -580,9 +584,6 @@ _init_runtime_env() {
   export NATS_SERVER="nats://${dynamo_args["frontend-node"]}:${dynamo_args["nats-port"]}"
   export ETCD_ENDPOINTS="http://${dynamo_args["frontend-node"]}:${dynamo_args["etcd-port"]}"
   export UCX_LOG_FILE="${RESULTS_DIR}/ucx_log_%h.log"
-  DONE_MARKER="${RESULTS_DIR}/${DONE_MARKER}"
-  FATAL_ERROR_MARKER="${RESULTS_DIR}/${FATAL_ERROR_MARKER}"
-  rm -f "${FATAL_ERROR_MARKER}" 2>/dev/null || true
 }
 
 function launch_node_setup_cmd()

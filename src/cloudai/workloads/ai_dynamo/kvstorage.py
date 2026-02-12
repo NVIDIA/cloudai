@@ -43,7 +43,7 @@ NUM_FILLER_PROMPTS = 100  # how many fillers to send for eviction
 
 
 def log(message: str) -> None:
-    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')} {os.getenv('HOSTNAME') or ''}]: [openai_chat_client] {message}")
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')} {os.getenv('HOSTNAME') or ''}]: [kvstorage] {message}")
     sys.stdout.flush()
     sys.stderr.flush()
 

@@ -423,6 +423,12 @@ class AIDynamoTestDefinition(TestDefinition):
     _hf_model: HFModel | None = None
     constraints: Constraints = Constraints()
 
+    def success_marker(self) -> str:
+        return "success-marker.txt"
+
+    def failure_marker(self) -> str:
+        return "failure-marker.txt"
+
     def get_workload_map(self) -> dict[str, Workload]:
         """Get a map of workload scripts to workload objects."""
         return {
@@ -482,7 +488,7 @@ class AIDynamoTestDefinition(TestDefinition):
             self.calc_percentile_csv,
             self.cmd_args.lmbench.script,
             self.cmd_args.kvstorage.script,
-            File(Path(__file__).parent.parent / "ai_dynamo/openai_chat_client.py"),
+            File(Path(__file__).parent.parent / "ai_dynamo/kvstorage.py"),
             *self.git_repos,
         ]
 
@@ -492,6 +498,15 @@ class AIDynamoTestDefinition(TestDefinition):
         output_path = tr.output_path
         result = True
         workload_map = self.get_workload_map()
+        failure_marker = output_path / self.failure_marker()
+        success_marker = output_path / self.success_marker()
+
+        if failure_marker.exists():
+            return JobStatusResult(False, error_message=f"Failure marker file found with contents: \n{failure_marker.read_text()}")
+
+        if not success_marker.exists():
+            return JobStatusResult(False, error_message=f"Success marker file not found: {success_marker.absolute()}")
+
         for workload in self.cmd_args.workloads.split(","):
             if not workload_map.get(workload):
                 logging.info(f"Workload {workload} not found in workload map")

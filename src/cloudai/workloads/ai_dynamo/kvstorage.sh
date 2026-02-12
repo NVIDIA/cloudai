@@ -21,6 +21,7 @@ g2_token_size=0
 g3_token_size=0
 bytes_per_token=0
 dyn_system_port="${DYN_SYSTEM_PORT:-8081}"
+client_script="./kvstorage.py"
 
 
 # Simple log function
@@ -117,6 +118,8 @@ function process_args()
       ;;
     esac
   done
+
+  client_script="${install_dir}/kvstorage.py"
 
   log """Parsed args:
     model: $model
@@ -290,7 +293,7 @@ function compute_kv_cache_token_size_from_query()
   # Fallback: compute by sending queries (original method)
   local kv_cache_token_size_file=$result_dir/kv_cache_token_size.out
   log "Computing KV cache token size via queries..."
-  python3 ${install_dir}/openai_chat_client.py \
+  python3 $client_script \
       --model $model \
       --url $url:$port/v1 \
       --osl 10 \
@@ -331,12 +334,12 @@ function main()
   local num_filler_prompts=$(( 1 + (kv_cache_token_size / num_filler_tokens) ))
 
   log "Dumping CSV header"
-  python3 ${install_dir}/openai_chat_client.py --dump_csv_header --out $report_file
+  python3 $client_script --dump_csv_header --out $report_file
 
   log "Launching KV storage workload with ISLs: $all_isl"
   for isl in $(echo $all_isl | tr ',' '\n'); do
     log "Launching KV storage workload with ISL: $isl"
-    python3 ${install_dir}/openai_chat_client.py \
+    python3 $client_script \
       --model $model \
       --url $url:$port/v1 \
       --isl $isl \
