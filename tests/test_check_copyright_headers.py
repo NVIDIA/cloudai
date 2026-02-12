@@ -86,6 +86,11 @@ def test_format_years_to_ranges(years_list: list[int], expected: str):
     assert _format_years_to_ranges(years_list) == expected
 
 
+def test_empty_format_years_to_ranges():
+    with pytest.raises(ValueError):
+        _format_years_to_ranges([])
+
+
 def get_commit_years_for_file(path: Path) -> list[int]:
     """
     Return sorted list of years when the file was changed: from git log --follow
@@ -98,12 +103,18 @@ def get_commit_years_for_file(path: Path) -> list[int]:
         capture_output=True,
         text=True,
     )
+    if res.returncode != 0 and res.returncode != 128:  # 128 = no commits match
+        raise RuntimeError(f"git log failed for {path_str}: {res.stderr}")
+
     if not res.stdout.strip():
         res = subprocess.run(
             ["git", "log", "--format=%ad", "--date=format:%Y", "--", path_str],
             capture_output=True,
             text=True,
         )
+        if res.returncode != 0 and res.returncode != 128:  # 128 = no commits match
+            raise RuntimeError(f"git log failed for {path_str}: {res.stderr}")
+
     lines = [s.strip() for s in res.stdout.splitlines() if s.strip()]
     years = sorted(set(int(y) for y in lines)) if lines else [CURRENT_YEAR]
 
