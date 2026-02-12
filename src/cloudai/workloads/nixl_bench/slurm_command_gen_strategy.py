@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from typing import cast
 
 from cloudai.core import TestRun
@@ -55,11 +56,23 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
             f"echo {self.test_run.output_path.absolute()}",
             " ".join(etcd_command),
             "etcd_pid=$!",
+            'echo "Start waiting etcd_pid=$etcd_pid"',
             " ".join(self.gen_wait_for_etcd_command()),
             *[" ".join(cmd) + " &\nsleep 15" for cmd in nixl_commands[:-1]],
             " ".join(nixl_commands[-1]),
+            'echo ""',
+            'echo "Before-Killing etcd_pid=$etcd_pid"',
             " ".join(self.gen_kill_and_wait_cmd("etcd_pid")),
+            'echo "After-Killing etcd_pid=$etcd_pid"',
         ]
+
+        # TODO: temp hacky code; do not merge into main
+        sleep_after_kill_raw = os.environ.get("CLOUDAI_NIXLE_BENCH_SLEEP_AFTER_KILL", "0")
+        sleep_after_kill = int(sleep_after_kill_raw)
+        if sleep_after_kill:
+            commands.append(f'echo "Hacky sleep for {sleep_after_kill} seconds after killing etcd"')
+            commands.append(f"sleep {sleep_after_kill}")
+
         return "\n".join(commands)
 
     def gen_nixlbench_command(self) -> list[str]:

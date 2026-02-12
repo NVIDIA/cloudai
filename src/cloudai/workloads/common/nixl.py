@@ -71,7 +71,7 @@ class NIXLCmdGenBase(SlurmCommandGenStrategy):
             str(timeout),
             "bash",
             "-c",
-            '"until curl -s $NIXL_ETCD_ENDPOINTS/health 2>&1; do sleep 1; done" || {\n',
+            '"until curl -s $NIXL_ETCD_ENDPOINTS/health 2>&1; do sleep 1; echo \\"Waiting for health\\"; done" || {\n',
             f'  echo "ETCD ($NIXL_ETCD_ENDPOINTS) was unreachable after {timeout} seconds";\n',
             "  exit 1\n",
             "}",
@@ -80,12 +80,12 @@ class NIXLCmdGenBase(SlurmCommandGenStrategy):
 
     def gen_kill_and_wait_cmd(self, pid_var: str, timeout: int = 60) -> list[str]:
         cmd = [
-            f"kill -9 ${pid_var}\n",
+            f"kill -TERM ${pid_var}\n",
             "timeout",
             str(timeout),
             "bash",
             "-c",
-            f'"while kill -0 ${pid_var} 2>&1; do sleep 1; done" || {{\n',
+            f'"while kill -0 ${pid_var} 2>&1; do sleep 1; echo \\"Waiting for pid=${pid_var} to gone\\"; done" || {{\n',
             f'  echo "Failed to kill ETCD (pid=${pid_var}) within {timeout} seconds";\n',
             "  exit 1\n",
             "}",
