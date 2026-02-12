@@ -67,7 +67,7 @@ class NIXLBenchSlurmCommandGenStrategy(NIXLCmdGenBase):
         ]
 
         # TODO: temp hacky code; do not merge into main
-        sleep_after_kill_raw = os.environ.get("CLOUDAI_NIXLE_BENCH_SLEEP_AFTER_KILL", "0")
+        sleep_after_kill_raw = os.environ.get("CLOUDAI_NIXL_BENCH_SLEEP_AFTER_KILL", "0")
         sleep_after_kill = int(sleep_after_kill_raw)
         if sleep_after_kill:
             commands.append(f'echo "Hacky sleep for {sleep_after_kill} seconds after killing etcd"')
