@@ -45,8 +45,8 @@ requires-python = ">=3.10"
     "vulture==2.14",
     "pytest~=9.0",
     "pytest-cov~=7.0",
-    "import-linter~=2.5",
-    "pytest-deadfixtures~=2.2",
+    "import-linter~=2.10",
+    "pytest-deadfixtures~=3.1",
     "taplo~=0.9.3",
   ]
   docs = [
