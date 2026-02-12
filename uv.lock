@@ -323,7 +323,7 @@ requires-dist = [
     { name = "build", marker = "extra == 'dev'", specifier = "~=1.4" },
     { name = "click", specifier = "~=8.3" },
     { name = "huggingface-hub", specifier = "~=1.4" },
-    { name = "import-linter", marker = "extra == 'dev'", specifier = "~=2.5" },
+    { name = "import-linter", marker = "extra == 'dev'", specifier = "~=2.10" },
     { name = "jinja2", specifier = "~=3.1.6" },
     { name = "kubernetes", specifier = "~=35.0" },
     { name = "nvidia-sphinx-theme", marker = "extra == 'docs'", specifier = "~=0.0.8" },
@@ -333,7 +333,7 @@ requires-dist = [
     { name = "pyright", marker = "extra == 'dev'", specifier = "~=1.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = "~=9.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = "~=7.0" },
-    { name = "pytest-deadfixtures", marker = "extra == 'dev'", specifier = "~=2.2" },
+    { name = "pytest-deadfixtures", marker = "extra == 'dev'", specifier = "~=3.1" },
     { name = "rich", specifier = "~=14.3" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "~=0.15" },
     { name = "sphinx", marker = "extra == 'docs'", specifier = "~=8.1" },
@@ -2051,14 +2051,14 @@ wheels = [
 
 [[package]]
 name = "pytest-deadfixtures"
-version = "2.2.1"
+version = "3.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pytest" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c5/d5/0472e7dd4c5794cd720f8add3ba59b35e45c1bb7482e04b6d6e60ff4eed0/pytest-deadfixtures-2.2.1.tar.gz", hash = "sha256:ca15938a4e8330993ccec9c6c847383d88b3cd574729530647dc6b492daa9c1e", size = 6616, upload-time = "2020-07-23T11:58:09.465Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7b/b5/6fc6a3096e5bc3124c61af17c53d09290a5bfbca51fb8b94068d1e770d0e/pytest_deadfixtures-3.1.0.tar.gz", hash = "sha256:a8010e771183176fa9d918c8c49293ca5568597c8e1453ed2bbd41bcee67bde5", size = 9294, upload-time = "2026-01-15T20:05:40.825Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4a/c7/d8c3fa6d2de6814c92161fcce984a7d38a63186590a66238e7b749f7fe37/pytest_deadfixtures-2.2.1-py2.py3-none-any.whl", hash = "sha256:db71533f2d9456227084e00a1231e732973e299ccb7c37ab92e95032ab6c083e", size = 5059, upload-time = "2020-07-23T11:58:11.538Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/d0/67f83859706d11717498e1ef5e75f1c61835fd972c902f5bc9cbd9cb5659/pytest_deadfixtures-3.1.0-py2.py3-none-any.whl", hash = "sha256:898ba131c7472bd05551b73e2b99a51898fc3b8255c0589cf8b3c3c804e8f502", size = 7070, upload-time = "2026-01-15T20:05:39.599Z" },
 ]
 
 [[package]]
