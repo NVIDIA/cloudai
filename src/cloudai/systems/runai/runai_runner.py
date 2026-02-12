@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -41,12 +41,12 @@ class RunAIRunner(BaseRunner):
         else:
             raise RuntimeError("Invalid mode for submitting a test.")
 
-    async def job_completion_callback(self, job: BaseJob) -> None:
+    def on_job_completion(self, job: BaseJob) -> None:
         runai_system = cast(RunAISystem, self.system)
-        job = cast(RunAIJob, job)
-        workload_id = str(job.id)
-        runai_system.get_workload_events(workload_id, job.test_run.output_path / "events.txt")
-        await runai_system.store_logs(workload_id, job.test_run.output_path / "stdout.txt")
+        runai_job = cast(RunAIJob, job)
+        workload_id = str(runai_job.id)
+        runai_system.get_workload_events(workload_id, runai_job.test_run.output_path / "events.txt")
+        runai_system.store_logs(workload_id, runai_job.test_run.output_path / "stdout.txt")
 
     def kill_job(self, job: BaseJob) -> None:
         runai_system = cast(RunAISystem, self.system)

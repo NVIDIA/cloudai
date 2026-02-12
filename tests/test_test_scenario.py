@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -53,6 +53,7 @@ from cloudai.workloads.megatron_bridge import MegatronBridgeReportGenerationStra
 from cloudai.workloads.megatron_run import (
     CheckpointTimingReportGenerationStrategy,
     MegatronRunCmdArgs,
+    MegatronRunReportGenerationStrategy,
     MegatronRunTestDefinition,
 )
 from cloudai.workloads.nccl_test import (
@@ -462,6 +463,59 @@ class TestInScenario:
         )
         assert model.tests[0].num_nodes == [1, 2]
 
+    def test_agent_metrics_preserved_from_test_definition(
+        self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
+    ):
+        test_scenario_parser.test_mapping = {
+            "megatron": MegatronRunTestDefinition(
+                name="megatron",
+                description="desc",
+                test_template_name="MegatronRun",
+                cmd_args=MegatronRunCmdArgs(docker_image_url="docker://megatron", run_script=Path("run.sh")),
+                agent_metrics=["tflops-per-gpu"],  # Custom value in test definition
+            )
+        }
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "megatron"
+            """
+            )
+        )
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        assert tdef.agent_metrics == ["tflops-per-gpu"]
+
+    def test_agent_metrics_can_be_overridden_in_scenario(
+        self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
+    ):
+        test_scenario_parser.test_mapping = {
+            "megatron": MegatronRunTestDefinition(
+                name="megatron",
+                description="desc",
+                test_template_name="MegatronRun",
+                cmd_args=MegatronRunCmdArgs(docker_image_url="docker://megatron", run_script=Path("run.sh")),
+                agent_metrics=["tflops-per-gpu"],  # Custom value in test definition
+            )
+        }
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "megatron"
+            agent_metrics = ["iteration-time"]
+            """
+            )
+        )
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        assert tdef.agent_metrics == ["iteration-time"]
+
 
 class TestReporters:
     def test_default(self):
@@ -481,7 +535,10 @@ class TestReporters:
             (DeepEPTestDefinition, {DeepEPReportGenerationStrategy}),
             (GPTTestDefinition, {JaxToolboxReportGenerationStrategy}),
             (GrokTestDefinition, {JaxToolboxReportGenerationStrategy}),
-            (MegatronRunTestDefinition, {CheckpointTimingReportGenerationStrategy}),
+            (
+                MegatronRunTestDefinition,
+                {CheckpointTimingReportGenerationStrategy, MegatronRunReportGenerationStrategy},
+            ),
             (MegatronBridgeTestDefinition, {MegatronBridgeReportGenerationStrategy}),
             (NCCLTestDefinition, {NcclTestPerformanceReportGenerationStrategy}),
             (NeMoLauncherTestDefinition, {NeMoLauncherReportGenerationStrategy}),

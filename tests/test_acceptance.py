@@ -108,7 +108,7 @@ class TestInDryRun:
             log_file="debug.log",
         )
         with (
-            patch("asyncio.sleep", return_value=None),
+            patch("time.sleep", return_value=None),
             patch("cloudai.systems.slurm.SlurmSystem.is_job_completed", return_value=True),
             patch("cloudai.systems.slurm.SlurmSystem.is_job_running", return_value=True),
             patch("cloudai.util.command_shell.CommandShell.execute") as mock_execute,

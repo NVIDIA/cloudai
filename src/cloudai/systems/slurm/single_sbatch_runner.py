@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 import copy
 import logging
+import time
 from datetime import timedelta
 from pathlib import Path
 from typing import Generator, Optional, cast
@@ -180,7 +180,7 @@ class SingleSbatchRunner(SlurmRunner):
                 tr.output_path = self.get_job_output_path(tr)
                 yield tr
 
-    async def run(self):
+    def run(self):
         if self.shutting_down:
             return
 
@@ -193,7 +193,7 @@ class SingleSbatchRunner(SlurmRunner):
             if self.shutting_down:
                 break
             is_completed = True if self.mode == "dry-run" else self.system.is_job_completed(job)
-            await asyncio.sleep(self.system.monitor_interval)
+            time.sleep(self.system.monitor_interval)
 
         self.handle_dse()
 

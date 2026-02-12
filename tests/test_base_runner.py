@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 from copy import deepcopy
 from pathlib import Path
 from typing import cast
@@ -50,12 +49,11 @@ class MyRunner(BaseRunner):
         self.submitted_trs.append(tr)
         return BaseJob(tr, 0)
 
-    async def delayed_submit_test(self, tr: TestRun, delay: int = 0):
-        await super().delayed_submit_test(tr, 0)
+    def delayed_submit_test(self, tr: TestRun, delay: int = 0):
+        super().delayed_submit_test(tr, 0)
 
-    async def delayed_kill_job(self, job: BaseJob, delay: int = 0):
+    def delayed_kill_job(self, job: BaseJob, delay: int = 0):
         self.killed_by_dependency.append(job)
-        await asyncio.sleep(0)
 
 
 class MyWorkload(TestDefinition):
@@ -127,40 +125,37 @@ class TestHandleDependencies:
     def tr_main(self, runner: MyRunner) -> TestRun:
         return runner.test_scenario.test_runs[0]
 
-    @pytest.mark.asyncio
-    async def test_no_dependencies(self, runner: MyRunner, tr_main: TestRun):
-        await runner.handle_dependencies(BaseJob(tr_main, 0))
+    def test_no_dependencies(self, runner: MyRunner, tr_main: TestRun):
+        runner.handle_dependencies(BaseJob(tr_main, 0))
         assert len(runner.submitted_trs) == 0
 
-    @pytest.mark.asyncio
-    async def test_start_post_comp(self, runner: MyRunner, tr_main: TestRun):
+    def test_start_post_comp(self, runner: MyRunner, tr_main: TestRun):
         tr_dep = deepcopy(tr_main)
         tr_dep.dependencies = {"start_post_comp": TestDependency(tr_main)}
         runner.test_scenario.test_runs.append(tr_dep)
 
-        await runner.handle_dependencies(BaseJob(tr_dep, 0))  # self, should not trigger anything
+        runner.handle_dependencies(BaseJob(tr_dep, 0))  # self, should not trigger anything
         assert len(runner.submitted_trs) == 0
 
-        await runner.handle_dependencies(BaseJob(tr_main, 0))
+        runner.handle_dependencies(BaseJob(tr_main, 0))
         assert len(runner.submitted_trs) == 1
         assert runner.submitted_trs[0] == tr_dep
 
-    @pytest.mark.asyncio
-    async def test_end_post_comp(self, runner: MyRunner, tr_main: TestRun):
+    def test_end_post_comp(self, runner: MyRunner, tr_main: TestRun):
         tr_dep = deepcopy(tr_main)
         tr_dep.dependencies = {"end_post_comp": TestDependency(tr_main)}
         runner.test_scenario.test_runs.append(tr_dep)
 
         # self not running, main completed -> nothing to kill
-        await runner.handle_dependencies(BaseJob(tr_main, 0))
+        runner.handle_dependencies(BaseJob(tr_main, 0))
         assert len(runner.killed_by_dependency) == 0
 
         # self is running, main completed -> should kill
-        await runner.submit_test(tr_dep)
+        runner.submit_test(tr_dep)
 
-        await runner.handle_dependencies(BaseJob(tr_dep, 0))  # self, should not kill
+        runner.handle_dependencies(BaseJob(tr_dep, 0))  # self, should not kill
         assert len(runner.killed_by_dependency) == 0
 
-        await runner.handle_dependencies(BaseJob(tr_main, 0))
+        runner.handle_dependencies(BaseJob(tr_main, 0))
         assert len(runner.killed_by_dependency) == 1
         assert runner.killed_by_dependency[0].test_run == tr_dep

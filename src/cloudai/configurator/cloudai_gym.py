@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 import copy
 import csv
 import logging
@@ -113,7 +112,7 @@ class CloudAIGymEnv(BaseGym):
         self.runner.testrun_to_job_map.clear()
 
         try:
-            asyncio.run(self.runner.run())
+            self.runner.run()
         except Exception as e:
             logging.error(f"Error running step {self.test_run.step}: {e}")
 

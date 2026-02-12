@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,15 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import json
 import logging
 import re
 from pathlib import Path
-
-import pandas as pd
+from typing import TYPE_CHECKING
 
 from cloudai.core import ReportGenerationStrategy
 from cloudai.report_generator.tool.csv_report_tool import CSVReportTool
+from cloudai.util.lazy_imports import lazy
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 class DeepEPReportGenerationStrategy(ReportGenerationStrategy):
@@ -86,7 +91,7 @@ class DeepEPReportGenerationStrategy(ReportGenerationStrategy):
                 all_results.append(result)
 
         if all_results:
-            df = pd.DataFrame(all_results)
+            df = lazy.pd.DataFrame(all_results)
 
             column_order = [
                 "mode",

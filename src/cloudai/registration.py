@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -98,6 +98,7 @@ def register_all():
     )
     from cloudai.workloads.megatron_run import (
         CheckpointTimingReportGenerationStrategy,
+        MegatronRunReportGenerationStrategy,
         MegatronRunSlurmCommandGenStrategy,
         MegatronRunTestDefinition,
     )
@@ -259,6 +260,7 @@ def register_all():
     Registry().add_report(GPTTestDefinition, JaxToolboxReportGenerationStrategy)
     Registry().add_report(GrokTestDefinition, JaxToolboxReportGenerationStrategy)
     Registry().add_report(MegatronRunTestDefinition, CheckpointTimingReportGenerationStrategy)
+    Registry().add_report(MegatronRunTestDefinition, MegatronRunReportGenerationStrategy)
     Registry().add_report(MegatronBridgeTestDefinition, MegatronBridgeReportGenerationStrategy)
     Registry().add_report(NCCLTestDefinition, NcclTestPerformanceReportGenerationStrategy)
     Registry().add_report(NeMoLauncherTestDefinition, NeMoLauncherReportGenerationStrategy)

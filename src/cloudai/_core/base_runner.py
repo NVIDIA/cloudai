@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,10 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 import logging
+import time
 from abc import ABC, abstractmethod
-from asyncio import Task
 from pathlib import Path
 from typing import Dict, List
 
@@ -71,33 +70,33 @@ class BaseRunner(ABC):
         logging.debug(f"{self.__class__.__name__} initialized")
         self.shutting_down = False
 
-    async def shutdown(self):
+    def shutdown(self):
         """Gracefully shut down the runner, terminating all outstanding jobs."""
         self.shutting_down = True
         logging.info("Terminating all jobs...")
         for job in self.jobs:
             logging.info(f"Terminating job {job.id} for test {job.test_run.name}")
             self.system.kill(job)
-        logging.info("All jobs have been killed.")
+        logging.info("Waiting for all jobs to be killed.")
 
-    async def run(self):
-        """Asynchronously run the test scenario."""
+    def run(self):
+        """Run the test scenario."""
         if self.shutting_down:
             return
 
         total_tests = len(self.test_scenario.test_runs)
         dependency_free_trs = self.find_dependency_free_tests()
         for tr in dependency_free_trs:
-            await self.submit_test(tr)
+            self.submit_test(tr)
 
         logging.debug(f"Total tests: {total_tests}, dependency free tests: {[tr.name for tr in dependency_free_trs]}")
         while self.jobs:
-            await self.check_start_post_init_dependencies()
-            await self.monitor_jobs()
+            self.check_start_post_init_dependencies()
+            self.monitor_jobs()
             logging.debug(f"sleeping for {self.monitor_interval} seconds")
-            await asyncio.sleep(self.monitor_interval)
+            time.sleep(self.monitor_interval)
 
-    async def submit_test(self, tr: TestRun):
+    def submit_test(self, tr: TestRun):
         """
         Start a dependency-free test.
 
@@ -118,7 +117,7 @@ class BaseRunner(ABC):
     def on_job_submit(self, tr: TestRun) -> None:
         return
 
-    async def delayed_submit_test(self, tr: TestRun, delay: int = 5):
+    def delayed_submit_test(self, tr: TestRun, delay: int = 5):
         """
         Delay the start of a test based on start_post_comp dependency.
 
@@ -127,8 +126,8 @@ class BaseRunner(ABC):
             delay (int): Delay in seconds before starting the test.
         """
         logging.debug(f"Delayed start for test {tr.name} by {delay} seconds.")
-        await asyncio.sleep(delay)
-        await self.submit_test(tr)
+        time.sleep(delay)
+        self.submit_test(tr)
 
     @abstractmethod
     def _submit_test(self, tr: TestRun) -> BaseJob:
@@ -143,7 +142,7 @@ class BaseRunner(ABC):
         """
         pass
 
-    async def check_start_post_init_dependencies(self):
+    def check_start_post_init_dependencies(self):
         """
         Check and handle start_post_init dependencies.
 
@@ -164,9 +163,9 @@ class BaseRunner(ABC):
 
             logging.debug(f"start_post_init for test {tr.name} ({is_running=}, {is_completed=}, {self.mode=})")
             if is_running or is_completed:
-                await self.check_and_schedule_start_post_init_dependent_tests(tr)
+                self.check_and_schedule_start_post_init_dependent_tests(tr)
 
-    async def check_and_schedule_start_post_init_dependent_tests(self, started_test_run: TestRun):
+    def check_and_schedule_start_post_init_dependent_tests(self, started_test_run: TestRun):
         """
         Schedule tests with a start_post_init dependency on the provided started_test.
 
@@ -177,7 +176,7 @@ class BaseRunner(ABC):
             if tr not in self.testrun_to_job_map:
                 for dep_type, dep in tr.dependencies.items():
                     if (dep_type == "start_post_init") and (dep.test_run == started_test_run):
-                        await self.delayed_submit_test(tr)
+                        self.delayed_submit_test(tr)
 
     def find_dependency_free_tests(self) -> List[TestRun]:
         """
@@ -229,7 +228,7 @@ class BaseRunner(ABC):
 
         return job_output_path
 
-    async def monitor_jobs(self) -> int:
+    def monitor_jobs(self) -> int:
         """
         Monitor the status of jobs, handle end_post_comp dependencies, and schedule start_post_comp dependent jobs.
 
@@ -248,20 +247,20 @@ class BaseRunner(ABC):
 
                 if self.mode == "dry-run":
                     successful_jobs_count += 1
-                    await self.handle_job_completion(job)
+                    self.handle_job_completion(job)
                 else:
                     if self.test_scenario.job_status_check:
                         job_status_result = self.get_job_status(job)
                         if job_status_result.is_successful:
                             successful_jobs_count += 1
-                            await self.handle_job_completion(job)
+                            self.handle_job_completion(job)
                         else:
                             error_message = (
                                 f"Job {job.id} for test {job.test_run.name} failed: {job_status_result.error_message}"
                             )
                             logging.error(error_message)
-                            await self.handle_job_completion(job)
-                            await self.shutdown()
+                            self.handle_job_completion(job)
+                            self.shutdown()
                             raise JobFailureError(job.test_run.name, error_message, job_status_result.error_message)
                     else:
                         job_status_result = self.get_job_status(job)
@@ -271,7 +270,7 @@ class BaseRunner(ABC):
                             )
                             logging.error(error_message)
                         successful_jobs_count += 1
-                        await self.handle_job_completion(job)
+                        self.handle_job_completion(job)
 
         return successful_jobs_count
 
@@ -296,7 +295,7 @@ class BaseRunner(ABC):
             return workload_run_results
         return JobStatusResult(is_successful=True)
 
-    async def handle_job_completion(self, completed_job: BaseJob):
+    def handle_job_completion(self, completed_job: BaseJob):
         """
         Handle the completion of a job, including dependency management and iteration control.
 
@@ -316,9 +315,9 @@ class BaseRunner(ABC):
                 completed_job.test_run.current_iteration += 1
                 msg = f"Re-running job for iteration {completed_job.test_run.current_iteration}"
                 logging.info(msg)
-                await self.submit_test(completed_job.test_run)
+                self.submit_test(completed_job.test_run)
             else:
-                await self.handle_dependencies(completed_job)
+                self.handle_dependencies(completed_job)
 
     def on_job_completion(self, job: BaseJob) -> None:
         """
@@ -332,37 +331,27 @@ class BaseRunner(ABC):
         """
         return
 
-    async def handle_dependencies(self, completed_job: BaseJob) -> List[Task]:
+    def handle_dependencies(self, completed_job: BaseJob):
         """
         Handle the start_post_comp and end_post_comp dependencies for a completed job.
 
         Args:
             completed_job (BaseJob): The job that has just been completed.
-
-        Returns:
-            List[asyncio.Task]: A list of asyncio.Task objects created for handling the dependencies.
         """
-        tasks = []
-
         # Handling start_post_comp dependencies
         for tr in self.test_scenario.test_runs:
             if tr not in self.testrun_to_job_map:
                 for dep_type, dep in tr.dependencies.items():
                     if dep_type == "start_post_comp" and dep.test_run == completed_job.test_run:
-                        task = await self.delayed_submit_test(tr)
-                        if task:
-                            tasks.append(task)
+                        self.delayed_submit_test(tr)
 
         # Handling end_post_comp dependencies
         for test, dependent_job in self.testrun_to_job_map.items():
             for dep_type, dep in test.dependencies.items():
                 if dep_type == "end_post_comp" and dep.test_run == completed_job.test_run:
-                    task = await self.delayed_kill_job(dependent_job)
-                    tasks.append(task)
+                    self.delayed_kill_job(dependent_job)
 
-        return tasks
-
-    async def delayed_kill_job(self, job: BaseJob, delay: int = 0):
+    def delayed_kill_job(self, job: BaseJob, delay: int = 0):
         """
         Schedule termination of a Standalone job after a specified delay.
 
@@ -371,7 +360,7 @@ class BaseRunner(ABC):
             delay (int): Delay in seconds after which the job should be terminated.
         """
         logging.info(f"Scheduling termination of job {job.id} after {delay} seconds.")
-        await asyncio.sleep(delay)
+        time.sleep(delay)
         job.terminated_by_dependency = True
         self.system.kill(job)
 

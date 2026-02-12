@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,11 +22,12 @@ from pathlib import Path
 from typing import Optional
 
 import jinja2
-import pandas as pd
 import toml
 from rich import box
 from rich.console import Console
 from rich.table import Table
+
+from cloudai.util.lazy_imports import lazy
 
 from .core import CommandGenStrategy, Reporter, TestRun, case_name
 from .models.scenario import TestRunDetails
@@ -171,7 +172,7 @@ class StatusReporter(Reporter):
                 logging.warning(f"No trajectory file found for {tr.name} at {trajectory_file}")
                 continue
 
-            df = pd.read_csv(trajectory_file)
+            df = lazy.pd.read_csv(trajectory_file)
             best_step = df.loc[df["reward"].idxmax()]["step"]
             best_step_details = tr_root / f"{best_step}" / CommandGenStrategy.TEST_RUN_DUMP_FILE_NAME
             with best_step_details.open() as f:

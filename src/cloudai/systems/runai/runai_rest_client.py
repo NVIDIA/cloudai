@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import requests
-import websockets
+from websockets.sync.client import connect as ws_connect
 
 
 class RunAIRestClient:
@@ -496,7 +496,7 @@ class RunAIRestClient:
         response = requests.get(url, headers=headers)
         return "OK" in response.text
 
-    async def fetch_training_logs(
+    def fetch_training_logs(
         self, cluster_domain: str, project_name: str, training_task_name: str, output_file_path: Path
     ):
         if not self.is_cluster_api_available(cluster_domain):
@@ -512,9 +512,11 @@ class RunAIRestClient:
         }
 
         ssl_context = ssl._create_unverified_context()
-        async with websockets.connect(url, extra_headers=headers, ssl=ssl_context) as websocket:
-            with output_file_path.open("w") as log_file:
-                async for message in websocket:
-                    if isinstance(message, bytes):
-                        message = message.decode("utf-8")
-                    log_file.write(str(message))
+        with (
+            ws_connect(url, additional_headers=headers, ssl=ssl_context) as websocket,
+            output_file_path.open("w") as log_file,
+        ):
+            for message in websocket:
+                if isinstance(message, bytes):
+                    message = message.decode("utf-8")
+                log_file.write(str(message))

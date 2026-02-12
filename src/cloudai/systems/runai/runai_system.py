@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -174,7 +174,7 @@ class RunAISystem(System):
         self.api_client.resume_training(workload_id)
 
     # ============================ Logs ============================
-    async def store_logs(self, workload_id: str, output_file_path: Path):
+    def store_logs(self, workload_id: str, output_file_path: Path):
         """Store logs for a given workload."""
         training_data = self.api_client.get_training(workload_id)
         training = RunAITraining(**training_data)
@@ -202,4 +202,4 @@ class RunAISystem(System):
             logging.error(f"Domain for cluster {cluster_id} not found.")
             return
 
-        await self.api_client.fetch_training_logs(cluster_domain, project.name, training.name, output_file_path)
+        self.api_client.fetch_training_logs(cluster_domain, project.name, training.name, output_file_path)

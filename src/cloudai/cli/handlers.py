@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import argparse
-import asyncio
 import copy
 import logging
 import signal
@@ -192,7 +191,7 @@ def generate_reports(system: System, test_scenario: TestScenario, result_dir: Pa
 
 
 def handle_non_dse_job(runner: Runner, args: argparse.Namespace) -> None:
-    asyncio.run(runner.run())
+    runner.run()
     generate_reports(runner.runner.system, runner.runner.test_scenario, runner.runner.scenario_root)
     logging.info("All jobs are complete.")
 
