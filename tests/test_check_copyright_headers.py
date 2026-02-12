@@ -141,7 +141,6 @@ def _assert_copyright_in_file(file: Path):
     assert "\n".join(actual_copyright_lines[2:]) == HEADER_TAIL, f"Header mismatch in {file}"
 
 
-
 @pytest.mark.parametrize("py_file", PY_FILES, ids=[str(f) for f in PY_FILES])
 def test_src_copyright_header(py_file: Path):
     _assert_copyright_in_file(py_file)
