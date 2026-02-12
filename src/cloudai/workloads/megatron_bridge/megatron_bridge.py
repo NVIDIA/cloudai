@@ -130,7 +130,7 @@ class MegatronBridgeCmdArgs(CmdArgs):
             raise ValueError("cmd_args.hf_token is required. Please set it to your literal HF token string.")
         return token
 
-    @field_validator("model_name", "model_size", mode="after")
+    @field_validator("model_family_name", "model_recipe_name", mode="after")
     @classmethod
     def validate_model_fields(cls, v: str, info: ValidationInfo) -> str:
         s = v.strip()
