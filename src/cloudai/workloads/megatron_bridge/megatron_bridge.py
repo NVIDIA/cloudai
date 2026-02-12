@@ -17,7 +17,7 @@
 import logging
 from typing import List, Optional, Union, cast
 
-from pydantic import Field, ValidationInfo, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from cloudai.core import DockerImage, GitRepo, Installable, PythonExecutable
 from cloudai.models.workload import CmdArgs, TestDefinition
@@ -40,22 +40,27 @@ class MegatronBridgeCmdArgs(CmdArgs):
     detach: Optional[bool] = Field(default=None)
 
     # Model/task
-    model_name: str = Field(min_length=1)
-    model_size: str = Field(min_length=1)
-    domain: str = Field(default="llm")
+    model_family_name: str = Field(default="")
+    model_recipe_name: str = Field(default="")
+    use_recipes: Optional[bool] = Field(default=None)
     task: str = Field(default="pretrain")
     compute_dtype: str = Field(default="bf16")
     fp8_recipe: Optional[str] = Field(default=None)
     hf_token: Optional[str] = Field(default=None)
     nemo_home: Optional[str] = Field(default=None)
     wandb_key: Optional[str] = Field(default=None)
-    wandb_prj_name: Optional[str] = Field(default=None)
-    wandb_exp_name: Optional[str] = Field(default=None)
+    wandb_project_name: Optional[str] = Field(default=None)
+    wandb_entity_name: Optional[str] = Field(default=None)
+    wandb_experiment_name: Optional[str] = Field(default=None)
+    wandb_save_dir: Optional[str] = Field(default=None)
+
+    # Retries
+    max_retries: Optional[int] = Field(default=None)
 
     # Feature flags (allow sweeps)
     use_tokendrop: Optional[Union[bool, List[bool]]] = Field(default=None)
     use_megatron_fsdp: Optional[Union[bool, List[bool]]] = Field(default=None)
-    cuda_graph_impl: Optional[str] = Field(default=None)
+    cuda_graph_impl: Optional[Union[str, List[str]]] = Field(default=None)
     cuda_graph_scope: Optional[Union[str, List[str]]] = Field(default=None)
 
     # Parallelism
@@ -69,6 +74,43 @@ class MegatronBridgeCmdArgs(CmdArgs):
     # Batch sizes
     mb: Optional[Union[int, List[int]]] = Field(default=None)
     gb: Optional[Union[int, List[int]]] = Field(default=None)
+    seq_length: Optional[Union[int, List[int]]] = Field(default=None)
+
+    # Optimizer
+    lr: Optional[Union[float, List[float]]] = Field(default=None)
+    min_lr: Optional[Union[float, List[float]]] = Field(default=None)
+    warmup_iters: Optional[Union[int, List[int]]] = Field(default=None)
+
+    # Checkpointing
+    pretrained_checkpoint: Optional[str] = Field(default=None)
+    save_dir: Optional[str] = Field(default=None)
+    load_dir: Optional[str] = Field(default=None)
+    save_interval: Optional[int] = Field(default=None)
+    most_recent_k: Optional[int] = Field(default=None)
+    save_config_filepath: Optional[str] = Field(default=None)
+
+    # Data / Tokenizer
+    data: Optional[str] = Field(default=None)
+    dataset_paths: Optional[Union[str, List[str]]] = Field(default=None)
+    dataset_root: Optional[str] = Field(default=None)
+    index_mapping_dir: Optional[str] = Field(default=None)
+    dataset_name: Optional[str] = Field(default=None)
+    packed_sequence: Optional[bool] = Field(default=None)
+    head_only: Optional[bool] = Field(default=None)
+    tokenizer_type: Optional[str] = Field(default=None)
+    tokenizer_model: Optional[str] = Field(default=None)
+    vocab_size: Optional[int] = Field(default=None)
+
+    # Profiling (performance group in argument_parser.py)
+    pytorch_profiler: Optional[bool] = Field(default=None)
+    profiling_start_step: Optional[int] = Field(default=None)
+    profiling_stop_step: Optional[int] = Field(default=None)
+    record_memory_history: Optional[bool] = Field(default=None)
+    profiling_gpu_metrics: Optional[bool] = Field(default=None)
+    profiling_ranks: Optional[Union[int, List[int]]] = Field(default=None)
+
+    # Performance
+    nccl_ub: Optional[Union[bool, List[bool]]] = Field(default=None)
 
     # Perf/tuning
     moe_a2a_overlap: Optional[Union[bool, List[bool]]] = Field(default=None)
@@ -80,7 +122,7 @@ class MegatronBridgeCmdArgs(CmdArgs):
     # Optional distributed optimizer instances (for constraints/divisor)
     num_distributed_optimizer_instances: Optional[int] = Field(default=None)
 
-    @field_validator("hf_token", mode="after")
+    @field_validator("hf_token", mode="after", check_fields=False)
     @classmethod
     def validate_hf_token(cls, v: Optional[str]) -> Optional[str]:
         token = (v or "").strip()
@@ -88,13 +130,16 @@ class MegatronBridgeCmdArgs(CmdArgs):
             raise ValueError("cmd_args.hf_token is required. Please set it to your literal HF token string.")
         return token
 
-    @field_validator("model_name", "model_size", mode="after")
-    @classmethod
-    def validate_model_fields(cls, v: str, info: ValidationInfo) -> str:
-        s = v.strip()
-        if not s:
-            raise ValueError(f"cmd_args.{info.field_name} cannot be empty.")
-        return s
+    @model_validator(mode="after")
+    def validate_model_fields_non_empty(self) -> "MegatronBridgeCmdArgs":
+        """Ensure model_family_name and model_recipe_name are non-empty and stripped."""
+        for name in ("model_family_name", "model_recipe_name"):
+            val = getattr(self, name, "") or ""
+            s = str(val).strip()
+            if not s:
+                raise ValueError(f"cmd_args.{name} cannot be empty.")
+            setattr(self, name, s)
+        return self
 
 
 class MegatronBridgeTestDefinition(TestDefinition):
@@ -323,14 +368,16 @@ class MegatronBridgeTestDefinition(TestDefinition):
         else:
             constraint10 = True
 
-        # Constraint 11: CUDA graphs require a2a overlap disabled
+        # Constraint 11: When cuda_graph_impl is set (not none), a2a overlap must be disabled
+        # moe_a2a_overlap can only be true when cuda_graph_impl is 'none' or unset
         a2a_overlap = _as_bool(self.cmd_args.moe_a2a_overlap)
-        constraint11 = not (cuda_graphs and a2a_overlap)
+        cuda_impl_enabled = cgi not in {"", "none", "null"}
+        constraint11 = not (cuda_impl_enabled and a2a_overlap)
         if not constraint11:
             logging.error(
-                "Constraint 11 failed: cuda_graphs=true requires moe_a2a_overlap=false. "
-                "cuda_graphs=%s moe_a2a_overlap=%s",
-                cuda_graphs,
+                "Constraint 11 failed: moe_a2a_overlap must be false when cuda_graph_impl is not 'none'. "
+                "cuda_graph_impl=%s moe_a2a_overlap=%s",
+                cgi,
                 a2a_overlap,
             )
 
@@ -432,6 +479,27 @@ class MegatronBridgeTestDefinition(TestDefinition):
         else:
             constraint17 = True
 
+        # Constraint 18: Valid (PP, VP) combinations for DeepSeek v3 pipeline layout
+        # Only specific (pp, vp) pairs are supported by DeepSeek v3's pipeline layout mapping
+        model_recipe = (self.cmd_args.model_recipe_name or "").lower()
+        is_deepseek_v3 = "deepseek_v3" in model_recipe or "deepseekv3" in model_recipe
+        
+        if is_deepseek_v3:
+            valid_pp_vp_combinations = {(1, 1), (4, 1), (8, 1), (4, 2), (16, 1), (8, 2), (4, 4)}
+            current_vp = vp if vp is not None else 1
+            pp_vp_pair = (pp, current_vp)
+            constraint18 = pp_vp_pair in valid_pp_vp_combinations
+            if not constraint18:
+                logging.error(
+                    "Constraint 18 failed: Invalid (PP, VP) combination for DeepSeek v3. pp=%s vp=%s. "
+                    "Valid combinations: %s",
+                    pp,
+                    current_vp,
+                    sorted(valid_pp_vp_combinations),
+                )
+        else:
+            constraint18 = True  # Skip this constraint for non-DeepSeek v3 models
+
         return bool(
             constraint1
             and constraint2
@@ -450,4 +518,5 @@ class MegatronBridgeTestDefinition(TestDefinition):
             and constraint15
             and constraint16
             and constraint17
+            and constraint18
         )
