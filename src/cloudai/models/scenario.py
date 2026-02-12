@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -102,7 +102,7 @@ class TestRunModel(BaseModel):
             "test_template_name": self.test_template_name,
             "agent": self.agent,
             "agent_steps": self.agent_steps,
-            "agent_metrics": self.agent_metrics,
+            "agent_metrics": self.agent_metrics if "agent_metrics" in self.model_fields_set else None,
             "agent_reward_function": self.agent_reward_function,
             "extra_container_mounts": self.extra_container_mounts,
             "extra_env_vars": self.extra_env_vars if self.extra_env_vars else None,

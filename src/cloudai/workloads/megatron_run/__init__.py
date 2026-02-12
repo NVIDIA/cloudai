@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,12 +15,13 @@
 # limitations under the License.
 
 from .megatron_run import MegatronRunCmdArgs, MegatronRunTestDefinition
-from .report_generation_strategy import CheckpointTimingReportGenerationStrategy
+from .report_generation_strategy import CheckpointTimingReportGenerationStrategy, MegatronRunReportGenerationStrategy
 from .slurm_command_gen_strategy import MegatronRunSlurmCommandGenStrategy
 
 __all__ = [
     "CheckpointTimingReportGenerationStrategy",
     "MegatronRunCmdArgs",
+    "MegatronRunReportGenerationStrategy",
     "MegatronRunSlurmCommandGenStrategy",
     "MegatronRunTestDefinition",
 ]
