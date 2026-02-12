@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
 from typing import cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
@@ -89,15 +88,13 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         return [prefill_cmd, decode_cmd]
 
     def get_proxy_command(self) -> list[str]:
-        tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
-        cmd_args: VllmCmdArgs = tdef.cmd_args
-        prefill_port = cmd_args.port + 100
-        decode_port = cmd_args.port + 200
+        prefill_port = self.tdef.cmd_args.port + 100
+        decode_port = self.tdef.cmd_args.port + 200
         return [
             "python3",
-            cmd_args.proxy_script,
+            self.tdef.cmd_args.proxy_script,
             "--port",
-            str(cmd_args.port),
+            str(self.tdef.cmd_args.port),
             "--prefiller-hosts",
             "0.0.0.0",
             "--prefiller-ports",
@@ -109,17 +106,15 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ]
 
     def get_vllm_bench_command(self) -> list[str]:
-        tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
-        cmd_args: VllmCmdArgs = tdef.cmd_args
-        bench_args = tdef.bench_cmd_args
-        extra_args = tdef.bench_cmd_args.model_extra or {}
+        bench_args = self.tdef.bench_cmd_args
+        extra_args = self.tdef.bench_cmd_args.model_extra or {}
         extras = ["--" + k.replace("_", "-") + " " + str(v) for k, v in extra_args.items()]
         return [
             "vllm",
             "bench",
             "serve",
-            f"--model {cmd_args.model}",
-            f"--base-url http://0.0.0.0:{cmd_args.port}",
+            f"--model {self.tdef.cmd_args.model}",
+            f"--base-url http://0.0.0.0:{self.tdef.cmd_args.port}",
             f"--random-input-len {bench_args.random_input_len}",
             f"--random-output-len {bench_args.random_output_len}",
             f"--max-concurrency {bench_args.max_concurrency}",
@@ -131,13 +126,11 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ]
 
     def generate_wait_for_health_function(self) -> str:
-        tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
-        cmd_args: VllmCmdArgs = tdef.cmd_args
 
         return f"""\
 wait_for_health() {{
     local endpoint="$1"
-    local timeout={cmd_args.vllm_serve_wait_seconds}
+    local timeout={self.tdef.cmd_args.vllm_serve_wait_seconds}
     local interval=5
     local end_time=$(($(date +%s) + timeout))
 
@@ -154,33 +147,17 @@ wait_for_health() {{
 }}"""
 
     def _gen_srun_command(self) -> str:
-        tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
-        cmd_args: VllmCmdArgs = tdef.cmd_args
-        output_path = self.test_run.output_path.absolute()
-
         srun_prefix = " ".join(self.gen_srun_prefix())
         serve_commands = self.get_vllm_serve_commands()
         bench_cmd = " ".join(self.get_vllm_bench_command())
         health_func = self.generate_wait_for_health_function()
 
         if len(serve_commands) == 1:
-            return self._gen_aggregated_script(
-                srun_prefix, serve_commands[0], bench_cmd, health_func, cmd_args, output_path
-            )
+            return self._gen_aggregated_script(srun_prefix, serve_commands[0], bench_cmd, health_func)
         else:
-            return self._gen_disaggregated_script(
-                srun_prefix, serve_commands, bench_cmd, health_func, cmd_args, output_path
-            )
+            return self._gen_disaggregated_script(srun_prefix, serve_commands, bench_cmd, health_func)
 
-    def _gen_aggregated_script(
-        self,
-        srun_prefix: str,
-        serve_cmd: list[str],
-        bench_cmd: str,
-        health_func: str,
-        cmd_args: VllmCmdArgs,
-        output_path: Path,
-    ) -> str:
+    def _gen_aggregated_script(self, srun_prefix: str, serve_cmd: list[str], bench_cmd: str, health_func: str) -> str:
         return f"""\
 cleanup() {{
     echo "Cleaning up PIDs: VLLM_PID=$VLLM_PID"
@@ -192,32 +169,26 @@ trap cleanup EXIT
 
 echo "Starting vLLM instances..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
-    --output={output_path}/{VLLM_SERVE_LOG_FILE} \\
+    --output={(self.test_run.output_path / VLLM_SERVE_LOG_FILE).absolute()} \\
     {" ".join(serve_cmd)} &
 VLLM_PID=$!
 
 NODE=$(scontrol show hostname $SLURM_JOB_NODELIST | head -n 1)
 echo "Waiting for vLLM on $NODE to be ready..."
-wait_for_health "http://${{NODE}}:{cmd_args.port}/health" || exit 1
+wait_for_health "http://${{NODE}}:{self.tdef.cmd_args.port}/health" || exit 1
 
 echo "Running benchmark..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
-    --output={output_path}/{VLLM_BENCH_LOG_FILE} \\
+    --output={(self.test_run.output_path / VLLM_BENCH_LOG_FILE).absolute()} \\
     {bench_cmd}"""
 
     def _gen_disaggregated_script(
-        self,
-        srun_prefix: str,
-        serve_commands: list[list[str]],
-        bench_cmd: str,
-        health_func: str,
-        cmd_args: VllmCmdArgs,
-        output_path: Path,
+        self, srun_prefix: str, serve_commands: list[list[str]], bench_cmd: str, health_func: str
     ) -> str:
         prefill_cmd, decode_cmd = serve_commands
         proxy_cmd = self.get_proxy_command()
-        prefill_port = cmd_args.port + 100
-        decode_port = cmd_args.port + 200
+        prefill_port = self.tdef.cmd_args.port + 100
+        decode_port = self.tdef.cmd_args.port + 200
         prefill_gpus = ",".join(str(g) for g in self.prefill_gpu_ids)
         decode_gpus = ",".join(str(g) for g in self.decode_gpu_ids)
 
@@ -240,14 +211,14 @@ echo "Starting vLLM instances..."
 export CUDA_VISIBLE_DEVICES="{prefill_gpus}"
 export VLLM_NIXL_SIDE_CHANNEL_PORT=$PREFILL_NIXL_PORT
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
-    --output={output_path}/vllm-prefill.log \\
+    --output={self.test_run.output_path.absolute()}/vllm-prefill.log \\
     {" ".join(prefill_cmd)} &
 PREFILL_PID=$!
 
 export CUDA_VISIBLE_DEVICES="{decode_gpus}"
 export VLLM_NIXL_SIDE_CHANNEL_PORT=$DECODE_NIXL_PORT
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
-    --output={output_path}/vllm-decode.log \\
+    --output={self.test_run.output_path.absolute()}/vllm-decode.log \\
     {" ".join(decode_cmd)} &
 DECODE_PID=$!
 
@@ -258,11 +229,11 @@ wait_for_health "http://${{NODE}}:{decode_port}/health" || exit 1
 
 echo "Starting proxy..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
-    --output={output_path}/vllm-proxy.log \\
+    --output={self.test_run.output_path.absolute()}/vllm-proxy.log \\
     {" ".join(proxy_cmd)} &
 PROXY_PID=$!
 
 echo "Running benchmark..."
 {srun_prefix} --overlap --ntasks-per-node=1 --ntasks=1 \\
-    --output={output_path}/{VLLM_BENCH_LOG_FILE} \\
+    --output={(self.test_run.output_path / VLLM_BENCH_LOG_FILE).absolute()} \\
     {bench_cmd}"""
