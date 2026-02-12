@@ -14,10 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
 
 import logging
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, model_validator
 
 from cloudai.core import DockerImage, GitRepo, HFModel, Installable, JobStatusResult, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
@@ -103,6 +104,15 @@ class VllmTestDefinition(TestDefinition):
         if self.proxy_script_repo:
             installables.append(self.proxy_script_repo)
         return installables
+
+    @model_validator(mode="after")
+    def check_gpu_ids_setup(self) -> VllmTestDefinition:
+        if self.cmd_args.prefill:
+            prefill_set = bool(self.cmd_args.prefill.gpu_ids)
+            decode_set = bool(self.cmd_args.decode.gpu_ids)
+            if prefill_set != decode_set:
+                raise ValueError("Both prefill and decode gpu_ids must be set or both must be None.")
+        return self
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         log_path = tr.output_path / VLLM_BENCH_LOG_FILE
