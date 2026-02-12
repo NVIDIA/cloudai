@@ -50,8 +50,7 @@ def parse_vllm_bench_output(res_file: Path) -> VLLMBenchReport | None:
         return None
 
     try:
-        with res_file.open("r") as f:
-            data = json.load(f)
+        data = json.loads(res_file.read_text())
         return VLLMBenchReport.model_validate(data)
     except Exception as e:
         logging.debug(f"Error parsing vLLM benchmark output: {e}")
