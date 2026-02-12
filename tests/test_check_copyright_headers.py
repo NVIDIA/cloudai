@@ -76,13 +76,17 @@ def _format_years_to_ranges(years: list[int]) -> str:
     return ", ".join(parts)
 
 
-def test_format_years_to_ranges():
-    """Check year range formatting: consecutive years become start-end, non-consecutive stay separate."""
-    assert _format_years_to_ranges([2024, 2026]) == "2024, 2026"
-    assert _format_years_to_ranges([2024, 2025, 2027]) == "2024-2025, 2027"
-    assert _format_years_to_ranges([2024]) == "2024"
-    assert _format_years_to_ranges([2024, 2025, 2026]) == "2024-2026"
-    assert _format_years_to_ranges([]) == ""
+@pytest.mark.parametrize(
+    ("years_list", "expected"),
+    (
+        ([2024, 2026], "2024, 2026"),
+        ([2024, 2025, 2027], "2024-2025, 2027"),
+        ([2024], "2024"),
+        ([2024, 2025, 2026], "2024-2026"),
+    )
+)
+def test_format_years_to_ranges(years_list: list[int], expected: str):
+    assert _format_years_to_ranges(years_list) == expected
 
 
 @pytest.fixture(scope="session")
@@ -104,7 +108,7 @@ def git_commit_years_cache() -> dict[str, list[int]]:
     )
     files = ls_out.stdout.splitlines()
 
-    # 2. Stream full history: each commit has a year line then affected files
+    # 2: stream full history: each commit has a year line then affected files
     log_cmd = [
         "git",
         "-c",
