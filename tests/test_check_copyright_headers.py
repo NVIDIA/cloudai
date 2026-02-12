@@ -41,8 +41,8 @@ HEADER = """# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
 HEADER_LINES = HEADER.split("\n")
 HEADER_TAIL = "\n".join(HEADER_LINES[2:])
 
-PY_FILES = list(Path().glob("./src/**/*.py")) + list(Path().glob("./tests/**/*.py"))
-TOML_FILES = list(Path().glob("conf/**/*.toml")) + [Path("pyproject.toml"), Path(".taplo.toml")]
+PY_FILES = [*list(Path().glob("./src/**/*.py")), *list(Path().glob("./tests/**/*.py"))]
+TOML_FILES = [*list(Path().glob("conf/**/*.toml")), Path("pyproject.toml"), Path(".taplo.toml")]
 
 CURRENT_YEAR = datetime.now().year
 
@@ -54,8 +54,11 @@ def _format_years_to_ranges(years: list[int]) -> str:
          [2024, 2025, 2027] -> "2024-2025, 2027"
     """
     if not years:
-        raise ValueError("Unexpected behavior. Expected at least one year in the list. If it's a new file - should be the current year")
-    
+        raise ValueError(
+            "Unexpected behavior. Expected at least one year in the list. If it's a new file - should be the "
+            "current year"
+        )
+
     parts: list[str] = []
     range_start = years[0]
     range_end = years[0]
@@ -127,12 +130,12 @@ def _assert_copyright_in_file(file: Path):
             actual_copyright_lines = [next(f).strip() for _ in range(len(HEADER_LINES))]
         except StopIteration:
             actual_copyright_lines = []
-    
+
     assert len(actual_copyright_lines) >= len(HEADER_LINES), "Copyright is missing or incomplete"
-    
+
     expected_years = get_commit_years_for_file(file)
     expected_years_line = prepare_copyright_with_year(expected_years)
-    
+
     assert actual_copyright_lines[0] == HEADER_LINES[0], "SPDX-FileCopyrightText is not valid"
     assert actual_copyright_lines[1] == expected_years_line, "Copyright year is not valid"
     assert "\n".join(actual_copyright_lines[2:]) == HEADER_TAIL, f"Header mismatch in {file}"
