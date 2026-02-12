@@ -78,7 +78,11 @@ from cloudai.workloads.nixl_bench import (
 )
 from cloudai.workloads.nixl_kvbench import NIXLKVBenchSlurmCommandGenStrategy, NIXLKVBenchTestDefinition
 from cloudai.workloads.nixl_perftest import NixlPerftestSlurmCommandGenStrategy, NixlPerftestTestDefinition
-from cloudai.workloads.osu_bench import OSUBenchSlurmCommandGenStrategy, OSUBenchTestDefinition
+from cloudai.workloads.osu_bench import (
+    OSUBenchComparisonReport,
+    OSUBenchSlurmCommandGenStrategy,
+    OSUBenchTestDefinition,
+)
 from cloudai.workloads.sleep import (
     SleepGradingStrategy,
     SleepKubernetesJsonGenStrategy,
@@ -247,18 +251,33 @@ def test_definitions():
 
 def test_scenario_reports():
     scenario_reports = Registry().scenario_reports
-    assert list(scenario_reports.keys()) == ["per_test", "status", "tarball", "nixl_bench_summary", "nccl_comparison"]
+    assert list(scenario_reports.keys()) == [
+        "per_test",
+        "status",
+        "tarball",
+        "nixl_bench_summary",
+        "nccl_comparison",
+        "osu_bench_comparison",
+    ]
     assert list(scenario_reports.values()) == [
         PerTestReporter,
         StatusReporter,
         TarballReporter,
         NIXLBenchComparisonReport,
         NcclComparisonReport,
+        OSUBenchComparisonReport,
     ]
 
 
 def test_report_configs():
     configs = Registry().report_configs
-    assert list(configs.keys()) == ["per_test", "status", "tarball", "nixl_bench_summary", "nccl_comparison"]
+    assert list(configs.keys()) == [
+        "per_test",
+        "status",
+        "tarball",
+        "nixl_bench_summary",
+        "nccl_comparison",
+        "osu_bench_comparison",
+    ]
     for name, rep_config in configs.items():
         assert rep_config.enable is True, f"Report {name} is not enabled by default"

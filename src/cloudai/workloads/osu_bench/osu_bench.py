@@ -105,6 +105,10 @@ class OSUBenchTestDefinition(TestDefinition):
                 ),
             )
 
+        # Special case for hello and init benchmarks that produce only a summary output.
+        if self.cmd_args.benchmark in ("osu_hello", "osu_init"):
+            return JobStatusResult(is_successful=True)
+
         # Check for basic OSU benchmark output format
         if "# Size" not in content:
             return JobStatusResult(

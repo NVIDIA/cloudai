@@ -134,7 +134,9 @@ class TestGenerateReport:
     def setup(self):
         reg = Registry()
         orig_reports = copy.deepcopy(reg.scenario_reports)
+        orig_configs = copy.deepcopy(reg.report_configs)
         reg.scenario_reports.clear()
+        reg.report_configs.clear()
 
         reg.add_scenario_report("sr1", MyReporter, ReportConfig(enable=True))
 
@@ -142,6 +144,8 @@ class TestGenerateReport:
 
         reg.scenario_reports.clear()
         reg.scenario_reports.update(orig_reports)
+        reg.report_configs.clear()
+        reg.report_configs.update(orig_configs)
 
     @pytest.fixture(autouse=True)
     def reset(self):
@@ -168,7 +172,9 @@ class TestGenerateReportPriority:
     def setup(self):
         reg = Registry()
         orig_reports = copy.deepcopy(reg.scenario_reports)
+        orig_configs = copy.deepcopy(reg.report_configs)
         reg.scenario_reports.clear()
+        reg.report_configs.clear()
 
         global MY_REPORT_CALLED
         MY_REPORT_CALLED = 0
@@ -177,6 +183,8 @@ class TestGenerateReportPriority:
 
         reg.scenario_reports.clear()
         reg.scenario_reports.update(orig_reports)
+        reg.report_configs.clear()
+        reg.report_configs.update(orig_configs)
 
     def test_non_registered_report_is_ignored(self, slurm_system: SlurmSystem) -> None:
         generate_reports(slurm_system, TestScenario(name="ts", test_runs=[]), slurm_system.output_path)

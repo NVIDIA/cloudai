@@ -137,6 +137,8 @@ def register_all():
         NixlPerftestTestDefinition,
     )
     from cloudai.workloads.osu_bench import (
+        OSUBenchComparisonReport,
+        OSUBenchReportGenerationStrategy,
         OSUBenchSlurmCommandGenStrategy,
         OSUBenchTestDefinition,
     )
@@ -273,6 +275,7 @@ def register_all():
     Registry().add_report(AIDynamoTestDefinition, AIDynamoReportGenerationStrategy)
     Registry().add_report(AiconfiguratorTestDefinition, AiconfiguratorReportGenerationStrategy)
     Registry().add_report(NixlPerftestTestDefinition, NIXLKVBenchDummyReport)
+    Registry().add_report(OSUBenchTestDefinition, OSUBenchReportGenerationStrategy)
 
     Registry().add_scenario_report("per_test", PerTestReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("status", StatusReporter, ReportConfig(enable=True))
@@ -284,6 +287,11 @@ def register_all():
     )
     Registry().add_scenario_report(
         "nccl_comparison", NcclComparisonReport, ComparisonReportConfig(enable=True, group_by=["subtest_name"])
+    )
+    Registry().add_scenario_report(
+        "osu_bench_comparison",
+        OSUBenchComparisonReport,
+        ComparisonReportConfig(enable=True, group_by=["benchmark"]),
     )
 
     Registry().add_reward_function("inverse", inverse_reward)
