@@ -40,7 +40,7 @@ workloads = "aiperf.sh" #,lmbench.sh,kvstorage.sh"
 
     [cmd_args.dynamo.prefill_worker]
     num-nodes = 1
-    cmd = 'python3 -m dynamo.sglang --is-prefill-worker'
+    cmd = 'python3 -m dynamo.sglang'
     worker-initialized-regex = 'register._register_llm_with_runtime_config:.Successfully.registered.LLM.with.runtime.config'
     multiple-workers-per-node = "false"
     extra-args = "--trust-remote-code --skip-tokenizer-init --enable-metrics"
@@ -51,6 +51,11 @@ workloads = "aiperf.sh" #,lmbench.sh,kvstorage.sh"
       page-size = 16
       tensor-parallel-size = 1
       pipeline-parallel-size = 1
+      disaggregation-mode = "prefill"
+      disaggregation-bootstrap-port = 12345
+      host = "0.0.0.0"
+      port = 40000
+      disaggregation-transfer-backend = "nixl"
 
     [cmd_args.dynamo.decode_worker]
     num-nodes = 1
@@ -66,6 +71,10 @@ workloads = "aiperf.sh" #,lmbench.sh,kvstorage.sh"
       page-size = 16
       tensor-parallel-size = 1
       pipeline-parallel-size = 1
+      disaggregation-mode = "decode"
+      disaggregation-bootstrap-port = 12345
+      host = "0.0.0.0"
+      disaggregation-transfer-backend = "nixl"
 
   [cmd_args.lmcache]
   controller_cmd = "lmcache_controller --host localhost --port 9000 --monitor-port 9001"

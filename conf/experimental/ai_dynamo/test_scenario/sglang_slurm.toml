@@ -32,7 +32,7 @@ extra_container_mounts = ["/run/udev:/run/udev", "/tmp:/tmp"]
     node-setup-cmd = "hostname"
 
       [Tests.cmd_args.dynamo.prefill_worker]
-      num-nodes = 0
+      num-nodes = 1
 
         [Tests.cmd_args.dynamo.prefill_worker.args]
         tensor-parallel-size = 1
