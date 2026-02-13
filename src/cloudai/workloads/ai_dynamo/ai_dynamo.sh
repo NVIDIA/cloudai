@@ -664,8 +664,6 @@ validate_environment() {
   _require_cmd grep
   _require_cmd cut
   _require_cmd curl
-  _require_cmd jq
-  _require_cmd uv
 
   # Runtime commands invoked later
   _require_cmd python3
@@ -996,6 +994,7 @@ function setup_lmcache()
     return
   fi
 
+  _require_cmd uv
   log "Setting up LMCache; installing LMCache using: uv pip install $lmcache_path"
   local lmcache_path="${lmcache_config["repo"]}"
   uv pip install -e $lmcache_path
