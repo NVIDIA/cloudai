@@ -122,8 +122,9 @@ class TestGpuDetection:
 class TestServeExtraArgs:
     """Tests for serve_args property."""
 
-    def test_serve_args_empty_by_default(self) -> None:
+    def test_serve_args_empty(self) -> None:
         assert VllmArgs().serve_args == []
+        assert VllmArgs(gpu_ids="0", nixl_threads=1).serve_args == []
 
     def test_empty_string_value_means_flag(self) -> None:
         assert VllmArgs.model_validate(
@@ -205,6 +206,7 @@ class TestVllmServeCommand:
         assert len(commands) == 2
 
         prefill_cmd = " ".join(commands[0])
+        assert "--nixl-threads" not in prefill_cmd
         if prefill_nthreads is not None:
             assert "kv_connector_extra_config" in prefill_cmd
             assert f'"num_threads":{prefill_nthreads}' in prefill_cmd
@@ -212,6 +214,7 @@ class TestVllmServeCommand:
             assert all(arg not in prefill_cmd for arg in ["num_threads", "kv_connector_extra_config"])
 
         decode_cmd = " ".join(commands[1])
+        assert "--nixl-threads" not in decode_cmd
         if decode_nthreads is not None:
             assert "kv_connector_extra_config" in decode_cmd
             assert f'"num_threads":{decode_nthreads}' in decode_cmd
