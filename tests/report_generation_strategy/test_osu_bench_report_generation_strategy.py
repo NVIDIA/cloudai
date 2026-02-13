@@ -131,3 +131,16 @@ def test_extract_osu_bench_data_no_recognizable_header_returns_empty_dataframe(t
     stdout.write_text("Hello world from rank 0\nHello world from rank 1\n")
     df = extract_osu_bench_data(stdout)
     assert df.empty
+
+
+def test_extract_osu_bench_data_valid_header_no_data_rows_returns_empty_dataframe(tmp_path: Path) -> None:
+    # Benchmark failed after printing header (e.g. crash before any data)
+    stdout = tmp_path / "stdout.txt"
+    stdout.write_text(
+        "# OSU MPI Bandwidth Test v7.4\n"
+        "# Datatype: MPI_CHAR.\n"
+        "# Size      Bandwidth (MB/s)\n"
+    )
+    df = extract_osu_bench_data(stdout)
+    assert df.empty
+    assert list(df.columns) == ["size", "mb_sec"]
