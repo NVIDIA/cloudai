@@ -71,13 +71,23 @@ def _parse_data_row(parts: list[str], benchmark_type: BenchmarkType) -> list[str
         return None
 
     # Append row data based on benchmark type.
+    # Append row data based on benchmark type.
     if benchmark_type == BenchmarkType.MULTIPLE_BANDWIDTH:
         if len(parts) >= 3:
+            try:
+                float(parts[1])  # MB/s
+                float(parts[2])  # Messages/s
+            except ValueError:
+                return None
             # size, MB/s, Messages/s
             return [parts[0], parts[1], parts[2]]
         return None
 
     # BANDWIDTH and LATENCY: both use size + one value; column names in _columns_for_type
+    try:
+        float(parts[1])  # metric value
+    except ValueError:
+        return None
     return [parts[0], parts[1]]
 
 
