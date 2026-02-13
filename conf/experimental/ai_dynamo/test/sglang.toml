@@ -1,0 +1,182 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name = "sglang-Qwen3-0.6B"
+description = "sglang backend with Qwen3-0.6B model"
+test_template_name = "AIDynamo"
+
+[cmd_args]
+docker_image_url = "nvcr.io/nvidia/ai-dynamo/sglang-runtime:0.9.0"
+hf_home_path = "/lustre/fsw/coreai_tritoninference_triton3/kapila/huggingface"
+num_nodes = 2
+workloads = "aiperf.sh" #,lmbench.sh,kvstorage.sh"
+
+  [cmd_args.dynamo]
+  backend = "vllm"
+  model = "Qwen/Qwen3-0.6B"
+  workspace-path = "/workspace"
+  node-setup-cmd = "/usr/local/ucx/bin/ucx_info -d |grep Transport | sort -u;"
+  ingress-cmd = "python -m dynamo.frontend" # --router-mode kv"
+  port = 8787
+  endpoint = "v1/chat/completions"
+  etcd-cmd = "etcd --log-level info --data-dir /tmp/etcd "
+  nats-cmd = "nats-server -js"
+  etcd-port = 2379
+  nats-port = 4222
+  worker-error-pattern = "zmq.error.ZMQError:.Address.already.in.use|ERROR.core.run_engine_core:.EngineCore.failed.to.start|ERROR.multiproc_executor.worker_busy_loop:.WorkerProc.hit.an.exception|ValueError:.a.python.*async.generator:.EngineDeadError:.EngineCore.encountered.an.issue|ZeroDivisionError:.integer.division.or.modulo.by.zero|ERROR.core.run_engine_core:.EngineCore.encountered.a.fatal.error|Exception:.Failed.to.fetch.model|ERROR.*Engine.core.proc.EngineCore_.*died.unexpectedly|RuntimeError:.Engine.core.initialization.failed."
+
+    [cmd_args.dynamo.prefill_worker]
+    num-nodes = 1
+    cmd = 'python3 -m dynamo.sglang --is-prefill-worker'
+    worker-initialized-regex = 'register._register_llm_with_runtime_config:.Successfully.registered.LLM.with.runtime.config'
+    multiple-workers-per-node = "false"
+    extra-args = "--trust-remote-code --skip-tokenizer-init --enable-metrics"
+
+      [cmd_args.dynamo.prefill_worker.args]
+      model-path = "%MODEL%"
+      served-model-name = "%MODEL%"
+      page-size = 16
+      tensor-parallel-size = 1
+      pipeline-parallel-size = 1
+
+    [cmd_args.dynamo.decode_worker]
+    num-nodes = 1
+    cmd = 'python3 -m dynamo.sglang'
+    extra-args = "--trust-remote-code --skip-tokenizer-init --enable-metrics"
+    worker-initialized-regex = 'register._register_llm_with_runtime_config:.Successfully.registered.LLM.with.runtime.config'
+
+    multiple-workers-per-node = "false"
+
+      [cmd_args.dynamo.decode_worker.args]
+      model-path = "%MODEL%"
+      served-model-name = "%MODEL%"
+      page-size = 16
+      tensor-parallel-size = 1
+      pipeline-parallel-size = 1
+
+  [cmd_args.lmcache]
+  controller_cmd = "lmcache_controller --host localhost --port 9000 --monitor-port 9001"
+
+    [cmd_args.lmcache.args]
+    chunk_size = 256
+    local_cpu = false
+    nixl_buffer_size = 10737418240
+    nixl_buffer_device = "cuda"
+    extra_config_enable_nixl_storage = true
+    extra_config_nixl_backend = "GDS_MT"
+    extra_config_nixl_file_pool_size = 64
+    extra_config_nixl_path = "%CACHEDIR%"
+
+    enable_controller = true
+    lmcache_instance_id = "lmcache_default_instance"
+    controller_url = "localhost:9001"
+    lmcache_worker_port = 8788
+    distributed_url = "localhost:8789"
+
+  [cmd_args.genai_perf]
+  cmd = "genai-perf profile"
+  extra-args = "--streaming --verbose -- -v --async"
+
+    [cmd_args.genai_perf.args]
+    model = "%MODEL%"
+    url = "%URL%"
+    endpoint = "%ENDPOINT%"
+    endpoint-type = "chat"
+    artifact-dir = "%RESULTS_DIR%/genai_perf_artifacts"
+    profile-export-file = "profile.json"
+    extra-inputs = 'min_tokens:10'
+    output-tokens-mean = 500
+    output-tokens-stddev = 0
+    random-seed = 123
+    request-count = 50
+    synthetic-input-tokens-mean = 300
+    synthetic-input-tokens-stddev = 0
+    warmup-request-count = 5
+    concurrency = 2
+
+  [cmd_args.aiperf]
+  cmd = "aiperf profile"
+  extra-args = "--streaming"
+  version = "git+https://github.com/ai-dynamo/aiperf.git@b1d116496a8247b254a7cd3b14b2f218685255d3"
+
+    [cmd_args.aiperf.args]
+    model = "%MODEL%"
+    url = "%URL%"
+    endpoint = "%ENDPOINT%"
+    artifact-dir = "%RESULTS_DIR%/aiperf"
+    endpoint-type = "chat"
+    warmup-request-count = 1
+    export-level = "raw"
+    benchmark-duration = 100
+
+    # Server metrics collection - set in test_scenario with correct service names per test
+    # LMCache metrics are exposed via vLLM worker's /metrics endpoint
+    server-metrics-formats = "json,csv"
+
+    # initla prompt the same for all users
+    shared-system-prompt-length = 1024
+    # 3K per-user context: unique per session, requires num-dataset-entries
+    user-context-prompt-length = 3072
+    #user sends eeach iteration 1023
+    synthetic-input-tokens-mean = 1024
+    # user gets each iteration 100
+    osl = 100
+    num-dataset-entries = 10
+
+    # Multi-turn conversation settings: 10 users, 20 turns each, message every 1 sec
+    user-centric-rate = 10.0
+    num-users = 10
+    conversation-turn-mean = 20
+
+    # 1 second delay between turns (simulates user think time)
+    conversation-turn-delay-mean = 1000
+
+    # Turn sequence: 1K ISL / 100 OSL for all 20 turns
+    #turn-sequence = "1024,100*20" # Removed by Kapil
+
+
+  [cmd_args.lmbench]
+  cmd = "python3 ./synthetic-multi-round-qa/multi-round-qa.py"
+
+    [cmd_args.lmbench.args]
+    num-users = 15
+    num-rounds = 20
+    qps = 0.1
+    shared-system-prompt = 1000
+    user-history-prompt = 20000
+    answer-len = 100
+    model = "%MODEL%"
+    base-url = "%URL%"
+    init-user-id = "1"
+    log-interval = 30
+    time = "100"
+
+  [cmd_args.kvstorage]
+  cmd = "hostname"
+  isl = "1000,2000,4000,8000,16000,24000,32000"
+
+    [cmd_args.kvstorage.args]
+
+[extra_env_vars]
+UCX_LOG_LEVEL = "warn"
+HF_HUB_OFFLINE = "1"
+TRANSFORMERS_OFFLINE = "1"
+HF_DATASETS_OFFLINE = "1"
+DYNAMO_NODELIST = "$(scontrol show hostname $SLURM_JOB_NODELIST | tr -s '\\n' ',')"
+UCX_TLS = "all"
+#DYN_LOGGING_JSONL="true"
+#OTEL_EXPORT_ENABLED="1"
+#OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="http://localhost:4317"

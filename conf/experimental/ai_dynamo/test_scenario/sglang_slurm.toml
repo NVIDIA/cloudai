@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name = "dynamo_sglang_kvbm"
+
+[[Tests]]
+id = "sglang-Qwen3-0.6B"
+test_name = "sglang-Qwen3-0.6B"
+time_limit = "00:20:00"
+
+extra_container_mounts = ["/run/udev:/run/udev", "/tmp:/tmp"]
+
+  [Tests.cmd_args]
+  num_nodes = 2                                     # 1 prefill node + 1 decode node
+  workloads = "aiperf.sh"          #,genai_perf.sh,lmbench.sh"
+
+    [Tests.cmd_args.dynamo]
+    model = "deepseek-ai/DeepSeek-R1-Distill-Llama-8B" #Qwen/Qwen3-0.6B"
+    node-setup-cmd = "hostname"
+
+      [Tests.cmd_args.dynamo.prefill_worker]
+      num-nodes = 0
+
+        [Tests.cmd_args.dynamo.prefill_worker.args]
+        tensor-parallel-size = 1
+
+      [Tests.cmd_args.dynamo.decode_worker]
+      num-nodes = 1
+
+        [Tests.cmd_args.dynamo.decode_worker.args]
+        tensor-parallel-size = 1
