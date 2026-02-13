@@ -80,8 +80,7 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         ]:
             kv_transfer_config: dict[str, Any] = {"kv_connector": "NixlConnector", "kv_role": role}
             if args.nixl_threads is not None:
-                kv_transfer_config.setdefault("kv_connector_extra_config", {})
-                kv_transfer_config["kv_connector_extra_config"]["num_threads"] = cast(int, args.nixl_threads)
+                kv_transfer_config["kv_connector_extra_config"] = {"num_threads": cast(int, args.nixl_threads)}
             commands.append(
                 [
                     *base_cmd,

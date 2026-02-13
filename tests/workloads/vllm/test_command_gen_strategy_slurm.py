@@ -190,7 +190,7 @@ class TestVllmServeCommand:
             (4, None),
         ],
     )
-    def test_decode_nixl_threads(
+    def test_nixl_threads(
         self,
         decode_nthreads: int | None,
         prefill_nthreads: int | None,
