@@ -32,8 +32,12 @@ class VllmArgs(CmdArgs):
     """Base command arguments for vLLM instances."""
 
     gpu_ids: str | list[str] | None = Field(
+        default=None, description="Comma-separated GPU IDs. If not set, will use all available GPUs."
+    )
+
+    nixl_threads: int | list[int] | None = Field(
         default=None,
-        description="Comma-separated GPU IDs. If not set, will use all available GPUs.",
+        description="Set ``kv_connector_extra_config.num_threads`` for ``--kv-transfer-config`` CLI argument.",
     )
 
     @property

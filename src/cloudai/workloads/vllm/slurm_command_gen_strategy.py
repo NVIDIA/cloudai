@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import json
-from typing import cast
+from typing import Any, cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
@@ -73,13 +73,16 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         prefill_port = cmd_args.port + 100
         decode_port = cmd_args.port + 200
 
-        kv_transfer_config = {"kv_connector": "NixlConnector"}
+        kv_transfer_config: dict[str, Any] = {"kv_connector": "NixlConnector"}
 
         commands: list[list[str]] = []
         for port, role, args in [
             (prefill_port, "kv_producer", tdef.cmd_args.prefill),
             (decode_port, "kv_consumer", tdef.cmd_args.decode),
         ]:
+            if args.nixl_threads is not None:
+                kv_transfer_config.setdefault("kv_connector_extra_config", {})
+                kv_transfer_config["kv_connector_extra_config"]["num_threads"] = cast(int, args.nixl_threads)
             commands.append(
                 [
                     *base_cmd,

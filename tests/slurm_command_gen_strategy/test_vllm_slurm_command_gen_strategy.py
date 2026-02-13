@@ -180,6 +180,43 @@ class TestServeExtraArgs:
         ]
 
 
+class TestVllmServeCommand:
+    @pytest.mark.parametrize("decode_nthreads", [None, 4])
+    def test_decode_nixl_threads(
+        self, decode_nthreads: int | None, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy
+    ) -> None:
+        tdef = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
+        tdef.cmd_args.prefill = VllmArgs()
+        tdef.cmd_args.decode.nixl_threads = decode_nthreads
+
+        commands = vllm_cmd_gen_strategy.get_vllm_serve_commands()
+
+        assert len(commands) == 2
+        dec_cmd = " ".join(commands[1])
+        if decode_nthreads is not None:
+            assert "kv_connector_extra_config" in dec_cmd
+            assert f'"num_threads":{decode_nthreads}' in dec_cmd
+        else:
+            assert all(arg not in dec_cmd for arg in ["num_threads", "kv_connector_extra_config"])
+
+    @pytest.mark.parametrize("prefill_nthreads", [None, 2])
+    def test_prefill_nixl_threads(
+        self, prefill_nthreads: int | None, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy
+    ) -> None:
+        tdef = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
+        tdef.cmd_args.prefill = VllmArgs(nixl_threads=prefill_nthreads)
+
+        commands = vllm_cmd_gen_strategy.get_vllm_serve_commands()
+
+        assert len(commands) == 2
+        pre_cmd = " ".join(commands[0])
+        if prefill_nthreads is not None:
+            assert "kv_connector_extra_config" in pre_cmd
+            assert f'"num_threads":{prefill_nthreads}' in pre_cmd
+        else:
+            assert all(arg not in pre_cmd for arg in ["num_threads", "kv_connector_extra_config"])
+
+
 class TestVllmBenchCommand:
     def test_get_vllm_bench_command(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
         tdef = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
