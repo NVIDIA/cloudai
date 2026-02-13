@@ -77,11 +77,7 @@ def _parse_data_row(parts: list[str], benchmark_type: BenchmarkType) -> list[str
             return [parts[0], parts[1], parts[2]]
         return None
 
-    if benchmark_type == BenchmarkType.BANDWIDTH:
-        # size, MB/s
-        return [parts[0], parts[1]]
-
-    # LATENCY
+    # BANDWIDTH and LATENCY: both use size + one value; column names in _columns_for_type
     return [parts[0], parts[1]]
 
 

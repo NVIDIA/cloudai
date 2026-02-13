@@ -110,3 +110,24 @@ def test_osu_multi_latency_short_header_parsing(tmp_path: Path) -> None:
     assert df.shape == (6, 2)
     assert df["size"].tolist() == [1, 2, 4, 8, 16, 32]
     assert df["avg_lat"].tolist() == pytest.approx([1.88, 1.84, 1.88, 1.91, 1.87, 2.01])
+
+
+def test_extract_osu_bench_data_file_not_found_returns_empty_dataframe(tmp_path: Path) -> None:
+    missing = tmp_path / "nonexistent.txt"
+    df = extract_osu_bench_data(missing)
+    assert df.empty
+
+
+def test_extract_osu_bench_data_empty_file_returns_empty_dataframe(tmp_path: Path) -> None:
+    stdout = tmp_path / "stdout.txt"
+    stdout.write_text("")
+    df = extract_osu_bench_data(stdout)
+    assert df.empty
+
+
+def test_extract_osu_bench_data_no_recognizable_header_returns_empty_dataframe(tmp_path: Path) -> None:
+    # e.g. osu_hello or other benchmark with no OSU latency/bandwidth header
+    stdout = tmp_path / "stdout.txt"
+    stdout.write_text("Hello world from rank 0\nHello world from rank 1\n")
+    df = extract_osu_bench_data(stdout)
+    assert df.empty
