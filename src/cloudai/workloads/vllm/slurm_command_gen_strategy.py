@@ -73,13 +73,12 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         prefill_port = cmd_args.port + 100
         decode_port = cmd_args.port + 200
 
-        kv_transfer_config: dict[str, Any] = {"kv_connector": "NixlConnector"}
-
         commands: list[list[str]] = []
         for port, role, args in [
             (prefill_port, "kv_producer", tdef.cmd_args.prefill),
             (decode_port, "kv_consumer", tdef.cmd_args.decode),
         ]:
+            kv_transfer_config: dict[str, Any] = {"kv_connector": "NixlConnector", "kv_role": role}
             if args.nixl_threads is not None:
                 kv_transfer_config.setdefault("kv_connector_extra_config", {})
                 kv_transfer_config["kv_connector_extra_config"]["num_threads"] = cast(int, args.nixl_threads)
@@ -89,7 +88,7 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                     "--port",
                     str(port),
                     "--kv-transfer-config",
-                    self._to_json_str_arg(kv_transfer_config | {"kv_role": role}),
+                    self._to_json_str_arg(kv_transfer_config),
                     *args.serve_args,
                 ]
             )
