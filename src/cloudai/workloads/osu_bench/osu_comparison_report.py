@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -54,6 +55,11 @@ class OSUBenchComparisonReport(ComparisonReport):
             return lazy.pd.DataFrame()
 
         df = lazy.pd.read_csv(csv_path)
+
+        if "size" not in df.columns:
+            logging.warning("%s: missing 'size' column, skipping", csv_path)
+            return lazy.pd.DataFrame()
+
         df["size"] = df["size"].astype(int)
         return df
 
