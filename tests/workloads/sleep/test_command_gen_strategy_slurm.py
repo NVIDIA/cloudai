@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from pathlib import Path
+from typing import Dict, List
+
+import pytest
+
+from cloudai.core import TestRun
+from cloudai.systems.slurm import SlurmSystem
+from cloudai.workloads.sleep import SleepCmdArgs, SleepSlurmCommandGenStrategy, SleepTestDefinition
+
+
+class TestSleepSlurmCommandGenStrategy:
+    """Test the SleepSlurmCommandGenStrategy class."""
+
+    @pytest.mark.parametrize(
+        "cmd_args_data, expected_command",
+        [
+            ({"seconds": 60}, ["sleep 60"]),
+            ({"seconds": 120}, ["sleep 120"]),
+        ],
+    )
+    def test_generate_test_command(
+        self, tmp_path: Path, slurm_system: SlurmSystem, cmd_args_data: Dict[str, int], expected_command: List[str]
+    ) -> None:
+        sleep_cmd_args = SleepCmdArgs(seconds=cmd_args_data["seconds"])
+
+        test_def = SleepTestDefinition(
+            name="sleep_test",
+            description="Simple sleep test",
+            test_template_name="default_template",
+            cmd_args=sleep_cmd_args,
+            extra_env_vars={},
+            extra_cmd_args={},
+        )
+
+        tr = TestRun(test=test_def, num_nodes=1, nodes=[], output_path=tmp_path / "output", name="sleep-job")
+
+        cmd_gen_strategy = SleepSlurmCommandGenStrategy(slurm_system, tr)
+        command = cmd_gen_strategy.generate_test_command()
+
+        assert command == expected_command
