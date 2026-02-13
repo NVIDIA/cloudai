@@ -132,6 +132,12 @@ In this case the proxy script will be mounted from the vLLM repository (cloned l
 API Documentation
 -----------------
 
+vLLM Serve Arguments
+~~~~~~~~~~~~~~~~~~~~
+
+.. autopydantic_model:: cloudai.workloads.vllm.vllm.VllmArgs
+   :members:
+
 Command Arguments
 ~~~~~~~~~~~~~~~~~
 
