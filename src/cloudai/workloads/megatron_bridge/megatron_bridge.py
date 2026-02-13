@@ -33,11 +33,27 @@ class MegatronBridgeCmdArgs(CmdArgs):
     container_image: str = Field(default="")
     num_gpus: int = Field(default=8)
     gpus_per_node: int = Field(default=8)
-    custom_mounts: Optional[str] = Field(default=None)
+    custom_mounts: Optional[Union[str, List[str]]] = Field(
+        default=None,
+        description="Comma-separated or list of host_path:container_path mounts; merged with test-level extra_container_mounts for -cm.",
+    )
     enable_vboost: Optional[bool] = Field(default=False)
     dryrun: Optional[bool] = Field(default=False)
     enable_nsys: Optional[bool] = Field(default=False)
     detach: Optional[bool] = Field(default=None)
+
+    # Domain / model overrides (argument_parser main + model)
+    domain: Optional[str] = Field(
+        default=None,
+        description="Domain: llm, vlm, or qwen3vl (default llm).",
+    )
+    hidden_size: Optional[int] = Field(default=None, description="Override hidden size for experiment.")
+    num_layers: Optional[int] = Field(default=None, description="Override number of layers.")
+    pipeline_model_parallel_layout: Optional[str] = Field(default=None)
+    first_k_dense_replace: Optional[int] = Field(
+        default=None,
+        description="Number of MoE layers to convert to dense.",
+    )
 
     # Model/task
     model_family_name: str = Field(default="")
@@ -108,6 +124,14 @@ class MegatronBridgeCmdArgs(CmdArgs):
     record_memory_history: Optional[bool] = Field(default=None)
     profiling_gpu_metrics: Optional[bool] = Field(default=None)
     profiling_ranks: Optional[Union[int, List[int]]] = Field(default=None)
+    nsys_trace: Optional[Union[str, List[str]]] = Field(
+        default=None,
+        description="Comma-separated nsys trace events (e.g. cuda,nvtx).",
+    )
+    nsys_extra_args: Optional[Union[str, List[str]]] = Field(
+        default=None,
+        description="Comma-separated extra arguments for nsys.",
+    )
 
     # Performance
     nccl_ub: Optional[Union[bool, List[bool]]] = Field(default=None)
@@ -121,6 +145,16 @@ class MegatronBridgeCmdArgs(CmdArgs):
 
     # Optional distributed optimizer instances (for constraints/divisor)
     num_distributed_optimizer_instances: Optional[int] = Field(default=None)
+
+    # Config variant (argument_parser config_variant group)
+    config_variant: Optional[str] = Field(
+        default=None,
+        description="Config variant (e.g. v1, v2). Launcher default is v2.",
+    )
+    list_config_variants: Optional[bool] = Field(
+        default=None,
+        description="If true, list config variants and interactively select (--list_config_variants).",
+    )
 
     @field_validator("hf_token", mode="after", check_fields=False)
     @classmethod

@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 import stat
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Optional, cast
 
 import toml
 
@@ -162,6 +162,16 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
         return f"bash {wrapper_path}"
 
+    def _list_or_comma_str(self, val: Any) -> Optional[str]:
+        """Normalize list or comma-separated string; return None if empty or val is None."""
+        if val is None:
+            return None
+        if isinstance(val, str):
+            s = val.strip()
+        else:
+            s = ",".join(str(x) for x in val).strip()
+        return s if s else None
+
     def _build_launcher_parts(  # noqa: C901
         self, args: MegatronBridgeCmdArgs, tdef: MegatronBridgeTestDefinition, repo_path: Path, launcher_py: Path
     ) -> list[str]:
@@ -194,8 +204,13 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             else:
                 container_path = _installed_container_path()
 
+        # Combine cmd_args custom_mounts with test-level extra_container_mounts; only pass -cm when non-empty
         mounts: list[str] = []
-        mounts.append(f"{repo_path.absolute()}:/opt/Megatron-Bridge")
+        if args.custom_mounts is not None:
+            if isinstance(args.custom_mounts, str):
+                mounts.extend(m.strip() for m in args.custom_mounts.split(",") if m.strip())
+            else:
+                mounts.extend(str(m).strip() for m in args.custom_mounts if str(m).strip())
         mounts.extend(tdef.extra_container_mounts or [])
 
         venv_path = tdef.python_executable.venv_path or (self.system.install_path / tdef.python_executable.venv_name)
@@ -257,6 +272,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             add("-cm", ",".join(mounts))
 
         # Model flags (Megatron-Bridge main-branch API)
+        add_field("domain", "--domain", args.domain)
         if args.use_recipes and "use_recipes" in fields_set:
             parts.append("--use_recipes")
         if "enable_vboost" in fields_set:
@@ -267,6 +283,10 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             raise RuntimeError("Missing required cmd_args.model_recipe_name (maps to -mr/--model_recipe_name).")
         add_field("model_family_name", "-m", args.model_family_name)
         add_field("model_recipe_name", "-mr", args.model_recipe_name)
+        add_field("hidden_size", "--hidden_size", args.hidden_size)
+        add_field("num_layers", "--num_layers", args.num_layers)
+        add_field("pipeline_model_parallel_layout", "--pipeline_model_parallel_layout", args.pipeline_model_parallel_layout)
+        add_field("first_k_dense_replace", "--first_k_dense_replace", args.first_k_dense_replace)
         if args.enable_nsys and "enable_nsys" in fields_set:
             parts.append("-en")
         if "use_tokendrop" in fields_set and args.use_tokendrop is not None:
@@ -340,6 +360,13 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         if args.profiling_gpu_metrics and "profiling_gpu_metrics" in fields_set:
             parts.append("--profiling_gpu_metrics")
         add_field("profiling_ranks", "--profiling_ranks", args.profiling_ranks)
+        add_field("nsys_trace", "--nsys_trace", self._list_or_comma_str(args.nsys_trace))
+        add_field("nsys_extra_args", "--nsys_extra_args", self._list_or_comma_str(args.nsys_extra_args))
+
+        # Config variant
+        add_field("config_variant", "-cv", args.config_variant)
+        if args.list_config_variants and "list_config_variants" in fields_set:
+            parts.append("--list_config_variants")
 
         # Extra user args (dict -> string)
         if tdef.extra_cmd_args:
