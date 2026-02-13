@@ -71,7 +71,6 @@ def _parse_data_row(parts: list[str], benchmark_type: BenchmarkType) -> list[str
         return None
 
     # Append row data based on benchmark type.
-    # Append row data based on benchmark type.
     if benchmark_type == BenchmarkType.MULTIPLE_BANDWIDTH:
         if len(parts) >= 3:
             try:
