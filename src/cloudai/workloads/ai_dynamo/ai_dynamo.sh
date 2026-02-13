@@ -63,7 +63,6 @@ dynamo_args["sgl-http-port"]=9001
 dynamo_args["prefill-port"]=30011
 dynamo_args["decode-port"]=30021
 
-
 function log()
 {
   echo -e "[$(date +%F\ %T) $(hostname)]: $*"
@@ -584,6 +583,15 @@ _init_runtime_env() {
   export NATS_SERVER="nats://${dynamo_args["frontend-node"]}:${dynamo_args["nats-port"]}"
   export ETCD_ENDPOINTS="http://${dynamo_args["frontend-node"]}:${dynamo_args["etcd-port"]}"
   export UCX_LOG_FILE="${RESULTS_DIR}/ucx_log_%h.log"
+
+  # If KVBM is enabled and leader ports are not explicitly provided, derive a
+  # deterministic per-job base pair to avoid cross-job port collisions.
+  if _has_connector "kvbm"; then
+    local job_entropy=$(( (${SLURM_JOBID:-0} + ${SLURM_STEP_ID:-0}) % 10000 ))
+    export DYN_KVBM_LEADER_ZMQ_PUB_PORT="${DYN_KVBM_LEADER_ZMQ_PUB_PORT:-$((30000 + (job_entropy * 2)))}"
+    export DYN_KVBM_LEADER_ZMQ_ACK_PORT="${DYN_KVBM_LEADER_ZMQ_ACK_PORT:-$((DYN_KVBM_LEADER_ZMQ_PUB_PORT + 1))}"
+    log "KVBM leader base ports: pub=${DYN_KVBM_LEADER_ZMQ_PUB_PORT}, ack=${DYN_KVBM_LEADER_ZMQ_ACK_PORT}"
+  fi
 }
 
 function launch_node_setup_cmd()
@@ -640,6 +648,7 @@ _port_in_use() {
 
 _check_free_port_or_die() {
   local name="$1" port="$2"
+  log "Checking if port $port for $name is free on $(hostname)"
   if _port_in_use "$port"; then
     log "ERROR: Port $port for $name is already in use on $(hostname)"
     exit 1
@@ -697,6 +706,21 @@ validate_environment() {
     _check_free_port_or_die "etcd"  "${dynamo_args["etcd-port"]}"
     _check_free_port_or_die "nats"  "${dynamo_args["nats-port"]}"
     _check_free_port_or_die "ingress http" "${dynamo_args["port"]}"
+  fi
+
+  # Decode-node checks for KVBM leader ports (one pub/ack pair per worker).
+  if _is_decode_node && _has_connector "kvbm"; then
+    local workers_per_node=${decode_config["workers-per-node"]}
+    local base_kvbm_pub_port=${DYN_KVBM_LEADER_ZMQ_PUB_PORT:-56001}
+    local base_kvbm_ack_port=${DYN_KVBM_LEADER_ZMQ_ACK_PORT:-56002}
+    local kvbm_port_stride=2
+    local i
+    for i in $(seq 0 $(( workers_per_node - 1 ))); do
+      local kvbm_pub_port=$((base_kvbm_pub_port + (i * kvbm_port_stride)))
+      local kvbm_ack_port=$((base_kvbm_ack_port + (i * kvbm_port_stride)))
+      _check_free_port_or_die "kvbm leader pub (worker $i)" "$kvbm_pub_port"
+      _check_free_port_or_die "kvbm leader ack (worker $i)" "$kvbm_ack_port"
+    done
   fi
 
   # GPU count sanity
@@ -766,6 +790,9 @@ function launch_decode()
   local tp_size=${decode_args["--tensor-parallel-size"]}
   local base_nixl_port=${VLLM_NIXL_SIDE_CHANNEL_PORT:-5557}
   local base_kv_event_port=${DYN_VLLM_KV_EVENT_PORT:-20080}
+  local base_kvbm_pub_port=${DYN_KVBM_LEADER_ZMQ_PUB_PORT:-56001}
+  local base_kvbm_ack_port=${DYN_KVBM_LEADER_ZMQ_ACK_PORT:-56002}
+  local kvbm_port_stride=2
   log "Launching $workers_per_node decode worker(s) with unique port ranges"
 
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
@@ -774,8 +801,11 @@ function launch_decode()
     # Each worker needs unique port ranges to avoid ZMQ conflicts:
     # - NIXL side channel: base_port + (worker_index * tp_size) for TP ranks
     # - KV event port: one per worker
+    # - KVBM leader pub/ack: one pair per worker
     local nixl_port=$((base_nixl_port + (i * tp_size)))
     local kv_event_port=$((base_kv_event_port + i))
+    local kvbm_pub_port=$((base_kvbm_pub_port + (i * kvbm_port_stride)))
+    local kvbm_ack_port=$((base_kvbm_ack_port + (i * kvbm_port_stride)))
 
     # Build decode args as proper bash arrays to preserve
     # multi-word values (e.g. --cmd "aiperf profile") through word splitting.
@@ -784,12 +814,14 @@ function launch_decode()
       args_arr+=($key $(replace_placeholders "${decode_args[$key]}"))
     done
 
-    log "Launching decode worker $i on GPUs $gpu_list (NIXL port: $nixl_port, KV event port: $kv_event_port)"
+    log "Launching decode worker $i on GPUs $gpu_list (NIXL port: $nixl_port, KV event port: $kv_event_port, KVBM pub/ack: $kvbm_pub_port/$kvbm_ack_port)"
     log "Decode cmd: ${decode_config["cmd"]} ${args_arr[*]} ${decode_config["extra-args"]}"
     CUDA_VISIBLE_DEVICES=$gpu_list \
       VLLM_NIXL_SIDE_CHANNEL_HOST=$(hostname -I | awk '{print $1}') \
       VLLM_NIXL_SIDE_CHANNEL_PORT=$nixl_port \
       DYN_VLLM_KV_EVENT_PORT=$kv_event_port \
+      DYN_KVBM_LEADER_ZMQ_PUB_PORT=$kvbm_pub_port \
+      DYN_KVBM_LEADER_ZMQ_ACK_PORT=$kvbm_ack_port \
       ${decode_config["cmd"]} \
       ${args_arr[@]} \
       ${decode_config["extra-args"]} > $log_file 2>&1 &
@@ -813,6 +845,9 @@ function launch_prefill()
   local tp_size=${prefill_args["--tensor-parallel-size"]}
   local base_nixl_port=${VLLM_NIXL_SIDE_CHANNEL_PORT:-5557}
   local base_kv_event_port=${DYN_VLLM_KV_EVENT_PORT:-20080}
+  local base_kvbm_pub_port=${DYN_KVBM_LEADER_ZMQ_PUB_PORT:-56001}
+  local base_kvbm_ack_port=${DYN_KVBM_LEADER_ZMQ_ACK_PORT:-56002}
+  local kvbm_port_stride=2
   log "Launching $workers_per_node prefill worker(s) with unique port ranges"
 
   for i in $(seq 0 $(( $workers_per_node - 1 ))); do
@@ -821,8 +856,11 @@ function launch_prefill()
     # Each worker needs unique port ranges to avoid ZMQ conflicts:
     # - NIXL side channel: base_port + (worker_index * tp_size) for TP ranks
     # - KV event port: one per worker
+    # - KVBM leader pub/ack: one pair per worker
     local nixl_port=$((base_nixl_port + (i * tp_size)))
     local kv_event_port=$((base_kv_event_port + i))
+    local kvbm_pub_port=$((base_kvbm_pub_port + (i * kvbm_port_stride)))
+    local kvbm_ack_port=$((base_kvbm_ack_port + (i * kvbm_port_stride)))
 
     # Build prefill args as proper bash arrays to preserve
     # multi-word values (e.g. --cmd "aiperf profile") through word splitting.
@@ -831,12 +869,14 @@ function launch_prefill()
       args_arr+=($key $(replace_placeholders "${prefill_args[$key]}"))
     done
 
-    log "Launching prefill worker $i on GPUs $gpu_list (NIXL port: $nixl_port, KV event port: $kv_event_port)"
+    log "Launching prefill worker $i on GPUs $gpu_list (NIXL port: $nixl_port, KV event port: $kv_event_port, KVBM pub/ack: $kvbm_pub_port/$kvbm_ack_port)"
     log "Prefill cmd: ${prefill_config["cmd"]} ${args_arr[*]} ${prefill_config["extra-args"]}"
     CUDA_VISIBLE_DEVICES=$gpu_list \
       VLLM_NIXL_SIDE_CHANNEL_HOST=$(hostname -I | awk '{print $1}') \
       VLLM_NIXL_SIDE_CHANNEL_PORT=$nixl_port \
       DYN_VLLM_KV_EVENT_PORT=$kv_event_port \
+      DYN_KVBM_LEADER_ZMQ_PUB_PORT=$kvbm_pub_port \
+      DYN_KVBM_LEADER_ZMQ_ACK_PORT=$kvbm_ack_port \
       ${prefill_config["cmd"]} \
       ${args_arr[@]} \
       ${prefill_config["extra-args"]} > $log_file 2>&1 &

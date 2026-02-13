@@ -80,3 +80,6 @@ extra_container_mounts = ["/run/udev:/run/udev", "/tmp:/tmp"]
 
   # vLLM Flags
   VLLM_SERVER_DEV_MODE = "1"
+
+  DYN_KVBM_LEADER_ZMQ_PUB_PORT="57001"
+  DYN_KVBM_LEADER_ZMQ_ACK_PORT="57002"
