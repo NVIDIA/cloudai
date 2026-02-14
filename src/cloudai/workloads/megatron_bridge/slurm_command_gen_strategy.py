@@ -204,8 +204,7 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
             else:
                 container_path = _installed_container_path()
 
-        # -cm is used only when the user specifies extra_container_mounts in the test; pass those values as-is.
-        # We do not mount the repo path at all.
+        # Pass -cm only when the test has non-empty extra_container_mounts. Otherwise omit -cm.
         mounts: list[str] = list(tdef.extra_container_mounts or [])
 
         venv_path = tdef.python_executable.venv_path or (self.system.install_path / tdef.python_executable.venv_name)
