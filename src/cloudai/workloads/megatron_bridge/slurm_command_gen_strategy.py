@@ -205,7 +205,13 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
                 container_path = _installed_container_path()
 
         # Pass -cm only when the test has non-empty extra_container_mounts. Otherwise omit -cm.
+        # Do not add the Megatron-Bridge repo (repo_path) here; the container uses its built-in repo.
         mounts: list[str] = list(tdef.extra_container_mounts or [])
+        if mounts and logging.getLogger().isEnabledFor(logging.DEBUG):
+            logging.debug(
+                "MegatronBridge -cm mounts (from extra_container_mounts only): %s",
+                mounts,
+            )
 
         venv_path = tdef.python_executable.venv_path or (self.system.install_path / tdef.python_executable.venv_name)
         python_bin = (venv_path / "bin" / "python").absolute()
