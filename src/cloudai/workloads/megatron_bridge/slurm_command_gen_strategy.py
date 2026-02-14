@@ -305,7 +305,13 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         add_field("tp", "-tp", args.tp)
         add_field("pp", "-pp", args.pp)
         add_field("cp", "-cp", args.cp)
-        add_field("vp", "-vp", args.vp)
+        # When vp is 1 (or [1]), pass None so -vp is not emitted in sbatch
+        vp_for_launcher = args.vp
+        if vp_for_launcher == 1 or (
+            isinstance(vp_for_launcher, (list, tuple)) and len(vp_for_launcher) == 1 and vp_for_launcher[0] == 1
+        ):
+            vp_for_launcher = None
+        add_field("vp", "-vp", vp_for_launcher)
         add_field("ep", "-ep", args.ep)
         add_field("et", "-et", args.et)
 
