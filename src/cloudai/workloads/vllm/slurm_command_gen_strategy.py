@@ -14,7 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import cast
+import json
+from typing import Any, cast
 
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 
@@ -57,6 +58,10 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         mid = len(self.gpu_ids) // 2
         return self.gpu_ids[mid:]
 
+    @staticmethod
+    def _to_json_str_arg(config: dict) -> str:
+        return "'" + json.dumps(config, separators=(",", ":")) + "'"
+
     def get_vllm_serve_commands(self) -> list[list[str]]:
         tdef: VllmTestDefinition = cast(VllmTestDefinition, self.test_run.test)
         cmd_args: VllmCmdArgs = tdef.cmd_args
@@ -68,24 +73,26 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         prefill_port = cmd_args.port + 100
         decode_port = cmd_args.port + 200
 
-        prefill_extra_args = tdef.cmd_args.prefill.serve_args if tdef.cmd_args.prefill else []
-        prefill_cmd = [
-            *base_cmd,
-            "--port",
-            str(prefill_port),
-            "--kv-transfer-config",
-            '\'{"kv_connector":"NixlConnector","kv_role":"kv_producer"}\'',
-            *prefill_extra_args,
-        ]
-        decode_cmd = [
-            *base_cmd,
-            "--port",
-            str(decode_port),
-            "--kv-transfer-config",
-            '\'{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}\'',
-            *tdef.cmd_args.decode.serve_args,
-        ]
-        return [prefill_cmd, decode_cmd]
+        commands: list[list[str]] = []
+        for port, role, args in [
+            (prefill_port, "kv_producer", tdef.cmd_args.prefill),
+            (decode_port, "kv_consumer", tdef.cmd_args.decode),
+        ]:
+            kv_transfer_config: dict[str, Any] = {"kv_connector": "NixlConnector", "kv_role": role}
+            if args.nixl_threads is not None:
+                kv_transfer_config["kv_connector_extra_config"] = {"num_threads": cast(int, args.nixl_threads)}
+            commands.append(
+                [
+                    *base_cmd,
+                    "--port",
+                    str(port),
+                    "--kv-transfer-config",
+                    self._to_json_str_arg(kv_transfer_config),
+                    *args.serve_args,
+                ]
+            )
+
+        return commands
 
     def get_proxy_command(self) -> list[str]:
         prefill_port = self.tdef.cmd_args.port + 100
