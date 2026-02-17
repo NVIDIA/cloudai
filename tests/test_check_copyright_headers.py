@@ -135,7 +135,7 @@ def get_commit_years_from_file(line: str) -> list[int]:
         else:
             years.append(int(part))
 
-    return years
+    return sorted(years)
 
 
 def prepare_copyright_with_year(years: list[int]) -> str:
