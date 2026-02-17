@@ -127,13 +127,13 @@ def standalone_system(tmp_path: Path) -> StandaloneSystem:
 
 
 @pytest.fixture
-def base_tr(slurm_system: SlurmSystem) -> TestRun:
+def base_tr(tmp_path: Path) -> TestRun:
     return TestRun(
         name="tr-name",
         test=TestDefinition(name="n", description="d", test_template_name="tt", cmd_args=CmdArgs()),
         num_nodes=1,
         nodes=[],
-        output_path=slurm_system.output_path / "tr-name",
+        output_path=tmp_path / "output" / "tr-name",
     )
 
 
