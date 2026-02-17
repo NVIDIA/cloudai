@@ -160,6 +160,11 @@ def register_all():
         UCCTestReportGenerationStrategy,
         UCCTestSlurmCommandGenStrategy,
     )
+    from cloudai.workloads.vllm import (
+        VLLMBenchReportGenerationStrategy,
+        VllmSlurmCommandGenStrategy,
+        VllmTestDefinition,
+    )
 
     Registry().add_runner("slurm", SlurmRunner)
     Registry().add_runner("kubernetes", KubernetesRunner)
@@ -217,6 +222,7 @@ def register_all():
     Registry().add_command_gen_strategy(SlurmSystem, BashCmdTestDefinition, BashCmdCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, NIXLKVBenchTestDefinition, NIXLKVBenchSlurmCommandGenStrategy)
     Registry().add_command_gen_strategy(SlurmSystem, OSUBenchTestDefinition, OSUBenchSlurmCommandGenStrategy)
+    Registry().add_command_gen_strategy(SlurmSystem, VllmTestDefinition, VllmSlurmCommandGenStrategy)
 
     Registry().add_installer("slurm", SlurmInstaller)
     Registry().add_installer("standalone", StandaloneInstaller)
@@ -252,6 +258,7 @@ def register_all():
     Registry().add_test_definition("NIXLKVBench", NIXLKVBenchTestDefinition)
     Registry().add_test_definition("Aiconfigurator", AiconfiguratorTestDefinition)
     Registry().add_test_definition("OSUBench", OSUBenchTestDefinition)
+    Registry().add_test_definition("vllm", VllmTestDefinition)
 
     Registry().add_agent("grid_search", GridSearchAgent)
 
@@ -273,6 +280,7 @@ def register_all():
     Registry().add_report(AIDynamoTestDefinition, AIDynamoReportGenerationStrategy)
     Registry().add_report(AiconfiguratorTestDefinition, AiconfiguratorReportGenerationStrategy)
     Registry().add_report(NixlPerftestTestDefinition, NIXLKVBenchDummyReport)
+    Registry().add_report(VllmTestDefinition, VLLMBenchReportGenerationStrategy)
 
     Registry().add_scenario_report("per_test", PerTestReporter, ReportConfig(enable=True))
     Registry().add_scenario_report("status", StatusReporter, ReportConfig(enable=True))

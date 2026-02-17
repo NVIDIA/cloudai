@@ -108,7 +108,7 @@ class TestRunModel(BaseModel):
             "extra_env_vars": self.extra_env_vars if self.extra_env_vars else None,
             "cmd_args": self.cmd_args.model_dump(by_alias=by_alias) if self.cmd_args else None,
             "git_repos": [repo.model_dump() for repo in self.git_repos] if self.git_repos else None,
-            "nsys": self.nsys.model_dump() if self.nsys else None,
+            "nsys": self.nsys.model_dump(exclude_unset=True) if self.nsys else None,
         }
         return {k: v for k, v in data.items() if v is not None}
 

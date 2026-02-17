@@ -25,6 +25,7 @@ from cloudai._core.exceptions import MissingTestError
 from cloudai.core import (
     CmdArgs,
     GitRepo,
+    NsysConfiguration,
     PredictorConfig,
     Registry,
     ReportGenerationStrategy,
@@ -526,7 +527,7 @@ class TestReporters:
         assert len(reporters) == 0
 
     def test_default_reporters_size(self):
-        assert len(Registry().reports_map) == 16
+        assert len(Registry().reports_map) == 17
 
     @pytest.mark.parametrize(
         "tdef,expected_reporters",
@@ -572,3 +573,154 @@ class TestReporters:
         assert len(reporters) == 2
         assert NcclTestPerformanceReportGenerationStrategy in reporters
         assert NcclTestPredictionReportGenerationStrategy in reporters
+
+
+class TestNsysMerging:
+    def test_nsys_partial_override_preserves_base_config(
+        self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
+    ):
+        test_scenario_parser.test_mapping = {
+            "nccl": NCCLTestDefinition(
+                name="nccl",
+                description="desc",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                nsys=NsysConfiguration(
+                    enable=True,
+                    nsys_binary="/custom/nsys",
+                    output="/base/output",
+                    trace="cuda,nvtx",
+                    sample="cpu",
+                ),
+            )
+        }
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "nccl"
+
+              [Tests.nsys]
+              output = "/scenario/output"
+            """
+            )
+        )
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+
+        assert tdef.nsys is not None
+        assert tdef.nsys.output == "/scenario/output"
+        assert tdef.nsys.nsys_binary == "/custom/nsys"
+        assert tdef.nsys.trace == "cuda,nvtx"
+        assert tdef.nsys.sample == "cpu"
+        assert tdef.nsys.enable is True
+
+    def test_nsys_multiple_fields_override(self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem):
+        test_scenario_parser.test_mapping = {
+            "nccl": NCCLTestDefinition(
+                name="nccl",
+                description="desc",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                nsys=NsysConfiguration(
+                    enable=True,
+                    nsys_binary="/base/nsys",
+                    output="/base/output",
+                    trace="cuda",
+                    force_overwrite=False,
+                ),
+            )
+        }
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "nccl"
+
+              [Tests.nsys]
+              output = "/new/output"
+              force_overwrite = true
+            """
+            )
+        )
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+
+        assert tdef.nsys is not None
+        assert tdef.nsys.output == "/new/output"
+        assert tdef.nsys.force_overwrite is True
+        assert tdef.nsys.nsys_binary == "/base/nsys"
+        assert tdef.nsys.trace == "cuda"
+        assert tdef.nsys.enable is True
+
+    def test_nsys_scenario_adds_to_base_without_nsys(
+        self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
+    ):
+        test_scenario_parser.test_mapping = {
+            "nccl": NCCLTestDefinition(
+                name="nccl",
+                description="desc",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                # No nsys in base config
+            )
+        }
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "nccl"
+
+              [Tests.nsys]
+              output = "/scenario/output"
+              trace = "cuda,nvtx"
+            """
+            )
+        )
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+
+        assert tdef.nsys is not None
+        assert tdef.nsys.output == "/scenario/output"
+        assert tdef.nsys.trace == "cuda,nvtx"
+        assert tdef.nsys.enable is True
+        assert tdef.nsys.nsys_binary == "nsys"
+
+    def test_nsys_disable_override(self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem):
+        test_scenario_parser.test_mapping = {
+            "nccl": NCCLTestDefinition(
+                name="nccl",
+                description="desc",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                nsys=NsysConfiguration(
+                    enable=True,
+                    output="/base/output",
+                ),
+            )
+        }
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "nccl"
+
+              [Tests.nsys]
+              enable = false
+            """
+            )
+        )
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+
+        assert tdef.nsys is not None
+        assert tdef.nsys.enable is False
+        assert tdef.nsys.output == "/base/output"
