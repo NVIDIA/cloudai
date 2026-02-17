@@ -117,7 +117,7 @@ def get_commit_years_for_file(path: Path) -> list[int]:
     )
     if status.stdout.strip():
         years = sorted(set(years) | {CURRENT_YEAR})
-    
+
     return years
 
 
