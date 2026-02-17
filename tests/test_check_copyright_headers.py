@@ -106,15 +106,6 @@ def get_commit_years_for_file(path: Path) -> list[int]:
     if res.returncode != 0 and res.returncode != 128:  # 128 = no commits match
         raise RuntimeError(f"git log failed for {path_str}: {res.stderr}")
 
-    if not res.stdout.strip():
-        res = subprocess.run(
-            ["git", "log", "--format=%ad", "--date=format:%Y", "--", path_str],
-            capture_output=True,
-            text=True,
-        )
-        if res.returncode != 0 and res.returncode != 128:  # 128 = no commits match
-            raise RuntimeError(f"git log failed for {path_str}: {res.stderr}")
-
     lines = [s.strip() for s in res.stdout.splitlines() if s.strip()]
     years = sorted(set(int(y) for y in lines)) if lines else [CURRENT_YEAR]
 
@@ -126,6 +117,7 @@ def get_commit_years_for_file(path: Path) -> list[int]:
     )
     if status.stdout.strip():
         years = sorted(set(years) | {CURRENT_YEAR})
+    
     return years
 
 
