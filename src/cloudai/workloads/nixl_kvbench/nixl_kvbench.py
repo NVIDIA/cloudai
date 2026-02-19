@@ -36,10 +36,8 @@ class NIXLKVBenchCmdArgs(NIXLBaseCmdArgs):
     backend: str | list[str] | None = None
 
 
-class NIXLKVBenchTestDefinition(NIXLBaseTestDefinition):
+class NIXLKVBenchTestDefinition(NIXLBaseTestDefinition[NIXLKVBenchCmdArgs]):
     """Test definition for NIXL KVBench."""
-
-    cmd_args: NIXLKVBenchCmdArgs  # type: ignore[override]
 
     @property
     def cmd_args_dict(self) -> dict[str, str | list[str]]:

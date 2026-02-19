@@ -16,8 +16,6 @@
 
 from typing import cast
 
-from cloudai.core import TestRun
-from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.common.nixl import NIXLCmdGenBase
 
 from .nixl_bench import NIXLBenchTestDefinition

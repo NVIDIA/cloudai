@@ -88,10 +88,8 @@ class NixlPerftestCmdArgs(NIXLBaseCmdArgs):
         return self
 
 
-class NixlPerftestTestDefinition(NIXLBaseTestDefinition):
+class NixlPerftestTestDefinition(NIXLBaseTestDefinition[NixlPerftestCmdArgs]):
     """TestDefinition for NixlPerftest."""
-
-    cmd_args: NixlPerftestCmdArgs  # type: ignore[override]
 
     def constraint_check(self, tr: TestRun) -> bool:
         decode_tp = int(tr.test.cmd_args.decode_tp)

@@ -27,10 +27,8 @@ class NIXLBenchCmdArgs(NIXLBaseCmdArgs):
     etcd_endpoints: str = "http://$NIXL_ETCD_ENDPOINTS"
 
 
-class NIXLBenchTestDefinition(NIXLBaseTestDefinition):
+class NIXLBenchTestDefinition(NIXLBaseTestDefinition[NIXLBenchCmdArgs]):
     """Test definition for a NIXL Bench test."""
-
-    cmd_args: NIXLBenchCmdArgs  # type: ignore[override]
 
     @property
     def cmd_args_dict(self) -> dict[str, str | list[str]]:

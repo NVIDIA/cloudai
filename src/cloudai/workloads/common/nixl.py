@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 from functools import cache
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Generic, TypeVar, cast
 
 from cloudai.core import DockerImage, Installable, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
@@ -39,10 +39,13 @@ class NIXLBaseCmdArgs(CmdArgs):
     etcd_image_url: str | None = None
 
 
-class NIXLBaseTestDefinition(TestDefinition):
+NIXLCmdArgsT = TypeVar("NIXLCmdArgsT", bound=NIXLBaseCmdArgs)
+
+
+class NIXLBaseTestDefinition(TestDefinition, Generic[NIXLCmdArgsT]):
     """Test definition for a NIXL workloads."""
 
-    cmd_args: NIXLBaseCmdArgs
+    cmd_args: NIXLCmdArgsT
     _nixl_image: DockerImage | None = None
     _etcd_image: DockerImage | None = None
 
@@ -100,7 +103,7 @@ class NIXLCmdGenBase(SlurmCommandGenStrategy):
             '--initial-cluster="default=http://$SLURM_JOB_MASTER_NODE:2380"',
             "--initial-cluster-state=new",
         ]
-        tdef = cast(NIXLBaseTestDefinition, self.test_run.test)
+        tdef = cast(NIXLBaseTestDefinition[NIXLBaseCmdArgs], self.test_run.test)
         curr_image = self._current_image_url
         if tdef.etcd_image:
             self._current_image_url = str(tdef.etcd_image.installed_path)
