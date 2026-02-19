@@ -136,7 +136,7 @@ class AIDynamoArgs(BaseModel):
 
     model: str = "Qwen/Qwen3-0.6B"
     backend: str = "vllm"
-    connector: Optional[str] = None  # none, lmcache, kvbm
+    connector: Optional[str | list[str]] = None
     workspace_path: str = Field(
         default="/workspace",
         serialization_alias="workspace-path",
@@ -394,7 +394,7 @@ class AIDynamoCmdArgs(CmdArgs):
 
     docker_image_url: str
     hf_home_path: Optional[str] = Field(default=None, serialization_alias="hf_home_path")
-    storage_cache_dir: Optional[str] = Field(default=None, serialization_alias="storage_cache_dir")
+    storage_cache_dir: Optional[str | list[str]] = Field(default=None, serialization_alias="storage_cache_dir")
     num_nodes: int = 1
     gpus_per_node: int = 8
     dynamo: AIDynamoArgs

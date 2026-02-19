@@ -950,11 +950,10 @@ function setup_cufile()
                             "per_buffer_cache_size_kb": 16384,
                             // limit on maximum device memory size (parameter should be 4K aligned) that can be pinned for a given process
                             "max_device_pinned_mem_size_kb" : 33554432,
-
                             // posix bounce buffer pool size allocations
-                            "posix_pool_slab_size_kb" : [16384],
+                            "posix_pool_slab_size_kb" : [ 4, 1024, 16384],
                             // posix bounce buffer pool max counts
-                            "posix_pool_slab_count": [1024]
+                            "posix_pool_slab_count": [512, 512, 512]
             },
   "logging": {
     "dir": "$RESULTS_DIR",

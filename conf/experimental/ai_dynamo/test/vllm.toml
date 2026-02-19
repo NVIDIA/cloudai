@@ -41,7 +41,7 @@ workloads = "genai_perf.sh,lmbench.sh,kvstorage.sh"
     [cmd_args.dynamo.prefill_worker]
     num-nodes = 1
     #node-list = ""
-    cmd = 'python3 -m dynamo.vllm --is-prefill-worker --enforce-eager'
+    cmd = 'python3 -m dynamo.vllm --is-prefill-worker' # --enforce-eager'
     worker-initialized-regex = 'VllmWorker.*has.been.initialized'
     multiple-workers-per-node = "false"
     extra-args = "--no-enable-expert-parallel"
@@ -56,7 +56,7 @@ workloads = "genai_perf.sh,lmbench.sh,kvstorage.sh"
     [cmd_args.dynamo.decode_worker]
     num-nodes = 1
     #node-list = ""
-    cmd = 'python3 -m dynamo.vllm --enforce-eager'
+    cmd = 'python3 -m dynamo.vllm' # --enforce-eager'
     worker-initialized-regex = 'VllmWorker.*has.been.initialized'
     multiple-workers-per-node = "false"
     extra-args = "--no-enable-expert-parallel"
