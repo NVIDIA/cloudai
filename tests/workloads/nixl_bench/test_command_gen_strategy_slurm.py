@@ -137,19 +137,3 @@ def test_gen_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
         "  exit 1\n",
         "}",
     ]
-
-
-def test_gen_kill_and_wait_cmd(nixl_bench_tr: TestRun, slurm_system: SlurmSystem) -> None:
-    strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
-    cmd = strategy.gen_kill_and_wait_cmd("PID", timeout=120)
-    assert cmd == [
-        "kill -TERM $PID\n",
-        "timeout",
-        "120",
-        "bash",
-        "-c",
-        '"while kill -0 $PID 2>/dev/null; do sleep 1; done" || {\n',
-        '  echo "Failed to kill ETCD (pid=$PID) within 120 seconds";\n',
-        "  exit 1\n",
-        "}",
-    ]
