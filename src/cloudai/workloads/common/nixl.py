@@ -80,7 +80,7 @@ class NIXLCmdGenBase(SlurmCommandGenStrategy):
 
     def gen_kill_and_wait_cmd(self, pid_var: str, timeout: int = 60) -> list[str]:
         cmd = [
-            f"kill -9 ${pid_var}\n",
+            f"kill -TERM ${pid_var}\n",
             "timeout",
             str(timeout),
             "bash",
