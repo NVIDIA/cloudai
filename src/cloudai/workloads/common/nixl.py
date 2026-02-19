@@ -20,7 +20,8 @@ from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from cloudai.models.workload import CmdArgs
+from cloudai.core import DockerImage, Installable
+from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 from cloudai.util.lazy_imports import lazy
 
@@ -34,6 +35,23 @@ class NIXLBaseCmdArgs(CmdArgs):
     docker_image_url: str
     etcd_path: str = "etcd"
     wait_etcd_for: int = 60
+
+
+class NIXLBaseTestDefinition(TestDefinition):
+    """Test definition for a NIXL workloads."""
+
+    cmd_args: NIXLBaseCmdArgs
+    _nixl_image: DockerImage | None = None
+
+    @property
+    def docker_image(self) -> DockerImage:
+        if not self._nixl_image:
+            self._nixl_image = DockerImage(url=self.cmd_args.docker_image_url)
+        return self._nixl_image
+
+    @property
+    def installables(self) -> list[Installable]:
+        return [self.docker_image, *self.git_repos]
 
 
 class NIXLCmdGenBase(SlurmCommandGenStrategy):

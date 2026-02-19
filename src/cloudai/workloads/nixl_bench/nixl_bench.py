@@ -16,9 +16,8 @@
 
 from __future__ import annotations
 
-from cloudai.core import DockerImage, Installable, JobStatusResult, TestRun
-from cloudai.models.workload import TestDefinition
-from cloudai.workloads.common.nixl import NIXLBaseCmdArgs, extract_nixlbench_data
+from cloudai.core import JobStatusResult, TestRun
+from cloudai.workloads.common.nixl import NIXLBaseCmdArgs, NIXLBaseTestDefinition, extract_nixlbench_data
 
 
 class NIXLBenchCmdArgs(NIXLBaseCmdArgs):
@@ -28,21 +27,10 @@ class NIXLBenchCmdArgs(NIXLBaseCmdArgs):
     etcd_endpoints: str = "http://$NIXL_ETCD_ENDPOINTS"
 
 
-class NIXLBenchTestDefinition(TestDefinition):
+class NIXLBenchTestDefinition(NIXLBaseTestDefinition):
     """Test definition for a NIXL Bench test."""
 
-    cmd_args: NIXLBenchCmdArgs
-    _nixl_image: DockerImage | None = None
-
-    @property
-    def docker_image(self) -> DockerImage:
-        if not self._nixl_image:
-            self._nixl_image = DockerImage(url=self.cmd_args.docker_image_url)
-        return self._nixl_image
-
-    @property
-    def installables(self) -> list[Installable]:
-        return [self.docker_image, *self.git_repos]
+    cmd_args: NIXLBenchCmdArgs  # type: ignore[override]
 
     @property
     def cmd_args_dict(self) -> dict[str, str | list[str]]:

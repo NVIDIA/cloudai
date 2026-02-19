@@ -18,8 +18,8 @@ from __future__ import annotations
 
 from typing import Literal
 
-from cloudai.core import DockerImage, Installable, JobStatusResult, TestDefinition, TestRun
-from cloudai.workloads.common.nixl import NIXLBaseCmdArgs, extract_nixlbench_data
+from cloudai.core import JobStatusResult, TestRun
+from cloudai.workloads.common.nixl import NIXLBaseCmdArgs, NIXLBaseTestDefinition, extract_nixlbench_data
 
 
 class NIXLKVBenchCmdArgs(NIXLBaseCmdArgs):
@@ -36,21 +36,10 @@ class NIXLKVBenchCmdArgs(NIXLBaseCmdArgs):
     backend: str | list[str] | None = None
 
 
-class NIXLKVBenchTestDefinition(TestDefinition):
+class NIXLKVBenchTestDefinition(NIXLBaseTestDefinition):
     """Test definition for NIXL KVBench."""
 
-    _docker_image: DockerImage | None = None
-    cmd_args: NIXLKVBenchCmdArgs
-
-    @property
-    def docker_image(self) -> DockerImage:
-        if not self._docker_image:
-            self._docker_image = DockerImage(url=self.cmd_args.docker_image_url)
-        return self._docker_image
-
-    @property
-    def installables(self) -> list[Installable]:
-        return [*self.git_repos, self.docker_image]
+    cmd_args: NIXLKVBenchCmdArgs  # type: ignore[override]
 
     @property
     def cmd_args_dict(self) -> dict[str, str | list[str]]:
