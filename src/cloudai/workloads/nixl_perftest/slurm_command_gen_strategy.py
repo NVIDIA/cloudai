@@ -39,6 +39,8 @@ class NixlPerftestSlurmCommandGenStrategy(NIXLCmdGenBase):
         return cast(NixlPerftestTestDefinition, self.test_run.test)
 
     def image_path(self) -> str | None:
+        if self._current_image_url is not None:
+            return self._current_image_url
         return str(self.tdef.docker_image.installed_path)
 
     def _container_mounts(self) -> list[str]:

@@ -99,3 +99,13 @@ def test_gen_kvbench_omits_none_values(kvbench_tr: TestRun, slurm_system: SlurmS
     # Ensure None-valued args are omitted entirely
     assert not any(arg.startswith("--op_type ") for arg in cmd)
     assert not any(arg.startswith("--source ") for arg in cmd)
+
+
+def test_get_etcd_srun_command_with_etcd_image(kvbench_tr: TestRun, slurm_system: SlurmSystem):
+    strategy = NIXLKVBenchSlurmCommandGenStrategy(slurm_system, kvbench_tr)
+    tdef: NIXLKVBenchTestDefinition = cast(NIXLKVBenchTestDefinition, kvbench_tr.test)
+    tdef.cmd_args.etcd_image_url = "docker.io/library/etcd:latest"
+
+    cmd = " ".join(strategy.gen_etcd_srun_command(tdef.cmd_args.etcd_path))
+    assert tdef.etcd_image is not None
+    assert f"--container-image={tdef.etcd_image.installed_path}" in cmd
