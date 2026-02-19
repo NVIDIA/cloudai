@@ -18,18 +18,15 @@ from __future__ import annotations
 
 from typing import Literal
 
-from cloudai.core import CmdArgs, DockerImage, Installable, JobStatusResult, TestDefinition, TestRun
-from cloudai.workloads.common.nixl import extract_nixlbench_data
+from cloudai.core import DockerImage, Installable, JobStatusResult, TestDefinition, TestRun
+from cloudai.workloads.common.nixl import NIXLBaseCmdArgs, extract_nixlbench_data
 
 
-class NIXLKVBenchCmdArgs(CmdArgs):
-    """Command line arguments for NIXLKVBench."""
+class NIXLKVBenchCmdArgs(NIXLBaseCmdArgs):
+    """Command line arguments for NIXL KVBench."""
 
     command: Literal["profile"] = "profile"
-    etcd_path: str = "etcd"
-    wait_etcd_for: int = 60
 
-    docker_image_url: str
     kvbench_script: str = "/workspace/nixl/benchmark/kvbench/main.py"
     python_executable: str = "python"
 
@@ -40,7 +37,7 @@ class NIXLKVBenchCmdArgs(CmdArgs):
 
 
 class NIXLKVBenchTestDefinition(TestDefinition):
-    """Test definition for NIXLKVBench."""
+    """Test definition for NIXL KVBench."""
 
     _docker_image: DockerImage | None = None
     cmd_args: NIXLKVBenchCmdArgs

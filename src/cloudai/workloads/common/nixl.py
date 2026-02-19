@@ -20,11 +20,20 @@ from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from cloudai.models.workload import CmdArgs
 from cloudai.systems.slurm import SlurmCommandGenStrategy
 from cloudai.util.lazy_imports import lazy
 
 if TYPE_CHECKING:
     import pandas as pd
+
+
+class NIXLBaseCmdArgs(CmdArgs):
+    """Command line arguments for a NIXL workloads."""
+
+    docker_image_url: str
+    etcd_path: str = "etcd"
+    wait_etcd_for: int = 60
 
 
 class NIXLCmdGenBase(SlurmCommandGenStrategy):

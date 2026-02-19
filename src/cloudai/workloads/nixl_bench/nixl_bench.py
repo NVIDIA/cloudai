@@ -17,16 +17,14 @@
 from __future__ import annotations
 
 from cloudai.core import DockerImage, Installable, JobStatusResult, TestRun
-from cloudai.models.workload import CmdArgs, TestDefinition
-from cloudai.workloads.common.nixl import extract_nixlbench_data
+from cloudai.models.workload import TestDefinition
+from cloudai.workloads.common.nixl import NIXLBaseCmdArgs, extract_nixlbench_data
 
 
-class NIXLBenchCmdArgs(CmdArgs):
+class NIXLBenchCmdArgs(NIXLBaseCmdArgs):
     """Command line arguments for a NIXL Bench test."""
 
-    docker_image_url: str
     path_to_benchmark: str
-    etcd_path: str = "etcd"
     etcd_endpoints: str = "http://$NIXL_ETCD_ENDPOINTS"
 
 
@@ -48,7 +46,9 @@ class NIXLBenchTestDefinition(TestDefinition):
 
     @property
     def cmd_args_dict(self) -> dict[str, str | list[str]]:
-        return self.cmd_args.model_dump(exclude={"docker_image_url", "path_to_benchmark", "cmd_args", "etcd_path"})
+        return self.cmd_args.model_dump(
+            exclude={"docker_image_url", "path_to_benchmark", "cmd_args", "etcd_path", "wait_etcd_for"}
+        )
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
         df = extract_nixlbench_data(tr.output_path / "stdout.txt")

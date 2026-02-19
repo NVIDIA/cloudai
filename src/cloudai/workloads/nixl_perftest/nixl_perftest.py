@@ -19,6 +19,7 @@ from typing import Literal, Optional
 from pydantic import Field, model_validator
 
 from cloudai.core import CmdArgs, DockerImage, Installable, TestDefinition, TestRun
+from cloudai.workloads.common.nixl import NIXLBaseCmdArgs
 
 
 class MatgenCmdArgs(CmdArgs):
@@ -27,17 +28,13 @@ class MatgenCmdArgs(CmdArgs):
     ppn: int | None = None
 
 
-class NixlPerftestCmdArgs(CmdArgs):
-    """CmdArgs for NixlPerftestTestDefinition."""
-
-    docker_image_url: str
+class NixlPerftestCmdArgs(NIXLBaseCmdArgs):
+    """CmdArgs for NIXL Perftest."""
 
     subtest: Literal["sequential-ct-perftest"]
     perftest_script: str = "/workspace/nixl/benchmark/kvbench/main.py"
     matgen_script: str = "/workspace/nixl/benchmark/kvbench/test/inference_workload_matgen.py"
     python_executable: str = "python"
-    etcd_path: str = "etcd"
-    wait_etcd_for: int = 60
 
     num_user_requests: int | list[int]
     batch_size: int | list[int]
