@@ -18,11 +18,12 @@ from __future__ import annotations
 import logging
 from functools import cache
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
-from cloudai.core import DockerImage, Installable
+from cloudai.core import DockerImage, Installable, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.slurm import SlurmCommandGenStrategy
+from cloudai.systems.slurm.slurm_system import SlurmSystem
 from cloudai.util.lazy_imports import lazy
 
 if TYPE_CHECKING:
@@ -35,6 +36,7 @@ class NIXLBaseCmdArgs(CmdArgs):
     docker_image_url: str
     etcd_path: str = "etcd"
     wait_etcd_for: int = 60
+    etcd_image_url: str | None = None
 
 
 class NIXLBaseTestDefinition(TestDefinition):
@@ -42,6 +44,7 @@ class NIXLBaseTestDefinition(TestDefinition):
 
     cmd_args: NIXLBaseCmdArgs
     _nixl_image: DockerImage | None = None
+    _etcd_image: DockerImage | None = None
 
     @property
     def docker_image(self) -> DockerImage:
@@ -50,12 +53,30 @@ class NIXLBaseTestDefinition(TestDefinition):
         return self._nixl_image
 
     @property
+    def etcd_image(self) -> DockerImage | None:
+        if not self.cmd_args.etcd_image_url:
+            return None
+        if not self._etcd_image:
+            self._etcd_image = DockerImage(url=self.cmd_args.etcd_image_url)
+        return self._etcd_image
+
+    @property
     def installables(self) -> list[Installable]:
-        return [self.docker_image, *self.git_repos]
+        installables = [self.docker_image, *self.git_repos]
+        if self.etcd_image:
+            installables.append(self.etcd_image)
+        return installables
 
 
 class NIXLCmdGenBase(SlurmCommandGenStrategy):
     """Base command generation strategy for NIXL-based workloads."""
+
+    def __init__(self, system: SlurmSystem, test_run: TestRun) -> None:
+        super().__init__(system, test_run)
+        self._current_image_url: str | None = None
+
+    def image_path(self) -> str | None:
+        return self._current_image_url
 
     @property
     def final_env_vars(self) -> dict[str, str | list[str]]:
@@ -79,6 +100,10 @@ class NIXLCmdGenBase(SlurmCommandGenStrategy):
             '--initial-cluster="default=http://$SLURM_JOB_MASTER_NODE:2380"',
             "--initial-cluster-state=new",
         ]
+        tdef = cast(NIXLBaseTestDefinition, self.test_run.test)
+        curr_image = self._current_image_url
+        if tdef.etcd_image:
+            self._current_image_url = str(tdef.etcd_image.installed_path)
         cmd = [
             *self.gen_srun_prefix(with_num_nodes=False),
             f"--output={self.test_run.output_path.absolute() / 'etcd.log'}",
@@ -90,6 +115,7 @@ class NIXLCmdGenBase(SlurmCommandGenStrategy):
             *etcd_cmd,
             " &",
         ]
+        self._current_image_url = curr_image
         return cmd
 
     def gen_wait_for_etcd_command(self, timeout: int = 60) -> list[str]:

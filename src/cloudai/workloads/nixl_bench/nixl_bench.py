@@ -35,7 +35,14 @@ class NIXLBenchTestDefinition(NIXLBaseTestDefinition):
     @property
     def cmd_args_dict(self) -> dict[str, str | list[str]]:
         return self.cmd_args.model_dump(
-            exclude={"docker_image_url", "path_to_benchmark", "cmd_args", "etcd_path", "wait_etcd_for"}
+            exclude={
+                "docker_image_url",
+                "path_to_benchmark",
+                "cmd_args",
+                "etcd_path",
+                "wait_etcd_for",
+                "etcd_image_url",
+            }
         )
 
     def was_run_successful(self, tr: TestRun) -> JobStatusResult:
