@@ -65,9 +65,8 @@ API Documentation
 Command Arguments
 ~~~~~~~~~~~~~~~~~
 
-.. autoclass:: cloudai.workloads.nixl_kvbench.nixl_kvbench.NIXLKVBenchCmdArgs
+.. autopydantic_model:: cloudai.workloads.nixl_kvbench.nixl_kvbench.NIXLKVBenchCmdArgs
    :members:
-   :show-inheritance:
 
 Test Definition
 ~~~~~~~~~~~~~~~

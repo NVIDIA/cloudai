@@ -20,6 +20,8 @@ from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Generic, TypeVar, cast
 
+from pydantic import Field
+
 from cloudai.core import DockerImage, Installable, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 from cloudai.systems.slurm import SlurmCommandGenStrategy
@@ -33,10 +35,16 @@ if TYPE_CHECKING:
 class NIXLBaseCmdArgs(CmdArgs):
     """Command line arguments for a NIXL workloads."""
 
-    docker_image_url: str
-    etcd_path: str = "etcd"
-    wait_etcd_for: int = 60
-    etcd_image_url: str | None = None
+    docker_image_url: str = Field(description="URL of the Docker image to use for the benchmark.")
+    etcd_path: str = Field(default="etcd", description="Path to the etcd executable.")
+    wait_etcd_for: int = Field(default=60, description="Number of seconds to wait for etcd to become healthy.")
+    etcd_image_url: str | None = Field(
+        default=None,
+        description=(
+            "Optional URL of the Docker image to use for etcd, by default etcd will be run from the same image "
+            "as the benchmark."
+        ),
+    )
 
 
 NIXLCmdArgsT = TypeVar("NIXLCmdArgsT", bound=NIXLBaseCmdArgs)

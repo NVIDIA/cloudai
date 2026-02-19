@@ -75,9 +75,8 @@ API Documentation
 Command Arguments
 ~~~~~~~~~~~~~~~~~
 
-.. autoclass:: cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs
+.. autopydantic_model:: cloudai.workloads.nixl_perftest.nixl_perftest.NixlPerftestCmdArgs
    :members:
-   :show-inheritance:
 
 Test Definition
 ~~~~~~~~~~~~~~~
