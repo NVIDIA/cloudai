@@ -143,7 +143,7 @@ def test_gen_kill_and_wait_cmd(nixl_bench_tr: TestRun, slurm_system: SlurmSystem
     strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
     cmd = strategy.gen_kill_and_wait_cmd("PID", timeout=120)
     assert cmd == [
-        "kill -9 $PID\n",
+        "kill -TERM $PID\n",
         "timeout",
         "120",
         "bash",
