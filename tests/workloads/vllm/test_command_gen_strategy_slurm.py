@@ -60,6 +60,18 @@ def vllm_disagg_tr(vllm: VllmTestDefinition, tmp_path: Path) -> TestRun:
     return TestRun(test=vllm, num_nodes=1, nodes=[], output_path=tmp_path, name="vllm-disagg-job")
 
 
+def test_container_mounts(vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
+    assert vllm_cmd_gen_strategy._container_mounts() == [
+        f"{vllm_cmd_gen_strategy.system.hf_home_path.absolute()}:/root/.cache/huggingface"
+    ]
+
+
+def test_sweep_detection(vllm: VllmTestDefinition) -> None:
+    assert vllm.is_dse_job is False
+    vllm.cmd_args.decode.gpu_ids = ["1"]
+    assert vllm.is_dse_job is True
+
+
 class TestGpuDetection:
     """Tests for GPU detection logic."""
 
@@ -110,8 +122,9 @@ class TestGpuDetection:
 class TestServeExtraArgs:
     """Tests for serve_args property."""
 
-    def test_serve_args_empty_by_default(self) -> None:
+    def test_serve_args_empty(self) -> None:
         assert VllmArgs().serve_args == []
+        assert VllmArgs(gpu_ids="0", nixl_threads=1).serve_args == []
 
     def test_empty_string_value_means_flag(self) -> None:
         assert VllmArgs.model_validate(
@@ -168,10 +181,83 @@ class TestServeExtraArgs:
         ]
 
 
-def test_container_mounts(vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
-    assert vllm_cmd_gen_strategy._container_mounts() == [
-        f"{vllm_cmd_gen_strategy.system.hf_home_path.absolute()}:/root/.cache/huggingface"
-    ]
+class TestVllmServeCommand:
+    @pytest.mark.parametrize(
+        "decode_nthreads,prefill_nthreads",
+        [
+            (None, None),
+            (4, 2),
+            (None, 2),
+            (4, None),
+        ],
+    )
+    def test_nixl_threads(
+        self,
+        decode_nthreads: int | None,
+        prefill_nthreads: int | None,
+        vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy,
+    ) -> None:
+        tdef = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
+        tdef.cmd_args.prefill = VllmArgs(nixl_threads=prefill_nthreads)
+        tdef.cmd_args.decode.nixl_threads = decode_nthreads
+
+        commands = vllm_cmd_gen_strategy.get_vllm_serve_commands()
+
+        assert len(commands) == 2
+
+        prefill_cmd = " ".join(commands[0])
+        assert "--nixl-threads" not in prefill_cmd
+        if prefill_nthreads is not None:
+            assert "kv_connector_extra_config" in prefill_cmd
+            assert f'"num_threads":{prefill_nthreads}' in prefill_cmd
+        else:
+            assert all(arg not in prefill_cmd for arg in ["num_threads", "kv_connector_extra_config"])
+
+        decode_cmd = " ".join(commands[1])
+        assert "--nixl-threads" not in decode_cmd
+        if decode_nthreads is not None:
+            assert "kv_connector_extra_config" in decode_cmd
+            assert f'"num_threads":{decode_nthreads}' in decode_cmd
+        else:
+            assert all(arg not in decode_cmd for arg in ["num_threads", "kv_connector_extra_config"])
+
+
+class TestVllmBenchCommand:
+    def test_get_vllm_bench_command(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
+        tdef = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
+        cmd_args = tdef.cmd_args
+        bench_args = tdef.bench_cmd_args
+
+        command = vllm_cmd_gen_strategy.get_vllm_bench_command()
+
+        expected = [
+            "vllm",
+            "bench",
+            "serve",
+            f"--model {cmd_args.model}",
+            f"--base-url http://0.0.0.0:{cmd_args.port}",
+            f"--random-input-len {bench_args.random_input_len}",
+            f"--random-output-len {bench_args.random_output_len}",
+            f"--max-concurrency {bench_args.max_concurrency}",
+            f"--num-prompts {bench_args.num_prompts}",
+            f"--result-dir {vllm_cmd_gen_strategy.test_run.output_path.absolute()}",
+            f"--result-filename {VLLM_BENCH_JSON_FILE}",
+            "--save-result",
+        ]
+        assert command == expected
+
+    def test_get_vllm_bench_command_with_extra_args(
+        self, vllm: VllmTestDefinition, vllm_tr: TestRun, slurm_system: SlurmSystem
+    ) -> None:
+        vllm.bench_cmd_args = VllmBenchCmdArgs.model_validate({"extra1": 1, "extra-2": 2, "extra_3": 3})
+        vllm_tr.test = vllm
+        vllm_cmd_gen_strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
+
+        cmd = vllm_cmd_gen_strategy.get_vllm_bench_command()
+
+        assert "--extra1 1" in cmd
+        assert "--extra-2 2" in cmd
+        assert "--extra-3 3" in cmd
 
 
 class TestVllmAggregatedMode:
@@ -210,42 +296,6 @@ wait_for_health() {{
 }}"""
 
         assert func == expected
-
-    def test_get_vllm_bench_command(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
-        tdef = cast(VllmTestDefinition, vllm_cmd_gen_strategy.test_run.test)
-        cmd_args = tdef.cmd_args
-        bench_args = tdef.bench_cmd_args
-
-        command = vllm_cmd_gen_strategy.get_vllm_bench_command()
-
-        expected = [
-            "vllm",
-            "bench",
-            "serve",
-            f"--model {cmd_args.model}",
-            f"--base-url http://0.0.0.0:{cmd_args.port}",
-            f"--random-input-len {bench_args.random_input_len}",
-            f"--random-output-len {bench_args.random_output_len}",
-            f"--max-concurrency {bench_args.max_concurrency}",
-            f"--num-prompts {bench_args.num_prompts}",
-            f"--result-dir {vllm_cmd_gen_strategy.test_run.output_path.absolute()}",
-            f"--result-filename {VLLM_BENCH_JSON_FILE}",
-            "--save-result",
-        ]
-        assert command == expected
-
-    def test_get_vllm_bench_command_with_extra_args(
-        self, vllm: VllmTestDefinition, vllm_tr: TestRun, slurm_system: SlurmSystem
-    ) -> None:
-        vllm.bench_cmd_args = VllmBenchCmdArgs.model_validate({"extra1": 1, "extra-2": 2, "extra_3": 3})
-        vllm_tr.test = vllm
-        vllm_cmd_gen_strategy = VllmSlurmCommandGenStrategy(slurm_system, vllm_tr)
-
-        cmd = vllm_cmd_gen_strategy.get_vllm_bench_command()
-
-        assert "--extra1 1" in cmd
-        assert "--extra-2 2" in cmd
-        assert "--extra-3 3" in cmd
 
     def test_gen_srun_command_full_flow(self, vllm_cmd_gen_strategy: VllmSlurmCommandGenStrategy) -> None:
         tdef = vllm_cmd_gen_strategy.test_run.test
@@ -411,9 +461,3 @@ echo "Running benchmark..."
     {bench_cmd}"""
 
         assert srun_command == expected
-
-
-def test_sweep_detection(vllm: VllmTestDefinition) -> None:
-    assert vllm.is_dse_job is False
-    vllm.cmd_args.decode.gpu_ids = ["1"]
-    assert vllm.is_dse_job is True

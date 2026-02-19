@@ -32,15 +32,19 @@ class VllmArgs(CmdArgs):
     """Base command arguments for vLLM instances."""
 
     gpu_ids: str | list[str] | None = Field(
+        default=None, description="Comma-separated GPU IDs. If not set, will use all available GPUs."
+    )
+
+    nixl_threads: int | list[int] | None = Field(
         default=None,
-        description="Comma-separated GPU IDs. If not set, will use all available GPUs.",
+        description="Set ``kv_connector_extra_config.num_threads`` for ``--kv-transfer-config`` CLI argument.",
     )
 
     @property
     def serve_args(self) -> list[str]:
         """Convert cmd_args_dict to command-line arguments list for vllm serve."""
         args = []
-        for k, v in self.model_dump(exclude={"gpu_ids"}, exclude_none=True).items():
+        for k, v in self.model_dump(exclude={"gpu_ids", "nixl_threads"}, exclude_none=True).items():
             opt = f"--{k.replace('_', '-')}"
             if v == "":
                 args.append(opt)

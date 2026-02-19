@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,10 +15,14 @@
 # limitations under the License.
 
 from .osu_bench import OSUBenchCmdArgs, OSUBenchTestDefinition
+from .osu_comparison_report import OSUBenchComparisonReport
+from .report_generation_strategy import OSUBenchReportGenerationStrategy
 from .slurm_command_gen_strategy import OSUBenchSlurmCommandGenStrategy
 
 __all__ = [
     "OSUBenchCmdArgs",
+    "OSUBenchComparisonReport",
+    "OSUBenchReportGenerationStrategy",
     "OSUBenchSlurmCommandGenStrategy",
     "OSUBenchTestDefinition",
 ]
