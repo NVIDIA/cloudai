@@ -49,6 +49,7 @@ class NIXLKVBenchTestDefinition(NIXLBaseTestDefinition[NIXLKVBenchCmdArgs]):
                 "wait_etcd_for",
                 "docker_image_url",
                 "command",
+                "etcd_image_url",
             },
         )
 

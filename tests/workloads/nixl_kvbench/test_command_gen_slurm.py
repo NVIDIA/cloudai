@@ -101,6 +101,21 @@ def test_gen_kvbench_omits_none_values(kvbench_tr: TestRun, slurm_system: SlurmS
     assert not any(arg.startswith("--source ") for arg in cmd)
 
 
+def test_gen_kvbench_command_includes_etcd_endpoints(kvbench_tr: TestRun, slurm_system: SlurmSystem):
+    kvbench_tr.test.cmd_args = NIXLKVBenchCmdArgs.model_validate(
+        {
+            "docker_image_url": "docker://image/url",
+            "etcd_image_url": "docker://etcd/url",
+            "model": "./model.yaml",
+        }
+    )
+    cmd_gen = NIXLKVBenchSlurmCommandGenStrategy(slurm_system, kvbench_tr)
+    cmd = cmd_gen.gen_kvbench_command()
+
+    assert "etcd_image_url" not in " ".join(cmd)
+    assert "docker://etcd/url" not in " ".join(cmd)
+
+
 def test_get_etcd_srun_command_with_etcd_image(kvbench_tr: TestRun, slurm_system: SlurmSystem):
     strategy = NIXLKVBenchSlurmCommandGenStrategy(slurm_system, kvbench_tr)
     tdef: NIXLKVBenchTestDefinition = cast(NIXLKVBenchTestDefinition, kvbench_tr.test)
