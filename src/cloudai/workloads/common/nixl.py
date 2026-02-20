@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -80,7 +80,7 @@ class NIXLCmdGenBase(SlurmCommandGenStrategy):
 
     def gen_kill_and_wait_cmd(self, pid_var: str, timeout: int = 60) -> list[str]:
         cmd = [
-            f"kill -9 ${pid_var}\n",
+            f"kill -TERM ${pid_var}\n",
             "timeout",
             str(timeout),
             "bash",
