@@ -95,7 +95,7 @@ def test_empty_format_years_to_ranges():
 
 def run_git(cmd: list[str]) -> str:
     res = subprocess.run(["git", *cmd], capture_output=True, text=True)
-    if res.returncode != 0 and res.returncode != 128:  # 128 = no commits match
+    if res.returncode != 0:
         raise RuntimeError(f"git command {cmd[0]} failed")
     return res.stdout
 
