@@ -170,11 +170,6 @@ def _assert_copyright_in_file(file: Path):
     expected_years = collect_years_same_file(file)
     expected_years_line = prepare_copyright_with_year(expected_years)
 
-    if actual_copyright_lines[1] != expected_years_line:
-        data = file.read_text()
-        data = data.replace(actual_copyright_lines[1], expected_years_line)
-        file.write_text(data)
-
     assert actual_copyright_lines[0] == HEADER_LINES[0], "SPDX-FileCopyrightText is not valid"
     assert actual_copyright_lines[1] == expected_years_line, "Copyright year is not valid"
     assert "\n".join(actual_copyright_lines[2:]) == HEADER_TAIL, f"Header mismatch in {file}"
