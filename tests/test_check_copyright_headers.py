@@ -46,6 +46,8 @@ TOML_FILES = [*list(Path().glob("conf/**/*.toml")), Path("pyproject.toml"), Path
 
 CURRENT_YEAR = datetime.now().year
 
+_REC_SEP = "\x1e"
+
 
 def _format_years_to_ranges(years: list[int]) -> str:
     """Turn sorted unique years into a string with ranges for consecutive years.
@@ -91,49 +93,61 @@ def test_empty_format_years_to_ranges():
         _format_years_to_ranges([])
 
 
-def get_commit_years_from_git(path: Path) -> list[int]:
-    """
-    Return sorted list of years when the file was changed: from git log --follow
-    (so renames/moves are included), plus current year if the file is new or has
-    uncommitted changes (staged or unstaged).
-    """
-    path_str = path.as_posix()
-    res = subprocess.run(
-        ["git", "log", "--format=%ad", "--date=format:%Y", "--follow", "--", path_str],
-        capture_output=True,
-        text=True,
-    )
+def run_git(cmd: list[str]) -> str:
+    res = subprocess.run(["git", *cmd], capture_output=True, text=True)
     if res.returncode != 0 and res.returncode != 128:  # 128 = no commits match
-        raise RuntimeError(f"git log failed for {path_str}: {res.stderr}")
+        raise RuntimeError(f"git command {cmd[0]} failed")
+    return res.stdout
 
-    lines = [s.strip() for s in res.stdout.splitlines() if s.strip()]
-    years = sorted(set(int(y) for y in lines)) if lines else [CURRENT_YEAR]
 
-    # Include current year if file is new, modified (unstaged), or staged
-    status = subprocess.run(
-        ["git", "status", "--porcelain", "--", path_str],
-        capture_output=True,
-        text=True,
+def collect_years_same_file(path: Path) -> list[int]:
+    # Exact-content rename only, no copy detection.
+    git_output = run_git(
+        [
+            "log",
+            "--follow",
+            "--name-status",
+            "--find-renames=92%",
+            "--format=%x1e%ad",
+            "--date=format:%Y",
+            "--",
+            str(path),
+        ],
     )
-    if status.stdout.strip() and years and years[-1] < CURRENT_YEAR:
-        years.append(CURRENT_YEAR)
 
-    return years
+    years: set[int] = set()
+    current_path = str(path)
 
+    for rec in git_output.split(_REC_SEP):
+        rec = rec.strip()
+        if not rec:
+            continue
 
-def get_commit_years_from_file(line: str) -> list[int]:
-    line = line.strip()
-    line = line.replace("# Copyright (c) ", "")
-    line = line.replace(" NVIDIA CORPORATION & AFFILIATES. All rights reserved.", "")
+        lines = [ln.strip() for ln in rec.splitlines() if ln.strip()]
 
-    parts = line.split(", ")
-    years = []
-    for part in parts:
-        if "-" in part:
-            start_year, end_year = map(int, part.split("-"))
-            years.extend(list(range(start_year, end_year + 1)))
-        else:
-            years.append(int(part))
+        year = int(lines[0])
+        parts = lines[1].split("\t")
+        commit_status = parts[0]
+
+        # Follow only exact rename hops for the currently tracked path.
+        if len(commit_status) == 4 and commit_status[0] == "R" and len(parts) == 3:
+            percentage = int(commit_status[1:])
+            old_path, new_path = parts[1], parts[2]
+            if percentage >= 92 and new_path == current_path:
+                current_path = old_path
+                years.add(year)
+                continue
+
+        # Normal touch of current path.
+        elif len(parts) >= 2 and parts[1] == current_path:
+            years.add(year)
+            continue
+
+        break
+
+    git_status = run_git(["status", "--porcelain", "--", str(path)])
+    if git_status.strip():
+        years.add(CURRENT_YEAR)
 
     return sorted(years)
 
@@ -153,15 +167,13 @@ def _assert_copyright_in_file(file: Path):
 
     assert len(actual_copyright_lines) >= len(HEADER_LINES), "Copyright is missing or incomplete"
 
-    actual_years = get_commit_years_from_file(actual_copyright_lines[1])
-    min_actual_year = actual_years[0]
-    expected_years = get_commit_years_from_git(file)
-
-    # we can't always rely on git's --follow, even with M<percent>% feature
-    # thus we trust the file min year to be the real first year of file appearance
-    expected_years = [year for year in expected_years if year >= min_actual_year]
-
+    expected_years = collect_years_same_file(file)
     expected_years_line = prepare_copyright_with_year(expected_years)
+
+    if actual_copyright_lines[1] != expected_years_line:
+        data = file.read_text()
+        data = data.replace(actual_copyright_lines[1], expected_years_line)
+        file.write_text(data)
 
     assert actual_copyright_lines[0] == HEADER_LINES[0], "SPDX-FileCopyrightText is not valid"
     assert actual_copyright_lines[1] == expected_years_line, "Copyright year is not valid"
