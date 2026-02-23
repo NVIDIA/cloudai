@@ -115,12 +115,12 @@ def collect_years_same_file(path: Path) -> list[int]:
             "--format=%x1e%ad",
             "--date=format:%Y",
             "--",
-            str(path),
+            path.as_posix(),
         ],
     )
 
     years: set[int] = set()
-    current_path = str(path)
+    current_path = path.as_posix()
 
     for rec in git_output.split(_REC_SEP):
         rec = rec.strip()
@@ -149,7 +149,7 @@ def collect_years_same_file(path: Path) -> list[int]:
 
         break
 
-    git_status = run_git(["status", "--porcelain", "--", str(path)])
+    git_status = run_git(["status", "--porcelain", "--", path.as_posix()])
     if git_status.strip():
         years.add(CURRENT_YEAR)
 
