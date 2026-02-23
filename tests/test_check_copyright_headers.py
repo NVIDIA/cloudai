@@ -101,7 +101,11 @@ def run_git(cmd: list[str]) -> str:
 
 
 def collect_years_same_file(path: Path) -> list[int]:
-    # Exact-content rename only, no copy detection.
+    """
+    Using --follow but only following file movements (not copying) with more than 92% similarity.
+
+    92% appears when one moves an empty __init__.py to another folder and updates years in the license header.
+    """
     git_output = run_git(
         [
             "log",
