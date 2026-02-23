@@ -75,11 +75,15 @@ autodoc_default_options = {
     "members": True,
     "member-order": "bysource",
     "special-members": "__init__",
+    "inherited-members": "BaseModel",
 }
 
 autodoc_pydantic_model_show_json = False
 autodoc_pydantic_model_show_field_summary = False
 autodoc_pydantic_model_show_config_summary = False
+autodoc_pydantic_field_list_validators = False
+autodoc_pydantic_model_show_validator_summary = False
+autodoc_pydantic_model_show_validator_members = False
 
 # Generate autosummary even if no references
 autosummary_generate = True

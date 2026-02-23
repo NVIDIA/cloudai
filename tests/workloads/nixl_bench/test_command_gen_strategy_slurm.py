@@ -91,6 +91,16 @@ def test_gen_etcd_srun_command(nixl_bench_tr: TestRun, slurm_system: SlurmSystem
     assert "--container-mounts" in cmd
 
 
+def test_get_etcd_srun_command_with_etcd_image(nixl_bench_tr: TestRun, slurm_system: SlurmSystem):
+    strategy = NIXLBenchSlurmCommandGenStrategy(slurm_system, nixl_bench_tr)
+    tdef: NIXLBenchTestDefinition = cast(NIXLBenchTestDefinition, nixl_bench_tr.test)
+    tdef.cmd_args.etcd_image_url = "docker.io/library/etcd:latest"
+
+    cmd = " ".join(strategy.gen_etcd_srun_command(tdef.cmd_args.etcd_path))
+    assert tdef.etcd_image is not None
+    assert f"--container-image={tdef.etcd_image.installed_path}" in cmd
+
+
 @pytest.mark.parametrize(
     "backend,nnodes,exp_ntasks",
     [

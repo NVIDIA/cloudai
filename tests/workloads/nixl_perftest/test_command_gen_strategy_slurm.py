@@ -198,3 +198,13 @@ def test_constraint_check(
     nixl_perftest.cmd_args.prefill_tp = prefill_tp
     nixl_perftest.cmd_args.num_prefill_nodes = prefill_nodes
     assert nixl_perftest.constraint_check(test_run) is res
+
+
+def test_get_etcd_srun_command_with_etcd_image(test_run: TestRun, slurm_system: SlurmSystem):
+    strategy = NixlPerftestSlurmCommandGenStrategy(slurm_system, test_run)
+    tdef: NixlPerftestTestDefinition = cast(NixlPerftestTestDefinition, test_run.test)
+    tdef.cmd_args.etcd_image_url = "docker.io/library/etcd:latest"
+
+    cmd = " ".join(strategy.gen_etcd_srun_command(tdef.cmd_args.etcd_path))
+    assert tdef.etcd_image is not None
+    assert f"--container-image={tdef.etcd_image.installed_path}" in cmd

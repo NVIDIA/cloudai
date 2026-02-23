@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,11 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import Field, model_validator
 
-from cloudai.core import CmdArgs, DockerImage, Installable, TestDefinition, TestRun
+from cloudai.core import CmdArgs, TestRun
+from cloudai.workloads.common.nixl import NIXLBaseCmdArgs, NIXLBaseTestDefinition
 
 
 class MatgenCmdArgs(CmdArgs):
@@ -27,17 +28,13 @@ class MatgenCmdArgs(CmdArgs):
     ppn: int | None = None
 
 
-class NixlPerftestCmdArgs(CmdArgs):
-    """CmdArgs for NixlPerftestTestDefinition."""
-
-    docker_image_url: str
+class NixlPerftestCmdArgs(NIXLBaseCmdArgs):
+    """CmdArgs for NIXL Perftest."""
 
     subtest: Literal["sequential-ct-perftest"]
     perftest_script: str = "/workspace/nixl/benchmark/kvbench/main.py"
     matgen_script: str = "/workspace/nixl/benchmark/kvbench/test/inference_workload_matgen.py"
     python_executable: str = "python"
-    etcd_path: str = "etcd"
-    wait_etcd_for: int = 60
 
     num_user_requests: int | list[int]
     batch_size: int | list[int]
@@ -91,21 +88,8 @@ class NixlPerftestCmdArgs(CmdArgs):
         return self
 
 
-class NixlPerftestTestDefinition(TestDefinition):
+class NixlPerftestTestDefinition(NIXLBaseTestDefinition[NixlPerftestCmdArgs]):
     """TestDefinition for NixlPerftest."""
-
-    _docker_image: Optional[DockerImage] = None
-    cmd_args: NixlPerftestCmdArgs
-
-    @property
-    def docker_image(self) -> DockerImage:
-        if not self._docker_image:
-            self._docker_image = DockerImage(url=self.cmd_args.docker_image_url)
-        return self._docker_image
-
-    @property
-    def installables(self) -> list[Installable]:
-        return [*self.git_repos, self.docker_image]
 
     def constraint_check(self, tr: TestRun) -> bool:
         decode_tp = int(tr.test.cmd_args.decode_tp)
