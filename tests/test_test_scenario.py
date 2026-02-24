@@ -518,6 +518,122 @@ class TestInScenario:
         tdef = test_scenario_parser._prepare_tdef(model.tests[0])
         assert tdef.agent_metrics == ["iteration-time"]
 
+    def test_agent_config_is_none_when_not_defined(
+        self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
+    ):
+        test_scenario_parser.test_mapping = {
+            "nccl": NCCLTestDefinition(
+                name="nccl",
+                description="desc",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                agent="grid_search",
+            )
+        }
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "nccl"
+            """
+            )
+        )
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        assert tdef.agent_config is None
+
+    def test_agent_config_preserved_from_test_definition(
+        self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
+    ):
+        test_scenario_parser.test_mapping = {
+            "nccl": NCCLTestDefinition(
+                name="nccl",
+                description="desc",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                agent="grid_search",
+                agent_config={
+                    "random_seed": 101,
+                    "seed_parameters": {
+                        "from_test": "test-value",
+                        "nested": {"keep": "base", "override_me": "base"},
+                    },
+                },
+            )
+        }
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "nccl"
+            """
+            )
+        )
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        assert tdef.agent_config == {
+            "random_seed": 101,
+            "seed_parameters": {
+                "from_test": "test-value",
+                "nested": {"keep": "base", "override_me": "base"},
+            },
+        }
+
+    def test_agent_config_is_deep_merged_with_scenario_override(
+        self, test_scenario_parser: TestScenarioParser, slurm_system: SlurmSystem
+    ):
+        test_scenario_parser.test_mapping = {
+            "nccl": NCCLTestDefinition(
+                name="nccl",
+                description="desc",
+                test_template_name="NcclTest",
+                cmd_args=NCCLCmdArgs(docker_image_url="fake://url/nccl"),
+                agent="grid_search",
+                agent_config={
+                    "random_seed": 101,
+                    "seed_parameters": {
+                        "from_test": "test-value",
+                        "nested": {"keep": "base", "override_me": "base"},
+                    },
+                },
+            )
+        }
+        model = TestScenarioModel.model_validate(
+            toml.loads(
+                """
+            name = "test"
+
+            [[Tests]]
+            id = "1"
+            test_name = "nccl"
+            agent = "grid_search"
+
+              [Tests.agent_config]
+              random_seed = 202
+
+                [Tests.agent_config.seed_parameters]
+                from_scenario = "scenario-value"
+
+                  [Tests.agent_config.seed_parameters.nested]
+                  override_me = "scenario"
+                  new_key = "scenario"
+            """
+            )
+        )
+        tdef = test_scenario_parser._prepare_tdef(model.tests[0])
+        assert tdef.agent_config == {
+            "random_seed": 202,
+            "seed_parameters": {
+                "from_test": "test-value",
+                "from_scenario": "scenario-value",
+                "nested": {"keep": "base", "override_me": "scenario", "new_key": "scenario"},
+            },
+        }
+
 
 class TestReporters:
     def test_default(self):
