@@ -22,6 +22,15 @@ from cloudai.systems.slurm import SlurmCommandGenStrategy
 from .vllm import VLLM_BENCH_JSON_FILE, VLLM_BENCH_LOG_FILE, VLLM_SERVE_LOG_FILE, VllmCmdArgs, VllmTestDefinition
 
 
+def vllm_all_gpu_ids(tdef: VllmTestDefinition, system_gpus_per_node: int | None) -> list[int]:
+    cuda_devices = str(tdef.extra_env_vars.get("CUDA_VISIBLE_DEVICES", ""))
+    if (tdef.cmd_args.prefill and tdef.cmd_args.prefill.gpu_ids) and tdef.cmd_args.decode.gpu_ids:
+        cuda_devices = f"{tdef.cmd_args.prefill.gpu_ids},{tdef.cmd_args.decode.gpu_ids}"
+    if cuda_devices:
+        return [int(gpu_id) for gpu_id in cuda_devices.split(",")]
+    return list(range(system_gpus_per_node or 1))
+
+
 class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
     """Command generation strategy for vLLM on Slurm systems."""
 
@@ -37,12 +46,7 @@ class VllmSlurmCommandGenStrategy(SlurmCommandGenStrategy):
 
     @property
     def gpu_ids(self) -> list[int]:
-        cuda_devices = str(self.test_run.test.extra_env_vars.get("CUDA_VISIBLE_DEVICES", ""))
-        if (self.tdef.cmd_args.prefill and self.tdef.cmd_args.prefill.gpu_ids) and self.tdef.cmd_args.decode.gpu_ids:
-            cuda_devices = f"{self.tdef.cmd_args.prefill.gpu_ids},{self.tdef.cmd_args.decode.gpu_ids}"
-        if cuda_devices:
-            return [int(gpu_id) for gpu_id in cuda_devices.split(",")]
-        return list(range(self.system.gpus_per_node or 1))
+        return vllm_all_gpu_ids(self.tdef, self.system.gpus_per_node)
 
     @property
     def prefill_gpu_ids(self) -> list[int]:
