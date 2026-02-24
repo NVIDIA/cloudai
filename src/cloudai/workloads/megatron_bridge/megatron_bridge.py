@@ -37,6 +37,10 @@ class MegatronBridgeCmdArgs(CmdArgs):
         default=None,
         description="Comma-separated or list of host_path:container_path mounts; merged with test-level extra_container_mounts for -cm.",
     )
+    custom_env_vars: Optional[dict[str, Union[str, List[str]]]] = Field(
+        default=None,
+        description="Optional env vars for the launcher; merged with test-level extra_env_vars (extra_env_vars first, then custom_env_vars).",
+    )
     enable_vboost: Optional[bool] = Field(default=False)
     dryrun: Optional[bool] = Field(default=False)
     enable_nsys: Optional[bool] = Field(default=False)

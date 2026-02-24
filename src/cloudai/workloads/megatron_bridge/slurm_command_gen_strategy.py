@@ -82,6 +82,17 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         with log_file.open("w") as f:
             f.write(f"{command}\n")
 
+    def _get_merged_env_vars(self, args: MegatronBridgeCmdArgs) -> dict[str, str]:
+        """Merge system.global_env_vars + test.extra_env_vars + cmd_args.custom_env_vars."""
+        merged: dict[str, str] = {k: str(v) for k, v in self.final_env_vars.items()}
+        if args.custom_env_vars:
+            merged.update({k: str(v) for k, v in args.custom_env_vars.items()})
+        return merged
+
+    def _format_custom_env_vars_comma_sep(self, env: dict[str, str]) -> str:
+        """Format env dict as KEY1=val1,KEY2=val2 for the --custom_env_vars launcher flag."""
+        return ",".join(f"{k}={v}" for k, v in sorted(env.items()))
+
     def _normalize_recompute_modules(self, val: Any) -> str:
         if isinstance(val, list):
             items = [str(x).strip().strip("\"'") for x in val if str(x).strip()]
@@ -270,6 +281,11 @@ class MegatronBridgeSlurmCommandGenStrategy(SlurmCommandGenStrategy):
         add_field("gpus_per_node", "-gn", args.gpus_per_node)
         if mounts:
             add("-cm", ",".join(mounts))
+
+        # custom_env_vars: merge extra_env_vars + global_env_vars + cmd_args.custom_env_vars; M-Bridge adds these to the generated sbatch
+        merged_env = self._get_merged_env_vars(args)
+        if merged_env:
+            parts.extend(["--custom_env_vars", self._format_custom_env_vars_comma_sep(merged_env)])
 
         # Model flags (Megatron-Bridge main-branch API)
         add_field("domain", "--domain", args.domain)
