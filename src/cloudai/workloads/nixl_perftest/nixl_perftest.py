@@ -14,11 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import Field, model_validator
 
-from cloudai.core import CmdArgs, TestRun
+from cloudai.core import CmdArgs, System, TestRun
 from cloudai.workloads.common.nixl import NIXLBaseCmdArgs, NIXLBaseTestDefinition
 
 
@@ -91,7 +91,7 @@ class NixlPerftestCmdArgs(NIXLBaseCmdArgs):
 class NixlPerftestTestDefinition(NIXLBaseTestDefinition[NixlPerftestCmdArgs]):
     """TestDefinition for NixlPerftest."""
 
-    def constraint_check(self, tr: TestRun) -> bool:
+    def constraint_check(self, tr: TestRun, system: Optional[System]) -> bool:
         decode_tp = int(tr.test.cmd_args.decode_tp)
         decode_nodes = int(tr.test.cmd_args.num_decode_nodes)
         prefill_tp = int(tr.test.cmd_args.prefill_tp)

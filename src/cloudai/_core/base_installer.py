@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -142,8 +142,11 @@ class BaseInstaller(ABC):
         """
         if not prepare_output_dir(self.system.install_path):
             return InstallStatusResult(False, f"Error preparing install dir '{self.system.install_path.absolute()}'")
-        elif not prepare_output_dir(self.system.hf_home_path):
-            return InstallStatusResult(False, f"Error preparing hf home dir '{self.system.hf_home_path.absolute()}'")
+        if not prepare_output_dir(self.system.hf_home_path):
+            logging.warning(
+                f"HF home path '{self.system.hf_home_path.absolute()}' is not accessible locally. "
+                "This is expected if the path only exists on compute nodes."
+            )
 
         install_results: dict[Installable, InstallStatusResult] = {}
         for item in self.all_items(items):
@@ -182,8 +185,11 @@ class BaseInstaller(ABC):
 
         if not prepare_output_dir(self.system.install_path):
             return InstallStatusResult(False, f"Error preparing install dir '{self.system.install_path.absolute()}'")
-        elif not prepare_output_dir(self.system.hf_home_path):
-            return InstallStatusResult(False, f"Error preparing hf home dir '{self.system.hf_home_path.absolute()}'")
+        if not prepare_output_dir(self.system.hf_home_path):
+            logging.warning(
+                f"HF home path '{self.system.hf_home_path.absolute()}' is not accessible locally. "
+                "This is expected if the path only exists on compute nodes."
+            )
 
         logging.debug(f"Going to install {len(set(items))} uniq item(s) (total is {len(list(items))})")
 

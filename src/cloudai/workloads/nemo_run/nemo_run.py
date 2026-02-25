@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +20,7 @@ from typing import List, Optional, Union, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cloudai.core import DockerImage, File, Installable, JobStatusResult, TestRun
+from cloudai.core import DockerImage, File, Installable, JobStatusResult, System, TestRun
 from cloudai.models.workload import CmdArgs, TestDefinition
 
 
@@ -144,7 +144,7 @@ class NeMoRunTestDefinition(TestDefinition):
         """Get list of installable objects."""
         return [self.docker_image, self.script]
 
-    def constraint_check(self, tr: TestRun) -> bool:
+    def constraint_check(self, tr: TestRun, system: Optional[System]) -> bool:
         """Check constraints for NeMoRun."""
         tp = cast(int, self.cmd_args.trainer.strategy.tensor_model_parallel_size)
         pp = cast(int, self.cmd_args.trainer.strategy.pipeline_model_parallel_size)

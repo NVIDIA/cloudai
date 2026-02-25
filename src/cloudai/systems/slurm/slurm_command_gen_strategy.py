@@ -38,6 +38,10 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             properties and methods.
     """
 
+    CONTAINER_MOUNT_INSTALL = "/cloudai_install"
+    CONTAINER_MOUNT_OUTPUT = "/cloudai_run_results"
+    CONTAINER_MOUNT_HF_HOME = "/cloudai_install/huggingface"
+
     def __init__(self, system: System, test_run: TestRun) -> None:
         """
         Initialize a new SlurmCommandGenStrategy instance.
@@ -79,8 +83,8 @@ class SlurmCommandGenStrategy(CommandGenStrategy):
             repo_mounts.append(f"{path}:{repo.container_mount}")
 
         mounts = [
-            f"{self.test_run.output_path.absolute()}:/cloudai_run_results",
-            f"{self.system.install_path.absolute()}:/cloudai_install",
+            f"{self.test_run.output_path.absolute()}:{self.CONTAINER_MOUNT_OUTPUT}",
+            f"{self.system.install_path.absolute()}:{self.CONTAINER_MOUNT_INSTALL}",
             f"{self.test_run.output_path.absolute()}",
             *tdef.extra_container_mounts,
             *repo_mounts,

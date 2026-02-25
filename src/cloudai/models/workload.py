@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cloudai.core import GitRepo, Installable, JobStatusResult, PythonExecutable, TestRun
+from cloudai.core import GitRepo, Installable, JobStatusResult, PythonExecutable, System, TestRun
 
 
 class CmdArgs(BaseModel):
@@ -123,7 +123,7 @@ class TestDefinition(BaseModel, ABC):
     def installables(self) -> list[Installable]:
         return [*self.git_repos]
 
-    def constraint_check(self, tr: TestRun) -> bool:
+    def constraint_check(self, tr: TestRun, system: Optional[System]) -> bool:
         return True
 
     @property

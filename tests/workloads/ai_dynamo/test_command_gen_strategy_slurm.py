@@ -15,20 +15,22 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import cast
 
 import pytest
 
 from cloudai._core.test_scenario import TestRun
+from cloudai.core import GitRepo
 from cloudai.systems.slurm import SlurmSystem
 from cloudai.workloads.ai_dynamo import (
     AIDynamoArgs,
     AIDynamoCmdArgs,
     AIDynamoSlurmCommandGenStrategy,
     AIDynamoTestDefinition,
-    DecodeWorkerArgs,
-    GenAIPerfArgs,
-    PrefillWorkerArgs,
+    GenAIPerf,
+    LMCache,
+    LMCacheArgs,
+    WorkerBaseArgs,
+    WorkerConfig,
 )
 
 
@@ -36,28 +38,37 @@ from cloudai.workloads.ai_dynamo import (
 def cmd_args() -> AIDynamoCmdArgs:
     return AIDynamoCmdArgs(
         docker_image_url="url",
-        huggingface_home_container_path=Path("/root/.cache/huggingface"),
         dynamo=AIDynamoArgs(
             model="model",
             workspace_path="/workspace",
-            prefill_worker=PrefillWorkerArgs(
+            prefill_worker=WorkerConfig(
+                cmd="python3 -m dynamo.vllm --is-prefill-worker",
+                worker_initialized_regex="VllmWorker.*has.been.initialized",
                 **{
                     "num-nodes": 1,
-                    "gpu-memory-utilization": 0.95,
-                    "tensor-parallel-size": 8,
-                    "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
-                }
+                    "args": WorkerBaseArgs(
+                        **{
+                            "gpu-memory-utilization": 0.95,
+                            "tensor-parallel-size": 8,
+                        }
+                    ),
+                },
             ),
-            decode_worker=DecodeWorkerArgs(
+            decode_worker=WorkerConfig(
+                cmd="python3 -m dynamo.vllm",
+                worker_initialized_regex="VllmWorker.*has.been.initialized",
                 **{
                     "num-nodes": 1,
-                    "gpu-memory-utilization": 0.95,
-                    "tensor-parallel-size": 8,
-                    "ServiceArgs": {"workers": 1, "resources": {"gpu": "8"}},
-                }
+                    "args": WorkerBaseArgs(
+                        **{
+                            "gpu-memory-utilization": 0.95,
+                            "tensor-parallel-size": 8,
+                        }
+                    ),
+                },
             ),
         ),
-        genai_perf=GenAIPerfArgs(
+        genai_perf=GenAIPerf(
             **{
                 "endpoint-type": "chat",
                 "streaming": True,
@@ -72,6 +83,7 @@ def cmd_args() -> AIDynamoCmdArgs:
                 "request-count": 10,
             }
         ),
+        lmcache=LMCache(args=LMCacheArgs()),
     )
 
 
@@ -85,8 +97,12 @@ def test_run(tmp_path: Path, cmd_args: AIDynamoCmdArgs) -> TestRun:
         description="desc",
         test_template_name="template",
         cmd_args=cmd_args,
+        repo=GitRepo(
+            url="https://github.com/ai-dynamo/dynamo.git",
+            commit="f7e468c7e8ff0d1426db987564e60572167e8464",
+            installed_path=dynamo_repo_path,
+        ),
     )
-    tdef.dynamo_repo.installed_path = dynamo_repo_path
 
     return TestRun(name="run", test=tdef, nodes=["n0", "n1"], num_nodes=2, output_path=tmp_path)
 
@@ -98,15 +114,14 @@ def strategy(slurm_system: SlurmSystem, test_run: TestRun) -> AIDynamoSlurmComma
 
 def test_container_mounts(strategy: AIDynamoSlurmCommandGenStrategy, test_run: TestRun) -> None:
     mounts = strategy._container_mounts()
-    td = cast(AIDynamoTestDefinition, test_run.test)
-    dynamo_repo_path = td.dynamo_repo.installed_path
-    assert dynamo_repo_path is not None, "dynamo_repo_path should be set in the test fixture"
 
-    assert mounts == [
-        f"{dynamo_repo_path!s}:{dynamo_repo_path!s}",
-        f"{strategy.system.hf_home_path.absolute()!s}:{td.cmd_args.huggingface_home_container_path!s}",
-        f"{td.script.installed_path.absolute()!s}:{td.script.installed_path.absolute()!s}",
+    td = test_run.test
+    expected = [
+        f"{strategy.system.hf_home_path.absolute()}:{strategy.CONTAINER_MOUNT_HF_HOME}",
     ]
+    if td.cmd_args.storage_cache_dir:
+        expected.append(f"{td.cmd_args.storage_cache_dir}:{td.cmd_args.storage_cache_dir}")
+    assert mounts == expected
 
 
 @pytest.mark.parametrize(

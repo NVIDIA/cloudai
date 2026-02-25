@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,20 +14,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name = "vllm_k8s"
+name = "dynamo_sglang"
 
 [[Tests]]
-id = "dynamo.vllm"
-test_name = "vLLM"
+id = "sglang-Qwen3-0.6B"
+test_name = "sglang-Qwen3-0.6B"
+time_limit = "00:20:00"
 
   [Tests.cmd_args]
     [Tests.cmd_args.dynamo]
+    model = "Qwen/Qwen3-0.6B"
+    node-setup-cmd = "hostname"
+
       [Tests.cmd_args.dynamo.prefill_worker]
       num-nodes = 1
+
         [Tests.cmd_args.dynamo.prefill_worker.args]
-        tensor-parallel-size = 8
+        tensor-parallel-size = 1
 
       [Tests.cmd_args.dynamo.decode_worker]
       num-nodes = 1
+
         [Tests.cmd_args.dynamo.decode_worker.args]
-        tensor-parallel-size = 8
+        tensor-parallel-size = 1

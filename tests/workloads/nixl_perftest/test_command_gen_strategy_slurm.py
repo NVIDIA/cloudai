@@ -197,7 +197,7 @@ def test_constraint_check(
     nixl_perftest.cmd_args.num_decode_nodes = dec_nodes
     nixl_perftest.cmd_args.prefill_tp = prefill_tp
     nixl_perftest.cmd_args.num_prefill_nodes = prefill_nodes
-    assert nixl_perftest.constraint_check(test_run) is res
+    assert nixl_perftest.constraint_check(test_run, None) is res
 
 
 def test_get_etcd_srun_command_with_etcd_image(test_run: TestRun, slurm_system: SlurmSystem):
