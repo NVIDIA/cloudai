@@ -18,14 +18,16 @@ import json
 import logging
 from functools import cache
 from pathlib import Path
+from typing import ClassVar, cast
 
 from pydantic import BaseModel, ConfigDict
 from rich.console import Console
 from rich.table import Table
 
-from cloudai.core import ReportGenerationStrategy
+from cloudai.core import METRIC_ERROR, ReportGenerationStrategy
+from cloudai.workloads.vllm.slurm_command_gen_strategy import vllm_all_gpu_ids
 
-from .vllm import VLLM_BENCH_JSON_FILE
+from .vllm import VLLM_BENCH_JSON_FILE, VllmTestDefinition
 
 
 class VLLMBenchReport(BaseModel):
@@ -41,6 +43,22 @@ class VLLMBenchReport(BaseModel):
     mean_tpot_ms: float
     median_tpot_ms: float
     p99_tpot_ms: float
+    output_throughput: float
+    max_concurrency: int
+
+    @property
+    def throughput(self) -> float:
+        return self.output_throughput
+
+    @property
+    def concurrency(self) -> int:
+        return self.max_concurrency
+
+    @property
+    def tps_per_user(self) -> float | None:
+        if self.concurrency <= 0:
+            return None
+        return self.throughput / self.concurrency
 
 
 @cache
@@ -60,8 +78,37 @@ def parse_vllm_bench_output(res_file: Path) -> VLLMBenchReport | None:
 class VLLMBenchReportGenerationStrategy(ReportGenerationStrategy):
     """Generate a report for vLLM benchmark results."""
 
+    metrics: ClassVar[list[str]] = [
+        "default",
+        "throughput",
+        "tps-per-user",
+        "tps-per-gpu",
+    ]
+
     def can_handle_directory(self) -> bool:
         return parse_vllm_bench_output(self.test_run.output_path / VLLM_BENCH_JSON_FILE) is not None
+
+    def used_gpus_count(self) -> int:
+        return len(
+            vllm_all_gpu_ids(cast(VllmTestDefinition, self.test_run.test), getattr(self.system, "gpus_per_node", None))
+        )
+
+    def get_metric(self, metric: str) -> float:
+        if metric not in self.metrics:
+            return METRIC_ERROR
+
+        results = parse_vllm_bench_output(self.test_run.output_path / VLLM_BENCH_JSON_FILE)
+        if results is None:
+            return METRIC_ERROR
+
+        if metric == "tps-per-user":
+            return results.tps_per_user if results.tps_per_user is not None else METRIC_ERROR
+        if metric == "tps-per-gpu":
+            used_gpus = self.used_gpus_count()
+            return results.throughput / used_gpus
+
+        # "default", "throughput"
+        return results.throughput
 
     def generate_report(self) -> None:
         results = parse_vllm_bench_output(self.test_run.output_path / VLLM_BENCH_JSON_FILE)
